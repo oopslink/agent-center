@@ -1,0 +1,126 @@
+# Roadmap
+
+记录"推迟做"的功能 —— 节奏决策（v1 不做，但早晚要做）。**明确不做（边界决策）**的去 [requirements/03-out-of-scope.md](requirements/03-out-of-scope.md)。
+
+规则：见 [conventions.md § 6](../rules/conventions.md#-6-范围决策两分出范围-vs-推迟) 与 [documentation.md § 4](../rules/documentation.md#4-范围决策的两种区分)。
+
+> 优先级和时间窗会随实际情况调整。本文档不构成承诺。
+
+---
+
+## v2（短期，紧接 v1 后）
+
+### 飞书 Slash 命令（高优）
+
+D2 路线 —— `/dispatch project=X agent=claude "..."` 这种结构化命令。
+- **v1 不做的原因**：D1（@bot 自由文本）+ D3（卡片）已覆盖 90% 体验，D2 是 power user / 脚本化场景的 UX 增强
+- **触发条件**：用户日常飞书内频繁需要批量 / 精确派单；自由文本歧义影响效率
+- **影响**：Feishu 集成模块加 slash parser；不动核心模型
+
+### Remote CLI
+
+允许从笔记本直接 `agent-center query --remote=vps`，免去 SSH。
+- **v1 不做的原因**：架构已经把 transport 抽象做好（CLI 自动按 env 选 unix sock / 远程 RPC），但 admin token 签发 + TCP + TLS 实现未做
+- **触发条件**：SSH-to-VPS 频次高到影响体验；远程脚本化操作需求
+- **影响**：加 admin token 子命令 + TLS 配置 + 远程 transport 启动开关
+
+### Token cost 折算成钱
+
+v1 已统计 token 数，v2 折算成 RMB / USD。
+- **v1 不做的原因**：折算需维护 model-specific 单价表（含 input / output / cache 折扣），烦琐但不复杂
+- **触发条件**：用户需要监控月度花销
+- **影响**：加 model 单价配置 + `stats` 命令显示 cost
+
+### Per-project 限定可用 agent CLI
+
+项目可声明 `allowed_agent_clis` 限制能跑的 CLI 列表。
+- **v1 不做的原因**：v1 任意 worker 上的任意 CLI 都可用；项目只声明 `default_agent_cli`
+- **触发条件**：项目级合规需求；偏好 CLI 不同
+- **影响**：Project schema 加 `allowed_agent_clis` 列表 + 派单时校验
+
+---
+
+### 多 vendor 接入（DingTalk / Web chat / Slack 等）
+
+[Bridge BC](architecture/01-bounded-contexts.md#bc8-bridge渠道桥接层) 架构上支持多 Bridge；v1 只实现 FeishuBridge。
+- **v1 不做的原因**：飞书 + Web Console 覆盖个人场景；额外 vendor 是体量 / 协作场景拓展
+- **触发条件**：用户开始通过非飞书入口（公司用 DingTalk / 团队接入 Web chat）
+- **影响**：每个 vendor 一个 `XxxBridge`，复用 Conversation / Message / Identity / IssueComment 抽象；ChannelBinding 表已就绪
+- **同一 Conversation 多 vendor 送达**（如紧急 InputRequest 同时飞书 + DingTalk）→ v3 视需求
+
+---
+
+## v3（中期）
+
+### Web 时间轴可视化（trace flamegraph）
+
+类似 Honeycomb / Jaeger / Chrome devtools 的横向时间轴 + flamegraph，专做 trace 可视化。
+- **v1 不做的原因**：F21 Web Console 的基础列表（事件顺序 + tool call 序列 + 时长）已经够看清概况
+- **触发条件**：任务复杂度涨高（嵌套 tool calls 几百条）；基础列表难以快速诊断
+- **影响**：新增 web console 子页面；可能直接接 Jaeger / OTel UI 而非自研
+
+### 任意 DAG 任务依赖
+
+任务之间任意 `depends_on` 关系、拓扑排序、自动调度、并行收敛节点。
+- **v1 不做的原因**：v1 仅做 Task + 子 Task 层级（F22），任意 DAG 是更复杂的依赖求解
+- **触发条件**：多步流水线高频出现，supervisor 用 working memory 兜不住
+- **影响**：Task 加 `depends_on` 字段 + 依赖求解器 + 状态联动 + UI 呈现
+
+---
+
+## v3+ / 低优先级
+
+### Supervisor 自动收敛 Issue
+
+低风险 / 高置信场景下 supervisor 自动 conclude Issue，不必每次推飞书等用户。
+- **v1 不做的原因**：v1 一律推飞书；机制（supervisor 决策接口）已留好
+- **触发条件**：用户对 supervisor 决策信任度建立；某类 Issue 反复采纳率 100%
+- **影响**：Supervisor 加 auto-promote policy 配置；Issue 决策路径加自动分支
+
+### Agent 主动加入 Issue 讨论
+
+直接让 worker agent 在 Issue thread 内发评论（不只是 supervisor 派研究子任务间接参与）。
+- **v1 不做的原因**：v1 只有 user + supervisor 两方讨论；agent 通过 `agent_finding` comment 间接参与已够
+- **触发条件**：明确场景需要 agent 直接表态
+- **影响**：Issue comment 权限模型扩展 + 频率限制 + 信任策略
+
+### 容器化 agent 执行
+
+每个 task 跑在隔离容器里（替代或叠加 worktree）。
+- **v1 不做的原因**：worktree 对单用户已足够；引入容器化加 docker daemon / 镜像维护 / mount / 凭据访问等复杂度
+- **触发条件**：跑不信任代码 / 需要资源限制 / 防 agent 误操作伤本机
+- **影响**：新增 `ContainerAdapter` 平替 `LocalAdapter`；镜像构建 / 版本管理
+
+### Prometheus / OTel / Grafana 接入
+
+把 events / metrics 导出到时序数据库 + 可视化。
+- **v1 不做的原因**：v1 观测主体是 trace + fleet view + inspect，不是 metrics
+- **触发条件**：任务量大到需要 P99 时长 / 失败率趋势 / worker 利用率看板
+- **影响**：加 `agent-center exporter --prometheus` 子命令；定义 metric schema
+
+### Per-project 自定义观测维度
+
+项目可声明额外的 trace 维度 / metric。
+- **v1 不做的原因**：v1 观测层统一且 opinionated（[conventions § 2](../rules/conventions.md#-2-可观测性优先)）
+- **触发条件**：多项目有共性的"额外维度"需求
+- **影响**：定义"扩展点规范"（custom event type / agent 可发的 metric event）让项目按规范对接，**不**让项目侵入 agent-center 观测层代码
+
+---
+
+## 长期愿景
+
+### 多用户 / SaaS
+
+支持多个用户共享 agent-center 实例 / SaaS 化运营。
+- **v1 不做的原因**：核心定位"个人工具"，多用户会重构权限模型 / 租户隔离 / 计费 / SLA
+- **触发条件**：极远 —— 当个人工具被验证、有规模化需求
+- **影响**：基本是重新做项目（认证、权限、隔离、计费、运维全套）
+
+---
+
+## 内容维护
+
+- 新增"推迟"项 → 直接编辑本文件，按版本分组追加
+- "推迟"升级为"v1 做"→ 从这里删除，加到 [01-functional.md](requirements/01-functional.md)
+- "推迟"降级为"出范围"→ 从这里删除，加到 [03-out-of-scope.md](requirements/03-out-of-scope.md)，记 ADR 说明
+- 完成的 → 从这里删除，更新需求 / 架构文档

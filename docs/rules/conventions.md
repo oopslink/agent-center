@@ -1,0 +1,224 @@
+# 项目规约 (Project Conventions)
+
+> **所有 agent-center 设计 / 开发 / 测试前必读。** 任何新功能 / 新决定都要按本文档列出的原则做自检。提交前过一遍 [§ 15 自检清单](#-15-新功能--新设计自检清单)。
+
+本文档列出**跨切原则**（cross-cutting principles）—— 不属于某个特定模块，但每个模块都必须遵守。模块特定的细节归 [docs/design/](../design/)。
+
+## § 1. 单一来源 / 无野任务
+
+**Center 是任务的唯一权威**。Task 只能由 supervisor 或用户创建。Worker / Agent **不允许造任务**，它们想要新工作必须开 [Issue](../design/architecture/03-issue-discussion.md) 走讨论。
+
+**自检：** 我引入的新动作 / 接口，会不会让某个 worker / agent 绕过中心创建任务？会的话，要么改为开 Issue，要么本设计有问题。
+
+## § 2. 可观测性优先 (Observability First)
+
+可观测性是一级需求。**任何新功能的设计阶段必须同时设计其可观测能力。** "先做功能、事后补观测"不被接受。
+
+**自检（设计阶段必答）：**
+
+| 问题 | 必须回答 |
+|---|---|
+| 这个功能产生哪些 **domain event**？字段是什么？ | 列清单 |
+| 这些事件如何落到 `events` 表？是否会重放？ | 说明 |
+| 是否引入新的 **trace 维度**（agent 视角 / supervisor 视角 / worker 视角）？ | 是 / 否 + 说明 |
+| `inspect` / `ps` / `stats` 三个查询接口是否要扩展？ | 是 / 否 + 列变更 |
+| 异常路径如何被发现？（fail 事件？timeout？外部告警？） | 说明 |
+| 用户从飞书侧能问到这个功能的状态吗？ | 是 / 否 |
+
+详情见 [架构层 / 可观测性](../design/architecture/05-observability.md)。
+
+### § 2.x 观测层是统一且 opinionated 的
+
+Agent-center 的观测层（`events` 表 / fleet view / `inspect` 命令格式 / domain event 类型）是**统一**的，不允许 per-project 自定义。
+
+- **项目特有的度量**应留在**项目自身**（项目仓库的 README / metric 文件 / 自有可观测工具链）
+- **Agent-center 提供规范 / 扩展点**（如标准 event 类型、agent 可发的 metric event），项目按规范对接
+- **不允许**为某个项目特殊需求侵入 agent-center 观测层代码
+
+这条原则确保 fleet view 跨项目可比，inspect / stats 命令保持统一接口。
+
+## § 3. AI Native
+
+工具暴露给 agent 走 **skill + CLI**，**不引入 MCP** —— 见 [ADR-0001](../design/decisions/0001-no-mcp.md)。
+
+新增 agent 可用能力的标准流程：
+
+1. 在对应 skill 文件（`supervisor.md` / `worker-agent.md`）里描述：何时该用、参数语义、返回格式
+2. 在 `agent-center` 二进制加 CLI 子命令
+3. CLI 检测运行上下文（server 同机 / worker 内 / 远程）自动选 transport
+
+**自检：** 新能力是否同时具备 skill 文档 + CLI 子命令？skill 是否清楚地讲明"agent 在什么场景应该调它"？
+
+## § 4. 零 LLM SDK 依赖
+
+**严禁 `import` 任何 LLM 厂商 SDK**（anthropic / openai / gemini 等）。LLM 能力一律通过 spawn agent CLI 实现 —— 见 [ADR-0002](../design/decisions/0002-no-llm-sdk-use-cli-agents.md)。
+
+**自检：** 代码改动是否引入了任何 LLM SDK 依赖？是的话立即改。
+
+## § 5. 文档先行 / 决策必有 ADR
+
+任何设计 / 决策 / 接口提议 **先到文档**，再讨论；不在聊天 / Issue / PR 描述里口头确认设计。
+
+架构 / 实现的"分叉路口"决定必须写 ADR。推翻先前决定 → 写新 ADR 并把旧 ADR 标 `Superseded by ADR-NNNN`，**不删旧 ADR**。
+
+具体流程见 [文档管理规则](documentation.md)。
+
+**自检：** 我做了哪些"多选一"决定？这些决定有 ADR 吗？
+
+## § 6. 范围决策两分（出范围 vs 推迟）
+
+**永远不在职责里** 的（边界决策）放 [`requirements/03-out-of-scope.md`](../design/requirements/03-out-of-scope.md)。
+**v1 不做但早晚要做** 的（节奏决策）放 [`roadmap.md`](../design/roadmap.md) 或对应 architecture 文档的"未来扩展"小节。
+
+混在一起是违反规约。详见 [文档管理规则 § 4](documentation.md#4-范围决策的两种区分)。
+
+**自检：** 我新增的"不做"条目，归属边界还是节奏？写对位置了吗？
+
+## § 7. 项目本地约定不进 agent-center
+
+项目自有的 `CLAUDE.md` / `AGENTS.md` / `README.md` 等约定文件**留在项目仓库**，由 agent CLI 在 worktree cwd 自然加载。agent-center **不复制、不缓存、不注入** —— 见 [ADR-0005](../design/decisions/0005-project-charter-stays-in-project-repo.md)。
+
+**自检：** 我引入的新功能是否在 agent-center 里维护了"项目级文档/规则"？如果是，是否能改为"读项目本地文件"或"通过 supervisor working memory 的 project scope"？
+
+## § 8. 大文件走 BlobStore
+
+DB **不存** markdown / 日志 / trace 这类大内容。统一通过 BlobStore 抽象，DB 只存**相对路径** —— 见 [ADR-0006](../design/decisions/0006-blob-store-for-large-content.md) 与 [implementation/01-blob-store.md](../design/implementation/01-blob-store.md)。
+
+**自检：** 我新增的字段，内容会超过 ~10KB 吗？会的话走 BlobStore。
+
+## § 9. 持久化层 dialect-agnostic
+
+不使用 SQLite-only 或 PG-only 的 SQL 特性。schema / 查询要跨 dialect 兼容（避开 SQLite 动态类型 / `WITHOUT ROWID`，避开 PG `JSONB` / `LATERAL` / 范围类型 / 触发器）。JSON 字段用 `TEXT` 存 JSON 字符串。
+
+**自检：** 我的 schema 改动在 SQLite 和 Postgres 上都能跑吗？
+
+### § 9.x DB schema 尽量减少 JOIN 操作
+
+简单的 list-of-id references → 用**主表上的 JSON 数组字段**（如 `issue.related_conversation_ids`）。
+
+复杂 N:N（含富元数据 / 频繁双向查询 / 关系本身有领域含义）→ 才用**独立实体子聚合**（不是纯 join 表）。
+
+避免：仅为关联两个实体而存在的"纯 join 表"（如 `issue_conversation_join (issue_id, conversation_id)` 无任何额外字段）。
+
+**自检：** 我新增的关联是不是只是 list-of-id？是的话用 JSON 字段；不是的话有没有真正的领域含义？
+
+## § 9.y 外部集成走 Bridge 模式，不在领域模块内调 vendor SDK
+
+领域模块（Issue / Conversation / Task / 等）是**系统内部模块**，**不直接调用** 飞书 / DingTalk / 任何 vendor 的 SDK 或 API。
+
+外部集成通过独立的 **Bridge 程序**实现：
+
+- **Outbound（系统 → vendor）**：Bridge 订阅领域事件 → 推到 vendor
+- **Inbound（vendor → 系统）**：Bridge 收 vendor 回调 → 写到领域模块的 API
+- 每个 vendor 一个 Bridge 实现（FeishuBridge / DingTalkBridge / ...）
+
+这样领域模块零 vendor 依赖，可独立测试、可独立运行（无 Bridge 时系统仍跑，只是没人能从 vendor 侧 IO）。
+
+**自检：** 我的领域模块代码里 import 了 vendor SDK 吗？把它移到 bridge 包里。
+
+## § 10. 单一二进制 / 多模式
+
+所有功能聚合到 `agent-center` 一个 binary，按子命令区分模式（`server` / `supervisor` / `worker` / 各 CLI 命令）。**不引入额外可执行文件**。
+
+**自检：** 我的功能是否需要新增一个独立 binary？能否改为新的子命令？
+
+## § 11. Issue / InputRequest / 状态事件 三者分清
+
+不同交互场景走不同渠道，不要混用：
+
+| 场景 | 渠道 |
+|---|---|
+| 议题、要讨论、可能后续产生多个 Task | **Issue**（非阻塞，多轮）|
+| 任务执行中卡住要拍板，等不动 | **InputRequest**（同步阻塞）|
+| Worker / Task 状态机推进、心跳、产物上报 | **Domain Event**（异步事件流）|
+
+**自检：** 我设计的新交互，走的是哪条渠道？为什么不是另两条？
+
+## § 12. 命名一致
+
+| 概念 | 用 | 不用 |
+|---|---|---|
+| 调度官 agent | **Supervisor** | ~~Brain~~（见 [ADR-0003](../design/decisions/0003-supervisor-not-brain.md)）|
+| 待讨论的事 | **Issue** | ~~Suggestion / Proposal~~（见 [ADR-0004](../design/decisions/0004-issue-not-suggestion.md)）|
+| 工作单元 | **Task** | ~~Job / Work~~ |
+| 用户开发机的守护进程 | **Worker daemon** | ~~Agent / Worker（指 host 本身）~~ |
+| Worker 上跑的 CLI agent 实例 | **Agent** 或 **Worker agent** | ~~Worker~~（避免歧义）|
+| 持久脑 | **(supervisor) memory** | ~~knowledge / brain~~ |
+| 任务隔离的目录 | **Worktree** | ~~workspace / sandbox~~ |
+| 大文件存储抽象 | **BlobStore** | ~~ObjectStore / FileStore~~ |
+| 飞书交互卡片 | **LarkCard**（代码 / CLI / 字段名）| ~~Card~~（裸 Card 在多上下文里有歧义） |
+
+代码、文档、CLI、表名、event_type 字符串等**一律遵守**。
+
+**自检：** 我用的命名跟此表一致吗？
+
+## § 13. 安全 / 隐私（v1 简化）
+
+| 项 | 当前要求 |
+|---|---|
+| Worker ↔ Center 认证 | bootstrap token + session token |
+| Feishu ↔ Center 认证 | SDK 内部凭 App ID + App Secret（一键创建签发） |
+| Agent ↔ Worker daemon 通信 | 本机 unix socket，同机进程信任 |
+| Admin CLI | 本机 unix socket / 同机用户身份；远程访问留口未实现 |
+| 用户数据（飞书消息内容、agent 输出） | 仅在 agent-center 内流转，不外发；BlobStore 内容遵从存储后端的访问控制 |
+
+**自检：** 我的功能是否引入新的外部通信？凭据怎么管？数据是否会泄露到不该到的地方？
+
+## § 14. 测试
+
+测试规约展开在独立文档 [`testing.md`](testing.md)。本节只保留**纲领**与**自检**，细则去 testing.md。
+
+核心硬约束：
+
+- **单元测试行覆盖率 ≥ 90%**（整体 + diff），CI 阻断 < 90% 的合并
+- **每次测试必须有测试计划 + 测试报告**，条目编号 1:1 对齐，**逐条确认**通过 / 失败 / 跳过 + 理由
+- **关键路径 e2e**：`worker enroll → dispatch → 任务结束`、`feishu 入口 → supervisor → task → 回流`
+- **BlobStore 契约测试**：local 实现 / S3 mock 实现走同一份契约
+- 设计 / 实现侧的可测性硬约束见下面 [§ 14.x](#-14x-设计与实现必须可测)
+
+**自检：** 我的改动是否同时附了测试计划 + 测试报告？单元行覆盖率（整体 + diff）是否 ≥ 90%？关键路径有 e2e 吗？
+
+### § 14.x 设计与实现必须可测
+
+测试不是事后补的工序，**设计阶段与实现阶段都必须把"可测试"作为硬约束**。任何让测试只能靠"真连外部服务 / sleep / 真实超时巧合"才能跑通的设计，都视为设计缺陷。
+
+**设计阶段必答：**
+
+| 问题 | 必须回答 |
+|---|---|
+| 这个功能的外部依赖（DB / blob store / 飞书 SDK / 时钟 / 随机数 / 子进程 / 网络）有哪些？ | 列清单 |
+| 每个外部依赖能否在测试中**替换为可控实现**（interface / port / 注入）？ | 是 / 否 + 说明 |
+| 每类**异常路径**（timeout / 5xx / 网络中断 / 状态不一致 / 部分失败）能否**显式 mock 注入**？ | 是 / 否 + 说明 |
+| 时间 / 随机 / 并发等非确定性来源如何注入？ | 说明 |
+| 关键事件 / 副作用如何被测试**断言**到（事件流 / 显式同步原语，不靠 sleep）？ | 说明 |
+
+**实现要求：**
+
+- 业务逻辑**不直接持有具体依赖**；通过构造函数 / 参数 / 接口注入
+- 凡是有 IO / 时钟 / 随机的位置，必须留出注入点
+- "只能在生产环境复现的异常"是反模式 —— 必须把触发条件抽象到接口，让测试能主动制造
+- 不允许给测试加 `sleep` 之类的等待 —— 改用可注入时钟或显式同步
+
+**自检：** 我的接口能不能在不连真实外部服务的情况下覆盖所有正常+异常路径？如果不能，先改设计再写实现。
+
+## § 15. 新功能 / 新设计自检清单
+
+提交设计文档 / PR 前，逐条过：
+
+- [ ] 单一来源（§1）：没有引入"绕过 center 造任务"的路径
+- [ ] 可观测性（§2）：列出新 events、说明 trace 影响、扩展 inspect / ps / stats 的项
+- [ ] AI Native（§3）：新 agent 能力同时有 skill + CLI，不走 MCP
+- [ ] 零 LLM SDK（§4）：没新增 LLM 厂商 SDK 依赖
+- [ ] 文档先行（§5）：设计落到 `docs/design/` 对应层；分叉决定有 ADR
+- [ ] 范围决策（§6）：新增的"不做"分到出范围 / 推迟正确位置
+- [ ] 项目本地约定（§7）：不在 agent-center 里管项目自有的规则文档
+- [ ] BlobStore（§8）：大字段走 BlobStore
+- [ ] dialect-agnostic（§9）：SQL 跨 SQLite / PG 兼容
+- [ ] 单一二进制（§10）：没新增独立 binary
+- [ ] 渠道选对（§11）：明确走 Issue / InputRequest / Event 哪一条
+- [ ] 命名（§12）：遵循术语表
+- [ ] 安全（§13）：凭据 / 数据流转无新风险
+- [ ] 测试（§14）：单元行覆盖 ≥ 90%（整体 + diff）；测试计划 + 报告齐全且条目 1:1 对齐；关键路径 e2e；详情见 [testing.md](testing.md)
+- [ ] 可测性（§14.x）：外部依赖可注入、异常路径可 mock、无 sleep / 真连外部服务
+
+任何一项 ❌ → 退回修改。
