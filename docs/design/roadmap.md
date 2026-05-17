@@ -59,12 +59,54 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 - **触发条件**：任务复杂度涨高（嵌套 tool calls 几百条）；基础列表难以快速诊断
 - **影响**：新增 web console 子页面；可能直接接 Jaeger / OTel UI 而非自研
 
-### 任意 DAG 任务依赖
+### Task / Execution 模型扩展
 
-任务之间任意 `depends_on` 关系、拓扑排序、自动调度、并行收敛节点。
-- **v1 不做的原因**：v1 仅做 Task + 子 Task 层级（F22），任意 DAG 是更复杂的依赖求解
+[ADR-0010 两层模型](decisions/0010-task-execution-two-layer-model.md) 与 [02-task-model.md](architecture/02-task-model.md) 之外的推迟项：
+
+- **父子状态联动**：parent task `done` 自动触发所有未完成 sub-task `abandoned`（或相反方向：所有 sub-task done 触发 parent done）。v1 显式 `parent_task_id` 仅做血缘
+- **ETA 过期触发 supervisor 唤醒**：v1 ETA 仅做展示，过期不影响系统行为；推迟做 ETA-trigger event 进唤醒白名单（auto-ping）
+- **Per-project timeout / `max_executions_per_task` override**：v1 全局默认（5min / 6h / 3 次）；按项目定制需要新增 project schema 字段
+- **Per-project workspace_mode 默认值**：v1 task 创建时显式选（默认 worktree）；project schema 可加 `default_workspace_mode`
+- **Per-project retry policy 字段**：v1 supervisor 通过 prompt 决策；推迟到 prompt 之外的 declarative 配置
+- **Issue reopen 后 amend 已 spawn task 集合**：v1 conclude 是 final；reopen 不能改既有 task 列表
+- **复杂 Artifact 维度**：artifact tag / 版本 / 父子引用（如"PR 引用 design doc"）等高级元数据
+- **触发条件**：以上各项普遍是"项目级定制"和"高级语义"需求，v1 任务量小不到痛点
+
+### 派单可靠性进阶
+
+[ADR-0011 派单可靠性协议](decisions/0011-dispatch-reliability-protocol.md) 之外的推迟项：
+
+- **完整 fencing token（单调递增 sequence number）**：v1 execution_id 一锤定音兼任 fencing；多 supervisor / 多 center 并发场景需要单调序号
+- **Cross-worker dispatch fail-over**：Worker A 失联但 active execution 自动迁移到 Worker B（含 worktree 状态搬运）
+- **`--force-abandon`**：kill 超时（worker 离线 / SIGKILL 也不死）也能强 abandon task
+- **Dispatch envelope budget / cost limits**：派单时声明"最多 $5 token"，agent 超额自动停
+- **Worker quarantine / graceful drain**：把某 worker 标"不接新单"等当前完成
+- **触发条件**：上述全是规模 / 并发 / 信任度场景；v1 单用户 / 单 worker 群体接受当前简化
+
+### Workspace 模式进阶
+
+- **Readonly mount enforcement**：direct 模式强制只读 base_path（v1 仅约定不修改，不强制）
+- **Fixed-path workspace 模式**：除 worktree / direct 外，第三种"CWD 指向某固定路径"
+- **多路径 workspace**：agent 同时持有多个 CWD 候选
+- **触发条件**：agent 自律不够 / 项目跨多个目录
+
+### Observability 进阶
+
+- **实时 stream timeline**：CLI `inspect task X --tail -f` 持续推送新事件
+- **全文搜 events**："找含字符串 X 的事件"
+- **跨 event 关联推断**："worker 离线导致那条 fail 吗？"等可视化关联
+- **触发条件**：基础 inspect / query 不够用时；规模化场景
+
+### DAG 任务依赖的高级特性
+
+v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 + 无环 + supervisor 判断派单（见 [02-task-model.md § 7](architecture/02-task-model.md)）。下列是更进一步的能力：
+
+- **自动 cascade abandon**：dep 进 `abandoned` 时自动 abandon 依赖它的 task（v1 现状是 supervisor wake 后决定）
+- **复杂依赖语义**：OR 依赖（"任一 dep done 即可"）、only-if-failed（"等 dep failed 才跑"）、conditional（"dep.artifact 满足条件才跑"）
+- **DAG 可视化**：Web Console / 飞书展示依赖图
+- **拓扑排序自动派单**：center 端做调度器（v1 是 supervisor 一个一个评估）
 - **触发条件**：多步流水线高频出现，supervisor 用 working memory 兜不住
-- **影响**：Task 加 `depends_on` 字段 + 依赖求解器 + 状态联动 + UI 呈现
+- **影响**：跨 BC 影响大，要重新评估"center 不做硬编码调度"的边界
 
 ---
 

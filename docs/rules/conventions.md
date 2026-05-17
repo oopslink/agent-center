@@ -220,5 +220,33 @@ DB **不存** markdown / 日志 / trace 这类大内容。统一通过 BlobStore
 - [ ] 安全（§13）：凭据 / 数据流转无新风险
 - [ ] 测试（§14）：单元行覆盖 ≥ 90%（整体 + diff）；测试计划 + 报告齐全且条目 1:1 对齐；关键路径 e2e；详情见 [testing.md](testing.md)
 - [ ] 可测性（§14.x）：外部依赖可注入、异常路径可 mock、无 sleep / 真连外部服务
+- [ ] reason + message 双字段（§16）：所有带 `reason` 的事件 / 字段同时携带 `message`
 
 任何一项 ❌ → 退回修改。
+
+## § 16. 错误 / 状态信息双字段（reason + message）
+
+凡是携带 `reason` 枚举的**事件 payload / RPC 响应 / 状态字段**，必须**同时**携带 `message` 字段。
+
+| 字段 | 用途 |
+|---|---|
+| `reason` | **机器可读**枚举值，supervisor / center 据此路由决策（如 `worker_lost` / `dispatch_no_ack` / `worktree_path_busy`）|
+| `message` | **人类可读**详细信息，落 inspect / 飞书卡片 / log（如 `"last heartbeat 2026-05-16T10:23 UTC"`） |
+
+**适用场景**：
+
+- `task_execution.failed { reason, message }`
+- `task_execution.killed { reason, message }`
+- `task_execution.kill_requested { reason, message }`
+- `input_request.timed_out { reason, message }`
+- `input_request.canceled { reason, message }`
+- `DispatchNack { reason, message }`
+- `worker.offline { reason, message }`
+- 任何带"为什么"的状态终结 / 异常
+
+**不需要**：
+
+- 纯动作事件（如 `task.dependency_added` —— 没有"为什么"）
+- 正常状态机迁移（如 `task_execution.working`）
+
+**自检：** 我新加的字段 / 事件里有 `reason` 吗？是的话配 `message` 了吗？

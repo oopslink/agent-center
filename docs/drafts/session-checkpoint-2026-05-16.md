@@ -35,13 +35,13 @@
 | # | 文件 | 状态 |
 |---|---|---|
 | 00 | system-overview | Draft（拓扑图） |
-| 01 | bounded-contexts | **Draft（完整：8 BC + UL + Context Map + 命名）** |
-| 02 | **task-model** | **TBD —— 这是下一步要讨论的（§ 3）** |
-| 03 | issue-discussion | Draft（已对齐 Bridge 模型 + bound card 机制） |
-| 04 | input-required | Draft |
-| 05 | observability | Draft |
-| 06 | supervisor-model | TBD-partial（基础有，剩余细节待补） |
-| 07 | worker-model | TBD-partial（已有 WorkerProjectMapping 自动发现机制） |
+| 01 | bounded-contexts | **Draft（已 sync 两层模型 + TaskExecution + events 命名）** |
+| 02 | **task-model** | **Draft（已完整：两层模型 / A2A 6 态 / 派单可靠性 / kill+abandon / 依赖 / artifacts / workspace / timeout / 等 15 节）** |
+| 03 | issue-discussion | Draft（已对齐 Bridge 模型 + bound card 机制；conclude 批量 spawn 决议待 sync） |
+| 04 | input-required | Draft（已 sync execution_id 命名） |
+| 05 | observability | Draft（已扩 ps/inspect/query 5 动词 + events 总览 + reason+message） |
+| 06 | supervisor-model | TBD-partial（基础有，剩余细节待补；唤醒白名单已在 02 中列出） |
+| 07 | worker-model | Draft（已扩 ACK + 本地 ledger + reconcile + direct workspace mode） |
 | 08 | prompt-assembly | Draft |
 | 09 | feishu-integration | Draft（已改为 FeishuBridge 实现） |
 | 10 | skill-cli-tooling | Draft |
@@ -53,7 +53,7 @@
 - ✅ [`01-blob-store.md`](../design/implementation/01-blob-store.md) — Draft
 - 待写：02-persistence-schema / 03-cli-subcommands / 04-configuration / 05-agent-adapters / 06-deployment
 
-### Decisions（ADR，9 条）
+### Decisions（ADR，11 条）
 
 | # | 标题 | 状态 |
 |---|---|---|
@@ -66,22 +66,32 @@
 | 0007 | 引入 Conversation 层 | Accepted (Refined by 0009) |
 | 0008 | WorkerProjectMapping 自动发现 + 用户确认 | Accepted |
 | 0009 | Issue 与 Conversation 解耦 + 外部集成走 Bridge | Accepted |
+| 0010 | Task / TaskExecution 两层模型 + AgentSession 合并 | Accepted |
+| 0011 | Dispatch 可靠性协议（ACK + execution_id 幂等 + Reconcile） | Accepted |
 
 ### Rules
 
-- ✅ [`conventions.md`](../rules/conventions.md) — 14 条跨切原则 + § 15 自检清单（含 § 14 测试规约外链 + § 9.x DB 减少 JOIN + § 9.y Bridge 模式）
+- ✅ [`conventions.md`](../rules/conventions.md) — 15 条跨切原则 + § 15 自检清单 + § 16 reason+message 双字段约定（含 § 14 测试规约外链 + § 9.x DB 减少 JOIN + § 9.y Bridge 模式）
 - ✅ [`documentation.md`](../rules/documentation.md) — 文档组织 / ADR 格式 / 出范围 vs 推迟
 - 缺：testing.md（[CLAUDE.md](../../CLAUDE.md) 与 conventions.md 已引用但文件未写，**新 session 不在本次接力范围**）
 
 ### Roadmap
 
-- ✅ [`roadmap.md`](../design/roadmap.md) — 11 项推迟功能按 v2 / v3 / 长期 分组
+- ✅ [`roadmap.md`](../design/roadmap.md) — 推迟功能按 v2 / v3 / 长期 分组；本次新增 4 大类（Task/Execution 扩展 / 派单进阶 / Workspace 进阶 / Observability 进阶）
 
 ---
 
 ## 3. 当前讨论中的话题
 
-**§ 3 Task 模型 + A2A 状态机细化** —— 目标文件 [`architecture/02-task-model.md`](../design/architecture/02-task-model.md)（目前是 TBD 占位）
+> **✅ Task 模型已完成。** Q1-Q10 + 派单可靠性全部讨论完毕，落到 [02-task-model.md](../design/architecture/02-task-model.md) / [ADR-0010](../design/decisions/0010-task-execution-two-layer-model.md) / [ADR-0011](../design/decisions/0011-dispatch-reliability-protocol.md)；旁路 sync 完成 4 个 architecture 文档；conventions § 16 + roadmap 已写。
+>
+> **下一步候选：** 按 [架构 README](../design/architecture/README.md) 顺序，剩 TBD-partial 的是 06-supervisor-model（含唤醒事件白名单 + 节流策略 + memory 模型）和 07-worker-model 部分细节（token 轮换 / 离线 task 走向已在 02 提及）。或转向 implementation 层（[02-persistence-schema.md](../design/implementation/) / [03-cli-subcommands.md](../design/implementation/)）。
+
+下面是本次 Task 模型讨论的决议归档（历史保留）：
+
+### § 3-old Task 模型 + A2A 状态机细化（**已完成**）
+
+目标文件 [`architecture/02-task-model.md`](../design/architecture/02-task-model.md) —— 已从 TBD → Draft。
 
 ### 已经定的（散在各处）
 
@@ -182,14 +192,22 @@ Task 产物如何表达？
 
 ---
 
-## 4. 上一个 session 刚结束的状态
+## 4. 本次 session 完成的事
 
-- 用户拍板**保留方案 X**（Discussion 与 Conversation 两个 BC 分开，不合并）
-- 询问了 BC = Bounded Context，已解答
-- 提议讨论 § 3 Task 模型，列了 Q1-Q10
-- 然后切 session
+- ✅ Q1-Q10 + Q-dispatch-reliability 全部讨论完毕（10+1 个决议点）
+- ✅ Stage 1+2：写完 ADR-0010 / ADR-0011 / 02-task-model.md（786 行主交付物）
+- ✅ Stage 3：旁路 sync 4 个 architecture 文档（01-bounded-contexts / 04-input-required / 05-observability / 07-worker-model）
+- ✅ Stage 4：conventions § 16 双字段约定 + roadmap 补 4 大类推迟项
+- ✅ Stage 5：本 checkpoint 更新
 
-**下一步：** 新 session 接力，从 Q1 开始 work through。
+**下次 session 候选起点：**
+
+1. **06-supervisor-model.md** —— TBD-partial，补完唤醒白名单 + 节流策略 + memory 模型 + invocation 周期
+2. **implementation/02-persistence-schema.md** —— TBD，落实 task / task_executions / artifacts / events / worker_project_proposals 等表 schema
+3. **implementation/03-cli-subcommands.md** —— TBD，把 [05-observability.md](../design/architecture/05-observability.md) 已列的 inspect/query/ps/stats/logs 全签名补齐
+4. **03-issue-discussion.md** sync —— 加 conclude batch spec 形态（[02-task-model.md § 11](../design/architecture/02-task-model.md) 已有架构层描述，但 03 文档本身的 conclude flow 还要 sync）
+
+按 [架构 README](../design/architecture/README.md) 当前状态：剩 supervisor / worker 详细 / web-console 占位 是主要 TBD。
 
 ---
 
