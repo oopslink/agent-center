@@ -66,6 +66,7 @@
 | [0014](decisions/0014-event-sourcing-level.md) | 事件溯源走 L1 | Domain Event 策略 + 跨聚合事务原则 |
 | [0015](decisions/0015-agent-trace-not-in-events-table.md) | agent_trace 不进 events 表 | Domain Event vs trace 数据的区分 |
 | [0017](decisions/0017-task-as-conversation.md) | Task ↔ Conversation 1:1 | 跨 BC / 跨聚合强引用 + 同事务双写 |
+| [0018](decisions/0018-detached-agent-via-per-execution-shim.md) | Detached agent + per-execution shim 模型 | Execution BC 内新运行时角色（Shim）；影响 UL（待回填到 01 § 1.1）|
 
 ### 2.2 已完成的架构文档（DDD 视角）
 
@@ -94,7 +95,7 @@
 
 ### 3.1 高优（影响实现，应近期推进）
 
-#### P1. ADR-0018 — 跨聚合引用与一致性策略
+#### P1. ADR-0019 — 跨聚合引用与一致性策略
 
 **目的**：把 ADR-0014 § 2 / ADR-0017 隐含的"同事务跨聚合双写"取舍显式化。
 
@@ -105,11 +106,11 @@
 - 聚合根访问约束：外部仅通过 Root.id 引用内部 Entity
 - 显式驳回 Saga / 最终一致性 outbox（v1）
 
-**产出**：ADR-0018（独立 ADR）+ 顺手在 02 / 03 / 12 等加引用。
+**产出**：ADR-0019（独立 ADR）+ 顺手在 02 / 03 / 12 等加引用。
 
 **影响范围**：实现层（mutator 封装契约）+ 后续所有跨聚合设计（Issue ↔ Task / Task ↔ Conversation / etc.）。
 
-#### P2. ADR-0019 — Value Object 系统化
+#### P2. ADR-0020 — Value Object 系统化
 
 **目的**：把散在字段里的事实 VO 命名 + 立约定，避免落代码时散成字段。
 
@@ -119,7 +120,7 @@
 - 实现层代码约束（struct + 无 setter / 工厂方法构造 / 值比较 / 序列化时整体）
 - 哪些"事实 VO"维持字段约定不打包（如 ReasonMessage 维持双字段约定 vs 提取为单类型）—— 拍板
 
-**产出**：ADR-0019 + 02 / 03 / 12 / 等 BC 文档加 VO 标签。
+**产出**：ADR-0020 + 02 / 03 / 12 / 等 BC 文档加 VO 标签。
 
 **影响范围**：实现层（Go struct 定义）+ 各 BC 文档字段表加角色标签。
 
@@ -164,8 +165,8 @@ P1 ─┐
 P2 ─┘
 ```
 
-**A. ADR-0018**（P1，独立）
-**B. ADR-0019**（P2，独立）
+**A. ADR-0019**（P1，独立）
+**B. ADR-0020**（P2，独立）
 ↓
 **C. 00-domain-model.md**（P3，依赖 A + B）
 ↓
