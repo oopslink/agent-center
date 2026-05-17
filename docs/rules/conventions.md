@@ -88,11 +88,42 @@ DB **不存** markdown / 日志 / trace 这类大内容。统一通过 BlobStore
 
 ## § 9. 持久化层 dialect-agnostic
 
-不使用 SQLite-only 或 PG-only 的 SQL 特性。schema / 查询要跨 dialect 兼容（避开 SQLite 动态类型 / `WITHOUT ROWID`，避开 PG `JSONB` / `LATERAL` / 范围类型 / 触发器）。JSON 字段用 `TEXT` 存 JSON 字符串。
+v1 默认嵌入式 **SQLite**（单文件、零运维、跟 worker daemon 本地 ledger 口径一致）。未来可能切 **Postgres**（多 center / 高并发 / 强约束需求），写代码时**贴 SQL 共同子集**，不踩任何一家方言独占的特性。理由见 [NF3](../design/requirements/02-non-functional.md)。
 
-**自检：** 我的 schema 改动在 SQLite 和 Postgres 上都能跑吗？
+### § 9.0 禁忌清单 + 替代方案
 
-### § 9.x DB schema 尽量减少 JOIN 操作
+| 维度 | 禁用 | 替代 |
+|---|---|---|
+| 自增主键 | SQLite `AUTOINCREMENT` / PG `SERIAL` / `IDENTITY` | 应用层生成 **ULID / UUID** 字符串当主键 |
+| Boolean | PG `BOOLEAN` | `INTEGER` 0/1 |
+| 时间戳 | PG `TIMESTAMPTZ` / SQLite 内置 datetime | `TEXT` 存 ISO8601（UTC，`2026-05-17T10:00:00Z`） |
+| JSON | PG `JSONB` + GIN 索引 / SQLite `json_extract` 索引 | `TEXT` 存 JSON 字符串，应用层 marshal；**不在 SQL 里查 JSON 内容** |
+| 行级锁 | PG `SELECT ... FOR UPDATE` / SQLite `BEGIN IMMEDIATE` | **乐观锁**：version 列 + `UPDATE ... WHERE version=? `，CAS 失败重试 |
+| 队列消费原语 | PG `SKIP LOCKED` | events 表 + 应用层游标 / 状态机 |
+| 表特性 | SQLite `WITHOUT ROWID` / 动态类型 ; PG 数组 / enum / 范围类型 / `LATERAL` / 触发器 / 物化视图 | 普通表 + 普通列；enum 用 `TEXT` + 应用层校验 |
+| Upsert | — | 两边都支持 `INSERT ... ON CONFLICT(...) DO UPDATE`，可用 |
+| 全文搜索 | SQLite FTS5 / PG `tsvector` | v1 不上 FTS；需要时单独 ADR 评估 |
+
+### § 9.1 Schema migration
+
+- 只做 **additive migration**（加列 / 加表 / 加索引），不依赖 `ALTER TABLE` 复杂能力（SQLite 受限）
+- 删列 / 改类型 / 改约束 → 新表 + copy + rename 的两步迁移
+- 一份 migration SQL 必须**同时在 SQLite 和 PG 上跑通**；类型映射差异在 migration 工具层抽象，业务 query 不分叉
+
+### § 9.2 CI 双引擎跑
+
+测试套件（含 repository / migration / 任何写过 SQL 的代码）必须**同时在 SQLite 和 PG 上跑**。CI 默认双 job 并行，缺一不可。否则方言泄漏会悄无声息地积累，到真要切 PG 那天爆炸。
+
+### § 9.3 不依赖 dialect 的存储抽象边界
+
+dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 KV / 文件 / 文档库。需要换存储种类的场景（如 Memory file repo）请独立 ADR 论证，不要塞进 repository 层抽象。
+
+**自检：**
+- 我的 schema 改动在 SQLite 和 Postgres 上都能跑吗？
+- CI 是不是真的两个引擎都跑了？
+- 我有没有用 § 9.0 禁忌清单里的特性？用了的话替代方案是什么？
+
+## § 9.x DB schema 尽量减少 JOIN 操作
 
 简单的 list-of-id references → 用**主表上的 JSON 数组字段**（如 `issue.related_conversation_ids`）。
 

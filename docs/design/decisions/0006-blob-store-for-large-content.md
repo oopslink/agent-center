@@ -64,6 +64,13 @@ agent-center 会产生几类**大块内容**：
 - Pro: 直奔最终态
 - Con: v1 个人 / 小规模场景，引入 S3 凭据管理、网络依赖、成本不必要
 
+### D. 跟 Memory file repo（[ADR-0012](0012-memory-file-based.md)）共用同一抽象
+
+- Pro: 表面相似 —— v1 都落在本地目录、都按相对路径组织，看似能复用 LocalDir 实现 / 备份脚本
+- Con: Memory 的消费者是 claude code 子进程，依赖 ancestor walk + POSIX `Read/Edit/Write`，后端钉死本地 fs；本 ADR 的目标恰好是"未来切对象存储"，两者扩展方向相反。共抽象会让 BlobStore 失去 S3 扩展点，或被迫加上 partial Edit / git ops 让接口臃肿
+- Con: 接口语义不同（对象 `Put/Get/URL` vs 文件 + git `Edit/Commit/Log`）、生命周期相反（90 天 GC vs 永久保留）
+- 不选；详细论证见 [ADR-0012 § Alternatives D](0012-memory-file-based.md)
+
 ## 不走 BlobStore 的内容（参考）
 
 | 内容 | 存储 |

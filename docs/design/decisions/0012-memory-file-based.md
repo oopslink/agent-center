@@ -152,6 +152,17 @@ Task 走 done/abandoned、Issue closed/withdrawn、worker un-enrolled、conversa
 - Con: 双系统一致性问题（文件改了 metadata 漏更新）；复杂度高于 A 或 B 单一方案
 - 不选
 
+### D. 跟 BlobStore 共用同一抽象
+
+表面上"都是路径 + 文件"，看似可以复用 LocalDir 实现 / 备份脚本，但消费者和扩展方向都不重叠：
+
+- **后端约束相反**：Memory 的读者是 **supervisor 子进程**（claude code），它通过原生 `Read/Edit/Write` 走 syscall + ancestor walk，后端必须是本地 POSIX fs；BlobStore 的扩展目标恰恰是"未来切对象存储"（[ADR-0006](0006-blob-store-for-large-content.md)），S3 没法挂成 supervisor 的 CWD。共抽象等于把 BlobStore 钉死在 LocalDir
+- **接口语义不重叠**：BlobStore 是对象语义（`Put/Get/Delete/Exists/List/URL`，写一次不可变）；Memory 是文件 + git 语义（partial Edit / commit / log / blame，跨 invocation 反复改）。强行并表会让接口被迫取并集，每边都得忽略一半方法
+- **生命周期相反**：BlobStore 默认 90 天 GC；Memory 永久保留（§ 9）。同抽象下要塞两套清理策略
+- **抽象对 supervisor 不可见**：supervisor 调的不会是 `BlobStore.Get("projects/X/CLAUDE.md")`，它就是 `Read("projects/X/CLAUDE.md")`。中间层对它无价值，复用收益为零
+
+不选；保留两个独立抽象。仅在更窄的层（路径校验防 `..` 逃逸、原子写 `tmp + rename`、备份脚本各 rsync 一个 root）复用工具代码。互参 [ADR-0006 § Alternatives D](0006-blob-store-for-large-content.md)。
+
 ## 影响范围
 
 - 重写 [architecture/06-supervisor-model.md](../architecture/06-supervisor-model.md) § 4 Memory 章节（TBD-partial → Draft）
