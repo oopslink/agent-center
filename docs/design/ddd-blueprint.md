@@ -21,8 +21,8 @@
 | **Bounded Context** | ✅ | [01 § 2](architecture/01-bounded-contexts.md#-2-限界上下文bounded-contexts)，8 个 BC（Scheduling / Discussion / Workforce / Execution / Cognition / Observability / Conversation / Bridge） |
 | **Ubiquitous Language** | ✅ | [01 § 1](architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language)；conventions § 0 立"统一语言"为方法论根基 |
 | **Context Map** | ✅ | [01 § 3](architecture/01-bounded-contexts.md#-3-上下文映射context-map)（图 + 上下游表） |
-| **Subdomain 标注**（Core / Supporting / Generic）| ❌ | 未识别 8 个 BC 哪些是核心竞争力、哪些支撑、哪些通用；影响 v2+ 投入策略 |
-| **Big Picture / Vision** | ⚠️ | [00-system-overview](architecture/00-system-overview.md) 有部分；DDD 视角下的"系统使命陈述"未集中 |
+| **Subdomain 标注**（Core / Supporting / Generic）| ✅ | [00-subdomain-classification](architecture/00-subdomain-classification.md)：Core 3 / Supporting-Essential 3 / Supporting-Peripheral 2 / Generic 0 |
+| **Big Picture / Vision** | ✅ | [00-domain-vision](architecture/00-domain-vision.md)（DDD Domain Vision Statement：thesis + 4 stance + 2 boundary）|
 
 ### 1.2 战术设计（Tactical）
 
@@ -72,6 +72,8 @@
 
 | 文档 | DDD 内容 |
 |---|---|
+| [00-domain-vision](architecture/00-domain-vision.md) | Domain Vision Statement（thesis + strategic stance + boundary）|
+| [00-subdomain-classification](architecture/00-subdomain-classification.md) | 8 BC 的 Core/Supporting/Generic 分类 + Essential/Peripheral sub-label + 投入策略 |
 | [01-bounded-contexts](architecture/01-bounded-contexts.md) | BC + UL + Context Map + ACL 识别 |
 | [02-task-model](architecture/02-task-model.md) | Task / TaskExecution 聚合 + Invariants（§ 13）+ 状态机 + DispatchEnvelope（事实 VO） |
 | [03-issue-discussion](architecture/03-issue-discussion.md) | Issue / IssueComment 聚合 + 状态机 |
@@ -143,7 +145,7 @@
 
 | ID | 项 | 产出形态 |
 |---|---|---|
-| **P4** | **Subdomain 标注**（Core / Supporting / Generic）| 短 ADR 或 00-domain-model § 加一节 |
+| ~~**P4**~~ | ~~**Subdomain 标注**（Core / Supporting / Generic）~~ | ✅ 已完成 → [00-subdomain-classification](architecture/00-subdomain-classification.md)（独立短文档，跟 Vision 并列）|
 | **P5** | **Domain Service 明示** | 在 P3 / 各 BC 文档加角色标签 |
 | **P6** | **Aggregate Root 访问约束**写明 | P1 ADR 顺带写入或独立短 ADR |
 | **P7** | **Published Language** 明示 | 在 01-bounded-contexts 或 05-observability 加一节："Published Language = events 表 schema + CLI 命令" |

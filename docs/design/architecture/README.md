@@ -2,6 +2,12 @@
 
 回答"概念怎么组织、组件怎么交互"。具体表结构 / CLI 签名归 [implementation/](../implementation/)；"为什么这么定"归 [decisions/](../decisions/)。
 
+> **⭐ 首读两件套**（DDD 战略层）：
+> 1. [**领域愿景 / Domain Vision**](00-domain-vision.md) —— 系统的根本目的 + 关键策略立场 + 核心边界
+> 2. [**子域分类 / Subdomain Classification**](00-subdomain-classification.md) —— 8 个 BC 的 Core / Supporting / Generic 标注 + 投入策略
+>
+> 两者均是领域视角，区别于下面 # 00 系统总览（工程视角）。
+
 ## 文档清单
 
 | # | 主题 | 状态 |
