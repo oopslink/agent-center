@@ -88,6 +88,7 @@ agent-center 用**两层概念**区分"任务"与"任务的一次执行"：
 | `parent_task_id` | uuid | 可空 | 父 task 血缘（不阻塞，仅记录） |
 | `from_issue_id` | uuid | 可空 | 来源 Issue 血缘 |
 | `current_execution_id` | uuid | 可空 | 指向当前 active execution（或最近一次）；submitted / 终态 + 等待重派时为 null |
+| `conversation_id` | uuid | 可空 | 该 task 绑定的 `kind=task` Conversation；按来源决定创建时机（a/e 同步建 / b/c/d 懒创建 null）。详见 § 2.6 与 [ADR-0017](../decisions/0017-task-as-conversation.md) |
 | `created_by` | string | ✅ | user:xxx / supervisor:xxx |
 | `created_at` | timestamp | ✅ | |
 | `updated_at` | timestamp | ✅ | |
@@ -104,6 +105,44 @@ agent-center 用**两层概念**区分"任务"与"任务的一次执行"：
 | `id` / `project_id` / `parent_task_id` / `from_issue_id` | ❌ | 创建后不可改 |
 | `status` | 系统驱动 | 仅通过 § 2.3 列的动作触发 |
 | `current_execution_id` | 系统驱动 | dispatch / execution 状态变化时自动更新 |
+| `conversation_id` | 系统驱动 | 仅 null → 非 null（绑定）：a/e 路径 task.created 同事务、b/c/d 路径懒创建（CLI `task bind-card` / 飞书 slash `/track` / supervisor 解析自由文本 / center fallback）；v1 不支持 unbind（非 null → null）—— 见 [roadmap](../roadmap.md) |
+
+### 2.6 Task ↔ Conversation 绑定（飞书可见性）
+
+[ADR-0017](../decisions/0017-task-as-conversation.md)：**Task ↔ Conversation 1:1**。所有 task 相关可见 IO（supervisor 分析 / worker 进展 / agent 请示 / 用户回应）走同一个 `kind=task` Conversation，复用既有 Message 模型，不引入"进度卡"独立概念。
+
+**按来源决定创建时机：**
+
+| Task 来源 | conversation 创建时机 |
+|---|---|
+| a. 飞书用户 @bot 直接发起 | Task.created 同事务建 Conversation + emit `conversation.opened` + Bridge 发 Task root card 回写 `primary_channel_thread_key` |
+| b. Issue concluded spawn | **不**建；`task.conversation_id=null`；用户后续触发懒创建 |
+| c. Supervisor 自主开（v1 暂无） | 同 b |
+| d. CLI 直接 `task create` | 同 b |
+| e. Web Console 新建 | 同 a（Web Console 是 Conversation 的另一个 channel binding） |
+
+**懒创建触发：**
+
+| 路径 | 触发 |
+|---|---|
+| 用户 CLI | `agent-center task bind-card <task_id> --channel=feishu --auto` 或 `--to=<conv_id>` |
+| 飞书 slash 命令 | `/track <task_id>` —— Bridge 直接转 bind-card（不经 supervisor） |
+| 飞书 @bot 自由文本 | "盯一下 T-42" → supervisor 解析意图 → bind-card |
+| Center 硬规则 fallback | agent 调 `request-input` 且 task.conversation_id=null → 自动 bind 到 `notification.default_channel`；未配置 → InputRequest 创建失败、execution → `failed(reason=no_input_channel)` |
+
+详见 [ADR-0017 § 10](../decisions/0017-task-as-conversation.md)。
+
+**CLI：**
+
+```
+agent-center task bind-card <task_id> --channel=feishu --auto         # 新建 conversation + 推到 default channel
+agent-center task bind-card <task_id> --channel=feishu --to=<conv_id> # 绑到既有 conversation
+agent-center task unbind-card <task_id>                                # v1 不支持，留接口给 v2
+```
+
+**不引入：** `task.bound_card_json` 字段 / `task.bound_card_requested` 事件 / `task.progress_milestone_reached` 事件 / `task_progress` content_kind（[ADR-0016](../decisions/0016-task-progress-via-bound-thread.md) 期间的规划，被 ADR-0017 全部撤回）。
+
+**事件：** Conversation 创建走既有 `conversation.opened`，不引入 Task 侧专用绑定事件。`task.conversation_id` 写入由所在事务的状态变更（task.created 或后续 bind 动作）携带 —— 不需要额外 audit event；`task.created` payload 含 `conversation_id` 字段已足够审计（[ADR-0014 § 3](../decisions/0014-event-sourcing-level.md)）。
 
 ---
 
@@ -209,6 +248,24 @@ failed_reason 是 supervisor 重派决策的关键信号：
 
 reason 之外必须填 message（人类可读详情）。
 
+### 3.7 进度上报到 Conversation（worker daemon 行为）
+
+Worker daemon 边解析 agent JSONL 边判断 milestone，命中后调 `conversation add-message` 写一条 `content_kind=agent_finding` 的 Message 到 `task.conversation_id`。task.conversation_id=null 时跳过（普通 progress milestone **不**触发 § 2.6 fallback；只有 InputRequest 触发）。
+
+**5 条 milestone**（沿用 [ADR-0016 § 3](../decisions/0016-task-progress-via-bound-thread.md)，执行位置改为 worker daemon）：
+
+| Milestone | 触发条件 |
+|---|---|
+| **status 变化** | TaskExecution status 转换（dispatched → working → input_required → completed / failed / killed） |
+| **activity 类型变化** | `current_activity` 大类切换（如 "editing files" → "running tests"）；不按具体文件名变 |
+| **长 tool call** | 单次 tool call 持续 > 30s（开始 + 结束各发一次） |
+| **累计摘要** | 每累计 N 个 tool call 发一条摘要（N 默认 20，可配） |
+| **用户在 bound thread 内询问** | 用户在 task conversation 里说话 → 立即 push 一条当前快照（不烧 supervisor） |
+
+阈值（30s / N=20）走配置。
+
+> **不 emit `task.progress_milestone_reached` 事件** —— 进度通过 `conversation.message_added` 走 outbound 链路；不需要专门 progress 事件类。详见 [ADR-0017 § 4](../decisions/0017-task-as-conversation.md)。
+
 ---
 
 ## § 4. Dispatch 流程 + 派单可靠性
@@ -226,6 +283,7 @@ DispatchEnvelope:
   task_id:         uuid
   worker_id:       uuid
   project_id:      string
+  conversation_id: uuid?              # task.conversation_id 透传；worker daemon 据此写进度 message / InputRequest 载体 message。null → 跳过 progress 写入；InputRequest 触发 § 2.6 fallback
 
   # Workspace
   agent_cli:       string             # claude-code | codex | opencode
@@ -294,6 +352,7 @@ NACK reason 标准枚举见 [ADR-0011](../decisions/0011-dispatch-reliability-pr
 AGENT_CENTER_EXECUTION_ID       = <uuid>
 AGENT_CENTER_TASK_ID            = <uuid>
 AGENT_CENTER_PROJECT_ID         = <string>
+AGENT_CENTER_CONVERSATION_ID    = <uuid> or ""    # task.conversation_id；空字符串表示未绑定
 AGENT_CENTER_WORKSPACE_MODE     = "worktree" | "direct"
 AGENT_CENTER_CWD                = <resolved path>
 AGENT_CENTER_WORKER_SOCK        = /var/run/agent-center-worker-<worker_id>.sock
@@ -771,6 +830,8 @@ events 表带 `refs` 字段（JSON）含 `task_id` / `execution_id` / `input_req
 | Artifact 版本化 / 标签 / 自定义维度 | [roadmap](../roadmap.md) |
 | 实时 stream timeline（CLI tail -f）| [roadmap](../roadmap.md) |
 | Issue reopen 后 amend 已 spawn task 集 | [roadmap](../roadmap.md) |
+| Task unbind conversation（非 null → null）| [roadmap](../roadmap.md)（v1 conversation 跟 task 同生命周期；切渠道场景 v2 再做）|
+| Task ↔ Conversation 多 tracker（1:N，多用户多渠道镜像）| [roadmap](../roadmap.md)（[ADR-0017 § 9](../decisions/0017-task-as-conversation.md) 显式驳回 v1）|
 
 ---
 
@@ -778,9 +839,14 @@ events 表带 `refs` 字段（JSON）含 `task_id` / `execution_id` / `input_req
 
 - [ADR-0010 两层模型 + AgentSession 合并](../decisions/0010-task-execution-two-layer-model.md)
 - [ADR-0011 派单可靠性协议](../decisions/0011-dispatch-reliability-protocol.md)
+- [ADR-0014 事件溯源走 L1](../decisions/0014-event-sourcing-level.md)
+- [ADR-0015 agent_trace 不进 events 表](../decisions/0015-agent-trace-not-in-events-table.md)
+- [ADR-0017 Task ↔ Conversation 1:1](../decisions/0017-task-as-conversation.md)
 - [01 限界上下文 & UL](01-bounded-contexts.md)
 - [04 InputRequired 协议](04-input-required.md)
 - [05 可观测性](05-observability.md)
 - [07 Worker 执行模型](07-worker-model.md)
 - [08 Prompt 组装](08-prompt-assembly.md)
+- [09 飞书集成](09-feishu-integration.md)
+- [12 Conversation 统一会话层](12-conversation.md)
 - [conventions](../../rules/conventions.md)（§ 1 / § 2 / § 8 / § 9 / § 16）
