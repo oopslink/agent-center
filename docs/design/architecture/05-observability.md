@@ -31,10 +31,10 @@
 
 - 单一 append-only 事件流，所有上下文的 domain event 都落到这一张表
 - 字段（概念）：`id, occurred_at, seq, event_type, refs (JSON), actor, payload (JSON), correlation_id, decision_id (nullable)`
-- `decision_id` 让事件能反查具体 `decision_records` 行 + 拿 rationale；非决策触发的事件（如 `worker.online` / agent_trace 等世界事件）该列为 null（详见 [06-supervisor-model.md § 5.10](06-supervisor-model.md)）
+- `decision_id` 让事件能反查具体 `decision_records` 行 + 拿 rationale；非决策触发的事件（如 `worker.online` / `task_execution.working` 等世界事件）该列为 null（详见 [06-supervisor-model.md § 5.10](06-supervisor-model.md)）
 - `refs` 是 JSON 对象，含 `task_id` / `execution_id` / `input_request_id` / `issue_id` / `worker_id` 等可选键；不同 event 关联的实体不同，平铺 nullable 列 vs JSON `refs` 由 implementation 层定（[conventions § 9](../../rules/conventions.md) dialect-agnostic）
 - `actor` 标识动作触发者：`user:hayang` / `supervisor:invocation-id` / `worker:W-1` / `system`（派生事件）
-- 是 source of truth for 重放、审计、跨上下文 join
+- 与对应状态表在同事务内双写（state UPDATE + event INSERT 同一 tx）；**不是状态权威**，状态恢复走 DB 备份。用途：审计 / supervisor 输入 / 跨上下文 timeline / 新增投影。理由见 [ADR-0014](../decisions/0014-event-sourcing-level.md)
 - 结构跟事件流系统兼容（未来切 Kafka / NATS 无痛）
 
 ### O1.x reason + message 双字段
@@ -45,8 +45,9 @@
 
 - Claude code：`--output-format stream-json`，每行 JSONL（tool call / response / thinking 片段）
 - Codex / OpenCode：各自的等价模式（adapter 层负责）
-- Worker daemon 边收边解析 → 转 `AgentTraceEvent` → 推到 center 事件通道 + 写 task 本地 trace 文件
-- 任务结束时，trace 文件作为产物之一打包上传
+- Worker daemon 边收边解析 → 实时更新 TaskExecution 投影摘要（`current_activity` / `recent_activities` / counts）+ 写 task 本地 `trace.jsonl` 文件；**不推 center events 表**（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）
+- 任务结束时，本地 `trace.jsonl` 打包为 `tasks/<task_id>/trace.jsonl.gz` 上传 BlobStore，回填 `task.trace_blob_path`
+- Execution 仍在跑时如需深挖 tool 参数 / thinking 文本：走 `agent-center peek-trace <execution>`（worker daemon 侧 RPC，center 转发）
 
 ### O3. Supervisor 调用全留档
 
@@ -122,7 +123,7 @@
 - `total_tool_calls` / `total_tokens` 累计
 - `working_seconds_accumulated` 不计 input_required 期间的累计 working 时长
 
-这张表是**实时投影**，可从 events 表全量重算（崩了能恢复）。
+这张表是 worker daemon 维护的**实时投影**（边解析 JSONL 边更新本地状态 + 推 center）；崩了从 DB 备份恢复，不靠 events 表重算（[ADR-0014](../decisions/0014-event-sourcing-level.md)）。
 
 ### CLI: `agent-center ps`（仿 `docker ps` / `kubectl get pods`）
 
@@ -161,8 +162,8 @@ I-12             agent-center  user:hayang     2h
 | Scheduling (InputRequest) | `input_request.requested` / `input_request.responded` / `input_request.timed_out` / `input_request.canceled` |
 | Discussion | `issue.opened` / `issue.commented` / `issue.discussion_started` / `issue.concluded` / `issue.withdrawn` / `issue.tasks_spawned` |
 | Workforce | `worker.enrolled` / `worker.online` / `worker.offline` / `worker.heartbeat` / `worker_project_proposal.*` / `worker_project_mapping.*` / `project.*` |
-| Execution (worker 侧) | `worktree.created` / `worktree.released` / `agent_trace.event` / `artifact.uploaded` / `task_log.archived` |
-| Cognition | `supervisor.invocation_started` / `supervisor.invocation_ended` / `supervisor.decision_made` / `supervisor.invocation_failed_alert`（Memory 变更不 emit `memory.*` 事件，复用 `agent_trace.event` + `git log`，[ADR-0012](../decisions/0012-memory-file-based.md)） |
+| Execution (worker 侧) | `worktree.created` / `worktree.released` / `artifact.uploaded` / `task_log.archived` / `task_trace.archived`（agent_trace 不再作为事件流入 events 表，见 [ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)） |
+| Cognition | `supervisor.invocation_started` / `supervisor.invocation_ended` / `supervisor.decision_made` / `supervisor.invocation_failed_alert`（Memory 变更不 emit `memory.*` 事件，由 supervisor invocation 的 `trace.jsonl.gz`（含 `Edit`/`Write` tool 调用）+ `git log` 双渠道审计，[ADR-0012](../decisions/0012-memory-file-based.md) / [ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)） |
 | Conversation | `conversation.opened` / `conversation.message_added` / `conversation.closed` / `identity.registered` / `channel_binding.added` |
 | Bridge | `channel.delivered` / `channel.delivery_failed` / `bridge.parse_failed` |
 
@@ -173,4 +174,4 @@ I-12             agent-center  user:hayang     2h
 - `Event` —— 跨上下文唯一事件流
 - `SupervisorInvocation` —— 一次 supervisor 调用的审计单元
 - `TaskExecution` —— 一次任务执行的状态承载（一并承载 worker 侧的运行时投影；AgentSession 概念已合并，见 [ADR-0010](../decisions/0010-task-execution-two-layer-model.md)）
-- `AgentTraceEvent` —— agent JSONL 单行事件（落 events 表）
+- `AgentTraceEvent` —— agent JSONL 单行事件（worker daemon 运行时概念；实时投影到 TaskExecution 摘要 + 归档至 BlobStore；**不入 events 表**，[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）

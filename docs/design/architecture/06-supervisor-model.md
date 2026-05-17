@@ -333,7 +333,7 @@ Task done/abandoned、Issue closed/withdrawn、Worker un-enrolled、Conversation
 
 不引入 `memory.*` 事件类。变更已有两条审计：
 
-- `agent_trace.event`（worker-side 解出）—— claude `Edit` / `Write` 工具调用本身记录 `payload.tool` + `payload.file_path`，filter 即得
+- Supervisor invocation 的 `trace.jsonl.gz`（BlobStore 归档，[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）—— claude `Edit` / `Write` 工具调用本身记录在 JSONL 行内（`tool` + `input.file_path`），归档后 `zcat | jq` 即得
 - `git log` —— commit message + diff + author，原生 audit
 
 ---
@@ -347,7 +347,7 @@ Task done/abandoned、Issue closed/withdrawn、Worker un-enrolled、Conversation
 - "对外" = 影响其他 BC 状态的动作（dispatch / kill / open issue / 给用户发消息 / 升级 input request 等）
 - "决策" = 一次完整 action 单位，不是底层 tool call 颗粒
 - "结构化" = 字段化行（kind / target_refs / rationale / outcome），不是自由文本
-- "Memory 编辑不算 decision"（[ADR-0012](../decisions/0012-memory-file-based.md) 后 memory 是 agent 私事，已被 agent_trace + git log 双渠道审计）
+- "Memory 编辑不算 decision"（[ADR-0012](../decisions/0012-memory-file-based.md) 后 memory 是 agent 私事，由 invocation `trace.jsonl.gz` + `git log` 双渠道审计，详见 [ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）
 
 1 个 `SupervisorInvocation` : N 个 `DecisionRecord`（0/N，可能"无 decision"如 no_op invocation）。
 
@@ -358,7 +358,7 @@ Task done/abandoned、Issue closed/withdrawn、Worker un-enrolled、Conversation
 | **SupervisorInvocation** | 启动→退出容器 | 1:N → DecisionRecords |
 | **Event**（events 表） | 状态变化原子记录 | 1 decision → 0/N events |
 | **Memory**（CLAUDE.md 文件） | 私事笔记 | 平行；memory 写不入 decision_records |
-| **agent_trace.event** | Tool call 颗粒（worker-side 解出 / supervisor 用同一链路） | DecisionRecord 是它的"聚合视图" |
+| **AgentTraceEvent**（JSONL 行） | Tool call 颗粒（worker-side / supervisor invocation 同一链路）；**不入 events 表**，存 worker 本地 `trace.jsonl` + BlobStore 归档（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)） | DecisionRecord 是它的"聚合视图"；想看细节走 `peek-trace` / `logs <invocation>` |
 
 ### 5.3 字段
 

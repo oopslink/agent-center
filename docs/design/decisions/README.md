@@ -19,6 +19,9 @@
 | 0011 | [Dispatch 可靠性协议：ACK + execution_id 幂等 + Reconcile](0011-dispatch-reliability-protocol.md) | Accepted |
 | 0012 | [Supervisor Memory 走 file-based + git](0012-memory-file-based.md) | Accepted |
 | 0013 | [Supervisor Invocation 并发模型：per-scope 串行 + 跨 scope 并行](0013-supervisor-invocation-concurrency.md) | Accepted |
+| 0014 | [事件溯源走 L1：状态表为权威，事件表是审计流](0014-event-sourcing-level.md) | Accepted |
+| 0015 | [agent_trace 不进 events 表：归 BlobStore + TaskExecution 投影摘要](0015-agent-trace-not-in-events-table.md) | Accepted |
+| 0016 | [Task 进度跟踪走 bound thread + 进度消息流](0016-task-progress-via-bound-thread.md) | Accepted |
 
 ## 规则提示
 
