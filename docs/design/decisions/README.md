@@ -15,6 +15,8 @@
 | 0007 | [引入 Conversation 层作为渠道无关的会话上下文](0007-conversation-as-unified-session.md) | Accepted (Refined by 0009) |
 | 0008 | [WorkerProjectMapping 走"自动发现 + 用户确认"流程](0008-worker-project-mapping-via-discovery-proposal.md) | Accepted |
 | 0009 | [Issue 与 Conversation 解耦 + 外部集成走 Bridge](0009-issue-conversation-decoupled-via-bridge.md) | Accepted |
+| 0010 | [Task / TaskExecution 两层模型 + AgentSession 合并](0010-task-execution-two-layer-model.md) | Accepted |
+| 0011 | [Dispatch 可靠性协议：ACK + execution_id 幂等 + Reconcile](0011-dispatch-reliability-protocol.md) | Accepted |
 
 ## 规则提示
 
