@@ -12,7 +12,7 @@
 | 03 | [Issue 讨论模型](03-issue-discussion.md) | Draft |
 | 04 | [InputRequired 协议](04-input-required.md) | Draft |
 | 05 | [可观测性 & Fleet View](05-observability.md) | Draft |
-| 06 | [Supervisor 运行模型](06-supervisor-model.md) | TBD |
+| 06 | [Supervisor 运行模型](06-supervisor-model.md) | Draft |
 | 07 | [Worker 执行模型](07-worker-model.md) | TBD |
 | 08 | [Prompt 组装](08-prompt-assembly.md) | Draft |
 | 09 | [飞书集成](09-feishu-integration.md) | TBD |

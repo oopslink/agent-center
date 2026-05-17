@@ -17,6 +17,8 @@
 | 0009 | [Issue 与 Conversation 解耦 + 外部集成走 Bridge](0009-issue-conversation-decoupled-via-bridge.md) | Accepted |
 | 0010 | [Task / TaskExecution 两层模型 + AgentSession 合并](0010-task-execution-two-layer-model.md) | Accepted |
 | 0011 | [Dispatch 可靠性协议：ACK + execution_id 幂等 + Reconcile](0011-dispatch-reliability-protocol.md) | Accepted |
+| 0012 | [Supervisor Memory 走 file-based + git](0012-memory-file-based.md) | Accepted |
+| 0013 | [Supervisor Invocation 并发模型：per-scope 串行 + 跨 scope 并行](0013-supervisor-invocation-concurrency.md) | Accepted |
 
 ## 规则提示
 

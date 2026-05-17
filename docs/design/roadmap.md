@@ -83,6 +83,20 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 - **Worker quarantine / graceful drain**：把某 worker 标"不接新单"等当前完成
 - **触发条件**：上述全是规模 / 并发 / 信任度场景；v1 单用户 / 单 worker 群体接受当前简化
 
+### Supervisor / Cognition 进阶
+
+[ADR-0012 Memory file-based](decisions/0012-memory-file-based.md) + [ADR-0013 Invocation 并发模型](decisions/0013-supervisor-invocation-concurrency.md) + [06-supervisor-model.md](architecture/06-supervisor-model.md) 之外的推迟项：
+
+- **Supervisor 自动重试**：`claude_nonzero` / `timed_out` invocation 失败后自动用同 trigger 重发一次。v1 选了"alert + 人工 retrigger"防 token 死循环；失败率统计稳定后可加 1 次自动重试
+- **Cross-invocation 协调机制**：并行 invocation 间互锁 / 协商，避免"两个 invocation 互不知情下都派任务给 W-2"导致一次 NACK 浪费 token。v1 靠底层单活 / ACK 兜底
+- **Memory 并发写 advisory lock**：跨 scope 并行 invocation 同改 `global/CLAUDE.md` / `supervisor.md` / `projects/X/CLAUDE.md` 等共享文件接受偶发 race；v2+ 视场景加 fcntl / flock
+- **Memory 跨 BC 聚合查询**：file-based 后 "supervisor 关于 project X 累积了哪些经验" 要靠 grep 文件树。需要可考虑 `agent-center memory search` CLI 工具化 + Web Console memory 浏览页
+- **显式 `pending` invocation 状态**：全局 FIFO 队列在 v1 是 in-memory；想看队列长度 / 平均等待时长得加 `pending` 行落 DB
+- **Memory file 体积监控告警**：file 体积无硬 cap，依赖 supervisor 自觉压缩；监控大小 + 自动提醒（如 spawn 前注入 "X.md 已 50KB，请考虑压缩" 提示）
+- **Memory file 周期性 compaction invocation**：center ticker 扫文件大小，超 threshold emit 合成事件给 global scope，触发一个 supervisor invocation 专责"压缩 X.md"
+- **多 supervisor / 跨机器**：v1 单 center 单 VPS；多 center 场景 Memory 同步用 git push/pull 还是其它方案需重新评估
+- **触发条件**：以上多数是规模 / 并发 / 体验细节问题，v1 单用户低频不触
+
 ### Workspace 模式进阶
 
 - **Readonly mount enforcement**：direct 模式强制只读 base_path（v1 仅约定不修改，不强制）
