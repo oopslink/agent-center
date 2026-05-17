@@ -245,6 +245,7 @@ failed_reason 是 supervisor 重派决策的关键信号：
 | `worker_lost` | Worker 心跳超 `worker_heartbeat_timeout`（默认 60s） |
 | `dispatch_no_ack` | Envelope 发出后 30s 没 ACK |
 | `dispatch_nack:<sub_reason>` | Worker 显式 NACK（含 worker_at_capacity / mapping_missing / 等） |
+| `no_input_channel` | agent 调 `request-input` 时 task.conversation_id=null 且 `notification.default_channel` 未配 → § 2.6 fallback 失败、InputRequest 无法创建（[ADR-0017 § 10.4](../decisions/0017-task-as-conversation.md)） |
 
 reason 之外必须填 message（人类可读详情）。
 
@@ -260,7 +261,7 @@ Worker daemon 边解析 agent JSONL 边判断 milestone，命中后调 `conversa
 | **activity 类型变化** | `current_activity` 大类切换（如 "editing files" → "running tests"）；不按具体文件名变 |
 | **长 tool call** | 单次 tool call 持续 > 30s（开始 + 结束各发一次） |
 | **累计摘要** | 每累计 N 个 tool call 发一条摘要（N 默认 20，可配） |
-| **用户在 bound thread 内询问** | 用户在 task conversation 里说话 → 立即 push 一条当前快照（不烧 supervisor） |
+| **用户在 task conversation 内询问** | 用户在 task conversation 里说话 → 立即 push 一条当前快照（不烧 supervisor） |
 
 阈值（30s / N=20）走配置。
 

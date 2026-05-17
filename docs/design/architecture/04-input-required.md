@@ -146,7 +146,7 @@ T1 / T2 都是 per-project 可配置（v1 全局默认 4h / 24h，不做 per-pro
 - **Event**: `input_request.requested` / `input_request.responded` / `input_request.timed_out` / `input_request.canceled`
 - **TaskExecution 状态适配**: `working → input_required → working`（resume）或 `→ failed`（timeout）；详见 [02-task-model.md § 3](02-task-model.md)
 - **UI 集成**: 同事务写 Message (`kind=agent_finding, input_request_ref=<id>`) 到 task.conversation_id，Bridge 渲染附按钮；状态变化时 Bridge `update_card` 置灰（合法的一次性 state-machine 驱动 update，**不是**周期 refresh）。详见 [ADR-0017 § 5](../decisions/0017-task-as-conversation.md)
-- **conversation_id=null fallback**: b/c/d 来源 task 触发 InputRequest 时若未绑 conversation，center 硬规则自动 bind 到 `notification.default_channel`；未配置 → InputRequest 创建失败，task fail；详见 [ADR-0017 § 10.4](../decisions/0017-task-as-conversation.md)
+- **conversation_id=null fallback**: b/c/d 来源 task 触发 InputRequest 时若未绑 conversation，center 硬规则自动 bind 到 `notification.default_channel`；未配置 → InputRequest 创建失败，`task_execution → failed (reason=no_input_channel)`（[02-task-model.md § 3.6](02-task-model.md)；Task 没有 failed 状态，失败只在 execution 层面）；详见 [ADR-0017 § 10.4](../decisions/0017-task-as-conversation.md)
 - **错误协议**: 所有 timeout / cancel 等失败回执必须同时携带 `reason` + `message` 双字段（[conventions § 16](../../rules/conventions.md)）
 
 具体表 schema 见 [implementation/02-persistence-schema.md](../implementation/02-persistence-schema.md)（TBD）。

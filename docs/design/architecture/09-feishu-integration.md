@@ -61,8 +61,11 @@ FeishuBridge 收到 vendor 事件 (im.message.receive_v1 / card.action.trigger /
   Step 2: 路由到 Conversation:
     按 (channel='feishu', vendor_thread_key) 查 conversation
     找到 → 调 agent-center conversation add-message --id=<conv> --content=... (direction=inbound, vendor_msg_ref=...)
+           （此 lookup 同样命中 kind=task conversation —— 用户在 task thread 内说话由该路径写入；
+            "/answer" / "/track" 等 slash 命令的留痕也走此分支，详见 § 9.1）
     找不到 → 按 event context 创建新 conversation
               (DM → kind=dm; 群里 @bot 但无 thread → kind=adhoc; 群里 thread 内 → kind=group_thread)
+              （注意：kind=task conversation **不**由此分支创建 —— 走 § 7.5.1 同步建 / § 7.5.2 懒创建）
               然后调 conversation add-message 写入
    ↓
 领域模块写入数据 + emit 事件
@@ -90,10 +93,12 @@ FeishuBridge 订阅到 conversation.message_added 事件
    ↓
 查 conversation.primary_channel_hint = 'feishu' & primary_channel_thread_key = '...'
    ↓
-按 message.content_kind 渲染:
-  - text / agent_finding → markdown 消息 (im.v1.messages.create text)
+按 message.content_kind + input_request_ref 渲染（详见 § 6）:
+  - text / agent_finding (input_request_ref 为空) → markdown 消息 (im.v1.messages.create text)
   - system → 简单卡片 (im.v1.messages.create interactive, 小)
   - supervisor_summary → 富卡片 (含按钮: 确认 / 改 / 不做)
+  - agent_finding + input_request_ref ≠ null → interactive card with buttons
+    (join InputRequest 取 options 渲染 [A][B][自己写][取消])
    ↓
 调飞书 SDK 投递:
   - 成功 → 回填 message.vendor_msg_ref；emit channel.delivered
@@ -107,7 +112,7 @@ FeishuBridge 订阅到 conversation.message_added 事件
 | `text` | — | text message | markdown |
 | `system` | — | small interactive card | 包含简短文本 + 标签（如 "Issue #7 已开" / "Task #42 created"）|
 | `agent_finding` | null | text message | 跟 text 类似，标签上注明来自 agent / worker |
-| `agent_finding` | **≠ null** | rich interactive card with buttons | join InputRequest 取 options → 渲染 [选项 A][B][自己写][取消] 按钮；状态变化时 update_card 置灰（详见 [04-input-required.md § 8](04-input-required.md) 与 [ADR-0017 § 5](../decisions/0017-task-as-conversation.md)） |
+| `agent_finding` | **≠ null** | rich interactive card with buttons | join InputRequest 取 options → 渲染 [选项 A][B][自己写][取消] 按钮；状态变化时 update_card 置灰（详见 [04-input-required.md 完整流程 Step 8](04-input-required.md) 与 [ADR-0017 § 5](../decisions/0017-task-as-conversation.md)） |
 | `supervisor_summary` | — | rich interactive card | 含按钮：[确认结论] [改后确认] [不做] |
 
 具体卡片模板由 FeishuBridge 内置；不由领域模块定义。
@@ -201,7 +206,7 @@ Slash 命令的核心特征：**Bridge 直接调对应领域 API + 写一条 Mes
 | 命令 | 行为 | 留痕 |
 |---|---|---|
 | `/answer <task_id> <text>` | Bridge 解析 → 调 `InputRequest.respond`（找 task.pending_input_request_id）+ 单事务写 Message (`kind=text, direction=inbound, sender=user, content=<text>`) 到 task.conversation_id | "/answer T-42 选 B" 类的留痕条目；InputRequest 状态变化时 Bridge update_card 置灰 |
-| `/track <task_id>` | Bridge 解析 → 翻译为 `task bind-card --channel=feishu --to=<当前 thread 对应 conversation_id>`（懒创建路径之一，见 § 7.5.2）；若当前 thread 还没对应 conversation，先按 § 4 inbound 流程创建 dm / group_thread conversation 再绑 | task created 流入新 thread 后由 supervisor 主动写一条 supervisor_summary |
+| `/track <task_id>` | Bridge 解析 → 翻译为 `task bind-card --channel=feishu --to=<当前 thread 对应 conversation_id>`（懒创建路径之一，见 § 7.5.2）；若当前 thread 还没对应 conversation，先按 § 4 inbound 流程创建 dm / group_thread conversation 再绑 | center 写 task.conversation_id + emit conversation 关联记录；supervisor 唤醒后主动写一条 supervisor_summary 到 task.conversation_id 提示绑定成功并续后续进度 |
 | `/dispatch ...` | v1 不实现（[roadmap](../roadmap.md)） | — |
 
 **错误处理：**
