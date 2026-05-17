@@ -2,8 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | **Superseded by [ADR-0017](0017-task-as-conversation.md)** |
 | Date | 2026-05-17 |
+| Superseded-Date | 2026-05-17 |
+
+> **本 ADR 已被 [ADR-0017](0017-task-as-conversation.md) 接管**。讨论 ADR-0016 时把"进度推送"独立为一类机制（bound_card / task_progress content_kind / progress_milestone_reached event）；后续发现把 task 全部 IO（progress / InputRequest / supervisor 分析 / 用户回应）都收进 **同一个 Conversation**（Task ↔ Conversation 1:1）更统一、零新概念。ADR-0017 § 8 节流规则仍沿用 ADR-0016 § 3 的 5 条 milestone，但执行位置 / 数据通道完全变更。保留本文供 history 追溯，不要据此实现。
 
 ## Context
 
