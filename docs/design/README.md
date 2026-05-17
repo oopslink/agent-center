@@ -28,3 +28,7 @@
 ## 写作规则
 
 见 [docs/rules/documentation.md](../rules/documentation.md)。**先文档后讨论；不允许混层；ADR 编号严格递增**。
+
+## 设计方法论
+
+**项目使用 DDD（Domain-Driven Design）**。所有文档 / 讨论 / 代码必须用 DDD 统一语言。通用语言权威表见 [architecture/01-bounded-contexts.md § 1](architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language)；方法论约定见 [conventions § 0](../rules/conventions.md#-0-设计方法论ddd--统一语言)。

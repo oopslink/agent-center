@@ -8,7 +8,7 @@
 
 | 规则 | 描述 |
 |---|---|
-| ⭐ **[项目规约](docs/rules/conventions.md)** | **MUST-READ**：所有设计 / 开发 / 测试前必读。跨切原则（单一来源、可观测性、AI native、零 LLM SDK 等）+ 自检清单 |
+| ⭐ **[项目规约](docs/rules/conventions.md)** | **MUST-READ**：所有设计 / 开发 / 测试前必读。**§ 0 DDD + 统一语言是设计方法论根基**；其它跨切原则（单一来源、可观测性、AI native、零 LLM SDK 等）+ 自检清单 |
 | [文档管理](docs/rules/documentation.md) | 设计文档目录组织、分层职责、ADR 格式、"出范围 vs 推迟"区分、doc-first 工作流 |
 | [测试规约](docs/rules/testing.md) | 单元行覆盖率 ≥ 90%、测试计划/报告模板、关键 e2e 路径、契约测试、可测性 |
 

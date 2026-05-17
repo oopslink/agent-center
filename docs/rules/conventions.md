@@ -4,6 +4,52 @@
 
 本文档列出**跨切原则**（cross-cutting principles）—— 不属于某个特定模块，但每个模块都必须遵守。模块特定的细节归 [docs/design/](../design/)。
 
+## § 0. 设计方法论：DDD + 统一语言
+
+**agent-center 使用 [DDD（Domain-Driven Design）](https://en.wikipedia.org/wiki/Domain-driven_design)作为项目设计与实现方法论**。所有设计文档、ADR、代码注释、提交信息、issue 讨论、code review 评论都必须使用 DDD 统一语言（Ubiquitous Language）。
+
+### § 0.1 统一语言（Ubiquitous Language）
+
+**项目通用语言以 [`docs/design/architecture/01-bounded-contexts.md` § 1](../design/architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language) 为权威**。包含：
+
+- 核心实体 / 聚合根 / 值对象的术语（Task / TaskExecution / Issue / IssueComment / Worker / Conversation / Message / Identity / ChannelBinding / SupervisorInvocation / Memory / Artifact / InputRequest / ...）
+- 行为动词（Dispatch / Conclude / Spawn / Escalate / Enroll / Adopt / Withdraw / Open / Cancel / Add-message / Comment / Deliver / ...）
+- 状态机词汇（Task: open / suspended / done / abandoned；TaskExecution: submitted / working / input_required / completed / failed / killed；等）
+- 易混淆术语对照（Supervisor 不叫 Brain；Issue 不叫 Suggestion；TaskExecution 不叫 AgentSession 等）
+
+**违反命名一致性见 [§ 12](#-12-命名一致)**：代码包 / 文档 / CLI / event_type 字符串 / 数据库表名都用同一组词。
+
+### § 0.2 DDD 术语自检
+
+讨论 / 文档 / 代码里出现的所有领域概念，必须能在以下范畴里被归类：
+
+| 范畴 | 含义 | 举例 |
+|---|---|---|
+| **Bounded Context** | 限界上下文 | Scheduling / Discussion / Workforce / Execution / Cognition / Observability / Conversation / Bridge（8 个，详见 [01 § 2](../design/architecture/01-bounded-contexts.md#-2-限界上下文bounded-contexts)）|
+| **Aggregate / Aggregate Root** | 聚合 / 聚合根 | Task（根）+ TaskExecution（实体，从属）；Issue（根）+ IssueComment（实体，从属）；Conversation（根）+ Message（实体，从属）；... |
+| **Entity** | 实体（有 identity，跨时间可变） | 各聚合内的从属实体；详见 01 § 1.1 |
+| **Value Object** | 值对象（由属性定义、不可变） | ChannelBinding / DispatchEnvelope / Reason+Message 对 / FailedReason taxonomy / IssueConcludeSpec / 等（v1 散落，正在系统化）|
+| **Domain Event** | 领域事件 | `task.created` / `issue.concluded` / `conversation.message_added` / ... 详见 [05-observability.md](../design/architecture/05-observability.md) |
+| **Domain Service** | 跨聚合的纯领域逻辑 | Supervisor 决策 / Dispatch 调度 / Issue conclude → spawn tasks |
+| **Repository** | 聚合的持久化访问 | 见 [implementation/02-persistence-schema.md](../design/implementation/) (TBD) |
+| **Factory** | 复杂聚合的创建逻辑 | Issue conclude batch spawn N tasks / Task create / TaskExecution create |
+| **Anti-Corruption Layer (ACL)** | 跟外部系统的翻译层 | Bridge（每 vendor 一个）/ Agent CLI Adapter / BlobStore Adapter（[01 § 3.2](../design/architecture/01-bounded-contexts.md#32-anti-corruption-layers)）|
+| **Shared Kernel / Customer-Supplier** | 上下文映射模式 | 见 [01 § 3.1](../design/architecture/01-bounded-contexts.md#31-上下游关系一览) |
+
+### § 0.3 自检清单
+
+- 我引入的新概念，**有没有恰当归类到上述某个 DDD 范畴**？没有的话，是真新概念还是该归到某个已有类别？
+- 我用的术语，是不是 [01 § 1.1 通用语言表](../design/architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language)里的同一个词？还是无意中造了同义词（Brain ≠ Supervisor / Session ≠ TaskExecution / Card ≠ Message 等）？
+- 跨聚合写操作，符合 [ADR-0014 § 2](../design/decisions/0014-event-sourcing-level.md) 的同事务原则吗？跨聚合**强引用**（如 task.conversation_id）vs **弱关联**（如 issue.related_conversation_ids）的选择有依据吗？
+- 我引入的值对象是不是有"由属性定义、不可变、可替换"特征？是的话明示为 VO，不要散成"几个字段"
+
+### § 0.4 不接受的措辞
+
+- "事件" → 必须区分 **Domain Event**（领域事件，进 events 表）vs **AgentTraceEvent**（agent JSONL 内的事件，不进 events 表，见 [ADR-0015](../design/decisions/0015-agent-trace-not-in-events-table.md)）
+- "对象" / "数据" / "记录" → 模糊；明示 Entity / Value Object / Aggregate / Projection / Event
+- "调用 / RPC / 接口" → 跨聚合或跨 BC 时明示是 **Customer-Supplier** / **Shared Kernel** / **ACL** 哪种模式
+- "中央 / 大脑 / 总管" → Supervisor，**不是** Brain（[ADR-0003](../design/decisions/0003-supervisor-not-brain.md)）
+
 ## § 1. 单一来源 / 无野任务
 
 **Center 是任务的唯一权威**。Task 只能由 supervisor 或用户创建。Worker / Agent **不允许造任务**，它们想要新工作必须开 [Issue](../design/architecture/03-issue-discussion.md) 走讨论。
@@ -241,6 +287,7 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 - [ ] AI Native（§3）：新 agent 能力同时有 skill + CLI，不走 MCP
 - [ ] 零 LLM SDK（§4）：没新增 LLM 厂商 SDK 依赖
 - [ ] 文档先行（§5）：设计落到 `docs/design/` 对应层；分叉决定有 ADR
+- [ ] DDD 统一语言（§0）：新引入的术语 / 概念已归类到 DDD 范畴（Aggregate / Entity / VO / Domain Event / ...）；用词跟 [01 § 1.1](../design/architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language) 一致，没造同义词
 - [ ] 范围决策（§6）：新增的"不做"分到出范围 / 推迟正确位置
 - [ ] 项目本地约定（§7）：不在 agent-center 里管项目自有的规则文档
 - [ ] BlobStore（§8）：大字段走 BlobStore
