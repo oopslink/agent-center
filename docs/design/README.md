@@ -18,6 +18,7 @@
 | 实现 | [implementation/README.md](implementation/README.md) |
 | 决策 | [decisions/README.md](decisions/README.md) |
 | 路线图 | [roadmap.md](roadmap.md) — 推迟做的功能（节奏决策）|
+| DDD 蓝图 | [ddd-blueprint.md](ddd-blueprint.md) — DDD 设计推进的 plan & status（哪些做了 / 没做 / 下一步）|
 
 **范围决策的两类**：
 - **出范围**（永远不做）→ [requirements/03-out-of-scope.md](requirements/03-out-of-scope.md)
@@ -31,4 +32,8 @@
 
 ## 设计方法论
 
-**项目使用 DDD（Domain-Driven Design）**。所有文档 / 讨论 / 代码必须用 DDD 统一语言。通用语言权威表见 [architecture/01-bounded-contexts.md § 1](architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language)；方法论约定见 [conventions § 0](../rules/conventions.md#-0-设计方法论ddd--统一语言)。
+**项目使用 DDD（Domain-Driven Design）**。所有文档 / 讨论 / 代码必须用 DDD 统一语言。
+
+- 方法论约定：[conventions § 0](../rules/conventions.md#-0-设计方法论ddd--统一语言)
+- 通用语言权威表：[architecture/01-bounded-contexts.md § 1](architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language)
+- DDD 推进 plan & status：[ddd-blueprint.md](ddd-blueprint.md)（讨论 DDD 设计前先过一遍）
