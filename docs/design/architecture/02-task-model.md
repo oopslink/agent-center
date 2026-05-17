@@ -246,6 +246,8 @@ failed_reason 是 supervisor 重派决策的关键信号：
 | `dispatch_no_ack` | Envelope 发出后 30s 没 ACK |
 | `dispatch_nack:<sub_reason>` | Worker 显式 NACK（含 worker_at_capacity / mapping_missing / 等） |
 | `no_input_channel` | agent 调 `request-input` 时 task.conversation_id=null 且 `notification.default_channel` 未配 → § 2.6 fallback 失败、InputRequest 无法创建（[ADR-0017 § 10.4](../decisions/0017-task-as-conversation.md)） |
+| `shim_no_hello` | Daemon spawn shim 后 60s 内未收到 ShimHello（[ADR-0018 § 7](../decisions/0018-detached-agent-via-per-execution-shim.md)） |
+| `shim_crashed` | Shim 进程崩溃（PID 死 / start_time mismatch）；agent 若还活则连带 SIGTERM（同上 ADR） |
 
 reason 之外必须填 message（人类可读详情）。
 
@@ -330,24 +332,32 @@ NACK reason 标准枚举见 [ADR-0011](../decisions/0011-dispatch-reliability-pr
 
 ```
 1. 收到 DispatchEnvelope
-2. 本地 ledger 查 execution_id 幂等
-   - 未收过 → 落 ledger → 继续
-   - 已收过 + running → 重发 ACK；不重起 agent
-   - 已收过 + done → 重发 ACK；不做事
+2. 查 ~/.agent-center-worker/exec/<execution_id>/ 目录幂等:
+   - 无目录 → 建目录 → 写 envelope.json → 继续
+   - 目录存在 + status.json.phase=running → 重发 ACK；不重起 shim
+   - 目录存在 + status.json.phase=done → 重发 ACK；不做事
 3. 校验 envelope (agent_cli / mapping / base_branch / version)
-4. 失败 → NACK + reason + message；ledger 不入
+4. 失败 → NACK + reason + message；目录回滚
 5. 通过 → ACK
 6. 准备 workspace:
    - worktree 模式: git worktree add -b task/<execution_id>
    - direct 模式: CWD = base_path
    - emit task_execution.working { workspace_mode, cwd, ... }
    - worktree 模式额外 emit worktree.created
-7. 组装 prompt（详见 [08-prompt-assembly.md](08-prompt-assembly.md)）
-8. Spawn agent CLI 子进程，env 注入（§ 4.4）
-9. 进入 normal monitoring loop
+7. 组装 prompt (详见 [08-prompt-assembly.md](08-prompt-assembly.md))
+8. 生成 shim_token (一次性 nonce)
+9. Spawn shim 子命令 (detached, setsid)，env 注入（§ 4.4 + AGENT_CENTER_SHIM_TOKEN）：
+   agent-center worker shim --execution-id=... --shim-token=... --cmd=... -- <args>
+10. 等 ShimHello (60s 超时 → failed reason='shim_no_hello')；
+    shim 起 agent CLI 子进程、写 status.json、连 daemon 上报
+11. 进入 normal monitoring loop (接 shim 主动上报的事件 + 转发 agent RPC)
 ```
 
-### 4.4 Worker spawn agent 时的环境变量
+> Shim 模型细节（per-execution 目录 / RPC 协议 / fencing / 异常 timeout）详见 [07-worker-model.md § Shim 模型与 per-execution 目录](07-worker-model.md) 与 [ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)。
+
+### 4.4 Env 注入（daemon → shim → agent）
+
+**daemon → shim**（spawn `agent-center worker shim` 子命令时）：
 
 ```
 AGENT_CENTER_EXECUTION_ID       = <uuid>
@@ -356,10 +366,20 @@ AGENT_CENTER_PROJECT_ID         = <string>
 AGENT_CENTER_CONVERSATION_ID    = <uuid> or ""    # task.conversation_id；空字符串表示未绑定
 AGENT_CENTER_WORKSPACE_MODE     = "worktree" | "direct"
 AGENT_CENTER_CWD                = <resolved path>
-AGENT_CENTER_WORKER_SOCK        = /var/run/agent-center-worker-<worker_id>.sock
 AGENT_CENTER_PRIORITY           = "high" | "medium" | "low"
 AGENT_CENTER_ETA_AT             = <ISO 8601> or ""
+AGENT_CENTER_SHIM_TOKEN         = <crypto random nonce>   ★ 仅 daemon → shim
 ```
+
+**shim → agent**（除 SHIM_TOKEN 外原样透传 + 改写 WORKER_SOCK 指向 shim）：
+
+```
+AGENT_CENTER_WORKER_SOCK        = ~/.agent-center-worker/exec/<execution_id>/shim.sock
+                                  ★ 指向 shim 的本地 socket，不是 daemon 主 socket
+                                  (daemon 升级窗口期 agent 调 RPC 不受影响)
+```
+
+详见 [07-worker-model.md § Worker 内 Agent CLI 中转](07-worker-model.md) 与 [ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)。
 
 ### 4.5 Worker reconcile（重连对账）
 

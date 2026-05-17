@@ -107,26 +107,175 @@ concurrency:
 v1 必须支持的 adapter：`claude-code`。
 计划支持：`codex`、`opencode`。
 
-## Worker 内 Agent CLI 中转
+## Shim 模型与 per-execution 目录
 
-Worker daemon 在本机暴露一个 unix socket，agent 子进程通过 `agent-center xxx` CLI 命令与之通信：
+详细决策见 [ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)。本节给架构层视图。
+
+### 为什么不直接把 agent 作为 daemon 子进程
+
+Worker daemon 升级是常态（v1 估计每周 1-2 次：bug fix / 协议迭代 / 新 agent CLI adapter）。如果 agent 是 daemon 的子进程，daemon 重启 = stdout pipe 断 + unix socket 断 → agent 短时间内 SIGPIPE / RPC 失败而终结 → 长任务（小时级）每次升级都重跑，浪费严重。
+
+所以 agent 设计为 daemon 的 **detached 进程**：daemon 跟 agent 之间隔一个 shim 进程，shim 真正持有 agent 子进程 + IO 通道；daemon 跟 shim 通过本地 RPC 通信。
+
+### 拓扑
 
 ```
-worker daemon: listens on /var/run/agent-center-worker-<id>.sock
+daemon ──spawn (setsid)──> shim ──fork+exec──> agent CLI
+   │                          │                     │
+   │  daemon.sock            │ shim.sock          │
+   │ (center 出口)           │ (agent → shim)     │
+   ▼                          ▼                    ▼
+center                      events.jsonl       agent.log
+                            status.json
+```
 
-worker daemon spawns agent，env:
-  AGENT_CENTER_EXECUTION_ID=<uuid>
-  AGENT_CENTER_TASK_ID=<uuid>
-  AGENT_CENTER_PROJECT_ID=<string>
-  AGENT_CENTER_WORKSPACE_MODE="worktree" | "direct"
-  AGENT_CENTER_CWD=<resolved path>
-  AGENT_CENTER_WORKER_SOCK=/var/run/agent-center-worker-<id>.sock
-  AGENT_CENTER_PRIORITY="high" | "medium" | "low"
-  AGENT_CENTER_ETA_AT=<ISO 8601> 或 ""
+daemon 死时：
 
-agent: 执行 agent-center request-input "..."
-  CLI 子命令 → 连 sock → 发 RPC → 阻塞 / 立即返回
-  worker daemon → 转发到 center / 等回应
+- shim 不死（脱离 daemon process group）
+- agent 不死（parent=shim，IO=shim 持有的文件，全活）
+- 事件继续 append 进 events.jsonl
+- daemon 起来后 shim 主动重连 + catchup
+
+### Per-execution 目录布局
+
+每个 TaskExecution 在 worker 本机有独立目录：
+
+```
+~/.agent-center-worker/exec/<execution_id>/
+  envelope.json        # daemon 派单时写, 不可变快照
+  status.json          # shim 写, daemon 读
+  events.jsonl         # shim append-only
+  agent.log            # agent stdout/stderr
+  shim.sock            # shim 暴露的本地 socket
+```
+
+`status.json` 含字段（概念，schema 归实现层）：
+
+```
+{
+  shim_pid, shim_start_time,
+  agent_pid, agent_start_time,
+  phase,                 // preparing | running | done
+  exit_code?,
+  last_acked_seq         // daemon 已 ACK 的最大事件 seq
+}
+```
+
+写入语义：
+
+- `envelope.json` —— daemon 派单时 `temp+rename` 落地
+- `status.json` —— shim 每次 phase 变更 `temp+rename` 原子写
+- `events.jsonl` —— shim O_APPEND 顺序追加，自带递增 seq
+- `agent.log` —— shim 起 agent 时把 fd 重定向到此文件
+
+### Shim 是 `agent-center worker shim` 子命令
+
+不引入独立 binary。daemon 通过 `os/exec` 拉起：
+
+```
+agent-center worker shim \
+  --execution-id=<uuid> \
+  --shim-token=<nonce> \
+  --cmd=claude-code \
+  -- <agent args...>
+```
+
+配合 `SysProcAttr{Setsid: true}` 让 shim 脱离 daemon 的 session / process group。Daemon 死后 shim 与 agent 都活。
+
+### Shim → daemon RPC
+
+Shim 主动连 daemon 主 socket，单一长连接。主要消息：
+
+| 方向 | 消息 | 时机 |
+|---|---|---|
+| shim → daemon | `ShimHello { execution_id, shim_token, shim_pid, shim_start_time, agent_pid, agent_start_time, last_acked_seq }` | shim 启动 / 重连 |
+| daemon → shim | `Catchup { from_seq }` | 收 Hello 后告诉 shim 从哪个 seq 开始重发 |
+| shim → daemon | `PhaseChanged { execution_id, phase, exit_code? }` | phase 切换 |
+| shim → daemon | `Event { execution_id, seq, event }` | 每个 JSONL 解析后的事件 |
+| daemon → shim | `EventAck { execution_id, seq }` | 让 shim 更新 status.json.last_acked_seq |
+| shim → daemon | `RPCForward { execution_id, rpc_name, payload }` | agent 调 `agent-center request-input` 等阻塞 RPC |
+| daemon → shim | `RPCResponse { ..., payload }` | center 回来后转给 shim 转给 agent |
+| shim → daemon | `ShimGoodbye { execution_id, finalized_at }` | 所有 event 已 ACK + 准备退出 |
+| daemon → shim | `GoodbyeAck` | 收尾确认（agent.log 已上传等） |
+
+连接断（daemon 升级 / 网络抖动）时：
+
+- shim 继续 append events.jsonl
+- agent 的阻塞类 RPC 在 shim 内**继续阻塞**（语义同"用户暂时没回"），不引入 RPC timeout
+- shim 周期重连 daemon；daemon 起来后 ShimHello 重新走流程
+
+### Fencing：shim_token + PID start_time
+
+**shim_token**（防伪造）：daemon spawn shim 时生成一次性 nonce 塞 env：
+
+```
+AGENT_CENTER_SHIM_TOKEN = <crypto random nonce>
+```
+
+shim 在 ShimHello 里回传，daemon 校验匹配才接受连接。防止任意进程冒充 shim 连主 socket。
+
+**PID start_time**（防 PID 复用）：daemon 探活 shim 时不光 `kill -0`，还读进程 start_time 跟 status.json 里存的 `shim_start_time` 比对。读法：
+
+- macOS：`ps -o lstart= -p <pid>`
+- Linux：`/proc/<pid>/stat` 第 22 字段
+
+agent_pid 同理（status.json 存 `agent_start_time`）。
+
+### 异常 timeout 表
+
+| 场景 | 行为 |
+|---|---|
+| daemon spawn shim 后未收到 ShimHello | **60s** 超时 → daemon emit `task_execution.failed(reason='shim_no_hello', message=...)` → kill shim_pid（若还活） |
+| daemon 长时间不在时 agent 调阻塞 RPC | shim 阻塞 agent 不报错，daemon 回来后 flush；不引入 RPC 超时 |
+| shim ShimGoodbye 后等 daemon ACK | 最长 **24h**（跟 GC 同步）；超时 shim fence-and-forget 退出；daemon 下次启动扫到剩余 events.jsonl 补完投递 |
+| shim 进程崩溃 | daemon 周期 `kill -0 + start_time` 探活；shim 死 → SIGTERM agent_pid（若活） → emit `failed(reason='shim_crashed')` |
+
+新的 failed reason 进 [02-task-model.md § 3.6](02-task-model.md)：`shim_no_hello` / `shim_crashed`。
+
+### GC
+
+per-execution 目录跟 worktree 同步 24h 释放。三资源齐释放（worktree / per-execution 目录 / agent.log），调试体验一致：24h 内 `inspect execution E-7` 能完整复盘（envelope / status / events / log / worktree 全在）。
+
+## Worker 内 Agent CLI 中转
+
+Agent CLI 子进程通过 `agent-center xxx` 调用本机 shim，shim 转 daemon，daemon 转 center：
+
+```
+agent ───> shim.sock ──RPCForward──> daemon ──> center
+           (本地 RPC)               (daemon.sock)
+```
+
+Daemon spawn shim 时 env 注入：
+
+```
+# daemon → shim
+AGENT_CENTER_EXECUTION_ID    = <uuid>
+AGENT_CENTER_TASK_ID         = <uuid>
+AGENT_CENTER_PROJECT_ID      = <string>
+AGENT_CENTER_CONVERSATION_ID = <uuid> 或 ""
+AGENT_CENTER_WORKSPACE_MODE  = "worktree" | "direct"
+AGENT_CENTER_CWD             = <resolved path>
+AGENT_CENTER_PRIORITY        = "high" | "medium" | "low"
+AGENT_CENTER_ETA_AT          = <ISO 8601> 或 ""
+AGENT_CENTER_SHIM_TOKEN      = <crypto random nonce>   ★ 仅 daemon → shim
+```
+
+Shim 起 agent 时透传上述（除 SHIM_TOKEN 外）+ 加：
+
+```
+# shim → agent
+AGENT_CENTER_WORKER_SOCK = ~/.agent-center-worker/exec/<id>/shim.sock   ★ 指向 shim, 不是 daemon
+```
+
+Agent 看到的 `AGENT_CENTER_WORKER_SOCK` 指向 **shim 的本地 socket**（不是 daemon 主 socket）。这是 detached 模型的关键：daemon 升级窗口期间，agent 调 RPC 不受影响 —— shim 一直在听，缓冲请求；daemon 回来后 flush。
+
+阻塞类 RPC（`request-input` 等）：
+
+```
+agent: agent-center request-input "..."
+  CLI 子命令 → 连 shim.sock → shim 暂存 + 转 daemon → daemon 转 center
+  agent 阻塞等响应 (无 RPC timeout, 等同"用户暂时没回")
+  daemon 升级期间 shim 持续阻塞 agent; daemon 起来后路径 resume
 ```
 
 > `AGENT_CENTER_AGENT_SESSION_ID` 已废弃；用 `AGENT_CENTER_EXECUTION_ID` 取代（[ADR-0010](../decisions/0010-task-execution-two-layer-model.md)）。
@@ -305,23 +454,23 @@ Worker NACK 的标准 reason：`worker_at_capacity` / `agent_cli_unsupported` / 
 
 每个 NACK 必须同时填 `reason + message`（[conventions § 16](../../rules/conventions.md)）。
 
-### 本地 ledger（崩溃恢复用）
+### 本地崩溃恢复（per-execution 目录）
 
-Worker daemon 在本机维护 sqlite ledger：
+Worker daemon 用 `~/.agent-center-worker/exec/<execution_id>/` 目录承载本机状态（详见上文 [Shim 模型与 per-execution 目录](#shim-模型与-per-execution-目录) + [ADR-0018 § 3 / § 5](../decisions/0018-detached-agent-via-per-execution-shim.md)）。**替代 [ADR-0011](../decisions/0011-dispatch-reliability-protocol.md) 原方案的 sqlite ledger**。
 
-- 字段：`execution_id` / `received_at` / `phase ∈ {preparing / running / done}` / `envelope_json`
-- 收到 envelope **先写 ledger** 再 ACK（写失败则不 ACK）
-- 重启后从 ledger 读未完成派单（preparing / running）→ 走 reconcile 拿权威状态后决定动作
+- 收到 envelope **先写 `exec/<id>/envelope.json`** 再 ACK（temp+rename，写失败不 ACK）
+- shim 启动后写 `status.json` 维护 phase；事件 append 进 `events.jsonl`
+- daemon 重启时扫 `exec/*/status.json` 拿未完成 execution，对每条决定动作（等 shim Hello / 接管 cleanup / kill 僵尸 / 标 failed）
 
-ledger **不是状态权威**（状态权威在 Center），仅本地崩溃恢复用。
+per-execution 目录 **不是状态权威**（状态权威在 Center），仅本地崩溃恢复 + daemon ↔ shim 状态对账用。
 
 幂等查询：
 
-| 本地 ledger | Worker 行为 |
+| 本地状态 | Worker 行为 |
 |---|---|
-| 未收过 | 落 ledger → ACK → 准备 workspace |
-| 已收过 + phase=running | 重发 ACK；**不重起 agent**（防双跑） |
-| 已收过 + phase=done | 重发 ACK；不做任何事 |
+| 无 `exec/<id>/` 目录 | 建目录 → 写 envelope.json → ACK → spawn shim |
+| 目录存在 + status.json.phase=running | 重发 ACK；**不重起 shim**（防双跑） |
+| 目录存在 + status.json.phase=done | 重发 ACK；不做任何事 |
 
 ### Reconcile（重连对账）
 
@@ -355,28 +504,43 @@ Worker reconcile **完成前不接收新 dispatch**。
 ```
 1. enroll              → 获得 session token
 2. dial center         → 建立长连接, 发 ImAlive(capabilities, projects)
-3. Reconcile           → 上报 local_active_executions; 收 ReconcileResponse;
-                          kill stale/unknown 进程后继续
-4. 长连接 listen        → 收 DispatchEnvelope
-5. 收派单:
-   a. 落 ledger (落地失败不 ACK; 落地成功 → ACK / NACK)
+3. 本机 reconcile       → 扫 ~/.agent-center-worker/exec/*/status.json
+                         逐条决定: 等 shim Hello / 接管 cleanup / kill 僵尸 / 标 failed
+4. center reconcile    → 上报 local_active_executions; 收 ReconcileResponse;
+                         kill stale/unknown 进程后继续
+5. 长连接 listen        → 收 DispatchEnvelope
+6. 收派单:
+   a. 建 ~/.agent-center-worker/exec/<id>/ 目录, 写 envelope.json (temp+rename)
+      失败不 ACK; 成功 → ACK / NACK
    b. workspace 准备:
         - workspace_mode=worktree: git worktree add -b task/<execution_id>
         - workspace_mode=direct: cwd = base_path (不建 worktree)
    c. 装载 worker-agent.md skill (按 workspace_mode 注入不同提示)
-   d. 组装 final_prompt（见 [08-prompt-assembly.md](08-prompt-assembly.md)）
-   e. spawn agent, env 注入（含 AGENT_CENTER_EXECUTION_ID 等）
-   f. emit task_execution.working { workspace_mode, cwd, ... }
-   g. workspace_mode=worktree 额外 emit worktree.created
-   h. 并行: 解析 agent JSONL → emit events / 更新 TaskExecution 投影
-   i. agent 退出:
-        - exit 0 + 无未 resolve input_request → emit task_execution.completed
-        - exit 非 0 / agent 显式 report-failure → emit task_execution.failed(reason+message)
-        - 收 task_execution.kill_requested → SIGTERM → 5s grace → SIGKILL → emit task_execution.killed
-   j. 收集产物 → BlobStore (大文件) / artifacts 表 (元数据)
-   k. 日志归档 → BlobStore; ledger 更新 phase=done
-6. worktree 模式: 24h 后 GC worktree, emit worktree.released
-7. 心跳 → 周期 emit Heartbeat (含 working_seconds_accumulated 增量)
+   d. 组装 final_prompt (见 [08-prompt-assembly.md](08-prompt-assembly.md))
+   e. 生成 shim_token (一次性 nonce)
+   f. spawn shim (detached, setsid):
+        agent-center worker shim --execution-id=... --shim-token=... --cmd=claude-code -- ...
+   g. shim 起 agent 子进程, IO 重定向到 agent.log;
+      shim 起 shim.sock 监听本地 RPC;
+      shim 写 status.json (phase=running, shim_pid, agent_pid, ...);
+      shim 主动连 daemon.sock 发 ShimHello (含 shim_token)
+   h. daemon 校验 shim_token → 回 Catchup → 接管事件流
+   i. shim 解析 agent JSONL → emit events 给 daemon (durable: events.jsonl);
+      agent 调 agent-center xxx → shim 转 daemon 转 center
+   j. emit task_execution.working { workspace_mode, cwd, ... }
+   k. workspace_mode=worktree 额外 emit worktree.created
+   l. agent 退出:
+        - exit 0 + 无未 resolve input_request → shim emit task_execution.completed
+        - exit 非 0 / agent 显式 report-failure → shim emit task_execution.failed(reason+message)
+        - 收 task_execution.kill_requested → shim SIGTERM agent → 5s grace → SIGKILL → emit task_execution.killed
+   m. shim 把剩余事件发完 → 等 daemon ACK 全部 seq
+   n. shim 发 ShimGoodbye → daemon 读 agent.log 上传 BlobStore → emit task_log.archived
+      → daemon 回 GoodbyeAck → shim 退出
+   o. artifacts 走 agent-center report-artifact → shim → daemon → center
+7. worktree 模式: 24h 后 GC worktree + exec/<id>/ 目录, emit worktree.released
+8. 心跳 → 周期 emit Heartbeat (含 working_seconds_accumulated 增量)
 ```
 
-> 失败 reason / token 轮换 / 离线后 task 走向 见 [02-task-model.md § 9 timeout](02-task-model.md) 与 [ADR-0011](../decisions/0011-dispatch-reliability-protocol.md)。
+> daemon 升级期间（步骤 i / j 阶段）：shim 跟 agent 都活，事件继续 append events.jsonl；daemon 回来后 shim 自动重连重发未 ACK 段。详见 [ADR-0018 § 4 / § 5](../decisions/0018-detached-agent-via-per-execution-shim.md)。
+>
+> 失败 reason / token 轮换 / 离线后 task 走向 见 [02-task-model.md § 9 timeout](02-task-model.md) 与 [ADR-0011](../decisions/0011-dispatch-reliability-protocol.md) / [ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)。

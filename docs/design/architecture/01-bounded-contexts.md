@@ -159,7 +159,7 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 
 **核心操作**: `dispatch` / `kill-execution` / `abandon-task` / `suspend-task` / `resume-task` / `query tasks` / `query executions` / `respond-to-input-request` / `request-input`（来自 Execution）
 
-**派单可靠性**: ACK + execution_id 幂等 + worker 本地 ledger + reconcile 协议（详见 [ADR-0011](../decisions/0011-dispatch-reliability-protocol.md)）
+**派单可靠性**: ACK + execution_id 幂等 + worker 本机 per-execution 目录 + reconcile 协议（详见 [ADR-0011](../decisions/0011-dispatch-reliability-protocol.md) + [ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)）
 
 **详细设计**: [02-task-model.md](02-task-model.md) / [04-input-required.md](04-input-required.md)
 
@@ -197,7 +197,7 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 
 ### BC4: Execution（执行运行时, worker 侧）
 
-**职责**: 在 worker 机器上的运行时上下文 —— Workspace 管理（worktree 或 direct）、Agent 子进程生命周期、JSONL trace 解析、artifact 收集、日志归档、本地 dispatch ledger 持久化、reconcile 上报。**这个上下文物理上跑在 worker 上，状态权威仍在 center**。
+**职责**: 在 worker 机器上的运行时上下文 —— Workspace 管理（worktree 或 direct）、shim 进程管理（detached agent，[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)）、Agent CLI 生命周期、JSONL trace 解析、artifact 收集、日志归档、per-execution 目录持久化、reconcile 上报。**这个上下文物理上跑在 worker 上，状态权威仍在 center**。
 
 **核心聚合**:
 - `TaskExecution`（worker 侧视图；状态权威在 Scheduling BC）+ workspace（worktree 路径 或 base_path）

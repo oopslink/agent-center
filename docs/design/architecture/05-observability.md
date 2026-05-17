@@ -21,7 +21,7 @@
 | Task | 4 态状态变化（open/suspended/done/abandoned）、所有 TaskExecution 列表、依赖图、priority / ETA、累计 dispatch 次数、artifacts 集 |
 | TaskExecution | A2A 6 态状态变化、所属 worker / agent_cli、workspace_mode + cwd、本次执行的 prompt、**逐条 tool call** 记录、token 用量、artifacts、failed_reason+message |
 | Supervisor | 每次调用：触发事件、注入的 memory / 上下文、prompt 全文、LLM 输出、tool call 序列、最终决策、耗时 |
-| Worker | 在线 / 离线、心跳、并发任务数、capacity、ledger 大小、reconcile 历史、host 资源（可选） |
+| Worker | 在线 / 离线、心跳、并发任务数、capacity、本机 active execution 数（`exec/*/` 目录）、reconcile 历史、host 资源（可选） |
 | Issue | 开启 / 讨论 / 收敛全过程、参与方、产生的 Task batch |
 | System | 任务吞吐率、TaskExecution 成败率、Issue → Task 转化率、Supervisor 唤醒频率、DB 大小、归档大小 |
 
@@ -45,7 +45,7 @@
 
 - Claude code：`--output-format stream-json`，每行 JSONL（tool call / response / thinking 片段）
 - Codex / OpenCode：各自的等价模式（adapter 层负责）
-- Worker daemon 边收边解析 → 实时更新 TaskExecution 投影摘要（`current_activity` / `recent_activities` / counts）+ 写 task 本地 `trace.jsonl` 文件；**不推 center events 表**（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）
+- **投递路径**：agent → shim 解析 JSONL → shim 把事件 append 到 `~/.agent-center-worker/exec/<id>/events.jsonl`（durable queue）+ 主动上报 daemon → daemon 实时更新 TaskExecution 投影摘要（`current_activity` / `recent_activities` / counts）+ 写 task 本地 `trace.jsonl` 文件；**不推 center events 表**（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）。daemon 升级窗口期事件继续在 events.jsonl 累积，daemon 起来后 shim catchup 补齐（[ADR-0018 § 4](../decisions/0018-detached-agent-via-per-execution-shim.md)）；events.jsonl 是 worker 本机的事件 durable queue，**不替代** events 表（状态权威仍在 center）
 - 任务结束时，本地 `trace.jsonl` 打包为 `tasks/<task_id>/trace.jsonl.gz` 上传 BlobStore，回填 `task.trace_blob_path`
 - Execution 仍在跑时如需深挖 tool 参数 / thinking 文本：走 `agent-center peek-trace <execution>`（worker daemon 侧 RPC，center 转发）
 

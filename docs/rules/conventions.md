@@ -134,7 +134,9 @@ DB **不存** markdown / 日志 / trace 这类大内容。统一通过 BlobStore
 
 ## § 9. 持久化层 dialect-agnostic
 
-v1 默认嵌入式 **SQLite**（单文件、零运维、跟 worker daemon 本地 ledger 口径一致）。未来可能切 **Postgres**（多 center / 高并发 / 强约束需求），写代码时**贴 SQL 共同子集**，不踩任何一家方言独占的特性。理由见 [NF3](../design/requirements/02-non-functional.md)。
+v1 默认嵌入式 **SQLite**（单文件、零运维）。未来可能切 **Postgres**（多 center / 高并发 / 强约束需求），写代码时**贴 SQL 共同子集**，不踩任何一家方言独占的特性。理由见 [NF3](../design/requirements/02-non-functional.md)。
+
+> Worker 端不使用 SQLite，改用 per-execution 目录承载本机状态，见 [ADR-0018](../design/decisions/0018-detached-agent-via-per-execution-shim.md)。
 
 ### § 9.0 禁忌清单 + 替代方案
 
