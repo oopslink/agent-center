@@ -32,7 +32,7 @@ Agent 怎么知道有这个命令？通过 [`worker-agent.md`](10-skill-cli-tool
 ```
 1. Worker daemon spawn agent，env 注入:
      AGENT_CENTER_TASK_ID=42
-     AGENT_CENTER_AGENT_SESSION_ID=a3f2-1d
+     AGENT_CENTER_EXECUTION_ID=a3f2-1d
      AGENT_CENTER_WORKER_SOCK=/var/run/agent-center-worker.sock
 
 2. Agent 跑到岔路 → 执行 `agent-center request-input "..."`
@@ -40,19 +40,18 @@ Agent 怎么知道有这个命令？通过 [`worker-agent.md`](10-skill-cli-tool
 3. CLI 子命令逻辑:
    - 检测到 env 中有 WORKER_SOCK
    - 连接到该 unix socket
-   - 发 RPC: { task_id, session_id, kind: "request-input", payload: {...} }
+   - 发 RPC: { task_id, execution_id, kind: "request-input", payload: {...} }
    - 阻塞读 response
 
 4. Worker daemon 收到 RPC:
    - 生成 input_request_id
    - 写一条 input_request 行 (status=pending)
    - 上报 InputRequestedEvent → center
-   - 更新本地 agent_session.status = 'waiting_input'
    - 把 (request_id → response channel) 放 pending map
 
 5. Center 收到 InputRequestedEvent:
    - 入库 / 落事件流
-   - 更新 task.pending_input_request_id, task.status = 'input_required'
+   - 更新 task_execution.pending_input_request_id, task_execution.status = 'input_required'
    - 触发 supervisor 唤醒（事件白名单已包含）
 
 6. Supervisor 看 InputRequest:
@@ -69,7 +68,7 @@ Agent 怎么知道有这个命令？通过 [`worker-agent.md`](10-skill-cli-tool
 8. 用户点按钮 → 飞书事件 → center:
    - 写 input_request.response_text, responded_at, responded_by='human:hayang'
    - 发 InputResponseEvent 到对应 worker
-   - 任务 status 回到 working
+   - task_execution.status 回到 working
 
 9. Worker daemon 收到 InputResponseEvent:
    - 在 pending map 找 request_id 对应的 channel
@@ -84,7 +83,7 @@ Agent 怎么知道有这个命令？通过 [`worker-agent.md`](10-skill-cli-tool
 |---|---|
 | T+0 | InputRequested |
 | T+4h | Supervisor wake：用户没回，提醒一次（飞书 ping） |
-| T+24h | Worker 端 CLI 超时，返回 error 给 agent；Agent 通常 fail 任务；Task.status = `failed`, reason=`input_timeout`；Supervisor 收到 failed 决定是否重派 |
+| T+24h | Worker 端 CLI 超时，返回 error 给 agent；Agent 通常 fail 任务；TaskExecution.status = `failed`, reason=`input_timeout`, message="<具体超时上下文>"；Supervisor 收到 failed 决定是否重派 |
 
 T1 / T2 都是 per-project 可配置（v1 全局默认 4h / 24h，不做 per-project）。
 
@@ -96,6 +95,7 @@ T1 / T2 都是 per-project 可配置（v1 全局默认 4h / 24h，不做 per-pro
 
 - **Aggregate**: InputRequest（聚合根）
 - **Event**: `InputRequested` / `InputResponseProvided` / `InputRequestTimedOut` / `InputRequestCanceled`
-- **Task 状态适配**: `working → input_required → working`（resume）或 `→ failed`（timeout）
+- **TaskExecution 状态适配**: `working → input_required → working`（resume）或 `→ failed`（timeout）；详见 [02-task-model.md § 3](02-task-model.md)
+- **错误协议**: 所有 timeout / cancel 等失败回执必须同时携带 `reason` + `message` 双字段（[conventions § 16](../../rules/conventions.md)）
 
 具体表 schema 见 [implementation/02-persistence-schema.md](../implementation/02-persistence-schema.md)（TBD）。

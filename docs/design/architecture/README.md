@@ -8,7 +8,7 @@
 |---|---|---|
 | 00 | [系统总览（拓扑 / 组件）](00-system-overview.md) | Draft |
 | 01 | [限界上下文 & Ubiquitous Language](01-bounded-contexts.md) | Draft |
-| 02 | [Task 模型 & 状态机](02-task-model.md) | TBD |
+| 02 | [Task 模型 & 状态机](02-task-model.md) | Draft |
 | 03 | [Issue 讨论模型](03-issue-discussion.md) | Draft |
 | 04 | [InputRequired 协议](04-input-required.md) | Draft |
 | 05 | [可观测性 & Fleet View](05-observability.md) | Draft |
