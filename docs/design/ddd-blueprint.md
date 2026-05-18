@@ -6,7 +6,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-18（架构层物理分层：strategic/ + tactical/{BC}/ + tactical/_cross-cutting/）。
+最后更新：2026-05-18（架构层物理分层：strategic/ + tactical/{BC}/ + tactical/{theme}/，theme = agent-harness / presentation）。
 
 ---
 
@@ -23,7 +23,7 @@
 | **Context Map** | ✅ | [03-bounded-contexts § 3](architecture/strategic/03-bounded-contexts.md#-3-上下文映射context-map)（图 + 上下游表） |
 | **Subdomain 标注**（Core / Supporting / Generic）| ✅ | [01-subdomain-classification](architecture/strategic/01-subdomain-classification.md)：Core 3 / Supporting-Essential 3 / Supporting-Peripheral 2 / Generic 0 |
 | **Big Picture / Vision** | ✅ | [00-domain-vision](architecture/strategic/00-domain-vision.md)（DDD Domain Vision Statement：thesis + 4 stance + 2 boundary）|
-| **架构层物理分层** | ✅ | architecture/ 拆 strategic/ + tactical/{BC}/ + tactical/_cross-cutting/（2026-05-18）；详见 [架构 README](architecture/README.md) |
+| **架构层物理分层** | ✅ | architecture/ 拆 strategic/ + tactical/{BC}/ + tactical/{theme}/（agent-harness / presentation；2026-05-18）；详见 [架构 README](architecture/README.md) |
 
 ### 1.2 战术设计（Tactical）
 

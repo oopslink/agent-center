@@ -108,5 +108,5 @@
 - 更新 [architecture/04-input-required.md](../architecture/tactical/scheduling/02-input-required.md)：`agent_session_id` → `execution_id`；状态机映射
 - 更新 [architecture/05-observability.md](../architecture/tactical/observability/01-observability.md)：event_type `agent_session.*` → `task_execution.*`
 - 更新 [architecture/07-worker-model.md](../architecture/tactical/workforce/01-worker-model.md)：worker 侧"agent 子进程"作为 execution 字段；时序图 rename
-- 更新 [architecture/08-prompt-assembly.md](../architecture/tactical/_cross-cutting/01-prompt-assembly.md)：dispatch envelope 字段名同步
+- 更新 [architecture/08-prompt-assembly.md](../architecture/tactical/agent-harness/01-prompt-assembly.md)：dispatch envelope 字段名同步
 - 实现层 [02-persistence-schema.md](../implementation/) (TBD)：表名 `task_executions`，无 `agent_sessions`

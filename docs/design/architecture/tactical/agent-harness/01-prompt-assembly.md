@@ -1,6 +1,6 @@
 # Prompt 组装（Worker 侧）
 
-> **跨切 / 非 BC**
+> **DDD 战术层** · 主题: agent-harness
 
 派单时，**worker agent 子进程**收到的 prompt 由几个不同来源的内容**分层叠加**而成。本文说明 worker 侧的分层、来源、责任归属。
 

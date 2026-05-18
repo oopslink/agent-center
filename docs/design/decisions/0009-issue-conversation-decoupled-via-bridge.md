@@ -102,7 +102,7 @@ Issue 可**可选**绑定一张飞书 card（thread）作为"专属讨论区"：
 - 重写 [architecture/12-conversation.md](../architecture/tactical/conversation/01-conversation.md)
 - 重写 [architecture/09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md)（FeishuBridge）
 - 更新 [architecture/01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)（UL / BC8 改名 / Context Map）
-- 更新 [architecture/10-skill-cli-tooling.md](../architecture/tactical/_cross-cutting/02-skill-cli-tooling.md)（CLI 命名）
+- 更新 [architecture/10-skill-cli-tooling.md](../architecture/tactical/agent-harness/02-skill-cli-tooling.md)（CLI 命名）
 - 更新 [architecture/06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md)（工具列表）
 - 更新 [roadmap.md](../roadmap.md)（Bridge 命名）
 - [conventions.md](../../rules/conventions.md) 已加 § 9.x "DB 减少 JOIN" + § 9.y "Bridge 模式"

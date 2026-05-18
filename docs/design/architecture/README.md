@@ -2,12 +2,12 @@
 
 回答"概念怎么组织、组件怎么交互"。具体表结构 / CLI 签名归 [implementation/](../implementation/)；"为什么这么定"归 [decisions/](../decisions/)。
 
-按 DDD 分层组织：
+按 DDD 分层组织。`tactical/` 的子目录有两种合法形态：**BC 子目录**（领域自治）与 **主题子目录**（跨 BC 的工程主题）。
 
 ```
 architecture/
 ├── strategic/        # DDD 战略层（域愿景 / 子域分类 / 限界上下文 / 系统总览）
-└── tactical/         # DDD 战术层（按 BC 分子目录 + 非 BC 跨切）
+└── tactical/         # DDD 战术层
     ├── scheduling/        # BC1: 调度
     ├── discussion/        # BC2: 讨论
     ├── workforce/         # BC3: 工作池（含 Execution 运行时）
@@ -15,10 +15,11 @@ architecture/
     ├── observability/     # BC6: 观测
     ├── conversation/      # BC7: 会话
     ├── bridge/            # BC8: 渠道桥接
-    └── _cross-cutting/    # 跨 BC / 非 BC（Prompt / Skill / Web Console）
+    ├── agent-harness/     # 主题: agent 运行时支撑（prompt 组装 + skill/CLI 工具）
+    └── presentation/      # 主题: 表现层 / 前端（Web Console、未来 Mobile / Desktop）
 ```
 
-每份文档头部应有 layer label，便于读者一眼定位归属（如 `> DDD 战略层` / `> DDD 战术层 | BC: Scheduling`）。
+每份文档头部应有 layer label，便于读者一眼定位归属（如 `> DDD 战略层` / `> DDD 战术层 | BC: Scheduling` / `> DDD 战术层 · 主题: agent-harness`）。
 
 ---
 
@@ -86,13 +87,26 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 |---|---|---|
 | 01 | [飞书集成](tactical/bridge/01-feishu-integration.md) | TBD |
 
-### 跨切 / 非 BC
+## 战术层（按主题）
+
+跨 BC 的工程主题，不专属于任何单一 BC。
+
+### Agent Harness（agent 运行时支撑）
+
+Agent（supervisor / worker agent）的 prompt 上下文与能力暴露机制 —— 跨 Cognition / Workforce / Execution 多 BC 共用。
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 01 | [Prompt 组装](tactical/_cross-cutting/01-prompt-assembly.md) | Draft |
-| 02 | [Skill + CLI 工具链](tactical/_cross-cutting/02-skill-cli-tooling.md) | Draft |
-| 03 | [Web Console](tactical/_cross-cutting/03-web-console.md) | Draft |
+| 01 | [Prompt 组装](tactical/agent-harness/01-prompt-assembly.md) | Draft |
+| 02 | [Skill + CLI 工具链](tactical/agent-harness/02-skill-cli-tooling.md) | Draft |
+
+### Presentation（表现层 / 前端）
+
+用户 surface 层，呈现 Observability / Scheduling / Discussion 等多 BC 的数据，本身不持领域聚合。
+
+| # | 主题 | 状态 |
+|---|---|---|
+| 01 | [Web Console](tactical/presentation/01-web-console.md) | Draft |
 
 ---
 

@@ -282,7 +282,7 @@ agent: agent-center request-input "..."
 
 > `AGENT_CENTER_AGENT_SESSION_ID` 已废弃；用 `AGENT_CENTER_EXECUTION_ID` 取代（[ADR-0010](../../../decisions/0010-task-execution-two-layer-model.md)）。
 
-参见 [10-skill-cli-tooling.md](../_cross-cutting/02-skill-cli-tooling.md) 与 [04-input-required.md](../scheduling/02-input-required.md)。
+参见 [10-skill-cli-tooling.md](../agent-harness/02-skill-cli-tooling.md) 与 [04-input-required.md](../scheduling/02-input-required.md)。
 
 ## 注册与认证
 
@@ -518,7 +518,7 @@ Worker reconcile **完成前不接收新 dispatch**。
         - workspace_mode=worktree: git worktree add -b task/<execution_id>
         - workspace_mode=direct: cwd = base_path (不建 worktree)
    c. 装载 worker-agent.md skill (按 workspace_mode 注入不同提示)
-   d. 组装 final_prompt (见 [08-prompt-assembly.md](../_cross-cutting/01-prompt-assembly.md))
+   d. 组装 final_prompt (见 [08-prompt-assembly.md](../agent-harness/01-prompt-assembly.md))
    e. 生成 shim_token (一次性 nonce)
    f. spawn shim (detached, setsid):
         agent-center worker shim --execution-id=... --shim-token=... --cmd=claude-code -- ...

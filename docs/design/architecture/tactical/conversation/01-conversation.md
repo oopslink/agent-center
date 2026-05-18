@@ -216,7 +216,7 @@ emit conversation.message_added
 | `agent-center identity bind <identity-id> --channel=feishu --vendor-user-id=...` | 手动绑定 ChannelBinding |
 | `agent-center identity unbind <identity-id> --channel=feishu` | 取消绑定 |
 
-完整 CLI 见 [10-skill-cli-tooling.md](../_cross-cutting/02-skill-cli-tooling.md)。
+完整 CLI 见 [10-skill-cli-tooling.md](../agent-harness/02-skill-cli-tooling.md)。
 
 ---
 

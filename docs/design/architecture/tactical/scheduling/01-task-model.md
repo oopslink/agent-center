@@ -346,7 +346,7 @@ NACK reason 标准枚举见 [ADR-0011](../../../decisions/0011-dispatch-reliabil
    - direct 模式: CWD = base_path
    - emit task_execution.working { workspace_mode, cwd, ... }
    - worktree 模式额外 emit worktree.created
-7. 组装 prompt (详见 [08-prompt-assembly.md](../_cross-cutting/01-prompt-assembly.md))
+7. 组装 prompt (详见 [08-prompt-assembly.md](../agent-harness/01-prompt-assembly.md))
 8. 生成 shim_token (一次性 nonce)
 9. Spawn shim 子命令 (detached, setsid)，env 注入（§ 4.4 + AGENT_CENTER_SHIM_TOKEN）：
    agent-center worker shim --execution-id=... --shim-token=... --cmd=... -- <args>
@@ -869,7 +869,7 @@ events 表带 `refs` 字段（JSON）含 `task_id` / `execution_id` / `input_req
 - [04 InputRequired 协议](02-input-required.md)
 - [05 可观测性](../observability/01-observability.md)
 - [07 Worker 执行模型](../workforce/01-worker-model.md)
-- [08 Prompt 组装](../_cross-cutting/01-prompt-assembly.md)
+- [08 Prompt 组装](../agent-harness/01-prompt-assembly.md)
 - [09 飞书集成](../bridge/01-feishu-integration.md)
 - [12 Conversation 统一会话层](../conversation/01-conversation.md)
 - [conventions](../../../../rules/conventions.md)（§ 1 / § 2 / § 8 / § 9 / § 16）

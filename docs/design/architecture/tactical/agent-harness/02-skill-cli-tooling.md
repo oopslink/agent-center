@@ -1,6 +1,6 @@
 # Skill + CLI 工具链
 
-> **跨切 / 非 BC**
+> **DDD 战术层** · 主题: agent-harness
 
 agent-center 给 agent（supervisor 与 worker-agent）暴露能力的方式：**skill 文档教 agent 怎么用 + CLI 命令作为实际工具**。**不引入 MCP**（理由见 [ADR-0001](../../../decisions/0001-no-mcp.md)）。
 

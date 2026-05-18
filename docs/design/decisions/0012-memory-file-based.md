@@ -169,7 +169,7 @@ Task 走 done/abandoned、Issue closed/withdrawn、worker un-enrolled、conversa
 - 更新 [architecture/01-bounded-contexts.md § BC5](../architecture/strategic/03-bounded-contexts.md)：Memory 仍是聚合，注明物理形态 = file-based git 仓
 - 更新 [architecture/01-bounded-contexts.md § 1.1](../architecture/strategic/03-bounded-contexts.md)：Memory 术语 description 加 "存储形态：file-based git 仓"
 - 更新 [architecture/05-observability.md](../architecture/tactical/observability/01-observability.md)：删 `memory.recorded` / `memory.pruned` 事件类；§ O3 Memory 子节改为引用本 ADR
-- 更新 [architecture/08-prompt-assembly.md](../architecture/tactical/_cross-cutting/01-prompt-assembly.md)：worker prompt 不再注入 supervisor memory；删 `memory_refs`；supervisor 自己的 prompt 组装走 06 § 3
+- 更新 [architecture/08-prompt-assembly.md](../architecture/tactical/agent-harness/01-prompt-assembly.md)：worker prompt 不再注入 supervisor memory；删 `memory_refs`；supervisor 自己的 prompt 组装走 06 § 3
 - 更新 [architecture/02-task-model.md § 4.1 DispatchEnvelope](../architecture/tactical/scheduling/01-task-model.md)：确认无 `memory_refs` 字段（已无）
 - 更新 [requirements/03-out-of-scope.md](../requirements/03-out-of-scope.md) 或 [roadmap.md](../roadmap.md)：列"Memory 跨 BC 聚合查询" / "Memory 并发写加锁"等推迟项
 - 实现层：删 `agent_memory` 表的 schema 规划；加 `MemoryFileRepo` 抽象（封装目录骨架创建 + git ops）

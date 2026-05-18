@@ -22,6 +22,6 @@
 | F18 | Supervisor 收到 InputRequest 默认 escalate 到飞书，附自己倾向的答案 |
 | F19 | InputRequest 超时（默认 24h）则任务失败，可配置 |
 | F20 | _（已废弃 / 合并到 [架构 / 项目本地约定](../architecture/tactical/workforce/01-worker-model.md)）_ |
-| F21 | 提供本地 **Web Console UI**（嵌入 `agent-center server` 进程），仅本机绑定（loopback），用户通过 SSH 隧道访问。v1 覆盖 task / issue 的查看与管理 + agent 可观测性（fleet view / 单任务 trace 概览）。SSH 隧道由用户自理（不在本项目范围）。详见 [架构 / Web Console](../architecture/tactical/_cross-cutting/03-web-console.md)。 |
+| F21 | 提供本地 **Web Console UI**（嵌入 `agent-center server` 进程），仅本机绑定（loopback），用户通过 SSH 隧道访问。v1 覆盖 task / issue 的查看与管理 + agent 可观测性（fleet view / 单任务 trace 概览）。SSH 隧道由用户自理（不在本项目范围）。详见 [架构 / Web Console](../architecture/tactical/presentation/01-web-console.md)。 |
 | F22 | Task 支持父子层级：每个 Task 有可选的 `parent_task_id`，可查询子任务列表，`inspect task` 展示子任务。v1 **不做**父子状态联动（取消 / 完成不自动传播），由 supervisor 显式控制。完整 DAG 依赖见 [roadmap.md](../roadmap.md) v3。 |
 | F23 | Worker 自动扫描 `discovery.scan_paths`（worker.yaml 配置）发现候选项目 → 作为 `WorkerProjectProposal` 上传 → 飞书卡片让用户确认 → 升级为 `WorkerProjectMapping`。详见 [架构 / Worker 模型 § WorkerProjectMapping 创建与维护](../architecture/tactical/workforce/01-worker-model.md#workerprojectmapping-创建与维护) 与 [ADR-0008](../decisions/0008-worker-project-mapping-via-discovery-proposal.md)。 |

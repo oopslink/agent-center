@@ -487,7 +487,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 `HOME` 隔离防 user `~/.claude/` 污染（§ 4.5）；`--session-id=<invocation_id>` 让 claude 自己的 trace 跟 invocation 关联。
 
-**08 contract**（[08-prompt-assembly.md](../_cross-cutting/01-prompt-assembly.md)）：worker-side prompt 组装（task envelope → worker daemon 拼最终 prompt），跟 supervisor 自己的 prompt 组装**两套独立机制**。08 的设计**不**复用到 supervisor 这边，反之亦然。
+**08 contract**（[08-prompt-assembly.md](../agent-harness/01-prompt-assembly.md)）：worker-side prompt 组装（task envelope → worker daemon 拼最终 prompt），跟 supervisor 自己的 prompt 组装**两套独立机制**。08 的设计**不**复用到 supervisor 这边，反之亦然。
 
 ### 6.5 跟 worker-side agent 的对比
 
@@ -554,5 +554,5 @@ VPS 不足以承担高并发时（用户视感觉到延迟 / OOM），调小 `ma
 - [01 限界上下文 § BC5 Cognition](../../strategic/03-bounded-contexts.md)
 - [02 Task 模型 § 12.1 唤醒事件白名单](../scheduling/01-task-model.md)
 - [05 可观测性 § O3 Supervisor 调用全留档](../observability/01-observability.md)
-- [08 Prompt 组装（worker-side）](../_cross-cutting/01-prompt-assembly.md)
+- [08 Prompt 组装（worker-side）](../agent-harness/01-prompt-assembly.md)
 - [conventions](../../../../rules/conventions.md)（§ 1 / § 2 / § 8 / § 16）

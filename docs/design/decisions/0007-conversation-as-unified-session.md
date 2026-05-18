@@ -82,7 +82,7 @@ CLI 命名：`notify-feishu` → `notify-conversation`。
 - [architecture/01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md) —— BC 列表 / UL / 上下文映射 / 命名表
 - [architecture/12-conversation.md](../architecture/tactical/conversation/01-conversation.md) —— **新建**
 - [architecture/09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md) —— 重新定位为 FeishuChannelAdapter
-- [architecture/10-skill-cli-tooling.md](../architecture/tactical/_cross-cutting/02-skill-cli-tooling.md) —— `notify-feishu` → `notify-conversation`
+- [architecture/10-skill-cli-tooling.md](../architecture/tactical/agent-harness/02-skill-cli-tooling.md) —— `notify-feishu` → `notify-conversation`
 - [architecture/06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) —— 同上
 - [architecture/03-issue-discussion.md](../architecture/tactical/discussion/01-issue-discussion.md) —— 待修订（IssueComment ↔ Message 关系）
 - [architecture/04-input-required.md](../architecture/tactical/scheduling/02-input-required.md) —— 待修订（卡片送达走 Conversation 而非直接飞书）

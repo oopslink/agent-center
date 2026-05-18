@@ -29,7 +29,7 @@ agent-center request-input --question="..." [--options="A,B,C"] [--urgency=norma
 
 超时：默认 24h（可配置），超时返回非零退出码 + 错误 JSON。
 
-Agent 怎么知道有这个命令？通过 [`worker-agent.md`](../_cross-cutting/02-skill-cli-tooling.md) skill。
+Agent 怎么知道有这个命令？通过 [`worker-agent.md`](../agent-harness/02-skill-cli-tooling.md) skill。
 
 ## 完整流程
 

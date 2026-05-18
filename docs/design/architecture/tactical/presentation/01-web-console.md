@@ -1,6 +1,6 @@
 # Web Console
 
-> **跨切 / 非 BC**
+> **DDD 战术层** · 主题: presentation
 
 本地 web UI，覆盖 agent-center 的查看与基础管理。
 
@@ -16,7 +16,7 @@
 | 认证 | **无**（loopback 默认信任本机用户） |
 | TLS | 不需要（loopback 本地）|
 
-跟 [admin CLI 本机姿态](02-skill-cli-tooling.md) 一致，零认证负担、零公网暴露、零证书管理。
+跟 [admin CLI 本机姿态](../agent-harness/02-skill-cli-tooling.md) 一致，零认证负担、零公网暴露、零证书管理。
 
 ## v1 范围
 
