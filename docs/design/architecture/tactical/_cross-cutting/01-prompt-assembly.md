@@ -1,8 +1,10 @@
 # Prompt 组装（Worker 侧）
 
+> **跨切 / 非 BC**
+
 派单时，**worker agent 子进程**收到的 prompt 由几个不同来源的内容**分层叠加**而成。本文说明 worker 侧的分层、来源、责任归属。
 
-> **Supervisor 自己**（center 上的 agent）有一套独立的 prompt 组装机制，跟本文 worker 侧的方案**两套独立**。详见 [06-supervisor-model.md § 6.4](06-supervisor-model.md)。
+> **Supervisor 自己**（center 上的 agent）有一套独立的 prompt 组装机制，跟本文 worker 侧的方案**两套独立**。详见 [06-supervisor-model.md § 6.4](../cognition/01-supervisor-model.md)。
 
 ## 层次
 
@@ -31,9 +33,9 @@ agent CLI 一次性吃下作为 system + user prompt
 | `task.prompt` | supervisor 加工后 | DB 表 `tasks` |
 | 项目本地约定（`CLAUDE.md` 等） | 用户在项目仓库维护 | 项目自己的 git 仓库 |
 
-参见 [ADR-0005 Charter 留在项目仓库](../decisions/0005-project-charter-stays-in-project-repo.md)。
+参见 [ADR-0005 Charter 留在项目仓库](../../../decisions/0005-project-charter-stays-in-project-repo.md)。
 
-**Supervisor 的 Memory 不注入到 worker prompt**：[ADR-0012](../decisions/0012-memory-file-based.md) 后 Memory 是 supervisor 的私事（存 `$AGENT_CENTER_MEMORY_DIR/` git 仓，在 center 机器上），worker 拿不到也不应拿到。supervisor 想给 worker 共享上下文 → 把要分享的事实**显式**写进 `task.prompt` 或 `constraints_extra`，由派单 envelope 带过去。
+**Supervisor 的 Memory 不注入到 worker prompt**：[ADR-0012](../../../decisions/0012-memory-file-based.md) 后 Memory 是 supervisor 的私事（存 `$AGENT_CENTER_MEMORY_DIR/` git 仓，在 center 机器上），worker 拿不到也不应拿到。supervisor 想给 worker 共享上下文 → 把要分享的事实**显式**写进 `task.prompt` 或 `constraints_extra`，由派单 envelope 带过去。
 
 ## 责任归属
 
@@ -47,7 +49,7 @@ agent CLI 一次性吃下作为 system + user prompt
 
 ## Dispatch Envelope
 
-Supervisor 派单时发的载荷（载荷小，不含 charter / skill 原文）。详细字段见 [02-task-model § 4.1](02-task-model.md)，相关 prompt 部分摘录：
+Supervisor 派单时发的载荷（载荷小，不含 charter / skill 原文）。详细字段见 [02-task-model § 4.1](../scheduling/01-task-model.md)，相关 prompt 部分摘录：
 
 ```yaml
 task_id: ...
@@ -56,7 +58,7 @@ worker_id: "..."
 agent_cli: "claude-code"
 task_title: "..."
 task_description: "...supervisor 加工后指令..."  # 真正动作指令；≤10KB 内联，超过走 task_description_blob_ref
-task_description_blob_ref: "..."                # BlobStore 引用（[conventions § 8](../../rules/conventions.md)）
+task_description_blob_ref: "..."                # BlobStore 引用（[conventions § 8](../../../../rules/conventions.md)）
 extra_skill_files: ["..."]                      # 可选，本次额外注入的 skill 路径
 ```
 

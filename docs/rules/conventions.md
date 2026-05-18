@@ -10,7 +10,7 @@
 
 ### § 0.1 统一语言（Ubiquitous Language）
 
-**项目通用语言以 [`docs/design/architecture/01-bounded-contexts.md` § 1](../design/architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language) 为权威**。包含：
+**项目通用语言以 [`docs/design/architecture/01-bounded-contexts.md` § 1](../design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language) 为权威**。包含：
 
 - 核心实体 / 聚合根 / 值对象的术语（Task / TaskExecution / Issue / IssueComment / Worker / Conversation / Message / Identity / ChannelBinding / SupervisorInvocation / Memory / Artifact / InputRequest / ...）
 - 行为动词（Dispatch / Conclude / Spawn / Escalate / Enroll / Adopt / Withdraw / Open / Cancel / Add-message / Comment / Deliver / ...）
@@ -25,21 +25,21 @@
 
 | 范畴 | 含义 | 举例 |
 |---|---|---|
-| **Bounded Context** | 限界上下文 | Scheduling / Discussion / Workforce / Execution / Cognition / Observability / Conversation / Bridge（8 个，详见 [01 § 2](../design/architecture/01-bounded-contexts.md#-2-限界上下文bounded-contexts)）|
+| **Bounded Context** | 限界上下文 | Scheduling / Discussion / Workforce / Execution / Cognition / Observability / Conversation / Bridge（8 个，详见 [01 § 2](../design/architecture/strategic/03-bounded-contexts.md#-2-限界上下文bounded-contexts)）|
 | **Aggregate / Aggregate Root** | 聚合 / 聚合根 | Task（根）+ TaskExecution（实体，从属）；Issue（根）+ IssueComment（实体，从属）；Conversation（根）+ Message（实体，从属）；... |
 | **Entity** | 实体（有 identity，跨时间可变） | 各聚合内的从属实体；详见 01 § 1.1 |
 | **Value Object** | 值对象（由属性定义、不可变） | ChannelBinding / DispatchEnvelope / Reason+Message 对 / FailedReason taxonomy / IssueConcludeSpec / 等（v1 散落，正在系统化）|
-| **Domain Event** | 领域事件 | `task.created` / `issue.concluded` / `conversation.message_added` / ... 详见 [05-observability.md](../design/architecture/05-observability.md) |
+| **Domain Event** | 领域事件 | `task.created` / `issue.concluded` / `conversation.message_added` / ... 详见 [05-observability.md](../design/architecture/tactical/observability/01-observability.md) |
 | **Domain Service** | 跨聚合的纯领域逻辑 | Supervisor 决策 / Dispatch 调度 / Issue conclude → spawn tasks |
 | **Repository** | 聚合的持久化访问 | 见 [implementation/02-persistence-schema.md](../design/implementation/) (TBD) |
 | **Factory** | 复杂聚合的创建逻辑 | Issue conclude batch spawn N tasks / Task create / TaskExecution create |
-| **Anti-Corruption Layer (ACL)** | 跟外部系统的翻译层 | Bridge（每 vendor 一个）/ Agent CLI Adapter / BlobStore Adapter（[01 § 3.2](../design/architecture/01-bounded-contexts.md#32-anti-corruption-layers)）|
-| **Shared Kernel / Customer-Supplier** | 上下文映射模式 | 见 [01 § 3.1](../design/architecture/01-bounded-contexts.md#31-上下游关系一览) |
+| **Anti-Corruption Layer (ACL)** | 跟外部系统的翻译层 | Bridge（每 vendor 一个）/ Agent CLI Adapter / BlobStore Adapter（[01 § 3.2](../design/architecture/strategic/03-bounded-contexts.md#32-anti-corruption-layers)）|
+| **Shared Kernel / Customer-Supplier** | 上下文映射模式 | 见 [01 § 3.1](../design/architecture/strategic/03-bounded-contexts.md#31-上下游关系一览) |
 
 ### § 0.3 自检清单
 
 - 我引入的新概念，**有没有恰当归类到上述某个 DDD 范畴**？没有的话，是真新概念还是该归到某个已有类别？
-- 我用的术语，是不是 [01 § 1.1 通用语言表](../design/architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language)里的同一个词？还是无意中造了同义词（Brain ≠ Supervisor / Session ≠ TaskExecution / Card ≠ Message 等）？
+- 我用的术语，是不是 [01 § 1.1 通用语言表](../design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language)里的同一个词？还是无意中造了同义词（Brain ≠ Supervisor / Session ≠ TaskExecution / Card ≠ Message 等）？
 - 跨聚合写操作，符合 [ADR-0014 § 2](../design/decisions/0014-event-sourcing-level.md) 的同事务原则吗？跨聚合**强引用**（如 task.conversation_id）vs **弱关联**（如 issue.related_conversation_ids）的选择有依据吗？
 - 我引入的值对象是不是有"由属性定义、不可变、可替换"特征？是的话明示为 VO，不要散成"几个字段"
 
@@ -52,7 +52,7 @@
 
 ## § 1. 单一来源 / 无野任务
 
-**Center 是任务的唯一权威**。Task 只能由 supervisor 或用户创建。Worker / Agent **不允许造任务**，它们想要新工作必须开 [Issue](../design/architecture/03-issue-discussion.md) 走讨论。
+**Center 是任务的唯一权威**。Task 只能由 supervisor 或用户创建。Worker / Agent **不允许造任务**，它们想要新工作必须开 [Issue](../design/architecture/tactical/discussion/01-issue-discussion.md) 走讨论。
 
 **自检：** 我引入的新动作 / 接口，会不会让某个 worker / agent 绕过中心创建任务？会的话，要么改为开 Issue，要么本设计有问题。
 
@@ -71,7 +71,7 @@
 | 异常路径如何被发现？（fail 事件？timeout？外部告警？） | 说明 |
 | 用户从飞书侧能问到这个功能的状态吗？ | 是 / 否 |
 
-详情见 [架构层 / 可观测性](../design/architecture/05-observability.md)。
+详情见 [架构层 / 可观测性](../design/architecture/tactical/observability/01-observability.md)。
 
 ### § 2.x 观测层是统一且 opinionated 的
 
@@ -289,7 +289,7 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 - [ ] AI Native（§3）：新 agent 能力同时有 skill + CLI，不走 MCP
 - [ ] 零 LLM SDK（§4）：没新增 LLM 厂商 SDK 依赖
 - [ ] 文档先行（§5）：设计落到 `docs/design/` 对应层；分叉决定有 ADR
-- [ ] DDD 统一语言（§0）：新引入的术语 / 概念已归类到 DDD 范畴（Aggregate / Entity / VO / Domain Event / ...）；用词跟 [01 § 1.1](../design/architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language) 一致，没造同义词
+- [ ] DDD 统一语言（§0）：新引入的术语 / 概念已归类到 DDD 范畴（Aggregate / Entity / VO / Domain Event / ...）；用词跟 [01 § 1.1](../design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language) 一致，没造同义词
 - [ ] 范围决策（§6）：新增的"不做"分到出范围 / 推迟正确位置
 - [ ] 项目本地约定（§7）：不在 agent-center 里管项目自有的规则文档
 - [ ] BlobStore（§8）：大字段走 BlobStore

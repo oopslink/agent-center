@@ -1,12 +1,14 @@
 # 飞书集成（FeishuBridge）
 
-飞书是 agent-center **v1 唯一实现的 Bridge**。本文档是 [Bridge BC](01-bounded-contexts.md#bc8-bridge渠道桥接层) 下 `FeishuBridge` 的具体实现说明。
+> **DDD 战术层** · BC: Bridge
 
-> **结构定位：** 飞书不是"主入口" —— 它只是众多潜在 vendor 中第一个被支持的。其它 vendor（DingTalk / Web chat / Slack / ...）按同样的 Bridge 模式加入，详见 [roadmap](../roadmap.md)。
+飞书是 agent-center **v1 唯一实现的 Bridge**。本文档是 [Bridge BC](../../strategic/03-bounded-contexts.md#bc8-bridge渠道桥接层) 下 `FeishuBridge` 的具体实现说明。
+
+> **结构定位：** 飞书不是"主入口" —— 它只是众多潜在 vendor 中第一个被支持的。其它 vendor（DingTalk / Web chat / Slack / ...）按同样的 Bridge 模式加入，详见 [roadmap](../../../roadmap.md)。
 >
-> 领域模块（[Conversation](12-conversation.md) / [Discussion / Issue](03-issue-discussion.md) / Scheduling / Cognition）**不知道飞书是啥**；所有 vendor 集成都在 FeishuBridge 内。
+> 领域模块（[Conversation](../conversation/01-conversation.md) / [Discussion / Issue](../discussion/01-issue-discussion.md) / Scheduling / Cognition）**不知道飞书是啥**；所有 vendor 集成都在 FeishuBridge 内。
 >
-> 设计原则见 [conventions § 9.y "外部集成走 Bridge 模式"](../../rules/conventions.md#-9y-外部集成走-bridge-模式不在领域模块内调-vendor-sdk)。
+> 设计原则见 [conventions § 9.y "外部集成走 Bridge 模式"](../../../../rules/conventions.md#-9y-外部集成走-bridge-模式不在领域模块内调-vendor-sdk)。
 
 ---
 
@@ -84,7 +86,7 @@ FeishuBridge 订阅以下事件：
 | `conversation.opened` (kind=task) | 发 Task root card 到适合位置 → 回写 `primary_channel_thread_key`（详见 § 7.5.1） |
 | `issue.comment_added` | 查 issue.bound_card_json → 有 bound thread → 投递到该 thread |
 | `issue.opened` | 决策（按 `agent-center issue bind-card --auto`）：是否自动发 issue card？ |
-| `input_request.responded` / `input_request.timed_out` / `input_request.canceled` | update_card 置灰 + 显示终态文案（详见 [04-input-required.md § 完整流程](04-input-required.md) Step 8） |
+| `input_request.responded` / `input_request.timed_out` / `input_request.canceled` | update_card 置灰 + 显示终态文案（详见 [04-input-required.md § 完整流程](../scheduling/02-input-required.md) Step 8） |
 
 投递逻辑：
 
@@ -112,7 +114,7 @@ FeishuBridge 订阅到 conversation.message_added 事件
 | `text` | — | text message | markdown |
 | `system` | — | small interactive card | 包含简短文本 + 标签（如 "Issue #7 已开" / "Task #42 created"）|
 | `agent_finding` | null | text message | 跟 text 类似，标签上注明来自 agent / worker |
-| `agent_finding` | **≠ null** | rich interactive card with buttons | join InputRequest 取 options → 渲染 [选项 A][B][自己写][取消] 按钮；状态变化时 update_card 置灰（详见 [04-input-required.md 完整流程 Step 8](04-input-required.md) 与 [ADR-0017 § 5](../decisions/0017-task-as-conversation.md)） |
+| `agent_finding` | **≠ null** | rich interactive card with buttons | join InputRequest 取 options → 渲染 [选项 A][B][自己写][取消] 按钮；状态变化时 update_card 置灰（详见 [04-input-required.md 完整流程 Step 8](../scheduling/02-input-required.md) 与 [ADR-0017 § 5](../../../decisions/0017-task-as-conversation.md)） |
 | `supervisor_summary` | — | rich interactive card | 含按钮：[确认结论] [改后确认] [不做] |
 
 具体卡片模板由 FeishuBridge 内置；不由领域模块定义。
@@ -128,11 +130,11 @@ FeishuBridge 订阅到 conversation.message_added 事件
 
 后续 bound thread 内的 inbound / outbound 走 § 4 / § 5 的 "bound thread 特殊路由"。
 
-详见 [03-issue-discussion.md § Bound Card 机制](03-issue-discussion.md#bound-card-机制)。
+详见 [03-issue-discussion.md § Bound Card 机制](../discussion/01-issue-discussion.md#bound-card-机制)。
 
 ## § 7.5 Task Conversation 创建流程
 
-跟 § 7 Issue Bound Card 同构但通道独立：Task 的"卡片"是 `kind=task` Conversation 的 root message + 后续 thread，所有 task IO 都在同一 thread 内时间线呈现（见 [ADR-0017](../decisions/0017-task-as-conversation.md)）。
+跟 § 7 Issue Bound Card 同构但通道独立：Task 的"卡片"是 `kind=task` Conversation 的 root message + 后续 thread，所有 task IO 都在同一 thread 内时间线呈现（见 [ADR-0017](../../../decisions/0017-task-as-conversation.md)）。
 
 ### § 7.5.1 同步建（飞书用户 @bot 直接发起；a 路径）
 
@@ -141,7 +143,7 @@ t0  用户在飞书 DM / 群里 @bot："帮我写个 xxx"
 t0  FeishuBridge 收 im.message.receive_v1
 t0  Bridge 走 § 4 inbound → 写 Message 到对应 dm / group_thread conversation
 t0  Conversation BC emit conversation.message_added
-t1  Supervisor wake → 决定开 Task → 在单事务内（[ADR-0014 § 2](../decisions/0014-event-sourcing-level.md)）:
+t1  Supervisor wake → 决定开 Task → 在单事务内（[ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md)）:
       a. Scheduling BC create Task
       b. Conversation BC create Conversation (kind=task) + 关联 channel binding
          （继承当前用户所在飞书渠道）
@@ -154,8 +156,8 @@ t3  Supervisor 立即写一条 Message:
       kind=supervisor_summary, content="收到，正在分析 / 寻找 worker / ..."
       → Bridge 投递到 thread
 t4+ 后续 supervisor 分析 / worker 进展 / 用户回应都流进同一 thread
-    （worker daemon 也可直接通过 [BC4 长连 RPC](01-bounded-contexts.md) 调
-     conversation add-message 写 agent_finding，详见 [02-task-model.md § 3.7](02-task-model.md)）
+    （worker daemon 也可直接通过 [BC4 长连 RPC](../../strategic/03-bounded-contexts.md) 调
+     conversation add-message 写 agent_finding，详见 [02-task-model.md § 3.7](../scheduling/01-task-model.md)）
 ```
 
 ### § 7.5.2 懒创建（b/c/d 路径触发）
@@ -166,7 +168,7 @@ t4+ 后续 supervisor 分析 / worker 进展 / 用户回应都流进同一 threa
 | CLI `task bind-card <task_id> --channel=feishu --auto` | center 新建 kind=task Conversation + emit `conversation.opened` → Bridge 发 root card 到 `notification.default_channel`（或 CLI 指定的渠道）|
 | 飞书 slash `/track <task_id>` | Bridge 翻译为 `task bind-card --channel=feishu --to=<当前 thread 对应 conversation>`（详见 § 9.1）|
 | 飞书 @bot 自由文本 "盯一下 T-42" | Bridge 写 inbound Message → supervisor wake → 解析意图 → 调 `task bind-card`（烧 LLM；兜底用）|
-| Center 硬规则 fallback（InputRequest） | agent 调 request-input 且 task.conversation_id=null → center 自动 bind 到 `notification.default_channel`（[ADR-0017 § 10.4](../decisions/0017-task-as-conversation.md)）|
+| Center 硬规则 fallback（InputRequest） | agent 调 request-input 且 task.conversation_id=null → center 自动 bind 到 `notification.default_channel`（[ADR-0017 § 10.4](../../../decisions/0017-task-as-conversation.md)）|
 
 ### § 7.5.3 关闭
 
@@ -194,10 +196,10 @@ Task `done` / `abandoned` → Conversation BC 把对应 kind=task conversation `
 | 模式 | v1 | 描述 |
 |---|---|---|
 | **D1. @bot + 自由文本** | ✅ 必做 | DM 直接说话；群里 @bot 说话；supervisor LLM 解析意图 |
-| **D2. Slash 命令** | **部分 v1** | `/answer <task_id> <text>` + `/track <task_id>` 必做（[ADR-0017 § 6](../decisions/0017-task-as-conversation.md)）；`/dispatch project=X agent=claude "..."` 等后置 |
+| **D2. Slash 命令** | **部分 v1** | `/answer <task_id> <text>` + `/track <task_id>` 必做（[ADR-0017 § 6](../../../decisions/0017-task-as-conversation.md)）；`/dispatch project=X agent=claude "..."` 等后置 |
 | **D3. 交互卡片** | ✅ 必做 | Suggestion 升级、Issue 收尾、任务完成报告、InputRequest、周期 review 等 |
 
-v1 走 D1 + D3 + D2（部分）覆盖 90% 体验。D2 剩余命令视后续需求开放（见 [roadmap](../roadmap.md)）。
+v1 走 D1 + D3 + D2（部分）覆盖 90% 体验。D2 剩余命令视后续需求开放（见 [roadmap](../../../roadmap.md)）。
 
 ### § 9.1 Slash 命令处理
 
@@ -207,7 +209,7 @@ Slash 命令的核心特征：**Bridge 直接调对应领域 API + 写一条 Mes
 |---|---|---|
 | `/answer <task_id> <text>` | Bridge 解析 → 调 `InputRequest.respond`（找 task.pending_input_request_id）+ 单事务写 Message (`kind=text, direction=inbound, sender=user, content=<text>`) 到 task.conversation_id | "/answer T-42 选 B" 类的留痕条目；InputRequest 状态变化时 Bridge update_card 置灰 |
 | `/track <task_id>` | Bridge 解析 → 翻译为 `task bind-card --channel=feishu --to=<当前 thread 对应 conversation_id>`（懒创建路径之一，见 § 7.5.2）；若当前 thread 还没对应 conversation，先按 § 4 inbound 流程创建 dm / group_thread conversation 再绑 | center 写 task.conversation_id + emit conversation 关联记录；supervisor 唤醒后主动写一条 supervisor_summary 到 task.conversation_id 提示绑定成功并续后续进度 |
-| `/dispatch ...` | v1 不实现（[roadmap](../roadmap.md)） | — |
+| `/dispatch ...` | v1 不实现（[roadmap](../../../roadmap.md)） | — |
 
 **错误处理：**
 

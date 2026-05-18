@@ -7,7 +7,7 @@
 
 ## Context
 
-[05-observability.md § 事件总览](../architecture/05-observability.md) 把 `agent_trace.event`（每条 tool call / thinking / tool response）跟 domain event 混存在同一张 `events` 表。但 agent_trace 与 domain event 在多个维度都失衡：
+[05-observability.md § 事件总览](../architecture/tactical/observability/01-observability.md) 把 `agent_trace.event`（每条 tool call / thinking / tool response）跟 domain event 混存在同一张 `events` 表。但 agent_trace 与 domain event 在多个维度都失衡：
 
 | 维度 | Domain event | `agent_trace.event` |
 |---|---|---|
@@ -23,7 +23,7 @@
 - 同一份数据已经有三份拷贝：events 表实时流 + worker daemon 本地 `trace.jsonl` + BlobStore 归档 `tasks/<id>/trace.jsonl.gz`
 - [ADR-0014](0014-event-sourcing-level.md) 已确定状态表权威，事件流不承担状态重建 → agent_trace 在 events 表的存在不再被任何"重放推导状态"用例需要
 
-实时观测需求其实由 [05 Fleet View § 数据基础](../architecture/05-observability.md) 的 `TaskExecution` 投影承载（`current_activity` 等字段由 worker daemon 边解析 JSONL 边更新），不依赖"agent_trace 在 events 表"。
+实时观测需求其实由 [05 Fleet View § 数据基础](../architecture/tactical/observability/01-observability.md) 的 `TaskExecution` 投影承载（`current_activity` 等字段由 worker daemon 边解析 JSONL 边更新），不依赖"agent_trace 在 events 表"。
 
 ## Decision
 
@@ -35,7 +35,7 @@
 
 Worker daemon 边解析 JSONL 边更新 TaskExecution 投影：
 
-- 既有字段：`current_activity` / `current_activity_at` / `total_tool_calls` / `total_tokens`（[05 Fleet View](../architecture/05-observability.md) 已列）
+- 既有字段：`current_activity` / `current_activity_at` / `total_tool_calls` / `total_tokens`（[05 Fleet View](../architecture/tactical/observability/01-observability.md) 已列）
 - **新增字段** `recent_activities` (TEXT JSON)：保留最近 N 条 `{at, activity_summary}`，N 默认 10（可配）
 - 可选 `tool_call_counts` (TEXT JSON)：如 `{"Edit": 5, "Bash": 2}`，给"用了哪些工具"低成本分析做底
 
@@ -106,14 +106,14 @@ Execution still running 时若需要看 tool 参数 / thinking 文本，走 work
 ## 影响范围
 
 - 改写 [NF12](../requirements/02-non-functional.md)："agent JSONL 解析后实时更新 TaskExecution 投影；完整 JSONL 任务结束归档至 BlobStore；不进 events 表"
-- 改写 [05-observability.md](../architecture/05-observability.md)：
+- 改写 [05-observability.md](../architecture/tactical/observability/01-observability.md)：
   - O1 例子里删 `agent_trace` 引用
   - O2 改写流程描述：worker daemon 解析 → 更新 TaskExecution 投影 + 写本地 jsonl，**不**推 center events
   - § 事件总览表 Execution 行去掉 `agent_trace.event`
   - § Cognition 行引用 `agent_trace.event` 作为 memory 审计渠道 → 改为 `trace.jsonl.gz`（BlobStore filter）
   - § Aggregate 摘要 `AgentTraceEvent` 描述 "落 events 表" → "实时投影到 TaskExecution + 归档至 BlobStore"
-- 改写 [06-supervisor-model.md](../architecture/06-supervisor-model.md) § 4.11 / § 5.1 / § 5.2：memory 审计 / DecisionRecord 跟 trace 的关系，引用从 events 表的 `agent_trace.event` 改为 trace.jsonl 文件
-- 改写 [01-bounded-contexts.md](../architecture/01-bounded-contexts.md)：
+- 改写 [06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) § 4.11 / § 5.1 / § 5.2：memory 审计 / DecisionRecord 跟 trace 的关系，引用从 events 表的 `agent_trace.event` 改为 trace.jsonl 文件
+- 改写 [01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
   - L36 `AgentTraceEvent` 定义加注"不入 events 表"
   - BC4 Execution 核心事件去掉 `agent_trace.event`
   - BC5 Cognition 段落里"agent_trace.event 审计渠道"措辞调整

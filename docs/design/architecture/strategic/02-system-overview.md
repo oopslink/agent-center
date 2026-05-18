@@ -1,5 +1,7 @@
 # 系统总览
 
+> **DDD 战略层**
+
 ## 高层拓扑
 
 ```
@@ -68,7 +70,7 @@
 | Worker daemon → Worker agent | CLI 调用的响应（包括 input-response 解阻塞） |
 | Supervisor → Center | 通过 CLI 工具调用（dispatch / query / issue comment / conversation add-message / record-decision / ...） |
 
-各上下文的事件类型与聚合关系见 [01-bounded-contexts.md](01-bounded-contexts.md)。
+各上下文的事件类型与聚合关系见 [01-bounded-contexts.md](03-bounded-contexts.md)。
 
 ## 单一二进制 / 多模式
 
@@ -79,7 +81,7 @@
 - `agent-center worker --config=...` — 开发机上的 worker daemon
 - `agent-center <operation>` — CLI 操作命令（人用 / agent 用）
 
-完整 CLI 表见 [implementation/03-cli-subcommands.md](../implementation/03-cli-subcommands.md)（TBD）。
+完整 CLI 表见 [implementation/03-cli-subcommands.md](../../implementation/03-cli-subcommands.md)（TBD）。
 
 ## 部署形态
 

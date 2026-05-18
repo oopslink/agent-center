@@ -35,5 +35,5 @@
 **项目使用 DDD（Domain-Driven Design）**。所有文档 / 讨论 / 代码必须用 DDD 统一语言。
 
 - 方法论约定：[conventions § 0](../rules/conventions.md#-0-设计方法论ddd--统一语言)
-- 通用语言权威表：[architecture/01-bounded-contexts.md § 1](architecture/01-bounded-contexts.md#-1-通用语言ubiquitous-language)
+- 通用语言权威表：[architecture/01-bounded-contexts.md § 1](architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language)
 - DDD 推进 plan & status：[ddd-blueprint.md](ddd-blueprint.md)（讨论 DDD 设计前先过一遍）

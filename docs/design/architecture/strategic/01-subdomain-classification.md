@@ -1,6 +1,8 @@
 # agent-center 子域分类（Subdomain Classification）
 
-> 以 [00-domain-vision](00-domain-vision.md) 为锚，对 [01-bounded-contexts § 2](01-bounded-contexts.md#-2-限界上下文bounded-contexts) 的 8 个 BC 各打 DDD subdomain 标签——定**投入策略**与**系统必要度**。
+> **DDD 战略层**
+
+> 以 [00-domain-vision](00-domain-vision.md) 为锚，对 [01-bounded-contexts § 2](03-bounded-contexts.md#-2-限界上下文bounded-contexts) 的 8 个 BC 各打 DDD subdomain 标签——定**投入策略**与**系统必要度**。
 
 最后更新：2026-05-17。
 
@@ -55,12 +57,12 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 
 - 业界 generic 组件——BlobStore / DB / gRPC / Feishu SDK / OTel 等——都是**基础设施 / ACL 内部依赖**，不构成 BC
 - 每个 BC 的核心模型都是为 agent-center thesis 专门设计：
-  - **Task / Execution 两层模型**（[ADR-0010](../decisions/0010-task-execution-two-layer-model.md)）
-  - **Issue 协商流**（[03-issue-discussion](03-issue-discussion.md)）
-  - **Task ↔ Conversation 1:1**（[ADR-0017](../decisions/0017-task-as-conversation.md)）
-  - **Worker enrollment 通过 Discovery Proposal**（[ADR-0008](../decisions/0008-worker-project-mapping-via-discovery-proposal.md)）
-  - **Per-execution shim**（[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)）
-  - **Supervisor file-based memory**（[ADR-0012](../decisions/0012-memory-file-based.md)）
+  - **Task / Execution 两层模型**（[ADR-0010](../../decisions/0010-task-execution-two-layer-model.md)）
+  - **Issue 协商流**（[03-issue-discussion](../tactical/discussion/01-issue-discussion.md)）
+  - **Task ↔ Conversation 1:1**（[ADR-0017](../../decisions/0017-task-as-conversation.md)）
+  - **Worker enrollment 通过 Discovery Proposal**（[ADR-0008](../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)）
+  - **Per-execution shim**（[ADR-0018](../../decisions/0018-detached-agent-via-per-execution-shim.md)）
+  - **Supervisor file-based memory**（[ADR-0012](../../decisions/0012-memory-file-based.md)）
 
 → 这本身是 agent-center 的特征：**核心价值在领域设计**，而非"组装现成组件"。
 
@@ -72,7 +74,7 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 |---|---|---|
 | **Core** | 最强投入 / 最聪明设计 / 最高质量门槛 / 出 bug 视为 P0 / Refactor 投入足 | Supervisor decision prompt 调优 / Task 状态机精细 / Issue 收敛协议 / Dispatch reliability 协议 |
 | **Supporting – Essential** | 务实精巧 / 不思辨 / 做好就行 / 出 bug 视为 P1 / 解决方案优先选简单的 | Workforce Discovery Proposal（ADR-0008）/ Per-execution shim（ADR-0018）/ Task ↔ Conversation 1:1（ADR-0017）——都是必要支撑的"做好"，不需要花体力探索"更优雅设计" |
-| **Supporting – Peripheral** | 最低投入度 / 够用即可 / 优先复用社区模式 / 出 bug 视为 P2 / refactor 阈值高 | Fleet view 用基础列表（[roadmap v3](../roadmap.md) 推迟时间轴 / 对接 OTel）/ Bridge 只做飞书 adapter，多 vendor 推迟 |
+| **Supporting – Peripheral** | 最低投入度 / 够用即可 / 优先复用社区模式 / 出 bug 视为 P2 / refactor 阈值高 | Fleet view 用基础列表（[roadmap v3](../../roadmap.md) 推迟时间轴 / 对接 OTel）/ Bridge 只做飞书 adapter，多 vendor 推迟 |
 | **Generic** | 直接用库 / 不自研 | — |
 
 **投入优先级**（出 bug / refactor / code review 严苛度）：
@@ -96,7 +98,7 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 ## § 6. 相关文档
 
 - [00-domain-vision](00-domain-vision.md) —— 判别锚（thesis + strategic stance）
-- [01-bounded-contexts § 2](01-bounded-contexts.md#-2-限界上下文bounded-contexts) —— 8 个 BC 详细定义
-- [01-bounded-contexts § 3](01-bounded-contexts.md#-3-上下文映射context-map) —— Context Map（上下游关系 + ACL）
-- [ddd-blueprint](../ddd-blueprint.md) —— DDD 推进状态
-- [conventions § 0](../../rules/conventions.md#-0-设计方法论ddd--统一语言) —— DDD 是方法论根基
+- [01-bounded-contexts § 2](03-bounded-contexts.md#-2-限界上下文bounded-contexts) —— 8 个 BC 详细定义
+- [01-bounded-contexts § 3](03-bounded-contexts.md#-3-上下文映射context-map) —— Context Map（上下游关系 + ACL）
+- [ddd-blueprint](../../ddd-blueprint.md) —— DDD 推进状态
+- [conventions § 0](../../../rules/conventions.md#-0-设计方法论ddd--统一语言) —— DDD 是方法论根基

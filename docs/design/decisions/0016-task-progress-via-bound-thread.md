@@ -12,7 +12,7 @@
 
 [ADR-0015](0015-agent-trace-not-in-events-table.md) 让 worker 进度数据由 TaskExecution 投影（实时摘要）+ BlobStore 归档（post-hoc）+ worker peek-trace RPC（按需深挖）三层承载。但这些都是"数据可拿到"，**没解决"飞书侧用户怎么看见 worker 工作进度"**：
 
-- [09-feishu-integration.md § 5](../architecture/09-feishu-integration.md) 的 outbound 触发器只订阅 `conversation.message_added` / `issue.comment_added` / `issue.opened`
+- [09-feishu-integration.md § 5](../architecture/tactical/bridge/01-feishu-integration.md) 的 outbound 触发器只订阅 `conversation.message_added` / `issue.comment_added` / `issue.opened`
 - TaskExecution 投影变化（`current_activity` 变了）**不是 domain event** → Bridge 不会自动推送
 - 用户想"持续看进度"只能反复 @bot 问 → 每次烧一次 supervisor invocation 回静态卡 —— 不可接受
 
@@ -22,7 +22,7 @@
 - **B' (bound thread + 进度消息流)**：把卡片绑到 thread，后续进度作为 thread 内 message 追加
 - **B'' (混合)**：主卡片 update + 关键 milestone 作消息
 
-[09 § 7 Bound Card](../architecture/09-feishu-integration.md) 已经在 Issue 上跑通 bound card 模式（卡片 + thread + thread 内消息=IssueComment）。把同样机制扩展到 Task 复用度高、用户认知一致。
+[09 § 7 Bound Card](../architecture/tactical/bridge/01-feishu-integration.md) 已经在 Issue 上跑通 bound card 模式（卡片 + thread + thread 内消息=IssueComment）。把同样机制扩展到 Task 复用度高、用户认知一致。
 
 ## Decision
 
@@ -30,7 +30,7 @@
 
 用户问 "T-42 进度" 是关于"T-42 这件事"，跨多次 execution（重派单后绑定仍然有效）。
 
-- Scheduling BC 给 `Task` 加 `bound_card_json` 字段（结构同构于 [03-issue-discussion.md](../architecture/03-issue-discussion.md) 的 `issue.bound_card_json`）
+- Scheduling BC 给 `Task` 加 `bound_card_json` 字段（结构同构于 [03-issue-discussion.md](../architecture/tactical/discussion/01-issue-discussion.md) 的 `issue.bound_card_json`）
 - 新 CLI `agent-center task bind-card <task_id> --channel=feishu --auto`（同构于 `issue bind-card`）
 
 ### 2. 复用 Issue bound_card 机制
@@ -55,7 +55,7 @@
 ### 4. 新 content_kind = `task_progress`，进 messages 表
 
 - Conversation BC 新增 `content_kind = task_progress`
-- 进度消息**写入 messages 表**（保 [09 § 12](../architecture/09-feishu-integration.md)"飞书是无状态通道；thread 内每条消息都同步写入领域模块"承诺）
+- 进度消息**写入 messages 表**（保 [09 § 12](../architecture/tactical/bridge/01-feishu-integration.md)"飞书是无状态通道；thread 内每条消息都同步写入领域模块"承诺）
 - 默认 `inspect conversation <id>` 时过滤掉 `task_progress`（不污染对话历史浏览）
 - 保留期可短（默认 30 天 GC，可配，独立于普通 message 的保留期）
 
@@ -118,19 +118,19 @@
 
 ## 影响范围
 
-- 改写 [02-task-model.md](../architecture/02-task-model.md)：
+- 改写 [02-task-model.md](../architecture/tactical/scheduling/01-task-model.md)：
   - Task aggregate 加 `bound_card_json` 字段（结构参考 issue.bound_card_json）
   - 新增 Task 相关事件：`task.bound_card_requested` / `task.progress_milestone_reached`（含 reason ∈ {status_change / activity_kind_change / long_tool_call_start / long_tool_call_end / cumulative_summary / user_inquiry}，配 message）
   - 新增 CLI：`agent-center task bind-card <task_id> --channel=feishu --auto` / `task unbind-card <task_id>`
-- 改写 [09-feishu-integration.md](../architecture/09-feishu-integration.md)：
+- 改写 [09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md)：
   - § 6 渲染表加 `task_progress` content_kind 行（飞书形态：thread 内 text message + 简短标签）
   - 新增 § Task Bound Card 机制（结构同构 § 7 Issue Bound Card）
   - 新增按钮 `[查看 thinking]` / `[查看工具参数]` / `[停止跟踪]` → action 路由到 `peek-trace` / `task unbind-card`
-- 改写 [12-conversation.md](../architecture/12-conversation.md)：
+- 改写 [12-conversation.md](../architecture/tactical/conversation/01-conversation.md)：
   - content_kind 枚举加 `task_progress`
   - `inspect conversation <id>` 默认过滤 task_progress 类条目；`--include-progress` 显式开启
   - GC 策略加 task_progress 30 天保留（默认值，可配）
-- 改写 [01-bounded-contexts.md](../architecture/01-bounded-contexts.md)：
+- 改写 [01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
   - Scheduling BC 核心事件加 `task.bound_card_requested` / `task.progress_milestone_reached`
   - 术语表 Message `content_kind` 枚举加 `task_progress`
 - 实现层 02-persistence-schema (TBD)：`tasks` 表加 `bound_card_json TEXT`；`messages` 表无需 schema 改（`content_kind` 是 TEXT enum）

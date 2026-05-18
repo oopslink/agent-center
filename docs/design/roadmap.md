@@ -42,7 +42,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ### 多 vendor 接入（DingTalk / Web chat / Slack 等）
 
-[Bridge BC](architecture/01-bounded-contexts.md#bc8-bridge渠道桥接层) 架构上支持多 Bridge；v1 只实现 FeishuBridge。
+[Bridge BC](architecture/strategic/03-bounded-contexts.md#bc8-bridge渠道桥接层) 架构上支持多 Bridge；v1 只实现 FeishuBridge。
 - **v1 不做的原因**：飞书 + Web Console 覆盖个人场景；额外 vendor 是体量 / 协作场景拓展
 - **触发条件**：用户开始通过非飞书入口（公司用 DingTalk / 团队接入 Web chat）
 - **影响**：每个 vendor 一个 `XxxBridge`，复用 Conversation / Message / Identity / IssueComment 抽象；ChannelBinding 表已就绪
@@ -61,7 +61,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ### Task / Execution 模型扩展
 
-[ADR-0010 两层模型](decisions/0010-task-execution-two-layer-model.md) 与 [02-task-model.md](architecture/02-task-model.md) 之外的推迟项：
+[ADR-0010 两层模型](decisions/0010-task-execution-two-layer-model.md) 与 [02-task-model.md](architecture/tactical/scheduling/01-task-model.md) 之外的推迟项：
 
 - **父子状态联动**：parent task `done` 自动触发所有未完成 sub-task `abandoned`（或相反方向：所有 sub-task done 触发 parent done）。v1 显式 `parent_task_id` 仅做血缘
 - **ETA 过期触发 supervisor 唤醒**：v1 ETA 仅做展示，过期不影响系统行为；推迟做 ETA-trigger event 进唤醒白名单（auto-ping）
@@ -85,7 +85,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ### Supervisor / Cognition 进阶
 
-[ADR-0012 Memory file-based](decisions/0012-memory-file-based.md) + [ADR-0013 Invocation 并发模型](decisions/0013-supervisor-invocation-concurrency.md) + [06-supervisor-model.md](architecture/06-supervisor-model.md) 之外的推迟项：
+[ADR-0012 Memory file-based](decisions/0012-memory-file-based.md) + [ADR-0013 Invocation 并发模型](decisions/0013-supervisor-invocation-concurrency.md) + [06-supervisor-model.md](architecture/tactical/cognition/01-supervisor-model.md) 之外的推迟项：
 
 - **Supervisor 自动重试**：`claude_nonzero` / `timed_out` invocation 失败后自动用同 trigger 重发一次。v1 选了"alert + 人工 retrigger"防 token 死循环；失败率统计稳定后可加 1 次自动重试
 - **Cross-invocation 协调机制**：并行 invocation 间互锁 / 协商，避免"两个 invocation 互不知情下都派任务给 W-2"导致一次 NACK 浪费 token。v1 靠底层单活 / ACK 兜底
@@ -113,7 +113,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ### DAG 任务依赖的高级特性
 
-v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 + 无环 + supervisor 判断派单（见 [02-task-model.md § 7](architecture/02-task-model.md)）。下列是更进一步的能力：
+v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 + 无环 + supervisor 判断派单（见 [02-task-model.md § 7](architecture/tactical/scheduling/01-task-model.md)）。下列是更进一步的能力：
 
 - **自动 cascade abandon**：dep 进 `abandoned` 时自动 abandon 依赖它的 task（v1 现状是 supervisor wake 后决定）
 - **复杂依赖语义**：OR 依赖（"任一 dep done 即可"）、only-if-failed（"等 dep failed 才跑"）、conditional（"dep.artifact 满足条件才跑"）

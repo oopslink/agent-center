@@ -101,7 +101,7 @@ Worker reconcile 完成前**不接收新 dispatch**。
 
 ### 6. Worker_lost 触发的双跑兜底
 
-场景：Worker A 心跳超 60s（[Q4 timeout](../architecture/02-task-model.md) `worker_heartbeat_timeout`）→ Center 标 W-A.status=offline + 上面所有 active execution → `failed(reason='worker_lost')` → supervisor 派给 W-B（新 execution_id）。
+场景：Worker A 心跳超 60s（[Q4 timeout](../architecture/tactical/scheduling/01-task-model.md) `worker_heartbeat_timeout`）→ Center 标 W-A.status=offline + 上面所有 active execution → `failed(reason='worker_lost')` → supervisor 派给 W-B（新 execution_id）。
 
 A 重连后：
 
@@ -154,9 +154,9 @@ A 重连后：
 
 ## 影响范围
 
-- 新增 [architecture/02-task-model.md](../architecture/02-task-model.md)：dispatch ACK + Reconcile + ledger 章节
-- 更新 [architecture/07-worker-model.md](../architecture/07-worker-model.md)：增 dispatch 时序图（含 ACK / 本地 ledger / reconcile）；env 注入清单
-- 更新 [architecture/05-observability.md](../architecture/05-observability.md)：events `task_execution.dispatch_*` / `reconcile.*`
+- 新增 [architecture/02-task-model.md](../architecture/tactical/scheduling/01-task-model.md)：dispatch ACK + Reconcile + ledger 章节
+- 更新 [architecture/07-worker-model.md](../architecture/tactical/workforce/01-worker-model.md)：增 dispatch 时序图（含 ACK / 本地 ledger / reconcile）；env 注入清单
+- 更新 [architecture/05-observability.md](../architecture/tactical/observability/01-observability.md)：events `task_execution.dispatch_*` / `reconcile.*`
 - 更新 [rules/conventions.md](../../rules/conventions.md)：§ 16 `reason + message` 双字段约定
 - 实现层 [02-persistence-schema.md](../implementation/) (TBD)：`task_executions.dispatch_state` 字段
 - 实现层 worker daemon：per-execution 目录 schema（envelope.json / status.json 等），见 [ADR-0018 § 3](0018-detached-agent-via-per-execution-shim.md)

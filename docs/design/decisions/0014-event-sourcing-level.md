@@ -7,11 +7,11 @@
 
 ## Context
 
-[NF9](../requirements/02-non-functional.md) 原文："所有 domain event 进入 append-only 事件表；任何状态都可从事件流重放推导"。[05-observability.md O1](../architecture/05-observability.md) 也写 "events 表是 source of truth for 重放、审计、跨上下文 join"，Fleet View 段落更明确 "这张表可从 events 表全量重算（崩了能恢复）"。这套措辞指向**严格事件溯源 / CQRS**：事件是底层真相，状态表纯投影。
+[NF9](../requirements/02-non-functional.md) 原文："所有 domain event 进入 append-only 事件表；任何状态都可从事件流重放推导"。[05-observability.md O1](../architecture/tactical/observability/01-observability.md) 也写 "events 表是 source of truth for 重放、审计、跨上下文 join"，Fleet View 段落更明确 "这张表可从 events 表全量重算（崩了能恢复）"。这套措辞指向**严格事件溯源 / CQRS**：事件是底层真相，状态表纯投影。
 
 但同一份设计里：
 
-- `task.status` / `task_execution.status` / `supervisor_invocation.status` / `issue.status` 都是真实存在的状态字段，且被多处直接 UPDATE（[05 O3](../architecture/05-observability.md)：`supervisor_invocations` 占位行 → 进行中 UPDATE → 结束回填）
+- `task.status` / `task_execution.status` / `supervisor_invocation.status` / `issue.status` 都是真实存在的状态字段，且被多处直接 UPDATE（[05 O3](../architecture/tactical/observability/01-observability.md)：`supervisor_invocations` 占位行 → 进行中 UPDATE → 结束回填）
 - CLI（`inspect` / `query` / `ps`）和 Web Console 是热查询路径，要求"派单后立刻 list 看得到" —— 投影 lag 不可接受
 - 跨聚合写入（如关 issue 时 spawn task）若走 CQRS 需要 saga，复杂度爆
 - 单用户 / 单 VPS 规模，从未真正"从事件流重建状态"
@@ -82,7 +82,7 @@ Repository / service 层**禁止**直接 UPDATE 状态字段；走 `mutator(stat
 ### A. L0：纯状态表 + DB 审计触发器
 
 - Pro: 最简单
-- Con: supervisor 无事件输入流（[06 § 2](../architecture/06-supervisor-model.md) 的 `trigger_event_ids` 模型成立不了）；CLI timeline / inspect 体验差；跨上下文 join 难
+- Con: supervisor 无事件输入流（[06 § 2](../architecture/tactical/cognition/01-supervisor-model.md) 的 `trigger_event_ids` 模型成立不了）；CLI timeline / inspect 体验差；跨上下文 join 难
 - 不选
 
 ### B. L1.5：事件 payload 自律"足以重建状态"
@@ -100,8 +100,8 @@ Repository / service 层**禁止**直接 UPDATE 状态字段；走 `mutator(stat
 ## 影响范围
 
 - 改写 [NF9](../requirements/02-non-functional.md)：删 "任何状态都可从事件流重放推导"，改为 "状态表权威 + 事件表审计 / supervisor 输入流"
-- 改写 [05-observability.md O1](../architecture/05-observability.md)：删 "source of truth for 重放、审计、跨上下文 join"，改为 "与状态表同事务双写；审计 / supervisor 输入 / 跨上下文 timeline / 新增投影；状态恢复走 DB 备份"
-- 改写 [05-observability.md Fleet View § 数据基础](../architecture/05-observability.md)：删 "可从 events 表全量重算（崩了能恢复）"，改为 "崩了从 DB 备份恢复"
+- 改写 [05-observability.md O1](../architecture/tactical/observability/01-observability.md)：删 "source of truth for 重放、审计、跨上下文 join"，改为 "与状态表同事务双写；审计 / supervisor 输入 / 跨上下文 timeline / 新增投影；状态恢复走 DB 备份"
+- 改写 [05-observability.md Fleet View § 数据基础](../architecture/tactical/observability/01-observability.md)：删 "可从 events 表全量重算（崩了能恢复）"，改为 "崩了从 DB 备份恢复"
 - 后续 / 待立独立 ADR：
   - agent_trace.event 从 events 表拆出（量级 / 用途差异，避免拖累 events 表索引 / 审计扫描）
   - 跨存储写入 outbox 模式（worker → center 事件、BlobStore.Put 等跨网络 / 跨进程的可靠投递）

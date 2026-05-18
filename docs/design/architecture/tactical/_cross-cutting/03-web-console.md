@@ -1,5 +1,7 @@
 # Web Console
 
+> **跨切 / 非 BC**
+
 本地 web UI，覆盖 agent-center 的查看与基础管理。
 
 > **状态**: TBD 详细设计 —— 占位文档，等 §11 讨论展开。
@@ -14,7 +16,7 @@
 | 认证 | **无**（loopback 默认信任本机用户） |
 | TLS | 不需要（loopback 本地）|
 
-跟 [admin CLI 本机姿态](10-skill-cli-tooling.md) 一致，零认证负担、零公网暴露、零证书管理。
+跟 [admin CLI 本机姿态](02-skill-cli-tooling.md) 一致，零认证负担、零公网暴露、零证书管理。
 
 ## v1 范围
 
@@ -30,7 +32,7 @@
 | **管理** | Task 取消 / 重派 | （按需限定权限）|
 | **管理** | Issue 评论 / conclude / close | （等同 CLI 操作）|
 
-不在 v1 范围（推迟到 [roadmap.md](../roadmap.md)）：
+不在 v1 范围（推迟到 [roadmap.md](../../../roadmap.md)）：
 
 - 高级时间轴可视化（flamegraph / Gantt）—— v3
 - 复杂 dashboard / 度量趋势图 —— 接 Prometheus / Grafana
@@ -40,7 +42,7 @@
 
 - 前端：TBD（vanilla HTML + htmx / vue / react，看复杂度）
 - 后端：嵌在 server 进程，直接读 DB / BlobStore
-- 不引入额外 binary，遵循 [conventions § 10 单一二进制 / 多模式](../../rules/conventions.md#-10-单一二进制--多模式)
+- 不引入额外 binary，遵循 [conventions § 10 单一二进制 / 多模式](../../../../rules/conventions.md#-10-单一二进制--多模式)
 
 ## 配置
 

@@ -41,7 +41,7 @@
 
 CLI 命名：`notify-feishu` → `notify-conversation`。
 
-详见 [architecture/12-conversation.md](../architecture/12-conversation.md) 与 [architecture/01-bounded-contexts.md](../architecture/01-bounded-contexts.md)。
+详见 [architecture/12-conversation.md](../architecture/tactical/conversation/01-conversation.md) 与 [architecture/01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)。
 
 ## Consequences
 
@@ -55,7 +55,7 @@ CLI 命名：`notify-feishu` → `notify-conversation`。
 负面 / 待跟进：
 
 - 多一层抽象：v1 也得维护 Conversation / Message / Identity / ChannelBinding 四张表
-- IssueComment ↔ Message 的关系需在 v1 拍定（[12-conversation.md § Issue ↔ Conversation 1:1](../architecture/12-conversation.md) 倾向把 IssueComment 实现为 Conversation 内的 Message）
+- IssueComment ↔ Message 的关系需在 v1 拍定（[12-conversation.md § Issue ↔ Conversation 1:1](../architecture/tactical/conversation/01-conversation.md) 倾向把 IssueComment 实现为 Conversation 内的 Message）
 - 历史名"Communication Gateway"需要全文档替换为新分工
 
 ## Alternatives Considered
@@ -79,11 +79,11 @@ CLI 命名：`notify-feishu` → `notify-conversation`。
 
 需更新 / 已更新的文档：
 
-- [architecture/01-bounded-contexts.md](../architecture/01-bounded-contexts.md) —— BC 列表 / UL / 上下文映射 / 命名表
-- [architecture/12-conversation.md](../architecture/12-conversation.md) —— **新建**
-- [architecture/09-feishu-integration.md](../architecture/09-feishu-integration.md) —— 重新定位为 FeishuChannelAdapter
-- [architecture/10-skill-cli-tooling.md](../architecture/10-skill-cli-tooling.md) —— `notify-feishu` → `notify-conversation`
-- [architecture/06-supervisor-model.md](../architecture/06-supervisor-model.md) —— 同上
-- [architecture/03-issue-discussion.md](../architecture/03-issue-discussion.md) —— 待修订（IssueComment ↔ Message 关系）
-- [architecture/04-input-required.md](../architecture/04-input-required.md) —— 待修订（卡片送达走 Conversation 而非直接飞书）
+- [architecture/01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md) —— BC 列表 / UL / 上下文映射 / 命名表
+- [architecture/12-conversation.md](../architecture/tactical/conversation/01-conversation.md) —— **新建**
+- [architecture/09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md) —— 重新定位为 FeishuChannelAdapter
+- [architecture/10-skill-cli-tooling.md](../architecture/tactical/_cross-cutting/02-skill-cli-tooling.md) —— `notify-feishu` → `notify-conversation`
+- [architecture/06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) —— 同上
+- [architecture/03-issue-discussion.md](../architecture/tactical/discussion/01-issue-discussion.md) —— 待修订（IssueComment ↔ Message 关系）
+- [architecture/04-input-required.md](../architecture/tactical/scheduling/02-input-required.md) —— 待修订（卡片送达走 Conversation 而非直接飞书）
 - [roadmap.md](../roadmap.md) —— 加 "多 channel 接入"

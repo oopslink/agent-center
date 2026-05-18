@@ -1,13 +1,15 @@
 # Supervisor 运行模型
 
+> **DDD 战术层** · BC: Cognition
+
 回答"Supervisor 是什么、怎么被唤醒、怎么做决策、怎么管自己的记忆 / 决策审计"。
 
-Supervisor 是中心的"调度官 agent"。它是 LLM 驱动的真 agent（spawn `claude` 子进程实现），不是规则路由器；跟 worker agent 是**同源**（都是 claude 实例），区别仅在工具集和上下文（[ADR-0003](../decisions/0003-supervisor-not-brain.md)）。
+Supervisor 是中心的"调度官 agent"。它是 LLM 驱动的真 agent（spawn `claude` 子进程实现），不是规则路由器；跟 worker agent 是**同源**（都是 claude 实例），区别仅在工具集和上下文（[ADR-0003](../../../decisions/0003-supervisor-not-brain.md)）。
 
 跟其它架构层文档的边界：
 - 具体表 schema / CLI 签名归 [implementation/](../implementation/)
-- "为什么这样定"归 [decisions/](../decisions/)（核心 ADR：[0012 Memory file-based](../decisions/0012-memory-file-based.md) / [0013 Invocation 并发模型](../decisions/0013-supervisor-invocation-concurrency.md)）
-- Supervisor 在 BC 地图里的位置见 [01-bounded-contexts.md § BC5](01-bounded-contexts.md)
+- "为什么这样定"归 [decisions/](../decisions/)（核心 ADR：[0012 Memory file-based](../../../decisions/0012-memory-file-based.md) / [0013 Invocation 并发模型](../../../decisions/0013-supervisor-invocation-concurrency.md)）
+- Supervisor 在 BC 地图里的位置见 [01-bounded-contexts.md § BC5](../../strategic/03-bounded-contexts.md)
 
 ---
 
@@ -26,7 +28,7 @@ Supervisor 是中心的"调度官 agent"。它是 LLM 驱动的真 agent（spawn
 
 **没有常驻 supervisor 进程**。`SupervisorInvocation` ≠ supervisor 本身 —— 每次唤醒是一次 invocation，跑完就消失。
 
-参见 [ADR-0002 不用 LLM SDK 走 CLI agent](../decisions/0002-no-llm-sdk-use-cli-agents.md)。
+参见 [ADR-0002 不用 LLM SDK 走 CLI agent](../../../decisions/0002-no-llm-sdk-use-cli-agents.md)。
 
 ---
 
@@ -44,7 +46,7 @@ Supervisor 是中心的"调度官 agent"。它是 LLM 驱动的真 agent（spawn
 | 输出 | 该 invocation 内每次动作 CLI 落 `decision_records` + 触发其他 BC 的 domain events；claude 自身的 JSONL trace 通过 `--session-id=invocation-id` 关联 |
 | 终态 | claude 进程退出后 invocation 行回填 `ended_at` + `status` + `token_usage` + `decisions_made_count` |
 
-详细 ADR：[0013 Supervisor Invocation 并发模型](../decisions/0013-supervisor-invocation-concurrency.md)。
+详细 ADR：[0013 Supervisor Invocation 并发模型](../../../decisions/0013-supervisor-invocation-concurrency.md)。
 
 ### 2.2 状态机
 
@@ -74,7 +76,7 @@ Supervisor 是中心的"调度官 agent"。它是 LLM 驱动的真 agent（spawn
 | `failed` | claude 进程 exit ≠ 0；reason 字段表多样性 |
 | `timed_out` | 命中 hard timeout，center SIGTERM → 5s grace → SIGKILL |
 
-`failed_reason` 枚举（必配 `failed_message`，[conventions § 16](../../rules/conventions.md)）：
+`failed_reason` 枚举（必配 `failed_message`，[conventions § 16](../../../../rules/conventions.md)）：
 
 | reason | 含义 |
 |---|---|
@@ -129,17 +131,17 @@ Center 重启时：
 | `ended_at` | timestamp \| null | 终态时刻 |
 | `token_usage` | JSON \| null | `{input, output, cache_read, cache_create, ...}`，claude exit 后回填 |
 | `decisions_made_count` | int | 该 invocation 内 decision_records 行数（便于 stats） |
-| `prompt_blob_ref` | string \| null | 全 prompt > 10 KB 时走 BlobStore 引用（[conventions § 8](../../rules/conventions.md)） |
+| `prompt_blob_ref` | string \| null | 全 prompt > 10 KB 时走 BlobStore 引用（[conventions § 8](../../../../rules/conventions.md)） |
 
 ---
 
 ## § 3. 调度 / 唤醒 / 节流
 
-详细 ADR：[0013 Supervisor Invocation 并发模型](../decisions/0013-supervisor-invocation-concurrency.md)。
+详细 ADR：[0013 Supervisor Invocation 并发模型](../../../decisions/0013-supervisor-invocation-concurrency.md)。
 
 ### 3.1 唤醒事件白名单
 
-唤醒事件清单的权威来源 = [02-task-model.md § 12.1](02-task-model.md)（task 模型层）+ 本节补充。**`supervisor.*` 事件不在白名单**，避免自唤醒循环。
+唤醒事件清单的权威来源 = [02-task-model.md § 12.1](../scheduling/01-task-model.md)（task 模型层）+ 本节补充。**`supervisor.*` 事件不在白名单**，避免自唤醒循环。
 
 唤醒事件完整列表：
 
@@ -184,7 +186,7 @@ Global:
 
 同 scope_key 至多 1 个 running invocation；不同 scope_key 可并行。全局上限 `max_concurrent_invocations=5`（v1 默认，可配）；超过则进 in-memory FIFO 队列，任一 invocation 结束 → 出队一个 spawn。
 
-跨 scope 决策冲突（如两个并行 invocation 互不知情下都决定派任务给 W-2）**不在 Cognition BC 内协调**，由 [ADR-0010 单活约束](../decisions/0010-task-execution-two-layer-model.md) + [ADR-0011 ACK 协议](../decisions/0011-dispatch-reliability-protocol.md) 兜底。
+跨 scope 决策冲突（如两个并行 invocation 互不知情下都决定派任务给 W-2）**不在 Cognition BC 内协调**，由 [ADR-0010 单活约束](../../../decisions/0010-task-execution-two-layer-model.md) + [ADR-0011 ACK 协议](../../../decisions/0011-dispatch-reliability-protocol.md) 兜底。
 
 ### 3.4 Coalescing window（per scope_key, in-memory）
 
@@ -229,7 +231,7 @@ supervisor:
 
 ## § 4. Memory
 
-详细 ADR：[0012 Supervisor Memory 走 file-based + git](../decisions/0012-memory-file-based.md)。
+详细 ADR：[0012 Supervisor Memory 走 file-based + git](../../../decisions/0012-memory-file-based.md)。
 
 ### 4.1 存储形态：file-based + git 仓
 
@@ -323,7 +325,7 @@ Supervisor 用原生 `Edit` / `Write` 工具直接改对应文件。**压缩 / r
 
 ### 4.9 并发写：不加锁
 
-共享 scope 文件（`global/CLAUDE.md` / `supervisor.md` / `projects/X/CLAUDE.md`）在跨 scope 并行 invocation 下可能被并发 Edit；接受偶发 race（v1 单用户低频）；v2+ 视场景加 advisory lock（[roadmap](../roadmap.md)）。
+共享 scope 文件（`global/CLAUDE.md` / `supervisor.md` / `projects/X/CLAUDE.md`）在跨 scope 并行 invocation 下可能被并发 Edit；接受偶发 race（v1 单用户低频）；v2+ 视场景加 advisory lock（[roadmap](../../../roadmap.md)）。
 
 ### 4.10 GC：终态实体永远保留
 
@@ -333,7 +335,7 @@ Task done/abandoned、Issue closed/withdrawn、Worker un-enrolled、Conversation
 
 不引入 `memory.*` 事件类。变更已有两条审计：
 
-- Supervisor invocation 的 `trace.jsonl.gz`（BlobStore 归档，[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）—— claude `Edit` / `Write` 工具调用本身记录在 JSONL 行内（`tool` + `input.file_path`），归档后 `zcat | jq` 即得
+- Supervisor invocation 的 `trace.jsonl.gz`（BlobStore 归档，[ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)）—— claude `Edit` / `Write` 工具调用本身记录在 JSONL 行内（`tool` + `input.file_path`），归档后 `zcat | jq` 即得
 - `git log` —— commit message + diff + author，原生 audit
 
 ---
@@ -347,7 +349,7 @@ Task done/abandoned、Issue closed/withdrawn、Worker un-enrolled、Conversation
 - "对外" = 影响其他 BC 状态的动作（dispatch / kill / open issue / 给用户发消息 / 升级 input request 等）
 - "决策" = 一次完整 action 单位，不是底层 tool call 颗粒
 - "结构化" = 字段化行（kind / target_refs / rationale / outcome），不是自由文本
-- "Memory 编辑不算 decision"（[ADR-0012](../decisions/0012-memory-file-based.md) 后 memory 是 agent 私事，由 invocation `trace.jsonl.gz` + `git log` 双渠道审计，详见 [ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）
+- "Memory 编辑不算 decision"（[ADR-0012](../../../decisions/0012-memory-file-based.md) 后 memory 是 agent 私事，由 invocation `trace.jsonl.gz` + `git log` 双渠道审计，详见 [ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)）
 
 1 个 `SupervisorInvocation` : N 个 `DecisionRecord`（0/N，可能"无 decision"如 no_op invocation）。
 
@@ -358,7 +360,7 @@ Task done/abandoned、Issue closed/withdrawn、Worker un-enrolled、Conversation
 | **SupervisorInvocation** | 启动→退出容器 | 1:N → DecisionRecords |
 | **Event**（events 表） | 状态变化原子记录 | 1 decision → 0/N events |
 | **Memory**（CLAUDE.md 文件） | 私事笔记 | 平行；memory 写不入 decision_records |
-| **AgentTraceEvent**（JSONL 行） | Tool call 颗粒（worker-side / supervisor invocation 同一链路）；**不入 events 表**，存 worker 本地 `trace.jsonl` + BlobStore 归档（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)） | DecisionRecord 是它的"聚合视图"；想看细节走 `peek-trace` / `logs <invocation>` |
+| **AgentTraceEvent**（JSONL 行） | Tool call 颗粒（worker-side / supervisor invocation 同一链路）；**不入 events 表**，存 worker 本地 `trace.jsonl` + BlobStore 归档（[ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)） | DecisionRecord 是它的"聚合视图"；想看细节走 `peek-trace` / `logs <invocation>` |
 
 ### 5.3 字段
 
@@ -421,7 +423,7 @@ COMMIT;
 
 ### 5.7 Rationale 必填
 
-所有动作 CLI 和 `record-decision` 都要求 `--rationale`，缺则 CLI 拒绝执行（跟 [conventions § 16](../../rules/conventions.md) "reason + message 双字段" 哲学对齐 —— rationale 担当 message 的角色）。
+所有动作 CLI 和 `record-decision` 都要求 `--rationale`，缺则 CLI 拒绝执行（跟 [conventions § 16](../../../../rules/conventions.md) "reason + message 双字段" 哲学对齐 —— rationale 担当 message 的角色）。
 
 supervisor.md skill 顶部硬指令："每次动作都要交代为什么，哪怕一句话"。
 
@@ -471,7 +473,7 @@ Cognition BC **不主动订阅**事件。Center 的 wake scheduler（§ 3）扫 
 
 ### 6.3 查询 / inspect：跟 user 共用同一套
 
-Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / issue / worker / conversation / 等。**不为 supervisor 单造 RPC**（[02-task-model § 12.2](02-task-model.md) / [05-observability § O5](05-observability.md)）。
+Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / issue / worker / conversation / 等。**不为 supervisor 单造 RPC**（[02-task-model § 12.2](../scheduling/01-task-model.md) / [05-observability § O5](../observability/01-observability.md)）。
 
 ### 6.4 Prompt 组装边界（06 / 08）
 
@@ -485,7 +487,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 `HOME` 隔离防 user `~/.claude/` 污染（§ 4.5）；`--session-id=<invocation_id>` 让 claude 自己的 trace 跟 invocation 关联。
 
-**08 contract**（[08-prompt-assembly.md](08-prompt-assembly.md)）：worker-side prompt 组装（task envelope → worker daemon 拼最终 prompt），跟 supervisor 自己的 prompt 组装**两套独立机制**。08 的设计**不**复用到 supervisor 这边，反之亦然。
+**08 contract**（[08-prompt-assembly.md](../_cross-cutting/01-prompt-assembly.md)）：worker-side prompt 组装（task envelope → worker daemon 拼最终 prompt），跟 supervisor 自己的 prompt 组装**两套独立机制**。08 的设计**不**复用到 supervisor 这边，反之亦然。
 
 ### 6.5 跟 worker-side agent 的对比
 
@@ -495,7 +497,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 | 短命/长命 | 短命，每次一个新进程 | 短命，每次一个新进程 |
 | Skill 文件 | `supervisor.md` | `worker-agent.md` |
 | 上下文注入 | Memory ancestor walk（自动）+ wake event payload | Task envelope content + worktree-local `CLAUDE.md` (project local) |
-| Memory 来源 | `$AGENT_CENTER_MEMORY_DIR/` git 仓（agent 自管） | 工作树内项目自带的 `CLAUDE.md` / `AGENTS.md`（项目仓库管，[ADR-0005](../decisions/0005-project-charter-stays-in-project-repo.md)） |
+| Memory 来源 | `$AGENT_CENTER_MEMORY_DIR/` git 仓（agent 自管） | 工作树内项目自带的 `CLAUDE.md` / `AGENTS.md`（项目仓库管，[ADR-0005](../../../decisions/0005-project-charter-stays-in-project-repo.md)） |
 | 调度可见性 | 通过 CLI 调 supervisor 写的动作命令 | 通过 unix socket 调 worker-agent 命令（`request-input` / `report-progress` / `open-issue` / 等） |
 
 共性：都是 spawn `claude` / `codex` / 等 CLI 子进程，都吃 skill + 上下文。差异：supervisor 是事件驱动 + 跨 invocation 持久 memory；worker 是单任务执行 + 跟项目仓共生。
@@ -518,11 +520,11 @@ VPS 不足以承担高并发时（用户视感觉到延迟 / OOM），调小 `ma
 1. **Supervisor 没有常驻进程**：每次 invocation 是 spawn → exit 全生命周期
 2. **决策权威在 supervisor**：center 不做硬编码调度，所有派单 / 升级 / 关闭决策由 supervisor 跑出
 3. **状态权威在 center**：supervisor 通过 CLI 写状态（同 worker / user 同套 CLI），不写本地副本
-4. **同 scope_key 任意时刻最多 1 个 running invocation**（[ADR-0013](../decisions/0013-supervisor-invocation-concurrency.md)）
+4. **同 scope_key 任意时刻最多 1 个 running invocation**（[ADR-0013](../../../decisions/0013-supervisor-invocation-concurrency.md)）
 5. **DecisionRecord append-only**：INSERT 后不可变（含 outcome 字段）
 6. **Memory 是 agent 私事**：写入 / 压缩 / TTL 全由 agent 自决，center 不掺和
 7. **HOME 隔离**：spawn claude 必显式 `HOME` / `CLAUDE_CONFIG_DIR`，禁污染用户私人配置
-8. **每个 decision 必带 rationale**（rationale 字段必填，类比 [conventions § 16](../../rules/conventions.md) 的 reason+message）
+8. **每个 decision 必带 rationale**（rationale 字段必填，类比 [conventions § 16](../../../../rules/conventions.md) 的 reason+message）
 9. **`supervisor.*` 事件不进 wake 白名单**（反循环）
 
 ---
@@ -531,26 +533,26 @@ VPS 不足以承担高并发时（用户视感觉到延迟 / OOM），调小 `ma
 
 | 项 | 归属 |
 |---|---|
-| Supervisor 自动重试（claude_nonzero / timed_out 自动重发同 trigger）| [roadmap](../roadmap.md)（未来视失败率统计决定） |
-| Task-level "long-no-update" auto-ping（每 task 加 idle timer 主动唤醒 supervisor）| [roadmap](../roadmap.md)（跟 [02-task-model § 14](02-task-model.md) "ETA 过期触发 supervisor 唤醒" 同类） |
-| Cross-invocation 协调机制（多 invocation 间互锁）| [roadmap](../roadmap.md)（多 supervisor 之前） |
-| Memory 并发写 advisory lock | [roadmap](../roadmap.md) |
-| Memory 跨 BC 聚合查询（grep 工具化、Web Console 可视）| [roadmap](../roadmap.md) |
-| 显式 `pending` invocation 状态（队列可见性）| [roadmap](../roadmap.md)（队列 metric / UI 时再加） |
-| Memory file 体积监控告警（自动提醒 supervisor 压缩）| [roadmap](../roadmap.md) |
-| Token cost 折算金钱 + 告警 | [roadmap](../roadmap.md)（已列） |
-| 多 supervisor / 跨机器 | [roadmap](../roadmap.md)（多用户 / SaaS 之前） |
+| Supervisor 自动重试（claude_nonzero / timed_out 自动重发同 trigger）| [roadmap](../../../roadmap.md)（未来视失败率统计决定） |
+| Task-level "long-no-update" auto-ping（每 task 加 idle timer 主动唤醒 supervisor）| [roadmap](../../../roadmap.md)（跟 [02-task-model § 14](../scheduling/01-task-model.md) "ETA 过期触发 supervisor 唤醒" 同类） |
+| Cross-invocation 协调机制（多 invocation 间互锁）| [roadmap](../../../roadmap.md)（多 supervisor 之前） |
+| Memory 并发写 advisory lock | [roadmap](../../../roadmap.md) |
+| Memory 跨 BC 聚合查询（grep 工具化、Web Console 可视）| [roadmap](../../../roadmap.md) |
+| 显式 `pending` invocation 状态（队列可见性）| [roadmap](../../../roadmap.md)（队列 metric / UI 时再加） |
+| Memory file 体积监控告警（自动提醒 supervisor 压缩）| [roadmap](../../../roadmap.md) |
+| Token cost 折算金钱 + 告警 | [roadmap](../../../roadmap.md)（已列） |
+| 多 supervisor / 跨机器 | [roadmap](../../../roadmap.md)（多用户 / SaaS 之前） |
 
 ---
 
 ## § 10. 引用文档
 
-- [ADR-0002 不用 LLM SDK 走 CLI agent](../decisions/0002-no-llm-sdk-use-cli-agents.md)
-- [ADR-0003 Supervisor 而非 Brain](../decisions/0003-supervisor-not-brain.md)
-- [ADR-0012 Memory file-based + git](../decisions/0012-memory-file-based.md)
-- [ADR-0013 Supervisor Invocation 并发模型](../decisions/0013-supervisor-invocation-concurrency.md)
-- [01 限界上下文 § BC5 Cognition](01-bounded-contexts.md)
-- [02 Task 模型 § 12.1 唤醒事件白名单](02-task-model.md)
-- [05 可观测性 § O3 Supervisor 调用全留档](05-observability.md)
-- [08 Prompt 组装（worker-side）](08-prompt-assembly.md)
-- [conventions](../../rules/conventions.md)（§ 1 / § 2 / § 8 / § 16）
+- [ADR-0002 不用 LLM SDK 走 CLI agent](../../../decisions/0002-no-llm-sdk-use-cli-agents.md)
+- [ADR-0003 Supervisor 而非 Brain](../../../decisions/0003-supervisor-not-brain.md)
+- [ADR-0012 Memory file-based + git](../../../decisions/0012-memory-file-based.md)
+- [ADR-0013 Supervisor Invocation 并发模型](../../../decisions/0013-supervisor-invocation-concurrency.md)
+- [01 限界上下文 § BC5 Cognition](../../strategic/03-bounded-contexts.md)
+- [02 Task 模型 § 12.1 唤醒事件白名单](../scheduling/01-task-model.md)
+- [05 可观测性 § O3 Supervisor 调用全留档](../observability/01-observability.md)
+- [08 Prompt 组装（worker-side）](../_cross-cutting/01-prompt-assembly.md)
+- [conventions](../../../../rules/conventions.md)（§ 1 / § 2 / § 8 / § 16）

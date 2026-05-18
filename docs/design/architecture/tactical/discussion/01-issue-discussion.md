@@ -1,20 +1,22 @@
 # Issue 讨论模型
 
+> **DDD 战术层** · BC: Discussion
+
 ## 概念定位
 
 | 概念 | 定义 |
 |---|---|
 | **Task** | Agent 干活的最小单位。状态机驱动：submitted → working → completed / failed |
 | **Issue** | 一件**待讨论**的事。可能由 worker、supervisor、用户提起。讨论 → 结论 → 也许产生 0/1/N 个 Task |
-| **IssueComment** | Issue 的结构化评论。**Discussion BC 独有的实体，单独表 `issue_comments`** —— 不是 Conversation Message 的子类（见 [ADR-0009](../decisions/0009-issue-conversation-decoupled-via-bridge.md)） |
+| **IssueComment** | Issue 的结构化评论。**Discussion BC 独有的实体，单独表 `issue_comments`** —— 不是 Conversation Message 的子类（见 [ADR-0009](../../../decisions/0009-issue-conversation-decoupled-via-bridge.md)） |
 
 **Task 是"做"；Issue 是"议"**。讨论不是闲聊 —— 严格记录、可审计、有明确结论。
 
-命名由来与 Suggestion 命名的对照见 [ADR-0004](../decisions/0004-issue-not-suggestion.md)。
+命名由来与 Suggestion 命名的对照见 [ADR-0004](../../../decisions/0004-issue-not-suggestion.md)。
 
 ## Issue 与 Conversation 的关系（解耦）
 
-**Issue 与 Conversation 是独立聚合，不是 1:1 绑定**（见 [ADR-0009](../decisions/0009-issue-conversation-decoupled-via-bridge.md)）：
+**Issue 与 Conversation 是独立聚合，不是 1:1 绑定**（见 [ADR-0009](../../../decisions/0009-issue-conversation-decoupled-via-bridge.md)）：
 
 - Issue 可以**没有**任何 conversation（CLI / Web Console 开的 issue）
 - 一个 Issue 可关联多个 conversation（弱关联 N:N，通过 `issue.related_conversation_ids` JSON 字段）
@@ -32,7 +34,7 @@
 | 人 - CLI | `agent-center issue open --title=... --description=... --project=...`（server 同机） |
 | 人 - Web Console | 表单提交 |
 | 人 - 飞书 @bot 自由文本 | "讨论一下 X" → FeishuBridge 把消息写到对应 Conversation → Supervisor 订阅事件 → 解析意图 → 调 `create_issue` |
-| 人 - 飞书 /slash 命令 | `/open-issue title="..." project=...`（推迟 v2，[roadmap](../roadmap.md)）|
+| 人 - 飞书 /slash 命令 | `/open-issue title="..." project=...`（推迟 v2，[roadmap](../../../roadmap.md)）|
 | Supervisor | Supervisor 调 `agent-center issue open ...`（通过 Bash 工具） |
 | Worker (agent) | Agent 调 `agent-center open-issue --title=...`，worker daemon 中转 |
 
@@ -91,7 +93,7 @@ task.from_issue_id  nullable
 
 ## IssueComment 写入策略（全显式）
 
-[ADR-0009](../decisions/0009-issue-conversation-decoupled-via-bridge.md) 选 **A 全显式**：
+[ADR-0009](../../../decisions/0009-issue-conversation-decoupled-via-bridge.md) 选 **A 全显式**：
 
 - **任何 IssueComment 都通过显式 API 调用产生**（直接调 `agent-center issue comment`，或者经由 Bridge 从 bound thread 写入 —— 后者本质也是显式：用户主动在 bound thread 内回复 = 显式投递到该 issue）
 - **不存在"自动从任意 conversation message 推断出 IssueComment"** —— Conversation 里聊 issue 的话，不会自动变成 IssueComment
@@ -204,8 +206,8 @@ Inbound (飞书 → 系统):
 ## v1 简化范围
 
 - Issue 默认显式创建（CLI / Web Console / 飞书 @bot 触发 supervisor），**不**自动从 agent 输出片段推断
-- IssueComment 全显式（[Q1=A](../decisions/0009-issue-conversation-decoupled-via-bridge.md)），不做自动镜像
-- Agent 不主动在 issue 内评论（agent 可通过 worker-agent CLI 调 `issue comment`，但 agent 主动加入"讨论"的政策推迟，[roadmap](../roadmap.md)）
+- IssueComment 全显式（[Q1=A](../../../decisions/0009-issue-conversation-decoupled-via-bridge.md)），不做自动镜像
+- Agent 不主动在 issue 内评论（agent 可通过 worker-agent CLI 调 `issue comment`，但 agent 主动加入"讨论"的政策推迟，[roadmap](../../../roadmap.md)）
 - Issue 结论由用户拍板，supervisor 只能"建议结论"不能自动收敛
 - 不做"Issue 之间的引用关系" / "epic / story 分层"
 - Bound card v1 仅飞书；1 issue 1 card；可 rebind；多 card 推迟
