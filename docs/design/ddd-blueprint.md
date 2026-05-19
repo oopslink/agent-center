@@ -6,7 +6,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-19（BC1 Scheduling + BC4 Execution 合并为 BC1 TaskRuntime，BC 数 8→7，详 [ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)；P3 模板升级为"按聚合骨架重组 + § X.1-X.6 wrap"）。
+最后更新：2026-05-20（立 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) Card 限制在 Bridge BC：Issue `bound_card_json` → `channel_binding_json`（4 字段，去 `card_message_id`），Bridge BC 加 `feishu_card_ledger` 内部表，CLI `issue bind-card` → `bind-thread`；ADR-0009 § 3 partial superseded）。
 
 ---
 
@@ -69,6 +69,7 @@
 | [0017](decisions/0017-task-as-conversation.md) | Task ↔ Conversation 1:1 | 跨 BC / 跨聚合强引用 + 同事务双写 |
 | [0018](decisions/0018-detached-agent-via-per-execution-shim.md) | Detached agent + per-execution shim 模型 | TaskRuntime BC 内新运行时角色（Shim）；影响 UL（待回填到 03-bounded-contexts § 1.1）|
 | [0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) | BC1 + BC4 合并为 TaskRuntime | 战略级 BC 边界调整：8→7 BC；P3 模板升级为聚合骨架重组 |
+| [0020](decisions/0020-card-confined-to-bridge-bc.md) | Card 限制在 Bridge BC | DDD 关注点剥离：Issue 字段精简（去 `card_message_id`）+ 重命名为 `channel_binding_json` + VO `ChannelBinding`；Bridge 加 `feishu_card_ledger` 内部表；CLI / 事件名同步更新；ADR-0009 § 3 partial superseded |
 
 ### 2.2 已完成的架构文档（DDD 视角）
 
