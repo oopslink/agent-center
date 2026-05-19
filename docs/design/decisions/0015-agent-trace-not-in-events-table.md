@@ -113,10 +113,10 @@ Execution still running 时若需要看 tool 参数 / thinking 文本，走 work
   - § Cognition 行引用 `agent_trace.event` 作为 memory 审计渠道 → 改为 `trace.jsonl.gz`（BlobStore filter）
   - § Aggregate 摘要 `AgentTraceEvent` 描述 "落 events 表" → "实时投影到 TaskExecution + 归档至 BlobStore"
 - 改写 [06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) § 4.11 / § 5.1 / § 5.2：memory 审计 / DecisionRecord 跟 trace 的关系，引用从 events 表的 `agent_trace.event` 改为 trace.jsonl 文件
-- 改写 [01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
+- 改写 [03-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
   - L36 `AgentTraceEvent` 定义加注"不入 events 表"
-  - BC4 Execution 核心事件去掉 `agent_trace.event`
-  - BC5 Cognition 段落里"agent_trace.event 审计渠道"措辞调整
+  - BC1 TaskRuntime 核心事件去掉 `agent_trace.event`（注：[ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 后 BC1 = TaskRuntime 合并自原 BC4 Execution）
+  - BC4 Cognition 段落里"agent_trace.event 审计渠道"措辞调整（注：[ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 后 Cognition 编号 BC5 → BC4）
   - 包前缀 / 表映射表去掉 `agent_trace.*` event_type prefix
 - 实现层 02-persistence-schema (TBD)：TaskExecution 表加 `recent_activities` TEXT JSON / `tool_call_counts` TEXT JSON 字段
 - 新 CLI 设计：`agent-center peek-trace <execution>`（worker daemon 侧 RPC + center 转发）→ 归 [implementation/03-cli-subcommands](../implementation/) (TBD)
