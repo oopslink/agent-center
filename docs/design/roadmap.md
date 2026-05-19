@@ -61,7 +61,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ### Task / Execution 模型扩展
 
-[ADR-0010 两层模型](decisions/0010-task-execution-two-layer-model.md) 与 [02-task-model.md](architecture/tactical/scheduling/01-task-model.md) 之外的推迟项：
+[ADR-0010 两层模型](decisions/0010-task-execution-two-layer-model.md) 与 [task-runtime/](architecture/tactical/task-runtime/00-overview.md) 系列文档之外的推迟项：
 
 - **父子状态联动**：parent task `done` 自动触发所有未完成 sub-task `abandoned`（或相反方向：所有 sub-task done 触发 parent done）。v1 显式 `parent_task_id` 仅做血缘
 - **ETA 过期触发 supervisor 唤醒**：v1 ETA 仅做展示，过期不影响系统行为；推迟做 ETA-trigger event 进唤醒白名单（auto-ping）
@@ -113,7 +113,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ### DAG 任务依赖的高级特性
 
-v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 + 无环 + supervisor 判断派单（见 [02-task-model.md § 7](architecture/tactical/scheduling/01-task-model.md)）。下列是更进一步的能力：
+v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 + 无环 + supervisor 判断派单（见 [task-runtime/01-task.md § 8 依赖](architecture/tactical/task-runtime/01-task.md)）。下列是更进一步的能力：
 
 - **自动 cascade abandon**：dep 进 `abandoned` 时自动 abandon 依赖它的 task（v1 现状是 supervisor wake 后决定）
 - **复杂依赖语义**：OR 依赖（"任一 dep done 即可"）、only-if-failed（"等 dep failed 才跑"）、conditional（"dep.artifact 满足条件才跑"）

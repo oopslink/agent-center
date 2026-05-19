@@ -30,13 +30,13 @@
 
 用户问 "T-42 进度" 是关于"T-42 这件事"，跨多次 execution（重派单后绑定仍然有效）。
 
-- Scheduling BC 给 `Task` 加 `bound_card_json` 字段（结构同构于 [03-issue-discussion.md](../architecture/tactical/discussion/01-issue-discussion.md) 的 `issue.bound_card_json`）
+- TaskRuntime BC 给 `Task` 加 `bound_card_json` 字段（结构同构于 [03-issue-discussion.md](../architecture/tactical/discussion/01-issue-discussion.md) 的 `issue.bound_card_json`）
 - 新 CLI `agent-center task bind-card <task_id> --channel=feishu --auto`（同构于 `issue bind-card`）
 
 ### 2. 复用 Issue bound_card 机制
 
 - Bridge 收到绑定请求 → 发 Task 主卡片 → 拿 vendor msg_id + thread_key → 回写 `task.bound_card_json`
-- 后续进度变化 → Scheduling BC emit 进度事件 → Bridge 订阅 → 推 message 到 bound thread
+- 后续进度变化 → TaskRuntime BC emit 进度事件 → Bridge 订阅 → 推 message 到 bound thread
 
 ### 3. 进度推送语义节流（5 条 milestone，任一触发就发）
 
@@ -81,7 +81,7 @@
 - **不烧 supervisor**：除最初绑定 + 异常 / 用户主动问，supervisor 不参与中间过程
 - **跟 IssueComment / Issue bound card 同构**：用户认知一致，开发者复用代码
 - **离开聊天再回不丢信息**：往上翻就行
-- **跟 ADR-0014 / 0015 不冲突**：不引入新 domain event 类（progress event 是 Scheduling BC 内部事件，已统一在 events 表的 schema 内）；不依赖 trace 进 events 表
+- **跟 ADR-0014 / 0015 不冲突**：不引入新 domain event 类（progress event 是 TaskRuntime BC 内部事件，已统一在 events 表的 schema 内）；不依赖 trace 进 events 表
 
 负面 / 待跟进：
 
@@ -118,7 +118,7 @@
 
 ## 影响范围
 
-- 改写 [02-task-model.md](../architecture/tactical/scheduling/01-task-model.md)：
+- 改写 [task-runtime/01-task.md](../architecture/tactical/task-runtime/01-task.md)：
   - Task aggregate 加 `bound_card_json` 字段（结构参考 issue.bound_card_json）
   - 新增 Task 相关事件：`task.bound_card_requested` / `task.progress_milestone_reached`（含 reason ∈ {status_change / activity_kind_change / long_tool_call_start / long_tool_call_end / cumulative_summary / user_inquiry}，配 message）
   - 新增 CLI：`agent-center task bind-card <task_id> --channel=feishu --auto` / `task unbind-card <task_id>`
@@ -130,8 +130,8 @@
   - content_kind 枚举加 `task_progress`
   - `inspect conversation <id>` 默认过滤 task_progress 类条目；`--include-progress` 显式开启
   - GC 策略加 task_progress 30 天保留（默认值，可配）
-- 改写 [01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
-  - Scheduling BC 核心事件加 `task.bound_card_requested` / `task.progress_milestone_reached`
+- 改写 [03-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
+  - TaskRuntime BC 核心事件加 `task.bound_card_requested` / `task.progress_milestone_reached`
   - 术语表 Message `content_kind` 枚举加 `task_progress`
 - 实现层 02-persistence-schema (TBD)：`tasks` 表加 `bound_card_json TEXT`；`messages` 表无需 schema 改（`content_kind` 是 TEXT enum）
 - [conventions § 16](../../rules/conventions.md) reason+message 双字段适用于 `task.progress_milestone_reached.reason`

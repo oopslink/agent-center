@@ -105,7 +105,7 @@
 | `proposals` | `--status` |
 | `events` | `--type` / `--task-id` / `--execution-id` / `--since` / `--actor` |
 
-完整 CLI 签名归 [implementation/03-cli-subcommands.md](../implementation/)（TBD）。Supervisor 通过 CLI 用同一套查询（[02-task-model.md § 12.2](../scheduling/01-task-model.md)）。
+完整 CLI 签名归 [implementation/03-cli-subcommands.md](../implementation/)（TBD）。Supervisor 通过 CLI 用同一套查询（[task-runtime/00-overview § 7 跨 BC 交互](../task-runtime/00-overview.md)）。
 
 飞书：任务完成卡片附 [查看 trace] [查看 supervisor 思考] 按钮，点击拉详细页（v1 回 Markdown 摘要文本）。
 
@@ -159,12 +159,12 @@ I-12             agent-center  user:hayang     2h
 
 | BC | 主要事件类型 |
 |---|---|
-| Scheduling (Task) | `task.created` / `task.priority_changed` / `task.eta_changed` / `task.workspace_mode_changed` / `task.dependency_added` / `task.dependency_removed` / `task.suspended` / `task.resumed` / `task.done` / `task.abandoned` / `task.dispatch_limit_reached` |
-| Scheduling (TaskExecution) | `task_execution.created` / `task_execution.dispatched` / `task_execution.working` / `task_execution.input_required` / `task_execution.completed` / `task_execution.failed` / `task_execution.kill_requested` / `task_execution.killed` |
-| Scheduling (InputRequest) | `input_request.requested` / `input_request.responded` / `input_request.timed_out` / `input_request.canceled` |
+| TaskRuntime (Task) | `task.created` / `task.priority_changed` / `task.eta_changed` / `task.workspace_mode_changed` / `task.dependency_added` / `task.dependency_removed` / `task.suspended` / `task.resumed` / `task.done` / `task.abandoned` / `task.dispatch_limit_reached` |
+| TaskRuntime (TaskExecution) | `task_execution.created` / `task_execution.dispatched` / `task_execution.working` / `task_execution.input_required` / `task_execution.completed` / `task_execution.failed` / `task_execution.kill_requested` / `task_execution.killed` |
+| TaskRuntime (InputRequest) | `input_request.requested` / `input_request.responded` / `input_request.timed_out` / `input_request.canceled` |
+| TaskRuntime (worker 侧) | `worktree.created` / `worktree.released` / `artifact.uploaded` / `task_log.archived` / `task_trace.archived`（agent_trace 不再作为事件流入 events 表，见 [ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)） |
 | Discussion | `issue.opened` / `issue.commented` / `issue.discussion_started` / `issue.concluded` / `issue.withdrawn` / `issue.tasks_spawned` |
 | Workforce | `worker.enrolled` / `worker.online` / `worker.offline` / `worker.heartbeat` / `worker_project_proposal.*` / `worker_project_mapping.*` / `project.*` |
-| Execution (worker 侧) | `worktree.created` / `worktree.released` / `artifact.uploaded` / `task_log.archived` / `task_trace.archived`（agent_trace 不再作为事件流入 events 表，见 [ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)） |
 | Cognition | `supervisor.invocation_started` / `supervisor.invocation_ended` / `supervisor.decision_made` / `supervisor.invocation_failed_alert`（Memory 变更不 emit `memory.*` 事件，由 supervisor invocation 的 `trace.jsonl.gz`（含 `Edit`/`Write` tool 调用）+ `git log` 双渠道审计，[ADR-0012](../../../decisions/0012-memory-file-based.md) / [ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)） |
 | Conversation | `conversation.opened` / `conversation.message_added` / `conversation.closed` / `identity.registered` / `channel_binding.added` |
 | Bridge | `channel.delivered` / `channel.delivery_failed` / `bridge.parse_failed` |

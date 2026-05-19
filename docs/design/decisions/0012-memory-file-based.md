@@ -9,7 +9,7 @@
 
 Supervisor 是事件驱动的 LLM agent，每次唤醒 spawn 一个短命 `claude` 子进程；进程结束状态全在外部 —— 需要一个**持久记忆层**让"经验"跨 invocation 延续。
 
-初稿（[06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) TBD-partial）和 [01-bounded-contexts.md § BC5](../architecture/strategic/03-bounded-contexts.md) 把 Memory 设计成 SQL 表 `agent_memory`：
+初稿（[cognition/01-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) TBD-partial）和 [03-bounded-contexts § Cognition BC](../architecture/strategic/03-bounded-contexts.md) 把 Memory 设计成 SQL 表 `agent_memory`：
 
 - 按 scope（global / project / task / issue / worker / supervisor）分组
 - CLI `agent-center memory add / list / prune` 是供 supervisor 调的接口
@@ -131,7 +131,7 @@ Task 走 done/abandoned、Issue closed/withdrawn、worker un-enrolled、conversa
 - **跨机器同步麻烦**：v1 单 center 单 VPS，文件即权威，OK；多 center 场景需要 git push/pull 或更复杂同步
 - **Web Console 渲染要文件遍历**：不能 `SELECT`，要 fs walk + render markdown；实现上稍复杂但不阻塞
 - **CLAUDE.md / `supervisor.md` 体积无硬 cap**：依赖 supervisor 自觉压缩；若 supervisor 不压缩，文件涨大会进 prompt 占 context。v1 200k context 容忍度高，可接受；监控告警可加在 [roadmap](../roadmap.md)
-- **目录骨架创建依赖事件订阅器**：实现层需要在 BC2 / BC3 / BC7 等事件发出后 hook 进创建逻辑
+- **目录骨架创建依赖事件订阅器**：实现层需要在 BC2 Discussion / BC3 Workforce / BC6 Conversation 等事件发出后 hook 进创建逻辑（注：BC 编号按 [ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 后的现状）
 
 ## Alternatives Considered
 
@@ -166,11 +166,11 @@ Task 走 done/abandoned、Issue closed/withdrawn、worker un-enrolled、conversa
 ## 影响范围
 
 - 重写 [architecture/06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) § 4 Memory 章节（TBD-partial → Draft）
-- 更新 [architecture/01-bounded-contexts.md § BC5](../architecture/strategic/03-bounded-contexts.md)：Memory 仍是聚合，注明物理形态 = file-based git 仓
+- 更新 [03-bounded-contexts § BC4 Cognition](../architecture/strategic/03-bounded-contexts.md)：Memory 仍是聚合，注明物理形态 = file-based git 仓（注：[ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 后 Cognition 编号 BC5 → BC4）
 - 更新 [architecture/01-bounded-contexts.md § 1.1](../architecture/strategic/03-bounded-contexts.md)：Memory 术语 description 加 "存储形态：file-based git 仓"
 - 更新 [architecture/05-observability.md](../architecture/tactical/observability/01-observability.md)：删 `memory.recorded` / `memory.pruned` 事件类；§ O3 Memory 子节改为引用本 ADR
 - 更新 [architecture/08-prompt-assembly.md](../architecture/tactical/agent-harness/01-prompt-assembly.md)：worker prompt 不再注入 supervisor memory；删 `memory_refs`；supervisor 自己的 prompt 组装走 06 § 3
-- 更新 [architecture/02-task-model.md § 4.1 DispatchEnvelope](../architecture/tactical/scheduling/01-task-model.md)：确认无 `memory_refs` 字段（已无）
+- 更新 [task-runtime/02-task-execution.md § DispatchEnvelope](../architecture/tactical/task-runtime/02-task-execution.md)：确认无 `memory_refs` 字段（已无）
 - 更新 [requirements/03-out-of-scope.md](../requirements/03-out-of-scope.md) 或 [roadmap.md](../roadmap.md)：列"Memory 跨 BC 聚合查询" / "Memory 并发写加锁"等推迟项
 - 实现层：删 `agent_memory` 表的 schema 规划；加 `MemoryFileRepo` 抽象（封装目录骨架创建 + git ops）
 - 删除 `agent-center memory list / add / prune` CLI 命令规划（不再实现）；保留 `agent-center record-decision`（属 DecisionRecord，[ADR](0013-supervisor-invocation-concurrency.md) 之外的事）

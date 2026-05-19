@@ -12,7 +12,7 @@
 - **AgentSession**：一次 agent 子进程 spawn → 退出的运行周期
 - **TaskExecution**：worker 侧任务运行时聚合，关联一个 Task + 一个 Worktree + 一组 AgentSession
 
-定义里"TaskExecution 关联**一组** AgentSession"暗示 1:N，但 v1 实际场景下"一次执行"和"一个 agent 进程"是 1:1（无重启同 session、`input_required` 通过 unix socket 同进程阻塞 / 解阻塞，见 [04-input-required.md](../architecture/tactical/scheduling/02-input-required.md)）。两个概念硬拆两张表，inspect / events / persistence 都翻倍复杂。
+定义里"TaskExecution 关联**一组** AgentSession"暗示 1:N，但 v1 实际场景下"一次执行"和"一个 agent 进程"是 1:1（无重启同 session、`input_required` 通过 unix socket 同进程阻塞 / 解阻塞，见 [04-input-required.md](../architecture/tactical/task-runtime/03-input-request.md)）。两个概念硬拆两张表，inspect / events / persistence 都翻倍复杂。
 
 更关键的问题：初稿把 A2A 6 状态（`submitted` / `working` / `input_required` / `completed` / `failed` / `canceled`）当作 **Task 自己的状态**。讨论中发现这跟语义不符：
 
@@ -34,7 +34,7 @@
 - Task ↔ TaskExecution 是 **1:N**（一个 task 可被多次 dispatch）
 - **单活约束**：任意时刻一个 task 最多一条 active execution（应用层约束；non-terminal status: `submitted` / `working` / `input_required`）
 
-具体每态语义 / 迁移条件见 [02-task-model.md](../architecture/tactical/scheduling/01-task-model.md)。
+具体每态语义 / 迁移条件见 [task-runtime/01-task.md § 2](../architecture/tactical/task-runtime/01-task.md)（Task 4 态）与 [02-task-execution.md § 2](../architecture/tactical/task-runtime/02-task-execution.md)（TaskExecution 6 态）。
 
 ### 2. 失败属于 execution，不属于 task
 
@@ -80,7 +80,7 @@
 
 负面 / 待跟进：
 
-- **AgentSession 名词遗留**：[01-bounded-contexts.md § 1.1](../architecture/strategic/03-bounded-contexts.md) / [04-input-required.md](../architecture/tactical/scheduling/02-input-required.md) / [05-observability.md](../architecture/tactical/observability/01-observability.md) / [07-worker-model.md](../architecture/tactical/workforce/01-worker-model.md) 都有引用，要批量同步换名
+- **AgentSession 名词遗留**：[03-bounded-contexts § 1.1](../architecture/strategic/03-bounded-contexts.md) / [task-runtime/03-input-request.md](../architecture/tactical/task-runtime/03-input-request.md) / [observability/01-observability.md](../architecture/tactical/observability/01-observability.md) / [task-runtime/02-task-execution.md](../architecture/tactical/task-runtime/02-task-execution.md) 都有引用，要批量同步换名
 - **Task 表加 `current_execution_id` 字段**：nullable，指向当前 active execution（或最近一次）；查询时不需要 join 全 executions 表
 - **"单活约束"是应用层约束**（不是 partial unique index，因 [conventions § 9](../../rules/conventions.md) dialect-agnostic）；要在 dispatch 路径上显式校验
 
@@ -103,10 +103,10 @@
 
 ## 影响范围
 
-- 重写 [architecture/02-task-model.md](../architecture/tactical/scheduling/01-task-model.md)（TBD → Draft）
-- 更新 [architecture/01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：UL § 1.1 / BC4 Execution / § 1.3 状态机 / § 5 命名对照表
-- 更新 [architecture/04-input-required.md](../architecture/tactical/scheduling/02-input-required.md)：`agent_session_id` → `execution_id`；状态机映射
-- 更新 [architecture/05-observability.md](../architecture/tactical/observability/01-observability.md)：event_type `agent_session.*` → `task_execution.*`
-- 更新 [architecture/07-worker-model.md](../architecture/tactical/workforce/01-worker-model.md)：worker 侧"agent 子进程"作为 execution 字段；时序图 rename
-- 更新 [architecture/08-prompt-assembly.md](../architecture/tactical/agent-harness/01-prompt-assembly.md)：dispatch envelope 字段名同步
+- 重写 task-runtime/01-task.md + 02-task-execution.md（TBD → Draft）
+- 更新 [03-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：UL § 1.1 / BC1 TaskRuntime（[ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 合并后；曾叫 BC4 Execution） / § 1.3 状态机 / § 5 命名对照表
+- 更新 [task-runtime/03-input-request.md](../architecture/tactical/task-runtime/03-input-request.md)：`agent_session_id` → `execution_id`；状态机映射
+- 更新 [observability/01-observability.md](../architecture/tactical/observability/01-observability.md)：event_type `agent_session.*` → `task_execution.*`
+- 更新 [task-runtime/02-task-execution.md](../architecture/tactical/task-runtime/02-task-execution.md)（worker 端运行时部分；曾在 07-worker-model.md，已按 [ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 迁入）：worker 侧"agent 子进程"作为 execution 字段；时序图 rename
+- 更新 [agent-harness/01-prompt-assembly.md](../architecture/tactical/agent-harness/01-prompt-assembly.md)：dispatch envelope 字段名同步
 - 实现层 [02-persistence-schema.md](../implementation/) (TBD)：表名 `task_executions`，无 `agent_sessions`

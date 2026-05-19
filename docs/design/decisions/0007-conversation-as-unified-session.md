@@ -26,10 +26,12 @@
 
 ## Decision
 
-**把 BC7 Communication Gateway 拆成两个 BC：**
+**把原 Communication Gateway 拆成两个 BC：**
 
-- **BC7: Conversation（会话）** —— 一等公民。维护 "会议本身"：参与者、消息时间线、状态，**跟具体接入渠道无关**
-- **BC8: Channel Gateway（渠道接入层）** —— 纯翻译层，每个 vendor 一个 `XxxChannelAdapter`，负责协议适配
+- **Conversation（会话）** —— 一等公民。维护 "会议本身"：参与者、消息时间线、状态，**跟具体接入渠道无关**
+- **Bridge（原称 Channel Gateway / 渠道接入层）** —— 纯翻译层，每个 vendor 一个 `XxxBridge`（曾叫 `XxxChannelAdapter`），负责协议适配
+
+> 后续 ADR-0019 BC 合并 / 重编号后，当前编号：Conversation = BC6，Bridge = BC7（详见 [strategic/03-bounded-contexts § 2](../architecture/strategic/03-bounded-contexts.md)）。
 
 引入新概念：
 
@@ -85,5 +87,5 @@ CLI 命名：`notify-feishu` → `notify-conversation`。
 - [architecture/10-skill-cli-tooling.md](../architecture/tactical/agent-harness/02-skill-cli-tooling.md) —— `notify-feishu` → `notify-conversation`
 - [architecture/06-supervisor-model.md](../architecture/tactical/cognition/01-supervisor-model.md) —— 同上
 - [architecture/03-issue-discussion.md](../architecture/tactical/discussion/01-issue-discussion.md) —— 待修订（IssueComment ↔ Message 关系）
-- [architecture/04-input-required.md](../architecture/tactical/scheduling/02-input-required.md) —— 待修订（卡片送达走 Conversation 而非直接飞书）
+- [architecture/04-input-required.md](../architecture/tactical/task-runtime/03-input-request.md) —— 待修订（卡片送达走 Conversation 而非直接飞书）
 - [roadmap.md](../roadmap.md) —— 加 "多 channel 接入"

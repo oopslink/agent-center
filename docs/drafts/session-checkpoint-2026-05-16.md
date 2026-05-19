@@ -83,7 +83,7 @@
 
 ## 3. 当前讨论中的话题
 
-> **✅ Task 模型已完成。** Q1-Q10 + 派单可靠性全部讨论完毕，落到 [02-task-model.md](../design/architecture/tactical/scheduling/01-task-model.md) / [ADR-0010](../design/decisions/0010-task-execution-two-layer-model.md) / [ADR-0011](../design/decisions/0011-dispatch-reliability-protocol.md)；旁路 sync 完成 4 个 architecture 文档；conventions § 16 + roadmap 已写。
+> **✅ Task 模型已完成。** Q1-Q10 + 派单可靠性全部讨论完毕，落到 [02-task-model.md](../design/architecture/tactical/task-runtime/02-task-execution.md) / [ADR-0010](../design/decisions/0010-task-execution-two-layer-model.md) / [ADR-0011](../design/decisions/0011-dispatch-reliability-protocol.md)；旁路 sync 完成 4 个 architecture 文档；conventions § 16 + roadmap 已写。
 >
 > **下一步候选：** 按 [架构 README](../design/architecture/README.md) 顺序，剩 TBD-partial 的是 06-supervisor-model（含唤醒事件白名单 + 节流策略 + memory 模型）和 07-worker-model 部分细节（token 轮换 / 离线 task 走向已在 02 提及）。或转向 implementation 层（[02-persistence-schema.md](../design/implementation/) / [03-cli-subcommands.md](../design/implementation/)）。
 
@@ -91,7 +91,7 @@
 
 ### § 3-old Task 模型 + A2A 状态机细化（**已完成**）
 
-目标文件 [`architecture/02-task-model.md`](../design/architecture/tactical/scheduling/01-task-model.md) —— 已从 TBD → Draft。
+目标文件 [`architecture/02-task-model.md`](../design/architecture/tactical/task-runtime/02-task-execution.md) —— 已从 TBD → Draft。
 
 ### 已经定的（散在各处）
 
@@ -205,7 +205,7 @@ Task 产物如何表达？
 1. **06-supervisor-model.md** —— TBD-partial，补完唤醒白名单 + 节流策略 + memory 模型 + invocation 周期
 2. **implementation/02-persistence-schema.md** —— TBD，落实 task / task_executions / artifacts / events / worker_project_proposals 等表 schema
 3. **implementation/03-cli-subcommands.md** —— TBD，把 [05-observability.md](../design/architecture/tactical/observability/01-observability.md) 已列的 inspect/query/ps/stats/logs 全签名补齐
-4. **03-issue-discussion.md** sync —— 加 conclude batch spec 形态（[02-task-model.md § 11](../design/architecture/tactical/scheduling/01-task-model.md) 已有架构层描述，但 03 文档本身的 conclude flow 还要 sync）
+4. **03-issue-discussion.md** sync —— 加 conclude batch spec 形态（[02-task-model.md § 11](../design/architecture/tactical/task-runtime/02-task-execution.md) 已有架构层描述，但 03 文档本身的 conclude flow 还要 sync）
 
 按 [架构 README](../design/architecture/README.md) 当前状态：剩 supervisor / worker 详细 / web-console 占位 是主要 TBD。
 

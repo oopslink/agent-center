@@ -162,7 +162,7 @@ Agent_pid 同理（status.json 存 `agent_start_time`）。
 | shim ShimGoodbye 后等 daemon ACK 完事件 | 最长 **24h**（跟 GC 对齐）；超时 shim fence-and-forget 直接退；daemon 下次启动扫到剩余 events.jsonl 补完投递 |
 | shim 进程崩溃 | daemon 周期 `kill -0 + start_time` 探活；shim 死 → SIGTERM agent_pid（若活） → emit failed(reason=`shim_crashed`） |
 
-新增的 failed reason 进 [02-task-model.md § 3.6](../architecture/tactical/scheduling/01-task-model.md)：`shim_no_hello` / `shim_crashed`。
+新增的 failed reason 进 [task-runtime/02-task-execution.md § 7 失败 / killed reason 枚举](../architecture/tactical/task-runtime/02-task-execution.md)：`shim_no_hello` / `shim_crashed`。
 
 ### 8. Artifact / 日志上传由 daemon 负责
 
@@ -191,7 +191,7 @@ shim 发完所有事件 + 收到全部 ACK
 |---|---|---|
 | `~/.agent-center-worker/exec/<execution_id>/` 整个目录 | **24h** | 跟 worktree 同步 |
 | `agent.log` 本地副本 | 24h（在上面目录内） | 同上 |
-| Worktree `<base_path>.wt/task-<execution_id>` | 24h | 现有行为，[07-worker-model.md § Workspace](../architecture/tactical/workforce/01-worker-model.md) |
+| Worktree `<base_path>.wt/task-<execution_id>` | 24h | 现有行为，[task-runtime/02-task-execution.md § 8 Workspace](../architecture/tactical/task-runtime/02-task-execution.md)（按 [ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 从 workforce/01 迁入）|
 
 三者同步释放，调试一致：24h 内 `inspect execution E-7` 能完整复盘（envelope / status / events / log / worktree 全在）。
 
@@ -258,15 +258,15 @@ shim 发完所有事件 + 收到全部 ACK
   - Status → `Accepted (Refined by ADR-0018)`
   - § Decision 3 "Worker 本地 ledger（持久化）"段改写为指向本 ADR § 3
   - § Consequences 对应负面项更新
-- 改写 [07-worker-model.md](../architecture/tactical/workforce/01-worker-model.md)：
+- 改写 [task-runtime/02-task-execution.md § 9 worker 端运行时](../architecture/tactical/task-runtime/02-task-execution.md)（按 [ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 从 workforce/01 迁入 TaskRuntime BC）：
   - 新增 "Shim 模型" 章节（含 per-execution 目录布局 + RPC 协议 + 异常 timeout 表）
   - 改写 "Worker 内 Agent CLI 中转" 段（去掉子进程描述，改为 shim 中转）
   - 改写 "派单可靠性协议 § 本地 ledger" 段（指向本 ADR）
   - 改写 "Worker 视角的工作流时序"（shim 出场）
   - env 注入清单：daemon → shim 多加 `AGENT_CENTER_SHIM_TOKEN`；shim → agent 不变；agent 看到的 `AGENT_CENTER_WORKER_SOCK` 指向 shim 的本地 socket
-- 改写 [02-task-model.md](../architecture/tactical/scheduling/01-task-model.md)：
-  - § 3.6 Failed reason 枚举新增 `shim_no_hello` / `shim_crashed`
-  - § 4.3 Worker 端处理时序去掉 "本地 ledger 查 execution_id 幂等" 段，改写为 "per-execution 目录 + shim spawn" 概要 + 指向 07-worker-model.md
+- 改写 [task-runtime/02-task-execution.md](../architecture/tactical/task-runtime/02-task-execution.md)：
+  - § 7 Failed reason 枚举新增 `shim_no_hello` / `shim_crashed`
+  - Worker 端处理时序去掉 "本地 ledger 查 execution_id 幂等" 段，改写为 "per-execution 目录 + shim spawn" 概要 + 指向同文 § 9
 - 微调 [05-observability.md](../architecture/tactical/observability/01-observability.md)：
   - § O1 / O2 补一句 "worker 侧事件投递走 shim → daemon → center；shim 端 events.jsonl 是 durable queue（不替代 events 表，状态权威仍在 center）"
 - 实现层 [02-persistence-schema.md](../implementation/) (TBD)：

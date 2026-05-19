@@ -100,7 +100,7 @@ Slash 命令路径**不经 supervisor**，Bridge 直接调对应领域 API + 写
 
 a 路径下用户 @bot → supervisor 决定开 Task → 同步：
 
-1. Scheduling BC create Task
+1. TaskRuntime BC create Task
 2. Conversation BC create Conversation (kind=task) + 关联 channel binding（来自当前用户所在飞书渠道）
 3. Task.conversation_id ← Conversation.id（同事务，[ADR-0014](0014-event-sourcing-level.md) L1 同事务双写）
 4. Conversation BC emit `conversation.opened`（已有事件，无需新增）
@@ -111,9 +111,9 @@ a 路径下用户 @bot → supervisor 决定开 Task → 同步：
 
 ### 8. Worker daemon 通过 CLI 写 Conversation
 
-[07-worker-model.md](../architecture/tactical/workforce/01-worker-model.md) 已有 worker daemon 暴露本机 unix socket 让 agent 调 CLI 的机制。worker daemon 自己（不是 agent）也可以通过等价路径写 Conversation：
+[task-runtime/02-task-execution.md § worker 端运行时](../architecture/tactical/task-runtime/02-task-execution.md) 已有 worker daemon 暴露本机 unix socket 让 agent 调 CLI 的机制（曾在 workforce/01-worker-model，按 [ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 迁入 TaskRuntime BC）。worker daemon 自己（不是 agent）也可以通过等价路径写 Conversation：
 
-- worker daemon 进程内 → 调 center 的 `conversation add-message` API（gRPC 长连复用，[01-bounded-contexts.md BC4](../architecture/strategic/03-bounded-contexts.md)）
+- worker daemon 进程内 → 调 center 的 `conversation add-message` API（gRPC 长连复用，[03-bounded-contexts § TaskRuntime BC](../architecture/strategic/03-bounded-contexts.md)）
 - 不一定走 CLI 命令；实现上是 worker daemon 直接 RPC
 - 但语义对齐："worker daemon 是 Conversation 的一个 actor"
 
@@ -216,13 +216,13 @@ v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 
 ## 影响范围
 
 - 标记 [ADR-0016](0016-task-progress-via-bound-thread.md) status = `Superseded by ADR-0017`
-- 改写 [02-task-model.md](../architecture/tactical/scheduling/01-task-model.md)：
+- 改写 [task-runtime/01-task.md](../architecture/tactical/task-runtime/01-task.md) + [02-task-execution.md](../architecture/tactical/task-runtime/02-task-execution.md)：
   - Task aggregate 加 `conversation_id` (nullable)；去掉 ADR-0016 提到的 `bound_card_json` / `bound_card_json_list` 规划
   - DispatchEnvelope 加 `conversation_id` 字段
   - 新 CLI: `agent-center task bind-card <task_id> --channel=feishu --auto`（懒创建入口）
   - 新增 Task 相关事件描述：a 路径下 task.created 与 conversation.opened 同事务发；b/c/d 路径下 task.created 时 conversation_id=null
   - 删除 ADR-0016 提到的 `task.bound_card_requested` / `task.progress_milestone_reached` 事件（不再引入）
-- 改写 [04-input-required.md](../architecture/tactical/scheduling/02-input-required.md)：
+- 改写 [task-runtime/03-input-request.md](../architecture/tactical/task-runtime/03-input-request.md)：
   - Step 6-7 改写：InputRequest 投递路径 = 写 Message (kind=agent_finding, input_request_ref=<id>) 到 task.conversation_id；为 null 时 fallback 行为 TBD（可能 supervisor 主动 bind-card 或直接发 user DM）
   - 加 Slash `/answer` 响应路径
 - 改写 [09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md)：
@@ -234,10 +234,10 @@ v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 
   - Conversation kind 枚举加 `task` + 描述跟 task 1:1 关系
   - Message schema 加 `input_request_ref` (nullable uuid FK)
   - GC / archive 策略：kind=task 的 Conversation 在 task done/abandoned 时标 archived
-- 改写 [01-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
+- 改写 [03-bounded-contexts.md](../architecture/strategic/03-bounded-contexts.md)：
   - Conversation kind 枚举 + 术语 Message 加 input_request_ref 字段
   - Task aggregate 列字段加 conversation_id
-  - Scheduling BC 事件去掉 ADR-0016 引入的 task.bound_card_requested / progress_milestone_reached
+  - TaskRuntime BC 事件去掉 ADR-0016 引入的 task.bound_card_requested / progress_milestone_reached
 - 实现层 02-persistence-schema (TBD)：
   - tasks 表加 `conversation_id` (nullable uuid FK)
   - conversations 表 `kind` enum 加 `task`

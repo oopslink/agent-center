@@ -6,7 +6,7 @@ Worker daemon 是用户开发机上的常驻进程，负责接派单、起 agent
 
 ## 角色定位
 
-- 不存权威状态，状态权威在 Center（Task / TaskExecution 状态以 [02-task-model.md](../scheduling/01-task-model.md) 为准）
+- 不存权威状态，状态权威在 Center（Task / TaskExecution 状态以 [task-runtime/01-task.md](../task-runtime/01-task.md) 和 [task-runtime/02-task-execution.md](../task-runtime/02-task-execution.md) 为准）
 - 不做决策，决策权在 Supervisor / 用户
 - 只负责"把活干完并如实汇报"
 
@@ -14,7 +14,7 @@ Worker daemon 是用户开发机上的常驻进程，负责接派单、起 agent
 
 ## Workspace 模式
 
-每次 TaskExecution 必有 CWD。两种模式独立设计，由 `task.requires_worktree` 决定（详细判断维度见 [02-task-model.md § 6](../scheduling/01-task-model.md)）：
+每次 TaskExecution 必有 CWD。两种模式独立设计，由 `task.requires_worktree` 决定（详细判断维度见 [task-runtime/02-task-execution.md § 8 Workspace](../task-runtime/02-task-execution.md)）：
 
 | 模式 | `requires_worktree` | CWD | 隔离 |
 |---|---|---|---|
@@ -232,7 +232,7 @@ agent_pid 同理（status.json 存 `agent_start_time`）。
 | shim ShimGoodbye 后等 daemon ACK | 最长 **24h**（跟 GC 同步）；超时 shim fence-and-forget 退出；daemon 下次启动扫到剩余 events.jsonl 补完投递 |
 | shim 进程崩溃 | daemon 周期 `kill -0 + start_time` 探活；shim 死 → SIGTERM agent_pid（若活） → emit `failed(reason='shim_crashed')` |
 
-新的 failed reason 进 [02-task-model.md § 3.6](../scheduling/01-task-model.md)：`shim_no_hello` / `shim_crashed`。
+新的 failed reason 进 [task-runtime/02-task-execution.md § 7 failed reason](../task-runtime/02-task-execution.md)：`shim_no_hello` / `shim_crashed`。
 
 ### GC
 
@@ -282,7 +282,7 @@ agent: agent-center request-input "..."
 
 > `AGENT_CENTER_AGENT_SESSION_ID` 已废弃；用 `AGENT_CENTER_EXECUTION_ID` 取代（[ADR-0010](../../../decisions/0010-task-execution-two-layer-model.md)）。
 
-参见 [10-skill-cli-tooling.md](../agent-harness/02-skill-cli-tooling.md) 与 [04-input-required.md](../scheduling/02-input-required.md)。
+参见 [02-skill-cli-tooling.md](../agent-harness/02-skill-cli-tooling.md) 与 [03-input-request.md](../task-runtime/03-input-request.md)。
 
 ## 注册与认证
 
@@ -545,4 +545,4 @@ Worker reconcile **完成前不接收新 dispatch**。
 
 > daemon 升级期间（步骤 i / j 阶段）：shim 跟 agent 都活，事件继续 append events.jsonl；daemon 回来后 shim 自动重连重发未 ACK 段。详见 [ADR-0018 § 4 / § 5](../../../decisions/0018-detached-agent-via-per-execution-shim.md)。
 >
-> 失败 reason / token 轮换 / 离线后 task 走向 见 [02-task-model.md § 9 timeout](../scheduling/01-task-model.md) 与 [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md) / [ADR-0018](../../../decisions/0018-detached-agent-via-per-execution-shim.md)。
+> 失败 reason / token 轮换 / 离线后 task 走向 见 [task-runtime/02-task-execution.md timeout](../task-runtime/02-task-execution.md) 与 [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md) / [ADR-0018](../../../decisions/0018-detached-agent-via-per-execution-shim.md)。
