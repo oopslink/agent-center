@@ -6,7 +6,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7** + **P5/P6/P7 中优全部完成** ✅：DDD 战术 + 中优架构清晰度阶段收口（剩 P8 Repository 接口固化等 implementation 层、P9 Saga 视需要））。
+最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7** + **P5/P6/P7 中优全部完成** + **P8a/P8b 低优 Repository 全链路完成** ✅：DDD 战术 + 中优架构清晰度 + Repository 架构-实现层全部收口（剩 P9 Saga 视需要））。
 
 ---
 
@@ -35,7 +35,7 @@
 | **Aggregate Root** | ✅ | P3 各 BC § 5 Repositories 节"约定"栏明示"外部只通过 Root.id 引用"约束；[conventions § 0.3](../rules/conventions.md#-03-自检清单) 加 AR 访问自检（P6） |
 | **Domain Event** | ✅ 充分 | [03-bounded-contexts § 2](architecture/strategic/03-bounded-contexts.md#-2-限界上下文bounded-contexts) 各 BC 列；[observability/00-overview § 7.5](architecture/tactical/observability/00-overview.md) 事件总览；ADR-0014（事件溯源 L1）/ ADR-0015（agent_trace 不进 events）；[conventions § 16](../rules/conventions.md#-16-错误--状态信息双字段reason--message) reason+message |
 | **Domain Service** | ✅ | P3 各 BC § 3 完成（P5）：TaskRuntime (Dispatch/Reconcile/Timeout/IssueConcludeSpawn/Kill) / Discussion (IssueLifecycle/IssueConcludeSpawn-caller) / Workforce (WorkerEnroll/ProposalDiscovery/ProposalReview/MappingInvalidation) / Cognition (WakeScheduler/InvocationFactory/InvocationTimeoutHandler/InvocationCrashRecovery/DecisionWriter) / Observability (EventSink/Projection/Query/TraceArchive) / Conversation (ConversationLifecycle/IdentityRegistration/BridgeInbound-caller) / Bridge (OutboundDelivery/InboundRouting/SlashCommand/CardLifecycle) |
-| **Repository** | ✅ 架构层接口签名完成 | P3 + P8a 各 BC § 5 完成（2026-05-20）：Go-style 接口签名（含 `ctx context.Context`）+ domain error types（sentinel error pattern，BC 前缀）全部列出；7 BC 共 ~22 个 Repository 接口；实现层 SQL schema / dialect / tx 传递机制归 [implementation/02-persistence-schema.md](implementation/) (TBD，P8b) |
+| **Repository** | ✅ 架构 + 实现层均完成 | P3 + P8a 各 BC § 5（2026-05-20）：Go-style 接口签名（含 `ctx context.Context`）+ domain error types（sentinel error pattern，BC 前缀）全部列出；7 BC 共 ~22 个 Repository 接口。P8b 实现层（2026-05-20）：[implementation/02-persistence-schema.md](implementation/02-persistence-schema.md) 立 SQLite-only / ULID / version CAS / tx via ctx / golang-migrate 等元层规则 + 代表性 BC 切片 |
 | **Factory** | ✅ | P3 各 BC § 4 Factories 节完成：TaskRuntime (TaskFactory 5-caller / TaskExecutionFactory / InputRequestFactory) / Discussion (IssueFactory 5-caller / IssueCommentFactory-facade / ConversationFactory-caller) / Workforce (Worker/Proposal/Project/MappingFactory) / Cognition (InvocationFactory / MemorySkeletonFactory) / Conversation (ConversationFactory 6-caller / MessageFactory / IdentityFactory) / Observability (无独立 Factory，各 BC 自 emit) / Bridge (无，仅调领域 API) |
 | **跨聚合一致性策略** | ✅ 已散立 | ADR-0014 § 2 显式"tx 内同时改两聚合"；ADR-0017 + ADR-0021 显式跨聚合双写（task + conversation / issue + conversation）；P3 各 BC § 6 跨聚合引用 + § 7 跨 BC 交互详化 —— **决定不再立通用 ADR**（详见 § 3.4） |
 
@@ -160,12 +160,12 @@
 | **P6** | **Aggregate Root 访问约束**写明 | [conventions § 0.3](../rules/conventions.md#-03-自检清单) 加 AR 访问自检；P3 各 BC § 5 Repositories 节"约定"栏明示 | ✅ |
 | **P7** | **Published Language** 明示 | [strategic/03-bounded-contexts § 6](architecture/strategic/03-bounded-contexts.md) 加 Published Language 节（events schema + CLI 命令双层 + 演进策略 + 自检）| ✅ |
 
-### 3.3 低优 / 视需求
+### 3.3 低优 / 视需求 — P8 全部完成 ✅
 
 | ID | 项 | 时机 |
 |---|---|---|
 | **P8a** | **Repository 接口签名 + Domain Error types** | ✅ 完成（2026-05-20）：7 个 BC § 5 全部扩为 Go-style 接口签名 + sentinel error pattern domain errors |
-| **P8b** | **Repository 实现层（SQL schema + dialect + tx 传递）** | implementation 层 02-persistence-schema (TBD) |
+| **P8b** | **Repository 实现层（SQL schema + dialect + tx 传递）** | ✅ 完成（2026-05-20）：[implementation/02-persistence-schema.md](implementation/02-persistence-schema.md) 首版 —— SQLite-only / ULID / version CAS / WithTx-TxFromCtx / golang-migrate；代表性 BC（TaskRuntime + Observability）DDL 展开；conventions § 9.2 同步加 v1 SQLite-only 例外 |
 | P9 | **Saga / Process Manager** | 等真撞协调问题（v1 不必） |
 
 > **2026-05-20 修订**：原 P8 把 Repository 接口签名跟 implementation 层 SQL schema 选型耦合是错的（违反 hexagonal architecture / DDD 经典分层）。Repository 接口签名 + domain error types **归领域 / 架构层**（各 BC § 5 Repositories 节扩列）；SQL schema / dialect 适配 / tx context 传递机制等才归 implementation 层。详见 [§ 1.2 Repository 行说明](#12-战术设计tactical)。
@@ -198,7 +198,7 @@ P3 (按聚合骨架重组各 BC 战术文档 + 补 § X.1-X.6 wrap)
 **B.** ✅ 已完成（每个 BC 单独 commit，TaskRuntime 含 strategic + tactical 两 commit；其它 BC 多以 1 个 commit 完成）
 **C.** ⚠️ 待跟进（strategic/03-bounded-contexts § 3.1 上下游表扩列"引用基数 / 强弱 / 一致性窗口" 列）—— 各 BC § X.6 已实质承载，待集中收口
 
-低优 P8 / P9 不阻塞主线（P8 Repository 接口固化等 implementation 层；P9 Saga 视需要）。
+低优 P8 全部完成 ✅（P8a 接口签名 / P8b 实现层）；P9 Saga 视需要。
 
 ---
 
