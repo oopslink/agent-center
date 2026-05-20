@@ -295,7 +295,7 @@ var (
 - DecisionRecord 通过 `invocation_id` 关联到 Invocation 聚合
 - Memory **不**走传统 Repository 抽象 —— 直接走 file ops；但 SkeletonFactory + GitOpsService 是架构层契约
 - DecisionRecord append-only；INSERT 后不可变（含 outcome 字段）
-- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)（Memory 物理形态见 [ADR-0012](../../../decisions/0012-memory-file-based.md)）
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/)（Memory 物理形态见 [ADR-0012](../../../decisions/0012-memory-file-based.md)）
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---

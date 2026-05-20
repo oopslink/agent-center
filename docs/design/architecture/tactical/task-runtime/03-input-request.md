@@ -123,7 +123,7 @@ reason 字段配 message（[conventions § 16](../../../../rules/conventions.md)
 6. Center 收 respond → 写 response + status: pending → responded + TaskExecution → working + emit `input_request.responded`；Bridge update_card 置灰
 7. Worker daemon 收 InputResponseEvent → 在 pending map 找 channel → 写 response → CLI 解阻塞 → agent stdout 拿到 JSON answer 继续干
 
-具体 schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。
+具体 schema 见 [implementation/02-persistence-schema.md](../../../implementation/)。
 
 ---
 

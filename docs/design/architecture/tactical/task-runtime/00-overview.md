@@ -318,7 +318,7 @@ var (
 
 - 外部只通过 Root.id 引用各 AR，不持内部 Entity 句柄（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
 - Artifact 作为 TaskExecution 的子实体，通过 TaskExecution 主键关联（`execution_id`）
-- Repository 是**领域层抽象接口**；实现层（SQL schema / dialect / tx context 传递）落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)，跟接口解耦
+- Repository 是**领域层抽象接口**；实现层（SQL schema / dialect / tx context 传递）落到 [implementation/02-persistence-schema.md](../../../implementation/)，跟接口解耦
 - 乐观锁：`UpdateStatus` / `Update*` 带 `version int` 参数，CAS 失败返回 `Err*VersionConflict`（[conventions § 9.0](../../../../rules/conventions.md) 禁用行级锁）
 - Domain errors 用 sentinel error pattern（`var Err* = errors.New(...)`）；调用方用 `errors.Is(err, ErrTaskNotFound)` 判定
 

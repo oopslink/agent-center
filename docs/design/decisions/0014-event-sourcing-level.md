@@ -35,7 +35,7 @@ tx {
 }
 ```
 
-Repository / service 层**禁止**直接 UPDATE 状态字段；走 `mutator(stateChange) → tx { UPDATE + INSERT event }` 单一通道。具体强制手段（lint 规则 / 测试 helper / repository 接口约束）见 [02-persistence-schema.md](../implementation/) (TBD)，必要时回填到 [conventions § 9](../../rules/conventions.md)。
+Repository / service 层**禁止**直接 UPDATE 状态字段；走 `mutator(stateChange) → tx { UPDATE + INSERT event }` 单一通道。具体强制手段（lint 规则 / 测试 helper / repository 接口约束）见 [02-persistence-schema.md](../implementation/)，必要时回填到 [conventions § 9](../../rules/conventions.md)。
 
 ### 3. 事件 schema 只需描述"发生了什么"
 
@@ -106,4 +106,4 @@ Repository / service 层**禁止**直接 UPDATE 状态字段；走 `mutator(stat
   - agent_trace.event 从 events 表拆出（量级 / 用途差异，避免拖累 events 表索引 / 审计扫描）
   - 跨存储写入 outbox 模式（worker → center 事件、BlobStore.Put 等跨网络 / 跨进程的可靠投递）
   - mutator 封装的强制手段（lint 规则 / repository 接口设计）→ 必要时并入 conventions § 9
-- [实现层 02-persistence-schema.md](../implementation/) (TBD)：events 表 schema 不变；状态表加 `version` 列（乐观锁，配合 [conventions § 9.0](../../rules/conventions.md)）
+- [实现层 02-persistence-schema.md](../implementation/)：events 表 schema 不变；状态表加 `version` 列（乐观锁，配合 [conventions § 9.0](../../rules/conventions.md)）

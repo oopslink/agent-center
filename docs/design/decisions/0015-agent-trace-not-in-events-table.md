@@ -118,5 +118,5 @@ Execution still running 时若需要看 tool 参数 / thinking 文本，走 work
   - BC1 TaskRuntime 核心事件去掉 `agent_trace.event`（注：[ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 后 BC1 = TaskRuntime 合并自原 BC4 Execution）
   - BC4 Cognition 段落里"agent_trace.event 审计渠道"措辞调整（注：[ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 后 Cognition 编号 BC5 → BC4）
   - 包前缀 / 表映射表去掉 `agent_trace.*` event_type prefix
-- 实现层 02-persistence-schema (TBD)：TaskExecution 表加 `recent_activities` TEXT JSON / `tool_call_counts` TEXT JSON 字段
-- 新 CLI 设计：`agent-center peek-trace <execution>`（worker daemon 侧 RPC + center 转发）→ 归 [implementation/03-cli-subcommands](../implementation/) (TBD)
+- 实现层 02-persistence-schema：TaskExecution 表加 `recent_activities` TEXT JSON / `tool_call_counts` TEXT JSON 字段
+- 新 CLI 设计：`agent-center peek-trace <execution>`（worker daemon 侧 RPC + center 转发）→ 归 [implementation/03-cli-subcommands](../implementation/)

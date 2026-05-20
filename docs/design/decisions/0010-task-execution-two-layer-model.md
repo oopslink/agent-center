@@ -109,4 +109,4 @@
 - 更新 [observability/01-observability.md](../architecture/tactical/observability/01-observability.md)：event_type `agent_session.*` → `task_execution.*`
 - 更新 [task-runtime/02-task-execution.md](../architecture/tactical/task-runtime/02-task-execution.md)（worker 端运行时部分；曾在 07-worker-model.md，已按 [ADR-0019](0019-bc-scheduling-execution-merged-to-task-runtime.md) 迁入）：worker 侧"agent 子进程"作为 execution 字段；时序图 rename
 - 更新 [agent-harness/01-prompt-assembly.md](../architecture/tactical/agent-harness/01-prompt-assembly.md)：dispatch envelope 字段名同步
-- 实现层 [02-persistence-schema.md](../implementation/) (TBD)：表名 `task_executions`，无 `agent_sessions`
+- 实现层 [02-persistence-schema.md](../implementation/)：表名 `task_executions`，无 `agent_sessions`

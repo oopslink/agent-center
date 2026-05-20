@@ -102,7 +102,7 @@ Coalescing window 和 FIFO 队列都是 in-memory。Center crash 即丢；重启
 
 ## § 3. 字段
 
-详细 schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。架构层字段语义：
+详细 schema 见 [implementation/02-persistence-schema.md](../../../implementation/)。架构层字段语义：
 
 | 字段 | 类型 | 含义 |
 |---|---|---|
@@ -147,7 +147,7 @@ Coalescing window 和 FIFO 队列都是 in-memory。Center crash 即丢；重启
 
 ### 4.3 字段（append-only，INSERT 后不可变）
 
-详细 schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。架构层字段语义：
+详细 schema 见 [implementation/02-persistence-schema.md](../../../implementation/)。架构层字段语义：
 
 | 字段 | 类型 | 含义 |
 |---|---|---|

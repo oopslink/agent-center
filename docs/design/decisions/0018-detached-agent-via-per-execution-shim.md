@@ -269,8 +269,8 @@ shim 发完所有事件 + 收到全部 ACK
   - Worker 端处理时序去掉 "本地 ledger 查 execution_id 幂等" 段，改写为 "per-execution 目录 + shim spawn" 概要 + 指向同文 § 9
 - 微调 [05-observability.md](../architecture/tactical/observability/01-observability.md)：
   - § O1 / O2 补一句 "worker 侧事件投递走 shim → daemon → center；shim 端 events.jsonl 是 durable queue（不替代 events 表，状态权威仍在 center）"
-- 实现层 [02-persistence-schema.md](../implementation/) (TBD)：
+- 实现层 [02-persistence-schema.md](../implementation/)：
   - 去除 `worker_ledger` 表
   - 新增 per-execution 目录文件 schema（envelope.json / status.json）
-- 实现层 [03-cli-subcommands.md](../implementation/) (TBD)：
+- 实现层 [03-cli-subcommands.md](../implementation/)：
   - 新增 `agent-center worker shim` 子命令签名

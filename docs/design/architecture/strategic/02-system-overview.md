@@ -81,7 +81,7 @@
 - `agent-center worker --config=...` — 开发机上的 worker daemon
 - `agent-center <operation>` — CLI 操作命令（人用 / agent 用）
 
-完整 CLI 表见 [implementation/03-cli-subcommands.md](../../implementation/03-cli-subcommands.md)（TBD）。
+完整 CLI 表见 [implementation/03-cli-subcommands.md](../../implementation/03-cli-subcommands.md)。
 
 ## 部署形态
 

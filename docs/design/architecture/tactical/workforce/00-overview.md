@@ -273,7 +273,7 @@ var (
 
 - 外部只通过 Root.id 引用各 AR（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
 - WorkerProjectMapping 通过 worker_id 关联到 Worker 聚合（强引用）+ project_id 关联到 Project（弱引用）
-- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/)
 - Proposal accept 同事务建 Project（如不存在）+ Mapping（[ADR-0008](../../../decisions/0008-worker-project-mapping-via-discovery-proposal.md) + [ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md)）：跨多个 Repository 调用同事务，由 application service 协调
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 

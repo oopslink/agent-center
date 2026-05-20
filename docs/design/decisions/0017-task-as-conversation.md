@@ -168,7 +168,7 @@ notification:
 
 v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 fallback 不可用，b/c/d task 的 InputRequest 直接 fail。
 
-具体配置 schema 见 [implementation/04-configuration.md](../implementation/) (TBD)。
+具体配置 schema 见 [implementation/04-configuration.md](../implementation/)。
 
 ## Consequences
 
@@ -224,11 +224,12 @@ v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 
   - 新增 Task 相关事件描述：a 路径下 task.created 与 conversation.opened 同事务发；b/c/d 路径下 task.created 时 conversation_id=null
   - 删除 ADR-0016 提到的 `task.bound_card_requested` / `task.progress_milestone_reached` 事件（不再引入）
 - 改写 [task-runtime/03-input-request.md](../architecture/tactical/task-runtime/03-input-request.md)：
-  - Step 6-7 改写：InputRequest 投递路径 = 写 Message (`kind=agent_finding`, `input_request_ref=<id>`) 到 task.conversation_id；为 null 时 fallback 行为 TBD（可能 supervisor 主动 bind-conversation 或直接发 user DM）
+  - Step 6-7 改写：InputRequest 投递路径 = 写 Message (`kind=agent_finding`, `input_request_ref=<id>`) 到 task.conversation_id；为 null 时走本 ADR § 10.4 fallback（自动绑到 `notification.default_channel`）
   - 加 Slash `/answer` 响应路径
 - 改写 [09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md)：
   - § 6 渲染表加：`agent_finding + input_request_ref != null` → 飞书 interactive card with buttons
   - § 7 Bound Card 机制下移：Issue 的 bound_card 仍按原方式；Task 走"创建时同步建 Conversation"路径（与 issue 路线对称复用 bind-conversation CLI 命名）；两套机制本质相同但通道不同
+    > **2026-05-20 注**：本条提到的 "Issue 的 bound_card 仍按原方式" 已被 [ADR-0021](0021-issue-as-conversation.md) 推翻 —— Issue ↔ Conversation 也是 1:1，不再持 bound_card / channel_binding 任何字段。本"影响范围"行作为 ADR-0017 当时的历史记录保留。
   - § 9 D2 Slash 命令前置（新增 `/answer` 处理 + 留口 `/dispatch` 等）
   - 新增 § Task Conversation 创建流程（按 § 7 模板写）
 - 改写 [12-conversation.md](../architecture/tactical/conversation/01-conversation.md)：
@@ -239,8 +240,8 @@ v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 
   - Conversation kind 枚举 + 术语 Message 加 input_request_ref 字段
   - Task aggregate 列字段加 conversation_id
   - TaskRuntime BC 事件去掉 ADR-0016 引入的 task.bound_card_requested / progress_milestone_reached
-- 实现层 02-persistence-schema (TBD)：
+- 实现层 02-persistence-schema：
   - tasks 表加 `conversation_id` (nullable uuid FK)
   - conversations 表 `kind` enum 加 `task`
   - messages 表加 `input_request_ref` (nullable uuid FK)
-- 实现层 [04-configuration.md](../implementation/) (TBD)：新增 `notification.default_channel` 配置项（§ 10.5）
+- 实现层 [04-configuration.md](../implementation/)：新增 `notification.default_channel` 配置项（§ 10.5）

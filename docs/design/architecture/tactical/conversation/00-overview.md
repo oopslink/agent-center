@@ -242,7 +242,7 @@ var (
 - 外部只通过 Root.id 引用各 AR（Conversation.id / Identity.id）（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
 - Message 是 Conversation 子从属，通过 conversation_id 关联
 - ChannelBinding 是 Identity 子从属（VO），通过 identity_id 关联；可 delete
-- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/)
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 **Message append-only 不变性**：

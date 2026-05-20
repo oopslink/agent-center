@@ -251,7 +251,7 @@ var (
 
 - 外部只通过 Issue.id 引用 Issue AR（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
 - IssueComment 历史数据查询 → 走 Conversation BC `MessageRepository.FindByConversationID(ctx, issue.conversation_id)`（跨 BC 走 Conversation 接口）
-- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/)
 - 乐观锁：`UpdateStatus` / `Update*` 带 `version int` 参数，CAS 失败返回 `ErrIssueVersionConflict`
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 - **跨 BC tx 由 application service 协调**：

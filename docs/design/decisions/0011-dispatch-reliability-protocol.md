@@ -158,5 +158,5 @@ A 重连后：
 - 更新 [task-runtime/02-task-execution.md](../architecture/tactical/task-runtime/02-task-execution.md) worker 端运行时部分：增 dispatch 时序图（含 ACK / 本地 ledger / reconcile）；env 注入清单（曾在 workforce/01-worker-model，按 ADR-0019 carve 后并入 task-runtime/02）
 - 更新 [architecture/05-observability.md](../architecture/tactical/observability/01-observability.md)：events `task_execution.dispatch_*` / `reconcile.*`
 - 更新 [rules/conventions.md](../../rules/conventions.md)：§ 16 `reason + message` 双字段约定
-- 实现层 [02-persistence-schema.md](../implementation/) (TBD)：`task_executions.dispatch_state` 字段
+- 实现层 [02-persistence-schema.md](../implementation/)：`task_executions.dispatch_state` 字段
 - 实现层 worker daemon：per-execution 目录 schema（envelope.json / status.json 等），见 [ADR-0018 § 3](0018-detached-agent-via-per-execution-shim.md)

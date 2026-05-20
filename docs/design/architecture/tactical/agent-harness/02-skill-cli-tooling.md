@@ -60,7 +60,7 @@ agent-center 给 agent（supervisor 与 worker-agent）暴露能力的方式：*
 | `worker proposal unignore <id>` | 取消之前的"忽略"，让下次扫到再次提议 |
 | `project add / update / remove` | 项目管理（手动；通常由 proposal accept 自动创建） |
 
-完整 CLI 签名 → [implementation/03-cli-subcommands.md](../../../implementation/03-cli-subcommands.md)（TBD）。
+完整 CLI 签名 → [implementation/03-cli-subcommands.md](../../../implementation/03-cli-subcommands.md)。
 
 ## CLI 自适应上下文
 

@@ -174,7 +174,7 @@ var (
 
 - 这些都是 Bridge 内部 audit / vendor state；**不参与领域决策**
 - 跟 [strategic § BC7 注释](../../strategic/03-bounded-contexts.md)"无业务表；各 Bridge 实现可有自己的小审计表"对齐
-- Repository 接口在 Bridge BC 内定义（per vendor 实现）；实现层 vendor SDK / SQL schema 落到 [01-feishu-integration.md](01-feishu-integration.md) + [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- Repository 接口在 Bridge BC 内定义（per vendor 实现）；实现层 vendor SDK / SQL schema 落到 [01-feishu-integration.md](01-feishu-integration.md) + [implementation/02-persistence-schema.md](../../../implementation/)
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---

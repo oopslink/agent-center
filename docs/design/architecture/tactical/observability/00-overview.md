@@ -62,7 +62,7 @@
 | `correlation_id` | TEXT, nullable | 跨事件关联（如 supervisor invocation_id 关联其触发的所有事件）|
 | `decision_id` | ULID/UUID, nullable | 决策触发事件时填（JOIN decision_records 拿 rationale）|
 
-详细 schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。`refs` 平铺 nullable 列 vs JSON 由 implementation 层定（[conventions § 9](../../../../rules/conventions.md) dialect-agnostic）。
+详细 schema 见 [implementation/02-persistence-schema.md](../../../implementation/)。`refs` 平铺 nullable 列 vs JSON 由 implementation 层定（[conventions § 9](../../../../rules/conventions.md) dialect-agnostic）。
 
 #### Append-only + 同事务双写
 
@@ -245,7 +245,7 @@ var (
 - `events` 表 INSERT only；不允许 UPDATE / DELETE（应用层强制 + 实现层可加 DB 触发器兜底）
 - Projection 列允许 UPDATE（但只能由相应的 daemon / domain service 改；外部 BC 不直接改 projection）
 - BlobStore 通过 [conventions § 8](../../../../rules/conventions.md) 抽象访问；实现层落 LocalDir / S3 选型
-- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD) + [implementation/01-blob-store.md](../../../implementation/01-blob-store.md)
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) + [implementation/01-blob-store.md](../../../implementation/01-blob-store.md)
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---
@@ -292,7 +292,7 @@ var (
 | `events` | `--type` / `--task-id` / `--execution-id` / `--since` / `--actor` |
 | `decisions` | `--invocation-id` / `--kind` / `--outcome` / `--since` |
 
-完整 CLI 签名归 [implementation/03-cli-subcommands.md](../../../implementation/) (TBD)。
+完整 CLI 签名归 [implementation/03-cli-subcommands.md](../../../implementation/)。
 
 ### 7.2 Fleet View — 跨任务实时全景
 
@@ -392,8 +392,8 @@ Observability BC 自己不渲染。Bridge 订阅 BC 业务事件（[bridge/01-fe
 ### 实现层
 
 - [implementation/01-blob-store.md](../../../implementation/01-blob-store.md) — BlobStore 抽象
-- [implementation/02-persistence-schema.md](../../../implementation/) (TBD) — events 表 / projection 表 schema
-- [implementation/03-cli-subcommands.md](../../../implementation/) (TBD) — CLI 完整签名
+- [implementation/02-persistence-schema.md](../../../implementation/) — events 表 / projection 表 schema
+- [implementation/03-cli-subcommands.md](../../../implementation/) — CLI 完整签名
 
 ### 横切方法论
 

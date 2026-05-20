@@ -78,7 +78,7 @@ VPS 单节点 + SSH 跑 admin（[domain-vision § B2](../architecture/strategic/
 
 - `/etc/secrets/*` 文件权限 0600，owner = `agent-center` system user
 - 不引入 vault / sops 之类的依赖（v1 简化）
-- env 注入凭据时由 systemd `EnvironmentFile=` 加载（[06-deployment.md](06-deployment.md) (TBD) 详）
+- env 注入凭据时由 systemd `EnvironmentFile=` 加载（[06-deployment.md](06-deployment.md) 详）
 
 ---
 
@@ -370,4 +370,4 @@ blob_store:
 
 ---
 
-> **本文档 scope**：v1 配置文件 schema + 凭据 + 加载优先级 + 各 mode gating + 完整字段参考 + 范例 yaml。后续新增字段按 § 5 演进规则；secret / 凭据落部署细节见 [06-deployment](06-deployment.md) (TBD)。
+> **本文档 scope**：v1 配置文件 schema + 凭据 + 加载优先级 + 各 mode gating + 完整字段参考 + 范例 yaml。后续新增字段按 § 5 演进规则；secret / 凭据落部署细节见 [06-deployment](06-deployment.md)。
