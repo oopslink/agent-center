@@ -28,15 +28,16 @@ CLI flag > env var > YAML file > built-in default
 
 ### 2.1 Env var 命名
 
-`AGENT_CENTER__<SECTION>__<KEY>` —— 双下划线分隔 YAML 路径：
+`AGENT_CENTER_<PATH>` —— 前缀 `AGENT_CENTER_` + YAML 路径用 `_` 拼接，全 UPPER_CASE：
 
 | YAML | Env var |
 |---|---|
-| `blob_store.root` | `AGENT_CENTER__BLOB_STORE__ROOT` |
-| `notification.default_channel` | `AGENT_CENTER__NOTIFICATION__DEFAULT_CHANNEL` |
-| `supervisor.invocation_timeout_seconds` | `AGENT_CENTER__SUPERVISOR__INVOCATION_TIMEOUT_SECONDS` |
+| `blob_store.root` | `AGENT_CENTER_BLOB_STORE_ROOT` |
+| `notification.default_channel` | `AGENT_CENTER_NOTIFICATION_DEFAULT_CHANNEL` |
+| `supervisor.invocation_timeout_seconds` | `AGENT_CENTER_SUPERVISOR_INVOCATION_TIMEOUT_SECONDS` |
+| `worker_config.discovery.scan_interval` | `AGENT_CENTER_WORKER_CONFIG_DISCOVERY_SCAN_INTERVAL` |
 
-snake_case → UPPER_SNAKE_CASE，下划线对应 YAML 一层。
+`.` 跟 snake_case 内的 `_` 一律映射为 `_`，扁平到单层。解析时按已注册的 YAML schema 走"最长匹配前缀"消歧 —— 因此 schema 设计**不允许出现路径冲突**（如同时有 `foo.bar_baz` 和 `foo_bar.baz`），否则启动 fail-fast（[§ 4](#-4-验证--启动失败语义)）。
 
 ### 2.2 CLI flag 优先级
 
@@ -91,6 +92,7 @@ VPS 单节点 + SSH 跑 admin（[domain-vision § B2](../architecture/strategic/
 | 类型错误（如 `int` 字段填 `"abc"`） | exit 2 + stderr 输出具体 YAML 路径 + 期望类型 |
 | 枚举值非法 | exit 2 + stderr 列出全部合法枚举 |
 | YAML 解析错误（语法）| exit 2 + stderr 输出行号 + 上下文 |
+| Env var 路径有歧义（多个 YAML 路径映射到同一 env name） | exit 2 + stderr 列出冲突路径；schema 不允许这种 collision |
 | Secret 字段在 YAML 内明文 | exit 2 + stderr 提示走 `_file:` / env |
 | 引用文件不存在（`*_file: /path`） | exit 2 + stderr 路径不存在 |
 | 字段已 deprecated（§ 5）| stderr WARN 但启动继续；deprecated → removed 用两个 release 缓冲 |
