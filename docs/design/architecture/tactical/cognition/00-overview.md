@@ -189,19 +189,79 @@ Global:
 
 ## § 5. Repositories（X.5）
 
-**接口签名 TBD**，schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。
+接口签名（Go-style，含 `ctx context.Context` 参数；架构层契约，跟实现解耦）：
 
-| Repository | 主表 / 物理形态 | 主要操作 |
-|---|---|---|
-| **SupervisorInvocationRepository** | `supervisor_invocations` 表 | findById / findByScope / findRunning / save / updateStatus（终态时回填 ended_at / token_usage / decisions_made_count）|
-| **DecisionRecordRepository**（or sub-repo of Invocation）| `decision_records` 表 | findByInvocationId / findByKind / findByOutcome / append (immutable) |
-| **MemoryRepository** | **文件系统 + git 仓**（[ADR-0012](../../../decisions/0012-memory-file-based.md)）| 不走 DB；Read / Write / Edit 用 claude 原生工具；git commit 走 Bash 工具 + invocation 退出时 center 兜底 |
+### 5.1 SupervisorInvocationRepository
 
-**约定**：
+```go
+type SupervisorInvocationRepository interface {
+    FindByID(ctx context.Context, id InvocationID) (*SupervisorInvocation, error)
+    FindByScope(ctx context.Context, scopeKind ScopeKind, scopeKey string) ([]*SupervisorInvocation, error)
+    FindRunning(ctx context.Context) ([]*SupervisorInvocation, error)
+    FindRunningByScopeKey(ctx context.Context, scopeKind ScopeKind, scopeKey string) (*SupervisorInvocation, error) // 单活校验
+    Save(ctx context.Context, inv *SupervisorInvocation) error
+    UpdateStatusToTerminal(ctx context.Context, id InvocationID, status InvocationStatus,
+        endedAt time.Time, failedReason, failedMessage string, tokenUsage TokenUsage, decisionsMade int) error
+}
 
-- 外部只通过 Invocation.id 引用 invocation AR
+// Domain errors
+var (
+    ErrInvocationNotFound          = errors.New("cognition: invocation not found")
+    ErrInvocationAlreadyTerminal   = errors.New("cognition: invocation already in terminal state")
+    ErrScopeKeyRunningExists       = errors.New("cognition: another invocation running for same scope_key (single-active)")
+)
+```
+
+### 5.2 DecisionRecordRepository（sub-repo of Invocation）
+
+```go
+type DecisionRecordRepository interface {
+    FindByInvocationID(ctx context.Context, invocationID InvocationID) ([]*DecisionRecord, error)
+    FindByKind(ctx context.Context, kind DecisionKind, since time.Time) ([]*DecisionRecord, error)
+    FindByOutcome(ctx context.Context, outcome DecisionOutcome, since time.Time) ([]*DecisionRecord, error)
+    Append(ctx context.Context, d *DecisionRecord) error           // immutable append-only；不允许 Update/Delete
+}
+
+// Domain errors
+var (
+    ErrDecisionNotFound  = errors.New("cognition: decision record not found")
+    ErrDecisionImmutable = errors.New("cognition: decision record is append-only, cannot modify")
+    ErrRationaleRequired = errors.New("cognition: rationale field required for all decisions")
+)
+```
+
+### 5.3 MemoryRepository（特殊：文件系统 + git 仓）
+
+**不走标准 Repository 抽象** —— Memory 物理形态是 `$AGENT_CENTER_MEMORY_DIR/` git 仓，由 supervisor 用 claude 原生 `Edit` / `Write` 工具直接读写（[ADR-0012](../../../decisions/0012-memory-file-based.md)）。
+
+但有 **MemorySkeletonFactory** 接口（cold-start 时建空骨架）+ **MemoryGitOpsService** 接口（invocation 退出时 center 兜底 commit）：
+
+```go
+type MemorySkeletonFactory interface {
+    CreateSkeleton(ctx context.Context, scopeKind ScopeKind, scopeKey string) error      // 建空 CLAUDE.md + git commit
+}
+
+type MemoryGitOpsService interface {
+    AutoCommitDirty(ctx context.Context, invocationID InvocationID, scopeKind ScopeKind, scopeKey string) error
+    // invocation 退出时检查 dirty + auto commit (author=supervisor:<inv-id>)
+}
+
+// Domain errors
+var (
+    ErrMemoryDirNotInitialized = errors.New("cognition: memory dir not initialized as git repo")
+    ErrMemoryFileExists        = errors.New("cognition: memory file already exists (skeleton)")
+    ErrMemoryGitOpFailed       = errors.New("cognition: memory git operation failed")
+)
+```
+
+### 5.4 约定
+
+- 外部只通过 Invocation.id 引用 invocation AR（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
 - DecisionRecord 通过 `invocation_id` 关联到 Invocation 聚合
-- Memory **不**走 Repository 抽象 —— 直接走 file ops（详见 [02-memory § 6 写入维护](02-memory.md)）
+- Memory **不**走传统 Repository 抽象 —— 直接走 file ops；但 SkeletonFactory + GitOpsService 是架构层契约
+- DecisionRecord append-only；INSERT 后不可变（含 outcome 字段）
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)（Memory 物理形态见 [ADR-0012](../../../decisions/0012-memory-file-based.md)）
+- Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---
 

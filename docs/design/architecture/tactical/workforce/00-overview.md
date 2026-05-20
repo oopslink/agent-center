@@ -178,19 +178,94 @@
 
 ## § 5. Repositories（X.5）
 
-**接口签名 TBD**，schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。
+接口签名（Go-style，含 `ctx context.Context` 参数；架构层契约，跟实现解耦）：
 
-| Repository | 主表 | 主要操作 |
-|---|---|---|
-| **WorkerRepository** | `workers` | findById / findByStatus / save / updateStatus / updateLastHeartbeatAt |
-| **WorkerProjectMappingRepository**（or sub-repo of Worker）| `worker_project_mappings` | findByWorkerId / findByProjectId / findByWorkerAndProject / save / updateStatus（invalidated）|
-| **WorkerProjectProposalRepository** | `worker_project_proposals` | findById / findByWorkerId / findPending / findByCandidatePath / save / updateStatus |
-| **ProjectRepository** | `projects` | findById / findAll / save / updateName / updateKind |
+### 5.1 WorkerRepository
 
-**约定**：
+```go
+type WorkerRepository interface {
+    FindByID(ctx context.Context, id WorkerID) (*Worker, error)
+    FindByStatus(ctx context.Context, status WorkerStatus) ([]*Worker, error)
+    FindAll(ctx context.Context) ([]*Worker, error)
+    Save(ctx context.Context, w *Worker) error                                  // 新建 + 全量更新
+    UpdateStatus(ctx context.Context, id WorkerID, from, to WorkerStatus) error // online/offline 反复迁移
+    UpdateLastHeartbeatAt(ctx context.Context, id WorkerID, at time.Time, workingSeconds int) error
+}
 
-- 外部只通过 Root.id 引用各 AR
+// Domain errors
+var (
+    ErrWorkerNotFound       = errors.New("workforce: worker not found")
+    ErrWorkerAlreadyExists  = errors.New("workforce: worker already enrolled")
+    ErrWorkerOffline        = errors.New("workforce: worker is offline, cannot accept new dispatch")
+    ErrBootstrapTokenInvalid = errors.New("workforce: bootstrap token invalid or expired")
+)
+```
+
+### 5.2 WorkerProjectMappingRepository（sub-repo of Worker）
+
+```go
+type WorkerProjectMappingRepository interface {
+    FindByWorkerID(ctx context.Context, workerID WorkerID) ([]*WorkerProjectMapping, error)
+    FindByProjectID(ctx context.Context, projectID ProjectID) ([]*WorkerProjectMapping, error)
+    FindByWorkerAndProject(ctx context.Context, workerID WorkerID, projectID ProjectID) (*WorkerProjectMapping, error)
+    Save(ctx context.Context, m *WorkerProjectMapping) error
+    Invalidate(ctx context.Context, id MappingID, reason string, message string) error    // status=active → invalidated, 不删
+}
+
+// Domain errors
+var (
+    ErrMappingNotFound       = errors.New("workforce: mapping not found")
+    ErrMappingAlreadyActive  = errors.New("workforce: (worker_id, project_id) already has active mapping")
+    ErrMappingNotActive      = errors.New("workforce: mapping not in active state")
+)
+```
+
+### 5.3 WorkerProjectProposalRepository
+
+```go
+type WorkerProjectProposalRepository interface {
+    FindByID(ctx context.Context, id ProposalID) (*WorkerProjectProposal, error)
+    FindByWorkerID(ctx context.Context, workerID WorkerID, status ...ProposalStatus) ([]*WorkerProjectProposal, error)
+    FindPending(ctx context.Context) ([]*WorkerProjectProposal, error)
+    FindByCandidatePath(ctx context.Context, workerID WorkerID, path string) (*WorkerProjectProposal, error) // 去重查询
+    Save(ctx context.Context, p *WorkerProjectProposal) error
+    UpdateStatus(ctx context.Context, id ProposalID, from, to ProposalStatus, reviewedBy string, resultingMappingID *MappingID) error
+}
+
+// Domain errors
+var (
+    ErrProposalNotFound          = errors.New("workforce: proposal not found")
+    ErrProposalAlreadyTerminated = errors.New("workforce: proposal already in terminal state")
+    ErrProposalInvalidTransition = errors.New("workforce: invalid proposal status transition")
+)
+```
+
+### 5.4 ProjectRepository
+
+```go
+type ProjectRepository interface {
+    FindByID(ctx context.Context, id ProjectID) (*Project, error)
+    FindAll(ctx context.Context, filter ProjectFilter) ([]*Project, error)
+    Save(ctx context.Context, p *Project) error                                          // 新建
+    Update(ctx context.Context, id ProjectID, name, kind, defaultAgentCLI string) error // 更新允许字段
+    Delete(ctx context.Context, id ProjectID) error                                      // 严格删除，必先无 active task / mapping
+}
+
+// Domain errors
+var (
+    ErrProjectNotFound      = errors.New("workforce: project not found")
+    ErrProjectAlreadyExists = errors.New("workforce: project_id already taken")
+    ErrProjectHasActiveDeps = errors.New("workforce: project has active task or mapping, cannot delete")
+)
+```
+
+### 5.5 约定
+
+- 外部只通过 Root.id 引用各 AR（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
 - WorkerProjectMapping 通过 worker_id 关联到 Worker 聚合（强引用）+ project_id 关联到 Project（弱引用）
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- Proposal accept 同事务建 Project（如不存在）+ Mapping（[ADR-0008](../../../decisions/0008-worker-project-mapping-via-discovery-proposal.md) + [ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md)）：跨多个 Repository 调用同事务，由 application service 协调
+- Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---
 
