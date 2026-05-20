@@ -42,6 +42,7 @@
 - 我用的术语，是不是 [01 § 1.1 通用语言表](../design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language)里的同一个词？还是无意中造了同义词（Brain ≠ Supervisor / Session ≠ TaskExecution / Card ≠ Message 等）？
 - 跨聚合写操作，符合 [ADR-0014 § 2](../design/decisions/0014-event-sourcing-level.md) 的同事务原则吗？跨聚合**强引用**（如 task.conversation_id）vs **弱关联**（如 issue.related_conversation_ids）的选择有依据吗？
 - 我引入的值对象是不是有"由属性定义、不可变、可替换"特征？是的话明示为 VO，不要散成"几个字段"
+- **外部对聚合的访问，是不是只通过 Root.id**？聚合根**守门**：外部代码 / 跨聚合引用一律持 Root.id，不持内部 Entity / 子从属的句柄；要操作内部 Entity 必经 Root 暴露的方法（详见 P3 各 BC § 5 Repositories 约定栏）|
 
 ### § 0.4 不接受的措辞
 

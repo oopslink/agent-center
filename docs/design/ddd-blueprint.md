@@ -6,7 +6,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7**：TaskRuntime + Discussion + Workforce + Cognition + Observability + Conversation + Bridge ✅）。
+最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7** + **P5/P6/P7 中优全部完成** ✅：DDD 战术 + 中优架构清晰度阶段收口（剩 P8 Repository 接口固化等 implementation 层、P9 Saga 视需要））。
 
 ---
 
@@ -29,26 +29,27 @@
 
 | 概念 | 状态 | 位置 / 说明 |
 |---|---|---|
-| **Entity** | ⚠️ 散落 | [03-bounded-contexts § 1.1](architecture/strategic/03-bounded-contexts.md#11-核心实体按上下文归属) 标了 entity / 聚合根 / 从属；字段表散在各 BC 文档；**P3 中各 BC 文档统一收口** |
-| **Value Object** | ❌ 严重缺 | 仅 `ChannelBinding` 明示为 VO；事实 VO（未标）：`DispatchEnvelope` / Reason+Message 对 / `FailedReason` taxonomy / `KilledReason` / `IssueConcludeSpec` / `DispatchAck` / `DispatchNack` / `WorkspaceMode` / `Priority` / `BlobRef` / `IdentityRef`；**P3 中各 BC 文档统一收口** |
-| **Aggregate**（含 Invariants）| ⚠️ 散落 | 各 BC 列了"核心聚合"清单；**Invariants 系统化的只有 [task-runtime/02-task-execution § 13](architecture/tactical/task-runtime/02-task-execution.md)（Execution 部分；Task / InputRequest 在 01 / 03 各自 § 末尾）**；Issue / Conversation / Worker / Memory / SupervisorInvocation / WorkerProjectProposal 等的不变量未单独列；**P3 中各 BC 文档统一收口** |
-| **Aggregate Root** | ⚠️ 标了不足 | 03-bounded-contexts § 1.1 标"根"，但**未明示"外部仅通过 Root.id 引用，不持有内部 Entity 句柄"** 约束 |
-| **Domain Event** | ✅ 充分 | [03-bounded-contexts § 2](architecture/strategic/03-bounded-contexts.md#-2-限界上下文bounded-contexts) 各 BC 列；[observability/00-overview](architecture/tactical/observability/00-overview.md) 事件总览；ADR-0014（事件溯源 L1）/ ADR-0015（agent_trace 不进 events）；[conventions § 16](../rules/conventions.md#-16-错误--状态信息双字段reason--message) reason+message |
-| **Domain Service** | ⚠️ 部分 | TaskRuntime / Discussion / Workforce / Cognition 已 P3 § X.3 显式标；Conversation / Observability / Bridge 待 P3 完成后收口 |
-| **Repository** | ❌ TBD | [implementation/02-persistence-schema.md](implementation/) 待写；conventions § 9 提了 mutator 封装是前置 |
-| **Factory** | ❌ 未明示 | 实际有：Issue conclude → batch spawn N tasks / Task create / TaskExecution create / Conversation create —— 没标 "Factory" |
-| **跨聚合一致性策略** | ✅ 已散立 | ADR-0014 § 2 显式"tx 内同时改两聚合"；ADR-0017 显式跨聚合双写（task + conversation）—— **决定不再立通用 ADR**（详见 § 3.4） |
+| **Entity** | ✅ | P3 各 BC § 1.2 子从属 Entity 表已明示（Artifact / Message / WorkerProjectMapping / DecisionRecord）+ 各 AR 自己是 Entity；字段表在各聚合文档内 |
+| **Value Object** | ✅ | P3 各 BC § 1.3 VO 表完成（含 reason+message pair / DispatchEnvelope / WorkspaceMode / Priority / IssueResolution / ChannelBinding / TokenUsage / ScopeKey / EventType / etc.）|
+| **Aggregate**（含 Invariants）| ✅ | P3 各 BC § 1.1 AR 表 + § 2 Invariants 索引 / 各 AR 文件 Invariants 节完成（含 Task / TaskExecution / InputRequest / Issue / Worker / Project / WorkerProjectProposal / SupervisorInvocation / Memory / Conversation / Identity / Event）|
+| **Aggregate Root** | ✅ | P3 各 BC § 5 Repositories 节"约定"栏明示"外部只通过 Root.id 引用"约束；[conventions § 0.3](../rules/conventions.md#-03-自检清单) 加 AR 访问自检（P6） |
+| **Domain Event** | ✅ 充分 | [03-bounded-contexts § 2](architecture/strategic/03-bounded-contexts.md#-2-限界上下文bounded-contexts) 各 BC 列；[observability/00-overview § 7.5](architecture/tactical/observability/00-overview.md) 事件总览；ADR-0014（事件溯源 L1）/ ADR-0015（agent_trace 不进 events）；[conventions § 16](../rules/conventions.md#-16-错误--状态信息双字段reason--message) reason+message |
+| **Domain Service** | ✅ | P3 各 BC § 3 完成（P5）：TaskRuntime (Dispatch/Reconcile/Timeout/IssueConcludeSpawn/Kill) / Discussion (IssueLifecycle/IssueConcludeSpawn-caller) / Workforce (WorkerEnroll/ProposalDiscovery/ProposalReview/MappingInvalidation) / Cognition (WakeScheduler/InvocationFactory/InvocationTimeoutHandler/InvocationCrashRecovery/DecisionWriter) / Observability (EventSink/Projection/Query/TraceArchive) / Conversation (ConversationLifecycle/IdentityRegistration/BridgeInbound-caller) / Bridge (OutboundDelivery/InboundRouting/SlashCommand/CardLifecycle) |
+| **Repository** | ⚠️ 接口签名 TBD | P3 各 BC § 5 Repositories 表已明示主表 + 主要操作 + AR 访问约束；接口签名落到 [implementation/02-persistence-schema.md](implementation/)（TBD，P8）|
+| **Factory** | ✅ | P3 各 BC § 4 Factories 节完成：TaskRuntime (TaskFactory 5-caller / TaskExecutionFactory / InputRequestFactory) / Discussion (IssueFactory 5-caller / IssueCommentFactory-facade / ConversationFactory-caller) / Workforce (Worker/Proposal/Project/MappingFactory) / Cognition (InvocationFactory / MemorySkeletonFactory) / Conversation (ConversationFactory 6-caller / MessageFactory / IdentityFactory) / Observability (无独立 Factory，各 BC 自 emit) / Bridge (无，仅调领域 API) |
+| **跨聚合一致性策略** | ✅ 已散立 | ADR-0014 § 2 显式"tx 内同时改两聚合"；ADR-0017 + ADR-0021 显式跨聚合双写（task + conversation / issue + conversation）；P3 各 BC § 6 跨聚合引用 + § 7 跨 BC 交互详化 —— **决定不再立通用 ADR**（详见 § 3.4） |
 
 ### 1.3 高级模式（Strategic Patterns）
 
 | 概念 | 状态 | 位置 / 说明 |
 |---|---|---|
 | **Anti-Corruption Layer**（ACL）| ✅ | [03-bounded-contexts § 3.2](architecture/strategic/03-bounded-contexts.md#32-anti-corruption-layers)，3 处（Bridge / Agent CLI Adapter / BlobStore Adapter） |
-| **Shared Kernel** | ⚠️ | [03-bounded-contexts § 3.1](architecture/strategic/03-bounded-contexts.md#31-上下游关系一览) 标了 TaskRuntime↔Workforce / Discussion↔Workforce / TaskRuntime↔Conversation；未集中讨论 |
-| **Customer-Supplier** | ✅ | 03-bounded-contexts § 3.1 上下游表 |
-| **Open Host Service** | ⚠️ | Observability 标为 subscribe-only；**Published Language** 是事件 schema 还是 CLI 未明示 |
-| **Saga / Process Manager** | ❌ | 未讨论（Issue → Task spawn → Execution 链是事件驱动 + 状态机协同；如果未来撞协调问题再立） |
-| **CQRS / Read Model** | ✅ | ADR-0014 明示驳回 CQRS；读模型存在（[observability/01-observability Fleet View](architecture/tactical/observability/00-overview.md) Projection） |
+| **Shared Kernel** | ✅ | [03-bounded-contexts § 3.1](architecture/strategic/03-bounded-contexts.md#31-上下游关系一览) 上下游表 + P3 各 BC § 6 / § 7：Discussion↔Conversation 1:1（[ADR-0021](decisions/0021-issue-as-conversation.md)）/ TaskRuntime↔Conversation 1:1（[ADR-0017](decisions/0017-task-as-conversation.md)）/ TaskRuntime↔Workforce / Discussion↔Workforce |
+| **Customer-Supplier** | ✅ | 03-bounded-contexts § 3.1 上下游表 + P3 各 BC § 7.4 Customer-Supplier 汇总 |
+| **Open Host Service** | ✅ | [03-bounded-contexts § 6 Published Language](architecture/strategic/03-bounded-contexts.md) 完成（P7）：events 表 schema + CLI 命令构成 PL；Observability BC 是 PL 订阅方 |
+| **Published Language** | ✅ | [03-bounded-contexts § 6](architecture/strategic/03-bounded-contexts.md) 明示：events schema + CLI 双层；演进策略 + 不属于 PL 的清单 + 自检 |
+| **Saga / Process Manager** | ❌ | 未讨论（Issue → Task spawn → Execution 链是事件驱动 + 状态机协同；如果未来撞协调问题再立，P9）|
+| **CQRS / Read Model** | ✅ | ADR-0014 明示驳回 CQRS；读模型存在（[observability/00-overview § 1.4 Read Models](architecture/tactical/observability/00-overview.md)）|
 
 ---
 
@@ -151,13 +152,13 @@
 **依赖**：无（直接做）。
 **影响范围**：7 个 BC 目录；strategic/03-bounded-contexts § 3.1 表扩列。
 
-### 3.2 中优（架构清晰度）
+### 3.2 中优（架构清晰度）— 全部 ✅ 完成（2026-05-20）
 
-| ID | 项 | 产出形态 |
-|---|---|---|
-| **P5** | **Domain Service 明示** | P3 § X.3 中各 BC 文档显式标 |
-| **P6** | **Aggregate Root 访问约束**写明 | P3 § X.1 中各 BC 文档标"外部仅通过 Root.id 引用内部 Entity"约定；以及 conventions § 9 在 mutator 封装时贴此约束 |
-| **P7** | **Published Language** 明示 | 在 strategic/03-bounded-contexts.md 或 tactical/observability/00-overview.md 加一节："Published Language = events 表 schema + CLI 命令" |
+| ID | 项 | 产出形态 | 状态 |
+|---|---|---|---|
+| **P5** | **Domain Service 明示** | P3 § X.3 各 BC 文档完成（详见 § 1.2 Domain Service 行）| ✅ |
+| **P6** | **Aggregate Root 访问约束**写明 | [conventions § 0.3](../rules/conventions.md#-03-自检清单) 加 AR 访问自检；P3 各 BC § 5 Repositories 节"约定"栏明示 | ✅ |
+| **P7** | **Published Language** 明示 | [strategic/03-bounded-contexts § 6](architecture/strategic/03-bounded-contexts.md) 加 Published Language 节（events schema + CLI 命令双层 + 演进策略 + 自检）| ✅ |
 
 ### 3.3 低优 / 视需求
 

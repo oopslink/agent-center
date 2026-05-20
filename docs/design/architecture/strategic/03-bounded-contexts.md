@@ -400,7 +400,38 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 
 ---
 
-## § 6. 给 §3-§10 的指引
+## § 6. Published Language
+
+跨 BC 通信的稳定接口（即 DDD "Published Language"）由**两层共同构成**：
+
+| 层 | 内容 | 权威定义位置 |
+|---|---|---|
+| **领域事件流** | `events` 表 schema + 各 BC emit 的 event_type 闭集（`task.*` / `issue.*` / `worker.*` / `supervisor.*` / `conversation.*` / `channel.*` / `bridge.*`）+ payload 形态（含 reason+message 双字段，[§ 16](../../../rules/conventions.md#-16-错误--状态信息双字段reason--message)）| 各 BC 战术文档 § 8 / `tactical/observability/00-overview.md § 7.5 事件总览` |
+| **CLI 命令** | `agent-center <subcommand>` 的子命令集 + 参数 / 返回 schema（user / supervisor / Web Console 共用同一套）| 各 BC 战术文档 § 7 CLI 命令 / `tactical/agent-harness/02-skill-cli-tooling.md` |
+
+**关键性质**：
+
+- **稳定 / 演进**：事件 schema + CLI 接口加版本化策略；ADR 控制 breaking changes（如 [ADR-0019](../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) 改变 BC 边界时，相关 event_type 不动；[ADR-0021](../../decisions/0021-issue-as-conversation.md) 删 `issue.commented` 事件 + 新增 content_kind 是 schema 演进）
+- **跨 BC 共享**：所有 BC 一致用同一组词（[conventions § 12](../../../rules/conventions.md#-12-命名一致)）；不允许重命名 / 同义词
+- **Open Host Service**：Observability BC 是 PL 的**订阅方**，所有上下文 emit 事件后由 Observability 订阅做投影 / 查询 / 审计；详见 [observability/00-overview.md](../tactical/observability/00-overview.md)
+- **零 vendor 依赖**：PL 跟 vendor 无关；Bridge BC 是唯一翻译 vendor 形态 ↔ PL 的 ACL（[conventions § 9.y](../../../rules/conventions.md#-9y-外部集成走-bridge-模式不在领域模块内调-vendor-sdk)）
+
+**不属于 Published Language 的**：
+
+- BC 内部聚合的私有方法 / 字段（如 TaskExecution 的 cancel_requested_at 是 BC 内字段，不暴露为 PL）
+- 各 BC 内部表的物理结构（属于 implementation 层）
+- AgentTraceEvent（JSONL trace，**不入 events 表**，[ADR-0015](../../decisions/0015-agent-trace-not-in-events-table.md)）
+- Bridge BC 内 vendor 翻译 ledger（`feishu_delivery_ledger` 是 BC 内私有审计）
+
+**自检**（设计新跨 BC 接口时必答）：
+
+- 我新增的事件 / CLI 命令属于 PL 吗？是的话 schema 跟现有事件 schema 兼容吗？
+- 我用的术语在 [§ 1.1 通用语言表](#-1-通用语言ubiquitous-language) 里吗？
+- 我新增的字段是 PL 一部分（跨 BC 可见）还是 BC 内私有？
+
+---
+
+## § 7. 给 § 3-§ 6 的指引
 
 本文件定下"概念地图"。后续各章节展开**单个 BC 的内部细节**，应遵循：
 
