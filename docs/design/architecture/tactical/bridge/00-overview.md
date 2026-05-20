@@ -36,7 +36,7 @@
 [strategic/03-bounded-contexts § 3](../../strategic/03-bounded-contexts.md)：
 
 - **Bridge ↔ vendor**：ACL / 双向同步（vendor SDK 调用 + WebSocket 长连）
-- **Bridge → Discussion / Conversation / TaskRuntime**：Customer-Supplier（inbound 时调 `conversation add-message` / `task bind-card` / `issue bind-conversation` / `InputRequest.respond` 等）
+- **Bridge → Discussion / Conversation / TaskRuntime**：Customer-Supplier（inbound 时调 `conversation add-message` / `task bind-conversation` / `issue bind-conversation` / `InputRequest.respond` 等）
 - **Bridge ← Discussion / Conversation / TaskRuntime**：Pub/Sub（订阅 `conversation.message_added` / `conversation.opened` (kind=task/issue) / `input_request.*` 等做 outbound）
 - **Bridge → Observability**：Open Host（emit `channel.delivered` / `channel.delivery_failed` / `bridge.parse_failed`）
 
@@ -114,7 +114,7 @@
 | 命令 | 行为 |
 |---|---|
 | `/answer <task_id> <text>` | Bridge 调 `InputRequest.respond` + 写 Message 留痕 |
-| `/track <task_id>` | Bridge 调 `task bind-card --to=<当前 thread 对应 conversation>` |
+| `/track <task_id>` | Bridge 调 `task bind-conversation --to=<当前 thread 对应 conversation>` |
 | `/dispatch ...`（v2 推迟）| TBD |
 
 详见 [01-feishu-integration § 9.1](01-feishu-integration.md)。
@@ -229,7 +229,7 @@ emit conversation.message_added → 其它 BC 订阅做业务
 | 方向 | 模式 | 内容 |
 |---|---|---|
 | Bridge ↔ vendor | ACL / 双向同步 | 唯一调 vendor SDK 的地方；翻译 incoming 为领域 API 调用；订阅 outbound 事件推到 vendor |
-| Bridge → Discussion / Conversation / TaskRuntime | Customer-Supplier | inbound 时调领域模块 API（`conversation add-message` / `task bind-card` / `issue bind-conversation` / `InputRequest.respond`）；slash 命令直接路由（[ADR-0017 § 6](../../../decisions/0017-task-as-conversation.md)）|
+| Bridge → Discussion / Conversation / TaskRuntime | Customer-Supplier | inbound 时调领域模块 API（`conversation add-message` / `task bind-conversation` / `issue bind-conversation` / `InputRequest.respond`）；slash 命令直接路由（[ADR-0017 § 6](../../../decisions/0017-task-as-conversation.md)）|
 | Bridge ← Conversation | Pub/Sub | 订阅 `conversation.message_added` / `conversation.opened` (kind=task/issue) / `input_request.*` 做 outbound |
 | Observability ← Bridge | Open Host | 订阅 `channel.delivered` / `channel.delivery_failed` / `bridge.parse_failed` |
 

@@ -32,7 +32,7 @@ stateDiagram-v2
 
 ### 2.1 kind=task 生命周期补充
 
-- **创建**: 同步建 conversation 走 a/e（飞书 @bot / Web Console）；懒创建走 b/c/d（CLI `task bind-card` / 飞书 slash `/track` / @bot 自由文本 / center 硬规则 fallback）。详见 [ADR-0017 § 7 / § 10](../../../decisions/0017-task-as-conversation.md)
+- **创建**: 同步建 conversation 走 a/e（飞书 @bot / Web Console）；懒创建走 b/c/d（CLI `task bind-conversation` / 飞书 slash `/track` / @bot 自由文本 / center 硬规则 fallback）。详见 [ADR-0017 § 7 / § 10](../../../decisions/0017-task-as-conversation.md)
 - **thread_key 写入方向**: 与 a 路径（inbound 创建时已有 vendor thread）相反，task conversation 的 `primary_channel_thread_key` 由 Bridge 发出 Task root card 后回写
 - **写入 actor**: supervisor / worker daemon / 用户 / 系统都可写；worker daemon 通过 [TaskRuntime BC 长连 RPC](../task-runtime/00-overview.md) 调 `conversation add-message`（[ADR-0017 § 8](../../../decisions/0017-task-as-conversation.md)）
 - **InputRequest 集成**: agent 调 `request-input` 时同事务写 InputRequest 行 + 一条 `content_kind=agent_finding, input_request_ref=<id>` 的 Message 到 task.conversation_id；conversation_id 为 null 时触发 § 10.4 fallback bind 到 `notification.default_channel`，未配置则 InputRequest 创建失败、task fail

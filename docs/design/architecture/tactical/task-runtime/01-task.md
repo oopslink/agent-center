@@ -137,9 +137,9 @@ Worker / Agent 不能直接改 Task 状态（[conventions § 1](../../../../rule
 
 | 路径 | 触发 |
 |---|---|
-| 用户 CLI | `agent-center task bind-card <task_id> --channel=feishu --auto` 或 `--to=<conv_id>` |
-| 飞书 slash 命令 | `/track <task_id>` —— Bridge 直接转 bind-card（不经 supervisor） |
-| 飞书 @bot 自由文本 | "盯一下 T-42" → supervisor 解析意图 → bind-card |
+| 用户 CLI | `agent-center task bind-conversation <task_id> --channel=feishu --auto` 或 `--to=<conv_id>` |
+| 飞书 slash 命令 | `/track <task_id>` —— Bridge 直接转 bind-conversation（不经 supervisor） |
+| 飞书 @bot 自由文本 | "盯一下 T-42" → supervisor 解析意图 → bind-conversation |
 | Center 硬规则 fallback | agent 调 `request-input` 且 task.conversation_id=null → 自动 bind 到 `notification.default_channel`；未配置 → InputRequest 创建失败、execution → `failed(reason=no_input_channel)`（详见 [03-input-request § 8 fallback](03-input-request.md)） |
 
 详见 [ADR-0017 § 10](../../../decisions/0017-task-as-conversation.md)。
@@ -147,9 +147,9 @@ Worker / Agent 不能直接改 Task 状态（[conventions § 1](../../../../rule
 ### 7.3 CLI
 
 ```
-agent-center task bind-card <task_id> --channel=feishu --auto         # 新建 conversation + 推到 default channel
-agent-center task bind-card <task_id> --channel=feishu --to=<conv_id> # 绑到既有 conversation
-agent-center task unbind-card <task_id>                                # v1 不支持，留接口给 v2
+agent-center task bind-conversation <task_id> --channel=feishu --auto         # 新建 conversation + 推到 default channel
+agent-center task bind-conversation <task_id> --channel=feishu --to=<conv_id> # 绑到既有 conversation
+agent-center task unbind-conversation <task_id>                        # v1 不支持，留接口给 v2
 ```
 
 ### 7.4 事件

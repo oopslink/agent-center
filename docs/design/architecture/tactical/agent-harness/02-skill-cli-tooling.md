@@ -33,7 +33,7 @@ agent-center 给 agent（supervisor 与 worker-agent）暴露能力的方式：*
 |---|---|
 | `conversation add-message` | 往指定 Conversation 写入一条 Message（内部存储；Bridge 自动外发） |
 | `issue comment` | 往指定 Issue 写入一条 IssueComment（结构化；如 Issue 有 bound card，Bridge 自动外发到 bound thread） |
-| `issue bind-card / unbind-card / rebind-card` | 管理 Issue 跟飞书 card 的绑定（v1 仅飞书） |
+| `issue bind-conversation` | 懒创建路径触发：把没有 Conversation 的 Issue 关联到一个 Conversation（[ADR-0021](../../../decisions/0021-issue-as-conversation.md)；删除原 unbind/rebind 系列） |
 | `issue link-conversation` | 手动把某 conversation 关联到 issue（写入 `issue.related_conversation_ids`） |
 | `escalate-input-request` | InputRequest 升级到飞书 |
 | `record-decision` | 写 working memory |

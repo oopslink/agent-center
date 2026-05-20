@@ -383,7 +383,7 @@ flowchart TB
 | Discussion ↔ Workforce | Shared Kernel | Issue 引用 project_id |
 | TaskRuntime → Discussion | Customer-Supplier | Worker 上的 agent 调 `open-issue` 命令 Discussion 创建 Issue（worker daemon 跑在 TaskRuntime BC 内；agent 通过本机 unix socket 调 CLI 入 TaskRuntime → 跨 BC 调 Discussion） |
 | Bridge ↔ vendor | ACL / 双向同步 | Bridge 是唯一调用 vendor SDK 的地方；翻译 incoming 为领域 API 调用；订阅 outbound 事件推到 vendor |
-| Bridge → Discussion / Conversation / TaskRuntime | Customer-Supplier | inbound 时 Bridge 调领域模块 API（`conversation add-message` / `task bind-card` / `issue bind-conversation` / `InputRequest.respond`）写入数据；slash 命令直接路由（[ADR-0017 § 6](../../decisions/0017-task-as-conversation.md)） |
+| Bridge → Discussion / Conversation / TaskRuntime | Customer-Supplier | inbound 时 Bridge 调领域模块 API（`conversation add-message` / `task bind-conversation` / `issue bind-conversation` / `InputRequest.respond`）写入数据；slash 命令直接路由（[ADR-0017 § 6](../../decisions/0017-task-as-conversation.md)） |
 | Bridge ← Conversation | Pub/Sub | Bridge 订阅 `conversation.message_added` / `conversation.opened` (kind=task/issue) / `input_request.*` 等领域事件做 outbound 投递 / update_card |
 | Discussion ↔ Conversation | Shared Kernel / 1:1 | `issue.conversation_id` 强引用 `kind=issue` Conversation（1:1）；`issue.opened` + `conversation.opened` 同事务（[ADR-0021](../../decisions/0021-issue-as-conversation.md)）；议事消息走 Conversation Message；`issue.related_conversation_ids` JSON 数组保留作触发血缘弱关联 |
 | TaskRuntime ↔ Conversation | Shared Kernel | `task.conversation_id` 强引用 `kind=task` Conversation（1:1）；`task.created` + `conversation.opened` 同事务；worker daemon / InputRequest 写 Message 走 Conversation API（[ADR-0017](../../decisions/0017-task-as-conversation.md)） |

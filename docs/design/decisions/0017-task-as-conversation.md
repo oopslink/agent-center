@@ -34,7 +34,7 @@ Task 表新增 `conversation_id` (nullable)。创建时机分两支：
 |---|---|
 | 飞书用户 @bot 直接发起（a） | Task 创建时**同步**新建 Conversation + 绑 vendor thread |
 | Web Console 新建（e） | 同上（Web Console 是 Conversation 的另一个 channel binding） |
-| Issue concluded spawn 出（b） | **不**新建，`task.conversation_id = null`；用户后续 `task bind-card` 触发懒创建 |
+| Issue concluded spawn 出（b） | **不**新建，`task.conversation_id = null`；用户后续 `task bind-conversation` 触发懒创建 |
 | Supervisor 自主开（c，v1 暂无） | 同 b |
 | CLI 直接 `task create`（d） | 同 b |
 
@@ -133,26 +133,26 @@ b/c/d 来源 task 的 conversation 从 null → 非 null 的触发场景：
 #### 10.1 用户主动 CLI
 
 ```
-agent-center task bind-card <task_id> --channel=feishu --to=<conversation_id>
-agent-center task bind-card <task_id> --channel=feishu --auto       # 新建 conversation + 推到 default channel
+agent-center task bind-conversation <task_id> --channel=feishu --to=<conversation_id>
+agent-center task bind-conversation <task_id> --channel=feishu --auto       # 新建 conversation + 推到 default channel
 ```
 
 用户在 VPS shell / 开发场景的兜底通道。
 
 #### 10.2 用户主动 飞书 slash
 
-`/track <task_id>` —— Bridge 收 slash → **直接**调 bind-card，绑到当前 thread。不经 supervisor。属于 § 6 D2 slash 首批命令之一。
+`/track <task_id>` —— Bridge 收 slash → **直接**调 bind-conversation，绑到当前 thread。不经 supervisor。属于 § 6 D2 slash 首批命令之一。
 
 #### 10.3 用户主动 飞书 @bot 自由文本
 
-"盯一下 T-42" —— Bridge 收消息 → 转 supervisor 解析意图 → supervisor 调 bind-card。烧 LLM；兜底用（用户不知道 slash 命令时仍能用自然语言）。
+"盯一下 T-42" —— Bridge 收消息 → 转 supervisor 解析意图 → supervisor 调 bind-conversation。烧 LLM；兜底用（用户不知道 slash 命令时仍能用自然语言）。
 
 #### 10.4 Center 硬规则兜底（InputRequest fallback）
 
 唯一一个**非用户主动**的自动 bind 场景。触发条件 + 行为：
 
 - 触发：agent 调 `request-input` → 写 InputRequest 行 → 关联 task.conversation_id 为 null
-- 行为：center 内部规则自动调 bind-card，目标 = `notification.default_channel` 配置项指定的渠道
+- 行为：center 内部规则自动调 bind-conversation，目标 = `notification.default_channel` 配置项指定的渠道
 - 默认渠道未配 → InputRequest 创建失败，task fail（reason=`no_input_channel`，配 message）
 
 不引入"普通 progress milestone 自动 bind"。原因：progress 没人看丢了不致命，task 仍能跑完；InputRequest 没人响应 task 会卡死，必须保证有响应通道。
@@ -210,7 +210,7 @@ v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 
 
 ### D. (iii) 按来源决定（本 ADR 采用）
 
-- Pro: a/e 自然 eager、b/c/d 懒创建分清；下游写路径只需 null-safe，懒创建逻辑集中在 `task bind-card` 入口
+- Pro: a/e 自然 eager、b/c/d 懒创建分清；下游写路径只需 null-safe，懒创建逻辑集中在 `task bind-conversation` 入口
 - Con: 规则分两支，但分得合理
 - 选
 
@@ -220,15 +220,15 @@ v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 
 - 改写 [task-runtime/01-task.md](../architecture/tactical/task-runtime/01-task.md) + [02-task-execution.md](../architecture/tactical/task-runtime/02-task-execution.md)：
   - Task aggregate 加 `conversation_id` (nullable)；去掉 ADR-0016 提到的 `bound_card_json` / `bound_card_json_list` 规划
   - DispatchEnvelope 加 `conversation_id` 字段
-  - 新 CLI: `agent-center task bind-card <task_id> --channel=feishu --auto`（懒创建入口）
+  - 新 CLI: `agent-center task bind-conversation <task_id> --channel=feishu --auto`（懒创建入口）
   - 新增 Task 相关事件描述：a 路径下 task.created 与 conversation.opened 同事务发；b/c/d 路径下 task.created 时 conversation_id=null
   - 删除 ADR-0016 提到的 `task.bound_card_requested` / `task.progress_milestone_reached` 事件（不再引入）
 - 改写 [task-runtime/03-input-request.md](../architecture/tactical/task-runtime/03-input-request.md)：
-  - Step 6-7 改写：InputRequest 投递路径 = 写 Message (`kind=agent_finding`, `input_request_ref=<id>`) 到 task.conversation_id；为 null 时 fallback 行为 TBD（可能 supervisor 主动 bind-card 或直接发 user DM）
+  - Step 6-7 改写：InputRequest 投递路径 = 写 Message (`kind=agent_finding`, `input_request_ref=<id>`) 到 task.conversation_id；为 null 时 fallback 行为 TBD（可能 supervisor 主动 bind-conversation 或直接发 user DM）
   - 加 Slash `/answer` 响应路径
 - 改写 [09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md)：
   - § 6 渲染表加：`agent_finding + input_request_ref != null` → 飞书 interactive card with buttons
-  - § 7 Bound Card 机制下移：Issue 的 bound_card 仍按原方式；Task 走"创建时同步建 Conversation"路径（不复用 issue 的 bind-card CLI 名字）；两套机制本质相同但通道不同
+  - § 7 Bound Card 机制下移：Issue 的 bound_card 仍按原方式；Task 走"创建时同步建 Conversation"路径（与 issue 路线对称复用 bind-conversation CLI 命名）；两套机制本质相同但通道不同
   - § 9 D2 Slash 命令前置（新增 `/answer` 处理 + 留口 `/dispatch` 等）
   - 新增 § Task Conversation 创建流程（按 § 7 模板写）
 - 改写 [12-conversation.md](../architecture/tactical/conversation/01-conversation.md)：

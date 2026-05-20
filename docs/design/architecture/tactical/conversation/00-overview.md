@@ -129,7 +129,7 @@
 |---|---|---|
 | Bridge inbound（DM / group thread） | `dm` / `group_thread` / `adhoc` | inbound 时自动建 |
 | TaskRuntime（task 创建同步建路径） | `task` | 同步建（a/e 路径，[ADR-0017](../../../decisions/0017-task-as-conversation.md)）|
-| TaskRuntime（task 创建懒创建路径） | `task` | 后续 `task bind-card` 触发 |
+| TaskRuntime（task 创建懒创建路径） | `task` | 后续 `task bind-conversation` 触发 |
 | Discussion（issue 创建同步建路径） | `issue` | 同步建（[ADR-0021](../../../decisions/0021-issue-as-conversation.md)）|
 | Discussion（issue 创建懒创建路径） | `issue` | 后续 `issue bind-conversation` 触发 |
 | Cognition（supervisor 主动 push） | `dm` / `adhoc` / `notification` | 按需 |
