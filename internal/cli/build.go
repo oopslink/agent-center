@@ -28,6 +28,7 @@ type WriterAlias = io.Writer
 // the --config flag from args before dispatching.
 func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, string, error) {
 	cfgPath := extractConfigFlag(args)
+	SetGlobalConfigPath(cfgPath)
 
 	router := NewRouter("agent-center")
 	router.Root.Summary = "agent-center — single binary, multi-mode CLI (Phase 1)"

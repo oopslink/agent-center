@@ -15,6 +15,15 @@ import (
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
+// globalConfigPath is set by BuildRouter to the value of the global
+// --config flag (extracted from os.Args). System commands fall back to
+// this when their own --config flag is empty.
+var globalConfigPath string
+
+// SetGlobalConfigPath is called by BuildRouter to publish the global
+// --config flag value to the system command handlers.
+func SetGlobalConfigPath(p string) { globalConfigPath = p }
+
 // SystemCommands returns top-level mode + admin commands.
 //
 // `server` / `migrate` actually run; `supervisor` / `worker` /
@@ -166,6 +175,10 @@ func placeholderCommand(name, summary, longHelp string) *Command {
 }
 
 func loadConfigForCLI(path string, flagOverrides map[string]string) (config.Config, error) {
+	// Fall back to globalConfigPath when the local --config wasn't set.
+	if path == "" {
+		path = globalConfigPath
+	}
 	// Drop empty overrides so they don't shadow YAML / env.
 	clean := map[string]string{}
 	for k, v := range flagOverrides {
