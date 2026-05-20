@@ -6,7 +6,7 @@
 
 > **结构定位：** 飞书不是"主入口" —— 它只是众多潜在 vendor 中第一个被支持的。其它 vendor（DingTalk / Web chat / Slack / ...）按同样的 Bridge 模式加入，详见 [roadmap](../../../roadmap.md)。
 >
-> 领域模块（[Conversation](../conversation/01-conversation.md) / [Discussion / Issue](../discussion/01-issue-discussion.md) / [TaskRuntime](../task-runtime/00-overview.md) / [Cognition](../cognition/01-supervisor-model.md)）**不知道飞书是啥**；所有 vendor 集成都在 FeishuBridge 内。
+> 领域模块（[Conversation](../conversation/01-conversation.md) / [Discussion / Issue](../discussion/00-overview.md) / [TaskRuntime](../task-runtime/00-overview.md) / [Cognition](../cognition/01-supervisor-model.md)）**不知道飞书是啥**；所有 vendor 集成都在 FeishuBridge 内。
 >
 > 设计原则见 [conventions § 9.y "外部集成走 Bridge 模式"](../../../../rules/conventions.md#-9y-外部集成走-bridge-模式不在领域模块内调-vendor-sdk)。
 
@@ -54,27 +54,24 @@ VPS 仅需要出站到飞书。
 ```
 FeishuBridge 收到 vendor 事件 (im.message.receive_v1 / card.action.trigger / ...)
    ↓
-路由判断:
-  Step 1: 该 thread/dm 是否绑到某 issue 的 bound_card_json.thread_key?
-    是 → 调 agent-center issue comment <issue_id> --content=... --source-message-ref=<vendor_msg_id>
-         写 IssueComment, **不进 Conversation**
-         ✋ 流程结束
-
-  Step 2: 路由到 Conversation:
-    按 (channel='feishu', vendor_thread_key) 查 conversation
-    找到 → 调 agent-center conversation add-message --id=<conv> --content=... (direction=inbound, vendor_msg_ref=...)
-           （此 lookup 同样命中 kind=task conversation —— 用户在 task thread 内说话由该路径写入；
-            "/answer" / "/track" 等 slash 命令的留痕也走此分支，详见 § 9.1）
-    找不到 → 按 event context 创建新 conversation
-              (DM → kind=dm; 群里 @bot 但无 thread → kind=adhoc; 群里 thread 内 → kind=group_thread)
-              （注意：kind=task conversation **不**由此分支创建 —— 走 § 7.5.1 同步建 / § 7.5.2 懒创建）
-              然后调 conversation add-message 写入
+路由到 Conversation:
+  按 (channel='feishu', vendor_thread_key) 查 conversation
+  找到 → 调 agent-center conversation add-message --id=<conv> --content=... (direction=inbound, vendor_msg_ref=...)
+         （此 lookup 同样命中 kind=task / kind=issue conversation —— 用户在 task / issue thread
+          内说话都由该路径写入；"/answer" / "/track" 等 slash 命令的留痕也走此分支，详见 § 9.1）
+  找不到 → 按 event context 创建新 conversation
+            (DM → kind=dm; 群里 @bot 但无 thread → kind=adhoc; 群里 thread 内 → kind=group_thread)
+            （注意：kind=task / kind=issue conversation **不**由此分支创建 —— 走各自的同步建 / 懒创建路径，
+             详见 § 7.5）
+            然后调 conversation add-message 写入
    ↓
 领域模块写入数据 + emit 事件
 其它 BC 订阅事件做业务 (如 Supervisor 决定是否回复)
 ```
 
 **幂等保证：** 同一 `vendor_msg_ref` 不重复写入（Bridge 内 dedupe）。
+
+> [ADR-0021](../../../decisions/0021-issue-as-conversation.md) 后**取消**了原 [ADR-0009](../../../decisions/0009-issue-conversation-decoupled-via-bridge.md) 的"Step 1: 检查 issue bound_card → 写 IssueComment 不进 Conversation"例外路径。所有 inbound 议事消息统一走 Conversation Message 写入；`kind=issue` Conversation 内的 Message 就是议事讨论本身。
 
 ## § 5. Outbound 流程（系统 → vendor）
 
@@ -84,9 +81,10 @@ FeishuBridge 订阅以下事件：
 |---|---|
 | `conversation.message_added` (direction=outbound) | 投递到对应 conversation 的 feishu thread/dm；按 message.content_kind + input_request_ref 渲染（§ 6） |
 | `conversation.opened` (kind=task) | 发 Task root card 到适合位置 → 回写 `primary_channel_thread_key`（详见 § 7.5.1） |
-| `issue.comment_added` | 查 issue.bound_card_json → 有 bound thread → 投递到该 thread |
-| `issue.opened` | 决策（按 `agent-center issue bind-card --auto`）：是否自动发 issue card？ |
+| `conversation.opened` (kind=issue) | 发 Issue root card 到适合位置 → 回写 `primary_channel_thread_key`（详见 § 7.5.2；同 kind=task 模板） |
 | `input_request.responded` / `input_request.timed_out` / `input_request.canceled` | update_card 置灰 + 显示终态文案（详见 [03-input-request.md § 完整流程](../task-runtime/03-input-request.md)）|
+
+> [ADR-0021](../../../decisions/0021-issue-as-conversation.md) 后**删除**：原订阅 `issue.comment_added`（查 bound_card 投递）/ `issue.opened`（自动 bind-card 决策）/ `issue.bound_card_requested` / `issue.channel_binding_requested`（[ADR-0020](../../../decisions/0020-card-confined-to-bridge-bc.md) 中间方案，未实施）。Issue 议事消息走 `conversation.message_added` (kind=issue) 路径，跟 Task 完全对称。
 
 投递逻辑：
 
@@ -101,6 +99,8 @@ FeishuBridge 订阅到 conversation.message_added 事件
   - supervisor_summary → 富卡片 (含按钮: 确认 / 改 / 不做)
   - agent_finding + input_request_ref ≠ null → interactive card with buttons
     (join InputRequest 取 options 渲染 [A][B][自己写][取消])
+  - conclusion_draft → 富卡片 (含按钮: [确认结论] [改后确认] [不做]; Issue conclude flow)
+  - task_proposal → 简单卡片或普通消息 (议事中草案条目)
    ↓
 调飞书 SDK 投递:
   - 成功 → 回填 message.vendor_msg_ref；emit channel.delivered
@@ -112,31 +112,31 @@ FeishuBridge 订阅到 conversation.message_added 事件
 | content_kind | input_request_ref | 飞书形态 | 说明 |
 |---|---|---|---|
 | `text` | — | text message | markdown |
-| `system` | — | small interactive card | 包含简短文本 + 标签（如 "Issue #7 已开" / "Task #42 created"）|
+| `system` | — | small interactive card | 包含简短文本 + 标签（如 "Issue #7 已开" / "Task #42 created" / "已 spawn task #X / #Y"）|
 | `agent_finding` | null | text message | 跟 text 类似，标签上注明来自 agent / worker |
 | `agent_finding` | **≠ null** | rich interactive card with buttons | join InputRequest 取 options → 渲染 [选项 A][B][自己写][取消] 按钮；状态变化时 update_card 置灰（详见 [03-input-request.md 完整流程](../task-runtime/03-input-request.md) 与 [ADR-0017 § 5](../../../decisions/0017-task-as-conversation.md)） |
-| `supervisor_summary` | — | rich interactive card | 含按钮：[确认结论] [改后确认] [不做] |
+| `supervisor_summary` | — | rich interactive card | 含按钮（task 完成 / abandon 等场景） |
+| `conclusion_draft` | — | rich interactive card | Issue conclude flow 专用：渲染 supervisor 写的结论草案（含建议 Task spawn 列表）+ [确认结论] [改后确认] [不做] 按钮（详见 [ADR-0021 § 10](../../../decisions/0021-issue-as-conversation.md)） |
+| `task_proposal` | — | small card / text message | Issue 议事中的"建议 spawn Task"条目（独立于 conclusion_draft，做草案讨论时用）|
 
 具体卡片模板由 FeishuBridge 内置；不由领域模块定义。
 
-## § 7. Bound Card 机制（Issue）
+## § 7. Issue / Task Conversation 创建流程（统一模板）
 
-`agent-center issue bind-card <issue_id> --channel=feishu --auto`：
+[ADR-0021](../../../decisions/0021-issue-as-conversation.md) 后 Issue 跟 Task 路线**完全对称**：
 
-- Discussion BC emit `issue.bound_card_requested` 事件
-- FeishuBridge 订阅 → 在适合位置（user 的 DM / 同 conversation 所在群）发一张 "Issue card"（含 issue 元信息 + 操作按钮）
-- 取到 vendor 返回的 message_id + 形成 thread_key
-- 调 Discussion BC API 回写 `issue.bound_card_json`
+- 都是 `kind=task` / `kind=issue` Conversation 1:1
+- 都通过 Bridge 发 root card 形成 thread root → 回写 `primary_channel_thread_key`
+- 所有领域 IO 都在该 Conversation 内的 Message 时间线呈现
+- 没有"Bound Card"独立概念（[ADR-0021 § 6](../../../decisions/0021-issue-as-conversation.md) 显式删除）
 
-后续 bound thread 内的 inbound / outbound 走 § 4 / § 5 的 "bound thread 特殊路由"。
+下面 § 7.5 流程同时适用于 Task / Issue，差异在 Conversation kind 标识 + 卡片模板内容；其它机制完全一致。
 
-详见 [03-issue-discussion.md § Bound Card 机制](../discussion/01-issue-discussion.md#bound-card-机制)。
-
-## § 7.5 Task Conversation 创建流程
-
-跟 § 7 Issue Bound Card 同构但通道独立：Task 的"卡片"是 `kind=task` Conversation 的 root message + 后续 thread，所有 task IO 都在同一 thread 内时间线呈现（见 [ADR-0017](../../../decisions/0017-task-as-conversation.md)）。
+## § 7.5 Conversation 创建流程
 
 ### § 7.5.1 同步建（飞书用户 @bot 直接发起；a 路径）
+
+**Task 案例：**
 
 ```
 t0  用户在飞书 DM / 群里 @bot："帮我写个 xxx"
@@ -160,7 +160,29 @@ t4+ 后续 supervisor 分析 / worker 进展 / 用户回应都流进同一 threa
      conversation add-message 写 agent_finding，详见 [02-task-execution.md § 9.6 进度上报 milestone](../task-runtime/02-task-execution.md)）
 ```
 
+**Issue 案例**（同模板，差异仅在第 1/3 步内容）：
+
+```
+t0  用户在飞书 DM / 群里 @bot："讨论一下 worker 注册要不要做自动化"
+t0  FeishuBridge 收 im.message.receive_v1 → inbound 写 Message 到 dm/group_thread conversation
+t1  Supervisor wake → 决定开 Issue → 单事务:
+      a. Discussion BC create Issue
+      b. Conversation BC create Conversation (kind=issue) + 关联 channel binding
+      c. Issue.conversation_id ← Conversation.id
+      d. emit issue.opened + conversation.opened
+t2  Bridge 订阅 conversation.opened (kind=issue):
+      - 发 Issue root card → 形成 thread root → 回写 primary_channel_thread_key
+t3  Supervisor 立即写一条 Message:
+      kind=supervisor_summary, content="收到议题，欢迎讨论 / 我先盘了下相关上下文是..."
+      → Bridge 投递到 issue thread
+t4+ 用户和 supervisor 后续讨论 / agent finding / conclusion_draft 都流进同一 thread
+```
+
+详见 [ADR-0021 § 1 / § 10](../../../decisions/0021-issue-as-conversation.md)。
+
 ### § 7.5.2 懒创建（b/c/d 路径触发）
+
+**Task**：
 
 | 触发 | 处理 |
 |---|---|
@@ -170,18 +192,33 @@ t4+ 后续 supervisor 分析 / worker 进展 / 用户回应都流进同一 threa
 | 飞书 @bot 自由文本 "盯一下 T-42" | Bridge 写 inbound Message → supervisor wake → 解析意图 → 调 `task bind-card`（烧 LLM；兜底用）|
 | Center 硬规则 fallback（InputRequest） | agent 调 request-input 且 task.conversation_id=null → center 自动 bind 到 `notification.default_channel`（[ADR-0017 § 10.4](../../../decisions/0017-task-as-conversation.md)）|
 
+**Issue**（同模板，CLI 命令名 `task bind-card` → `issue bind-conversation`；v1 不引入 InputRequest fallback 等价物）：
+
+| 触发 | 处理 |
+|---|---|
+| CLI `issue bind-conversation <issue_id> --channel=feishu --to=<conv_id>` | center 直接绑既有 conversation；Bridge 不动作 |
+| CLI `issue bind-conversation <issue_id> --channel=feishu --auto` | center 新建 kind=issue Conversation + emit `conversation.opened` → Bridge 发 Issue root card 到 `notification.default_channel`（或 CLI 指定的渠道）|
+| 飞书 slash `/track-issue <issue_id>` | v2 推迟（[roadmap](../../../roadmap.md)）|
+| 飞书 @bot 自由文本 "盯一下 Issue #7" | Bridge 写 inbound Message → supervisor wake → 解析意图 → 调 `issue bind-conversation`（烧 LLM；兜底用）|
+
 ### § 7.5.3 关闭
 
-Task `done` / `abandoned` → Conversation BC 把对应 kind=task conversation `status=closed`（保留全部历史，v1 不删；用户翻飞书 thread 仍能看）。Bridge 不主动 update_card 或发"已完成"消息；这一类 finish summary 由 supervisor 主动写一条 Message 完成（普通 outbound 流程）。
+- **Task** `done` / `abandoned` → Conversation BC 把 kind=task conversation `status=closed`
+- **Issue** `concluded` / `closed_no_action` / `closed_with_tasks` / `withdrawn` → Conversation BC 把 kind=issue conversation `status=closed`
 
-### § 7.5.4 跟 § 7 Issue Bound Card 的差异
+保留全部历史，v1 不删；用户翻飞书 thread 仍能看。Bridge 不主动 update_card 或发"已完成"消息；这一类 finish summary 由 supervisor 主动写一条 Message 完成（普通 outbound 流程）。
 
-| 维度 | Issue Bound Card（§ 7） | Task Conversation（§ 7.5） |
+### § 7.5.4 用户认知差异
+
+虽然机制完全对称，用户视角的区分清晰：
+
+| 维度 | Task | Issue |
 |---|---|---|
-| 模型 | Issue 聚合 + `bound_card_json` 字段记录 vendor thread | Task ↔ Conversation 1:1（task.conversation_id 引用 Conversation 聚合） |
-| Inbound 写哪 | bound thread 内的 vendor message → `issue comment`（IssueComment 表）| task conversation 内的 vendor message → `conversation add-message`（Message 表） |
-| 是否独立 thread root | 是（Issue card 是 thread root） | 是（Task root card 是 thread root） |
-| 用户认知 | "讨论一件事" | "做一件事" |
+| Conversation kind | `task` | `issue` |
+| 用户认知 | "做一件事" | "讨论一件事" |
+| Card 头标签 | "Task #42 / 状态 / project" | "Issue #7 / 状态 / project" |
+| 典型 Message kind | text / agent_finding (含 input_request_ref) / supervisor_summary / system | text / supervisor_summary / conclusion_draft / task_proposal / system |
+| 结束触发 | task.done / abandoned / etc. | issue.concluded / closed_* / withdrawn |
 
 ## § 8. 接收事件类型（v1 订阅清单）
 
@@ -234,7 +271,7 @@ Slash 命令的核心特征：**Bridge 直接调对应领域 API + 写一条 Mes
 
 ## § 12. 飞书是无状态通道
 
-- **状态权威永远在 agent-center 领域模块**（Issue / Conversation / Message / IssueComment）
+- **状态权威永远在 agent-center 领域模块**（Issue / Conversation / Message）
 - 飞书 thread 内的每条消息都同步写入领域模块
 - 飞书侧若失踪 / 重启 / 改版，agent-center 仍可从领域数据恢复历史
 
