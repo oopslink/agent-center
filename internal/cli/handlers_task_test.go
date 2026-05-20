@@ -314,6 +314,102 @@ func TestCLI_AgentReportPaths(t *testing.T) {
 	}
 }
 
+func TestCLI_KillExecution_Happy(t *testing.T) {
+	app := newTestApp(t)
+	seedProjectAndWorker(t, app)
+	createCmd := findCmd(app.TaskCommands(), "create")
+	_, out, _ := runTaskHandler(t, createCmd, []string{"p-1", "x", "--format=json"})
+	var created struct {
+		TaskID string `json:"task_id"`
+	}
+	_ = json.Unmarshal([]byte(out), &created)
+	dispatch := app.DispatchCommand()
+	_, dispOut, _ := runTaskHandler(t, dispatch, []string{created.TaskID, "--worker=W-1", "--format=json"})
+	var execOut struct {
+		ExecutionID string `json:"execution_id"`
+	}
+	_ = json.Unmarshal([]byte(dispOut), &execOut)
+	kc := app.KillExecutionCommand()
+	code, ioOut, errw := runTaskHandler(t, kc, []string{execOut.ExecutionID, "--reason=user_request", "--message=stop", "--format=json"})
+	if code != int(ExitOK) {
+		t.Fatalf("code: %d / err: %s", code, errw)
+	}
+	if !strings.Contains(ioOut, "kill_requested") {
+		t.Fatalf("out: %s", ioOut)
+	}
+}
+
+func TestCLI_KillExecution_NotFound(t *testing.T) {
+	app := newTestApp(t)
+	seedProjectAndWorker(t, app)
+	kc := app.KillExecutionCommand()
+	code, _, _ := runTaskHandler(t, kc, []string{"E-NONE", "--reason=user_request", "--message=stop", "--format=json"})
+	if code != int(ExitNotFound) {
+		t.Fatalf("code: %d", code)
+	}
+}
+
+func TestCLI_TaskBindConversation_ToExistingConv(t *testing.T) {
+	app := newTestApp(t)
+	seedProjectAndWorker(t, app)
+	createCmd := findCmd(app.TaskCommands(), "create")
+	_, out1, _ := runTaskHandler(t, createCmd, []string{"p-1", "first", "--format=json"})
+	var created1 struct {
+		ConversationID string `json:"conversation_id"`
+	}
+	_ = json.Unmarshal([]byte(out1), &created1)
+	_, out2, _ := runTaskHandler(t, createCmd, []string{"p-1", "second", "--no-conversation=true", "--format=json"})
+	var created2 struct {
+		TaskID string `json:"task_id"`
+	}
+	_ = json.Unmarshal([]byte(out2), &created2)
+	bind := findCmd(app.TaskCommands(), "bind-conversation")
+	code, _, _ := runTaskHandler(t, bind, []string{created2.TaskID, "--to=" + created1.ConversationID, "--format=json"})
+	if code != int(ExitOK) {
+		t.Fatalf("bind: %d", code)
+	}
+}
+
+func TestCLI_ReadTaskContext_NotFound(t *testing.T) {
+	app := newTestApp(t)
+	seedProjectAndWorker(t, app)
+	rt := findCmd(app.AgentRuntimeCommands(), "read-task-context")
+	code, _, _ := runTaskHandler(t, rt, []string{"T-NONE"})
+	if code != int(ExitNotFound) {
+		t.Fatalf("code: %d", code)
+	}
+}
+
+func TestCLI_AgentReports_UnknownExecution(t *testing.T) {
+	app := newTestApp(t)
+	seedProjectAndWorker(t, app)
+	rp := findCmd(app.AgentRuntimeCommands(), "report-progress")
+	code, _, _ := runTaskHandler(t, rp, []string{"E-NONE", "--content=hello"})
+	if code != int(ExitNotFound) {
+		t.Fatalf("code: %d", code)
+	}
+	rf := findCmd(app.AgentRuntimeCommands(), "report-failure")
+	code, _, _ = runTaskHandler(t, rf, []string{"E-NONE", "--message=oops"})
+	if code != int(ExitNotFound) {
+		t.Fatalf("code: %d", code)
+	}
+	ri := findCmd(app.AgentRuntimeCommands(), "request-input")
+	code, _, _ = runTaskHandler(t, ri, []string{"E-NONE", "--question=hi"})
+	if code != int(ExitNotFound) {
+		t.Fatalf("code: %d", code)
+	}
+	ra := findCmd(app.AgentRuntimeCommands(), "report-artifact")
+	code, _, _ = runTaskHandler(t, ra, []string{"E-NONE", "--kind=k", "--title=t"})
+	if code != int(ExitNotFound) {
+		t.Fatalf("code: %d", code)
+	}
+	// Invalid urgency
+	code, _, _ = runTaskHandler(t, ri, []string{"E-1", "--question=hi", "--urgency=garbage"})
+	if code != int(ExitUsage) {
+		t.Fatalf("expected usage on bad urgency: %d", code)
+	}
+}
+
 func TestCLI_RequestInput_WithConversation(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)

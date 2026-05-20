@@ -66,39 +66,25 @@ type OSStartTimer struct{}
 // GetStartTime reads the process start_time using the OS-native method.
 // Unimplemented platforms return ErrUnsupportedPlatform.
 func (OSStartTimer) GetStartTime(pid int) (time.Time, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		// `ps -o lstart= -p <pid>` returns e.g. "Sat May 21 12:00:00 2026"
-		out, err := exec.Command("ps", "-o", "lstart=", "-p", fmt.Sprintf("%d", pid)).Output()
-		if err != nil {
-			return time.Time{}, err
-		}
-		s := strings.TrimSpace(string(out))
-		if s == "" {
-			return time.Time{}, nil
-		}
-		t, err := time.Parse("Mon Jan _2 15:04:05 2006", s)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("parse lstart %q: %w", s, err)
-		}
-		return t, nil
-	default:
-		// linux + others fall back to ps for portability (small overhead
-		// per call but Phase 2 traffic is low).
-		out, err := exec.Command("ps", "-o", "lstart=", "-p", fmt.Sprintf("%d", pid)).Output()
-		if err != nil {
-			return time.Time{}, err
-		}
-		s := strings.TrimSpace(string(out))
-		if s == "" {
-			return time.Time{}, nil
-		}
-		t, err := time.Parse("Mon Jan _2 15:04:05 2006", s)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("parse ps lstart %q: %w", s, err)
-		}
-		return t, nil
+	_ = runtime.GOOS // both darwin and linux fall through to the same `ps` call
+	out, err := exec.Command("ps", "-o", "lstart=", "-p", fmt.Sprintf("%d", pid)).Output()
+	if err != nil {
+		return time.Time{}, err
 	}
+	return parsePSLStart(string(out))
+}
+
+// parsePSLStart parses the output of `ps -o lstart= -p <pid>`.
+func parsePSLStart(raw string) (time.Time, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse("Mon Jan _2 15:04:05 2006", s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse ps lstart %q: %w", s, err)
+	}
+	return t, nil
 }
 
 // ErrUnsupportedPlatform is returned when start_time lookup isn't

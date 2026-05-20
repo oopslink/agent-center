@@ -247,3 +247,21 @@ func TestShim_CopyAgentLog(t *testing.T) {
 		t.Fatalf("got %s", dst.String())
 	}
 }
+
+func TestShim_ProcessGetter(t *testing.T) {
+	d, _ := NewDir(t.TempDir(), "E-1")
+	s, _ := New(Config{
+		ExecutionID: "E-1", ShimToken: "t", Adapter: claudecode.New(""), Dir: d,
+		Spawner: stubSpawner{out: ""}, Clock: clock.NewFakeClock(time.Now()),
+		SpawnRequest: agentadapter.SpawnRequest{ExecutionID: "E-1", Prompt: "hi"},
+	})
+	if s.Process() != nil {
+		t.Fatal("expected nil before start")
+	}
+	if err := s.Start(context.Background(), []byte(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	if s.Process() == nil {
+		t.Fatal("expected non-nil after start")
+	}
+}

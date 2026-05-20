@@ -84,3 +84,20 @@ func TestOSStartTimer_RunsForSelf(t *testing.T) {
 func testProcessPID() int {
 	return testSelfPID()
 }
+
+func TestParsePSLStart(t *testing.T) {
+	got, err := parsePSLStart("Sat May 21 12:00:00 2026")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.IsZero() {
+		t.Fatal("expected non-zero")
+	}
+	got, err = parsePSLStart("")
+	if err != nil || !got.IsZero() {
+		t.Fatalf("expected zero: %v / %v", got, err)
+	}
+	if _, err := parsePSLStart("not-a-date"); err == nil {
+		t.Fatal("expected parse err")
+	}
+}

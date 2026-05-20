@@ -291,6 +291,58 @@ func TestRehydrate(t *testing.T) {
 	}
 }
 
+func TestEtaAt_NonNilDefensiveCopy(t *testing.T) {
+	eta := ref.Add(time.Hour)
+	e, err := New(NewInput{
+		ID: "E-1", TaskID: "T", WorkerID: "W", AgentCLI: "c",
+		WorkspaceMode: WorkspaceDirect, EtaAt: &eta, Now: ref,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := e.EtaAt()
+	if got == nil || !got.Equal(eta) {
+		t.Fatalf("eta mismatch: %v", got)
+	}
+	*got = ref
+	if e.EtaAt().Equal(ref) {
+		t.Fatal("expected defensive copy")
+	}
+}
+
+func TestExecutionTimeoutOverride_NonNilDefensiveCopy(t *testing.T) {
+	d := 90 * time.Minute
+	e, err := New(NewInput{
+		ID: "E-1", TaskID: "T", WorkerID: "W", AgentCLI: "c",
+		WorkspaceMode: WorkspaceDirect, ExecutionTimeoutOverride: &d, Now: ref,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := e.ExecutionTimeoutOverride()
+	if got == nil || *got != 90*time.Minute {
+		t.Fatalf("override: %v", got)
+	}
+	*got = time.Second
+	if v := e.ExecutionTimeoutOverride(); *v == time.Second {
+		t.Fatal("expected defensive copy")
+	}
+}
+
+func TestSetBranchNameAndIsActive(t *testing.T) {
+	e := mkSubmitted(t)
+	if !e.Status().IsActive() {
+		t.Fatal("submitted is active")
+	}
+	if StatusCompleted.IsActive() {
+		t.Fatal("completed is not active")
+	}
+	e.SetBranchName("task/E-1")
+	if e.BranchName() != "task/E-1" {
+		t.Fatalf("branch: %s", e.BranchName())
+	}
+}
+
 func TestAccumulateWorking(t *testing.T) {
 	e := mkSubmitted(t)
 	e.AccumulateWorking(100)

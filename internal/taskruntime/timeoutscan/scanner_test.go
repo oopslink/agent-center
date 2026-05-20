@@ -213,6 +213,56 @@ func TestActorValidation(t *testing.T) {
 	}
 }
 
+func TestTick_SkipsTerminalExecutions(t *testing.T) {
+	h := setupHarness(t)
+	seedTaskAndExec(t, h, "T-1", "E-1", execution.StatusSubmitted, h.clk.Now())
+	// Mark terminal before scan
+	e, _ := h.execRepo.FindByID(context.Background(), "E-1")
+	_ = e.MarkFailed(execution.FailedAgentCrashed, "boom", h.clk.Now())
+	if err := h.execRepo.Update(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	h.clk.Advance(10 * time.Minute)
+	if err := h.scanner.Tick(context.Background(), "system"); err != nil {
+		t.Fatal(err)
+	}
+	// Should remain failed (not re-flipped)
+	e2, _ := h.execRepo.FindByID(context.Background(), "E-1")
+	if e2.Status() != execution.StatusFailed {
+		t.Fatalf("status: %s", e2.Status())
+	}
+}
+
+func TestHandleWorkerOffline_TerminalSkipped(t *testing.T) {
+	h := setupHarness(t)
+	seedTaskAndExec(t, h, "T-1", "E-1", execution.StatusWorking, h.clk.Now())
+	// Mark terminal so HandleWorkerOffline shouldn't double-fail
+	e, _ := h.execRepo.FindByID(context.Background(), "E-1")
+	_ = e.MarkFailed(execution.FailedAgentCrashed, "boom", h.clk.Now())
+	if err := h.execRepo.Update(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.scanner.HandleWorkerOffline(context.Background(), "W-1", "system"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTick_ExecutionTimeoutSkipsNonWorking(t *testing.T) {
+	h := setupHarness(t)
+	seedTaskAndExec(t, h, "T-1", "E-1", execution.StatusSubmitted, h.clk.Now())
+	// Submitted but past 6h won't trigger execution_timeout (only working
+	// state matters)
+	h.clk.Advance(7 * time.Hour)
+	if err := h.scanner.Tick(context.Background(), "system"); err != nil {
+		t.Fatal(err)
+	}
+	// Since submitted_timeout (5min) also triggers, exec → failed
+	e, _ := h.execRepo.FindByID(context.Background(), "E-1")
+	if e.Status() != execution.StatusFailed || e.FailedReason() != execution.FailedSubmittedTimeout {
+		t.Fatalf("expected submitted_timeout, got %s/%s", e.Status(), e.FailedReason())
+	}
+}
+
 func TestRun_ContextCancel(t *testing.T) {
 	h := setupHarness(t)
 	h.scanner.cfg.TickInterval = 10 * time.Millisecond

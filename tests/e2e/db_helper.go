@@ -43,3 +43,29 @@ func queryDB(t *testing.T, path, query string) []map[string]string {
 	}
 	return out
 }
+
+// eventRow is a typed projection of one row in `events`.
+type eventRow struct {
+	ID        string
+	EventType string
+	Actor     string
+	Refs      string
+	Payload   string
+}
+
+// readEvents reads all rows from the events table in occurred_at order.
+func readEvents(t *testing.T, path string) []eventRow {
+	t.Helper()
+	raw := queryDB(t, path, "SELECT id, event_type, actor, refs, payload FROM events ORDER BY occurred_at")
+	out := make([]eventRow, len(raw))
+	for i, r := range raw {
+		out[i] = eventRow{
+			ID:        r["id"],
+			EventType: r["event_type"],
+			Actor:     r["actor"],
+			Refs:      r["refs"],
+			Payload:   r["payload"],
+		}
+	}
+	return out
+}
