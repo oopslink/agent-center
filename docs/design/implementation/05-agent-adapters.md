@@ -122,9 +122,30 @@ const (
 )
 ```
 
-**Unknown 处理**：CLI 升级新增事件类型时，adapter 不认识 → 归到 `EventUnknown`，`Raw` 字段保留完整原文。**不抛错**，让升级不阻塞业务路径（[ADR-0002 § "受 CLI 升级影响"](../decisions/0002-no-llm-sdk-use-cli-agents.md)）。
+### 3.1 Unknown event 处理（observable degrade，不吞）
 
-**TaskExecution projection** 由 worker daemon 边读规范化 event 边维护（[02-persistence-schema § 8.2](02-persistence-schema.md)）；事件本身**不进 events 表**（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）。
+CLI 升级新增事件类型时 adapter 不认识。按 [conventions § 17](../../rules/conventions.md) **错误不许吞** —— 必须显式处理：
+
+| 步骤 | 动作 |
+|---|---|
+| 1. 归类 | 行入 `EventUnknown`，`Raw` 保完整原文 |
+| 2. 归档 | 跟其它 event 一样 append 到 events.jsonl + BlobStore 归档 |
+| 3. **显式上报** | worker daemon emit `agent_adapter.unknown_event_seen { adapter_name, cli_type_field, sample_raw, first_seen_at, message }` 到 events 表（[NF9 同事务双写](../requirements/02-non-functional.md)）|
+| 4. 去重 | 同一 `(adapter_name, cli_type_field)` 在单次 execution 内只 emit 一次，防刷屏 |
+| 5. Escalate | events 表 query：某 type 在 24h 内出现 ≥ 阈值 → supervisor invocation 评估升 adapter 优先级 |
+| 6. Per-execution 上限 | 单 execution 内 ≥ N 条 Unknown → emit `task_execution.warning { reason=adapter_significantly_behind, message }`，supervisor 决策是否 kill 重派 |
+
+**不阻断业务路径**（避免 CLI 升级 = worker 全停摆），**但显式可见** —— 运营 / supervisor 能看见，能 react，不是黑洞。
+
+### 3.2 真正抛错的情况
+
+| 情况 | 处理 |
+|---|---|
+| JSON 语法非法（缺括号 / 引号没闭等） | adapter 累计计数；单次 execution 内 ≥ N 条 → emit `task_execution.failed(reason=jsonl_parse_error)` |
+| JSON 合法但 `type` 已知字段缺失到无法构造（如 `tool_use` 缺 `name`）| 降级为 `EventUnknown` + 走 § 3.1 路径；**不**直接 fail（结构 noisy 但有损信号有救） |
+| Adapter 内部 panic（如类型断言失败）| `recover` + emit `task_execution.failed(reason=adapter_internal_error)` |
+
+**TaskExecution projection** 由 worker daemon 边读规范化 event 边维护（[02-persistence-schema § 8.2](02-persistence-schema.md)）；agent trace event 本身**不进 events 表**（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)），但 § 3.1 的 `agent_adapter.unknown_event_seen` 是 worker daemon 自己的 domain event，**进 events 表**（它是 BC-level 信号，不是 agent trace）。
 
 ---
 

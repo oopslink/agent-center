@@ -325,6 +325,7 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 - [ ] 测试（§14）：单元行覆盖 ≥ 90%（整体 + diff）；测试计划 + 报告齐全且条目 1:1 对齐；关键路径 e2e；详情见 [testing.md](testing.md)
 - [ ] 可测性（§14.x）：外部依赖可注入、异常路径可 mock、无 sleep / 真连外部服务
 - [ ] reason + message 双字段（§16）：所有带 `reason` 的事件 / 字段同时携带 `message`
+- [ ] 错误不吞（§17）：每个 `if err != nil` 分支要么 emit event / 改状态 / 通知 caller，要么 return err；log 不算处理；未知协议字段必须显式 emit
 
 任何一项 ❌ → 退回修改。
 
@@ -354,3 +355,45 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 - 正常状态机迁移（如 `task_execution.working`）
 
 **自检：** 我新加的字段 / 事件里有 `reason` 吗？是的话配 `message` 了吗？
+
+## § 17. 错误显式化：处理 or 抛出，**不允许吞**
+
+每个错误必须明示一种**显式动作**：
+
+1. **处理** —— 捕获 + 做出 explicit 决定：emit domain event / 改变状态 / 转化业务结果 / 降级 / 重试 / 通知 caller 之一。**决定本身可观测**（与 [§ 2 可观测性](#-2-可观测性优先-observability-first) 对齐）。
+2. **抛出** —— `return err` / `panic` 上传到能做决定的层。
+
+**禁止的反模式**：
+
+- `_ = err` / 显式丢弃
+- `if err != nil { return nil }` —— 把错误转成 nil 给上游
+- `if err != nil { log.Println(err) }` 然后继续 —— **log 不算处理**（容易被忽略，不可发现）
+- 默认值兜底掩盖错误（解析失败返回 zero value）
+- 未知协议 / 字段 / 类型当 noop 不上报（如 JSONL 未知 event type 直接归 Unknown 不 emit observability event）
+- catch-all 不区分已知 / 未知错误
+- 超时 / cancel 后假装成功
+
+**为什么**：吞错让业务带病运行**没人知道**，是最难排查的错误模式 —— 排查时只能看见结果偏差找不到原因。直接违反 § 2 可观测性。
+
+**怎么算"处理"**：
+
+| 动作 | 算处理吗 |
+|---|---|
+| emit domain event 进 events 表 | ✅ |
+| 改变状态机（如 → `failed(reason=...)`）| ✅ |
+| 转化业务结果 + 业务事件（如 `unauthorized` → 登录页 + emit）| ✅ |
+| 通过 return err 让 caller 处理 | ✅（caller 必须接） |
+| 仅 log | ❌ |
+| 仅 metrics counter +1 | ❌（要 emit event）|
+| 返回默认值 / nil | ❌ |
+
+**例外白名单**（极少数）：
+
+- **best-effort cleanup**（如 `defer Close()` 错误）：可仅 log 不 emit，但**必须 log**，且仅限 cleanup 路径
+- 已确认 deduplicate 后的 ignorable repeat（同一 reason 在短时间内重复出现）：可去重，但**首次必须 emit**
+
+**自检：**
+
+- 我每个 `if err != nil` 分支做了什么？符合上表"算处理"哪一行？
+- 我的解析 / 协议层遇到未知字段 / 未知类型 / 未知 reason 时上报了吗？
+- 我有没有 silently 返回默认值掩盖错误？
