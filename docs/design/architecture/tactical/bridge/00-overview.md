@@ -135,15 +135,47 @@
 
 ## § 5. Repositories（X.5）
 
-| Repository | 主表 / 物理形态 | 主要操作 |
-|---|---|---|
-| **FeishuDeliveryLedgerRepository** | `feishu_delivery_ledger` 表 | append / findByMessageId / updateDeliveryStatus |
-| **VendorConnectionState** | in-memory + 持久化 reconnect token | 长连接状态管理（WebSocket）|
+> **Bridge BC 无业务聚合**（[§ 1](#-1-聚合清单x1) 已明示）。本节列的是 Bridge ACL 内部 audit / vendor state 抽象 —— 严格说不算 DDD Repository（不持业务实体），但形态相同：领域层定接口，实现层落 vendor SDK / SQL 细节。
 
-**约定**：
+### 5.1 FeishuDeliveryLedgerRepository（ACL 审计）
 
-- 这些都是 Bridge 内部 audit / vendor state；不参与领域决策
+```go
+type FeishuDeliveryLedgerRepository interface {
+    Append(ctx context.Context, l *FeishuDeliveryLedger) error                                              // 投递时记录
+    FindByMessageID(ctx context.Context, messageID MessageID) (*FeishuDeliveryLedger, error)
+    UpdateDeliveryStatus(ctx context.Context, messageID MessageID, vendorMsgRef string, status DeliveryStatus, lastError string) error
+}
+
+// Domain errors
+var (
+    ErrLedgerNotFound = errors.New("bridge: delivery ledger not found")
+    ErrLedgerDuplicate = errors.New("bridge: ledger entry for message_id already exists")
+)
+```
+
+### 5.2 VendorConnectionState（in-memory + reconnect token 持久化）
+
+```go
+type VendorConnectionState interface {
+    GetConnectionStatus(ctx context.Context) ConnectionStatus                       // connected / disconnected / reconnecting
+    SaveReconnectToken(ctx context.Context, token string, expiresAt time.Time) error
+    LoadReconnectToken(ctx context.Context) (string, time.Time, error)
+    ClearReconnectToken(ctx context.Context) error
+}
+
+// Domain errors
+var (
+    ErrReconnectTokenExpired = errors.New("bridge: reconnect token expired")
+    ErrVendorDisconnected    = errors.New("bridge: vendor connection lost")
+)
+```
+
+### 5.3 约定
+
+- 这些都是 Bridge 内部 audit / vendor state；**不参与领域决策**
 - 跟 [strategic § BC7 注释](../../strategic/03-bounded-contexts.md)"无业务表；各 Bridge 实现可有自己的小审计表"对齐
+- Repository 接口在 Bridge BC 内定义（per vendor 实现）；实现层 vendor SDK / SQL schema 落到 [01-feishu-integration.md](01-feishu-integration.md) + [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---
 

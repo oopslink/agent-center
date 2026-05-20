@@ -150,14 +150,90 @@
 
 ## § 5. Repositories（X.5）
 
-**接口签名 TBD**，schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。
+接口签名（Go-style，含 `ctx context.Context` 参数；架构层契约，跟实现解耦）：
 
-| Repository | 主表 | 主要操作 |
-|---|---|---|
-| **ConversationRepository** | `conversations` | findById / findByKind / findByChannelAndThreadKey（Bridge inbound 反查）/ save / updateStatus / updatePrimaryChannel |
-| **MessageRepository**（or sub-repo of Conversation）| `messages` | findByConversationId / findByVendorMsgRef（dedupe）/ append / findRecent（read N 条）|
-| **IdentityRepository** | `identities` | findById / findByKind / save |
-| **ChannelBindingRepository**（or sub-repo of Identity）| `channel_bindings` | findByIdentityId / findByVendorUserId（Bridge inbound 反查）/ save / delete |
+### 5.1 ConversationRepository
+
+```go
+type ConversationRepository interface {
+    FindByID(ctx context.Context, id ConversationID) (*Conversation, error)
+    FindByKind(ctx context.Context, kind ConversationKind, status ConversationStatus) ([]*Conversation, error)
+    FindByChannelAndThreadKey(ctx context.Context, channel string, threadKey string) (*Conversation, error)  // Bridge inbound 反查
+    Save(ctx context.Context, c *Conversation) error
+    UpdateStatus(ctx context.Context, id ConversationID, from, to ConversationStatus) error
+    UpdatePrimaryChannel(ctx context.Context, id ConversationID, channel, threadKey string) error           // Bridge 回写 root card thread_key
+}
+
+// Domain errors
+var (
+    ErrConversationNotFound          = errors.New("conversation: conversation not found")
+    ErrConversationAlreadyExists     = errors.New("conversation: (channel, thread_key) already maps to existing conversation")
+    ErrConversationClosed            = errors.New("conversation: conversation is closed, cannot accept new message")
+    ErrConversationInvalidKind       = errors.New("conversation: invalid kind for operation")
+)
+```
+
+### 5.2 MessageRepository（sub-repo of Conversation）
+
+```go
+type MessageRepository interface {
+    FindByConversationID(ctx context.Context, conversationID ConversationID, filter MessageFilter) ([]*Message, error)
+    FindByVendorMsgRef(ctx context.Context, channel string, vendorMsgRef string) (*Message, error)        // inbound dedupe
+    FindRecent(ctx context.Context, conversationID ConversationID, n int) ([]*Message, error)             // supervisor read context
+    Append(ctx context.Context, m *Message) error                                                          // append-only；INSERT 后不修改
+    UpdateVendorMsgRef(ctx context.Context, id MessageID, vendorMsgRef string) error                       // outbound 投递成功后回填
+}
+
+// Domain errors
+var (
+    ErrMessageNotFound       = errors.New("conversation: message not found")
+    ErrMessageDuplicate      = errors.New("conversation: vendor_msg_ref duplicate (inbound dedupe)")
+    ErrMessageImmutable      = errors.New("conversation: message is append-only, cannot modify (only vendor_msg_ref回填 allowed)")
+    ErrMessageInvalidSender  = errors.New("conversation: message sender_identity_id does not exist")
+)
+```
+
+### 5.3 IdentityRepository
+
+```go
+type IdentityRepository interface {
+    FindByID(ctx context.Context, id string) (*Identity, error)                  // 'user:hayang' / 'supervisor:<inv-id>' 等
+    FindByKind(ctx context.Context, kind IdentityKind) ([]*Identity, error)
+    Save(ctx context.Context, i *Identity) error
+}
+
+// Domain errors
+var (
+    ErrIdentityNotFound      = errors.New("conversation: identity not found")
+    ErrIdentityAlreadyExists = errors.New("conversation: identity id already taken")
+)
+```
+
+### 5.4 ChannelBindingRepository（sub-repo of Identity）
+
+```go
+type ChannelBindingRepository interface {
+    FindByIdentityID(ctx context.Context, identityID string) ([]*ChannelBinding, error)
+    FindByVendorUserID(ctx context.Context, channel string, vendorUserID string) (*ChannelBinding, error)  // Bridge inbound 反查
+    Save(ctx context.Context, b *ChannelBinding) error
+    Delete(ctx context.Context, identityID string, channel string) error
+}
+
+// Domain errors
+var (
+    ErrChannelBindingNotFound      = errors.New("conversation: channel binding not found")
+    ErrChannelBindingAlreadyExists = errors.New("conversation: (channel, vendor_user_id) already bound to another identity")
+)
+```
+
+### 5.5 约定
+
+- 外部只通过 Root.id 引用各 AR（Conversation.id / Identity.id）（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
+- Message 是 Conversation 子从属，通过 conversation_id 关联；append-only
+- ChannelBinding 是 Identity 子从属（VO），通过 identity_id 关联；可 delete
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- (channel, vendor_msg_ref) 唯一性应用层保证（inbound dedupe，避免 Bridge 重写）
+- Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---
 

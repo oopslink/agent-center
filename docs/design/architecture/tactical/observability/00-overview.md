@@ -176,19 +176,67 @@
 
 ## § 5. Repositories（X.5）
 
-**接口签名 TBD**，schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。
+接口签名（Go-style，含 `ctx context.Context` 参数；架构层契约，跟实现解耦）：
 
-| Repository | 主表 / 物理形态 | 主要操作 |
-|---|---|---|
-| **EventRepository** | `events` 表 | append（INSERT only）/ findById / findByType / findByRefs / findSince / findByCorrelationId / findByDecisionId |
-| **TaskExecutionProjectionRepository** | `task_executions` 表 projection 列 | findById / findActive / updateProjection（worker daemon push）|
-| **TraceArchiveRepository** | BlobStore（不在 DB）| upload / download by blob_ref |
+### 5.1 EventRepository（append-only 严格）
 
-**约定**：
+```go
+type EventRepository interface {
+    Append(ctx context.Context, e *Event) error                                              // INSERT only；从不 UPDATE/DELETE
+    FindByID(ctx context.Context, id EventID) (*Event, error)
+    FindByType(ctx context.Context, eventType string, since time.Time, limit int) ([]*Event, error)
+    FindByRefs(ctx context.Context, refs EventRefsFilter, since time.Time, limit int) ([]*Event, error)
+    FindSince(ctx context.Context, since time.Time, limit int) ([]*Event, error)
+    FindByCorrelationID(ctx context.Context, correlationID string) ([]*Event, error)
+    FindByDecisionID(ctx context.Context, decisionID DecisionID) ([]*Event, error)
+}
 
-- `events` 表 INSERT only；不允许 UPDATE / DELETE（应用层强制）
-- Projection 列允许 UPDATE（但只能由相应的 daemon / domain service 改）
-- BlobStore 通过 [conventions § 8](../../../../rules/conventions.md) 抽象访问
+// Domain errors
+var (
+    ErrEventNotFound  = errors.New("observability: event not found")
+    ErrEventImmutable = errors.New("observability: events table is append-only, cannot modify/delete")
+)
+```
+
+### 5.2 TaskExecutionProjectionRepository
+
+```go
+type TaskExecutionProjectionRepository interface {
+    FindByID(ctx context.Context, id TaskExecutionID) (*TaskExecutionProjection, error)
+    FindActive(ctx context.Context) ([]*TaskExecutionProjection, error)              // status ∈ {submitted/working/input_required}
+    UpdateProjection(ctx context.Context, id TaskExecutionID, p ProjectionUpdate) error  // worker daemon push
+}
+
+// Domain errors
+var (
+    ErrProjectionNotFound      = errors.New("observability: projection not found")
+    ErrProjectionStale         = errors.New("observability: projection update arrived out of order (stale)")
+)
+```
+
+### 5.3 TraceArchiveRepository（BlobStore，不在 DB）
+
+```go
+type TraceArchiveRepository interface {
+    Upload(ctx context.Context, blobRef string, content io.Reader) error           // gzip 压缩后的 trace.jsonl.gz
+    Download(ctx context.Context, blobRef string) (io.ReadCloser, error)
+    Exists(ctx context.Context, blobRef string) (bool, error)
+}
+
+// Domain errors
+var (
+    ErrBlobNotFound = errors.New("observability: blob not found in store")
+    ErrBlobUpload   = errors.New("observability: blob upload failed")
+)
+```
+
+### 5.4 约定
+
+- `events` 表 INSERT only；不允许 UPDATE / DELETE（应用层强制 + 实现层可加 DB 触发器兜底）
+- Projection 列允许 UPDATE（但只能由相应的 daemon / domain service 改；外部 BC 不直接改 projection）
+- BlobStore 通过 [conventions § 8](../../../../rules/conventions.md) 抽象访问；实现层落 LocalDir / S3 选型
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD) + [implementation/01-blob-store.md](../../../implementation/01-blob-store.md)
+- Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---
 
