@@ -224,7 +224,7 @@ v1 单用户场景值就是 user hayang 的飞书 DM。配置为空 → § 10.4 
   - 新增 Task 相关事件描述：a 路径下 task.created 与 conversation.opened 同事务发；b/c/d 路径下 task.created 时 conversation_id=null
   - 删除 ADR-0016 提到的 `task.bound_card_requested` / `task.progress_milestone_reached` 事件（不再引入）
 - 改写 [task-runtime/03-input-request.md](../architecture/tactical/task-runtime/03-input-request.md)：
-  - Step 6-7 改写：InputRequest 投递路径 = 写 Message (kind=agent_finding, input_request_ref=<id>) 到 task.conversation_id；为 null 时 fallback 行为 TBD（可能 supervisor 主动 bind-card 或直接发 user DM）
+  - Step 6-7 改写：InputRequest 投递路径 = 写 Message (`kind=agent_finding`, `input_request_ref=<id>`) 到 task.conversation_id；为 null 时 fallback 行为 TBD（可能 supervisor 主动 bind-card 或直接发 user DM）
   - 加 Slash `/answer` 响应路径
 - 改写 [09-feishu-integration.md](../architecture/tactical/bridge/01-feishu-integration.md)：
   - § 6 渲染表加：`agent_finding + input_request_ref != null` → 飞书 interactive card with buttons

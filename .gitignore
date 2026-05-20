@@ -30,3 +30,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# VitePress 站点构建产物（sites/ 隔离的脚手架）
+sites/node_modules/
+sites/.vitepress/dist/
+sites/.vitepress/cache/

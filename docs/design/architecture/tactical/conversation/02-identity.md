@@ -86,7 +86,7 @@ agent-center 定位个人工具（[需求 § 1.2](../../../requirements/00-overv
 
 1. **id 不可变**：形式化字符串（kind:name 形式）创建时定，永不改
 2. **kind 不可变**：创建时定，永不改
-3. **临时 Identity 跟实体生命周期同步**：supervisor:<inv-id> 跟 invocation 同生同死；agent:<session-id> 同 session 同生同死
+3. **临时 Identity 跟实体生命周期同步**：`supervisor:<inv-id>` 跟 invocation 同生同死；`agent:<session-id>` 同 session 同生同死
 4. **bot Identity 永久存在**：安装时一次性建，不允许删
 
 ### ChannelBinding 不变量
