@@ -52,7 +52,7 @@
 
 ## § 1. 单一来源 / 无野任务
 
-**Center 是任务的唯一权威**。Task 只能由 supervisor 或用户创建。Worker / Agent **不允许造任务**，它们想要新工作必须开 [Issue](../design/architecture/tactical/discussion/01-issue-discussion.md) 走讨论。
+**Center 是任务的唯一权威**。Task 只能由 supervisor 或用户创建。Worker / Agent **不允许造任务**，它们想要新工作必须开 [Issue](../design/architecture/tactical/discussion/00-overview.md) 走讨论。
 
 **自检：** 我引入的新动作 / 接口，会不会让某个 worker / agent 绕过中心创建任务？会的话，要么改为开 Issue，要么本设计有问题。
 

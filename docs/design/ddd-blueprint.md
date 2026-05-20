@@ -6,7 +6,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede）。
+最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；P3 进度 2/7：TaskRuntime + Discussion ✅）。
 
 ---
 
@@ -83,7 +83,7 @@
 | [task-runtime/01-task](architecture/tactical/task-runtime/01-task.md) | 战术 (BC1) | Task 聚合（状态机 / 字段 / 依赖 / Conversation 绑定 / Invariants） |
 | [task-runtime/02-task-execution](architecture/tactical/task-runtime/02-task-execution.md) | 战术 (BC1) | TaskExecution 聚合（状态机 / 字段 / Workspace / worker 运行时 / kill 进程级 / Artifact / Invariants） |
 | [task-runtime/03-input-request](architecture/tactical/task-runtime/03-input-request.md) | 战术 (BC1) | InputRequest 聚合 + 协议 + 三响应路径 + fallback + Invariants |
-| [discussion/01-issue-discussion](architecture/tactical/discussion/01-issue-discussion.md) | 战术 (BC2) | Issue / IssueComment 聚合 + 状态机 |
+| [discussion/00-overview](architecture/tactical/discussion/00-overview.md) | 战术 (BC2) | Issue 聚合（单聚合 BC，IssueComment 已删，议事走 Conversation Message，[ADR-0021](decisions/0021-issue-as-conversation.md)）+ § X.1-X.6 wrap |
 | [workforce/01-worker-model](architecture/tactical/workforce/01-worker-model.md) | 战术 (BC3) | Worker / Project / Mapping / Proposal 聚合（注：Commit 2 carve 后，原 BC4 运行时内容迁出到 task-runtime/02） |
 | [cognition/01-supervisor-model](architecture/tactical/cognition/01-supervisor-model.md) | 战术 (BC4) | Supervisor / SupervisorInvocation / DecisionRecord / Memory 聚合 |
 | [observability/01-observability](architecture/tactical/observability/01-observability.md) | 战术 (BC5) | Domain Event 总览 + 投影读模型 |
@@ -129,8 +129,8 @@
 
 | # | BC | 文件 | 聚合数 / 文件数 | 现状 |
 |---|---|---|---|---|
-| 1 | TaskRuntime | `tactical/task-runtime/00-overview.md` + `01-task.md` + `02-task-execution.md` + `03-input-request.md` | 3 / 4 | ⚠️ ADR-0019 / 重组实施中 |
-| 2 | Discussion | `tactical/discussion/00-overview.md` (+ 可选 0N-{aggregate}) | 1 / 1-2 | ❌ 待重组 |
+| 1 | TaskRuntime | `tactical/task-runtime/00-overview.md` + `01-task.md` + `02-task-execution.md` + `03-input-request.md` | 3 / 4 | ✅ 完成（[ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)） |
+| 2 | Discussion | `tactical/discussion/00-overview.md` | 1 / 1（单聚合，聚合详情合并） | ✅ 完成（[ADR-0021](decisions/0021-issue-as-conversation.md)：删 IssueComment 实体；议事走 Conversation Message） |
 | 3 | Workforce | `tactical/workforce/00-overview.md` + 多聚合文件 | 3-4 / 多 | ❌ 待重组（含 BC4 carve 后留 BC3 真内容） |
 | 4 | Cognition | `tactical/cognition/00-overview.md` + 多聚合文件 | 2 / 多 | ❌ 待重组 |
 | 5 | Observability | `tactical/observability/00-overview.md` | 1 / 1 | ❌ 待重组 |

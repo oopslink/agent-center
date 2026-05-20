@@ -148,7 +148,7 @@
 | 跨聚合 | 写 N 个 Task + 1 个 IssueComment + Issue 状态更新；**all-or-nothing 单事务**；emit `issue.concluded` + `issue.tasks_spawned` |
 | 校验 | resolution 合法；各 task spec 合法；depends_on 引用的既有 uuid 存在；batch 内 local_id 全部 resolve；dep 图无环 |
 
-详见 [01-task.md § 9 创建来源](01-task.md) 与 [discussion/01-issue-discussion.md](../discussion/01-issue-discussion.md)。
+详见 [01-task.md § 9 创建来源](01-task.md) 与 [discussion/00-overview.md](../discussion/00-overview.md)。
 
 ### 3.5 KillCoordinator
 
@@ -361,7 +361,7 @@ Observability BC 订阅 TaskRuntime 全部事件做投影 / 查询 / inspect。�
 
 - [cognition/01-supervisor-model.md](../cognition/01-supervisor-model.md) — Supervisor 模型
 - [workforce/01-worker-model.md](../workforce/01-worker-model.md) — Worker / Project / Mapping（BC3 Workforce 真内容）
-- [discussion/01-issue-discussion.md](../discussion/01-issue-discussion.md) — Issue 模型 + conclude 协议
+- [discussion/00-overview.md](../discussion/00-overview.md) — Issue 模型 + conclude 协议
 - [conversation/01-conversation.md](../conversation/01-conversation.md) — Conversation 统一会话层
 - [observability/01-observability.md](../observability/01-observability.md) — 事件总览 + 投影读模型
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — FeishuBridge 渲染

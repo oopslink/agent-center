@@ -223,7 +223,7 @@ b/c/d 来源 task（Issue spawn / Supervisor / CLI）触发 InputRequest 时若�
 - [conversation/01-conversation.md](../conversation/01-conversation.md) — Message kind=agent_finding + input_request_ref
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Bridge 渲染卡片 / update_card 置灰
 - [agent-harness/02-skill-cli-tooling.md](../agent-harness/02-skill-cli-tooling.md) — `worker-agent.md` skill 教 agent 用 request-input
-- [discussion/01-issue-discussion § "Issue 与其他实体的区别"](../discussion/01-issue-discussion.md) — InputRequest vs Issue
+- [discussion/00-overview.md](../discussion/00-overview.md) — Issue 聚合（InputRequest vs Issue 区别：Issue 是议事 thread，多轮非阻塞，可能 spawn 0/N task；InputRequest 是同步阻塞请示，1 问 1 答，阻塞 task）
 
 ### 横切方法论
 

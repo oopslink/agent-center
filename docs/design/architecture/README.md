@@ -57,7 +57,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 01 | [Issue 讨论模型](tactical/discussion/01-issue-discussion.md) | Draft |
+| 00 | [Discussion BC Overview](tactical/discussion/00-overview.md) | Draft |
 
 ### Workforce（工作池）— BC3
 

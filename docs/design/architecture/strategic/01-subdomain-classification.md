@@ -59,7 +59,7 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 - 业界 generic 组件——BlobStore / DB / gRPC / Feishu SDK / OTel 等——都是**基础设施 / ACL 内部依赖**，不构成 BC
 - 每个 BC 的核心模型都是为 agent-center thesis 专门设计：
   - **Task / TaskExecution 两层模型**（[ADR-0010](../../decisions/0010-task-execution-two-layer-model.md)）
-  - **Issue 协商流**（[03-issue-discussion](../tactical/discussion/01-issue-discussion.md)）
+  - **Issue 协商流**（[discussion/00-overview](../tactical/discussion/00-overview.md)）
   - **Task ↔ Conversation 1:1**（[ADR-0017](../../decisions/0017-task-as-conversation.md)）
   - **Worker enrollment 通过 Discovery Proposal**（[ADR-0008](../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)）
   - **Per-execution shim**（[ADR-0018](../../decisions/0018-detached-agent-via-per-execution-shim.md)）
