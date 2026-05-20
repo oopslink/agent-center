@@ -4,10 +4,6 @@ import { fileURLToPath, URL } from 'node:url'
 
 export default withMermaid(defineConfig({
   vite: {
-    // 显式 vite root = sites/ 目录（脚手架所在）；srcDir 是 ../docs/（markdown 源），
-    // 但 node_modules / vitepress-plugin-mermaid 的 optimizeDeps 都从 sites/ 找
-    root: fileURLToPath(new URL('../', import.meta.url)),
-
     resolve: {
       alias: [
         // markdown 源在 ../docs/，跟 sites/node_modules 跨目录；Node v25 + vite rollup 对
