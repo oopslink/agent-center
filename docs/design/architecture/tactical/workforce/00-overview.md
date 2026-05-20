@@ -185,18 +185,19 @@
 ```go
 type WorkerRepository interface {
     FindByID(ctx context.Context, id WorkerID) (*Worker, error)
-    FindByStatus(ctx context.Context, status WorkerStatus) ([]*Worker, error)
-    FindAll(ctx context.Context) ([]*Worker, error)
-    Save(ctx context.Context, w *Worker) error                                  // 新建 + 全量更新
-    UpdateStatus(ctx context.Context, id WorkerID, from, to WorkerStatus) error // online/offline 反复迁移
+    FindByStatus(ctx context.Context, status WorkerStatus, filter WorkerFilter) ([]*Worker, error)
+    FindAll(ctx context.Context, filter WorkerFilter) ([]*Worker, error)
+    Save(ctx context.Context, w *Worker) error                                                  // 新建 + 全量更新（含乐观锁 version 列）
+    UpdateStatus(ctx context.Context, id WorkerID, from, to WorkerStatus, version int) error    // online/offline CAS 防 heartbeat 竞态
     UpdateLastHeartbeatAt(ctx context.Context, id WorkerID, at time.Time, workingSeconds int) error
 }
 
 // Domain errors
 var (
-    ErrWorkerNotFound       = errors.New("workforce: worker not found")
-    ErrWorkerAlreadyExists  = errors.New("workforce: worker already enrolled")
-    ErrWorkerOffline        = errors.New("workforce: worker is offline, cannot accept new dispatch")
+    ErrWorkerNotFound        = errors.New("workforce: worker not found")
+    ErrWorkerAlreadyExists   = errors.New("workforce: worker already enrolled")
+    ErrWorkerOffline         = errors.New("workforce: worker is offline, cannot accept new dispatch")
+    ErrWorkerVersionConflict = errors.New("workforce: worker version conflict (optimistic lock)")
     ErrBootstrapTokenInvalid = errors.New("workforce: bootstrap token invalid or expired")
 )
 ```
@@ -209,7 +210,7 @@ type WorkerProjectMappingRepository interface {
     FindByProjectID(ctx context.Context, projectID ProjectID) ([]*WorkerProjectMapping, error)
     FindByWorkerAndProject(ctx context.Context, workerID WorkerID, projectID ProjectID) (*WorkerProjectMapping, error)
     Save(ctx context.Context, m *WorkerProjectMapping) error
-    Invalidate(ctx context.Context, id MappingID, reason string, message string) error    // status=active → invalidated, 不删
+    Invalidate(ctx context.Context, id MappingID, reason InvalidateReason, message string) error // status=active → invalidated, 不删；reason 是 § 1.3 VO
 }
 
 // Domain errors
@@ -246,16 +247,25 @@ var (
 type ProjectRepository interface {
     FindByID(ctx context.Context, id ProjectID) (*Project, error)
     FindAll(ctx context.Context, filter ProjectFilter) ([]*Project, error)
-    Save(ctx context.Context, p *Project) error                                          // 新建
-    Update(ctx context.Context, id ProjectID, name, kind, defaultAgentCLI string) error // 更新允许字段
-    Delete(ctx context.Context, id ProjectID) error                                      // 严格删除，必先无 active task / mapping
+    Save(ctx context.Context, p *Project) error                                                     // 新建 + 全量更新（含乐观锁 version 列）
+    Update(ctx context.Context, id ProjectID, fields ProjectUpdateFields, version int) error       // 更新允许字段；CAS via version
+    Delete(ctx context.Context, id ProjectID) error                                                 // 严格删除，必先无 active task / mapping
+}
+
+// ProjectUpdateFields 是允许更新的字段集合（pointer 表示 nil = 不改）
+type ProjectUpdateFields struct {
+    Name            *string
+    Kind            *ProjectKind
+    DefaultAgentCLI *string
+    Description     *string
 }
 
 // Domain errors
 var (
-    ErrProjectNotFound      = errors.New("workforce: project not found")
-    ErrProjectAlreadyExists = errors.New("workforce: project_id already taken")
-    ErrProjectHasActiveDeps = errors.New("workforce: project has active task or mapping, cannot delete")
+    ErrProjectNotFound        = errors.New("workforce: project not found")
+    ErrProjectAlreadyExists   = errors.New("workforce: project_id already taken")
+    ErrProjectVersionConflict = errors.New("workforce: project version conflict (optimistic lock)")
+    ErrProjectHasActiveDeps   = errors.New("workforce: project has active task or mapping, cannot delete")
 )
 ```
 

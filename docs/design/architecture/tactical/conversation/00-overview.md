@@ -181,7 +181,7 @@ type MessageRepository interface {
     FindByVendorMsgRef(ctx context.Context, channel string, vendorMsgRef string) (*Message, error)        // inbound dedupe
     FindRecent(ctx context.Context, conversationID ConversationID, n int) ([]*Message, error)             // supervisor read context
     Append(ctx context.Context, m *Message) error                                                          // append-only；INSERT 后不修改
-    UpdateVendorMsgRef(ctx context.Context, id MessageID, vendorMsgRef string) error                       // outbound 投递成功后回填
+    UpdateVendorMsgRef(ctx context.Context, id MessageID, vendorMsgRef string) error                       // 唯一允许的 mutate：outbound 投递成功后回填 vendor_msg_ref（其它字段 append-only）
 }
 
 // Domain errors
@@ -196,8 +196,12 @@ var (
 ### 5.3 IdentityRepository
 
 ```go
+// IdentityID 是形式化字符串（'user:hayang' / 'supervisor:<inv-id>' / 'agent:<session-id>' / 'bot'），
+// 用 typed alias 而非裸 string 提高类型安全。
+type IdentityID string
+
 type IdentityRepository interface {
-    FindByID(ctx context.Context, id string) (*Identity, error)                  // 'user:hayang' / 'supervisor:<inv-id>' 等
+    FindByID(ctx context.Context, id IdentityID) (*Identity, error)
     FindByKind(ctx context.Context, kind IdentityKind) ([]*Identity, error)
     Save(ctx context.Context, i *Identity) error
 }
@@ -213,10 +217,10 @@ var (
 
 ```go
 type ChannelBindingRepository interface {
-    FindByIdentityID(ctx context.Context, identityID string) ([]*ChannelBinding, error)
+    FindByIdentityID(ctx context.Context, identityID IdentityID) ([]*ChannelBinding, error)
     FindByVendorUserID(ctx context.Context, channel string, vendorUserID string) (*ChannelBinding, error)  // Bridge inbound 反查
     Save(ctx context.Context, b *ChannelBinding) error
-    Delete(ctx context.Context, identityID string, channel string) error
+    Delete(ctx context.Context, identityID IdentityID, channel string) error
 }
 
 // Domain errors
@@ -229,11 +233,17 @@ var (
 ### 5.5 约定
 
 - 外部只通过 Root.id 引用各 AR（Conversation.id / Identity.id）（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
-- Message 是 Conversation 子从属，通过 conversation_id 关联；append-only
+- Message 是 Conversation 子从属，通过 conversation_id 关联
 - ChannelBinding 是 Identity 子从属（VO），通过 identity_id 关联；可 delete
 - Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
-- (channel, vendor_msg_ref) 唯一性应用层保证（inbound dedupe，避免 Bridge 重写）
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
+
+**Message append-only 不变性**：
+
+- **正常 IO 字段（id / conversation_id / sender_identity_id / content_kind / content / direction / input_request_ref / posted_at）一律 immutable**；INSERT 后不可修改
+- **唯一例外**：`vendor_msg_ref` 字段允许 outbound 投递成功后回填一次（INSERT 时为 null，UpdateVendorMsgRef 设值；再次写入返回 `ErrMessageImmutable`）
+- 应用层保证：(channel, vendor_msg_ref) 唯一性 + inbound dedupe（avoid Bridge 重写）
+- 实现层可加 DB 触发器兜底防 UPDATE 其它列
 
 ---
 

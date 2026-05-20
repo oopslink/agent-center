@@ -198,16 +198,27 @@ type SupervisorInvocationRepository interface {
     FindByID(ctx context.Context, id InvocationID) (*SupervisorInvocation, error)
     FindByScope(ctx context.Context, scopeKind ScopeKind, scopeKey string) ([]*SupervisorInvocation, error)
     FindRunning(ctx context.Context) ([]*SupervisorInvocation, error)
-    FindRunningByScopeKey(ctx context.Context, scopeKind ScopeKind, scopeKey string) (*SupervisorInvocation, error) // 单活校验
+    FindRunningByScope(ctx context.Context, scopeKind ScopeKind, scopeKey string) (*SupervisorInvocation, error) // 单活校验（命名对齐 FindByScope）
     Save(ctx context.Context, inv *SupervisorInvocation) error
-    UpdateStatusToTerminal(ctx context.Context, id InvocationID, status InvocationStatus,
-        endedAt time.Time, failedReason, failedMessage string, tokenUsage TokenUsage, decisionsMade int) error
+    UpdateStatusToTerminal(ctx context.Context, id InvocationID, update InvocationTerminalUpdate, version int) error
+}
+
+// InvocationTerminalUpdate 聚合终态回填字段
+type InvocationTerminalUpdate struct {
+    Status         InvocationStatus     // succeeded / failed / timed_out
+    EndedAt        time.Time
+    FailedReason   InvocationFailedReason  // typed enum (claude_nonzero / oom / etc.)；succeeded 时为零值
+    FailedMessage  string                  // reason+message 双字段，[conventions § 16]
+    TimedOutAt     *time.Time              // 仅 timed_out 时填
+    TokenUsage     TokenUsage
+    DecisionsMade  int
 }
 
 // Domain errors
 var (
     ErrInvocationNotFound          = errors.New("cognition: invocation not found")
     ErrInvocationAlreadyTerminal   = errors.New("cognition: invocation already in terminal state")
+    ErrInvocationVersionConflict   = errors.New("cognition: invocation version conflict (optimistic lock)")
     ErrScopeKeyRunningExists       = errors.New("cognition: another invocation running for same scope_key (single-active)")
 )
 ```

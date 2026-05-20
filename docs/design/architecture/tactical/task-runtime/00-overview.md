@@ -257,7 +257,10 @@ type TaskExecutionRepository interface {
     Save(ctx context.Context, e *TaskExecution) error
     UpdateStatus(ctx context.Context, id TaskExecutionID, from, to TaskExecutionStatus, version int) error
     UpdateDispatchState(ctx context.Context, id TaskExecutionID, state DispatchState) error
-    UpdateCancelRequestedAt(ctx context.Context, id TaskExecutionID, requestedAt time.Time, reason, message string) error
+    UpdateCancelRequestedAt(ctx context.Context, id TaskExecutionID, requestedAt time.Time, reason CancelReason, message string, version int) error
+    UpdateCompleted(ctx context.Context, id TaskExecutionID, reason CompletedReason, message string, version int) error
+    UpdateFailed(ctx context.Context, id TaskExecutionID, reason FailedReason, message string, version int) error
+    UpdateKilled(ctx context.Context, id TaskExecutionID, reason KilledReason, message string, version int) error
 }
 
 // Domain errors
@@ -268,6 +271,10 @@ var (
     ErrSingleActiveViolation          = errors.New("taskruntime: task already has active execution (single-active invariant)")
 )
 ```
+
+> **终态 reason 是 typed enum**（§ 1.3 VO）：`CompletedReason` / `FailedReason` / `KilledReason` 各自闭集枚举，配 `message` 字段（[conventions § 16](../../../../rules/conventions.md)）；CAS via `version int` 防终态被并发覆盖（如 kill 跟 normal complete 竞态）。
+>
+> **TaskExecutionProjection 列同表跨 BC ownership 声明**：本 Repository 拥有 `task_executions` 表的**业务状态列**（status / dispatch_state / cancel_requested_at / terminal reason+message 等）；**projection 列**（current_activity / total_tool_calls / working_seconds_accumulated 等）归 [Observability TaskExecutionProjectionRepository](../observability/00-overview.md) 写入（worker daemon push 路径）。**两个 BC 各自写各自列，不互相覆盖**；事务级约束由 implementation 层分别用部分列 UPDATE 实现。
 
 ### 5.3 InputRequestRepository
 

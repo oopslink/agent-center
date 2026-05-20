@@ -214,6 +214,8 @@ var (
 )
 ```
 
+> **跨 BC column ownership**：本 Repository 跟 [TaskRuntime TaskExecutionRepository](../task-runtime/00-overview.md) 共享物理表 `task_executions`，但**各自写各自列**：TaskRuntime 写**业务状态列**（status / dispatch_state / cancel_requested_at / terminal reason+message 等）；本 Repository 写**projection 列**（current_activity / current_activity_at / total_tool_calls / total_tokens / working_seconds_accumulated 等）。**两个 BC 不互相覆盖**；实现层分别用部分列 UPDATE 实现 column-level ownership。
+
 ### 5.3 TraceArchiveRepository（BlobStore，不在 DB）
 
 ```go

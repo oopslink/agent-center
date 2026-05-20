@@ -247,6 +247,9 @@ var (
 - Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
 - 乐观锁：`UpdateStatus` / `Update*` 带 `version int` 参数，CAS 失败返回 `ErrIssueVersionConflict`
 - Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
+- **跨 BC tx 由 application service 协调**：
+  - **同步建 issue + Conversation**：Issue.open (a/e 路径) 同事务建 Issue + kind=issue Conversation + 写 issue.conversation_id（[ADR-0021 § 1](../../../decisions/0021-issue-as-conversation.md) + [ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md)）
+  - **Issue conclude with `closed_with_tasks`**：跨 BC tx 调 [TaskRuntime IssueConcludeSpawn](../task-runtime/00-overview.md) 批量建 N 个 Task + 写 issue.status / conclusion_summary + 写一条 system Message（all-or-nothing）；任一失败 → 全部 rollback
 
 ---
 
