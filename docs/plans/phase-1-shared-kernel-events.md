@@ -156,7 +156,7 @@ Phase 1 emit 的事件清单（[observability § 7.5](../design/architecture/tac
   - `0001_init.up.sql` / `0001_init.down.sql` — 建本 phase 全部表（events + workers + worker_project_mappings + worker_project_proposals + projects + conversations + messages）
   - `Migrator.Up(ctx) error` / `Migrator.Down(ctx) error` 包装 golang-migrate API
 - **实现步骤**：
-  1. 引入 `github.com/golang-migrate/migrate/v4` + sqlite driver
+  1. 引入 **手写 migrator**（`internal/persistence/migrator.go`，约 200 行，embed FS + `schema_migrations` 表）—— 取代 `github.com/golang-migrate/migrate/v4`：后者拖一组自有驱动注册路径，与 `modernc.org/sqlite` 同时注册容易冲突；本 phase 只 1 条 migration，自实现更小可测可控
   2. `//go:embed migrations/*.sql` 注入
   3. DDL 按各 BC 切片严格遵守 [02-persistence § 3 / § 4 / § 7](../design/implementation/02-persistence-schema.md)：TEXT 时间戳 / INTEGER 0/1 boolean / TEXT JSON / ULID PK / version 乐观锁 / `_reason` + `_message` 平铺
   4. events 表 DDL 完全按 [02-persistence § 8.2.1](../design/implementation/02-persistence-schema.md)（无 version 列、index 含 `correlation_id` / `decision_id` partial）
@@ -187,7 +187,7 @@ Phase 1 emit 的事件清单（[observability § 7.5](../design/architecture/tac
   - 顶层子命令：`server` / `supervisor` / `worker` / `migrate` / `admin blob-migrate` / `version` + § 3.5-3.7 各 BC 子命令
   - Config loader：YAML → struct，env override（`AGENT_CENTER_*`），CLI flag override，fail-fast 验证（[04 § 2 / § 4](../design/implementation/04-configuration.md)）
 - **实现步骤**：
-  1. 选 CLI 框架 `cobra` + viper 或自实现轻量 flag 路由（建议 cobra，社区成熟）
+  1. 选 CLI 框架 —— **本 phase 选 stdlib `flag` + 手写 sub-command router**（不引 cobra/viper）。R8 spike 决断：cobra 表面 OK 但额外依赖体积大，对 Phase 1 命令面足够时反而拖累；手写 router 约 150 行，完全可测，后续 phase 命令增加再评估。配置走 § 3.1.4 手写 loader（YAML + env override + unknown-key fail-fast）
   2. `cmd/agent-center/main.go` 注册顶层 verbs
   3. config: 解析顺序 file → env → flag；schema 用 struct + `mapstructure` / 等价 tag；fail-fast 时按 [04 § 4](../design/implementation/04-configuration.md) 输出诊断到 stderr
   4. `version` 子命令打印 `runtime/debug.BuildInfo` 内容
@@ -669,7 +669,7 @@ Phase 1 emit 的事件清单（[observability § 7.5](../design/architecture/tac
 | R5 | **WorkerEnrollService bootstrap/session token 简化** — v1 Phase 1 mock | 设计明示：token 字段保留接口但不强校验；Phase 5 Bridge 接入后真实化；本 phase e2e 不测 token 流程 |
 | R6 | **worker scan loop 不在本 phase** — `worker_project_proposal.proposed` 由 CLI 触发（`worker proposal propose`）；非生产路径 | 接受；CLI subcommand 明示为 v1 admin 工具；scan loop 是 Phase 2 内容（worker daemon 长连接） |
 | R7 | **golang-migrate down 在 SQLite 上的复杂度** — SQLite ALTER 限制；本 phase down.sql 仅 DROP TABLE 全表 | 接受；v1 down 仅用于本地开发 `0001` 全量重置；upgrade-only 是 v1 立场（[02-persistence § 6](../design/implementation/02-persistence-schema.md)） |
-| R8 | **Cobra vs 自实现 CLI router** — Phase 1 选 Cobra 后无法轻换 | Spike：在 § 3.1.4 启动时评估 Cobra 体积 + 是否能满足 § 4 / § 5 / § 6 / § 8.3 表达力；若过重再切；决定在第一个 commit 前定 |
+| R8 | **CLI router 选型** | **已处置**：Phase 1 选 stdlib `flag` + 手写 sub-command router（约 150 行，完全可测）；不引 cobra/viper。后续 phase 命令面扩张时再评估是否切换 |
 
 ---
 
