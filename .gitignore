@@ -35,3 +35,6 @@ go.work.sum
 sites/node_modules/
 sites/.vitepress/dist/
 sites/.vitepress/cache/
+
+# VitePress 在仓库根生成的缓存（CWD 漂移时的产物）
+.vitepress/
