@@ -16,6 +16,12 @@ export default withMermaid(defineConfig({
           find: /^vue$/,
           replacement: fileURLToPath(new URL('./node_modules/vue/dist/vue.runtime.esm-bundler.js', new URL('../', import.meta.url))),
         },
+        // dayjs 是 CJS 包（main: dayjs.min.js），dev 模式下 ESM module loader 没拿到 default export；
+        // 直接 alias 到 ESM 入口 dayjs/esm/index.js
+        {
+          find: /^dayjs$/,
+          replacement: fileURLToPath(new URL('./node_modules/dayjs/esm/index.js', new URL('../', import.meta.url))),
+        },
       ],
     },
   },
