@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentadapter"
-	"github.com/oopslink/agent-center/internal/clock"
 	_ "github.com/oopslink/agent-center/internal/agentadapter/claudecode" // self-register
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/shim"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 )
@@ -183,6 +184,46 @@ func TestStaticMappingResolver_NotFound(t *testing.T) {
 	r := NewStaticMappingResolver()
 	if _, err := r.ResolveBasePath(context.Background(), "W", "P"); !IsMappingMissing(err) {
 		t.Fatalf("expected missing: %v", err)
+	}
+}
+
+func TestDispatchLoop_NewDefaults(t *testing.T) {
+	dl := NewDispatchLoop(DispatchLoopConfig{WorkerID: "W-1"}, nil, nil, nil, nil, nil, nil)
+	if dl.cfg.HelloTimeout != 60*time.Second {
+		t.Fatalf("hello: %v", dl.cfg.HelloTimeout)
+	}
+}
+
+func TestDispatchLoop_NoResolver_NackMappingMissing(t *testing.T) {
+	uploader := &recordingUploader{}
+	dl := NewDispatchLoop(DispatchLoopConfig{
+		WorkerID: "W-1", ExecBaseDir: t.TempDir(),
+	}, nil, agentadapter.DefaultRegistry, NewWorkspaceManager(&fakeGit{}), uploader, clock.NewFakeClock(time.Now()), nil)
+	if err := dl.HandleEnvelope(context.Background(), mkEnvelope()); err != nil {
+		t.Fatal(err)
+	}
+	if len(uploader.nacks) != 1 || uploader.nacks[0].Reason != execution.NackMappingMissing {
+		t.Fatalf("nack: %+v", uploader.nacks)
+	}
+}
+
+func TestDispatchLoop_Idempotent_ReAckDone(t *testing.T) {
+	resolver := NewStaticMappingResolver()
+	resolver.Set("W-1", "P-1", "/repo")
+	uploader := &recordingUploader{}
+	root := t.TempDir()
+	dl := NewDispatchLoop(DispatchLoopConfig{
+		WorkerID: "W-1", ExecBaseDir: root,
+	}, resolver, agentadapter.DefaultRegistry, NewWorkspaceManager(&fakeGit{}), uploader, clock.NewFakeClock(time.Now()), nil)
+	d, _ := shim.NewDir(root, "E-1")
+	if err := d.WriteStatus(shim.Status{ExecutionID: "E-1", Phase: shim.PhaseDone}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dl.HandleEnvelope(context.Background(), mkEnvelope()); err != nil {
+		t.Fatal(err)
+	}
+	if len(uploader.acks) != 1 {
+		t.Fatalf("expected re-ack: %+v", uploader.acks)
 	}
 }
 

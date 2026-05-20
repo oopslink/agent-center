@@ -272,6 +272,34 @@ func TestRequestKill_NotFoundAndValidation(t *testing.T) {
 	}
 }
 
+func TestRequestKill_PendingIRMissingIgnored(t *testing.T) {
+	h := setupKill(t)
+	_, execID := seed(t, h, execution.StatusInputRequired)
+	// IR-1 is referenced by exec but never persisted (simulates race
+	// where IR was deleted/never created).
+	if err := h.coord.RequestKill(context.Background(), execID, execution.KilledUserRequest, "stop", "user:hayang"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.coord.HandleKilled(context.Background(), execID, execution.KilledUserRequest, "done", "worker:W-1"); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := h.execRepo.FindByID(context.Background(), execID)
+	if e.Status() != execution.StatusKilled {
+		t.Fatalf("status: %s", e.Status())
+	}
+}
+
+func TestNewCoordinator_DefaultsApplied(t *testing.T) {
+	// nil sender / nil clock should default
+	c := NewCoordinator(nil, nil, nil, nil, nil, nil, nil)
+	if c.sender == nil {
+		t.Fatal("expected default sender")
+	}
+	if c.clock == nil {
+		t.Fatal("expected default clock")
+	}
+}
+
 func TestRequestKill_SendFailureEmitsEvent(t *testing.T) {
 	h := setupKill(t)
 	h.sender.wantFail = true

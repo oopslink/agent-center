@@ -461,6 +461,22 @@ func TestInputRequestService_Create_ExecAlreadyTerminal(t *testing.T) {
 	}
 }
 
+func TestNewServices_DefaultClockApplied(t *testing.T) {
+	rig := setupRig(t, "")
+	if s := NewTaskService(rig.db, rig.taskRepo, rig.convRepo, rig.execRepo, rig.msgRepo, rig.sink, rig.idgen, nil); s.clock == nil {
+		t.Fatal("task clock nil")
+	}
+	if s := NewInputRequestService(rig.db, rig.irRepo, rig.execRepo, rig.taskRepo, rig.convRepo, rig.msgRepo, rig.sink, rig.idgen, nil, ""); s.clock == nil {
+		t.Fatal("ir clock nil")
+	}
+	if s := NewArtifactService(rig.db, rig.artifactRepo, rig.execRepo, rig.sink, rig.idgen, nil); s.clock == nil {
+		t.Fatal("artifact clock nil")
+	}
+	if s := NewExecutionService(rig.db, rig.execRepo, rig.taskRepo, rig.convRepo, rig.msgRepo, rig.sink, rig.idgen, nil); s.clock == nil {
+		t.Fatal("exec clock nil")
+	}
+}
+
 func TestPriorityOrDefault(t *testing.T) {
 	if priorityOrDefault("") != task.PriorityMedium {
 		t.Fatal("default")

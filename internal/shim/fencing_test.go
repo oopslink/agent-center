@@ -85,6 +85,15 @@ func testProcessPID() int {
 	return testSelfPID()
 }
 
+func TestAbs_NegativeAndPositive(t *testing.T) {
+	if abs(-3*time.Second) != 3*time.Second {
+		t.Fatal("neg")
+	}
+	if abs(2*time.Second) != 2*time.Second {
+		t.Fatal("pos")
+	}
+}
+
 func TestParsePSLStart(t *testing.T) {
 	got, err := parsePSLStart("Sat May 21 12:00:00 2026")
 	if err != nil {

@@ -122,6 +122,34 @@ func TestDir_RequiresArgs(t *testing.T) {
 	}
 }
 
+func TestWriteAtomic_BadDirReturnsErr(t *testing.T) {
+	// Writing to a path inside a non-existent directory must error.
+	if err := writeAtomic("/no/such/dir/file", []byte("x"), 0o644); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestReadPID_NotFound(t *testing.T) {
+	d, _ := NewDir(t.TempDir(), "E-1")
+	if _, err := d.ReadPID(); err == nil {
+		t.Fatal("expected not found")
+	}
+}
+
+func TestReadEnvelope_Empty(t *testing.T) {
+	d, _ := NewDir(t.TempDir(), "E-1")
+	if _, err := d.ReadEnvelope(); err == nil {
+		t.Fatal("expected not found")
+	}
+}
+
+func TestReadStatus_NotFound(t *testing.T) {
+	d, _ := NewDir(t.TempDir(), "E-1")
+	if _, err := d.ReadStatus(); err == nil {
+		t.Fatal("expected not found")
+	}
+}
+
 func TestWriteAtomic_NoPartialOnDecodeFail(t *testing.T) {
 	root := t.TempDir()
 	d, _ := NewDir(root, "E-1")

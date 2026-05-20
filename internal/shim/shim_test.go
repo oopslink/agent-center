@@ -248,6 +248,12 @@ func TestShim_CopyAgentLog(t *testing.T) {
 	}
 }
 
+func TestAgentPID_NilProcess(t *testing.T) {
+	if agentPID(nil) != 0 {
+		t.Fatal("expected 0 for nil")
+	}
+}
+
 func TestShim_ProcessGetter(t *testing.T) {
 	d, _ := NewDir(t.TempDir(), "E-1")
 	s, _ := New(Config{
