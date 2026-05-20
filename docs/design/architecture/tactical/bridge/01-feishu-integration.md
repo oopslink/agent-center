@@ -6,7 +6,7 @@
 
 > **结构定位：** 飞书不是"主入口" —— 它只是众多潜在 vendor 中第一个被支持的。其它 vendor（DingTalk / Web chat / Slack / ...）按同样的 Bridge 模式加入，详见 [roadmap](../../../roadmap.md)。
 >
-> 领域模块（[Conversation](../conversation/01-conversation.md) / [Discussion / Issue](../discussion/00-overview.md) / [TaskRuntime](../task-runtime/00-overview.md) / [Cognition](../cognition/00-overview.md)）**不知道飞书是啥**；所有 vendor 集成都在 FeishuBridge 内。
+> 领域模块（[Conversation](../conversation/00-overview.md) / [Discussion / Issue](../discussion/00-overview.md) / [TaskRuntime](../task-runtime/00-overview.md) / [Cognition](../cognition/00-overview.md)）**不知道飞书是啥**；所有 vendor 集成都在 FeishuBridge 内。
 >
 > 设计原则见 [conventions § 9.y "外部集成走 Bridge 模式"](../../../../rules/conventions.md#-9y-外部集成走-bridge-模式不在领域模块内调-vendor-sdk)。
 

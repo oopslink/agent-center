@@ -297,7 +297,7 @@ Observability BC 订阅 Workforce 全部事件做投影 / fleet view / inspect�
 - [task-runtime/00-overview.md](../task-runtime/00-overview.md) — TaskRuntime BC 入口（含 ReconcileService / DispatchService 协议视图）
 - [task-runtime/02-task-execution.md § 9-12](../task-runtime/02-task-execution.md) — worker 端运行时（per-execution 实施细节）
 - [discussion/00-overview.md](../discussion/00-overview.md) — Issue 引用 project_id
-- [conversation/01-conversation.md](../conversation/01-conversation.md) — Identity / ChannelBinding（用户跟 vendor 的关联，跟 Worker 是不同维度）
+- [conversation/00-overview.md](../conversation/00-overview.md) — Identity / ChannelBinding（用户跟 vendor 的关联，跟 Worker 是不同维度）
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 在 proposal 决策中的角色
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Proposal 飞书卡片渲染
 

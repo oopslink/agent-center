@@ -328,7 +328,7 @@ Observability BC 自己不渲染。Bridge 订阅 BC 业务事件（[bridge/01-fe
 - [workforce/00-overview.md](../workforce/00-overview.md) — Worker / Proposal / Mapping / Project 事件 emit
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 事件 emit
 - [cognition/01-supervisor-invocation.md § 4](../cognition/01-supervisor-invocation.md) — DecisionRecord + events.decision_id 关联
-- [conversation/01-conversation.md](../conversation/01-conversation.md) — Conversation 事件 emit
+- [conversation/00-overview.md](../conversation/00-overview.md) — Conversation 事件 emit
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Bridge 事件 emit + 查询接口在飞书侧的暴露
 
 ### 实现层

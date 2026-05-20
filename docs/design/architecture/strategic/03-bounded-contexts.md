@@ -269,7 +269,7 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 - "往 Conversation X 写一条 Message" —— Cognition 等通过 CLI 调用
 - emit `conversation.message_added` 事件 —— 任何 BC（含 Bridge）订阅
 
-**详细设计**: [12-conversation.md](../tactical/conversation/01-conversation.md)
+**详细设计**: [conversation/00-overview.md](../tactical/conversation/00-overview.md)（BC 入口 + § X.1-X.6 wrap）+ [01-conversation.md](../tactical/conversation/01-conversation.md) + [02-identity.md](../tactical/conversation/02-identity.md)
 
 ### BC7: Bridge（渠道桥接层）
 

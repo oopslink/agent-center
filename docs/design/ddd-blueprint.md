@@ -6,7 +6,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；P3 进度 5/7：TaskRuntime + Discussion + Workforce + Cognition + Observability ✅）。
+最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；P3 进度 6/7：TaskRuntime + Discussion + Workforce + Cognition + Observability + Conversation ✅）。
 
 ---
 
@@ -92,7 +92,9 @@
 | [cognition/01-supervisor-invocation](architecture/tactical/cognition/01-supervisor-invocation.md) | 战术 (BC4) | SupervisorInvocation AR + DecisionRecord 子从属（4 态状态机 / WakeScheduler / 决策审计）|
 | [cognition/02-memory](architecture/tactical/cognition/02-memory.md) | 战术 (BC4) | Memory AR（file-based + git 仓；7 种 scope；ancestor walk）|
 | [observability/00-overview](architecture/tactical/observability/00-overview.md) | 战术 (BC5) | Observability BC 入口 + § X.1-X.6 wrap（Event AR + 读模型 projections + 5 个 CLI 动词 + Fleet View）|
-| [conversation/01-conversation](architecture/tactical/conversation/01-conversation.md) | 战术 (BC6) | Conversation / Message / Identity / ChannelBinding（**唯一明示 VO**）|
+| [conversation/00-overview](architecture/tactical/conversation/00-overview.md) | 战术 (BC6) | Conversation BC 入口 + § X.1-X.6 wrap（Conversation + Identity 两聚合）|
+| [conversation/01-conversation](architecture/tactical/conversation/01-conversation.md) | 战术 (BC6) | Conversation AR + Message 子从属（6 种 kind + 6 种 content_kind + Invariants）|
+| [conversation/02-identity](architecture/tactical/conversation/02-identity.md) | 战术 (BC6) | Identity AR + ChannelBinding 子 VO（v1 单用户简化 + 自动绑定）|
 
 ### 2.3 已立的横切方法论
 
@@ -139,7 +141,7 @@
 | 3 | Workforce | `tactical/workforce/00-overview.md` + `01-worker.md` + `02-project.md` + `03-worker-project-proposal.md` | 3 / 4 | ✅ 完成（Worker / Project / Proposal 三聚合；WorkerProjectMapping 子从属于 Worker） |
 | 4 | Cognition | `tactical/cognition/00-overview.md` + `01-supervisor-invocation.md` + `02-memory.md` | 2 / 3 | ✅ 完成（SupervisorInvocation + DecisionRecord 子从属 + Memory）|
 | 5 | Observability | `tactical/observability/00-overview.md` | 1 / 1（单聚合 BC，Event AR + 读模型 projections）| ✅ 完成 |
-| 6 | Conversation | `tactical/conversation/00-overview.md` + 多聚合文件 | 2 / 多 | ❌ 待重组 |
+| 6 | Conversation | `tactical/conversation/00-overview.md` + `01-conversation.md` + `02-identity.md` | 2 / 3 | ✅ 完成（Conversation + Message 子从属 + Identity + ChannelBinding 子 VO）|
 | 7 | Bridge | `tactical/bridge/00-overview.md` | 0 / 1 | ❌ 待重组（无业务聚合；仅 overview，说明 ACL 翻译职责） |
 
 **跨聚合视角**：不单立 `00-domain-model.md`。跨 BC 引用关系仍归 [strategic/03-bounded-contexts § 3 上下文映射](architecture/strategic/03-bounded-contexts.md#-3-上下文映射context-map)，在 § 3.1 上下游表里补"引用基数 / 强弱 / 一致性窗口"列。

@@ -324,7 +324,7 @@ Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / i
 ### 跨 BC 协作文档
 
 - [task-runtime/00-overview.md § 3.4 IssueConcludeSpawn](../task-runtime/00-overview.md) — Issue conclude 批量 spawn Tasks 的主体实现
-- [conversation/01-conversation.md](../conversation/01-conversation.md) — kind=issue Conversation + Message.content_kind 扩展
+- [conversation/00-overview.md](../conversation/00-overview.md) — kind=issue Conversation + Message.content_kind 扩展
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Issue root card 渲染 + bound thread 移除
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 在 Issue 议事中的角色
 - [observability/00-overview.md](../observability/00-overview.md) — issue.* 事件订阅 + 投影读模型

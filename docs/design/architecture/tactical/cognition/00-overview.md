@@ -307,7 +307,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 - [task-runtime/00-overview.md § 7.1](../task-runtime/00-overview.md) — Supervisor 唤醒事件白名单（task / execution / input_request 部分权威）
 - [discussion/00-overview.md § 7.1](../discussion/00-overview.md) — Issue 相关唤醒事件
 - [workforce/00-overview.md § 7.1](../workforce/00-overview.md) — Worker / Proposal 相关唤醒事件
-- [conversation/01-conversation.md](../conversation/01-conversation.md) — conversation.message_added 唤醒事件
+- [conversation/00-overview.md](../conversation/00-overview.md) — conversation.message_added 唤醒事件
 - [observability/00-overview.md](../observability/00-overview.md) — events 表 + `inspect supervisor` 查询接口
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — Worker-side prompt 组装（跟本 BC 独立）
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — 失败 invocation 推飞书提醒人工 retrigger

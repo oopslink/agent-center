@@ -88,7 +88,9 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 01 | [Conversation 统一会话层](tactical/conversation/01-conversation.md) | Draft |
+| 00 | [Conversation BC Overview](tactical/conversation/00-overview.md) | Draft |
+| 01 | [Conversation 聚合（+ Message）](tactical/conversation/01-conversation.md) | Draft |
+| 02 | [Identity 聚合（+ ChannelBinding）](tactical/conversation/02-identity.md) | Draft |
 
 ### Bridge（渠道桥接）— BC7
 

@@ -41,7 +41,7 @@ Supervisor **不是常驻 daemon**，事件触发 spawn 一次就退出；跨次
 Supervisor 每一步关键决策都经 IM（飞书）对用户可见 + 可干预；**不藏后台、不静默调度**。
 
 - 反面：传统调度系统决策落 log / DB，要查时去后台翻
-- 依据：[discussion/00-overview](../tactical/discussion/00-overview.md) + [conversation/01-conversation](../tactical/conversation/01-conversation.md) + [ADR-0007](../../decisions/0007-conversation-as-unified-session.md)（Conversation 作统一会话层）+ [ADR-0021](../../decisions/0021-issue-as-conversation.md)（Issue ↔ Conversation 1:1）+ IM-first 设计
+- 依据：[discussion/00-overview](../tactical/discussion/00-overview.md) + [conversation/00-overview](../tactical/conversation/00-overview.md) + [ADR-0007](../../decisions/0007-conversation-as-unified-session.md)（Conversation 作统一会话层）+ [ADR-0021](../../decisions/0021-issue-as-conversation.md)（Issue ↔ Conversation 1:1）+ IM-first 设计
 
 ### S4. Center 单一权威
 
