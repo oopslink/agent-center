@@ -209,18 +209,44 @@ Issue 创建走同步建路径时，跨 BC 触发 Conversation BC 创建 `kind=i
 
 ## § 5. Repositories（X.5）
 
-**接口签名 TBD**，schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。
+接口签名（Go-style，含 `ctx context.Context` 参数；架构层契约，跟实现解耦）：
 
-| Repository | 主表 | 主要操作 |
-|---|---|---|
-| **IssueRepository** | `issues` | findById / findByProject / findByStatus / findByOpener / save / updateStatus / updateConversationId / updateConclusion |
+### 5.1 IssueRepository
 
-> **删除项**：`IssueCommentRepository`（IssueComment 实体已删，议事消息走 Conversation BC `MessageRepository`）
+```go
+type IssueRepository interface {
+    FindByID(ctx context.Context, id IssueID) (*Issue, error)
+    FindByProject(ctx context.Context, projectID ProjectID, filter IssueFilter) ([]*Issue, error)
+    FindByStatus(ctx context.Context, status IssueStatus, filter IssueFilter) ([]*Issue, error)
+    FindByOpener(ctx context.Context, openerIdentityID string) ([]*Issue, error)
+    Save(ctx context.Context, i *Issue) error                  // 新建 + 全量更新（含乐观锁 version 列）
+    UpdateStatus(ctx context.Context, id IssueID, from, to IssueStatus, version int) error
+    UpdateConversationID(ctx context.Context, id IssueID, conversationID ConversationID) error
+    UpdateConclusion(ctx context.Context, id IssueID, summary string, concludedBy string, concludedAt time.Time) error
+    UpdateRelatedConversationIDs(ctx context.Context, id IssueID, ids []ConversationID) error
+}
 
-**约定**：
+// Domain errors
+var (
+    ErrIssueNotFound           = errors.New("discussion: issue not found")
+    ErrIssueAlreadyExists      = errors.New("discussion: issue already exists")
+    ErrIssueInvalidTransition  = errors.New("discussion: invalid issue status transition")
+    ErrIssueVersionConflict    = errors.New("discussion: issue version conflict (optimistic lock)")
+    ErrIssueAlreadyConcluded   = errors.New("discussion: issue already concluded")
+    ErrIssueWithdrawn          = errors.New("discussion: issue is withdrawn, cannot mutate")
+    ErrIssueNoConversationBound = errors.New("discussion: issue has no conversation bound (use issue bind-conversation)")
+)
+```
 
-- 外部只通过 Issue.id 引用 Issue AR
-- IssueComment 历史数据查询 → 走 Conversation BC `MessageRepository.findByConversationId(issue.conversation_id)`
+> **删除项**：`IssueCommentRepository`（IssueComment 实体已删，议事消息走 Conversation BC `MessageRepository`，[ADR-0021](../../../decisions/0021-issue-as-conversation.md)）
+
+### 5.2 约定
+
+- 外部只通过 Issue.id 引用 Issue AR（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
+- IssueComment 历史数据查询 → 走 Conversation BC `MessageRepository.FindByConversationID(ctx, issue.conversation_id)`（跨 BC 走 Conversation 接口）
+- Repository 是**领域层抽象接口**；实现层落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)
+- 乐观锁：`UpdateStatus` / `Update*` 带 `version int` 参数，CAS 失败返回 `ErrIssueVersionConflict`
+- Domain errors 用 sentinel error pattern；调用方用 `errors.Is` 判定
 
 ---
 

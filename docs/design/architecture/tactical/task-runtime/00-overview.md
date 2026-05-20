@@ -221,20 +221,97 @@
 
 ## § 5. Repositories（X.5）
 
-**接口签名 TBD**，schema 见 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)。
+接口签名（Go-style，含 `ctx context.Context` 参数；架构层契约，跟实现解耦）：
 
-| Repository | 主表 | 主要操作 |
-|---|---|---|
-| **TaskRepository** | `tasks` | findById / findByProject / findByStatus / findBlockedBy / save / updateStatus / updateConversationId / updateCurrentExecutionId |
-| **TaskExecutionRepository** | `task_executions` | findById / findByTaskId / findByWorkerId / findActive / save / updateStatus / updateDispatchState / updateCancelRequestedAt |
-| **InputRequestRepository** | `input_requests` | findById / findByTaskExecutionId / findPending / save / updateStatus / updateResponse |
-| **ArtifactRepository**（or sub-repo of TaskExecution）| `artifacts` | findByExecutionId / findByTaskId / append (immutable) |
+### 5.1 TaskRepository
 
-**约定**：
+```go
+type TaskRepository interface {
+    FindByID(ctx context.Context, id TaskID) (*Task, error)
+    FindByProject(ctx context.Context, projectID ProjectID, filter TaskFilter) ([]*Task, error)
+    FindByStatus(ctx context.Context, status TaskStatus, filter TaskFilter) ([]*Task, error)
+    FindBlockedBy(ctx context.Context, blockerTaskID TaskID) ([]*Task, error)
+    Save(ctx context.Context, t *Task) error               // 新建 + 全量更新（含乐观锁 version 列）
+    UpdateStatus(ctx context.Context, id TaskID, from, to TaskStatus, version int) error
+    UpdateConversationID(ctx context.Context, id TaskID, conversationID ConversationID) error
+    UpdateCurrentExecutionID(ctx context.Context, id TaskID, executionID TaskExecutionID) error
+}
 
-- 外部只通过 Root.id 引用各 AR，不持内部 Entity 句柄
+// Domain errors
+var (
+    ErrTaskNotFound          = errors.New("taskruntime: task not found")
+    ErrTaskAlreadyExists     = errors.New("taskruntime: task already exists")
+    ErrTaskInvalidTransition = errors.New("taskruntime: invalid task status transition")
+    ErrTaskVersionConflict   = errors.New("taskruntime: task version conflict (optimistic lock)")
+)
+```
+
+### 5.2 TaskExecutionRepository
+
+```go
+type TaskExecutionRepository interface {
+    FindByID(ctx context.Context, id TaskExecutionID) (*TaskExecution, error)
+    FindByTaskID(ctx context.Context, taskID TaskID) ([]*TaskExecution, error)
+    FindByWorkerID(ctx context.Context, workerID WorkerID, status ...TaskExecutionStatus) ([]*TaskExecution, error)
+    FindActive(ctx context.Context) ([]*TaskExecution, error)              // status ∈ {submitted, working, input_required}
+    Save(ctx context.Context, e *TaskExecution) error
+    UpdateStatus(ctx context.Context, id TaskExecutionID, from, to TaskExecutionStatus, version int) error
+    UpdateDispatchState(ctx context.Context, id TaskExecutionID, state DispatchState) error
+    UpdateCancelRequestedAt(ctx context.Context, id TaskExecutionID, requestedAt time.Time, reason, message string) error
+}
+
+// Domain errors
+var (
+    ErrTaskExecutionNotFound          = errors.New("taskruntime: task execution not found")
+    ErrTaskExecutionAlreadyTerminated = errors.New("taskruntime: task execution already in terminal state")
+    ErrTaskExecutionVersionConflict   = errors.New("taskruntime: task execution version conflict")
+    ErrSingleActiveViolation          = errors.New("taskruntime: task already has active execution (single-active invariant)")
+)
+```
+
+### 5.3 InputRequestRepository
+
+```go
+type InputRequestRepository interface {
+    FindByID(ctx context.Context, id InputRequestID) (*InputRequest, error)
+    FindByTaskExecutionID(ctx context.Context, executionID TaskExecutionID) (*InputRequest, error)
+    FindPending(ctx context.Context, olderThan time.Time) ([]*InputRequest, error)
+    Save(ctx context.Context, r *InputRequest) error
+    UpdateStatus(ctx context.Context, id InputRequestID, from, to InputRequestStatus, version int) error
+    UpdateResponse(ctx context.Context, id InputRequestID, response InputResponse) error
+}
+
+// Domain errors
+var (
+    ErrInputRequestNotFound          = errors.New("taskruntime: input request not found")
+    ErrInputRequestAlreadyResolved   = errors.New("taskruntime: input request already resolved")
+    ErrInputRequestVersionConflict   = errors.New("taskruntime: input request version conflict")
+)
+```
+
+### 5.4 ArtifactRepository（sub-repo of TaskExecution）
+
+```go
+type ArtifactRepository interface {
+    FindByExecutionID(ctx context.Context, executionID TaskExecutionID) ([]*Artifact, error)
+    FindByTaskID(ctx context.Context, taskID TaskID) ([]*Artifact, error)
+    Append(ctx context.Context, a *Artifact) error          // immutable append-only；不允许 Update/Delete
+}
+
+// Domain errors
+var (
+    ErrArtifactNotFound = errors.New("taskruntime: artifact not found")
+    ErrArtifactImmutable = errors.New("taskruntime: artifact is append-only, cannot modify")
+)
+```
+
+### 5.5 约定
+
+- 外部只通过 Root.id 引用各 AR，不持内部 Entity 句柄（[conventions § 0.3](../../../../rules/conventions.md) AR 守门）
 - Artifact 作为 TaskExecution 的子实体，通过 TaskExecution 主键关联（`execution_id`）
-- Repository 是抽象接口；实现层 mutator 封装在 dialect-agnostic 层（[conventions § 9](../../../../rules/conventions.md)）
+- Repository 是**领域层抽象接口**；实现层（SQL schema / dialect / tx context 传递）落到 [implementation/02-persistence-schema.md](../../../implementation/) (TBD)，跟接口解耦
+- 乐观锁：`UpdateStatus` / `Update*` 带 `version int` 参数，CAS 失败返回 `Err*VersionConflict`（[conventions § 9.0](../../../../rules/conventions.md) 禁用行级锁）
+- Domain errors 用 sentinel error pattern（`var Err* = errors.New(...)`）；调用方用 `errors.Is(err, ErrTaskNotFound)` 判定
 
 ---
 
