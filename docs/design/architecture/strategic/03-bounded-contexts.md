@@ -290,7 +290,7 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 
 **关键约束**: Bridge 是**唯一**调用 vendor SDK 的地方。其它 BC（Conversation / Discussion / TaskRuntime / Cognition）零 vendor 依赖（见 [conventions § 9.y](../../../rules/conventions.md#-9y-外部集成走-bridge-模式不在领域模块内调-vendor-sdk)）。
 
-**详细设计**: [09-feishu-integration.md](../tactical/bridge/01-feishu-integration.md)（FeishuBridge 具体实现）
+**详细设计**: [bridge/00-overview.md](../tactical/bridge/00-overview.md)（BC 入口 + § X.1-X.6 wrap，无业务聚合）+ [01-feishu-integration.md](../tactical/bridge/01-feishu-integration.md)（FeishuBridge 具体实现）
 
 ---
 

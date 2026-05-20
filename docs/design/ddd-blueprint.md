@@ -6,7 +6,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；P3 进度 6/7：TaskRuntime + Discussion + Workforce + Cognition + Observability + Conversation ✅）。
+最后更新：2026-05-20（立 [ADR-0021](decisions/0021-issue-as-conversation.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0009-issue-conversation-decoupled-via-bridge.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0020-card-confined-to-bridge-bc.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7**：TaskRuntime + Discussion + Workforce + Cognition + Observability + Conversation + Bridge ✅）。
 
 ---
 
@@ -95,6 +95,8 @@
 | [conversation/00-overview](architecture/tactical/conversation/00-overview.md) | 战术 (BC6) | Conversation BC 入口 + § X.1-X.6 wrap（Conversation + Identity 两聚合）|
 | [conversation/01-conversation](architecture/tactical/conversation/01-conversation.md) | 战术 (BC6) | Conversation AR + Message 子从属（6 种 kind + 6 种 content_kind + Invariants）|
 | [conversation/02-identity](architecture/tactical/conversation/02-identity.md) | 战术 (BC6) | Identity AR + ChannelBinding 子 VO（v1 单用户简化 + 自动绑定）|
+| [bridge/00-overview](architecture/tactical/bridge/00-overview.md) | 战术 (BC7) | Bridge BC 入口 + § X.1-X.6 wrap（**无业务聚合 ACL**；OutboundDelivery / InboundRouting / SlashCommand / CardLifecycle 四 svc）|
+| [bridge/01-feishu-integration](architecture/tactical/bridge/01-feishu-integration.md) | 战术 (BC7) | FeishuBridge vendor-specific 实现（一次性设置 / 网络方向 / Inbound / Outbound / 渲染规则 / 三模式 D1-D3）|
 
 ### 2.3 已立的横切方法论
 
@@ -142,7 +144,7 @@
 | 4 | Cognition | `tactical/cognition/00-overview.md` + `01-supervisor-invocation.md` + `02-memory.md` | 2 / 3 | ✅ 完成（SupervisorInvocation + DecisionRecord 子从属 + Memory）|
 | 5 | Observability | `tactical/observability/00-overview.md` | 1 / 1（单聚合 BC，Event AR + 读模型 projections）| ✅ 完成 |
 | 6 | Conversation | `tactical/conversation/00-overview.md` + `01-conversation.md` + `02-identity.md` | 2 / 3 | ✅ 完成（Conversation + Message 子从属 + Identity + ChannelBinding 子 VO）|
-| 7 | Bridge | `tactical/bridge/00-overview.md` | 0 / 1 | ❌ 待重组（无业务聚合；仅 overview，说明 ACL 翻译职责） |
+| 7 | Bridge | `tactical/bridge/00-overview.md` + `01-feishu-integration.md` | 0 / 2（无业务聚合 BC，但 v1 已有 FeishuBridge vendor 实现，保留作 01 附件）| ✅ 完成（00-overview 承载 BC wrap + ACL 职责声明；01-feishu-integration 是 vendor-specific 实现详情）|
 
 **跨聚合视角**：不单立 `00-domain-model.md`。跨 BC 引用关系仍归 [strategic/03-bounded-contexts § 3 上下文映射](architecture/strategic/03-bounded-contexts.md#-3-上下文映射context-map)，在 § 3.1 上下游表里补"引用基数 / 强弱 / 一致性窗口"列。
 
@@ -188,11 +190,11 @@ P3 (按聚合骨架重组各 BC 战术文档 + 补 § X.1-X.6 wrap)
                     └─→ P7（Published Language）独立短节
 ```
 
-**A.** 顺序推进 7 个 BC（TaskRuntime 第 1 个，作为聚合骨架重组样板；ADR-0019 同步落地）
-**B.** 每个 BC 重组 commit 拆 strategic + tactical 两条（参考 TaskRuntime：commit 1 = BC 边界 + 蓝图措辞 + 路径搬家；commit 2 = 内容按聚合骨架重写）
-**C.** 完成 7 个 BC 后，strategic/03-bounded-contexts § 3.1 扩列（统一更新跨聚合表）
+**A.** ✅ 已完成（7 个 BC 全部 P3 落地，2026-05-19 ~ 2026-05-20）
+**B.** ✅ 已完成（每个 BC 单独 commit，TaskRuntime 含 strategic + tactical 两 commit；其它 BC 多以 1 个 commit 完成）
+**C.** ⚠️ 待跟进（strategic/03-bounded-contexts § 3.1 上下游表扩列"引用基数 / 强弱 / 一致性窗口" 列）—— 各 BC § X.6 已实质承载，待集中收口
 
-低优 P8 / P9 不阻塞主线。
+低优 P8 / P9 不阻塞主线（P8 Repository 接口固化等 implementation 层；P9 Saga 视需要）。
 
 ---
 

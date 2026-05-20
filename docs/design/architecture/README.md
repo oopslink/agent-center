@@ -96,7 +96,8 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 01 | [飞书集成](tactical/bridge/01-feishu-integration.md) | TBD |
+| 00 | [Bridge BC Overview](tactical/bridge/00-overview.md) | Draft |
+| 01 | [飞书集成（FeishuBridge）](tactical/bridge/01-feishu-integration.md) | Draft |
 
 ## 战术层（按主题）
 
