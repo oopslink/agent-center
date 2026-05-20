@@ -85,7 +85,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ### Supervisor / Cognition 进阶
 
-[ADR-0012 Memory file-based](decisions/0012-memory-file-based.md) + [ADR-0013 Invocation 并发模型](decisions/0013-supervisor-invocation-concurrency.md) + [06-supervisor-model.md](architecture/tactical/cognition/01-supervisor-model.md) 之外的推迟项：
+[ADR-0012 Memory file-based](decisions/0012-memory-file-based.md) + [ADR-0013 Invocation 并发模型](decisions/0013-supervisor-invocation-concurrency.md) + [cognition/00-overview.md](architecture/tactical/cognition/00-overview.md) 之外的推迟项：
 
 - **Supervisor 自动重试**：`claude_nonzero` / `timed_out` invocation 失败后自动用同 trigger 重发一次。v1 选了"alert + 人工 retrigger"防 token 死循环；失败率统计稳定后可加 1 次自动重试
 - **Cross-invocation 协调机制**：并行 invocation 间互锁 / 协商，避免"两个 invocation 互不知情下都派任务给 W-2"导致一次 NACK 浪费 token。v1 靠底层单活 / ACK 兜底

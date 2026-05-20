@@ -74,7 +74,9 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 01 | [Supervisor 运行模型](tactical/cognition/01-supervisor-model.md) | Draft |
+| 00 | [Cognition BC Overview](tactical/cognition/00-overview.md) | Draft |
+| 01 | [SupervisorInvocation 聚合](tactical/cognition/01-supervisor-invocation.md) | Draft |
+| 02 | [Memory 聚合](tactical/cognition/02-memory.md) | Draft |
 
 ### Observability（观测）— BC5
 

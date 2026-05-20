@@ -200,4 +200,4 @@ Accept 时不再建 Project（已存在），只建 Mapping。
 - [01-worker.md § 4 WorkerProjectMapping](01-worker.md) — accept 产物
 - [02-project.md § 3.1](02-project.md) — Project accept 时自动创建路径
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — 飞书 Proposal 卡片渲染
-- [cognition/01-supervisor-model.md](../cognition/01-supervisor-model.md) — Supervisor 在 proposal 决策中的角色（提醒用户，不替决策）
+- [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 在 proposal 决策中的角色（提醒用户，不替决策）

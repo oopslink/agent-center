@@ -33,7 +33,7 @@
 
 - 单一 append-only 事件流，所有上下文的 domain event 都落到这一张表
 - 字段（概念）：`id, occurred_at, seq, event_type, refs (JSON), actor, payload (JSON), correlation_id, decision_id (nullable)`
-- `decision_id` 让事件能反查具体 `decision_records` 行 + 拿 rationale；非决策触发的事件（如 `worker.online` / `task_execution.working` 等世界事件）该列为 null（详见 [06-supervisor-model.md § 5.10](../cognition/01-supervisor-model.md)）
+- `decision_id` 让事件能反查具体 `decision_records` 行 + 拿 rationale；非决策触发的事件（如 `worker.online` / `task_execution.working` 等世界事件）该列为 null（详见 [cognition/01-supervisor-invocation.md § 4.10](../cognition/01-supervisor-invocation.md)）
 - `refs` 是 JSON 对象，含 `task_id` / `execution_id` / `input_request_id` / `issue_id` / `worker_id` 等可选键；不同 event 关联的实体不同，平铺 nullable 列 vs JSON `refs` 由 implementation 层定（[conventions § 9](../../../../rules/conventions.md) dialect-agnostic）
 - `actor` 标识动作触发者：`user:hayang` / `supervisor:invocation-id` / `worker:W-1` / `system`（派生事件）
 - 与对应状态表在同事务内双写（state UPDATE + event INSERT 同一 tx）；**不是状态权威**，状态恢复走 DB 备份。用途：审计 / supervisor 输入 / 跨上下文 timeline / 新增投影。理由见 [ADR-0014](../../../decisions/0014-event-sourcing-level.md)
@@ -53,11 +53,11 @@
 
 ### O3. Supervisor 调用全留档
 
-- 每次 supervisor 启动：先在 DB 写 `supervisor_invocations(id, scope_kind, scope_key, trigger_event_ids, started_at, status='running', hard_timeout_seconds)` 占位（`trigger_event_ids` JSON 数组，coalesced batch 用同一行表达；详见 [06-supervisor-model.md § 2](../cognition/01-supervisor-model.md)）
+- 每次 supervisor 启动：先在 DB 写 `supervisor_invocations(id, scope_kind, scope_key, trigger_event_ids, started_at, status='running', hard_timeout_seconds)` 占位（`trigger_event_ids` JSON 数组，coalesced batch 用同一行表达；详见 [cognition/01-supervisor-invocation.md § 2](../cognition/01-supervisor-invocation.md)）
 - 调 `claude` 时把 `--session-id <invocation-id>` 传进去，让 claude 自己产的 JSONL trace 跟 invocation 关联
 - Supervisor 子进程结束：回填 `ended_at, status, failed_reason / failed_message / timed_out_at, token_usage, decisions_made_count`
 - 4 态终态：`succeeded` / `failed`（含 `reason ∈ {claude_nonzero / cli_command_error / oom / center_restart_orphan / killed_by_admin}`，配 `message`，[conventions § 16](../../../../rules/conventions.md)）/ `timed_out`
-- Decisions 是 supervisor 通过 CLI 命令显式 emit 的：动作 CLI（`dispatch` / `kill-execution` / `issue *` / `conversation add-message` / `escalate-input-request` 等）内部自动 INSERT `decision_records` 行；`no_op` 决策走 `record-decision` CLI；详见 [06-supervisor-model.md § 5](../cognition/01-supervisor-model.md)
+- Decisions 是 supervisor 通过 CLI 命令显式 emit 的：动作 CLI（`dispatch` / `kill-execution` / `issue *` / `conversation add-message` / `escalate-input-request` 等）内部自动 INSERT `decision_records` 行；`no_op` 决策走 `record-decision` CLI；详见 [cognition/01-supervisor-invocation.md § 4](../cognition/01-supervisor-invocation.md)
 - 失败 / 超时 invocation **不自动重试**，emit `supervisor.invocation_failed_alert` → Bridge 推飞书 + Web Console flag；人工 `agent-center supervisor retrigger <id>` 才重发
 - Center crash 后 `status='running'` 的孤儿行 → `failed(reason='center_restart_orphan')`，未被任何成功 invocation 覆盖的 wake 事件 → 自动 replay（[ADR-0013](../../../decisions/0013-supervisor-invocation-concurrency.md)）
 - `events.decision_id` (uuid, nullable) 让事件能反查具体 decision；JOIN `decision_records` 拿 rationale

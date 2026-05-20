@@ -4,7 +4,7 @@
 
 派单时，**worker agent 子进程**收到的 prompt 由几个不同来源的内容**分层叠加**而成。本文说明 worker 侧的分层、来源、责任归属。
 
-> **Supervisor 自己**（center 上的 agent）有一套独立的 prompt 组装机制，跟本文 worker 侧的方案**两套独立**。详见 [06-supervisor-model.md § 6.4](../cognition/01-supervisor-model.md)。
+> **Supervisor 自己**（center 上的 agent）有一套独立的 prompt 组装机制，跟本文 worker 侧的方案**两套独立**。详见 [cognition/00-overview.md § 7.4 Prompt 组装边界](../cognition/00-overview.md)。
 
 ## 层次
 
