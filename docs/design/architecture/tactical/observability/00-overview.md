@@ -89,7 +89,7 @@
 
 | Projection | 维护者 | 物理形态 | 用途 |
 |---|---|---|---|
-| **TaskExecutionProjection** | worker daemon 边解析 agent JSONL 边更新 + 推 center | DB 表行 `task_executions` 的 projection 列（`current_activity` / `current_activity_at` / `total_tool_calls` / `total_tokens` / `working_seconds_accumulated`） | Fleet View / `inspect execution` |
+| **TaskExecutionProjection** | worker daemon 边解析 agent JSONL 边更新 + 推 center | 独立表 `task_execution_projections`（PK = task_execution_id，与 task_executions 1:1）：`current_activity` / `current_activity_at` / `total_tool_calls` / `total_tokens` / `working_seconds_accumulated` 等 | Fleet View / `inspect execution` |
 | **TaskStatusProjection** | 同 TaskExecution 状态机推进 + DB | task / task_execution 表本身 | `query tasks` / `inspect task` |
 | **FleetSnapshot** | center 端按需聚合（`ps`）| 实时计算，不持久化 | `ps` / `agent-center ps --watch` |
 | **AgentTraceEvent** | worker daemon 解析 JSONL 后写本地 `trace.jsonl` | 文件系统 + 任务结束打包 BlobStore | execution / invocation 结束归档查询 |
@@ -135,7 +135,7 @@
 
 | 投影 | 同步性 | 实现 |
 |---|---|---|
-| TaskExecutionProjection | 实时（worker daemon push） | DB UPDATE on task_executions.projection_columns |
+| TaskExecutionProjection | 实时（worker daemon push） | DB UPSERT on `task_execution_projections`（PK 1:1 与 task_executions） |
 | TaskStatusProjection | 实时（同事务） | DB UPDATE on tasks / task_executions 主行 |
 | FleetSnapshot | 按需 | `ps` 命令查多张表实时聚合，不持久化 |
 
@@ -220,7 +220,9 @@ var (
 )
 ```
 
-> **跨 BC column ownership**：本 Repository 跟 [TaskRuntime TaskExecutionRepository](../task-runtime/00-overview.md) 共享物理表 `task_executions`，但**各自写各自列**：TaskRuntime 写**业务状态列**（status / dispatch_state / cancel_requested_at / terminal reason+message 等）；本 Repository 写**projection 列**（current_activity / current_activity_at / total_tool_calls / total_tokens / working_seconds_accumulated 等）。**两个 BC 不互相覆盖**；实现层分别用部分列 UPDATE 实现 column-level ownership。
+> **BC 物理隔离**（[conventions § 9.z](../../../../rules/conventions.md)）：本 Repository 独占物理表 `task_execution_projections`（PK = task_execution_id，与 [TaskRuntime](../task-runtime/00-overview.md) 的 `task_executions` 1:1 关联但**不共享**该表）。worker daemon push 路径走 `UpdateProjection` → UPSERT 到本 BC 独有的 projection 表，**完全不触碰** TaskRuntime 的 task_executions 表。`inspect execution` 等读路径用 PK JOIN 拉到一起。
+
+> **历史包袱清理（2026-05-20）**：原设计曾把 projection 列拼到 task_executions 表跨 BC 共写，已按 conventions § 9.z 拆分。
 
 ### 5.3 TraceArchiveRepository（BlobStore，不在 DB）
 
@@ -254,7 +256,7 @@ var (
 |---|---|---|---|
 | **Event → DecisionRecord**（`events.decision_id`） | 弱 / nullable / 反向血缘 | tx 同步（emit 时填）| supervisor 动作 CLI 内部 emit |
 | **Event → 各 BC 实体**（`events.refs.{task_id / issue_id / ...}`） | 弱 / 反向血缘 | tx 同步 | 各 BC emit |
-| **TaskExecutionProjection → TaskExecution**（同表 projection 列） | 强 / 同行 | 实时同步 | worker daemon push |
+| **TaskExecutionProjection → TaskExecution**（PK 1:1 引用，本 BC 独有表 `task_execution_projections`） | 强 / 1:1 | 实时同步 | worker daemon push |
 
 ---
 

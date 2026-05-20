@@ -274,7 +274,9 @@ var (
 
 > **终态 reason 是 typed enum**（§ 1.3 VO）：`CompletedReason` / `FailedReason` / `KilledReason` 各自闭集枚举，配 `message` 字段（[conventions § 16](../../../../rules/conventions.md)）；CAS via `version int` 防终态被并发覆盖（如 kill 跟 normal complete 竞态）。
 >
-> **TaskExecutionProjection 列同表跨 BC ownership 声明**：本 Repository 拥有 `task_executions` 表的**业务状态列**（status / dispatch_state / cancel_requested_at / terminal reason+message 等）；**projection 列**（current_activity / total_tool_calls / working_seconds_accumulated 等）归 [Observability TaskExecutionProjectionRepository](../observability/00-overview.md) 写入（worker daemon push 路径）。**两个 BC 各自写各自列，不互相覆盖**；事务级约束由 implementation 层分别用部分列 UPDATE 实现。
+> **BC 物理隔离**（[conventions § 9.z](../../../../rules/conventions.md)）：本 Repository 独占 `task_executions` 表，仅承载业务状态列（status / dispatch_state / cancel_requested_at / terminal reason+message / version 等）。execution 的实时 projection（current_activity / total_tool_calls / working_seconds_accumulated 等）归 [Observability TaskExecutionProjectionRepository](../observability/00-overview.md) 写入**它自己**的 `task_execution_projections` 表（PK = task_execution_id，与本表 1:1）。**两表物理独立，不共享行 / 不共享列**；`inspect execution` 等读路径通过 PK JOIN 拼合。
+>
+> **历史包袱清理（2026-05-20）**：原设计曾把 projection 列拼到本表跨 BC 共写，已按 conventions § 9.z 拆分。
 
 ### 5.3 InputRequestRepository
 

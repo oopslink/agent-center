@@ -43,6 +43,7 @@
 - 跨聚合写操作，符合 [ADR-0014 § 2](../design/decisions/0014-event-sourcing-level.md) 的同事务原则吗？跨聚合**强引用**（如 task.conversation_id）vs **弱关联**（如 issue.related_conversation_ids）的选择有依据吗？
 - 我引入的值对象是不是有"由属性定义、不可变、可替换"特征？是的话明示为 VO，不要散成"几个字段"
 - **外部对聚合的访问，是不是只通过 Root.id**？聚合根**守门**：外部代码 / 跨聚合引用一律持 Root.id，不持内部 Entity / 子从属的句柄；要操作内部 Entity 必经 Root 暴露的方法（详见 P3 各 BC § 5 Repositories 约定栏）|
+- **BC 物理隔离**：我新增的表 / 列归属唯一 BC 吗？跨 BC 数据流走 events / RPC，不共享物理表（详见 [§ 9.z](#-9z-bc-间不共享底层数据表)）
 
 ### § 0.4 不接受的措辞
 
@@ -182,6 +183,25 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 
 **自检：** 我新增的关联是不是只是 list-of-id？是的话用 JSON 字段；不是的话有没有真正的领域含义？
 
+## § 9.z BC 间不共享底层数据表
+
+跨 BC 的数据交换走 **API / 接口**（同 BC 内 Repository / Domain Event 订阅 / 应用层 RPC），**不能共享物理表**。"同表跨 BC ownership / column-level ownership / 各 BC 写各自列"等措辞一律视为违反 BC 边界。
+
+**为什么**：
+
+- 物理表跨 BC 共享意味着 migration / 索引 / 字段加减要协调多 BC，破坏 BC 独立演进
+- 隐含的 partial-column UPDATE 是不成文契约，落代码时易出错
+- 字面违反 hexagonal / BC 边界，给后续设计立坏样本
+- "省一次 PK JOIN" 的收益通常不值这些代价（SQLite 单库 PK JOIN 可忽略）
+
+**合法的跨 BC 数据通道**：
+
+- **Domain Event**：BC-A emit，BC-B 订阅投影到**自己的**表
+- **应用层 RPC / API**：BC-B 调 BC-A 暴露的查询方法
+- **Repository 接口暴露的查询**：仅用于同 BC 内
+
+**自检：** 我新增的表 / 列能指向**唯一**一个 owning BC 吗？两个以上 BC 要写同一行，要么拆表，要么改成 events 订阅投影到本 BC 独有表。
+
 ## § 9.y 外部集成走 Bridge 模式，不在领域模块内调 vendor SDK
 
 领域模块（Issue / Conversation / Task / 等）是**系统内部模块**，**不直接调用** 飞书 / DingTalk / 任何 vendor 的 SDK 或 API。
@@ -295,6 +315,7 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 - [ ] 项目本地约定（§7）：不在 agent-center 里管项目自有的规则文档
 - [ ] BlobStore（§8）：大字段走 BlobStore
 - [ ] dialect-agnostic（§9）：SQL 跨 SQLite / PG 兼容
+- [ ] BC 物理隔离（§9.z）：新增表 / 列归属唯一 BC；跨 BC 数据流走 events / RPC 不共享物理表
 - [ ] 单一二进制（§10）：没新增独立 binary
 - [ ] 渠道选对（§11）：明确走 Issue / InputRequest / Event 哪一条
 - [ ] 命名（§12）：遵循术语表
