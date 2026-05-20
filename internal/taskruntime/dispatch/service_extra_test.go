@@ -42,6 +42,21 @@ func TestDefaultConfigDefaults(t *testing.T) {
 
 // TestHandleNack_DoubleNackRejected: the second NACK on the same execution
 // should be rejected as already-terminated.
+func TestNewIssueConcludeSpawn_NilClock(t *testing.T) {
+	db, _ := persistence.Open(persistence.MemoryDSN())
+	defer db.Close()
+	_ = persistence.NewMigrator(db).Up(context.Background())
+	clk := clock.NewFakeClock(time.Now())
+	gen := idgen.NewGenerator(clk)
+	er, _ := obsqlite.NewEventRepo(context.Background(), db)
+	sink := observability.NewEventSink(er, er, gen, clk)
+	taskRepo := trsqlite.NewTaskRepo(db)
+	s := NewIssueConcludeSpawn(db, taskRepo, sink, gen, nil)
+	if s.clock == nil {
+		t.Fatal("expected default clock")
+	}
+}
+
 func TestHandleNack_DoubleNackRejected(t *testing.T) {
 	h := setup(t)
 	seedTask(t, h, "T-1")
