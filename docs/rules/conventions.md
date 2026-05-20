@@ -162,7 +162,9 @@ v1 默认嵌入式 **SQLite**（单文件、零运维）。未来可能切 **Pos
 
 ### § 9.2 CI 双引擎跑
 
-测试套件（含 repository / migration / 任何写过 SQL 的代码）必须**同时在 SQLite 和 PG 上跑**。CI 默认双 job 并行，缺一不可。否则方言泄漏会悄无声息地积累，到真要切 PG 那天爆炸。
+测试套件（含 repository / migration / 任何写过 SQL 的代码）原则上**同时在 SQLite 和 PG 上跑**。CI 默认双 job 并行，否则方言泄漏会悄无声息地积累，到真要切 PG 那天爆炸。
+
+> **v1 阶段例外**：落地 SQLite-only（[implementation/02-persistence-schema § 1.3](../design/implementation/02-persistence-schema.md)）；PG CI 在 v1 不强制，切 PG 按"重做"重新激活而非平滑迁移。本节其余规则（§ 9.0 禁忌 / § 9.1 additive migration）仍生效以保持大部分可移植性。
 
 ### § 9.3 不依赖 dialect 的存储抽象边界
 

@@ -9,7 +9,7 @@
 | # | 主题 | 状态 |
 |---|---|---|
 | 01 | [BlobStore 接口 / 配置 / 迁移](01-blob-store.md) | Draft |
-| 02 | [持久化 schema](02-persistence-schema.md) | TBD |
+| 02 | [持久化 schema](02-persistence-schema.md) | Draft |
 | 03 | [CLI 子命令完整签名](03-cli-subcommands.md) | TBD |
 | 04 | [配置文件 schema](04-configuration.md) | TBD |
 | 05 | [Agent CLI Adapters](05-agent-adapters.md) | TBD |
