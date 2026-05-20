@@ -1,0 +1,390 @@
+# Agent CLI Adapters
+
+> **实现层** · 把各家 agent CLI（Claude Code / Codex / OpenCode）的差异封进 `internal/agentadapter/` 包，给 worker daemon / per-execution shim 一个统一接口。
+>
+> **设计动机**：[ADR-0002](../decisions/0002-no-llm-sdk-use-cli-agents.md) 零 LLM SDK 依赖，所有 agent 走 CLI 子进程；[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md) per-execution shim 模式承载进程生命周期。
+>
+> 本文档 **元层规则 § 1-7 + Per-CLI 实现切片 § 8（claude-code 主力 + codex / opencode 接口预留）+ 测试策略 § 9 + ADR / Repository 对位 § 10**。
+
+## § 1. 包定位
+
+```
+internal/
+├── agentadapter/
+│   ├── adapter.go            # Adapter interface（§ 2）
+│   ├── event.go              # 统一 AgentTraceEvent schema（§ 3）
+│   ├── lifecycle.go          # SpawnAgent / KillAgent 通用骨架（§ 4）
+│   ├── claudecode/           # § 8.1
+│   ├── codex/                # § 8.2 (TBD)
+│   └── opencode/             # § 8.3 (TBD)
+├── workerdaemon/             # 调 agentadapter
+└── shim/                     # per-execution shim (ADR-0018)
+```
+
+**约束**（[ADR-0002 § 影响](../decisions/0002-no-llm-sdk-use-cli-agents.md)）：
+
+- agentadapter 包**不依赖** anthropic / openai / 任何 LLM SDK（[NF1](../requirements/02-non-functional.md)）
+- worker daemon / shim **不感知** CLI 差异，只调 Adapter interface
+- 新增 agent CLI 走"加 subpackage + 注册"模式，不动 daemon / shim 代码
+
+---
+
+## § 2. Adapter Go Interface
+
+```go
+// internal/agentadapter/adapter.go
+package agentadapter
+
+import (
+    "context"
+    "io"
+    "time"
+)
+
+// Adapter 封装一家 agent CLI 的所有差异。
+// 实现位于 internal/agentadapter/<cli-name>/。
+type Adapter interface {
+    // Name 返回 CLI 标识符（"claude-code" / "codex" / "opencode"）。
+    Name() string
+
+    // BuildCommand 把 SpawnRequest 翻译为具体 CLI 命令行 + env。
+    // shim 拿这个 cmdline 跑 fork+exec。
+    BuildCommand(req SpawnRequest) (CmdSpec, error)
+
+    // ParseEvent 把 agent stdout 一行 JSONL 翻译成 AgentTraceEvent。
+    // CLI 私有字段保留在 raw 里供归档。
+    ParseEvent(line []byte) (AgentTraceEvent, error)
+
+    // SupportsSession 报告本 CLI 是否支持 `--session-id` 类幂等会话标识。
+    // 不支持的 CLI 在重启 / retry 时无法恢复 session（fallback：新建 execution）。
+    SupportsSession() bool
+}
+
+type SpawnRequest struct {
+    ExecutionID   string         // ULID；session-id 也用它
+    Prompt        string         // 最终 prompt（worker daemon 已拼装好，§ 6）
+    WorkingDir    string         // agent CWD（per-execution worktree）
+    SkillFiles    []string       // 额外 skill 路径
+    AgentLogPath  string         // agent stdout / JSONL 落地路径
+    Env           map[string]string // AGENT_CENTER_* env 注入
+    Timeout       time.Duration  // 软超时（0 = 不限）
+}
+
+type CmdSpec struct {
+    Binary   string         // CLI 二进制路径（如 "claude" / "codex"）
+    Args     []string       // flag + arg
+    Env      []string       // KEY=VALUE
+    Stdin    io.Reader      // nil = 不喂 stdin（prompt 走 -p flag）
+}
+
+// Adapter 注册表：lookup by Name()。
+var adapters = map[string]Adapter{}
+
+func Register(a Adapter) { adapters[a.Name()] = a }
+func Get(name string) (Adapter, bool) {
+    a, ok := adapters[name]
+    return a, ok
+}
+```
+
+子包 `init()` 自注册（如 `agentadapter/claudecode/init.go: func init() { agentadapter.Register(&Adapter{}) }`）。
+
+---
+
+## § 3. JSONL 行格式规范化
+
+各 CLI 输出 JSONL 行格式不一，统一翻译为内部 schema：
+
+```go
+// internal/agentadapter/event.go
+type AgentTraceEvent struct {
+    Type        EventType         // 见下表
+    Seq         int64             // adapter 端单调递增（per-execution）
+    OccurredAt  time.Time         // wall clock（解析时打）
+    ToolName    string            // Type == ToolCall / ToolResult 时填
+    ToolInput   json.RawMessage   // Type == ToolCall 时填
+    ToolOutput  json.RawMessage   // Type == ToolResult 时填
+    Thinking    string            // Type == Thinking 时填
+    TokensIn    int               // Type == TokensReport 时填
+    TokensOut   int               // 同上
+    Raw         json.RawMessage   // 完整原始行；归档用
+}
+
+type EventType string
+const (
+    EventThinking      EventType = "thinking"
+    EventToolCall      EventType = "tool_call"
+    EventToolResult    EventType = "tool_result"
+    EventTokensReport  EventType = "tokens_report"
+    EventTurnEnd       EventType = "turn_end"
+    EventError         EventType = "error"
+    EventUnknown       EventType = "unknown"      // CLI 输出了新类型，归档但不解释
+)
+```
+
+**Unknown 处理**：CLI 升级新增事件类型时，adapter 不认识 → 归到 `EventUnknown`，`Raw` 字段保留完整原文。**不抛错**，让升级不阻塞业务路径（[ADR-0002 § "受 CLI 升级影响"](../decisions/0002-no-llm-sdk-use-cli-agents.md)）。
+
+**TaskExecution projection** 由 worker daemon 边读规范化 event 边维护（[02-persistence-schema § 8.2](02-persistence-schema.md)）；事件本身**不进 events 表**（[ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md)）。
+
+---
+
+## § 4. 进程生命周期
+
+实际 spawn / wait / kill 不由 Adapter 直接做 —— Adapter 只产 `CmdSpec`，由 **per-execution shim**（[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)）执行：
+
+```
+worker daemon
+    │ adapter.BuildCommand(req) → CmdSpec
+    │
+    ▼
+spawn shim
+    ./agent-center worker shim
+      --execution-id=<ulid>
+      --shim-token=<nonce>
+      --cmd=claude
+      --                              # 后续 args 为 CmdSpec.Args
+      --output-format stream-json
+      --session-id=<ulid>
+      -p "<prompt>"
+    │
+    ▼
+shim setsid + fork + exec agent CLI
+    │
+    ▼
+agent 子进程独立于 worker daemon（detached）
+shim 全职：
+  - 监听 unix socket（接 worker daemon RPC）
+  - 把 agent stdout 一行一行 append 到 events.jsonl
+  - 跑 adapter.ParseEvent(line) 解析规范化
+  - 收 daemon SIGTERM → 转发 agent SIGTERM，5s grace 后 SIGKILL
+```
+
+### 4.1 Per-execution 目录布局（[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)）
+
+```
+/var/lib/agent-center/executions/<execution_id>/
+├── envelope.json       # daemon 写：dispatch envelope 快照
+├── status.json         # shim 边跑边写：current pid + start_time + status
+├── events.jsonl        # shim append：原始 JSONL 行（带 seq）
+├── agent.log           # agent stdout 完整原文（debug 兜底）
+├── stderr.log          # agent stderr
+└── shim.sock           # shim unix socket（daemon 重连入口）
+```
+
+execution 结束后归档：
+- `events.jsonl` → BlobStore `tasks/<task_id>/<execution_id>/trace.jsonl.gz`
+- `agent.log` → BlobStore `tasks/<task_id>/<execution_id>/log.log.gz`
+- 24h 后整目录清理（保 disk）
+
+### 4.2 Kill 时序
+
+| 阶段 | 动作 |
+|---|---|
+| t=0 | center emit `task_execution.kill_requested` |
+| t=0+ε | worker daemon 收事件 → 调 shim RPC `Kill(reason, message)` |
+| t=0+2ε | shim 发 SIGTERM 给 agent |
+| t≤5s | agent 正常退出 → shim wait → exit code 0 + 优雅终态 |
+| t=5s | shim 发 SIGKILL（hard kill）|
+| t≤10s | shim wait → exit code != 0 + reason=`killed` |
+| 终态 | shim emit `task_execution.killed { reason, message }` → daemon 转 center |
+
+**5s grace 时间硬编码**（写死，不做 per-CLI 配置）—— 大部分 agent CLI 收 SIGTERM 后保存 transcript 几百 ms 内完成，5s 足够；超时直接 SIGKILL 避免拖跨 worker。
+
+---
+
+## § 5. Session 管理多态
+
+不同 CLI 对幂等会话标识支持不一：
+
+| CLI | 支持 session-id? | 路径 |
+|---|---|---|
+| Claude Code | ✅ `--session-id=<ulid>` | 用 `execution_id` 当 session-id（execution 即一次会话）|
+| Codex | ⏳ 待验证 | 若不支持，session resume 不可用，fallback 走"新 execution" |
+| OpenCode | ⏳ 待验证 | 同上 |
+
+`Adapter.SupportsSession() bool` 让 caller 知道：
+
+```go
+// internal/workerdaemon/dispatch.go
+if !adapter.SupportsSession() {
+    // shim 重启 / RPC 失联后无法 resume；走 task fail + new execution 路径
+    log.Info("adapter does not support session resume; failover only via new execution")
+}
+```
+
+**关于 retry / resume**：v1 不做 agent 内 retry；agent crash → shim → daemon → emit `task_execution.failed(reason=agent_crashed)` → supervisor 决策起新 execution（[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)）。Session resume 仅用于 **shim ↔ daemon 失联重连**场景（[ADR-0018 § 4](../decisions/0018-detached-agent-via-per-execution-shim.md)），不是 agent retry。
+
+---
+
+## § 6. Prompt 拼装职责
+
+Adapter **不**拼 prompt。prompt 由 worker daemon 拼好后通过 `SpawnRequest.Prompt` 传入。
+
+拼装路径（[agent-harness/01-prompt-assembly § ...](../architecture/tactical/agent-harness/01-prompt-assembly.md)）：
+
+1. worker daemon 装载 binary 携带的 `worker-agent.md` skill
+2. 追加 `extra_skill_files`（envelope 携带）
+3. 拼上 `constraints_extra` + `task_description`
+4. 完整 string 作为 `SpawnRequest.Prompt` 喂 Adapter
+5. Adapter 决定**怎么传给 CLI**（claude-code 用 `-p "$prompt"` flag；codex 可能用 stdin）
+
+> **不在 prompt 里塞 project 本地 CLAUDE.md / AGENTS.md**：[conventions § 7](../../rules/conventions.md) 项目本地约定不进 agent-center，agent CLI 自己读项目目录 `AGENTS.md` / `CLAUDE.md`。
+
+---
+
+## § 7. 错误 reason 编码
+
+`task_execution.failed` 的 reason 枚举（adapter 路径相关）：
+
+| reason | 触发场景 |
+|---|---|
+| `agent_crashed` | agent 进程 abnormal exit（非 0 非 SIGKILL）|
+| `agent_killed` | 收 SIGTERM/SIGKILL 后 exit |
+| `shim_no_hello` | shim 启动后 N 秒内没 ShimHello（[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)）|
+| `shim_crashed` | daemon 探活发现 shim 进程已死 |
+| `agent_cli_not_found` | binary 路径不存在 / exec 失败 |
+| `prompt_too_long` | 拼装后 prompt 超 CLI 上限（adapter 检测） |
+| `jsonl_parse_error` | adapter.ParseEvent 多次失败（非 Unknown，是非法 JSON）|
+
+`message` 字段（[conventions § 16](../../rules/conventions.md)）携带具体进程 ID / exit code / 错误片段。
+
+---
+
+## § 8. Per-CLI 实现切片
+
+### 8.1 Claude Code（v1 主力）
+
+**Binary**：`claude`（PATH 上找 / config `agent_cli.claude_code.binary` 覆盖）。
+
+**BuildCommand**：
+
+```go
+// internal/agentadapter/claudecode/adapter.go
+func (a *Adapter) BuildCommand(req SpawnRequest) (CmdSpec, error) {
+    args := []string{
+        "--output-format", "stream-json",
+        "--session-id", req.ExecutionID,
+    }
+    for _, p := range req.SkillFiles {
+        args = append(args, "--skill", p)   // 假设 flag 名；落代码时跟 claude --help 校准
+    }
+    args = append(args, "-p", req.Prompt)
+
+    env := os.Environ()
+    for k, v := range req.Env {
+        env = append(env, k+"="+v)
+    }
+
+    return CmdSpec{
+        Binary: a.binaryPath,
+        Args:   args,
+        Env:    env,
+        Stdin:  nil,                          // prompt 走 -p flag，不用 stdin
+    }, nil
+}
+
+func (a *Adapter) SupportsSession() bool { return true }
+```
+
+**ParseEvent**（claude code stream-json 行格式 — 落代码时按 `claude --output-format stream-json` 实际输出对齐）：
+
+```jsonl
+{"type":"thinking","text":"..."}
+{"type":"tool_use","name":"Bash","input":{"command":"..."}}
+{"type":"tool_result","tool_use_id":"...","content":"..."}
+{"type":"usage","input_tokens":1234,"output_tokens":567}
+{"type":"end_turn"}
+```
+
+映射到 `AgentTraceEvent`：
+
+| Claude type | EventType | 字段映射 |
+|---|---|---|
+| `thinking` | `EventThinking` | `Thinking = text` |
+| `tool_use` | `EventToolCall` | `ToolName = name`, `ToolInput = input` |
+| `tool_result` | `EventToolResult` | `ToolOutput = content` |
+| `usage` | `EventTokensReport` | `TokensIn / TokensOut` |
+| `end_turn` | `EventTurnEnd` | - |
+| 其它 | `EventUnknown` | `Raw = 完整行` |
+
+### 8.2 Codex（TBD）
+
+**预留 subpackage** `internal/agentadapter/codex/`；接口实现按 § 2 模板。
+
+已知差异（待 falsify / 落代码时确认）：
+
+| 维度 | 假设 |
+|---|---|
+| Session id flag | 待验证；不支持则 `SupportsSession()` 返回 false |
+| Prompt 传递 | 可能走 stdin（不是 `-p` flag）|
+| JSONL schema | 字段名可能与 claude 不同；adapter ParseEvent 翻译 |
+| Stream mode | 待验证；不支持 stream-json 则**不能用**（[NF8](../requirements/02-non-functional.md)）|
+
+落代码前的 spike：
+
+```bash
+codex --help | grep -i "stream\|json\|session"
+```
+
+### 8.3 OpenCode（TBD）
+
+同 § 8.2 模板。预留 subpackage。
+
+---
+
+## § 9. 测试策略
+
+### 9.1 Mock agent CLI
+
+`testdata/mock-agents/<scenario>.sh` 是一个可执行脚本，模拟 agent CLI：
+
+```bash
+#!/usr/bin/env bash
+# testdata/mock-agents/thinking_then_tool_call.sh
+# 按 --session-id 等 flag 解析后输出 JSONL，sleep 模拟时延。
+echo '{"type":"thinking","text":"let me check the file"}'
+sleep 0.1
+echo '{"type":"tool_use","name":"Read","input":{"path":"/tmp/foo"}}'
+sleep 0.2
+echo '{"type":"tool_result","tool_use_id":"x","content":"file contents"}'
+echo '{"type":"end_turn"}'
+```
+
+Adapter 单测：
+
+- `BuildCommand` 单测断言 args 顺序 / flag 正确
+- `ParseEvent` 单测喂行→断言映射
+- 集成测：spawn mock CLI，断言 events.jsonl 内容 + AgentTraceEvent stream
+
+### 9.2 Per-CLI 兼容性矩阵
+
+CI 跑 `tests/agent_cli_compat/` 套件，**每家真实 CLI** 在隔离 runner 上跑一组固定 prompt → 断言 JSONL schema：
+
+| Scenario | claude-code | codex | opencode |
+|---|---|---|---|
+| simple thinking + end_turn | ✅ | TBD | TBD |
+| single tool_call + result | ✅ | TBD | TBD |
+| usage 字段存在 | ✅ | TBD | TBD |
+| session_id 可重用 | ✅ | TBD | TBD |
+| 超时 + SIGTERM 5s 内 exit | ✅ | TBD | TBD |
+
+兼容性矩阵 fail → 该 CLI 不计入支持列表。
+
+---
+
+## § 10. 与 ADR / Repository 对位
+
+| 设计层来源 | 实现层落点 |
+|---|---|
+| [ADR-0002](../decisions/0002-no-llm-sdk-use-cli-agents.md) 零 LLM SDK | § 1 包定位 / 依赖约束 |
+| [ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md) per-execution shim | § 4 进程生命周期 + 目录布局 |
+| [ADR-0015](../decisions/0015-agent-trace-not-in-events-table.md) trace 不进 events 表 | § 3 规范化 event → 走 BlobStore 归档 + projection 推送（[02-persistence § 8.2](02-persistence-schema.md)） |
+| [NF8](../requirements/02-non-functional.md) 结构化 JSONL | § 2 / § 3 / § 9 |
+| [agent-harness/01-prompt-assembly](../architecture/tactical/agent-harness/01-prompt-assembly.md) | § 6 prompt 拼装职责（在 daemon 不在 adapter）|
+| TaskRuntime TaskExecutionRepository | adapter 不直接调；daemon 调 Repository 写状态（[01-task.md § 4](../architecture/tactical/task-runtime/01-task.md)） |
+| Observability TaskExecutionProjectionRepository | adapter 解析的 event → daemon 推 projection（[observability § 5.2](../architecture/tactical/observability/00-overview.md)） |
+| Observability TraceArchiveRepository | events.jsonl + agent.log 归档 BlobStore（[01-blob-store § 路径约定](01-blob-store.md)）|
+
+---
+
+> **本文档 scope**：v1 实现层 Adapter 包定位 + 接口契约 + 进程生命周期 + 错误编码 + claude-code 主力切片 + codex / opencode 接口预留 + 测试策略。Per-CLI flag 真实细节 落代码时以**该 CLI 当时的 `--help` 输出**为准；新增 CLI 走 § 1 "加 subpackage + 注册"模式。
