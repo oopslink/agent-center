@@ -44,7 +44,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 ### TaskRuntime（任务运行时）— BC1
 
-> 合并自原 BC1 Scheduling + BC4 Execution（[ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)）。按聚合骨架多文件组织。
+> 合并自原 BC1 Scheduling + BC4 Execution（[ADR-0019](../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)）。按聚合骨架多文件组织。
 
 | # | 主题 | 状态 |
 |---|---|---|
@@ -61,7 +61,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 ### Workforce（工作池）— BC3
 
-> 原 BC4 Execution 运行时内容已 carve 到 BC1 TaskRuntime（[ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)）；本 BC 留 Worker / Project / Mapping / Proposal 元数据。
+> 原 BC4 Execution 运行时内容已 carve 到 BC1 TaskRuntime（[ADR-0019](../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)）；本 BC 留 Worker / Project / Mapping / Proposal 元数据。
 
 | # | 主题 | 状态 |
 |---|---|---|

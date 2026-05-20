@@ -155,10 +155,17 @@
 ### 5.1 ConversationRepository
 
 ```go
+type ConversationFilter struct {
+    Kind     *ConversationKind   // nil = 所有 kind
+    Status   *ConversationStatus // nil = 所有 status
+    Cursor   *ConversationID
+    Limit    int
+}
+
 type ConversationRepository interface {
     FindByID(ctx context.Context, id ConversationID) (*Conversation, error)
-    FindByKind(ctx context.Context, kind ConversationKind, status ConversationStatus) ([]*Conversation, error)
-    FindByChannelAndThreadKey(ctx context.Context, channel string, threadKey string) (*Conversation, error)  // Bridge inbound 反查
+    Find(ctx context.Context, filter ConversationFilter) ([]*Conversation, error)                // 按 kind / status 灵活查（替代原 FindByKind 强制 status）
+    FindByChannelAndThreadKey(ctx context.Context, channel string, threadKey string) (*Conversation, error)  // Bridge inbound 反查（高频热路径，独立方法）
     Save(ctx context.Context, c *Conversation) error
     UpdateStatus(ctx context.Context, id ConversationID, from, to ConversationStatus) error
     UpdatePrimaryChannel(ctx context.Context, id ConversationID, channel, threadKey string) error           // Bridge 回写 root card thread_key
@@ -188,7 +195,7 @@ type MessageRepository interface {
 var (
     ErrMessageNotFound       = errors.New("conversation: message not found")
     ErrMessageDuplicate      = errors.New("conversation: vendor_msg_ref duplicate (inbound dedupe)")
-    ErrMessageImmutable      = errors.New("conversation: message is append-only, cannot modify (only vendor_msg_ref回填 allowed)")
+    ErrMessageImmutable      = errors.New("conversation: message is append-only, cannot modify (only vendor_msg_ref backfill allowed)")
     ErrMessageInvalidSender  = errors.New("conversation: message sender_identity_id does not exist")
 )
 ```

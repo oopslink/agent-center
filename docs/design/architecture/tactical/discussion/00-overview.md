@@ -298,7 +298,7 @@ Discussion emit 的事件中触发 supervisor 唤醒的子集：
 
 ### 7.3 Observability 订阅
 
-Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / inspect。详见 [observability/01-observability.md § 事件总览](../observability/01-observability.md)。
+Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / inspect。详见 [observability/00-overview.md § 7.5 事件总览](../observability/00-overview.md)。
 
 ### 7.4 Customer-Supplier 上下游汇总
 

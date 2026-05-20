@@ -194,11 +194,19 @@ Global:
 ### 5.1 SupervisorInvocationRepository
 
 ```go
+type InvocationFilter struct {
+    ScopeKind  *ScopeKind          // nil = 所有 kind
+    ScopeKey   *string             // nil = 所有 key
+    Status     *InvocationStatus   // nil = 所有 status
+    Since      *time.Time          // nil = 不限
+    Cursor     *InvocationID       // 续上一页（ULID 排序兼容）
+    Limit      int                 // 0 = 默认值（由实现决定）
+}
+
 type SupervisorInvocationRepository interface {
     FindByID(ctx context.Context, id InvocationID) (*SupervisorInvocation, error)
-    FindByScope(ctx context.Context, scopeKind ScopeKind, scopeKey string) ([]*SupervisorInvocation, error)
-    FindRunning(ctx context.Context) ([]*SupervisorInvocation, error)
-    FindRunningByScope(ctx context.Context, scopeKind ScopeKind, scopeKey string) (*SupervisorInvocation, error) // 单活校验（命名对齐 FindByScope）
+    Find(ctx context.Context, filter InvocationFilter) ([]*SupervisorInvocation, error)             // 通用查询（支持 cursor 分页）
+    FindRunningByScope(ctx context.Context, scopeKind ScopeKind, scopeKey string) (*SupervisorInvocation, error) // 单活校验（高频热路径，独立方法）
     Save(ctx context.Context, inv *SupervisorInvocation) error
     UpdateStatusToTerminal(ctx context.Context, id InvocationID, update InvocationTerminalUpdate, version int) error
 }
@@ -226,11 +234,19 @@ var (
 ### 5.2 DecisionRecordRepository（sub-repo of Invocation）
 
 ```go
+type DecisionFilter struct {
+    InvocationID *InvocationID    // nil = 所有 invocation
+    Kind         *DecisionKind    // nil = 所有 kind
+    Outcome      *DecisionOutcome // nil = 所有 outcome
+    Since        *time.Time       // nil = 不限
+    Cursor       *DecisionID      // 续上一页
+    Limit        int
+}
+
 type DecisionRecordRepository interface {
-    FindByInvocationID(ctx context.Context, invocationID InvocationID) ([]*DecisionRecord, error)
-    FindByKind(ctx context.Context, kind DecisionKind, since time.Time) ([]*DecisionRecord, error)
-    FindByOutcome(ctx context.Context, outcome DecisionOutcome, since time.Time) ([]*DecisionRecord, error)
-    Append(ctx context.Context, d *DecisionRecord) error           // immutable append-only；不允许 Update/Delete
+    FindByInvocationID(ctx context.Context, invocationID InvocationID) ([]*DecisionRecord, error)  // 高频按 invocation 查（inspect supervisor）
+    Find(ctx context.Context, filter DecisionFilter) ([]*DecisionRecord, error)                    // 通用查询（支持 cursor 分页）
+    Append(ctx context.Context, d *DecisionRecord) error                                            // immutable append-only；不允许 Update/Delete
 }
 
 // Domain errors
@@ -241,23 +257,31 @@ var (
 )
 ```
 
-### 5.3 MemoryRepository（特殊：文件系统 + git 仓）
+### 5.3 MemorySkeletonFactory + MemoryGitOpsService（Memory 特殊路径）
 
-**不走标准 Repository 抽象** —— Memory 物理形态是 `$AGENT_CENTER_MEMORY_DIR/` git 仓，由 supervisor 用 claude 原生 `Edit` / `Write` 工具直接读写（[ADR-0012](../../../decisions/0012-memory-file-based.md)）。
+Memory **不走标准 Repository 抽象** —— Memory 物理形态是 `$AGENT_CENTER_MEMORY_DIR/` git 仓，由 supervisor 用 claude 原生 `Edit` / `Write` 工具直接读写（[ADR-0012](../../../decisions/0012-memory-file-based.md)）。但需要两个架构层契约：
 
-但有 **MemorySkeletonFactory** 接口（cold-start 时建空骨架）+ **MemoryGitOpsService** 接口（invocation 退出时 center 兜底 commit）：
+**MemorySkeletonFactory**（cold-start 时建空骨架）：
 
 ```go
 type MemorySkeletonFactory interface {
-    CreateSkeleton(ctx context.Context, scopeKind ScopeKind, scopeKey string) error      // 建空 CLAUDE.md + git commit
+    // CreateSkeleton 建空 CLAUDE.md + git commit (author=system:bootstrap)
+    CreateSkeleton(ctx context.Context, scopeKind ScopeKind, scopeKey string) error
 }
+```
 
+**MemoryGitOpsService**（invocation 退出时 center 兜底 commit）：
+
+```go
 type MemoryGitOpsService interface {
+    // AutoCommitDirty 检查仓内 dirty 变化 → git add -A && git commit (author=supervisor:<inv-id>)
     AutoCommitDirty(ctx context.Context, invocationID InvocationID, scopeKind ScopeKind, scopeKey string) error
-    // invocation 退出时检查 dirty + auto commit (author=supervisor:<inv-id>)
 }
+```
 
-// Domain errors
+**Domain errors**：
+
+```go
 var (
     ErrMemoryDirNotInitialized = errors.New("cognition: memory dir not initialized as git repo")
     ErrMemoryFileExists        = errors.New("cognition: memory file already exists (skeleton)")
@@ -310,7 +334,7 @@ Cognition BC **不主动订阅**事件。Center 的 wake scheduler（§ 3）扫 
 
 ### 7.3 查询 / inspect：跟 user 共用同一套
 
-Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / issue / worker / conversation / 等。**不为 supervisor 单造 RPC**。详见 [observability § O5](../observability/01-observability.md)。
+Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / issue / worker / conversation / 等。**不为 supervisor 单造 RPC**。详见 [observability/00-overview.md § 7.1 查询接口](../observability/00-overview.md)。
 
 ### 7.4 Prompt 组装边界
 

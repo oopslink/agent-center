@@ -181,14 +181,20 @@
 ### 5.1 EventRepository（append-only 严格）
 
 ```go
+type EventQueryFilter struct {
+    EventType     *string         // nil = 所有 type；前缀匹配如 "task." 也支持（实现层决定）
+    Refs          EventRefsFilter // 多键合取过滤（task_id / issue_id / worker_id / ...）
+    CorrelationID *string         // nil = 所有
+    DecisionID    *DecisionID     // nil = 所有
+    Since         *time.Time      // nil = 不限
+    Cursor        *EventID        // 续上一页（ULID 排序兼容；append-only 流原生支持稳定 cursor）
+    Limit         int             // 0 = 默认（由实现决定）
+}
+
 type EventRepository interface {
-    Append(ctx context.Context, e *Event) error                                              // INSERT only；从不 UPDATE/DELETE
+    Append(ctx context.Context, e *Event) error                          // INSERT only；从不 UPDATE/DELETE
     FindByID(ctx context.Context, id EventID) (*Event, error)
-    FindByType(ctx context.Context, eventType string, since time.Time, limit int) ([]*Event, error)
-    FindByRefs(ctx context.Context, refs EventRefsFilter, since time.Time, limit int) ([]*Event, error)
-    FindSince(ctx context.Context, since time.Time, limit int) ([]*Event, error)
-    FindByCorrelationID(ctx context.Context, correlationID string) ([]*Event, error)
-    FindByDecisionID(ctx context.Context, decisionID DecisionID) ([]*Event, error)
+    Find(ctx context.Context, filter EventQueryFilter) ([]*Event, error) // 通用查询（cursor 分页；适用 inspect / query CLI / supervisor input）
 }
 
 // Domain errors
