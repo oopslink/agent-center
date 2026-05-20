@@ -37,21 +37,15 @@
 
 4 态，无 `pending` 状态（行在 spawn 时刻直接落 `running`）：
 
-```
-                  (created on spawn)
-                       ↓
-                  ┌──────────┐
-                  │ running  │
-                  └────┬─────┘
-       claude exit 0   │   claude exit ≠ 0
-                       │   或 OOM / center restart 等
-       ┌───────────────┼───────────────┐
-       │               │               │
-       ↓               ↓ (hard timeout) ↓
-  ┌─────────┐      ┌──────────┐    ┌────────┐
-  │succeeded│      │ timed_out│    │ failed │
-  └─────────┘      └──────────┘    └────────┘
-       (终态)         (终态)          (终态)
+```mermaid
+stateDiagram-v2
+    [*] --> running: spawn claude 子进程
+    running --> succeeded: claude exit 0
+    running --> failed: claude exit ≠ 0<br/>(claude_nonzero / cli_error / oom /<br/> center_restart_orphan / killed_by_admin)
+    running --> timed_out: 命中 hard timeout<br/>(SIGTERM → 5s grace → SIGKILL)
+    succeeded --> [*]
+    failed --> [*]
+    timed_out --> [*]
 ```
 
 | 状态 | 含义 |

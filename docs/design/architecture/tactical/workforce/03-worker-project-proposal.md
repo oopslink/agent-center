@@ -10,12 +10,15 @@ WorkerProjectProposal 是 Worker 自动扫描发现的 "候选项目映射"。**
 
 ## § 1. 状态机（4 态）
 
-```
-pending ──┬──▶ accepted ─→ (终态)
-          │
-          ├──▶ ignored ─→ (可通过 unignore 回到 pending)
-          │
-          └──▶ superseded ─→ (终态)
+```mermaid
+stateDiagram-v2
+    [*] --> pending: Worker scan 新候选
+    pending --> accepted: 用户 [✅] / [✏️ 改后加入]
+    pending --> ignored: 用户 [❌ 忽略]
+    pending --> superseded: 新 proposal 提议同<br/>worker_id, candidate_path
+    ignored --> pending: worker proposal unignore
+    accepted --> [*]
+    superseded --> [*]
 ```
 
 | 转移 | 触发 |

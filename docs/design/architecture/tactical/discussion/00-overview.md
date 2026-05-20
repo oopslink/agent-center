@@ -52,12 +52,19 @@
 
 #### 状态机（6 态）
 
-```
-open ──▶ under_discussion ──┬──▶ concluded
-                            │       ├──▶ closed_no_action
-                            │       └──▶ closed_with_tasks
-                            │
-                            └──▶ withdrawn
+```mermaid
+stateDiagram-v2
+    [*] --> open: issue.open
+    open --> under_discussion: 首条非 opener Message
+    under_discussion --> concluded: 用户点 [得出结论]<br/>/ CLI issue conclude
+    concluded --> closed_no_action: 用户确认 "不做"
+    concluded --> closed_with_tasks: 用户确认 + spawn N Task
+    open --> withdrawn: opener 撤回
+    under_discussion --> withdrawn: opener 撤回
+    concluded --> withdrawn: opener 撤回
+    closed_no_action --> [*]
+    closed_with_tasks --> [*]
+    withdrawn --> [*]
 ```
 
 转换规则：

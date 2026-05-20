@@ -8,18 +8,11 @@ Conversation 是系统内部"消息时间线"的承载体。Message 是 thread �
 
 ## § 1. 状态机（2 态）
 
-```
-              (created via open)
-                    ↓
-                 ┌──────┐
-                 │ open │
-                 └──┬───┘
-                    │  Conversation.close (各种触发，详见 § 2)
-                    ▼
-                ┌────────┐
-                │ closed │
-                └────────┘
-                  (终态：保留全部历史，不再写入)
+```mermaid
+stateDiagram-v2
+    [*] --> open: Conversation.open
+    open --> closed: Conversation.close<br/>(kind=task: task done/abandoned<br/>kind=issue: concluded/closed_*/withdrawn<br/>kind=dm/group_thread: TTL / 用户 unbind<br/>kind=adhoc: 完成 / 24h TTL)
+    closed --> [*]: 保留全部历史，不再写入
 ```
 
 `closed` 是终态：不再接受新 Message 写入；CLI inspect 仍可查；用户翻飞书 thread 仍能看。

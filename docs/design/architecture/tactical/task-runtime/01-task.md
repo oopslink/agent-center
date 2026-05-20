@@ -25,23 +25,20 @@
 
 ## § 2. 状态机
 
+```mermaid
+stateDiagram-v2
+    [*] --> open: task.created
+    open --> suspended: suspend
+    suspended --> open: resume
+    open --> abandoned: abandon
+    suspended --> abandoned: abandon
+    open --> done: task_execution.completed
+    suspended --> done: task_execution.completed<br/>(罕见；通常先 resume)
+    done --> [*]
+    abandoned --> [*]
 ```
-                  (created)
-                      ↓
-              ┌──────────────┐
-              │     open     │ ──────── abandon ────────┐
-              └──┬────────▲──┘                          │
-        suspend  │        │ resume                      ↓
-                 ↓        │                       ┌──────────────┐
-              ┌──────────────┐  ── abandon ─────→ │  abandoned   │
-              │  suspended   │                    │    (终态)    │
-              └──────────────┘                    └──────────────┘
 
-(open 或 suspended) ── task_execution.completed ──→ ┌─────────┐
-                                                     │  done   │
-                                                     │ (终态)  │
-                                                     └─────────┘
-```
+> Task **没有 `failed` 状态**：Task 整体只有"完成 / 没完成 / 暂停 / 放弃"四种业务语义；具体执行失败由 TaskExecution 承载（重派 = 新 execution）。
 
 ---
 

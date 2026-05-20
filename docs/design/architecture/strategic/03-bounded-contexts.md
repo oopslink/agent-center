@@ -296,47 +296,79 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 
 ## § 3. 上下文映射（Context Map）
 
+```mermaid
+flowchart TB
+    subgraph Vendor [vendor 渠道]
+        feishu[飞书]
+        dingtalk[DingTalk<br/>v2+]
+        web[Web chat<br/>v2+]
+    end
+
+    subgraph B [BC7 Bridge · ACL · 唯一调 vendor SDK]
+        FB[FeishuBridge<br/>v1 必做]
+        DB[DingTalkBridge<br/>v2+]
+        WB[WebBridge<br/>v2+]
+    end
+
+    feishu <-.WebSocket.-> FB
+    dingtalk <-.WebSocket.-> DB
+    web <-.WebSocket.-> WB
+
+    subgraph Domain [领域层 BC1-BC6]
+        BC1["BC1 TaskRuntime<br/>Task / TaskExecution / InputRequest / Artifact<br/>协议 dispatch / kill / reconcile / timeout<br/>+ worker 侧运行时 shim / workspace / JSONL<br/>状态权威 center，物理执行 worker（ADR-0019）"]
+        BC2["BC2 Discussion<br/>Issue 单聚合"]
+        BC6["BC6 Conversation<br/>Conversation / Message / Identity / ChannelBinding<br/>消息时间线（kind=task / issue / dm / ...）"]
+        BC3["BC3 Workforce<br/>Worker / Project / Mapping / Proposal<br/>worker daemon 元数据管理"]
+    end
+
+    BC2 <-.Shared Kernel 1:1<br/>issue.conversation_id<br/>ADR-0021.-> BC6
+    BC1 <-.Shared Kernel 1:1<br/>task.conversation_id<br/>ADR-0017.-> BC6
+    BC2 -- Customer-Supplier<br/>IssueConcludeSpawn --> BC1
+    BC1 -- Customer-Supplier<br/>open-issue --> BC2
+    BC1 <-.Shared Kernel<br/>worker_id / project_id.-> BC3
+    BC2 <-.Shared Kernel<br/>project_id.-> BC3
+
+    B == inbound 调 API ==> BC2
+    B == inbound 调 API ==> BC6
+    B == inbound 调 API ==> BC1
+    BC6 -. Pub/Sub<br/>conversation.* .-> B
+    BC2 -. Pub/Sub<br/>issue.* .-> B
+    BC1 -. Pub/Sub<br/>task.* / input_request.* .-> B
+
+    subgraph CrossCutting [跨切 actor]
+        BC4["BC4 Cognition Supervisor<br/>SupervisorInvocation / Memory / DecisionRecord<br/>事件驱动 spawn claude 子进程做决策"]
+        BC5["BC5 Observability<br/>events 表 + 读模型 projections<br/>Open Host · subscribe-only"]
+    end
+
+    BC1 -. emit events .-> BC5
+    BC2 -. emit events .-> BC5
+    BC3 -. emit events .-> BC5
+    BC4 -. emit events .-> BC5
+    BC6 -. emit events .-> BC5
+    B -. emit events .-> BC5
+
+    BC4 ==>|"User via tools<br/>dispatch / kill / issue conclude<br/>conversation add-message"| BC1
+    BC4 ==>|User via tools| BC2
+    BC4 ==>|User via tools| BC6
+
+    classDef domainBox fill:#e8f4f8,stroke:#1e88e5,stroke-width:2px,color:#0d47a1
+    classDef bridgeBox fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#e65100
+    classDef obsBox fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#4a148c
+    classDef cogBox fill:#fce4ec,stroke:#d81b60,stroke-width:2px,color:#880e4f
+    classDef vendorBox fill:#fafafa,stroke:#9e9e9e,stroke-width:1px,color:#424242
+    class BC1,BC2,BC3,BC6 domainBox
+    class FB,DB,WB bridgeBox
+    class BC5 obsBox
+    class BC4 cogBox
+    class feishu,dingtalk,web vendorBox
 ```
-        飞书           DingTalk        Web chat        ...
-         ↕                ↕                ↕
-   ┌───────────────────────────────────────────────────────┐
-   │ Bridge (BC7)                                          │
-   │   FeishuBridge  DingTalkBridge  WebBridge   ...       │ ← 每 vendor 一个 Bridge
-   │   双向同步: 订阅领域事件 → 推 vendor；                  │
-   │             收 vendor 回调 → 调领域模块 API 写入        │
-   └────────┬──────────────────────────────────────────┬───┘
-            │ inbound 调 API 写                         ↑ outbound 订阅事件
-            ↓                                          │
-   ┌─────────────────┐                       ┌─────────────────┐
-   │ Discussion (BC2)│                       │ Conversation    │
-   │ (Issue 单聚合)   │← Shared Kernel 1:1 → │ (BC6, 系统内部  │
-   │                 │  issue.conversation_id│  消息时间线)     │
-   │                 │  [ADR-0021]           │  kind=issue/task│
-   └────────┬────────┘                       └────────┬────────┘
-            │                                         │
-            │ Shared Kernel:                          │ Shared Kernel:
-            │ project_id                              │ task.conversation_id (1:1)
-            ↓                                         ↓
-   ┌──────────────────────────────────────────────────────────┐
-   │ TaskRuntime (BC1)                                        │
-   │   Task / TaskExecution / InputRequest / Artifact         │
-   │   协议（dispatch / kill / reconcile / timeout）+         │
-   │   Worker 侧运行时（shim / workspace 物理 / JSONL）       │
-   │   状态权威在 center，物理执行在 worker，同 BC 内分布     │
-   │   （[ADR-0019]）                                         │
-   └──────┬───────────────────────────────────────────────────┘
-          │ Shared Kernel: worker_id / project_id
-          ↓
-   ┌──────────────────────────────────────────────────────────┐
-   │ Workforce (BC3)                                          │
-   │   Worker / Project / WorkerProjectMapping / Proposal     │
-   │   Worker daemon ↔ Center 长连接的元数据管理              │
-   └──────────────────────────────────────────────────────────┘
 
+**关键性质**：
 
-   Cognition (BC4, Supervisor) ─── cross-cutting actor ─→ ALL contexts
-     (Supervisor 通过 CLI 写入内部模块: issue comment / conversation add-message / 等
-      Bridge 自动订阅事件外发 vendor, Supervisor 不知道 vendor 存在)
+- **领域层 BC1-BC6**：零 vendor 依赖；只跟其它 BC 通过 Shared Kernel / Customer-Supplier 模式交互；所有外发通过 emit domain events
+- **Bridge BC7（ACL）**：唯一调 vendor SDK 的地方；订阅领域事件做 outbound；inbound 调领域 API；不持业务聚合（仅 `feishu_delivery_ledger` 等 ACL 内部审计表）
+- **Observability BC5（Open Host / Subscribe-only）**：所有 BC emit 事件到 `events` 表；只订阅不发起；提供统一查询接口（inspect / query / ps / stats / logs）；详见 [§ 6 Published Language](#-6-published-language)
+- **Cognition BC4（跨切）**：Supervisor 通过 CLI 工具调任何 BC 的动作命令（同 user 用同一套）；不为 supervisor 单造 RPC
 
    Observability (BC5) ←── subscribe-only ←── ALL contexts emit events
      (订阅所有事件，做投影 / 查询)

@@ -29,24 +29,24 @@
 
 ## § 2. 状态机
 
+```mermaid
+stateDiagram-v2
+    [*] --> submitted: DispatchService 创建
+    submitted --> working: worker spawn agent OK<br/>task_execution.working
+    submitted --> failed: submitted_timeout / dispatch_no_ack / dispatch_nack
+    working --> input_required: input_request.requested
+    input_required --> working: input_request.responded
+    working --> completed: agent reported success
+    working --> failed: agent_exit_nonzero / agent_reported_failure / worker_lost / execution_timeout / ...
+    working --> killed: kill_requested → SIGTERM 5s grace → SIGKILL
+    input_required --> failed: input_timeout
+    input_required --> killed: kill_requested
+    completed --> [*]
+    failed --> [*]
+    killed --> [*]
 ```
-            ┌──────────────┐
-            │  submitted   │ ←──── (created by Center)
-            └──────┬───────┘
-                   │ (worker spawn agent OK → task_execution.working)
-                   ↓
-            ┌──────────────┐  ──── input_request.requested ────→ ┌─────────────────┐
-            │   working    │                                       │ input_required  │
-            │              │ ←──── input_request.responded ─────── │                 │
-            └─┬────┬────┬──┘                                       └──┬──────────┬───┘
-              │    │    │                                             │          │
-       completed  failed  kill                                input_timeout      kill
-              │    │    │                                             │          │
-              ↓    ↓    ↓                                             ↓          ↓
-       ┌──────────┐ ┌────────┐ ┌────────┐                       ┌────────┐ ┌────────┐
-       │completed │ │ failed │ │ killed │ (终态)                │ failed │ │ killed │
-       └──────────┘ └────────┘ └────────┘                       └────────┘ └────────┘
-```
+
+> `kill` 流程实际由 `task_execution.kill_requested`（Center 发起）触发 worker SIGTERM → 5s grace → SIGKILL → emit `task_execution.killed`。状态机视角下 `* → killed` 是单一逻辑迁移。
 
 > `kill` 流程实际由 `task_execution.kill_requested`（Center 发起）触发 worker SIGTERM → 5s grace → SIGKILL → emit `task_execution.killed`。状态机视角下 `* → killed` 是单一逻辑迁移。
 

@@ -41,22 +41,15 @@ Agent 怎么知道有这个命令？通过 [`worker-agent.md`](../agent-harness/
 
 ## § 2. 状态机
 
-```
-                  (created by Worker daemon, via Center)
-                              ↓
-                        ┌──────────┐
-                        │ pending  │
-                        └────┬─────┘
-                             │
-            ┌────────────────┼──────────────────┐
-            │                │                  │
-       responded         timed_out           canceled
-       (Center)          (TimeoutScanner)    (kill / abandon)
-            │                │                  │
-            ↓                ↓                  ↓
-       ┌─────────┐      ┌──────────┐      ┌──────────┐
-       │responded│      │timed_out │      │ canceled │ (终态)
-       └─────────┘      └──────────┘      └──────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> pending: agent request-input<br/>(worker daemon 代写)
+    pending --> responded: Center: InputRequest.respond<br/>(三响应路径：飞书按钮 / /answer slash / 自由文本)
+    pending --> timed_out: TimeoutScanner<br/>(T1 4h ping / T2 24h fail)
+    pending --> canceled: kill / abandon precondition
+    responded --> [*]
+    timed_out --> [*]
+    canceled --> [*]
 ```
 
 ---
