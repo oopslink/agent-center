@@ -248,3 +248,88 @@ func TestDefaultConfig(t *testing.T) {
 		t.Fatal("DefaultConfig.Server.ListenAddr empty")
 	}
 }
+
+func TestApplyEnvOverrides_AllKnownKeys(t *testing.T) {
+	env := map[string]string{
+		"AGENT_CENTER_SERVER_LISTEN_ADDR":           ":1111",
+		"AGENT_CENTER_SERVER_SQLITE_PATH":           "/p.db",
+		"AGENT_CENTER_SERVER_ADMIN_SOCKET_PATH":     "/a.sock",
+		"AGENT_CENTER_NOTIFICATION_DEFAULT_CHANNEL": "x:y:z",
+		"AGENT_CENTER_IDENTITY_DEFAULT_USER":        "alice",
+	}
+	cfg, err := Load(LoadOptions{
+		Env: func(k string) (string, bool) {
+			v, ok := env[k]
+			return v, ok
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.ListenAddr != ":1111" {
+		t.Fatal()
+	}
+	if cfg.Server.SqlitePath != "/p.db" {
+		t.Fatal()
+	}
+	if cfg.Server.AdminSocketPath != "/a.sock" {
+		t.Fatal()
+	}
+	if cfg.Notification.DefaultChannel != "x:y:z" {
+		t.Fatal()
+	}
+	if cfg.Identity.DefaultUser != "alice" {
+		t.Fatal()
+	}
+}
+
+func TestApplyFlagOverrides_AllKnownKeys(t *testing.T) {
+	cfg, err := Load(LoadOptions{
+		FlagOverrides: map[string]string{
+			"server.listen_addr":    ":5555",
+			"server.sqlite_path":    "/x.db",
+			"identity.default_user": "bob",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.ListenAddr != ":5555" {
+		t.Fatal()
+	}
+	if cfg.Server.SqlitePath != "/x.db" {
+		t.Fatal()
+	}
+	if cfg.Identity.DefaultUser != "bob" {
+		t.Fatal()
+	}
+}
+
+func TestValidate_AllMissingFields(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Server.ListenAddr = ""
+	cfg.Server.SqlitePath = ""
+	cfg.Identity.DefaultUser = ""
+	err := validate(&cfg)
+	if err == nil {
+		t.Fatal()
+	}
+	reasons := AsErrorList(err)
+	if len(reasons) < 3 {
+		t.Fatalf("expected 3 reasons: %v", reasons)
+	}
+}
+
+func TestDidYouMean_NoMatch(t *testing.T) {
+	// No suggestion when the candidate is too far from any known key.
+	out := didYouMean("z", []string{"absolutely_unrelated_long_path"})
+	if out != "" {
+		t.Fatalf("expected no suggestion, got %s", out)
+	}
+}
+
+func TestDidYouMean_Empty(t *testing.T) {
+	if didYouMean("foo", nil) != "" {
+		t.Fatal()
+	}
+}
