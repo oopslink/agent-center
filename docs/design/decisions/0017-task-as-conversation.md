@@ -2,9 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | Accepted (Refined by [ADR-0021](0021-issue-as-conversation.md)) |
 | Date | 2026-05-17 |
 | Supersedes | [ADR-0016](0016-task-progress-via-bound-thread.md) |
+| Refined-By | [ADR-0021](0021-issue-as-conversation.md)（本 ADR 的 Task ↔ Conversation 1:1 模式 2026-05-20 推广到 Issue）|
 
 ## Context
 

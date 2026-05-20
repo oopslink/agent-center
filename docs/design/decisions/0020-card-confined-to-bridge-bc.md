@@ -2,10 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | **Superseded by [ADR-0021](0021-issue-as-conversation.md)** |
 | Date | 2026-05-20 |
+| Superseded-Date | 2026-05-20 |
 | Supersedes-Partial | [ADR-0009](0009-issue-conversation-decoupled-via-bridge.md) § 3（仅"Issue Bound Card 字段结构"条款；不动 § 1 解耦 / § 2 Bridge 模式两条主决策）|
-| Affects-Wording | [ADR-0017](0017-task-as-conversation.md)（Task 路线已对齐本 ADR，措辞顺手收口）|
+| Superseded-By | [ADR-0021](0021-issue-as-conversation.md)（中间方案升级为统一方案：Issue ↔ Conversation 1:1）|
+
+> **本 ADR 已被 [ADR-0021](0021-issue-as-conversation.md) 接管**（同日 supersede）。本 ADR 是"Card 限制在 Bridge BC"原则的**中间方案**（保留 `channel_binding_json` 在 Issue 上、仅剥 card_message_id 到 Bridge）；同日讨论中用户进一步指出"Issue 本身就是一个 thread"，触发对 ADR-0009 R1 反驳前提的系统性反思，最终决定把 Issue ↔ Conversation 模式跟 [ADR-0017](0017-task-as-conversation.md) Task 路线对齐为 1:1。本 ADR 引入的 `feishu_card_ledger` 表 / `channel_binding_json` 字段 / `bind-thread` CLI **均不实施**。保留本文供决策演进 history 追溯，不要据此实现。
 
 ## Context
 

@@ -2,12 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (Refined by [ADR-0009](0009-issue-conversation-decoupled-via-bridge.md)) |
+| Status | Accepted (Refined by [ADR-0009](0009-issue-conversation-decoupled-via-bridge.md) → [ADR-0021](0021-issue-as-conversation.md)) |
 | Date | 2026-05-16 |
 
-> **2026-05-16 refinement**: ADR-0009 调整了本 ADR 中两点：
+> **2026-05-16 refinement** (ADR-0009): 当年调整了本 ADR 中两点：
 > - Issue ↔ Conversation 1:1 强绑 → 解耦为 N:N 弱关联；IssueComment 改为 Discussion BC 独立结构化实体
 > - "Channel Gateway" → 改名 "Bridge"，重新定位为双向同步程序（订阅事件 / 推回 vendor），不是 transport 层
+>
+> **2026-05-20 refinement** ([ADR-0021](0021-issue-as-conversation.md)): ADR-0009 上面**第 1 点**已被推翻：Issue ↔ Conversation 1:1 重新成为正解（跟 [ADR-0017](0017-task-as-conversation.md) Task 路线对齐），IssueComment 实体被删（= Message）；**第 2 点** Bridge 重命名 / 双向同步定位继续保留。本 ADR 的 Conversation 作为渠道无关会话层的核心立意**不变**，仅 1:1 / N:N 关系判定回归。
 > 本 ADR 中"Conversation 是渠道无关的会话层"这个核心论点仍然成立。
 
 ## Context

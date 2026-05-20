@@ -12,9 +12,9 @@
 | 0004 | [Issue 取代 Suggestion](0004-issue-not-suggestion.md) | Accepted |
 | 0005 | [项目宪章留在项目仓库](0005-project-charter-stays-in-project-repo.md) | Accepted |
 | 0006 | [大文件走 BlobStore，DB 只存相对路径](0006-blob-store-for-large-content.md) | Accepted |
-| 0007 | [引入 Conversation 层作为渠道无关的会话上下文](0007-conversation-as-unified-session.md) | Accepted (Refined by 0009) |
+| 0007 | [引入 Conversation 层作为渠道无关的会话上下文](0007-conversation-as-unified-session.md) | Accepted (Refined by 0009 → 0021) |
 | 0008 | [WorkerProjectMapping 走"自动发现 + 用户确认"流程](0008-worker-project-mapping-via-discovery-proposal.md) | Accepted |
-| 0009 | [Issue 与 Conversation 解耦 + 外部集成走 Bridge](0009-issue-conversation-decoupled-via-bridge.md) | Accepted (§ 3 partial superseded by 0020) |
+| 0009 | [Issue 与 Conversation 解耦 + 外部集成走 Bridge](0009-issue-conversation-decoupled-via-bridge.md) | Superseded by 0021 |
 | 0010 | [Task / TaskExecution 两层模型 + AgentSession 合并](0010-task-execution-two-layer-model.md) | Accepted |
 | 0011 | [Dispatch 可靠性协议：ACK + execution_id 幂等 + Reconcile](0011-dispatch-reliability-protocol.md) | Accepted (Refined by 0018) |
 | 0012 | [Supervisor Memory 走 file-based + git](0012-memory-file-based.md) | Accepted |
@@ -22,10 +22,11 @@
 | 0014 | [事件溯源走 L1：状态表为权威，事件表是审计流](0014-event-sourcing-level.md) | Accepted |
 | 0015 | [agent_trace 不进 events 表：归 BlobStore + TaskExecution 投影摘要](0015-agent-trace-not-in-events-table.md) | Accepted |
 | 0016 | [Task 进度跟踪走 bound thread + 进度消息流](0016-task-progress-via-bound-thread.md) | Superseded by 0017 |
-| 0017 | [Task 即 Conversation：1:1 绑定 + 所有 task UI 走统一 Message 时间线](0017-task-as-conversation.md) | Accepted |
+| 0017 | [Task 即 Conversation：1:1 绑定 + 所有 task UI 走统一 Message 时间线](0017-task-as-conversation.md) | Accepted (Refined by 0021) |
 | 0018 | [Detached agent execution via per-execution shim](0018-detached-agent-via-per-execution-shim.md) | Accepted |
 | 0019 | [BC1 Scheduling + BC4 Execution 合并为 TaskRuntime](0019-bc-scheduling-execution-merged-to-task-runtime.md) | Accepted |
-| 0020 | [Card 限制在 Bridge BC：Issue 字段精简 + Card 元数据归 Bridge ledger](0020-card-confined-to-bridge-bc.md) | Accepted |
+| 0020 | [Card 限制在 Bridge BC：Issue 字段精简 + Card 元数据归 Bridge ledger](0020-card-confined-to-bridge-bc.md) | Superseded by 0021 |
+| 0021 | [Issue 即 Conversation：1:1 绑定 + 所有 Issue IO 走统一 Message 时间线](0021-issue-as-conversation.md) | Accepted |
 
 ## 规则提示
 
