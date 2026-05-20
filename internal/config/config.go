@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -26,6 +27,7 @@ type Config struct {
 	Server       ServerConfig       `yaml:"server"`
 	Notification NotificationConfig `yaml:"notification"`
 	Identity     IdentityConfig     `yaml:"identity"`
+	Execution    ExecutionConfig    `yaml:"execution"`
 }
 
 // ServerConfig: 04-configuration § 7.1.
@@ -38,6 +40,75 @@ type ServerConfig struct {
 // NotificationConfig: 04-configuration § 7.4.
 type NotificationConfig struct {
 	DefaultChannel string `yaml:"default_channel"`
+}
+
+// ExecutionConfig: 04-configuration § 7.6.
+type ExecutionConfig struct {
+	SubmittedTimeoutSeconds      int `yaml:"submitted_timeout_seconds"`
+	DefaultTimeoutHours          int `yaml:"default_timeout_hours"`
+	DispatchAckTimeoutSeconds    int `yaml:"dispatch_ack_timeout_seconds"`
+	InputRequestPingHours        int `yaml:"input_request_ping_hours"`
+	InputRequestTimeoutHours     int `yaml:"input_request_timeout_hours"`
+	ShimHelloTimeoutSeconds      int `yaml:"shim_hello_timeout_seconds"`
+	ShimGoodbyeAckTimeoutHours   int `yaml:"shim_goodbye_ack_timeout_hours"`
+	MaxExecutionsPerTask         int `yaml:"max_executions_per_task"`
+	KillGraceSeconds             int `yaml:"kill_grace_seconds"`
+}
+
+// DispatchAckTimeout returns the Duration form (helper for clients).
+func (e ExecutionConfig) DispatchAckTimeout() time.Duration {
+	if e.DispatchAckTimeoutSeconds <= 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(e.DispatchAckTimeoutSeconds) * time.Second
+}
+
+// SubmittedTimeout returns the Duration form.
+func (e ExecutionConfig) SubmittedTimeout() time.Duration {
+	if e.SubmittedTimeoutSeconds <= 0 {
+		return 5 * time.Minute
+	}
+	return time.Duration(e.SubmittedTimeoutSeconds) * time.Second
+}
+
+// ExecutionTimeout returns the Duration form.
+func (e ExecutionConfig) ExecutionTimeout() time.Duration {
+	if e.DefaultTimeoutHours <= 0 {
+		return 6 * time.Hour
+	}
+	return time.Duration(e.DefaultTimeoutHours) * time.Hour
+}
+
+// InputRequestPing returns the Duration form.
+func (e ExecutionConfig) InputRequestPing() time.Duration {
+	if e.InputRequestPingHours <= 0 {
+		return 4 * time.Hour
+	}
+	return time.Duration(e.InputRequestPingHours) * time.Hour
+}
+
+// InputRequestTimeout returns the Duration form.
+func (e ExecutionConfig) InputRequestTimeout() time.Duration {
+	if e.InputRequestTimeoutHours <= 0 {
+		return 24 * time.Hour
+	}
+	return time.Duration(e.InputRequestTimeoutHours) * time.Hour
+}
+
+// ShimHelloTimeout returns the Duration form.
+func (e ExecutionConfig) ShimHelloTimeout() time.Duration {
+	if e.ShimHelloTimeoutSeconds <= 0 {
+		return 60 * time.Second
+	}
+	return time.Duration(e.ShimHelloTimeoutSeconds) * time.Second
+}
+
+// KillGrace returns the Duration form.
+func (e ExecutionConfig) KillGrace() time.Duration {
+	if e.KillGraceSeconds <= 0 {
+		return 5 * time.Second
+	}
+	return time.Duration(e.KillGraceSeconds) * time.Second
 }
 
 // IdentityConfig captures the v1 single-user default actor written into CLI
@@ -60,6 +131,17 @@ func DefaultConfig() Config {
 		},
 		Identity: IdentityConfig{
 			DefaultUser: "hayang",
+		},
+		Execution: ExecutionConfig{
+			SubmittedTimeoutSeconds:    300,
+			DefaultTimeoutHours:        6,
+			DispatchAckTimeoutSeconds:  30,
+			InputRequestPingHours:      4,
+			InputRequestTimeoutHours:   24,
+			ShimHelloTimeoutSeconds:    60,
+			ShimGoodbyeAckTimeoutHours: 24,
+			MaxExecutionsPerTask:       3,
+			KillGraceSeconds:           5,
 		},
 	}
 }

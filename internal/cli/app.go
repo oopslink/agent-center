@@ -16,6 +16,13 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
+	"github.com/oopslink/agent-center/internal/taskruntime/execution"
+	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
+	"github.com/oopslink/agent-center/internal/taskruntime/kill"
+	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
+	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
+	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
@@ -42,6 +49,19 @@ type App struct {
 	AcceptanceSvc *wfservice.ProposalAcceptanceService
 	ProjectSvc    *wfservice.ProjectCRUDService
 	MessageWriter *convservice.MessageWriter
+
+	// TaskRuntime
+	TaskRepo         task.Repository
+	ExecRepo         execution.Repository
+	IRRepo           inputrequest.Repository
+	ArtifactRepo     execution.ArtifactRepository
+	TaskSvc          *trservice.TaskService
+	IRSvc            *trservice.InputRequestService
+	ArtifactSvc      *trservice.ArtifactService
+	ExecSvc          *trservice.ExecutionService
+	DispatchSvc      *dispatch.Service
+	KillCoordinator  *kill.Coordinator
+	IssueSpawnStub   *dispatch.IssueConcludeSpawn
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -72,6 +92,22 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	enroll := wfservice.NewWorkerEnrollService(db, wr, sink, clk)
 	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, clk)
 
+	// TaskRuntime
+	taskRepo := trsqlite.NewTaskRepo(db)
+	execRepo := trsqlite.NewTaskExecutionRepo(db)
+	irRepo := trsqlite.NewInputRequestRepo(db)
+	artifactRepo := trsqlite.NewArtifactRepo(db)
+	taskSvc := trservice.NewTaskService(db, taskRepo, cr, execRepo, mgRepo, sink, gen, clk)
+	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, cr, mgRepo, sink, gen, clk, cfg.Notification.DefaultChannel)
+	artifactSvc := trservice.NewArtifactService(db, artifactRepo, execRepo, sink, gen, clk)
+	execSvc := trservice.NewExecutionService(db, execRepo, taskRepo, cr, mgRepo, sink, gen, clk)
+	dispatchSvc := dispatch.NewService(db, taskRepo, execRepo, sink, dispatch.NoopSender{}, clk, gen, dispatch.DispatchConfig{
+		MaxExecutionsPerTask: cfg.Execution.MaxExecutionsPerTask,
+		DispatchAckTimeout:   cfg.Execution.DispatchAckTimeout(),
+	})
+	killCoord := kill.NewCoordinator(db, execRepo, taskRepo, irRepo, sink, kill.NoopKillSender{}, clk)
+	issueSpawnStub := dispatch.NewIssueConcludeSpawn(db, taskRepo, sink, gen, clk)
+
 	return &App{
 		Config:        cfg,
 		DB:            db,
@@ -85,11 +121,22 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		MsgRepo:       mgRepo,
 		EventRepo:     er,
 		Sink:          sink,
-		EnrollSvc:     enroll,
-		DiscoverySvc:  disc,
-		AcceptanceSvc: acc,
-		ProjectSvc:    pjSvc,
-		MessageWriter: writer,
+		EnrollSvc:       enroll,
+		DiscoverySvc:    disc,
+		AcceptanceSvc:   acc,
+		ProjectSvc:      pjSvc,
+		MessageWriter:   writer,
+		TaskRepo:        taskRepo,
+		ExecRepo:        execRepo,
+		IRRepo:          irRepo,
+		ArtifactRepo:    artifactRepo,
+		TaskSvc:         taskSvc,
+		IRSvc:           irSvc,
+		ArtifactSvc:     artifactSvc,
+		ExecSvc:         execSvc,
+		DispatchSvc:     dispatchSvc,
+		KillCoordinator: killCoord,
+		IssueSpawnStub:  issueSpawnStub,
 	}, nil
 }
 

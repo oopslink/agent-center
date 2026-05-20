@@ -79,6 +79,30 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 			return nil, "", err
 		}
 	}
+
+	// task group
+	for _, c := range provider.taskCommands() {
+		if err := router.Add([]string{"task"}, c); err != nil {
+			return nil, "", err
+		}
+	}
+	// dispatch / kill-execution (top-level)
+	if err := router.Add(nil, provider.dispatchCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add(nil, provider.killExecutionCommand()); err != nil {
+		return nil, "", err
+	}
+	// agent CLI commands (request-input / report-* / read-task-context)
+	for _, c := range provider.agentRuntimeCommands() {
+		if err := router.Add(nil, c); err != nil {
+			return nil, "", err
+		}
+	}
+	// worker shim placeholder (system audience)
+	if err := router.Add([]string{"worker"}, WorkerShimPlaceholder()); err != nil {
+		return nil, "", err
+	}
 	return router, cfgPath, nil
 }
 
@@ -239,6 +263,38 @@ func (l *lazyApp) conversationCommands() []*Command {
 		n := n
 		out = append(out, l.withApp(func(a *App) *Command {
 			return findCmd(a.ConversationCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) taskCommands() []*Command {
+	names := []string{"create", "bind-conversation", "unbind-conversation"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.TaskCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) dispatchCommand() *Command {
+	return l.withApp(func(a *App) *Command { return a.DispatchCommand() })
+}
+
+func (l *lazyApp) killExecutionCommand() *Command {
+	return l.withApp(func(a *App) *Command { return a.KillExecutionCommand() })
+}
+
+func (l *lazyApp) agentRuntimeCommands() []*Command {
+	names := []string{"request-input", "report-progress", "report-artifact", "report-failure", "read-task-context"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.AgentRuntimeCommands(), n)
 		}))
 	}
 	return out

@@ -153,6 +153,19 @@ func WorkerRunPlaceholder() *Command {
 	)
 }
 
+// WorkerShimPlaceholder is the `worker shim` entry point. v1 builds the
+// shim runtime as a library (internal/shim) and offers a thin CLI hook
+// that delegates to it. Daemon spawns shim via this entry; users do not
+// directly invoke it (it's audience=Sys per 03-cli § 8.3).
+func WorkerShimPlaceholder() *Command {
+	return placeholderCommand("shim",
+		"Per-execution shim entry (system; ADR-0018)",
+		"The shim is spawned by the worker daemon. Direct invocation is "+
+			"reserved for daemon-internal use; users should not run this. "+
+			"See ADR-0018 for the lifecycle.",
+	)
+}
+
 // AdminBlobMigratePlaceholder returns the `admin blob-migrate` stub.
 func AdminBlobMigratePlaceholder() *Command {
 	return placeholderCommand("blob-migrate",

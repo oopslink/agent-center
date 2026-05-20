@@ -5,6 +5,9 @@ import (
 	"io"
 
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/taskruntime/execution"
+	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
+	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -81,6 +84,58 @@ func MapDomainError(err error) (reason string, code ExitCode, ok bool) {
 		return "message_immutable", ExitInvalidTransition, true
 	case errors.Is(err, conversation.ErrMessageInvalidSender):
 		return "message_invalid_sender", ExitUsage, true
+
+	// TaskRuntime — Task
+	case errors.Is(err, task.ErrTaskNotFound):
+		return "task_not_found", ExitNotFound, true
+	case errors.Is(err, task.ErrTaskAlreadyExists):
+		return "task_already_exists", ExitBusinessError, true
+	case errors.Is(err, task.ErrTaskInvalidTransition):
+		return "task_invalid_transition", ExitInvalidTransition, true
+	case errors.Is(err, task.ErrTaskVersionConflict):
+		return "task_version_conflict", ExitVersionConflict, true
+	case errors.Is(err, task.ErrTaskInvariantViolation):
+		return "task_invariant_violation", ExitInvariantViolation, true
+	case errors.Is(err, task.ErrCannotUnbindConversation):
+		return "task_cannot_unbind_conversation", ExitInvalidTransition, true
+	case errors.Is(err, task.ErrInvalidPriority):
+		return "task_invalid_priority", ExitUsage, true
+	case errors.Is(err, task.ErrInvalidStatus):
+		return "task_invalid_status", ExitUsage, true
+
+	// TaskRuntime — TaskExecution
+	case errors.Is(err, execution.ErrTaskExecutionNotFound):
+		return "execution_not_found", ExitNotFound, true
+	case errors.Is(err, execution.ErrTaskExecutionAlreadyTerminated):
+		return "execution_already_terminated", ExitInvalidTransition, true
+	case errors.Is(err, execution.ErrTaskExecutionVersionConflict):
+		return "execution_version_conflict", ExitVersionConflict, true
+	case errors.Is(err, execution.ErrSingleActiveViolation):
+		return "single_active_violation", ExitInvariantViolation, true
+	case errors.Is(err, execution.ErrInvalidTransition):
+		return "execution_invalid_transition", ExitInvalidTransition, true
+	case errors.Is(err, execution.ErrUnknownReason):
+		return "unknown_reason", ExitUsage, true
+	case errors.Is(err, execution.ErrUnknownWorkspaceMode):
+		return "unknown_workspace_mode", ExitUsage, true
+	case errors.Is(err, execution.ErrArtifactNotFound):
+		return "artifact_not_found", ExitNotFound, true
+	case errors.Is(err, execution.ErrArtifactImmutable):
+		return "artifact_immutable", ExitInvalidTransition, true
+
+	// TaskRuntime — InputRequest
+	case errors.Is(err, inputrequest.ErrInputRequestNotFound):
+		return "input_request_not_found", ExitNotFound, true
+	case errors.Is(err, inputrequest.ErrInputRequestAlreadyResolved):
+		return "input_request_already_resolved", ExitInvalidTransition, true
+	case errors.Is(err, inputrequest.ErrInputRequestVersionConflict):
+		return "input_request_version_conflict", ExitVersionConflict, true
+	case errors.Is(err, inputrequest.ErrInvalidTransition):
+		return "input_request_invalid_transition", ExitInvalidTransition, true
+	case errors.Is(err, inputrequest.ErrInvalidStatus):
+		return "input_request_invalid_status", ExitUsage, true
+	case errors.Is(err, inputrequest.ErrInvalidUrgency):
+		return "input_request_invalid_urgency", ExitUsage, true
 	}
 	return "", 0, false
 }
