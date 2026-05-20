@@ -35,7 +35,7 @@
 | **Aggregate Root** | ✅ | P3 各 BC § 5 Repositories 节"约定"栏明示"外部只通过 Root.id 引用"约束；[conventions § 0.3](../rules/conventions.md#-03-自检清单) 加 AR 访问自检（P6） |
 | **Domain Event** | ✅ 充分 | [03-bounded-contexts § 2](architecture/strategic/03-bounded-contexts.md#-2-限界上下文bounded-contexts) 各 BC 列；[observability/00-overview § 7.5](architecture/tactical/observability/00-overview.md) 事件总览；ADR-0014（事件溯源 L1）/ ADR-0015（agent_trace 不进 events）；[conventions § 16](../rules/conventions.md#-16-错误--状态信息双字段reason--message) reason+message |
 | **Domain Service** | ✅ | P3 各 BC § 3 完成（P5）：TaskRuntime (Dispatch/Reconcile/Timeout/IssueConcludeSpawn/Kill) / Discussion (IssueLifecycle/IssueConcludeSpawn-caller) / Workforce (WorkerEnroll/ProposalDiscovery/ProposalReview/MappingInvalidation) / Cognition (WakeScheduler/InvocationFactory/InvocationTimeoutHandler/InvocationCrashRecovery/DecisionWriter) / Observability (EventSink/Projection/Query/TraceArchive) / Conversation (ConversationLifecycle/IdentityRegistration/BridgeInbound-caller) / Bridge (OutboundDelivery/InboundRouting/SlashCommand/CardLifecycle) |
-| **Repository** | ⚠️ 接口签名 TBD | P3 各 BC § 5 Repositories 表已明示主表 + 主要操作 + AR 访问约束；接口签名落到 [implementation/02-persistence-schema.md](implementation/)（TBD，P8）|
+| **Repository** | ⚠️ 接口签名 TBD（架构层） | P3 各 BC § 5 已明示主表 + 主要操作 + AR 访问约束；**Go-style 接口签名 + domain error types 归架构层各 BC § 5**（P8 修订后；2026-05-20）；SQL schema / dialect / tx context 传递归 [implementation/02-persistence-schema.md](implementation/)（TBD） |
 | **Factory** | ✅ | P3 各 BC § 4 Factories 节完成：TaskRuntime (TaskFactory 5-caller / TaskExecutionFactory / InputRequestFactory) / Discussion (IssueFactory 5-caller / IssueCommentFactory-facade / ConversationFactory-caller) / Workforce (Worker/Proposal/Project/MappingFactory) / Cognition (InvocationFactory / MemorySkeletonFactory) / Conversation (ConversationFactory 6-caller / MessageFactory / IdentityFactory) / Observability (无独立 Factory，各 BC 自 emit) / Bridge (无，仅调领域 API) |
 | **跨聚合一致性策略** | ✅ 已散立 | ADR-0014 § 2 显式"tx 内同时改两聚合"；ADR-0017 + ADR-0021 显式跨聚合双写（task + conversation / issue + conversation）；P3 各 BC § 6 跨聚合引用 + § 7 跨 BC 交互详化 —— **决定不再立通用 ADR**（详见 § 3.4） |
 
@@ -164,8 +164,11 @@
 
 | ID | 项 | 时机 |
 |---|---|---|
-| P8 | **Repository 接口固化** | 等 implementation 层 02-persistence-schema 时一并 |
+| **P8a** | **Repository 接口签名 + Domain Error types** | **架构层**，现在做（2026-05-20 修订；Repository 接口归领域 / 架构层，不耦合实现）|
+| **P8b** | **Repository 实现层（SQL schema + dialect + tx 传递）** | implementation 层 02-persistence-schema (TBD) |
 | P9 | **Saga / Process Manager** | 等真撞协调问题（v1 不必） |
+
+> **2026-05-20 修订**：原 P8 把 Repository 接口签名跟 implementation 层 SQL schema 选型耦合是错的（违反 hexagonal architecture / DDD 经典分层）。Repository 接口签名 + domain error types **归领域 / 架构层**（各 BC § 5 Repositories 节扩列）；SQL schema / dialect 适配 / tx context 传递机制等才归 implementation 层。详见 [§ 1.2 Repository 行说明](#12-战术设计tactical)。
 
 ### 3.4 已驳回的方法论方向（决议留痕）
 

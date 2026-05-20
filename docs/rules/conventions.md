@@ -31,7 +31,7 @@
 | **Value Object** | 值对象（由属性定义、不可变） | ChannelBinding / DispatchEnvelope / Reason+Message 对 / FailedReason taxonomy / IssueConcludeSpec / 等（v1 散落，正在系统化）|
 | **Domain Event** | 领域事件 | `task.created` / `issue.concluded` / `conversation.message_added` / ... 详见 [observability/00-overview.md](../design/architecture/tactical/observability/00-overview.md) |
 | **Domain Service** | 跨聚合的纯领域逻辑 | Supervisor 决策 / Dispatch 调度 / Issue conclude → spawn tasks |
-| **Repository** | 聚合的持久化访问 | 见 [implementation/02-persistence-schema.md](../design/implementation/) (TBD) |
+| **Repository** | 聚合的持久化访问（**接口签名 + domain error types 归领域层 / 架构层**；SQL schema / dialect / tx context 传递归实现层）| 接口签名见各 BC § 5 / domain errors 见各 BC 自有 errors 清单；实现层 schema 见 [implementation/02-persistence-schema.md](../design/implementation/) (TBD) |
 | **Factory** | 复杂聚合的创建逻辑 | Issue conclude batch spawn N tasks / Task create / TaskExecution create |
 | **Anti-Corruption Layer (ACL)** | 跟外部系统的翻译层 | Bridge（每 vendor 一个）/ Agent CLI Adapter / BlobStore Adapter（[01 § 3.2](../design/architecture/strategic/03-bounded-contexts.md#32-anti-corruption-layers)）|
 | **Shared Kernel / Customer-Supplier** | 上下文映射模式 | 见 [01 § 3.1](../design/architecture/strategic/03-bounded-contexts.md#31-上下游关系一览) |
