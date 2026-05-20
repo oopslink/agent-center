@@ -82,7 +82,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 01 | [可观测性 & Fleet View](tactical/observability/01-observability.md) | Draft |
+| 00 | [Observability BC Overview](tactical/observability/00-overview.md) | Draft |
 
 ### Conversation（会话）— BC6
 

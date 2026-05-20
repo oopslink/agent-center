@@ -577,7 +577,7 @@ CLI → shim → worker daemon → forward to center → insert + emit `artifact
 - [workforce/00-overview.md](../workforce/00-overview.md) — Workforce BC 入口（Worker 注册 / heartbeat / Mapping / Proposal）
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — Prompt 组装（worker spawn agent 时使用）
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Bridge 渲染 milestone / Artifact
-- [observability/01-observability.md](../observability/01-observability.md) — 事件总览 / inspect
+- [observability/00-overview.md](../observability/00-overview.md) — 事件总览 / inspect
 
 ### 横切方法论
 

@@ -327,7 +327,7 @@ Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / i
 - [conversation/01-conversation.md](../conversation/01-conversation.md) — kind=issue Conversation + Message.content_kind 扩展
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Issue root card 渲染 + bound thread 移除
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 在 Issue 议事中的角色
-- [observability/01-observability.md](../observability/01-observability.md) — issue.* 事件订阅 + 投影读模型
+- [observability/00-overview.md](../observability/00-overview.md) — issue.* 事件订阅 + 投影读模型
 
 ### 横切方法论
 

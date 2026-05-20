@@ -29,7 +29,7 @@
 | **Aggregate / Aggregate Root** | 聚合 / 聚合根 | Task（根）+ TaskExecution（实体，从属）；Issue（根）+ IssueComment（实体，从属）；Conversation（根）+ Message（实体，从属）；... |
 | **Entity** | 实体（有 identity，跨时间可变） | 各聚合内的从属实体；详见 01 § 1.1 |
 | **Value Object** | 值对象（由属性定义、不可变） | ChannelBinding / DispatchEnvelope / Reason+Message 对 / FailedReason taxonomy / IssueConcludeSpec / 等（v1 散落，正在系统化）|
-| **Domain Event** | 领域事件 | `task.created` / `issue.concluded` / `conversation.message_added` / ... 详见 [05-observability.md](../design/architecture/tactical/observability/01-observability.md) |
+| **Domain Event** | 领域事件 | `task.created` / `issue.concluded` / `conversation.message_added` / ... 详见 [observability/00-overview.md](../design/architecture/tactical/observability/00-overview.md) |
 | **Domain Service** | 跨聚合的纯领域逻辑 | Supervisor 决策 / Dispatch 调度 / Issue conclude → spawn tasks |
 | **Repository** | 聚合的持久化访问 | 见 [implementation/02-persistence-schema.md](../design/implementation/) (TBD) |
 | **Factory** | 复杂聚合的创建逻辑 | Issue conclude batch spawn N tasks / Task create / TaskExecution create |
@@ -71,7 +71,7 @@
 | 异常路径如何被发现？（fail 事件？timeout？外部告警？） | 说明 |
 | 用户从飞书侧能问到这个功能的状态吗？ | 是 / 否 |
 
-详情见 [架构层 / 可观测性](../design/architecture/tactical/observability/01-observability.md)。
+详情见 [架构层 / 可观测性](../design/architecture/tactical/observability/00-overview.md)。
 
 ### § 2.x 观测层是统一且 opinionated 的
 

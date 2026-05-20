@@ -238,7 +238,7 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 
 **核心操作**: `inspect (task|supervisor|session|issue) <id>` / `query <type>` / `ps` / `stats` / `logs`
 
-**详细设计**: [05-observability.md](../tactical/observability/01-observability.md)
+**详细设计**: [observability/00-overview.md](../tactical/observability/00-overview.md)
 
 ### BC6: Conversation（会话）
 

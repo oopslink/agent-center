@@ -288,5 +288,5 @@ supervisor:
 - [ADR-0015 agent_trace 不进 events 表](../../../decisions/0015-agent-trace-not-in-events-table.md)
 - [00-overview.md](00-overview.md) — BC 入口（WakeScheduler / DecisionWriter / 跨 BC 交互）
 - [02-memory.md](02-memory.md) — Memory 聚合（invocation prompt 的另一个组成部分）
-- [observability/01-observability.md](../observability/01-observability.md) — events / `inspect supervisor` / `query decisions`
+- [observability/00-overview.md](../observability/00-overview.md) — events / `inspect supervisor` / `query decisions`
 - [conventions § 16](../../../../rules/conventions.md) — reason+message 双字段
