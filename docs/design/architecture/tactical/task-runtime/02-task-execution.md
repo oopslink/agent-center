@@ -337,7 +337,7 @@ Worker 本机为每条 execution 维护独立目录：
   shim.pid              # shim 进程 PID + start_time
 ```
 
-详细字段见 [workforce/01-worker-model § Per-execution 目录布局](../workforce/01-worker-model.md) 与 [ADR-0018 § 3](../../../decisions/0018-detached-agent-via-per-execution-shim.md)。
+详细字段见 [ADR-0018 § 3](../../../decisions/0018-detached-agent-via-per-execution-shim.md)（per-execution 目录布局按 ADR-0019 carve 后归本文件本节，不再分散到 workforce）。
 
 ### 9.2 Worker 端处理时序
 
@@ -574,7 +574,7 @@ CLI → shim → worker daemon → forward to center → insert + emit `artifact
 
 ### 跨 BC
 
-- [workforce/01-worker-model.md](../workforce/01-worker-model.md) — Worker 注册 / heartbeat / Mapping（BC3 真内容；本 BC 仅借用 worker daemon 物理形态描述）
+- [workforce/00-overview.md](../workforce/00-overview.md) — Workforce BC 入口（Worker 注册 / heartbeat / Mapping / Proposal）
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — Prompt 组装（worker spawn agent 时使用）
 - [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Bridge 渲染 milestone / Artifact
 - [observability/01-observability.md](../observability/01-observability.md) — 事件总览 / inspect

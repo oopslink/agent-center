@@ -204,7 +204,7 @@ agent-center 的领域划分为 **7 个限界上下文**。Web Console / CLI / B
 
 **核心操作**: `worker enroll / list / status` / `project add / update / remove / list` / `worker proposal list / unignore`
 
-**详细设计**: [06-supervisor-model.md](../tactical/cognition/01-supervisor-model.md) 与 [07-worker-model.md](../tactical/workforce/01-worker-model.md)（含 WorkerProjectMapping 自动发现流程）
+**详细设计**: [workforce/00-overview.md](../tactical/workforce/00-overview.md)（BC 入口 + § X.1-X.6 wrap）+ [01-worker.md](../tactical/workforce/01-worker.md) + [02-project.md](../tactical/workforce/02-project.md) + [03-worker-project-proposal.md](../tactical/workforce/03-worker-project-proposal.md)（含 WorkerProjectMapping 自动发现流程）
 
 ### BC4: Cognition（认知 / 监督者）
 

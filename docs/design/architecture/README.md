@@ -65,7 +65,10 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 01 | [Worker 模型](tactical/workforce/01-worker-model.md) | TBD |
+| 00 | [Workforce BC Overview](tactical/workforce/00-overview.md) | Draft |
+| 01 | [Worker 聚合](tactical/workforce/01-worker.md) | Draft |
+| 02 | [Project 聚合](tactical/workforce/02-project.md) | Draft |
+| 03 | [WorkerProjectProposal 聚合](tactical/workforce/03-worker-project-proposal.md) | Draft |
 
 ### Cognition（认知 / Supervisor）— BC4
 
