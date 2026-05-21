@@ -65,10 +65,29 @@ type OSStartTimer struct{}
 
 // GetStartTime reads the process start_time using the OS-native method.
 // Unimplemented platforms return ErrUnsupportedPlatform.
+//
+// We force LC_ALL=C / LANG=C on the `ps` invocation so its `lstart`
+// column comes back in the canonical English `Mon Jan _2 15:04:05 2006`
+// format. Without this, locales like zh_CN.UTF-8 render localised month
+// / weekday strings (e.g. "四  5月" instead of "Thu May") that time.Parse
+// can't understand.
+//
+// `ps -p <pid>` exits 1 when the PID is not found. Per the
+// ProcessStartTimer contract above ("zero start_time → process not
+// found"), we translate that non-zero exit into a zero result rather
+// than an error — letting callers fence-and-forget without
+// distinguishing OS-level errors from genuinely missing processes.
 func (OSStartTimer) GetStartTime(pid int) (time.Time, error) {
 	_ = runtime.GOOS // both darwin and linux fall through to the same `ps` call
-	out, err := exec.Command("ps", "-o", "lstart=", "-p", fmt.Sprintf("%d", pid)).Output()
+	cmd := exec.Command("ps", "-o", "lstart=", "-p", fmt.Sprintf("%d", pid))
+	cmd.Env = append(cmd.Env, "LC_ALL=C", "LANG=C")
+	out, err := cmd.Output()
 	if err != nil {
+		// `ps` exits 1 when the pid is gone; surface as "not found" so
+		// the supervisor can mark crashed.
+		if _, ok := err.(*exec.ExitError); ok {
+			return time.Time{}, nil
+		}
 		return time.Time{}, err
 	}
 	return parsePSLStart(string(out))
