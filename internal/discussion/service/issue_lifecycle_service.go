@@ -64,6 +64,7 @@ type IssueLifecycleService struct {
 	issueRepo    discussion.IssueRepository
 	convOpener   ConversationOpener
 	msgAdder     ConversationMessageAdder
+	spawner      IssueConcludeSpawner
 	projectCheck ProjectExistenceChecker
 	sink         *observability.EventSink
 	idgen        idgen.Generator

@@ -63,12 +63,22 @@ var ErrNoExecutor = errors.New("persistence: no SQL executor (no tx in ctx and n
 // Use this from Application Services / CLI handlers — NOT from Repository
 // methods. Per 02-persistence-schema § 5: Repository.* methods must not
 // BeginTx themselves.
+//
+// If ctx already carries a tx (cross-BC nested call), RunInTx joins the
+// existing tx instead of starting a new one — fn runs inside the outer tx
+// and commit/rollback is the outer caller's responsibility. This makes
+// services tx-reentrant for cross-BC scenarios like Discussion → TaskRuntime
+// IssueConcludeSpawn (ADR-0014 § 2 same-tx double write).
 func RunInTx(ctx context.Context, db *sql.DB, fn func(ctx context.Context) error) (retErr error) {
-	if db == nil {
-		return errors.New("persistence: RunInTx requires non-nil *sql.DB")
-	}
 	if fn == nil {
 		return errors.New("persistence: RunInTx requires non-nil fn")
+	}
+	if _, ok := TxFromCtx(ctx); ok {
+		// Already in a tx — reuse it. Caller owns commit/rollback.
+		return fn(ctx)
+	}
+	if db == nil {
+		return errors.New("persistence: RunInTx requires non-nil *sql.DB")
 	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {

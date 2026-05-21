@@ -12,6 +12,9 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	"github.com/oopslink/agent-center/internal/discussion"
+	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
+	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
@@ -61,7 +64,15 @@ type App struct {
 	ExecSvc          *trservice.ExecutionService
 	DispatchSvc      *dispatch.Service
 	KillCoordinator  *kill.Coordinator
-	IssueSpawnStub   *dispatch.IssueConcludeSpawn
+	IssueSpawn       *dispatch.IssueConcludeSpawn
+
+	// Discussion
+	IssueRepo                       discussion.IssueRepository
+	IssueLifecycleSvc               *disservice.IssueLifecycleService
+	IssueCommentSvc                 *disservice.IssueCommentService
+	IssueBindConversationSvc        *disservice.IssueBindConversationService
+	IssueLinkConversationSvc        *disservice.IssueLinkConversationService
+	IssueConversationOpener         *disservice.IssueConversationOpener
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -107,7 +118,17 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		DispatchAckTimeout:   cfg.Execution.DispatchAckTimeout(),
 	})
 	killCoord := kill.NewCoordinator(db, execRepo, taskRepo, irRepo, sink, kill.NoopKillSender{}, clk)
-	issueSpawnStub := dispatch.NewIssueConcludeSpawn(db, taskRepo, sink, gen, clk)
+	issueSpawn := dispatch.NewIssueConcludeSpawn(db, taskRepo, sink, gen, clk)
+
+	// Discussion BC
+	issueRepo := disqlite.NewIssueRepo(db)
+	convOpener := disservice.NewIssueConversationOpener(cr, sink, gen, clk)
+	issueLifecycle := disservice.NewIssueLifecycleService(db, issueRepo, convOpener, writer, sink, gen, clk).
+		WithProjectExistenceChecker(projectCheckerAdapter{repo: pjRepo}).
+		WithSpawnerAndCommenter(issueSpawn, writer)
+	issueComment := disservice.NewIssueCommentService(issueRepo, cr, mgRepo, writer, issueLifecycle, clk)
+	issueBind := disservice.NewIssueBindConversationService(db, issueRepo, cr, convOpener, sink, clk)
+	issueLink := disservice.NewIssueLinkConversationService(db, issueRepo, cr, clk)
 
 	return &App{
 		Config:        cfg,
@@ -137,7 +158,14 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		ExecSvc:         execSvc,
 		DispatchSvc:     dispatchSvc,
 		KillCoordinator: killCoord,
-		IssueSpawnStub:  issueSpawnStub,
+		IssueSpawn:      issueSpawn,
+
+		IssueRepo:                issueRepo,
+		IssueLifecycleSvc:        issueLifecycle,
+		IssueCommentSvc:          issueComment,
+		IssueBindConversationSvc: issueBind,
+		IssueLinkConversationSvc: issueLink,
+		IssueConversationOpener:  convOpener,
 	}, nil
 }
 

@@ -257,6 +257,75 @@ func TestRunInTx_RejectsNilFn(t *testing.T) {
 	}
 }
 
+// TestRunInTx_NestedReusesOuterTx verifies that a nested RunInTx call
+// joins the outer tx rather than deadlocking on a fresh BeginTx (cross-BC
+// scenario like Discussion → TaskRuntime IssueConcludeSpawn).
+func TestRunInTx_NestedReusesOuterTx(t *testing.T) {
+	db := openMem(t)
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE n (id INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	err := RunInTx(context.Background(), db, func(outer context.Context) error {
+		// Outer wrote one row inside its tx.
+		if _, err := getExec(outer).ExecContext(outer, `INSERT INTO n (id) VALUES (1)`); err != nil {
+			return err
+		}
+		// Nested call must reuse the same tx, not deadlock.
+		return RunInTx(outer, db, func(inner context.Context) error {
+			_, err := getExec(inner).ExecContext(inner, `INSERT INTO n (id) VALUES (2)`)
+			return err
+		})
+	})
+	if err != nil {
+		t.Fatalf("nested RunInTx: %v", err)
+	}
+	var c int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM n`).Scan(&c)
+	if c != 2 {
+		t.Fatalf("expected 2 rows committed, got %d", c)
+	}
+}
+
+// TestRunInTx_NestedRollsBackBothOnInnerError verifies that a nested
+// RunInTx returning an error causes the outer tx to roll back too —
+// because the inner call doesn't commit / rollback (outer owns it).
+func TestRunInTx_NestedRollsBackBothOnInnerError(t *testing.T) {
+	db := openMem(t)
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE n (id INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	sentinel := errors.New("inner boom")
+	err := RunInTx(context.Background(), db, func(outer context.Context) error {
+		if _, err := getExec(outer).ExecContext(outer, `INSERT INTO n (id) VALUES (1)`); err != nil {
+			return err
+		}
+		return RunInTx(outer, db, func(inner context.Context) error {
+			if _, err := getExec(inner).ExecContext(inner, `INSERT INTO n (id) VALUES (2)`); err != nil {
+				return err
+			}
+			return sentinel
+		})
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("expected sentinel, got %v", err)
+	}
+	var c int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM n`).Scan(&c)
+	if c != 0 {
+		t.Fatalf("expected 0 rows (both rolled back), got %d", c)
+	}
+}
+
+func getExec(ctx context.Context) SQLExecutor {
+	tx, ok := TxFromCtx(ctx)
+	if !ok {
+		panic("expected tx in ctx")
+	}
+	return tx
+}
+
 func openMem(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := Open(t.TempDir() + "/test.db")
