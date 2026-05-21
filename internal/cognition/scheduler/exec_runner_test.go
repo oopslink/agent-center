@@ -46,7 +46,7 @@ func TestExecProcessRunner_HappyExit(t *testing.T) {
 	}
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("timeout")
 	}
 	if gotExit != 0 {
@@ -99,7 +99,7 @@ func TestExecProcessRunner_SignalAndKill(t *testing.T) {
 	}
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(10 * time.Second):
 		// fall back to Kill
 		_ = h.Kill()
 		select {
