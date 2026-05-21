@@ -104,8 +104,11 @@ func (r *IdentityResolver) Resolve(ctx context.Context, vendorUserID string) (id
 		return id, nil
 	}
 	// Step 2.1: a concurrent first-time bind raced us. The other
-	// goroutine wrote the row → step-1 retry will hit it.
-	if errors.Is(err, identity.ErrChannelBindingAlreadyExists) {
+	// goroutine wrote the row → step-1 retry will hit it. Both
+	// AlreadyExists (UNIQUE constraint) and PreferredConflict
+	// (concurrent preferred=true) signal the race.
+	if errors.Is(err, identity.ErrChannelBindingAlreadyExists) ||
+		errors.Is(err, identity.ErrChannelBindingPreferredConflict) {
 		b, err2 := r.bindings.FindByVendorUserID(ctx, r.channel, vendorUserID)
 		if err2 != nil {
 			return "", fmt.Errorf("inbound: lookup binding (retry): %w", err2)

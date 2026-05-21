@@ -356,19 +356,37 @@ func (r *Router) emitParseFailed(ctx context.Context, reason, msg string, ev Ven
 }
 
 func (r *Router) auditRouted(ctx context.Context, ev VendorEvent, dec RouteDecision) {
-	_, _ = r.sink.Emit(ctx, observability.EmitCommand{
+	payload := map[string]any{
+		"vendor_kind":     string(ev.Kind),
+		"vendor_msg_ref":  ev.VendorMsgRef,
+		"route_decision":  dec.Kind.String(),
+		"conversation_id": dec.ConversationID,
+		"target_action":   dec.TargetAction,
+	}
+	// reason/message pair must be either both empty (omitted) or both
+	// populated (conventions § 16 + observability validateReasonMessage).
+	if dec.Reason != "" && dec.Message != "" {
+		payload["reason"] = dec.Reason
+		payload["message"] = dec.Message
+	}
+	if _, err := r.sink.Emit(ctx, observability.EmitCommand{
 		EventType: "bridge.inbound_routed",
 		Actor:     r.actor,
-		Payload: map[string]any{
-			"vendor_kind":     string(ev.Kind),
-			"vendor_msg_ref":  ev.VendorMsgRef,
-			"route_decision":  dec.Kind.String(),
-			"conversation_id": dec.ConversationID,
-			"target_action":   dec.TargetAction,
-			"reason":          dec.Reason,
-			"message":         dec.Message,
-		},
-	})
+		Payload:   payload,
+	}); err != nil {
+		// Audit failure is non-fatal but must not be swallowed —
+		// fall back to a parse_failed emit (which only fails for the
+		// same reasons, so we accept the double error as a last
+		// resort). conventions § 17.
+		_, _ = r.sink.Emit(ctx, observability.EmitCommand{
+			EventType: "bridge.parse_failed",
+			Actor:     r.actor,
+			Payload: map[string]any{
+				"reason":  "audit_emit_failed",
+				"message": fmt.Sprintf("audit emit: %v", err),
+			},
+		})
+	}
 }
 
 // suppress unused-import lint when idgen isn't directly referenced in

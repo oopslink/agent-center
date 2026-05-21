@@ -65,6 +65,27 @@ type Config struct {
 	Actor     observability.Actor
 }
 
+// WithFS replaces the default filesystem hooks for tests. Production
+// code should never call this. Returns the runner for chaining.
+func (r *Runner) WithFS(mkdir func(string, os.FileMode) error,
+	copyFile func(string, string) error,
+	remove func(string) error,
+	readDir func(string) ([]os.DirEntry, error)) *Runner {
+	if mkdir != nil {
+		r.mkdirAll = mkdir
+	}
+	if copyFile != nil {
+		r.copyFile = copyFile
+	}
+	if remove != nil {
+		r.removeAll = remove
+	}
+	if readDir != nil {
+		r.readDirAll = readDir
+	}
+	return r
+}
+
 // NewRunner builds the backup runner. Failure cases (missing deps)
 // surface immediately so the caller does not need to special-case nil.
 func NewRunner(cfg Config) (*Runner, error) {

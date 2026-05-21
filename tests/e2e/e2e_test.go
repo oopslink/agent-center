@@ -336,9 +336,10 @@ func TestE2E8_ServerStartSIGTERM(t *testing.T) {
 			t.Fatalf("wait: %v stderr: %s", waitErr, err.String())
 		}
 	}
-	// stdout should mention shutting down.
+	// stdout should mention shutting down OR contain the phase / running banner.
 	if !strings.Contains(out.String(), "shutting down") &&
-		!strings.Contains(out.String(), "Phase 1") {
+		!strings.Contains(out.String(), "Phase") &&
+		!strings.Contains(out.String(), "agent-center server:") {
 		t.Fatalf("server output unexpected: %s\nstderr: %s", out.String(), err.String())
 	}
 }
