@@ -140,6 +140,10 @@ func (a *App) queryCommand() *Command {
 	}
 }
 
+// PsWatchInterval is the default ticker cadence for `ps --watch`. Tests
+// override via WithPsWatchInterval to keep wall clock short.
+var PsWatchInterval = 2 * time.Second
+
 func (a *App) psCommand() *Command {
 	return &Command{
 		Name:    "ps",
@@ -157,8 +161,8 @@ func (a *App) psCommand() *Command {
 				if !*watch {
 					return doSnap()
 				}
-				// v1 watch: clear-screen + redraw every 2s. Stops on ctx cancel.
-				ticker := time.NewTicker(2 * time.Second)
+				// v1 watch: clear-screen + redraw every PsWatchInterval. Stops on ctx cancel.
+				ticker := time.NewTicker(PsWatchInterval)
 				defer ticker.Stop()
 				_ = doSnap()
 				for {

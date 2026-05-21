@@ -123,7 +123,8 @@ func (s *Service) Query(ctx context.Context, resource string, filter QueryFilter
 }
 
 // applyDefaultLimit returns filter.Limit clamped to (0, observability.MaxEventQueryLimit].
-func applyDefaultLimit(limit int) int {
+// Used by per-resource queryX assemblers that pass through `limit`.
+func applyDefaultLimit(limit int) int { //nolint:unused // referenced via dispatch helpers in queryTasks / queryIssues
 	if limit <= 0 {
 		return 100
 	}
