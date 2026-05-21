@@ -394,15 +394,18 @@ Sentinel errors（[00-overview § 5](../design/architecture/tactical/cognition/0
 
 **改动到的现有 CLI handler**（Phase 2-5 已有，Phase 6 在内部插入 DecisionRecorder 调用）：
 
+> 注：v1 没有独立的 `abandon-task` / `suspend-task` / `resume-task` 顶层命令；这三个 DecisionKind 通过 `kill-execution --reason=abandon_precondition|suspend_precondition` 派生（CLI handler 按 reason 选择 DecisionKind）。`resume_task` 没有对应 CLI，由 supervisor 通过 `record-decision --kind=no_op` 附 rationale 留痕（v2 可以单独建命令）。`issue close` 在代码里写作 `issue withdraw`（命名差异但语义对应 `close_issue` kind）。
+
 | CLI 命令 | 改动位置 | 插入 DecisionRecord.kind |
 |---|---|---|
 | `dispatch` | Phase 2 handler | `dispatch` |
-| `kill-execution` | Phase 2 handler | `kill_execution` |
-| `abandon-task` / `suspend-task` / `resume-task` | Phase 2 handler | 同名 |
-| `issue open` / `issue comment` / `issue conclude` / `issue close` | Phase 3 handler | `open_issue` / `issue_comment` / `conclude_issue` / `close_issue` |
+| `kill-execution` | Phase 2 handler | `kill_execution`（默认）/ `abandon_task`（reason=abandon_precondition）/ `suspend_task`（reason=suspend_precondition）|
+| `issue open` / `issue comment` / `issue conclude` / `issue withdraw` | Phase 3 handler | `open_issue` / `issue_comment` / `conclude_issue`（withdrawn 走 `close_issue`）/ `close_issue` |
 | `conversation add-message` | Phase 3 handler | `conversation_message` |
 | `escalate-input-request` | Phase 6 新增（§ 3.8）| `escalate_input_request` |
 | `record-decision` | Phase 6 新增（§ 3.8）| `no_op` |
+
+**实现机制**（DoD 收口补交）：CLI handler 用 `runSupervisorActionTx(ctx, app, actionFn, kind, refsJSON, rationale)` 统一封装；该 helper 开 outer tx，调 actionFn（action service 内部 `persistence.RunInTx` 因 tx-reentrant 自动 join outer tx），同 tx 写 DecisionRecord。任一失败回滚整笔。`--rationale` 在 supervisor caller path 必填，user caller path 不要求（user 不写 decision_records）。
 
 **关键不变量**（[01-supervisor-invocation § 4.5 / § 4.7](../design/architecture/tactical/cognition/01-supervisor-invocation.md)）：
 - append-only；INSERT 后 outcome 字段也不变（包括失败路径的 outcome_message）
