@@ -344,17 +344,20 @@ func TestE2E8_ServerStartSIGTERM(t *testing.T) {
 }
 
 // =============================================================================
-// E2E-9: supervisor / worker run stubs exit 64
+// E2E-9: worker run stub exits 64; supervisor is no longer a stub (Phase 6).
 // =============================================================================
 
-func TestE2E9_SupervisorStub(t *testing.T) {
+func TestE2E9_SupervisorNoLongerStub(t *testing.T) {
 	h := newHarness(t)
+	// `supervisor` is now a real subcommand; called without args it should
+	// fail with an explicit "scope required" / "invocation-id required"
+	// diagnostic rather than the Phase 1 not_implemented stub.
 	_, errOut, code := h.run("supervisor")
-	if code != 64 {
-		t.Fatalf("expected exit 64, got %d", code)
+	if code == 0 {
+		t.Fatalf("expected nonzero exit code from supervisor without flags")
 	}
-	if !strings.Contains(errOut, "not_implemented_in_phase_1") {
-		t.Fatalf("stderr: %s", errOut)
+	if strings.Contains(errOut, "not_implemented_in_phase_1") {
+		t.Fatalf("supervisor should not be a placeholder in Phase 6; stderr: %s", errOut)
 	}
 }
 

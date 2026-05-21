@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/taskruntime"
@@ -161,6 +162,7 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 	worker := fs.String("worker", "", "target worker id")
 	agentCLI := fs.String("agent-cli", "claude-code", "agent CLI (claude-code|codex|opencode)")
 	baseBranch := fs.String("base-branch", "main", "worktree base branch")
+	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -169,10 +171,18 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 		if *worker == "" {
 			return PrintError(errw, *format, "usage_error", "--worker required", ExitUsage)
 		}
+		if err := requireSupervisorRationale(*rationale); err != nil {
+			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
+		}
 		res, err := a.DispatchSvc.Dispatch(ctx, dispatchInputFromArgs(args[0], *worker, *agentCLI, *baseBranch, a.DefaultActor()))
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
+		// Best-effort post-action DecisionRecord (cognition § 4 — supervisor
+		// caller path; user calls silently no-op via Recorder).
+		_ = recordSupervisorDecision(ctx, a, cognition.DecisionDispatch,
+			fmt.Sprintf(`{"task_id":%q,"execution_id":%q,"worker_id":%q}`, args[0], res.ExecutionID, *worker),
+			*rationale)
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{"execution_id": string(res.ExecutionID)})
 			writeOut(out, string(b))

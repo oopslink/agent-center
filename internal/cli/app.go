@@ -11,6 +11,9 @@ import (
 	bridgedispatcher "github.com/oopslink/agent-center/internal/bridge/feishu/dispatcher"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition"
+	"github.com/oopslink/agent-center/internal/cognition/decision"
+	"github.com/oopslink/agent-center/internal/cognition/scheduler"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/conversation/identity"
@@ -25,6 +28,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	cognitiondb "github.com/oopslink/agent-center/internal/persistence/cognition"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
@@ -95,6 +99,12 @@ type App struct {
 	IdentityRegistration *identity.RegistrationService
 	LedgerRepo           bridgeledger.Repository
 	CursorStore          bridgedispatcher.CursorStore
+
+	// Cognition (Phase 6)
+	InvocationRepo    cognition.SupervisorInvocationRepository
+	DecisionRepo      cognition.DecisionRecordRepository
+	DecisionRecorder  *decision.Recorder
+	SupervisorSpawner *scheduler.Spawner
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -188,6 +198,14 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	ledgerRepo := bridgeledger.NewSQLiteRepo(db, clk)
 	cursorStore := bridgedispatcher.NewSQLiteCursorStore(db, clk)
 
+	// Phase 6: Cognition (Supervisor + DecisionRecord).
+	cognitiondbInv := cognitiondb.NewInvocationRepo(db)
+	cognitiondbDec := cognitiondb.NewDecisionRepo(db)
+	decisionRecorder, decErr := decision.NewRecorder(cognitiondbDec, clk, gen)
+	if decErr != nil {
+		return nil, fmt.Errorf("decision recorder: %w", decErr)
+	}
+
 	return &App{
 		Config:        cfg,
 		DB:            db,
@@ -238,7 +256,22 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IdentityRegistration: identityReg,
 		LedgerRepo:           ledgerRepo,
 		CursorStore:          cursorStore,
+
+		InvocationRepo:   cognitiondbInv,
+		DecisionRepo:     cognitiondbDec,
+		DecisionRecorder: decisionRecorder,
+		// SupervisorSpawner is wired by `server` mode only (it requires
+		// the actual subprocess binary path + memory dir); CLI invocations
+		// of `supervisor retrigger` from a tester / one-shot context can
+		// inject one via SetSupervisorSpawner.
 	}, nil
+}
+
+// SetSupervisorSpawner installs (or replaces) the spawner. Tests + the
+// server boot path use this to avoid wiring a spawner for every short-
+// lived CLI invocation.
+func (a *App) SetSupervisorSpawner(sp *scheduler.Spawner) {
+	a.SupervisorSpawner = sp
 }
 
 // DefaultActor returns the configured single-user identity wrapped in the

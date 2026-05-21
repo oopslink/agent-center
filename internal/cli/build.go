@@ -45,7 +45,9 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add(nil, MigrateCommand()); err != nil {
 		return nil, "", err
 	}
-	if err := router.Add(nil, SupervisorPlaceholder()); err != nil {
+	// Phase 6: `supervisor` is now a real subcommand group with a default
+	// Run handler (the per-invocation subprocess loop) plus `retrigger`.
+	if err := router.Add(nil, SupervisorRunCommand()); err != nil {
 		return nil, "", err
 	}
 	if err := router.Add([]string{"admin"}, AdminBlobMigratePlaceholder()); err != nil {
@@ -130,7 +132,30 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 			return nil, "", err
 		}
 	}
+
+	// Phase 6: supervisor retrigger / record-decision / escalate-input-request.
+	if err := router.Add([]string{"supervisor"}, provider.supervisorRetriggerCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add(nil, provider.recordDecisionCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add(nil, provider.escalateInputRequestCommand()); err != nil {
+		return nil, "", err
+	}
 	return router, cfgPath, nil
+}
+
+func (l *lazyApp) supervisorRetriggerCommand() *Command {
+	return l.withApp(func(a *App) *Command { return a.SupervisorRetriggerCommand() })
+}
+
+func (l *lazyApp) recordDecisionCommand() *Command {
+	return l.withApp(func(a *App) *Command { return a.RecordDecisionCommand() })
+}
+
+func (l *lazyApp) escalateInputRequestCommand() *Command {
+	return l.withApp(func(a *App) *Command { return a.EscalateInputRequestCommand() })
 }
 
 // StripGlobalFlags removes the global --config / -c flags from args
