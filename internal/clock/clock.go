@@ -53,3 +53,22 @@ func (c *FakeClock) Advance(d time.Duration) {
 	defer c.mu.Unlock()
 	c.t = c.t.Add(d).UTC()
 }
+
+// SleepWith blocks for d using time.Sleep when clk is a SystemClock; when
+// clk is a FakeClock it advances the fake time instead (no actual sleep).
+// Other clocks behave like SystemClock (real sleep) so callers can opt out
+// by passing a custom implementation.
+//
+// This helper is the single sanctioned way to honour backoff schedules
+// from injectable code — direct time.Sleep is reserved for system-clock
+// paths and prohibited where tests must control duration.
+func SleepWith(clk Clock, d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	if fc, ok := clk.(*FakeClock); ok {
+		fc.Advance(d)
+		return
+	}
+	time.Sleep(d)
+}
