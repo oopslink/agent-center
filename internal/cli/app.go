@@ -97,7 +97,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	execRepo := trsqlite.NewTaskExecutionRepo(db)
 	irRepo := trsqlite.NewInputRequestRepo(db)
 	artifactRepo := trsqlite.NewArtifactRepo(db)
-	taskSvc := trservice.NewTaskService(db, taskRepo, cr, execRepo, mgRepo, sink, gen, clk)
+	taskSvc := trservice.NewTaskService(db, taskRepo, cr, execRepo, mgRepo, sink, gen, clk).
+		WithProjectExistenceChecker(projectCheckerAdapter{repo: pjRepo})
 	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, cr, mgRepo, sink, gen, clk, cfg.Notification.DefaultChannel)
 	artifactSvc := trservice.NewArtifactService(db, artifactRepo, execRepo, sink, gen, clk)
 	execSvc := trservice.NewExecutionService(db, execRepo, taskRepo, cr, mgRepo, sink, gen, clk)
@@ -164,4 +165,23 @@ func OpenAndMigrate(cfg config.Config) (*sql.DB, error) {
 // handlers terse.
 func writeOut(w io.Writer, s string) {
 	fmt.Fprintln(w, s)
+}
+
+// projectCheckerAdapter adapts workforce.ProjectRepository to the
+// taskruntime/service.ProjectExistenceChecker port. Used to enforce
+// task.project_id referential integrity at the application layer per
+// conventions § 9.w.
+type projectCheckerAdapter struct {
+	repo workforce.ProjectRepository
+}
+
+// ProjectExists reports whether a project with the given id is present.
+func (a projectCheckerAdapter) ProjectExists(ctx context.Context, projectID string) (bool, error) {
+	if _, err := a.repo.FindByID(ctx, workforce.ProjectID(projectID)); err != nil {
+		if errors.Is(err, workforce.ErrProjectNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

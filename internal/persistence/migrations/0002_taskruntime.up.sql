@@ -10,14 +10,16 @@
 --   - TEXT 存 JSON
 --   - version INTEGER 默认 1（乐观锁 CAS）
 --   - reason / message 平铺双字段（conventions § 16）
+--   - 不声明 FOREIGN KEY（conventions § 9.w）；引用完整性由应用层 Repository / Domain Service 负责
 
 -- =========================================================================
 -- tasks — AR (01-task § 5)
+-- 引用完整性由应用层 Repository / Domain Service 负责（conventions § 9.w）
 -- =========================================================================
 CREATE TABLE tasks (
     id                       TEXT PRIMARY KEY,
-    project_id               TEXT NOT NULL,
-    parent_task_id           TEXT,
+    project_id               TEXT NOT NULL,                 -- references projects(id), enforced at app layer
+    parent_task_id           TEXT,                          -- references tasks(id), enforced at app layer
     from_issue_id            TEXT,
     title                    TEXT NOT NULL,
     description              TEXT NOT NULL DEFAULT '',
@@ -29,13 +31,12 @@ CREATE TABLE tasks (
     depends_on_task_ids      TEXT NOT NULL DEFAULT '[]',    -- JSON array of task ids
     abandoned_reason         TEXT,
     abandoned_message        TEXT,
-    conversation_id          TEXT,                          -- 1:1 强引用（ADR-0017）
+    conversation_id          TEXT,                          -- 1:1 强引用（ADR-0017），enforced at app layer
     current_execution_id     TEXT,
     created_by               TEXT NOT NULL,
     created_at               TEXT NOT NULL,
     updated_at               TEXT NOT NULL,
-    version                  INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (project_id) REFERENCES projects(id)
+    version                  INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX idx_tasks_project_status ON tasks (project_id, status);
 CREATE INDEX idx_tasks_parent ON tasks (parent_task_id) WHERE parent_task_id IS NOT NULL;
@@ -75,9 +76,8 @@ CREATE TABLE task_executions (
     killed_message              TEXT,
     created_at                  TEXT NOT NULL,
     updated_at                  TEXT NOT NULL,
-    version                     INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (task_id)   REFERENCES tasks(id),
-    FOREIGN KEY (worker_id) REFERENCES workers(id)
+    version                     INTEGER NOT NULL DEFAULT 1
+    -- task_id references tasks(id); worker_id references workers(id) — enforced at app layer
 );
 CREATE INDEX idx_task_executions_task          ON task_executions (task_id);
 CREATE INDEX idx_task_executions_worker_status ON task_executions (worker_id, status);
@@ -105,8 +105,8 @@ CREATE TABLE input_requests (
     ended_message       TEXT,
     created_at          TEXT NOT NULL,
     updated_at          TEXT NOT NULL,
-    version             INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (task_execution_id) REFERENCES task_executions(id)
+    version             INTEGER NOT NULL DEFAULT 1
+    -- task_execution_id references task_executions(id) — enforced at app layer
 );
 CREATE INDEX idx_input_requests_execution ON input_requests (task_execution_id);
 CREATE INDEX idx_input_requests_status    ON input_requests (status);
@@ -116,17 +116,15 @@ CREATE INDEX idx_input_requests_status    ON input_requests (status);
 -- =========================================================================
 CREATE TABLE artifacts (
     id                TEXT PRIMARY KEY,
-    task_id           TEXT NOT NULL,
-    execution_id      TEXT NOT NULL,
+    task_id           TEXT NOT NULL,                  -- references tasks(id), enforced at app layer
+    execution_id      TEXT NOT NULL,                  -- references task_executions(id), enforced at app layer
     kind              TEXT NOT NULL,                  -- pr_url | file | report | diff | test_run | note | ...
     title             TEXT NOT NULL,
     blob_ref          TEXT,
     url               TEXT,
     metadata_json     TEXT NOT NULL DEFAULT '{}',
     created_at        TEXT NOT NULL,
-    created_by        TEXT NOT NULL,
-    FOREIGN KEY (task_id)      REFERENCES tasks(id),
-    FOREIGN KEY (execution_id) REFERENCES task_executions(id)
+    created_by        TEXT NOT NULL
 );
 CREATE INDEX idx_artifacts_task      ON artifacts (task_id);
 CREATE INDEX idx_artifacts_execution ON artifacts (execution_id, created_at);

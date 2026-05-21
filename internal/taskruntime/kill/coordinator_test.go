@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -272,21 +273,34 @@ func TestRequestKill_NotFoundAndValidation(t *testing.T) {
 	}
 }
 
-func TestRequestKill_PendingIRMissingIgnored(t *testing.T) {
+// Per conventions § 9.w + § 17: if an execution points at a
+// pending_input_request_id that the repository can't find, that's an
+// invariant violation (the IR must exist whenever the execution refers to
+// it). The coordinator now panics instead of silently no-op'ing — this
+// test pins the panic so the contract is enforced.
+func TestRequestKill_PendingIRMissing_PanicsAsInvariant(t *testing.T) {
 	h := setupKill(t)
 	_, execID := seed(t, h, execution.StatusInputRequired)
-	// IR-1 is referenced by exec but never persisted (simulates race
-	// where IR was deleted/never created).
+	// IR-1 is referenced by exec but never persisted (simulates a real
+	// bug — concurrent deletion / data corruption).
 	if err := h.coord.RequestKill(context.Background(), execID, execution.KilledUserRequest, "stop", "user:hayang"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.coord.HandleKilled(context.Background(), execID, execution.KilledUserRequest, "done", "worker:W-1"); err != nil {
-		t.Fatal(err)
-	}
-	e, _ := h.execRepo.FindByID(context.Background(), execID)
-	if e.Status() != execution.StatusKilled {
-		t.Fatalf("status: %s", e.Status())
-	}
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic from invariant violation")
+		}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T: %v", r, r)
+		}
+		if !strings.Contains(msg, "invariant violated") || !strings.Contains(msg, "input_request") {
+			t.Fatalf("unexpected panic message: %s", msg)
+		}
+	}()
+	_ = h.coord.HandleKilled(context.Background(), execID, execution.KilledUserRequest, "done", "worker:W-1")
+	t.Fatal("HandleKilled should have panicked")
 }
 
 func TestNewCoordinator_DefaultsApplied(t *testing.T) {

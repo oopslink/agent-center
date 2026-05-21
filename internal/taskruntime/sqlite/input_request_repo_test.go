@@ -11,7 +11,9 @@ import (
 
 func mkExecInDB(t *testing.T) {
 	t.Helper()
-	// Helper to set up minimum needed for FK constraints.
+	// Reserved test helper — repository inserts no longer depend on
+	// schema-level FK constraints (conventions § 9.w). Kept as a hook for
+	// future seed needs.
 }
 
 func TestInputRequestRepo_SaveFindRoundtrip(t *testing.T) {

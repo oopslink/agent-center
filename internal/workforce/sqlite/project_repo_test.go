@@ -125,7 +125,11 @@ func TestProjectRepo_Delete_NotFound(t *testing.T) {
 	}
 }
 
-func TestProjectRepo_Delete_HasActiveMapping(t *testing.T) {
+// conventions § 9.w: schema declares no FOREIGN KEY. Repository.Delete is
+// a thin DB delete; the "has active mappings" precondition is enforced by
+// ProjectCRUDService.Remove (see workforce/service package). The
+// repository simply deletes the row even when mappings still reference it.
+func TestProjectRepo_Delete_RowOnly_NoFKPrecondition(t *testing.T) {
 	db := openTestDB(t)
 	projRepo := NewProjectRepo(db)
 	workerRepo := NewWorkerRepo(db)
@@ -133,13 +137,17 @@ func TestProjectRepo_Delete_HasActiveMapping(t *testing.T) {
 	_ = workerRepo.Save(context.Background(), newWorker(t, "W-1"))
 	_ = projRepo.Save(context.Background(), newProject(t, "p"))
 	m, _ := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
-		ID: workforce.MappingID(idgen.MustNewULID()),
+		ID:       workforce.MappingID(idgen.MustNewULID()),
 		WorkerID: "W-1", ProjectID: "p", BasePath: "/x", AddedAt: time.Now(),
 	})
 	_ = mapRepo.Save(context.Background(), m)
-	err := projRepo.Delete(context.Background(), "p")
-	if !errors.Is(err, workforce.ErrProjectHasActiveDeps) {
-		t.Fatalf("got %v", err)
+	// Delete succeeds even with mapping still pointing at the project
+	// (no FK constraint). Service-layer guards this in production.
+	if err := projRepo.Delete(context.Background(), "p"); err != nil {
+		t.Fatalf("Delete should succeed without FK: %v", err)
+	}
+	if _, err := projRepo.FindByID(context.Background(), "p"); !errors.Is(err, workforce.ErrProjectNotFound) {
+		t.Fatalf("project should be gone: %v", err)
 	}
 }
 

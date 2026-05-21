@@ -377,8 +377,13 @@ func (s *Scanner) HandleWorkerOffline(ctx context.Context, workerID string, acto
 func (s *Scanner) clearTaskCurrent(txCtx context.Context, taskID taskruntime.TaskID, now time.Time) error {
 	t, err := s.taskRepo.FindByID(txCtx, taskID)
 	if err != nil {
+		// Per conventions § 9.w + § 17: schema declares no FOREIGN KEY,
+		// but the application-layer invariant is that any execution
+		// reaching the timeout scanner has a live parent Task (the
+		// execution was loaded from the same DB). If the task vanished,
+		// that's a real bug — panic rather than silently no-op.
 		if errors.Is(err, task.ErrTaskNotFound) {
-			return nil
+			panic(fmt.Sprintf("invariant violated: task %s missing in scanner.clearTaskCurrent (execution refers to it)", taskID))
 		}
 		return err
 	}

@@ -138,12 +138,10 @@ func (r *ProjectRepo) Update(ctx context.Context, id workforce.ProjectID, fields
 
 // Delete removes a Project. Strict: row presence is required; the active-
 // mapping precondition is enforced by the caller (Application Service)
-// using MappingRepository.CountActiveByProjectID. Implementation simply
-// deletes the row.
+// using MappingRepository.CountActiveByProjectID.
 //
-// We return ErrProjectHasActiveDeps if FK referential integrity blocks the
-// delete (mappings reference the project) — the precondition check is
-// belt-and-braces here.
+// conventions § 9.w: schema declares no FOREIGN KEY; referential integrity
+// is enforced at the application layer (ProjectCRUDService.Remove).
 func (r *ProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
 	if err != nil {
@@ -151,10 +149,6 @@ func (r *ProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error 
 	}
 	res, err := exec.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, string(id))
 	if err != nil {
-		// Foreign-key violation → translate to domain error.
-		if isForeignKeyViolation(err) {
-			return workforce.ErrProjectHasActiveDeps
-		}
 		return err
 	}
 	n, _ := res.RowsAffected()
@@ -162,30 +156,6 @@ func (r *ProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error 
 		return workforce.ErrProjectNotFound
 	}
 	return nil
-}
-
-func isForeignKeyViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return contains(msg, "FOREIGN KEY constraint failed") ||
-		contains(msg, "constraint failed: FOREIGN KEY")
-}
-
-func contains(haystack, needle string) bool {
-	return len(haystack) >= len(needle) && (haystack == needle ||
-		// avoid pulling in strings just for this; tiny helper
-		(len(haystack) > len(needle) && indexOf(haystack, needle) >= 0))
-}
-
-func indexOf(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
 }
 
 const projectSelect = `SELECT id, name, kind, default_agent_cli, description,

@@ -21,19 +21,39 @@ import (
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 )
 
+// ProjectExistenceChecker is the minimal port the TaskService uses to
+// validate that a referenced project exists before creating a Task. The
+// schema no longer declares FOREIGN KEY (conventions § 9.w), so referential
+// integrity for task.project_id is enforced here at the application layer.
+//
+// The implementation is normally a thin wrapper around
+// workforce.ProjectRepository.FindByID; passing nil disables the check
+// (used by some narrow unit tests that bypass the full wiring).
+type ProjectExistenceChecker interface {
+	ProjectExists(ctx context.Context, projectID string) (bool, error)
+}
+
+// ErrProjectNotFound is returned by TaskService.Create when the requested
+// project does not exist (app-layer enforcement per conventions § 9.w).
+var ErrProjectNotFound = errors.New("task service: project not found")
+
 // TaskService is the application-layer wrapper for Task CRUD operations.
 type TaskService struct {
-	db        *sql.DB
-	taskRepo  task.Repository
-	convRepo  conversation.ConversationRepository
-	execRepo  execution.Repository
-	msgRepo   conversation.MessageRepository
-	sink      *observability.EventSink
-	idgen     idgen.Generator
-	clock     clock.Clock
+	db           *sql.DB
+	taskRepo     task.Repository
+	convRepo     conversation.ConversationRepository
+	execRepo     execution.Repository
+	msgRepo      conversation.MessageRepository
+	projectCheck ProjectExistenceChecker
+	sink         *observability.EventSink
+	idgen        idgen.Generator
+	clock        clock.Clock
 }
 
 // NewTaskService constructs the service.
+//
+// projectCheck may be nil; when nil, app-layer project existence checks
+// are skipped. Production wiring (cli/app.go) passes a concrete checker.
 func NewTaskService(
 	db *sql.DB,
 	taskRepo task.Repository,
@@ -51,6 +71,13 @@ func NewTaskService(
 		db: db, taskRepo: taskRepo, convRepo: convRepo, execRepo: execRepo,
 		msgRepo: msgRepo, sink: sink, idgen: gen, clock: clk,
 	}
+}
+
+// WithProjectExistenceChecker wires an app-layer project existence check
+// into the service. Returns the receiver for fluent setup.
+func (s *TaskService) WithProjectExistenceChecker(c ProjectExistenceChecker) *TaskService {
+	s.projectCheck = c
+	return s
 }
 
 // TaskCreateInput captures `task create` parameters.
@@ -85,6 +112,18 @@ func (s *TaskService) Create(ctx context.Context, in TaskCreateInput) (*TaskCrea
 	}
 	if strings.TrimSpace(in.Title) == "" {
 		return nil, errors.New("task service: title required")
+	}
+	// App-layer referential integrity for task.project_id (conventions § 9.w):
+	// schema no longer declares FOREIGN KEY, so the existence check moves
+	// into the application service. Done before the tx to keep the tx short.
+	if s.projectCheck != nil {
+		ok, err := s.projectCheck.ProjectExists(ctx, in.ProjectID)
+		if err != nil {
+			return nil, fmt.Errorf("task service: project existence check: %w", err)
+		}
+		if !ok {
+			return nil, fmt.Errorf("%w: %s", ErrProjectNotFound, in.ProjectID)
+		}
 	}
 	now := s.clock.Now()
 	res := &TaskCreateResult{

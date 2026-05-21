@@ -1,7 +1,7 @@
 -- 0001_init.down.sql — Phase 1 反操作
 --
 -- 仅本地开发 / 测试用（plan § 6 R7：v1 仅 DROP TABLE 全表）；生产环境不应跑 down。
--- DROP 顺序考虑 FK：子表先删 → 父表后删。
+-- DDL 无 FK 声明（conventions § 9.w），DROP 顺序按拓扑依赖即可。
 
 DROP INDEX IF EXISTS uniq_messages_vendor_ref;
 DROP INDEX IF EXISTS idx_messages_conv;

@@ -406,9 +406,14 @@ func (s *Service) ScanPendingAck(ctx context.Context, actor observability.Actor)
 func (s *Service) clearTaskCurrent(txCtx context.Context, taskID taskruntime.TaskID, now time.Time) error {
 	t, err := s.taskRepo.FindByID(txCtx, taskID)
 	if err != nil {
-		// Task missing → ignore (FK should prevent this; but tx safety)
+		// Per conventions § 9.w + § 17: the schema no longer declares a
+		// FOREIGN KEY for task_executions.task_id, but the application-layer
+		// invariant is that every TaskExecution we're working with here was
+		// just loaded from the same tx — its parent Task must exist. If it
+		// doesn't, that's a genuine bug (concurrent delete / data
+		// corruption) and we panic rather than silently swallow.
 		if errors.Is(err, task.ErrTaskNotFound) {
-			return nil
+			panic(fmt.Sprintf("invariant violated: task %s missing in clearTaskCurrent (execution refers to it)", taskID))
 		}
 		return err
 	}

@@ -12,6 +12,7 @@
 --   - TEXT 存 JSON（不在 SQL 里 json_extract）
 --   - version INTEGER 默认 1（乐观锁 CAS）
 --   - reason / message 平铺双字段（conventions § 16）
+--   - 不声明 FOREIGN KEY（conventions § 9.w）；引用完整性由应用层 Repository / Domain Service 负责
 
 -- =========================================================================
 -- Observability — events 表（append-only；02-persistence § 8.2.1）
@@ -71,10 +72,11 @@ CREATE TABLE workers (
 CREATE INDEX idx_workers_status ON workers (status);
 
 -- worker_project_mappings: Worker 子从属 entity（workforce/01 § 4）
+-- 引用完整性由应用层 Repository / Domain Service 负责（conventions § 9.w）
 CREATE TABLE worker_project_mappings (
     id                    TEXT PRIMARY KEY,
-    worker_id             TEXT NOT NULL,
-    project_id            TEXT NOT NULL,
+    worker_id             TEXT NOT NULL,                    -- references workers(id), enforced at app layer
+    project_id            TEXT NOT NULL,                    -- references projects(id), enforced at app layer
     base_path             TEXT NOT NULL,
     source_proposal_id    TEXT,
     status                TEXT NOT NULL,                    -- active | invalidated
@@ -84,9 +86,7 @@ CREATE TABLE worker_project_mappings (
     invalidated_at        TEXT,
     created_at            TEXT NOT NULL,
     updated_at            TEXT NOT NULL,
-    version               INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (worker_id)  REFERENCES workers(id),
-    FOREIGN KEY (project_id) REFERENCES projects(id)
+    version               INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX idx_mappings_worker  ON worker_project_mappings (worker_id);
 CREATE INDEX idx_mappings_project ON worker_project_mappings (project_id);
@@ -96,9 +96,10 @@ CREATE UNIQUE INDEX uniq_mappings_active
     WHERE status = 'active';
 
 -- worker_project_proposals: 独立 AR（workforce/03 § 2）
+-- 引用完整性由应用层 Repository / Domain Service 负责（conventions § 9.w）
 CREATE TABLE worker_project_proposals (
     id                          TEXT PRIMARY KEY,
-    worker_id                   TEXT NOT NULL,
+    worker_id                   TEXT NOT NULL,              -- references workers(id), enforced at app layer
     candidate_path              TEXT NOT NULL,
     suggested_project_id        TEXT NOT NULL,
     suggested_kind              TEXT,
@@ -110,8 +111,7 @@ CREATE TABLE worker_project_proposals (
     resulting_mapping_id        TEXT,
     created_at                  TEXT NOT NULL,
     updated_at                  TEXT NOT NULL,
-    version                     INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (worker_id) REFERENCES workers(id)
+    version                     INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX idx_proposals_worker        ON worker_project_proposals (worker_id);
 CREATE INDEX idx_proposals_status        ON worker_project_proposals (status);
@@ -148,9 +148,10 @@ CREATE UNIQUE INDEX uniq_conversations_channel_thread
       AND primary_channel_thread_key IS NOT NULL;
 
 -- messages: Conversation 子从属（conversation/01 § 4）
+-- 引用完整性由应用层 Repository / Domain Service 负责（conventions § 9.w）
 CREATE TABLE messages (
     id                      TEXT PRIMARY KEY,
-    conversation_id         TEXT NOT NULL,
+    conversation_id         TEXT NOT NULL,                 -- references conversations(id), enforced at app layer
     sender_identity_id      TEXT NOT NULL,
     content_kind            TEXT NOT NULL,                 -- text/system/agent_finding/supervisor_summary/conclusion_draft/task_proposal
     content                 TEXT NOT NULL,
@@ -158,8 +159,7 @@ CREATE TABLE messages (
     vendor_msg_ref          TEXT,
     input_request_ref       TEXT,
     posted_at               TEXT NOT NULL,
-    created_at              TEXT NOT NULL,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    created_at              TEXT NOT NULL
 );
 CREATE INDEX idx_messages_conv      ON messages (conversation_id, posted_at);
 CREATE UNIQUE INDEX uniq_messages_vendor_ref

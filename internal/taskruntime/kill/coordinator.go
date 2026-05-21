@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -188,20 +189,41 @@ func (c *Coordinator) markKilledInTx(txCtx context.Context, e *execution.TaskExe
 	if err := c.execRepo.Update(txCtx, e); err != nil {
 		return err
 	}
-	// Clear task.current_execution_id if needed
+	// Clear task.current_execution_id if needed.
+	//
+	// Per conventions § 9.w + § 17: schema declares no FOREIGN KEY, but
+	// the application-layer invariant is that an execution's Task exists
+	// for the duration of any kill flow (executions only reach this point
+	// because they were just loaded from the same tx via FindByID). If
+	// the task is missing, that's a real bug — panic rather than silently
+	// no-op.
 	t, err := c.taskRepo.FindByID(txCtx, e.TaskID())
-	if err == nil && string(t.CurrentExecutionID()) != "" {
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			panic(fmt.Sprintf("invariant violated: task %s missing in markKilledInTx (execution refers to it)", e.TaskID()))
+		}
+		return err
+	}
+	if string(t.CurrentExecutionID()) != "" {
 		t.ClearCurrentExecutionID(now)
 		if err := c.taskRepo.Update(txCtx, t); err != nil {
 			return err
 		}
-	} else if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
-		return err
 	}
-	// Cancel pending IR if any
+	// Cancel pending IR if any.
+	//
+	// Per § 9.w + § 17: when execution.pending_input_request_id is set,
+	// the IR must exist (it was created in the same domain flow). If
+	// it's missing, that's a real bug — panic.
 	if string(e.PendingInputRequestID()) != "" {
 		ir, irErr := c.irRepo.FindByID(txCtx, e.PendingInputRequestID())
-		if irErr == nil && ir.Status() == inputrequest.StatusPending {
+		if irErr != nil {
+			if errors.Is(irErr, inputrequest.ErrInputRequestNotFound) {
+				panic(fmt.Sprintf("invariant violated: input_request %s missing in markKilledInTx (execution refers to it)", e.PendingInputRequestID()))
+			}
+			return irErr
+		}
+		if ir.Status() == inputrequest.StatusPending {
 			if err := ir.MarkCanceled("kill_precondition", "execution killed: "+message, now); err != nil {
 				return err
 			}
@@ -223,8 +245,6 @@ func (c *Coordinator) markKilledInTx(txCtx context.Context, e *execution.TaskExe
 			}); err != nil {
 				return err
 			}
-		} else if irErr != nil && !errors.Is(irErr, inputrequest.ErrInputRequestNotFound) {
-			return irErr
 		}
 	}
 	// emit killed

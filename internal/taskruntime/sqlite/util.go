@@ -112,15 +112,11 @@ func IsUniqueConstraint(err error) bool {
 		strings.Contains(err.Error(), "constraint failed: UNIQUE")
 }
 
-// IsForeignKeyConstraint reports whether err is a FK violation.
-func IsForeignKeyConstraint(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "FOREIGN KEY constraint failed") ||
-		strings.Contains(err.Error(), "constraint failed: FOREIGN KEY")
-}
-
 // errNotMatched is the sentinel used internally when CAS UPDATE rowsAffected=0
 // and the caller cannot distinguish not-found vs version-conflict.
+//
+// conventions § 9.w: schema declares no FOREIGN KEY; the previously-shipped
+// IsForeignKeyConstraint helper has been removed because the FK code path
+// no longer exists. Referential integrity is enforced at the application
+// layer (Repository / Domain Service).
 var errNotMatched = errors.New("taskruntime sqlite: row not matched by CAS UPDATE")

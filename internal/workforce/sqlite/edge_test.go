@@ -132,39 +132,6 @@ func TestProjectRepo_FindAll_ClosedDB(t *testing.T) {
 	}
 }
 
-func TestIndexOf_NotFound(t *testing.T) {
-	if indexOf("abc", "z") != -1 {
-		t.Fatal()
-	}
-	if indexOf("abc", "bc") != 1 {
-		t.Fatal()
-	}
-}
-
-func TestContains_Helpers(t *testing.T) {
-	if !contains("abcdef", "cd") {
-		t.Fatal()
-	}
-	if contains("a", "ab") {
-		t.Fatal()
-	}
-	if !contains("abc", "abc") {
-		t.Fatal()
-	}
-}
-
-func TestIsForeignKeyViolation(t *testing.T) {
-	if isForeignKeyViolation(nil) {
-		t.Fatal()
-	}
-	if !isForeignKeyViolation(errors.New("FOREIGN KEY constraint failed")) {
-		t.Fatal()
-	}
-	if isForeignKeyViolation(errors.New("unrelated")) {
-		t.Fatal()
-	}
-}
-
 func TestParseNullTime_EmptyValid(t *testing.T) {
 	_, err := parseNullTime(sql.NullString{String: "", Valid: true})
 	if err != nil {
@@ -199,18 +166,27 @@ func TestProposalRepo_FindByCandidatePath_ClosedDB(t *testing.T) {
 	}
 }
 
-// Tests that Worker.Save FK enforcement does NOT fire by accident
-// (sanity for FK pragma being on).
-func TestForeignKeyEnforced(t *testing.T) {
+// conventions § 9.w: schema declares no FOREIGN KEY. Repository.Save
+// happily inserts a mapping pointing at a non-existent worker/project;
+// referential integrity is enforced at the application layer
+// (MappingCRUDService.Add validates worker/project existence before
+// calling Save). This test pins that contract.
+func TestMappingSave_NoFKEnforcement(t *testing.T) {
 	db := openTestDB(t)
 	mr := NewMappingRepo(db)
-	// Insert mapping referring to non-existent worker → FK should fail.
 	m, _ := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
 		ID: "M-1", WorkerID: "W-DOESNT-EXIST", ProjectID: "p-DOESNT-EXIST",
 		BasePath: "/x", AddedAt: time.Now(),
 	})
-	err := mr.Save(context.Background(), m)
-	if err == nil {
-		t.Fatal("expected FK error")
+	if err := mr.Save(context.Background(), m); err != nil {
+		t.Fatalf("Save should succeed without FK enforcement: %v", err)
+	}
+	// Sanity: the row is actually stored even though no parent rows exist.
+	got, err := mr.FindByID(context.Background(), "M-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got.WorkerID()) != "W-DOESNT-EXIST" {
+		t.Fatalf("unexpected worker id: %s", got.WorkerID())
 	}
 }

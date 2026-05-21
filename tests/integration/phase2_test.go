@@ -197,8 +197,12 @@ func TestINT_Phase2_IRRespondTxChain(t *testing.T) {
 	}
 }
 
-func TestINT_Phase2_TaskRepoFKRespected(t *testing.T) {
-	// Verify FK: cannot create a task with non-existent project (FK ON)
+// conventions § 9.w: schema declares no FOREIGN KEY. Referential
+// integrity for task.project_id is now enforced at the application layer
+// via TaskService.WithProjectExistenceChecker. This test wires a checker
+// that always reports "not found" and asserts the service rejects the
+// Create with ErrProjectNotFound.
+func TestINT_Phase2_TaskProjectExistence_AppLayerEnforced(t *testing.T) {
 	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
 		t.Fatal(err)
@@ -215,7 +219,8 @@ func TestINT_Phase2_TaskRepoFKRespected(t *testing.T) {
 	taskRepo := trsqlite.NewTaskRepo(db)
 	convRepo := convsqlite.NewConversationRepo(db)
 	msgRepo := convsqlite.NewMessageRepo(db)
-	taskSvc := service.NewTaskService(db, taskRepo, convRepo, trsqlite.NewTaskExecutionRepo(db), msgRepo, sink, gen, clk)
+	taskSvc := service.NewTaskService(db, taskRepo, convRepo, trsqlite.NewTaskExecutionRepo(db), msgRepo, sink, gen, clk).
+		WithProjectExistenceChecker(stubProjectChecker{exists: false})
 	_, err = taskSvc.Create(ctx, service.TaskCreateInput{
 		ProjectID:        "missing-project",
 		Title:            "x",
@@ -223,9 +228,20 @@ func TestINT_Phase2_TaskRepoFKRespected(t *testing.T) {
 		Actor:            "user:hayang",
 	})
 	if err == nil {
-		t.Fatal("expected FK error")
+		t.Fatal("expected app-layer project-not-found error")
+	}
+	if !strings.Contains(err.Error(), "project not found") {
+		t.Fatalf("expected ErrProjectNotFound, got: %v", err)
 	}
 	_ = taskruntime.TaskID("")
 	_ = conversation.ConversationID("")
 	_ = inputrequest.UrgencyNormal // keep alias referenced
+}
+
+// stubProjectChecker is used in INT-P2-5 to drive the app-layer
+// existence check without depending on a real Workforce repository wiring.
+type stubProjectChecker struct{ exists bool }
+
+func (s stubProjectChecker) ProjectExists(ctx context.Context, id string) (bool, error) {
+	return s.exists, nil
 }

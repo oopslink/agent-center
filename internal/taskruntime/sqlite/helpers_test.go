@@ -18,7 +18,9 @@ func openTestDB(t *testing.T) *sql.DB {
 	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	// Seed a project / worker so FKs hold.
+	// Seed a project / worker so app-layer existence checks pass when
+	// the tests exercise the dispatch / task service paths.
+	// (conventions § 9.w: no FK enforcement at schema level.)
 	ctx := context.Background()
 	if _, err := db.ExecContext(ctx, `INSERT INTO projects (id, name, created_at, updated_at, created_by_identity_id) VALUES ('P-1', 'Proj 1', '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z', 'user:hayang')`); err != nil {
 		t.Fatalf("seed project: %v", err)

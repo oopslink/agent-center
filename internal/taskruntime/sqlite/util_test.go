@@ -28,21 +28,6 @@ func TestNullTimeStr_ZeroAndNonZero(t *testing.T) {
 	}
 }
 
-func TestIsForeignKeyConstraint(t *testing.T) {
-	if IsForeignKeyConstraint(nil) {
-		t.Fatal("nil err")
-	}
-	if !IsForeignKeyConstraint(errors.New("FOREIGN KEY constraint failed")) {
-		t.Fatal("standard FK err")
-	}
-	if !IsForeignKeyConstraint(errors.New("constraint failed: FOREIGN KEY")) {
-		t.Fatal("alt FK err")
-	}
-	if IsForeignKeyConstraint(errors.New("random")) {
-		t.Fatal("should not match")
-	}
-}
-
 func TestParseDurationFromInt(t *testing.T) {
 	if got := parseDurationFromInt(sql.NullInt64{}); got != nil {
 		t.Fatal("invalid → nil")
