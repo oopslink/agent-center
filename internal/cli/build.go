@@ -99,6 +99,15 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 			return nil, "", err
 		}
 	}
+	// issue group + top-level open-issue (agent audience)
+	for _, c := range provider.issueCommands() {
+		if err := router.Add([]string{"issue"}, c); err != nil {
+			return nil, "", err
+		}
+	}
+	if err := router.Add(nil, provider.openIssueCommand()); err != nil {
+		return nil, "", err
+	}
 	// worker shim placeholder (system audience)
 	if err := router.Add([]string{"worker"}, WorkerShimPlaceholder()); err != nil {
 		return nil, "", err
@@ -298,6 +307,22 @@ func (l *lazyApp) agentRuntimeCommands() []*Command {
 		}))
 	}
 	return out
+}
+
+func (l *lazyApp) issueCommands() []*Command {
+	names := []string{"open", "comment", "conclude", "withdraw", "bind-conversation", "link-conversation"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.IssueCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) openIssueCommand() *Command {
+	return l.withApp(func(a *App) *Command { return a.OpenIssueCommand() })
 }
 
 func findCmd(cs []*Command, name string) *Command {

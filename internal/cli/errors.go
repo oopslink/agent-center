@@ -5,6 +5,8 @@ import (
 	"io"
 
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/discussion"
+	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
@@ -136,6 +138,28 @@ func MapDomainError(err error) (reason string, code ExitCode, ok bool) {
 		return "input_request_invalid_status", ExitUsage, true
 	case errors.Is(err, inputrequest.ErrInvalidUrgency):
 		return "input_request_invalid_urgency", ExitUsage, true
+
+	// Discussion — Issue
+	case errors.Is(err, discussion.ErrIssueNotFound):
+		return "issue_not_found", ExitNotFound, true
+	case errors.Is(err, discussion.ErrIssueAlreadyExists):
+		return "issue_already_exists", ExitBusinessError, true
+	case errors.Is(err, discussion.ErrIssueInvalidTransition):
+		return "issue_invalid_transition", ExitInvalidTransition, true
+	case errors.Is(err, discussion.ErrIssueVersionConflict):
+		return "issue_version_conflict", ExitVersionConflict, true
+	case errors.Is(err, discussion.ErrIssueAlreadyConcluded):
+		return "issue_already_concluded", ExitInvalidTransition, true
+	case errors.Is(err, discussion.ErrIssueWithdrawn):
+		return "issue_withdrawn", ExitInvalidTransition, true
+	case errors.Is(err, discussion.ErrIssueNoConversationBound):
+		return "issue_no_conversation_bound", ExitInvariantViolation, true
+	case errors.Is(err, discussion.ErrInvalidOrigin):
+		return "issue_invalid_origin", ExitUsage, true
+	case errors.Is(err, discussion.ErrResolutionInvalid):
+		return "issue_invalid_resolution", ExitUsage, true
+	case errors.Is(err, disservice.ErrProjectNotFound):
+		return "project_not_found", ExitNotFound, true
 	}
 	return "", 0, false
 }
