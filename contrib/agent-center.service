@@ -1,0 +1,28 @@
+[Unit]
+Description=agent-center server (Phase 7+, v1 single-VPS deployment)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent-center
+Group=agent-center
+ExecStart=/usr/local/bin/agent-center server --config=/etc/agent-center/config.yaml
+EnvironmentFile=-/etc/agent-center/feishu.env
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=agent-center
+
+# Security hardening (06-deployment § 4.1).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/agent-center /run/agent-center /var/log/agent-center
+RuntimeDirectory=agent-center
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

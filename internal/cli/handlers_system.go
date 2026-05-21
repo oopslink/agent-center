@@ -85,8 +85,31 @@ func ServerCommand() *Command {
 					fmt.Fprintln(out, "migrations applied; exiting (--migrate-only)")
 					return ExitOK
 				}
-				fmt.Fprintf(out, "agent-center server: db=%s listen=%s (Phase 1: idle until SIGTERM)\n",
-					cfg.Server.SqlitePath, cfg.Server.ListenAddr)
+				// Phase 7: wire the always-on subsystems (escalator +
+				// optional Feishu inbound).
+				app, err := NewApp(cfg, db, nil)
+				if err != nil {
+					fmt.Fprintf(errw, "Error: app_bootstrap: %v\n", err)
+					return ExitBusinessError
+				}
+				subsys, err := NewServerSubsystems(app, func(msg string) {
+					fmt.Fprintf(errw, "[server] %s\n", msg)
+				})
+				if err != nil {
+					fmt.Fprintf(errw, "Error: subsystems: %v\n", err)
+					return ExitBusinessError
+				}
+				if c := NewFeishuAdapterFromConfig(app); c != nil {
+					subsys.AttachFeishuClient(c)
+					if err := subsys.ConnectBridge(ctx); err != nil {
+						fmt.Fprintf(errw, "[server] feishu connect: %v (continuing)\n", err)
+					}
+					defer subsys.CloseBridge()
+				}
+				go subsys.Run(ctx)
+
+				fmt.Fprintf(out, "agent-center server: db=%s listen=%s feishu=%v (Phase 7 inbound + escalator running)\n",
+					cfg.Server.SqlitePath, cfg.Server.ListenAddr, cfg.Bridge.Feishu.Enabled)
 				// Wait for SIGINT / SIGTERM.
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

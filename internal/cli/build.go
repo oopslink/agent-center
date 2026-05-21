@@ -53,6 +53,10 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"admin"}, AdminBlobMigratePlaceholder()); err != nil {
 		return nil, "", err
 	}
+	// Phase 7: `bootstrap check-systemd` (no DB; runs at install time).
+	if err := router.Add(nil, BootstrapCommand()); err != nil {
+		return nil, "", err
+	}
 
 	// Resource commands. We use a lazy *App provider so each invocation
 	// opens / closes the DB.
@@ -129,6 +133,13 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	}
 	for _, c := range provider.bridgeCommands() {
 		if err := router.Add([]string{"bridge"}, c); err != nil {
+			return nil, "", err
+		}
+	}
+
+	// Phase 7: `admin backup`.
+	for _, c := range provider.adminCommands() {
+		if err := router.Add([]string{"admin"}, c); err != nil {
 			return nil, "", err
 		}
 	}
@@ -387,6 +398,18 @@ func (l *lazyApp) identityCommands() []*Command {
 		n := n
 		out = append(out, l.withApp(func(a *App) *Command {
 			return findCmd(a.IdentityCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) adminCommands() []*Command {
+	names := []string{"backup"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.AdminCommands(), n)
 		}))
 	}
 	return out

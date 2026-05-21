@@ -327,6 +327,26 @@ func (a *OAPIAdapter) OnEvent(handler func(VendorEvent)) {
 	a.handler = handler
 }
 
+// InjectEvent drives the registered handler synchronously. This is the
+// Phase 7 hook used by:
+//   - Production WS reader goroutine in `oapi_adapter.go` once the
+//     real long-poll is wired (v1 falls back to the fake WS when the
+//     SDK lacks ready-made support).
+//   - The test fake server (tests/e2e/fakeserver/feishu) injects
+//     events here to exercise the inbound router end-to-end.
+//
+// Returns immediately when no handler is registered. The function is
+// goroutine-safe.
+func (a *OAPIAdapter) InjectEvent(ev VendorEvent) {
+	a.mu.RLock()
+	h := a.handler
+	a.mu.RUnlock()
+	if h == nil {
+		return
+	}
+	h(ev)
+}
+
 func (a *OAPIAdapter) connected() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()

@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily agent-center SQLite backup (06-deployment § 6.2)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=15m
+AccuracySec=1m
+Unit=agent-center-backup.service
+
+[Install]
+WantedBy=timers.target

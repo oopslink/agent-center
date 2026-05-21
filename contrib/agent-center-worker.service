@@ -1,0 +1,21 @@
+[Unit]
+Description=agent-center worker daemon (Phase 7+, ADR-0018 detached shim model)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/agent-center worker run --config=%h/.agent-center-worker/config.yaml
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+# ADR-0018: per-execution shim must outlive `systemctl --user restart`.
+# Default KillMode=control-group would SIGTERM the shim + agent CLI when
+# the daemon stops. We REQUIRE KillMode=process so only the daemon PID
+# receives the signal. Combined with shim's setsid() (cgroup escape)
+# this gives the upgrade-without-downtime guarantee. DO NOT REMOVE.
+KillMode=process
+
+[Install]
+WantedBy=default.target
