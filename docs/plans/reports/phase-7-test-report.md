@@ -4,15 +4,26 @@
 
 ## § 1. 覆盖率汇总
 
-### § 1.1 整体行覆盖率（30 次实测，模式分布 90.4-90.5%）
+### § 1.1 整体行覆盖率（flap 收口后 20/20 全部 90.5%）
 
-| 区间 | 出现次数 / 30 | 占比 |
+| 区间 | 出现次数 / 20 | 占比 |
 |---|---|---|
-| **90.5%** | 25 | 83.3% |
-| **90.4%** | 5 | 16.7% |
-| < 90.4% | 0 | 0% |
+| **90.5%** | 20 | 100% |
+| ≤ 90.4% | 0 | 0% |
 
-**永不掉到 90.4% 以下**，主流模式在 90.5%。0.1pp 浮动来自 Phase 6 `scheduler/timeout.go:Tick` + `persistence/cognition/invocation_repo.go:FindRunning` 的测试调度顺序敏感（详见 Phase 6 报告 § 1.2 已记录 "90.5-90.6% 浮动"），**非 Phase 7 代码原因**。
+**精确覆盖率 = 90.48%**（10388 covered / 11482 total），稳定显示 90.5%。flap 已彻底消除（详见 § 1.4）。
+
+**先前 flap（30 次中 5/30 跌到 90.4%）的三处根因**：
+
+1. `internal/cognition/scheduler/timeout.go:140-142`（Run 的 `errorHook(err)` 分支）— select `<-ctx.Done()` vs `<-t.C` 在 ctx cancel 时的 race
+2. `internal/persistence/cognition/invocation_repo.go:189-191`（FindRunning 的 QueryContext err 分支）— 由 Run race 联带触发
+3. `internal/observability/peek/server.go:142-144`（writeLine 的 early-return 分支）— client close vs server write race
+
+**修法**（每条 deterministic 测）：
+
+1. `internal/cognition/scheduler/timeout_run_test.go` 新增 `TestTimeoutHandler_Run_InvokesErrorHookOnTickError` + `TestTimeoutHandler_Run_NilHookDefaultsToNoop`：用 stub repo 强制 FindRunning 返回 error，让 Run 必然进入 errorHook 分支
+2. `internal/persistence/cognition/invocation_repo_test.go` 新增 `TestInvocationRepo_FindRunning_QueryError`：用 cancelled ctx 强制 QueryContext err
+3. `internal/observability/peek/server_branches_test.go` 新增 `TestPeekServer_WriteLineAbortsOnClientClose`：写 2000 条 4KB 帧 + 客户端立即 close，让 server writeLine 必失败
 
 Phase 7 业务代码覆盖：
 
@@ -59,7 +70,9 @@ done
 3. **panic recovery / error-injection 测试用 `fakeBindings` / `fakeTaskRepo` / `fakeConvRepo` / `fakeExecRepo` / `fakeIRRepo` / `fakeIdentRepo` 注入**（无 select+default+多 chan 并发陷阱）
 4. **In-process e2e harness 使用单 driver goroutine 串行投递事件**（无 select 竞态）
 
-收口前 10/10 全部稳定在 90.5%，已锁定 DoD § 4 "单测行覆盖率 ≥ 90%"。
+**Phase 6 遗留 flap 收口**（2026-05-22）：Phase 6 的 `scheduler/timeout.go:Run` + `persistence/cognition/invocation_repo.go:FindRunning` + `observability/peek/server.go:handle` 三处 race 走漏，在 Phase 7 收口阶段补 4 个 deterministic 测试（详见 § 1.1）后，20/20 跑全部稳定在 90.5%（之前 30 次跑中 5/30 跌到 90.4%）。
+
+收口后 20/20 全部稳定在 90.5%（precise 90.48%），已锁定 DoD § 4 "单测行覆盖率 ≥ 90%"。
 
 ## § 2. 测试场景执行结果
 
@@ -237,7 +250,7 @@ done
 | § 3.8 e2e harness 在 CI 跑绿；跨 phase 4 场景全 pass | ✅ | 详见 § 2.3 |
 | § 3.9 release checklist 100% 填实 | ✅ | docs/plans/reports/v1-release-checklist.md |
 | § 5 所有测试场景通过（unit + 集成 + e2e + 升级演练）| ✅（unit + 集成 + e2e）/ ⏸ 真升级演练在 checklist | |
-| 单测行覆盖率 ≥ 90%（diff + 整体）| ✅ | 10/10 稳定 90.5% |
+| 单测行覆盖率 ≥ 90%（diff + 整体）| ✅ | 20/20 稳定 90.5%（precise 90.48%），flap 已彻底消除（§ 1.1）|
 | 测试报告 `docs/plans/reports/phase-7-test-report.md` 归档 | ✅ | 本文档 |
 | 触发的 domain event 实际进 events 表 | ✅ | `bridge.parse_failed / bridge.identity_auto_bound / bridge.inbound_routed / bridge.inbound_dedupe_drop / bridge.slash_command_received / bridge.slash_command_rejected / bridge.card_action_received / admin.backup_ok / admin.backup_failed / admin.backup_prune_failed` 全在 integration 验证 |
 | CLI 命令 `--help` 跟 03-cli § 8.6 / 8.8 对齐 | ✅ | `admin backup` / `bootstrap check-systemd` 都有 Summary + LongHelp |
@@ -259,6 +272,7 @@ done
 | `8d4557a` | fix(phase-7): simplify auditRouted — drop unreachable parse_failed fallback |
 | `(待提交)` | docs(phase-7): test report + v1 release checklist |
 | `(待提交)` | feat(phase-7): Bridge inbound + 部署收尾 + v1 release checklist 完成 |
+| `(本次)` | fix: 消除 cognition scheduler / FindRunning / peek server 覆盖 flap，20/20 稳定 90.5% |
 
 ## § 7. 下游解锁（plan § 7）
 

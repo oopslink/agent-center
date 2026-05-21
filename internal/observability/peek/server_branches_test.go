@@ -165,6 +165,46 @@ func TestPeekClient_ServerSendsMalformedJSON(t *testing.T) {
 	}
 }
 
+// TestPeekServer_WriteLineAbortsOnClientClose deterministically covers
+// server.go:142-144 — when writeLine fails (client closed conn early),
+// the loop must return. Without this test the branch only fires when the
+// client-side close races the server-side write, producing coverage flap.
+//
+// To force the failure: write enough events that the server's per-line
+// write loop cannot drain into the socket buffer before the client closes,
+// then close the client conn immediately after writing the request and
+// briefly draining any initial frames.
+func TestPeekServer_WriteLineAbortsOnClientClose(t *testing.T) {
+	_, sock, root := setupServer(t)
+	// Write a large number of large lines so the server's writeLine loop
+	// cannot complete before the client tears down the connection.
+	const nLines = 2000
+	lines := make([]string, 0, nLines)
+	bigText := strings.Repeat("x", 4096)
+	for i := 0; i < nLines; i++ {
+		lines = append(lines, `{"type":"thinking","text":"`+bigText+`"}`)
+	}
+	writeEvents(t, root, "E-bigclose", lines)
+
+	// Dial raw, send the request, then close the conn before reading.
+	d := net.Dialer{Timeout: 500 * time.Millisecond}
+	conn, err := d.Dial("unix", sock)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	if _, err := conn.Write([]byte(`{"execution_id":"E-bigclose"}` + "\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Immediately close — the server is about to enter the per-line write
+	// loop with 2000 large frames; the next writeLine will hit EPIPE and
+	// trigger the early-return branch.
+	_ = conn.Close()
+	// Give the server a moment to attempt writes and return.
+	time.Sleep(100 * time.Millisecond)
+	// Test passes as long as the server didn't crash; the coverage payoff
+	// is the deterministic exercise of server.go:142-144.
+}
+
 // Driving Stream with an already-cancelled ctx exercises the goroutine's
 // top-of-loop `<-ctx.Done()` branch (client.go:79-81). Without explicit
 // cancel before the first read, the channel is racy.

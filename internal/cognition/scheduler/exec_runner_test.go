@@ -110,6 +110,39 @@ func TestExecProcessRunner_SignalAndKill(t *testing.T) {
 	}
 }
 
+// TestExecProcessRunner_KillRunningProcess deterministically exercises
+// execProcessHandle.Kill (spawner.go:144-149) by killing a long-running
+// process directly, without relying on shell signal handling semantics.
+func TestExecProcessRunner_KillRunningProcess(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("sh not available")
+	}
+	runner := scheduler.NewExecProcessRunner()
+	// Long sleep — Kill is the only way out.
+	script := writeShellScript(t, "sleep 30\n")
+	done := make(chan struct{})
+	h, err := runner.Start(context.Background(), scheduler.ProcessSpec{
+		Binary: script,
+	}, func(_ int, _ error, _ string) {
+		close(done)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Confirm running.
+	if h.PID() <= 0 {
+		t.Fatalf("PID = %d", h.PID())
+	}
+	if err := h.Kill(); err != nil {
+		t.Errorf("kill: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("process did not die after Kill")
+	}
+}
+
 func TestExecProcessRunner_BinaryNotFound(t *testing.T) {
 	runner := scheduler.NewExecProcessRunner()
 	_, err := runner.Start(context.Background(), scheduler.ProcessSpec{

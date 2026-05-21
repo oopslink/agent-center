@@ -219,6 +219,21 @@ func TestInvocationRepo_FindRunningAll(t *testing.T) {
 	}
 }
 
+// TestInvocationRepo_FindRunning_QueryError deterministically exercises the
+// QueryContext-error branch in FindRunning (invocation_repo.go:189-191).
+// Without this test the branch only fires when the supervisor's TimeoutHandler
+// races a ctx cancel during shutdown, producing coverage flap.
+func TestInvocationRepo_FindRunning_QueryError(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancelled ctx forces QueryContext to return ctx.Err()
+	rows, err := repo.FindRunning(ctx)
+	if err == nil {
+		t.Fatalf("expected error from cancelled ctx, got rows=%d", len(rows))
+	}
+}
+
 func TestInvocationRepo_FindWithFilter(t *testing.T) {
 	db := openTestDB(t)
 	repo := cognitiondb.NewInvocationRepo(db)

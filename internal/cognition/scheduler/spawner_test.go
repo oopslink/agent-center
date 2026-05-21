@@ -335,6 +335,45 @@ func TestSpawner_SignalAndKill(t *testing.T) {
 	runner.waitGroup.Wait()
 }
 
+// TestSpawner_SignalAndKill_GraceExpires deterministically exercises the
+// SIGTERM→SIGKILL escalation path (spawner.go:443-450 timer.C branch).
+// The fake handle never closes Done() during grace, so the timer fires and
+// Kill() is invoked. Without this test the escalation branch is 0% covered
+// because TestSpawner_SignalAndKill's handle closes Done() immediately.
+func TestSpawner_SignalAndKill_GraceExpires(t *testing.T) {
+	sp, runner, _, _, clk, _ := newSpawnerTestRig(t)
+	// Process "lives" until killed externally — onExit blocks until we
+	// release it via stopBlocking.
+	stopBlocking := make(chan struct{})
+	runner.onExit = func(_ scheduler.ProcessSpec) (int, error, string) {
+		<-stopBlocking
+		return 137, nil, ""
+	}
+	scope := cognition.MustNewInvocationScope(cognition.ScopeTask, "T-grace")
+	tes, _ := cognition.NewTriggerEventSet([]observability.EventID{"E1"})
+	id, err := sp.Spawn(context.Background(), scheduler.InvocationRequest{Scope: scope, TriggerEvents: tes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := sp.LiveProcessHandle(id); !ok {
+		t.Fatal("handle not live")
+	}
+	// Tiny grace forces the timer.C branch (Kill) to fire.
+	sp.SignalAndKill(id, 10*time.Millisecond, clk)
+	// Release the fake process so finalize can complete.
+	close(stopBlocking)
+	runner.waitGroup.Wait()
+}
+
+// TestSpawner_SignalAndKill_NotLive deterministically exercises the
+// early-return branch (spawner.go:440-442) when SignalAndKill is called
+// for an id that's no longer in s.live.
+func TestSpawner_SignalAndKill_NotLive(t *testing.T) {
+	sp, _, _, _, clk, _ := newSpawnerTestRig(t)
+	// id never spawned → not in s.live → SignalAndKill returns immediately.
+	sp.SignalAndKill(cognition.InvocationID("nonexistent"), time.Second, clk)
+}
+
 func TestSpawner_BadInput(t *testing.T) {
 	sp, _, _, _, _, _ := newSpawnerTestRig(t)
 	if _, err := sp.Spawn(context.Background(), scheduler.InvocationRequest{}); err == nil {
