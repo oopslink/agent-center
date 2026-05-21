@@ -793,6 +793,21 @@ func TestOpenAndMigrate_BadPath(t *testing.T) {
 	}
 }
 
+// TestOpenAndMigrate_Happy exercises the happy path: opens an on-disk
+// SQLite DB and runs migrations up.
+func TestOpenAndMigrate_Happy(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Server.SqlitePath = t.TempDir() + "/test.db"
+	db, err := OpenAndMigrate(cfg)
+	if err != nil {
+		t.Fatalf("OpenAndMigrate: %v", err)
+	}
+	defer db.Close()
+	if db == nil {
+		t.Fatal("nil db")
+	}
+}
+
 // =============================================================================
 // Migrate / Server commands smoke
 // =============================================================================

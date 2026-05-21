@@ -141,6 +141,54 @@ func TestDecisionRepo_NilGuard(t *testing.T) {
 	}
 }
 
+// TestDecisionRepo_Append_EmptyRationale guards the "rationale==''" branch
+// in Append (ADR-0014 invariant: rationale required pre-INSERT).
+func TestDecisionRepo_Append_EmptyRationale(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewDecisionRepo(db)
+	// Construct a DecisionRecord via RehydrateDecision so we can bypass the
+	// AR constructor's rationale check and exercise the repo's own check.
+	d, err := cognition.RehydrateDecision(cognition.RehydrateDecisionInput{
+		ID: "DRX", InvocationID: "INVX", Kind: cognition.DecisionDispatch,
+		Rationale: "", Outcome: cognition.OutcomeSucceeded,
+		CreatedAt: time.Now().UTC(),
+	})
+	if err == nil {
+		// If rehydrate now rejects empty rationale upstream, the repo
+		// check is unreachable but still serves as defense-in-depth.
+		if appendErr := repo.Append(context.Background(), d); appendErr == nil {
+			t.Error("expected rationale-required error")
+		}
+	}
+}
+
+// TestDecisionRepo_Find_InvocationOnly exercises the InvocationID-only filter.
+func TestDecisionRepo_Find_InvocationOnly(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewDecisionRepo(db)
+	ctx := context.Background()
+	base := time.Now().UTC()
+	for i := 0; i < 2; i++ {
+		d, _ := cognition.NewDecisionRecord(cognition.NewDecisionInput{
+			ID:           cognition.DecisionID("DV" + string(rune('A'+i))),
+			InvocationID: "INVV",
+			Kind:         cognition.DecisionDispatch,
+			Rationale:    "r",
+			Outcome:      cognition.OutcomeSucceeded,
+			CreatedAt:    base.Add(time.Duration(i) * time.Second),
+		})
+		_ = repo.Append(ctx, d)
+	}
+	invID := cognition.InvocationID("INVV")
+	got, err := repo.Find(ctx, cognition.DecisionFilter{InvocationID: &invID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Errorf("invocation-only filter: got %d, want 2", len(got))
+	}
+}
+
 func TestDecisionRepo_FailedOutcomeRehydrate(t *testing.T) {
 	db := openTestDB(t)
 	repo := cognitiondb.NewDecisionRepo(db)

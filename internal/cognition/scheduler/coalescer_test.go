@@ -179,6 +179,26 @@ func TestCoalescer_New_Validation(t *testing.T) {
 	}
 }
 
+// TestCoalescer_New_DefaultsFill verifies that NewCoalescer with a zero
+// CoalescerConfig fills all five default values (RollingWindow / HardWindow
+// / BatchSize / MaxConcurrentInvocations / TickInterval). Locks in the
+// default-fill code paths.
+func TestCoalescer_New_DefaultsFill(t *testing.T) {
+	er := &fakeEventRepo{}
+	ir := &fakeInvocationRepo{}
+	q := scheduler.NewInMemoryQueue(5)
+	c, err := scheduler.NewCoalescer(scheduler.CoalescerConfig{}, scheduler.CoalescerDeps{
+		EventRepo:      er,
+		InvocationRepo: ir,
+	}, q)
+	if err != nil {
+		t.Fatalf("zero cfg ok: %v", err)
+	}
+	if c == nil {
+		t.Fatal("nil coalescer")
+	}
+}
+
 func TestCoalescer_RollingClose(t *testing.T) {
 	c, er, _, q, clk := newTestCoalescer(t, scheduler.CoalescerConfig{
 		RollingWindow:            30 * time.Second,

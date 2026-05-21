@@ -195,6 +195,44 @@ func TestPhase6_MemorySkeletonRealGit(t *testing.T) {
 
 // TestPhase6_DecisionRecorderSameProcessFlow checks the
 // supervisor-actor record path and the sentinel error paths.
+// TestADR0014_SameTxRollback verifies the integration-level ADR-0014
+// same-tx invariant: when DecisionRecorder.Record is invoked inside an
+// outer tx that subsequently errors, the decision row is NOT persisted
+// (rolled back with the outer tx).
+func TestADR0014_SameTxRollback(t *testing.T) {
+	db := openCognitionDB(t)
+	repo := cognitiondb.NewDecisionRepo(db)
+	clk := clock.NewFakeClock(time.Now().UTC())
+	gen := idgen.NewGeneratorWithReader(clk, idgen.DeterministicReader(7))
+	r, err := decision.NewRecorder(repo, clk, gen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := decision.Actor{Kind: "supervisor", ID: "INV-RB", InvocationID: "INV-RB"}
+
+	// Outer tx writes decision then forces an error → rollback.
+	wantErr := os.ErrInvalid
+	gotErr := persistence.RunInTx(context.Background(), db, func(txCtx context.Context) error {
+		if _, err := r.Record(txCtx, actor, decision.RecordRequest{
+			Kind:           cognition.DecisionDispatch,
+			TargetRefsJSON: `{"task_id":"T-RB"}`,
+			Rationale:      "to be rolled back",
+			Outcome:        cognition.OutcomeSucceeded,
+		}); err != nil {
+			return err
+		}
+		return wantErr
+	})
+	if gotErr != wantErr {
+		t.Fatalf("got %v, want %v", gotErr, wantErr)
+	}
+	// Verify the decision row never landed.
+	rows, _ := repo.FindByInvocationID(context.Background(), "INV-RB")
+	if len(rows) != 0 {
+		t.Errorf("decision_records survived rollback: %d rows", len(rows))
+	}
+}
+
 func TestPhase6_DecisionRecorderSameProcessFlow(t *testing.T) {
 	db := openCognitionDB(t)
 	repo := cognitiondb.NewDecisionRepo(db)

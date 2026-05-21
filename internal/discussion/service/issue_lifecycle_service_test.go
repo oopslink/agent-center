@@ -404,3 +404,44 @@ func TestIssueConversationOpener_NilClockDefaults(t *testing.T) {
 		t.Fatal("nil clock should default")
 	}
 }
+
+// TestIssueLifecycleService_NilClockDefaults verifies the lifecycle
+// service nil-clock branch.
+func TestIssueLifecycleService_NilClockDefaults(t *testing.T) {
+	h := newHarness(t)
+	s := NewIssueLifecycleService(h.db, h.issueRepo, nil, nil, h.sink, h.gen, nil)
+	if s.clock == nil {
+		t.Fatal("nil clock should default")
+	}
+}
+
+// TestIssueCommentService_NilClockDefaults verifies the comment service
+// nil-clock branch.
+func TestIssueCommentService_NilClockDefaults(t *testing.T) {
+	h := newHarness(t)
+	lifecycle := NewIssueLifecycleService(h.db, h.issueRepo, nil, nil, h.sink, h.gen, nil)
+	s := NewIssueCommentService(h.issueRepo, h.convRepo, h.msgRepo, nil, lifecycle, nil)
+	if s.clock == nil {
+		t.Fatal("nil clock should default")
+	}
+}
+
+// TestIssueBindConversationService_NilClockDefaults verifies the bind
+// service nil-clock branch.
+func TestIssueBindConversationService_NilClockDefaults(t *testing.T) {
+	h := newHarness(t)
+	s := NewIssueBindConversationService(h.db, h.issueRepo, h.convRepo, nil, h.sink, nil)
+	if s.clock == nil {
+		t.Fatal("nil clock should default")
+	}
+}
+
+// TestIssueLinkConversationService_NilClockDefaults verifies the link
+// service nil-clock branch.
+func TestIssueLinkConversationService_NilClockDefaults(t *testing.T) {
+	h := newHarness(t)
+	s := NewIssueLinkConversationService(h.db, h.issueRepo, h.convRepo, nil)
+	if s.clock == nil {
+		t.Fatal("nil clock should default")
+	}
+}

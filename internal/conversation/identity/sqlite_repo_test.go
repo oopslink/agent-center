@@ -335,3 +335,104 @@ func TestChannelBindingFindByIdentityAndFindPreferred(t *testing.T) {
 		t.Fatalf("want NotFound, got %v", err)
 	}
 }
+
+// TestNewRegistrationService_NilClockDefaults exercises the nil-clk
+// default-fill branch.
+func TestNewRegistrationService_NilClockDefaults(t *testing.T) {
+	k := newKit(t)
+	svc := identity.NewRegistrationService(k.db, k.idents, k.binds, k.sink, k.idgen, nil)
+	if svc == nil {
+		t.Fatal("nil service")
+	}
+}
+
+// TestRegisterIdentity_ValidationBranches covers each early-return validation
+// branch in RegisterIdentity (actor / id / display_name / kind mismatch).
+func TestRegisterIdentity_ValidationBranches(t *testing.T) {
+	k := newKit(t)
+	ctx := context.Background()
+	// bad actor
+	if _, err := k.service.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
+		ID: "user:x", DisplayName: "X",
+	}); err == nil {
+		t.Error("missing actor must error")
+	}
+	// bad id
+	if _, err := k.service.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
+		ID: "", DisplayName: "X", Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("empty id must error")
+	}
+	// kind mismatch
+	if _, err := k.service.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
+		ID: "user:abc", Kind: identity.KindBot, DisplayName: "X",
+		Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("kind mismatch must error")
+	}
+	// empty display name
+	if _, err := k.service.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
+		ID: "user:def", DisplayName: "", Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("empty display_name must error")
+	}
+}
+
+// TestBindChannel_ValidationBranches covers the early-return validations.
+func TestBindChannel_ValidationBranches(t *testing.T) {
+	k := newKit(t)
+	ctx := context.Background()
+	// bad actor
+	if _, err := k.service.BindChannel(ctx, identity.BindChannelCommand{
+		IdentityID: "user:x", Channel: "feishu", VendorUserID: "ou_x",
+	}); err == nil {
+		t.Error("missing actor must error")
+	}
+	// bad identity_id
+	if _, err := k.service.BindChannel(ctx, identity.BindChannelCommand{
+		IdentityID: "", Channel: "feishu", VendorUserID: "ou_x",
+		Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("empty identity_id must error")
+	}
+	// bad channel
+	if _, err := k.service.BindChannel(ctx, identity.BindChannelCommand{
+		IdentityID: "user:x", Channel: "", VendorUserID: "ou_x",
+		Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("empty channel must error")
+	}
+	// empty vendor_user_id
+	if _, err := k.service.BindChannel(ctx, identity.BindChannelCommand{
+		IdentityID: "user:x", Channel: "feishu", VendorUserID: "",
+		Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("empty vendor_user_id must error")
+	}
+}
+
+// TestUnbindChannel_ValidationBranches covers the early-return validations.
+func TestUnbindChannel_ValidationBranches(t *testing.T) {
+	k := newKit(t)
+	ctx := context.Background()
+	// bad actor
+	if _, err := k.service.UnbindChannel(ctx, identity.UnbindChannelCommand{
+		IdentityID: "user:x", Channel: "feishu",
+	}); err == nil {
+		t.Error("missing actor must error")
+	}
+	// bad identity_id
+	if _, err := k.service.UnbindChannel(ctx, identity.UnbindChannelCommand{
+		IdentityID: "", Channel: "feishu",
+		Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("empty identity_id must error")
+	}
+	// bad channel
+	if _, err := k.service.UnbindChannel(ctx, identity.UnbindChannelCommand{
+		IdentityID: "user:x", Channel: "",
+		Actor: observability.Actor("user:hayang"),
+	}); err == nil {
+		t.Error("empty channel must error")
+	}
+}

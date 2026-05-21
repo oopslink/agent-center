@@ -320,6 +320,19 @@ func TestCLI_ProjectRemove_NotFound(t *testing.T) {
 	}
 }
 
+func TestCLI_ProjectRemove_Happy(t *testing.T) {
+	app := newTestApp(t)
+	seedProjectAndWorker(t, app)
+	rm := runByName(t, app, "project", "remove")
+	out, _, code := rm([]string{"p-1"})
+	if code != ExitOK {
+		t.Fatalf("code: %d", code)
+	}
+	if !strings.Contains(out, "removed project p-1") {
+		t.Errorf("out: %s", out)
+	}
+}
+
 func TestCLI_ProjectUpdate_BadKind(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")

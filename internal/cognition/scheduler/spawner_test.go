@@ -109,6 +109,40 @@ func TestSpawner_New_Validation(t *testing.T) {
 	}
 }
 
+// TestSpawner_New_DefaultsFill exercises every default-fill branch of
+// NewSpawner: zero clock / zero idgen / empty binary / empty usage-dir
+// with HomeOverride / empty usage-dir with MemoryDir / nil runner.
+func TestSpawner_New_DefaultsFill(t *testing.T) {
+	db := openSchedulerTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	er, err := obsqlite.NewEventRepo(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := observability.NewEventSink(er, er, nil, nil)
+	// zero clk + idgen + binary + runner + HomeOverride only → UsageDir
+	// is derived from HomeOverride.
+	sp, err := scheduler.NewSpawner(scheduler.SpawnerConfig{
+		HomeOverride: t.TempDir(),
+	}, scheduler.SpawnerDeps{DB: db, Repo: repo, Sink: sink}, nil)
+	if err != nil {
+		t.Fatalf("home override path: %v", err)
+	}
+	if sp == nil {
+		t.Fatal("nil spawner")
+	}
+	// MemoryDir as the source of UsageDir when HomeOverride is empty.
+	sp2, err := scheduler.NewSpawner(scheduler.SpawnerConfig{
+		MemoryDir: t.TempDir(),
+	}, scheduler.SpawnerDeps{DB: db, Repo: repo, Sink: sink}, nil)
+	if err != nil {
+		t.Fatalf("memdir path: %v", err)
+	}
+	if sp2 == nil {
+		t.Fatal("nil spawner")
+	}
+}
+
 func TestSpawner_HappyExitZero(t *testing.T) {
 	sp, runner, _, repo, clk, er := newSpawnerTestRig(t)
 	runner.onExit = func(spec scheduler.ProcessSpec) (int, error, string) {
