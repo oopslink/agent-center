@@ -224,6 +224,43 @@ func TestIssueRepo_UpdateWithdraw(t *testing.T) {
 	}
 }
 
+// Covers the cursor branch in issue_repo.go:114-117 (`AND id > ?`). The
+// other FindByProject tests pass no Cursor so this WHERE clause never gets
+// appended.
+func TestIssueRepo_FindByProject_Cursor(t *testing.T) {
+	db := openDB(t)
+	r := NewIssueRepo(db)
+	for i, id := range []string{"AA", "BB", "CC"} {
+		iss, err := discussion.NewIssue(discussion.NewIssueInput{
+			ID:                 discussion.IssueID(id),
+			ProjectID:          "P-1",
+			Title:              "t",
+			OpenedByIdentityID: "user:h",
+			Origin:             discussion.OriginCLI,
+			OpenedAt:           time.Date(2026, 5, 21, 12, i, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Save(context.Background(), iss); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cursor := discussion.IssueID("AA")
+	got, err := r.FindByProject(context.Background(), "P-1", discussion.IssueFilter{Cursor: &cursor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, iss := range got {
+		if iss.ID() == "AA" {
+			t.Fatalf("cursor should exclude AA, got %v", iss.ID())
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 issues after cursor, got %d", len(got))
+	}
+}
+
 func TestIssueRepo_FindByProject_StatusOpener(t *testing.T) {
 	db := openDB(t)
 	r := NewIssueRepo(db)

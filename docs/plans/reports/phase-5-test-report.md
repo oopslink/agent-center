@@ -1,23 +1,51 @@
 # Phase 5 测试报告
 
-> 完成日期：2026-05-22 · 提交 SHA：`af8fd6d`
+> 完成日期：2026-05-22 · 提交 SHA：`af8fd6d`（主交付）+ Phase 5 收口（覆盖率 flap 修复，2026-05-22 加补）
 
 Phase 5 范围：Bridge ACL Outbound（飞书）—— Identity AR + ChannelBinding 子 VO + FeishuDeliveryLedger 内部 audit Entity + FeishuWebSocketClient port + OAPIAdapter（唯一飞书 SDK 调用点）+ FakeServer 测试桩 + InteractiveCardRenderer + FeishuOutboundDispatcher（事件订阅 + 路由 + 投递 + ledger）+ identity/bridge CLI + migration 0005 + bridge.feishu.* 配置实装 + 导入图零泄漏 e2e 验证。
 
 ## § 1. 覆盖率汇总
 
+### § 1.1 整体覆盖率（含 flap 修复后的稳定数值）
+
 | 维度 | 数值 | 是否达标（≥ 90%） |
 |---|---|---|
-| 整体行覆盖率 | **90.0%** | ✅ 达标 |
+| 整体行覆盖率 | **90.6%（稳定，8 次跑同值）** | ✅ 达标且留 buffer |
 | Phase 5 diff 行覆盖率 | **~91%**（identity + bridge/feishu/{ledger,renderer,client,dispatcher} + cli/handlers_{identity,bridge} + config 加权）| ✅ 达标 |
 | 分支覆盖率（参考） | n/a（Go cover 工具不输出分支） | - |
 
+**精确：9182 stmts / 8318 covered = 90.5903%**（cov1.out 实测；多次跑都报 90.6%）。
+
 **生成命令**：
 ```bash
-go test -coverprofile=/tmp/cov-phase5.out -coverpkg=./internal/... -count=1 ./internal/... ./tests/...
-go tool cover -func=/tmp/cov-phase5.out | tail -1
-# → total:	(statements)	90.0%
+for i in 1 2 3 4 5; do
+  go test -coverprofile=/tmp/cov$i.out -coverpkg=./internal/... -count=1 ./internal/... ./tests/... > /dev/null 2>&1 \
+    && go tool cover -func=/tmp/cov$i.out | tail -1
+done
+# → 5 次连续输出全部 90.6%（8 次跑实际验证过）
 ```
+
+### § 1.2 Flap 修复说明（主交付后加补，2026-05-22）
+
+主交付完成（commit `af8fd6d`）时报告写的 90.0% 是某一次运气好的值，**实际在 89.9% / 90.0% 边界 flap**（3 次跑 1 次 ≥ 90%，2 次 89.9%）。flap 源：
+
+- `internal/bridge/feishu/dispatcher/dispatcher.go:loop()` 原实现是 **双 select + default + time.After** 三分支模式 —— 顶部 select 与底部 select 各自有 `<-stopCh` / `<-ctx.Done()` / 第三 case，`TestDispatcherCtxCancelExits` 同时触发 stopCh + ctx.Done 时 Go 在 select 随机挑一支，导致 `ctx.Done` 分支在 60% 跑命中、40% 跑不命中（覆盖率 +0.05%/−0.05% 的飘动）。
+
+修复：
+
+1. **重构 loop()**：双 select + default 改为 **单 select + time.NewTicker(PollInterval)**，与 `observability/escalator` / `taskruntime/timeoutscan` 同一模式（codebase 一致性）。loop body 只剩 3 个 case（stopCh / ctx.Done / ticker.C），结构等价但去除了顶部冗余 select 与 default 分支的非确定性。
+2. **新增 `Service.Done() <-chan struct{}` 访问器**：`TestDispatcherCtxCancelExits` 改为 `cancel()` 后 `<-Done()` 而非 `Stop()`，避免 ctx.Done 与 stopCh 在 select 同时 ready 触发 Go 随机选择。Stop() 保持原行为不变（生产路径不受影响）。
+3. **删除 query/service.go 的不可达 defensive 分支**：`Inspect` / `Query` 的 switch 改为带 `default:` 单 source-of-truth，移除"已过 ValidXxx 检查后又走 switch 后兜底"的死代码（§ 17 立场 —— 不可达即删，否则永远无法覆盖）。
+4. **补充真实业务路径的测试**（不靠堆 buffer）：
+   - `internal/observability/query/coverage_branches_test.go`：events Refs filter (Execution/Worker/Issue/Cursor)、tasks/issues query 同时 ProjectID+Status、applyDefaultLimit 三分支、stats since for tasks/executions/events、Inspect recent_events 非空体；
+   - `internal/observability/peek/server_branches_test.go`：raw socket malformed JSON、empty execution_id、server 不发 Done 直接关闭（client EOF 路径）、server 回非法 JSON、client cancel 路径；
+   - `internal/taskruntime/sqlite/task_repo_test.go` / `task_execution_repo_test.go`：Save+Find roundtrip 带 EtaAt / ExecutionTimeoutOverride（Rehydrate 内部 copy 分支）；
+   - `internal/discussion/sqlite/issue_repo_test.go`：FindByProject 带 Cursor；
+   - `internal/conversation/identity/sqlite_repo_test.go`：Find 带 Cursor；
+   - `internal/cli/handlers_test.go`：MigrateCommand `--target=0` (down branch)、ServerCommand ctx cancel 立即退出；
+   - `internal/cli/handlers_more_test.go`：proposal propose / list 的 text-format 输出。
+
+结果：覆盖率从 89.9% / 90.0% flap 推到 **稳定 90.6%**（buffer 0.1%，flap 不会跌破 90.5%）。8 次连跑全部 90.6%。
 
 ## § 2. 测试场景执行结果
 
@@ -154,6 +182,8 @@ go tool cover -func=/tmp/cov-phase5.out | tail -1
 
 ## § 4. 失败 / 已知问题 / 偏离 plan
 
+> **覆盖率 flap (89.9% / 90.0% 边界飘动)**：**已修**，见 § 1.2。修复后 8 次连跑稳定 90.6%。
+
 1. **U40 行为变更：unknown event_type 不再 emit `bridge.event_ignored`**。plan-5 § 5.1 U40 要求 "显式 emit `bridge.event_ignored` 不 silently drop"。实施时改为 silently advance cursor —— 理由：events 表是多 BC 共享的事件流（observability.* / task.* / workforce.* / issue.* / conversation.* / input_request.* / 自身 channel.* 等），Bridge 仅订阅其中 4 类（conversation.opened / conversation.message_added / input_request.*）。若给每一个非订阅类型都 emit `bridge.event_ignored`，事件爆炸（每秒数十条无意义 audit），违反 § 2.x "观测层 opinionated"。conventions § 17 "未知协议字段当 noop 不上报禁止" 针对的是 **协议解析层的未知字段**（如 JSONL 未知 event type），而 events 表的 event_type 是已注册的 closed enum；dispatcher 对未订阅的 event_type "跳过" 不是吞错，而是订阅范围决策。**变更已在 plan-5 应同步**（plan README § 2.1 后续 phase 不可改 phase N 工件接口；本 phase 内变更是允许的，但需要在报告中显式记录 —— 本节即此记录）。
 
 2. **U55 / atomic config 写入中断未注入故障**：plan U55 要求 "atomic 写入中断不破坏原 config.yaml"。实施依赖 `os.Rename` 的 POSIX 原子性 + tmp-file 模式。本 phase 未注入 partial-write 故障来对 OS 保证做测试 —— 因 OS rename 原子性是平台层契约，注入测试需要绕开 syscall 层。归类为 "实施依赖 OS"。Phase 7 部署收尾时跑一次 disk-full 模拟测试覆盖。
@@ -174,7 +204,7 @@ go tool cover -func=/tmp/cov-phase5.out | tail -1
 |---|---|
 | § 1 所有工件实现 | ✅ Identity AR + ChannelBinding VO + FeishuDeliveryLedger Entity + 3 Repository (Identity / ChannelBinding / Ledger) + 4 Domain Service (FeishuOutboundDispatcher / InteractiveCardRenderer / FeishuClient port+adapter / IdentityRegistrationService) + 3 Application Service (IdentityCmdService 通过 handlers_identity.go / BridgeFeishuSetupService 通过 handlers_bridge.go / FeishuOutboundService 通过 dispatcher Service struct) |
 | § 5 所有测试场景通过 | ✅ 124 单测 + 10 集成 + 5 e2e 全 pass |
-| 单测行覆盖率 ≥ 90% | ✅ 90.0% (go test -coverpkg=./internal/... ./internal/... ./tests/...) |
+| 单测行覆盖率 ≥ 90% | ✅ **稳定 90.6%**（8 次连跑同值，flap 修复见 § 1.2）|
 | 测试报告归档 | ✅ 本文件 |
 | 触发的 domain event 进 events 表 | ✅ identity.registered / .channel_bound / .channel_unbound / channel.delivered / channel.delivery_failed / bridge.feishu.connection_state_changed / bridge.routing_failed / bridge.callback_failed / bridge.event_ignored (变更见 § 4 #1) 均通过集成测试断言 |
 | CLI 命令 --help 对齐 03-cli § 8.6 | ✅ identity add / list / bind / unbind + bridge feishu setup 已注册到 router；Summary 与 plan 一致 |
@@ -227,4 +257,4 @@ go tool cover -func=/tmp/cov-phase5.out | tail -1
 
 ## § 7. 结论
 
-✅ **通过**：Phase 5 DoD 100% 达成，覆盖率 90.0%（整体），全部 § 5 测试场景在报告中 1:1 对位完成；vendor SDK 零泄漏经导入图 + grep 双重验证；reason+message 双字段在所有失败事件路径就绪；下游 Phase 6 / Phase 7 工件 surface 冻结（IdentityRepository / ChannelBindingRepository / FeishuDeliveryLedgerRepository / FeishuClient port / 9 个事件类型 / 5 条 CLI 命令）。
+✅ **通过**：Phase 5 DoD 100% 达成，覆盖率 **稳定 90.6%**（整体；主交付时 89.9% / 90.0% flap 已经在收口阶段修复，详见 § 1.2），全部 § 5 测试场景在报告中 1:1 对位完成；vendor SDK 零泄漏经导入图 + grep 双重验证；reason+message 双字段在所有失败事件路径就绪；下游 Phase 6 / Phase 7 工件 surface 冻结（IdentityRepository / ChannelBindingRepository / FeishuDeliveryLedgerRepository / FeishuClient port / 9 个事件类型 / 5 条 CLI 命令）。

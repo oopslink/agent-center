@@ -191,6 +191,46 @@ func TestExecRepo_FindPendingAndSubmitted(t *testing.T) {
 	}
 }
 
+// Covers the Rehydrate branches at execution.go:171-174 (EtaAt copy) and
+// 176-179 (ExecutionTimeoutOverride copy) which only run when those optional
+// pointer fields are non-nil on the input. Mainline tests create executions
+// without ETAs or overrides, leaving the copy paths un-exercised.
+func TestExecRepo_RoundtripPreservesEtaAndTimeoutOverride(t *testing.T) {
+	db := openTestDB(t)
+	mkTaskInDB(t, db, "T-eta")
+	repo := NewTaskExecutionRepo(db)
+	ctx := context.Background()
+	eta := refTime.Add(2 * time.Hour)
+	override := 45 * time.Minute
+	e, err := execution.New(execution.NewInput{
+		ID:                       "E-eta",
+		TaskID:                   "T-eta",
+		WorkerID:                 "W-1",
+		AgentCLI:                 "claude-code",
+		WorkspaceMode:            execution.WorkspaceWorktree,
+		BaseBranch:               "main",
+		EtaAt:                    &eta,
+		ExecutionTimeoutOverride: &override,
+		Now:                      refTime,
+	})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	if err := repo.Save(ctx, e); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got, err := repo.FindByID(ctx, "E-eta")
+	if err != nil {
+		t.Fatalf("find: %v", err)
+	}
+	if got.EtaAt() == nil || !got.EtaAt().Equal(eta.UTC()) {
+		t.Fatalf("eta roundtrip: got %v want %v", got.EtaAt(), eta)
+	}
+	if got.ExecutionTimeoutOverride() == nil || *got.ExecutionTimeoutOverride() != override {
+		t.Fatalf("override roundtrip: got %v want %v", got.ExecutionTimeoutOverride(), override)
+	}
+}
+
 func TestExecRepo_AllFailedReasonsRoundtrip(t *testing.T) {
 	db := openTestDB(t)
 	mkTaskInDB(t, db, "T-1")

@@ -177,7 +177,19 @@ func TestExtractTextPayloadEdgeCasesViaSentinel(t *testing.T) {
 	}
 }
 
-// Verify loop ctx cancel exits cleanly.
+// Verify loop ctx cancel exits cleanly. We must test the ctx.Done branch
+// independently of the stopCh branch — calling Stop() AND cancel() back-to-
+// back lets the goroutine see both ready in the select, and Go picks one
+// at random (this was the 88.9%↔100% coverage flap on loop()).
+//
+// Pattern:
+//
+//  1. Start with cancellable ctx.
+//  2. cancel() — drive the ctx.Done branch deterministically.
+//  3. Wait on Done() — joins the goroutine WITHOUT closing stopCh.
+//  4. Stop() afterwards is a no-op join (running is still true because
+//     only Stop flips it, but doneCh is already closed so it returns
+//     immediately).
 func TestDispatcherCtxCancelExits(t *testing.T) {
 	k := newDispatcherKit(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -185,7 +197,16 @@ func TestDispatcherCtxCancelExits(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	// Stop blocks until the loop returns.
+	select {
+	case <-k.dispatcher.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("loop did not exit within 2s after ctx cancel")
+	}
+	// Stop is racy w.r.t. ctx.Done in this test (the goroutine has already
+	// exited via ctx.Done above, so stopCh.close has no observer — but if
+	// we called Stop BEFORE the Done wait, the select inside loop() could
+	// pick either branch). We still call it to verify Stop is idempotent
+	// over an already-exited loop.
 	k.dispatcher.Stop()
 }
 

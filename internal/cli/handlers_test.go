@@ -825,6 +825,31 @@ func TestMigrateCommand_RunsUp(t *testing.T) {
 	}
 }
 
+// Covers handlers_system.go:131-135 — the `--target=N` branch of the
+// migrate handler (rollback to version N). The default RunsUp test only
+// exercises the auto-up branch.
+func TestMigrateCommand_TargetDown(t *testing.T) {
+	cmd := MigrateCommand()
+	dir := t.TempDir()
+	cfgPath := dir + "/cfg.yaml"
+	dbPath := dir + "/test.db"
+	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n"); err != nil {
+		t.Fatal(err)
+	}
+	// First run --up to populate to head.
+	if _, _, code := runHandler(t, cmd, []string{"--config=" + cfgPath}); code != ExitOK {
+		t.Fatalf("up: %d", code)
+	}
+	// Now run --target=0 (rollback to baseline).
+	stdout, _, code := runHandler(t, cmd, []string{"--config=" + cfgPath, "--target=0"})
+	if code != ExitOK {
+		t.Fatalf("down: %d", code)
+	}
+	if !strings.Contains(stdout, "version") {
+		t.Fatalf("got %s", stdout)
+	}
+}
+
 func TestMigrateCommand_BadConfig(t *testing.T) {
 	cmd := MigrateCommand()
 	_, errOut, code := runHandler(t, cmd, []string{"--config=/nonexistent.yaml"})
@@ -856,6 +881,36 @@ func TestServerCommand_BadConfig(t *testing.T) {
 	_, _, code := runHandler(t, cmd, []string{"--config=/nonexistent.yaml"})
 	if code != ExitUsage {
 		t.Fatalf("code: %d", code)
+	}
+}
+
+// Covers handlers_system.go:88-99 — the idle-then-select block that prints
+// the listen banner and waits on SIGINT/SIGTERM/ctx.Done. We can't easily
+// raise SIGINT in-process, but driving the handler with an already-cancelled
+// ctx triggers the `<-ctx.Done()` arm immediately.
+func TestServerCommand_CtxCancelExitsCleanly(t *testing.T) {
+	cmd := ServerCommand()
+	dir := t.TempDir()
+	cfgPath := dir + "/cfg.yaml"
+	dbPath := dir + "/test.db"
+	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n")
+
+	// Build the handler directly so we can pass our own ctx.
+	fs := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	handler := cmd.Flags(fs)
+	if err := fs.Parse([]string{"--config=" + cfgPath}); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before invoking so the select observes Done() immediately
+	code := handler(ctx, fs.Args(), &stdout, &stderr)
+	if code != ExitOK {
+		t.Fatalf("code: %d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "context canceled") {
+		t.Fatalf("expected 'context canceled' banner, got %q", stdout.String())
 	}
 }
 

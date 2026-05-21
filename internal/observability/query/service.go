@@ -58,9 +58,11 @@ func (s *Service) Inspect(ctx context.Context, kind, id string) (InspectResult, 
 	if id == "" {
 		return InspectResult{}, ErrInspectIDRequired
 	}
-	if !ValidInspectKind(kind) {
-		return InspectResult{}, fmt.Errorf("%w: %q", ErrInspectKindUnknown, kind)
-	}
+	// The switch is the single dispatch site for InspectKind. Its default
+	// arm is the single source of truth for "unknown kind" — we don't pre-
+	// validate, because that would create a dead post-switch fallback that
+	// can never be covered (§ 17: every statement either handles a real
+	// case or is removed).
 	switch InspectKind(kind) {
 	case InspectTask:
 		return s.inspectTask(ctx, id)
@@ -91,15 +93,16 @@ func (s *Service) Inspect(ctx context.Context, kind, id string) (InspectResult, 
 			"available_in_phase": 6,
 			"message":            "decision inspect data lands with Phase 6",
 		}}, nil
+	default:
+		return InspectResult{}, fmt.Errorf("%w: %q", ErrInspectKindUnknown, kind)
 	}
-	return InspectResult{}, fmt.Errorf("%w: %q", ErrInspectKindUnknown, kind)
 }
 
-// Query dispatches to the resource-specific list assembler.
+// Query dispatches to the resource-specific list assembler. Unknown
+// resources route through the switch's default arm (single source of truth;
+// no pre-validation, to avoid a dead post-switch fallback that can never
+// be covered — § 17).
 func (s *Service) Query(ctx context.Context, resource string, filter QueryFilter) (QueryResult, error) {
-	if !ValidQueryResource(resource) {
-		return QueryResult{}, fmt.Errorf("%w: %q", ErrQueryResourceUnknown, resource)
-	}
 	switch QueryResource(resource) {
 	case QueryTasks:
 		return s.queryTasks(ctx, filter)
@@ -118,8 +121,9 @@ func (s *Service) Query(ctx context.Context, resource string, filter QueryFilter
 	case QueryDecisions:
 		// Phase 6.
 		return QueryResult{Resource: QueryDecisions, Items: []any{}}, nil
+	default:
+		return QueryResult{}, fmt.Errorf("%w: %q", ErrQueryResourceUnknown, resource)
 	}
-	return QueryResult{}, fmt.Errorf("%w: %q", ErrQueryResourceUnknown, resource)
 }
 
 // applyDefaultLimit returns filter.Limit clamped to (0, observability.MaxEventQueryLimit].

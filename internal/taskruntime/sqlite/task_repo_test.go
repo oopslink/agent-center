@@ -29,6 +29,38 @@ func mkTask(t *testing.T) *task.Task {
 	return tt
 }
 
+// Covers the Rehydrate branch at task.go:155-158 (EtaAt copy) which only
+// runs when EtaAt is non-nil on RehydrateInput. mkTask() leaves EtaAt nil
+// so the copy path stays cold without this round-trip.
+func TestTaskRepo_RoundtripPreservesEta(t *testing.T) {
+	db := openTestDB(t)
+	repo := NewTaskRepo(db)
+	ctx := context.Background()
+	eta := refTime.Add(3 * time.Hour)
+	tt, err := task.New(task.NewInput{
+		ID:        "T-eta",
+		ProjectID: "P-1",
+		Title:     "with-eta",
+		CreatedBy: "user:hayang",
+		Priority:  task.PriorityMedium,
+		EtaAt:     &eta,
+		Now:       refTime,
+	})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	if err := repo.Save(ctx, tt); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got, err := repo.FindByID(ctx, "T-eta")
+	if err != nil {
+		t.Fatalf("find: %v", err)
+	}
+	if got.EtaAt() == nil || !got.EtaAt().Equal(eta.UTC()) {
+		t.Fatalf("eta roundtrip: got %v want %v", got.EtaAt(), eta)
+	}
+}
+
 func TestTaskRepo_SaveAndFindByID(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewTaskRepo(db)

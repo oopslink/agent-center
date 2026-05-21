@@ -81,6 +81,50 @@ func TestCLI_ProposalPropose_NoSuggestedID(t *testing.T) {
 	}
 }
 
+// Covers handlers_worker.go:284-289 — the text-format propose output.
+// Existing propose tests all pass --format=json.
+func TestCLI_ProposalPropose_TextFormat(t *testing.T) {
+	app := newTestApp(t)
+	enroll := runByName(t, app, "worker", "enroll")
+	_, _, _ = enroll([]string{"--worker-id=W-1"})
+	propose := runByName(t, app, "worker", "proposal", "propose")
+	out, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/text/x", "--suggested-kind=coding"})
+	if code != ExitOK {
+		t.Fatalf("code: %d out: %s", code, out)
+	}
+	if !strings.Contains(out, "proposed ") {
+		t.Fatalf("expected 'proposed' banner in text out: %s", out)
+	}
+	// Repeating the same propose hits the "already exists" suffix branch.
+	out2, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/text/x", "--suggested-kind=coding"})
+	if code != ExitOK {
+		t.Fatalf("rerun code: %d out: %s", code, out2)
+	}
+	if !strings.Contains(out2, "already exists") {
+		t.Fatalf("expected 'already exists' suffix: %s", out2)
+	}
+}
+
+// Covers handlers_worker.go:215-219 — the text-format proposal list output.
+// Existing list tests all pass --format=json (or aren't in this package).
+func TestCLI_ProposalList_TextFormat(t *testing.T) {
+	app := newTestApp(t)
+	enroll := runByName(t, app, "worker", "enroll")
+	_, _, _ = enroll([]string{"--worker-id=W-list"})
+	propose := runByName(t, app, "worker", "proposal", "propose")
+	if _, _, c := propose([]string{"--worker-id=W-list", "--candidate-path=/p/q", "--suggested-kind=coding"}); c != ExitOK {
+		t.Fatalf("propose: %d", c)
+	}
+	list := runByName(t, app, "worker", "proposal", "list")
+	out, _, code := list([]string{})
+	if code != ExitOK {
+		t.Fatalf("list code: %d", code)
+	}
+	if !strings.Contains(out, "PROPOSAL_ID") || !strings.Contains(out, "W-list") {
+		t.Fatalf("expected text header + worker, got: %s", out)
+	}
+}
+
 func TestCLI_ProposalPropose_MissingArgs(t *testing.T) {
 	app := newTestApp(t)
 	propose := runByName(t, app, "worker", "proposal", "propose")

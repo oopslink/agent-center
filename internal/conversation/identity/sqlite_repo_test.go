@@ -86,6 +86,22 @@ func TestIdentityRepoSaveFindFindByKindAndDuplicate(t *testing.T) {
 	if _, err := k.idents.FindByID(ctx, "user:missing"); !errors.Is(err, identity.ErrIdentityNotFound) {
 		t.Fatalf("want ErrIdentityNotFound, got %v", err)
 	}
+	// Covers sqlite_repo.go:114-117 cursor branch. Identities are ordered
+	// by id ASC; using "agent:" as cursor must exclude that id and return
+	// the rest.
+	cursor := identity.IdentityID("agent:agent")
+	rest, err := k.idents.Find(ctx, identity.IdentityFilter{Cursor: &cursor, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, idn := range rest {
+		if idn.ID() == cursor {
+			t.Fatalf("cursor row leaked: %s", idn.ID())
+		}
+	}
+	if len(rest) == 0 {
+		t.Fatalf("expected at least one identity after cursor")
+	}
 }
 
 func kindPtr(k identity.Kind) *identity.Kind { return &k }

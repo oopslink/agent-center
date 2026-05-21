@@ -135,6 +135,16 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
+// Done returns a channel that is closed when the loop has exited (whether
+// via Stop, ctx cancel, or another path). Returns nil before Start. Tests
+// use this to deterministically join the goroutine without forcing a stopCh
+// signal (which would race the ctx.Done branch and cause coverage flap).
+func (s *Service) Done() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.doneCh
+}
+
 // Stop signals the loop and waits for the current batch to finish.
 func (s *Service) Stop() {
 	s.mu.Lock()
@@ -188,32 +198,35 @@ func (s *Service) RunOnce(ctx context.Context) (processed int, err error) {
 
 func (s *Service) loop(ctx context.Context) {
 	defer close(s.doneCh)
+	// Pattern mirrors observability/escalator + taskruntime/timeoutscan: one
+	// ticker-driven select with exactly two exit cases. We run one batch
+	// immediately so the first RunOnce doesn't wait for the first tick.
+	s.runIteration(ctx)
+	t := time.NewTicker(s.cfg.PollInterval)
+	defer t.Stop()
 	for {
 		select {
 		case <-s.stopCh:
 			return
 		case <-ctx.Done():
 			return
-		default:
+		case <-t.C:
+			s.runIteration(ctx)
 		}
-		if _, err := s.RunOnce(ctx); err != nil {
-			// emit observability event for the loop-level failure (does
-			// not stop the loop; conventions § 17 — never silently log).
-			_, _ = s.deps.Sink.Emit(ctx, observability.EmitCommand{
-				EventType: "bridge.feishu.dispatch_loop_failed",
-				Actor:     s.cfg.Actor,
-				Payload: map[string]any{
-					"reason":  "loop_iteration_failed",
-					"message": err.Error(),
-				},
-			})
-		}
-		select {
-		case <-s.stopCh:
-			return
-		case <-ctx.Done():
-			return
-		case <-time.After(s.cfg.PollInterval):
-		}
+	}
+}
+
+// runIteration runs a single batch and emits the loop-failure observability
+// event on error (§ 17 — never silently log).
+func (s *Service) runIteration(ctx context.Context) {
+	if _, err := s.RunOnce(ctx); err != nil {
+		_, _ = s.deps.Sink.Emit(ctx, observability.EmitCommand{
+			EventType: "bridge.feishu.dispatch_loop_failed",
+			Actor:     s.cfg.Actor,
+			Payload: map[string]any{
+				"reason":  "loop_iteration_failed",
+				"message": err.Error(),
+			},
+		})
 	}
 }
