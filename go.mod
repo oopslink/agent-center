@@ -3,6 +3,7 @@ module github.com/oopslink/agent-center
 go 1.22
 
 require (
+	github.com/larksuite/oapi-sdk-go/v3 v3.9.2
 	github.com/oklog/ulid/v2 v2.1.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.34.1
