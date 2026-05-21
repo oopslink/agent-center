@@ -185,6 +185,43 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 
 **自检：** 我新增的关联是不是只是 list-of-id？是的话用 JSON 字段；不是的话有没有真正的领域含义？
 
+## § 9.w Schema 不声明外键（FK）
+
+DB schema **不使用 FOREIGN KEY** 约束；表间引用语义用列名约定（`<entity>_id` / `<entity>_ref`）表达，引用完整性**由应用层 Repository / Domain Service 负责**。
+
+**为什么**：
+
+- **Invariant 单一来源**：DDD 一致性由 aggregate root + Repository 保证；FK 是双层防御，跟应用层规则脱钩易漂移
+- **跟 [§ 9.z BC 物理隔离](#-9z-bc-间不共享底层数据表)一致**：跨 BC 引用本来就走 events / API 不走 FK；同 BC 内 FK 多余
+- **Migration 灵活性**：SQLite 加 FK 后改表必须新表 + copy + rename 两步走（[§ 9.1](#-91-schema-migration)）；无 FK 减少摩擦
+- **数据维护**：admin / 运营脚本能直接修任意表，不被约束卡死
+- **驱逐 "FK 兜底" 防御代码**："FK should prevent this; but tx safety" 这种 silently swallow 模式直接消失，违反 [§ 17 错误显式化](#-17-错误显式化处理-or-抛出不允许吞)
+- **JOIN 不依赖 FK**：JOIN 用列匹配即可；SQLite / PG 查询优化器对 FK 无收益
+
+**仍可用的约束**（同行 / 单表内）：
+
+| 约束 | 用 | 不用 |
+|---|---|---|
+| `PRIMARY KEY` | ✅ | - |
+| `NOT NULL` / `DEFAULT` | ✅ | - |
+| `UNIQUE` / `INDEX` / partial index | ✅ | - |
+| `CHECK`（值域 / 同行字段关系） | ✅ | - |
+| `FOREIGN KEY` | - | ❌ |
+
+引用列命名仍按 `<entity>_id` / `<entity>_ref`，**仅作语义提示，不加 FK 约束**。
+
+**实施细节**：
+
+- DSN 仍开 `_foreign_keys=ON`（[02-persistence § 1.2](../design/implementation/02-persistence-schema.md)）—— 没 FK 声明它就 no-op；保持配置一致防意外引入 FK 时立刻生效
+- Repository 实现**禁止**靠 SQLite 抛 FK 错来判断 referenced row 不存在；应用层应该先查再写或同事务双写
+- 既存代码里 `isForeignKeyViolation` / `IsForeignKeyConstraint` 等 helper 删除（FK 既然不声明，这个错误路径不会发生）
+
+**自检**：
+
+- 我新加的 migration / SQL 字符串里有 `FOREIGN KEY (...) REFERENCES ...` 吗？删掉
+- 我引用完整性靠谁保证？显式说出 Repository / Service 在什么时机校验
+- 我有没有 "FK should prevent X" 类防御代码？删掉或换 panic（[§ 17](#-17-错误显式化处理-or-抛出不允许吞)）
+
 ## § 9.z BC 间不共享底层数据表
 
 跨 BC 的数据交换走 **API / 接口**（同 BC 内 Repository / Domain Event 订阅 / 应用层 RPC），**不能共享物理表**。"同表跨 BC ownership / column-level ownership / 各 BC 写各自列"等措辞一律视为违反 BC 边界。
@@ -317,6 +354,7 @@ dialect-agnostic 只承诺"**SQL 引擎之间**可切"，**不**承诺可换到 
 - [ ] 项目本地约定（§7）：不在 agent-center 里管项目自有的规则文档
 - [ ] BlobStore（§8）：大字段走 BlobStore
 - [ ] dialect-agnostic（§9）：SQL 跨 SQLite / PG 兼容
+- [ ] Schema 无 FK（§9.w）：新增 DDL 不声明 FOREIGN KEY；引用完整性走应用层 Repository / Service
 - [ ] BC 物理隔离（§9.z）：新增表 / 列归属唯一 BC；跨 BC 数据流走 events / RPC 不共享物理表
 - [ ] 单一二进制（§10）：没新增独立 binary
 - [ ] 渠道选对（§11）：明确走 Issue / InputRequest / Event 哪一条

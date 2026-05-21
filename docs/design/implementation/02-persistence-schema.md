@@ -241,8 +241,8 @@ CREATE TABLE task_executions (
     killed_message              TEXT,
     created_at                  TEXT NOT NULL,
     updated_at                  TEXT NOT NULL,
-    version                     INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY (task_id) REFERENCES tasks(id)
+    version                     INTEGER NOT NULL DEFAULT 1
+    -- task_id 语义上强引用 tasks.id；引用完整性由 TaskExecutionRepository / DispatchService 保证（conventions § 9.w，不声明 FK）
 );
 CREATE INDEX idx_task_executions_task ON task_executions (task_id);
 CREATE INDEX idx_task_executions_worker_status ON task_executions (worker_id, status);
@@ -326,8 +326,8 @@ CREATE TABLE task_execution_projections (
     total_tokens_input             INTEGER NOT NULL DEFAULT 0,
     total_tokens_output            INTEGER NOT NULL DEFAULT 0,
     working_seconds_accumulated    INTEGER NOT NULL DEFAULT 0,
-    last_push_at                   TEXT NOT NULL,
-    FOREIGN KEY (task_execution_id) REFERENCES task_executions(id)
+    last_push_at                   TEXT NOT NULL
+    -- task_execution_id PK 也是引用 task_executions.id（1:1）；引用完整性由 TaskExecutionProjectionRepository UPSERT 路径保证（conventions § 9.w，不声明 FK）
 );
 CREATE INDEX idx_proj_last_push ON task_execution_projections (last_push_at DESC);
 ```

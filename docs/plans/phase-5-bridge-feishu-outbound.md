@@ -118,7 +118,7 @@ DDD 意义：ACL 边界第一次落地。所有飞书 SDK 调用封进 `internal
 - 实现步骤：
   1. 写 migration `000X_identity.up.sql` + `000X_identity.down.sql`：
      - `identities (id TEXT PK, kind TEXT NOT NULL, display_name TEXT NOT NULL, created_at TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1)`；kind 应用层 enum 校验
-     - `channel_bindings (id TEXT PK, identity_id TEXT NOT NULL REFERENCES identities(id), channel TEXT NOT NULL, vendor_user_id TEXT NOT NULL, preferred INTEGER NOT NULL DEFAULT 0, bound_at TEXT NOT NULL, UNIQUE (channel, vendor_user_id))`
+     - `channel_bindings (id TEXT PK, identity_id TEXT NOT NULL, channel TEXT NOT NULL, vendor_user_id TEXT NOT NULL, preferred INTEGER NOT NULL DEFAULT 0, bound_at TEXT NOT NULL, UNIQUE (channel, vendor_user_id))` —— `identity_id` 语义上引用 `identities.id`，**不声明 FK**（[conventions § 9.w](../rules/conventions.md)），完整性由 `IdentityRegistrationService.BindChannel` 在写入前校验 identity 存在
      - 索引：`idx_channel_bindings_identity`, `uniq_channel_bindings_channel_vendor_user`
   2. 实现 Repository 方法（CAS 模板见 02-persistence § 4；Identity AR 用 version + 乐观锁，ChannelBinding 是子从属可 delete row）
   3. 实现 IdentityFactory（[conversation/00 § 4.3](../design/architecture/tactical/conversation/00-overview.md)）
