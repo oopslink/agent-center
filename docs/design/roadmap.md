@@ -97,6 +97,20 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 - **多 supervisor / 跨机器**：v1 单 center 单 VPS；多 center 场景 Memory 同步用 git push/pull 还是其它方案需重新评估
 - **触发条件**：以上多数是规模 / 并发 / 体验细节问题，v1 单用户低频不触
 
+### Conversation 模型扩展
+
+[conversation/01-conversation.md § 2](architecture/tactical/conversation/01-conversation.md) 之外的推迟项 —— 当前 `Conversation.kind` 把两条独立轴拍扁成一个 6 值枚举，单 user / 单 channel 假设下不痛，规模化后可能要拆：
+
+- **拆分 `kind` 两轴**：把当前 `dm / group_thread / adhoc / notification / task / issue` 拆成
+  - `scope`（受众场景轴）：`dm / group_thread / adhoc / notification`
+  - `attached_to`（业务对象耦合轴）：`none / task / issue / ...`
+  - v1 现状是 `kind=task` + `task.conversation_id` 双向都做，两轴交叉时表达力不足（如"task 的 group_thread 讨论"无法表达）
+- **`group_thread` 嵌套结构**：当前 `kind=group_thread` 是扁平 Conversation，`primary_channel_thread_key` 只是 vendor 字符串；在 Slack/DingTalk 多 channel 场景下，IM 语义里的"channel → thread"嵌套需要一等公民建模（child-of-channel-conversation 指针）
+- **Channel 作为领域实体**：当前 channel 仅以 `primary_channel_hint` 字符串体现（[01-conversation.md § 3 注释](architecture/tactical/conversation/01-conversation.md) 已承认"务实而非纯粹"）；多 vendor + 多 channel 时可能要 `conversation_channel_routes` 表 / Channel AR
+- **v1 不做的原因**：单 user / 单 channel / FeishuBridge 唯一，6 kinds 扁平模型够用；拆轴成本高（迁现有数据 + 改所有 query + 改 5 个 ADR 的 1:1 模型）
+- **触发条件**：多 vendor 接入落地（特别是 Slack/DingTalk 的 channel-thread 嵌套结构进来）；或出现"同一 task 在多个 scope 内讨论"等 v1 拍扁建模兜不住的场景
+- **影响**：Conversation schema 拆列 + 迁数据；[ADR-0017](decisions/0017-task-as-conversation.md) / [ADR-0021](decisions/0021-issue-as-conversation.md) 的 1:1 模型要重新评估；跨 BC 引用方向（`task.conversation_id` / `issue.conversation_id`）保持不变
+
 ### Workspace 模式进阶
 
 - **Readonly mount enforcement**：direct 模式强制只读 base_path（v1 仅约定不修改，不强制）
