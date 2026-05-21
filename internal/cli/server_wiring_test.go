@@ -131,6 +131,22 @@ func TestRun_CallsEscalator(t *testing.T) {
 	<-done
 }
 
+// TestAttachFeishuClient_NilReceiver / NilClient
+func TestAttachFeishuClient_NilReceiverNoOp(t *testing.T) {
+	var ss *ServerSubsystems
+	ss.AttachFeishuClient(&fakeClient{}) // must not panic
+}
+
+func TestAttachFeishuClient_NilClientNoOp(t *testing.T) {
+	app := newTestAppWithFileDB(t)
+	app.Config.Bridge.Feishu.Enabled = true
+	ss, err := NewServerSubsystems(app, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ss.AttachFeishuClient(nil) // must not panic
+}
+
 // TestNewServerSubsystems_NilLogger covers the nil-logger default
 // branch.
 func TestNewServerSubsystems_NilLogger(t *testing.T) {
