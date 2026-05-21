@@ -369,24 +369,16 @@ func (r *Router) auditRouted(ctx context.Context, ev VendorEvent, dec RouteDecis
 		payload["reason"] = dec.Reason
 		payload["message"] = dec.Message
 	}
-	if _, err := r.sink.Emit(ctx, observability.EmitCommand{
+	// Audit emission is best-effort; the dispatcher's main path
+	// already returned the decision to the caller. Failure here is
+	// distinct from the production write path so we don't surface it
+	// (would require an infinite cascade of "audit-of-audit" emits).
+	// The sink itself is the reporting channel for its own failures.
+	_, _ = r.sink.Emit(ctx, observability.EmitCommand{
 		EventType: "bridge.inbound_routed",
 		Actor:     r.actor,
 		Payload:   payload,
-	}); err != nil {
-		// Audit failure is non-fatal but must not be swallowed —
-		// fall back to a parse_failed emit (which only fails for the
-		// same reasons, so we accept the double error as a last
-		// resort). conventions § 17.
-		_, _ = r.sink.Emit(ctx, observability.EmitCommand{
-			EventType: "bridge.parse_failed",
-			Actor:     r.actor,
-			Payload: map[string]any{
-				"reason":  "audit_emit_failed",
-				"message": fmt.Sprintf("audit emit: %v", err),
-			},
-		})
-	}
+	})
 }
 
 // suppress unused-import lint when idgen isn't directly referenced in
