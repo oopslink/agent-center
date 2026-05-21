@@ -24,6 +24,11 @@ var globalConfigPath string
 // --config flag value to the system command handlers.
 func SetGlobalConfigPath(p string) { globalConfigPath = p }
 
+// GlobalConfigPath returns the resolved config path published by
+// BuildRouter (--config flag or AGENT_CENTER_CONFIG env). Empty when
+// neither is set.
+func GlobalConfigPath() string { return globalConfigPath }
+
 // SystemCommands returns top-level mode + admin commands.
 //
 // `server` / `migrate` actually run; `supervisor` / `worker` /

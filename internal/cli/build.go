@@ -118,6 +118,18 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 			return nil, "", err
 		}
 	}
+
+	// Phase 5: identity + bridge command trees.
+	for _, c := range provider.identityCommands() {
+		if err := router.Add([]string{"identity"}, c); err != nil {
+			return nil, "", err
+		}
+	}
+	for _, c := range provider.bridgeCommands() {
+		if err := router.Add([]string{"bridge"}, c); err != nil {
+			return nil, "", err
+		}
+	}
 	return router, cfgPath, nil
 }
 
@@ -341,6 +353,36 @@ func (l *lazyApp) observabilityCommands() []*Command {
 		}))
 	}
 	return out
+}
+
+func (l *lazyApp) identityCommands() []*Command {
+	names := []string{"add", "list", "bind", "unbind"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.IdentityCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) bridgeCommands() []*Command {
+	// `bridge feishu setup` is a deep tree (bridge → feishu → setup);
+	// we register the `feishu` group node so its subcommands attach
+	// under the bridge group provided by BuildRouter.
+	feishuGroup := &Command{Name: "feishu", Summary: "FeishuBridge management"}
+	feishuGroup.Subcommands = append(feishuGroup.Subcommands,
+		l.withApp(func(a *App) *Command {
+			cmds := a.BridgeCommands()
+			feishu := findCmd(cmds, "feishu")
+			if feishu == nil {
+				return nil
+			}
+			return findCmd(feishu.Subcommands, "setup")
+		}),
+	)
+	return []*Command{feishuGroup}
 }
 
 func findCmd(cs []*Command, name string) *Command {

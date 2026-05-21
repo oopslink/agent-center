@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"io"
 
+	bridgeledger "github.com/oopslink/agent-center/internal/bridge/feishu/ledger"
+	bridgedispatcher "github.com/oopslink/agent-center/internal/bridge/feishu/dispatcher"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/conversation/identity"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
@@ -85,6 +88,13 @@ type App struct {
 	StatsSvc        *query.StatsService
 	LogsSvc         *query.LogsService
 	BlobStore       blobstore.BlobStore
+
+	// Bridge / Identity (Phase 5)
+	IdentityRepo         identity.IdentityRepository
+	ChannelBindingRepo   identity.ChannelBindingRepository
+	IdentityRegistration *identity.RegistrationService
+	LedgerRepo           bridgeledger.Repository
+	CursorStore          bridgedispatcher.CursorStore
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -171,6 +181,13 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	}
 	logsSvc := query.NewLogsService(deps, bs)
 
+	// Phase 5: Identity + Bridge bootstrap.
+	identityRepo := identity.NewSQLiteIdentityRepo(db)
+	channelBindingRepo := identity.NewSQLiteChannelBindingRepo(db)
+	identityReg := identity.NewRegistrationService(db, identityRepo, channelBindingRepo, sink, gen, clk)
+	ledgerRepo := bridgeledger.NewSQLiteRepo(db, clk)
+	cursorStore := bridgedispatcher.NewSQLiteCursorStore(db, clk)
+
 	return &App{
 		Config:        cfg,
 		DB:            db,
@@ -215,6 +232,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		StatsSvc:       statsSvc,
 		LogsSvc:        logsSvc,
 		BlobStore:      bs,
+
+		IdentityRepo:         identityRepo,
+		ChannelBindingRepo:   channelBindingRepo,
+		IdentityRegistration: identityReg,
+		LedgerRepo:           ledgerRepo,
+		CursorStore:          cursorStore,
 	}, nil
 }
 
