@@ -198,13 +198,18 @@ func (r *SQLiteChannelBindingRepo) Save(ctx context.Context, b *ChannelBinding) 
 	)
 	if err != nil {
 		if isUniqueConstraint(err) {
-			// Distinguish (channel, vendor_user_id) vs preferred conflict
-			// by error text.
+			// SQLite reports the offending columns rather than the index
+			// name, so we match on the column tuple. The preferred unique
+			// index covers (identity_id, channel); the channel/vendor
+			// unique covers (channel, vendor_user_id).
 			s := err.Error()
 			switch {
-			case strings.Contains(s, "uniq_channel_bindings_preferred"):
+			case strings.Contains(s, "channel_bindings.identity_id") &&
+				strings.Contains(s, "channel_bindings.channel") &&
+				!strings.Contains(s, "vendor_user_id"):
 				return ErrChannelBindingPreferredConflict
-			case strings.Contains(s, "uniq_channel_bindings_channel_vendor_user"):
+			case strings.Contains(s, "channel_bindings.channel") &&
+				strings.Contains(s, "vendor_user_id"):
 				return ErrChannelBindingAlreadyExists
 			default:
 				return ErrChannelBindingAlreadyExists
