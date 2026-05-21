@@ -123,6 +123,9 @@ func (r *EventRepo) Find(ctx context.Context, filter observability.EventQueryFil
 	if err != nil {
 		return nil, err
 	}
+	if filter.Limit > observability.MaxEventQueryLimit {
+		return nil, observability.ErrEventQueryLimitTooLarge
+	}
 	sb := strings.Builder{}
 	sb.WriteString(`SELECT id, occurred_at, seq, event_type, refs, actor, payload, correlation_id, decision_id, created_at
 		FROM events WHERE 1=1`)
@@ -130,6 +133,12 @@ func (r *EventRepo) Find(ctx context.Context, filter observability.EventQueryFil
 	if filter.EventType != nil {
 		sb.WriteString(` AND event_type = ?`)
 		args = append(args, string(*filter.EventType))
+	}
+	if filter.EventTypePrefix != nil && *filter.EventTypePrefix != "" {
+		sb.WriteString(` AND event_type LIKE ?`)
+		// LIKE-escape minimal: forbid % / _ in the user-supplied prefix
+		// by escaping them; v1 callers pass alphanumeric / dot prefixes.
+		args = append(args, escapeLike(*filter.EventTypePrefix)+"%")
 	}
 	if filter.CorrelationID != nil {
 		sb.WriteString(` AND correlation_id = ?`)
@@ -139,9 +148,17 @@ func (r *EventRepo) Find(ctx context.Context, filter observability.EventQueryFil
 		sb.WriteString(` AND decision_id = ?`)
 		args = append(args, *filter.DecisionID)
 	}
+	if filter.Actor != nil {
+		sb.WriteString(` AND actor = ?`)
+		args = append(args, *filter.Actor)
+	}
 	if filter.Since != nil {
 		sb.WriteString(` AND occurred_at >= ?`)
 		args = append(args, filter.Since.UTC().Format(time.RFC3339Nano))
+	}
+	if filter.Until != nil {
+		sb.WriteString(` AND occurred_at < ?`)
+		args = append(args, filter.Until.UTC().Format(time.RFC3339Nano))
 	}
 	if filter.Cursor != nil {
 		sb.WriteString(` AND id > ?`)
@@ -178,6 +195,13 @@ func (r *EventRepo) Find(ctx context.Context, filter observability.EventQueryFil
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+func escapeLike(s string) string {
+	// Standard SQLite LIKE wildcards: % and _; we escape them by replacing
+	// with empty (callers don't expect literal % in event types).
+	repl := strings.NewReplacer("%", "", "_", "")
+	return repl.Replace(s)
 }
 
 func refsLikeMap(f observability.EventRefsFilter) map[string]string {
