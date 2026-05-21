@@ -321,14 +321,17 @@ func requireSupervisorRationale(rationale string) error {
 	return nil
 }
 
-// recordSupervisorDecision writes a DecisionRecord (kind/refs/rationale)
-// in its own tx when the actor is a supervisor; user-actor invocations
-// silently no-op.
+// recordSupervisorDecisionInTx writes a DecisionRecord (kind/refs/rationale)
+// inside the caller's existing transaction. The caller MUST already be
+// running under persistence.RunInTx; user-actor invocations silently no-op.
 //
-// Strict ADR-0014 same-tx semantics is degraded to "best-effort follow-up"
-// because Phase 2-5 action services own their own tx boundaries; a future
-// refactor can move the action+decision into a single tx if needed.
-func recordSupervisorDecision(ctx context.Context, app *App, kind cognition.DecisionKind, refsJSON, rationale string) error {
+// Per ADR-0014 § 2: state UPDATE + event INSERT + DecisionRecord INSERT
+// must all sit in the same tx. The action services (DispatchService /
+// KillCoordinator / IssueLifecycleService / MessageWriter / ...) use
+// tx-reentrant `persistence.RunInTx` so wrapping the CLI handler in an
+// outer tx makes the action service join it (no service API churn,
+// Phase 3 commit 421e92d).
+func recordSupervisorDecisionInTx(ctx context.Context, app *App, kind cognition.DecisionKind, refsJSON, rationale string) error {
 	if app == nil || app.DecisionRecorder == nil {
 		return nil
 	}
@@ -336,14 +339,51 @@ func recordSupervisorDecision(ctx context.Context, app *App, kind cognition.Deci
 	if !actor.IsSupervisor() {
 		return nil
 	}
+	_, err := app.DecisionRecorder.Record(ctx, actor, decision.RecordRequest{
+		Kind:           kind,
+		TargetRefsJSON: refsJSON,
+		Rationale:      rationale,
+		Outcome:        cognition.OutcomeSucceeded,
+	})
+	return err
+}
+
+// recordSupervisorDecision is the legacy helper that opens its own tx
+// before writing the DecisionRecord. Tests + a small number of paths
+// that don't have an outer tx still use it. Prefer
+// recordSupervisorDecisionInTx for ADR-0014 same-tx semantics.
+func recordSupervisorDecision(ctx context.Context, app *App, kind cognition.DecisionKind, refsJSON, rationale string) error {
+	if app == nil || app.DecisionRecorder == nil {
+		return nil
+	}
 	return persistence.RunInTx(ctx, app.DB, func(txCtx context.Context) error {
-		_, err := app.DecisionRecorder.Record(txCtx, actor, decision.RecordRequest{
-			Kind:           kind,
-			TargetRefsJSON: refsJSON,
-			Rationale:      rationale,
-			Outcome:        cognition.OutcomeSucceeded,
-		})
-		return err
+		return recordSupervisorDecisionInTx(txCtx, app, kind, refsJSON, rationale)
+	})
+}
+
+// runSupervisorActionTx wraps an action service call + DecisionRecord
+// write in a single tx. The actionFn receives the tx-bearing ctx; its
+// inner persistence.RunInTx will reuse the outer tx (tx-reentrant
+// helper). After actionFn succeeds, a DecisionRecord is written (if
+// caller is supervisor) in the same tx.
+//
+// Per ADR-0014 § 2: state UPDATE + event INSERT + DecisionRecord INSERT
+// are atomic; any error rolls back all three.
+func runSupervisorActionTx(
+	ctx context.Context,
+	app *App,
+	actionFn func(txCtx context.Context) error,
+	kind cognition.DecisionKind,
+	refsJSON, rationale string,
+) error {
+	if app == nil {
+		return errors.New("runSupervisorActionTx: nil app")
+	}
+	return persistence.RunInTx(ctx, app.DB, func(txCtx context.Context) error {
+		if err := actionFn(txCtx); err != nil {
+			return err
+		}
+		return recordSupervisorDecisionInTx(txCtx, app, kind, refsJSON, rationale)
 	})
 }
 

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
@@ -46,6 +47,7 @@ func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 	origin := fs.String("origin", "cli", "issue origin (cli|web_console|feishu_at|supervisor|agent_open_issue)")
 	openedBy := fs.String("opened-by", "", "opener identity id (defaults to config default user)")
 	channelHint := fs.String("channel", "", "primary channel hint (used for sync-build origins)")
+	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 2 {
@@ -58,20 +60,33 @@ func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 		if err != nil {
 			return PrintError(errw, *format, "issue_invalid_origin", err.Error(), ExitUsage)
 		}
+		if err := requireSupervisorRationale(*rationale); err != nil {
+			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
+		}
 		opener := *openedBy
 		if opener == "" {
 			opener = "user:" + a.Config.Identity.DefaultUser
 		}
 		actor := a.DefaultActor()
-		res, err := a.IssueLifecycleSvc.Open(ctx, disservice.OpenIssueCommand{
-			ProjectID:          projectID,
-			Title:              title,
-			Description:        *description,
-			OpenedByIdentityID: opener,
-			Origin:             o,
-			PrimaryChannelHint: *channelHint,
-			Actor:              actor,
-		})
+		var res *disservice.OpenIssueResult
+		err = runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+			r, oerr := a.IssueLifecycleSvc.Open(txCtx, disservice.OpenIssueCommand{
+				ProjectID:          projectID,
+				Title:              title,
+				Description:        *description,
+				OpenedByIdentityID: opener,
+				Origin:             o,
+				PrimaryChannelHint: *channelHint,
+				Actor:              actor,
+			})
+			if oerr != nil {
+				return oerr
+			}
+			res = r
+			return nil
+		}, cognition.DecisionOpenIssue,
+			fmt.Sprintf(`{"project_id":%q,"title":%q}`, projectID, title),
+			*rationale)
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
@@ -140,6 +155,7 @@ func (a *App) issueCommentHandler(fs *flag.FlagSet) Handler {
 	kind := fs.String("kind", "text", "content kind (text|system|agent_finding|supervisor_summary|conclusion_draft|task_proposal)")
 	actorFlag := fs.String("actor", "", "actor identity (defaults to config default user)")
 	direction := fs.String("direction", "internal", "message direction (inbound|outbound|internal)")
+	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -147,6 +163,9 @@ func (a *App) issueCommentHandler(fs *flag.FlagSet) Handler {
 		}
 		if *content == "" {
 			return PrintError(errw, *format, "usage_error", "--content required", ExitUsage)
+		}
+		if err := requireSupervisorRationale(*rationale); err != nil {
+			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
 		}
 		actor := observability.Actor(*actorFlag)
 		if *actorFlag == "" {
@@ -156,14 +175,24 @@ func (a *App) issueCommentHandler(fs *flag.FlagSet) Handler {
 		if *actorFlag == "" {
 			sender = conversation.IdentityRef("user:" + a.Config.Identity.DefaultUser)
 		}
-		res, err := a.IssueCommentSvc.Comment(ctx, disservice.CommentInput{
-			IssueID:          discussion.IssueID(args[0]),
-			Content:          *content,
-			ContentKind:      conversation.MessageContentKind(*kind),
-			SenderIdentityID: sender,
-			Direction:        conversation.MessageDirection(*direction),
-			Actor:            actor,
-		})
+		var res *disservice.CommentResult
+		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+			r, cerr := a.IssueCommentSvc.Comment(txCtx, disservice.CommentInput{
+				IssueID:          discussion.IssueID(args[0]),
+				Content:          *content,
+				ContentKind:      conversation.MessageContentKind(*kind),
+				SenderIdentityID: sender,
+				Direction:        conversation.MessageDirection(*direction),
+				Actor:            actor,
+			})
+			if cerr != nil {
+				return cerr
+			}
+			res = r
+			return nil
+		}, cognition.DecisionIssueComment,
+			fmt.Sprintf(`{"issue_id":%q}`, args[0]),
+			*rationale)
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
@@ -186,6 +215,7 @@ func (a *App) issueConcludeHandler(fs *flag.FlagSet) Handler {
 	summary := fs.String("summary", "", "conclusion summary (free text; required)")
 	spawnTasks := fs.String("spawn-tasks", "", "tasks JSON (inline or @path/to/file); required for closed_with_tasks")
 	concludedBy := fs.String("concluded-by", "", "concluded_by identity (defaults to config default user)")
+	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -197,6 +227,9 @@ func (a *App) issueConcludeHandler(fs *flag.FlagSet) Handler {
 		}
 		if *summary == "" {
 			return PrintError(errw, *format, "usage_error", "--summary required", ExitUsage)
+		}
+		if err := requireSupervisorRationale(*rationale); err != nil {
+			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
 		}
 		kind := discussion.ResolutionKind(*resolutionFlag)
 		if !kind.IsValid() {
@@ -222,12 +255,27 @@ func (a *App) issueConcludeHandler(fs *flag.FlagSet) Handler {
 		if concBy == "" {
 			concBy = "user:" + a.Config.Identity.DefaultUser
 		}
-		res, err := a.IssueLifecycleSvc.Conclude(ctx, disservice.ConcludeIssueCommand{
-			IssueID:     discussion.IssueID(args[0]),
-			Resolution:  discussion.Resolution{Kind: kind, Summary: *summary, Tasks: tasks},
-			ConcludedBy: concBy,
-			Actor:       a.DefaultActor(),
-		})
+		// Pick DecisionKind: withdrawn → close_issue; otherwise → conclude_issue.
+		decKind := cognition.DecisionConcludeIssue
+		if kind == discussion.ResolutionWithdrawn {
+			decKind = cognition.DecisionCloseIssue
+		}
+		var res *disservice.ConcludeIssueResult
+		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+			r, cerr := a.IssueLifecycleSvc.Conclude(txCtx, disservice.ConcludeIssueCommand{
+				IssueID:     discussion.IssueID(args[0]),
+				Resolution:  discussion.Resolution{Kind: kind, Summary: *summary, Tasks: tasks},
+				ConcludedBy: concBy,
+				Actor:       a.DefaultActor(),
+			})
+			if cerr != nil {
+				return cerr
+			}
+			res = r
+			return nil
+		}, decKind,
+			fmt.Sprintf(`{"issue_id":%q,"resolution":%q}`, args[0], kind),
+			*rationale)
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
@@ -257,6 +305,7 @@ func (a *App) issueWithdrawHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "withdraw reason (required; conventions § 16)")
 	message := fs.String("message", "", "withdraw human-readable message (required; conventions § 16)")
 	withdrawnBy := fs.String("withdrawn-by", "", "withdrawn_by identity (defaults to default user)")
+	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -268,17 +317,25 @@ func (a *App) issueWithdrawHandler(fs *flag.FlagSet) Handler {
 		if *message == "" {
 			return PrintError(errw, *format, "usage_error", "--message required (conventions § 16)", ExitUsage)
 		}
+		if err := requireSupervisorRationale(*rationale); err != nil {
+			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
+		}
 		by := *withdrawnBy
 		if by == "" {
 			by = "user:" + a.Config.Identity.DefaultUser
 		}
-		_, err := a.IssueLifecycleSvc.Withdraw(ctx, disservice.WithdrawIssueCommand{
-			IssueID:     discussion.IssueID(args[0]),
-			Reason:      *reason,
-			Message:     *message,
-			WithdrawnBy: by,
-			Actor:       a.DefaultActor(),
-		})
+		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+			_, werr := a.IssueLifecycleSvc.Withdraw(txCtx, disservice.WithdrawIssueCommand{
+				IssueID:     discussion.IssueID(args[0]),
+				Reason:      *reason,
+				Message:     *message,
+				WithdrawnBy: by,
+				Actor:       a.DefaultActor(),
+			})
+			return werr
+		}, cognition.DecisionCloseIssue,
+			fmt.Sprintf(`{"issue_id":%q,"reason":%q}`, args[0], *reason),
+			*rationale)
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}

@@ -13,6 +13,8 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/taskruntime"
+	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
+	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 )
@@ -174,15 +176,23 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 		if err := requireSupervisorRationale(*rationale); err != nil {
 			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
 		}
-		res, err := a.DispatchSvc.Dispatch(ctx, dispatchInputFromArgs(args[0], *worker, *agentCLI, *baseBranch, a.DefaultActor()))
+		// ADR-0014 § 2: state UPDATE + event INSERT + DecisionRecord INSERT
+		// in one tx. DispatchSvc internally calls persistence.RunInTx which
+		// is tx-reentrant — it joins this outer tx.
+		var res *dispatch.DispatchResult
+		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+			r, derr := a.DispatchSvc.Dispatch(txCtx, dispatchInputFromArgs(args[0], *worker, *agentCLI, *baseBranch, a.DefaultActor()))
+			if derr != nil {
+				return derr
+			}
+			res = r
+			return nil
+		}, cognition.DecisionDispatch,
+			fmt.Sprintf(`{"task_id":%q,"worker_id":%q}`, args[0], *worker),
+			*rationale)
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
-		// Best-effort post-action DecisionRecord (cognition § 4 — supervisor
-		// caller path; user calls silently no-op via Recorder).
-		_ = recordSupervisorDecision(ctx, a, cognition.DecisionDispatch,
-			fmt.Sprintf(`{"task_id":%q,"execution_id":%q,"worker_id":%q}`, args[0], res.ExecutionID, *worker),
-			*rationale)
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{"execution_id": string(res.ExecutionID)})
 			writeOut(out, string(b))
@@ -200,6 +210,7 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 func (a *App) killExecutionHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "killed reason (user_request|supervisor_request|abandon_precondition|suspend_precondition|reconcile_stale|reconcile_unknown|timeout_kill)")
 	message := fs.String("message", "", "human-readable message")
+	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -211,8 +222,26 @@ func (a *App) killExecutionHandler(fs *flag.FlagSet) Handler {
 		if *message == "" {
 			return PrintError(errw, *format, "usage_error", "--message required (conventions § 16)", ExitUsage)
 		}
+		if err := requireSupervisorRationale(*rationale); err != nil {
+			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
+		}
 		execID := taskruntime.TaskExecutionID(args[0])
-		if err := a.KillCoordinator.RequestKill(ctx, execID, killReasonFromString(*reason), *message, a.DefaultActor()); err != nil {
+		killReason := killReasonFromString(*reason)
+		// Pick the right DecisionKind based on kill reason (cognition/01 § 4.4):
+		// abandon_precondition → abandon_task; suspend_precondition → suspend_task;
+		// everything else → kill_execution.
+		kind := cognition.DecisionKillExecution
+		switch killReason {
+		case execution.KilledAbandonPrecondition:
+			kind = cognition.DecisionAbandonTask
+		case execution.KilledSuspendPrecondition:
+			kind = cognition.DecisionSuspendTask
+		}
+		refsJSON := fmt.Sprintf(`{"execution_id":%q,"reason":%q}`, execID, *reason)
+		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+			return a.KillCoordinator.RequestKill(txCtx, execID, killReason, *message, a.DefaultActor())
+		}, kind, refsJSON, *rationale)
+		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
 		if *format == "json" {
