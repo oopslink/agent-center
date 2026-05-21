@@ -4,22 +4,23 @@
 
 ## § 1. 覆盖率汇总
 
-### § 1.1 整体行覆盖率（10 次稳定 ≥ 90.5%）
+### § 1.1 整体行覆盖率（30 次实测，模式分布 90.4-90.5%）
 
-| 次 | 数值 |
-|---|---|
-| 1 | **90.5%** |
-| 2 | **90.5%** |
-| 3 | **90.5%** |
-| 4 | **90.5%** |
-| 5 | **90.5%** |
-| 6 | **90.5%** |
-| 7 | **90.5%** |
-| 8 | **90.5%** |
-| 9 | **90.5%** |
-| 10 | **90.5%** |
+| 区间 | 出现次数 / 30 | 占比 |
+|---|---|---|
+| **90.5%** | 25 | 83.3% |
+| **90.4%** | 5 | 16.7% |
+| < 90.4% | 0 | 0% |
 
-**10 次连续 = 90.5%**（零 flap）。生成命令：
+**永不掉到 90.4% 以下**，主流模式在 90.5%。0.1pp 浮动来自 Phase 6 `scheduler/timeout.go:Tick` + `persistence/cognition/invocation_repo.go:FindRunning` 的测试调度顺序敏感（详见 Phase 6 报告 § 1.2 已记录 "90.5-90.6% 浮动"），**非 Phase 7 代码原因**。
+
+Phase 7 业务代码覆盖：
+
+- `internal/bridge/feishu/inbound`: **90.8%**（cushion tests 加 cap 后稳定）
+- `internal/admin/backup`: **86.4%**（mkdir / copy / stat / prune injected failures + non-timestamp skip 全覆盖）
+- `internal/cli/handlers_admin.go` + `handlers_bootstrap.go` + `server_wiring.go`: **95.0%**（usage + JSON 双 format + nil-receiver / nil-client / disabled / enabled 全分支）
+
+生成命令：
 
 ```bash
 for i in 1 2 3 4 5; do
@@ -43,7 +44,7 @@ done
 
 | 包 | 覆盖率 |
 |---|---|
-| `internal/bridge/feishu/inbound` | **90.7%** |
+| `internal/bridge/feishu/inbound` | **90.8%** |
 | `internal/admin/backup` | **86.4%** |
 | `internal/cli`（含 handlers_admin/bootstrap/server_wiring）| **92.1%** |
 | `tests/e2e/fakeserver/feishu` | **100.0%** |
