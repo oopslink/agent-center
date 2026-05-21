@@ -112,6 +112,12 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"worker"}, WorkerShimPlaceholder()); err != nil {
 		return nil, "", err
 	}
+	// Observability verbs (top-level): inspect / query / ps / stats / logs / peek-trace
+	for _, c := range provider.observabilityCommands() {
+		if err := router.Add(nil, c); err != nil {
+			return nil, "", err
+		}
+	}
 	return router, cfgPath, nil
 }
 
@@ -323,6 +329,18 @@ func (l *lazyApp) issueCommands() []*Command {
 
 func (l *lazyApp) openIssueCommand() *Command {
 	return l.withApp(func(a *App) *Command { return a.OpenIssueCommand() })
+}
+
+func (l *lazyApp) observabilityCommands() []*Command {
+	names := []string{"inspect", "query", "ps", "stats", "logs", "peek-trace"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.ObservabilityCommands(), n)
+		}))
+	}
+	return out
 }
 
 func findCmd(cs []*Command, name string) *Command {

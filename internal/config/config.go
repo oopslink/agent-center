@@ -28,6 +28,21 @@ type Config struct {
 	Notification NotificationConfig `yaml:"notification"`
 	Identity     IdentityConfig     `yaml:"identity"`
 	Execution    ExecutionConfig    `yaml:"execution"`
+	BlobStore    BlobStoreConfig    `yaml:"blob_store"`
+	Peek         PeekConfig         `yaml:"peek"`
+}
+
+// BlobStoreConfig: 04-configuration / 01-blob-store. v1 LocalDir only.
+type BlobStoreConfig struct {
+	Kind string `yaml:"kind"` // "local" (default) | "s3" (future)
+	Root string `yaml:"root"`
+}
+
+// PeekConfig holds peek-trace transport settings (Phase 4 § 3.7).
+type PeekConfig struct {
+	// WorkerSocket is the unix socket path the worker daemon serves the
+	// peek-trace RPC on. Empty → "/var/run/agent-center-worker/peek.sock".
+	WorkerSocket string `yaml:"worker_socket"`
 }
 
 // ServerConfig: 04-configuration § 7.1.
@@ -142,6 +157,13 @@ func DefaultConfig() Config {
 			ShimGoodbyeAckTimeoutHours: 24,
 			MaxExecutionsPerTask:       3,
 			KillGraceSeconds:           5,
+		},
+		BlobStore: BlobStoreConfig{
+			Kind: "local",
+			Root: "/var/lib/agent-center/blobs",
+		},
+		Peek: PeekConfig{
+			WorkerSocket: "/var/run/agent-center-worker/peek.sock",
 		},
 	}
 }

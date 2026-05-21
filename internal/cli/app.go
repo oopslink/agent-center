@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -17,6 +18,8 @@ import (
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/projection"
+	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
@@ -73,6 +76,15 @@ type App struct {
 	IssueBindConversationSvc        *disservice.IssueBindConversationService
 	IssueLinkConversationSvc        *disservice.IssueLinkConversationService
 	IssueConversationOpener         *disservice.IssueConversationOpener
+
+	// Observability Phase 4
+	ProjectionRepo  projection.Repository
+	ProjectionSvc   *projection.TaskExecutionProjectionService
+	QuerySvc        *query.Service
+	FleetSvc        *query.FleetSnapshotService
+	StatsSvc        *query.StatsService
+	LogsSvc         *query.LogsService
+	BlobStore       blobstore.BlobStore
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -130,6 +142,35 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	issueBind := disservice.NewIssueBindConversationService(db, issueRepo, cr, convOpener, sink, clk)
 	issueLink := disservice.NewIssueLinkConversationService(db, issueRepo, cr, clk)
 
+	// Observability Phase 4
+	projRepo := obsqlite.NewProjectionRepo(db)
+	projSvc := projection.NewTaskExecutionProjectionService(projRepo, sink, nil, clk)
+	deps := query.Deps{
+		Events:        er,
+		Projection:    projRepo,
+		Tasks:         taskRepo,
+		Executions:    execRepo,
+		Artifacts:     artifactRepo,
+		InputReqs:     irRepo,
+		Issues:        issueRepo,
+		Conversations: cr,
+		Messages:      mgRepo,
+		Workers:       wr,
+		Mappings:      mr,
+		Proposals:     prRepo,
+		Projects:      pjRepo,
+	}
+	querySvc := query.NewService(deps)
+	fleetSvc := query.NewFleetSnapshotService(deps)
+	statsSvc := query.NewStatsService(deps)
+	var bs blobstore.BlobStore
+	if cfg.BlobStore.Root != "" {
+		if local, err := blobstore.NewLocalDir(cfg.BlobStore.Root); err == nil {
+			bs = local
+		}
+	}
+	logsSvc := query.NewLogsService(deps, bs)
+
 	return &App{
 		Config:        cfg,
 		DB:            db,
@@ -166,6 +207,14 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IssueBindConversationSvc: issueBind,
 		IssueLinkConversationSvc: issueLink,
 		IssueConversationOpener:  convOpener,
+
+		ProjectionRepo: projRepo,
+		ProjectionSvc:  projSvc,
+		QuerySvc:       querySvc,
+		FleetSvc:       fleetSvc,
+		StatsSvc:       statsSvc,
+		LogsSvc:        logsSvc,
+		BlobStore:      bs,
 	}, nil
 }
 
