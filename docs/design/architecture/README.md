@@ -15,6 +15,7 @@ architecture/
     ├── observability/     # BC5: 观测
     ├── conversation/      # BC6: 会话
     ├── bridge/            # BC7: 渠道桥接
+    ├── secret-management/ # BC8: 用户密钥管理（v2 新增；ADR-0026）
     ├── agent-harness/     # 主题: agent 运行时支撑（prompt 组装 + skill/CLI 工具）
     └── presentation/      # 主题: 表现层 / 前端（Web Console、未来 Mobile / Desktop）
 ```
@@ -66,9 +67,10 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 | # | 主题 | 状态 |
 |---|---|---|
 | 00 | [Workforce BC Overview](tactical/workforce/00-overview.md) | Draft |
-| 01 | [Worker 聚合](tactical/workforce/01-worker.md) | Draft |
+| 01 | [Worker 聚合 + BootstrapToken + WorkerProjectMapping 子从属](tactical/workforce/01-worker.md) | Draft |
 | 02 | [Project 聚合](tactical/workforce/02-project.md) | Draft |
 | 03 | [WorkerProjectProposal 聚合](tactical/workforce/03-worker-project-proposal.md) | Draft |
+| 04 | [AgentInstance 聚合](tactical/workforce/04-agent-instance.md)（[ADR-0024](../decisions/drafts/0024-agent-instance-first-class.md)）| Draft |
 
 ### Cognition（认知 / Supervisor）— BC4
 
@@ -98,6 +100,15 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 |---|---|---|
 | 00 | [Bridge BC Overview](tactical/bridge/00-overview.md) | Draft |
 | 01 | [飞书集成（FeishuBridge）](tactical/bridge/01-feishu-integration.md) | Draft |
+
+### SecretManagement（用户密钥管理）— BC8
+
+> v2 新增（Supporting Domain）。仅管理用户密钥（MCP env vars 等）；系统内部凭证不动。
+
+| # | 主题 | 状态 |
+|---|---|---|
+| 00 | [SecretManagement BC Overview](tactical/secret-management/00-overview.md) | Draft |
+| 01 | [UserSecret 聚合](tactical/secret-management/01-user-secret.md) | Draft |
 
 ## 战术层（按主题）
 

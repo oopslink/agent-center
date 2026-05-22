@@ -44,7 +44,9 @@ agent_instance (
   agent_cli         enum         -- claude-code | codex | opencode | ...
   worker_id         FK → workers (v2 不可变；E2 后允许迁移)
   config            JSON         -- { instructions_ref?, mcp_config?, skills?, ... }
-                                 -- G1 仅约定 instructions（home_dir/instructions.md）；其他字段留口给 G4/G5
+                                 -- G1 约定 instructions（home_dir/instructions.md）
+                                 -- G4 约定 mcp_config（MCP 标准 schema + SecretRef，详 § 4）
+                                 -- G5 约定 skills（home_dir/skills/，后续 ADR 填）
   max_concurrent    int?         -- null = 无 cap；=1 → 严格 1:1
   state             enum         -- idle | active | sleeping | archived
   created_at        ISO8601 TEXT
@@ -75,7 +77,20 @@ INDEX agent_instance_worker_state_idx (worker_id, state)
    └─ notes/              # 用户随意；agent 进程在 execution 期间只读
 ```
 
-`mcp_config.json` / `skills/` 等结构留口给 [G4 / G5](../../../drafts/v2-kickoff-2026-05-22.md) 后续讨论。
+`skills/` 等结构留口给 [G5](../../../drafts/v2-kickoff-2026-05-22.md) 后续讨论。
+
+**G4 已定的 `mcp_config.json` 详细**：
+
+```
+~/.agent-center-worker/agents/<agent_instance_id>/
+   ├─ instructions.md
+   ├─ mcp_config.json          # G4: MCP 标准 schema + SecretRef（无明文）
+   ├─ mcp_config.runtime.json  # G4: 派单时由 daemon just-in-time 生成（含明文，mode 0600）；execution 后 unlink
+   ├─ skills/                  # G5（后续讨论）
+   └─ notes/                   # 用户随意
+```
+
+详见 [ADR-0027 MCP per-agent 注入](../../../decisions/drafts/0027-mcp-per-agent-injection.md) + [ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md)。
 
 ### 3.2 写权限约束
 
@@ -204,8 +219,11 @@ dispatch (task → agent_instance_id) {
 ## § 11. References
 
 - [ADR-0024 AgentInstance 一等公民化](../../../decisions/drafts/0024-agent-instance-first-class.md)
+- [ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md)（config.mcp_config 内嵌 SecretRef）
+- [ADR-0027 MCP per-agent 注入](../../../decisions/drafts/0027-mcp-per-agent-injection.md)（config.mcp_config schema）
 - [00-overview.md](00-overview.md) — BC 入口（含 AgentInstanceRepository / Domain Services）
 - [01-worker.md](01-worker.md) — Worker AR（capabilities 字段 + agent 状态联动）
 - [task-runtime/02-task-execution.md § 5](../task-runtime/02-task-execution.md) — TaskExecution.agent_instance_id 字段 + DispatchEnvelope v2 schema
-- [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — prompt 层加 agent-level instructions
+- [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — prompt 层加 agent-level instructions + MCP 注入流程
+- [secret-management/00-overview.md](../secret-management/00-overview.md) — SecretManagement BC
 - [竞品报告 § 3.7](../../../../research/competitive-analysis-2026-05-21.md) — Slock Computer + Agent 模型对照

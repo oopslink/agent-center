@@ -247,7 +247,16 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `observability.ps_watch_interval_seconds` | int | 1 | observability § 7.1 | `ps --watch` 刷新间隔 |
 | `observability.peek_trace_buffer_lines` | int | 200 | [ADR-0015 § 4](../decisions/0015-agent-trace-not-in-events-table.md) | peek-trace 默认窗口 |
 
-### 7.9 `agent_cli.*`（adapter binary 路径）
+### 7.9 `secret_management.*`（[ADR-0026](../decisions/drafts/0026-user-secret-management-bc.md)）
+
+| Field | Type | Default | 来源 | 用途 |
+|---|---|---|---|---|
+| `secret_management.master_key_file` | path | - | [ADR-0026 § 4](../decisions/drafts/0026-user-secret-management-bc.md) | AES-GCM master key（32 bytes base64）文件路径；mode 0600；center 进程启动加载；**不入 DB / 不入 event** |
+| `secret_management.audit_retention_days` | int | 365 | 同上 | `user_secret.*` 事件保留（沿用 events 表，**事件不含明文**）|
+
+> Master key 一旦丢失，所有 user_secret 不可解。运维需自管 key 备份；[roadmap](../roadmap.md) 接 Vault / KMS 作为可选来源。
+
+### 7.10 `agent_cli.*`（adapter binary 路径）
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|

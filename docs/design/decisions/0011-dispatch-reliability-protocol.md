@@ -56,6 +56,8 @@ Worker → Center: DispatchAck { execution_id, accepted=true, message?, acked_at
 | `worktree_path_busy` | worktree 模式 + 目标路径已被占用 |
 | `base_branch_missing` | worktree 模式 + base_branch 不在本地 repo |
 | `envelope_version_unsupported` | 防未来升级；本版本不识别 |
+| `secret_unresolvable` | mcp_config 内至少一个 `secret:<name>` 解析失败（not_found / revoked / not_authorized）；详 [ADR-0026](drafts/0026-user-secret-management-bc.md) + [ADR-0027](drafts/0027-mcp-per-agent-injection.md) |
+| `mcp_config_invalid` | AgentInstance.config.mcp_config JSON schema 不合法；详 [ADR-0027](drafts/0027-mcp-per-agent-injection.md) |
 
 所有 NACK 必须同时填 `reason` + `message` 双字段（见 [conventions § 16](../../rules/conventions.md)）。
 

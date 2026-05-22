@@ -72,15 +72,25 @@ extra_skill_files: ["..."]                      # 可选，本次额外注入的
 1. 装载 bundled `worker-agent.md` skill（随 binary 一起发，文件在 `${install_dir}/skills/worker-agent.md`）
 2. 通过 `agent_instance_id` 解析本机 AgentInstance：拿到 `agent_cli`、`home_dir = ~/.agent-center-worker/agents/<id>/`
 3. 装载 `agent_instance.instructions.md`（位于 `home_dir/instructions.md`；不存在则跳过该层）
-4. 如 envelope 带 `extra_skill_files`，按列表拼上去
-5. 按"层次"顺序组合：`worker-agent.md skill + agent_instance.instructions.md(若有) + constraints_extra(若有) + task_description (或从 blob_ref 取)` → `final_prompt`
-6. `cd` 到 worktree 路径（`workspace_mode=worktree` 时为 `base_path + ".wt/task-<execution_id>"`；`workspace_mode=direct` 时为 `base_path`）
-7. 调对应 agent adapter spawn 子进程：
-   - `claude-code` adapter: `claude --output-format stream-json --session-id=<execution_id> -p "$final_prompt"`
-   - `codex` adapter: codex 的等价参数
+4. **MCP 注入（G4）**（详见 [ADR-0027](../../../decisions/drafts/0027-mcp-per-agent-injection.md)）：
+   - 读 `home_dir/mcp_config.json`（模板，含 `secret:<name>` 引用，无明文）
+   - 对每个 `secret:<name>` 引用：调 center `SecretResolutionService.resolve(name, agent_instance_id)` 拿明文（详见 [secret-management/01-user-secret.md § 7](../secret-management/01-user-secret.md)）
+   - 内存里把 SecretRef 替换为明文 → 写 `home_dir/mcp_config.runtime.json`（mode 0600）
+   - 解析失败（secret 不存在 / revoked / 越权）→ NACK envelope reason=`secret_unresolvable`，不 spawn
+   - mcp_config JSON schema 不合法 → NACK reason=`mcp_config_invalid`
+5. 如 envelope 带 `extra_skill_files`，按列表拼上去
+6. 按"层次"顺序组合：`worker-agent.md skill + agent_instance.instructions.md(若有) + constraints_extra(若有) + task_description (或从 blob_ref 取)` → `final_prompt`
+7. `cd` 到 worktree 路径（`workspace_mode=worktree` 时为 `base_path + ".wt/task-<execution_id>"`；`workspace_mode=direct` 时为 `base_path`）
+8. 调对应 agent adapter spawn 子进程：
+   - `claude-code` adapter: `claude --output-format stream-json --session-id=<execution_id> --mcp-config=<home_dir>/mcp_config.runtime.json -p "$final_prompt"`
+   - `codex` adapter: codex 等价参数（adapter 层翻译 mcp_config.runtime.json 到 codex 的 MCP 配置约定）
    - `opencode` adapter: 同上
+9. **execution 结束 / shim goodbye / 进程死**：daemon `unlink home_dir/mcp_config.runtime.json` 清理明文
+10. **异常路径**（worker 重启 / crash）：daemon 启动时扫 `home_dir/agents/*/mcp_config.runtime.json`，对应 execution 已非 active 的全部清理
 
-> **home_dir 在 execution 期间只读**：worker daemon 读 instructions.md / mcp_config / skills 一次性拼进 prompt；agent 进程不直接读写 home_dir（avoid 并发 race，详见 [workforce/04-agent-instance.md § 3.2](../workforce/04-agent-instance.md)）。
+> **home_dir 在 execution 期间只读**（[ADR-0024 § 5](../../../decisions/drafts/0024-agent-instance-first-class.md)）：worker daemon 读 instructions.md / mcp_config.json / skills 一次性拼进 prompt；agent 进程不直接读写 home_dir（avoid 并发 race）。
+>
+> **runtime.json 仅 worker 本机短暂存在**：含 secret 明文；mode 0600；execution 后 unlink；不上报 center / 不写 trace / 不写 artifact。
 
 ## 好处
 
