@@ -71,7 +71,7 @@
 |---|---|---|
 | **SessionToken** | Worker 长连接认证 | 长期；worker 端落 `~/.agent-center/credentials` (mode 0600)；session 失效需要重新 enroll（[ADR-0023](../../../decisions/drafts/0023-worker-enroll-lightweight.md)）|
 | **WorkerConfig** | center → worker 同步 | `{ concurrency, discovery, capabilities_enabled }`；reconcile response 返回 + `worker.config.updated` 长连推送（[ADR-0023](../../../decisions/drafts/0023-worker-enroll-lightweight.md)）|
-| **Capability** | Worker.capabilities 数组元素 | `{ agent_cli, detected, enabled }`；探测来源 + 用户开关 |
+| **Capability** | Worker.capabilities 数组元素 | v2 形态：`{ agent_cli, detected, enabled, version?, supports_mcp, supports_skills, supports_session }`；探测来源 + 用户开关 + adapter feature 上报（[ADR-0023](../../../decisions/drafts/0023-worker-enroll-lightweight.md) + [ADR-0030](../../../decisions/drafts/0030-agentadapter-matrix-expansion.md)）|
 | **AgentInstanceConfig** | AgentInstance.config 字段（JSON）| `{ instructions_ref?, mcp_config?, skills?, ... }`；G1 约定 instructions；G4 约定 mcp_config（MCP 标准 schema + SecretRef，[ADR-0027](../../../decisions/drafts/0027-mcp-per-agent-injection.md)）；G5 约定 skills（后续）|
 | **CandidateMetadata** | Proposal | `{git_remote_url, commit_count, recent_activity_at, detected_language}` 等启发式发现的项目元数据 |
 | **ProjectKind** | Project / Proposal | `coding` / `writing` / `investing` / `null`（启发式）|

@@ -137,7 +137,15 @@ Worker {
   concurrency:    { per_agent_type: int }                              // 默认 2
   discovery:      { scan_paths: [str], exclude: [str],
                     scan_interval: duration }                          // scan_interval 默认 1h
-  capabilities:   [{ agent_cli: str, detected: bool, enabled: bool }]
+  capabilities:   [{
+                     agent_cli: str,
+                     detected: bool,
+                     enabled: bool,
+                     version: str?,                  // v2: Probe 上报版本（ADR-0030）
+                     supports_mcp: bool,             // v2: adapter 支持 MCP（ADR-0030）
+                     supports_skills: bool,          // v2: adapter 支持 skill mount（ADR-0030）
+                     supports_session: bool,         // v2: adapter 支持 session 续接（ADR-0030）
+                  }]
 }
 ```
 
@@ -149,15 +157,19 @@ Worker {
 
 ### 4.3 Capabilities 自动探测
 
-Worker daemon **每次 online**（首次 + 重连）都跑探测：`which claude` / `which codex` / `which gemini` 等，结果上报 center。
+Worker daemon **每次 online**（首次 + 重连）调每个 adapter 的 `Probe()` + `SupportedFeatures()`（[ADR-0030](../../../decisions/drafts/0030-agentadapter-matrix-expansion.md)），结果上报 center。
 
 每项 `capability` 字段含义：
 
-- `agent_cli`：CLI 名
+- `agent_cli`：CLI 名（如 `claude-code` / `codex` / `opencode`）
 - `detected`：worker 探测结果（true / false）
 - `enabled`：用户开关；默认 = `detected`；可在 CLI 关掉某项
+- `version`（v2）：Probe 上报的 CLI 版本字符串
+- `supports_mcp`（v2，[ADR-0030](../../../decisions/drafts/0030-agentadapter-matrix-expansion.md)）：adapter 支持 MCP per-agent 注入
+- `supports_skills`（v2）：adapter 支持 skill file mount（[ADR-0028](../../../decisions/drafts/0028-skill-file-mount-lite.md)）
+- `supports_session`（v2）：adapter 支持 `--session-id` 续接
 
-Center 派单时只考虑 `detected=true && enabled=true` 的 CLI。
+Center 派单时只考虑 `detected=true && enabled=true` 的 CLI；feature 校验链按 `supports_mcp / supports_skills` 决定是否 NACK reason=`feature_unsupported`（详 [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md)）。
 
 ### 4.4 worker.yaml v2 形态（identity-only）
 

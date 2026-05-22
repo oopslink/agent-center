@@ -58,6 +58,7 @@ Worker → Center: DispatchAck { execution_id, accepted=true, message?, acked_at
 | `envelope_version_unsupported` | 防未来升级；本版本不识别 |
 | `secret_unresolvable` | mcp_config 内至少一个 `secret:<name>` 解析失败（not_found / revoked / not_authorized）；详 [ADR-0026](drafts/0026-user-secret-management-bc.md) + [ADR-0027](drafts/0027-mcp-per-agent-injection.md) |
 | `mcp_config_invalid` | AgentInstance.config.mcp_config JSON schema 不合法；详 [ADR-0027](drafts/0027-mcp-per-agent-injection.md) |
+| `feature_unsupported` | adapter 不支持本派单要求的 feature —— 如 agent_instance.mcp_config 非空但 worker.capabilities[agent_cli].supports_mcp=false；详 [ADR-0030](drafts/0030-agentadapter-matrix-expansion.md) |
 
 所有 NACK 必须同时填 `reason` + `message` 双字段（见 [conventions § 16](../../rules/conventions.md)）。
 

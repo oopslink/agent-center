@@ -43,7 +43,10 @@ import (
 
 // Adapter 封装一家 agent CLI 的所有差异。
 // 实现位于 internal/agentadapter/<cli-name>/。
+// v2 G3（[ADR-0030](../decisions/drafts/0030-agentadapter-matrix-expansion.md)）扩展了 5 个方法以承载 G1/G4/G5 的 per-CLI 翻译职责。
 type Adapter interface {
+    // === v1 方法 ===
+
     // Name 返回 CLI 标识符（"claude-code" / "codex" / "opencode"）。
     Name() string
 
@@ -58,7 +61,56 @@ type Adapter interface {
     // SupportsSession 报告本 CLI 是否支持 `--session-id` 类幂等会话标识。
     // 不支持的 CLI 在重启 / retry 时无法恢复 session（fallback：新建 execution）。
     SupportsSession() bool
+
+    // === v2 G3 新增方法（[ADR-0030](../decisions/drafts/0030-agentadapter-matrix-expansion.md)）===
+
+    // Probe 用于 capability 探测：worker daemon 每次 online 调；
+    // 返回该 CLI 是否在本机可用 + 版本字符串（如 "claude 0.4.2"）。
+    // 实现一般 = exec `<cli> --version` + 解析 stdout。
+    Probe(ctx context.Context) (available bool, version string, err error)
+
+    // SupportedFeatures 返回此 adapter 支持哪些 v2 高级特性。
+    // dispatch 校验链用之；上报 capabilities 时一同写入。
+    SupportedFeatures() FeatureSet
+
+    // BuildMCPConfigArg 把 canonical mcp_config.runtime.json 路径
+    // 翻译为该 CLI 接受的方式（cmd args / env / copy 到固定路径）。
+    // 见 [ADR-0027 MCP per-agent](../decisions/drafts/0027-mcp-per-agent-injection.md)。
+    BuildMCPConfigArg(runtimeJSONPath string) (MCPSetup, error)
+
+    // BuildSkillMountSetup 把 home_dir/skills/ 挂载给 CLI
+    // （`--skill-path` flag / setenv HOME + symlink ~/.claude/skills / 其他）。
+    // 见 [ADR-0028 Skill File Mount](../decisions/drafts/0028-skill-file-mount-lite.md)。
+    BuildSkillMountSetup(homeDirSkills, execDir string) (SkillMountSetup, error)
 }
+
+// FeatureSet 描述 adapter 对 v2 高级特性的支持情况。
+type FeatureSet struct {
+    SupportsMCP      bool
+    SupportsSkills   bool
+    SupportsSession  bool   // 跟 SupportsSession() 方法语义一致；冗余便于一次性读取
+}
+
+// MCPSetup describes how a particular CLI consumes the canonical mcp_config.runtime.json.
+type MCPSetup struct {
+    Args   []string            // 追加给 CmdSpec.Args（如 ["--mcp-config", "/path"]）
+    Env    map[string]string   // 追加给 CmdSpec.Env
+    CopyTo string              // 若 CLI 只从固定路径读，spawn 前 copy runtime.json 过去；空表示不需 copy
+}
+
+// SkillMountSetup describes how a particular CLI sees the home_dir/skills/ directory.
+type SkillMountSetup struct {
+    Mode     SkillMountMode    // CLIArg | SymlinkHomeClaude
+    Args     []string          // mode=CLIArg 时
+    Env      map[string]string // mode=SymlinkHomeClaude 时（如 HOME=<exec-dir>）
+    PreSpawn func() error      // mode=SymlinkHomeClaude 时创建 ~/.claude/skills 符号链接；nil 表无需 pre-action
+}
+
+type SkillMountMode int
+const (
+    SkillMountCLIArg SkillMountMode = iota
+    SkillMountSymlinkHomeClaude
+)
 
 type SpawnRequest struct {
     ExecutionID   string         // ULID；session-id 也用它
