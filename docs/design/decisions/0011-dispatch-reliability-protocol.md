@@ -48,8 +48,10 @@ Worker → Center: DispatchAck { execution_id, accepted=true, message?, acked_at
 
 | reason | 含义 |
 |---|---|
-| `worker_at_capacity` | 并发上限（`per_agent_type` 满）|
-| `agent_cli_unsupported` | Worker 不支持该 agent_cli adapter |
+| `worker_at_capacity` | Worker 并发上限（`per_agent_type` 满）|
+| `agent_unavailable` | AgentInstance state ∉ {idle, active}（sleeping / archived）（[ADR-0024](drafts/0024-agent-instance-first-class.md)）|
+| `capability_missing` | Worker capabilities 不含 agent_instance.agent_cli 或该项 enabled=false |
+| `agent_at_capacity` | AgentInstance 已达并发上限（`AgentInstance.max_concurrent` 满，[ADR-0024](drafts/0024-agent-instance-first-class.md)）|
 | `mapping_missing` | Worker 上无该 project 的 WorkerProjectMapping |
 | `worktree_path_busy` | worktree 模式 + 目标路径已被占用 |
 | `base_branch_missing` | worktree 模式 + base_branch 不在本地 repo |

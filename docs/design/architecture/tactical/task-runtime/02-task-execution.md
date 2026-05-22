@@ -101,7 +101,7 @@ stateDiagram-v2
 | `worker_id` | uuid | 派给哪个 worker（确定后不变） |
 | `status` | enum | submitted / working / input_required / completed / failed / killed |
 | `dispatch_state` | enum | pending_ack / acked / null（acked 之后或终态时为 null） |
-| `agent_cli` | string | 启 agent 用哪个 adapter（claude-code / codex / opencode） |
+| `agent_instance_id` | uuid | 强引用 AgentInstance（[ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md)），不可变；`agent_cli` 通过 join AgentInstance 拿 |
 | `workspace_mode` | enum | worktree / direct（透自 task.requires_worktree；VO 性质，见 § 8） |
 | `cwd` | string | 实际 CWD（worktree 路径 或 base_path） |
 | `branch_name` | string \| null | worktree 模式下的新 branch（默认 `task/<execution_id>`）；direct 模式 null |
@@ -136,10 +136,10 @@ DispatchEnvelope:
   project_id:      string
   conversation_id: uuid?              # task.conversation_id 透传；worker daemon 据此写进度 message / InputRequest 载体 message。null → 跳过 progress 写入；InputRequest 触发 fallback
 
-  # Workspace
-  agent_cli:       string             # claude-code | codex | opencode
-  workspace_mode:  string             # worktree | direct
-  base_branch:     string?            # worktree 模式默认 main
+  # Agent + Workspace
+  agent_instance_id: uuid             # 强引用 AgentInstance ([ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md))；worker 端 join AgentInstance 拿 agent_cli + config + home_dir
+  workspace_mode:    string           # worktree | direct
+  base_branch:       string?          # worktree 模式默认 main
 
   # Task content (worker 组装 prompt)
   task_title:                  string
@@ -182,7 +182,7 @@ DispatchService 协议视图见 [00-overview § 3.1](00-overview.md)。
 
 ## § 6. 不可变 / append-only
 
-- TaskExecution 一旦创建，`id` / `task_id` / `worker_id` / `agent_cli` / `workspace_mode` 等"派单契约"字段不可改
+- TaskExecution 一旦创建，`id` / `task_id` / `worker_id` / `agent_instance_id` / `workspace_mode` 等"派单契约"字段不可改
 - 状态机只能按 § 4 列的迁移路径走
 - 终态后不可变
 
@@ -347,7 +347,7 @@ Worker 本机为每条 execution 维护独立目录：
    - 无目录 → 建目录 → 写 envelope.json → 继续
    - 目录存在 + status.json.phase=running → 重发 ACK；不重起 shim
    - 目录存在 + status.json.phase=done → 重发 ACK；不做事
-3. 校验 envelope (agent_cli / mapping / base_branch / version)
+3. 校验 envelope (`agent_instance_id` 解析到本机已 known AgentInstance + 其 agent_cli ∈ capabilities[detected ∧ enabled] / mapping / base_branch / version)
 4. 失败 → NACK + reason + message；目录回滚
 5. 通过 → ACK
 6. 准备 workspace:
@@ -541,7 +541,7 @@ CLI → shim → worker daemon → forward to center → insert + emit `artifact
 2. **`execution_id` 唯一**：retry 创建新 id；旧 id 永远停在终态
 3. **执行权威在 Center**：Worker / Agent 不能直接改 execution 状态；状态变化由事件流转 → Center 写
 4. **状态机迁移单向**：终态 `completed` / `failed` / `killed` 不可逆
-5. **"派单契约"字段不可改**：`id` / `task_id` / `worker_id` / `agent_cli` / `workspace_mode` / `base_branch` / `branch_name` 创建后冻结
+5. **"派单契约"字段不可改**：`id` / `task_id` / `worker_id` / `agent_instance_id` / `workspace_mode` / `base_branch` / `branch_name` 创建后冻结（[ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md)）
 6. **每个 reason 字段配 message**（[conventions § 16](../../../../rules/conventions.md)）—— `completed_reason`+`completed_message` / `failed_reason`+`failed_message` / `killed_reason`+`killed_message`
 7. **大字段走 BlobStore**（[conventions § 8](../../../../rules/conventions.md)）
 8. **Artifact append-only**：insert 后不可修改 / 不可删（v1）

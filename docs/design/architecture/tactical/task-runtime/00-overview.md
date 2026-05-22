@@ -22,7 +22,7 @@
 
 ### 0.2 UL 切片
 
-直接来自 [strategic/03-bounded-contexts § 1.1](../../strategic/03-bounded-contexts.md) 标 TaskRuntime 上下文的术语：`Task` / `TaskExecution` / `InputRequest` / `Agent` / `Worktree` / `Artifact`。详细 UL 定义见 strategic/03。
+直接来自 [strategic/03-bounded-contexts § 1.1](../../strategic/03-bounded-contexts.md) 标 TaskRuntime 上下文的术语：`Task` / `TaskExecution` / `InputRequest` / `AgentInstance`（绑 dispatch；归属 Workforce BC，详见 [workforce/04-agent-instance.md](../workforce/04-agent-instance.md)） / `Worktree` / `Artifact`。详细 UL 定义见 strategic/03。
 
 ### 0.3 Context Map 位置
 
@@ -58,7 +58,7 @@
 
 | VO | 用在哪 | 描述 |
 |---|---|---|
-| **DispatchEnvelope** | TaskExecution 创建 | Center → Worker 派单载荷；含 execution_id / task_id / worker_id / project_id / conversation_id / agent_cli / workspace_mode / 等字段（详见 [02-task-execution § 5](02-task-execution.md)） |
+| **DispatchEnvelope** | TaskExecution 创建 | Center → Worker 派单载荷；含 execution_id / task_id / worker_id / project_id / conversation_id / agent_instance_id / workspace_mode / 等字段（详见 [02-task-execution § 5](02-task-execution.md)） |
 | **DispatchAck** | TaskExecution dispatch_state 转移 | Worker → Center: `{ execution_id, accepted=true, message?, acked_at }` |
 | **DispatchNack** | TaskExecution dispatch_state 转移 | Worker → Center: `{ execution_id, accepted=false, reason, message, acked_at }` |
 | **WorkspaceMode** | TaskExecution.workspace_mode 字段 | `worktree` \| `direct` 枚举；详见 [02-task-execution § 8](02-task-execution.md) |
@@ -93,16 +93,17 @@
 
 ### 3.1 DispatchService
 
-**职责**：Task → TaskExecution 创建 + Envelope 发送 + ACK/NACK 处理 + 单活校验。
+**职责**：Task → TaskExecution 创建 + Envelope 发送 + ACK/NACK 处理 + 单活校验 + AgentInstance 容量校验。
 
 | 维度 | 内容 |
 |---|---|
-| 入参 | `task_id`（必）+ worker pick result + agent_cli + workspace_mode + 等 |
+| 入参 | `task_id`（必）+ `agent_instance_id`（必，[ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md)）+ workspace_mode + 等；worker_id 通过 AgentInstance 拿 |
 | 出参 | 新建 TaskExecution + DispatchEnvelope 已下发 |
 | 协议 | Center → Worker `DispatchEnvelope`，Worker → Center `DispatchAck` 或 `DispatchNack`；30s 无 ACK → execution → `failed(reason='dispatch_no_ack')` |
+| Agent 校验 | dispatch 前查 AgentInstance：`state ∈ {idle, active}` ∧ `agent_cli ∈ worker.capabilities[detected ∧ enabled]` ∧ `count(active executions) < min(worker.concurrency.per_agent_type, agent.max_concurrent ?? ∞)`；不满足 → NACK reason=`agent_unavailable / capability_missing / agent_at_capacity` |
 | 单活校验 | Center dispatch 前查 task：若 `current_execution_id` 不为 null 且对应 execution 在非终态 → 拒绝（应用层校验，DB tx 内） |
 | Retry 语义 | 不内置；同 task 再 dispatch = 创建新 execution_id；新 / 老 execution 走同一代码路径 |
-| 跨聚合 | 写 Task（`current_execution_id` 更新）+ 写 TaskExecution（新建）；单事务 |
+| 跨聚合 | 写 Task（`current_execution_id` 更新）+ 写 TaskExecution（新建）+ 可能触发 AgentInstance.state idle → active（通过 AgentInstanceLifecycleService）；单事务对 Task + TaskExecution，AgentInstance state 通过事件订阅异步 |
 | 兜底 | `max_executions_per_task=3`（v1 全局默认）；超限 emit `task.dispatch_limit_reached` |
 
 详见 [02-task-execution § 5-6 DispatchEnvelope + worker 端运行时](02-task-execution.md) 与 [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md) / [ADR-0018](../../../decisions/0018-detached-agent-via-per-execution-shim.md)。

@@ -227,6 +227,7 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `worker_config.center_endpoint` | URL | - | 同上 | center gRPC / HTTP 地址 |
 | `worker_config.session_token_file` | path | `~/.agent-center/credentials` | [ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md) | session token 落盘位置（mode 0600）；`agent-center join` 兑换后写入 |
 | `worker_config.exec_base_dir` | path | `~/.agent-center-worker/exec` | [ADR-0018 § 3](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 root |
+| `worker_config.agents_base_dir` | path | `~/.agent-center-worker/agents` | [ADR-0024 § 5](../decisions/drafts/0024-agent-instance-first-class.md) | AgentInstance 持久 home_dir 根（每个 agent 一个子目录 `<agent_instance_id>/`）|
 | `worker_config.gc_exec_retention_hours` | int | 24 | [ADR-0018 § 9](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 GC |
 | `worker_config.heartbeat_interval_seconds` | int | 10 | [task-runtime § 3.3](../architecture/tactical/task-runtime/00-overview.md) | 心跳频次（worker 端）|
 | `worker_config.heartbeat_timeout_seconds` | int | 60 | 同上 | center 端 worker offline 阈值（注：center 配置项，仅作参考列在此处） |
@@ -319,6 +320,7 @@ worker_config:
   session_token_file: "~/.agent-center/credentials"
 
   exec_base_dir: "~/.agent-center-worker/exec"
+  agents_base_dir: "~/.agent-center-worker/agents"
   gc_exec_retention_hours: 24
   heartbeat_interval_seconds: 10
   daemon_socket_path: "~/.agent-center-worker/daemon.sock"
