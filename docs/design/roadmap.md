@@ -52,6 +52,19 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ## v3（中期）
 
+### 云 Computer 节点支持
+
+把 Worker 从「开发机 daemon」扩展为「可注册的算力节点」（含云节点），允许 agent-center 按需在云节点拉起 worker，加大算力池弹性。来自 [v2-kickoff 议题 E2](drafts/v2-kickoff-2026-05-22.md)，2026-05-22 用户决定移到 roadmap。
+
+- **v2 不做的原因**：v2 thesis 把「算力管理」收窄到 E1 enroll 轻量化；云节点引入云凭据 / cloud provider abstraction / 节点拉起 / 计费等新维度，跨度太大；先做轻量本地多机管理打地基
+- **触发条件**：用户开始有「临时跑大量 agent 干一个项目」需求；或本地多机算力明显不够
+- **影响**：
+  - 引入 `ComputerProvider` 抽象（local / aws / gcp / ...）
+  - Worker AR 加 `provider_kind` / `provider_metadata` 字段
+  - 新协议「按需拉起 worker」：center 调 provider API → 启动云节点 → 节点上自动跑 `agent-center join` → 加入算力池
+  - 跟「跨节点 agent 调度」（可能跟 G1 AgentInstance 配套）联动
+- **依据**：[竞品报告 § 3.6 + § 3.7](research/competitive-analysis-2026-05-21.md) Slock Computer 抽象
+
 ### Web 时间轴可视化（trace flamegraph）
 
 类似 Honeycomb / Jaeger / Chrome devtools 的横向时间轴 + flamegraph，专做 trace 可视化。

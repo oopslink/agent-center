@@ -12,7 +12,7 @@
 | F8 | Supervisor 跨事件保留 working memory（按 scope 持久化） |
 | F9 | Supervisor 每日定时 review，向用户推送摘要卡片 |
 | F10 | 用户可在 VPS 本机 CLI 查询 / 操作状态（`agent-center query / promote-suggestion / ...`） |
-| F11 | Worker 启动时凭 bootstrap token 注册，获得长期 session token |
+| F11 | Worker 通过 `agent-center join <center-endpoint> --token=<bootstrap-token>` 一行命令接入，凭一次性 bootstrap token 兑换长期 session token；token 是独立 Entity（TTL 30min，支持 reissue / revoke）。详见 [ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md)。 |
 | F12 | 任意任务可查询完整时间线（事件 / tool call / 状态 / 产物） |
 | F13 | Supervisor 每次调用可查询：触发原因、注入上下文、prompt、输出、tool call、决策 |
 | F14 | 任意任务可实时 tail 日志（CLI + 飞书） |
@@ -24,4 +24,4 @@
 | F20 | _（已废弃 / 合并到 [架构 / Workforce BC](../architecture/tactical/workforce/00-overview.md)）_ |
 | F21 | 提供本地 **Web Console UI**（嵌入 `agent-center server` 进程），仅本机绑定（loopback），用户通过 SSH 隧道访问。v1 覆盖 task / issue 的查看与管理 + agent 可观测性（fleet view / 单任务 trace 概览）。SSH 隧道由用户自理（不在本项目范围）。详见 [架构 / Web Console](../architecture/tactical/presentation/01-web-console.md)。 |
 | F22 | Task 支持父子层级：每个 Task 有可选的 `parent_task_id`，可查询子任务列表，`inspect task` 展示子任务。v1 **不做**父子状态联动（取消 / 完成不自动传播），由 supervisor 显式控制。完整 DAG 依赖见 [roadmap.md](../roadmap.md) v3。 |
-| F23 | Worker 自动扫描 `discovery.scan_paths`（worker.yaml 配置）发现候选项目 → 作为 `WorkerProjectProposal` 上传 → 飞书卡片让用户确认 → 升级为 `WorkerProjectMapping`。详见 [架构 / WorkerProjectProposal 聚合](../architecture/tactical/workforce/03-worker-project-proposal.md) 与 [ADR-0008](../decisions/0008-worker-project-mapping-via-discovery-proposal.md)。 |
+| F23 | Worker 自动扫描 `discovery.scan_paths`（来自 center 下发的 Worker config，可通过 `agent-center worker config set ...` 修改）发现候选项目 → 作为 `WorkerProjectProposal` 上传 → 飞书卡片让用户确认 → 升级为 `WorkerProjectMapping`。详见 [架构 / WorkerProjectProposal 聚合](../architecture/tactical/workforce/03-worker-project-proposal.md) 与 [ADR-0008](../decisions/0008-worker-project-mapping-via-discovery-proposal.md) + [ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md)。 |

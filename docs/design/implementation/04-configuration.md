@@ -217,23 +217,25 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `execution.max_executions_per_task` | int | 3 | [task-runtime § 3.1](../architecture/tactical/task-runtime/00-overview.md) | 单 task 最大 retry |
 | `execution.kill_grace_seconds` | int | 5 | [05-agent-adapters § 4.2](05-agent-adapters.md) | SIGTERM → SIGKILL grace |
 
-### 7.7 `worker_config.*`（worker mode 专用）
+### 7.7 `worker_config.*`（worker mode 专用，v2 identity-only + 本地基础设施）
+
+> v2: `concurrency.*` / `discovery.*` / `agent_cli`（capabilities）已从 worker.yaml 迁到 **Worker AR 在 center DB 的字段**（[ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md)）；worker daemon online 时通过 reconcile 拉取，`worker.config.updated` 长连推送同步变更。worker.yaml 只剩 identity + 本机文件系统 / 进程基础设施配置。
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| `worker_config.id` | string | - | [workforce/01](../architecture/tactical/workforce/01-worker.md) | worker 唯一 ID（enroll 时分配）|
-| `worker_config.bootstrap_token_file` | path | - | 同上 | 首次注册一次性 token（走 [§ 3](#-3-凭据处理)）|
-| `worker_config.center_endpoint` | URL | - | 同上 | center gRPC 地址 |
-| `worker_config.concurrency.per_agent_type` | int | 2 | [NF6](../requirements/02-non-functional.md) / [workforce/01](../architecture/tactical/workforce/01-worker.md) | 单 agent CLI 类型最大并行 |
-| `worker_config.discovery.scan_paths` | list[path] | `[]` | [workforce/01](../architecture/tactical/workforce/01-worker.md) | project 自发现扫描根 |
-| `worker_config.discovery.exclude` | list[glob] | `[**/node_modules/**, **/.git/**, **/target/**]` | 同上 | 排除 glob |
-| `worker_config.discovery.scan_interval` | duration | `1h` | 同上 | 周期扫描间隔 |
-| `worker_config.agent_cli` | list[enum] | `[claude-code]` | [05-agent-adapters](05-agent-adapters.md) | 启用的 adapter |
+| `worker_config.id` | string | - | [workforce/01](../architecture/tactical/workforce/01-worker.md) | worker 唯一 ID（`agent-center join --worker-id=...` 指定）|
+| `worker_config.center_endpoint` | URL | - | 同上 | center gRPC / HTTP 地址 |
+| `worker_config.session_token_file` | path | `~/.agent-center/credentials` | [ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md) | session token 落盘位置（mode 0600）；`agent-center join` 兑换后写入 |
 | `worker_config.exec_base_dir` | path | `~/.agent-center-worker/exec` | [ADR-0018 § 3](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 root |
 | `worker_config.gc_exec_retention_hours` | int | 24 | [ADR-0018 § 9](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 GC |
-| `worker_config.heartbeat_interval_seconds` | int | 10 | [task-runtime § 3.3](../architecture/tactical/task-runtime/00-overview.md) | 心跳频次 |
-| `worker_config.heartbeat_timeout_seconds` | int | 60 | 同上 | center 端 worker offline 阈值 |
+| `worker_config.heartbeat_interval_seconds` | int | 10 | [task-runtime § 3.3](../architecture/tactical/task-runtime/00-overview.md) | 心跳频次（worker 端）|
+| `worker_config.heartbeat_timeout_seconds` | int | 60 | 同上 | center 端 worker offline 阈值（注：center 配置项，仅作参考列在此处） |
 | `worker_config.daemon_socket_path` | path | `~/.agent-center-worker/daemon.sock` | [NF11](../requirements/02-non-functional.md) | worker daemon unix socket（agent CLI 调用入口）|
+
+> **v2 不在 worker.yaml**（迁到 center 主导，详见 [01-worker.md § 4](../architecture/tactical/workforce/01-worker.md)）：
+> - `concurrency.per_agent_type` → Worker AR `concurrency`
+> - `discovery.scan_paths` / `exclude` / `scan_interval` → Worker AR `discovery`
+> - `agent_cli` → Worker AR `capabilities`（worker 端 `which` 探测上报）
 
 ### 7.8 `observability.*`
 
@@ -308,39 +310,22 @@ observability:
 
 ### 8.2 worker 模式
 
-`~/.agent-center-worker/config.yaml`：
+`~/.agent-center-worker/config.yaml`（v2: identity-only + 本地基础设施；`agent-center join` 自动生成）：
 
 ```yaml
 worker_config:
   id: "W-laptop-hayang"
-  bootstrap_token_file: "~/.agent-center-worker/bootstrap-token"
   center_endpoint: "grpc://agent-center.example.com:7000"
-
-  concurrency:
-    per_agent_type: 2
-
-  discovery:
-    scan_paths:
-      - "~/code"
-      - "~/work"
-    exclude:
-      - "**/node_modules/**"
-      - "**/.git/**"
-      - "**/target/**"
-    scan_interval: "1h"
-
-  agent_cli:
-    - "claude-code"
+  session_token_file: "~/.agent-center/credentials"
 
   exec_base_dir: "~/.agent-center-worker/exec"
   gc_exec_retention_hours: 24
   heartbeat_interval_seconds: 10
-  heartbeat_timeout_seconds: 60
   daemon_socket_path: "~/.agent-center-worker/daemon.sock"
 
 agent_cli:
   claude_code:
-    binary: "claude"   # PATH 上找
+    binary: "claude"   # PATH 上找；探测后自动上报 capability 给 center
 
 blob_store:
   # worker 模式仅在上传 log 归档时用，根用 center 推回的 URL；
