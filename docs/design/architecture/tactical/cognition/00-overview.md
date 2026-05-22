@@ -348,7 +348,32 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 跟 [worker-side prompt 组装](../agent-harness/01-prompt-assembly.md) 是**两套独立机制**，不复用。
 
-### 7.5 跟 worker-side agent 的对比
+### 7.5 派单失败时的 Supervisor 标准 SOP
+
+> 来源：[ADR-0025 agent:create 协议 = G1 CLI Endpoint](../../../decisions/drafts/0025-agent-create-via-cli-not-protocol.md)
+
+派单 NACK 含跟 AgentInstance 相关的 reason（[task-runtime/00-overview § 3.1](../task-runtime/00-overview.md) + [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md)）：
+
+| NACK reason | Supervisor 标准动作 |
+|---|---|
+| `agent_unavailable` | 评估其他 agent_instance；无适合的 → 开 Issue 描述「agent X 暂不可用」 |
+| `capability_missing` | 评估其他 (worker, agent) 组合；无 → 开 Issue 描述「worker Y 缺 CLI Z / 建议建新 agent」 |
+| `agent_at_capacity` | 短暂等待（min(eta, 5min) 后 retry）或派给别的 agent；持续打满 → 开 Issue 提示用户考虑加 capacity |
+
+**严格禁止的动作**：
+
+- ❌ Supervisor 调 `agent-center agent create / config set / archive` 等 CLI
+- ❌ Supervisor 提议 / 模拟 propose-then-commit 流程
+- ❌ Issue 内嵌结构化 `proposed_agent_spec`（v2 不引入此字段）
+
+**允许的动作**：
+
+- ✅ Supervisor 在 Issue 内**纯文字**描述「需要 agent X / 建议在 worker Y 上装 Z CLI」等
+- ✅ Issue conclude 后用户自己跑 CLI 建 agent
+
+理由：AgentInstance 是「资产配置」决策实体，跟 Project / Worker 同质，按 S4 归用户拍板。Supervisor 是 agent，不是 Center 自身，没有持创建权。
+
+### 7.6 跟 worker-side agent 的对比
 
 | 维度 | Supervisor agent | Worker agent |
 |---|---|---|
