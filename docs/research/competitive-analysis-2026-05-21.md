@@ -90,16 +90,18 @@ Agent Daemon (用户机器，每 3s poll，15s heartbeat)
 
 **架构**（推断 + 第一手）：
 ```
-chat 服务端（slock.ai 托管，可能也支持私有部署）
+Slock server（slock.ai 托管，可能也支持私有部署）
         │
         ↓  消息总线（channels / DMs / threads / tasks / reminders）
         ↑
-slock CLI（在每台 computer 上）
+slock CLI（每台已注册 computer 上）
         │
         ├─ 把人接进来（Web / 客户端）
-        └─ 把 agent 接进来（agent 进程 + MEMORY.md workspace）
-            agent 是"绑定到 server+computer 的持久身份"
-            sleep / wake 由消息事件驱动
+        └─ 把 agent 接进来：
+            ├─ 已注册的 computer（本地 / 云）作为 agent 算力池
+            ├─ agent = CLI 进程（spawn 现成的 claude / codex 类 CLI）
+            ├─ 每 agent 有持久 workspace（含 MEMORY.md）绑到 (server, computer)
+            └─ 消息事件触发 sleep / wake，按需拉起进程
 ```
 
 **核心概念**：
@@ -107,18 +109,18 @@ slock CLI（在每台 computer 上）
 | 概念 | 释义 |
 |---|---|
 | **Server** | 一个 Slock 实例，包含 channels 和成员 |
+| **Computer** | **注册到 Slock 的算力节点（本地或云）**，agent 真正运行的物理机器；一个 server 下可挂多个 computer，形成 agent 算力池 |
 | **Channel** | `#name`，公开/私密，agent 可以 join/leave |
 | **DM** | 1:1 私聊（也支持 thread） |
 | **Thread** | 任意消息可派生 thread（`#channel:msgshortid`），不可嵌套 |
 | **Task-message** | 任意 top-level 消息可升级为 task，带 status (`todo` / `in_progress` / `in_review` / `done`) + assignee + claim 锁；**status 与 assignee 独立** |
-| **Agent** | 跟 human 平等的参与者；有稳定 @handle，绑到 `(server, computer)`；workspace 目录持久（含 MEMORY.md） |
-| **Computer** | agent 真正运行的物理机器（多个 computer 可跨在不同主机） |
+| **Agent** | 跟 human 平等的参与者；有稳定 @handle；绑到 `(server, computer)`；workspace 目录持久（含 MEMORY.md）；**底层是 spawn 出来的 CLI 进程**（claude / codex / opencode 等） |
+| **Action Card** | 给人点击执行的命令卡（B-mode quick-commit shortcut）；变体含 `agent:create` —— **支持用户在 chat 里动态创建新 agent** |
 | **Reminder** | 作者所有的持久 wake-up signal，可锚定到 message/thread |
-| **Action Card** | 给人点击执行的命令卡（B-mode quick-commit shortcut） |
 
 **典型工作流**：
 1. 人在 `#engineering` 发消息 `@agent-X 帮我处理一下…`
-2. agent 进程收到消息事件被唤醒（如果在 sleep）
+2. agent 进程被事件唤醒（如在 sleep，由 daemon 在指定 computer 上按需拉起）
 3. agent 用 `slock task claim` 锁定 task，进入 `in_progress`
 4. agent 在 thread 里发进度更新
 5. 完成后 `slock task update --status in_review`，人审查后置 `done`
@@ -126,8 +128,8 @@ slock CLI（在每台 computer 上）
 
 **它的核心赌注**：
 - **Chat-as-coordination**：所有协调（任务、决策、提问、确认）都在消息流里发生，没有独立看板
-- **Agent = 持久身份**，不是无状态 worker；MEMORY.md 跨次累积
-- **多 computer**：agent 散落在用户的多台机器，消息层是统一界面
+- **Agent = 持久身份 + 按需拉起的 CLI 进程**：身份和 workspace 一直在，进程按消息事件 spawn/sleep；底层用现成 CLI（claude / codex / opencode），跟 agent-center / Multica 同道
+- **Computer 是显式一等公民**：算力节点可注册本地或云，形成 agent 算力池；这是它的**弹性能力来源**
 - **没有中央调度官**：work 靠 @mention + claim 自组织，类比 Slack 群协作
 - **平等性**：human 和 agent 在 UI 上完全平权 —— @handle / profile / 反应 / 提及 全一样
 
@@ -157,7 +159,7 @@ slock CLI（在每台 computer 上）
 | 16 | **可观测/Trace** | events 表 + AgentTrace 归档 BlobStore | Activity + token 用量 + runtime usage | 消息流 + reactions |
 | 17 | **后端栈** | Go + SQLite (modernc, no CGo) | Go (Chi+sqlc+WS) + PostgreSQL+pgvector | 不可见 |
 | 18 | **认证 / 多租户** | **无**（v1 SSH 进 VPS 跑 CLI） | OAuth + PAT + daemon token + RBAC + workspace 隔离 | 平台层处理 |
-| 19 | **部署** | 单 VPS + Worker 散在用户机 | Cloud（官方） + 自托管 docker | 云托管（自托管未知） |
+| 19 | **部署** | 单 VPS + Worker 散在用户机 | Cloud（官方） + 自托管 docker | Slock server 托管 + computer 节点可注册本地或云（弹性算力池） |
 | 20 | **代码状态（2026-05-21）** | Phase 2 完成（~33k LoC / 89.9% 覆盖），P3-P7 ahead | 已上线，monorepo 成熟 | 已上线，公开 |
 | 21 | **开源** | 是（个人项目） | 是（modified Apache 2.0） | 闭源（推断） |
 | 22 | **商业模式** | 无 | OSS + Cloud + 自托管商业支持 | SaaS（推断） |
@@ -241,12 +243,114 @@ slock CLI（在每台 computer 上）
 |---|---|
 | **agent-center** | 全 spawn CLI，center 一行 anthropic SDK 不依赖；可换大脑 |
 | **Multica** | **完全相同** —— 自述"不自己训模型，也不锁定某一家厂商；Multica 是调度器"。Daemon 自动探测 11 个 CLI |
-| **Slock** | **不适用** —— Slock 是消息平台，不关心 agent 用什么实现 LLM 调用 |
+| **Slock** | **同道** —— Slock agent 底层也是 spawn 出来的 CLI 进程（claude / codex / opencode 等），消息事件触发拉起；Slock 自己不调 LLM SDK |
 
 **点评**：
-- **这条你和 Multica 完全同道** —— 都走 CLI agent 路线，都不锁单一厂商。
+- **三家完全同道** —— 都走 CLI agent 路线，都不锁单一厂商。这条赌注**已被三家用脚投票**：在 v1/v2 这个时代，spawn CLI 是工程性价比最高的选项。
 - **Multica 探测的 CLI 比你多得多**（11 vs 3：claude + codex stub + opencode stub）。**这是你能直接照搬的 —— agentadapter 多写几个**。
 - 但要注意：Multica 的 11 个 CLI 里很多是简单 wrap（参数注入 + JSONL 解析），不复杂；麻烦的是各家 headless 输出格式不一致，adapter 层得吃这部分。
+- **Slock 进一步把"agent 拉起"做成了弹性能力**（见 § 3.6 新增的对照）—— 这是从 spawn CLI 思想衍生出的、值得学的设计。
+
+### 3.6 算力节点 / Worker 拓扑模型
+
+> agent-center 把 Worker 当"开发机上的常驻 daemon"，每台机器一个，长连接挂着；agent 进程在事件触发时被该 daemon spawn。
+
+| | 怎么做的 | 弹性 |
+|---|---|---|
+| **agent-center** | Worker daemon 是常驻进程，agent 是 per-execution spawn 短命进程；Worker 在 Center 长连接里 enroll 一次后稳定，**Worker 数量 = 用户开发机数量**（手动拉起） | ⬇️ 低 —— 加节点要装 daemon + bootstrap token + 改配置 |
+| **Multica** | Daemon 同上，每机器一个；3s poll + 15s heartbeat；runtime 注册后稳定；通过 `Max Concurrent Tasks` 控制单 agent 并发 | 🟡 中 —— 多机器手动装，但 runtime usage / activity 可视化 |
+| **Slock** | **Computer 是显式一等公民**：可注册本地机器或云节点，形成 agent 算力池；agent 跨 computer 散布；**新建 agent 可在任意已注册 computer 上拉起**（含云）；action card 含 `agent:create` 让人在 chat 里直接动态创建新 agent | ⭐ 高 —— **按需拉起 + 算力池弹性** |
+
+**点评**：
+- **Slock 的 computer 抽象是真有意思的设计**。它把"算力节点注册" 跟"agent 身份"显式分开：computer 是机器、agent 是身份，N 个 agent 可以跑在同一 computer，agent 可以迁机器。
+- agent-center 现在把这两件事耦合在 Worker daemon 上 —— "我有 worker daemon 在机器 A" = "机器 A 上能跑活"。Worker daemon 死了 → 整机失能。
+- **加云 computer 节点的能力是 agent-center 缺的弹性维度**。当你想临时跑大量 agent 干一个项目时，agent-center 必须有现成的 Worker；Slock 可以临时拉起云 computer。
+- **跟 v1 vision 的冲突**：Vision B2 明确 "v1 不是 SaaS / 不是多租户"，云节点本质上把 v1 推向"我得管别人机器" —— 跟个人工具定位有张力。**但本地多机器 + 即开即用的设计仍可学**：把 Worker daemon 的 enroll 流程做轻（v1 现在的 bootstrap token 流程不轻），让加节点像 `slock` 那样秒级。
+- **可立即抄的点**：把"agent 配置实体"（Multica 用法）跟"Worker daemon 节点"（agent-center 现状）解耦 —— agent 是逻辑身份 + 选择跑在哪台 Worker 上；这样未来加云节点不会动 agent 的身份。
+
+### 3.7 Slock Computer + Agent 模型 vs agent-center 概念深扎
+
+> § 3.6 给的是"算力节点弹性"的结论；本节是同一主题往下挖一层 —— **Slock 的 Computer / Agent 两个一等实体，在 agent-center 的 DDD 模型里有没有对应物？**
+> 这里只看 Slock vs agent-center 两家（Multica 的 agent / runtime 两实体是另一种解法，前面已述）。
+
+#### 1:1 对应表
+
+| Slock | agent-center 现有 | 对应度 |
+|---|---|---|
+| **Server**（chat 服务端 / 状态权威） | **Center server**（VPS 常驻 / 状态权威） | ⭐⭐⭐ 几乎完全对应 |
+| **Computer**（注册到 Slock 的算力节点） | **Worker**（开发机上的 daemon） | ⭐⭐ 半对应 |
+| **Agent**（持久身份，绑到 `(server, computer)`） | **❌ 没显式实体** | ⭐ 缺位 |
+| **Agent 进程**（spawn 的 CLI 实例） | **Worker agent 进程**（per-execution spawn 的 CLI 实例） | ⭐⭐⭐ 对应（生命周期不同） |
+| **`agent:create` action card** | **❌ 没对应** | ⭐ 缺位 |
+
+#### 关键差异（三处）
+
+**差异 1：Worker ≠ Computer，概念边界不同**
+
+| 视角 | 释义 |
+|---|---|
+| agent-center 的 Worker | "**我有 daemon 跑在这台机器上**"（进程视角） |
+| Slock 的 Computer | "**我有这个算力节点在池子里**"（资源视角） |
+
+物理上都是"一台机器"，但 Slock 把它显式抽象为"可注册的算力节点"，与节点上的进程解耦。结果：
+- Slock 加云节点 = 注册一个新 Computer，不动 agent 身份
+- agent-center 加远程机器 = 装 Worker daemon + bootstrap token + Center 配置，**Worker daemon 死 = 整机失能**
+
+**差异 2：agent-center 没有"Agent 持久身份"实体**
+
+在 agent-center v1：
+- "agent" 不是 BC 里的 AR / Entity / VO，只是"Worker 上跑的 CLI 工具实例"（[UL § 1.1](../design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language)）
+- TaskExecution `1:1` Agent，**execution 结束 agent 进程就没了**
+- 没有"my agent `coding-assistant-1` 在 Worker `home-mbp` 上"这种持久关系
+- 跟 Slock（agent 是 first-class identity）和 Multica（agent 是配置实体）都不一样
+
+**差异 3：动态创建 agent 的协议缺失**
+
+| 系统 | 新 agent 怎么来 |
+|---|---|
+| Slock | 用户在 chat 里点 `agent:create` action card → 拉起一个新 agent |
+| agent-center | agent 是隐式的：dispatch envelope 里指定 `agent_kind=claudecode`，Worker spawn 一个进程，结束就完。**没有"我想新建一个长期叫 X 的 agent"概念** |
+
+#### 现有可类比的最近近似物
+
+agent-center 现在有这些近邻概念，但没拼成 Slock 的 Computer+Agent 模型：
+
+| 现有 | 跟 Slock 的 Computer+Agent 的差距 |
+|---|---|
+| **Worker enroll** （bootstrap token 换 session token） | 接近 Slock "computer 注册"，但流程重 + 跟 daemon 绑死 |
+| **WorkerProjectMapping**（worker_id, project_id → base_path） | 接近 Slock `(server, computer)` 绑定，但**第三维 agent 缺**；Mapping 的轴是 worker × project，不是 worker × agent |
+| **WorkerProjectProposal**（Worker 扫描发现候选 mapping） | [ADR-0008](../design/decisions/0008-worker-project-mapping-via-discovery-proposal.md) 的"自动发现 + 用户确认"流程，跟 Slock 的注册理念同向 |
+| **DispatchEnvelope**（运行时下发的 prompt + skill + tooling） | 接近 Slock "spawn 一个 agent 进程"，但每次 dispatch 都是新进程，没有"叫 X 的那个 agent" |
+
+#### 最小映射设计（如果决定补）
+
+新增一个聚合 **`AgentInstance`**（暂名）放在 Workforce BC 或新建 BC：
+
+```
+AgentInstance {
+  id             // 持久 ID
+  name           // 用户起的名字 ("coder-mbp", "tester-server")
+  agent_kind     // claudecode / codex / opencode
+  worker_id      // 默认跑在哪个 Worker（可改）
+  config         // instructions / mcp_config / max_concurrent / env / args
+  workspace_dir  // 持久工作目录（含 CLAUDE.md / 笔记）
+  state          // idle / working / sleeping / archived
+}
+
+TaskExecution.agent_instance_id     // 新增字段
+WorkerProjectMapping → AgentProjectMapping  // 多一维：agent
+```
+
+带来的：
+- Worker daemon 死了 = 它上面的 agent 进入 sleeping，但 AgentInstance 实体活着 → 重启 daemon 后被唤醒
+- 加新 worker 节点 = 把 AgentInstance 迁过去（改 `worker_id`），agent 身份不变
+- 给 Supervisor 提供"约 agent X 接 task Y"的能力（区别于现在的"派任务到 Worker，由 Worker 选 agent_kind"）
+
+#### 跟 v1 vision 的相容性
+
+- **不触碰多租户** —— 只动 Workforce BC 内部结构，符合"个人工具"边界（vision B2）。
+- **需要新立 ADR** —— 因为推翻了"agent 不是 first-class entity"的现状；候选编号 ADR-0022 "AgentInstance as Workforce Entity"，supersede [ADR-0008](../design/decisions/0008-worker-project-mapping-via-discovery-proposal.md) 中 Mapping 的两维结构。
+- **跟 Multica 的 agent 配置实体异同**：Multica 的 `agent` 表是"配置 + runtime 绑定"的统一实体；本设计的 AgentInstance 跟 Multica 的高度相似（实际上是 Multica 用法 + Slock 持久身份的合并）。这是吸收同行成熟设计的低风险路径。
 
 ---
 
@@ -282,6 +386,8 @@ slock CLI（在每台 computer 上）
 4. **Slock 的 reactions** —— 飞书卡片之外可以加 emoji 反馈机制做"轻量决策投票"。
 5. **Slock 的 reminder** —— 你的 Supervisor 想"5 分钟后回来看一下任务"的能力 = reminder。当前 supervisor 短命模型必须靠"重新被事件唤醒"实现这件事，加 reminder 机制后 prompt 更自然。
 6. **Multica 的 Autopilot cron 触发** —— 你的"事件触发"目前只覆盖领域事件，加 cron 后能解锁"每天早上 9 点让 supervisor 复盘所有 issue"这类用法。
+7. **Slock 的 Computer 抽象 + 按需拉起 agent**（§ 3.6 重点）—— 把"算力节点"（Worker 机器）跟"agent 身份"显式解耦：computer 是算力池里的一个节点（本地或云均可），agent 是逻辑身份选某 computer 跑。**这是 agent-center 现在缺的弹性维度** —— 现状是 Worker daemon 死了整机失能；解耦后未来加云节点不动 agent 身份。短期落地：把 Worker enroll 流程做轻（参 Slock 的 `slock` 一键接入体验），让加节点秒级；中期落地：让 dispatch envelope 显式选 `(worker, agent)` 而不是隐式绑到单一 worker。
+8. **Slock 的 `agent:create` action card**（动态新增 agent 的协议）—— 让用户/supervisor 都能在 chat 里动态拉起新 agent，而不是预配置静态列表。对 agent-center 是 "Workforce BC 是否需要 agent 配置实体" 的输入，可能 v2 考虑。
 
 ---
 
@@ -293,8 +399,43 @@ slock CLI（在每台 computer 上）
 
 - **不要做团队多租户**。这是 Multica 的主战场，跟你的 vision B2 (v1 不是 SaaS) 冲突，走那条要"基本重新做项目"。
 - **不要做"all-in-one chat 平台"**。这是 Slock 的主战场，你的优势是**借用 IM**（飞书）而不是自建。继续把 Bridge BC 当 ACL 而不是产品本身。
-- **不要做 web 看板**。Multica 已经做得很完整（issue/board/timeline/project/skill 页面齐全），你跟着做没有边际收益，且违背 IM-first 原则。
-- **不要把 agent 升级成"polymorphic actor"** —— S4 是你的 thesis 支柱，这一条改了 thesis 就空了。
+- **不要追平 Multica 那种"协作中枢级 web 看板"，但保留一个"任务管理面"是值得做的**（**用户 2026-05-21 修订**）。
+
+  *拆开两件事*：
+
+  | 类型 | 用途 | 在 agent-center 该不该做 |
+  |---|---|---|
+  | **任务管理面**（task management view） | 跨项目看所有 open/working/done 任务、搜索过滤、批量改 status、查 task 历史 trace | ✅ 应当做 —— 用户原话"方便任务管理"，单人也需要全局视图，CLI grep 不顺手 |
+  | **协作中枢看板**（collaboration hub） | issue/board/timeline/project/skill/inbox/comment 全套，团队成员 80% 协作动作在里面发生 | ❌ 不应追平 —— 用户是个人，无团队协作刚需；Multica 是 4 团队复杂度 UI（Next.js 16 + Electron + monorepo），追平 = frontend 1 年起步 |
+
+  *任务管理面跟 IM-first 怎么共处*：
+
+  | 面 | 职责 | 边界 |
+  |---|---|---|
+  | **飞书 IM**（S3 决策审计）| **决策动作发生地**：派单、escalate、input_request、conclude、approve 全在卡片上 | 唯一可"动手"的面 |
+  | **任务管理面** | **只读 + 边边角角的运维**：list / 搜索 / trace 回看 / batch suspend/resume / 看 worker 在线状态 | **不放决策动作** —— 决策永远跳回 IM 卡片 |
+
+  这样 S3（vision 押的"所有决策在 IM 发生"）不被稀释，同时获得"全局可见 + 管理便利"。**关键设计纪律：任务管理面禁止承载任何 LLM Supervisor 决策、issue conclude、input_request 应答这类高阶动作**。承载这类动作就回到了"卡片在 IM / 详情在 web"双源问题。
+
+  *跟 v1 vision 的兼容路径*：任务管理面可以是个 SSR Web 服务（Go 直接渲染，无 SPA），只读为主，写动作走少量 form post 调 CLI；或者就是 `agent-center status` / `agent-center tasks` 这类增强 CLI + 一个简单的 server-side rendered HTML dashboard。**避免引入 SPA frontend + state management 这一整套技术债**。
+
+- **不要把 agent 升级成"polymorphic actor"**。
+
+  *什么是 polymorphic actor*：Multica 的设计范式 —— 几乎所有"谁做了什么"的字段都是 `actor_type` (`member` | `agent`) + `actor_id` 两段式（详见 [§ 1.1 Multica 速写](#11-multica) 核心概念表最后一行）。结果：**agent 跟 human 在产品里完全平权** —— agent 能创建 issue、能在评论里 @ 别人、能订阅、能被订阅、能加 emoji 反应、能在 Squad 里当 leader 派任务给其他 agent。
+
+  *"升级成"是什么意思*：指未来某天有人提议 "为什么不让 worker agent 自己开 task？" / "为什么不让 supervisor 派给另一个 supervisor？" / "为什么 worker agent 不能 @ 别的 agent 协作？" —— 这些都是 polymorphic actor 思维的具体提案。每一条单独看都"显得合理"。
+
+  *为什么"S4 是 thesis 支柱"*：[Domain Vision § 1](../design/architecture/strategic/00-domain-vision.md#-1-核心价值thesis) 的 thesis 是 **"代替人，看着 N 个 worker 同时干活"**。这个 thesis 成立的前提是用户**只跟一个对象（Supervisor）打交道**——supervisor 替用户盯所有 worker，用户不必肉眼盯。S4（Center 单一权威 / 无野任务）就是这个前提的协议表达：**所有任务来源经 Center 仲裁 → 用户只需要看 Supervisor 的决策卡片，不需要追踪 worker 之间在干什么**。
+
+  *"thesis 就空了"的因果链*：如果允许 agent 之间平权派活（polymorphic actor），就会出现这样一条因果链：
+  ```
+  agent A 派给 agent B → B 派给 C → 用户突然收到 C 的 input_request
+       ↓                              ↓
+   用户：这个 C 哪冒出来的？        用户：我要回 C 还是回 A？
+       ↓
+  用户必须重新理解"谁在干什么"的拓扑 → 这恰恰是 thesis 想消除的认知负担
+  ```
+  Multica 这条能成立是因为它**没押"代替人盯"这个 thesis**——它的 thesis 是 "agent 当同事，跟人平权" —— 用户**本来就在团队里跟多人协作**，加个 agent 同事不增加认知负担。**两家 thesis 不同，所以同样的"polymorphic actor"设计对 Multica 是核心，对 agent-center 是毒药**。
 
 ### 5.2 必须守住的事
 
@@ -310,10 +451,12 @@ slock CLI（在每台 computer 上）
 - **Reminder 机制**（Slock）—— 让 supervisor 能"约自己回来"，减少对外部事件唤醒的依赖
 - **Reactions**（Slock）—— 飞书卡片加 emoji 反馈做轻量决策投票
 - **Autopilot 风格的 cron trigger**（Multica）—— 解锁周期性 supervisor wake 用法
+- **Computer / 算力节点解耦**（Slock § 3.6 + § 4.3.7）—— 把 Worker 当算力节点而非 agent 绑死的宿主；先做轻量 enroll，未来给本地多机和云节点留口子。**这是 § 4.3 中最值得近期吸收的一条**，因为它直接影响 v1 Workforce BC 的边界（[ADR-0008 Worker-Project Mapping](../design/decisions/0008-worker-project-mapping-via-discovery-proposal.md) 现有的 mapping 模型可能要重新审视）。
+- **任务管理面（task management view）**（参 § 5.1 修订条）—— 提供"跨项目全局视图 + 搜索过滤 + 历史 trace 回看 + 批量运维"，单人场景下也有真实价值。**实施纪律**：只读为主、写动作只覆盖运维（suspend/resume/cancel），决策动作（dispatch / conclude / input_request 应答）永远跳回飞书卡片。技术形态优先选 Go SSR + 增强 CLI，避免 SPA 全家桶。
 
 ### 5.4 战略层一句话
 
-> **你做的是"agent OS"，Multica 做的是"agent JIRA"，Slock 做的是"agent Slack"** —— 不要在 JIRA 和 Slack 的领域跟它们打，把 agent OS 的事做扎实（supervisor 决策 + 单一权威 + IM 审计）就赢了。
+> **你做的是"agent OS"，Multica 做的是"agent JIRA"，Slock 做的是"agent Slack"** —— 不要在 JIRA 和 Slack 的领域跟它们打，把 agent OS 的事做扎实（supervisor 决策 + 单一权威 + IM 审计）就赢了。**辅助管理面（任务列表 / 全局视图）该做就做，但严守"决策在 IM、运维在面板"的分工，不要让面板长成第二个 JIRA。**
 
 ---
 

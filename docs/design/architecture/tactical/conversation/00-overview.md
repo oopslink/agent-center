@@ -5,6 +5,8 @@
 > 系统内部"消息时间线"存储 + Identity 统一身份 + ChannelBinding vendor 关联。**跟具体接入渠道（飞书 / DingTalk / Web chat / ...）解耦**：Conversation BC 不调用任何 vendor SDK，外部渠道集成由 Bridge BC 通过事件驱动的双向同步实现。
 >
 > 类比一个会议：有人在会议室、有人在飞书、有人在电话上 —— 都是同一个会议的上下文。但 Conversation 模块**不知道也不关心**这些接入方式；它只是消息的内部存储。
+>
+> 衍生约束：Conversation 不对齐 IM 软件的 `channel/thread` 层级模型 —— Conversation 是时间线主角，channel/thread 退化为 Bridge 路由 hint，业务对象层级（Project → Issue → Task）就是唯一层级 source of truth。详见 [ADR-0022](../../../decisions/0022-conversation-not-aligned-with-im-hierarchy.md)。
 
 > 命名 / 定位决策见 [ADR-0007](../../../decisions/0007-conversation-as-unified-session.md)（Refined by 0009 → 0021）+ [ADR-0017](../../../decisions/0017-task-as-conversation.md)（Task ↔ Conversation 1:1）+ [ADR-0021](../../../decisions/0021-issue-as-conversation.md)（Issue ↔ Conversation 1:1）。
 

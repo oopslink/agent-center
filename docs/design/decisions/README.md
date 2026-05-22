@@ -27,6 +27,7 @@
 | 0019 | [BC1 Scheduling + BC4 Execution 合并为 TaskRuntime](0019-bc-scheduling-execution-merged-to-task-runtime.md) | Accepted |
 | 0020 | [Card 限制在 Bridge BC：Issue 字段精简 + Card 元数据归 Bridge ledger](0020-card-confined-to-bridge-bc.md) | Superseded by 0021 |
 | 0021 | [Issue 即 Conversation：1:1 绑定 + 所有 Issue IO 走统一 Message 时间线](0021-issue-as-conversation.md) | Accepted |
+| 0022 | [Conversation 不对齐 IM 软件的 channel/thread 层级模型](0022-conversation-not-aligned-with-im-hierarchy.md) | Accepted |
 
 ## 规则提示
 

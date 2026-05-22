@@ -63,6 +63,8 @@ conversation (
 ```
 
 > 注意：`primary_channel_hint` / `primary_channel_thread_key` 是 Bridge 用来路由的字段，**对 Conversation 自身没有业务意义** —— Conversation 模块只是顺手存着不查询它。把这些字段往 conversation 上放是务实选择（避免再加一张 channel binding 表），但也可放进单独的 conversation_channel_routes 表里更纯粹。v1 inline 在 conversation 上。
+>
+> 为什么 channel/thread 不上升为一等公民聚合：详见 [ADR-0022](../../../decisions/0022-conversation-not-aligned-with-im-hierarchy.md) —— Conversation 是时间线主角的"反向设计"是 feature，不是 IM 风格层级的退化。
 
 ---
 
