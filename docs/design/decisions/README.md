@@ -36,6 +36,7 @@
 | 0028 | [Skill File Mount（v2 lite，G5）](drafts/0028-skill-file-mount-lite.md) | Draft |
 | 0029 | [Supervisor as Built-in AgentInstance](drafts/0029-supervisor-as-builtin-agent-instance.md) | Draft（amends 0024） |
 | 0030 | [AgentAdapter 矩阵扩展（v2 G3）](drafts/0030-agentadapter-matrix-expansion.md) | Draft |
+| 0031 | [v2 Drop Bridge / Vendor Integration（飞书等 IM 接入暂撤）](drafts/0031-v2-drop-bridge-vendor-integration.md) | Accepted（meta scope decision）|
 
 ## 规则提示
 
