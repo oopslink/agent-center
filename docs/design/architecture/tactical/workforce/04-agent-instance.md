@@ -40,15 +40,16 @@ stateDiagram-v2
 ```
 agent_instance (
   id                ULID         -- 主键
-  name              str          -- 全局唯一（v2 单租户），用户起名
+  name              str          -- 全局唯一（v2 单租户），用户起名 / built-in 由系统保留
   agent_cli         enum         -- claude-code | codex | opencode | ...
-  worker_id         FK → workers (v2 不可变；E2 后允许迁移)
-  config            JSON         -- { instructions_ref?, mcp_config?, skills?, ... }
+  worker_id         FK → workers (NULLABLE when is_builtin=true，否则不可变；ADR-0029)
+  config            JSON         -- { instructions_ref?, mcp_config?, ... }
                                  -- G1 约定 instructions（home_dir/instructions.md）
                                  -- G4 约定 mcp_config（MCP 标准 schema + SecretRef，详 § 4）
-                                 -- G5 约定 skills（home_dir/skills/，后续 ADR 填）
+                                 -- G5 约定 skills 走文件目录 home_dir/skills/（不进 config JSON）
   max_concurrent    int?         -- null = 无 cap；=1 → 严格 1:1
   state             enum         -- idle | active | sleeping | archived
+  is_builtin        bool         -- v2 加 (ADR-0029)：TRUE = 系统 provisioned（如 supervisor）；archive 拒绝
   created_at        ISO8601 TEXT
   archived_at       ISO8601 TEXT, nullable
   version           int          -- 乐观锁
@@ -56,14 +57,38 @@ agent_instance (
 
 UNIQUE INDEX agent_instance_name_uq (name)
 INDEX agent_instance_worker_state_idx (worker_id, state)
+
+CHECK (
+  (is_builtin = false AND worker_id IS NOT NULL) OR
+  (is_builtin = true  AND worker_id IS NULL)
+)
 ```
+
+### 2.1 Built-in AgentInstance（v2 新增）
+
+> 详见 [ADR-0029 Supervisor as Built-in AgentInstance](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)
+
+v2 默认有一个 built-in：
+
+| 字段 | 值 |
+|---|---|
+| `name` | `supervisor`（保留名）|
+| `is_builtin` | TRUE |
+| `worker_id` | NULL（不在任何 Worker 上跑，跑在 center 进程）|
+| `agent_cli` | `claude-code`（默认；可通过部署配置）|
+| 进程触发 | Cognition wake scheduler（事件驱动），不是 TaskExecution dispatch |
+| `archived` 转移 | **禁止**（CLI / API 层拒绝）|
+
+→ 用户通过 `agent show supervisor` 查看；可 `agent config set supervisor mcp_config=...` 等同 worker agent；唯一拒绝的是 `agent archive supervisor`。
 
 ### 计算字段（不存 DB）
 
 | 字段 | 计算 |
 |---|---|
-| `home_dir` | `~/.agent-center-worker/agents/<id>/`（worker 本地约定路径）|
-| `current_executions_count` | `SELECT count(*) FROM task_executions WHERE agent_instance_id=? AND status IN ('submitted','working','input_required')` |
+| `home_dir`（worker AgentInstance）| `~/.agent-center-worker/agents/<id>/`（worker 机本地约定路径）|
+| `home_dir`（built-in supervisor，[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）| `~/.agent-center/agents/<name>/`（center 机；用 `name` 而非 `id` 保证稳定可读）|
+| `current_executions_count`（worker）| `SELECT count(*) FROM task_executions WHERE agent_instance_id=? AND status IN ('submitted','working','input_required')` |
+| `current_executions_count`（built-in supervisor）| `SELECT count(*) FROM supervisor_invocations WHERE agent_instance_id=? AND exit_status IS NULL`（活跃 invocations）|
 
 ---
 
@@ -71,26 +96,33 @@ INDEX agent_instance_worker_state_idx (worker_id, state)
 
 ### 3.1 路径约定
 
-```
-~/.agent-center-worker/agents/<agent_instance_id>/
-   ├─ instructions.md     # G1: agent-level system prompt 片段
-   └─ notes/              # 用户随意；agent 进程在 execution 期间只读
-```
-
-`skills/` 等结构留口给 [G5](../../../drafts/v2-kickoff-2026-05-22.md) 后续讨论。
-
-**G4 已定的 `mcp_config.json` 详细**：
+Worker AgentInstance（worker 机）：
 
 ```
 ~/.agent-center-worker/agents/<agent_instance_id>/
-   ├─ instructions.md
+   ├─ instructions.md          # G1: agent-level system prompt 片段
    ├─ mcp_config.json          # G4: MCP 标准 schema + SecretRef（无明文）
    ├─ mcp_config.runtime.json  # G4: 派单时由 daemon just-in-time 生成（含明文，mode 0600）；execution 后 unlink
-   ├─ skills/                  # G5（后续讨论）
-   └─ notes/                   # 用户随意
+   ├─ skills/                  # G5 (ADR-0028): 用户自配 skill 文件，按 Anthropic Skills 标准
+   │    └─ <skill-name>/SKILL.md
+   └─ notes/                   # 用户随意；agent 进程在 execution 期间只读
 ```
 
-详见 [ADR-0027 MCP per-agent 注入](../../../decisions/drafts/0027-mcp-per-agent-injection.md) + [ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md)。
+Built-in supervisor AgentInstance（center 机，[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）：
+
+```
+~/.agent-center/agents/supervisor/
+   ├─ instructions.md          # 用户给 supervisor 写的个性化指令（叠加 bundled supervisor.md）
+   ├─ mcp_config.json          # supervisor 也可配外部 MCP server（G4 同样适用）
+   ├─ mcp_config.runtime.json  # center 进程解析 SecretRef 后短暂落盘
+   ├─ skills/                  # 用户给 supervisor 装的额外 skill（叠加 bundled supervisor.md）
+   │    └─ <skill-name>/SKILL.md
+   └─ notes/
+```
+
+> Worker daemon 跟 center supervisor 进程都按同样的 home_dir 结构装载 skill / instructions / mcp_config。
+
+详见 [ADR-0027 MCP per-agent 注入](../../../decisions/drafts/0027-mcp-per-agent-injection.md) + [ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md) + [ADR-0028 Skill File Mount](../../../decisions/drafts/0028-skill-file-mount-lite.md)。
 
 ### 3.2 写权限约束
 
@@ -161,11 +193,11 @@ dispatch (task → agent_instance_id) {
 
 | 命令 | 用途 |
 |---|---|
-| `agent-center agent create --name=<n> --worker=<id> --agent-cli=<cli> [--max-concurrent=<n>]` | 创建（也是 G2 `agent:create` 协议的实现底）|
-| `agent-center agent list [--worker=<id>] [--state=<s>]` | 列 |
-| `agent-center agent show <name>` | 详情（含 current_executions_count）|
-| `agent-center agent config set <name> <key>=<value>` | 改 config / max_concurrent（长连推送给 worker 重拉本机 home_dir 状态？暂不做；config 变更生效以 between-execution 为准）|
-| `agent-center agent archive <name>` | 软删（要求 state=idle；active 时拒绝）|
+| `agent-center agent create --name=<n> --worker=<id> --agent-cli=<cli> [--max-concurrent=<n>]` | 创建（仅 worker AgentInstance；name 撞 built-in 保留名拒绝）|
+| `agent-center agent list [--worker=<id>] [--state=<s>] [--builtin=<bool>]` | 列；built-in 行标 `[built-in]` |
+| `agent-center agent show <name>` | 详情（含 current_executions_count + home_dir 路径 + attached skills 扫 home_dir/skills/）|
+| `agent-center agent config set <name> <key>=<value>` | 改 config / max_concurrent；built-in 同样允许 |
+| `agent-center agent archive <name>` | 软删（要求 state=idle；active 时拒绝；**built-in 直接拒绝**，[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）|
 
 > **创建命令的同机要求**：v2 默认 center 同机 / 远程均可（CLI 走 admin endpoint）。G2 `agent:create` 飞书卡片协议是基于此 endpoint 的 UX 包装。
 
@@ -174,18 +206,23 @@ dispatch (task → agent_instance_id) {
 ## § 7. AgentInstance Invariants
 
 1. **name 全局唯一**（v2 单租户；UNIQUE INDEX 强制；冲突时 create 返回 ErrAgentInstanceNameTaken）
-2. **worker_id 不可变**（v2 范围；改 worker = 走 archive + 新建流程；E2 / v3 加迁移路径）
+2. **worker_id 不可变**（v2 范围；改 worker = 走 archive + 新建流程；E2 / v3 加迁移路径）—— built-in 的 worker_id=NULL 同样不可变（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）
 3. **archived 终态不可逆**
-4. **state 跟 worker 联动**（详 § 5）
+4. **state 跟 worker 联动**（详 § 5；仅 worker AgentInstance；built-in supervisor 的 sleeping 由 center 进程 lifecycle 决定）
 5. **home_dir 在 execution 期间对 agent 进程只读**（应用层约束；agent 想沉淀经验走 supervisor memory [ADR-0012](../../../decisions/0012-memory-file-based.md) 或 task artifact 渠道）
 6. **archived 禁止 active / sleeping**：必须先 idle 才能 archive
 7. **max_concurrent ≥ 1**（如设值；null 表"不另设"）
+8. **is_builtin=true 时 archived 拒绝**（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）：built-in 是系统 provisioned，不允许 archive
+9. **is_builtin 字段创建后冻结**：不允许 user 升级 / 降级
+10. **CHECK constraint**：`(is_builtin=false AND worker_id IS NOT NULL) OR (is_builtin=true AND worker_id IS NULL)`
 
 ---
 
 ## § 8. 创建路径（v2 范围）
 
-唯一路径：**CLI `agent-center agent create ...`**（远程 endpoint）。
+**Worker AgentInstance（`is_builtin=false`）**：CLI `agent-center agent create --name=<n> --worker=<id> --agent-cli=<cli> [--max-concurrent=<n>]`（远程 endpoint）。
+
+**Built-in AgentInstance（`is_builtin=true`）**：仅由 **system auto-provisioning** 创建（center 启动 / migration up 时检查并 INSERT）。CLI `agent create` 不开放 `is_builtin` 字段；尝试 `--name=supervisor` 等保留名直接拒绝（name 冲突）。
 
 未来 [G2 `agent:create` 协议](../../../drafts/v2-kickoff-2026-05-22.md) 走飞书卡片做 UX 包装，但调用的是同一 endpoint + 同一 Factory。
 

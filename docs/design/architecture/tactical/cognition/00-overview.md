@@ -48,7 +48,7 @@
 
 | 聚合 | 文件 | 状态机 | 身份 / 不变性 |
 |---|---|---|---|
-| **SupervisorInvocation** | [01-supervisor-invocation.md](01-supervisor-invocation.md) | 4 态（running / succeeded / failed / timed_out） | ULID/UUID = `--session-id` 实参；身份不变 |
+| **SupervisorInvocation** | [01-supervisor-invocation.md](01-supervisor-invocation.md) | 4 态（running / succeeded / failed / timed_out） | ULID/UUID = `--session-id` 实参；身份不变；持 `agent_instance_id` 强引用 built-in supervisor AgentInstance（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）|
 | **Memory** | [02-memory.md](02-memory.md) | 无状态机（CLAUDE.md 文件 + git commit 历史承担演进）| 由文件路径定位：`$MEMORY_DIR/{scope_path}/CLAUDE.md`；7 种 scope |
 
 ### 1.2 Entity（子从属）
@@ -87,6 +87,7 @@
 4. **同 scope_key 任意时刻最多 1 个 running invocation**（[ADR-0013](../../../decisions/0013-supervisor-invocation-concurrency.md)）
 5. **`supervisor.*` 事件不进 wake 白名单**（反循环）
 6. **HOME 隔离**：spawn claude 必显式 `HOME` / `CLAUDE_CONFIG_DIR`，禁污染用户私人配置
+7. **Supervisor 是 built-in AgentInstance**：所有 SupervisorInvocation 都引用同一 built-in AgentInstance (name='supervisor', is_builtin=true)；用户管理通过 `agent show supervisor` / `agent config set supervisor ...`（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）
 
 ---
 
@@ -338,15 +339,18 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 ### 7.4 Prompt 组装边界
 
-**Supervisor prompt 三块构成**：
+**Supervisor prompt 构成**（含 [ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md) supervisor as built-in AgentInstance 后扩展）：
 
 ```
 (a) supervisor.md skill                    ← bundled with binary
-(b) ancestor walk 自动加载的 CLAUDE.md 链  ← § scope → CWD 映射，详见 02-memory § 3
-(c) wake event payload                     ← trigger_event_ids 内容 + 上下文
+(b) home_dir/instructions.md (若有)        ← 用户给 supervisor 写的个性化指令（ADR-0029）
+(c) home_dir/skills/<n>/SKILL.md (若有)    ← 用户给 supervisor 装的额外 skill（ADR-0028 + ADR-0029）
+(d) ancestor walk 自动加载的 CLAUDE.md 链  ← § scope → CWD 映射，详见 02-memory § 3
+(e) wake event payload                     ← trigger_event_ids 内容 + 上下文
+(f) mcp_config.runtime.json (若有)         ← ADR-0027 SecretRef 解析后的 MCP servers 注入；center 进程解析
 ```
 
-跟 [worker-side prompt 组装](../agent-harness/01-prompt-assembly.md) 是**两套独立机制**，不复用。
+跟 [worker-side prompt 组装](../agent-harness/01-prompt-assembly.md) 是**两套独立处理流程**（事件驱动 vs envelope 驱动；center 进程 vs worker daemon），但用户接口面（home_dir / skills / mcp_config）统一在 AgentInstance 模型下。
 
 ### 7.5 派单失败时的 Supervisor 标准 SOP
 

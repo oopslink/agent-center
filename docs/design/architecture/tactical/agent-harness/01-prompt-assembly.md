@@ -4,7 +4,7 @@
 
 派单时，**worker agent 子进程**收到的 prompt 由几个不同来源的内容**分层叠加**而成。本文说明 worker 侧的分层、来源、责任归属。
 
-> **Supervisor 自己**（center 上的 agent）有一套独立的 prompt 组装机制，跟本文 worker 侧的方案**两套独立**。详见 [cognition/00-overview.md § 7.4 Prompt 组装边界](../cognition/00-overview.md)。
+> **Supervisor 是 built-in AgentInstance**（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）：用户接口面跟 worker AgentInstance 统一（home_dir / instructions.md / mcp_config / skills 全套）。但 **prompt 组装的实际处理路径** 仍跟 worker 侧分开 —— supervisor 由 Cognition wake scheduler 触发（事件驱动），worker 由 dispatch envelope 驱动；center 进程拼装 supervisor prompt，worker daemon 拼装 worker prompt；两套独立流程。详见 [cognition/00-overview.md § 7.4 Prompt 组装边界](../cognition/00-overview.md)。
 
 ## 层次
 

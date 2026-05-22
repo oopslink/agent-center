@@ -52,6 +52,21 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ## v3（中期）
 
+### AgentImage 模型 + Memory git 化（agent 本体 vs 数据分开）
+
+把 agent **本体**（model + harness + bundled skill + 默认 MCP 模板 + 默认 instructions）打成不可变 **AgentImage**（镜像，含 tag / digest 版本），通过 image registry 分发；agent **数据**（memory / 用户笔记 / 运行时积累）走独立 **git 仓**。本体跟数据**分开管理 + 独立版本化**。来自 [v2-kickoff G5 讨论](drafts/v2-kickoff-2026-05-22.md)，2026-05-22 用户提出。
+
+- **v2 不做的原因**：v2 用户 skill = 文件自管（[ADR-0028](decisions/drafts/0028-skill-file-mount-lite.md)）；中心化 skill 库 / 分发会被 image 模型取代，是 technical debt
+- **触发条件**：用户有「跨机器 / 跨用户 distribute agent 模板」需求；或 agent kind 多到手动管理痛
+- **影响**：
+  - 引入 `AgentImage` 概念 + image registry（自建 / 借现成的）
+  - `agent create --image=<name>:<version> --name=<n> [--worker=<id>]`：from image instantiate
+  - AgentInstance.image_ref 字段（指 image）
+  - Memory 系统升级走独立 git 仓（详 [ADR-0012](decisions/0012-memory-file-based.md) 之外的扩展）
+  - 现有 `instructions.md / mcp_config.json / skills/` 文件结构 → 进 image build 的 source
+  - Multi-supervisor agent / 其他 built-in 类型扩展
+- **依据**：用户长期方向声明（2026-05-22）；image 模型对位容器 / docker 思想
+
 ### 云 Computer 节点支持
 
 把 Worker 从「开发机 daemon」扩展为「可注册的算力节点」（含云节点），允许 agent-center 按需在云节点拉起 worker，加大算力池弹性。来自 [v2-kickoff 议题 E2](drafts/v2-kickoff-2026-05-22.md)，2026-05-22 用户决定移到 roadmap。

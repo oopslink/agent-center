@@ -227,7 +227,7 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `worker_config.center_endpoint` | URL | - | 同上 | center gRPC / HTTP 地址 |
 | `worker_config.session_token_file` | path | `~/.agent-center/credentials` | [ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md) | session token 落盘位置（mode 0600）；`agent-center join` 兑换后写入 |
 | `worker_config.exec_base_dir` | path | `~/.agent-center-worker/exec` | [ADR-0018 § 3](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 root |
-| `worker_config.agents_base_dir` | path | `~/.agent-center-worker/agents` | [ADR-0024 § 5](../decisions/drafts/0024-agent-instance-first-class.md) | AgentInstance 持久 home_dir 根（每个 agent 一个子目录 `<agent_instance_id>/`）|
+| `worker_config.agents_base_dir` | path | `~/.agent-center-worker/agents` | [ADR-0024 § 5](../decisions/drafts/0024-agent-instance-first-class.md) | AgentInstance 持久 home_dir 根（每个 agent 一个子目录 `<agent_instance_id>/`）；含 instructions.md / mcp_config.json / skills/ ([ADR-0028](../decisions/drafts/0028-skill-file-mount-lite.md)) / notes/ |
 | `worker_config.gc_exec_retention_hours` | int | 24 | [ADR-0018 § 9](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 GC |
 | `worker_config.heartbeat_interval_seconds` | int | 10 | [task-runtime § 3.3](../architecture/tactical/task-runtime/00-overview.md) | 心跳频次（worker 端）|
 | `worker_config.heartbeat_timeout_seconds` | int | 60 | 同上 | center 端 worker offline 阈值（注：center 配置项，仅作参考列在此处） |
@@ -254,9 +254,17 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `secret_management.master_key_file` | path | - | [ADR-0026 § 4](../decisions/drafts/0026-user-secret-management-bc.md) | AES-GCM master key（32 bytes base64）文件路径；mode 0600；center 进程启动加载；**不入 DB / 不入 event** |
 | `secret_management.audit_retention_days` | int | 365 | 同上 | `user_secret.*` 事件保留（沿用 events 表，**事件不含明文**）|
 
+### 7.10 `server.*`（center 进程 + built-in supervisor，[ADR-0029](../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）
+
+| Field | Type | Default | 来源 | 用途 |
+|---|---|---|---|---|
+| `server.builtin_agents_base_dir` | path | `~/.agent-center/agents` | [ADR-0029 § 3](../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md) | built-in AgentInstance 持久 home_dir 根（center 机；v2 仅 supervisor 一个，路径 `~/.agent-center/agents/supervisor/`）|
+| `server.supervisor_agent_cli` | enum | `claude-code` | 同上 | built-in supervisor 用的 agent CLI；可通过部署配置改 |
+
+
 > Master key 一旦丢失，所有 user_secret 不可解。运维需自管 key 备份；[roadmap](../roadmap.md) 接 Vault / KMS 作为可选来源。
 
-### 7.10 `agent_cli.*`（adapter binary 路径）
+### 7.11 `agent_cli.*`（adapter binary 路径）
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|

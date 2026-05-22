@@ -28,6 +28,13 @@
 | 0020 | [Card 限制在 Bridge BC：Issue 字段精简 + Card 元数据归 Bridge ledger](0020-card-confined-to-bridge-bc.md) | Superseded by 0021 |
 | 0021 | [Issue 即 Conversation：1:1 绑定 + 所有 Issue IO 走统一 Message 时间线](0021-issue-as-conversation.md) | Accepted |
 | 0022 | [Conversation 不对齐 IM 软件的 channel/thread 层级模型](0022-conversation-not-aligned-with-im-hierarchy.md) | Accepted |
+| 0023 | [Worker Enroll 轻量化](drafts/0023-worker-enroll-lightweight.md) | Draft |
+| 0024 | [AgentInstance 一等公民化](drafts/0024-agent-instance-first-class.md) | Draft（amended by 0029） |
+| 0025 | [`agent:create` 协议 = G1 CLI Endpoint](drafts/0025-agent-create-via-cli-not-protocol.md) | Draft |
+| 0026 | [SecretManagement BC：中心化用户密钥管理](drafts/0026-user-secret-management-bc.md) | Draft |
+| 0027 | [MCP per-agent 注入](drafts/0027-mcp-per-agent-injection.md) | Draft |
+| 0028 | [Skill File Mount（v2 lite，G5）](drafts/0028-skill-file-mount-lite.md) | Draft |
+| 0029 | [Supervisor as Built-in AgentInstance](drafts/0029-supervisor-as-builtin-agent-instance.md) | Draft（amends 0024） |
 
 ## 规则提示
 
