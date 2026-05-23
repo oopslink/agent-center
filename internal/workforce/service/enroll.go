@@ -4,7 +4,9 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -21,18 +23,27 @@ import (
 // token exchange. The CLI hands us a WorkerID + capabilities; we Save the
 // Worker and emit `workforce.worker.enrolled` in the same tx.
 type WorkerEnrollService struct {
-	db    *sql.DB
-	repo  workforce.WorkerRepository
-	sink  *observability.EventSink
-	clock clock.Clock
+	db        *sql.DB
+	repo      workforce.WorkerRepository
+	tokenRepo workforce.BootstrapTokenRepository // optional; nil disables Exchange path
+	sink      *observability.EventSink
+	clock     clock.Clock
 }
 
-// NewWorkerEnrollService constructs the service.
+// NewWorkerEnrollService constructs the service (v1 path; no Exchange).
 func NewWorkerEnrollService(db *sql.DB, repo workforce.WorkerRepository, sink *observability.EventSink, clk clock.Clock) *WorkerEnrollService {
 	if clk == nil {
 		clk = clock.SystemClock{}
 	}
 	return &WorkerEnrollService{db: db, repo: repo, sink: sink, clock: clk}
+}
+
+// NewWorkerEnrollServiceV2 wires the v2 exchange-based service
+// (ADR-0023 § 1). tokenRepo is required for Exchange to function.
+func NewWorkerEnrollServiceV2(db *sql.DB, repo workforce.WorkerRepository, tokenRepo workforce.BootstrapTokenRepository, sink *observability.EventSink, clk clock.Clock) *WorkerEnrollService {
+	s := NewWorkerEnrollService(db, repo, sink, clk)
+	s.tokenRepo = tokenRepo
+	return s
 }
 
 // EnrollCommand captures the CLI input.
@@ -97,3 +108,158 @@ func (s *WorkerEnrollService) Enroll(ctx context.Context, cmd EnrollCommand) (En
 // Static error so callers can detect the "service uninitialised" case via
 // errors.Is. Tests rely on this rather than string matching.
 var ErrEnrollMisconfigured = errors.New("workforce: enroll service misconfigured (nil dep)")
+
+// =============================================================================
+// v2 Exchange-based Enroll (ADR-0023 § 1)
+// =============================================================================
+
+// ExchangeRequest is the v2 enroll payload from worker daemon → center
+// (per ADR-0023 § 1).
+type ExchangeRequest struct {
+	TokenValue    string
+	WorkerID      workforce.WorkerID
+	Capabilities  []workforce.Capability // worker auto-probe at enroll time
+	ActorIdentity observability.Actor
+}
+
+// ExchangeResponse is what the worker daemon receives on successful enroll.
+// SessionToken is opaque to the center; the worker persists it locally and
+// presents it on subsequent long-connect heartbeats.
+type ExchangeResponse struct {
+	WorkerID     workforce.WorkerID
+	SessionToken string
+	Version      int
+	// EventID of the worker.enrolled event (workforce.worker.enrolled).
+	EnrolledEventID observability.EventID
+	// UsedEventID of the workforce.worker.bootstrap_token.used event.
+	UsedEventID observability.EventID
+}
+
+// Sentinel errors specific to exchange.
+var (
+	// ErrExchangeWorkerIDMismatch is returned when the supplied worker_id does
+	// not match the worker_id the token was issued for.
+	ErrExchangeWorkerIDMismatch = errors.New("workforce: enroll exchange worker_id does not match token's worker_id")
+	// ErrExchangeTokenExpired is returned when the token TTL has elapsed.
+	ErrExchangeTokenExpired = errors.New("workforce: enroll exchange token expired")
+	// ErrEnrollServiceNoTokenRepo signals that Exchange was called on a
+	// service that wasn't wired with a BootstrapTokenRepository.
+	ErrEnrollServiceNoTokenRepo = errors.New("workforce: enroll service has no token repository (v1-only construction)")
+)
+
+// Exchange validates the supplied BootstrapToken and atomically:
+//   1. marks the token used,
+//   2. creates the Worker (first-time enroll) — re-enroll of an existing
+//      worker_id is rejected because each token is single-use and bound to a
+//      specific worker_id,
+//   3. emits workforce.worker.bootstrap_token.used + workforce.worker.enrolled,
+//   4. returns an opaque session_token for the worker to persist locally.
+//
+// Validation order (per ADR-0023 § 2 + plan § 3.3 step-1):
+//   - token exists (FindByValueHash) → not found → ErrBootstrapTokenNotFound
+//   - token.status == active → otherwise ErrBootstrapTokenNotActive
+//   - token.expires_at > now → otherwise ErrExchangeTokenExpired
+//   - token.worker_id == cmd.WorkerID → otherwise ErrExchangeWorkerIDMismatch
+//   - worker not already enrolled → otherwise ErrWorkerAlreadyExists
+//
+// All side-effects happen in one tx.
+func (s *WorkerEnrollService) Exchange(ctx context.Context, req ExchangeRequest) (ExchangeResponse, error) {
+	if s.tokenRepo == nil {
+		return ExchangeResponse{}, ErrEnrollServiceNoTokenRepo
+	}
+	if err := req.ActorIdentity.Validate(); err != nil {
+		return ExchangeResponse{}, fmt.Errorf("exchange: %w", err)
+	}
+	if req.TokenValue == "" {
+		return ExchangeResponse{}, errors.New("workforce: enroll exchange token_value required")
+	}
+	if string(req.WorkerID) == "" {
+		return ExchangeResponse{}, errors.New("workforce: enroll exchange worker_id required")
+	}
+	hash := workforce.HashTokenValue(req.TokenValue)
+	now := s.clock.Now()
+	sessionToken, err := generateSessionToken()
+	if err != nil {
+		return ExchangeResponse{}, err
+	}
+	var resp ExchangeResponse
+	resp.WorkerID = req.WorkerID
+	resp.SessionToken = sessionToken
+	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		tok, err := s.tokenRepo.FindByValueHash(txCtx, hash)
+		if err != nil {
+			return err
+		}
+		if tok.Status() != workforce.BootstrapTokenActive {
+			return workforce.ErrBootstrapTokenNotActive
+		}
+		if tok.IsExpiredAt(now) {
+			return ErrExchangeTokenExpired
+		}
+		if tok.WorkerID() != req.WorkerID {
+			return ErrExchangeWorkerIDMismatch
+		}
+		// Mark token used.
+		if err := tok.MarkUsed(now); err != nil {
+			return err
+		}
+		if err := s.tokenRepo.UpdateStatus(txCtx, tok, workforce.BootstrapTokenActive); err != nil {
+			return err
+		}
+		// Create Worker.
+		w, err := workforce.NewWorker(workforce.NewWorkerInput{
+			ID:             req.WorkerID,
+			CapabilityList: req.Capabilities,
+			EnrolledAt:     now,
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.repo.Save(txCtx, w); err != nil {
+			return err
+		}
+		resp.Version = w.Version()
+		// Emit events.
+		usedEvID, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "workforce.worker.bootstrap_token.used",
+			Refs:      observability.EventRefs{WorkerID: string(w.ID())},
+			Actor:     req.ActorIdentity,
+			Payload: map[string]any{
+				"token_id":  string(tok.ID()),
+				"worker_id": string(w.ID()),
+				"used_at":   now.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		enrolledEvID, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "workforce.worker.enrolled",
+			Refs:      observability.EventRefs{WorkerID: string(w.ID())},
+			Actor:     req.ActorIdentity,
+			Payload: map[string]any{
+				"worker_id":    string(w.ID()),
+				"capabilities": w.Capabilities(),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		resp.UsedEventID = usedEvID
+		resp.EnrolledEventID = enrolledEvID
+		return nil
+	})
+	if err != nil {
+		return ExchangeResponse{}, err
+	}
+	return resp, nil
+}
+
+// generateSessionToken returns a high-entropy opaque string.
+func generateSessionToken() (string, error) {
+	buf := make([]byte, 48)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("workforce: session_token rand: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
