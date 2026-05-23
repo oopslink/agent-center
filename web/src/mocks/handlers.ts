@@ -138,7 +138,13 @@ export const handlers = [
 
   // Fleet + trace
   http.get('/api/fleet', () =>
-    ok({ executions: [], workers: [], open_input_requests: [], pending_issues: [] }),
+    ok({
+      executions: [],
+      workers: [],
+      open_input_requests: [],
+      pending_issues: [],
+      generated_at: '2026-05-24T01:00:00Z',
+    }),
   ),
   http.get('/api/tasks/:id/trace', () => ok([])),
 ];

@@ -89,9 +89,17 @@ describe('dispatchToQueryClient', () => {
     expect(useAppStore.getState().navBadges.inputRequests).toBe(0);
   });
 
-  it('agent_instance.created invalidates agents list', () => {
+  it('agent_instance.created invalidates agents list + fleet', () => {
     dispatchToQueryClient(qc, ev('agent_instance.created'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
+  });
+
+  it('worker.enrolled / heartbeat / offline invalidate fleet', () => {
+    for (const t of ['worker.enrolled', 'worker.heartbeat', 'worker.offline']) {
+      dispatchToQueryClient(qc, ev(t));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
   });
 
   it('user_secret.created invalidates secrets', () => {

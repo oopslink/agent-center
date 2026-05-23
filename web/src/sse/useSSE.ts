@@ -187,7 +187,14 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       return;
     case 'agent_instance.created':
     case 'agent_instance.archived':
+    case 'agent_instance.state_changed':
       void qc.invalidateQueries({ queryKey: qk.agents() });
+      void qc.invalidateQueries({ queryKey: qk.fleet() });
+      return;
+    case 'worker.enrolled':
+    case 'worker.heartbeat':
+    case 'worker.offline':
+      void qc.invalidateQueries({ queryKey: qk.fleet() });
       return;
     case 'user_secret.created':
     case 'user_secret.revoked':

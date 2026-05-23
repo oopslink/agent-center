@@ -45,6 +45,8 @@ export interface AgentInstance {
   agent_cli: string;
   state: 'idle' | 'active' | 'sleeping' | 'archived';
   worker_id?: string;
+  is_builtin?: boolean;
+  max_concurrent?: number;
 }
 
 export type SecretKind = 'mcp' | 'cloud_credential' | 'repo_deploy_key' | 'other';
@@ -76,11 +78,51 @@ export interface InputRequest {
   decided_at?: string;
 }
 
+export interface FleetExecutionRow {
+  execution_id: string;
+  task_id: string;
+  worker_id: string;
+  agent_cli: string;
+  workspace_mode: string;
+  status: string;
+  current_activity?: string;
+  working_seconds: number;
+  started_at: string;
+  projection_last_push_at?: string;
+}
+
+export interface FleetWorkerRow {
+  worker_id: string;
+  status: string;
+  active_count: number;
+  mappings_count: number;
+  last_heartbeat_at?: string;
+}
+
+export interface FleetIRRow {
+  input_request_id: string;
+  task_execution_id: string;
+  question: string;
+  urgency: string;
+  requested_at: string;
+}
+
+export interface FleetIssueRow {
+  issue_id: string;
+  project_id: string;
+  title: string;
+  status: string;
+  opened_at: string;
+  opener: string;
+}
+
 export interface FleetSnapshot {
-  executions: unknown[];
-  workers: unknown[];
-  open_input_requests: unknown[];
-  pending_issues: unknown[];
+  executions: FleetExecutionRow[];
+  workers: FleetWorkerRow[];
+  open_input_requests: FleetIRRow[];
+  pending_issues: FleetIssueRow[];
+  generated_at?: string;
+  warnings?: string[];
 }
 
 export interface TraceEvent {
