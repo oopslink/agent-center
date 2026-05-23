@@ -65,6 +65,10 @@ type App struct {
 	CarryOverSvc       *convservice.CarryOverService
 	ConvRefRepo        conversation.ConversationMessageReferenceRepository
 
+	// Workforce — AgentInstance (P10 § 3.8 + F5)
+	AgentInstanceRepo workforce.AgentInstanceRepository
+	AgentMgmtSvc      *wfservice.AgentInstanceManagementService
+
 	// TaskRuntime
 	TaskRepo         task.Repository
 	ExecRepo         execution.Repository
@@ -202,6 +206,13 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		return nil, fmt.Errorf("ensure system identity: %w", err)
 	}
 
+	// P10 F5: AgentInstance management — Create flow auto-registers
+	// Identity[kind=agent].id='agent:<id>' in the same tx via the
+	// IdentityRegistrar port (cross-aggregate invariant ADR-0033 § 4).
+	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
+	agentMgmt := wfservice.NewAgentInstanceManagementService(db, aiRepo, gen, sink, clk).
+		WithIdentityRegistrar(identityReg)
+
 	// Phase 6: Cognition (Supervisor + DecisionRecord).
 	cognitiondbInv := cognitiondb.NewInvocationRepo(db)
 	cognitiondbDec := cognitiondb.NewDecisionRepo(db)
@@ -232,6 +243,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		ParticipantMgmtSvc: participantMgmt,
 		CarryOverSvc:       carryOver,
 		ConvRefRepo:        convRefRepo,
+
+		AgentInstanceRepo: aiRepo,
+		AgentMgmtSvc:      agentMgmt,
 		TaskRepo:        taskRepo,
 		ExecRepo:        execRepo,
 		IRRepo:          irRepo,

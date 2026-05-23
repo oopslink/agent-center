@@ -20,7 +20,8 @@ func TestBuildRouter_FullTreeBuilds(t *testing.T) {
 	}
 	for _, want := range []string{"version", "server", "migrate", "admin", "bootstrap",
 		"supervisor", "worker", "task", "issue", "identity",
-		"project", "conversation", "channel", "message", "inspect", "query", "ps", "stats",
+		"project", "conversation", "channel", "message", "agent",
+		"inspect", "query", "ps", "stats",
 		"logs", "peek-trace"} {
 		if !names[want] {
 			t.Errorf("missing command: %s", want)
