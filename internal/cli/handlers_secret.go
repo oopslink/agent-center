@@ -38,7 +38,7 @@ func (a *App) SecretCommands() []*Command {
 func (a *App) secretListHandler(fs *flag.FlagSet) Handler {
 	kindFlag := fs.String("kind", "", "filter by kind (mcp|cloud_credential|repo_deploy_key|other)")
 	stateFlag := fs.String("state", "", "filter by state (active|revoked)")
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if a.UserSecretRepo == nil {
 			return PrintError(errw, *format, "internal_error", "secret repo not wired", ExitNotImplemented)
@@ -56,14 +56,21 @@ func (a *App) secretListHandler(fs *flag.FlagSet) Handler {
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
-		if *format == "json" {
+		switch *format {
+		case FormatJSON:
 			arr := make([]map[string]any, len(secrets))
 			for i, s := range secrets {
 				arr[i] = secretToMap(s)
 			}
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
-		} else {
+		case FormatText:
+			ids := make([]string, len(secrets))
+			for i, s := range secrets {
+				ids[i] = string(s.ID())
+			}
+			writeTextLines(out, ids)
+		default:
 			fmt.Fprintf(out, "%-32s %-20s %-8s %-20s %s\n", "ID", "NAME", "KIND", "STATE", "CREATED_AT")
 			for _, s := range secrets {
 				fmt.Fprintf(out, "%-32s %-20s %-8s %-20s %s\n",
@@ -76,7 +83,7 @@ func (a *App) secretListHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) secretShowHandler(fs *flag.FlagSet) Handler {
 	byName := fs.Bool("by-name", false, "treat <arg> as name (default: id)")
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "secret show <id-or-name> [--by-name]", ExitUsage)
@@ -115,7 +122,7 @@ func (a *App) secretCreateHandler(fs *flag.FlagSet) Handler {
 	name := fs.String("name", "", "secret name (required, unique)")
 	kindFlag := fs.String("kind", "other", "kind (mcp|cloud_credential|repo_deploy_key|other)")
 	valueFile := fs.String("value-file", "", "read plaintext from file ('-' = stdin); omit to use interactive prompt")
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *name == "" {
 			return PrintError(errw, *format, "usage_error", "--name required", ExitUsage)
@@ -163,7 +170,7 @@ func (a *App) secretRevokeHandler(fs *flag.FlagSet) Handler {
 		"reason (manual|rotated|compromise)")
 	message := fs.String("message", "", "revoke message (required)")
 	versionFlag := fs.Int("version", 0, "expected version (CAS); 0 = look up current version")
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "secret revoke <id>", ExitUsage)

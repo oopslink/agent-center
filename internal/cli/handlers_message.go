@@ -20,7 +20,7 @@ func (a *App) MessageCommands() []*Command {
 }
 
 func (a *App) messageRefsHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "message refs <message_id>", ExitUsage)

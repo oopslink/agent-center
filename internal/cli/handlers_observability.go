@@ -39,7 +39,7 @@ func (a *App) inspectCommand() *Command {
 			"Per observability/00 § 7.1: 10 supported kinds. supervisor / decision are\n" +
 			"placeholders until Phase 6.",
 		Flags: func(fs *flag.FlagSet) Handler {
-			format := fs.String("format", "human", "Output format: human|json")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				if len(args) < 2 {
 					return PrintError(errw, *format, "usage_error",
@@ -66,7 +66,7 @@ func (a *App) queryCommand() *Command {
 		Summary: "List resources (tasks / executions / workers / issues / input_requests / proposals / events / decisions).",
 		LongHelp: "agent-center query <resource> [--filter] [--since] [--until] [--limit] [--cursor] [--format=human|json]\n",
 		Flags: func(fs *flag.FlagSet) Handler {
-			format := fs.String("format", "human", "Output format: human|json")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			status := fs.String("status", "", "")
 			project := fs.String("project", "", "")
 			priority := fs.String("priority", "", "")
@@ -150,7 +150,7 @@ func (a *App) psCommand() *Command {
 		Summary: "Fleet view (active executions + workers + open input requests + pending issues).",
 		LongHelp: "agent-center ps [--watch] [--project=<slug>] [--format=human|json]",
 		Flags: func(fs *flag.FlagSet) Handler {
-			format := fs.String("format", "human", "Output format: human|json")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			watch := fs.Bool("watch", false, "Loop + re-render every 2s")
 			project := fs.String("project", "", "Filter all segments to this project slug")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
@@ -186,7 +186,7 @@ func (a *App) statsCommand() *Command {
 		Name:    "stats",
 		Summary: "Aggregate metrics (tasks / executions / workers / events / issues).",
 		Flags: func(fs *flag.FlagSet) Handler {
-			format := fs.String("format", "human", "Output format: human|json")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			scope := fs.String("scope", "tasks", "tasks|executions|workers|events|issues")
 			since := fs.String("since", "", "ISO-8601 or relative (1h, 30m, 24h)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
@@ -217,7 +217,7 @@ func (a *App) logsCommand() *Command {
 		Name:    "logs",
 		Summary: "Tail / dump archived task or execution logs (BlobStore).",
 		Flags: func(fs *flag.FlagSet) Handler {
-			format := fs.String("format", "human", "Output format (json only affects error envelope)")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			follow := fs.Bool("follow", false, "Stream — not supported on archived blobs")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				if len(args) < 2 {
@@ -260,7 +260,7 @@ func (a *App) peekTraceCommand() *Command {
 		Name:    "peek-trace",
 		Summary: "Live agent trace stream from worker daemon (RPC).",
 		Flags: func(fs *flag.FlagSet) Handler {
-			format := fs.String("format", "human", "")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			last := fs.Int("last", 0, "Tail last N lines before --follow")
 			kind := fs.String("kind", "", "Filter by AgentTraceEvent type (e.g. tool_call|thinking|tool_result|all)")
 			follow := fs.Bool("follow", false, "Keep streaming new lines")

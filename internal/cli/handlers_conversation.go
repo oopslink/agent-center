@@ -33,7 +33,7 @@ func (a *App) convOpenHandler(fs *flag.FlagSet) Handler {
 	kindStr := fs.String("kind", "", "kind (dm|channel|adhoc|notification)")
 	name := fs.String("name", "", "name (channel kind requires non-empty)")
 	description := fs.String("description", "", "description")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		kind := conversation.ConversationKind(*kindStr)
 		if !kind.IsValid() {
@@ -69,7 +69,7 @@ func (a *App) convAddMessageHandler(fs *flag.FlagSet) Handler {
 	sender := fs.String("actor", "", "sender identity (defaults to configured user)")
 	inputReq := fs.String("input-request-ref", "", "associated input_request id")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "conversation add-message <conversation_id>", ExitUsage)
@@ -127,7 +127,7 @@ func (a *App) convAddMessageHandler(fs *flag.FlagSet) Handler {
 func (a *App) convListHandler(fs *flag.FlagSet) Handler {
 	kindStr := fs.String("kind", "", "filter by kind")
 	statusStr := fs.String("status", "", "filter by status (open|closed)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		filter := conversation.ConversationFilter{}
 		if *kindStr != "" {
@@ -168,7 +168,7 @@ func (a *App) convListHandler(fs *flag.FlagSet) Handler {
 func (a *App) convReadHandler(fs *flag.FlagSet) Handler {
 	tail := fs.Int("tail", 0, "show last N messages")
 	since := fs.String("since", "", "show messages since RFC3339 time")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "conversation read <id>", ExitUsage)
@@ -215,7 +215,7 @@ func (a *App) convCloseHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "close reason")
 	message := fs.String("message", "", "close message")
 	versionFlag := fs.Int("version", 0, "expected version (CAS)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "conversation close <id>", ExitUsage)
@@ -272,7 +272,7 @@ func msgToMap(m *conversation.Message) map[string]any {
 // default, body taken from positional args.
 func (a *App) convSendHandler(fs *flag.FlagSet) Handler {
 	dirStr := fs.String("direction", "internal", "direction (inbound|outbound|internal)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 2 {
 			return PrintError(errw, *format, "usage_error", "conversation send <conversation_id> <text...>", ExitUsage)
@@ -311,7 +311,7 @@ func (a *App) convTailHandler(fs *flag.FlagSet) Handler {
 	tail := fs.Int("tail", 10, "show last N messages")
 	follow := fs.Bool("f", false, "follow: poll for new messages every --interval")
 	intervalSec := fs.Int("interval", 1, "follow poll interval in seconds")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "conversation tail <conversation_id> [-f]", ExitUsage)
@@ -364,7 +364,7 @@ func writeMsg(out io.Writer, format string, m *conversation.Message) {
 
 // convShowHandler returns full details for a conversation id.
 func (a *App) convShowHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "conversation show <id>", ExitUsage)
@@ -401,7 +401,7 @@ func (a *App) convShowHandler(fs *flag.FlagSet) Handler {
 // convRefsHandler shows carry-over references that landed into this
 // conversation (child side; reverse lookup via `message refs`).
 func (a *App) convRefsHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "conversation refs <conversation_id>", ExitUsage)

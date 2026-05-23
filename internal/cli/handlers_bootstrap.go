@@ -44,7 +44,7 @@ func BootstrapCommand() *Command {
 //   - ExitUsage (2) → file not found / no $HOME / explicit --unit missing
 func bootstrapCheckSystemdHandler(fs *flag.FlagSet) Handler {
 	unit := fs.String("unit", "", "path to the worker unit file (defaults to ~/.config/systemd/user/agent-center-worker.service)")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		path := *unit
 		if path == "" {

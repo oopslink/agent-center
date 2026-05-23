@@ -31,7 +31,7 @@ func (a *App) adminBackupHandler(fs *flag.FlagSet) Handler {
 	dest := fs.String("dest", "", "destination root directory")
 	retentionDays := fs.Int("retention-days", backup.DefaultRetentionDays,
 		"retention window in days for dated subdirectories")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *dest == "" {
 			return PrintError(errw, *format, "usage_error",

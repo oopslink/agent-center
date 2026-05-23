@@ -27,7 +27,7 @@ func (a *App) projectAddHandler(fs *flag.FlagSet) Handler {
 	kindStr := fs.String("kind", "", "project kind (coding|writing|investing)")
 	cli := fs.String("default-agent-cli", "", "default agent CLI")
 	desc := fs.String("description", "", "description")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "project add <slug> --name=...", ExitUsage)
@@ -63,7 +63,7 @@ func (a *App) projectAddHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) projectListHandler(fs *flag.FlagSet) Handler {
 	kindStr := fs.String("kind", "", "filter by kind")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		filter := workforce.ProjectFilter{}
 		if *kindStr != "" {
@@ -95,7 +95,7 @@ func (a *App) projectListHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) projectShowHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "project show <id>", ExitUsage)
@@ -121,7 +121,7 @@ func (a *App) projectUpdateHandler(fs *flag.FlagSet) Handler {
 	cli := fs.String("default-agent-cli", "", "new default agent CLI")
 	desc := fs.String("description", "", "new description")
 	versionFlag := fs.Int("version", 0, "expected version (CAS)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "project update <id>", ExitUsage)
@@ -169,7 +169,7 @@ func (a *App) projectUpdateHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) projectRemoveHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "project remove <id>", ExitUsage)

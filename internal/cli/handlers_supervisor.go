@@ -68,7 +68,7 @@ func (a *App) SupervisorRetriggerCommand() *Command {
 		Name:    "retrigger",
 		Summary: "Restart a failed/timed_out supervisor invocation (audience=U)",
 		Flags: func(fs *flag.FlagSet) Handler {
-			format := fs.String("format", "human", "output format (human|json)")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				if len(args) < 1 {
 					return PrintError(errw, *format, "usage_error", "usage: supervisor retrigger <invocation_id>", ExitUsage)
@@ -143,7 +143,7 @@ func (a *App) RecordDecisionCommand() *Command {
 			kind := fs.String("kind", "no_op", "decision kind (only 'no_op' allowed here)")
 			target := fs.String("target", "", "target refs (e.g. task:T-1)")
 			rationale := fs.String("rationale", "", "(required) reason for the decision")
-			format := fs.String("format", "human", "output format")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			return func(ctx context.Context, _ []string, out, errw io.Writer) ExitCode {
 				envInvocation := os.Getenv("AGENT_CENTER_INVOCATION_ID")
 				if envInvocation == "" {
@@ -201,7 +201,7 @@ func (a *App) EscalateInputRequestCommand() *Command {
 		Flags: func(fs *flag.FlagSet) Handler {
 			channel := fs.String("channel", "", "notification channel hint (feishu / dingtalk / ...)")
 			rationale := fs.String("rationale", "", "(required) reason for escalation")
-			format := fs.String("format", "human", "output format")
+			format := fs.String("format", FormatTable, formatFlagHelp())
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				if len(args) < 1 {
 					return PrintError(errw, *format, "usage_error", "usage: escalate-input-request <input_request_id>", ExitUsage)

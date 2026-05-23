@@ -33,7 +33,7 @@ func (a *App) InputRequestCommands() []*Command {
 func (a *App) irListHandler(fs *flag.FlagSet) Handler {
 	pending := fs.Bool("pending", false, "show only status=pending (default behavior)")
 	execID := fs.String("execution", "", "filter by execution id (exact)")
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = pending
 		var (
@@ -54,14 +54,21 @@ func (a *App) irListHandler(fs *flag.FlagSet) Handler {
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
-		if *format == "json" {
+		switch *format {
+		case FormatJSON:
 			arr := make([]map[string]any, len(irs))
 			for i, ir := range irs {
 				arr[i] = irToMap(ir)
 			}
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
-		} else {
+		case FormatText:
+			ids := make([]string, len(irs))
+			for i, ir := range irs {
+				ids[i] = string(ir.ID())
+			}
+			writeTextLines(out, ids)
+		default:
 			fmt.Fprintf(out, "%-30s %-12s %-30s %s\n", "ID", "STATUS", "EXECUTION", "QUESTION")
 			for _, ir := range irs {
 				q := ir.Question()
@@ -76,7 +83,7 @@ func (a *App) irListHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) irShowHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "input-request show <id>", ExitUsage)
@@ -112,7 +119,7 @@ func (a *App) irRespondHandler(fs *flag.FlagSet) Handler {
 	answer := fs.String("answer", "", "answer text (omit to enter interactive mode)")
 	answerFile := fs.String("answer-file", "", "read answer from file ('-' = stdin)")
 	decidedBy := fs.String("decided-by", "", "decided-by identity (defaults to configured user)")
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "input-request respond <id> [--answer=... | --answer-file=... | <stdin>]", ExitUsage)
@@ -156,7 +163,7 @@ func (a *App) irRespondHandler(fs *flag.FlagSet) Handler {
 func (a *App) irCancelHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "user_cancel", "cancel reason")
 	message := fs.String("message", "", "cancel message (required)")
-	format := fs.String("format", "human", "human|json")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "input-request cancel <id>", ExitUsage)

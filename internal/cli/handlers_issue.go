@@ -51,7 +51,7 @@ func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 	fromConversation := fs.String("from-conversation", "", "(CV4 derive) source conversation id; switches to derive flow")
 	selectMessages := fs.String("select-messages", "", "(CV4 derive) comma-separated source message ids to carry over")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 2 {
 			return PrintError(errw, *format, "usage_error",
@@ -152,7 +152,7 @@ func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 func (a *App) openIssueAgentHandler(fs *flag.FlagSet) Handler {
 	description := fs.String("description", "", "issue description")
 	openedBy := fs.String("opened-by", "", "agent identity (e.g. agent:session-X)")
-	format := fs.String("format", "json", "output format (human|json)")
+	format := fs.String("format", FormatJSON, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 2 {
 			return PrintError(errw, *format, "usage_error",
@@ -198,7 +198,7 @@ func (a *App) issueCommentHandler(fs *flag.FlagSet) Handler {
 	actorFlag := fs.String("actor", "", "actor identity (defaults to config default user)")
 	direction := fs.String("direction", "internal", "message direction (inbound|outbound|internal)")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: issue comment <issue_id> --content=...", ExitUsage)
@@ -258,7 +258,7 @@ func (a *App) issueConcludeHandler(fs *flag.FlagSet) Handler {
 	spawnTasks := fs.String("spawn-tasks", "", "tasks JSON (inline or @path/to/file); required for closed_with_tasks")
 	concludedBy := fs.String("concluded-by", "", "concluded_by identity (defaults to config default user)")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error",
@@ -348,7 +348,7 @@ func (a *App) issueWithdrawHandler(fs *flag.FlagSet) Handler {
 	message := fs.String("message", "", "withdraw human-readable message (required; conventions § 16)")
 	withdrawnBy := fs.String("withdrawn-by", "", "withdrawn_by identity (defaults to default user)")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: issue withdraw <issue_id> --reason=... --message=...", ExitUsage)
@@ -399,7 +399,7 @@ func (a *App) issueBindConversationHandler(fs *flag.FlagSet) Handler {
 	auto := fs.Bool("auto", false, "create a fresh kind=issue Conversation")
 	to := fs.String("to", "", "bind to existing conversation_id (must be kind=issue, open, unowned)")
 	channel := fs.String("channel", "", "channel hint (feishu / web etc.; --auto only)")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error",
@@ -451,7 +451,7 @@ func (a *App) issueBindConversationHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) issueLinkConversationHandler(fs *flag.FlagSet) Handler {
 	convID := fs.String("conversation", "", "related conversation_id (weak link)")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error",

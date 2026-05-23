@@ -31,7 +31,7 @@ func (a *App) IdentityCommands() []*Command {
 func (a *App) identityAddHandler(fs *flag.FlagSet) Handler {
 	kindStr := fs.String("kind", "", "kind: user|agent|system (derived from id prefix when omitted)")
 	displayName := fs.String("display-name", "", "human-readable display name")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error",
@@ -80,7 +80,7 @@ func (a *App) identityAddHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) identityListHandler(fs *flag.FlagSet) Handler {
 	kindFlag := fs.String("kind", "", "filter by kind")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		filter := identity.IdentityFilter{}
 		if *kindFlag != "" {

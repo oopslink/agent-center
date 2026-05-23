@@ -64,7 +64,7 @@ func (a *App) taskCreateHandler(fs *flag.FlagSet) Handler {
 	fromConversation := fs.String("from-conversation", "", "(CV4 derive) source conversation id; switches to derive flow")
 	selectMessages := fs.String("select-messages", "", "(CV4 derive) comma-separated source message ids to carry over")
 	agentInstance := fs.String("agent", "", "(CV4 derive) target AgentInstance id (required for derive)")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 2 {
 			return PrintError(errw, *format, "usage_error", "usage: task create <project_id> <title> [flags]", ExitUsage)
@@ -147,7 +147,7 @@ func (a *App) taskBindConversationHandler(fs *flag.FlagSet) Handler {
 	auto := fs.Bool("auto", false, "create a new conversation")
 	to := fs.String("to", "", "bind to existing conversation_id")
 	channel := fs.String("channel", "", "channel hint (feishu / web etc.)")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: task bind-conversation <task_id> --auto|--to=<conv_id>", ExitUsage)
@@ -187,7 +187,7 @@ func (a *App) taskBindConversationHandler(fs *flag.FlagSet) Handler {
 // =============================================================================
 
 func (a *App) taskUnbindConversationHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(_ context.Context, args []string, _ io.Writer, errw io.Writer) ExitCode {
 		_ = args
 		return PrintError(errw, *format, "not_implemented_v1",
@@ -205,7 +205,7 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 	agentCLI := fs.String("agent-cli", "claude-code", "agent CLI (claude-code|codex|opencode)")
 	baseBranch := fs.String("base-branch", "main", "worktree base branch")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: dispatch <task_id> --worker=<id>", ExitUsage)
@@ -251,7 +251,7 @@ func (a *App) killExecutionHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "killed reason (user_request|supervisor_request|abandon_precondition|suspend_precondition|reconcile_stale|reconcile_unknown|timeout_kill)")
 	message := fs.String("message", "", "human-readable message")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: kill-execution <execution_id> --reason --message", ExitUsage)
@@ -302,7 +302,7 @@ func (a *App) requestInputHandler(fs *flag.FlagSet) Handler {
 	question := fs.String("question", "", "question to ask user/supervisor")
 	options := fs.String("options", "", "comma-separated options")
 	urgency := fs.String("urgency", "normal", "urgency (normal|urgent)")
-	format := fs.String("format", "json", "output format (human|json)")
+	format := fs.String("format", FormatJSON, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: request-input <execution_id> --question=<q>", ExitUsage)
@@ -347,7 +347,7 @@ func (a *App) requestInputHandler(fs *flag.FlagSet) Handler {
 func (a *App) reportProgressHandler(fs *flag.FlagSet) Handler {
 	kind := fs.String("kind", "agent_finding", "progress kind")
 	content := fs.String("content", "", "progress content")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: report-progress <execution_id> --content=<text>", ExitUsage)
@@ -383,7 +383,7 @@ func (a *App) reportArtifactHandler(fs *flag.FlagSet) Handler {
 	blobRef := fs.String("blob-ref", "", "blob ref")
 	url := fs.String("url", "", "external url")
 	metadata := fs.String("metadata", "{}", "metadata JSON")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: report-artifact <execution_id> --kind --title [--blob-ref|--url|--metadata]", ExitUsage)
@@ -421,7 +421,7 @@ func (a *App) reportArtifactHandler(fs *flag.FlagSet) Handler {
 func (a *App) reportFailureHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "agent-side reason tag (free-form)")
 	message := fs.String("message", "", "human-readable detail")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: report-failure <execution_id> --message=<msg>", ExitUsage)
@@ -453,7 +453,7 @@ func (a *App) reportFailureHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) readTaskContextHandler(fs *flag.FlagSet) Handler {
 	recent := fs.Int("recent-messages", 20, "recent message count")
-	format := fs.String("format", "json", "output format (human|json)")
+	format := fs.String("format", FormatJSON, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: read-task-context <task_id>", ExitUsage)

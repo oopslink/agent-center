@@ -138,6 +138,12 @@ func (r *Router) Run(ctx context.Context, args []string) ExitCode {
 			return ExitUsage
 		}
 		args = positionals
+		// P11 § 3.8: universal --format validation. If the leaf handler
+		// declared a `--format` flag, normalise human→table and reject
+		// values outside the {table,json,text} set before dispatching.
+		if !validateRouterFormatFlag(fs, r.Err) {
+			return ExitUsage
+		}
 	} else {
 		handler = cmd.Run
 	}

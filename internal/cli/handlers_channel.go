@@ -30,7 +30,7 @@ func (a *App) ChannelCommands() []*Command {
 func (a *App) channelCreateHandler(fs *flag.FlagSet) Handler {
 	name := fs.String("name", "", "channel name (required, globally unique)")
 	description := fs.String("description", "", "channel description")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *name == "" {
 			return PrintError(errw, *format, "usage_error", "--name required", ExitUsage)
@@ -63,7 +63,7 @@ func (a *App) channelCreateHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) channelListHandler(fs *flag.FlagSet) Handler {
 	statusFlag := fs.String("status", "", "filter by status (active|closed|archived)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		k := conversation.ConversationKindChannel
 		filter := conversation.ConversationFilter{Kind: &k}
@@ -79,14 +79,21 @@ func (a *App) channelListHandler(fs *flag.FlagSet) Handler {
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
-		if *format == "json" {
+		switch *format {
+		case FormatJSON:
 			arr := make([]map[string]any, len(convs))
 			for i, c := range convs {
 				arr[i] = convToMap(c)
 			}
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
-		} else {
+		case FormatText:
+			ids := make([]string, len(convs))
+			for i, c := range convs {
+				ids[i] = c.Name()
+			}
+			writeTextLines(out, ids)
+		default:
 			fmt.Fprintf(out, "%-32s %-12s %s\n", "NAME", "STATUS", "DESCRIPTION")
 			for _, c := range convs {
 				fmt.Fprintf(out, "%-32s %-12s %s\n", c.Name(), c.Status(), c.Description())
@@ -97,7 +104,7 @@ func (a *App) channelListHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) channelShowHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "channel show <name>", ExitUsage)
@@ -132,7 +139,7 @@ func (a *App) channelShowHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) channelArchiveHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "channel archive <name>", ExitUsage)
@@ -157,7 +164,7 @@ func (a *App) channelArchiveHandler(fs *flag.FlagSet) Handler {
 func (a *App) channelInviteHandler(fs *flag.FlagSet) Handler {
 	channel := fs.String("channel", "", "channel name (required)")
 	role := fs.String("role", "member", "role: owner|member|observer")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "channel invite <identity_id> --channel=<name>", ExitUsage)
@@ -186,7 +193,7 @@ func (a *App) channelInviteHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) channelLeaveHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "reason for leaving (optional)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "channel leave <name>", ExitUsage)
@@ -212,7 +219,7 @@ func (a *App) channelLeaveHandler(fs *flag.FlagSet) Handler {
 func (a *App) channelKickHandler(fs *flag.FlagSet) Handler {
 	channel := fs.String("channel", "", "channel name (required)")
 	reason := fs.String("reason", "", "reason for kick (optional)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "channel kick <identity_id> --channel=<name>", ExitUsage)
@@ -240,7 +247,7 @@ func (a *App) channelKickHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) channelParticipantsHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "channel participants <name>", ExitUsage)

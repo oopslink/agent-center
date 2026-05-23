@@ -30,7 +30,7 @@ func (a *App) agentCreateHandler(fs *flag.FlagSet) Handler {
 	workerID := fs.String("worker", "", "worker id this instance lives on (required for non-builtin)")
 	config := fs.String("config", "", "JSON config blob (defaults to {})")
 	maxConcurrent := fs.Int("max-concurrent", -1, "max concurrent executions (negative = unset)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *name == "" {
 			return PrintError(errw, *format, "usage_error", "--name required", ExitUsage)
@@ -77,7 +77,7 @@ func (a *App) agentCreateHandler(fs *flag.FlagSet) Handler {
 func (a *App) agentListHandler(fs *flag.FlagSet) Handler {
 	stateFlag := fs.String("state", "", "filter by state (idle|active|sleeping|archived)")
 	workerFlag := fs.String("worker", "", "filter by worker id")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		filter := workforce.AgentInstanceFilter{}
 		if *stateFlag != "" {
@@ -92,14 +92,21 @@ func (a *App) agentListHandler(fs *flag.FlagSet) Handler {
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
 		}
-		if *format == "json" {
+		switch *format {
+		case FormatJSON:
 			arr := make([]map[string]any, len(list))
 			for i, ai := range list {
 				arr[i] = agentToMap(ai)
 			}
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
-		} else {
+		case FormatText:
+			ids := make([]string, len(list))
+			for i, ai := range list {
+				ids[i] = string(ai.ID())
+			}
+			writeTextLines(out, ids)
+		default:
 			fmt.Fprintf(out, "%-30s %-12s %-30s %-15s %s\n", "ID", "STATE", "NAME", "AGENT_CLI", "WORKER")
 			for _, ai := range list {
 				w := ""
@@ -114,7 +121,7 @@ func (a *App) agentListHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) agentShowHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "agent show <id-or-name>", ExitUsage)
@@ -147,7 +154,7 @@ func (a *App) agentArchiveHandler(fs *flag.FlagSet) Handler {
 	reasonFlag := fs.String("reason", "user_request", "archive reason (user_request|worker_offline|...)")
 	message := fs.String("message", "", "archive message (required)")
 	versionFlag := fs.Int("version", 0, "expected version (CAS, required)")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "agent archive <id>", ExitUsage)

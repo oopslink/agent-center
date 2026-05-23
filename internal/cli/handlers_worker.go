@@ -54,7 +54,7 @@ func (a *App) WorkerCommands() []*Command {
 func (a *App) workerEnrollHandler(fs *flag.FlagSet) Handler {
 	workerID := fs.String("worker-id", "", "worker id")
 	capsStr := fs.String("capabilities", "claude-code", "comma-separated capability list")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *workerID == "" {
 			return PrintError(errw, *format, "usage_error", "--worker-id required", ExitUsage)
@@ -89,7 +89,7 @@ func (a *App) workerEnrollHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) workerListHandler(fs *flag.FlagSet) Handler {
 	statusFlag := fs.String("status", "", "filter by status (online|offline)")
-	format := fs.String("format", "human", "output format (human|json)")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		var workers []*workforce.Worker
 		var err error
@@ -124,7 +124,7 @@ func (a *App) workerListHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) workerStatusHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "output format")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "worker status <worker_id>", ExitUsage)
@@ -179,7 +179,7 @@ func splitNonEmpty(s, sep string) []string {
 func (a *App) proposalListHandler(fs *flag.FlagSet) Handler {
 	workerID := fs.String("worker-id", "", "filter by worker id")
 	status := fs.String("status", "", "filter by status (pending|accepted|ignored|superseded)")
-	format := fs.String("format", "human", "output format")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		var proposals []*workforce.WorkerProjectProposal
 		var err error
@@ -223,7 +223,7 @@ func (a *App) proposalListHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) proposalShowHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "proposal show <id>", ExitUsage)
@@ -249,7 +249,7 @@ func (a *App) proposalProposeHandler(fs *flag.FlagSet) Handler {
 	candidatePath := fs.String("candidate-path", "", "candidate filesystem path")
 	suggestedID := fs.String("suggested-project-id", "", "suggested project slug (default = path basename)")
 	suggestedKind := fs.String("suggested-kind", "", "suggested kind")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *workerID == "" || *candidatePath == "" {
 			return PrintError(errw, *format, "usage_error",
@@ -295,7 +295,7 @@ func (a *App) proposalProposeHandler(fs *flag.FlagSet) Handler {
 func (a *App) proposalAcceptHandler(fs *flag.FlagSet) Handler {
 	projectID := fs.String("project-id", "", "override target project id")
 	kind := fs.String("kind", "", "override project kind")
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "proposal accept <id>", ExitUsage)
@@ -330,7 +330,7 @@ func (a *App) proposalAcceptHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) proposalIgnoreHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "proposal ignore <id>", ExitUsage)
@@ -348,7 +348,7 @@ func (a *App) proposalIgnoreHandler(fs *flag.FlagSet) Handler {
 }
 
 func (a *App) proposalUnignoreHandler(fs *flag.FlagSet) Handler {
-	format := fs.String("format", "human", "")
+	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "proposal unignore <id>", ExitUsage)
