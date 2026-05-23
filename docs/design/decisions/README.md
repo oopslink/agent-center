@@ -43,6 +43,7 @@
 | 0035 | [跨 Conversation Message Carry-over（v2 CV3）](drafts/0035-cross-conversation-message-carryover.md) | Draft |
 | 0036 | [从 Conversation Messages 派生 Issue / Task（v2 CV4）](drafts/0036-derive-issue-task-from-messages.md) | Draft |
 | 0037 | [Web Console 升为 v2 用户主入口（v2 W1）](drafts/0037-web-console-as-main-user-ui.md) | Draft |
+| 0038 | [CLI UX 增强（v2 W2）](drafts/0038-cli-ux-enhancement.md) | Draft |
 
 ## 规则提示
 
