@@ -1,10 +1,19 @@
-# Identity 聚合（+ ChannelBinding 子 VO）
+# Identity 聚合
 
-> **DDD 战术层** · BC: Conversation · 聚合: Identity（AR）+ ChannelBinding（VO，子从属）
+> **DDD 战术层** · BC: Conversation · 聚合: Identity（AR）
+>
+> v2 [ADR-0033](../../../decisions/drafts/0033-identity-model-refactor.md) 简化：kind 3 种（`user` / `agent` / `system`）；ID 格式 `kind:id`；`kind=agent` 直接引用 AgentInstance.id (ULID, [ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md))；**ChannelBinding 子 VO 删**（vendor 撤回，[ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）。
 
-Identity 是参与者的统一身份：`user:hayang` / `supervisor:invocation-id` / `agent:session-id` / `bot`。**跨渠道不变** —— 不管用户在飞书还是 DingTalk 发消息，归属同一个 Identity。
+Identity 是参与者的统一身份。v2 形态：
 
-ChannelBinding 是 Identity ↔ 某渠道 vendor user id 的映射（例：`user:hayang ↔ feishu:open_id:ou_xxx`、`user:hayang ↔ dingtalk:userid:xxx`）。
+| Identity 例 | id | kind | 说明 |
+|---|---|---|---|
+| 人类用户 | `user:hayang` | `user` | v2 单用户场景；id = `user:<name>` |
+| Worker agent | `agent:01HE6T9N...` | `agent` | 引用持久 AgentInstance.id (ULID) |
+| Built-in supervisor | `agent:<supervisor_agent_instance.id>` | `agent` | supervisor 也是 AgentInstance（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）；用 agent: 前缀统一 |
+| 系统 | `system` | `system` | singleton |
+
+权限模型（v3+）将绑 Identity.id；v2 暂无权限实装。
 
 ---
 
@@ -14,29 +23,29 @@ ChannelBinding 是 Identity ↔ 某渠道 vendor user id 的映射（例：`user
 
 ```
 identity (
-  id                  TEXT  -- 'user:hayang' / 'supervisor:invocation-N' / 'agent:session-X' / 'bot'
-  kind                user | supervisor | agent | bot
-  display_name        TEXT  -- 显示名
-  created_at          ISO8601 TEXT
+  id            TEXT        -- 'user:<name>' / 'agent:<agent_instance.id>' / 'system'
+  kind          enum        -- user | agent | system （3 种，v2 简化）
+  display_name  TEXT        -- "Hayang" / "Coder MBP" / "System"
+  created_at    ISO8601 TEXT
 )
+
+UNIQUE INDEX identity_id_uq (id)
 ```
 
 `id` 是形式化字符串（含 kind 前缀），不是 UUID —— 直接表达 actor 身份。
 
-### ChannelBinding（VO，子从属）
+### 跨聚合 invariant：Identity[kind=agent] ↔ AgentInstance
 
-```
-channel_binding (
-  id                  ULID/UUID
-  identity_id         FK → identities (强引用，不可变)
-  channel             TEXT  -- 'feishu' / 'dingtalk' / 'web' / ...
-  vendor_user_id      TEXT  -- 'feishu:open_id:ou_xxx' / 'dingtalk:userid:xxx' / ...
-  preferred           INTEGER 0/1  -- 该 identity 的默认推送渠道？
-  bound_at            ISO8601 TEXT
-)
-```
+应用层约束（[ADR-0033 § 3](../../../decisions/drafts/0033-identity-model-refactor.md)）：
 
-跨 BC 命名冲突说明：ADR-0020 引入的 Discussion BC `ChannelBinding` 已被 [ADR-0021](../../../decisions/0021-issue-as-conversation.md) 移除（Discussion 不再持 ChannelBinding 字段）；本 BC 是**唯一**持有 `ChannelBinding` VO 的地方。
+- `agent:<x>` Identity 行存在 ⇔ `agent_instances` 表存在 row with `id=<x>`
+- AgentInstance create 时同事务 INSERT 对应 Identity row
+- AgentInstance archive 时 Identity 保留（历史 message sender 引用不能断）
+- Identity 不可独立创建 `agent:<x>` —— 必须 AgentInstance create 触发
+
+### ChannelBinding（v2 已删除）
+
+⚠️ v1 的 `ChannelBinding` 子 VO 跟 ADR-0031 vendor 撤回一起 **全删**；v2 不再有 Identity ↔ vendor user id 映射。v3+ 重新设计 vendor 接入时若需 vendor 映射，独立 BC 处理；推荐命名 `VendorMapping`（避免跟 Conversation kind=channel 冲突）。
 
 ---
 

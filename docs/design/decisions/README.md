@@ -38,6 +38,8 @@
 | 0030 | [AgentAdapter 矩阵扩展（v2 G3）](drafts/0030-agentadapter-matrix-expansion.md) | Draft |
 | 0031 | [v2 Drop Bridge / Vendor Integration（飞书等 IM 接入暂撤）](drafts/0031-v2-drop-bridge-vendor-integration.md) | Accepted（meta scope decision）|
 | 0032 | [Conversation Channel 业务一等公民 + Conversation schema reset（v2 CV1）](drafts/0032-conversation-channel-as-first-class.md) | Draft |
+| 0033 | [Identity 模型重构（v2 CV2a）](drafts/0033-identity-model-refactor.md) | Draft |
+| 0034 | [Conversation Participants 字段（v2 CV2b）](drafts/0034-conversation-participants-field.md) | Draft |
 
 ## 规则提示
 

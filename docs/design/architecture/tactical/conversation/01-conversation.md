@@ -67,6 +67,7 @@ conversation (
   description              TEXT, nullable      -- universal nullable
   status                   active | closed | archived  -- v2 加 'archived' 状态
   parent_conversation_id   ULID/UUID, nullable -- universal 父子链（channel→issue / issue→task 等；为 CV3 carry-over 铺基础）
+  participants             JSON                -- CV2b ([ADR-0034](../../../decisions/drafts/0034-conversation-participants-field.md))：对象数组，元素含 identity_id / role / joined_at / joined_by / left_at? / left_reason?
   created_by               TEXT                -- universal；任何 Conversation 都有创建者 actor
   created_at               ISO8601 TEXT
   updated_at               ISO8601 TEXT
