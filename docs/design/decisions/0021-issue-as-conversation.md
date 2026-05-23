@@ -2,11 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | **Superseded by [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md)**（2026-05-23 v2 设计阶段后）|
 | Date | 2026-05-20 |
 | Supersedes | [ADR-0009](0009-issue-conversation-decoupled-via-bridge.md)（§ 1 Issue ↔ Conversation 解耦 + § 3 Issue Bound Card 字段结构）/ [ADR-0020](0020-card-confined-to-bridge-bc.md)（中间方案，被本 ADR 升级为统一方案）|
 | Refines | [ADR-0017](0017-task-as-conversation.md)（把 Task ↔ Conversation 1:1 模式推广到 Issue）|
+| Superseded-By | [ADR-0039 Conversation 业务模型 v2 统一](drafts/0039-conversation-business-model-v2-unified.md) —— v2 撤回 vendor 后本 ADR 内含飞书 inbound / 卡片 / Bridge 描述失效；Issue ↔ Conversation 1:1 核心结论沿用到 ADR-0039 § 7 |
 | Affects-Wording | [ADR-0016](0016-task-progress-via-bound-thread.md)（"bound card" 措辞）|
+
+> ⚠️ **v2 读者**：请直接看 [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md)；本 ADR 是 v1 历史记录，内含已撤回的 vendor 描述。
 
 ## Context
 

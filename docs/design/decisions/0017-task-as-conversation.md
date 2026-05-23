@@ -2,10 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted (Refined by [ADR-0021](0021-issue-as-conversation.md)) |
+| Status | **Superseded by [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md)**（2026-05-23 v2 设计阶段后）|
 | Date | 2026-05-17 |
 | Supersedes | [ADR-0016](0016-task-progress-via-bound-thread.md) |
 | Refined-By | [ADR-0021](0021-issue-as-conversation.md)（本 ADR 的 Task ↔ Conversation 1:1 模式 2026-05-20 推广到 Issue）|
+| Superseded-By | [ADR-0039 Conversation 业务模型 v2 统一](drafts/0039-conversation-business-model-v2-unified.md) —— v2 撤回 vendor 后本 ADR 内含飞书 / Bridge / 卡片 渲染描述失效；Task ↔ Conversation 1:1 核心结论沿用到 ADR-0039 § 7 |
+
+> ⚠️ **v2 读者**：请直接看 [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md)；本 ADR 是 v1 历史记录，内含已撤回的 vendor 描述。
 
 ## Context
 

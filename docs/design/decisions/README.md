@@ -22,12 +22,12 @@
 | 0014 | [事件溯源走 L1：状态表为权威，事件表是审计流](0014-event-sourcing-level.md) | Accepted |
 | 0015 | [agent_trace 不进 events 表：归 BlobStore + TaskExecution 投影摘要](0015-agent-trace-not-in-events-table.md) | Accepted |
 | 0016 | [Task 进度跟踪走 bound thread + 进度消息流](0016-task-progress-via-bound-thread.md) | Superseded by 0017 |
-| 0017 | [Task 即 Conversation：1:1 绑定 + 所有 task UI 走统一 Message 时间线](0017-task-as-conversation.md) | Accepted (Refined by 0021) |
+| 0017 | [Task 即 Conversation：1:1 绑定 + 所有 task UI 走统一 Message 时间线](0017-task-as-conversation.md) | Superseded by 0039 |
 | 0018 | [Detached agent execution via per-execution shim](0018-detached-agent-via-per-execution-shim.md) | Accepted |
 | 0019 | [BC1 Scheduling + BC4 Execution 合并为 TaskRuntime](0019-bc-scheduling-execution-merged-to-task-runtime.md) | Accepted |
 | 0020 | [Card 限制在 Bridge BC：Issue 字段精简 + Card 元数据归 Bridge ledger](0020-card-confined-to-bridge-bc.md) | Superseded by 0021 |
-| 0021 | [Issue 即 Conversation：1:1 绑定 + 所有 Issue IO 走统一 Message 时间线](0021-issue-as-conversation.md) | Accepted |
-| 0022 | [Conversation 不对齐 IM 软件的 channel/thread 层级模型](0022-conversation-not-aligned-with-im-hierarchy.md) | Accepted |
+| 0021 | [Issue 即 Conversation：1:1 绑定 + 所有 Issue IO 走统一 Message 时间线](0021-issue-as-conversation.md) | Superseded by 0039 |
+| 0022 | [Conversation 不对齐 IM 软件的 channel/thread 层级模型](0022-conversation-not-aligned-with-im-hierarchy.md) | Superseded by 0039 |
 | 0023 | [Worker Enroll 轻量化](drafts/0023-worker-enroll-lightweight.md) | Draft |
 | 0024 | [AgentInstance 一等公民化](drafts/0024-agent-instance-first-class.md) | Draft（amended by 0029） |
 | 0025 | [`agent:create` 协议 = G1 CLI Endpoint](drafts/0025-agent-create-via-cli-not-protocol.md) | Draft |
@@ -44,6 +44,7 @@
 | 0036 | [从 Conversation Messages 派生 Issue / Task（v2 CV4）](drafts/0036-derive-issue-task-from-messages.md) | Draft |
 | 0037 | [Web Console 升为 v2 用户主入口（v2 W1）](drafts/0037-web-console-as-main-user-ui.md) | Draft |
 | 0038 | [CLI UX 增强（v2 W2）](drafts/0038-cli-ux-enhancement.md) | Draft |
+| 0039 | [Conversation 业务模型 v2 统一（supersedes 0017/0021/0022）](drafts/0039-conversation-business-model-v2-unified.md) | Accepted |
 
 ## 规则提示
 

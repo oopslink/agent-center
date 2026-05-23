@@ -38,7 +38,7 @@ stateDiagram-v2
 | `task` | Task 创建时同事务建 kind=task Conversation（[ADR-0017](../../../decisions/0017-task-as-conversation.md) 待 CV1-CV4 闭环后 rewrite）| Task `done` / `abandoned` → close；保留全部历史 | 跟 Task **1:1**（task.conversation_id ↔ conversation.id）|
 | `issue` | Issue 创建时同事务建 kind=issue Conversation；CV4 后加「从父 channel messages 派生 Issue」入口（待议）| Issue `concluded` / `closed_*` / `withdrawn` → close | 跟 Issue **1:1**（issue.conversation_id ↔ conversation.id）|
 
-> ⚠️ 关于 task / issue kind 的细则（来源 / closer 路径 / thread_key 写入方向等）—— [ADR-0017](../../../decisions/0017-task-as-conversation.md) / [ADR-0021](../../../decisions/0021-issue-as-conversation.md) **待 CV1-CV4 闭环后 rewrite**（[ADR-0031 Step 3](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）。当前 § 2.1 / 2.2 仅作 v1 历史记录，不反映 v2 vendor 撤回后的最终形态。
+> 🆕 关于 task / issue kind 的细则 —— v2 模型由 [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md) 承载（supersedes ADR-0017 / 0021 / 0022）。Task ↔ Conversation 1:1 + Issue ↔ Conversation 1:1 + 业务对象层级是 source of truth 等核心结论沿用。下面 § 2.1 / 2.2 内含 v1 vendor 描述（飞书 @bot / Bridge 路径等），属历史记录；v2 实际行为按 ADR-0039 + CV1-CV4 + W1/W2 ADR 集合。
 
 ### 2.1 kind=task 生命周期补充
 

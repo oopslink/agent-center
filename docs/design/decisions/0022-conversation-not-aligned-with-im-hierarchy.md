@@ -2,8 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted |
+| Status | **Superseded by [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md)**（2026-05-23 v2 设计阶段后）|
 | Date | 2026-05-21 |
+| Superseded-By | [ADR-0039 Conversation 业务模型 v2 统一](drafts/0039-conversation-business-model-v2-unified.md) —— v2 撤回 vendor 后「channel 是 Bridge routing hint」描述失效；ADR-0039 升级为「channel 是业务一等公民」（CV1 / ADR-0032），跟本 ADR 「业务对象层级是 source of truth」精神一致并更彻底 |
+
+> ⚠️ **v2 读者**：请直接看 [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md)；本 ADR 是 v1 历史记录，内含「channel 是 routing hint」等 vendor-coupled 描述已不适用。
 
 ## Context
 

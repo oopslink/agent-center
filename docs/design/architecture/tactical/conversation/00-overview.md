@@ -10,7 +10,9 @@
 
 > 命名 / 定位决策见 [ADR-0007](../../../decisions/0007-conversation-as-unified-session.md)（Refined by 0009 → 0021）+ [ADR-0017](../../../decisions/0017-task-as-conversation.md)（Task ↔ Conversation 1:1）+ [ADR-0021](../../../decisions/0021-issue-as-conversation.md)（Issue ↔ Conversation 1:1）。
 >
-> ⚠️ **v2 过渡状态**（[ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md) + [ADR-0032](../../../decisions/drafts/0032-conversation-channel-as-first-class.md)）：v2 撤回 Bridge / 飞书集成；本 BC 内 vendor 相关字段（`primary_channel_hint` / `ChannelBinding` 等）+ ADR-0017/0021/0022 + 本文件 § 内 vendor 引用（Bridge inbound / FeishuBridge / `vendor_msg_ref` / 等）**待 CV1-CV4 议题闭环后统一 rewrite + bulk purge**。**CV1 已落地**（kind `group_thread → channel` + universal `name` / `description` / `parent_conversation_id` / `created_by` + `archived` 状态，详见 [01-conversation.md § 1-3](01-conversation.md)）。本文件其他章节的 vendor 描述暂保留作过渡参考。
+> 🆕 **v2 业务模型已统一**：详见 [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)（supersedes ADR-0017 / 0021 / 0022）；vendor 集成已撤回（[ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）。Conversation = 纯业务时间线 + 关联实体（Channel/Issue/Task/DM 等）；vendor 接入 v3+ 重新设计作为 view / projection 层。
+>
+> 本文件其他章节中残留的 v1 vendor 描述（Bridge inbound / FeishuBridge / `vendor_msg_ref` / 等）属 v1 历史，**后续 bulk purge pass 统一清理**（per ADR-0031 Step 4）。
 
 ---
 
