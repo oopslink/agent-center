@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -357,6 +358,113 @@ func TestProposalAcceptanceService_Guard_AllNil(t *testing.T) {
 	}
 }
 
+// guard() with all deps set should pass
+func TestProposalAcceptanceService_Guard_AllSet(t *testing.T) {
+	s := setupSuite(t)
+	svc := acceptanceService(s)
+	if err := svc.guard(); err != nil {
+		t.Fatalf("guard with all set: %v", err)
+	}
+}
+
+// EnsureProject: requires a tx context — bare ctx rejects.
+func TestEnsureProject_NoTxRejected(t *testing.T) {
+	s := setupSuite(t)
+	disc := NewProjectDiscoveryService(s.projectRepo, s.sink, s.clock)
+	_, err := disc.EnsureProject(context.Background(), EnsureProjectInput{
+		ID: "p", Name: "P", Kind: workforce.ProjectKindCoding,
+		CreatedBy: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// EnsureProject: bad actor (renamed to avoid duplicate)
+func TestEnsureProject_BadActorInTx(t *testing.T) {
+	s := setupSuite(t)
+	disc := NewProjectDiscoveryService(s.projectRepo, s.sink, s.clock)
+	persistence.RunInTx(context.Background(), s.db, func(txCtx context.Context) error {
+		_, err := disc.EnsureProject(txCtx, EnsureProjectInput{
+			ID: "p", Name: "P", Kind: workforce.ProjectKindCoding,
+			CreatedBy: "bogus:x",
+		})
+		if err == nil {
+			t.Fatal()
+		}
+		return nil
+	})
+}
+
+// ProjectCRUD Update: bad-id-shape input
+func TestProjectCRUD_Add_HappyPath(t *testing.T) {
+	s := setupSuite(t)
+	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
+	_, err := svc.Add(context.Background(), AddCommand{
+		ID: "p-new", Name: "P", Kind: workforce.ProjectKindCoding,
+		Actor: "user:hayang",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// ProjectCRUD Remove with no-deps happy path.
+func TestProjectCRUD_Remove_Happy(t *testing.T) {
+	s := setupSuite(t)
+	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
+	_, err := svc.Add(context.Background(), AddCommand{
+		ID: "p-rem", Name: "PR", Kind: workforce.ProjectKindCoding,
+		Actor: "user:hayang",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Remove(context.Background(), RemoveCommand{
+		ID: "p-rem", Actor: "user:hayang",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// AILifecycle: OnWorkerOnline tx failure via trigger.
+func TestAILifecycle_OnWorkerOnline_TxFailure(t *testing.T) {
+	s := setupAISuite(t)
+	_, _ = s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
+		Name: "c2", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	_, _ = s.life.OnWorkerOffline(context.Background(), "W-1", "system")
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_ai_on BEFORE UPDATE ON agent_instances BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.life.OnWorkerOnline(context.Background(), "W-1", "system")
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// AILifecycle: OnExecutionEnded tx failure when transitioning idle.
+func TestAILifecycle_OnExecutionEnded_TxFailure(t *testing.T) {
+	s := setupAISuite(t)
+	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
+		Name: "c3", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	_ = s.life.OnExecutionStarted(context.Background(), created.ID, "system")
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_ai_end BEFORE UPDATE ON agent_instances BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	err := s.life.OnExecutionEnded(context.Background(), created.ID, "system")
+	if err == nil {
+		t.Fatal()
+	}
+}
+
 // =============================================================================
 // Trigger-based tx failure injection for service emit/UpdateStatus paths
 // =============================================================================
@@ -549,6 +657,87 @@ func TestAIMgmt_UpdateConfig_TxFailure(t *testing.T) {
 	cfg := `{"x":2}`
 	_, err := s.mgmt.UpdateConfig(context.Background(), UpdateAgentInstanceConfigCommand{
 		ID: created.ID, Config: &cfg, Version: 1, ActorIdentity: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// Propose tx failure: block proposals INSERT.
+func TestPropose_SaveFailure(t *testing.T) {
+	s := setupSuite(t)
+	_ = s.workerRepo.Save(context.Background(), newW(t, "W-PF"))
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_proposals BEFORE INSERT ON worker_project_proposals BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	svc := acceptanceService(s)
+	_, err := svc.Propose(context.Background(), ProposeCommand{
+		WorkerID: "W-PF", CandidatePath: "/x", SuggestedProjectID: "p",
+		SuggestedKind: workforce.ProjectKindCoding, Actor: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// Accept tx failure: block proposals UPDATE.
+func TestAccept_UpdateFailure(t *testing.T) {
+	s := setupSuite(t)
+	_ = s.workerRepo.Save(context.Background(), newW(t, "W-AC2"))
+	svc := acceptanceService(s)
+	pr, _ := svc.Propose(context.Background(), ProposeCommand{
+		WorkerID: "W-AC2", CandidatePath: "/x", SuggestedProjectID: "p-acc2",
+		SuggestedKind: workforce.ProjectKindCoding, Actor: "user:x",
+	})
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_proposals_upd BEFORE UPDATE ON worker_project_proposals BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := svc.Accept(context.Background(), AcceptCommand{
+		ProposalID: pr.ProposalID, Actor: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// Exchange events table failure.
+func TestExchange_EventEmitFailure(t *testing.T) {
+	s := setupExSuite(t)
+	issued, _ := s.tokenSvc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	// After Issue created its event, block further events table writes.
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_events BEFORE INSERT ON events BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.enrollV2.Exchange(context.Background(), ExchangeRequest{
+		TokenValue: issued.TokenValue, WorkerID: "W-1", ActorIdentity: "worker:W-1",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// Issue emit failure: block events table.
+func TestIssue_EmitFailure(t *testing.T) {
+	s := setupBTSuite(t)
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_events BEFORE INSERT ON events BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.svc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
 	})
 	if err == nil {
 		t.Fatal()
