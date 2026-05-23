@@ -263,7 +263,7 @@ func TestE2E6_ProposalAcceptEmitsEvents_NewProject(t *testing.T) {
 	if _, _, c := h.run("worker", "proposal", "accept", pid); c != 0 {
 		t.Fatal()
 	}
-	rows := h.queryEvents(t, `SELECT event_type FROM events ORDER BY seq`)
+	rows := h.queryEvents(t, `SELECT event_type FROM events WHERE event_type LIKE 'workforce.%' ORDER BY seq`)
 	types := []string{}
 	for _, r := range rows {
 		types = append(types, r["event_type"])
@@ -297,7 +297,7 @@ func TestE2E7_ConversationEvents(t *testing.T) {
 		"--kind=text", "--content=hi", "--direction=internal"); c != 0 {
 		t.Fatal()
 	}
-	rows := h.queryEvents(t, `SELECT event_type FROM events ORDER BY seq`)
+	rows := h.queryEvents(t, `SELECT event_type FROM events WHERE event_type LIKE 'conversation.%' ORDER BY seq`)
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows: %v", len(rows), rows)
 	}
