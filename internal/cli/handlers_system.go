@@ -150,11 +150,23 @@ func ServerCommand() *Command {
 	}
 }
 
-// MigrateCommand returns the `migrate` admin command.
-func MigrateCommand() *Command {
+// MigrateGroupCommand is the parent of `migrate up` + `migrate
+// v1-to-v2`. It carries no Run handler — invoking `migrate` alone
+// prints help.
+func MigrateGroupCommand() *Command {
 	return &Command{
 		Name:    "migrate",
-		Summary: "Run migrations against the configured SQLite file",
+		Summary: "Database migration commands (up / v1-to-v2)",
+	}
+}
+
+// MigrateUpCommand replaces the v1-era top-level `migrate` leaf. It
+// runs pending migrations against the configured SQLite file. Behavior
+// is preserved verbatim from the v1 form (target=N supported).
+func MigrateUpCommand() *Command {
+	return &Command{
+		Name:    "up",
+		Summary: "Run pending migrations against the configured SQLite file",
 		Flags: func(fs *flag.FlagSet) Handler {
 			cfgPath := fs.String("config", "", "config file path")
 			target := fs.Int("target", -1, "target version (negative = up to latest)")

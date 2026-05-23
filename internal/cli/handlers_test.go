@@ -813,7 +813,7 @@ func TestOpenAndMigrate_Happy(t *testing.T) {
 // =============================================================================
 
 func TestMigrateCommand_RunsUp(t *testing.T) {
-	cmd := MigrateCommand()
+	cmd := MigrateUpCommand()
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
@@ -844,7 +844,7 @@ func TestMigrateCommand_RunsUp(t *testing.T) {
 // migrate handler (rollback to version N). The default RunsUp test only
 // exercises the auto-up branch.
 func TestMigrateCommand_TargetDown(t *testing.T) {
-	cmd := MigrateCommand()
+	cmd := MigrateUpCommand()
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
@@ -866,7 +866,7 @@ func TestMigrateCommand_TargetDown(t *testing.T) {
 }
 
 func TestMigrateCommand_BadConfig(t *testing.T) {
-	cmd := MigrateCommand()
+	cmd := MigrateUpCommand()
 	_, errOut, code := runHandler(t, cmd, []string{"--config=/nonexistent.yaml"})
 	if code != ExitUsage {
 		t.Fatalf("code: %d", code)

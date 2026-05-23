@@ -42,7 +42,13 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add(nil, ServerCommand()); err != nil {
 		return nil, "", err
 	}
-	if err := router.Add(nil, MigrateCommand()); err != nil {
+	if err := router.Add(nil, MigrateGroupCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"migrate"}, MigrateUpCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"migrate"}, MigrateV1ToV2Command()); err != nil {
 		return nil, "", err
 	}
 	// Phase 6: `supervisor` is now a real subcommand group with a default
