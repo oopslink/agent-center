@@ -21,6 +21,7 @@
 - `docs/design/architecture/tactical/presentation/02-web-console-architecture.md` 同步
 
 **不做**（明示 P11 不范围）：
+- **Unread message tracking**（channel / dm 列表的未读计数 badge）— backend 没 read-state model；本 phase noop（render 空），落 backlog `docs/plans/v2.1-backlog.md` 的 "Unread message tracking" 条目（~1 day 工作量，post-v2 GA 做）
 - SharedWorker multi-tab 共享单一 connection — F7 已 defer 到 v3+
 - i18n（plan 隐含 zh/en；本 phase 全 zh，i18n 在 P12 之后）
 - 主题切换 / dark mode — 暂只 light

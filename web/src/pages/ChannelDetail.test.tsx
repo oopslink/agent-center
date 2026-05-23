@@ -3,7 +3,6 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type React from 'react';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
 import ChannelDetail from './ChannelDetail';

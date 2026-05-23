@@ -1,13 +1,88 @@
 import type React from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useConversation, useMessages } from '@/api/conversations';
+import { useAppStore } from '@/store/app';
+import { MessageList } from '@/components/MessageList';
+import { MessageComposer } from '@/components/MessageComposer';
 
-// DMDetail page — F3 placeholder. Real implementation lands in a later ST
-// (see phase-11-frontend-plan.md § 7). Kept intentionally minimal so the
-// route tree + lazy split can ship without business code.
+// DMDetail page (/dms/:id). Mirrors ChannelDetail layout but skips the
+// ParticipantsPanel — DM membership is fixed at create time (per
+// ADR-0032 § 6) and not mutable from the UI.
+//
+// SSE live updates flow through F5's dispatchToQueryClient, same as
+// channels — `conversation.message_added` invalidates the messages
+// query.
 export default function DMDetail(): React.ReactElement {
+  const { id = '' } = useParams<{ id: string }>();
+  const me = useAppStore((s) => s.currentUserId);
+  const conv = useConversation(id);
+  const messages = useMessages(id);
+
+  if (conv.isLoading) {
+    return (
+      <section className="text-sm text-slate-500" data-testid="page-DMDetail">
+        Loading DM…
+      </section>
+    );
+  }
+  if (conv.isError) {
+    return (
+      <section className="space-y-3 text-sm" data-testid="page-DMDetail">
+        <p className="text-red-600" data-testid="dm-not-found">
+          {(conv.error as Error).message}
+        </p>
+        <Link to="/dms" className="text-blue-600 hover:underline">
+          Back to DMs
+        </Link>
+      </section>
+    );
+  }
+  if (!conv.data) {
+    return (
+      <section className="text-sm text-red-600" data-testid="page-DMDetail">
+        DM lookup failed.
+      </section>
+    );
+  }
+
+  // Peer label = active participants other than the current user, joined
+  // by " · ". For group DMs this lists everyone.
+  const peers = (conv.data.participants ?? [])
+    .filter((p) => !p.left_at && p.identity_id !== me)
+    .map((p) => p.identity_id);
+  const heading = conv.data.name || peers.join(' · ') || conv.data.id;
+
   return (
-    <section className="space-y-2" data-testid="page-DMDetail">
-      <h2 className="text-xl font-semibold">DMDetail</h2>
-      <p className="text-sm text-slate-500">F3 placeholder — replaced in a later ST.</p>
+    <section
+      className="flex h-full flex-col"
+      data-testid="page-DMDetail"
+      data-dm-id={conv.data.id}
+    >
+      <header className="border-b border-slate-200 pb-3">
+        <h2 className="text-xl font-semibold" data-testid="dm-heading">
+          {heading}
+        </h2>
+        <p className="text-xs text-slate-500">
+          {peers.length === 0
+            ? 'You — solo DM'
+            : `with ${peers.length} ${peers.length === 1 ? 'peer' : 'peers'}`}
+        </p>
+      </header>
+
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {messages.isLoading && (
+          <p className="p-4 text-sm text-slate-500" data-testid="dm-messages-loading">
+            Loading messages…
+          </p>
+        )}
+        {messages.isError && (
+          <p className="p-4 text-sm text-red-600" data-testid="dm-messages-error">
+            {(messages.error as Error).message}
+          </p>
+        )}
+        {messages.isSuccess && <MessageList messages={messages.data} />}
+        <MessageComposer conversationId={conv.data.id} />
+      </div>
     </section>
   );
 }
