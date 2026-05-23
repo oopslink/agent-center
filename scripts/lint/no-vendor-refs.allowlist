@@ -44,6 +44,14 @@
 ^internal/discussion/origin_test\.go:.*v1 origins dropped
 ^internal/persistence/migration_round_trip_test\.go:
 
+# v1→v2 migration tool legitimately references v1 vendor table names
+# (it snapshots their contents to a JSON archive before dropping them).
+^internal/cli/handlers_migrate_v1_to_v2(_test)?\.go:
+# v1→v2 migration guide + master_key operator docs reference the v1
+# vendor tables in the bridge-archive interpretation section.
+^docs/migration/v1-to-v2\.md:
+^docs/operations/master-key\.md:
+
 # Historical "removed in P10 § 3.9 per ADR-0031" comments live next to
 # the code that took over from Bridge BC.
 ^internal/cli/handlers_system\.go:.*Bridge BC

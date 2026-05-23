@@ -524,6 +524,27 @@ agent-center worker status <worker-id>  # VPS 端查应该是 online
 
 v2 撤回 vendor 集成（per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md)）；Worker enroll 完即可派单。Web Console 走 loopback bind on `127.0.0.1:7100`，SSH tunnel 暴露给远程浏览器即可（per [ADR-0037](../decisions/0037-web-console-as-main-user-ui.md)）。
 
+### 10.4 v1 → v2 升级（已有 v1 install 的运维路径）
+
+新装走 § 10.1-10.2 即可；如果你已有 v1 install 要升级到 v2，详步骤见 **[`docs/migration/v1-to-v2.md`](../../migration/v1-to-v2.md)**。要点：
+
+- **stop v1 → backup sqlite → backup config → 生成 master.key**（v1 没这个文件，v2 SecretManagement BC 必备）
+- `agent-center migrate v1-to-v2 --dry-run` 先看 planned ops
+- `agent-center migrate v1-to-v2 --apply` 跑迁移；bridge BC 表内容会落到 `<sqlite-dir>/migration-archive/bridge-archive-<UTC-ts>.json` 保留 audit trail
+- 装 v2 binary + systemd unit → 启动 → curl 验 `/api/health`
+- v2 工具是 **idempotent**：跑第二遍 `--apply` 自动 noop "already at v2"
+- rollback 是 **手动 backup 恢复**（migration 工具不内置回滚自动化）
+
+### 10.5 Master key 运维
+
+`master.key` 加密 SecretManagement BC 的 UserSecret value（at-rest）；丢了不可恢复。**单独运维文档**：[`docs/operations/master-key.md`](../../operations/master-key.md) 覆盖 generation / backup / rotation / multi-machine sync / disaster recovery。
+
+要点：
+- 生成：`head -c 32 /dev/urandom | base64 > master.key && chmod 0600 master.key`
+- 备份：**首个 secret 创建前** 必须备份到 off-machine（password manager / hardware token / sealed envelope）；禁 git / 邮件 / 未加密云盘
+- 多机：v2 单节点设计，**无 sync** —— 多机各自一把 key + 各自 UserSecret（v3 候选：KMS adapter）
+- 灾备：丢 key 且无 backup → DELETE FROM user_secrets + 生成新 key + 备份新 key + 重建所有 secret
+
 ---
 
 ## § 11. 与设计层对位
