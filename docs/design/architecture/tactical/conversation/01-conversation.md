@@ -91,6 +91,27 @@ INDEX conversation_parent_idx (parent_conversation_id) WHERE parent_conversation
 - ❌ `primary_channel_thread_key` — vendor thread key
 - ❌ `title` 字段 → 改为 universal `name`（含 channel 的 channel name 用同字段表达）
 
+### v2 新增独立表 `conversation_message_reference`（CV3，[ADR-0035](../../../decisions/drafts/0035-cross-conversation-message-carryover.md)）
+
+跨 Conversation message carry-over：子 Conversation 创建时引用父 Conversation 部分 message 作初始上下文。
+
+```
+conversation_message_reference (
+  id                ULID
+  child_conv_id     FK → conversations (强引用)
+  source_msg_id     FK → messages (强引用，跨 conv)
+  source_conv_id    FK → conversations (冗余便于 join)
+  order_in_child    INT
+  created_at        ISO8601 TEXT
+  created_by        TEXT
+)
+UNIQUE INDEX (child_conv_id, source_msg_id)
+INDEX (child_conv_id, order_in_child)
+INDEX (source_msg_id)
+```
+
+→ 详 [ADR-0035 CV3 跨 Conversation Message Carry-over](../../../decisions/drafts/0035-cross-conversation-message-carryover.md)。
+
 > v3+ 重新设计 Bridge / vendor 接入时，vendor 路由信息走 **独立 ChannelBinding 表**（不再 inline 在 Conversation），跟业务模型清晰解耦。届时 [ADR-0022](../../../decisions/0022-conversation-not-aligned-with-im-hierarchy.md) 「Conversation 不对齐 IM 层级」的精神升级为「Conversation 是纯业务时间线，vendor 是 view」。
 
 ---

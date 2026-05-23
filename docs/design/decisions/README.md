@@ -40,6 +40,8 @@
 | 0032 | [Conversation Channel 业务一等公民 + Conversation schema reset（v2 CV1）](drafts/0032-conversation-channel-as-first-class.md) | Draft |
 | 0033 | [Identity 模型重构（v2 CV2a）](drafts/0033-identity-model-refactor.md) | Draft |
 | 0034 | [Conversation Participants 字段（v2 CV2b）](drafts/0034-conversation-participants-field.md) | Draft |
+| 0035 | [跨 Conversation Message Carry-over（v2 CV3）](drafts/0035-cross-conversation-message-carryover.md) | Draft |
+| 0036 | [从 Conversation Messages 派生 Issue / Task（v2 CV4）](drafts/0036-derive-issue-task-from-messages.md) | Draft |
 
 ## 规则提示
 
