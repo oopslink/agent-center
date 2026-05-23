@@ -27,15 +27,12 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 	if m == nil {
 		return errors.New("message repo: nil message")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO messages (
 		id, conversation_id, sender_identity_id, content_kind, content,
 		direction, vendor_msg_ref, input_request_ref, posted_at, created_at
 	) VALUES (?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(m.ID()),
 		string(m.ConversationID()),
 		string(m.SenderIdentityID()),
@@ -58,10 +55,7 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 
 // FindByID returns a message; ErrMessageNotFound if absent.
 func (r *MessageRepo) FindByID(ctx context.Context, id conversation.MessageID) (*conversation.Message, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, messageSelect+` WHERE id = ?`, string(id))
 	m, err := scanMessage(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -73,10 +67,7 @@ func (r *MessageRepo) FindByID(ctx context.Context, id conversation.MessageID) (
 // FindByConversationID returns messages in a conversation; filter supports
 // Since cutoff + Limit + Tail.
 func (r *MessageRepo) FindByConversationID(ctx context.Context, conversationID conversation.ConversationID, filter conversation.MessageFilter) ([]*conversation.Message, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := messageSelect + ` WHERE conversation_id = ?`
 	args := []any{string(conversationID)}
 	if filter.Since != nil {
@@ -130,10 +121,7 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 // FindByVendorMsgRef returns the message with the given vendor msg ref
 // (Bridge dedupe path).
 func (r *MessageRepo) FindByVendorMsgRef(ctx context.Context, vendorMsgRef string) (*conversation.Message, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, messageSelect+` WHERE vendor_msg_ref = ?`, vendorMsgRef)
 	m, err := scanMessage(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -148,10 +136,7 @@ func (r *MessageRepo) UpdateVendorMsgRef(ctx context.Context, id conversation.Me
 	if vendorMsgRef == "" {
 		return errors.New("message repo: vendor_msg_ref required")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	// Atomic conditional UPDATE: only set when currently NULL.
 	res, err := exec.ExecContext(ctx,
 		`UPDATE messages SET vendor_msg_ref = ? WHERE id = ? AND vendor_msg_ref IS NULL`,

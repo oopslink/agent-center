@@ -32,15 +32,12 @@ func (r *UserSecretRepo) Save(ctx context.Context, s *secretmgmt.UserSecret) err
 	if s == nil {
 		return errors.New("user secret repo: nil secret")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO user_secrets (
 		id, name, kind, value_ciphertext, value_nonce, state,
 		created_at, created_by, last_used_at, rotated_at, revoked_at, revoked_by, revoked_reason, revoked_message, version
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(s.ID()),
 		s.Name(),
 		string(s.Kind()),
@@ -72,10 +69,7 @@ func (r *UserSecretRepo) Save(ctx context.Context, s *secretmgmt.UserSecret) err
 
 // FindByID returns a secret by PK.
 func (r *UserSecretRepo) FindByID(ctx context.Context, id secretmgmt.UserSecretID) (*secretmgmt.UserSecret, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, userSecretSelect+` WHERE id = ?`, string(id))
 	s, err := scanUserSecret(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -86,10 +80,7 @@ func (r *UserSecretRepo) FindByID(ctx context.Context, id secretmgmt.UserSecretI
 
 // FindByName returns a secret by globally unique name.
 func (r *UserSecretRepo) FindByName(ctx context.Context, name string) (*secretmgmt.UserSecret, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, userSecretSelect+` WHERE name = ?`, name)
 	s, err := scanUserSecret(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -100,10 +91,7 @@ func (r *UserSecretRepo) FindByName(ctx context.Context, name string) (*secretmg
 
 // FindAll lists with optional kind / state filters.
 func (r *UserSecretRepo) FindAll(ctx context.Context, filter secretmgmt.UserSecretFilter) ([]*secretmgmt.UserSecret, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := userSecretSelect + ` WHERE 1=1`
 	args := []any{}
 	if filter.Kind != nil {
@@ -133,10 +121,7 @@ func (r *UserSecretRepo) FindAll(ctx context.Context, filter secretmgmt.UserSecr
 
 // UpdateValue — CAS replace of ciphertext + nonce + rotated_at.
 func (r *UserSecretRepo) UpdateValue(ctx context.Context, id secretmgmt.UserSecretID, ciphertext, nonce []byte, rotatedAt time.Time, version int) error {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE user_secrets
 		SET value_ciphertext = ?, value_nonce = ?, rotated_at = ?, version = version + 1
 		WHERE id = ? AND version = ? AND state = 'active'`
@@ -158,10 +143,7 @@ func (r *UserSecretRepo) UpdateValue(ctx context.Context, id secretmgmt.UserSecr
 
 // UpdateState — CAS transition (active → revoked).
 func (r *UserSecretRepo) UpdateState(ctx context.Context, id secretmgmt.UserSecretID, from, to secretmgmt.UserSecretState, at time.Time, by string, reason secretmgmt.UserSecretRevokedReason, message string, version int) error {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE user_secrets
 		SET state = ?, revoked_at = ?, revoked_by = ?, revoked_reason = ?, revoked_message = ?, version = version + 1
 		WHERE id = ? AND state = ? AND version = ?`
@@ -188,10 +170,7 @@ func (r *UserSecretRepo) UpdateState(ctx context.Context, id secretmgmt.UserSecr
 
 // UpdateLastUsedAt — non-CAS hot path.
 func (r *UserSecretRepo) UpdateLastUsedAt(ctx context.Context, id secretmgmt.UserSecretID, at time.Time) error {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE user_secrets SET last_used_at = ? WHERE id = ?`
 	res, err := exec.ExecContext(ctx, stmt, at.UTC().Format(time.RFC3339Nano), string(id))
 	if err != nil {

@@ -29,15 +29,12 @@ func (r *ArtifactRepo) Append(ctx context.Context, a *execution.Artifact) error 
 	if a == nil {
 		return errors.New("artifact repo: nil artifact")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO artifacts (
 		id, task_id, execution_id, kind, title, blob_ref, url, metadata_json,
 		created_at, created_by
 	) VALUES (?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(a.ID()),
 		string(a.TaskID()),
 		string(a.ExecutionID()),
@@ -60,10 +57,7 @@ func (r *ArtifactRepo) Append(ctx context.Context, a *execution.Artifact) error 
 
 // FindByID returns an Artifact by id.
 func (r *ArtifactRepo) FindByID(ctx context.Context, id taskruntime.ArtifactID) (*execution.Artifact, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, artifactSelect+` WHERE id = ?`, string(id))
 	a, err := scanArtifact(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -74,10 +68,7 @@ func (r *ArtifactRepo) FindByID(ctx context.Context, id taskruntime.ArtifactID) 
 
 // FindByExecutionID returns all artifacts for an execution.
 func (r *ArtifactRepo) FindByExecutionID(ctx context.Context, executionID taskruntime.TaskExecutionID) ([]*execution.Artifact, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		artifactSelect+` WHERE execution_id = ? ORDER BY created_at DESC`,
 		string(executionID))
@@ -90,10 +81,7 @@ func (r *ArtifactRepo) FindByExecutionID(ctx context.Context, executionID taskru
 
 // FindByTaskID returns all artifacts for a task (across executions).
 func (r *ArtifactRepo) FindByTaskID(ctx context.Context, taskID taskruntime.TaskID) ([]*execution.Artifact, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		artifactSelect+` WHERE task_id = ? ORDER BY created_at DESC`,
 		string(taskID))

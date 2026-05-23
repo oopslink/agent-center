@@ -30,10 +30,7 @@ func (r *AgentInstanceRepo) Save(ctx context.Context, a *workforce.AgentInstance
 	if a == nil {
 		return errors.New("agent instance repo: nil instance")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	isBuiltin := 0
 	if a.IsBuiltin() {
 		isBuiltin = 1
@@ -42,7 +39,7 @@ func (r *AgentInstanceRepo) Save(ctx context.Context, a *workforce.AgentInstance
 		id, name, agent_cli, worker_id, config, max_concurrent,
 		state, is_builtin, created_at, archived_at, archived_reason, archived_message, version
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(a.ID()),
 		a.Name(),
 		a.AgentCLI(),
@@ -76,10 +73,7 @@ func (r *AgentInstanceRepo) Save(ctx context.Context, a *workforce.AgentInstance
 
 // FindByID returns a row by PK.
 func (r *AgentInstanceRepo) FindByID(ctx context.Context, id workforce.AgentInstanceID) (*workforce.AgentInstance, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, agentInstanceSelect+` WHERE id = ?`, string(id))
 	a, err := scanAgentInstance(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -90,10 +84,7 @@ func (r *AgentInstanceRepo) FindByID(ctx context.Context, id workforce.AgentInst
 
 // FindByName returns a row by globally unique name.
 func (r *AgentInstanceRepo) FindByName(ctx context.Context, name string) (*workforce.AgentInstance, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, agentInstanceSelect+` WHERE name = ?`, name)
 	a, err := scanAgentInstance(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -104,10 +95,7 @@ func (r *AgentInstanceRepo) FindByName(ctx context.Context, name string) (*workf
 
 // FindAll lists with optional filters.
 func (r *AgentInstanceRepo) FindAll(ctx context.Context, filter workforce.AgentInstanceFilter) ([]*workforce.AgentInstance, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := agentInstanceSelect + ` WHERE 1=1`
 	args := []any{}
 	if filter.WorkerID != nil {
@@ -148,10 +136,7 @@ func (r *AgentInstanceRepo) UpdateState(ctx context.Context, id workforce.AgentI
 	if !from.IsValid() || !to.IsValid() {
 		return fmt.Errorf("agent instance repo: invalid state from=%s to=%s", from, to)
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE agent_instances
 		SET state = ?, version = version + 1
 		WHERE id = ? AND state = ? AND version = ?`
@@ -179,10 +164,7 @@ func (r *AgentInstanceRepo) UpdateState(ctx context.Context, id workforce.AgentI
 
 // UpdateConfig — CAS update of config + optional max_concurrent.
 func (r *AgentInstanceRepo) UpdateConfig(ctx context.Context, id workforce.AgentInstanceID, config string, maxConcurrent *int, version int) error {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE agent_instances
 		SET config = ?, max_concurrent = ?, version = version + 1
 		WHERE id = ? AND version = ?`
@@ -209,10 +191,7 @@ func (r *AgentInstanceRepo) UpdateConfig(ctx context.Context, id workforce.Agent
 
 // Archive — CAS transition to archived state + records archive metadata.
 func (r *AgentInstanceRepo) Archive(ctx context.Context, id workforce.AgentInstanceID, at time.Time, reason workforce.AgentInstanceArchivedReason, message string, version int) error {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE agent_instances
 		SET state = 'archived', archived_at = ?, archived_reason = ?, archived_message = ?, version = version + 1
 		WHERE id = ? AND state = 'idle' AND is_builtin = 0 AND version = ?`
@@ -261,10 +240,7 @@ func (r *AgentInstanceRepo) Archive(ctx context.Context, id workforce.AgentInsta
 // CountActiveExecutions counts non-terminal task_executions for this agent.
 // Returns 0 if the column is NULL (e.g. P8 transitional state).
 func (r *AgentInstanceRepo) CountActiveExecutions(ctx context.Context, id workforce.AgentInstanceID) (int, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return 0, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `SELECT COUNT(*) FROM task_executions
 		WHERE agent_instance_id = ? AND status IN ('submitted', 'working', 'input_required')`
 	var c int
@@ -281,10 +257,7 @@ func (r *AgentInstanceRepo) BulkUpdateStateByWorker(ctx context.Context, workerI
 	if !from.IsValid() || !to.IsValid() {
 		return 0, fmt.Errorf("agent instance repo: invalid bulk state from=%s to=%s", from, to)
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return 0, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE agent_instances
 		SET state = ?, version = version + 1
 		WHERE worker_id = ? AND state = ?`

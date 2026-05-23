@@ -26,15 +26,12 @@ func (r *ProjectRepo) Save(ctx context.Context, p *workforce.Project) error {
 	if p == nil {
 		return errors.New("project repo: nil project")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO projects (
 		id, name, kind, default_agent_cli, description,
 		created_by_identity_id, created_at, updated_at, version
 	) VALUES (?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(p.ID()),
 		p.Name(),
 		nullString(string(p.Kind())),
@@ -56,10 +53,7 @@ func (r *ProjectRepo) Save(ctx context.Context, p *workforce.Project) error {
 
 // FindByID returns a Project; ErrProjectNotFound if absent.
 func (r *ProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*workforce.Project, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, projectSelect+` WHERE id = ?`, string(id))
 	p, err := scanProject(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -70,10 +64,7 @@ func (r *ProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*wo
 
 // FindAll lists all projects (optionally filtered by kind).
 func (r *ProjectRepo) FindAll(ctx context.Context, filter workforce.ProjectFilter) ([]*workforce.Project, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := projectSelect
 	var args []any
 	if filter.Kind != nil {
@@ -102,10 +93,7 @@ func (r *ProjectRepo) Update(ctx context.Context, id workforce.ProjectID, fields
 	if fields.IsEmpty() {
 		return nil, errors.New("project repo: update has no changes")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	// Load existing → apply via domain method → CAS UPDATE.
 	cur, err := r.FindByID(ctx, id)
 	if err != nil {
@@ -143,10 +131,7 @@ func (r *ProjectRepo) Update(ctx context.Context, id workforce.ProjectID, fields
 // conventions § 9.w: schema declares no FOREIGN KEY; referential integrity
 // is enforced at the application layer (ProjectCRUDService.Remove).
 func (r *ProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, string(id))
 	if err != nil {
 		return err

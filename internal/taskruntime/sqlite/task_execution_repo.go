@@ -33,10 +33,7 @@ func (r *TaskExecutionRepo) Save(ctx context.Context, e *execution.TaskExecution
 	if e == nil {
 		return errors.New("execution repo: nil execution")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	timeoutOverride := nullDuration(e.ExecutionTimeoutOverride())
 	const stmt = `INSERT INTO task_executions (
 		id, task_id, worker_id, agent_cli, workspace_mode, cwd, branch_name, base_branch,
@@ -46,7 +43,7 @@ func (r *TaskExecutionRepo) Save(ctx context.Context, e *execution.TaskExecution
 		ended_at, completed_reason, completed_message, failed_reason, failed_message,
 		killed_reason, killed_message, created_at, updated_at, version
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(e.ID()),
 		string(e.TaskID()),
 		e.WorkerID(),
@@ -92,10 +89,7 @@ func (r *TaskExecutionRepo) Update(ctx context.Context, e *execution.TaskExecuti
 	if e == nil {
 		return errors.New("execution repo: nil execution")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	timeoutOverride := nullDuration(e.ExecutionTimeoutOverride())
 	const stmt = `UPDATE task_executions SET
 		cwd = ?, branch_name = ?, base_branch = ?, priority = ?, eta_at = ?,
@@ -154,10 +148,7 @@ func (r *TaskExecutionRepo) Update(ctx context.Context, e *execution.TaskExecuti
 
 // FindByID returns an execution by id.
 func (r *TaskExecutionRepo) FindByID(ctx context.Context, id taskruntime.TaskExecutionID) (*execution.TaskExecution, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, taskExecSelect+` WHERE id = ?`, string(id))
 	e, err := scanTaskExecution(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -168,10 +159,7 @@ func (r *TaskExecutionRepo) FindByID(ctx context.Context, id taskruntime.TaskExe
 
 // FindByTaskID returns executions for a task ordered by created_at DESC.
 func (r *TaskExecutionRepo) FindByTaskID(ctx context.Context, taskID taskruntime.TaskID) ([]*execution.TaskExecution, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		taskExecSelect+` WHERE task_id = ? ORDER BY created_at DESC`, string(taskID))
 	if err != nil {
@@ -184,10 +172,7 @@ func (r *TaskExecutionRepo) FindByTaskID(ctx context.Context, taskID taskruntime
 // FindByWorkerID returns executions for a worker, optionally filtered by
 // status(es).
 func (r *TaskExecutionRepo) FindByWorkerID(ctx context.Context, workerID string, statuses ...execution.Status) ([]*execution.TaskExecution, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	if len(statuses) == 0 {
 		rows, err := exec.QueryContext(ctx,
 			taskExecSelect+` WHERE worker_id = ? ORDER BY created_at DESC`, workerID)
@@ -214,10 +199,7 @@ func (r *TaskExecutionRepo) FindByWorkerID(ctx context.Context, workerID string,
 
 // FindActive returns all executions in submitted / working / input_required.
 func (r *TaskExecutionRepo) FindActive(ctx context.Context) ([]*execution.TaskExecution, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		taskExecSelect+` WHERE status IN ('submitted','working','input_required') ORDER BY created_at`)
 	if err != nil {
@@ -230,10 +212,7 @@ func (r *TaskExecutionRepo) FindActive(ctx context.Context) ([]*execution.TaskEx
 // FindPendingAckOlderThan returns executions with dispatch_state=pending_ack
 // created_at < cutoff (formatted timestamp).
 func (r *TaskExecutionRepo) FindPendingAckOlderThan(ctx context.Context, cutoff string) ([]*execution.TaskExecution, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		taskExecSelect+` WHERE dispatch_state = 'pending_ack' AND created_at < ?`, cutoff)
 	if err != nil {
@@ -246,10 +225,7 @@ func (r *TaskExecutionRepo) FindPendingAckOlderThan(ctx context.Context, cutoff 
 // FindSubmittedOlderThan returns executions stuck in submitted status with
 // created_at < cutoff.
 func (r *TaskExecutionRepo) FindSubmittedOlderThan(ctx context.Context, cutoff string) ([]*execution.TaskExecution, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		taskExecSelect+` WHERE status = 'submitted' AND created_at < ?`, cutoff)
 	if err != nil {

@@ -28,16 +28,13 @@ func (r *MappingRepo) Save(ctx context.Context, m *workforce.WorkerProjectMappin
 	if m == nil {
 		return errors.New("mapping repo: nil mapping")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO worker_project_mappings (
 		id, worker_id, project_id, base_path, source_proposal_id, status,
 		invalidate_reason, invalidate_message, added_at, invalidated_at,
 		created_at, updated_at, version
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(m.ID()),
 		string(m.WorkerID()),
 		string(m.ProjectID()),
@@ -65,10 +62,7 @@ func (r *MappingRepo) Save(ctx context.Context, m *workforce.WorkerProjectMappin
 
 // FindByID returns a mapping; ErrMappingNotFound if absent.
 func (r *MappingRepo) FindByID(ctx context.Context, id workforce.MappingID) (*workforce.WorkerProjectMapping, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, mappingSelect+` WHERE id = ?`, string(id))
 	m, err := scanMapping(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -79,10 +73,7 @@ func (r *MappingRepo) FindByID(ctx context.Context, id workforce.MappingID) (*wo
 
 // FindByWorkerID lists all mappings for a worker.
 func (r *MappingRepo) FindByWorkerID(ctx context.Context, workerID workforce.WorkerID) ([]*workforce.WorkerProjectMapping, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, mappingSelect+` WHERE worker_id = ? ORDER BY added_at`, string(workerID))
 	if err != nil {
 		return nil, err
@@ -93,10 +84,7 @@ func (r *MappingRepo) FindByWorkerID(ctx context.Context, workerID workforce.Wor
 
 // FindByProjectID lists all mappings for a project.
 func (r *MappingRepo) FindByProjectID(ctx context.Context, projectID workforce.ProjectID) ([]*workforce.WorkerProjectMapping, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, mappingSelect+` WHERE project_id = ? ORDER BY added_at`, string(projectID))
 	if err != nil {
 		return nil, err
@@ -109,10 +97,7 @@ func (r *MappingRepo) FindByProjectID(ctx context.Context, projectID workforce.P
 // ErrMappingNotFound. Invalidated mappings are not returned by this lookup
 // (callers needing them use FindByWorkerID + filter).
 func (r *MappingRepo) FindByWorkerAndProject(ctx context.Context, workerID workforce.WorkerID, projectID workforce.ProjectID) (*workforce.WorkerProjectMapping, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx,
 		mappingSelect+` WHERE worker_id = ? AND project_id = ? AND status = ? LIMIT 1`,
 		string(workerID), string(projectID), string(workforce.MappingActive))
@@ -131,10 +116,7 @@ func (r *MappingRepo) Invalidate(ctx context.Context, id workforce.MappingID, re
 	if message == "" {
 		return errors.New("mapping repo: message required")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	now := at.UTC().Format(time.RFC3339Nano)
 	const stmt = `UPDATE worker_project_mappings
 		SET status = ?, invalidate_reason = ?, invalidate_message = ?,
@@ -165,10 +147,7 @@ func (r *MappingRepo) Invalidate(ctx context.Context, id workforce.MappingID, re
 // CountActiveByProjectID is used by Project deletion (workforce/02 § 5.4)
 // to enforce "no active mapping" precondition.
 func (r *MappingRepo) CountActiveByProjectID(ctx context.Context, projectID workforce.ProjectID) (int, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return 0, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM worker_project_mappings WHERE project_id = ? AND status = ?`,
 		string(projectID), string(workforce.MappingActive))

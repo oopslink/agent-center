@@ -35,11 +35,8 @@ func (r *DecisionRepo) Append(ctx context.Context, d *cognition.DecisionRecord) 
 	if d.Rationale() == "" {
 		return cognition.ErrRationaleRequired
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
-	_, err = exec.ExecContext(ctx, `
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `
 		INSERT INTO decision_records
 		(id, invocation_id, kind, target_refs, rationale, outcome, outcome_message, created_at)
 		VALUES (?,?,?,?,?,?,?,?)
@@ -64,10 +61,7 @@ func (r *DecisionRepo) Append(ctx context.Context, d *cognition.DecisionRecord) 
 
 // FindByID loads a single decision row.
 func (r *DecisionRepo) FindByID(ctx context.Context, id cognition.DecisionID) (*cognition.DecisionRecord, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, `
 		SELECT id, invocation_id, kind, target_refs, rationale, outcome, outcome_message, created_at
 		FROM decision_records WHERE id = ?
@@ -84,10 +78,7 @@ func (r *DecisionRepo) FindByID(ctx context.Context, id cognition.DecisionID) (*
 
 // FindByInvocationID lists all decisions for an invocation.
 func (r *DecisionRepo) FindByInvocationID(ctx context.Context, id cognition.InvocationID) ([]*cognition.DecisionRecord, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, `
 		SELECT id, invocation_id, kind, target_refs, rationale, outcome, outcome_message, created_at
 		FROM decision_records WHERE invocation_id = ?
@@ -110,10 +101,7 @@ func (r *DecisionRepo) FindByInvocationID(ctx context.Context, id cognition.Invo
 
 // Find returns rows matching filter.
 func (r *DecisionRepo) Find(ctx context.Context, filter cognition.DecisionFilter) ([]*cognition.DecisionRecord, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	if filter.Limit > cognition.MaxDecisionLimit {
 		return nil, cognition.ErrDecisionLimitTooLarge
 	}

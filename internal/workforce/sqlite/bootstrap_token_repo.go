@@ -33,15 +33,12 @@ func (r *BootstrapTokenRepo) Save(ctx context.Context, t *workforce.BootstrapTok
 	if t == nil {
 		return errors.New("bootstrap token repo: nil token")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO bootstrap_tokens (
 		id, worker_id, value_hash, status,
 		created_at, expires_at, used_at, revoked_at, revoked_reason, revoked_message, created_by
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(t.ID()),
 		string(t.WorkerID()),
 		t.ValueHash(),
@@ -79,10 +76,7 @@ func (r *BootstrapTokenRepo) Save(ctx context.Context, t *workforce.BootstrapTok
 
 // FindByID returns a token by PK.
 func (r *BootstrapTokenRepo) FindByID(ctx context.Context, id workforce.BootstrapTokenID) (*workforce.BootstrapToken, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, bootstrapTokenSelect+` WHERE id = ?`, string(id))
 	t, err := scanBootstrapToken(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -93,10 +87,7 @@ func (r *BootstrapTokenRepo) FindByID(ctx context.Context, id workforce.Bootstra
 
 // FindByValueHash is the exchange-path lookup.
 func (r *BootstrapTokenRepo) FindByValueHash(ctx context.Context, hash string) (*workforce.BootstrapToken, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, bootstrapTokenSelect+` WHERE value_hash = ?`, hash)
 	t, err := scanBootstrapToken(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -107,10 +98,7 @@ func (r *BootstrapTokenRepo) FindByValueHash(ctx context.Context, hash string) (
 
 // FindByWorkerID returns tokens by worker, optionally filtered by status.
 func (r *BootstrapTokenRepo) FindByWorkerID(ctx context.Context, workerID workforce.WorkerID, statuses ...workforce.BootstrapTokenStatus) ([]*workforce.BootstrapToken, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := bootstrapTokenSelect + ` WHERE worker_id = ?`
 	args := []any{string(workerID)}
 	if len(statuses) > 0 {
@@ -139,10 +127,7 @@ func (r *BootstrapTokenRepo) FindByWorkerID(ctx context.Context, workerID workfo
 // partial index `uniq_bootstrap_tokens_active_per_worker` as the ultimate
 // guard against concurrent reissues.
 func (r *BootstrapTokenRepo) FindActiveByWorkerForUpdate(ctx context.Context, workerID workforce.WorkerID) (*workforce.BootstrapToken, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx,
 		bootstrapTokenSelect+` WHERE worker_id = ? AND status = 'active'`,
 		string(workerID))
@@ -158,10 +143,7 @@ func (r *BootstrapTokenRepo) UpdateStatus(ctx context.Context, t *workforce.Boot
 	if t == nil {
 		return errors.New("bootstrap token repo: nil token")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE bootstrap_tokens
 		SET status = ?, used_at = ?, revoked_at = ?, revoked_reason = ?, revoked_message = ?
 		WHERE id = ? AND status = ?`
@@ -197,10 +179,7 @@ func (r *BootstrapTokenRepo) UpdateStatus(ctx context.Context, t *workforce.Boot
 
 // FindExpired returns active tokens past TTL (scanner path).
 func (r *BootstrapTokenRepo) FindExpired(ctx context.Context, before time.Time) ([]*workforce.BootstrapToken, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		bootstrapTokenSelect+` WHERE status = 'active' AND expires_at <= ?`,
 		before.UTC().Format(time.RFC3339Nano))

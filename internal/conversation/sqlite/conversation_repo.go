@@ -29,16 +29,13 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 	if c == nil {
 		return errors.New("conversation repo: nil conversation")
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO conversations (
 		id, kind, title, primary_channel_hint, primary_channel_thread_key,
 		status, opened_at, closed_at, closed_reason, closed_message,
 		created_at, updated_at, version
 	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
-	_, err = exec.ExecContext(ctx, stmt,
+	_, err := exec.ExecContext(ctx, stmt,
 		string(c.ID()),
 		string(c.Kind()),
 		nullString(c.Title()),
@@ -64,10 +61,7 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 
 // FindByID returns the conversation, or ErrConversationNotFound.
 func (r *ConversationRepo) FindByID(ctx context.Context, id conversation.ConversationID) (*conversation.Conversation, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, convSelect+` WHERE id = ?`, string(id))
 	c, err := scanConversation(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -78,10 +72,7 @@ func (r *ConversationRepo) FindByID(ctx context.Context, id conversation.Convers
 
 // Find returns conversations matching filter, ordered by id.
 func (r *ConversationRepo) Find(ctx context.Context, filter conversation.ConversationFilter) ([]*conversation.Conversation, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	sb := strings.Builder{}
 	sb.WriteString(convSelect)
 	sb.WriteString(` WHERE 1=1`)
@@ -124,10 +115,7 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 // FindByChannelAndThreadKey looks up by (channel, threadKey) (Bridge
 // inbound reverse lookup).
 func (r *ConversationRepo) FindByChannelAndThreadKey(ctx context.Context, channel, threadKey string) (*conversation.Conversation, error) {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return nil, err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx,
 		convSelect+` WHERE primary_channel_hint = ? AND primary_channel_thread_key = ? LIMIT 1`,
 		channel, threadKey)
@@ -143,10 +131,7 @@ func (r *ConversationRepo) UpdateStatus(ctx context.Context, id conversation.Con
 	if !from.IsValid() || !to.IsValid() {
 		return conversation.ErrConversationInvalidStatus
 	}
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	now := closedAt.UTC().Format(time.RFC3339Nano)
 	const stmt = `UPDATE conversations
 		SET status = ?, closed_at = ?, closed_reason = ?, closed_message = ?,
@@ -177,10 +162,7 @@ func (r *ConversationRepo) UpdateStatus(ctx context.Context, id conversation.Con
 // UpdatePrimaryChannel sets the channel hint + thread key (Bridge async
 // writeback).
 func (r *ConversationRepo) UpdatePrimaryChannel(ctx context.Context, id conversation.ConversationID, channel, threadKey string, version int, at time.Time) error {
-	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
-	if err != nil {
-		return err
-	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	now := at.UTC().Format(time.RFC3339Nano)
 	const stmt = `UPDATE conversations
 		SET primary_channel_hint = ?, primary_channel_thread_key = ?,
