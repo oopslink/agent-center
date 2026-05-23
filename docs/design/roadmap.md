@@ -161,6 +161,19 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 - **跨 event 关联推断**："worker 离线导致那条 fail 吗？"等可视化关联
 - **触发条件**：基础 inspect / query 不够用时；规模化场景
 
+### 性能优化 (per v2 P12 决策, 2026-05-23)
+
+v2 GA 不卡性能 baseline；性能优化推到 v3 系统性做。
+
+- **Center 启动时间** target < 5s（v2 baseline 实测 + 优化）
+- **Worker enroll** target < 1s（含 BootstrapToken 校验 + identity 创建 + handshake）
+- **Channel send → SSE 投到 browser** target < 500ms（DB write + event emit + SSE push 全链路）
+- **SQLite 万级 events 性能** baseline + 必要的 index / query 优化
+- **Frontend bundle 体积**：拆 chunk + lazy load + gzip
+- **SSE 单连接吞吐**：subscribe/unsubscribe 协议下的事件分发延迟
+- **触发条件**：v2 GA 后用户实测发现某项慢；或 v3 算力 / 多用户 / 云节点拉起场景对性能敏感
+- **影响**：DB index / query plan / 缓存层 / EventSink 优化；可能引入 metrics 体系（per "Prometheus / OTel" roadmap 项）
+
 ### DAG 任务依赖的高级特性
 
 v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 + 无环 + supervisor 判断派单（见 [task-runtime/01-task.md § 8 依赖](architecture/tactical/task-runtime/01-task.md)）。下列是更进一步的能力：
