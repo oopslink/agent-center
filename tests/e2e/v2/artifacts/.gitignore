@@ -1,0 +1,7 @@
+# Per-run noise excluded; the human-readable playwright-report/
+# is committed to repo so future debugging has the latest run's
+# evidence (per S8 audit § 7 + x9527 M3 oversight ③).
+test-results/
+*.zip
+*.webm
+*.log

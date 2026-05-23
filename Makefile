@@ -1,4 +1,4 @@
-.PHONY: build build-frontend build-backend test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean
+.PHONY: build build-frontend build-backend test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean e2e e2e-install
 
 # Build pipeline composes a frontend bundle then embeds it into the Go
 # binary via go:embed (Phase 11 § 3.4 + F15).
@@ -55,6 +55,18 @@ lint-vendor-selftest:
 
 # lint — composite target for all repo-level linters.
 lint: vet lint-vendor
+
+# e2e-install — first-time setup of the Playwright e2e suite.
+# Drops chromium browser (~170MB) into Playwright's cache.
+e2e-install:
+	cd tests/e2e/v2 && pnpm install --frozen-lockfile
+	cd tests/e2e/v2 && pnpm exec playwright install chromium
+
+# e2e — run the Playwright e2e suite against a fresh local binary.
+# Builds first so `bin/agent-center` is up-to-date; each test spawns
+# its own binary on a temp port via tests/e2e/v2/fixtures/agent-center.ts.
+e2e: build
+	cd tests/e2e/v2 && pnpm test
 
 tidy:
 	go mod tidy

@@ -1,0 +1,9 @@
+# pnpm-managed deps + browser cache live outside the repo.
+node_modules/
+.playwright-cache/
+
+# Note: tests/e2e/v2/artifacts/ IS committed (per S8 audit § 7 + x9527
+# oversight ③). Each test run overwrites the prior run's artifacts, so
+# the repo always carries the latest run's evidence (HTML report +
+# any failure-only trace/video/screenshot). See artifacts/.gitignore
+# for finer rules inside that dir.

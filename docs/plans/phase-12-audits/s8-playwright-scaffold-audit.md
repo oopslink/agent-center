@@ -116,7 +116,96 @@ in audit, re-run 3× from zero.
 
 ## § 8. Execution log
 
-To be filled in by the scaffold commit.
+### 8.1 Audit commit
+`7e64fff docs(p12 S8) Playwright e2e scaffold audit + design` — this
+file as initially drafted (§ 0-7 + risks).
+
+### 8.2 Scaffold install (one-time)
+
+```
+$ cd tests/e2e/v2 && pnpm install
+  + @playwright/test 1.60.0 + typescript 5.9.3 (5 packages, 9.8s)
+$ pnpm exec playwright install chromium
+  + chromium 148.0.7778.96 (~170MB)
+  + chromium headless shell (~90MB)
+```
+
+Cache lives in `~/Library/Caches/ms-playwright/` (out of repo).
+
+### 8.3 Files landed
+
+```
+tests/e2e/v2/
+├── .gitignore                    — node_modules + browser cache out
+├── package.json                  — pnpm deps + test scripts
+├── pnpm-lock.yaml                — locked
+├── playwright.config.ts          — dual chromium-mac/linux projects
+├── tsconfig.json                 — TS strict
+├── fixtures/agent-center.ts      — per-test binary fixture
+├── helpers/ports.ts              — race-safe free port picker
+├── tests/smoke.spec.ts           — 2 smoke cases
+└── artifacts/
+    ├── .gitignore                — exclude per-run noise
+    └── playwright-report/        — committed; latest-only
+```
+
+### 8.4 Smoke test 3× run (anti-flake gate)
+
+```
+=== Run 1 ===
+  ✓  smoke › API mux + DB respond to /api/conversations  (796ms)
+  ✓  smoke › SPA loads and Channels nav link is visible  (823ms)
+  2 passed (1.2s)
+=== Run 2 ===
+  ✓  smoke › API mux + DB respond to /api/conversations  (721ms)
+  ✓  smoke › SPA loads and Channels nav link is visible  (821ms)
+  2 passed (1.1s)
+=== Run 3 ===
+  ✓  smoke › API mux + DB respond to /api/conversations  (715ms)
+  ✓  smoke › SPA loads and Channels nav link is visible  (827ms)
+  2 passed (1.2s)
+```
+
+3/3 green; per-test timing variance < 100ms; no retries. Anti-flake
+gate ✅.
+
+### 8.5 Makefile integration
+
+`make e2e` (depends on `make build`) — runs the suite. `make
+e2e-install` for first-time setup (pnpm install + browser download).
+Not wired into `make test` to keep the default test path Go-only and
+fast.
+
+### 8.6 Dual-mode verification status (oversight ④)
+
+| Project | Status |
+|---|---|
+| `chromium-mac` | ✅ verified on darwin arm64 (this commit's run) |
+| `chromium-linux` | ⏳ unverified on darwin host. The config gates the project to `process.platform === 'linux'` so it never spawns on macOS. CI / Linux VPS verification deferred to `@oopslink` running `make e2e` on a Linux host post-S16. |
+
+### 8.7 Artifact size after green run
+
+```
+$ du -sh tests/e2e/v2/artifacts/
+524K
+```
+
+516K is the playwright-report HTML index (committed for human
+debugging). test-results/ stays empty on green runs (trace / video /
+screenshot only emit on failure, per config). Total repo footprint
+acceptable.
+
+### 8.8 S9 readiness
+
+S9 (cold-start journey) can build directly on:
+- `test, expect` import from `../fixtures/agent-center`
+- `agentCenter.baseURL` for navigation, `agentCenter.apiURL` for
+  request API
+- the binary's `--config` flag pattern already proven
+- per-test isolation already proven by 3 green runs
+
+No new fixture infra needed — S9 is pure test authoring on top of
+the same scaffold.
 
 ## § 9. M3 risk log
 

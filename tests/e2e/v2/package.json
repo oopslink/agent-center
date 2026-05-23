@@ -1,0 +1,16 @@
+{
+  "name": "agent-center-e2e-v2",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:mac": "playwright test --project=chromium-mac",
+    "test:linux": "playwright test --project=chromium-linux",
+    "show-report": "playwright show-report artifacts/playwright-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "typescript": "^5.6.0"
+  }
+}
