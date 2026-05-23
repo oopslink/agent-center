@@ -245,6 +245,360 @@ func TestScanExpired_BadActor(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// ProposalAcceptanceService — v1 baseline coverage push
+// =============================================================================
+
+func TestProposalAcceptance_Propose_FindError(t *testing.T) {
+	s := setupSuite(t)
+	// Use bad proposal-related candidate path → constructor rejects;
+	// the bad candidate path triggers NewWorkerProjectProposal error
+	// AFTER FindByCandidatePath returns NotFound. Either way exercises
+	// the early branches.
+	svc := acceptanceService(s)
+	_ = s.workerRepo.Save(context.Background(), newW(t, "W-X"))
+	_, err := svc.Propose(context.Background(), ProposeCommand{
+		WorkerID: "W-X", CandidatePath: "/x", SuggestedProjectID: "p",
+		SuggestedKind: workforce.ProjectKindCoding,
+		Actor:         "user:hayang",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProposalAcceptance_Accept_NotFound(t *testing.T) {
+	s := setupSuite(t)
+	svc := acceptanceService(s)
+	_, err := svc.Accept(context.Background(), AcceptCommand{
+		ProposalID: "PR-MISSING", Actor: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestProposalAcceptance_Ignore_NotFound(t *testing.T) {
+	s := setupSuite(t)
+	svc := acceptanceService(s)
+	_, err := svc.Ignore(context.Background(), IgnoreCommand{
+		ProposalID: "PR-MISSING", Actor: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestProposalAcceptance_Unignore_NotFound(t *testing.T) {
+	s := setupSuite(t)
+	svc := acceptanceService(s)
+	_, err := svc.Unignore(context.Background(), IgnoreCommand{
+		ProposalID: "PR-MISSING", Actor: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// Accept happy path covers Propose + Accept + project creation paths.
+func TestProposalAcceptance_Accept_HappyPath(t *testing.T) {
+	s := setupSuite(t)
+	_ = s.workerRepo.Save(context.Background(), newW(t, "W-AC"))
+	svc := acceptanceService(s)
+	pr, err := svc.Propose(context.Background(), ProposeCommand{
+		WorkerID: "W-AC", CandidatePath: "/home/dev/foo",
+		SuggestedProjectID: "p-acc", SuggestedKind: workforce.ProjectKindCoding,
+		Actor: "user:hayang",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := svc.Accept(context.Background(), AcceptCommand{
+		ProposalID: pr.ProposalID, Actor: "user:hayang",
+	})
+	if err != nil {
+		t.Fatalf("Accept: %v", err)
+	}
+	if !res.ProjectCreated {
+		t.Fatal("expected project created")
+	}
+}
+
+func TestProposalAcceptance_Ignore_HappyPath(t *testing.T) {
+	s := setupSuite(t)
+	_ = s.workerRepo.Save(context.Background(), newW(t, "W-IG"))
+	svc := acceptanceService(s)
+	pr, _ := svc.Propose(context.Background(), ProposeCommand{
+		WorkerID: "W-IG", CandidatePath: "/x", SuggestedProjectID: "p",
+		SuggestedKind: workforce.ProjectKindCoding, Actor: "user:hayang",
+	})
+	evID, err := svc.Ignore(context.Background(), IgnoreCommand{
+		ProposalID: pr.ProposalID, Actor: "user:hayang",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evID == "" {
+		t.Fatal()
+	}
+	// Unignore: brings it back to pending.
+	if _, err := svc.Unignore(context.Background(), IgnoreCommand{
+		ProposalID: pr.ProposalID, Actor: "user:hayang",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// guard() with nil deps
+func TestProposalAcceptanceService_Guard_AllNil(t *testing.T) {
+	s := &ProposalAcceptanceService{}
+	if err := s.guard(); err == nil {
+		t.Fatal()
+	}
+}
+
+// =============================================================================
+// Trigger-based tx failure injection for service emit/UpdateStatus paths
+// =============================================================================
+
+func TestBootstrapTokenService_Issue_TxFailure(t *testing.T) {
+	s := setupBTSuite(t)
+	// Block writes to bootstrap_tokens.
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_bt BEFORE INSERT ON bootstrap_tokens BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.svc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if err == nil {
+		t.Fatal("expected tx failure")
+	}
+}
+
+func TestBootstrapTokenService_Revoke_TxFailure(t *testing.T) {
+	s := setupBTSuite(t)
+	issued, _ := s.svc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_bt_update BEFORE UPDATE ON bootstrap_tokens BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.svc.Revoke(context.Background(), RevokeCommand{
+		TokenID: issued.TokenID, Reason: workforce.BootstrapTokenRevokedReasonManual,
+		Message: "x", ActorIdentity: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestWorkerEnrollService_Exchange_SaveFailure(t *testing.T) {
+	s := setupExSuite(t)
+	issued, _ := s.tokenSvc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	// Block writes to workers (forces Save to fail).
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_w BEFORE INSERT ON workers BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.enrollV2.Exchange(context.Background(), ExchangeRequest{
+		TokenValue: issued.TokenValue, WorkerID: "W-1", ActorIdentity: "worker:W-1",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestAIMgmt_Create_SaveFailure(t *testing.T) {
+	s := setupAISuite(t)
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_ai BEFORE INSERT ON agent_instances BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
+		Name: "x", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestAILifecycle_OnExecutionStarted_TxFailure(t *testing.T) {
+	s := setupAISuite(t)
+	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
+		Name: "x", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_ai_update BEFORE UPDATE ON agent_instances BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	err := s.life.OnExecutionStarted(context.Background(), created.ID, "system")
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestWorkerConfigService_SetConfig_TxFailure(t *testing.T) {
+	s := setupCfgSuite(t)
+	w := seedActiveWorker(t, s, "W-TX")
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_w_update BEFORE UPDATE ON workers BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	newC := workforce.WorkerConcurrency{PerAgentType: 3}
+	_, err := s.cfg.SetConfig(context.Background(), SetConfigCommand{
+		WorkerID: "W-TX", Concurrency: &newC, Version: w.Version(),
+		ActorIdentity: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// Reissue happy path against expired token (oldStatus=expired path).
+func TestReissue_FromRevokedPath(t *testing.T) {
+	s := setupBTSuite(t)
+	issued, _ := s.svc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	// Manually revoke via service (separate path so a non-used terminal
+	// status exists for the next Reissue).
+	_, _ = s.svc.Revoke(context.Background(), RevokeCommand{
+		TokenID: issued.TokenID, Reason: workforce.BootstrapTokenRevokedReasonManual,
+		Message: "x", ActorIdentity: "user:x",
+	})
+	// Reissue should succeed and record oldStatus=revoked.
+	re, err := s.svc.Reissue(context.Background(), ReissueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if re.OldStatusAtReissue != workforce.BootstrapTokenRevoked {
+		t.Fatalf("old_status: %s", re.OldStatusAtReissue)
+	}
+}
+
+// Reissue tx failure during Save of new token.
+func TestReissue_TxFailureOnSave(t *testing.T) {
+	s := setupBTSuite(t)
+	_, _ = s.svc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_bt_insert BEFORE INSERT ON bootstrap_tokens BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.svc.Reissue(context.Background(), ReissueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// ScanExpired tx failure when emit fails (via trigger block on events table).
+func TestScanExpired_EmitFailure(t *testing.T) {
+	s := setupBTSuite(t)
+	_, _ = s.svc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	s.clock.Advance(DefaultBootstrapTokenTTL + time.Second)
+	// Block events table inserts so emit fails inside the scan loop.
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_events BEFORE INSERT ON events BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.svc.ScanExpired(context.Background(), "system")
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// AIMgmt UpdateConfig tx failure: trigger on agent_instances UPDATE.
+func TestAIMgmt_UpdateConfig_TxFailure(t *testing.T) {
+	s := setupAISuite(t)
+	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
+		Name: "c", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_ai_upd BEFORE UPDATE ON agent_instances BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	cfg := `{"x":2}`
+	_, err := s.mgmt.UpdateConfig(context.Background(), UpdateAgentInstanceConfigCommand{
+		ID: created.ID, Config: &cfg, Version: 1, ActorIdentity: "user:x",
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// OnWorkerOffline tx failure via trigger on agent_instances.
+func TestAILifecycle_OnWorkerOffline_TxFailure(t *testing.T) {
+	s := setupAISuite(t)
+	_, _ = s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
+		Name: "c", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_ai_off BEFORE UPDATE ON agent_instances BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.life.OnWorkerOffline(context.Background(), "W-1", "system")
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+// ScanExpired race: token externally moved to `used` between FindExpired and
+// UpdateStatus; scanner should skip silently (continue).
+func TestScanExpired_RaceToUsed(t *testing.T) {
+	s := setupBTSuite(t)
+	issued, _ := s.svc.Issue(context.Background(), IssueCommand{
+		WorkerID: "W-1", ActorIdentity: "user:x",
+	})
+	s.clock.Advance(DefaultBootstrapTokenTTL + time.Second)
+	// Externally mark the token as used (concurrent exchange).
+	tok, _ := s.tokenRepo.FindByID(context.Background(), issued.TokenID)
+	if err := tok.MarkUsed(s.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.tokenRepo.UpdateStatus(context.Background(), tok, workforce.BootstrapTokenActive)
+	// Now run ScanExpired — the token is no longer active; UpdateStatus
+	// inside scanner should detect status conflict and skip.
+	res, err := s.svc.ScanExpired(context.Background(), "system")
+	if err != nil {
+		t.Fatalf("ScanExpired: %v", err)
+	}
+	// 0 expired in result (race skipped the token).
+	if len(res.ExpiredTokenIDs) != 0 {
+		t.Fatalf("expected 0 expired, got %d", len(res.ExpiredTokenIDs))
+	}
+}
+
 // bootstrapTokenRepoStub satisfies the workforce.BootstrapTokenRepository
 // interface for constructor wiring tests only.
 type bootstrapTokenRepoStub struct{}

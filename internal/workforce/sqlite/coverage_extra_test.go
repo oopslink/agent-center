@@ -693,5 +693,115 @@ func TestAgentInstanceRepo_CountActiveExecutions_NonZero(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// v1 baseline scan-bad-timestamp coverage (mapping_repo / project_repo /
+// proposal_repo scanMapping/scanProject/scanProposal helpers).
+// =============================================================================
+
+func TestMappingRepo_Scan_BadAddedAt(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_mappings
+		(id, worker_id, project_id, base_path, status, added_at, created_at, updated_at, version)
+		VALUES ('M-BAD', 'W-1', 'p-1', '/x', 'active', 'not-a-time',
+		        '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', 1)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewMappingRepo(db)
+	if _, err := repo.FindByID(context.Background(), "M-BAD"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestMappingRepo_Scan_BadCreatedAt(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_mappings
+		(id, worker_id, project_id, base_path, status, added_at, created_at, updated_at, version)
+		VALUES ('M-BC', 'W-1', 'p-1', '/x', 'active', '2026-05-22T00:00:00Z',
+		        'not-a-time', '2026-05-22T00:00:00Z', 1)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewMappingRepo(db)
+	if _, err := repo.FindByID(context.Background(), "M-BC"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestMappingRepo_Scan_BadUpdatedAt(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_mappings
+		(id, worker_id, project_id, base_path, status, added_at, created_at, updated_at, version)
+		VALUES ('M-BU', 'W-1', 'p-1', '/x', 'active', '2026-05-22T00:00:00Z',
+		        '2026-05-22T00:00:00Z', 'not-a-time', 1)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewMappingRepo(db)
+	if _, err := repo.FindByID(context.Background(), "M-BU"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestProjectRepo_Scan_BadCreatedAt(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO projects
+		(id, name, created_at, updated_at, created_by_identity_id)
+		VALUES ('p-BC', 'P', 'not-a-time', '2026-05-22T00:00:00Z', 'user:hayang')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewProjectRepo(db)
+	if _, err := repo.FindByID(context.Background(), "p-BC"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestProjectRepo_Scan_BadUpdatedAt(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO projects
+		(id, name, created_at, updated_at, created_by_identity_id)
+		VALUES ('p-BU', 'P', '2026-05-22T00:00:00Z', 'not-a-time', 'user:hayang')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewProjectRepo(db)
+	if _, err := repo.FindByID(context.Background(), "p-BU"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestProposalRepo_Scan_BadCreatedAt(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_proposals
+		(id, worker_id, candidate_path, suggested_project_id, suggested_kind, status,
+		 proposed_at, created_at, updated_at, version)
+		VALUES ('PR-BC', 'W-1', '/x', 'p', 'coding', 'pending',
+		        '2026-05-22T00:00:00Z', 'not-a-time', '2026-05-22T00:00:00Z', 1)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewProposalRepo(db)
+	if _, err := repo.FindByID(context.Background(), "PR-BC"); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestProposalRepo_Scan_BadProposedAt(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_proposals
+		(id, worker_id, candidate_path, suggested_project_id, suggested_kind, status,
+		 proposed_at, created_at, updated_at, version)
+		VALUES ('PR-BF', 'W-1', '/x', 'p', 'coding', 'pending',
+		        'not-a-time', '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', 1)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewProposalRepo(db)
+	if _, err := repo.FindByID(context.Background(), "PR-BF"); err == nil {
+		t.Fatal()
+	}
+}
+
 // persistence import keeps build happy when refactoring; keep at file end.
 var _ = persistence.RunInTx

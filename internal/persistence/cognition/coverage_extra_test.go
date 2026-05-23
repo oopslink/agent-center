@@ -246,6 +246,70 @@ func TestUpdateStatusToTerminal_VersionConflict(t *testing.T) {
 	}
 }
 
+// DecisionRepo scan error path
+func TestDecisionRepo_Scan_BadCreatedAt(t *testing.T) {
+	db := openTestDB(t)
+	// Inject a malformed created_at directly.
+	_, err := db.ExecContext(context.Background(), `INSERT INTO decision_records
+		(id, invocation_id, kind, target_refs, rationale, outcome, outcome_message, created_at)
+		VALUES ('01HD-BC', 'INV-1', 'dispatch', '[]', 'r', 'committed', NULL, 'not-a-time')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := cognitiondb.NewDecisionRepo(db)
+	if _, err := repo.FindByID(context.Background(), "01HD-BC"); err == nil {
+		t.Fatal()
+	}
+}
+
+// NilInv defensive guards
+func TestSave_NilInv(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	if err := repo.Save(context.Background(), nil); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestUpdateStatusToTerminal_NilInv(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	if err := repo.UpdateStatusToTerminal(context.Background(), nil); err == nil {
+		t.Fatal()
+	}
+}
+
+// Find: closed-DB for additional methods + Find() with filter status
+func TestInvocationRepo_Find_Filtered(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	ctx := context.Background()
+	inv := newSpawn(t, cognition.ScopeTask, "T-F1", time.Now())
+	_ = repo.Save(ctx, inv)
+	st := cognition.StatusRunning
+	got, err := repo.Find(ctx, cognition.InvocationFilter{
+		Status: &st,
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 {
+		t.Fatal()
+	}
+}
+
+func TestInvocationRepo_Find_LimitTooLarge(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	_, err := repo.Find(context.Background(), cognition.InvocationFilter{
+		Limit: cognition.MaxInvocationLimit + 1,
+	})
+	if !errors.Is(err, cognition.ErrInvocationLimitTooLarge) {
+		t.Fatalf("expected limit too large, got %v", err)
+	}
+}
+
 // Use persistence package to ensure import side-effects compile
 var _ = persistence.RunInTx
 

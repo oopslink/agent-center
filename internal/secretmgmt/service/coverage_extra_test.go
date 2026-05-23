@@ -101,6 +101,53 @@ func TestResolve_EmptyName(t *testing.T) {
 	}
 }
 
+// Decrypt failure path: corrupt ciphertext in DB so Resolve hits Decrypt err.
+func TestResolve_DecryptCorruptedCiphertext(t *testing.T) {
+	s := setupSecretSuite(t)
+	if _, err := s.svc.Create(context.Background(), CreateSecretCommand{
+		Name: "corrupt", Kind: secretmgmt.UserSecretKindMCP,
+		Plaintext: []byte("plain"), ActorIdentity: "user:x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Overwrite ciphertext bytes directly in DB.
+	if _, err := s.db.ExecContext(context.Background(),
+		`UPDATE user_secrets SET value_ciphertext = X'00000000' WHERE name = ?`, "corrupt"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.resolver.Resolve(context.Background(), ResolveRequest{
+		SecretName: "corrupt", CallerActor: "worker:W-1",
+	})
+	if err == nil {
+		t.Fatal("expected decrypt error")
+	}
+}
+
+// Resolve with closed-DB inside the post-decrypt tx → triggers zero-plaintext
+// branch via UpdateLastUsedAt failure.
+func TestResolve_PostDecryptTxFailure(t *testing.T) {
+	s := setupSecretSuite(t)
+	if _, err := s.svc.Create(context.Background(), CreateSecretCommand{
+		Name: "tx-fail", Kind: secretmgmt.UserSecretKindMCP,
+		Plaintext: []byte("v"), ActorIdentity: "user:x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Drop the user_secrets table so post-decrypt UpdateLastUsedAt fails.
+	if _, err := s.db.ExecContext(context.Background(),
+		`CREATE TEMP TRIGGER block_update BEFORE UPDATE ON user_secrets BEGIN
+		   SELECT RAISE(ABORT, 'blocked');
+		 END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.resolver.Resolve(context.Background(), ResolveRequest{
+		SecretName: "tx-fail", CallerActor: "worker:W-1",
+	})
+	if err == nil {
+		t.Fatal("expected UpdateLastUsedAt failure to surface")
+	}
+}
+
 func TestCreate_BadActor(t *testing.T) {
 	s := setupSecretSuite(t)
 	_, err := s.svc.Create(context.Background(), CreateSecretCommand{
