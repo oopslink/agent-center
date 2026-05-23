@@ -6,7 +6,7 @@
 > directly — none of the steps below apply.
 
 > v2 is a **major version** with breaking changes
-> ([release notes](../release/v2.0-draft.md)). Read those first to
+> ([release notes](../release/v2.0.md)). Read those first to
 > decide whether to upgrade.
 
 ---
@@ -260,7 +260,7 @@ a bug.
   — design + test plan
 - [docs/operations/master-key.md](../operations/master-key.md)
   — master-key operational procedures
-- [docs/release/v2.0-draft.md](../release/v2.0-draft.md)
+- [docs/release/v2.0.md](../release/v2.0.md)
   — what changed in v2
 - [docs/design/implementation/06-deployment.md](../design/implementation/06-deployment.md)
   — v2 deployment topology

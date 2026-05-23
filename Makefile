@@ -14,6 +14,12 @@
 BIN := agent-center
 WEB := web
 
+# v2.0 GA build identity. VERSION can be overridden at build time
+# (e.g. `VERSION=v2.0.1 make build`); COMMIT is auto-discovered from
+# the working tree (falls back to "unknown" outside a checkout).
+VERSION ?= v2.0.0
+COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+
 build: build-frontend build-backend
 
 build-frontend:
@@ -25,7 +31,8 @@ build-frontend:
 	echo "Populated by 'make build-frontend' (vite build outDir)." > ./internal/webconsole/spa/dist/.gitkeep
 
 build-backend:
-	go build -o ./bin/$(BIN) ./cmd/agent-center
+	go build -ldflags "-X main.buildVersion=$(VERSION) -X main.buildCommit=$(COMMIT)" \
+	    -o ./bin/$(BIN) ./cmd/agent-center
 
 test:
 	go test ./...

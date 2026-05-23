@@ -16,6 +16,8 @@
 ^docs/adr/
 ^docs/plans/
 ^docs/release/
+# /CHANGELOG.md at repo root — v2.0 breaking-change section names the
+# v1 vendor tokens by design (operators need to know what was removed).
 ^CHANGELOG\.md:
 
 # Conventions / design docs that explain "v2 撤回 X" surface for readers.

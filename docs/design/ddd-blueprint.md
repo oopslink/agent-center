@@ -239,7 +239,7 @@ ADRs 0009 / 0017 / 0020 / 0021 / 0022 are deleted per ADR-0031 (one-
 time exception to the "never delete ADRs" rule).
 
 ### 5.3 Reference: P12 work
-- [v2.0 release notes](release/v2.0-draft.md) (renamed to `v2.0.md`
+- [v2.0 release notes](release/v2.0.md) (renamed to `v2.0.md`
   at S14)
 - [Phase 12 ST plan](../plans/phase-12-plan-detail.md)
 - [Phase 12 audits](../plans/phase-12-audits/) — per-ST audit logs

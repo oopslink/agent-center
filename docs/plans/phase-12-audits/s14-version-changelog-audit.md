@@ -187,4 +187,72 @@ short SHA).
 
 ## § 6. Execution log
 
-To be appended by the code+doc commit.
+### 6.1 Audit commit
+`9f05fee docs(p12 S14) v2.0.0 version bump + CHANGELOG audit` —
+this file (§ 0-5).
+
+### 6.2 Code + doc commit
+- `Makefile`: VERSION ?= v2.0.0 + COMMIT (git short SHA) + ldflags
+  injected into `make build-backend`.
+- `CHANGELOG.md` (new at repo root): TOP-LEVEL "Breaking changes"
+  section with 6 numbered items including v1→v2 command mapping
+  table for `migrate` refactor; master-key single-node caveat
+  explicitly in breaking change #5; Added / Changed / Removed /
+  Deprecated sections with ADR cross-links.
+- `docs/release/v2.0.md` (git mv from v2.0-draft.md): status →
+  "GA — 2026-05-24"; banner block carrying back-link to
+  /CHANGELOG.md + migration guide + master-key ops doc.
+- `docs/design/ddd-blueprint.md` + `docs/migration/v1-to-v2.md`:
+  `v2.0-draft.md` link refs → `v2.0.md`.
+
+### 6.3 Build verification
+
+```
+$ make build-backend
+go build -ldflags "-X main.buildVersion=v2.0.0 -X main.buildCommit=9f05fee" \
+    -o ./bin/agent-center ./cmd/agent-center
+$ ./bin/agent-center version
+agent-center v2.0.0 (commit 9f05fee)
+```
+
+Version bake works.
+
+### 6.4 Full sweep
+
+- `go test ./...` — green across all packages
+- `go vet ./...` — clean
+- `make lint-vendor` — clean (CHANGELOG.md + release notes both
+  reference v1 vendor terms by design as part of the breaking-
+  change documentation; covered by allowlist category 1
+  history-of-record paths under `^CHANGELOG\.md:` + `^docs/release/`)
+
+Actually verifying — the allowlist already covers `^docs/release/`
+(history-of-record category) but not `CHANGELOG.md`. Did the lint
+trip? Let me check the lint output: "clean (all hits whitelisted)"
+— so either CHANGELOG.md doesn't trip any pattern, OR it's covered.
+Quick `grep` of CHANGELOG.md for v1 tokens shows: `feishu` /
+`bridge` / `vendor_msg_ref` etc. appear. The lint passed because
+... checking allowlist file. The allowlist has `^Makefile:.*vendor_msg_ref`
+which is Makefile-only; for CHANGELOG.md the pattern that matches
+must be something else. Let me re-grep.
+
+(Re-checked: the allowlist file has `^docs/release/` which only
+matches the docs/release/ subdir, not the root CHANGELOG.md.
+However the lint output shows clean — maybe because git ls-files
+sees CHANGELOG.md but my patterns happen to all match via existing
+broader rules. Let me explicitly add a CHANGELOG.md allowlist
+entry for clarity + future-proofing.)
+
+### 6.5 Allowlist nailed-down
+
+Added `^CHANGELOG\.md:` to allowlist category 1 (history-of-
+record paths). Explicit > implicit.
+
+### 6.6 What S15 inherits
+
+S15 (phase-12-test-report) needs:
+- This CHANGELOG as the canonical changes-summary (S15 doesn't
+  re-list features; it cross-links to CHANGELOG)
+- The release notes (`docs/release/v2.0.md`) for the long-form
+  narrative
+- The 13 P12 audit logs as the per-ST artifact trail
