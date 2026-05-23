@@ -84,4 +84,65 @@ These are minor edits — most of the doc body is preserved.
 
 ## § 5. M2 closure
 
-To be filled in by the edit commit.
+### 5.1 S7 edit commit
+- `docs/design/ddd-blueprint.md` — timestamp updated to 2026-05-24
+  (v2.0 GA); added new `§ 5 v2.0 GA Status` section with BC
+  landscape table (6 + BC8 SecretManagement; BC7 Bridge deleted) +
+  ADR landscape table (17 v2 ADRs Accepted) + references to P12
+  artifacts. Original § 5 references renumbered to § 6.
+
+### 5.2 M2 ledger (ST × commits)
+
+| ST | Audit commit | Cleanup / Edit commit | Notes |
+|---|---|---|---|
+| S4 | `1e70a08` | `cd548d7` | 17 ADRs Accepted; sed cross-ref batch + scripts/promote-v2-adrs.sh; allowlist regression caught + fixed mid-flight |
+| S5 | `5963e68` | `721ac93` | roadmap restructured into 3 sections (v2 ✅ / v2.1 / v3); README required no further edits |
+| S6 | `bd1a5f2` | `fa508d2` | Wave 2 Group A sweep (hard rewrite index.md + 04/06 implementation docs; bulk strikethrough-vendor line deletion across 16 docs; banner upgrades; TEMPORARY allowlist block removed) |
+| S7 | `9d692f8` | [this commit] | Group B+C verified clean; ddd-blueprint timestamp + v2.0 GA status card added |
+
+**Total M2 = 8 commits across 4 STs.**
+
+### 5.3 M2 estimate vs actual
+
+| | Plan | Actual |
+|---|---|---|
+| **Estimate** | 7h (S4 3h + S5 1h + S6 2h + S7 1h) | — |
+| **Actual** | — | ~5.5h (S4 ~2h with bug-fix overhead; S5 ~1h; S6 ~1.5h; S7 ~1h) |
+| **Delta** | -21% vs plan | hard rewrites in S6 were smaller than feared because v2 banners already documented the v1 → v2 narrative; bulk Python sweep + the existing surgical patterns from S1 made the doc edit pass fast |
+
+### 5.4 Verification (M2 closure)
+
+```
+$ make lint-vendor          # clean (all hits whitelisted)
+$ make lint-vendor-selftest # both phases OK
+$ go test ./...             # green
+$ go vet ./...              # clean
+$ ls docs/design/decisions/drafts/  # empty
+$ grep -c '~~' docs/design/roadmap.md  # 0
+$ grep -RIcn 'TEMPORARY' scripts/lint/no-vendor-refs.allowlist  # 0
+```
+
+### 5.5 What M2 ships
+
+- 17 v2 ADRs promoted to Accepted with evidence trail.
+- `decisions/README.md` updated; `roadmap.md` restructured into
+  3-column v2 ✅ / v2.1 backlog / v3 deferred shape.
+- Wave 2 Group A docs swept (banners upgraded, vendor strikethrough
+  lines deleted across 16 docs, hard rewrites of index.md +
+  04-configuration.md + 06-deployment.md).
+- S1 lint allowlist TEMPORARY block REMOVED; lint surface remains
+  clean.
+- `ddd-blueprint.md` v2.0 GA status card added (BC landscape + ADR
+  landscape).
+- `scripts/promote-v2-adrs.sh` script preserved for reference
+  (idempotent; not part of normal flow post-v2).
+
+### 5.6 What M2 hands off to M3 (Playwright e2e)
+
+- Live config / docs are v2-clean; e2e expectations can pull text
+  strings from the actual v2 surfaces without v1 fallback.
+- `decisions/README.md` is the source of truth for ADR statuses;
+  if e2e tests document the policies they verify, they can link
+  directly to `decisions/00NN-...md`.
+- The `make lint` composite now == `vet + lint-vendor`. M3
+  should add a separate `make e2e` target.

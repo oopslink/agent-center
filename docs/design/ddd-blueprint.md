@@ -8,7 +8,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-20（立 [ADR-0021](decisions/0039-conversation-business-model-v2-unified.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0031-v2-drop-bridge-vendor-integration.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0031-v2-drop-bridge-vendor-integration.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7** + **P5/P6/P7 中优全部完成** + **P8a/P8b 低优 Repository 全链路完成** ✅：DDD 战术 + 中优架构清晰度 + Repository 架构-实现层全部收口（剩 P9 Saga 视需要））。
+最后更新：**2026-05-24（v2.0 GA）** — 见 [§ 5 v2.0 GA Status](#-5-v20-ga-status)。早期更新摘要：2026-05-20 立 [ADR-0021](decisions/0039-conversation-business-model-v2-unified.md) Issue ↔ Conversation 1:1 + 推翻 ADR-0009/ADR-0020；P3-P8b 全部完成；v2 周期 P8-P12 把 BC 数从 7 (含 Bridge) 改为 6 + BC8 SecretManagement 新增。
 
 ---
 
@@ -202,7 +202,51 @@ P3 (按聚合骨架重组各 BC 战术文档 + 补 § X.1-X.6 wrap)
 
 ---
 
-## § 5. 引用文档
+## § 5. v2.0 GA Status
+
+> 2026-05-24 — v2.0 GA 闭环。本节固定为 v2 周期收口状态卡片。
+
+### 5.1 BC landscape (post-v2)
+
+| BC | Status |
+|---|---|
+| BC1 TaskRuntime | ✅ v2 (P9-P10 refactor; Conversation v2 1:1 with kind=task) |
+| BC2 Discussion | ✅ v2 (P10 IssueComment unified to Conversation Message per ADR-0039) |
+| BC3 Workforce | ✅ v2 (P8 Worker + AgentInstance + BootstrapToken AR) |
+| BC4 Cognition | ✅ v2 (P8/P9 supervisor as built-in AgentInstance per ADR-0029) |
+| BC5 Observability | ✅ v2 (carried from v1; events table contract unchanged) |
+| BC6 Conversation | ✅ v2 (P10 CV1-CV4: channel first-class + Identity 4→3 + Participants JSON + CarryOver + Derivation) |
+| ~~BC7 Bridge~~ | ❌ **deleted** in P10 § 3.9 per ADR-0031 |
+| **BC8 SecretManagement** | ✅ **new in v2** (P8 § 3.7-3.8 per ADR-0026; UserSecret AR + SecretRef VO) |
+
+Total: **6 BCs + BC8 SecretManagement = 7 active** (vs v1's 7 with BC7
+Bridge counted; net headcount same but composition rebalanced).
+
+### 5.2 ADR landscape (post-S4 promote)
+
+17 v2 ADRs landed Accepted in `decisions/`:
+
+| ADR | Subject | Status |
+|---|---|---|
+| 0023-0030 | Worker enroll / AgentInstance / agent CLI / SecretManagement / MCP / Skill mount / Supervisor as built-in / AgentAdapter matrix | Accepted |
+| 0031 | v2 drop Bridge / vendor integration | Accepted (meta) |
+| 0032-0036 | Conversation v2 (CV1-CV4) | Accepted |
+| 0037-0038 | Web Console + CLI UX | Accepted |
+| 0039 | Conversation v2 unified model (supersedes 0017/0021/0022) | Accepted |
+
+See [decisions/README.md](decisions/README.md) for the full list. v1
+ADRs 0009 / 0017 / 0020 / 0021 / 0022 are deleted per ADR-0031 (one-
+time exception to the "never delete ADRs" rule).
+
+### 5.3 Reference: P12 work
+- [v2.0 release notes](release/v2.0-draft.md) (renamed to `v2.0.md`
+  at S14)
+- [Phase 12 ST plan](../plans/phase-12-plan-detail.md)
+- [Phase 12 audits](../plans/phase-12-audits/) — per-ST audit logs
+
+---
+
+## § 6. 引用文档
 
 - 方法论：[conventions § 0](../rules/conventions.md#-0-设计方法论ddd--统一语言)
 - 架构层索引（含分层说明）：[architecture/README.md](architecture/README.md)
