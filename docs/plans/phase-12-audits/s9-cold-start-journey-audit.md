@@ -119,4 +119,91 @@ after a green run; trace/video/screenshot only emit on failure.
 
 ## § 8. Execution log
 
-To be appended by the test commit.
+### 8.1 Audit commit
+`461c9d1 docs(p12 S9) cold-start journey audit + master_key fixture`
+— this file (§ 0-7) + fixture update bundled.
+
+### 8.2 Test commit
+`tests/e2e/v2/tests/cold-start.spec.ts` — 3 tests:
+
+1. `secret CRUD round-trip — value never echoed` — empty list →
+   create with plaintext value → assert response has id + name but
+   NO value field; assert list also strips value; assert plaintext
+   string never appears in either response body (ADR-0026 § 5).
+2. `channel → messages → derive issue → refs link source messages`
+   — seed project via direct sqlite INSERT; create channel; send 3
+   messages; derive Issue from first 2; verify
+   `/api/conversations/{issueId}/refs` returns exactly the source
+   message IDs.
+3. `error path: duplicate channel name → 409 already_exists` — create
+   twice with same name; second returns 409 with `error:
+   "already_exists"`.
+
+### 8.3 Bugs caught + fixed during first run
+
+**Bug 1 — channel create returns 500: "event id already exists"**
+
+Root cause: my first seedProject helper ran `bin/agent-center project
+add` as a subprocess while the server was running. Both processes
+emit events into the shared sqlite events table, and each has its
+own event-seq counter. They race on `uniq_events_seq` —
+`MAX(seq)+1` computed independently in two processes can collide on
+INSERT.
+
+Fix: bypass the CLI; seed the project via direct
+`sqlite3 <db> "INSERT INTO projects ..."`. Projects don't need
+events to be discoverable (the projects table is the truth; events
+are an audit projection). Lesson: any test that needs to mutate the
+DB alongside a running server MUST avoid the event sink — either
+direct SQL or stop-server-write-restart.
+
+**Bug 2 — duplicate-name 409 body field name was wrong**
+
+Asserted `body.code === "already_exists"` but `writeError` in
+`api/handlers.go:802` serializes the reason as `error` not `code`.
+This is a Playwright test bug, not a server bug — but worth
+documenting so future tests use the right field name. Fixed inline
+in the test with a comment noting our API convention.
+
+### 8.4 Anti-flake gate (oversight ⑤)
+
+3 consecutive `pnpm test` runs:
+
+```
+=== Run 1: 5 passed (2.5s) ===
+=== Run 2: 5 passed (2.4s) ===
+=== Run 3: 5 passed (2.4s) ===
+```
+
+Per-test variance < 30ms across runs; zero retries; zero flake.
+Anti-flake gate ✅.
+
+### 8.5 Coverage delta
+
+S9 adds 3 cold-start tests to the existing 2 smoke tests = 5 total
+e2e cases. Each test spawns its own binary + DB → real isolation;
+no state leaks possible.
+
+Cumulative artifact size after 5-case green run:
+
+```
+$ du -sh tests/e2e/v2/artifacts/
+540K
+```
+
+Stayed within the < 5MB target from S8 § 7.
+
+### 8.6 S10 readiness
+
+The seedProject helper pattern (direct sqlite INSERT) is reusable
+for any test that needs to pre-seed DB state without going through
+the event sink. S10 (NACK→Issue / IR / DM) will need similar
+seeding for tasks + executions + input_requests.
+
+Lessons codified for S10-S11:
+- "Direct sqlite INSERT" for pre-seed; never CLI subprocess while
+  server runs.
+- API error response field is `error`, not `code` — apply across
+  all error-path assertions.
+- `expect(response.status()).toBe(N)` with a `, message` second arg
+  is the easy way to capture the body when status is unexpected.
