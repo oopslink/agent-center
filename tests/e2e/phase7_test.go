@@ -1,13 +1,7 @@
 // Phase 7 e2e tests — drive the real `agent-center` binary against a
-// throwaway SQLite + in-process inbound router. Subset of plan-7 § 5.3
-// (E2E-A / E2E-B / E2E-C / E2E-U2 covered here; E2E-D + E2E-U1 listed
-// as documented in v1-release-checklist).
-//
-// The "fake feishu" + "fake agent" pair are kept minimal so this file
-// stays under-1k LoC. Full multi-binary harness lives in
-// `tests/e2e/fakeserver/feishu` + `tests/e2e/fakeagent` (Phase 7
-// deliverables) and is exercised in `internal/bridge/feishu/inbound`
-// integration plus this file's scenarios.
+// throwaway SQLite. Bridge BC inbound coverage was removed in P10 § 3.9
+// per ADR-0031; what remains here is the v2-relevant CLI sanity (admin
+// backup, bootstrap check-systemd, server startup).
 package e2e
 
 import (
@@ -94,10 +88,11 @@ KillMode=control-group
 	}
 }
 
-// TestE2E_P7_ServerFeishuDisabledStartsCleanly exercises `agent-center
-// server` startup with the bridge disabled — should print the new
-// Phase 7 banner referencing feishu=false + escalator.
-func TestE2E_P7_ServerFeishuDisabledStartsCleanly(t *testing.T) {
+// TestE2E_P7_ServerMigrateOnly exercises `agent-center server
+// --migrate-only` (the only quickly-asserted server-mode codepath).
+// Bridge BC was removed in P10 § 3.9; only the escalator + migrate
+// remain.
+func TestE2E_P7_ServerMigrateOnly(t *testing.T) {
 	binary := ensureBinary(t)
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "agent-center.db")

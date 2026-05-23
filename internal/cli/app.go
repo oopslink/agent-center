@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	bridgeledger "github.com/oopslink/agent-center/internal/bridge/feishu/ledger"
-	bridgedispatcher "github.com/oopslink/agent-center/internal/bridge/feishu/dispatcher"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition"
@@ -93,12 +91,10 @@ type App struct {
 	LogsSvc         *query.LogsService
 	BlobStore       blobstore.BlobStore
 
-	// Bridge / Identity (Phase 5)
+	// Identity (Phase 5; Bridge BC removed per ADR-0031 in P10 § 3.9)
 	IdentityRepo         identity.IdentityRepository
 	ChannelBindingRepo   identity.ChannelBindingRepository
 	IdentityRegistration *identity.RegistrationService
-	LedgerRepo           bridgeledger.Repository
-	CursorStore          bridgedispatcher.CursorStore
 
 	// Cognition (Phase 6)
 	InvocationRepo    cognition.SupervisorInvocationRepository
@@ -191,12 +187,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	}
 	logsSvc := query.NewLogsService(deps, bs)
 
-	// Phase 5: Identity + Bridge bootstrap.
+	// Phase 5: Identity (Bridge BC removed per ADR-0031 in P10 § 3.9).
 	identityRepo := identity.NewSQLiteIdentityRepo(db)
 	channelBindingRepo := identity.NewSQLiteChannelBindingRepo(db)
 	identityReg := identity.NewRegistrationService(db, identityRepo, channelBindingRepo, sink, gen, clk)
-	ledgerRepo := bridgeledger.NewSQLiteRepo(db, clk)
-	cursorStore := bridgedispatcher.NewSQLiteCursorStore(db, clk)
 
 	// Phase 6: Cognition (Supervisor + DecisionRecord).
 	cognitiondbInv := cognitiondb.NewInvocationRepo(db)
@@ -254,8 +248,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IdentityRepo:         identityRepo,
 		ChannelBindingRepo:   channelBindingRepo,
 		IdentityRegistration: identityReg,
-		LedgerRepo:           ledgerRepo,
-		CursorStore:          cursorStore,
 
 		InvocationRepo:   cognitiondbInv,
 		DecisionRepo:     cognitiondbDec,

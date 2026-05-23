@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/conversation/identity"
-	"github.com/oopslink/agent-center/internal/observability"
 )
 
 // JSON output paths for bind / unbind / list happy.
@@ -92,8 +90,3 @@ func TestIdentityBindPreferredConflict(t *testing.T) {
 	}
 }
 
-// emit state covers the early-return when sink is nil.
-func TestEmitStateNilSinkSafe(t *testing.T) {
-	emitState(context.Background(), nil, observability.Actor("system"), "connected", "x", true)
-	emitState(context.Background(), &App{}, observability.Actor("system"), "connected", "x", true)
-}

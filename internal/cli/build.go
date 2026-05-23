@@ -125,18 +125,12 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 		}
 	}
 
-	// Phase 5: identity + bridge command trees.
+	// Phase 5: identity command tree (bridge subtree removed in P10 § 3.9).
 	for _, c := range provider.identityCommands() {
 		if err := router.Add([]string{"identity"}, c); err != nil {
 			return nil, "", err
 		}
 	}
-	for _, c := range provider.bridgeCommands() {
-		if err := router.Add([]string{"bridge"}, c); err != nil {
-			return nil, "", err
-		}
-	}
-
 	// Phase 7: `admin backup`.
 	for _, c := range provider.adminCommands() {
 		if err := router.Add([]string{"admin"}, c); err != nil {
@@ -413,24 +407,6 @@ func (l *lazyApp) adminCommands() []*Command {
 		}))
 	}
 	return out
-}
-
-func (l *lazyApp) bridgeCommands() []*Command {
-	// `bridge feishu setup` is a deep tree (bridge → feishu → setup);
-	// we register the `feishu` group node so its subcommands attach
-	// under the bridge group provided by BuildRouter.
-	feishuGroup := &Command{Name: "feishu", Summary: "FeishuBridge management"}
-	feishuGroup.Subcommands = append(feishuGroup.Subcommands,
-		l.withApp(func(a *App) *Command {
-			cmds := a.BridgeCommands()
-			feishu := findCmd(cmds, "feishu")
-			if feishu == nil {
-				return nil
-			}
-			return findCmd(feishu.Subcommands, "setup")
-		}),
-	)
-	return []*Command{feishuGroup}
 }
 
 func findCmd(cs []*Command, name string) *Command {

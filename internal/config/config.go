@@ -30,29 +30,6 @@ type Config struct {
 	Execution    ExecutionConfig    `yaml:"execution"`
 	BlobStore    BlobStoreConfig    `yaml:"blob_store"`
 	Peek         PeekConfig         `yaml:"peek"`
-	Bridge       BridgeConfig       `yaml:"bridge"`
-}
-
-// BridgeConfig holds vendor-specific bridge settings. Per
-// 04-configuration § 7.5 — v1 has only the feishu subtree populated.
-type BridgeConfig struct {
-	Feishu FeishuBridgeConfig `yaml:"feishu"`
-}
-
-// FeishuBridgeConfig captures bridge.feishu.* fields. Per conventions § 13:
-// secrets MUST live in env (AGENT_CENTER_BRIDGE_FEISHU_APP_SECRET) or a
-// secret_file (`app_secret_file`) — plaintext `app_secret` in YAML is
-// rejected fail-fast (Load returns ConfigError).
-type FeishuBridgeConfig struct {
-	Enabled       bool   `yaml:"enabled"`
-	AppID         string `yaml:"app_id"`
-	AppSecretFile string `yaml:"app_secret_file"`
-	// AppSecret is resolved at load time from AppSecretFile or env; NOT
-	// serialised from YAML directly. yaml tag "-" prevents accidental
-	// disk writes.
-	AppSecret string `yaml:"-"`
-	// BaseURL overrides the open.feishu.cn endpoint (test injection).
-	BaseURL string `yaml:"base_url"`
 }
 
 // BlobStoreConfig: 04-configuration / 01-blob-store. v1 LocalDir only.
@@ -187,11 +164,6 @@ func DefaultConfig() Config {
 		},
 		Peek: PeekConfig{
 			WorkerSocket: "/var/run/agent-center-worker/peek.sock",
-		},
-		Bridge: BridgeConfig{
-			Feishu: FeishuBridgeConfig{
-				Enabled: false,
-			},
 		},
 	}
 }
@@ -345,14 +317,6 @@ func collectKnownKeys(cfg Config) keyTree {
 			"max_executions_per_task":       nil,
 			"kill_grace_seconds":            nil,
 		},
-		"bridge": keyTree{
-			"feishu": keyTree{
-				"enabled":         nil,
-				"app_id":          nil,
-				"app_secret_file": nil,
-				"base_url":        nil,
-			},
-		},
 	}
 }
 
@@ -490,33 +454,6 @@ func applyEnvOverrides(cfg *Config, env func(string) (string, bool)) error {
 			cfg.Identity.DefaultUser = v
 			return nil
 		}},
-		{"AGENT_CENTER_BRIDGE_FEISHU_ENABLED", func(v string) error {
-			switch strings.ToLower(strings.TrimSpace(v)) {
-			case "1", "true", "yes", "on":
-				cfg.Bridge.Feishu.Enabled = true
-			case "0", "false", "no", "off", "":
-				cfg.Bridge.Feishu.Enabled = false
-			default:
-				return fmt.Errorf("boolean: %q", v)
-			}
-			return nil
-		}},
-		{"AGENT_CENTER_BRIDGE_FEISHU_APP_ID", func(v string) error {
-			cfg.Bridge.Feishu.AppID = v
-			return nil
-		}},
-		{"AGENT_CENTER_BRIDGE_FEISHU_APP_SECRET", func(v string) error {
-			cfg.Bridge.Feishu.AppSecret = v
-			return nil
-		}},
-		{"AGENT_CENTER_BRIDGE_FEISHU_APP_SECRET_FILE", func(v string) error {
-			cfg.Bridge.Feishu.AppSecretFile = v
-			return nil
-		}},
-		{"AGENT_CENTER_BRIDGE_FEISHU_BASE_URL", func(v string) error {
-			cfg.Bridge.Feishu.BaseURL = v
-			return nil
-		}},
 	}
 	var errs []string
 	for _, b := range bindings {
@@ -584,30 +521,6 @@ func validate(cfg *Config) error {
 	}
 	if cfg.Identity.DefaultUser != "" && strings.ContainsAny(cfg.Identity.DefaultUser, " :") {
 		errs = append(errs, fmt.Sprintf("identity.default_user %q: must not contain space or ':'", cfg.Identity.DefaultUser))
-	}
-	if cfg.Bridge.Feishu.Enabled {
-		if strings.TrimSpace(cfg.Bridge.Feishu.AppID) == "" {
-			errs = append(errs, "bridge.feishu.app_id: required when bridge.feishu.enabled=true")
-		}
-		// Resolve the secret. Preference order:
-		//   1. env AGENT_CENTER_BRIDGE_FEISHU_APP_SECRET (already applied)
-		//   2. app_secret_file
-		// Plaintext "app_secret:" in YAML is intentionally not a recognised
-		// key (would be rejected by the unknown-keys walk).
-		if cfg.Bridge.Feishu.AppSecret == "" && cfg.Bridge.Feishu.AppSecretFile != "" {
-			b, err := os.ReadFile(cfg.Bridge.Feishu.AppSecretFile)
-			if err != nil {
-				errs = append(errs,
-					fmt.Sprintf("bridge.feishu.app_secret_file %q: %v",
-						cfg.Bridge.Feishu.AppSecretFile, err))
-			} else {
-				cfg.Bridge.Feishu.AppSecret = strings.TrimSpace(string(b))
-			}
-		}
-		if cfg.Bridge.Feishu.AppSecret == "" {
-			errs = append(errs,
-				"bridge.feishu: app_secret required via env AGENT_CENTER_BRIDGE_FEISHU_APP_SECRET or bridge.feishu.app_secret_file (conventions § 13: no plaintext in YAML)")
-		}
 	}
 	if len(errs) > 0 {
 		return &ConfigError{Reasons: errs}

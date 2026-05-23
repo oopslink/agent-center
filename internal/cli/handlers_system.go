@@ -10,8 +10,10 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/observability/escalator"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
@@ -85,31 +87,25 @@ func ServerCommand() *Command {
 					fmt.Fprintln(out, "migrations applied; exiting (--migrate-only)")
 					return ExitOK
 				}
-				// Phase 7: wire the always-on subsystems (escalator +
-				// optional Feishu inbound).
+				// Wire the always-on UnknownEventEscalator. Bridge BC
+				// inbound + feishu adapter removed in P10 § 3.9 per
+				// ADR-0031.
 				app, err := NewApp(cfg, db, nil)
 				if err != nil {
 					fmt.Fprintf(errw, "Error: app_bootstrap: %v\n", err)
 					return ExitBusinessError
 				}
-				subsys, err := NewServerSubsystems(app, func(msg string) {
-					fmt.Fprintf(errw, "[server] %s\n", msg)
+				esc := escalator.NewService(app.EventRepo, app.Sink, app.Clock, escalator.Config{
+					Interval:  1 * time.Hour,
+					Threshold: escalator.DefaultThreshold,
+					Window:    escalator.DefaultWindow,
 				})
-				if err != nil {
-					fmt.Fprintf(errw, "Error: subsystems: %v\n", err)
-					return ExitBusinessError
-				}
-				if c := NewFeishuAdapterFromConfig(app); c != nil {
-					subsys.AttachFeishuClient(c)
-					if err := subsys.ConnectBridge(ctx); err != nil {
-						fmt.Fprintf(errw, "[server] feishu connect: %v (continuing)\n", err)
-					}
-					defer subsys.CloseBridge()
-				}
-				go subsys.Run(ctx)
+				go esc.Run(ctx, func(err error) {
+					fmt.Fprintf(errw, "[server] escalator: %v\n", err)
+				})
 
-				fmt.Fprintf(out, "agent-center server: db=%s listen=%s feishu=%v (Phase 7 inbound + escalator running)\n",
-					cfg.Server.SqlitePath, cfg.Server.ListenAddr, cfg.Bridge.Feishu.Enabled)
+				fmt.Fprintf(out, "agent-center server: db=%s listen=%s (escalator running)\n",
+					cfg.Server.SqlitePath, cfg.Server.ListenAddr)
 				// Wait for SIGINT / SIGTERM.
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
