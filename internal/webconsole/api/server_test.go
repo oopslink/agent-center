@@ -20,6 +20,12 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	"github.com/oopslink/agent-center/internal/secretmgmt"
+	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
+	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
+	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
+	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
+	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
 func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
@@ -55,6 +61,19 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	// Query svc with minimal deps; covers /api/tasks/{id}/trace endpoint.
 	querySvc := query.NewService(query.Deps{Events: er})
 	fleetSvc := query.NewFleetSnapshotService(query.Deps{Events: er})
+	irRepo := trsqlite.NewInputRequestRepo(db)
+	taskRepo := trsqlite.NewTaskRepo(db)
+	execRepo := trsqlite.NewTaskExecutionRepo(db)
+	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, convRepo, msgRepo,
+		sink, gen, clk, "")
+	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
+	// Wire UserSecret with a test master key.
+	userSecretRepo := secretsqlite.NewUserSecretRepo(db)
+	mk, err := secretmgmt.GenerateMasterKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	userSecretSvc := secretservice.NewUserSecretService(db, userSecretRepo, gen, sink, clk, mk)
 	deps := HandlerDeps{
 		Actor:              observability.Actor("user:hayang"),
 		ConvRepo:           convRepo,
@@ -65,6 +84,11 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		CarryOverSvc:       coSvc,
 		QuerySvc:           querySvc,
 		FleetSvc:           fleetSvc,
+		IRRepo:             irRepo,
+		IRSvc:              irSvc,
+		UserSecretRepo:     userSecretRepo,
+		UserSecretSvc:      userSecretSvc,
+		AgentInstanceRepo:  aiRepo,
 	}
 	return deps, db
 }
