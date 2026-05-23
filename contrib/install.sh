@@ -115,7 +115,8 @@ run systemctl enable agent-center-backup.timer
 step "Done. Next steps:"
 cat <<'EOF'
   - Edit /etc/agent-center/config.yaml (copy from 04-configuration.md § 8.1)
-  - Install /etc/agent-center/feishu.env with App ID + secret (see § 10.3)
   - sudo systemctl start agent-center
   - sudo journalctl -u agent-center -f
+  - Visit http://127.0.0.1:7100 in a local browser for the Web Console
+    (loopback-only; tunnel via SSH if accessing remotely).
 EOF

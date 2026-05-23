@@ -45,7 +45,7 @@ func (a *App) OpenIssueCommand() *Command {
 
 func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 	description := fs.String("description", "", "issue description (markdown; >10KB goes to BlobStore in future phases)")
-	origin := fs.String("origin", "cli", "issue origin (cli|web_console|feishu_at|supervisor|agent_open_issue)")
+	origin := fs.String("origin", "cli", "issue origin (cli|web_console|supervisor|agent_open_issue|derived_from_conversation)")
 	openedBy := fs.String("opened-by", "", "opener identity id (defaults to config default user)")
 	channelHint := fs.String("channel", "", "primary channel hint (used for sync-build origins)")
 	fromConversation := fs.String("from-conversation", "", "(CV4 derive) source conversation id; switches to derive flow")
@@ -398,7 +398,7 @@ func (a *App) issueWithdrawHandler(fs *flag.FlagSet) Handler {
 func (a *App) issueBindConversationHandler(fs *flag.FlagSet) Handler {
 	auto := fs.Bool("auto", false, "create a fresh kind=issue Conversation")
 	to := fs.String("to", "", "bind to existing conversation_id (must be kind=issue, open, unowned)")
-	channel := fs.String("channel", "", "channel hint (feishu / web etc.; --auto only)")
+	channel := fs.String("channel", "", "channel hint (web / cli etc.; --auto only)")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {

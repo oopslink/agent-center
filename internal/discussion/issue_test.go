@@ -337,7 +337,7 @@ func TestRehydrateIssue_RoundTrip(t *testing.T) {
 		Description:            "desc",
 		DescriptionBlobRef:     "blob://x",
 		OpenedByIdentityID:     "user:h",
-		Origin:                 OriginFeishuAt,
+		Origin:                 OriginWebConsole,
 		OpenedAt:               now,
 		Status:                 StatusUnderDiscussion,
 		ConcludedAt:            &concAt,

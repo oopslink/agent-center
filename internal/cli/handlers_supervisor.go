@@ -197,9 +197,9 @@ func (a *App) RecordDecisionCommand() *Command {
 func (a *App) EscalateInputRequestCommand() *Command {
 	return &Command{
 		Name:    "escalate-input-request",
-		Summary: "Supervisor escalates a pending input request via Bridge (audience=S)",
+		Summary: "Supervisor escalates a pending input request (audience=S)",
 		Flags: func(fs *flag.FlagSet) Handler {
-			channel := fs.String("channel", "", "notification channel hint (feishu / dingtalk / ...)")
+			channel := fs.String("channel", "", "notification channel hint (web / cli / ...)")
 			rationale := fs.String("rationale", "", "(required) reason for escalation")
 			format := fs.String("format", FormatTable, formatFlagHelp())
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {

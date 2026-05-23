@@ -20,9 +20,9 @@ import (
 // Config is the in-memory representation of agent-center.yaml.
 //
 // Phase 1 surface: only fields that the server / migrate mode actually use
-// are present. supervisor / worker / bridge / observability subtree fields
-// listed in 04-configuration § 7 are intentionally absent — they'll grow
-// when Phase 2+ needs them (04 § 5: 加字段有 default 时可直接 PR).
+// are present. supervisor / worker / observability subtree fields listed
+// in 04-configuration § 7 are intentionally absent — they'll grow when
+// Phase 2+ needs them (04 § 5: 加字段有 default 时可直接 PR).
 type Config struct {
 	Server           ServerConfig           `yaml:"server"`
 	Notification     NotificationConfig     `yaml:"notification"`

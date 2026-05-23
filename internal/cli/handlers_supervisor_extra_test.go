@@ -66,7 +66,7 @@ func TestEscalateInputRequestCommand_HappyPath(t *testing.T) {
 	_ = os.Setenv("AGENT_CENTER_INVOCATION_ID", "INV5")
 	defer os.Unsetenv("AGENT_CENTER_INVOCATION_ID")
 	_, _, code := runHandler(t, a.EscalateInputRequestCommand(), []string{
-		"IR-1", "--channel=feishu", "--rationale=user idle for 4h",
+		"IR-1", "--channel=web", "--rationale=user idle for 4h",
 	})
 	if code != ExitOK {
 		t.Errorf("code = %d", code)

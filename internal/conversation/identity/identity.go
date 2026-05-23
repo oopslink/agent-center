@@ -7,11 +7,10 @@ import (
 )
 
 // Identity is the Conversation BC AR. Invariants per conversation/02 § 4:
-//   1. id immutable
-//   2. kind immutable
-//   3. (channel, vendor_user_id) unique across all identities (enforced at
-//      ChannelBinding repo via UNIQUE index)
-//   4. preferred unique per (identity_id, channel) (enforced at app layer)
+//   1. id immutable (prefixed kind:id form per ADR-0033)
+//   2. kind immutable; one of user / agent / system (ADR-0033)
+//   3. display_name non-empty after trimming
+//   4. version monotonic on each mutating call
 type Identity struct {
 	id          IdentityID
 	kind        Kind

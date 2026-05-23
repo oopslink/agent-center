@@ -179,7 +179,7 @@ func TestCLI_IssueConclude_ClosedNoAction(t *testing.T) {
 func TestCLI_IssueConclude_ClosedWithTasks_Inline(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectP1(t, app)
-	id := openIssueViaCLI(t, app, "--origin=feishu_at")
+	id := openIssueViaCLI(t, app, "--origin=web_console")
 	inline := `[{"local_id":"a","title":"T1"},{"local_id":"b","title":"T2","depends_on":["a"]}]`
 	cmd := findCmd(app.IssueCommands(), "conclude")
 	out, _, code := runHandler(t, cmd,

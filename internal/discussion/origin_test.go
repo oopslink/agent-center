@@ -6,7 +6,7 @@ import (
 )
 
 func TestOrigin_IsValidAndBranch(t *testing.T) {
-	for _, o := range []Origin{OriginCLI, OriginWebConsole, OriginFeishuAt, OriginSupervisor, OriginAgentOpenIssue} {
+	for _, o := range []Origin{OriginCLI, OriginWebConsole, OriginSupervisor, OriginAgentOpenIssue, OriginDerivedFromConversation} {
 		if !o.IsValid() {
 			t.Errorf("expected valid: %s", o)
 		}
@@ -14,10 +14,14 @@ func TestOrigin_IsValidAndBranch(t *testing.T) {
 	if Origin("nope").IsValid() {
 		t.Fatal("nope should not be valid")
 	}
+	// v1 origins dropped per ADR-0031: feishu_at must not validate.
+	if Origin("feishu_at").IsValid() {
+		t.Fatal("feishu_at is a dropped v1 origin and must not validate")
+	}
 	// Sync-build origins
 	if !OriginWebConsole.NeedsSyncConversationBuild() ||
-		!OriginFeishuAt.NeedsSyncConversationBuild() ||
-		!OriginSupervisor.NeedsSyncConversationBuild() {
+		!OriginSupervisor.NeedsSyncConversationBuild() ||
+		!OriginDerivedFromConversation.NeedsSyncConversationBuild() {
 		t.Error("expected sync build")
 	}
 	// Lazy-create origins
@@ -31,7 +35,7 @@ func TestOrigin_IsValidAndBranch(t *testing.T) {
 }
 
 func TestParseOrigin(t *testing.T) {
-	for _, s := range []string{"cli", "web_console", "feishu_at", "supervisor", "agent_open_issue"} {
+	for _, s := range []string{"cli", "web_console", "supervisor", "agent_open_issue", "derived_from_conversation"} {
 		o, err := ParseOrigin(s)
 		if err != nil {
 			t.Fatalf("%s: %v", s, err)
@@ -43,6 +47,10 @@ func TestParseOrigin(t *testing.T) {
 	_, err := ParseOrigin("bogus")
 	if !errors.Is(err, ErrInvalidOrigin) {
 		t.Fatalf("expected ErrInvalidOrigin, got %v", err)
+	}
+	// v1 origin dropped per ADR-0031.
+	if _, err := ParseOrigin("feishu_at"); !errors.Is(err, ErrInvalidOrigin) {
+		t.Fatalf("expected feishu_at to be rejected; got %v", err)
 	}
 }
 

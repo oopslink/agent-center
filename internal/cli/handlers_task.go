@@ -146,7 +146,7 @@ func (a *App) taskCreateHandler(fs *flag.FlagSet) Handler {
 func (a *App) taskBindConversationHandler(fs *flag.FlagSet) Handler {
 	auto := fs.Bool("auto", false, "create a new conversation")
 	to := fs.String("to", "", "bind to existing conversation_id")
-	channel := fs.String("channel", "", "channel hint (feishu / web etc.)")
+	channel := fs.String("channel", "", "channel hint (web / cli etc.)")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -328,9 +328,9 @@ func (a *App) requestInputHandler(fs *flag.FlagSet) Handler {
 			}
 			return HandleDomainError(errw, *format, err)
 		}
-		// Phase 2: return immediately with the IR id; actual blocking wait
-		// happens at the daemon-side RPC bridge in Phase 5/7. For now the
-		// agent CLI gets the IR id so it can poll or be re-invoked later.
+		// Phase 2: return immediately with the IR id; the agent CLI gets the
+		// IR id so it can poll or be re-invoked later. (Long-poll wait wire is
+		// a v2.1 stretch — see v2.1-backlog.md.)
 		b, _ := json.Marshal(map[string]any{
 			"input_request_id": string(res.InputRequestID),
 			"conversation_id":  string(res.ConversationID),

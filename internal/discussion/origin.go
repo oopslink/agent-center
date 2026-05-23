@@ -10,11 +10,9 @@ type Origin string
 const (
 	// OriginCLI ⇒ lazy-create path (issue.conversation_id starts null).
 	OriginCLI Origin = "cli"
-	// OriginWebConsole ⇒ sync-build (web is a conversation channel binding).
+	// OriginWebConsole ⇒ sync-build (web posts directly into a known
+	// conversation, so the binding is set at create time).
 	OriginWebConsole Origin = "web_console"
-	// OriginFeishuAt ⇒ sync-build (Bridge inbound free-text + supervisor
-	// intent → issue open carries the user's current feishu channel).
-	OriginFeishuAt Origin = "feishu_at"
 	// OriginSupervisor ⇒ sync-build (supervisor knows the caller channel).
 	OriginSupervisor Origin = "supervisor"
 	// OriginAgentOpenIssue ⇒ lazy-create (worker agent triggers via worker
@@ -30,7 +28,7 @@ const (
 // IsValid checks enum membership.
 func (o Origin) IsValid() bool {
 	switch o {
-	case OriginCLI, OriginWebConsole, OriginFeishuAt, OriginSupervisor,
+	case OriginCLI, OriginWebConsole, OriginSupervisor,
 		OriginAgentOpenIssue, OriginDerivedFromConversation:
 		return true
 	}
@@ -46,7 +44,7 @@ func (o Origin) String() string { return string(o) }
 // (issue.conversation_id starts null; bind-conversation is a separate step).
 func (o Origin) NeedsSyncConversationBuild() bool {
 	switch o {
-	case OriginWebConsole, OriginFeishuAt, OriginSupervisor, OriginDerivedFromConversation:
+	case OriginWebConsole, OriginSupervisor, OriginDerivedFromConversation:
 		return true
 	}
 	return false

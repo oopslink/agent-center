@@ -320,7 +320,7 @@ func TestExecutionService_ReportProgress_SkipsNullConv(t *testing.T) {
 }
 
 func TestInputRequestService_DefaultChannelFallback(t *testing.T) {
-	rig := setupRig(t, "feishu:user:hayang:dm")
+	rig := setupRig(t, "web:user:hayang:dm")
 	ctx := context.Background()
 	tres, _ := rig.taskSvc.Create(ctx, TaskCreateInput{
 		ProjectID: "p-1", Title: "x", WithConversation: false, Actor: "user:hayang",
@@ -374,7 +374,7 @@ func TestInputRequestService_ValidationErrors(t *testing.T) {
 }
 
 func TestInputRequestService_RespondHappy(t *testing.T) {
-	rig := setupRig(t, "feishu:user:hayang:dm")
+	rig := setupRig(t, "web:user:hayang:dm")
 	ctx := context.Background()
 	tres, _ := rig.taskSvc.Create(ctx, TaskCreateInput{
 		ProjectID: "p-1", Title: "x", WithConversation: true, Actor: "user:hayang",
@@ -419,7 +419,7 @@ func TestInputRequestService_RespondMissingIR(t *testing.T) {
 }
 
 func TestInputRequestService_Create_DefaultChannelEmitsConvOpenedEvent(t *testing.T) {
-	rig := setupRig(t, "feishu:user:hayang:dm")
+	rig := setupRig(t, "web:user:hayang:dm")
 	ctx := context.Background()
 	tres, _ := rig.taskSvc.Create(ctx, TaskCreateInput{
 		ProjectID: "p-1", Title: "x", WithConversation: false, Actor: "user:hayang",
@@ -442,7 +442,7 @@ func TestInputRequestService_Create_DefaultChannelEmitsConvOpenedEvent(t *testin
 }
 
 func TestInputRequestService_Create_ExecAlreadyTerminal(t *testing.T) {
-	rig := setupRig(t, "feishu:user:hayang:dm")
+	rig := setupRig(t, "web:user:hayang:dm")
 	ctx := context.Background()
 	tres, _ := rig.taskSvc.Create(ctx, TaskCreateInput{
 		ProjectID: "p-1", Title: "x", WithConversation: true, Actor: "user:hayang",

@@ -1,5 +1,5 @@
 [Unit]
-Description=agent-center server (Phase 7+, v1 single-VPS deployment)
+Description=agent-center server (v2 single-VPS deployment)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,7 +8,6 @@ Type=simple
 User=agent-center
 Group=agent-center
 ExecStart=/usr/local/bin/agent-center server --config=/etc/agent-center/config.yaml
-EnvironmentFile=-/etc/agent-center/feishu.env
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal

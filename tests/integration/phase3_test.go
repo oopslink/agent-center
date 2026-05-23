@@ -96,9 +96,9 @@ func TestINT_P3_IssueAndConversationSameTx(t *testing.T) {
 	s := setupPhase3(t)
 	res, err := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID:          "p-1",
-		Title:              "feishu issue",
+		Title:              "web console issue",
 		OpenedByIdentityID: "user:h",
-		Origin:             discussion.OriginFeishuAt,
+		Origin:             discussion.OriginWebConsole,
 		Actor:              observability.Actor("user:h"),
 	})
 	if err != nil {
@@ -126,7 +126,7 @@ func TestINT_P3_IssueCommentTriggersDiscussionStarted(t *testing.T) {
 	s := setupPhase3(t)
 	res, _ := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID: "p-1", Title: "t", OpenedByIdentityID: "user:opener",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:opener"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:opener"),
 	})
 	if _, err := s.commentSvc.Comment(context.Background(), disservice.CommentInput{
 		IssueID:          res.IssueID,
@@ -148,7 +148,7 @@ func TestINT_P3_ConcludeSpawnFullEventChain(t *testing.T) {
 	s := setupPhase3(t)
 	res, _ := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID: "p-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	out, err := s.lifecycle.Conclude(context.Background(), disservice.ConcludeIssueCommand{
 		IssueID: res.IssueID,
@@ -181,7 +181,7 @@ func TestINT_P3_ConcludeSpawnFailureRollsBackEverything(t *testing.T) {
 	s := setupPhase3(t)
 	res, _ := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID: "p-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	_, err := s.lifecycle.Conclude(context.Background(), disservice.ConcludeIssueCommand{
 		IssueID: res.IssueID,
@@ -236,7 +236,7 @@ func TestINT_P3_BindToConflictsWithOwningIssue(t *testing.T) {
 	s := setupPhase3(t)
 	resA, _ := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID: "p-1", Title: "A", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	resB, _ := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID: "p-1", Title: "B", OpenedByIdentityID: "user:h",
@@ -284,7 +284,7 @@ func TestINT_P3_TerminalIssueRejectsComment(t *testing.T) {
 	s := setupPhase3(t)
 	res, _ := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID: "p-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	if _, err := s.lifecycle.Conclude(context.Background(), disservice.ConcludeIssueCommand{
 		IssueID:     res.IssueID,
@@ -311,7 +311,7 @@ func TestINT_P3_EventsSeqMonotonic(t *testing.T) {
 	s := setupPhase3(t)
 	res, _ := s.lifecycle.Open(context.Background(), disservice.OpenIssueCommand{
 		ProjectID: "p-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	if _, err := s.commentSvc.Comment(context.Background(), disservice.CommentInput{
 		IssueID:          res.IssueID,

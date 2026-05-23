@@ -20,8 +20,8 @@
 //	FAKEAGENT_FAIL_AT=step_3  → write `failed` after step_3
 //	FAKEAGENT_HANG=true       → block forever after first event
 //
-// See `docs/plans/phase-7-bridge-inbound-deploy.md § 3.8` for the
-// full design intent.
+// Used by integration tests to exercise the worker dispatch flow without
+// invoking a real AI CLI.
 package main
 
 import (

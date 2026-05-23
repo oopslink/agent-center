@@ -25,7 +25,7 @@ func openIssueWithConvBound(t *testing.T, h *testHarness, lifecycle *IssueLifecy
 	t.Helper()
 	res, err := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "t", OpenedByIdentityID: "user:hayang",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:hayang"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)

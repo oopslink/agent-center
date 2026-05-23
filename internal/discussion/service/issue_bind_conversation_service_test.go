@@ -48,7 +48,7 @@ func TestBindAuto_RejectsAlreadyBound(t *testing.T) {
 	// Sync-build: pre-bound
 	res, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	if _, err := bs.BindAuto(context.Background(), BindAutoInput{
 		IssueID: res.IssueID, Actor: observability.Actor("user:h"),
@@ -211,7 +211,7 @@ func TestBindTo_RejectsAlreadyOwned(t *testing.T) {
 	// Issue A pre-bound via sync-build
 	resA, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "A", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	// Issue B is CLI (unbound)
 	resB, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
@@ -235,7 +235,7 @@ func TestBindTo_RejectsAlreadyOwnedByUnderDiscussion(t *testing.T) {
 	// Issue A pre-bound via sync-build, then transition to under_discussion.
 	resA, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "A", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	if _, err := lifecycle.RecordDiscussionStart(context.Background(), RecordDiscussionStartCommand{
 		IssueID:               resA.IssueID,
@@ -266,7 +266,7 @@ func TestBindTo_RejectsBadInputsAndAlreadyBound(t *testing.T) {
 	// pre-bound
 	resA, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "A", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	cid := setupSecondConvKind(t, h, conversation.ConversationKindIssue)
 	// rebind blocked

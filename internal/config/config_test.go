@@ -38,7 +38,7 @@ server:
   sqlite_path: "/tmp/x.db"
   admin_socket_path: "/tmp/x.sock"
 notification:
-  default_channel: "feishu:user:hayang:dm"
+  default_channel: "web:user:hayang:dm"
 identity:
   default_user: "alice"
 `)

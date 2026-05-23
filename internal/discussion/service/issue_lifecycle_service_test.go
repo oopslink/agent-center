@@ -119,15 +119,15 @@ func TestOpen_LazyCreate_CLI(t *testing.T) {
 	}
 }
 
-func TestOpen_SyncBuild_Feishu(t *testing.T) {
+func TestOpen_SyncBuild_WebConsole(t *testing.T) {
 	h := newHarness(t)
 	svc := h.lifecycle(t)
 	res, err := svc.Open(context.Background(), OpenIssueCommand{
 		ProjectID:          "P-1",
-		Title:              "feishu issue",
+		Title:              "web console issue",
 		OpenedByIdentityID: "user:hayang",
-		Origin:             discussion.OriginFeishuAt,
-		PrimaryChannelHint: "feishu",
+		Origin:             discussion.OriginWebConsole,
+		PrimaryChannelHint: "web",
 		Actor:              observability.Actor("user:hayang"),
 	})
 	if err != nil {
@@ -140,7 +140,7 @@ func TestOpen_SyncBuild_Feishu(t *testing.T) {
 	if got.ConversationID() != res.ConversationID {
 		t.Fatal("issue.conversation_id should match")
 	}
-	if got.Origin() != discussion.OriginFeishuAt {
+	if got.Origin() != discussion.OriginWebConsole {
 		t.Fatal("origin mismatch")
 	}
 	if h.countEvents(t, "issue.opened") != 1 || h.countEvents(t, "conversation.opened") != 1 {
@@ -155,7 +155,7 @@ func TestOpen_SyncBuild_NilOpener_FailsAndRolls(t *testing.T) {
 		ProjectID:          "P-1",
 		Title:              "x",
 		OpenedByIdentityID: "user:h",
-		Origin:             discussion.OriginFeishuAt,
+		Origin:             discussion.OriginWebConsole,
 		Actor:              observability.Actor("user:h"),
 	})
 	if err == nil {
@@ -182,7 +182,7 @@ func TestOpen_SyncBuild_ConvFails_RollsBack(t *testing.T) {
 		ProjectID:          "P-1",
 		Title:              "x",
 		OpenedByIdentityID: "user:h",
-		Origin:             discussion.OriginFeishuAt,
+		Origin:             discussion.OriginWebConsole,
 		Actor:              observability.Actor("user:h"),
 	})
 	if err == nil {

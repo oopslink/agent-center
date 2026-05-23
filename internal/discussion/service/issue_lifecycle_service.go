@@ -112,7 +112,7 @@ type OpenIssueCommand struct {
 	DescriptionBlobRef string
 	OpenedByIdentityID string
 	Origin             discussion.Origin
-	PrimaryChannelHint string // only used on sync-build branches (web / feishu / supervisor)
+	PrimaryChannelHint string // only used on sync-build branches (web_console / supervisor)
 	Actor              observability.Actor
 }
 
@@ -123,10 +123,11 @@ type OpenIssueResult struct {
 	EventID        observability.EventID
 }
 
-// Open creates an Issue. Sync-build origins (web_console / feishu_at /
-// supervisor) build the kind=issue Conversation in the same tx and set
-// issue.conversation_id; lazy-create origins (cli / agent_open_issue)
-// leave conversation_id null (caller must bind-conversation later).
+// Open creates an Issue. Sync-build origins (web_console / supervisor /
+// derived_from_conversation) build the kind=issue Conversation in the
+// same tx and set issue.conversation_id; lazy-create origins (cli /
+// agent_open_issue) leave conversation_id null (caller must
+// bind-conversation later).
 func (s *IssueLifecycleService) Open(ctx context.Context, cmd OpenIssueCommand) (*OpenIssueResult, error) {
 	if err := cmd.Actor.Validate(); err != nil {
 		return nil, err

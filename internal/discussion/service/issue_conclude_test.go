@@ -70,7 +70,7 @@ func TestConclude_ClosedWithTasksOneTask(t *testing.T) {
 	h, lifecycle, taskRepo := setupConcludeStack(t)
 	res, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	out, err := lifecycle.Conclude(context.Background(), ConcludeIssueCommand{
 		IssueID: res.IssueID,
@@ -160,7 +160,7 @@ func TestConclude_ClosedWithTasksThreeTasksAndLocalIDDep(t *testing.T) {
 	h, lifecycle, taskRepo := setupConcludeStack(t)
 	res, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	out, err := lifecycle.Conclude(context.Background(), ConcludeIssueCommand{
 		IssueID: res.IssueID,
@@ -210,7 +210,7 @@ func TestConclude_CycleRollsBackEverything(t *testing.T) {
 	h, lifecycle, taskRepo := setupConcludeStack(t)
 	res, _ := lifecycle.Open(context.Background(), OpenIssueCommand{
 		ProjectID: "P-1", Title: "t", OpenedByIdentityID: "user:h",
-		Origin: discussion.OriginFeishuAt, Actor: observability.Actor("user:h"),
+		Origin: discussion.OriginWebConsole, Actor: observability.Actor("user:h"),
 	})
 	_, err := lifecycle.Conclude(context.Background(), ConcludeIssueCommand{
 		IssueID: res.IssueID,
