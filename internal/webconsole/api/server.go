@@ -37,6 +37,11 @@ type Server struct {
 type Deps struct {
 	App AppFacade
 	SSE SSEBus
+	// SPA is the catch-all handler that serves the embedded React build
+	// (web/dist/) for "/" and every non-/api path. Wired by the cli
+	// adapter (webconsole_wiring.go) to spa.Handler(). Optional —
+	// nil means no SPA mounted (e.g. headless test harness).
+	SPA http.Handler
 }
 
 // AppFacade narrows the cli.App surface that handlers need (we don't
@@ -145,6 +150,15 @@ func (s *Server) routes() {
 	// Fleet snapshot + per-task event trace.
 	s.mux.HandleFunc("GET /api/fleet", s.fleetSnapshotHandler)
 	s.mux.HandleFunc("GET /api/tasks/{id}/trace", s.taskTraceHandler)
+
+	// SPA catch-all. Registered LAST so all the /api/* patterns take
+	// precedence. Serves the embedded React build (web/dist/ baked in
+	// by go:embed) for "/" + every non-/api path, with index.html
+	// fallback so react-router can handle client-side routes on
+	// reload + deep link.
+	if h := s.deps.SPA; h != nil {
+		s.mux.Handle("/", h)
+	}
 }
 
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {

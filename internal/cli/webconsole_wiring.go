@@ -8,6 +8,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
+	"github.com/oopslink/agent-center/internal/webconsole/spa"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 )
 
@@ -33,7 +34,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		UserSecretRepo:     a.UserSecretRepo,
 		UserSecretSvc:      a.UserSecretSvc,
 	}
-	srv := api.NewServer(":0", api.Deps{SSE: bus})
+	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
 }
 
@@ -64,7 +65,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, logge
 		QuerySvc:           a.QuerySvc,
 		FleetSvc:           a.FleetSvc,
 	}
-	srv := api.NewServer(addr, api.Deps{SSE: bus})
+	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler()})
 	// Wrap the inner mux with deps middleware; install it as the
 	// server's handler so the loopback guard in api.Server.ListenAndServe
 	// still applies.

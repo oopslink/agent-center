@@ -23,7 +23,12 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: 'dist',
+    // Output directly into the Go embed package so `make build-backend`
+    // can bake the SPA into the binary without an intermediate copy.
+    // The `.gitkeep` placeholder there keeps the directory in git so
+    // `go:embed` succeeds even on a fresh clone before `pnpm run build`
+    // has populated it.
+    outDir: '../internal/webconsole/spa/dist',
     emptyOutDir: true,
     target: 'es2022',
   },
