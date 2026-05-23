@@ -101,4 +101,101 @@ in § 8.
 
 ## § 8. Execution log
 
-To be filled in by the test commit.
+### 8.1 Audit commit
+`81f84e6 docs(p12 S10) IR + DM e2e audit + NACK→Issue v3-narrowing`
+— this file (§ 0-7).
+
+### 8.2 Test commit
+
+Files added:
+- `tests/e2e/v2/helpers/sse.ts` — minimal SSE subscriber via fetch +
+  ReadableStream + manual `\n\n` record parser; returns a `stop()`
+  function. ~85 lines, no extra npm dep.
+- `tests/e2e/v2/tests/respond-input-request.spec.ts` — 2 tests:
+  happy path (seed full task/exec/IR chain via sqlite; respond
+  succeeds; verify IR.status='responded' + exec.status='working'
+  via direct DB read) + error path (404 for nonexistent IR).
+- `tests/e2e/v2/tests/dm-flow.spec.ts` — 2 tests: happy path
+  (create DM; subscribe SSE; send message; assert SSE event
+  arrived via `expect.poll`) + error path (400 for DM create
+  without members).
+
+### 8.3 Wins on first try (no bug fixes needed)
+
+S10 ran green on the first execution. Two factors:
+
+1. **S9 codified rules** held: direct sqlite INSERT for pre-seed
+   avoided the event-seq race that bit S9 mid-flight; `body.error`
+   field name applied throughout (no `body.code` re-mistakes).
+2. **SSE helper deliberately conservative**: opening the
+   EventSource BEFORE the trigger event + tiny 100ms settle ensures
+   the stream is ready when the event fires; `expect.poll` provides
+   auto-retry so we never `waitForTimeout` and never miss events.
+
+### 8.4 Anti-flake gate (oversight ⑤)
+
+```
+=== Run 1: 9 passed (4.0s) ===
+=== Run 2: 9 passed (4.0s) ===
+=== Run 3: 9 passed (4.0s) ===
+```
+
+3/3 green; total runtime variance < 50ms; 0 retries.
+
+### 8.5 SSE assertion notes
+
+The DM test exercises the real-time path:
+
+1. POST /api/sse/subscribe — bus enrolls user/conversation pair
+2. fetch /api/sse?user_id=... — open EventSource stream
+3. 100ms settle window (the only synthetic delay; it's a handshake
+   barrier, NOT an assertion-on-time)
+4. POST /api/conversations/{id}/messages — triggers
+   `conversation.message_added` event
+5. `expect.poll(() => events.some(...))` — auto-retries until the
+   event lands or the actionTimeout (10s) expires
+
+If the event never arrives (e.g. SSE wiring breaks in some refactor),
+the poll fails after 10s with a clear "expected SSE event
+conversation.message_added for the DM" message — root cause is
+obvious from the failure.
+
+### 8.6 Artifact size after green run
+
+```
+$ du -sh tests/e2e/v2/artifacts/
+544K
+```
+
+Stable (~540K from S9; +4K is the new test cases in the report
+HTML).
+
+### 8.7 S11 readiness
+
+S11 will exercise (a) Web↔CLI bidirectional sync — CLI subprocess
+sends a message, SSE delivers to Web; Web sends, CLI tail shows it;
+and (b) SSE Last-Event-ID reconnect recovery. Both build on the
+SSE helper landed here. The first scenario adds a wrinkle: the CLI
+subprocess WILL emit events, which is the same race condition that
+bit S9 — but only WITHIN a controlled, expected step (not pre-seed),
+so it's fine.
+
+For the SSE-reconnect scenario, we'll need to extend the helper to
+expose the last event ID (already in `SSEEvent.id`) and accept a
+`Last-Event-ID` query param on subscribe. Minor extension.
+
+### 8.8 NACK→Issue narrowing — for record
+
+Per § 0, NACK→Issue (worker NACK a dispatch → supervisor auto-spawn
+Issue) requires both a worker daemon and a live supervisor. Same
+blocker class as S9's worker chain narrowing. The behavior IS
+covered by:
+
+- `tests/e2e/phase7_test.go` — center-side end-to-end (Go-in-process)
+- `internal/taskruntime/dispatch/reconcile_test.go` — NACK handling
+- `internal/observability/escalator/*_test.go` — supervisor wake on
+  task_execution.dispatch_nacked event
+
+Adding it to the Playwright e2e would require docker compose +
+fakeagent + worker daemon orchestration — that's a v3 "deployment
+e2e" candidate. Documented openly per oversight ⑦.
