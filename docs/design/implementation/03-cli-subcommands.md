@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+> 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per ADR-0031)；ADR-0017/0021/0022 superseded by ADR-0039. v1 strikethrough-vendor 行块已在本次 sweep 中删除 / 改写；剩余 vendor / Bridge / 飞书 引用作 historical context 保留。当前 active 设计以 ADR + decisions/README 为准。
 
 # CLI 子命令完整签名
 
@@ -254,11 +254,9 @@ human 输出格式：`Error: <reason>: <message>` 一行红字到 stderr。
 
 | 命令 | audience | 简述 |
 |---|---|---|
-| ~~`identity add --vendor=feishu --vendor-id=... --bind-to=<user_id>`~~ | ~~U~~ | ~~把 vendor 身份绑到 center user~~ (v2 删 per ADR-0031) |
 | ~~`identity list [--vendor=...]`~~ | ~~U~~ | ~~列所有身份映射~~ (v2 删 per ADR-0031) |
 | ~~`identity bind <identity_id> --user=<user_id>`~~ | ~~U~~ | ~~修改已存在身份的归属~~ (v2 删 per ADR-0031) |
 | ~~`identity unbind <identity_id>`~~ | ~~U~~ | ~~解绑~~ (v2 删 per ADR-0031) |
-| ~~`bridge feishu setup [--app-id=...] [--app-secret=...]`~~ | ~~U / Sys~~ | ~~飞书 vendor 初始化（写配置 + 验证 WebSocket）~~ (v2 删 per ADR-0031) |
 
 ### 8.7 Observability — Open Host 五动词 + peek
 
@@ -408,7 +406,6 @@ agent-center peek-trace <execution_id> [--last=N] [--kind=tool_call|thinking|too
 | Conversation | ConversationRepository | `conversation add-message / list / read` |
 | Cognition | SupervisorInvocationRepository | `supervisor retrigger` / `inspect supervisor` |
 | Cognition | DecisionRecordRepository | `record-decision` / `inspect decision` |
-| ~~Bridge~~ | ~~FeishuDeliveryLedgerRepository~~ | ~~`bridge feishu setup`（内部表初始化）/ `identity *`~~ (v2 删 per ADR-0031) |
 | Observability | EventRepository | `query events` / `inspect <kind>` 的事件流字段 |
 | Observability | TaskExecutionProjectionRepository | `inspect execution --include-projection` / `ps` |
 | Observability | TraceArchiveRepository | `peek-trace` / `logs` 归档段 |

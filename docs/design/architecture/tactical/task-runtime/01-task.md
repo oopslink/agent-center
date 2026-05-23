@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+> 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per ADR-0031)；ADR-0017/0021/0022 superseded by ADR-0039. v1 strikethrough-vendor 行块已在本次 sweep 中删除 / 改写；剩余 vendor / Bridge / 飞书 引用作 historical context 保留。当前 active 设计以 ADR + decisions/README 为准。
 
 # Task 聚合
 
@@ -139,7 +139,6 @@ Worker / Agent 不能直接改 Task 状态（[conventions § 1](../../../../rule
 
 | 路径 | 触发 |
 |---|---|
-| ~~用户 CLI~~ | ~~`agent-center task bind-conversation <task_id> --channel=feishu --auto` 或 `--to=<conv_id>`~~ (v2 vendor 删 per ADR-0031) |
 | ~~飞书 slash 命令~~ | ~~`/track <task_id>` —— Bridge 直接转 bind-conversation（不经 supervisor）~~ (v2 删 per ADR-0031) |
 | ~~飞书 @bot 自由文本~~ | ~~"盯一下 T-42" → supervisor 解析意图 → bind-conversation~~ (v2 删 per ADR-0031) |
 | Center 硬规则 fallback | agent 调 `request-input` 且 task.conversation_id=null → 自动 bind 到 `notification.default_channel`；未配置 → InputRequest 创建失败、execution → `failed(reason=no_input_channel)`（详见 [03-input-request § 8 fallback](03-input-request.md)） |
@@ -149,9 +148,9 @@ Worker / Agent 不能直接改 Task 状态（[conventions § 1](../../../../rule
 ### 7.3 CLI
 
 ```
-agent-center task bind-conversation <task_id> --channel=feishu --auto         # 新建 conversation + 推到 default channel  -- v2 deprecated per ADR-0031
-agent-center task bind-conversation <task_id> --channel=feishu --to=<conv_id> # 绑到既有 conversation                  -- v2 deprecated per ADR-0031
-agent-center task unbind-conversation <task_id>                        # v1 不支持，留接口给 v2
+agent-center task bind-conversation <task_id> --channel=web --auto         # 新建 conversation
+agent-center task bind-conversation <task_id> --channel=web --to=<conv_id> # 绑到既有 conversation
+agent-center task unbind-conversation <task_id>                            # 解绑（v2）
 ```
 
 ### 7.4 事件

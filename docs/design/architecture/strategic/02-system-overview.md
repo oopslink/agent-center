@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+> 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../decisions/0031-v2-drop-bridge-vendor-integration.md))；用户入口收窄到 Web Console (loopback) + CLI。下面的 ASCII 拓扑已更新为 v2 形态。
 
 # 系统总览
 
@@ -6,19 +6,11 @@
 
 ## 高层拓扑
 
-> **v2 注**：以下 ASCII 拓扑包含 v1 飞书 / feishu module（v2 撤回 per ADR-0031）。整图待 Phase 10/11 重绘；下方 v1 残留仅供历史参考。
-
 ```
-                        ┌─────────────────────────────────┐
-                        │     飞书开放平台 [v1; v2 删 per ADR-0031]  │
-                        └────────┬────────────────────────┘
-                                 │ WebSocket 长连接
-                                 │ (Center 作为 client 主动建立)
-                                 ↓
    ┌──────────────────────────────────────────────────────────────┐
    │  agent-center server  (VPS 常驻 / 单一二进制 / 多模式)         │
    │                                                              │
-   │   ├─ feishu module           接事件 / 发卡片 [v1; v2 删 per ADR-0031] │
+   │   ├─ Web Console (loopback :7100)  用户主入口 (ADR-0037)      │
    │   ├─ worker gRPC endpoint    与 worker 长连接                 │
    │   ├─ supervisor launcher     事件触发 spawn supervisor 进程    │
    │   ├─ admin CLI (unix sock)   人 / supervisor 调用工具         │

@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+> 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per ADR-0031)；ADR-0017/0021/0022 superseded by ADR-0039. v1 strikethrough-vendor 行块已在本次 sweep 中删除 / 改写；剩余 vendor / Bridge / 飞书 引用作 historical context 保留。当前 active 设计以 ADR + decisions/README 为准。
 
 # Discussion BC — DDD 战术设计 Overview
 
@@ -204,7 +204,6 @@ issue (
 |---|---|
 | 人 - CLI | facade 转 conversation add-message |
 | 人 - Web Console | 直接调 conversation add-message |
-| ~~人 - 飞书 thread 内回复~~ | ~~Bridge inbound → conversation add-message（[bridge/01-feishu-integration § 4](../bridge/01-feishu-integration.md)）~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 | Supervisor | facade 转 conversation add-message |
 | Worker (agent) | facade 转 conversation add-message via worker daemon |
 
@@ -300,10 +299,8 @@ Discussion emit 的事件中触发 supervisor 唤醒的子集：
 | 事件 | ~~Bridge 渲染动作~~ |
 |---|---|
 | ~~`conversation.opened` (kind=issue)~~ | ~~Bridge 发 Issue root card 到 vendor 当前位置（DM / 群里 thread root）→ 该 card 形成 thread root → 回写 `conversation.primary_channel_thread_key`~~ |
-| ~~`conversation.message_added`（kind=issue Conversation 内的 Message）~~ | ~~按 `content_kind` 渲染（参见 [bridge/01-feishu-integration § 6](../bridge/01-feishu-integration.md)）：text 普通消息 / conclusion_draft 富卡片含 [确认结论] [改后确认] [不做] 按钮~~ |
 | ~~`issue.concluded` / `issue.tasks_spawned`~~ | ~~Bridge 渲染一条 `kind=system` Message 到 issue.conversation_id 提示 "已结论 / 已 spawn task #X / #Y / #Z"~~ |
 
-~~详见 [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md)。~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 
 ### 7.3 Observability 订阅
 
@@ -336,7 +333,6 @@ Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / i
 | Issue 之间的引用 / epic-story 分层 | [out-of-scope](../../../requirements/03-out-of-scope.md) |
 | Issue 1:N 多 conversation 镜像 | [roadmap](../../../roadmap.md)（[ADR-0021 § 8 + ADR-0017 § 9](../../../decisions/0039-conversation-business-model-v2-unified.md) 显式驳回 v1）|
 | Issue conversation 关闭后 reopen | [roadmap](../../../roadmap.md) |
-| ~~Issue 多 vendor 镜像（飞书 / DingTalk 同时绑）~~ | ~~[roadmap](../../../roadmap.md)（v1 单 vendor）~~ (v2 删 vendor 集成 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))|
 | `Message.is_pinned` / `parent_comment_id` / `reactions`（普适 Message 扩展）| [roadmap](../../../roadmap.md)（v2+ 加在 Conversation Message 上对所有 kind 都生效）|
 
 ---
@@ -365,7 +361,6 @@ Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / i
 
 - [task-runtime/00-overview.md § 3.4 IssueConcludeSpawn](../task-runtime/00-overview.md) — Issue conclude 批量 spawn Tasks 的主体实现
 - [conversation/00-overview.md](../conversation/00-overview.md) — kind=issue Conversation + Message.content_kind 扩展
-- ~~[bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Issue root card 渲染 + bound thread 移除~~ (v2 删 tactical/bridge/* per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 在 Issue 议事中的角色
 - [observability/00-overview.md](../observability/00-overview.md) — issue.* 事件订阅 + 投影读模型
 

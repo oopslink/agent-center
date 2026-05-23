@@ -112,7 +112,7 @@
 **必须有 e2e 覆盖的关键路径：**
 
 - `worker enroll → task dispatch → task 结束`（含正常结束、失败结束、取消三条分支）
-- `feishu 入口 → supervisor → task 创建 → 结果回流`（端到端可观测一致）
+- `Web Console 入口 → supervisor → task 创建 → 结果回流`（端到端可观测一致）
 - 后续新增关键路径同步登记到本节
 
 **契约测试范围：**

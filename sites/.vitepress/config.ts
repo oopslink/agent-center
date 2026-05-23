@@ -133,14 +133,6 @@ export default withMermaid(defineConfig({
           ],
         },
         {
-          text: 'BC7 Bridge',
-          collapsed: true,
-          items: [
-            { text: 'Overview', link: '/design/architecture/tactical/bridge/00-overview' },
-            { text: 'FeishuBridge 实现', link: '/design/architecture/tactical/bridge/01-feishu-integration' },
-          ],
-        },
-        {
           text: 'agent-harness（跨 BC 协作）',
           collapsed: true,
           items: [

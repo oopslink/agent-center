@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+> 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 superseded by [ADR-0039](../decisions/0039-conversation-business-model-v2-unified.md)。本文 v1 vendor / Bridge / 飞书 引用块在本次 sweep 中改为 strikethrough + "(v2 删 per ADR-0031)" 注；当前 active 配置 schema 以 [§ 8 minimal example](#-8-minimal-example) 为准。
 
 # 配置文件 schema
 
@@ -67,13 +67,15 @@ CLI flag > env var > YAML file > built-in default
 
 每个 secret 字段有对应的 `<field>_file: <path>` 备用 key（读取文件首行作为 secret）。例：
 
-<!-- v2 删 per ADR-0031 — Bridge BC + 飞书集成已撤回 -->
+<!-- v2 example: every secret uses *_file or env var; no vendor blocks -->
 ```yaml
-# ~~v2 删 per ADR-0031~~
-# bridge:
-#   feishu:
-#     app_id: "cli_abc123"                     # 非 secret，明文 OK
-#     app_secret_file: "/etc/secrets/feishu"   # secret 走文件
+# v2 example: SecretManagement BC AES-encrypts secrets at rest; the
+# only file-on-disk reference is the master key:
+secret_management:
+  master_key_file: "/etc/secrets/agent-center/master.key"
+# Individual user secrets are CRUD'd via the CLI (`agent-center secret
+# create ...`) — never appear in YAML. References inside mcp_config use
+# the `secret:<name>` SecretRef syntax (ADR-0027).
 ```
 
 ### 3.1 v1 凭据存储
@@ -148,7 +150,7 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 
 | Mode | 必读 section |
 |---|---|
-| `server` | `server` / `blob_store` / `supervisor` / `notification` / ~~`bridge`~~ (v2 删 per ADR-0031) / `execution` / `observability` |
+| `server` | `server` / `blob_store` / `supervisor` / `execution` / `observability` / `secret_management` / `web_console` |
 | `worker` | `worker` / `worker_config` / `blob_store`（如需上传日志）|
 | `supervisor` | 不读 config（CLI flag 注入参数）|
 
@@ -192,20 +194,11 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `supervisor.invocation_timeout_seconds` | int | 180 | [ADR-0013 § 6](../decisions/0013-supervisor-invocation-concurrency.md) | scope_kind ≠ global 的 timeout |
 | `supervisor.invocation_timeout_global_seconds` | int | 600 | 同上 | scope_kind=global 的 timeout |
 
-### 7.4 `notification.*`
+### 7.4 ~~`notification.*` / 7.5 `bridge.*`~~
 
-| Field | Type | Default | 来源 | 用途 |
-|---|---|---|---|---|
-| ~~`notification.default_channel`~~ | ~~string~~ | ~~-~~ | ~~[ADR-0017 § 10.5](../decisions/0039-conversation-business-model-v2-unified.md)~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~InputRequest fallback 渠道（如 `feishu:user:hayang:dm`）~~ (v2 删 per ADR-0031) |
-
-### 7.5 ~~`bridge.*`~~ (v2 删 per ADR-0031)
-
-| Field | Type | Default | 来源 | 用途 |
-|---|---|---|---|---|
-| ~~`bridge.feishu.enabled`~~ | ~~bool~~ | ~~false~~ | ~~tactical/bridge/* (v2 deleted per ADR-0031)~~ | ~~是否启用飞书 Bridge~~ (v2 删 per ADR-0031) |
-| ~~`bridge.feishu.app_id`~~ | ~~string~~ | ~~-~~ | ~~同上~~ | ~~飞书 app id（非 secret）~~ (v2 删 per ADR-0031) |
-| ~~`bridge.feishu.app_secret_file`~~ | ~~path~~ | ~~-~~ | ~~同上~~ | ~~飞书 secret 文件（[§ 3](#-3-凭据处理)）~~ (v2 删 per ADR-0031) |
-| ~~`bridge.feishu.message_retry_count`~~ | ~~int~~ | ~~3~~ | ~~同上~~ | ~~投递重试次数~~ (v2 删 per ADR-0031) |
+Both sections removed in v2 per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md). v2 routes user-visible
+notifications through the Web Console + SSE; there is no
+notification fallback channel and no vendor Bridge configuration.
 
 ### 7.6 `execution.*`
 
@@ -302,16 +295,8 @@ supervisor:
   invocation_timeout_seconds: 180
   invocation_timeout_global_seconds: 600
 
-# ~~v2 删 per ADR-0031 — notification / bridge sections removed~~
-# notification:
-#   default_channel: "feishu:user:hayang:dm"
-#
-# bridge:
-#   feishu:
-#     enabled: true
-#     app_id: "cli_abc123"
-#     app_secret_file: "/etc/secrets/agent-center/feishu"
-#     message_retry_count: 3
+# (v2 removed notification.* + bridge.* per ADR-0031 — Web Console
+# + SSE replaces vendor notification routing.)
 
 execution:
   submitted_timeout_seconds: 300

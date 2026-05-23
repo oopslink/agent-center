@@ -458,7 +458,7 @@ flowchart TB
 - BC 内部聚合的私有方法 / 字段（如 TaskExecution 的 cancel_requested_at 是 BC 内字段，不暴露为 PL）
 - 各 BC 内部表的物理结构（属于 implementation 层）
 - AgentTraceEvent（JSONL trace，**不入 events 表**，[ADR-0015](../../decisions/0015-agent-trace-not-in-events-table.md)）
-- Bridge BC 内 vendor 翻译 ledger（`feishu_delivery_ledger` 是 BC 内私有审计）
+- v1 Bridge BC 内 vendor 翻译 ledger（v2 已撤回 per ADR-0031；此项保留作"PL boundary 示例"教学）
 
 **自检**（设计新跨 BC 接口时必答）：
 

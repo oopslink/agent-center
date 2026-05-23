@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending v2 update. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](decisions/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 superseded by [ADR-0039](decisions/0039-conversation-business-model-v2-unified.md). 本文中 Bridge / vendor / 飞书 引用是 v1 残留。
+> 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per ADR-0031)；ADR-0017/0021/0022 superseded by ADR-0039. v1 strikethrough-vendor 行块已在本次 sweep 中删除 / 改写；剩余 vendor / Bridge / 飞书 引用作 historical context 保留。当前 active 设计以 ADR + decisions/README 为准。
 
 # agent-center DDD 设计蓝图（Blueprint + Plan & Status）
 
@@ -99,7 +99,6 @@
 | [conversation/01-conversation](architecture/tactical/conversation/01-conversation.md) | 战术 (BC6) | Conversation AR + Message 子从属（6 种 kind + 6 种 content_kind + Invariants）|
 | [conversation/02-identity](architecture/tactical/conversation/02-identity.md) | 战术 (BC6) | Identity AR + ChannelBinding 子 VO（v1 单用户简化 + 自动绑定）|
 | ~~tactical/bridge/* (v2 deleted per ADR-0031)~~ | 战术 (BC7) | ~~Bridge BC 入口 + § X.1-X.6 wrap（**无业务聚合 ACL**；OutboundDelivery / InboundRouting / SlashCommand / CardLifecycle 四 svc）~~ |
-| ~~tactical/bridge/* (v2 deleted per ADR-0031)~~ | 战术 (BC7) | ~~FeishuBridge vendor-specific 实现（一次性设置 / 网络方向 / Inbound / Outbound / 渲染规则 / 三模式 D1-D3）~~ |
 
 ### 2.3 已立的横切方法论
 
@@ -147,7 +146,6 @@
 | 4 | Cognition | `tactical/cognition/00-overview.md` + `01-supervisor-invocation.md` + `02-memory.md` | 2 / 3 | ✅ 完成（SupervisorInvocation + DecisionRecord 子从属 + Memory）|
 | 5 | Observability | `tactical/observability/00-overview.md` | 1 / 1（单聚合 BC，Event AR + 读模型 projections）| ✅ 完成 |
 | 6 | Conversation | `tactical/conversation/00-overview.md` + `01-conversation.md` + `02-identity.md` | 2 / 3 | ✅ 完成（Conversation + Message 子从属 + Identity + ChannelBinding 子 VO）|
-| ~~7~~ | ~~Bridge~~ | ~~`tactical/bridge/00-overview.md` + `01-feishu-integration.md` (v2 deleted per ADR-0031)~~ | ~~0 / 2~~ | ~~v2 删 per ADR-0031~~ |
 
 **跨聚合视角**：不单立 `00-domain-model.md`。跨 BC 引用关系仍归 [strategic/03-bounded-contexts § 3 上下文映射](architecture/strategic/03-bounded-contexts.md#-3-上下文映射context-map)，在 § 3.1 上下游表里补"引用基数 / 强弱 / 一致性窗口"列。
 

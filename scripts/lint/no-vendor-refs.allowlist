@@ -57,13 +57,7 @@
 ^tests/e2e/phase7_test\.go:.*Bridge BC
 ^tests/integration/integration_test\.go:.*vendor_msg_ref dropped
 
-# ─── TEMPORARY — REMOVE WHEN P12 S6 (Wave 2 Group A doc sweep) LANDS ────
-# These docs still describe the v1 architecture and are queued for
-# rewrite/removal in P12 S6. They are tracked in
-# docs/plans/phase-12-audits/s1-v1-residue-audit.md § "deferred to S6".
-^docs/drafts/session-checkpoint-2026-05-16\.md:
-^docs/index\.md:
-^docs/rules/conventions\.md:.*feishu
-^docs/rules/testing\.md:.*feishu
-^sites/\.vitepress/config\.ts:.*[Ff]eishu
-# ─── END TEMPORARY ──────────────────────────────────────────────────────
+# Session-checkpoint archives are frozen historical snapshots and may
+# name v1 vendor tokens by their archive-time identity. Treated as
+# history-of-record (same category as ADRs).
+^docs/drafts/session-checkpoint-

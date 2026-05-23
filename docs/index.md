@@ -4,13 +4,13 @@ layout: home
 hero:
   name: agent-center
   text: DDD 设计文档
-  tagline: 7 个限界上下文 / 21 个 ADR / 战略 + 战术 + 实现层完整呈现
+  tagline: 6 个限界上下文 / 34 个 ADR / 战略 + 战术 + 实现层完整呈现（v2.0 GA 2026-05-24）
   actions:
     - theme: brand
       text: 战略层入口（必读）
       link: /design/architecture/strategic/00-domain-vision
     - theme: alt
-      text: 战术层入口（7 BC）
+      text: 战术层入口（6 BC）
       link: /design/architecture/tactical/task-runtime/00-overview
     - theme: alt
       text: ADR 索引
@@ -27,12 +27,12 @@ features:
     linkText: 进入战略层
   - icon: 🧩
     title: 战术层
-    details: 7 个 BC 各自的聚合 / Domain Service / Factory / Repository / Invariants / 跨 BC 协作。
+    details: 6 个 BC 各自的聚合 / Domain Service / Factory / Repository / Invariants / 跨 BC 协作。
     link: /design/architecture/tactical/task-runtime/00-overview
     linkText: 浏览 BC
   - icon: 📜
     title: 决策（ADR）
-    details: 21 个架构决策记录，含演进链（0007 → 0009 → 0017 → 0020 → 0021）。
+    details: 34 个架构决策记录（v1 期 0001-0019 + v2 期 0023-0039）；v2 撤回了 v1 的 0009/0017/0020/0021/0022。
     link: /design/decisions/
     linkText: ADR 索引
   - icon: 🛠
@@ -47,38 +47,35 @@ features:
     linkText: 蓝图
   - icon: 🔧
     title: 实现层
-    details: BlobStore / 持久化 schema / CLI 子命令等实施细节（部分 TBD）。
+    details: BlobStore / 持久化 schema / CLI 子命令 / Web Console SPA / 部署等实施细节。
     link: /design/implementation/
     linkText: 实现层
 ---
 
-## 7 个限界上下文（BC）地图
+## 6 个限界上下文（BC）地图
+
+> v2 架构（per [ADR-0031](/design/decisions/0031-v2-drop-bridge-vendor-integration.md) 撤回 v1 Bridge BC + vendor 集成；新增 BC8 [SecretManagement](/design/decisions/0026-user-secret-management-bc.md)）。用户入口收窄到 Web Console + CLI（per [ADR-0037](/design/decisions/0037-web-console-as-main-user-ui.md) / [ADR-0038](/design/decisions/0038-cli-ux-enhancement.md)）。
 
 ```mermaid
 flowchart TB
-    subgraph Vendor[" "]
-        feishu[飞书]
-        dingtalk[DingTalk]
-        web[Web chat]
+    subgraph User[用户层]
+        WC[Web Console SPA<br/>+ CLI]
     end
 
-    subgraph B[BC7 Bridge ACL 唯一调 vendor SDK]
-        FB[FeishuBridge]
-        DB[DingTalkBridge<br/>v2+]
-        WB[WebBridge<br/>v2+]
-    end
-
-    feishu -. WebSocket .-> FB
-    dingtalk -. WebSocket .-> DB
-    web -. WebSocket .-> WB
-
-    subgraph Domain[领域层 BC1-BC6]
+    subgraph Domain[领域层 BC1-BC6 + BC8]
         BC1[BC1 TaskRuntime<br/>Task / TaskExecution / InputRequest<br/>+ worker 运行时]
         BC2[BC2 Discussion<br/>Issue 单聚合]
-        BC3[BC3 Workforce<br/>Worker / Project / Mapping / Proposal]
+        BC3[BC3 Workforce<br/>Worker / Project / Mapping / Proposal<br/>+ AgentInstance / BootstrapToken]
         BC4[BC4 Cognition<br/>SupervisorInvocation / Memory]
-        BC6[BC6 Conversation<br/>Conversation / Message / Identity]
+        BC6[BC6 Conversation v2<br/>Conversation / Message / Identity / ChannelMgmt / CarryOver / Derivation]
+        BC8[BC8 SecretManagement<br/>UserSecret + SecretRef VO]
     end
+
+    WC -- HTTP/SSE --> BC1
+    WC -- HTTP/SSE --> BC2
+    WC -- HTTP/SSE --> BC3
+    WC -- HTTP/SSE --> BC6
+    WC -- HTTP/SSE --> BC8
 
     BC2 -.Shared Kernel 1:1.-> BC6
     BC1 -.Shared Kernel 1:1.-> BC6
@@ -86,11 +83,7 @@ flowchart TB
     BC1 -- Customer-Supplier --> BC2
     BC1 -.Shared Kernel.-> BC3
     BC2 -.Shared Kernel.-> BC3
-
-    B -- Customer-Supplier --> BC2
-    B -- Customer-Supplier --> BC6
-    B -- Customer-Supplier --> BC1
-    BC6 -. Pub/Sub .-> B
+    BC3 -- references --> BC8
 
     subgraph Cross[跨 BC actor]
         BC5[BC5 Observability<br/>Open Host / Subscribe-only]
@@ -101,50 +94,28 @@ flowchart TB
     BC3 -.->|emit events| BC5
     BC4 -.->|emit events| BC5
     BC6 -.->|emit events| BC5
-    B -.->|emit events| BC5
+    BC8 -.->|emit events| BC5
 
-    BC4 ==>|User via tools| BC1
-    BC4 ==>|User via tools| BC2
-    BC4 ==>|User via tools| BC6
+    BC4 ==>|via CLI tools| BC1
+    BC4 ==>|via CLI tools| BC2
+    BC4 ==>|via CLI tools| BC6
 
     classDef domainBox fill:#e8f4f8,stroke:#1e88e5,stroke-width:2px
-    classDef bridgeBox fill:#fff3e0,stroke:#fb8c00,stroke-width:2px
     classDef obsBox fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
-    classDef vendorBox fill:#fafafa,stroke:#9e9e9e,stroke-width:1px,stroke-dasharray: 5 5
-    class BC1,BC2,BC3,BC4,BC6 domainBox
-    class FB,DB,WB,B bridgeBox
+    classDef userBox fill:#fff3e0,stroke:#fb8c00,stroke-width:2px
+    class BC1,BC2,BC3,BC4,BC6,BC8 domainBox
     class BC5 obsBox
-    class feishu,dingtalk,web vendorBox
+    class WC userBox
 ```
 
-**关键解读**：
+**关键解读（v2）**：
 
-- **领域层 BC1-BC6**：零 vendor 依赖；只跟其它 BC 通过 Shared Kernel / Customer-Supplier 模式交互；所有外发通过 emit domain events
-- **Bridge BC7（ACL）**：唯一调 vendor SDK 的地方；订阅领域事件做 outbound；inbound 调领域 API 写入；不持业务聚合
+- **领域层 BC1-BC6 + BC8**：零 vendor 依赖；BC 之间通过 Shared Kernel / Customer-Supplier 模式交互；所有外发通过 emit domain events
+- **用户入口**：Web Console SPA（loopback bind, [ADR-0037](/design/decisions/0037-web-console-as-main-user-ui.md)）+ CLI；vendor IM 接入留给 v3+ 重新设计
 - **Observability BC5（Open Host）**：所有 BC emit 事件到 `events` 表；只订阅不发起，提供统一查询接口（inspect / query / ps / stats / logs）
 - **Cognition BC4 跨切**：Supervisor 通过 CLI 工具（同 user 用的同一套）调任何 BC 的动作命令；不为 supervisor 单造 RPC
+- **SecretManagement BC8**：v2 新增；中心化 user secret 管理；plaintext 永不在 UI / API / SSE / log 出现（[ADR-0026 § 5](/design/decisions/0026-user-secret-management-bc.md)）
 
 ## DDD 推进状态
 
-7 个 BC 的战术设计 + Repository 接口签名全部 ✅；剩 implementation 层 SQL schema / dialect 适配（TBD）+ Saga（v1 不必）。详细推进 plan 见 [DDD 蓝图](/design/ddd-blueprint)。
-
-## ADR 演进主线
-
-```mermaid
-graph LR
-    A0007[ADR-0007<br/>Conversation 层] -- Refined by --> A0009[ADR-0009<br/>Issue 解耦]
-    A0007 -- Refined by --> A0021
-    A0009 -- Superseded by --> A0021[ADR-0021<br/>Issue ↔ Conversation 1:1]
-    A0016[ADR-0016<br/>bound thread] -- Superseded by --> A0017[ADR-0017<br/>Task ↔ Conversation 1:1]
-    A0017 -- Refined by --> A0021
-    A0020[ADR-0020<br/>Card 限制 Bridge<br/>中间方案] -- Superseded by --> A0021
-
-    classDef accepted fill:#e8f5e9,stroke:#43a047,stroke-width:2px
-    classDef superseded fill:#fafafa,stroke:#9e9e9e,stroke-width:1px,stroke-dasharray: 5 5
-    classDef current fill:#fff9c4,stroke:#fbc02d,stroke-width:3px
-    class A0007,A0017 accepted
-    class A0009,A0016,A0020 superseded
-    class A0021 current
-```
-
-完整 21 个 ADR 见 [决策索引](/design/decisions/)。
+v2 GA 闭环：6 个 BC 的战术设计 + Repository 接口签名 + 实现层 SQL schema / SQLite 适配全部 ✅。详细推进 plan 见 [DDD 蓝图](/design/ddd-blueprint)。
