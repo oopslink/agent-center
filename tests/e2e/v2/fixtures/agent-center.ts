@@ -1,6 +1,7 @@
 import { test as base } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,9 +30,17 @@ export const test = base.extend<{ agentCenter: AgentCenter }>({
     const tempDir = await mkdtemp(join(tmpdir(), "agent-center-e2e-"));
     const dbPath = join(tempDir, "agent-center.db");
     const sockPath = join(tempDir, "admin.sock");
+    const masterKeyPath = join(tempDir, "master.key");
     const grpcPort = await pickFreePort();
     const webPort = await pickFreePort();
     const configPath = join(tempDir, "config.yaml");
+
+    // Generate a random 32-byte master key, base64-encode, write 0600.
+    // Lets SecretManagement BC wire up so /api/secrets works in tests.
+    const masterKeyB64 = randomBytes(32).toString("base64");
+    await writeFile(masterKeyPath, masterKeyB64 + "\n", "utf8");
+    await chmod(masterKeyPath, 0o600);
+
     const config = `
 server:
   listen_addr: ":${grpcPort}"
@@ -40,6 +49,8 @@ server:
 web_console:
   enabled: true
   listen_addr: "127.0.0.1:${webPort}"
+secret_management:
+  master_key_file: "${masterKeyPath}"
 identity:
   default_user: "hayang"
 `;
