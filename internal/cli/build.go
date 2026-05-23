@@ -100,6 +100,13 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 		}
 	}
 
+	// input-request group (P11 § 3.7 — user replies to pending IRs).
+	for _, c := range provider.inputRequestCommands() {
+		if err := router.Add([]string{"input-request"}, c); err != nil {
+			return nil, "", err
+		}
+	}
+
 	// channel group (ADR-0032 CV1 — first-class channel commands).
 	for _, c := range provider.channelCommands() {
 		if err := router.Add([]string{"channel"}, c); err != nil {
@@ -365,6 +372,18 @@ func (l *lazyApp) agentCommands() []*Command {
 		n := n
 		out = append(out, l.withApp(func(a *App) *Command {
 			return findCmd(a.AgentCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) inputRequestCommands() []*Command {
+	names := []string{"list", "show", "respond", "cancel"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.InputRequestCommands(), n)
 		}))
 	}
 	return out

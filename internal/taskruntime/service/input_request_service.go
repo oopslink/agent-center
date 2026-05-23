@@ -304,6 +304,68 @@ func (s *InputRequestService) Respond(ctx context.Context, in RespondInput) erro
 	})
 }
 
+// CancelInput wraps the user-facing cancel command.
+type CancelInput struct {
+	InputRequestID taskruntime.InputRequestID
+	Reason         string
+	Message        string
+	Actor          observability.Actor
+}
+
+// Cancel transitions IR → canceled and unblocks the parent execution
+// (input_required → working) so the agent can either retry or exit.
+// Reason/Message are required per conventions § 16.
+func (s *InputRequestService) Cancel(ctx context.Context, in CancelInput) error {
+	if err := in.Actor.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(in.InputRequestID)) == "" {
+		return errors.New("cancel: input_request_id required")
+	}
+	if strings.TrimSpace(in.Reason) == "" {
+		return errors.New("cancel: reason required (conventions § 16)")
+	}
+	if strings.TrimSpace(in.Message) == "" {
+		return errors.New("cancel: message required (conventions § 16)")
+	}
+	now := s.clock.Now()
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		ir, err := s.irRepo.FindByID(txCtx, in.InputRequestID)
+		if err != nil {
+			return err
+		}
+		if err := ir.MarkCanceled(in.Reason, in.Message, now); err != nil {
+			return err
+		}
+		if err := s.irRepo.Update(txCtx, ir); err != nil {
+			return err
+		}
+		e, err := s.execRepo.FindByID(txCtx, ir.TaskExecutionID())
+		if err == nil && e.Status() == execution.StatusInputRequired {
+			if err := e.LeaveInputRequired(now); err != nil {
+				return err
+			}
+			if err := s.execRepo.Update(txCtx, e); err != nil {
+				return err
+			}
+		}
+		_, err = s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "input_request.canceled",
+			Refs: observability.EventRefs{
+				ExecutionID:    string(ir.TaskExecutionID()),
+				InputRequestID: string(ir.ID()),
+			},
+			Actor: in.Actor,
+			Payload: map[string]any{
+				"input_request_id": string(ir.ID()),
+				"reason":           in.Reason,
+				"message":          in.Message,
+			},
+		})
+		return err
+	})
+}
+
 func (s *InputRequestService) failExecutionNoInputChannel(ctx context.Context, executionID taskruntime.TaskExecutionID, actor observability.Actor) {
 	now := s.clock.Now()
 	_ = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
