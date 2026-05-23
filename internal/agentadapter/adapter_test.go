@@ -1,6 +1,7 @@
 package agentadapter
 
 import (
+	"context"
 	"errors"
 	"testing"
 )
@@ -15,6 +16,14 @@ func (s *stubAdapter) BuildCommand(_ SpawnRequest) (CmdSpec, error) {
 }
 func (s *stubAdapter) ParseEvent(_ []byte) (AgentTraceEvent, error) { return AgentTraceEvent{}, nil }
 func (s *stubAdapter) SupportsSession() bool                         { return false }
+
+// v2 ADR-0030 § 2 no-ops for stub.
+func (s *stubAdapter) Probe(context.Context) (bool, string, error) { return false, "", nil }
+func (s *stubAdapter) SupportedFeatures() FeatureSet                { return FeatureSet{} }
+func (s *stubAdapter) BuildMCPConfigArg(string) (MCPSetup, error)   { return MCPSetup{}, nil }
+func (s *stubAdapter) BuildSkillMountSetup(string, string) (SkillMountSetup, error) {
+	return SkillMountSetup{}, nil
+}
 
 func TestRegistry_RegisterGetNames(t *testing.T) {
 	r := &Registry{adapters: map[string]Adapter{}}

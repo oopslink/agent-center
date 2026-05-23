@@ -38,6 +38,76 @@ type Adapter interface {
 	BuildCommand(req SpawnRequest) (CmdSpec, error)
 	ParseEvent(line []byte) (AgentTraceEvent, error)
 	SupportsSession() bool
+
+	// v2 (ADR-0030 § 2)
+
+	// Probe is called by the worker daemon at online to check whether the
+	// CLI binary is installed and return its version string. ctx may carry
+	// a timeout; callers should cap probe at a few seconds.
+	Probe(ctx context.Context) (available bool, version string, err error)
+
+	// SupportedFeatures returns the v2 high-level feature flags this CLI
+	// supports. DispatchService uses these to reject agent instances whose
+	// AgentInstance.config requires a feature the worker can't provide
+	// (per ADR-0030 § 5).
+	SupportedFeatures() FeatureSet
+
+	// BuildMCPConfigArg translates the canonical mcp_config.runtime.json
+	// path into the CLI-specific invocation (flag / env / copy-to-path)
+	// per ADR-0027 § 7. Returns zero MCPSetup if SupportedFeatures.SupportsMCP
+	// is false (worker daemon checks the flag before calling).
+	BuildMCPConfigArg(runtimeJSONPath string) (MCPSetup, error)
+
+	// BuildSkillMountSetup translates the home_dir/skills/ source directory
+	// into the CLI-specific mount (CLI arg / symlink HOME) per ADR-0028 § 7.
+	// execDir is the per-execution working directory (worktree path) used by
+	// the symlink fallback to put the skills under a CLI-discoverable home
+	// alias. Returns zero SkillMountSetup if SupportedFeatures.SupportsSkills
+	// is false.
+	BuildSkillMountSetup(homeDirSkills, execDir string) (SkillMountSetup, error)
+}
+
+// FeatureSet captures the v2 high-level feature flags an adapter supports
+// (per ADR-0030 § 2).
+type FeatureSet struct {
+	SupportsMCP     bool
+	SupportsSkills  bool
+	SupportsSession bool
+}
+
+// MCPSetup is the per-CLI translation of mcp_config.runtime.json into the
+// command-line invocation (per ADR-0030 § 2 + ADR-0027 § 7).
+//
+// Worker daemon assembly:
+//   - append Args to CmdSpec.Args
+//   - merge Env into CmdSpec.Env
+//   - if CopyTo is non-empty, copy the supplied runtime.json there before spawn
+type MCPSetup struct {
+	Args   []string          // additional CLI args to append (e.g. ["--mcp-config", "/path"])
+	Env    map[string]string // additional env vars to merge
+	CopyTo string            // absolute path to copy runtime.json to (CLI reads from fixed location)
+}
+
+// SkillMountMode is the discriminator of SkillMountSetup (per ADR-0030 § 2 +
+// ADR-0028 § 7).
+type SkillMountMode int
+
+const (
+	// SkillMountCLIArg passes skills via a CLI flag (e.g. --skill-path).
+	SkillMountCLIArg SkillMountMode = iota
+	// SkillMountSymlinkHomeClaude exports HOME=execDir and creates a
+	// symlink ~/.claude/skills → home_dir/skills/ inside that HOME. Used
+	// for CLIs that only read from a fixed in-home path.
+	SkillMountSymlinkHomeClaude
+)
+
+// SkillMountSetup is the per-CLI translation of home_dir/skills/ into the
+// command-line invocation + pre-spawn setup (per ADR-0030 § 2).
+type SkillMountSetup struct {
+	Mode     SkillMountMode
+	Args     []string          // mode=CLIArg appends to CmdSpec.Args
+	Env      map[string]string // both modes merge into CmdSpec.Env
+	PreSpawn func() error      // mode=SymlinkHomeClaude creates the symlink; nil = no action
 }
 
 // Sentinel errors.

@@ -8,7 +8,7 @@ import (
 )
 
 func TestCodex_StubReturnsNotImplemented(t *testing.T) {
-	a := New()
+	a := New("")
 	if a.Name() != AdapterName {
 		t.Fatalf("name: %s", a.Name())
 	}
@@ -23,8 +23,14 @@ func TestCodex_StubReturnsNotImplemented(t *testing.T) {
 	}
 }
 
-func TestCodex_NotInDefaultRegistry(t *testing.T) {
-	if _, ok := agentadapter.Get(AdapterName); ok {
-		t.Fatal("codex stub must not auto-register")
+func TestCodex_RegisteredInDefaultRegistry(t *testing.T) {
+	// v2 per ADR-0030 § 3: codex self-registers on import so DispatchService
+	// can target it; the v1 "must not auto-register" assertion is flipped.
+	a, ok := agentadapter.Get(AdapterName)
+	if !ok {
+		t.Fatal("codex should be auto-registered (v2)")
+	}
+	if a.Name() != AdapterName {
+		t.Fatalf("registered adapter name: %s", a.Name())
 	}
 }

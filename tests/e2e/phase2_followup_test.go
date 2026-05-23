@@ -492,6 +492,20 @@ func (a bashAdapter) ParseEvent(line []byte) (agentadapter.AgentTraceEvent, erro
 	return claudecode.New("").ParseEvent(line)
 }
 
+// v2 ADR-0030 § 2 — minimal pass-through so the bash adapter satisfies the
+// v2 Adapter interface in tests. None of these methods are exercised in the
+// existing dispatch/spawn paths.
+func (a bashAdapter) Probe(context.Context) (bool, string, error) { return true, "fake-bash", nil }
+func (a bashAdapter) SupportedFeatures() agentadapter.FeatureSet {
+	return agentadapter.FeatureSet{SupportsSession: true}
+}
+func (a bashAdapter) BuildMCPConfigArg(string) (agentadapter.MCPSetup, error) {
+	return agentadapter.MCPSetup{}, nil
+}
+func (a bashAdapter) BuildSkillMountSetup(string, string) (agentadapter.SkillMountSetup, error) {
+	return agentadapter.SkillMountSetup{}, nil
+}
+
 // captureUploader records uploader calls for assertions.
 type captureUploader struct {
 	noHelloCount  atomic.Int64

@@ -8,7 +8,7 @@ import (
 )
 
 func TestOpenCode_StubReturnsNotImplemented(t *testing.T) {
-	a := New()
+	a := New("")
 	if a.Name() != AdapterName {
 		t.Fatalf("name: %s", a.Name())
 	}
@@ -23,8 +23,14 @@ func TestOpenCode_StubReturnsNotImplemented(t *testing.T) {
 	}
 }
 
-func TestOpenCode_NotInDefaultRegistry(t *testing.T) {
-	if _, ok := agentadapter.Get(AdapterName); ok {
-		t.Fatal("opencode stub must not auto-register")
+func TestOpenCode_RegisteredInDefaultRegistry(t *testing.T) {
+	// v2 per ADR-0030 § 3: opencode self-registers on import (matches
+	// claude-code / codex). v1 "must not auto-register" assertion flipped.
+	a, ok := agentadapter.Get(AdapterName)
+	if !ok {
+		t.Fatal("opencode should be auto-registered (v2)")
+	}
+	if a.Name() != AdapterName {
+		t.Fatalf("registered adapter name: %s", a.Name())
 	}
 }
