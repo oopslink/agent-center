@@ -81,7 +81,7 @@ func TestADR0014_DecisionFailureRollsBackAction(t *testing.T) {
 		actor := decision.Actor{Kind: "supervisor", ID: "INV-FAIL", InvocationID: "INV-FAIL"}
 		// Simulate the action side: insert a row directly to verify rollback.
 		if _, err := app.DB.ExecContext(txCtx,
-			`INSERT INTO workers (id, status, capabilities, created_at, updated_at, version)
+			`INSERT INTO workers (id, status, capabilities_json, created_at, updated_at, version)
 			 VALUES ('W-ROLLBACK', 'idle', '[]', '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', 1)`); err != nil {
 			return err
 		}

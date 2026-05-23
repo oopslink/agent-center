@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+// WorkerConfigFields names the worker config fields targeted by
+// WorkerRepository.UpdateConfig. Either pointer may be nil to leave the
+// corresponding field unchanged (ADR-0023 § 3 config update path).
+type WorkerConfigFields struct {
+	Concurrency *WorkerConcurrency
+	Discovery   *WorkerDiscovery
+}
+
 // WorkerRepository defines persistence for the Worker AR (workforce/00 §
 // 5.1). Implementations live in internal/workforce/sqlite.
 type WorkerRepository interface {
@@ -14,6 +22,13 @@ type WorkerRepository interface {
 	Save(ctx context.Context, w *Worker) error
 	UpdateStatus(ctx context.Context, id WorkerID, from, to WorkerStatus, version int) error
 	UpdateLastHeartbeatAt(ctx context.Context, id WorkerID, at time.Time, workingSeconds int64) error
+	// UpdateConfig writes the v2 behavior config (per ADR-0023 § 3).
+	// Optimistic lock on version; returns ErrWorkerVersionConflict on mismatch.
+	UpdateConfig(ctx context.Context, id WorkerID, fields WorkerConfigFields, version int) error
+	// UpdateCapabilities replaces the capability list (per ADR-0023 § 4
+	// worker auto-probe upload). Preserves user-controlled Enabled flag
+	// where the agent_cli already existed. Optimistic lock on version.
+	UpdateCapabilities(ctx context.Context, id WorkerID, detected []Capability, version int) error
 }
 
 // WorkerProjectMappingRepository (workforce/00 § 5.2).

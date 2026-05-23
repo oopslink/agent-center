@@ -163,8 +163,12 @@ func TestWorker_CapabilitiesJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b) != `["claude-code"]` {
-		t.Fatalf("got %s", b)
+	// v2 (ADR-0023 § 4) — capabilities is now a rich VO list with
+	// detected/enabled flags. Legacy []string input auto-promotes to
+	// Detected:true Enabled:true.
+	want := `[{"agent_cli":"claude-code","detected":true,"enabled":true}]`
+	if string(b) != want {
+		t.Fatalf("got %s want %s", b, want)
 	}
 }
 

@@ -69,7 +69,7 @@ func setup(t *testing.T) *testHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.ExecContext(ctx, `INSERT INTO workers (id, status, capabilities, working_seconds, enrolled_at, created_at, updated_at) VALUES ('W-1', 'online', '["claude-code"]', 0, '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z')`)
+	_, err = db.ExecContext(ctx, `INSERT INTO workers (id, status, capabilities_json, working_seconds, enrolled_at, created_at, updated_at) VALUES ('W-1', 'online', '[{"agent_cli":"claude-code","detected":true,"enabled":true}]', 0, '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z')`)
 	if err != nil {
 		t.Fatal(err)
 	}

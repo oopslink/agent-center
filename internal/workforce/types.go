@@ -162,6 +162,43 @@ func (r OfflineReason) IsValid() bool {
 	return false
 }
 
+// Capability is a Worker capability VO (v2; ADR-0023 § 4).
+// Each entry represents one agent CLI: its installed state (detected by
+// worker auto-probe) and whether the user has enabled it for dispatch.
+type Capability struct {
+	AgentCLI string `json:"agent_cli"`
+	Detected bool   `json:"detected"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// WorkerConcurrency captures Worker.concurrency (ADR-0023 § 3).
+type WorkerConcurrency struct {
+	PerAgentType int `json:"per_agent_type"`
+}
+
+// DefaultWorkerConcurrency mirrors the v2 default (2) per ADR-0023.
+func DefaultWorkerConcurrency() WorkerConcurrency {
+	return WorkerConcurrency{PerAgentType: 2}
+}
+
+// WorkerDiscovery captures Worker.discovery (ADR-0023 § 3).
+// ScanInterval is stored as a duration string ("1h" / "30m") for human
+// readability — workforce layer parses on use.
+type WorkerDiscovery struct {
+	ScanPaths    []string `json:"scan_paths"`
+	Exclude      []string `json:"exclude"`
+	ScanInterval string   `json:"scan_interval"`
+}
+
+// DefaultWorkerDiscovery mirrors the v2 default.
+func DefaultWorkerDiscovery() WorkerDiscovery {
+	return WorkerDiscovery{
+		ScanPaths:    nil,
+		Exclude:      nil,
+		ScanInterval: "1h",
+	}
+}
+
 // Workforce BC sentinel errors (architecture layer; impl returns these).
 var (
 	// Worker

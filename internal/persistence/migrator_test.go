@@ -39,6 +39,71 @@ func TestMigrator_UpCreatesAllPhase1Tables(t *testing.T) {
 	}
 }
 
+// TestMigrator_UpCreatesV2Tables verifies the v2 (Phase 8) migrations land:
+// - bootstrap_tokens / agent_instances / user_secrets tables
+// - workers.concurrency_json / discovery_json / capabilities_json columns
+// - task_executions.agent_instance_id column
+// - supervisor_invocations.agent_instance_id column
+// - workers.capabilities column is dropped (per 0007)
+func TestMigrator_UpCreatesV2Tables(t *testing.T) {
+	db, err := Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	if err := NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+
+	// v2 new tables
+	for _, tbl := range []string{"bootstrap_tokens", "agent_instances", "user_secrets"} {
+		var count int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, tbl,
+		).Scan(&count); err != nil {
+			t.Fatalf("query %s: %v", tbl, err)
+		}
+		if count != 1 {
+			t.Fatalf("v2 table %s missing", tbl)
+		}
+	}
+
+	// columns we expect (and a v1 column we expect to be GONE)
+	type colCheck struct {
+		table  string
+		column string
+		want   bool // true=must exist, false=must NOT exist
+	}
+	for _, c := range []colCheck{
+		{"workers", "concurrency_json", true},
+		{"workers", "discovery_json", true},
+		{"workers", "capabilities_json", true},
+		{"workers", "capabilities", false}, // dropped by 0007
+		{"task_executions", "agent_instance_id", true},
+		{"supervisor_invocations", "agent_instance_id", true},
+	} {
+		var found bool
+		rows, err := db.Query(`SELECT name FROM pragma_table_info(?)`, c.table)
+		if err != nil {
+			t.Fatalf("pragma_table_info(%s): %v", c.table, err)
+		}
+		for rows.Next() {
+			var col string
+			if err := rows.Scan(&col); err != nil {
+				t.Fatal(err)
+			}
+			if col == c.column {
+				found = true
+			}
+		}
+		rows.Close()
+		if found != c.want {
+			t.Fatalf("%s.%s: present=%v want=%v", c.table, c.column, found, c.want)
+		}
+	}
+}
+
 func TestMigrator_UpIdempotent(t *testing.T) {
 	db, err := Open(t.TempDir() + "/test.db")
 	if err != nil {
@@ -116,8 +181,8 @@ func TestMigrator_VersionTracksApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 6 {
-		t.Fatalf("version after Up: got %d want 6", v)
+	if v != 12 {
+		t.Fatalf("version after Up: got %d want 12", v)
 	}
 	if err := m.Down(ctx, 0); err != nil {
 		t.Fatal(err)

@@ -25,7 +25,7 @@ func openTestDB(t *testing.T) *sql.DB {
 	if _, err := db.ExecContext(ctx, `INSERT INTO projects (id, name, created_at, updated_at, created_by_identity_id) VALUES ('P-1', 'Proj 1', '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z', 'user:hayang')`); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `INSERT INTO workers (id, status, capabilities, working_seconds, enrolled_at, created_at, updated_at) VALUES ('W-1', 'online', '["claude-code"]', 0, '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z')`); err != nil {
+	if _, err := db.ExecContext(ctx, `INSERT INTO workers (id, status, capabilities_json, working_seconds, enrolled_at, created_at, updated_at) VALUES ('W-1', 'online', '[{"agent_cli":"claude-code","detected":true,"enabled":true}]', 0, '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z', '2026-05-21T12:00:00Z')`); err != nil {
 		t.Fatalf("seed worker: %v", err)
 	}
 	return db

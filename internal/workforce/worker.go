@@ -10,41 +10,48 @@ import (
 
 // Worker is the Workforce BC AR (workforce/01-worker).
 //
-// Invariants per workforce/01 § 7:
+// Invariants per workforce/01 § 7 + ADR-0023:
 //  1. worker_id immutable
 //  2. status ∈ {online, offline}
 //  3. online ↔ offline reversible
 //  4. version monotonically increments on each mutation
+//  5. concurrency / discovery / capabilities serve dispatch + auto-probe
 //
-// All fields are unexported; mutators (`MarkOnline` / `MarkOffline` /
-// `Heartbeat`) bump version and validate transitions.
+// All fields are unexported; mutators bump version and validate transitions.
 type Worker struct {
-	id               WorkerID
-	status           WorkerStatus
-	capabilities     []string
-	lastHeartbeatAt  *time.Time
-	workingSeconds   int64
-	enrolledAt       time.Time
-	onlineAt         *time.Time
-	offlineAt        *time.Time
-	offlineReason    OfflineReason
-	offlineMessage   string
-	createdAt        time.Time
-	updatedAt        time.Time
-	version          int
+	id              WorkerID
+	status          WorkerStatus
+	capabilities    []Capability
+	concurrency     WorkerConcurrency
+	discovery       WorkerDiscovery
+	lastHeartbeatAt *time.Time
+	workingSeconds  int64
+	enrolledAt      time.Time
+	onlineAt        *time.Time
+	offlineAt       *time.Time
+	offlineReason   OfflineReason
+	offlineMessage  string
+	createdAt       time.Time
+	updatedAt       time.Time
+	version         int
 }
 
 // NewWorkerInput captures the constructor arguments for NewWorker
-// (workforce/01 § 2 enroll).
+// (workforce/01 § 2 enroll). Capabilities accepts a list of CLI names for
+// convenience; they are auto-promoted to Capability{Detected:true,Enabled:true}.
+// For richer initialisation use CapabilityList directly.
 type NewWorkerInput struct {
-	ID           WorkerID
-	Capabilities []string
-	EnrolledAt   time.Time
-	CreatedAt    time.Time
+	ID             WorkerID
+	Capabilities   []string
+	CapabilityList []Capability
+	Concurrency    *WorkerConcurrency
+	Discovery      *WorkerDiscovery
+	EnrolledAt     time.Time
+	CreatedAt      time.Time
 }
 
 // NewWorker constructs a freshly enrolled Worker in `offline` state with
-// version=1 (workforce/01 § 1: initial state is offline).
+// version=1.
 func NewWorker(in NewWorkerInput) (*Worker, error) {
 	if err := validateWorkerID(in.ID); err != nil {
 		return nil, err
@@ -52,7 +59,15 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 	if in.EnrolledAt.IsZero() {
 		return nil, errors.New("worker: enrolled_at required")
 	}
-	caps := dedupAndCopy(in.Capabilities)
+	caps := buildCapabilityList(in.CapabilityList, in.Capabilities)
+	concurrency := DefaultWorkerConcurrency()
+	if in.Concurrency != nil {
+		concurrency = *in.Concurrency
+	}
+	discovery := DefaultWorkerDiscovery()
+	if in.Discovery != nil {
+		discovery = *in.Discovery
+	}
 	created := in.CreatedAt
 	if created.IsZero() {
 		created = in.EnrolledAt
@@ -61,6 +76,8 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 		id:           in.ID,
 		status:       WorkerOffline,
 		capabilities: caps,
+		concurrency:  concurrency,
+		discovery:    discovery,
 		enrolledAt:   in.EnrolledAt.UTC(),
 		createdAt:    created.UTC(),
 		updatedAt:    created.UTC(),
@@ -74,7 +91,10 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 type RehydrateWorkerInput struct {
 	ID              WorkerID
 	Status          WorkerStatus
-	Capabilities    []string
+	Capabilities    []string // legacy convenience: list of CLI names
+	CapabilityList  []Capability
+	Concurrency     *WorkerConcurrency
+	Discovery       *WorkerDiscovery
 	LastHeartbeatAt *time.Time
 	WorkingSeconds  int64
 	EnrolledAt      time.Time
@@ -99,10 +119,21 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 	if in.Version < 1 {
 		return nil, errors.New("worker: version must be >= 1")
 	}
+	caps := buildCapabilityList(in.CapabilityList, in.Capabilities)
+	concurrency := DefaultWorkerConcurrency()
+	if in.Concurrency != nil {
+		concurrency = *in.Concurrency
+	}
+	discovery := DefaultWorkerDiscovery()
+	if in.Discovery != nil {
+		discovery = *in.Discovery
+	}
 	return &Worker{
 		id:              in.ID,
 		status:          in.Status,
-		capabilities:    dedupAndCopy(in.Capabilities),
+		capabilities:    caps,
+		concurrency:     concurrency,
+		discovery:       discovery,
 		lastHeartbeatAt: copyTimePtr(in.LastHeartbeatAt),
 		workingSeconds:  in.WorkingSeconds,
 		enrolledAt:      in.EnrolledAt.UTC(),
@@ -120,7 +151,6 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 
 func (w *Worker) ID() WorkerID                 { return w.id }
 func (w *Worker) Status() WorkerStatus         { return w.status }
-func (w *Worker) Capabilities() []string       { return append([]string(nil), w.capabilities...) }
 func (w *Worker) LastHeartbeatAt() *time.Time  { return copyTimePtr(w.lastHeartbeatAt) }
 func (w *Worker) WorkingSeconds() int64        { return w.workingSeconds }
 func (w *Worker) EnrolledAt() time.Time        { return w.enrolledAt }
@@ -132,12 +162,92 @@ func (w *Worker) CreatedAt() time.Time         { return w.createdAt }
 func (w *Worker) UpdatedAt() time.Time         { return w.updatedAt }
 func (w *Worker) Version() int                 { return w.version }
 
-// CapabilitiesJSON marshals capabilities for storage.
+// Capabilities returns the list of agent CLI names (for backward
+// compatibility). Only entries with both Detected=true and Enabled=true are
+// returned — i.e. capabilities currently dispatchable.
+func (w *Worker) Capabilities() []string {
+	out := make([]string, 0, len(w.capabilities))
+	for _, c := range w.capabilities {
+		if c.Detected && c.Enabled {
+			out = append(out, c.AgentCLI)
+		}
+	}
+	return out
+}
+
+// CapabilityList returns a copy of the full Capability list (with
+// detected / enabled flags). v2 API per ADR-0023 § 4.
+func (w *Worker) CapabilityList() []Capability {
+	return append([]Capability(nil), w.capabilities...)
+}
+
+// Concurrency returns Worker.concurrency (ADR-0023 § 3).
+func (w *Worker) Concurrency() WorkerConcurrency { return w.concurrency }
+
+// Discovery returns Worker.discovery (ADR-0023 § 3).
+func (w *Worker) Discovery() WorkerDiscovery { return w.discovery }
+
+// CapabilitiesJSON marshals capabilities for storage (v2 schema: rich VO list).
 func (w *Worker) CapabilitiesJSON() ([]byte, error) {
-	if w.capabilities == nil {
+	if len(w.capabilities) == 0 {
 		return []byte("[]"), nil
 	}
 	return json.Marshal(w.capabilities)
+}
+
+// ConcurrencyJSON marshals the concurrency VO for storage.
+func (w *Worker) ConcurrencyJSON() ([]byte, error) {
+	return json.Marshal(w.concurrency)
+}
+
+// DiscoveryJSON marshals the discovery VO for storage.
+func (w *Worker) DiscoveryJSON() ([]byte, error) {
+	return json.Marshal(w.discovery)
+}
+
+// ApplyConfig updates concurrency + discovery (per ADR-0023 service path).
+// Bumps version. Either field may be nil to leave unchanged.
+func (w *Worker) ApplyConfig(at time.Time, newConcurrency *WorkerConcurrency, newDiscovery *WorkerDiscovery) {
+	if newConcurrency != nil {
+		w.concurrency = *newConcurrency
+	}
+	if newDiscovery != nil {
+		w.discovery = *newDiscovery
+	}
+	w.updatedAt = at.UTC()
+	w.version++
+}
+
+// ApplyCapabilities replaces the capability list (worker probe upload).
+// Existing user `Enabled` choices are preserved where the CLI name matches.
+// Bumps version.
+func (w *Worker) ApplyCapabilities(at time.Time, detected []Capability) {
+	// Preserve user-controlled `Enabled` flag from prior list.
+	enabledByCLI := map[string]bool{}
+	for _, c := range w.capabilities {
+		enabledByCLI[c.AgentCLI] = c.Enabled
+	}
+	out := make([]Capability, 0, len(detected))
+	seen := map[string]struct{}{}
+	for _, c := range detected {
+		if _, dup := seen[c.AgentCLI]; dup {
+			continue
+		}
+		seen[c.AgentCLI] = struct{}{}
+		// Default Enabled = previous user choice OR Detected (first time).
+		enabled := c.Detected
+		if prev, ok := enabledByCLI[c.AgentCLI]; ok {
+			enabled = prev
+		}
+		out = append(out, Capability{
+			AgentCLI: c.AgentCLI,
+			Detected: c.Detected,
+			Enabled:  enabled,
+		})
+	}
+	w.capabilities = out
+	w.updatedAt = at.UTC()
+	w.version++
 }
 
 // MarkOnline transitions worker offline→online; no-op when already online.
@@ -190,6 +300,37 @@ func (w *Worker) Heartbeat(at time.Time, additionalWorkingSeconds int64) error {
 	return nil
 }
 
+// buildCapabilityList merges the legacy []string Capabilities and the new
+// []Capability CapabilityList input fields. Rich list takes priority; legacy
+// strings are auto-promoted to {Detected:true, Enabled:true}.
+func buildCapabilityList(rich []Capability, legacy []string) []Capability {
+	if len(rich) > 0 {
+		out := make([]Capability, 0, len(rich))
+		seen := map[string]struct{}{}
+		for _, c := range rich {
+			if _, dup := seen[c.AgentCLI]; dup {
+				continue
+			}
+			seen[c.AgentCLI] = struct{}{}
+			out = append(out, c)
+		}
+		return out
+	}
+	if len(legacy) == 0 {
+		return nil
+	}
+	out := make([]Capability, 0, len(legacy))
+	seen := map[string]struct{}{}
+	for _, s := range legacy {
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, Capability{AgentCLI: s, Detected: true, Enabled: true})
+	}
+	return out
+}
+
 func validateWorkerID(id WorkerID) error {
 	s := string(id)
 	if strings.TrimSpace(s) == "" {
@@ -209,22 +350,6 @@ func validateWorkerID(id WorkerID) error {
 		}
 	}
 	return nil
-}
-
-func dedupAndCopy(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if _, ok := seen[s]; ok {
-			continue
-		}
-		seen[s] = struct{}{}
-		out = append(out, s)
-	}
-	return out
 }
 
 func copyTimePtr(t *time.Time) *time.Time {

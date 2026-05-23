@@ -80,8 +80,8 @@ func newRuntimeRig(t *testing.T) *runtimeRig {
 		t.Fatal(err)
 	}
 	if _, err := db.ExecContext(ctx,
-		`INSERT INTO workers (id, status, capabilities, working_seconds, enrolled_at, created_at, updated_at)
-		 VALUES ('W-1','online','["claude-code"]',0,'2026-05-21T12:00:00Z','2026-05-21T12:00:00Z','2026-05-21T12:00:00Z')`); err != nil {
+		`INSERT INTO workers (id, status, capabilities_json, working_seconds, enrolled_at, created_at, updated_at)
+		 VALUES ('W-1','online','[{"agent_cli":"claude-code","detected":true,"enabled":true}]',0,'2026-05-21T12:00:00Z','2026-05-21T12:00:00Z','2026-05-21T12:00:00Z')`); err != nil {
 		t.Fatal(err)
 	}
 	clk := clock.NewFakeClock(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC))
