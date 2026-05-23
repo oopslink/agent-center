@@ -73,7 +73,16 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, logge
 			logger("webconsole: " + err.Error())
 		}
 	}()
+	// Start the EventSink → SSE Bus fan-out tailer. It polls the
+	// events table on a 250ms ticker and publishes each new event
+	// onto the bus, where subscribed users receive it.
+	fanoutCtx, fanoutCancel := context.WithCancel(ctx)
+	fanout := sse.NewEventFanout(a.EventRepo, bus, 0).WithErrorHandler(func(err error) {
+		logger("webconsole fanout: " + err.Error())
+	})
+	go fanout.Run(fanoutCtx)
 	cleanup = func() error {
+		fanoutCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
