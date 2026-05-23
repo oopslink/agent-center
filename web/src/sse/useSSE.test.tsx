@@ -188,9 +188,12 @@ describe('startSSE', () => {
     start();
     const es1 = FakeEventSource.last()!;
     es1.openConnection();
-    // No events arrive; advance past HEARTBEAT_TIMEOUT (30s) + a tick.
+    // No events arrive; advance just past HEARTBEAT_TIMEOUT (30s) but
+    // BEFORE the backoff reconnect (~1s after) fires — the status should
+    // be 'reconnecting' at this point. (Advancing further would tip into
+    // 'connecting' as the reconnect timer takes over.)
     act(() => {
-      vi.advanceTimersByTime(31_000);
+      vi.advanceTimersByTime(30_100);
     });
     expect(es1.closed).toBe(true);
     expect(useAppStore.getState().sseStatus).toBe('reconnecting');
