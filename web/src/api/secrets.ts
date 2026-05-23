@@ -10,14 +10,20 @@ export function useSecrets() {
   });
 }
 
+// CreateSecretResult is intentionally narrow — backend only returns
+// id + name + event_id on create (no plaintext, no full Secret
+// projection) per ADR-0026 § 5.
+export interface CreateSecretResult {
+  id: string;
+  name: string;
+  event_id: string;
+}
+
 export function useCreateSecret() {
   const qc = useQueryClient();
   return useMutation({
-    // Plaintext value is sent in the request body only and never echoed
-    // back by the response (per ADR-0026 § 5). The mutation result
-    // contains metadata only.
     mutationFn: (input: CreateSecretInput) =>
-      api.post<Omit<Secret, 'name'> & { name: string }>('/secrets', input),
+      api.post<CreateSecretResult>('/secrets', input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.secrets() });
     },
@@ -27,7 +33,7 @@ export function useCreateSecret() {
 export function useRevokeSecret() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.del<{ event_id: string }>(`/secrets/${id}`),
+    mutationFn: (id: string) => api.del<{ revoked: boolean }>(`/secrets/${id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.secrets() });
     },

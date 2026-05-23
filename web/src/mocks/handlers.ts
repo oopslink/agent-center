@@ -128,20 +128,13 @@ export const handlers = [
       },
     ]),
   ),
+  // Create response is intentionally bare per ADR-0026 § 5: id + name +
+  // event_id, no value field, no full secret projection. Mirror the
+  // backend exactly so tests catch shape drift.
   http.post('/api/secrets', () =>
-    ok(
-      {
-        id: 'S-NEW',
-        name: 'new',
-        kind: 'other',
-        state: 'active',
-        created_at: '2026-05-24T01:00:00Z',
-        created_by: 'user:hayang',
-      },
-      201,
-    ),
+    ok({ id: 'S-NEW', name: 'new', event_id: 'E-c' }, 201),
   ),
-  http.delete('/api/secrets/:id', () => ok({ event_id: 'E-rev' })),
+  http.delete('/api/secrets/:id', () => ok({ revoked: true })),
 
   // Fleet + trace
   http.get('/api/fleet', () =>

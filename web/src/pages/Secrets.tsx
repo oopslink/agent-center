@@ -1,13 +1,130 @@
 import type React from 'react';
+import { useState } from 'react';
+import { useRevokeSecret, useSecrets } from '@/api/secrets';
+import type { Secret } from '@/api/types';
+import { SecretCreateModal } from '@/components/SecretCreateModal';
 
-// Secrets page — F3 placeholder. Real implementation lands in a later ST
-// (see phase-11-frontend-plan.md § 7). Kept intentionally minimal so the
-// route tree + lazy split can ship without business code.
+// Secrets page (/secrets). List + create + revoke.
+//
+// Strict no-plaintext-echo per ADR-0026 § 5:
+//   - render columns: name / kind / state / created_at / created_by /
+//     revoked_at (when revoked). No value, no reveal.
+//   - revoke is the only mutation on existing rows; rotation = revoke
+//     + create new.
 export default function Secrets(): React.ReactElement {
+  const [createOpen, setCreateOpen] = useState(false);
+  const secrets = useSecrets();
+  const revoke = useRevokeSecret();
+
+  const handleRevoke = (s: Secret) => {
+    if (!window.confirm(`Revoke secret "${s.name}"? This cannot be undone.`)) {
+      return;
+    }
+    revoke.mutate(s.id);
+  };
+
   return (
-    <section className="space-y-2" data-testid="page-Secrets">
-      <h2 className="text-xl font-semibold">Secrets</h2>
-      <p className="text-sm text-slate-500">F3 placeholder — replaced in a later ST.</p>
+    <section className="space-y-4" data-testid="page-Secrets">
+      <header className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Secrets</h2>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          data-testid="secrets-new-button"
+        >
+          New secret
+        </button>
+      </header>
+
+      <p className="text-xs text-slate-500" data-testid="secrets-disclaimer">
+        Values are stored encrypted and never displayed after creation. To
+        rotate a secret, revoke and create a new one.
+      </p>
+
+      {secrets.isLoading && (
+        <p className="text-sm text-slate-500" data-testid="secrets-loading">
+          Loading…
+        </p>
+      )}
+      {secrets.isError && (
+        <p className="text-sm text-red-600" data-testid="secrets-error">
+          {(secrets.error as Error).message}
+        </p>
+      )}
+      {secrets.isSuccess && secrets.data.length === 0 && (
+        <p
+          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
+          data-testid="secrets-empty"
+        >
+          No secrets yet.
+        </p>
+      )}
+      {secrets.isSuccess && secrets.data.length > 0 && (
+        <table
+          className="w-full table-fixed border-separate border-spacing-0 rounded border border-slate-200 bg-white"
+          data-testid="secrets-table"
+        >
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+              <th className="w-1/4 border-b border-slate-200 px-3 py-2">Name</th>
+              <th className="w-1/6 border-b border-slate-200 px-3 py-2">Kind</th>
+              <th className="w-1/6 border-b border-slate-200 px-3 py-2">State</th>
+              <th className="w-1/4 border-b border-slate-200 px-3 py-2">Created</th>
+              <th className="border-b border-slate-200 px-3 py-2 text-right" />
+            </tr>
+          </thead>
+          <tbody>
+            {secrets.data.map((s) => (
+              <tr
+                key={s.id}
+                className="text-sm"
+                data-testid="secret-row"
+                data-secret-id={s.id}
+                data-secret-state={s.state}
+              >
+                <td className="border-b border-slate-100 px-3 py-2 font-medium">{s.name}</td>
+                <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
+                  {s.kind}
+                </td>
+                <td className="border-b border-slate-100 px-3 py-2">
+                  <span
+                    className={[
+                      'rounded px-2 py-0.5 text-xs uppercase',
+                      s.state === 'active'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-slate-200 text-slate-600',
+                    ].join(' ')}
+                  >
+                    {s.state}
+                  </span>
+                </td>
+                <td className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                  {s.created_at}
+                </td>
+                <td className="border-b border-slate-100 px-3 py-2 text-right">
+                  {s.state === 'active' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRevoke(s)}
+                      disabled={revoke.isPending}
+                      className="rounded px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      data-testid="secret-revoke-button"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <SecretCreateModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+      />
     </section>
   );
 }
