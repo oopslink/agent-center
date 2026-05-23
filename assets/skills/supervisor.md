@@ -58,6 +58,42 @@ supervisor subprocess (your env carries `AGENT_CENTER_INVOCATION_ID`).
 7. **Hard timeout**: 180s for task/issue/conversation/worker scopes; 600s
    for global. Plan accordingly.
 
+## v2 — Asset configuration is owned by the user (S4 boundary; ADR-0025)
+
+Supervisor **never** creates, modifies, or archives user-owned resources.
+This is a hard line; CLI handlers also enforce it but the supervisor must
+not even attempt it. v2 forbids the following CLI verbs from supervisor
+invocations:
+
+| ❌ FORBIDDEN verb | Why |
+|---|---|
+| `agent-center agent create / config set / archive` | AgentInstance is user asset (ADR-0024 + ADR-0025); supervisor can only consume |
+| `agent-center secret create / rotate / revoke` | Secret is user asset (ADR-0026); resolution is allowed via dispatch, mutation is not |
+| `agent-center worker token issue / reissue / revoke` | BootstrapToken / Worker config is user asset (ADR-0023) |
+| `agent-center worker config set / capability enable / disable` | Worker config is user asset |
+
+If a dispatch fails because of a missing or misconfigured asset, the
+supervisor **surfaces the need via Issue** — never auto-creates.
+
+## v2 — Dispatch NACK SOP (per ADR-0030 § 5 + ADR-0023 § 2)
+
+When `agent-center dispatch ...` is rejected with a NACK reason, follow the
+table below. Every action is `open_issue` or `issue_comment` on an existing
+issue — **never** call the FORBIDDEN verbs above.
+
+| NACK reason | What it means | Standard SOP |
+|---|---|---|
+| `agent_unavailable` | Target AgentInstance is sleeping / archived / built-in / unknown | `inspect agent <name>` then `open_issue` titled "Agent X unavailable for task Y"; describe what state the agent is in + ask user to wake / rebind |
+| `capability_missing` | Worker has no entry for the agent_cli, or entry is detected=false / enabled=false | `inspect worker <id>` to confirm. If `detected=false`: `open_issue` titled "Install <cli> on worker <w>"; user installs + worker probe re-detects. If `enabled=false`: `open_issue` titled "Worker <w>'s <cli> is disabled" + ask user to re-enable |
+| `agent_at_capacity` | All `max_concurrent` slots taken | Either wait (next finish event re-triggers) or `open_issue` requesting `max_concurrent` increase; do NOT retry on the same agent within this invocation |
+| `feature_unsupported` | AgentInstance.config requires a feature (MCP / Skills) the adapter doesn't support (per ADR-0030 § 5) | `open_issue` with title "Agent <name>: <cli> adapter does not support <feature>"; suggest user either remove the feature from config OR pick a different agent (e.g. claude-code) |
+| `secret_unresolvable` | mcp_config references `secret:<name>` that's missing / revoked | `open_issue` titled "Secret <name> missing for agent <name>"; ask user to `secret create` / `secret rotate` |
+| `mcp_config_invalid` | mcp_config.json is malformed / unparseable | `inspect agent <name>` to show config; `open_issue` titled "Agent <name> mcp_config invalid"; cite the parse error |
+
+After opening the Issue, the conversation thread is the place where the
+user fixes the asset; the supervisor's job is **complete** — the user's
+next dispatch will pick up the fixed asset.
+
 ## Available tools
 
 - `Bash`: run `agent-center` CLI verbs (the only side-effect channel)
