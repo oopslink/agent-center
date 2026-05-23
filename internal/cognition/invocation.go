@@ -21,6 +21,7 @@ import (
 //   6. version monotonically increasing (CAS owner)
 type SupervisorInvocation struct {
 	id                 InvocationID
+	agentInstanceID    string // ULID; nullable in v2 transitional, required from P9 onward (per ADR-0029 § 1)
 	scope              InvocationScope
 	triggerEvents      TriggerEventSet
 	status             InvocationStatus
@@ -40,11 +41,12 @@ type SupervisorInvocation struct {
 
 // SpawnInput captures the constructor arguments for a fresh invocation.
 type SpawnInput struct {
-	ID            InvocationID
-	Scope         InvocationScope
-	TriggerEvents TriggerEventSet
-	PromptBlobRef string
-	StartedAt     time.Time
+	ID              InvocationID
+	AgentInstanceID string // ULID of the built-in supervisor AgentInstance (per ADR-0029 § 1); optional in P8 transitional
+	Scope           InvocationScope
+	TriggerEvents   TriggerEventSet
+	PromptBlobRef   string
+	StartedAt       time.Time
 }
 
 // Spawn constructs a freshly running SupervisorInvocation. Invariants are
@@ -65,6 +67,7 @@ func Spawn(in SpawnInput) (*SupervisorInvocation, error) {
 	ht := HardTimeoutFor(in.Scope.Kind())
 	return &SupervisorInvocation{
 		id:                 in.ID,
+		agentInstanceID:    in.AgentInstanceID,
 		scope:              in.Scope,
 		triggerEvents:      in.TriggerEvents,
 		status:             StatusRunning,
@@ -76,6 +79,10 @@ func Spawn(in SpawnInput) (*SupervisorInvocation, error) {
 		version:            1,
 	}, nil
 }
+
+// AgentInstanceID returns the built-in supervisor AgentInstance ID (per
+// ADR-0029 § 1). Empty in v1 / P8 transitional rows; required from P9.
+func (inv *SupervisorInvocation) AgentInstanceID() string { return inv.agentInstanceID }
 
 // ID returns the invocation id.
 func (inv *SupervisorInvocation) ID() InvocationID { return inv.id }
@@ -207,6 +214,7 @@ func (inv *SupervisorInvocation) MarkTimedOut(at time.Time) error {
 // RehydrateInput is the SQLite-repo → AR adapter input.
 type RehydrateInput struct {
 	ID                 InvocationID
+	AgentInstanceID    string
 	Scope              InvocationScope
 	TriggerEvents      TriggerEventSet
 	Status             InvocationStatus
@@ -234,6 +242,7 @@ func Rehydrate(in RehydrateInput) (*SupervisorInvocation, error) {
 	}
 	inv := &SupervisorInvocation{
 		id:                 in.ID,
+		agentInstanceID:    in.AgentInstanceID,
 		scope:              in.Scope,
 		triggerEvents:      in.TriggerEvents,
 		status:             in.Status,

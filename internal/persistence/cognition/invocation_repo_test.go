@@ -84,6 +84,55 @@ func TestInvocationRepo_SaveFind(t *testing.T) {
 	}
 }
 
+// TestInvocationRepo_SaveFind_WithAgentInstanceID verifies the v2
+// agent_instance_id column (per ADR-0029 § 1) round-trips correctly.
+func TestInvocationRepo_SaveFind_WithAgentInstanceID(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 5, 22, 1, 0, 0, 0, time.UTC)
+	scope := cognition.MustNewInvocationScope(cognition.ScopeTask, "T-AI")
+	tes, _ := cognition.NewTriggerEventSet([]observability.EventID{"E1"})
+	inv, err := cognition.Spawn(cognition.SpawnInput{
+		ID:              cognition.InvocationID(idGen()),
+		AgentInstanceID: "01HSUPERVISOR_BUILTIN_ULID",
+		Scope:           scope,
+		TriggerEvents:   tes,
+		StartedAt:       now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Save(ctx, inv); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got, err := repo.FindByID(ctx, inv.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AgentInstanceID() != "01HSUPERVISOR_BUILTIN_ULID" {
+		t.Fatalf("agent_instance_id: %s", got.AgentInstanceID())
+	}
+}
+
+// TestInvocationRepo_SaveFind_NilAgentInstanceID verifies the nullable-column
+// path: P8-transitional rows can be saved without agent_instance_id.
+func TestInvocationRepo_SaveFind_NilAgentInstanceID(t *testing.T) {
+	db := openTestDB(t)
+	repo := cognitiondb.NewInvocationRepo(db)
+	ctx := context.Background()
+	now := time.Date(2026, 5, 22, 1, 0, 0, 0, time.UTC)
+	inv := newSpawn(t, cognition.ScopeTask, "T-NIL", now)
+	// No AgentInstanceID set in SpawnInput.
+	if err := repo.Save(ctx, inv); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := repo.FindByID(ctx, inv.ID())
+	if got.AgentInstanceID() != "" {
+		t.Fatalf("expected empty agent_instance_id, got %s", got.AgentInstanceID())
+	}
+}
+
 func TestInvocationRepo_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	repo := cognitiondb.NewInvocationRepo(db)

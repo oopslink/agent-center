@@ -48,12 +48,17 @@ func (r *InvocationRepo) Save(ctx context.Context, inv *cognition.SupervisorInvo
 	if err != nil {
 		return fmt.Errorf("invocation_repo: marshal token_usage: %w", err)
 	}
+	var agentInstanceID any
+	if inv.AgentInstanceID() != "" {
+		agentInstanceID = inv.AgentInstanceID()
+	}
 	_, err = exec.ExecContext(ctx, `
 		INSERT INTO supervisor_invocations
 		(id, scope_kind, scope_key, trigger_event_ids, status, hard_timeout_seconds,
 		 started_at, ended_at, failed_reason, failed_message, timed_out_at,
-		 token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		 token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version,
+		 agent_instance_id)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	`,
 		string(inv.ID()),
 		string(inv.Scope().Kind()),
@@ -72,6 +77,7 @@ func (r *InvocationRepo) Save(ctx context.Context, inv *cognition.SupervisorInvo
 		formatTime(inv.CreatedAt()),
 		formatTime(inv.UpdatedAt()),
 		inv.Version(),
+		agentInstanceID,
 	)
 	if err != nil {
 		if isUniqueViolation(err, "uniq_invocations_running_per_scope") {
@@ -137,7 +143,7 @@ func (r *InvocationRepo) FindByID(ctx context.Context, id cognition.InvocationID
 	row := exec.QueryRowContext(ctx, `
 		SELECT id, scope_kind, scope_key, trigger_event_ids, status, hard_timeout_seconds,
 		       started_at, ended_at, failed_reason, failed_message, timed_out_at,
-		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version
+		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version, agent_instance_id
 		FROM supervisor_invocations WHERE id = ?
 	`, string(id))
 	inv, err := scanInvocationRow(row.Scan)
@@ -159,7 +165,7 @@ func (r *InvocationRepo) FindRunningByScope(ctx context.Context, scope cognition
 	row := exec.QueryRowContext(ctx, `
 		SELECT id, scope_kind, scope_key, trigger_event_ids, status, hard_timeout_seconds,
 		       started_at, ended_at, failed_reason, failed_message, timed_out_at,
-		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version
+		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version, agent_instance_id
 		FROM supervisor_invocations
 		WHERE scope_kind = ? AND scope_key = ? AND status = 'running'
 		LIMIT 1
@@ -183,7 +189,7 @@ func (r *InvocationRepo) FindRunning(ctx context.Context) ([]*cognition.Supervis
 	rows, err := exec.QueryContext(ctx, `
 		SELECT id, scope_kind, scope_key, trigger_event_ids, status, hard_timeout_seconds,
 		       started_at, ended_at, failed_reason, failed_message, timed_out_at,
-		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version
+		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version, agent_instance_id
 		FROM supervisor_invocations WHERE status = 'running' ORDER BY started_at ASC
 	`)
 	if err != nil {
@@ -214,7 +220,7 @@ func (r *InvocationRepo) Find(ctx context.Context, filter cognition.InvocationFi
 	sb.WriteString(`
 		SELECT id, scope_kind, scope_key, trigger_event_ids, status, hard_timeout_seconds,
 		       started_at, ended_at, failed_reason, failed_message, timed_out_at,
-		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version
+		       token_usage, decisions_made, prompt_blob_ref, created_at, updated_at, version, agent_instance_id
 		FROM supervisor_invocations WHERE 1=1`)
 	var args []any
 	if filter.Status != nil {
@@ -273,10 +279,11 @@ func scanInvocationRow(scan func(...any) error) (*cognition.SupervisorInvocation
 		endedAtS, timedOutAtS                                            sql.NullString
 		failedReason, failedMessage                                      sql.NullString
 		version                                                          int64
+		agentInstanceID                                                  sql.NullString
 	)
 	if err := scan(&id, &scopeKind, &scopeKey, &triggerJSON, &status, &hardTimeoutSeconds,
 		&startedAtS, &endedAtS, &failedReason, &failedMessage, &timedOutAtS,
-		&usageJSON, &decisionsMade, &blobRef, &createdAtS, &updatedAtS, &version); err != nil {
+		&usageJSON, &decisionsMade, &blobRef, &createdAtS, &updatedAtS, &version, &agentInstanceID); err != nil {
 		return nil, err
 	}
 	scope, err := cognition.NewInvocationScope(cognition.ScopeKind(scopeKind), scopeKey)
@@ -322,6 +329,7 @@ func scanInvocationRow(scan func(...any) error) (*cognition.SupervisorInvocation
 	}
 	return cognition.Rehydrate(cognition.RehydrateInput{
 		ID:                 cognition.InvocationID(id),
+		AgentInstanceID:    agentInstanceID.String,
 		Scope:              scope,
 		TriggerEvents:      triggerSet,
 		Status:             cognition.InvocationStatus(status),
