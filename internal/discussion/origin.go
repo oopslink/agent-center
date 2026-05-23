@@ -20,12 +20,18 @@ const (
 	// OriginAgentOpenIssue ⇒ lazy-create (worker agent triggers via worker
 	// daemon → center; same shape as CLI path).
 	OriginAgentOpenIssue Origin = "agent_open_issue"
+	// OriginDerivedFromConversation ⇒ sync-build (CV4 派生入口 per
+	// ADR-0036: `issue open --from-conversation=<c> --select-messages=...`
+	// creates the issue + its conversation in one tx; carry-over refs
+	// attach to the new conversation).
+	OriginDerivedFromConversation Origin = "derived_from_conversation"
 )
 
 // IsValid checks enum membership.
 func (o Origin) IsValid() bool {
 	switch o {
-	case OriginCLI, OriginWebConsole, OriginFeishuAt, OriginSupervisor, OriginAgentOpenIssue:
+	case OriginCLI, OriginWebConsole, OriginFeishuAt, OriginSupervisor,
+		OriginAgentOpenIssue, OriginDerivedFromConversation:
 		return true
 	}
 	return false
@@ -40,7 +46,7 @@ func (o Origin) String() string { return string(o) }
 // (issue.conversation_id starts null; bind-conversation is a separate step).
 func (o Origin) NeedsSyncConversationBuild() bool {
 	switch o {
-	case OriginWebConsole, OriginFeishuAt, OriginSupervisor:
+	case OriginWebConsole, OriginFeishuAt, OriginSupervisor, OriginDerivedFromConversation:
 		return true
 	}
 	return false

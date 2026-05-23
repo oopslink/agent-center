@@ -11,6 +11,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
+	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
@@ -60,6 +61,9 @@ func (a *App) taskCreateHandler(fs *flag.FlagSet) Handler {
 	priority := fs.String("priority", "medium", "task priority (high|medium|low)")
 	requiresWorktree := fs.Bool("worktree", true, "requires worktree workspace")
 	noConv := fs.Bool("no-conversation", false, "skip conversation creation (b/c/d path)")
+	fromConversation := fs.String("from-conversation", "", "(CV4 derive) source conversation id; switches to derive flow")
+	selectMessages := fs.String("select-messages", "", "(CV4 derive) comma-separated source message ids to carry over")
+	agentInstance := fs.String("agent", "", "(CV4 derive) target AgentInstance id (required for derive)")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 2 {
@@ -67,6 +71,42 @@ func (a *App) taskCreateHandler(fs *flag.FlagSet) Handler {
 		}
 		projectID := args[0]
 		title := strings.Join(args[1:], " ")
+		// CV4 derive path.
+		if *fromConversation != "" {
+			if a.DerivationSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"derivation service not wired", ExitNotImplemented)
+			}
+			msgIDs := parseMessageIDs(*selectMessages)
+			actor := a.DefaultActor()
+			res, err := a.DerivationSvc.DeriveTask(ctx, convservice.DeriveTaskCommand{
+				SourceConversationID: conversation.ConversationID(*fromConversation),
+				SourceMessageIDs:     msgIDs,
+				ProjectID:            projectID,
+				Title:                title,
+				Description:          *description,
+				AgentInstanceID:      *agentInstance,
+				CreatedBy:            conversation.IdentityRef(actor),
+				Actor:                actor,
+			})
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			if *format == "json" {
+				b, _ := json.Marshal(map[string]any{
+					"task_id":             res.TaskID,
+					"conversation_id":     string(res.ChildConversationID),
+					"reference_count":     res.ReferenceCount,
+					"task_event_id":       string(res.TaskEventID),
+					"carry_over_event_id": string(res.CarryOverEventID),
+				})
+				writeOut(out, string(b))
+			} else {
+				fmt.Fprintf(out, "created task %s from conversation %s (conv=%s, refs=%d)\n",
+					res.TaskID, *fromConversation, res.ChildConversationID, res.ReferenceCount)
+			}
+			return ExitOK
+		}
 		pr, err := task.ParsePriority(*priority)
 		if err != nil {
 			return PrintError(errw, *format, "task_invalid_priority", err.Error(), ExitUsage)

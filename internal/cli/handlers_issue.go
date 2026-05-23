@@ -12,6 +12,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
+	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -47,15 +48,56 @@ func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 	origin := fs.String("origin", "cli", "issue origin (cli|web_console|feishu_at|supervisor|agent_open_issue)")
 	openedBy := fs.String("opened-by", "", "opener identity id (defaults to config default user)")
 	channelHint := fs.String("channel", "", "primary channel hint (used for sync-build origins)")
+	fromConversation := fs.String("from-conversation", "", "(CV4 derive) source conversation id; switches to derive flow")
+	selectMessages := fs.String("select-messages", "", "(CV4 derive) comma-separated source message ids to carry over")
 	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", "human", "output format (human|json)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 2 {
 			return PrintError(errw, *format, "usage_error",
-				"usage: issue open <project_id> <title> [--description=...] [--origin=...] [--opened-by=...]", ExitUsage)
+				"usage: issue open <project_id> <title> [--description=...] [--origin=...] [--from-conversation=...]", ExitUsage)
 		}
 		projectID := args[0]
 		title := strings.Join(args[1:], " ")
+		// CV4 derive path: when --from-conversation is set, route through
+		// MessageDerivationService (validates source / carry-over).
+		if *fromConversation != "" {
+			if a.DerivationSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"derivation service not wired", ExitNotImplemented)
+			}
+			opener := *openedBy
+			if opener == "" {
+				opener = "user:" + a.Config.Identity.DefaultUser
+			}
+			msgIDs := parseMessageIDs(*selectMessages)
+			res, err := a.DerivationSvc.DeriveIssue(ctx, convservice.DeriveIssueCommand{
+				SourceConversationID: conversation.ConversationID(*fromConversation),
+				SourceMessageIDs:     msgIDs,
+				ProjectID:            projectID,
+				Title:                title,
+				Description:          *description,
+				CreatedBy:            conversation.IdentityRef(opener),
+				Actor:                a.DefaultActor(),
+			})
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			if *format == "json" {
+				b, _ := json.Marshal(map[string]any{
+					"issue_id":              res.IssueID,
+					"conversation_id":       string(res.ChildConversationID),
+					"reference_count":       res.ReferenceCount,
+					"issue_event_id":        string(res.IssueEventID),
+					"carry_over_event_id":   string(res.CarryOverEventID),
+				})
+				writeOut(out, string(b))
+			} else {
+				fmt.Fprintf(out, "opened issue %s from conversation %s (conv=%s, refs=%d)\n",
+					res.IssueID, *fromConversation, res.ChildConversationID, res.ReferenceCount)
+			}
+			return ExitOK
+		}
 		o, err := discussion.ParseOrigin(*origin)
 		if err != nil {
 			return PrintError(errw, *format, "issue_invalid_origin", err.Error(), ExitUsage)

@@ -64,6 +64,7 @@ type App struct {
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
 	CarryOverSvc       *convservice.CarryOverService
 	ConvRefRepo        conversation.ConversationMessageReferenceRepository
+	DerivationSvc      *convservice.MessageDerivationService
 
 	// Workforce — AgentInstance (P10 § 3.8 + F5)
 	AgentInstanceRepo workforce.AgentInstanceRepository
@@ -169,6 +170,15 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	issueBind := disservice.NewIssueBindConversationService(db, issueRepo, cr, convOpener, sink, clk)
 	issueLink := disservice.NewIssueLinkConversationService(db, issueRepo, cr, clk)
 
+	// P10 F2: CV4 派生入口 — MessageDerivationService wraps existing
+	// IssueLifecycle / TaskService through adapter shims so `issue open
+	// --from-conversation` and `task new --from-conversation` work
+	// end-to-end with carry-over refs.
+	derivationSvc := convservice.NewMessageDerivationService(db, cr, mgRepo, carryOver,
+		&issueOpenerShim{svc: issueLifecycle},
+		&taskCreatorShim{svc: taskSvc},
+		sink, clk)
+
 	// Observability Phase 4
 	projRepo := obsqlite.NewProjectionRepo(db)
 	projSvc := projection.NewTaskExecutionProjectionService(projRepo, sink, nil, clk)
@@ -243,6 +253,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		ParticipantMgmtSvc: participantMgmt,
 		CarryOverSvc:       carryOver,
 		ConvRefRepo:        convRefRepo,
+		DerivationSvc:      derivationSvc,
 
 		AgentInstanceRepo: aiRepo,
 		AgentMgmtSvc:      agentMgmt,
