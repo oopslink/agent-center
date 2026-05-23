@@ -2,14 +2,14 @@
 
 ## 项目目标
 
-构建一个 **agent 调度中心**，统一管理用户在多台机器上的 agent CLI 工具（claude code、codex、opencode 等），通过飞书入口接收任务、按项目维度归集、按任务粒度调度。
+构建一个 **agent 调度中心**，统一管理用户在多台机器上的 agent CLI 工具（claude code、codex、opencode 等），通过 Web Console + CLI 接收任务、按项目维度归集、按任务粒度调度。
 
 ## 核心定位
 
 | 维度 | 决定 |
 |---|---|
 | 目标用户 | 个人（单用户），不做团队 / 多租户 |
-| 任务入口 | 飞书（DM 或群 @bot），未来不排除别的入口 |
+| 任务入口 | Web Console + CLI（v2: vendor 接入撤回 per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)；v3+ 重新设计 Bridge）|
 | 组织维度 | 项目（Project）—— 任务永远归属一个项目，无散单 |
 | 部署形态 | VPS 常驻 Center；Worker 在用户的开发机上主动连回 |
 | 中心智能 | LLM 驱动（AI native），但走 CLI（claude code）不走 LLM SDK |
@@ -17,7 +17,7 @@
 | 项目领域 | 项目类型不限于代码（编程 / 写作 / 投研 / ...）；项目本地约定文件（`CLAUDE.md` / `AGENTS.md` / `README.md` 等）由 agent CLI 在 worktree 中**自然加载**，agent-center 不管理 |
 | 隔离方式 | 默认 git worktree per task |
 | 存储 | SQLite v1，dialect-agnostic 写法，未来可换 PG |
-| 飞书集成 | 一键创建应用 + WebSocket 长连接（飞书侧零暴露） |
+| 用户接入面 | Web Console (React SPA + Go API + SSE)，仅 loopback；CLI（兄弟前端）；详见 [ADR-0037](../decisions/drafts/0037-web-console-as-main-user-ui.md) + [ADR-0038](../decisions/drafts/0038-cli-ux-enhancement.md) |
 | 工具调用 | Skill + CLI（不引入 MCP；理由见 [ADR-0001](../decisions/0001-no-mcp.md)） |
 | 监管者命名 | **Supervisor**（不是 Brain；它也是 agent，只是角色为监管 / 调度。理由见 [ADR-0003](../decisions/0003-supervisor-not-brain.md)） |
 

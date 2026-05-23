@@ -62,7 +62,7 @@
 - **首次 worker.online 该 worker 上无 agent**：Supervisor 可以 surface 但不强制
 - **观察到「某 project 缺 agent」**：可在 Issue 中提
 
-> Supervisor 在 Issue 里**不能**模拟「propose-then-commit」（不能给用户列 [接受 / 改后接受 / 忽略] 卡片让用户「commit」一个事先准备好的 agent spec）—— 这种 UX 会被未来 Bridge / presentation 层做「卡片化」，但**模型层不引入**对应的状态机 / 实体。
+> Supervisor 在 Issue 里**不能**模拟「propose-then-commit」（不能给用户列 [接受 / 改后接受 / 忽略] 卡片让用户「commit」一个事先准备好的 agent spec）—— 这种 UX 未来若有需求，可在 presentation 层（Web Console / CLI wizard）做「卡片化」，但**模型层不引入**对应的状态机 / 实体。
 
 ### 4. 不引入的东西
 
@@ -100,7 +100,7 @@
 **负面 / 待跟进**：
 
 - Supervisor 派单失败时用户介入路径多一跳（读 Issue → 跑 CLI），UX 不如 Slock 的 action card 顺滑
-  - 缓解：v3+ 若用户抱怨可加 Bridge 层「卡片化 wizard」，但**协议层仍不变**（卡片 submit 触发的仍是 G1 endpoint）
+  - 缓解：v3+ 若用户抱怨可在 Web Console / CLI 加「卡片化 wizard」前端，但**协议层仍不变**（wizard submit 触发的仍是 G1 endpoint）
 - Issue 内容是纯文字，conclude 时不能一键 spawn create —— 用户必须手敲 CLI
   - 接受：v2 个人工具规模可接受
 
@@ -127,11 +127,11 @@
 - ⚠️ v2 用户手敲 CLI 不算痛点
 - 否决（v2）
 
-### D. Bridge 层卡片 wizard（推迟到 Bridge 实现讨论）
+### D. Presentation 层卡片 wizard（v3+ 议题）
 
-- 飞书 / Web Console 提供 form / wizard 加速 CLI 操作
+- Web Console / CLI 提供 form / wizard 加速 G1 endpoint 操作
 - ✅ 改善 UX，不动协议层
-- 推迟到 Bridge 实现议题（**不在 G2 范围**）
+- 推迟到 v3+（**不在 G2 范围**）
 
 ## References
 

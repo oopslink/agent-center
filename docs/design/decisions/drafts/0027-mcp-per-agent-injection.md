@@ -142,7 +142,7 @@ dispatch 时 worker daemon 在 prompt-assembly 阶段调 SecretResolutionService
 **正面**：
 
 - 用户可 per-agent 配 MCP server，agent 用 GitHub / Filesystem / 等外部能力扩展
-- mcp_config 在 center DB **不含明文**（仅 SecretRef）—— 用户可以放心 `agent show` / git diff / 飞书贴
+- mcp_config 在 center DB **不含明文**（仅 SecretRef）—— 用户可以放心 `agent show` / git diff / 截图分享
 - 明文仅 worker daemon 短暂持有；execution 后清理
 - 跟 G1/G2/G3/G5 完全兼容
 - adapter 层吸收 per-CLI 差异，center / agent-harness 不动
@@ -171,7 +171,7 @@ dispatch 时 worker daemon 在 prompt-assembly 阶段调 SecretResolutionService
 ### C. mcp_config 明文存 DB（不引入 SecretManagement BC）
 
 - ✅ 工程小
-- ❌ git diff / 飞书贴会泄露
+- ❌ git diff / 截图分享会泄露
 - ❌ rotate 困难
 - 否决：用户明确要中心化 secret
 

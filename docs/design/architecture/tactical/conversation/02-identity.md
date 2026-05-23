@@ -51,31 +51,31 @@ UNIQUE INDEX identity_id_uq (id)
 
 ## § 2. 创建路径
 
-### 2.1 自动注册（v1 单用户简化，主路径）
+### 2.1 User Identity（v2 单用户）
 
-agent-center 定位个人工具（[需求 § 1.2](../../../requirements/00-overview.md)）。简化：
+- 一个 user identity：`user:<configured-name>`，通过 `agent-center identity add user:<name>` 初始化建立
+- 多 user / 权限绑定 → v3+
 
-- **一个用户 Identity**：`user:<configured-name>`（通过 `agent-center identity add` 初始化时建立）
-- **任何 vendor 非 bot 来源** → 默认归属这个 user identity
-- 新 vendor 来源（首次见到 feishu open_id）→ **自动绑定**为该 user identity 的 ChannelBinding，不再二次确认
-- 多 user / 跨用户消息归属逻辑 → v2+（多用户场景），见 [roadmap](../../../roadmap.md)
+### 2.2 Agent Identity（跟随 AgentInstance）
 
-### 2.2 临时 Identity（系统自建）
+| 创建时机 | id |
+|---|---|
+| `agent-center agent create <name>` → 同事务建 Identity | `agent:<agent_instance.id>` |
+| Built-in supervisor 启动初始化 | `agent:<supervisor_agent_instance.id>` |
 
-| Identity | 创建时机 | 生命周期 |
-|---|---|---|
-| **Supervisor** | 每次 SupervisorInvocation 启动时临时创建 `supervisor:<invocation-id>` | invocation 生命周期同步 |
-| **Agent** | 每个 AgentSession（v1 = 一次 TaskExecution）启动时临时创建 `agent:<session-id>` | session 生命周期同步 |
-| **Bot** | 安装时创建一次 `bot`，永久存在 | 永久 |
+AgentInstance ↔ Identity 1:1（per [ADR-0033 § 3](../../../decisions/drafts/0033-identity-model-refactor.md)）。
 
-### 2.3 CLI 手动管理
+### 2.3 System Identity
+
+`system` singleton：安装时一次性建，永久存在；用于"系统生成 message"（如 system 类 content_kind）。
+
+### 2.4 CLI 手动管理
 
 | 命令 | 用途 |
 |---|---|
-| `agent-center identity add user:<name> --display-name="..."` | 创建 user identity（v1 通常 setup 时跑一次）|
+| `agent-center identity add user:<name> --display-name="..."` | 创建 user identity（通常 setup 时跑一次）|
 | `agent-center identity list` | 列所有 identity |
-| `agent-center identity bind <identity-id> --channel=feishu --vendor-user-id=...` | 手动绑定 ChannelBinding |
-| `agent-center identity unbind <identity-id> --channel=feishu` | 取消绑定 |
+| `agent-center identity show <id>` | 看单个 identity 详情 |
 
 ---
 
@@ -84,34 +84,23 @@ agent-center 定位个人工具（[需求 § 1.2](../../../requirements/00-overv
 | Event | 触发 | 主要 payload |
 |---|---|---|
 | `identity.registered` | 新 Identity 创建 | identity_id, kind |
-| `identity.channel_bound` | 加 ChannelBinding | identity_id, channel, vendor_user_id |
-| `identity.channel_unbound` | 解绑 | identity_id, channel |
 
 ---
 
-## § 4. Identity / ChannelBinding Invariants
+## § 4. Identity Invariants
 
-### Identity 不变量
-
-1. **id 不可变**：形式化字符串（kind:name 形式）创建时定，永不改
+1. **id 不可变**：形式化字符串（`kind:id` 形式）创建时定，永不改
 2. **kind 不可变**：创建时定，永不改
-3. **临时 Identity 跟实体生命周期同步**：`supervisor:<inv-id>` 跟 invocation 同生同死；`agent:<session-id>` 同 session 同生同死
-4. **bot Identity 永久存在**：安装时一次性建，不允许删
-
-### ChannelBinding 不变量
-
-5. **identity_id 不可变**：跟 Identity 强引用
-6. **(channel, vendor_user_id) 唯一**：同 vendor 内同 user id 至多对应一个 ChannelBinding（应用层校验，防多 identity 抢同一个 vendor user）
-7. **preferred 唯一性 per identity**：一个 identity 在多 channel 之间至多 1 个 preferred；v1 单 vendor 时是该 channel
-8. **绑定可解除**：unbind 删除 row（v2+ 可改为 soft delete + 保留 audit）
+3. **agent identity 跟 AgentInstance 1:1**：`agent:<x>` 必有 `agent_instances.id=<x>` row；AgentInstance archive 时 Identity 保留（历史 message sender 引用不能断）
+4. **system identity 单例永久**：安装时一次性建，不允许删
 
 ---
 
 ## § 5. References
 
-- [00-overview.md](00-overview.md) — BC 入口（IdentityRegistrationService 自动注册逻辑）
+- [00-overview.md](00-overview.md) — BC 入口（IdentityRegistrationService）
 - [01-conversation.md](01-conversation.md) — Message.sender_identity_id 强引用本 AR
-- [ADR-0009 § 2 Bridge 模式](../../../decisions/0009-issue-conversation-decoupled-via-bridge.md) — vendor SDK 调用仅在 Bridge
-- [ADR-0021 § 4 Issue 字段精简](../../../decisions/0021-issue-as-conversation.md) — Discussion BC `ChannelBinding` 已删，本 BC 是唯一持有方
-- [bridge/01-feishu-integration.md § 4 Inbound](../bridge/01-feishu-integration.md) — 自动绑定路径
-- [conventions § 13 安全](../../../../rules/conventions.md) — vendor user id 不外泄
+- [ADR-0033 Identity 模型重构](../../../decisions/drafts/0033-identity-model-refactor.md)
+- [ADR-0024 AgentInstance 一等公民化](../../../decisions/drafts/0024-agent-instance-first-class.md)
+- [ADR-0031 v2 撤回 Bridge / vendor 集成](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)（ChannelBinding 删除原因）
+- [conventions § 13 安全](../../../../rules/conventions.md)

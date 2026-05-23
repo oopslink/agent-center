@@ -15,7 +15,7 @@ v2 在 G4 讨论中暴露出需求：用户配 MCP server 需要存 GitHub PAT /
 | 类型 | 例子 | 现状 / 处置 |
 |---|---|---|
 | **用户密钥（user-domain）** | MCP env vars（GitHub PAT / DB pwd / ...）；未来云 Computer 凭据；未来 repo deploy key | **G4 + 本 ADR 新引入 SecretManagement BC 统一管** |
-| **系统内部凭证（system-internal）** | Worker BootstrapToken（[ADR-0023](0023-worker-enroll-lightweight.md)）/ session_token（worker 本地 credential 文件）/ 飞书 app_secret / BlobStore S3 access key | **不动** —— 各自 BC 已就位 |
+| **系统内部凭证（system-internal）** | Worker BootstrapToken（[ADR-0023](0023-worker-enroll-lightweight.md)）/ session_token（worker 本地 credential 文件）/ BlobStore S3 access key | **不动** —— 各自 BC 已就位 |
 
 ### 为什么把 user secret 单独 carve 出来
 
@@ -26,7 +26,7 @@ v2 在 G4 讨论中暴露出需求：用户配 MCP server 需要存 GitHub PAT /
 ### 为什么不把系统内部凭证一起搬
 
 - BootstrapToken 等已经设计了带业务语义的状态机（active / used / expired / revoked + reissue 规则），是 Workforce BC 的有机部分；硬迁会破坏 [ADR-0023](0023-worker-enroll-lightweight.md) 的设计内聚
-- 飞书 app_secret / S3 key 是单一进程级凭证，跟「用户管理的多份 secret」语义不同；conventions § 13 路径已足够
+- S3 key 等进程级凭证是单一全局值，跟「用户管理的多份 secret」语义不同；conventions § 13 路径已足够
 - v2 不做无 ROI 的统一
 
 ## Decision
@@ -39,7 +39,7 @@ v2 在 G4 讨论中暴露出需求：用户配 MCP server 需要存 GitHub PAT /
 |---|---|
 | Kind | Supporting Domain |
 | 范围 | 用户密钥的存储 / 读取 / rotate / revoke / audit |
-| 不在范围 | 系统内部凭证（BootstrapToken / session_token / 飞书 app_secret / S3 key 等）|
+| 不在范围 | 系统内部凭证（BootstrapToken / session_token / S3 key 等）|
 
 ### 2. 核心聚合 `UserSecret`（独立 AR）
 
@@ -203,7 +203,7 @@ SecretResolutionService.resolve(name string, agent_instance_id ULID) (plaintext 
 - 用户密钥集中存 + 集中 rotate + 集中 audit
 - DB 不留明文；明文不跨进程边界（仅 worker daemon 短暂持有）
 - v2 G4 MCP 直接受益；E2 云凭据 / v3 repo deploy key 等无缝挂同模型
-- SecretRef VO 在 config 文件里替代明文，**可放心 git diff / 飞书贴**
+- SecretRef VO 在 config 文件里替代明文，**可放心 git diff / 截图分享**
 - 跟 [ADR-0025](0025-agent-create-via-cli-not-protocol.md) 同源原则：资产配置归用户，supervisor 不持创建权
 
 **负面 / 待跟进**：
@@ -225,9 +225,9 @@ SecretResolutionService.resolve(name string, agent_instance_id ULID) (plaintext 
 
 ### B. 完整 Secret BC 含系统凭证
 
-- 同时迁 BootstrapToken / app_secret / S3 key 进 SecretManagement BC
+- 同时迁 BootstrapToken / S3 key 进 SecretManagement BC
 - ❌ BootstrapToken 有 state machine 紧耦合 Worker enroll；硬迁破坏 [ADR-0023](0023-worker-enroll-lightweight.md)
-- ❌ 飞书 app_secret 是单值；进程级 env 已就位；搬来无 ROI
+- ❌ 进程级单值凭证 env 已就位；搬来无 ROI
 - 否决：scope 控制在用户密钥
 
 ### C. 直接接入外部 KMS / HashiCorp Vault / SOPS

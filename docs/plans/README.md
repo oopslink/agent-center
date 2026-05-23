@@ -1,14 +1,13 @@
 # 实现计划
 
-> 工作计划集 · 按 DDD 依赖方向分 7 个 phase · **严格按顺序执行，不允许跳级或并行多 phase**
+> 工作计划集 · 按 DDD 依赖方向组织 phase · **严格按顺序执行，不允许跳级或并行多 phase**
 
 ## § 0. 顺序原则（DDD 视角）
 
-1. **被依赖者先**：Shared Kernel → Core → Open Host / ACL → Customer
-2. **横切组件早建**：events 总线 + EventSink 在 Phase 1 就埋；后续所有 BC emit 走它
+1. **被依赖者先**：Shared Kernel → Core → Open Host → Customer
+2. **横切组件早建**：events 总线 + EventSink 在 Foundation phase 就埋；后续所有 BC emit 走它
 3. **BC 内部按战术层级**：Aggregate Root → Entity / VO → Repository → Domain Service → Application Service（CLI handler）
-4. **ACL（Bridge）围绕 Core**：领域 BC 零 vendor 依赖
-5. **Customer（Cognition Supervisor）最后**：等所有被调 BC 就绪
+4. **Customer（Cognition Supervisor）最后**：等所有被调 BC 就绪
 
 详细 DDD 顺序推导见 [docs/design/ddd-blueprint § 3](../design/ddd-blueprint.md)。
 
@@ -16,15 +15,31 @@
 
 ## § 1. Phase 索引
 
-| Phase | 主题 | DDD 角色 | 上游依赖 | 状态 |
+### v1 phases（v2 删干净）
+
+v1 phase plans 全部 **v2 删除**（per 2026-05-23 用户「删干净」决定）。git history 仍可查 v1 实施细节。
+
+| Phase | 主题 | 状态 |
+|---|---|---|
+| ~~1~~ | ~~Shared Kernel + Events 总线~~ | v2 删 |
+| ~~2~~ | ~~TaskRuntime Core~~ | v2 删 |
+| ~~3~~ | ~~Discussion Core~~ | v2 删 |
+| ~~4~~ | ~~Observability 投影 + 查询面~~ | v2 删 |
+| ~~5~~ | ~~Bridge ACL Outbound（飞书）~~ | v2 撤回 + 删 |
+| ~~6~~ | ~~Cognition Supervisor~~ | v2 删 |
+| ~~7~~ | ~~Bridge Inbound + 部署收尾~~ | v2 撤回 + 删 |
+
+### v2 phases（待执行）
+
+> v2 设计阶段闭环 12 议题 / 17 ADR (0023-0039)；详 [v2-kickoff archive](../design/drafts/v2-kickoff-2026-05-22.md)。
+
+| Phase | 主题 | 覆盖 ADR | 上游依赖 | 状态 |
 |---|---|---|---|---|
-| **1** | [Shared Kernel + Events 总线](phase-1-shared-kernel-events.md) | Shared Kernel (Workforce / Conversation) + Open Host (Observability events 表) | — | Draft |
-| **2** | [TaskRuntime Core](phase-2-task-runtime.md) | Core BC | Phase 1 | Draft |
-| **3** | [Discussion Core](phase-3-discussion.md) | Core BC | Phase 1 + 2 | Draft |
-| **4** | [Observability 投影 + 查询面](phase-4-observability.md) | Open Host 完整化 | Phase 1-3 | Draft |
-| **5** | [Bridge ACL Outbound（飞书）](phase-5-bridge-feishu-outbound.md) | ACL (Anti-Corruption Layer) | Phase 1-4 | Draft |
-| **6** | [Cognition Supervisor](phase-6-cognition-supervisor.md) | Customer | Phase 1-5 | Draft |
-| **7** | [Bridge Inbound + 部署收尾](phase-7-bridge-inbound-deploy.md) | ACL inbound + 运维 | Phase 1-6 | Draft |
+| **8** | [Foundation](phase-8-foundation.md) | E1 (0023) / G1 (0024) / Supervisor 统一 (0029) / SecretManagement BC (0026) | v1 P1-6 | Draft |
+| **9** | [Agent Runtime 扩展](phase-9-agent-runtime.md) | G3 (0030) / G4 (0027) / G5 (0028) / G2 (0025) | Phase 8 | TBD |
+| **10** | [Conversation v2](phase-10-conversation-v2.md) | Meta cleanup (0031) + CV1 (0032) + CV2a (0033) + CV2b (0034) + CV3 (0035) + CV4 (0036) + 0039 | Phase 8 | TBD |
+| **11** | [入口面](phase-11-user-entry.md) | W1 (0037) + W2 (0038) | Phase 8 + 9 + 10 | TBD |
+| **12** | [Cleanup + Release](phase-12-cleanup-release.md) | 端到端测试 / 删 v1 vendor code / docs polish / release checklist | Phase 8-11 | TBD |
 
 ---
 
@@ -56,14 +71,14 @@
 
 | 层级 | 范围 | 工具 |
 |---|---|---|
-| **单测（Unit）** | Aggregate / Domain Service / VO / Repository 实现 / Application Service / CLI handler。外部依赖 mock（SQLite 可用 `:memory:`；Bridge / agent CLI 走 mock interface） | Go `testing` + table-driven + `testify` |
+| **单测（Unit）** | Aggregate / Domain Service / VO / Repository 实现 / Application Service / CLI handler。外部依赖 mock（SQLite 可用 `:memory:`；agent CLI 走 mock interface） | Go `testing` + table-driven + `testify` |
 | **集成测试（Integration）** | Repository ↔ 真实 SQLite + migration / 跨聚合 tx / domain event 同事务双写 / DispatchService 全路径 | Go `testing` + `testcontainers` (如有) / 真实 SQLite file |
-| **e2e** | 从 CLI 入口到 SQL / BlobStore / 事件流，完整用户场景；外部 vendor（飞书）走 fake server / record-replay | Go `testing` + 自建 e2e harness（`testdata/e2e/`） |
+| **e2e** | 从 CLI 入口到 SQL / BlobStore / 事件流，完整用户场景 | Go `testing` + 自建 e2e harness（`testdata/e2e/`） |
 
 **指标**：
 
 - **单测行覆盖率 ≥ 90%**（diff 90% + 整体 90%；以 `go test -cover` 为准）
-  - 外部系统可 mock（SQLite `:memory:` / 飞书 / agent CLI 通过 Adapter mock）
+  - 外部系统可 mock（SQLite `:memory:` / agent CLI 通过 Adapter mock）
 - 测试报告归档：`docs/plans/reports/phase-N-test-report.md`，按 [§ 4 报告模板](#-4-测试报告模板) 填写
 - 测试与实现 **1:1 对位**（每个 service / repository / aggregate method 都有对应测试用例）
 

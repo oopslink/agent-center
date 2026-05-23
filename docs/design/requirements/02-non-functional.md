@@ -3,7 +3,7 @@
 | ID | 需求 |
 |---|---|
 | NF1 | 零 LLM SDK 依赖（不 import anthropic / openai 等）。理由见 [ADR-0002](../decisions/0002-no-llm-sdk-use-cli-agents.md) |
-| NF2 | 飞书集成走 WebSocket 长连接，VPS 无需对飞书暴露公网入口 |
+| NF2 | Web Console 仅 loopback 监听；用户通过 SSH 隧道访问；VPS 无需对外开 HTTP（v2: vendor 接入撤回 per ADR-0031；v3+ Bridge 重新设计）|
 | NF3 | 持久化层 dialect-agnostic（SQLite / PG 可切） |
 | NF4 | 单一二进制 `agent-center`，多模式（server / supervisor / worker / 各 CLI 子命令） |
 | NF5 | 架构允许后续开放 admin RPC 远程访问（transport 抽象），v1 仅本机 unix socket |

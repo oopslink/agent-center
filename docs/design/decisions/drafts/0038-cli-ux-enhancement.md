@@ -26,15 +26,15 @@
 
 ### v2 缺什么（vendor 撤回后的新需求）
 
-| 缺 | v1 时的入口 | v2 CLI 必须补 |
-|---|---|---|
-| 发消息到 conversation | 飞书 thread 发消息 | `conversation send` / 别名 `channel post` / `issue comment` / `task comment` |
-| Tail conversation 实时跟随 | 飞书 thread 红点 / 卡片 | `conversation tail [-f]` |
-| 回 InputRequest | 飞书卡片按钮 | `input-request respond` |
-| 列 InputRequest 待办 | 飞书消息 | `input-request list [--pending]` |
-| 看 InputRequest 详情 | 飞书卡片 | `input-request show` |
-| 取消 InputRequest | 飞书取消按钮 | `input-request cancel` |
-| 看 DM / agent 私聊 | 飞书 DM | `conversation show dm:<id>`（CV3 已设计）|
+| 缺 | v2 CLI 必须补 |
+|---|---|
+| 发消息到 conversation | `conversation send` / 别名 `channel post` / `issue comment` / `task comment` |
+| Tail conversation 实时跟随 | `conversation tail [-f]` |
+| 回 InputRequest | `input-request respond` |
+| 列 InputRequest 待办 | `input-request list [--pending]` |
+| 看 InputRequest 详情 | `input-request show` |
+| 取消 InputRequest | `input-request cancel` |
+| 看 DM / agent 私聊 | `conversation show dm:<id>`（CV3 已设计）|
 
 ## Decision
 
