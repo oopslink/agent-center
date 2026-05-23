@@ -187,3 +187,37 @@ These hits are **kept intentionally**:
 | CI / scripts | 0 | 0 | n/a |
 
 **S1 cleanup scope**: 17 Go files + 2 contrib files = 19 changed files. Estimated ~1h additional work.
+
+## § 8. Execution log (addendum — 2026-05-24)
+
+### 8.1 Audit commit
+`81b9bf6 docs(p12 S1) v1 vendor residue audit log` — this file as initially drafted.
+
+### 8.2 Cleanup commit
+`44b298a chore(p12 S1) v1 vendor cleanup — go source + contrib configs` — 21 files changed (17 Go + 2 contrib + 2 extra: `cmd/fakeagent/main.go` doc reference rewrite + `internal/cli/handlers_task.go` comment rewrite to disambiguate "bridge"=RPC vs Bridge BC). `go test ./...` + `go vet ./...` green.
+
+Notable deltas from § 4 plan:
+- `cmd/fakeagent/main.go` had a dangling reference to `docs/plans/phase-7-bridge-inbound-deploy.md` (file no longer exists post P10) → rewrote doc comment to v2 purpose statement.
+- `internal/cli/handlers_task.go:332` "daemon-side RPC bridge in Phase 5/7" → reworded to avoid the word "bridge" entirely (avoids confusion with the deleted Bridge BC).
+- `PrimaryChannelHint` removal was already done in P10 work; only call-sites needed the `OriginFeishuAt`→`OriginWebConsole` swap.
+
+### 8.3 Lint script commit
+`scripts/lint/no-vendor-refs.sh` + `scripts/lint/no-vendor-refs.allowlist` + Makefile `lint-vendor` target. Run with `make lint-vendor`; current status: **clean** (all hits whitelisted).
+
+#### Allowlist categories
+1. **History-of-record paths** — ADR / plan / report / changelog / migrations / design docs (the design docs section currently catches both intentional v2 history surfaces AND stale v1 narrative; § 8.4 documents the deferred tightening).
+2. **In-code historical comments** — explicit `// X removed in P10 § 3.9 per ADR-0031` notes (kept because removing them deletes the rationale a reader would want).
+3. **Guard tests** — `origin_test.go` lines that assert `feishu_at` is rejected by `IsValid` / `ParseOrigin`.
+4. **Lint scaffolding** — the lint script, its allowlist, the Makefile target description.
+5. **TEMPORARY — deferred to P12 S6** — `docs/drafts/session-checkpoint-2026-05-16.md`, `docs/index.md`, `docs/rules/conventions.md` (feishu lines only), `docs/rules/testing.md` (feishu lines only), `sites/.vitepress/config.ts` (feishu link only). The "TEMPORARY — REMOVE WHEN P12 S6 LANDS" block in the allowlist is the explicit marker; **S6 acceptance criterion is "the TEMPORARY block is empty"**.
+
+### 8.4 Open items handed off to S6
+- Active doc sweep (Wave 2 Group A): `docs/index.md`, `docs/rules/*.md`, `docs/design/**/*.md` (the ~73 hits from § 2.3 minus what landed in `docs/release/v2.0-draft.md` already) — currently allowlisted under category 1 (history-of-record paths) and category 5 (TEMPORARY). After S6 lands, narrow the `^docs/design/` and `^docs/rules/` allowlist scopes to only the ADR / banner-marked sections.
+- `sites/.vitepress/` v1 nav menu cleanup — currently allowlisted under category 5.
+
+### 8.5 Final grep status
+```
+$ make lint-vendor
+./scripts/lint/no-vendor-refs.sh
+no-vendor-refs: clean (all hits whitelisted)
+```

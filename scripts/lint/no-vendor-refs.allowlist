@@ -1,0 +1,60 @@
+# no-vendor-refs.allowlist
+#
+# Each non-comment line is a regex matched against the FULL line of git
+# grep output (`path:lineno:content`). A hit is whitelisted if any rule
+# matches. Reasons live in
+#   docs/plans/phase-12-audits/s1-v1-residue-audit.md
+#
+# Rule of thumb: only allow tokens that document v1→v2 history, the
+# v2-side guard tests that prove v1 vocabulary is rejected, ADRs, plan
+# artifacts, migration SQL, and the lint script itself.
+#
+# Add a path-anchored prefix on every rule to keep the blast radius small.
+
+# ADR / plan / report / changelog artifacts intentionally name the v1
+# subsystems they replaced.
+^docs/adr/
+^docs/plans/
+^docs/release/
+^CHANGELOG\.md:
+
+# Conventions / design docs that explain "v2 撤回 X" surface for readers.
+^docs/conventions\.md:
+^docs/design/
+
+# Migrations spell out the v1 tables they drop (0025 + later).
+^internal/persistence/migrations/
+
+# Lint script + this allowlist + the audit log itself + the Makefile
+# target that documents the patterns the lint scans for.
+^scripts/lint/no-vendor-refs\.(sh|allowlist)
+^docs/plans/phase-12-audits/
+^Makefile:.*(lint-vendor|vendor_msg_ref|internal/bridge|feishu / lark)
+
+# Guard tests proving v1 vocabulary is rejected.
+^internal/discussion/origin_test\.go:.*feishu_at
+^internal/discussion/origin_test\.go:.*v1 origins dropped
+
+# Historical "removed in P10 § 3.9 per ADR-0031" comments live next to
+# the code that took over from Bridge BC.
+^internal/cli/handlers_system\.go:.*Bridge BC
+^internal/cli/handlers_system\.go:.*feishu adapter removed in P10
+^internal/cli/build\.go:.*bridge subtree removed in P10
+^internal/conversation/repository\.go:.*vendor_msg_ref dropped
+^internal/conversation/message\.go:.*vendor_msg_ref
+^internal/conversation/message\.go:.*Bridge BC撤回
+^internal/conversation/sqlite/message_repo\.go:.*vendor_msg_ref
+^internal/conversation/identity/types\.go:.*Bridge BC撤回
+^tests/e2e/phase7_test\.go:.*Bridge BC
+^tests/integration/integration_test\.go:.*vendor_msg_ref dropped
+
+# ─── TEMPORARY — REMOVE WHEN P12 S6 (Wave 2 Group A doc sweep) LANDS ────
+# These docs still describe the v1 architecture and are queued for
+# rewrite/removal in P12 S6. They are tracked in
+# docs/plans/phase-12-audits/s1-v1-residue-audit.md § "deferred to S6".
+^docs/drafts/session-checkpoint-2026-05-16\.md:
+^docs/index\.md:
+^docs/rules/conventions\.md:.*feishu
+^docs/rules/testing\.md:.*feishu
+^sites/\.vitepress/config\.ts:.*[Ff]eishu
+# ─── END TEMPORARY ──────────────────────────────────────────────────────

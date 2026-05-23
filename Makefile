@@ -1,4 +1,4 @@
-.PHONY: build build-frontend build-backend test cover cover-html lint vet tidy clean
+.PHONY: build build-frontend build-backend test cover cover-html lint lint-vendor vet tidy clean
 
 # Build pipeline composes a frontend bundle then embeds it into the Go
 # binary via go:embed (Phase 11 § 3.4 + F15).
@@ -39,6 +39,15 @@ cover-html: cover
 
 vet:
 	go vet ./...
+
+# lint-vendor — fail if v1 vendor refs (feishu / lark / dingtalk / wechat
+# / vendor_msg_ref / internal/bridge) leak back into the tree. See
+# scripts/lint/no-vendor-refs.sh for the whitelist mechanism.
+lint-vendor:
+	./scripts/lint/no-vendor-refs.sh
+
+# lint — composite target for all repo-level linters.
+lint: vet lint-vendor
 
 tidy:
 	go mod tidy
