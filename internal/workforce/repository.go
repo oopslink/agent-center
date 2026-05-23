@@ -31,6 +31,30 @@ type WorkerRepository interface {
 	UpdateCapabilities(ctx context.Context, id WorkerID, detected []Capability, version int) error
 }
 
+// BootstrapTokenRepository defines persistence for BootstrapToken Entity
+// (ADR-0023 § 2). Repository implementations sit in internal/workforce/sqlite.
+type BootstrapTokenRepository interface {
+	FindByID(ctx context.Context, id BootstrapTokenID) (*BootstrapToken, error)
+	// FindByValueHash is the exchange path lookup (worker → center on enroll).
+	FindByValueHash(ctx context.Context, hash string) (*BootstrapToken, error)
+	// FindByWorkerID returns tokens by worker; optional status filter (empty
+	// = all statuses).
+	FindByWorkerID(ctx context.Context, workerID WorkerID, statuses ...BootstrapTokenStatus) ([]*BootstrapToken, error)
+	// FindActiveByWorkerForUpdate is used inside a transaction by the
+	// reissue path; concrete impls take a SELECT...FOR UPDATE lock so a
+	// concurrent reissue cannot leave the worker with two active tokens
+	// (DB unique index is the ultimate guard).
+	FindActiveByWorkerForUpdate(ctx context.Context, workerID WorkerID) (*BootstrapToken, error)
+	Save(ctx context.Context, t *BootstrapToken) error
+	// UpdateStatus persists a state transition (active → used / expired /
+	// revoked). Uses pre-image `from` so concurrent transitions cannot
+	// silently clobber. Returns ErrBootstrapTokenStatusConflict on mismatch.
+	UpdateStatus(ctx context.Context, t *BootstrapToken, from BootstrapTokenStatus) error
+	// FindExpired returns active tokens with expires_at <= before; used by
+	// ScanExpired job.
+	FindExpired(ctx context.Context, before time.Time) ([]*BootstrapToken, error)
+}
+
 // WorkerProjectMappingRepository (workforce/00 § 5.2).
 type WorkerProjectMappingRepository interface {
 	FindByID(ctx context.Context, id MappingID) (*WorkerProjectMapping, error)
