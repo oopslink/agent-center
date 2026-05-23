@@ -12,13 +12,18 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 )
 
-// ChannelCommands returns the `channel` subcommand tree per ADR-0032 § 6.
+// ChannelCommands returns the `channel` subcommand tree per ADR-0032 § 6
+// + ADR-0034 (participants).
 func (a *App) ChannelCommands() []*Command {
 	return []*Command{
 		{Name: "create", Summary: "Create a kind=channel conversation", Flags: a.channelCreateHandler},
 		{Name: "list", Summary: "List channels", Flags: a.channelListHandler},
 		{Name: "show", Summary: "Show a channel by name", Flags: a.channelShowHandler},
 		{Name: "archive", Summary: "Archive a channel (terminal, read-only)", Flags: a.channelArchiveHandler},
+		{Name: "invite", Summary: "Invite an identity into a channel", Flags: a.channelInviteHandler},
+		{Name: "leave", Summary: "Leave a channel as the configured user", Flags: a.channelLeaveHandler},
+		{Name: "kick", Summary: "Remove a participant (channel owner only)", Flags: a.channelKickHandler},
+		{Name: "participants", Summary: "List participants of a channel", Flags: a.channelParticipantsHandler},
 	}
 }
 
@@ -145,6 +150,130 @@ func (a *App) channelArchiveHandler(fs *flag.FlagSet) Handler {
 			return HandleDomainError(errw, *format, err)
 		}
 		writeOut(out, fmt.Sprintf("archived channel %s", args[0]))
+		return ExitOK
+	}
+}
+
+func (a *App) channelInviteHandler(fs *flag.FlagSet) Handler {
+	channel := fs.String("channel", "", "channel name (required)")
+	role := fs.String("role", "member", "role: owner|member|observer")
+	format := fs.String("format", "human", "")
+	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+		if len(args) < 1 {
+			return PrintError(errw, *format, "usage_error", "channel invite <identity_id> --channel=<name>", ExitUsage)
+		}
+		if *channel == "" {
+			return PrintError(errw, *format, "usage_error", "--channel required", ExitUsage)
+		}
+		if a.ParticipantMgmtSvc == nil {
+			return PrintError(errw, *format, "internal_error",
+				"participant management service not wired", ExitNotImplemented)
+		}
+		_, err := a.ParticipantMgmtSvc.Invite(ctx, convservice.InviteCommand{
+			ConversationName: *channel,
+			IdentityID:       conversation.IdentityRef(args[0]),
+			Role:             *role,
+			InvitedBy:        conversation.IdentityRef(a.DefaultActor()),
+			Actor:            a.DefaultActor(),
+		})
+		if err != nil {
+			return HandleDomainError(errw, *format, err)
+		}
+		writeOut(out, fmt.Sprintf("invited %s into %s (role=%s)", args[0], *channel, *role))
+		return ExitOK
+	}
+}
+
+func (a *App) channelLeaveHandler(fs *flag.FlagSet) Handler {
+	reason := fs.String("reason", "", "reason for leaving (optional)")
+	format := fs.String("format", "human", "")
+	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+		if len(args) < 1 {
+			return PrintError(errw, *format, "usage_error", "channel leave <name>", ExitUsage)
+		}
+		if a.ParticipantMgmtSvc == nil {
+			return PrintError(errw, *format, "internal_error",
+				"participant management service not wired", ExitNotImplemented)
+		}
+		_, err := a.ParticipantMgmtSvc.Leave(ctx, convservice.LeaveCommand{
+			ConversationName: args[0],
+			IdentityID:       conversation.IdentityRef(a.DefaultActor()),
+			Reason:           *reason,
+			Actor:            a.DefaultActor(),
+		})
+		if err != nil {
+			return HandleDomainError(errw, *format, err)
+		}
+		writeOut(out, fmt.Sprintf("left %s", args[0]))
+		return ExitOK
+	}
+}
+
+func (a *App) channelKickHandler(fs *flag.FlagSet) Handler {
+	channel := fs.String("channel", "", "channel name (required)")
+	reason := fs.String("reason", "", "reason for kick (optional)")
+	format := fs.String("format", "human", "")
+	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+		if len(args) < 1 {
+			return PrintError(errw, *format, "usage_error", "channel kick <identity_id> --channel=<name>", ExitUsage)
+		}
+		if *channel == "" {
+			return PrintError(errw, *format, "usage_error", "--channel required", ExitUsage)
+		}
+		if a.ParticipantMgmtSvc == nil {
+			return PrintError(errw, *format, "internal_error",
+				"participant management service not wired", ExitNotImplemented)
+		}
+		_, err := a.ParticipantMgmtSvc.Kick(ctx, convservice.KickCommand{
+			ConversationName: *channel,
+			IdentityID:       conversation.IdentityRef(args[0]),
+			KickedBy:         conversation.IdentityRef(a.DefaultActor()),
+			Reason:           *reason,
+			Actor:            a.DefaultActor(),
+		})
+		if err != nil {
+			return HandleDomainError(errw, *format, err)
+		}
+		writeOut(out, fmt.Sprintf("kicked %s from %s", args[0], *channel))
+		return ExitOK
+	}
+}
+
+func (a *App) channelParticipantsHandler(fs *flag.FlagSet) Handler {
+	format := fs.String("format", "human", "")
+	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+		if len(args) < 1 {
+			return PrintError(errw, *format, "usage_error", "channel participants <name>", ExitUsage)
+		}
+		conv, err := a.ConvRepo.FindByName(ctx, args[0])
+		if err != nil {
+			return HandleDomainError(errw, *format, err)
+		}
+		parts := conv.Participants()
+		if *format == "json" {
+			arr := make([]map[string]any, len(parts))
+			for i, p := range parts {
+				arr[i] = map[string]any{
+					"identity_id": string(p.IdentityID),
+					"role":        p.Role,
+					"joined_at":   p.JoinedAt,
+					"joined_by":   string(p.JoinedBy),
+					"left_at":     p.LeftAt,
+					"left_reason": p.LeftReason,
+				}
+			}
+			b, _ := json.Marshal(arr)
+			writeOut(out, string(b))
+		} else {
+			fmt.Fprintf(out, "%-24s %-10s %-26s %s\n", "IDENTITY", "ROLE", "JOINED_AT", "STATE")
+			for _, p := range parts {
+				state := "active"
+				if !p.IsActive() {
+					state = "left:" + p.LeftReason
+				}
+				fmt.Fprintf(out, "%-24s %-10s %-26s %s\n", p.IdentityID, p.Role, p.JoinedAt, state)
+			}
+		}
 		return ExitOK
 	}
 }

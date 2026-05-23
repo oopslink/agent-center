@@ -333,7 +333,7 @@ func (l *lazyApp) conversationCommands() []*Command {
 }
 
 func (l *lazyApp) channelCommands() []*Command {
-	names := []string{"create", "list", "show", "archive"}
+	names := []string{"create", "list", "show", "archive", "invite", "leave", "kick", "participants"}
 	out := make([]*Command, 0, len(names))
 	for _, n := range names {
 		n := n

@@ -59,8 +59,9 @@ type App struct {
 	DiscoverySvc  *wfservice.ProjectDiscoveryService
 	AcceptanceSvc *wfservice.ProposalAcceptanceService
 	ProjectSvc    *wfservice.ProjectCRUDService
-	MessageWriter  *convservice.MessageWriter
-	ChannelMgmtSvc *convservice.ChannelManagementService
+	MessageWriter      *convservice.MessageWriter
+	ChannelMgmtSvc     *convservice.ChannelManagementService
+	ParticipantMgmtSvc *convservice.ParticipantManagementService
 
 	// TaskRuntime
 	TaskRepo         task.Repository
@@ -131,6 +132,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	enroll := wfservice.NewWorkerEnrollService(db, wr, sink, clk)
 	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, clk)
 	channelMgmt := convservice.NewChannelManagementService(db, cr, sink, gen, clk)
+	participantMgmt := convservice.NewParticipantManagementService(db, cr, sink, clk)
 
 	// TaskRuntime
 	taskRepo := trsqlite.NewTaskRepo(db)
@@ -217,8 +219,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		DiscoverySvc:    disc,
 		AcceptanceSvc:   acc,
 		ProjectSvc:      pjSvc,
-		MessageWriter:   writer,
-		ChannelMgmtSvc:  channelMgmt,
+		MessageWriter:      writer,
+		ChannelMgmtSvc:     channelMgmt,
+		ParticipantMgmtSvc: participantMgmt,
 		TaskRepo:        taskRepo,
 		ExecRepo:        execRepo,
 		IRRepo:          irRepo,
