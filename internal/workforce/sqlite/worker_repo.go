@@ -260,6 +260,34 @@ func (r *WorkerRepo) UpdateCapabilities(ctx context.Context, id workforce.Worker
 	return nil
 }
 
+// ReplaceCapabilities stores the supplied list verbatim — no merge with
+// prior Enabled flags. CAS on version.
+func (r *WorkerRepo) ReplaceCapabilities(ctx context.Context, id workforce.WorkerID, caps []workforce.Capability, version int) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(caps)
+	if err != nil {
+		return fmt.Errorf("marshal capabilities: %w", err)
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	const stmt = `UPDATE workers SET capabilities_json = ?, updated_at = ?, version = version + 1
+		WHERE id = ? AND version = ?`
+	res, err := exec.ExecContext(ctx, stmt, string(b), now, string(id), version)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return r.cassDiagnose(ctx, exec, id, workforce.ErrWorkerVersionConflict, workforce.ErrWorkerNotFound)
+	}
+	return nil
+}
+
 // UpdateLastHeartbeatAt is a non-CAS hot path (heartbeat is high frequency).
 func (r *WorkerRepo) UpdateLastHeartbeatAt(ctx context.Context, id workforce.WorkerID, at time.Time, workingSeconds int64) error {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)

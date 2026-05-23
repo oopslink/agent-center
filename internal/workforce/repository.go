@@ -29,6 +29,11 @@ type WorkerRepository interface {
 	// worker auto-probe upload). Preserves user-controlled Enabled flag
 	// where the agent_cli already existed. Optimistic lock on version.
 	UpdateCapabilities(ctx context.Context, id WorkerID, detected []Capability, version int) error
+	// ReplaceCapabilities stores the supplied list verbatim (no merge with
+	// prior Enabled flags). Use this for user-toggle paths
+	// (WorkerConfigService.SetCapabilityEnabled) where the caller has
+	// already constructed the final desired list. Optimistic lock on version.
+	ReplaceCapabilities(ctx context.Context, id WorkerID, caps []Capability, version int) error
 }
 
 // BootstrapTokenRepository defines persistence for BootstrapToken Entity

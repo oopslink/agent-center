@@ -206,6 +206,7 @@ var (
 	ErrWorkerAlreadyExists   = errors.New("workforce: worker already enrolled")
 	ErrWorkerVersionConflict = errors.New("workforce: worker version conflict (optimistic lock)")
 	ErrWorkerInvalidStatus   = errors.New("workforce: invalid worker status")
+	ErrWorkerCapabilityNotFound = errors.New("workforce: worker capability (agent_cli) not found in detected list")
 
 	// Mapping
 	ErrMappingNotFound      = errors.New("workforce: mapping not found")
