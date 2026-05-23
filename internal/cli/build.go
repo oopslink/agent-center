@@ -183,6 +183,13 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add(nil, provider.escalateInputRequestCommand()); err != nil {
 		return nil, "", err
 	}
+	// P11 § 3.9: synthetic `help` command + top-level grouping for the
+	// root help page. Must register `help` BEFORE assigning meta so it
+	// shows up under "Help & info" alongside `version`.
+	if err := router.Add(nil, router.HelpCommand()); err != nil {
+		return nil, "", err
+	}
+	assignTopLevelMeta(router.Root)
 	return router, cfgPath, nil
 }
 
@@ -274,10 +281,21 @@ func (l *lazyApp) withApp(build func(app *App) *Command) *Command {
 	// that does its own arg parsing once a real App is built. We can't
 	// reuse the Flags hook because router parses against the outer
 	// flagset before our handler runs.
+	// Preserve display metadata (Examples + Flags hook for --help
+	// rendering). The Flags hook itself can't carry the real handler
+	// through (we need a real App for that), so we adapt it to the
+	// display-only HelpFlags shape — `--help` registers the flags on a
+	// throwaway FlagSet just to print defaults.
+	var helpFlags func(*flag.FlagSet)
+	if cmd.Flags != nil {
+		helpFlags = func(fs *flag.FlagSet) { _ = cmd.Flags(fs) }
+	}
 	return &Command{
-		Name:    cmd.Name,
-		Summary: cmd.Summary,
-		LongHelp: cmd.LongHelp,
+		Name:      cmd.Name,
+		Summary:   cmd.Summary,
+		LongHelp:  cmd.LongHelp,
+		Examples:  cmd.Examples,
+		HelpFlags: helpFlags,
 		Run: func(ctx context.Context, args []string, out, errw WriterAlias) ExitCode {
 			real, err := l.build()
 			if err != nil {

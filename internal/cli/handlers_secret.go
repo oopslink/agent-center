@@ -28,10 +28,33 @@ import (
 //     avoid shell-history leakage.
 func (a *App) SecretCommands() []*Command {
 	return []*Command{
-		{Name: "list", Summary: "List user secrets (metadata only)", Flags: a.secretListHandler},
-		{Name: "show", Summary: "Show one user secret (metadata only; value never echoed)", Flags: a.secretShowHandler},
-		{Name: "create", Summary: "Create a new user secret", Flags: a.secretCreateHandler},
-		{Name: "revoke", Summary: "Revoke a user secret (state → revoked, terminal)", Flags: a.secretRevokeHandler},
+		{
+			Name: "list", Summary: "List user secrets (metadata only)", Flags: a.secretListHandler,
+			Examples: []string{
+				`agent-center secret list`,
+				`agent-center secret list --kind=mcp --state=active --format=json`,
+			},
+		},
+		{
+			Name: "show", Summary: "Show one user secret (metadata only; value never echoed)", Flags: a.secretShowHandler,
+			Examples: []string{
+				`agent-center secret show S-01HXXX`,
+				`agent-center secret show github-token --by-name --format=json`,
+			},
+		},
+		{
+			Name: "create", Summary: "Create a new user secret", Flags: a.secretCreateHandler,
+			Examples: []string{
+				`agent-center secret create --name=github-token --kind=other --value-file=./pat.txt`,
+				`echo -n "$VALUE" | agent-center secret create --name=mcp-key --kind=mcp --value-file=-`,
+			},
+		},
+		{
+			Name: "revoke", Summary: "Revoke a user secret (state → revoked, terminal)", Flags: a.secretRevokeHandler,
+			Examples: []string{
+				`agent-center secret revoke S-01HXXX --message="rotated" --version=1`,
+			},
+		},
 	}
 }
 

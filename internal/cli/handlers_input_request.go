@@ -23,10 +23,28 @@ import (
 // agent runtime CLI; this group is for the user to **answer** pending IRs.
 func (a *App) InputRequestCommands() []*Command {
 	return []*Command{
-		{Name: "list", Summary: "List input requests (optional --pending)", Flags: a.irListHandler},
+		{
+			Name: "list", Summary: "List input requests (optional --pending)", Flags: a.irListHandler,
+			Examples: []string{
+				`agent-center input-request list`,
+				`agent-center input-request list --execution=E-01HXXX --format=json`,
+			},
+		},
 		{Name: "show", Summary: "Show one input request", Flags: a.irShowHandler},
-		{Name: "respond", Summary: "Respond to a pending input request", Flags: a.irRespondHandler},
-		{Name: "cancel", Summary: "Cancel a pending input request (frees the execution)", Flags: a.irCancelHandler},
+		{
+			Name: "respond", Summary: "Respond to a pending input request", Flags: a.irRespondHandler,
+			Examples: []string{
+				`agent-center input-request respond IR-01HXXX --answer=yes`,
+				`agent-center input-request respond IR-01HXXX --answer-file=./response.txt --format=json`,
+				`echo "approved" | agent-center input-request respond IR-01HXXX --answer-file=-`,
+			},
+		},
+		{
+			Name: "cancel", Summary: "Cancel a pending input request (frees the execution)", Flags: a.irCancelHandler,
+			Examples: []string{
+				`agent-center input-request cancel IR-01HXXX --message="user reconsidered"`,
+			},
+		},
 	}
 }
 

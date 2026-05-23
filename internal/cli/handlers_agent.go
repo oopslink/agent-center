@@ -17,8 +17,21 @@ import (
 // ADR-0029 + P10 § 3.8 (Identity[kind=agent] auto-register on create).
 func (a *App) AgentCommands() []*Command {
 	return []*Command{
-		{Name: "create", Summary: "Create a non-builtin AgentInstance (+ auto-register Identity)", Flags: a.agentCreateHandler},
-		{Name: "list", Summary: "List AgentInstances", Flags: a.agentListHandler},
+		{
+			Name: "create", Summary: "Create a non-builtin AgentInstance (+ auto-register Identity)", Flags: a.agentCreateHandler,
+			Examples: []string{
+				`agent-center agent create --name=worker-bee --agent-cli=claudecode --worker=w-1`,
+				`agent-center agent create --name=cody --agent-cli=codex --worker=w-2 --format=json`,
+			},
+		},
+		{
+			Name: "list", Summary: "List AgentInstances", Flags: a.agentListHandler,
+			Examples: []string{
+				`agent-center agent list`,
+				`agent-center agent list --state=idle --worker=w-1`,
+				`agent-center agent list --format=json`,
+			},
+		},
 		{Name: "show", Summary: "Show an AgentInstance by id or name", Flags: a.agentShowHandler},
 		{Name: "archive", Summary: "Archive an AgentInstance", Flags: a.agentArchiveHandler},
 	}

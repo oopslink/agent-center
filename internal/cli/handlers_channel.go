@@ -16,9 +16,28 @@ import (
 // + ADR-0034 (participants).
 func (a *App) ChannelCommands() []*Command {
 	return []*Command{
-		{Name: "create", Summary: "Create a kind=channel conversation", Flags: a.channelCreateHandler},
-		{Name: "list", Summary: "List channels", Flags: a.channelListHandler},
-		{Name: "show", Summary: "Show a channel by name", Flags: a.channelShowHandler},
+		{
+			Name: "create", Summary: "Create a kind=channel conversation", Flags: a.channelCreateHandler,
+			Examples: []string{
+				`agent-center channel create --name=alpha --description="planning"`,
+				`agent-center channel create --name=ops --format=json`,
+			},
+		},
+		{
+			Name: "list", Summary: "List channels", Flags: a.channelListHandler,
+			Examples: []string{
+				`agent-center channel list`,
+				`agent-center channel list --status=active --format=json`,
+				`agent-center channel list --format=text | xargs -L1 agent-center channel show`,
+			},
+		},
+		{
+			Name: "show", Summary: "Show a channel by name", Flags: a.channelShowHandler,
+			Examples: []string{
+				`agent-center channel show alpha`,
+				`agent-center channel show alpha --format=json`,
+			},
+		},
 		{Name: "archive", Summary: "Archive a channel (terminal, read-only)", Flags: a.channelArchiveHandler},
 		{Name: "invite", Summary: "Invite an identity into a channel", Flags: a.channelInviteHandler},
 		{Name: "leave", Summary: "Leave a channel as the configured user", Flags: a.channelLeaveHandler},

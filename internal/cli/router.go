@@ -56,6 +56,25 @@ type Command struct {
 	// fresh *flag.FlagSet to register on; the returned Handler receives
 	// the parsed-arg slice.
 	Flags func(fs *flag.FlagSet) Handler
+
+	// Group is the root-level grouping label used by `agent-center help`
+	// to keep ~30 top-level commands legible. Empty defaults to "Other".
+	// Only top-level commands are grouped — nested subcommands inherit
+	// implicitly.
+	Group string
+
+	// Examples are concrete, runnable invocations rendered under
+	// `Examples:` in `--help` output. Per P11 § 3.9: each leaf command
+	// should ship at least the happy path + one `--format=json` variant
+	// so users discover scripting paths without reading docs.
+	Examples []string
+
+	// HelpFlags is an optional display-only flag registrar. Used by
+	// `lazyApp` wrappers where `Run` is set (real handler) but flag
+	// metadata still needs to render in `--help`. printNodeHelp falls
+	// back to HelpFlags when Flags is nil. If both are nil, no Flags:
+	// section renders.
+	HelpFlags func(fs *flag.FlagSet)
 }
 
 // Router carries shared application state (DB, services, etc.) and the
@@ -163,14 +182,83 @@ func findSubcommand(parent *Command, name string) *Command {
 	return nil
 }
 
+// printHelp renders usage for a command node. The root prints a grouped
+// directory of all top-level commands; intermediate groups print their
+// direct subcommands; leaves print their flags + examples.
 func (r *Router) printHelp(cmd *Command) {
+	if cmd == r.Root {
+		r.printRootHelp()
+		return
+	}
+	r.printNodeHelp(cmd)
+}
+
+// printRootHelp groups top-level commands by .Group so the ~30+ entries
+// stay legible.
+func (r *Router) printRootHelp() {
+	fmt.Fprintf(r.Out, "%s — %s\n", r.Root.Name, r.Root.Summary)
+	if r.Root.LongHelp != "" {
+		fmt.Fprintf(r.Out, "\n%s\n", r.Root.LongHelp)
+	}
+	fmt.Fprintln(r.Out, "\nUsage:")
+	fmt.Fprintf(r.Out, "  %s <command> [subcommand ...] [--flag ...]\n", r.Root.Name)
+	fmt.Fprintf(r.Out, "  %s help [<command-or-topic>]\n", r.Root.Name)
+	fmt.Fprintf(r.Out, "  %s --help | -h | --version\n", r.Root.Name)
+
+	groups := groupTopLevel(r.Root.Subcommands)
+	for _, g := range groupOrder() {
+		cmds := groups[g]
+		if len(cmds) == 0 {
+			continue
+		}
+		fmt.Fprintf(r.Out, "\n%s:\n", g)
+		sort.Slice(cmds, func(i, j int) bool { return cmds[i].Name < cmds[j].Name })
+		for _, c := range cmds {
+			fmt.Fprintf(r.Out, "  %-22s %s\n", c.Name, c.Summary)
+		}
+	}
+	// "Other" — anything without an explicit Group.
+	if rest := groups["Other"]; len(rest) > 0 {
+		fmt.Fprintln(r.Out, "\nOther:")
+		sort.Slice(rest, func(i, j int) bool { return rest[i].Name < rest[j].Name })
+		for _, c := range rest {
+			fmt.Fprintf(r.Out, "  %-22s %s\n", c.Name, c.Summary)
+		}
+	}
+	fmt.Fprintln(r.Out, "\nTopics:")
+	for _, t := range helpTopicOrder() {
+		fmt.Fprintf(r.Out, "  %-22s %s\n", t, helpTopicSummary(t))
+	}
+	fmt.Fprintf(r.Out, "\nRun `%s help <command>` or `%s help <topic>` for details.\n",
+		r.Root.Name, r.Root.Name)
+}
+
+// printNodeHelp prints help for a group or leaf node.
+func (r *Router) printNodeHelp(cmd *Command) {
 	fmt.Fprintf(r.Out, "%s — %s\n", cmd.Name, cmd.Summary)
 	if cmd.LongHelp != "" {
 		fmt.Fprintf(r.Out, "\n%s\n", cmd.LongHelp)
 	}
+	if registrar := flagRegistrar(cmd); registrar != nil {
+		fs := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		registrar(fs)
+		var flagBuf bytes.Buffer
+		fs.SetOutput(&flagBuf)
+		fs.PrintDefaults()
+		if flagBuf.Len() > 0 {
+			fmt.Fprintln(r.Out, "\nFlags:")
+			fmt.Fprint(r.Out, flagBuf.String())
+		}
+	}
+	if len(cmd.Examples) > 0 {
+		fmt.Fprintln(r.Out, "\nExamples:")
+		for _, ex := range cmd.Examples {
+			fmt.Fprintf(r.Out, "  %s\n", ex)
+		}
+	}
 	if len(cmd.Subcommands) > 0 {
 		fmt.Fprintln(r.Out, "\nSubcommands:")
-		// sort for stable output
 		subs := append([]*Command(nil), cmd.Subcommands...)
 		sort.Slice(subs, func(i, j int) bool { return subs[i].Name < subs[j].Name })
 		for _, s := range subs {
@@ -181,6 +269,68 @@ func (r *Router) printHelp(cmd *Command) {
 
 func (r *Router) printUsage(cmd *Command, w io.Writer) {
 	fmt.Fprintf(w, "Usage: %s ...\n", cmd.Name)
+}
+
+// flagRegistrar returns a function that registers a command's flags on a
+// FlagSet, suitable for printing flag defaults. Prefers cmd.Flags (which
+// also wires the handler); falls back to HelpFlags for display-only
+// metadata on lazyApp wrappers. Returns nil when neither is set.
+func flagRegistrar(cmd *Command) func(*flag.FlagSet) {
+	if cmd.Flags != nil {
+		return func(fs *flag.FlagSet) { _ = cmd.Flags(fs) }
+	}
+	if cmd.HelpFlags != nil {
+		return cmd.HelpFlags
+	}
+	return nil
+}
+
+// HelpCommand is the `agent-center help [topic]` synthetic command. It is
+// registered by BuildRouter so users can discover the rest of the tree
+// without remembering exact subcommand names.
+func (r *Router) HelpCommand() *Command {
+	return &Command{
+		Name:     "help",
+		Summary:  "Show usage. `help <command>` for a subtree, `help <topic>` for an indexed topic.",
+		Group:    "Help & info",
+		Examples: []string{"agent-center help", "agent-center help channel", "agent-center help format"},
+		Flags: func(fs *flag.FlagSet) Handler {
+			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+				return r.runHelp(args, out, errw)
+			}
+		},
+	}
+}
+
+// runHelp dispatches `help [topic]`.
+func (r *Router) runHelp(args []string, out, errw io.Writer) ExitCode {
+	if len(args) == 0 {
+		r.printRootHelp()
+		return ExitOK
+	}
+	topic := strings.ToLower(args[0])
+	// Topic match? (`format`, `exit-codes`, etc.)
+	if body, ok := helpTopicBody(topic); ok {
+		fmt.Fprintln(out, body)
+		return ExitOK
+	}
+	// Command match?
+	if cmd := findSubcommand(r.Root, topic); cmd != nil {
+		// Drill into nested subcommands if more args supplied.
+		for _, a := range args[1:] {
+			next := findSubcommand(cmd, a)
+			if next == nil {
+				break
+			}
+			cmd = next
+		}
+		r.printNodeHelp(cmd)
+		return ExitOK
+	}
+	PrintError(errw, "text", "usage_error",
+		fmt.Sprintf("unknown help target %q — try `agent-center help` for the index", args[0]),
+		ExitUsage)
+	return ExitUsage
 }
 
 // ErrorReason captures the structured error returned to the user via JSON.
