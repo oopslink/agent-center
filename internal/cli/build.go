@@ -86,6 +86,13 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 		}
 	}
 
+	// channel group (ADR-0032 CV1 — first-class channel commands).
+	for _, c := range provider.channelCommands() {
+		if err := router.Add([]string{"channel"}, c); err != nil {
+			return nil, "", err
+		}
+	}
+
 	// task group
 	for _, c := range provider.taskCommands() {
 		if err := router.Add([]string{"task"}, c); err != nil {
@@ -320,6 +327,18 @@ func (l *lazyApp) conversationCommands() []*Command {
 		n := n
 		out = append(out, l.withApp(func(a *App) *Command {
 			return findCmd(a.ConversationCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) channelCommands() []*Command {
+	names := []string{"create", "list", "show", "archive"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.ChannelCommands(), n)
 		}))
 	}
 	return out
