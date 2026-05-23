@@ -10,6 +10,8 @@ import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { CarryOverDivider } from '@/components/CarryOverDivider';
+import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
+import { useSelection } from '@/components/useSelection';
 import { api } from '@/api/client';
 import type { Message } from '@/api/types';
 import { useQuery } from '@tanstack/react-query';
@@ -28,6 +30,7 @@ export default function IssueDetail(): React.ReactElement {
   const conv = useConversation(id);
   const messages = useMessages(id);
   const refs = useConversationRefs(id);
+  const selection = useSelection();
 
   // Unique source conversation ids from the refs.
   const sourceIds = useMemo(() => {
@@ -75,14 +78,30 @@ export default function IssueDetail(): React.ReactElement {
       data-testid="page-IssueDetail"
       data-issue-id={conv.data.id}
     >
-      <header className="border-b border-slate-200 pb-3">
-        <h2 className="text-xl font-semibold">{conv.data.name || conv.data.id}</h2>
-        {conv.data.description && (
-          <p className="text-sm text-slate-500">{conv.data.description}</p>
-        )}
-        <p className="text-xs text-slate-500">
-          state: <span className="font-mono">{conv.data.status}</span>
-        </p>
+      <header className="flex items-start justify-between border-b border-slate-200 pb-3">
+        <div>
+          <h2 className="text-xl font-semibold">{conv.data.name || conv.data.id}</h2>
+          {conv.data.description && (
+            <p className="text-sm text-slate-500">{conv.data.description}</p>
+          )}
+          <p className="text-xs text-slate-500">
+            state: <span className="font-mono">{conv.data.status}</span>
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={selection.toggleSelectMode}
+          className={[
+            'rounded px-2.5 py-1 text-xs font-medium',
+            selection.selectMode
+              ? 'bg-slate-900 text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+          ].join(' ')}
+          data-testid="select-mode-toggle"
+          aria-pressed={selection.selectMode}
+        >
+          {selection.selectMode ? 'Cancel select' : 'Select messages'}
+        </button>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -98,7 +117,18 @@ export default function IssueDetail(): React.ReactElement {
               {(messages.error as Error).message}
             </p>
           )}
-          {messages.isSuccess && <MessageList messages={messages.data} />}
+          {messages.isSuccess && (
+            <MessageList
+              messages={messages.data}
+              selectable={selection.selectMode}
+              isSelected={selection.isSelected}
+              onToggle={selection.toggle}
+            />
+          )}
+          <ConversationDeriveControls
+            conversationId={conv.data.id}
+            selection={selection}
+          />
           <MessageComposer conversationId={conv.data.id} />
         </div>
         <ParticipantsPanel conversationId={conv.data.id} participants={participants} />

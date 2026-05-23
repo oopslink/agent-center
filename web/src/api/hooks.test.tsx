@@ -179,7 +179,7 @@ describe('react-query hooks', () => {
       issue.result.current.mutate({
         source_conversation_id: 'C1',
         source_message_ids: ['M1'],
-        name: 'fix it',
+        title: 'fix it',
       });
     });
     await waitFor(() => expect(issue.result.current.isSuccess).toBe(true));
@@ -190,7 +190,7 @@ describe('react-query hooks', () => {
       task.result.current.mutate({
         source_conversation_id: 'C1',
         source_message_ids: ['M1'],
-        name: 'do it',
+        title: 'do it',
       });
     });
     await waitFor(() => expect(task.result.current.isSuccess).toBe(true));

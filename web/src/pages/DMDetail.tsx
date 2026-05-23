@@ -4,6 +4,8 @@ import { useConversation, useMessages } from '@/api/conversations';
 import { useAppStore } from '@/store/app';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
+import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
+import { useSelection } from '@/components/useSelection';
 
 // DMDetail page (/dms/:id). Mirrors ChannelDetail layout but skips the
 // ParticipantsPanel — DM membership is fixed at create time (per
@@ -17,6 +19,7 @@ export default function DMDetail(): React.ReactElement {
   const me = useAppStore((s) => s.currentUserId);
   const conv = useConversation(id);
   const messages = useMessages(id);
+  const selection = useSelection();
 
   if (conv.isLoading) {
     return (
@@ -58,15 +61,31 @@ export default function DMDetail(): React.ReactElement {
       data-testid="page-DMDetail"
       data-dm-id={conv.data.id}
     >
-      <header className="border-b border-slate-200 pb-3">
-        <h2 className="text-xl font-semibold" data-testid="dm-heading">
-          {heading}
-        </h2>
-        <p className="text-xs text-slate-500">
-          {peers.length === 0
-            ? 'You — solo DM'
-            : `with ${peers.length} ${peers.length === 1 ? 'peer' : 'peers'}`}
-        </p>
+      <header className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div>
+          <h2 className="text-xl font-semibold" data-testid="dm-heading">
+            {heading}
+          </h2>
+          <p className="text-xs text-slate-500">
+            {peers.length === 0
+              ? 'You — solo DM'
+              : `with ${peers.length} ${peers.length === 1 ? 'peer' : 'peers'}`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={selection.toggleSelectMode}
+          className={[
+            'rounded px-2.5 py-1 text-xs font-medium',
+            selection.selectMode
+              ? 'bg-slate-900 text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+          ].join(' ')}
+          data-testid="select-mode-toggle"
+          aria-pressed={selection.selectMode}
+        >
+          {selection.selectMode ? 'Cancel select' : 'Select messages'}
+        </button>
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -80,7 +99,18 @@ export default function DMDetail(): React.ReactElement {
             {(messages.error as Error).message}
           </p>
         )}
-        {messages.isSuccess && <MessageList messages={messages.data} />}
+        {messages.isSuccess && (
+          <MessageList
+            messages={messages.data}
+            selectable={selection.selectMode}
+            isSelected={selection.isSelected}
+            onToggle={selection.toggle}
+          />
+        )}
+        <ConversationDeriveControls
+          conversationId={conv.data.id}
+          selection={selection}
+        />
         <MessageComposer conversationId={conv.data.id} />
       </div>
     </section>

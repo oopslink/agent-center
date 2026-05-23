@@ -8,6 +8,8 @@ import {
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
+import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
+import { useSelection } from '@/components/useSelection';
 
 // ChannelDetail page (/channels/:name).
 //
@@ -22,6 +24,7 @@ export default function ChannelDetail(): React.ReactElement {
   const channel = channels.data?.find((c) => c.name === name);
   const conv = useConversation(channel?.id);
   const messages = useMessages(channel?.id);
+  const selection = useSelection();
 
   if (channels.isLoading || (channel && conv.isLoading)) {
     return (
@@ -71,9 +74,25 @@ export default function ChannelDetail(): React.ReactElement {
             <p className="text-sm text-slate-500">{channel.description}</p>
           )}
         </div>
-        <span className="text-xs text-slate-500">
-          {activeCount} {activeCount === 1 ? 'participant' : 'participants'}
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={selection.toggleSelectMode}
+            className={[
+              'rounded px-2.5 py-1 text-xs font-medium',
+              selection.selectMode
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+            ].join(' ')}
+            data-testid="select-mode-toggle"
+            aria-pressed={selection.selectMode}
+          >
+            {selection.selectMode ? 'Cancel select' : 'Select messages'}
+          </button>
+          <span className="text-xs text-slate-500">
+            {activeCount} {activeCount === 1 ? 'participant' : 'participants'}
+          </span>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -88,7 +107,18 @@ export default function ChannelDetail(): React.ReactElement {
               {(messages.error as Error).message}
             </p>
           )}
-          {messages.isSuccess && <MessageList messages={messages.data} />}
+          {messages.isSuccess && (
+            <MessageList
+              messages={messages.data}
+              selectable={selection.selectMode}
+              isSelected={selection.isSelected}
+              onToggle={selection.toggle}
+            />
+          )}
+          <ConversationDeriveControls
+            conversationId={channel.id}
+            selection={selection}
+          />
           <MessageComposer conversationId={channel.id} />
         </div>
         <ParticipantsPanel conversationId={channel.id} participants={participants} />

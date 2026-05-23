@@ -4,6 +4,8 @@ import { useConversation, useMessages } from '@/api/conversations';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
+import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
+import { useSelection } from '@/components/useSelection';
 
 // TaskDetail (/tasks/:id). Renders the task conversation + a link to
 // the trace view; the trace itself lives at /tasks/:id/trace so users
@@ -12,6 +14,7 @@ export default function TaskDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const conv = useConversation(id);
   const messages = useMessages(id);
+  const selection = useSelection();
 
   if (conv.isLoading) {
     return (
@@ -58,13 +61,29 @@ export default function TaskDetail(): React.ReactElement {
             state: <span className="font-mono">{conv.data.status}</span>
           </p>
         </div>
-        <Link
-          to={`/tasks/${encodeURIComponent(conv.data.id)}/trace`}
-          className="rounded bg-slate-100 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200"
-          data-testid="task-view-trace"
-        >
-          View trace →
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={selection.toggleSelectMode}
+            className={[
+              'rounded px-2.5 py-1 text-xs font-medium',
+              selection.selectMode
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+            ].join(' ')}
+            data-testid="select-mode-toggle"
+            aria-pressed={selection.selectMode}
+          >
+            {selection.selectMode ? 'Cancel select' : 'Select messages'}
+          </button>
+          <Link
+            to={`/tasks/${encodeURIComponent(conv.data.id)}/trace`}
+            className="rounded bg-slate-100 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200"
+            data-testid="task-view-trace"
+          >
+            View trace →
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -79,7 +98,18 @@ export default function TaskDetail(): React.ReactElement {
               {(messages.error as Error).message}
             </p>
           )}
-          {messages.isSuccess && <MessageList messages={messages.data} />}
+          {messages.isSuccess && (
+            <MessageList
+              messages={messages.data}
+              selectable={selection.selectMode}
+              isSelected={selection.isSelected}
+              onToggle={selection.toggle}
+            />
+          )}
+          <ConversationDeriveControls
+            conversationId={conv.data.id}
+            selection={selection}
+          />
           <MessageComposer conversationId={conv.data.id} />
         </div>
         <ParticipantsPanel conversationId={conv.data.id} participants={participants} />
