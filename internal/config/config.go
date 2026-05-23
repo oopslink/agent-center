@@ -31,6 +31,15 @@ type Config struct {
 	BlobStore        BlobStoreConfig        `yaml:"blob_store"`
 	Peek             PeekConfig             `yaml:"peek"`
 	SecretManagement SecretManagementConfig `yaml:"secret_management"`
+	WebConsole       WebConsoleConfig       `yaml:"web_console"`
+}
+
+// WebConsoleConfig holds Web Console settings (P11 § 3.2).
+// Enabled defaults to true when ListenAddr is set; ListenAddr defaults
+// to ":7100" (loopback only — refuses non-127.0.0.1 binds per ADR-0037).
+type WebConsoleConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	ListenAddr string `yaml:"listen_addr"`
 }
 
 // SecretManagementConfig holds Secret BC settings (ADR-0026 § 5).
@@ -319,6 +328,10 @@ func collectKnownKeys(cfg Config) keyTree {
 		"secret_management": keyTree{
 			"master_key_file":  nil,
 			"skip_perms_check": nil,
+		},
+		"web_console": keyTree{
+			"enabled":     nil,
+			"listen_addr": nil,
 		},
 		"execution": keyTree{
 			"submitted_timeout_seconds":     nil,

@@ -15,6 +15,7 @@ import (
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability/escalator"
 	"github.com/oopslink/agent-center/internal/persistence"
+	"github.com/oopslink/agent-center/internal/webconsole/sse"
 )
 
 // globalConfigPath is set by BuildRouter to the value of the global
@@ -104,8 +105,36 @@ func ServerCommand() *Command {
 					fmt.Fprintf(errw, "[server] escalator: %v\n", err)
 				})
 
-				fmt.Fprintf(out, "agent-center server: db=%s listen=%s (escalator running)\n",
-					cfg.Server.SqlitePath, cfg.Server.ListenAddr)
+				// P11 § 3.2/3.3: Web Console HTTP + SSE.
+				var webCleanup func() error
+				webAddr := cfg.WebConsole.ListenAddr
+				webEnabled := cfg.WebConsole.Enabled || webAddr != ""
+				if webEnabled {
+					if webAddr == "" {
+						webAddr = "127.0.0.1:7100"
+					}
+					bus := sse.NewBus()
+					cleanup, werr := runWebConsole(ctx, app, bus, webAddr, func(msg string) {
+						fmt.Fprintf(errw, "[server] %s\n", msg)
+					})
+					if werr != nil {
+						fmt.Fprintf(errw, "Error: webconsole: %v\n", werr)
+						return ExitBusinessError
+					}
+					webCleanup = cleanup
+					defer func() {
+						if webCleanup != nil {
+							_ = webCleanup()
+						}
+					}()
+				}
+
+				bannerWeb := "disabled"
+				if webEnabled {
+					bannerWeb = webAddr
+				}
+				fmt.Fprintf(out, "agent-center server: db=%s listen=%s web=%s (escalator running)\n",
+					cfg.Server.SqlitePath, cfg.Server.ListenAddr, bannerWeb)
 				// Wait for SIGINT / SIGTERM.
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
