@@ -37,6 +37,9 @@ import (
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
+	"github.com/oopslink/agent-center/internal/secretmgmt"
+	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
+	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
 )
 
 // App carries everything CLI handlers need.
@@ -69,6 +72,10 @@ type App struct {
 	// Workforce — AgentInstance (P10 § 3.8 + F5)
 	AgentInstanceRepo workforce.AgentInstanceRepository
 	AgentMgmtSvc      *wfservice.AgentInstanceManagementService
+
+	// SecretManagement (P11 § 3.7b)
+	UserSecretRepo secretmgmt.UserSecretRepository
+	UserSecretSvc  *secretservice.UserSecretService
 
 	// TaskRuntime
 	TaskRepo         task.Repository
@@ -223,6 +230,19 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	agentMgmt := wfservice.NewAgentInstanceManagementService(db, aiRepo, gen, sink, clk).
 		WithIdentityRegistrar(identityReg)
 
+	// P11 § 3.7b: UserSecret management — wired iff master key file is
+	// configured. Without master key the CLI handlers refuse with
+	// ExitNotImplemented (handler-side gate).
+	userSecretRepo := secretsqlite.NewUserSecretRepo(db)
+	var userSecretSvc *secretservice.UserSecretService
+	if cfg.SecretManagement.MasterKeyFile != "" {
+		mk, err := secretmgmt.LoadMasterKey(cfg.SecretManagement.MasterKeyFile, cfg.SecretManagement.SkipPermsCheck)
+		if err != nil {
+			return nil, fmt.Errorf("load master key: %w", err)
+		}
+		userSecretSvc = secretservice.NewUserSecretService(db, userSecretRepo, gen, sink, clk, mk)
+	}
+
 	// Phase 6: Cognition (Supervisor + DecisionRecord).
 	cognitiondbInv := cognitiondb.NewInvocationRepo(db)
 	cognitiondbDec := cognitiondb.NewDecisionRepo(db)
@@ -257,6 +277,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 
 		AgentInstanceRepo: aiRepo,
 		AgentMgmtSvc:      agentMgmt,
+
+		UserSecretRepo: userSecretRepo,
+		UserSecretSvc:  userSecretSvc,
 		TaskRepo:        taskRepo,
 		ExecRepo:        execRepo,
 		IRRepo:          irRepo,

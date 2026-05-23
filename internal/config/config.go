@@ -24,12 +24,22 @@ import (
 // listed in 04-configuration § 7 are intentionally absent — they'll grow
 // when Phase 2+ needs them (04 § 5: 加字段有 default 时可直接 PR).
 type Config struct {
-	Server       ServerConfig       `yaml:"server"`
-	Notification NotificationConfig `yaml:"notification"`
-	Identity     IdentityConfig     `yaml:"identity"`
-	Execution    ExecutionConfig    `yaml:"execution"`
-	BlobStore    BlobStoreConfig    `yaml:"blob_store"`
-	Peek         PeekConfig         `yaml:"peek"`
+	Server           ServerConfig           `yaml:"server"`
+	Notification     NotificationConfig     `yaml:"notification"`
+	Identity         IdentityConfig         `yaml:"identity"`
+	Execution        ExecutionConfig        `yaml:"execution"`
+	BlobStore        BlobStoreConfig        `yaml:"blob_store"`
+	Peek             PeekConfig             `yaml:"peek"`
+	SecretManagement SecretManagementConfig `yaml:"secret_management"`
+}
+
+// SecretManagementConfig holds Secret BC settings (ADR-0026 § 5).
+// MasterKeyFile is the on-disk path to a 32-byte AES-256 master key
+// (hex-encoded or raw); empty disables the UserSecret service (CLI
+// returns ExitNotImplemented when wired through but key not loaded).
+type SecretManagementConfig struct {
+	MasterKeyFile  string `yaml:"master_key_file"`
+	SkipPermsCheck bool   `yaml:"skip_perms_check"`
 }
 
 // BlobStoreConfig: 04-configuration / 01-blob-store. v1 LocalDir only.
@@ -305,6 +315,10 @@ func collectKnownKeys(cfg Config) keyTree {
 		},
 		"peek": keyTree{
 			"worker_socket": nil,
+		},
+		"secret_management": keyTree{
+			"master_key_file":  nil,
+			"skip_perms_check": nil,
 		},
 		"execution": keyTree{
 			"submitted_timeout_seconds":     nil,
