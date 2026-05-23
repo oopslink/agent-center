@@ -9,6 +9,8 @@
 > 衍生约束：Conversation 不对齐 IM 软件的 `channel/thread` 层级模型 —— Conversation 是时间线主角，channel/thread 退化为 Bridge 路由 hint，业务对象层级（Project → Issue → Task）就是唯一层级 source of truth。详见 [ADR-0022](../../../decisions/0022-conversation-not-aligned-with-im-hierarchy.md)。
 
 > 命名 / 定位决策见 [ADR-0007](../../../decisions/0007-conversation-as-unified-session.md)（Refined by 0009 → 0021）+ [ADR-0017](../../../decisions/0017-task-as-conversation.md)（Task ↔ Conversation 1:1）+ [ADR-0021](../../../decisions/0021-issue-as-conversation.md)（Issue ↔ Conversation 1:1）。
+>
+> ⚠️ **v2 过渡状态**（[ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md) + [ADR-0032](../../../decisions/drafts/0032-conversation-channel-as-first-class.md)）：v2 撤回 Bridge / 飞书集成；本 BC 内 vendor 相关字段（`primary_channel_hint` / `ChannelBinding` 等）+ ADR-0017/0021/0022 + 本文件 § 内 vendor 引用（Bridge inbound / FeishuBridge / `vendor_msg_ref` / 等）**待 CV1-CV4 议题闭环后统一 rewrite + bulk purge**。**CV1 已落地**（kind `group_thread → channel` + universal `name` / `description` / `parent_conversation_id` / `created_by` + `archived` 状态，详见 [01-conversation.md § 1-3](01-conversation.md)）。本文件其他章节的 vendor 描述暂保留作过渡参考。
 
 ---
 
@@ -19,7 +21,7 @@
 | 维度 | 内容 |
 |---|---|
 | **聚合管理** | Conversation（AR + Message 子从属）/ Identity（AR + ChannelBinding 子 VO）|
-| **会话承载** | 6 种 kind：dm / group_thread / adhoc / notification / task / issue；统一时间线存 Message |
+| **会话承载** | 6 种 kind：`dm` / `channel`（v2 CV1 重命名自 group_thread）/ `adhoc` / `notification` / `task` / `issue`；统一时间线存 Message |
 | **Message content_kind** | 6 种：text / system / agent_finding / supervisor_summary / conclusion_draft / task_proposal |
 | **vendor 解耦** | 不调任何 vendor SDK；Bridge 订阅 conversation.* 事件做双向同步 |
 | **Identity 统一** | user / supervisor / agent / bot 4 kind；跨渠道不变的身份；ChannelBinding 关联到 vendor user id |
@@ -65,7 +67,7 @@
 | VO | 用在哪 | 描述 |
 |---|---|---|
 | **ChannelBinding** | Identity 子从属 | `{identity_id, channel, vendor_user_id, preferred, bound_at}`；Identity ↔ vendor user 的绑定（同名于 Discussion BC 之前 ADR-0020 引入的 ChannelBinding，**ADR-0021 后 Discussion BC 已不持 ChannelBinding**，本 BC 是唯一持有方）|
-| **ConversationKind** | conversation.kind 字段 | 6 种枚举：dm / group_thread / adhoc / notification / task / issue |
+| **ConversationKind** | conversation.kind 字段 | 6 种枚举：`dm` / `channel` / `adhoc` / `notification` / `task` / `issue`（v2 CV1: `channel` 升业务一等公民；详 [ADR-0032](../../../decisions/drafts/0032-conversation-channel-as-first-class.md)）|
 | **MessageContentKind** | message.content_kind 字段 | 6 种枚举：text / system / agent_finding / supervisor_summary / conclusion_draft / task_proposal |
 | **MessageDirection** | message.direction 字段 | inbound / outbound / internal |
 | **InputRequestRef** | message.input_request_ref 字段 | 跨 BC 弱引用到 TaskRuntime InputRequest |
