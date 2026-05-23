@@ -142,6 +142,8 @@
 | 校验链 | source 存在 + active；channel kind 要求 caller active participant；source_messages 全属 source_conv |
 | 出参 | new Issue/Task + 自带 conversation + carry-over refs |
 | CLI | `agent-center issue open --from-conversation=<c> --select-messages=...` / `agent-center task create --from-conversation=...` |
+| HTTP | `POST /api/issues` / `POST /api/tasks` with `{source_conversation_id, source_message_ids, title, description, project_id?, agent_instance_id?}` (P11 § 3.2 endpoints) |
+| Web UI | Any conversation detail page → "Select messages" toggle → DeriveBar → "Open Issue / Open Task" modal → on success, deep link to the new `/issues/:id` or `/tasks/:id`. The child detail page renders a `CarryOverDivider` grouping carried messages by their source conversation, with a visible "Discussion below" divider before the child's own messages (P11 F8 + F9) |
 
 ### 3.6 IdentityRegistrationService（[ADR-0033](../../../decisions/drafts/0033-identity-model-refactor.md)）
 

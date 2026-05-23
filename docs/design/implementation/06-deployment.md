@@ -53,14 +53,27 @@
 
 ### 2.1 构建
 
-`agent-center` 是单一 Go binary（[conventions § 10](../../rules/conventions.md)）。CI build artifact 命名：
+`agent-center` 是单一 Go binary（[conventions § 10](../../rules/conventions.md)）。Web Console React SPA 通过 `go:embed` 进 binary，不需单独分发。
+
+```bash
+# 完整构建（frontend + backend，单 binary）
+make build                  # = build-frontend + build-backend
+
+# 子目标
+make build-frontend         # pnpm install + vite build → internal/webconsole/spa/dist/
+make build-backend          # go build → ./bin/agent-center
+```
+
+CI build artifact 命名：
 
 ```
 agent-center-<os>-<arch>-<git-sha>
   例：agent-center-linux-amd64-c0a1771
 ```
 
-每次 main 分支推送都触发 build；产物上传 GitHub Release。
+每次 main 分支推送都触发 build；产物上传 GitHub Release。Binary 含嵌入 SPA bundle (~0.5 MB compressed)，总大小 ~17-18 MB（Go runtime + sqlite3 + SPA）。
+
+**SPA dev flow**（不需 rebuild binary）：在 `web/` 跑 `pnpm run dev`（vite :5173 + proxy `/api` 到 :7100），binary 端正常起 server；vite dev server 优先 hot-reload，binary 嵌的 SPA 不被消费。
 
 ### 2.2 安装路径
 
@@ -403,9 +416,33 @@ v1 不上 Prometheus / Grafana —— 单 VPS 单用户场景**直接 SSH + jour
 | 端口 | 协议 | 方向 | 暴露给 |
 |---|---|---|---|
 | 7000/tcp | gRPC | 入站 | Worker 机器（白名单） |
+| 7100/tcp | HTTP | 入站 (loopback only) | 本机 — Web Console 浏览器 / SSH tunnel |
 | ~~443/tcp~~ | ~~HTTPS（飞书 WebSocket）~~ | ~~出站~~ | ~~open.feishu.cn~~ (v2 删 per ADR-0031) |
 | 22/tcp | SSH | 入站 | 运维人员（白名单 IP） |
 | 其它 | - | 关 | 所有 |
+
+### 9.1.1 Web Console（P11）
+
+```yaml
+# server.yml
+web_console:
+  enabled: true                    # 默认 false
+  listen_addr: 127.0.0.1:7100      # server 主动 reject 非 127.0.0.1 / localhost bind
+```
+
+Web Console 跟 API / SSE / SPA 全在同一 binary 同一 port (`7100`)：
+- `/api/*` — 17 个 JSON endpoint（conversation / agent / secret / IR / fleet / trace）
+- `/api/sse` — 单连接 SSE Bus（per-user 长连接）
+- `/`, `/assets/*`, `/<react-router-path>` — embedded React SPA + client-routing fallback
+
+**远程访问**通过 SSH 隧道：
+```bash
+# 用户笔记本
+ssh -L 7100:127.0.0.1:7100 user@vps-host
+# 然后浏览器开 http://127.0.0.1:7100/
+```
+
+不要 firewall 开 7100 — Web Console 设计前提就是 loopback-only (ADR-0037)。需要远程访问就用 SSH tunnel。
 
 ~~**无 HTTP webhook / 无入站飞书连接** —— Center 主动出站连飞书 WebSocket，不需要域名 / TLS cert / Reverse proxy。~~ (v2 删 per ADR-0031；v2 仅 gRPC 入站 / 无 vendor 出站)
 
