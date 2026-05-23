@@ -197,6 +197,35 @@ func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps,
 	})
 }
 
+// listRefsHandler returns the carry-over references that landed into a
+// child conversation (CV3). The frontend uses these to draw the
+// "from #parent" divider in Issue / Task detail pages.
+func (s *Server) listRefsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.CarryOverSvc == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "carry-over service not wired")
+		return
+	}
+	id := conversation.ConversationID(r.PathValue("id"))
+	refs, err := d.CarryOverSvc.FindByChildConv(r.Context(), id)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	arr := make([]map[string]any, len(refs))
+	for i, ref := range refs {
+		arr[i] = map[string]any{
+			"id":                     ref.ID,
+			"child_conversation_id":  string(ref.ChildConversationID),
+			"source_conversation_id": string(ref.SourceConversationID),
+			"source_message_id":      string(ref.SourceMessageID),
+			"created_by":             string(ref.CreatedBy),
+			"created_at":             ref.CreatedAt.Format(time.RFC3339Nano),
+		}
+	}
+	writeJSON(w, http.StatusOK, arr)
+}
+
 func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := r.PathValue("id")

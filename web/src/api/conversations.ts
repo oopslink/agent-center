@@ -4,6 +4,7 @@ import { qk } from './queryKeys';
 import type {
   Conversation,
   ConversationKind,
+  ConversationMessageReference,
   ConversationStatus,
   CreateConversationInput,
   CreateConversationResult,
@@ -35,6 +36,15 @@ export function useMessages(conversationId: string | undefined) {
   return useQuery({
     queryKey: qk.messages(conversationId ?? ''),
     queryFn: () => api.get<Message[]>(`/conversations/${conversationId}/messages`),
+    enabled: !!conversationId,
+  });
+}
+
+export function useConversationRefs(conversationId: string | undefined) {
+  return useQuery({
+    queryKey: qk.refs(conversationId ?? ''),
+    queryFn: () =>
+      api.get<ConversationMessageReference[]>(`/conversations/${conversationId}/refs`),
     enabled: !!conversationId,
   });
 }

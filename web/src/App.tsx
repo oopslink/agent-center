@@ -11,7 +11,9 @@ const ChannelDetail = lazy(() => import('./pages/ChannelDetail'));
 const DMs = lazy(() => import('./pages/DMs'));
 const DMDetail = lazy(() => import('./pages/DMDetail'));
 const Issues = lazy(() => import('./pages/Issues'));
+const IssueDetail = lazy(() => import('./pages/IssueDetail'));
 const Tasks = lazy(() => import('./pages/Tasks'));
+const TaskDetail = lazy(() => import('./pages/TaskDetail'));
 const TaskTrace = lazy(() => import('./pages/TaskTrace'));
 const Agents = lazy(() => import('./pages/Agents'));
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
@@ -32,7 +34,9 @@ export function App(): React.ReactElement {
           <Route path="/dms" element={<DMs />} />
           <Route path="/dms/:id" element={<DMDetail />} />
           <Route path="/issues" element={<Issues />} />
+          <Route path="/issues/:id" element={<IssueDetail />} />
           <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tasks/:id" element={<TaskDetail />} />
           <Route path="/tasks/:id/trace" element={<TaskTrace />} />
           <Route path="/agents" element={<Agents />} />
           <Route path="/agents/:name" element={<AgentDetail />} />

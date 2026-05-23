@@ -90,6 +90,15 @@ export interface TraceEvent {
   payload?: Record<string, unknown>;
 }
 
+export interface ConversationMessageReference {
+  id: string;
+  child_conversation_id: string;
+  source_conversation_id: string;
+  source_message_id: string;
+  created_by: string;
+  created_at: string;
+}
+
 // Mutation payloads.
 
 export interface CreateConversationInput {

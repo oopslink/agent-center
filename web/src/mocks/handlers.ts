@@ -35,6 +35,7 @@ export const handlers = [
     ok({ id: params.id, kind: 'channel', name: 'alpha', status: 'active', participants: [] }),
   ),
   http.post('/api/conversations/:id/archive', () => ok({ event_id: 'E-arch' })),
+  http.get('/api/conversations/:id/refs', () => ok([])),
   http.get('/api/conversations/:id/messages', () =>
     ok([
       {

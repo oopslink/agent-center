@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -199,6 +200,65 @@ func TestAPI_CreateConversation_Channel_ChannelSvcNotWired(t *testing.T) {
 	resp, _ := http.Post(s.URL+"/api/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"channel","name":"x"}`))
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+}
+
+func TestAPI_ListRefs_Happy(t *testing.T) {
+	deps, _ := setupAPI(t)
+	ctx := context.Background()
+	// Seed: source conv with one message, then materialise a carry-over
+	// into a new child conv.
+	src, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "src-refs", CreatedBy: "user:hayang", Actor: "user:hayang",
+	})
+	addMsg, _ := deps.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+		ConversationID:   src.ConversationID,
+		SenderIdentityID: "user:hayang",
+		ContentKind:      conversation.MessageContentText,
+		Content:          "snip",
+		Direction:        conversation.DirectionInbound,
+		Actor:            "user:hayang",
+	})
+	child, _ := conversation.NewConversation(conversation.NewConversationInput{
+		ID: "CHILD-REFS", Kind: conversation.ConversationKindIssue,
+		Name: "x", CreatedBy: "user:hayang", OpenedAt: time.Now().UTC(),
+	})
+	_ = deps.ConvRepo.Save(ctx, child)
+	_, _ = deps.CarryOverSvc.Materialise(ctx, convservice.MaterialiseCommand{
+		ChildConversationID:  child.ID(),
+		SourceConversationID: src.ConversationID,
+		SourceMessageIDs:     []conversation.MessageID{addMsg.MessageID},
+		CreatedBy:            "user:hayang",
+		Actor:                "user:hayang",
+	})
+
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, err := http.Get(s.URL + "/api/conversations/CHILD-REFS/refs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+	var arr []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&arr)
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 ref; got %d", len(arr))
+	}
+	if arr[0]["source_message_id"] != string(addMsg.MessageID) {
+		t.Fatalf("ref shape: %v", arr[0])
+	}
+}
+
+func TestAPI_ListRefs_NotWired(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.CarryOverSvc = nil
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/conversations/whatever/refs")
 	if resp.StatusCode != http.StatusNotImplemented {
 		t.Fatalf("got %d", resp.StatusCode)
 	}

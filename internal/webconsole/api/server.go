@@ -113,6 +113,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/conversations/{id}/messages", s.listMessagesHandler)
 	s.mux.HandleFunc("POST /api/conversations/{id}/messages", s.sendMessageHandler)
 	s.mux.HandleFunc("POST /api/conversations/{id}/archive", s.archiveConversationHandler)
+	s.mux.HandleFunc("GET /api/conversations/{id}/refs", s.listRefsHandler)
 
 	// Participants (channel kind only — service enforces).
 	s.mux.HandleFunc("POST /api/conversations/{id}/participants", s.inviteParticipantHandler)
