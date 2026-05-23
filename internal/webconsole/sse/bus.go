@@ -152,9 +152,17 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
 
-	// Replay missed events when Last-Event-ID present.
-	if last := r.Header.Get("Last-Event-ID"); last != "" {
-		if afterID, err := strconv.ParseInt(last, 10, 64); err == nil {
+	// Replay missed events when Last-Event-ID present. Header is the
+	// standard channel (native browser EventSource passes it on auto-
+	// reconnect); ?last_event_id=N query param is the fallback used by
+	// manual reconnect paths (frontend useSSE hook) since EventSource
+	// constructor cannot set custom headers.
+	lastEventID := r.Header.Get("Last-Event-ID")
+	if lastEventID == "" {
+		lastEventID = r.URL.Query().Get("last_event_id")
+	}
+	if lastEventID != "" {
+		if afterID, err := strconv.ParseInt(lastEventID, 10, 64); err == nil {
 			for _, ev := range b.ring.since(afterID) {
 				if !b.matches(userID, ev) {
 					continue

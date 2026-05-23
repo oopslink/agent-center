@@ -174,6 +174,45 @@ func TestServeHTTP_RequiresUserID(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_LastEventID_QueryFallback(t *testing.T) {
+	// Manual reconnect path: EventSource constructor cannot set headers,
+	// so the frontend passes Last-Event-ID via `?last_event_id=N`. Verify
+	// the bus replays from the ringbuffer using the query value.
+	b := NewBus()
+	b.heartbeat = 50 * time.Millisecond
+	_ = b.Subscribe("u1", "c1")
+	// Pre-seed two events into the ringbuffer (IDs 1, 2).
+	b.Publish(Event{EventType: "first", ConversationID: "c1"})
+	b.Publish(Event{EventType: "second", ConversationID: "c1"})
+
+	srv := httptest.NewServer(b)
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp, err := httpGetStream(ctx, srv.URL+"?user_id=u1&last_event_id=1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Close()
+	buf := make([]byte, 4096)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		n, rerr := resp.Read(buf)
+		if rerr != nil {
+			break
+		}
+		body := string(buf[:n])
+		if strings.Contains(body, "event: second") {
+			return // good — replayed the second event (id > 1)
+		}
+		if strings.Contains(body, "event: first") {
+			t.Fatalf("query-param Last-Event-ID should have skipped id=1; got %s", body)
+		}
+	}
+	t.Fatal("did not see replayed event within deadline")
+}
+
 func TestBus_Shutdown_ClosesSubscribers(t *testing.T) {
 	b := NewBus()
 	b.heartbeat = 50 * time.Millisecond

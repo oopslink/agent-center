@@ -1,14 +1,35 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { beforeAll, describe, expect, it } from 'vitest';
+import type React from 'react';
 import { App } from './App';
+import { FakeEventSource } from './sse/fakeEventSource';
 
-// Each test pushes a fresh URL onto history before rendering so the
-// router picks the right leaf. Lazy chunks resolve asynchronously, so
-// page assertions use waitFor.
+// AppLayout opens a single EventSource on mount via useSSE. jsdom has no
+// EventSource global, so install the FakeEventSource shim for the
+// duration of these tests.
+beforeAll(() => {
+  (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource =
+    FakeEventSource;
+});
 
 async function renderAt(path: string): Promise<void> {
   window.history.pushState({}, '', path);
-  render(<App />);
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <App />
+    </QueryClientProvider>,
+  );
+}
+
+// Helper for the round-trip test (each iteration owns its render lifecycle).
+function renderAppAt(path: string) {
+  window.history.pushState({}, '', path);
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <App />
+    </QueryClientProvider>,
+  );
 }
 
 describe('App shell + route tree', () => {
@@ -42,8 +63,7 @@ describe('App shell + route tree', () => {
       ['/settings', 'page-Settings'],
     ];
     for (const [path, testId] of cases) {
-      window.history.pushState({}, '', path);
-      const { unmount } = render(<App />);
+      const { unmount } = renderAppAt(path);
       await waitFor(() => {
         expect(screen.getByTestId(testId)).toBeInTheDocument();
       });
@@ -71,3 +91,7 @@ describe('App shell + route tree', () => {
     }
   });
 });
+
+// silence unused React import
+const _react: typeof React = (undefined as unknown) as typeof React;
+void _react;

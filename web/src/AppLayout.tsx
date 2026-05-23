@@ -1,20 +1,27 @@
 import type React from 'react';
 import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { SSEIndicator } from '@/sse/SSEIndicator';
+import { useSSE } from '@/sse/useSSE';
 
 // AppLayout — top nav + 6-section left sidebar + main content outlet.
 // Sidebar sections per x9527 F3 oversight #1.
 //
 // The `<Suspense>` boundary wraps the outlet so lazy-loaded page chunks
-// have a fallback while they stream in.
+// have a fallback while they stream in. useSSE opens the single
+// app-wide EventSource on mount; cleanup on unmount.
 export default function AppLayout(): React.ReactElement {
+  useSSE();
   return (
     <div className="flex h-screen flex-col">
       <header className="flex h-12 items-center justify-between border-b border-slate-200 bg-white px-4">
         <span className="text-base font-semibold tracking-tight">
           agent-center
         </span>
-        <span className="text-xs text-slate-500">v2 · loopback</span>
+        <div className="flex items-center gap-4">
+          <SSEIndicator />
+          <span className="text-xs text-slate-500">v2 · loopback</span>
+        </div>
       </header>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
