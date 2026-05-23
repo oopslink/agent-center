@@ -35,8 +35,8 @@ supervisor subprocess (your env carries `AGENT_CENTER_INVOCATION_ID`).
 | `issue_comment` | `agent-center issue comment <issue_id> --content=... --rationale="<why>"` | Move an issue forward |
 | `conclude_issue` | `agent-center issue conclude <issue_id> --rationale="<why>"` | Issue ready to spawn tasks |
 | `close_issue` | `agent-center issue close <issue_id> --rationale="<why>"` | Issue is done / obsolete |
-| `conversation_message` | `agent-center conversation add-message <conv_id> --content=... --rationale="<why>"` | Talk to a user (rare; usually Bridge handles) |
-| `escalate_input_request` | `agent-center escalate-input-request <input_request_id> --rationale="<why>"` | Long-pending input — ping the user via Bridge |
+| `conversation_message` | `agent-center conversation add-message <conv_id> --content=... --rationale="<why>"` | Reply in a conversation thread the user is reading (channel / DM / task / issue) |
+| `escalate_input_request` | `agent-center escalate-input-request <input_request_id> --rationale="<why>"` | Long-pending input — write a follow-up message in the conversation that hosts the input request |
 | `no_op` | `agent-center record-decision --invocation=$AGENT_CENTER_INVOCATION_ID --kind=no_op --target=... --rationale="<why>"` | Decided to do nothing on purpose (still want the audit trail) |
 
 ## Operating rules
@@ -93,6 +93,22 @@ issue — **never** call the FORBIDDEN verbs above.
 After opening the Issue, the conversation thread is the place where the
 user fixes the asset; the supervisor's job is **complete** — the user's
 next dispatch will pick up the fixed asset.
+
+## v2 — Identity references (per ADR-0033)
+
+Every `--rationale` and `--content` you write becomes part of the audit
+ledger and the user-visible conversation thread. Refer to actors by their
+formal Identity id (`kind:id` per ADR-0033):
+
+| You are writing about | Identity id form | Example |
+|---|---|---|
+| The configured user | `user:<name>` | `user:hayang` |
+| A worker agent | `agent:<agent_instance_id>` | `agent:01HE6T9N...` |
+| The center itself | `system` | (singleton; emit / archive actors) |
+
+Do **not** invent `supervisor:` or `bot` prefixes — those v1 kinds were
+removed in v2 (per ADR-0033 § 1). Supervisor invocations are recorded via
+`AGENT_CENTER_INVOCATION_ID`, not as a distinct Identity.
 
 ## Available tools
 

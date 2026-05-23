@@ -6,9 +6,7 @@
 >
 > 业务对象层级是 Conversation 父子链的 source of truth（Channel → Issue → Task）；详 [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)。
 
-> 命名 / 定位决策见 [ADR-0007](../../../decisions/0007-conversation-as-unified-session.md) + [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)。
->
-> **v2 vendor 集成全部撤回**（per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）；Conversation = 纯业务时间线 + 关联实体（Channel / Issue / Task / DM / adhoc / notification）。本文件不出现任何 Bridge / vendor 描述；若有遗漏视为 bug。
+> 命名 / 定位决策见 [ADR-0007](../../../decisions/0007-conversation-as-unified-session.md) + [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)。Vendor 集成已撤回（per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）；Conversation 是纯业务时间线 + 关联实体（Channel / Issue / Task / DM / adhoc / notification）。
 
 ---
 
@@ -90,26 +88,71 @@
 
 ## § 3. Domain Services（X.3）
 
-### 3.1 ConversationLifecycleService
+### 3.1 MessageWriter（ConversationLifecycleService 实现）
 
-**职责**：Conversation 创建 / 关闭 / add-message。
-
-| 维度 | 内容 |
-|---|---|
-| 入参 | `OpenConversationCommand` / `AddMessageCommand` / `CloseConversationCommand` |
-| 出参 | Conversation 状态迁移 / Message 入库 + emit conversation.* 事件 |
-| 跨聚合（task/issue kind）| 同步建路径：task.create / issue.open 跨 BC 调用本服务建 conversation + 写 Message |
-| 写入 actor | user / agent / system（supervisor / worker daemon）都可写（通过 Web Console / CLI / RPC）|
-
-### 3.2 IdentityRegistrationService
-
-**职责**：Identity CRUD（创建 / 查询 / 标注归属）。
+**职责**：通用 Conversation 创建 / 关闭 / Archive / AddMessage（per [ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md) same-tx double-write）。
 
 | 维度 | 内容 |
 |---|---|
-| 触发 | CLI `agent-center identity add`（手动）/ Agent Instance 创建时（系统自动建对应 `agent:<instance-id>` identity）|
-| 出参 | Identity（如不存在则建）+ emit identity.* 事件 |
-| v2 简化 | 单用户场景；user identity 在初始化时一次性建立；agent identity 跟 AgentInstance 1:1 |
+| 入参 | `OpenCommand` / `AddMessageCommand` / `CloseCommand` / `ArchiveCommand` |
+| 出参 | Conversation 状态迁移 / Message 入库 + emit conversation.opened / message_added / closed / archived |
+| 跨聚合（task/issue kind）| 同步建路径：TaskService / IssueLifecycleService 跨 BC 同事务调用 |
+| 写入 actor | user / agent / system 都可写（Web Console / CLI / RPC） |
+
+### 3.2 ChannelManagementService（CV1，[ADR-0032](../../../decisions/drafts/0032-conversation-channel-as-first-class.md)）
+
+**职责**：kind=channel 业务一等公民管理（create / archive；name 全局唯一）。
+
+| 维度 | 内容 |
+|---|---|
+| 入参 | `CreateChannelCommand{Name, Description, CreatedBy, Actor}` / `ArchiveChannelCommand{Name, ArchivedBy, Actor}` |
+| 出参 | conversation.opened（带 name + created_by）/ conversation.archived |
+| 不变性 | name 全局唯一（partial unique index on `name` WHERE `kind='channel'`）；creator 自动入 owner participant |
+| CLI | `agent-center channel create / list / show / archive` |
+
+### 3.3 ParticipantManagementService（CV2b，[ADR-0034](../../../decisions/drafts/0034-conversation-participants-field.md)）
+
+**职责**：channel participants JSON r-m-w 加乐观锁；invite / leave / kick。
+
+| 维度 | 内容 |
+|---|---|
+| 入参 | `InviteCommand` / `LeaveCommand` / `KickCommand` |
+| 出参 | participants 列表 UPDATE（CAS via version）+ emit participant_joined / participant_left |
+| 不变性 | already-active 拒；archived conv 拒；kick 要求 caller 是 owner role |
+| CLI | `agent-center channel invite / leave / kick / participants` |
+
+### 3.4 CarryOverService（CV3，[ADR-0035](../../../decisions/drafts/0035-cross-conversation-message-carryover.md)）
+
+**职责**：跨 Conversation message reference 物化（child conv ← source messages）+ 双向反查。
+
+| 维度 | 内容 |
+|---|---|
+| 入参 | `MaterialiseCommand{ChildConvID, SourceConvID, SourceMessageIDs, CreatedBy, Actor}` |
+| 出参 | conversation_message_reference 批量 INSERT + emit message_references_added；append-only + unique (child, source_msg) |
+| 反查 | `FindByChildConv` / `FindBySourceMsg` |
+| CLI | `agent-center conversation refs` / `agent-center message refs` |
+
+### 3.5 MessageDerivationService（CV4 派生入口，[ADR-0036](../../../decisions/drafts/0036-derive-issue-task-from-messages.md)）
+
+**职责**：从源 Conversation 选 messages 派生 Issue / Task；编排 IssueOpener / TaskCreator 端口 + CarryOverService。
+
+| 维度 | 内容 |
+|---|---|
+| 入参 | `DeriveIssueCommand` / `DeriveTaskCommand{SourceConvID, SourceMessageIDs, ProjectID, ...}` |
+| 校验链 | source 存在 + active；channel kind 要求 caller active participant；source_messages 全属 source_conv |
+| 出参 | new Issue/Task + 自带 conversation + carry-over refs |
+| CLI | `agent-center issue open --from-conversation=<c> --select-messages=...` / `agent-center task create --from-conversation=...` |
+
+### 3.6 IdentityRegistrationService（[ADR-0033](../../../decisions/drafts/0033-identity-model-refactor.md)）
+
+**职责**：Identity CRUD + 跨聚合 invariant（Identity[kind=agent] ↔ AgentInstance 同 tx）。
+
+| 维度 | 内容 |
+|---|---|
+| 触发 | CLI `agent-center identity add`（手动 user 初始化）/ AgentInstance create 时同事务 auto-register `agent:<instance_id>` |
+| 出参 | Identity + emit identity.registered |
+| Bootstrap | `EnsureSystemIdentity` 在 center 启动时幂等 provision `system` identity |
+| v2 简化 | 单用户场景；3 kind 枚举：`user` / `agent` / `system` |
 
 ---
 
