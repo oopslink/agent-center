@@ -39,7 +39,7 @@ func TestEnvelope_ValidateRejects(t *testing.T) {
 		name string
 		mut  func(*DispatchEnvelope)
 	}{
-		{"version", func(e *DispatchEnvelope) { e.EnvelopeVersion = "v2" }},
+		{"version", func(e *DispatchEnvelope) { e.EnvelopeVersion = "vBogus" }},
 		{"exec id", func(e *DispatchEnvelope) { e.ExecutionID = "" }},
 		{"task id", func(e *DispatchEnvelope) { e.TaskID = "" }},
 		{"worker id", func(e *DispatchEnvelope) { e.WorkerID = "" }},
@@ -57,6 +57,41 @@ func TestEnvelope_ValidateRejects(t *testing.T) {
 				t.Fatal("expected error")
 			}
 		})
+	}
+}
+
+// V2 envelopes require AgentInstanceID; missing it should fail Validate.
+func TestEnvelope_V2RequiresAgentInstanceID(t *testing.T) {
+	e := mkEnvelope()
+	e.EnvelopeVersion = EnvelopeVersionV2
+	// AgentInstanceID intentionally not set
+	if err := e.Validate(); err == nil {
+		t.Fatal("expected v2 envelope without agent_instance_id to fail")
+	}
+	e.AgentInstanceID = "01HAI"
+	if err := e.Validate(); err != nil {
+		t.Fatalf("expected v2 envelope with agent_instance_id to validate, got %v", err)
+	}
+}
+
+// V2 envelopes JSON roundtrip preserves AgentInstanceID.
+func TestEnvelope_V2RoundTrip(t *testing.T) {
+	in := mkEnvelope()
+	in.EnvelopeVersion = EnvelopeVersionV2
+	in.AgentInstanceID = "01HAI-COOL"
+	data, err := json.Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out DispatchEnvelope
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.AgentInstanceID != "01HAI-COOL" {
+		t.Fatalf("roundtrip agent_instance_id: %s", out.AgentInstanceID)
+	}
+	if out.EnvelopeVersion != EnvelopeVersionV2 {
+		t.Fatalf("envelope_version: %s", out.EnvelopeVersion)
 	}
 }
 

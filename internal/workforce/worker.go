@@ -181,6 +181,18 @@ func (w *Worker) CapabilityList() []Capability {
 	return append([]Capability(nil), w.capabilities...)
 }
 
+// CapabilityForCLI returns the Capability entry for the given agent_cli,
+// or (zero, false) if none. v2 helper used by DispatchService feature-check
+// (per ADR-0030 § 5).
+func (w *Worker) CapabilityForCLI(agentCLI string) (Capability, bool) {
+	for _, c := range w.capabilities {
+		if c.AgentCLI == agentCLI {
+			return c, true
+		}
+	}
+	return Capability{}, false
+}
+
 // Concurrency returns Worker.concurrency (ADR-0023 § 3).
 func (w *Worker) Concurrency() WorkerConcurrency { return w.concurrency }
 
@@ -220,6 +232,7 @@ func (w *Worker) ApplyConfig(at time.Time, newConcurrency *WorkerConcurrency, ne
 
 // ApplyCapabilities replaces the capability list (worker probe upload).
 // Existing user `Enabled` choices are preserved where the CLI name matches.
+// All other fields (Version / Supports*) come from the incoming probe.
 // Bumps version.
 func (w *Worker) ApplyCapabilities(at time.Time, detected []Capability) {
 	// Preserve user-controlled `Enabled` flag from prior list.
@@ -240,9 +253,13 @@ func (w *Worker) ApplyCapabilities(at time.Time, detected []Capability) {
 			enabled = prev
 		}
 		out = append(out, Capability{
-			AgentCLI: c.AgentCLI,
-			Detected: c.Detected,
-			Enabled:  enabled,
+			AgentCLI:        c.AgentCLI,
+			Detected:        c.Detected,
+			Enabled:         enabled,
+			Version:         c.Version,
+			SupportsMCP:     c.SupportsMCP,
+			SupportsSkills:  c.SupportsSkills,
+			SupportsSession: c.SupportsSession,
 		})
 	}
 	w.capabilities = out

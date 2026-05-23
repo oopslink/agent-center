@@ -234,9 +234,13 @@ func (r *WorkerRepo) UpdateCapabilities(ctx context.Context, id workforce.Worker
 			enabled = prev
 		}
 		merged = append(merged, workforce.Capability{
-			AgentCLI: c.AgentCLI,
-			Detected: c.Detected,
-			Enabled:  enabled,
+			AgentCLI:        c.AgentCLI,
+			Detected:        c.Detected,
+			Enabled:         enabled,
+			Version:         c.Version,
+			SupportsMCP:     c.SupportsMCP,
+			SupportsSkills:  c.SupportsSkills,
+			SupportsSession: c.SupportsSession,
 		})
 	}
 	b, err := json.Marshal(merged)

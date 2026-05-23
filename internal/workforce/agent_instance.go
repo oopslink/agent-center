@@ -326,6 +326,29 @@ func (a *AgentInstance) HomeDirPath() string {
 	return fmt.Sprintf("~/.agent-center-worker/agents/%s/", a.id)
 }
 
+// HasMCPConfig reports whether the AgentInstance.config JSON references any
+// MCP config (per ADR-0027). v2 dispatch feature-check uses this to short-
+// circuit the supports_mcp probe — if no MCP config, no need to require
+// adapter.SupportsMCP.
+//
+// Detection is a substring scan for the "mcp_config" key in the raw JSON;
+// avoids parsing in the AR layer. Service callers may do a stricter parse.
+func (a *AgentInstance) HasMCPConfig() bool {
+	if a == nil {
+		return false
+	}
+	return strings.Contains(a.config, "\"mcp_config\"")
+}
+
+// HasSkillsHint reports whether the AgentInstance.config JSON references any
+// skills attachment (per ADR-0028). Same heuristic as HasMCPConfig.
+func (a *AgentInstance) HasSkillsHint() bool {
+	if a == nil {
+		return false
+	}
+	return strings.Contains(a.config, "\"skills\"")
+}
+
 func validateAgentInstanceName(name string) error {
 	s := strings.TrimSpace(name)
 	if s == "" {

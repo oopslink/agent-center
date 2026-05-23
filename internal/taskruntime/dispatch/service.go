@@ -33,17 +33,18 @@ func DefaultConfig() DispatchConfig {
 
 // Service is the DispatchService domain service (00-overview § 3.1).
 type Service struct {
-	db        *sql.DB
-	taskRepo  task.Repository
-	execRepo  execution.Repository
-	sink      *observability.EventSink
-	sender    EnvelopeSender
-	clock     clock.Clock
-	idgen     idgen.Generator
-	cfg       DispatchConfig
+	db            *sql.DB
+	taskRepo      task.Repository
+	execRepo      execution.Repository
+	sink          *observability.EventSink
+	sender        EnvelopeSender
+	agentResolver AgentResolver // optional; nil disables v2 agent_instance_id path
+	clock         clock.Clock
+	idgen         idgen.Generator
+	cfg           DispatchConfig
 }
 
-// NewService constructs a DispatchService.
+// NewService constructs a DispatchService (v1 — no agent resolver wired).
 func NewService(
 	db *sql.DB,
 	taskRepo task.Repository,
@@ -78,11 +79,25 @@ func NewService(
 	}
 }
 
+// WithAgentResolver attaches the v2 AgentResolver. Returns the same service
+// for chained construction. Use this instead of NewService when v2
+// agent_instance_id dispatch path is needed (P9 § 3.1).
+func (s *Service) WithAgentResolver(r AgentResolver) *Service {
+	s.agentResolver = r
+	return s
+}
+
 // DispatchInput is the input for Service.Dispatch.
+//
+// v1 path: caller supplies WorkerID + AgentCLI directly. v2 path: caller
+// supplies AgentInstanceID; service resolves Worker + AgentCLI via the
+// wired AgentResolver and runs the feature-check (per ADR-0030 § 5).
+// Mutually exclusive: AgentInstanceID takes precedence when set.
 type DispatchInput struct {
 	TaskID                   taskruntime.TaskID
-	WorkerID                 string
-	AgentCLI                 string
+	AgentInstanceID          string // v2; mutually exclusive with WorkerID+AgentCLI
+	WorkerID                 string // v1
+	AgentCLI                 string // v1
 	BaseBranch               string
 	ExecutionTimeoutOverride *time.Duration
 	ExtraSkillFiles          []string
@@ -102,6 +117,48 @@ type DispatchResult struct {
 func (s *Service) Dispatch(ctx context.Context, in DispatchInput) (*DispatchResult, error) {
 	if err := in.Actor.Validate(); err != nil {
 		return nil, err
+	}
+	// v2 (ADR-0024 + ADR-0030 § 5): if caller supplied agent_instance_id,
+	// resolve via AgentResolver to fill WorkerID + AgentCLI + run feature
+	// check. NACK feature_unsupported on mismatch (audit-only emit; the
+	// caller still gets the err back so they can re-route if needed).
+	var resolution AgentResolution
+	v2 := in.AgentInstanceID != ""
+	if v2 {
+		if s.agentResolver == nil {
+			return nil, ErrAgentResolverNotConfigured
+		}
+		var err error
+		resolution, err = s.agentResolver.Resolve(ctx, in.AgentInstanceID)
+		if err != nil {
+			return nil, err
+		}
+		if !resolution.FeatureOK {
+			// Persist NACK audit event in its own tx so it survives the err.
+			_ = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+				_, emitErr := s.sink.Emit(txCtx, observability.EmitCommand{
+					EventType: "task_execution.dispatch_rejected",
+					Refs: observability.EventRefs{
+						TaskID:    string(in.TaskID),
+						WorkerID:  resolution.WorkerID,
+						ProjectID: "",
+					},
+					Actor: in.Actor,
+					Payload: map[string]any{
+						"agent_instance_id": in.AgentInstanceID,
+						"agent_cli":         resolution.AgentCLI,
+						"reason":            resolution.FeatureReason,
+						"message":           resolution.FeatureMessage,
+					},
+				})
+				return emitErr
+			})
+			return nil, fmt.Errorf("dispatch: %s (%s)", resolution.FeatureReason, resolution.FeatureMessage)
+		}
+		// Fill v1-shaped fields from the resolution so the rest of Dispatch
+		// works unchanged.
+		in.WorkerID = resolution.WorkerID
+		in.AgentCLI = resolution.AgentCLI
 	}
 	now := s.clock.Now()
 	var res DispatchResult
@@ -210,13 +267,18 @@ func (s *Service) Dispatch(ctx context.Context, in DispatchInput) (*DispatchResu
 			v := int64(in.ExecutionTimeoutOverride.Seconds())
 			timeoutOverrideSecs = &v
 		}
+		envelopeVersion := EnvelopeVersionV1
+		if v2 {
+			envelopeVersion = EnvelopeVersionV2
+		}
 		env := DispatchEnvelope{
-			EnvelopeVersion:          EnvelopeVersionV1,
+			EnvelopeVersion:          envelopeVersion,
 			ExecutionID:              e.ID(),
 			TaskID:                   t.ID(),
 			WorkerID:                 e.WorkerID(),
 			ProjectID:                t.ProjectID(),
 			ConversationID:           t.ConversationID(),
+			AgentInstanceID:          in.AgentInstanceID, // empty in v1 path
 			AgentCLI:                 e.AgentCLI(),
 			WorkspaceMode:            e.WorkspaceMode(),
 			BaseBranch:               e.BaseBranch(),

@@ -162,13 +162,20 @@ func (r OfflineReason) IsValid() bool {
 	return false
 }
 
-// Capability is a Worker capability VO (v2; ADR-0023 § 4).
-// Each entry represents one agent CLI: its installed state (detected by
-// worker auto-probe) and whether the user has enabled it for dispatch.
+// Capability is a Worker capability VO (v2; ADR-0023 § 4 + ADR-0030 § 4).
+// Each entry represents one agent CLI: installation state (detected by
+// worker auto-probe), user enable flag, version string (from probe), and
+// per-CLI feature flags used by DispatchService feature-check (per ADR-0030
+// § 5). All `Supports*` fields default to false (legacy probe path leaves
+// them off until adapter Probe upgrades them).
 type Capability struct {
-	AgentCLI string `json:"agent_cli"`
-	Detected bool   `json:"detected"`
-	Enabled  bool   `json:"enabled"`
+	AgentCLI        string `json:"agent_cli"`
+	Detected        bool   `json:"detected"`
+	Enabled         bool   `json:"enabled"`
+	Version         string `json:"version,omitempty"`
+	SupportsMCP     bool   `json:"supports_mcp,omitempty"`
+	SupportsSkills  bool   `json:"supports_skills,omitempty"`
+	SupportsSession bool   `json:"supports_session,omitempty"`
 }
 
 // WorkerConcurrency captures Worker.concurrency (ADR-0023 § 3).
