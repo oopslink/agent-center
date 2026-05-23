@@ -139,11 +139,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sse/subscribe", s.sseSubscribeHandler)
 	s.mux.HandleFunc("POST /api/sse/unsubscribe", s.sseUnsubscribeHandler)
 
-	// Stubs (plan § 3.2 endpoints not yet wired through application
-	// services — return 501 with a stable JSON error so frontend can
-	// detect + fall back).
-	s.mux.HandleFunc("GET /api/fleet", s.notImplementedHandler)
-	s.mux.HandleFunc("GET /api/tasks/{id}/trace", s.notImplementedHandler)
+	// Fleet snapshot + per-task event trace.
+	s.mux.HandleFunc("GET /api/fleet", s.fleetSnapshotHandler)
+	s.mux.HandleFunc("GET /api/tasks/{id}/trace", s.taskTraceHandler)
 }
 
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {

@@ -17,6 +17,7 @@ import (
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
@@ -51,6 +52,9 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	_, _ = idReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
 		ID: "user:hayang", DisplayName: "Hayang", Actor: observability.Actor("system"),
 	})
+	// Query svc with minimal deps; covers /api/tasks/{id}/trace endpoint.
+	querySvc := query.NewService(query.Deps{Events: er})
+	fleetSvc := query.NewFleetSnapshotService(query.Deps{Events: er})
 	deps := HandlerDeps{
 		Actor:              observability.Actor("user:hayang"),
 		ConvRepo:           convRepo,
@@ -59,6 +63,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		ChannelMgmtSvc:     chSvc,
 		ParticipantMgmtSvc: pSvc,
 		CarryOverSvc:       coSvc,
+		QuerySvc:           querySvc,
+		FleetSvc:           fleetSvc,
 	}
 	return deps, db
 }
@@ -216,13 +222,56 @@ func TestAPI_ArchiveConversation(t *testing.T) {
 	}
 }
 
-func TestAPI_NotImplementedEndpoints(t *testing.T) {
+// FleetSvc / QuerySvc unwired → 501 (graceful degrade until App wires).
+func TestAPI_FleetWithoutSvc(t *testing.T) {
 	deps, _ := setupAPI(t)
+	deps.FleetSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
 	resp, _ := http.Get(s.URL + "/api/fleet")
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)
+	}
+}
+
+func TestAPI_TaskTraceWithoutSvc(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.QuerySvc = nil
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/tasks/t-1/trace")
+	if resp.StatusCode != 501 {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+}
+
+func TestAPI_FleetSnapshot(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/fleet")
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+	var snap map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&snap)
+	if snap["generated_at"] == nil {
+		t.Fatalf("expected generated_at: %v", snap)
+	}
+}
+
+func TestAPI_TaskTrace(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/tasks/t-1/trace")
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+	var res map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&res)
+	if res["resource"] != "events" {
+		t.Fatalf("expected resource=events: %v", res)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/conversation/identity"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/taskruntime"
@@ -36,6 +37,8 @@ type HandlerDeps struct {
 	AgentInstanceRepo  workforce.AgentInstanceRepository
 	UserSecretRepo     secretmgmt.UserSecretRepository
 	UserSecretSvc      *secretservice.UserSecretService
+	QuerySvc           *query.Service
+	FleetSvc           *query.FleetSnapshotService
 }
 
 // hd retrieves the typed dep bag from the request context.
@@ -404,6 +407,43 @@ func (s *Server) respondInputRequestHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"answered": true})
+}
+
+// =============================================================================
+// Fleet snapshot + task trace
+// =============================================================================
+
+func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.FleetSvc == nil {
+		writeError(w, http.StatusNotImplemented, "fleet_not_wired", "")
+		return
+	}
+	filter := query.SnapshotFilter{ProjectID: r.URL.Query().Get("project")}
+	snap := d.FleetSvc.Snapshot(r.Context(), filter)
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.QuerySvc == nil {
+		writeError(w, http.StatusNotImplemented, "query_not_wired", "")
+		return
+	}
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	res, err := d.QuerySvc.Query(r.Context(), "events", query.QueryFilter{
+		TaskID: taskID,
+		Limit:  500,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 // =============================================================================
