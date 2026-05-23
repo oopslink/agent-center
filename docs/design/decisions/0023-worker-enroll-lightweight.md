@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P8 § 3.3 — `462f3a3` (WorkerEnrollService.Exchange), `c0f6373` (BootstrapToken AR) |
 | Related | v2 议题 E1（[v2-kickoff-2026-05-22 § 1 E1](../../drafts/v2-kickoff-2026-05-22.md)）；[ADR-0008](../0008-worker-project-mapping-via-discovery-proposal.md)（**不 supersede**，mapping 流程仍走 proposal-then-accept）|
 
 ## Context

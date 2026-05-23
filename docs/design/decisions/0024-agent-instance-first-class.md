@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P8 § 3.5 — `80ee406` (AgentInstance AR + Repo + Management + Lifecycle services). Amended by ADR-0029. |
 | Related | v2 议题 G1（[v2-kickoff-2026-05-22 § Group 2](../../drafts/v2-kickoff-2026-05-22.md)）；与 [ADR-0008](../0008-worker-project-mapping-via-discovery-proposal.md)（mapping 维度不动）+ [ADR-0023](0023-worker-enroll-lightweight.md)（Worker 配置 + capabilities 模型）协同；TaskExecution 字段重命名见 [task-runtime/02-task-execution.md § 5](../../architecture/tactical/task-runtime/02-task-execution.md) |
 
 ## Context

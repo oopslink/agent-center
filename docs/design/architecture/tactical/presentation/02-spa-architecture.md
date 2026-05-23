@@ -167,4 +167,4 @@ The single highest-leverage future change is **multi-user auth** (post-v3). The 
 2. Replace Zustand `currentUserId` initialization to read from server
 3. ErrorBoundary catches 401 → redirect to login
 
-That work is deferred to v3+ explicitly per [ADR-0037](../../decisions/drafts/0037-web-console-loopback-only.md).
+That work is deferred to v3+ explicitly per [ADR-0037](../../decisions/0037-web-console-loopback-only.md).

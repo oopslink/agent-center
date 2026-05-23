@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 § 3.4 — `052c708` (ParticipantManagementService CV2b + CLI) |
 | Related | v2 议题 CV2；并行立 [ADR-0033 Identity 模型重构](0033-identity-model-refactor.md)（CV2a）；建立于 [ADR-0032 CV1 Channel 业务一等公民](0032-conversation-channel-as-first-class.md) + [ADR-0024 AgentInstance](0024-agent-instance-first-class.md) 之上 |
 
 ## Context

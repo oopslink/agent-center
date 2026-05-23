@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P11 § 3.2-3.4 + SPA F1-F16 — `ebb8c22` (SSE fan-out), `b85d4c6` (SPA scaffold), `07cca9b` (go:embed binary), `ab98065` (P11 closeout) |
 | Related | v2 议题 W1；触发自 [ADR-0031 v2 Drop Bridge](0031-v2-drop-bridge-vendor-integration.md)；为 v2 用户接入面（CLI + Web Console）核心组件之一；W2 (CLI UX 增强) 并行 |
 
 ## Context

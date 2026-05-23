@@ -32,7 +32,7 @@ stateDiagram-v2
 
 ## § 2. 注册与认证（v2：一行命令接入）
 
-> 设计依据：[ADR-0023 Worker Enroll 轻量化](../../../decisions/drafts/0023-worker-enroll-lightweight.md)
+> 设计依据：[ADR-0023 Worker Enroll 轻量化](../../../decisions/0023-worker-enroll-lightweight.md)
 
 **流程**：
 
@@ -157,7 +157,7 @@ Worker {
 
 ### 4.3 Capabilities 自动探测
 
-Worker daemon **每次 online**（首次 + 重连）调每个 adapter 的 `Probe()` + `SupportedFeatures()`（[ADR-0030](../../../decisions/drafts/0030-agentadapter-matrix-expansion.md)），结果上报 center。
+Worker daemon **每次 online**（首次 + 重连）调每个 adapter 的 `Probe()` + `SupportedFeatures()`（[ADR-0030](../../../decisions/0030-agentadapter-matrix-expansion.md)），结果上报 center。
 
 每项 `capability` 字段含义：
 
@@ -165,8 +165,8 @@ Worker daemon **每次 online**（首次 + 重连）调每个 adapter 的 `Probe
 - `detected`：worker 探测结果（true / false）
 - `enabled`：用户开关；默认 = `detected`；可在 CLI 关掉某项
 - `version`（v2）：Probe 上报的 CLI 版本字符串
-- `supports_mcp`（v2，[ADR-0030](../../../decisions/drafts/0030-agentadapter-matrix-expansion.md)）：adapter 支持 MCP per-agent 注入
-- `supports_skills`（v2）：adapter 支持 skill file mount（[ADR-0028](../../../decisions/drafts/0028-skill-file-mount-lite.md)）
+- `supports_mcp`（v2，[ADR-0030](../../../decisions/0030-agentadapter-matrix-expansion.md)）：adapter 支持 MCP per-agent 注入
+- `supports_skills`（v2）：adapter 支持 skill file mount（[ADR-0028](../../../decisions/0028-skill-file-mount-lite.md)）
 - `supports_session`（v2）：adapter 支持 `--session-id` 续接
 
 Center 派单时只考虑 `detected=true && enabled=true` 的 CLI；feature 校验链按 `supports_mcp / supports_skills` 决定是否 NACK reason=`feature_unsupported`（详 [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md)）。
@@ -302,7 +302,7 @@ Worker home-server 也发现 agent-center 项目:
 
 ## § 9. References
 
-- [ADR-0023 Worker Enroll 轻量化](../../../decisions/drafts/0023-worker-enroll-lightweight.md)
+- [ADR-0023 Worker Enroll 轻量化](../../../decisions/0023-worker-enroll-lightweight.md)
 - [ADR-0008 WorkerProjectMapping discovery proposal](../../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)
 - [ADR-0019 BC 合并](../../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)
 - [00-overview.md](00-overview.md) — BC 入口（含 Domain Services / 跨 BC）

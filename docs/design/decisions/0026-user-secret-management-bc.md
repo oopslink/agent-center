@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P8 § 3.7-3.8 — `6d39ee8` (UserSecret AR + SecretRef VO). P11 F11 — `fc433f9` (UI no-plaintext-echo). |
 | Related | v2 议题 G4 衍生（[v2-kickoff-2026-05-22 § Group 2 G4](../../drafts/v2-kickoff-2026-05-22.md)）；为 [ADR-0027 MCP per-agent 注入](0027-mcp-per-agent-injection.md) 提供基础设施；不动 [ADR-0023 BootstrapToken](0023-worker-enroll-lightweight.md) / [conventions § 13](../../../rules/conventions.md) 系统凭证 |
 
 ## Context

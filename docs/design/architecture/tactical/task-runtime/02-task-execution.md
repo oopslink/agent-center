@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
 
 # TaskExecution 聚合
 
@@ -103,7 +103,7 @@ stateDiagram-v2
 | `worker_id` | uuid | 派给哪个 worker（确定后不变） |
 | `status` | enum | submitted / working / input_required / completed / failed / killed |
 | `dispatch_state` | enum | pending_ack / acked / null（acked 之后或终态时为 null） |
-| `agent_instance_id` | uuid | 强引用 AgentInstance（[ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md)），不可变；`agent_cli` 通过 join AgentInstance 拿 |
+| `agent_instance_id` | uuid | 强引用 AgentInstance（[ADR-0024](../../../decisions/0024-agent-instance-first-class.md)），不可变；`agent_cli` 通过 join AgentInstance 拿 |
 | `workspace_mode` | enum | worktree / direct（透自 task.requires_worktree；VO 性质，见 § 8） |
 | `cwd` | string | 实际 CWD（worktree 路径 或 base_path） |
 | `branch_name` | string \| null | worktree 模式下的新 branch（默认 `task/<execution_id>`）；direct 模式 null |
@@ -139,7 +139,7 @@ DispatchEnvelope:
   conversation_id: uuid?              # task.conversation_id 透传；worker daemon 据此写进度 message / InputRequest 载体 message。null → 跳过 progress 写入；InputRequest 触发 fallback
 
   # Agent + Workspace
-  agent_instance_id: uuid             # 强引用 AgentInstance ([ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md))；worker 端 join AgentInstance 拿 agent_cli + config + home_dir
+  agent_instance_id: uuid             # 强引用 AgentInstance ([ADR-0024](../../../decisions/0024-agent-instance-first-class.md))；worker 端 join AgentInstance 拿 agent_cli + config + home_dir
   workspace_mode:    string           # worktree | direct
   base_branch:       string?          # worktree 模式默认 main
 
@@ -207,7 +207,7 @@ failed_reason 是 supervisor 重派决策的关键信号：
 | `worker_lost` | Worker 心跳超 `worker_heartbeat_timeout`（默认 60s） |
 | `dispatch_no_ack` | Envelope 发出后 30s 没 ACK |
 | `dispatch_nack:<sub_reason>` | Worker 显式 NACK（含 worker_at_capacity / mapping_missing / 等） |
-| `no_input_channel` | agent 调 `request-input` 时 task.conversation_id=null 且 `notification.default_channel` 未配 → fallback 失败、InputRequest 无法创建（[ADR-0017 § 10.4](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)） |
+| `no_input_channel` | agent 调 `request-input` 时 task.conversation_id=null 且 `notification.default_channel` 未配 → fallback 失败、InputRequest 无法创建（[ADR-0017 § 10.4](../../../decisions/0039-conversation-business-model-v2-unified.md)） |
 | `shim_no_hello` | Daemon spawn shim 后 60s 内未收到 ShimHello（[ADR-0018 § 7](../../../decisions/0018-detached-agent-via-per-execution-shim.md)） |
 | `shim_crashed` | Shim 进程崩溃（PID 死 / start_time mismatch）；agent 若还活则连带 SIGTERM（同上 ADR） |
 
@@ -427,7 +427,7 @@ Worker daemon（实际是 shim → daemon 转）边解析 agent JSONL 边判断 
 
 阈值（30s / N=20）走配置。
 
-> **不 emit `task.progress_milestone_reached` 事件** —— 进度通过 `conversation.message_added` 走 outbound 链路；不需要专门 progress 事件类。详见 [ADR-0017 § 4](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)。
+> **不 emit `task.progress_milestone_reached` 事件** —— 进度通过 `conversation.message_added` 走 outbound 链路；不需要专门 progress 事件类。详见 [ADR-0017 § 4](../../../decisions/0039-conversation-business-model-v2-unified.md)。
 
 ---
 
@@ -543,7 +543,7 @@ CLI → shim → worker daemon → forward to center → insert + emit `artifact
 2. **`execution_id` 唯一**：retry 创建新 id；旧 id 永远停在终态
 3. **执行权威在 Center**：Worker / Agent 不能直接改 execution 状态；状态变化由事件流转 → Center 写
 4. **状态机迁移单向**：终态 `completed` / `failed` / `killed` 不可逆
-5. **"派单契约"字段不可改**：`id` / `task_id` / `worker_id` / `agent_instance_id` / `workspace_mode` / `base_branch` / `branch_name` 创建后冻结（[ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md)）
+5. **"派单契约"字段不可改**：`id` / `task_id` / `worker_id` / `agent_instance_id` / `workspace_mode` / `base_branch` / `branch_name` 创建后冻结（[ADR-0024](../../../decisions/0024-agent-instance-first-class.md)）
 6. **每个 reason 字段配 message**（[conventions § 16](../../../../rules/conventions.md)）—— `completed_reason`+`completed_message` / `failed_reason`+`failed_message` / `killed_reason`+`killed_message`
 7. **大字段走 BlobStore**（[conventions § 8](../../../../rules/conventions.md)）
 8. **Artifact append-only**：insert 后不可修改 / 不可删（v1）
@@ -564,7 +564,7 @@ CLI → shim → worker daemon → forward to center → insert + emit `artifact
 - [ADR-0011 派单可靠性协议](../../../decisions/0011-dispatch-reliability-protocol.md)
 - [ADR-0014 事件溯源 L1](../../../decisions/0014-event-sourcing-level.md)
 - [ADR-0015 agent_trace 不进 events 表](../../../decisions/0015-agent-trace-not-in-events-table.md)
-- [ADR-0017 (superseded by 0039) Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)
+- [ADR-0017 (superseded by 0039) Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md)
 - [ADR-0018 Detached agent + per-execution shim 模型](../../../decisions/0018-detached-agent-via-per-execution-shim.md)
 - [ADR-0019 BC 合并](../../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)
 

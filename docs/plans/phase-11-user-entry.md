@@ -3,7 +3,7 @@
 > 入口层（Presentation） · 依赖 Phase 8 + 9 + 10 · 解锁 Phase 12
 > 纪律：按里程碑顺序 / 模块完备不半成品 / TDD + 单测 ≥ 90% + 集成 + e2e + 测试报告
 
-覆盖 ADR：[ADR-0037 Web Console 升 v2 用户主入口](../design/decisions/drafts/0037-web-console-as-main-user-ui.md) · [ADR-0038 CLI UX 增强](../design/decisions/drafts/0038-cli-ux-enhancement.md)
+覆盖 ADR：[ADR-0037 Web Console 升 v2 用户主入口](../design/decisions/0037-web-console-as-main-user-ui.md) · [ADR-0038 CLI UX 增强](../design/decisions/0038-cli-ux-enhancement.md)
 
 ## § 0. 目标
 

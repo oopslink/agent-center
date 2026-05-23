@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P9 § 3.8 — `9841f74` (PromptAssembly v2 + MCPInjectionService) |
 | Related | v2 议题 G4（[v2-kickoff-2026-05-22 § Group 2 G4](../../drafts/v2-kickoff-2026-05-22.md)）；建立于 [ADR-0024 AgentInstance 一等公民化](0024-agent-instance-first-class.md)（home_dir + config）+ [ADR-0026 SecretManagement BC](0026-user-secret-management-bc.md)（secret resolve）之上；与 [ADR-0001 不引入 MCP](../0001-no-mcp.md) **不矛盾**（详见 § Context）|
 
 ## Context

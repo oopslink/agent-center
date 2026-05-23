@@ -25,11 +25,19 @@
 # Migrations spell out the v1 tables they drop (0025 + later).
 ^internal/persistence/migrations/
 
-# Lint script + this allowlist + the audit log itself + the Makefile
-# target that documents the patterns the lint scans for.
+# Lint scaffolding — these scripts may contain literal v1 tokens (e.g.
+# the self-test injects them deliberately into heredocs to assert the
+# lint catches them). The allowlist is intentionally NOT a wildcard
+# under scripts/lint/ because the self-test stages injected fixtures
+# under scripts/lint/.selftest/ — those must NOT be whitelisted, or
+# the positive-fail assertion is meaningless.
 ^scripts/lint/no-vendor-refs\.(sh|allowlist)
+^scripts/lint/test-no-vendor-refs\.sh
 ^docs/plans/phase-12-audits/
 ^Makefile:.*(lint-vendor|vendor_msg_ref|internal/bridge|feishu / lark)
+# ADR promote script embeds the ADR-0031 evidence string which names
+# "Bridge BC". Other v2-promote scripts may follow the same pattern.
+^scripts/promote-v2-adrs\.sh
 
 # Guard tests proving v1 vocabulary is rejected / absent.
 ^internal/discussion/origin_test\.go:.*feishu_at

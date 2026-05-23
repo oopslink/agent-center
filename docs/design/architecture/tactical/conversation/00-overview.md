@@ -2,11 +2,11 @@
 
 > **DDD 战术层** · BC: Conversation
 >
-> 系统内部"消息时间线"存储 + Identity 统一身份。纯业务模型（v2 vendor 集成已撤回 per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）。承载所有领域 thread（Channel 话题群 / DM / Task / Issue / 通知 / adhoc）的消息时间线。
+> 系统内部"消息时间线"存储 + Identity 统一身份。纯业务模型（v2 vendor 集成已撤回 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)）。承载所有领域 thread（Channel 话题群 / DM / Task / Issue / 通知 / adhoc）的消息时间线。
 >
-> 业务对象层级是 Conversation 父子链的 source of truth（Channel → Issue → Task）；详 [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)。
+> 业务对象层级是 Conversation 父子链的 source of truth（Channel → Issue → Task）；详 [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md)。
 
-> 命名 / 定位决策见 [ADR-0007](../../../decisions/0007-conversation-as-unified-session.md) + [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)。Vendor 集成已撤回（per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）；Conversation 是纯业务时间线 + 关联实体（Channel / Issue / Task / DM / adhoc / notification）。
+> 命名 / 定位决策见 [ADR-0007](../../../decisions/0007-conversation-as-unified-session.md) + [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md)。Vendor 集成已撤回（per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)）；Conversation 是纯业务时间线 + 关联实体（Channel / Issue / Task / DM / adhoc / notification）。
 
 ---
 
@@ -19,7 +19,7 @@
 | **聚合管理** | Conversation（AR + Message 子从属）/ Identity（AR）|
 | **会话承载** | 6 种 kind：`dm` / `channel`（v2 CV1 重命名自 group_thread）/ `adhoc` / `notification` / `task` / `issue`；统一时间线存 Message |
 | **Message content_kind** | 6 种：text / system / agent_finding / supervisor_summary / conclusion_draft / task_proposal |
-| **Identity 统一** | 3 kind: user / agent / system（per [ADR-0033](../../../decisions/drafts/0033-identity-model-refactor.md)）；ID 格式 `kind:id`；权限模型 v3+ 绑 Identity |
+| **Identity 统一** | 3 kind: user / agent / system（per [ADR-0033](../../../decisions/0033-identity-model-refactor.md)）；ID 格式 `kind:id`；权限模型 v3+ 绑 Identity |
 
 ### 0.2 UL 切片
 
@@ -33,10 +33,10 @@
 
 [strategic/03-bounded-contexts § 3](../../strategic/03-bounded-contexts.md)：
 
-- **Discussion ↔ Conversation**：**Shared Kernel / 1:1**（`issue.conversation_id` 强引用 `kind=issue` Conversation；per [ADR-0039](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)）
-- **TaskRuntime ↔ Conversation**：**Shared Kernel / 1:1**（`task.conversation_id` 强引用 `kind=task` Conversation；per [ADR-0039](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)）
+- **Discussion ↔ Conversation**：**Shared Kernel / 1:1**（`issue.conversation_id` 强引用 `kind=issue` Conversation；per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）
+- **TaskRuntime ↔ Conversation**：**Shared Kernel / 1:1**（`task.conversation_id` 强引用 `kind=task` Conversation；per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）
 - **Cognition → Conversation**：Customer-Supplier（supervisor 调 `conversation add-message`；worker daemon 通过 RPC 调同一 API；agent instance 通过 CLI 写）
-- **Web Console / CLI → Conversation**：Customer-Supplier（用户入口，per [ADR-0037](../../../decisions/drafts/0037-web-console-as-main-user-ui.md) + [ADR-0038](../../../decisions/drafts/0038-cli-ux-enhancement.md)）
+- **Web Console / CLI → Conversation**：Customer-Supplier（用户入口，per [ADR-0037](../../../decisions/0037-web-console-as-main-user-ui.md) + [ADR-0038](../../../decisions/0038-cli-ux-enhancement.md)）
 - **Observability ← Conversation**：Open Host（订阅 `conversation.*` / `identity.*` 事件做投影）
 
 ---
@@ -60,13 +60,13 @@
 
 | VO | 用在哪 | 描述 |
 |---|---|---|
-| **ConversationKind** | conversation.kind 字段 | 6 种枚举：`dm` / `channel` / `adhoc` / `notification` / `task` / `issue`（v2 CV1: `channel` 升业务一等公民；详 [ADR-0032](../../../decisions/drafts/0032-conversation-channel-as-first-class.md)）|
+| **ConversationKind** | conversation.kind 字段 | 6 种枚举：`dm` / `channel` / `adhoc` / `notification` / `task` / `issue`（v2 CV1: `channel` 升业务一等公民；详 [ADR-0032](../../../decisions/0032-conversation-channel-as-first-class.md)）|
 | **MessageContentKind** | message.content_kind 字段 | 6 种枚举：text / system / agent_finding / supervisor_summary / conclusion_draft / task_proposal |
 | **MessageDirection** | message.direction 字段 | inbound / outbound / internal（v2 取消 vendor 路径后，inbound/outbound 仅用于区分用户↔系统 vs 系统内部）|
 | **InputRequestRef** | message.input_request_ref 字段 | 跨 BC 弱引用到 TaskRuntime InputRequest |
-| **IdentityRef** | message.sender_identity_id / 各处 actor | `kind:id` 形式化字符串（per [ADR-0033](../../../decisions/drafts/0033-identity-model-refactor.md)）|
-| **Participants** | conversation.participants 字段 | JSON 数组，元素 = IdentityRef；详 [ADR-0034](../../../decisions/drafts/0034-conversation-participants-field.md) |
-| **CarryOverRef** | message.carry_over_ref 字段 | 跨 conversation 弱引用，详 [ADR-0035](../../../decisions/drafts/0035-cross-conversation-message-carryover.md) |
+| **IdentityRef** | message.sender_identity_id / 各处 actor | `kind:id` 形式化字符串（per [ADR-0033](../../../decisions/0033-identity-model-refactor.md)）|
+| **Participants** | conversation.participants 字段 | JSON 数组，元素 = IdentityRef；详 [ADR-0034](../../../decisions/0034-conversation-participants-field.md) |
+| **CarryOverRef** | message.carry_over_ref 字段 | 跨 conversation 弱引用，详 [ADR-0035](../../../decisions/0035-cross-conversation-message-carryover.md) |
 
 ---
 
@@ -99,7 +99,7 @@
 | 跨聚合（task/issue kind）| 同步建路径：TaskService / IssueLifecycleService 跨 BC 同事务调用 |
 | 写入 actor | user / agent / system 都可写（Web Console / CLI / RPC） |
 
-### 3.2 ChannelManagementService（CV1，[ADR-0032](../../../decisions/drafts/0032-conversation-channel-as-first-class.md)）
+### 3.2 ChannelManagementService（CV1，[ADR-0032](../../../decisions/0032-conversation-channel-as-first-class.md)）
 
 **职责**：kind=channel 业务一等公民管理（create / archive；name 全局唯一）。
 
@@ -110,7 +110,7 @@
 | 不变性 | name 全局唯一（partial unique index on `name` WHERE `kind='channel'`）；creator 自动入 owner participant |
 | CLI | `agent-center channel create / list / show / archive` |
 
-### 3.3 ParticipantManagementService（CV2b，[ADR-0034](../../../decisions/drafts/0034-conversation-participants-field.md)）
+### 3.3 ParticipantManagementService（CV2b，[ADR-0034](../../../decisions/0034-conversation-participants-field.md)）
 
 **职责**：channel participants JSON r-m-w 加乐观锁；invite / leave / kick。
 
@@ -121,7 +121,7 @@
 | 不变性 | already-active 拒；archived conv 拒；kick 要求 caller 是 owner role |
 | CLI | `agent-center channel invite / leave / kick / participants` |
 
-### 3.4 CarryOverService（CV3，[ADR-0035](../../../decisions/drafts/0035-cross-conversation-message-carryover.md)）
+### 3.4 CarryOverService（CV3，[ADR-0035](../../../decisions/0035-cross-conversation-message-carryover.md)）
 
 **职责**：跨 Conversation message reference 物化（child conv ← source messages）+ 双向反查。
 
@@ -132,7 +132,7 @@
 | 反查 | `FindByChildConv` / `FindBySourceMsg` |
 | CLI | `agent-center conversation refs` / `agent-center message refs` |
 
-### 3.5 MessageDerivationService（CV4 派生入口，[ADR-0036](../../../decisions/drafts/0036-derive-issue-task-from-messages.md)）
+### 3.5 MessageDerivationService（CV4 派生入口，[ADR-0036](../../../decisions/0036-derive-issue-task-from-messages.md)）
 
 **职责**：从源 Conversation 选 messages 派生 Issue / Task；编排 IssueOpener / TaskCreator 端口 + CarryOverService。
 
@@ -145,7 +145,7 @@
 | HTTP | `POST /api/issues` / `POST /api/tasks` with `{source_conversation_id, source_message_ids, title, description, project_id?, agent_instance_id?}` (P11 § 3.2 endpoints) |
 | Web UI | Any conversation detail page → "Select messages" toggle → DeriveBar → "Open Issue / Open Task" modal → on success, deep link to the new `/issues/:id` or `/tasks/:id`. The child detail page renders a `CarryOverDivider` grouping carried messages by their source conversation, with a visible "Discussion below" divider before the child's own messages (P11 F8 + F9) |
 
-### 3.6 IdentityRegistrationService（[ADR-0033](../../../decisions/drafts/0033-identity-model-refactor.md)）
+### 3.6 IdentityRegistrationService（[ADR-0033](../../../decisions/0033-identity-model-refactor.md)）
 
 **职责**：Identity CRUD + 跨聚合 invariant（Identity[kind=agent] ↔ AgentInstance 同 tx）。
 
@@ -167,8 +167,8 @@
 | Caller | Kind | 同步 / 懒创建 |
 |---|---|---|
 | Web Console / CLI（用户开 channel / DM / adhoc） | `dm` / `channel` / `adhoc` | 用户操作时同步建 |
-| TaskRuntime（task 创建同步建路径） | `task` | 同步建（per [ADR-0039](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)）|
-| Discussion（issue 创建同步建路径） | `issue` | 同步建（per [ADR-0039](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)）|
+| TaskRuntime（task 创建同步建路径） | `task` | 同步建（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）|
+| Discussion（issue 创建同步建路径） | `issue` | 同步建（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）|
 | Cognition（supervisor 主动 push） | `dm` / `adhoc` / `notification` | 按需 |
 
 ### 4.2 MessageFactory
@@ -273,11 +273,11 @@ var (
 |---|---|---|---|
 | **Message → Conversation**（`message.conversation_id`） | 强 / 不可变 | tx 同步 | add-message |
 | **Message → Identity**（`message.sender_identity_id`） | 强 / 不可变 | tx 同步 | add-message |
-| **Message → InputRequest**（`message.input_request_ref`，跨 BC） | 弱 / nullable | tx 同步（InputRequest 创建时同事务写）| per [ADR-0039](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md) |
-| **Message → Message**（`message.carry_over_ref`，跨 conversation） | 弱 / nullable | tx 同步 | per [ADR-0035](../../../decisions/drafts/0035-cross-conversation-message-carryover.md) |
+| **Message → InputRequest**（`message.input_request_ref`，跨 BC） | 弱 / nullable | tx 同步（InputRequest 创建时同事务写）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
+| **Message → Message**（`message.carry_over_ref`，跨 conversation） | 弱 / nullable | tx 同步 | per [ADR-0035](../../../decisions/0035-cross-conversation-message-carryover.md) |
 | **Conversation → Conversation**（`parent_conversation_id`） | 强 / nullable | tx 同步 | Channel → Issue / Task 父子链 |
-| **Task → Conversation**（`task.conversation_id`，TaskRuntime BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md) |
-| **Issue → Conversation**（`issue.conversation_id`，Discussion BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md) |
+| **Task → Conversation**（`task.conversation_id`，TaskRuntime BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
+| **Issue → Conversation**（`issue.conversation_id`，Discussion BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
 
 **跨聚合一致性策略汇总**：
 
@@ -315,7 +315,7 @@ Conversation BC 写入 Message + emit conversation.message_added
 | **Web Console / CLI → Conversation** | Customer-Supplier | 用户消息写入 |
 | **Observability ← Conversation** | Open Host | 订阅 `conversation.*` / `identity.*` 事件 |
 
-**关键约束**：Conversation BC **不直接调用** 任何外部 IM / 渠道 SDK / API。v2 vendor 集成全部撤回（per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）。
+**关键约束**：Conversation BC **不直接调用** 任何外部 IM / 渠道 SDK / API。v2 vendor 集成全部撤回（per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)）。
 
 完整 context map 见 [strategic/03-bounded-contexts § 3](../../strategic/03-bounded-contexts.md)。
 
@@ -344,13 +344,13 @@ Conversation BC 写入 Message + emit conversation.message_added
 ### 相关 ADR
 
 - [ADR-0007 引入 Conversation 层](../../../decisions/0007-conversation-as-unified-session.md)（Refined by 0039）
-- [ADR-0031 v2 撤回 Bridge / vendor 集成](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)
-- [ADR-0032 channel 升业务一等公民](../../../decisions/drafts/0032-conversation-channel-as-first-class.md)
-- [ADR-0033 Identity 模型重构（3 kind: user / agent / system）](../../../decisions/drafts/0033-identity-model-refactor.md)
-- [ADR-0034 Conversation participants 字段](../../../decisions/drafts/0034-conversation-participants-field.md)
-- [ADR-0035 跨 conversation 消息 carry-over](../../../decisions/drafts/0035-cross-conversation-message-carryover.md)
-- [ADR-0036 Issue / Task 从 Message 派生](../../../decisions/drafts/0036-derive-issue-task-from-messages.md)
-- [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)（supersedes ADR-0017 / 0021 / 0022，已删）
+- [ADR-0031 v2 撤回 Bridge / vendor 集成](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)
+- [ADR-0032 channel 升业务一等公民](../../../decisions/0032-conversation-channel-as-first-class.md)
+- [ADR-0033 Identity 模型重构（3 kind: user / agent / system）](../../../decisions/0033-identity-model-refactor.md)
+- [ADR-0034 Conversation participants 字段](../../../decisions/0034-conversation-participants-field.md)
+- [ADR-0035 跨 conversation 消息 carry-over](../../../decisions/0035-cross-conversation-message-carryover.md)
+- [ADR-0036 Issue / Task 从 Message 派生](../../../decisions/0036-derive-issue-task-from-messages.md)
+- [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md)（supersedes ADR-0017 / 0021 / 0022，已删）
 - [ADR-0014 事件溯源走 L1](../../../decisions/0014-event-sourcing-level.md)（同事务双写原则）
 
 ### 战略层

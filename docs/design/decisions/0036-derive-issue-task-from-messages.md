@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 § 3.6 + F2 + P11 SPA F9 — `c97a1ca` (MessageDerivationService CV4), `da9fa2d` (derive CLI), `8c57dde` (derive UI) |
 | Related | v2 议题 CV4；CV3 [ADR-0035](0035-cross-conversation-message-carryover.md) 的**写路径** —— CV3 定 carry-over 数据模型，CV4 定怎么用户触发派生 + 建立 carry-over references |
 
 ## Context

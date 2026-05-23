@@ -3,7 +3,7 @@
 > DDD Conversation BC 大重写 + 删 v1 Bridge BC + Discussion / TaskRuntime 跟 Conversation 关系同步 · 依赖 Phase 8 · 解锁 Phase 11
 > 纪律：按里程碑顺序 / 模块完备不半成品 / TDD + 单测 ≥ 90% + 集成 + e2e + 测试报告
 
-覆盖 ADR：[ADR-0031 v2 Drop Bridge](../design/decisions/drafts/0031-v2-drop-bridge-vendor-integration.md) · [ADR-0032 CV1 Channel](../design/decisions/drafts/0032-conversation-channel-as-first-class.md) · [ADR-0033 Identity refactor](../design/decisions/drafts/0033-identity-model-refactor.md) · [ADR-0034 Participants 字段](../design/decisions/drafts/0034-conversation-participants-field.md) · [ADR-0035 Carry-over](../design/decisions/drafts/0035-cross-conversation-message-carryover.md) · [ADR-0036 派生入口](../design/decisions/drafts/0036-derive-issue-task-from-messages.md) · [ADR-0039 Conversation 业务模型 v2 统一](../design/decisions/drafts/0039-conversation-business-model-v2-unified.md)（supersedes 0017/0021/0022）
+覆盖 ADR：[ADR-0031 v2 Drop Bridge](../design/decisions/0031-v2-drop-bridge-vendor-integration.md) · [ADR-0032 CV1 Channel](../design/decisions/0032-conversation-channel-as-first-class.md) · [ADR-0033 Identity refactor](../design/decisions/0033-identity-model-refactor.md) · [ADR-0034 Participants 字段](../design/decisions/0034-conversation-participants-field.md) · [ADR-0035 Carry-over](../design/decisions/0035-cross-conversation-message-carryover.md) · [ADR-0036 派生入口](../design/decisions/0036-derive-issue-task-from-messages.md) · [ADR-0039 Conversation 业务模型 v2 统一](../design/decisions/0039-conversation-business-model-v2-unified.md)（supersedes 0017/0021/0022）
 
 ## § 0. 目标
 

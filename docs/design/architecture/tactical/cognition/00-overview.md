@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
 
 # Cognition BC — DDD 战术设计 Overview
 
@@ -50,7 +50,7 @@
 
 | 聚合 | 文件 | 状态机 | 身份 / 不变性 |
 |---|---|---|---|
-| **SupervisorInvocation** | [01-supervisor-invocation.md](01-supervisor-invocation.md) | 4 态（running / succeeded / failed / timed_out） | ULID/UUID = `--session-id` 实参；身份不变；持 `agent_instance_id` 强引用 built-in supervisor AgentInstance（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）|
+| **SupervisorInvocation** | [01-supervisor-invocation.md](01-supervisor-invocation.md) | 4 态（running / succeeded / failed / timed_out） | ULID/UUID = `--session-id` 实参；身份不变；持 `agent_instance_id` 强引用 built-in supervisor AgentInstance（[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）|
 | **Memory** | [02-memory.md](02-memory.md) | 无状态机（CLAUDE.md 文件 + git commit 历史承担演进）| 由文件路径定位：`$MEMORY_DIR/{scope_path}/CLAUDE.md`；7 种 scope |
 
 ### 1.2 Entity（子从属）
@@ -89,7 +89,7 @@
 4. **同 scope_key 任意时刻最多 1 个 running invocation**（[ADR-0013](../../../decisions/0013-supervisor-invocation-concurrency.md)）
 5. **`supervisor.*` 事件不进 wake 白名单**（反循环）
 6. **HOME 隔离**：spawn claude 必显式 `HOME` / `CLAUDE_CONFIG_DIR`，禁污染用户私人配置
-7. **Supervisor 是 built-in AgentInstance**：所有 SupervisorInvocation 都引用同一 built-in AgentInstance (name='supervisor', is_builtin=true)；用户管理通过 `agent show supervisor` / `agent config set supervisor ...`（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）
+7. **Supervisor 是 built-in AgentInstance**：所有 SupervisorInvocation 都引用同一 built-in AgentInstance (name='supervisor', is_builtin=true)；用户管理通过 `agent show supervisor` / `agent config set supervisor ...`（[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）
 
 ---
 
@@ -341,7 +341,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 ### 7.4 Prompt 组装边界
 
-**Supervisor prompt 构成**（含 [ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md) supervisor as built-in AgentInstance 后扩展）：
+**Supervisor prompt 构成**（含 [ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md) supervisor as built-in AgentInstance 后扩展）：
 
 ```
 (a) supervisor.md skill                    ← bundled with binary
@@ -356,7 +356,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 ### 7.5 派单失败时的 Supervisor 标准 SOP
 
-> 来源：[ADR-0025 agent:create 协议 = G1 CLI Endpoint](../../../decisions/drafts/0025-agent-create-via-cli-not-protocol.md)
+> 来源：[ADR-0025 agent:create 协议 = G1 CLI Endpoint](../../../decisions/0025-agent-create-via-cli-not-protocol.md)
 
 派单 NACK 含跟 AgentInstance 相关的 reason（[task-runtime/00-overview § 3.1](../task-runtime/00-overview.md) + [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md)）：
 
@@ -436,7 +436,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 - [conversation/00-overview.md](../conversation/00-overview.md) — conversation.message_added 唤醒事件
 - [observability/00-overview.md](../observability/00-overview.md) — events 表 + `inspect supervisor` 查询接口
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — Worker-side prompt 组装（跟本 BC 独立）
-- ~~[bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — 失败 invocation 推飞书提醒人工 retrigger~~ (v2 删 per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))
+- ~~[bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — 失败 invocation 推飞书提醒人工 retrigger~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 
 ### 横切方法论
 

@@ -2,7 +2,7 @@
 
 > **DDD 战术层** · BC: Workforce · 聚合: AgentInstance（独立 AR）
 >
-> 设计依据：[ADR-0024 AgentInstance 一等公民化](../../../decisions/drafts/0024-agent-instance-first-class.md)
+> 设计依据：[ADR-0024 AgentInstance 一等公民化](../../../decisions/0024-agent-instance-first-class.md)
 
 AgentInstance 把「agent」从 v1 的隐式概念（仅 `TaskExecution.agent_kind` 类型枚举）升级为**持久身份 + 配置 + 状态机**的一等公民。
 
@@ -66,7 +66,7 @@ CHECK (
 
 ### 2.1 Built-in AgentInstance（v2 新增）
 
-> 详见 [ADR-0029 Supervisor as Built-in AgentInstance](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)
+> 详见 [ADR-0029 Supervisor as Built-in AgentInstance](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)
 
 v2 默认有一个 built-in：
 
@@ -86,7 +86,7 @@ v2 默认有一个 built-in：
 | 字段 | 计算 |
 |---|---|
 | `home_dir`（worker AgentInstance）| `~/.agent-center-worker/agents/<id>/`（worker 机本地约定路径）|
-| `home_dir`（built-in supervisor，[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）| `~/.agent-center/agents/<name>/`（center 机；用 `name` 而非 `id` 保证稳定可读）|
+| `home_dir`（built-in supervisor，[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）| `~/.agent-center/agents/<name>/`（center 机；用 `name` 而非 `id` 保证稳定可读）|
 | `current_executions_count`（worker）| `SELECT count(*) FROM task_executions WHERE agent_instance_id=? AND status IN ('submitted','working','input_required')` |
 | `current_executions_count`（built-in supervisor）| `SELECT count(*) FROM supervisor_invocations WHERE agent_instance_id=? AND exit_status IS NULL`（活跃 invocations）|
 
@@ -108,7 +108,7 @@ Worker AgentInstance（worker 机）：
    └─ notes/                   # 用户随意；agent 进程在 execution 期间只读
 ```
 
-Built-in supervisor AgentInstance（center 机，[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）：
+Built-in supervisor AgentInstance（center 机，[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）：
 
 ```
 ~/.agent-center/agents/supervisor/
@@ -122,7 +122,7 @@ Built-in supervisor AgentInstance（center 机，[ADR-0029](../../../decisions/d
 
 > Worker daemon 跟 center supervisor 进程都按同样的 home_dir 结构装载 skill / instructions / mcp_config。
 
-详见 [ADR-0027 MCP per-agent 注入](../../../decisions/drafts/0027-mcp-per-agent-injection.md) + [ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md) + [ADR-0028 Skill File Mount](../../../decisions/drafts/0028-skill-file-mount-lite.md)。
+详见 [ADR-0027 MCP per-agent 注入](../../../decisions/0027-mcp-per-agent-injection.md) + [ADR-0026 SecretManagement BC](../../../decisions/0026-user-secret-management-bc.md) + [ADR-0028 Skill File Mount](../../../decisions/0028-skill-file-mount-lite.md)。
 
 ### 3.2 写权限约束
 
@@ -197,7 +197,7 @@ dispatch (task → agent_instance_id) {
 | `agent-center agent list [--worker=<id>] [--state=<s>] [--builtin=<bool>]` | 列；built-in 行标 `[built-in]` |
 | `agent-center agent show <name>` | 详情（含 current_executions_count + home_dir 路径 + attached skills 扫 home_dir/skills/）|
 | `agent-center agent config set <name> <key>=<value>` | 改 config / max_concurrent；built-in 同样允许 |
-| `agent-center agent archive <name>` | 软删（要求 state=idle；active 时拒绝；**built-in 直接拒绝**，[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）|
+| `agent-center agent archive <name>` | 软删（要求 state=idle；active 时拒绝；**built-in 直接拒绝**，[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）|
 
 > **创建命令的同机要求**：v2 默认 center 同机 / 远程均可（CLI 走 admin endpoint）。G2 `agent:create` 飞书卡片协议是基于此 endpoint 的 UX 包装。
 
@@ -206,13 +206,13 @@ dispatch (task → agent_instance_id) {
 ## § 7. AgentInstance Invariants
 
 1. **name 全局唯一**（v2 单租户；UNIQUE INDEX 强制；冲突时 create 返回 ErrAgentInstanceNameTaken）
-2. **worker_id 不可变**（v2 范围；改 worker = 走 archive + 新建流程；E2 / v3 加迁移路径）—— built-in 的 worker_id=NULL 同样不可变（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）
+2. **worker_id 不可变**（v2 范围；改 worker = 走 archive + 新建流程；E2 / v3 加迁移路径）—— built-in 的 worker_id=NULL 同样不可变（[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）
 3. **archived 终态不可逆**
 4. **state 跟 worker 联动**（详 § 5；仅 worker AgentInstance；built-in supervisor 的 sleeping 由 center 进程 lifecycle 决定）
 5. **home_dir 在 execution 期间对 agent 进程只读**（应用层约束；agent 想沉淀经验走 supervisor memory [ADR-0012](../../../decisions/0012-memory-file-based.md) 或 task artifact 渠道）
 6. **archived 禁止 active / sleeping**：必须先 idle 才能 archive
 7. **max_concurrent ≥ 1**（如设值；null 表"不另设"）
-8. **is_builtin=true 时 archived 拒绝**（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）：built-in 是系统 provisioned，不允许 archive
+8. **is_builtin=true 时 archived 拒绝**（[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）：built-in 是系统 provisioned，不允许 archive
 9. **is_builtin 字段创建后冻结**：不允许 user 升级 / 降级
 10. **CHECK constraint**：`(is_builtin=false AND worker_id IS NOT NULL) OR (is_builtin=true AND worker_id IS NULL)`
 
@@ -255,9 +255,9 @@ dispatch (task → agent_instance_id) {
 
 ## § 11. References
 
-- [ADR-0024 AgentInstance 一等公民化](../../../decisions/drafts/0024-agent-instance-first-class.md)
-- [ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md)（config.mcp_config 内嵌 SecretRef）
-- [ADR-0027 MCP per-agent 注入](../../../decisions/drafts/0027-mcp-per-agent-injection.md)（config.mcp_config schema）
+- [ADR-0024 AgentInstance 一等公民化](../../../decisions/0024-agent-instance-first-class.md)
+- [ADR-0026 SecretManagement BC](../../../decisions/0026-user-secret-management-bc.md)（config.mcp_config 内嵌 SecretRef）
+- [ADR-0027 MCP per-agent 注入](../../../decisions/0027-mcp-per-agent-injection.md)（config.mcp_config schema）
 - [00-overview.md](00-overview.md) — BC 入口（含 AgentInstanceRepository / Domain Services）
 - [01-worker.md](01-worker.md) — Worker AR（capabilities 字段 + agent 状态联动）
 - [task-runtime/02-task-execution.md § 5](../task-runtime/02-task-execution.md) — TaskExecution.agent_instance_id 字段 + DispatchEnvelope v2 schema

@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P9 § 3.9 — `80e5c89` (supervisor.md skill file mount; assets/skills/supervisor.md) |
 | Related | v2 议题 G5（[v2-kickoff-2026-05-22 § Group 2 G5](../../drafts/v2-kickoff-2026-05-22.md)）；建立于 [ADR-0024 AgentInstance 一等公民化](0024-agent-instance-first-class.md)（home_dir）之上；跟 [ADR-0029 Supervisor as Built-in AgentInstance](0029-supervisor-as-builtin-agent-instance.md) 协同 |
 
 ## Context

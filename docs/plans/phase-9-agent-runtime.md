@@ -3,7 +3,7 @@
 > DDD TaskRuntime + Workforce (agent_cli adapter) · 依赖 Phase 8 · 解锁 Phase 11
 > 纪律：按里程碑顺序 / 模块完备不半成品 / TDD + 单测 ≥ 90% + 集成 + e2e + 测试报告
 
-覆盖 ADR：[ADR-0025 agent:create](../design/decisions/drafts/0025-agent-create-via-cli-not-protocol.md) · [ADR-0027 MCP per-agent 注入](../design/decisions/drafts/0027-mcp-per-agent-injection.md) · [ADR-0028 Skill File Mount](../design/decisions/drafts/0028-skill-file-mount-lite.md) · [ADR-0030 AgentAdapter 矩阵扩展](../design/decisions/drafts/0030-agentadapter-matrix-expansion.md)
+覆盖 ADR：[ADR-0025 agent:create](../design/decisions/0025-agent-create-via-cli-not-protocol.md) · [ADR-0027 MCP per-agent 注入](../design/decisions/0027-mcp-per-agent-injection.md) · [ADR-0028 Skill File Mount](../design/decisions/0028-skill-file-mount-lite.md) · [ADR-0030 AgentAdapter 矩阵扩展](../design/decisions/0030-agentadapter-matrix-expansion.md)
 
 ## § 0. 目标
 

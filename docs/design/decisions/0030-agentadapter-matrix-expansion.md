@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P9 § 3.3-3.6 — `009a6e6` (AgentAdapter v2 interface + claudecode / codex / opencode impls) |
 | Related | v2 议题 G3（[v2-kickoff-2026-05-22 § Group 2 G3](../../drafts/v2-kickoff-2026-05-22.md)）；建立于 [implementation/05-agent-adapters](../../implementation/05-agent-adapters.md) v1 设计之上；接收 [ADR-0027 MCP per-agent](0027-mcp-per-agent-injection.md) + [ADR-0028 Skill File Mount](0028-skill-file-mount-lite.md) 注入到 adapter 层的职责 |
 
 ## Context

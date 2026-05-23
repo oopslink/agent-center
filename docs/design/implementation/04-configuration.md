@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
 
 # 配置文件 schema
 
@@ -196,7 +196,7 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| ~~`notification.default_channel`~~ | ~~string~~ | ~~-~~ | ~~[ADR-0017 § 10.5](../decisions/drafts/0039-conversation-business-model-v2-unified.md)~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~InputRequest fallback 渠道（如 `feishu:user:hayang:dm`）~~ (v2 删 per ADR-0031) |
+| ~~`notification.default_channel`~~ | ~~string~~ | ~~-~~ | ~~[ADR-0017 § 10.5](../decisions/0039-conversation-business-model-v2-unified.md)~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~InputRequest fallback 渠道（如 `feishu:user:hayang:dm`）~~ (v2 删 per ADR-0031) |
 
 ### 7.5 ~~`bridge.*`~~ (v2 删 per ADR-0031)
 
@@ -223,15 +223,15 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 
 ### 7.7 `worker_config.*`（worker mode 专用，v2 identity-only + 本地基础设施）
 
-> v2: `concurrency.*` / `discovery.*` / `agent_cli`（capabilities）已从 worker.yaml 迁到 **Worker AR 在 center DB 的字段**（[ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md)）；worker daemon online 时通过 reconcile 拉取，`worker.config.updated` 长连推送同步变更。worker.yaml 只剩 identity + 本机文件系统 / 进程基础设施配置。
+> v2: `concurrency.*` / `discovery.*` / `agent_cli`（capabilities）已从 worker.yaml 迁到 **Worker AR 在 center DB 的字段**（[ADR-0023](../decisions/0023-worker-enroll-lightweight.md)）；worker daemon online 时通过 reconcile 拉取，`worker.config.updated` 长连推送同步变更。worker.yaml 只剩 identity + 本机文件系统 / 进程基础设施配置。
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
 | `worker_config.id` | string | - | [workforce/01](../architecture/tactical/workforce/01-worker.md) | worker 唯一 ID（`agent-center join --worker-id=...` 指定）|
 | `worker_config.center_endpoint` | URL | - | 同上 | center gRPC / HTTP 地址 |
-| `worker_config.session_token_file` | path | `~/.agent-center/credentials` | [ADR-0023](../decisions/drafts/0023-worker-enroll-lightweight.md) | session token 落盘位置（mode 0600）；`agent-center join` 兑换后写入 |
+| `worker_config.session_token_file` | path | `~/.agent-center/credentials` | [ADR-0023](../decisions/0023-worker-enroll-lightweight.md) | session token 落盘位置（mode 0600）；`agent-center join` 兑换后写入 |
 | `worker_config.exec_base_dir` | path | `~/.agent-center-worker/exec` | [ADR-0018 § 3](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 root |
-| `worker_config.agents_base_dir` | path | `~/.agent-center-worker/agents` | [ADR-0024 § 5](../decisions/drafts/0024-agent-instance-first-class.md) | AgentInstance 持久 home_dir 根（每个 agent 一个子目录 `<agent_instance_id>/`）；含 instructions.md / mcp_config.json / skills/ ([ADR-0028](../decisions/drafts/0028-skill-file-mount-lite.md)) / notes/ |
+| `worker_config.agents_base_dir` | path | `~/.agent-center-worker/agents` | [ADR-0024 § 5](../decisions/0024-agent-instance-first-class.md) | AgentInstance 持久 home_dir 根（每个 agent 一个子目录 `<agent_instance_id>/`）；含 instructions.md / mcp_config.json / skills/ ([ADR-0028](../decisions/0028-skill-file-mount-lite.md)) / notes/ |
 | `worker_config.gc_exec_retention_hours` | int | 24 | [ADR-0018 § 9](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 GC |
 | `worker_config.heartbeat_interval_seconds` | int | 10 | [task-runtime § 3.3](../architecture/tactical/task-runtime/00-overview.md) | 心跳频次（worker 端）|
 | `worker_config.heartbeat_timeout_seconds` | int | 60 | 同上 | center 端 worker offline 阈值（注：center 配置项，仅作参考列在此处） |
@@ -251,18 +251,18 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `observability.ps_watch_interval_seconds` | int | 1 | observability § 7.1 | `ps --watch` 刷新间隔 |
 | `observability.peek_trace_buffer_lines` | int | 200 | [ADR-0015 § 4](../decisions/0015-agent-trace-not-in-events-table.md) | peek-trace 默认窗口 |
 
-### 7.9 `secret_management.*`（[ADR-0026](../decisions/drafts/0026-user-secret-management-bc.md)）
+### 7.9 `secret_management.*`（[ADR-0026](../decisions/0026-user-secret-management-bc.md)）
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| `secret_management.master_key_file` | path | - | [ADR-0026 § 4](../decisions/drafts/0026-user-secret-management-bc.md) | AES-GCM master key（32 bytes base64）文件路径；mode 0600；center 进程启动加载；**不入 DB / 不入 event** |
+| `secret_management.master_key_file` | path | - | [ADR-0026 § 4](../decisions/0026-user-secret-management-bc.md) | AES-GCM master key（32 bytes base64）文件路径；mode 0600；center 进程启动加载；**不入 DB / 不入 event** |
 | `secret_management.audit_retention_days` | int | 365 | 同上 | `user_secret.*` 事件保留（沿用 events 表，**事件不含明文**）|
 
-### 7.10 `server.*`（center 进程 + built-in supervisor，[ADR-0029](../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）
+### 7.10 `server.*`（center 进程 + built-in supervisor，[ADR-0029](../decisions/0029-supervisor-as-builtin-agent-instance.md)）
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| `server.builtin_agents_base_dir` | path | `~/.agent-center/agents` | [ADR-0029 § 3](../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md) | built-in AgentInstance 持久 home_dir 根（center 机；v2 仅 supervisor 一个，路径 `~/.agent-center/agents/supervisor/`）|
+| `server.builtin_agents_base_dir` | path | `~/.agent-center/agents` | [ADR-0029 § 3](../decisions/0029-supervisor-as-builtin-agent-instance.md) | built-in AgentInstance 持久 home_dir 根（center 机；v2 仅 supervisor 一个，路径 `~/.agent-center/agents/supervisor/`）|
 | `server.supervisor_agent_cli` | enum | `claude-code` | 同上 | built-in supervisor 用的 agent CLI；可通过部署配置改 |
 
 
@@ -368,7 +368,7 @@ blob_store:
 | [ADR-0011 Dispatch reliability](../decisions/0011-dispatch-reliability-protocol.md) | `execution.dispatch_ack_timeout_seconds` |
 | [ADR-0013 Supervisor 并发](../decisions/0013-supervisor-invocation-concurrency.md) | `supervisor.*` |
 | [ADR-0015 trace 不进 events 表](../decisions/0015-agent-trace-not-in-events-table.md) | `observability.peek_trace_buffer_lines` |
-| ~~[ADR-0017 Task ↔ Conversation](../decisions/drafts/0039-conversation-business-model-v2-unified.md) § 10.5~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~`notification.default_channel`~~ (v2 删 per ADR-0031) |
+| ~~[ADR-0017 Task ↔ Conversation](../decisions/0039-conversation-business-model-v2-unified.md) § 10.5~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~`notification.default_channel`~~ (v2 删 per ADR-0031) |
 | [ADR-0018 Per-execution shim](../decisions/0018-detached-agent-via-per-execution-shim.md) | `execution.shim_*` / `worker_config.exec_base_dir` / `gc_exec_retention_hours` |
 | [NF1 零 LLM SDK](../requirements/02-non-functional.md) | 整个 config 不含任何 LLM SDK key |
 | [NF6 并发 capacity](../requirements/02-non-functional.md) | `worker_config.concurrency.per_agent_type` |

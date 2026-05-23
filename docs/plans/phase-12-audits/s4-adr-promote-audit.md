@@ -130,4 +130,83 @@ batch.
 
 ## § 8. Execution log
 
-To be appended by the promote commit.
+### 8.1 Audit commit
+`1e70a08 docs(p12 S4) v2 ADR promote audit + evidence trail` — this
+file as initially drafted (§ 0-7).
+
+### 8.2 Promote commit
+- `scripts/promote-v2-adrs.sh` — Python-in-Bash script. Idempotent
+  Status table transform (flips `Status: Draft → Accepted`, updates
+  Date, inserts `Delivered` row from the evidence map embedded in the
+  script). `--dry-run` mode supported.
+- 17 ADR files `git mv`d from `docs/design/decisions/drafts/` →
+  `docs/design/decisions/`.
+- 43 docs / plan / convention files updated via Python sed
+  (`decisions/drafts/00NN-` → `decisions/00NN-`).
+- `docs/design/decisions/README.md` updated: 17 link paths flipped,
+  all 17 statuses set to Accepted (matches the in-file Status table),
+  rule-note paragraph appended explaining the drafts/ flow is closed.
+- `docs/design/drafts/v2-kickoff-2026-05-22.md` updated: the archive
+  doc's ADR-link table flipped to new paths + a "Path migration note
+  (2026-05-24)" header explaining the doc preserves the *archive-time
+  status text* (Draft) while the links resolve to the *current*
+  promoted files. The archive's historical narrative survives; dead
+  links don't.
+
+### 8.3 Bug caught during promote: lint allowlist held a regression
+
+After running the promote script, `make lint-vendor` failed:
+`scripts/lint/test-no-vendor-refs.sh` contains literal `feishu`
+strings in its heredocs (the deliberate injections the self-test
+asserts the lint catches). The S3 commit `d6eae3f` added this file
+but never re-ran `make lint-vendor` standalone — I verified the
+self-test (which exited green by re-running the lint *after*
+cleanup) and conflated that with `make lint-vendor` passing on the
+self-test script's own content. The lint was silently failing for
+two commits (`d6eae3f` and `1e70a08`) before this S4 run surfaced it.
+
+Fix in this commit:
+
+```diff
+-^scripts/lint/no-vendor-refs\.(sh|allowlist)
++^scripts/lint/no-vendor-refs\.(sh|allowlist)
++^scripts/lint/test-no-vendor-refs\.sh
+```
+
+Explicit per-file, **not** a `^scripts/lint/` wildcard — a wildcard
+would whitelist `scripts/lint/.selftest/sample.go` and friends, which
+would silently break the self-test's positive-fail assertion.
+
+The promote script also gets an allowlist line for the same reason
+(ADR-0031 evidence string names "Bridge BC").
+
+The self-test's `git add -N` also needed `-f` because the
+`.selftest/` dir is `.gitignore`d (per S3 defensive practice). Now:
+`git add -fN ...` bypasses the ignore for staging visibility only.
+
+**Lesson**: post-commit lint sweep is mandatory after editing the
+lint script itself. S5+ will run `make lint-vendor` + `make
+lint-vendor-selftest` as the final verification before each commit.
+
+### 8.4 Verification
+
+```
+$ make lint-vendor          # clean (all hits whitelisted)
+$ make lint-vendor-selftest # phase A + B both OK
+$ go test ./...             # green
+$ go vet ./...              # clean
+$ grep -RIln 'decisions/drafts/0' docs/ internal/ cmd/ web/ assets/ contrib/ scripts/ Makefile
+   docs/plans/phase-12-audits/s4-adr-promote-audit.md   (this audit doc — intentional self-reference)
+   scripts/promote-v2-adrs.sh                            (the script that performed the move)
+```
+
+Zero broken cross-references in active docs; the two remaining hits
+are the scaffolding that documents what was done.
+
+### 8.5 What S5 inherits
+
+`decisions/README.md` already has the 17 promoted entries with new
+paths + Accepted status. S5's README work is mostly housekeeping:
+double-check the rule-note appendix is right, verify the table sort
+order, and ensure no stray status notes still say "Draft" anywhere
+else in the file.

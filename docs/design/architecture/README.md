@@ -70,7 +70,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 | 01 | [Worker 聚合 + BootstrapToken + WorkerProjectMapping 子从属](tactical/workforce/01-worker.md) | Draft |
 | 02 | [Project 聚合](tactical/workforce/02-project.md) | Draft |
 | 03 | [WorkerProjectProposal 聚合](tactical/workforce/03-worker-project-proposal.md) | Draft |
-| 04 | [AgentInstance 聚合](tactical/workforce/04-agent-instance.md)（[ADR-0024](../decisions/drafts/0024-agent-instance-first-class.md)）| Draft |
+| 04 | [AgentInstance 聚合](tactical/workforce/04-agent-instance.md)（[ADR-0024](../decisions/0024-agent-instance-first-class.md)）| Draft |
 
 ### Cognition（认知 / Supervisor）— BC4
 
@@ -96,7 +96,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 
 ### ~~Bridge（渠道桥接）— BC7~~
 
-> **v2 已撤回**（per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）；vendor 接入 v3+ 重新设计（[roadmap.md](../roadmap.md) v3+ AgentImage / Bridge 重设计条）。
+> **v2 已撤回**（per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md)）；vendor 接入 v3+ 重新设计（[roadmap.md](../roadmap.md) v3+ AgentImage / Bridge 重设计条）。
 
 ### SecretManagement（用户密钥管理）— BC8
 

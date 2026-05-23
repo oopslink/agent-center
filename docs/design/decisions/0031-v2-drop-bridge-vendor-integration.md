@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted（用户 2026-05-22 拍板） |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 § 3.9 — `91a2d40` (delete Bridge BC code). P10 F6 — `7cf72fb` (drop v1 bridge tables migration 0025). P12 S1 — `44b298a` (v1 vendor cleanup) + `d8a2d26` (lint guard). |
 | Related | **Meta scope decision**，影响 Bridge BC7 + ADR-0009 / 0017 / 0020 / 0021 / 0022 + Phase 5 / 7 plans + F1 等 vendor 依赖 requirements；为后续 v2 Conversation 模型重设计（CV1-CV4）+ Web Console 升级（W1-W2）扫清污染 |
 
 ## Context

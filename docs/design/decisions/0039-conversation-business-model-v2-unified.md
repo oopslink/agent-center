@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted（v2 设计阶段闭环后；2026-05-23）|
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 unified docs effort — supersedes ADR-0017/0021/0022; backed by the CV1-CV4 sequence in 0032/0033/0034/0035/0036. |
 | Supersedes | ~~ADR-0017 Task as Conversation~~ / ~~ADR-0021 Issue as Conversation~~ / ~~ADR-0022 Conversation 不对齐 IM 层级~~ —— v2 「删干净」(2026-05-23) 决定这 3 个 ADR 全删；本 ADR 直接承载 v2 Conversation 业务模型，无 v1 前置参考 |
 | Related | 建立于 [ADR-0031 v2 Drop Bridge](0031-v2-drop-bridge-vendor-integration.md) + CV1-CV4（[ADR-0032](0032-conversation-channel-as-first-class.md) / [ADR-0033](0033-identity-model-refactor.md) / [ADR-0034](0034-conversation-participants-field.md) / [ADR-0035](0035-cross-conversation-message-carryover.md) / [ADR-0036](0036-derive-issue-task-from-messages.md)）+ W1 / W2（[ADR-0037](0037-web-console-as-main-user-ui.md) / [ADR-0038](0038-cli-ux-enhancement.md)）|
 

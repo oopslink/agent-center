@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
 
 # Skill + CLI 工具链
 
@@ -33,11 +33,11 @@ agent-center 给 agent（supervisor 与 worker-agent）暴露能力的方式：*
 
 | 命令 | 用途 |
 |---|---|
-| `conversation add-message` | 往指定 Conversation 写入一条 Message（内部存储；~~Bridge 自动外发~~ — v2 删 Bridge per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)） |
-| `issue comment` | 往指定 Issue 写入一条 IssueComment（结构化；~~如 Issue 有 bound card，Bridge 自动外发到 bound thread~~ — v2 删 Bridge per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)） |
-| `issue bind-conversation` | 懒创建路径触发：把没有 Conversation 的 Issue 关联到一个 Conversation（[ADR-0021](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)；删除原 unbind/rebind 系列） |
+| `conversation add-message` | 往指定 Conversation 写入一条 Message（内部存储；~~Bridge 自动外发~~ — v2 删 Bridge per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)） |
+| `issue comment` | 往指定 Issue 写入一条 IssueComment（结构化；~~如 Issue 有 bound card，Bridge 自动外发到 bound thread~~ — v2 删 Bridge per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)） |
+| `issue bind-conversation` | 懒创建路径触发：把没有 Conversation 的 Issue 关联到一个 Conversation（[ADR-0021](../../../decisions/0039-conversation-business-model-v2-unified.md)；删除原 unbind/rebind 系列） |
 | `issue link-conversation` | 手动把某 conversation 关联到 issue（写入 `issue.related_conversation_ids`） |
-| `escalate-input-request` | ~~InputRequest 升级到飞书~~ → v2: InputRequest 升级路径待 P11 重设计 (vendor 集成撤回 per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)) |
+| `escalate-input-request` | ~~InputRequest 升级到飞书~~ → v2: InputRequest 升级路径待 P11 重设计 (vendor 集成撤回 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 | `record-decision` | 写 working memory |
 
 ### Worker 内 agent 专用（通过 worker daemon 中转）
@@ -56,7 +56,7 @@ agent-center 给 agent（supervisor 与 worker-agent）暴露能力的方式：*
 | `server` | VPS 上的常驻 |
 | `supervisor` | （内部）事件触发的一次性 supervisor 进程 |
 | `worker --config=...` | Worker daemon |
-| ~~`feishu setup`~~ | ~~一键创建应用流程~~ (v2 删 vendor 集成 per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)) |
+| ~~`feishu setup`~~ | ~~一键创建应用流程~~ (v2 删 vendor 集成 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 | `worker enroll` | 签发 worker bootstrap token |
 | `worker proposal list [--worker=...] [--status=...]` | 列 WorkerProjectProposal |
 | `worker proposal unignore <id>` | 取消之前的"忽略"，让下次扫到再次提议 |

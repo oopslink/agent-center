@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
 
 # 部署 / systemd / 升级
 

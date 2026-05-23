@@ -2,7 +2,7 @@
 
 > **DDD 战术层** · BC: SecretManagement · 聚合: UserSecret（独立 AR）
 >
-> 设计依据：[ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md)
+> 设计依据：[ADR-0026 SecretManagement BC](../../../decisions/0026-user-secret-management-bc.md)
 
 UserSecret 是用户密钥的持久身份 + 加密载体。**仅管理用户密钥**（user-domain secrets，如 MCP 用的 GitHub PAT / DB password / 云凭据等）；**不管系统内部凭证**（BootstrapToken / session_token / 飞书 app_secret / S3 access key）—— 后者各自 BC 自管。
 
@@ -287,8 +287,8 @@ Enter new value: ****
 
 ## § 11. References
 
-- [ADR-0026 SecretManagement BC](../../../decisions/drafts/0026-user-secret-management-bc.md)
-- [ADR-0027 MCP per-agent 注入](../../../decisions/drafts/0027-mcp-per-agent-injection.md)
+- [ADR-0026 SecretManagement BC](../../../decisions/0026-user-secret-management-bc.md)
+- [ADR-0027 MCP per-agent 注入](../../../decisions/0027-mcp-per-agent-injection.md)
 - [00-overview.md](00-overview.md) — BC 入口
 - [workforce/04-agent-instance.md](../workforce/04-agent-instance.md) — AgentInstance.config.mcp_config 字段
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — worker daemon 注入流程

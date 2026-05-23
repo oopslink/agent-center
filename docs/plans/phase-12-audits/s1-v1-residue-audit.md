@@ -119,7 +119,7 @@ These hits are **kept intentionally**:
 
 | Location | Reason |
 |---|---|
-| ADR-0031 `decisions/drafts/0031-v2-drop-bridge-vendor-integration.md` | This IS the ADR documenting the drop |
+| ADR-0031 `decisions/0031-v2-drop-bridge-vendor-integration.md` | This IS the ADR documenting the drop |
 | ADR-0007 `decisions/0007-conversation-as-unified-session.md` | v1 ADR with v2 superseded-by banner |
 | ADR-0013 `decisions/0013-supervisor-invocation-concurrency.md` | historical reference |
 | ADR-0016 `decisions/0016-task-progress-via-bound-thread.md` | v1 ADR with v2 superseded-by banner |
@@ -127,7 +127,7 @@ These hits are **kept intentionally**:
 | `internal/cli/build.go:163` + `internal/cli/handlers_system.go:91` comments | Explain current state via historical reason |
 | `docs/release/v2.0-draft.md` | v2 release notes explicitly list dropped vendor terms in breaking-changes section |
 | Plan / report docs (`docs/plans/phase-10-*.md`, `phase-12-*.md`, `reports/phase-10-test-report.md`) | Documentation of completed / planned work |
-| `docs/design/decisions/drafts/0031-v2-drop-bridge-vendor-integration.md` | The decision record itself |
+| `docs/design/decisions/0031-v2-drop-bridge-vendor-integration.md` | The decision record itself |
 | `docs/drafts/*.md` (session checkpoints) | Historical session notes; not active spec |
 | All migration `.sql` files | Immutable history |
 

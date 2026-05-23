@@ -3,7 +3,7 @@
 > DDD Workforce BC 扩 + 新 SecretManagement BC · 依赖 v1 Phase 1-6 · 解锁 Phase 9 / 10
 > 纪律：按里程碑顺序 / 模块完备不半成品 / TDD + 单测 ≥ 90% + 集成 + e2e + 测试报告
 
-覆盖 ADR：[ADR-0023 Worker Enroll 轻量化](../design/decisions/drafts/0023-worker-enroll-lightweight.md) · [ADR-0024 AgentInstance 一等公民化](../design/decisions/drafts/0024-agent-instance-first-class.md) · [ADR-0026 SecretManagement BC](../design/decisions/drafts/0026-user-secret-management-bc.md) · [ADR-0029 Supervisor as Built-in AgentInstance](../design/decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)
+覆盖 ADR：[ADR-0023 Worker Enroll 轻量化](../design/decisions/0023-worker-enroll-lightweight.md) · [ADR-0024 AgentInstance 一等公民化](../design/decisions/0024-agent-instance-first-class.md) · [ADR-0026 SecretManagement BC](../design/decisions/0026-user-secret-management-bc.md) · [ADR-0029 Supervisor as Built-in AgentInstance](../design/decisions/0029-supervisor-as-builtin-agent-instance.md)
 
 ## § 0. 目标
 

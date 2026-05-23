@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 § 3.5 — `a6e175d` (CarryOverService + ConversationMessageReferenceRepository CV3) |
 | Related | v2 议题 CV3；建立于 [ADR-0032 CV1 Channel](0032-conversation-channel-as-first-class.md)（parent_conversation_id 通用字段）+ [ADR-0034 CV2b Participants](0034-conversation-participants-field.md) 之上；为 [CV4](/) (Issue/Task 从 messages 派生入口) 提供 carry-over 模型基础 |
 
 ## Context

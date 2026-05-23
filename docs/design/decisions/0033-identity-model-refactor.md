@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 § 3.2 — `cefc135` (Identity 4→3 kinds + kind:id prefix as part of Conversation v2 schema reset) |
 | Related | v2 议题 CV2（与 [ADR-0034](0034-conversation-participants-field.md) participants 字段并行立）；触发自 [ADR-0024 G1 AgentInstance 一等公民化](0024-agent-instance-first-class.md) + [ADR-0029 Supervisor as Built-in AgentInstance](0029-supervisor-as-builtin-agent-instance.md) + [ADR-0031 v2 Drop Bridge](0031-v2-drop-bridge-vendor-integration.md) 后 actor 模型协调 |
 
 ## Context

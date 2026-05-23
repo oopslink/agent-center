@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P8 § 3.6 — `f5c6a86` (SupervisorInvocation.AgentInstanceID field). Amends ADR-0024. |
 | Related | **Amends** [ADR-0024 AgentInstance 一等公民化](0024-agent-instance-first-class.md)；跟 [ADR-0003 Supervisor not brain](../0003-supervisor-not-brain.md) / [ADR-0013 Supervisor Invocation Concurrency](../0013-supervisor-invocation-concurrency.md) / [ADR-0028 Skill File Mount](0028-skill-file-mount-lite.md) 协同 |
 
 ## Context

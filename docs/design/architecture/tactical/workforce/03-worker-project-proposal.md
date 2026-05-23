@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
 
 # WorkerProjectProposal 聚合
 
@@ -204,5 +204,5 @@ Accept 时不再建 Project（已存在），只建 Mapping。
 - [00-overview.md § 3.2-3.3](00-overview.md) — ProposalDiscoveryService / ProposalReviewService
 - [01-worker.md § 4 WorkerProjectMapping](01-worker.md) — accept 产物
 - [02-project.md § 3.1](02-project.md) — Project accept 时自动创建路径
-- ~~[bridge/01-feishu-integration.md] — 飞书 Proposal 卡片渲染~~ → [~~tactical/bridge/* (v2 deleted per ADR-0031)~~](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)
+- ~~[bridge/01-feishu-integration.md] — 飞书 Proposal 卡片渲染~~ → [~~tactical/bridge/* (v2 deleted per ADR-0031)~~](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 在 proposal 决策中的角色（提醒用户，不替决策）

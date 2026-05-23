@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
 
 # agent-center 子域分类（Subdomain Classification）
 
@@ -62,7 +62,7 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 - 每个 BC 的核心模型都是为 agent-center thesis 专门设计：
   - **Task / TaskExecution 两层模型**（[ADR-0010](../../decisions/0010-task-execution-two-layer-model.md)）
   - **Issue 协商流**（[discussion/00-overview](../tactical/discussion/00-overview.md)）
-  - **Task ↔ Conversation 1:1**（[ADR-0039](../../decisions/drafts/0039-conversation-business-model-v2-unified.md)；原 ADR-0017 已 superseded）
+  - **Task ↔ Conversation 1:1**（[ADR-0039](../../decisions/0039-conversation-business-model-v2-unified.md)；原 ADR-0017 已 superseded）
   - **Worker enrollment 通过 Discovery Proposal**（[ADR-0008](../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)）
   - **Per-execution shim**（[ADR-0018](../../decisions/0018-detached-agent-via-per-execution-shim.md)）
   - **Supervisor file-based memory**（[ADR-0012](../../decisions/0012-memory-file-based.md)）

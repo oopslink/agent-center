@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending v2 update. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 superseded by [ADR-0039](decisions/drafts/0039-conversation-business-model-v2-unified.md). 本文中 Bridge / vendor / 飞书 引用是 v1 残留。
+> ⚠ **v1-era doc** — pending v2 update. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](decisions/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 superseded by [ADR-0039](decisions/0039-conversation-business-model-v2-unified.md). 本文中 Bridge / vendor / 飞书 引用是 v1 残留。
 
 # agent-center DDD 设计蓝图（Blueprint + Plan & Status）
 
@@ -8,7 +8,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：2026-05-20（立 [ADR-0021](decisions/drafts/0039-conversation-business-model-v2-unified.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7** + **P5/P6/P7 中优全部完成** + **P8a/P8b 低优 Repository 全链路完成** ✅：DDD 战术 + 中优架构清晰度 + Repository 架构-实现层全部收口（剩 P9 Saga 视需要））。
+最后更新：2026-05-20（立 [ADR-0021](decisions/0039-conversation-business-model-v2-unified.md) Issue ↔ Conversation 1:1：IssueComment 删独立表 = Message，Issue 跟 Task 路线对称；推翻 [ADR-0009](decisions/0031-v2-drop-bridge-vendor-integration.md) § 1 解耦 + § 3 Bound Card 字段；同日把 [ADR-0020](decisions/0031-v2-drop-bridge-vendor-integration.md) 中间方案 supersede；落地 P3 Discussion BC 重组 + Conversation/Bridge/Strategic 跟随更新；**P3 全部完成 7/7** + **P5/P6/P7 中优全部完成** + **P8a/P8b 低优 Repository 全链路完成** ✅：DDD 战术 + 中优架构清晰度 + Repository 架构-实现层全部收口（剩 P9 Saga 视需要））。
 
 ---
 
@@ -46,7 +46,7 @@
 | 概念 | 状态 | 位置 / 说明 |
 |---|---|---|
 | **Anti-Corruption Layer**（ACL）| ✅ | [03-bounded-contexts § 3.2](architecture/strategic/03-bounded-contexts.md#32-anti-corruption-layers)，3 处（~~Bridge~~（v2 删 per ADR-0031）/ Agent CLI Adapter / BlobStore Adapter） |
-| **Shared Kernel** | ✅ | [03-bounded-contexts § 3.1](architecture/strategic/03-bounded-contexts.md#31-上下游关系一览) 上下游表 + P3 各 BC § 6 / § 7：Discussion↔Conversation 1:1（[ADR-0021](decisions/drafts/0039-conversation-business-model-v2-unified.md)）/ TaskRuntime↔Conversation 1:1（[ADR-0017](decisions/drafts/0039-conversation-business-model-v2-unified.md)）/ TaskRuntime↔Workforce / Discussion↔Workforce |
+| **Shared Kernel** | ✅ | [03-bounded-contexts § 3.1](architecture/strategic/03-bounded-contexts.md#31-上下游关系一览) 上下游表 + P3 各 BC § 6 / § 7：Discussion↔Conversation 1:1（[ADR-0021](decisions/0039-conversation-business-model-v2-unified.md)）/ TaskRuntime↔Conversation 1:1（[ADR-0017](decisions/0039-conversation-business-model-v2-unified.md)）/ TaskRuntime↔Workforce / Discussion↔Workforce |
 | **Customer-Supplier** | ✅ | 03-bounded-contexts § 3.1 上下游表 + P3 各 BC § 7.4 Customer-Supplier 汇总 |
 | **Open Host Service** | ✅ | [03-bounded-contexts § 6 Published Language](architecture/strategic/03-bounded-contexts.md) 完成（P7）：events 表 schema + CLI 命令构成 PL；Observability BC 是 PL 订阅方 |
 | **Published Language** | ✅ | [03-bounded-contexts § 6](architecture/strategic/03-bounded-contexts.md) 明示：events schema + CLI 双层；演进策略 + 不属于 PL 的清单 + 自检 |
@@ -62,18 +62,18 @@
 | ADR | 主题 | DDD 维度 |
 |---|---|---|
 | [0007](decisions/0007-conversation-as-unified-session.md) | Conversation 作为统一会话层 | 定 Conversation BC + 聚合 |
-| ~~0009~~ (deleted per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)) | Issue ↔ Conversation 解耦 | ~~聚合边界 / Bridge ACL~~ (v2 删 Bridge per ADR-0031) |
+| ~~0009~~ (deleted per [ADR-0031](decisions/0031-v2-drop-bridge-vendor-integration.md)) | Issue ↔ Conversation 解耦 | ~~聚合边界 / Bridge ACL~~ (v2 删 Bridge per ADR-0031) |
 | [0010](decisions/0010-task-execution-two-layer-model.md) | Task / TaskExecution 两层模型 | 聚合分层 + 实体身份 |
 | [0011](decisions/0011-dispatch-reliability-protocol.md) | 派单可靠性协议 | Domain Service (Dispatch) 协议 |
 | [0012](decisions/0012-memory-file-based.md) | Memory file-based | Memory 聚合的物理形态选择 |
 | [0013](decisions/0013-supervisor-invocation-concurrency.md) | Supervisor 并发模型 | SupervisorInvocation 聚合并发约束 |
 | [0014](decisions/0014-event-sourcing-level.md) | 事件溯源走 L1 | Domain Event 策略 + 跨聚合事务原则 |
 | [0015](decisions/0015-agent-trace-not-in-events-table.md) | agent_trace 不进 events 表 | Domain Event vs trace 数据的区分 |
-| [0017](decisions/drafts/0039-conversation-business-model-v2-unified.md) | Task ↔ Conversation 1:1 | 跨 BC / 跨聚合强引用 + 同事务双写 |
+| [0017](decisions/0039-conversation-business-model-v2-unified.md) | Task ↔ Conversation 1:1 | 跨 BC / 跨聚合强引用 + 同事务双写 |
 | [0018](decisions/0018-detached-agent-via-per-execution-shim.md) | Detached agent + per-execution shim 模型 | TaskRuntime BC 内新运行时角色（Shim）；影响 UL（待回填到 03-bounded-contexts § 1.1）|
 | [0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) | BC1 + BC4 合并为 TaskRuntime | 战略级 BC 边界调整：8→7 BC；P3 模板升级为聚合骨架重组 |
-| ~~0020~~ (deleted per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)) | ~~Card 限制在 Bridge BC（中间方案）~~ (v2 删 Bridge per ADR-0031) | **Superseded by 0021**（同日升级为统一方案；本 ADR 决策不实施）|
-| [0021](decisions/drafts/0039-conversation-business-model-v2-unified.md) | Issue ↔ Conversation 1:1，统一 Issue/Task 模式 | 推翻 ADR-0009 § 1 + § 3 + ADR-0020：Issue ↔ Conversation 1:1（kind=issue），IssueComment 删独立表（= Message），Bound Card 概念消失，Issue 跟 Task 路线完全对称；Refines ADR-0017 |
+| ~~0020~~ (deleted per [ADR-0031](decisions/0031-v2-drop-bridge-vendor-integration.md)) | ~~Card 限制在 Bridge BC（中间方案）~~ (v2 删 Bridge per ADR-0031) | **Superseded by 0021**（同日升级为统一方案；本 ADR 决策不实施）|
+| [0021](decisions/0039-conversation-business-model-v2-unified.md) | Issue ↔ Conversation 1:1，统一 Issue/Task 模式 | 推翻 ADR-0009 § 1 + § 3 + ADR-0020：Issue ↔ Conversation 1:1（kind=issue），IssueComment 删独立表（= Message），Bound Card 概念消失，Issue 跟 Task 路线完全对称；Refines ADR-0017 |
 
 ### 2.2 已完成的架构文档（DDD 视角）
 
@@ -86,7 +86,7 @@
 | [task-runtime/01-task](architecture/tactical/task-runtime/01-task.md) | 战术 (BC1) | Task 聚合（状态机 / 字段 / 依赖 / Conversation 绑定 / Invariants） |
 | [task-runtime/02-task-execution](architecture/tactical/task-runtime/02-task-execution.md) | 战术 (BC1) | TaskExecution 聚合（状态机 / 字段 / Workspace / worker 运行时 / kill 进程级 / Artifact / Invariants） |
 | [task-runtime/03-input-request](architecture/tactical/task-runtime/03-input-request.md) | 战术 (BC1) | InputRequest 聚合 + 协议 + 三响应路径 + fallback + Invariants |
-| [discussion/00-overview](architecture/tactical/discussion/00-overview.md) | 战术 (BC2) | Issue 聚合（单聚合 BC，IssueComment 已删，议事走 Conversation Message，[ADR-0021](decisions/drafts/0039-conversation-business-model-v2-unified.md)）+ § X.1-X.6 wrap |
+| [discussion/00-overview](architecture/tactical/discussion/00-overview.md) | 战术 (BC2) | Issue 聚合（单聚合 BC，IssueComment 已删，议事走 Conversation Message，[ADR-0021](decisions/0039-conversation-business-model-v2-unified.md)）+ § X.1-X.6 wrap |
 | [workforce/00-overview](architecture/tactical/workforce/00-overview.md) | 战术 (BC3) | Workforce BC 入口 + § X.1-X.6 wrap（Worker / WorkerProjectProposal / Project 三聚合；按 [ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) carve）|
 | [workforce/01-worker](architecture/tactical/workforce/01-worker.md) | 战术 (BC3) | Worker 聚合（AR） + WorkerProjectMapping（Entity，子从属）|
 | [workforce/02-project](architecture/tactical/workforce/02-project.md) | 战术 (BC3) | Project 聚合（独立 AR）|
@@ -142,7 +142,7 @@
 | # | BC | 文件 | 聚合数 / 文件数 | 现状 |
 |---|---|---|---|---|
 | 1 | TaskRuntime | `tactical/task-runtime/00-overview.md` + `01-task.md` + `02-task-execution.md` + `03-input-request.md` | 3 / 4 | ✅ 完成（[ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)） |
-| 2 | Discussion | `tactical/discussion/00-overview.md` | 1 / 1（单聚合，聚合详情合并） | ✅ 完成（[ADR-0021](decisions/drafts/0039-conversation-business-model-v2-unified.md)：删 IssueComment 实体；议事走 Conversation Message） |
+| 2 | Discussion | `tactical/discussion/00-overview.md` | 1 / 1（单聚合，聚合详情合并） | ✅ 完成（[ADR-0021](decisions/0039-conversation-business-model-v2-unified.md)：删 IssueComment 实体；议事走 Conversation Message） |
 | 3 | Workforce | `tactical/workforce/00-overview.md` + `01-worker.md` + `02-project.md` + `03-worker-project-proposal.md` | 3 / 4 | ✅ 完成（Worker / Project / Proposal 三聚合；WorkerProjectMapping 子从属于 Worker） |
 | 4 | Cognition | `tactical/cognition/00-overview.md` + `01-supervisor-invocation.md` + `02-memory.md` | 2 / 3 | ✅ 完成（SupervisorInvocation + DecisionRecord 子从属 + Memory）|
 | 5 | Observability | `tactical/observability/00-overview.md` | 1 / 1（单聚合 BC，Event AR + 读模型 projections）| ✅ 完成 |

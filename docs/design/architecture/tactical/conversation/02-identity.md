@@ -2,7 +2,7 @@
 
 > **DDD 战术层** · BC: Conversation · 聚合: Identity（AR）
 >
-> v2 [ADR-0033](../../../decisions/drafts/0033-identity-model-refactor.md) 简化：kind 3 种（`user` / `agent` / `system`）；ID 格式 `kind:id`；`kind=agent` 直接引用 AgentInstance.id (ULID, [ADR-0024](../../../decisions/drafts/0024-agent-instance-first-class.md))；**ChannelBinding 子 VO 删**（vendor 撤回，[ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）。
+> v2 [ADR-0033](../../../decisions/0033-identity-model-refactor.md) 简化：kind 3 种（`user` / `agent` / `system`）；ID 格式 `kind:id`；`kind=agent` 直接引用 AgentInstance.id (ULID, [ADR-0024](../../../decisions/0024-agent-instance-first-class.md))；**ChannelBinding 子 VO 删**（vendor 撤回，[ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)）。
 
 Identity 是参与者的统一身份。v2 形态：
 
@@ -10,7 +10,7 @@ Identity 是参与者的统一身份。v2 形态：
 |---|---|---|---|
 | 人类用户 | `user:hayang` | `user` | v2 单用户场景；id = `user:<name>` |
 | Worker agent | `agent:01HE6T9N...` | `agent` | 引用持久 AgentInstance.id (ULID) |
-| Built-in supervisor | `agent:<supervisor_agent_instance.id>` | `agent` | supervisor 也是 AgentInstance（[ADR-0029](../../../decisions/drafts/0029-supervisor-as-builtin-agent-instance.md)）；用 agent: 前缀统一 |
+| Built-in supervisor | `agent:<supervisor_agent_instance.id>` | `agent` | supervisor 也是 AgentInstance（[ADR-0029](../../../decisions/0029-supervisor-as-builtin-agent-instance.md)）；用 agent: 前缀统一 |
 | 系统 | `system` | `system` | singleton |
 
 权限模型（v3+）将绑 Identity.id；v2 暂无权限实装。
@@ -36,7 +36,7 @@ UNIQUE INDEX identity_id_uq (id)
 
 ### 跨聚合 invariant：Identity[kind=agent] ↔ AgentInstance
 
-应用层约束（[ADR-0033 § 3](../../../decisions/drafts/0033-identity-model-refactor.md)）：
+应用层约束（[ADR-0033 § 3](../../../decisions/0033-identity-model-refactor.md)）：
 
 - `agent:<x>` Identity 行存在 ⇔ `agent_instances` 表存在 row with `id=<x>`
 - AgentInstance create 时同事务 INSERT 对应 Identity row
@@ -63,7 +63,7 @@ UNIQUE INDEX identity_id_uq (id)
 | `agent-center agent create <name>` → 同事务建 Identity | `agent:<agent_instance.id>` |
 | Built-in supervisor 启动初始化 | `agent:<supervisor_agent_instance.id>` |
 
-AgentInstance ↔ Identity 1:1（per [ADR-0033 § 3](../../../decisions/drafts/0033-identity-model-refactor.md)）。
+AgentInstance ↔ Identity 1:1（per [ADR-0033 § 3](../../../decisions/0033-identity-model-refactor.md)）。
 
 ### 2.3 System Identity
 
@@ -100,7 +100,7 @@ AgentInstance ↔ Identity 1:1（per [ADR-0033 § 3](../../../decisions/drafts/0
 
 - [00-overview.md](00-overview.md) — BC 入口（IdentityRegistrationService）
 - [01-conversation.md](01-conversation.md) — Message.sender_identity_id 强引用本 AR
-- [ADR-0033 Identity 模型重构](../../../decisions/drafts/0033-identity-model-refactor.md)
-- [ADR-0024 AgentInstance 一等公民化](../../../decisions/drafts/0024-agent-instance-first-class.md)
-- [ADR-0031 v2 撤回 Bridge / vendor 集成](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)（ChannelBinding 删除原因）
+- [ADR-0033 Identity 模型重构](../../../decisions/0033-identity-model-refactor.md)
+- [ADR-0024 AgentInstance 一等公民化](../../../decisions/0024-agent-instance-first-class.md)
+- [ADR-0031 v2 撤回 Bridge / vendor 集成](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)（ChannelBinding 删除原因）
 - [conventions § 13 安全](../../../../rules/conventions.md)

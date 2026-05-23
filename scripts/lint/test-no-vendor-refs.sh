@@ -56,8 +56,11 @@ cat > "$STAGE/sample.json" <<'EOF'
 EOF
 
 # Mark the new files as intent-to-add so `git grep` (which the lint
-# uses) treats them as tracked.
-(cd "$ROOT" && git add -N scripts/lint/.selftest/sample.go scripts/lint/.selftest/sample.yaml scripts/lint/.selftest/sample.json)
+# uses) treats them as tracked. -f bypasses .gitignore (the .selftest
+# dir is intentionally ignored to prevent accidental commits if a run
+# is interrupted; the self-test still needs to make these visible to
+# git grep just for this run).
+(cd "$ROOT" && git add -fN scripts/lint/.selftest/sample.go scripts/lint/.selftest/sample.yaml scripts/lint/.selftest/sample.json)
 
 # --- Phase A: inject + expect violation -----------------------------------
 echo "[selftest] phase A — expect lint to fail with 3 paths"

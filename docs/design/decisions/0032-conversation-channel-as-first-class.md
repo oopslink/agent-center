@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 § 3.0-3.3 — `cefc135` (Conversation v2 schema + AR/Repo + Identity refactor), `1e3918a` (ChannelManagementService CV1) |
 | Related | v2 议题 CV1（[v2-kickoff-2026-05-22](../../drafts/v2-kickoff-2026-05-22.md) Conversation 模型组）；建立于 [ADR-0031 v2 Drop Bridge / Vendor Integration](0031-v2-drop-bridge-vendor-integration.md) 之上；为后续 CV2 (Participant) / CV3 (carry-over) / CV4 (派生入口) 议题打基础；触发 ADR-0017 / 0021 / 0022 在 CV1-CV4 闭环后 rewrite / supersede |
 
 ## Context

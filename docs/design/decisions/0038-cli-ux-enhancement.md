@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-23 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P11 § 3.8-3.9 — `ff2b137` (--format universal flag), `3baa1fc` (help discoverability) |
 | Related | v2 议题 W2；触发自 [ADR-0031 v2 Drop Bridge](0031-v2-drop-bridge-vendor-integration.md)；跟 [ADR-0037 W1 Web Console](0037-web-console-as-main-user-ui.md) **兄弟前端**，CLI 与 Web Console 等价；v2 设计阶段最后一项 |
 
 ## Context

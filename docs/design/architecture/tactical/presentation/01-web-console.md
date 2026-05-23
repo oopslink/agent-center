@@ -98,4 +98,4 @@ web_console:
 - [sse-wiring-audit.md](../../../../plans/sse-wiring-audit.md) — SSE event ↔ dispatch table audit (F13)
 - [spa-coverage-audit.md](../../../../plans/spa-coverage-audit.md) — 覆盖率残余分类 (F14)
 - [v2.1-backlog.md](../../../../plans/v2.1-backlog.md) — 显式 defer 到 v2.1 的 item
-- [ADR-0037](../../decisions/drafts/0037-web-console-loopback-only.md) — loopback bind rationale
+- [ADR-0037](../../decisions/0037-web-console-loopback-only.md) — loopback bind rationale

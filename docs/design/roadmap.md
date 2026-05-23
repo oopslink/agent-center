@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending v2 update. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 superseded by [ADR-0039](decisions/drafts/0039-conversation-business-model-v2-unified.md). 本文中 Bridge / vendor / 飞书 引用是 v1 残留。
+> ⚠ **v1-era doc** — pending v2 update. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](decisions/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 superseded by [ADR-0039](decisions/0039-conversation-business-model-v2-unified.md). 本文中 Bridge / vendor / 飞书 引用是 v1 残留。
 
 # Roadmap
 
@@ -19,7 +19,7 @@
 - ~~**触发条件**：用户日常飞书内频繁需要批量 / 精确派单；自由文本歧义影响效率~~
 - ~~**影响**：Feishu 集成模块加 slash parser；不动核心模型~~
 
-（v2 删 vendor 集成 per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)；slash 命令等 vendor-specific UX 待 v3+ 外部 IM / 渠道接入重新设计时一并考虑）
+（v2 删 vendor 集成 per [ADR-0031](decisions/0031-v2-drop-bridge-vendor-integration.md)；slash 命令等 vendor-specific UX 待 v3+ 外部 IM / 渠道接入重新设计时一并考虑）
 
 ### Remote CLI
 
@@ -54,7 +54,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 - ~~**影响**：每个 vendor 一个 `XxxBridge`，复用 Conversation / Message / Identity / IssueComment 抽象；ChannelBinding 表已就绪~~
 - ~~**同一 Conversation 多 vendor 送达**（如紧急 InputRequest 同时飞书 + DingTalk）→ v3 视需求~~
 
-（v2 撤回 Bridge BC + 飞书集成 per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)；外部 IM / 渠道接入在 v3+ 重新设计，届时整体重做架构而非沿用 v1 BridgeBC + Adapter 抽象）
+（v2 撤回 Bridge BC + 飞书集成 per [ADR-0031](decisions/0031-v2-drop-bridge-vendor-integration.md)；外部 IM / 渠道接入在 v3+ 重新设计，届时整体重做架构而非沿用 v1 BridgeBC + Adapter 抽象）
 
 ---
 
@@ -64,7 +64,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 把 agent **本体**（model + harness + bundled skill + 默认 MCP 模板 + 默认 instructions）打成不可变 **AgentImage**（镜像，含 tag / digest 版本），通过 image registry 分发；agent **数据**（memory / 用户笔记 / 运行时积累）走独立 **git 仓**。本体跟数据**分开管理 + 独立版本化**。来自 [v2-kickoff G5 讨论](drafts/v2-kickoff-2026-05-22.md)，2026-05-22 用户提出。
 
-- **v2 不做的原因**：v2 用户 skill = 文件自管（[ADR-0028](decisions/drafts/0028-skill-file-mount-lite.md)）；中心化 skill 库 / 分发会被 image 模型取代，是 technical debt
+- **v2 不做的原因**：v2 用户 skill = 文件自管（[ADR-0028](decisions/0028-skill-file-mount-lite.md)）；中心化 skill 库 / 分发会被 image 模型取代，是 technical debt
 - **触发条件**：用户有「跨机器 / 跨用户 distribute agent 模板」需求；或 agent kind 多到手动管理痛
 - **影响**：
   - 引入 `AgentImage` 概念 + image registry（自建 / 借现成的）

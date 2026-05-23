@@ -1,4 +1,4 @@
-> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
 
 # Observability BC — DDD 战术设计 Overview
 
@@ -324,11 +324,11 @@ I-12             agent-center  user:hayang     2h
 
 数据基础：worker daemon 维护的 TaskExecutionProjection 实时投影 + center 端聚合查询。
 
-### 7.3 ~~Bridge 渲染（subscribe-only 不渲染）~~ (v2 删 Bridge BC per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))
+### 7.3 ~~Bridge 渲染（subscribe-only 不渲染）~~ (v2 删 Bridge BC per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 
 ~~Observability BC 自己不渲染。Bridge 订阅 BC 业务事件（[bridge/01-feishu-integration § 5](../bridge/01-feishu-integration.md)），不订阅 Observability 自己的事件（Observability 不 emit 业务事件）。~~
 
-### 7.4 ~~飞书侧~~ (v2 删 vendor 集成 per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))
+### 7.4 ~~飞书侧~~ (v2 删 vendor 集成 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 
 - ~~用户问"现在在跑啥" → supervisor 调 `query executions --status=working,input_required` → 组装卡片回复~~
 - ~~周期 review 卡片附此刻活跃 execution 小卡~~
@@ -342,11 +342,11 @@ I-12             agent-center  user:hayang     2h
 | TaskRuntime (TaskExecution) | `task_execution.created` / `task_execution.dispatched` / `task_execution.working` / `task_execution.input_required` / `task_execution.completed` / `task_execution.failed` / `task_execution.kill_requested` / `task_execution.killed` |
 | TaskRuntime (InputRequest) | `input_request.requested` / `input_request.responded` / `input_request.timed_out` / `input_request.canceled` |
 | TaskRuntime (worker 侧) | `worktree.created` / `worktree.released` / `artifact.uploaded` / `task_log.archived` / `task_trace.archived`（agent_trace 不再作为事件流入 events 表，[ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)） |
-| Discussion | `issue.opened` / `issue.discussion_started` / `issue.concluded` / `issue.withdrawn` / `issue.tasks_spawned`（议事消息走 `conversation.message_added` (kind=issue)，不再 emit `issue.commented`；[ADR-0021](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)） |
+| Discussion | `issue.opened` / `issue.discussion_started` / `issue.concluded` / `issue.withdrawn` / `issue.tasks_spawned`（议事消息走 `conversation.message_added` (kind=issue)，不再 emit `issue.commented`；[ADR-0021](../../../decisions/0039-conversation-business-model-v2-unified.md)） |
 | Workforce | `worker.enrolled` / `worker.online` / `worker.offline` / `worker.heartbeat` / `worker_project_proposal.*` / `worker_project_mapping.*` / `project.*` |
 | Cognition | `supervisor.invocation_started` / `supervisor.invocation_ended` / `supervisor.decision_made` / `supervisor.invocation_failed_alert`（Memory 变更不 emit `memory.*` 事件，由 supervisor invocation 的 `trace.jsonl.gz`（含 `Edit`/`Write` tool 调用）+ `git log` 双渠道审计，[ADR-0012](../../../decisions/0012-memory-file-based.md) / [ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)） |
 | Conversation | `conversation.opened` / `conversation.message_added` / `conversation.closed` / `identity.registered` / `channel_binding.added` |
-| ~~Bridge~~ | ~~`channel.delivered` / `channel.delivery_failed` / `bridge.parse_failed`~~ (v2 删 Bridge BC per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)) |
+| ~~Bridge~~ | ~~`channel.delivered` / `channel.delivery_failed` / `bridge.parse_failed`~~ (v2 删 Bridge BC per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 
 所有失败 / 取消 / 超时事件必须带 `reason + message` 双字段（[conventions § 16](../../../../rules/conventions.md)）。
 
@@ -389,7 +389,7 @@ I-12             agent-center  user:hayang     2h
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 事件 emit
 - [cognition/01-supervisor-invocation.md § 4](../cognition/01-supervisor-invocation.md) — DecisionRecord + events.decision_id 关联
 - [conversation/00-overview.md](../conversation/00-overview.md) — Conversation 事件 emit
-- ~~[bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Bridge 事件 emit + 查询接口在飞书侧的暴露~~ (v2 删 tactical/bridge/* per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))
+- ~~[bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Bridge 事件 emit + 查询接口在飞书侧的暴露~~ (v2 删 tactical/bridge/* per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 
 ### 实现层
 

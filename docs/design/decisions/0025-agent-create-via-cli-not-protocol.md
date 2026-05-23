@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft |
-| Date | 2026-05-22 |
+| Status | Accepted |
+| Date | 2026-05-24 |
+| Delivered | P10 F5 — `bbfa27a` (agent CLI + App wiring + Identity auto-register) |
 | Related | v2 议题 G2（[v2-kickoff-2026-05-22 § Group 2](../../drafts/v2-kickoff-2026-05-22.md)）；建立于 [ADR-0024](0024-agent-instance-first-class.md)（AgentInstance 一等公民化）之上 |
 
 ## Context
