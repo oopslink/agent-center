@@ -186,4 +186,89 @@ later.
 
 ## § 8. Execution log
 
-To be appended by commit 2 (lint extension).
+### 8.1 Audit commit
+`afee165 docs(p12 S3) assets + configs vendor strip audit log` — this
+file as initially drafted (§ 0-7).
+
+### 8.2 Cleanup commit
+**None landed.** § 2.2 explains: contrib/ residue was bundled into S1
+(`44b298a`), and the rest of S3 in-scope surfaces (assets / cmd /
+yaml / json / env / systemd / Dockerfile) were already clean. Creating
+an empty commit just to honor a 3-commit shape would be ceremony —
+documented openly so the absence is visible to oversight, not
+swept under the rug.
+
+### 8.3 Lint extension commit
+- `scripts/lint/no-vendor-refs.sh` — INCLUDE_GLOBS gained `*.json`,
+  `*.env`, `*.env.*`, `*.template`, `*.tmpl`, `Dockerfile`, `Dockerfile.*`.
+- EXCLUDES gained `web/coverage`, `**/package-lock.json`,
+  `**/pnpm-lock.yaml`, `.vitepress/cache`, `sites/.vitepress/{dist,cache}`
+  to avoid false positives from lockfile transitive deps and built
+  VitePress output.
+- `scripts/lint/no-vendor-refs.allowlist` — added
+  `^internal/persistence/migration_round_trip_test\.go:` so the new S2
+  guard tests (which name `vendor_msg_ref` / `feishu_delivery_ledger`
+  to assert their absence) aren't flagged.
+- `scripts/lint/test-no-vendor-refs.sh` — new self-test that injects
+  v1 tokens into `.go` / `.yaml` / `.json` under `scripts/lint/.selftest/`,
+  uses `git add -N` so `git grep` sees them, asserts the lint flags
+  all three paths, then cleans up + asserts green.
+- `Makefile` — new `lint-vendor-selftest` target wiring the self-test.
+  Not included in `make lint` (opt-in only — it briefly mutates
+  worktree state via `git add -N`).
+- `.gitignore` — `/scripts/lint/.selftest/` so an interrupted self-test
+  run can't ever leave committable junk.
+
+### 8.4 Verification
+
+```
+$ make lint-vendor-selftest
+[selftest] phase A — expect lint to fail with 3 paths
+[selftest] phase A OK — lint flagged all 3 extensions
+[selftest] phase B — expect lint to return clean
+[selftest] phase B OK — lint clean after cleanup
+[selftest] all assertions passed
+
+$ make lint-vendor
+no-vendor-refs: clean (all hits whitelisted)
+
+$ go test ./...         # green
+$ go vet ./...          # clean
+```
+
+### 8.5 Bug caught while writing the self-test
+
+First-attempt self-test injected files but the lint returned 0. Root
+cause: `git grep` (which the lint uses) ignores untracked files. Two
+ways forward:
+
+1. Switch the lint to plain `rg` / `find+grep`. Pro: works on the raw
+   worktree. Con: silently includes generated content that `git grep`
+   would skip via `.gitignore`.
+2. Use `git add -N` in the self-test to mark new files as
+   "intent-to-add", which makes them visible to `git grep` without
+   actually staging content.
+
+Picked (2) because the realistic regression scenario IS "contributor
+about to commit" — that's the pre-commit moment the lint guards. Bare
+untracked files (debug scripts, temp logs) are not the regression
+target. The self-test now mirrors that scenario.
+
+### 8.6 M1 closure
+
+P12 milestone 1 (cleanup + lint, comprising S1 / S2 / S3) is complete:
+
+| ST | Status | Commits |
+|---|---|---|
+| S1 | done | 81b9bf6 (audit) · 44b298a (cleanup) · d8a2d26 (lint) |
+| S2 | done | b5ead7d (audit) · 71c6329 (test) |
+| S3 | done | afee165 (audit) · [this commit] (lint ext + self-test) |
+
+M1 deliverables:
+- v1 vendor grep audit + cleanup + lint (`make lint-vendor`)
+- Lint contract widened (12 → 19 file globs) + EXCLUDES tightened
+- Migration round-trip + 0025 + v1 column/table absence guard tests
+- Positive-fail self-test for the lint itself (`make lint-vendor-selftest`)
+- 3 audit logs under `docs/plans/phase-12-audits/`
+
+Standing by for sign-off + M2 (ADR & docs polish) green light.

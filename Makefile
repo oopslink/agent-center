@@ -1,4 +1,4 @@
-.PHONY: build build-frontend build-backend test cover cover-html lint lint-vendor vet tidy clean
+.PHONY: build build-frontend build-backend test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean
 
 # Build pipeline composes a frontend bundle then embeds it into the Go
 # binary via go:embed (Phase 11 § 3.4 + F15).
@@ -45,6 +45,13 @@ vet:
 # scripts/lint/no-vendor-refs.sh for the whitelist mechanism.
 lint-vendor:
 	./scripts/lint/no-vendor-refs.sh
+
+# lint-vendor-selftest — positive-fail check for lint-vendor: injects a
+# violation in each high-risk file type, asserts the lint flags them,
+# then cleans up. Opt-in (not part of `make lint`) because it mutates
+# the worktree briefly.
+lint-vendor-selftest:
+	./scripts/lint/test-no-vendor-refs.sh
 
 # lint — composite target for all repo-level linters.
 lint: vet lint-vendor

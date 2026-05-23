@@ -31,9 +31,10 @@
 ^docs/plans/phase-12-audits/
 ^Makefile:.*(lint-vendor|vendor_msg_ref|internal/bridge|feishu / lark)
 
-# Guard tests proving v1 vocabulary is rejected.
+# Guard tests proving v1 vocabulary is rejected / absent.
 ^internal/discussion/origin_test\.go:.*feishu_at
 ^internal/discussion/origin_test\.go:.*v1 origins dropped
+^internal/persistence/migration_round_trip_test\.go:
 
 # Historical "removed in P10 § 3.9 per ADR-0031" comments live next to
 # the code that took over from Bridge BC.

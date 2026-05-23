@@ -40,6 +40,15 @@ INCLUDE_GLOBS=(
   '*.mk'
   '*.ts'
   '*.tsx'
+  # P12 S3 extensions: config-shaped formats that could harbor v1
+  # vendor blocks if a future contributor reintroduces them.
+  '*.json'
+  '*.env'
+  '*.env.*'
+  '*.template'
+  '*.tmpl'
+  'Dockerfile'
+  'Dockerfile.*'
 )
 
 # Whitelist — each line is `path:line_substring`. A hit is allowed iff
@@ -64,9 +73,18 @@ done
 EXCLUDES=(
   ':!web/node_modules'
   ':!web/dist'
+  ':!web/coverage'
   ':!internal/webconsole/spa/dist'
   ':!vendor'
   ':!.git'
+  # P12 S3 extensions: lockfiles + build caches that can contain
+  # transitive package names matching e.g. `vendor_*` without being v1
+  # vendor residue.
+  ':!**/package-lock.json'
+  ':!**/pnpm-lock.yaml'
+  ':!.vitepress/cache'
+  ':!sites/.vitepress/dist'
+  ':!sites/.vitepress/cache'
 )
 ARGS+=("${EXCLUDES[@]}")
 

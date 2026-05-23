@@ -46,3 +46,8 @@ sites/.vitepress/cache/
 # .gitkeep stays so the directory exists for go:embed to find.
 /internal/webconsole/spa/dist/*
 !/internal/webconsole/spa/dist/.gitkeep
+
+# Throwaway dir used by scripts/lint/test-no-vendor-refs.sh. The script
+# cleans it up via trap, but guard against accidentally committing
+# leftover sample files if a run is interrupted.
+/scripts/lint/.selftest/
