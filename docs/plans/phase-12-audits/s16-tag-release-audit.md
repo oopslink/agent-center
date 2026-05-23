@@ -67,7 +67,157 @@ S16](../phase-12-plan-detail.md) ("Push gated on @oopslink +
 
 ## § 4. Execution log
 
-Filled by the tag commit at the bottom of this file.
+### 4.1 Audit + release body commit
+`a1a392d docs(p12 S16) v2.0.0 tag procedure + GH release notes
+body draft` — this file (§ 0-3, § 5-7) + `docs/release/v2.0-gh-release-body.md`.
+
+### 4.2 Local tag creation
+
+Command run (literal, copy-pasteable):
+
+```
+git tag -a v2.0.0 -m "agent-center v2.0.0 — GA 2026-05-24
+
+See:
+- CHANGELOG.md for the per-version diff with breaking changes
+- docs/release/v2.0.md for the long-form release notes
+- docs/plans/reports/phase-12-test-report.md for P8-P12 roll-up
+
+Upgrade procedure:
+- docs/migration/v1-to-v2.md
+- docs/operations/master-key.md
+
+Tag created locally by AgentCenterDev at 2026-05-24; push to remote
+gated on @oopslink approval per P12 S16."
+```
+
+Result:
+
+```
+$ git tag -l v2.0.0
+v2.0.0
+
+$ git rev-parse v2.0.0
+cae28a451acab4194dd4e38aa3492e353541ab26     (tag object SHA)
+
+$ git rev-parse v2.0.0^{commit}
+a1a392d81ee8d5b469929689043f6d500a06c299     (target commit SHA)
+```
+
+### 4.3 STATE: not pushed, awaiting human
+
+```
+$ git ls-remote origin v2.0.0
+                                              (empty — tag NOT on remote)
+```
+
+The local tag is created. **It is NOT pushed.** Per oversight ②,
+push is gated on:
+1. **x9527 post-S16 audit pass** — confirms M5 closure ledger is
+   correct + the tag annotation is acceptable
+2. **@oopslink human execution** of `git push origin v2.0.0` +
+   `gh release create v2.0.0 --notes-file docs/release/v2.0-gh-release-body.md`
+
+AgentCenterDev does NOT invoke either command autonomously.
+
+## § 8. M5 closure ledger
+
+### 8.1 Per-ST commits
+
+| ST | Audit | Impl | Δ work | Actual | Plan |
+|---|---|---|---|---|---|
+| S14 | `9f05fee` | `08c8b32` | Version bake + CHANGELOG + release notes promote | ~45m | 2h |
+| S15 | (this report) | `fbf0506` | phase-12-test-report.md | ~30m | 1h |
+| S16 | (this file) | `a1a392d` (audit+body) + local tag (no commit) | Tag procedure + GH release body + local tag | ~20m | 0.5h |
+
+**M5 total**: ~1.5h actual vs 3.5h plan = **-57%**.
+
+### 8.2 What M5 ships
+
+- `v2.0.0` baked into `make build` output via ldflags
+- `/CHANGELOG.md` at repo root with TOP-level Breaking Changes
+  section + v1→v2 mapping for `migrate` refactor
+- `docs/release/v2.0.md` (promoted from draft) carrying master-key
+  single-node caveat in operator preamble
+- `docs/plans/reports/phase-12-test-report.md` — P8-P12 roll-up +
+  release readiness checklist
+- `docs/release/v2.0-gh-release-body.md` — pre-composed GH release
+  notes for @oopslink to invoke
+- **Local `v2.0.0` annotated tag** at commit `a1a392d`; push gated
+
+## § 9. P12 closure ledger (all 16 STs)
+
+### 9.1 Milestone-level ledger
+
+| Milestone | STs | Actual | Plan | Delta |
+|---|---|---|---|---|
+| M1 Cleanup & Lint | S1-S3 | ~5.5h | 5h | +10% |
+| M2 ADR & docs polish | S4-S7 | ~5.5h | 7h | -21% |
+| M3 Playwright e2e | S8-S11 | ~5h | 11h | -55% |
+| M4 Migration tool | S12-S13 | ~2.5h | 6h | -58% |
+| M5 Release ship | S14-S16 | ~1.5h | 3.5h | -57% |
+| **TOTAL** | **16 ST** | **~20h** | **32.5h** | **-38%** |
+
+### 9.2 Audit log inventory
+
+14 audit logs in `docs/plans/phase-12-audits/` (S1-S14 + S15 test
+report + S16 this file):
+
+```
+s1-v1-residue-audit.md
+s2-schema-migration-audit.md
+s3-assets-configs-strip-audit.md
+s4-adr-promote-audit.md
+s5-readme-roadmap-audit.md
+s6-wave2-groupA-sweep-audit.md
+s7-wave2-groupB-C-audit.md
+s8-playwright-scaffold-audit.md
+s9-cold-start-journey-audit.md
+s10-nack-ir-dm-audit.md
+s11-web-cli-sse-carryover-audit.md
+s12-migration-tool-audit.md
+s13-migration-deployment-audit.md
+s14-version-changelog-audit.md
+s16-tag-release-audit.md  (this file)
+```
+
+(S15 is the test report `docs/plans/reports/phase-12-test-report.md`,
+not an audit; intentional split.)
+
+### 9.3 Commit count delta
+
+Pre-P12 baseline (per "M0" plan-detail): ~200 commits (estimated
+based on P11 closeout).
+P12 commits (S1-S16): ~30 commits.
+Total at S16 (incl. this audit's tag): **236**.
+
+### 9.4 Process lessons codified
+
+5 lessons (per S15 § 6) — each held across all subsequent STs with
+**zero re-occurrences**:
+
+1. Post-commit `make lint-vendor` mandatory after lint script edits (S4)
+2. Direct sqlite INSERT for pre-seed; never CLI subprocess while
+   server runs (S9)
+3. API error response field is `error`, not `code` (S9)
+4. SSE assertions via auto-retry locators; no `waitForTimeout` (S10)
+5. Open SSE stream BEFORE the trigger + handshake settle barrier (S10)
+
+### 9.5 Standing carryovers (v2.1+)
+
+Per S15 § 4 — 7 items filed with owner + reason + audit cross-ref:
+3 v2.1 (unread tracking / SPA coverage / DeriveModal picker), 4 v3
+(worker-chain e2e / chromium-linux CI / KMS multi-machine / master-
+key envelope rotation).
+
+### 9.6 Final state
+
+- v2.0.0 binary builds + reports correct version
+- All gates green: go test / go vet / make lint-vendor / make
+  lint-vendor-selftest / make e2e
+- Local tag `v2.0.0` at `a1a392d` ready for push
+- All 16 P12 STs complete
+- Awaiting x9527 post-S16 audit + @oopslink human push + GH release
 
 ## § 5. Rollback (if x9527 finds an issue post-tag)
 
