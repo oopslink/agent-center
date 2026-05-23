@@ -59,6 +59,57 @@ type RegisterIdentityResult struct {
 	EventID  observability.EventID
 }
 
+// RegisterAgentIdentityInTx implements the workforce IdentityRegistrar
+// port: writes Identity[kind=agent].id = "agent:<instanceID>" inside the
+// caller's tx (cross-aggregate invariant per ADR-0033 § 4).
+func (s *RegistrationService) RegisterAgentIdentityInTx(ctx context.Context, agentInstanceID string, displayName string, actor observability.Actor) error {
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	id := IdentityID("agent:" + agentInstanceID)
+	if err := id.Validate(); err != nil {
+		return err
+	}
+	identity, err := NewIdentity(NewIdentityInput{
+		ID: id, Kind: KindAgent, DisplayName: displayName, CreatedAt: s.clock.Now(),
+	})
+	if err != nil {
+		return err
+	}
+	if err := s.identities.Save(ctx, identity); err != nil {
+		return err
+	}
+	_, err = s.sink.Emit(ctx, observability.EmitCommand{
+		EventType: "identity.registered",
+		Actor:     actor,
+		Payload: map[string]any{
+			"identity_id":  string(identity.ID()),
+			"kind":         string(identity.Kind()),
+			"display_name": identity.DisplayName(),
+			"source":       "agent_instance_create_auto",
+		},
+	})
+	return err
+}
+
+// EnsureSystemIdentity is the center startup auto-provision per plan
+// § 3.8. Returns nil if the system identity already exists.
+func (s *RegistrationService) EnsureSystemIdentity(ctx context.Context, actor observability.Actor) error {
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	if _, err := s.identities.FindByID(ctx, IdentityID("system")); err == nil {
+		return nil
+	} else if !errors.Is(err, ErrIdentityNotFound) {
+		return err
+	}
+	_, err := s.RegisterIdentity(ctx, RegisterIdentityCommand{
+		ID: IdentityID("system"), Kind: KindSystem,
+		DisplayName: "agent-center system", Actor: actor,
+	})
+	return err
+}
+
 // RegisterIdentity creates an Identity and emits identity.registered in
 // the same tx (ADR-0014 § 2). Returns ErrIdentityAlreadyExists if the id
 // is taken.

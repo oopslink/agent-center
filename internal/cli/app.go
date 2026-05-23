@@ -197,6 +197,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// Phase 5: Identity (ChannelBinding removed per ADR-0031/0033).
 	identityRepo := identity.NewSQLiteIdentityRepo(db)
 	identityReg := identity.NewRegistrationService(db, identityRepo, sink, gen, clk)
+	// P10 § 3.8: auto-provision the `system` identity at center startup.
+	if err := identityReg.EnsureSystemIdentity(context.Background(), observability.Actor("system")); err != nil {
+		return nil, fmt.Errorf("ensure system identity: %w", err)
+	}
 
 	// Phase 6: Cognition (Supervisor + DecisionRecord).
 	cognitiondbInv := cognitiondb.NewInvocationRepo(db)

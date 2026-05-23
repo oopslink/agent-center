@@ -136,3 +136,61 @@ func TestIdentityID_String(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestRegisterAgentIdentityInTx_Happy(t *testing.T) {
+	svc := setupReg(t)
+	err := svc.RegisterAgentIdentityInTx(context.Background(), "ai-1", "MyAgent", observability.Actor("system"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.identities.FindByID(context.Background(), IdentityID("agent:ai-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind() != KindAgent || got.DisplayName() != "MyAgent" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestRegisterAgentIdentityInTx_BadActor(t *testing.T) {
+	svc := setupReg(t)
+	if err := svc.RegisterAgentIdentityInTx(context.Background(), "ai-1", "x", observability.Actor("")); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestRegisterAgentIdentityInTx_BadInstanceID(t *testing.T) {
+	svc := setupReg(t)
+	if err := svc.RegisterAgentIdentityInTx(context.Background(), "", "x", observability.Actor("system")); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestEnsureSystemIdentity_FirstTime(t *testing.T) {
+	svc := setupReg(t)
+	if err := svc.EnsureSystemIdentity(context.Background(), observability.Actor("system")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.identities.FindByID(context.Background(), IdentityID("system"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind() != KindSystem {
+		t.Fatalf("kind: %s", got.Kind())
+	}
+}
+
+func TestEnsureSystemIdentity_Idempotent(t *testing.T) {
+	svc := setupReg(t)
+	_ = svc.EnsureSystemIdentity(context.Background(), observability.Actor("system"))
+	if err := svc.EnsureSystemIdentity(context.Background(), observability.Actor("system")); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+}
+
+func TestEnsureSystemIdentity_BadActor(t *testing.T) {
+	svc := setupReg(t)
+	if err := svc.EnsureSystemIdentity(context.Background(), observability.Actor("")); err == nil {
+		t.Fatal()
+	}
+}

@@ -19,11 +19,20 @@ import (
 // State transitions driven by external events (worker offline/online,
 // task_execution lifecycle) belong to AgentInstanceLifecycleService below.
 type AgentInstanceManagementService struct {
-	db    *sql.DB
-	repo  workforce.AgentInstanceRepository
-	gen   idgen.Generator
-	sink  *observability.EventSink
-	clock clock.Clock
+	db                *sql.DB
+	repo              workforce.AgentInstanceRepository
+	gen               idgen.Generator
+	sink              *observability.EventSink
+	clock             clock.Clock
+	identityRegistrar IdentityRegistrar
+}
+
+// IdentityRegistrar is the Conversation BC IdentityRegistration port the
+// AgentInstance Create path uses to keep Identity[kind=agent].id ==
+// AgentInstance.id (ADR-0033 § 4 cross-aggregate invariant). Implementations
+// MUST write inside the supplied tx-ctx (no own RunInTx).
+type IdentityRegistrar interface {
+	RegisterAgentIdentityInTx(ctx context.Context, agentInstanceID string, displayName string, actor observability.Actor) error
 }
 
 // NewAgentInstanceManagementService wires the service.
@@ -32,6 +41,13 @@ func NewAgentInstanceManagementService(db *sql.DB, repo workforce.AgentInstanceR
 		clk = clock.SystemClock{}
 	}
 	return &AgentInstanceManagementService{db: db, repo: repo, gen: gen, sink: sink, clock: clk}
+}
+
+// WithIdentityRegistrar enables same-tx Identity[kind=agent] auto-register
+// per ADR-0033. Returns the service for chaining.
+func (s *AgentInstanceManagementService) WithIdentityRegistrar(r IdentityRegistrar) *AgentInstanceManagementService {
+	s.identityRegistrar = r
+	return s
 }
 
 // CreateCommand inputs for non-builtin AgentInstance.
@@ -81,6 +97,14 @@ func (s *AgentInstanceManagementService) Create(ctx context.Context, cmd CreateA
 	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
 		if err := s.repo.Save(txCtx, a); err != nil {
 			return err
+		}
+		// ADR-0033 § 4: auto-register Identity[kind=agent] with
+		// id="agent:<instance_id>" in the same tx (cross-aggregate
+		// invariant).
+		if s.identityRegistrar != nil {
+			if err := s.identityRegistrar.RegisterAgentIdentityInTx(txCtx, string(id), a.Name(), cmd.ActorIdentity); err != nil {
+				return fmt.Errorf("agent create: register identity: %w", err)
+			}
 		}
 		evID, err := s.sink.Emit(txCtx, observability.EmitCommand{
 			EventType: "workforce.agent_instance.created",
