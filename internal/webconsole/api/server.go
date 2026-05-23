@@ -126,6 +126,7 @@ func (s *Server) routes() {
 	// Input requests.
 	s.mux.HandleFunc("GET /api/input_requests", s.listInputRequestsHandler)
 	s.mux.HandleFunc("POST /api/input_requests/{id}/respond", s.respondInputRequestHandler)
+	s.mux.HandleFunc("POST /api/input_requests/{id}/cancel", s.cancelInputRequestHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
 	s.mux.HandleFunc("GET /api/agents", s.listAgentsHandler)

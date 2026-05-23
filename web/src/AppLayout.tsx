@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
+import { useInputRequests } from '@/api/inputRequests';
 
 // AppLayout — top nav + 6-section left sidebar + main content outlet.
 // Sidebar sections per x9527 F3 oversight #1.
@@ -35,39 +36,68 @@ export default function AppLayout(): React.ReactElement {
   );
 }
 
-const navItems: ReadonlyArray<{ to: string; label: string }> = [
+type NavBadgeKey = 'inputRequests' | null;
+
+interface NavItem {
+  to: string;
+  label: string;
+  badge?: NavBadgeKey;
+}
+
+const navItems: ReadonlyArray<NavItem> = [
   { to: '/channels', label: 'Channels' },
   { to: '/dms', label: 'DMs' },
   { to: '/issues', label: 'Issues' },
   { to: '/tasks', label: 'Tasks' },
+  { to: '/inputrequests', label: 'Input Requests', badge: 'inputRequests' },
   { to: '/agents', label: 'Agents' },
   { to: '/settings', label: 'Settings' },
 ];
 
 function Sidebar(): React.ReactElement {
+  // Derive the IR badge directly from server state so the count always
+  // reflects pending IRs (not the number of SSE pushes received). F5
+  // invalidates this query on input_request.* events, so SSE still
+  // drives realtime updates — just through the cache.
+  const irs = useInputRequests();
+  const inputRequestBadge = (irs.data ?? []).filter(
+    (ir) => ir.status === 'pending',
+  ).length;
   return (
     <nav
       aria-label="primary"
       className="w-48 flex-shrink-0 border-r border-slate-200 bg-slate-100 p-3"
     >
       <ul className="space-y-1">
-        {navItems.map((item) => (
-          <li key={item.to}>
-            <NavLink
-              to={item.to}
-              className={({ isActive }) =>
-                [
-                  'block rounded px-3 py-1.5 text-sm transition-colors',
-                  isActive
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-700 hover:bg-slate-200',
-                ].join(' ')
-              }
-            >
-              {item.label}
-            </NavLink>
-          </li>
-        ))}
+        {navItems.map((item) => {
+          const badgeCount =
+            item.badge === 'inputRequests' ? inputRequestBadge : 0;
+          return (
+            <li key={item.to}>
+              <NavLink
+                to={item.to}
+                className={({ isActive }) =>
+                  [
+                    'flex items-center justify-between rounded px-3 py-1.5 text-sm transition-colors',
+                    isActive
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-700 hover:bg-slate-200',
+                  ].join(' ')
+                }
+              >
+                <span>{item.label}</span>
+                {badgeCount > 0 && (
+                  <span
+                    className="rounded-full bg-blue-600 px-1.5 py-0.5 text-xs font-medium text-white"
+                    data-testid={`nav-badge-${item.badge}`}
+                  >
+                    {badgeCount}
+                  </span>
+                )}
+              </NavLink>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

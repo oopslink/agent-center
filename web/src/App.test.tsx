@@ -82,13 +82,21 @@ describe('App shell + route tree', () => {
     expect(home).toHaveAttribute('href', '/channels');
   });
 
-  it('renders the sidebar nav with the 6 sections', async () => {
+  it('renders the sidebar nav with the 7 sections', async () => {
     await renderAt('/channels');
     await waitFor(() => {
       expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
     });
     const nav = screen.getByRole('navigation', { name: /primary/i });
-    for (const label of ['Channels', 'DMs', 'Issues', 'Tasks', 'Agents', 'Settings']) {
+    for (const label of [
+      'Channels',
+      'DMs',
+      'Issues',
+      'Tasks',
+      'Input Requests',
+      'Agents',
+      'Settings',
+    ]) {
       expect(nav).toHaveTextContent(label);
     }
   });

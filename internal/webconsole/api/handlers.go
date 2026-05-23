@@ -548,6 +548,35 @@ func (s *Server) respondInputRequestHandler(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"answered": true})
 }
 
+type cancelInputRequestReq struct {
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
+func (s *Server) cancelInputRequestHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	id := taskruntime.InputRequestID(r.PathValue("id"))
+	var req cancelInputRequestReq
+	_ = decodeJSON(r, &req)
+	if req.Reason == "" {
+		req.Reason = "user_cancel"
+	}
+	if d.IRSvc == nil {
+		writeError(w, http.StatusNotImplemented, "ir_svc_not_wired", "")
+		return
+	}
+	if err := d.IRSvc.Cancel(r.Context(), trservice.CancelInput{
+		InputRequestID: id,
+		Reason:         req.Reason,
+		Message:        req.Message,
+		Actor:          d.Actor,
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true})
+}
+
 // =============================================================================
 // Fleet snapshot + task trace
 // =============================================================================

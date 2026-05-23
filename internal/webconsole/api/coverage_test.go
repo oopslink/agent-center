@@ -893,6 +893,29 @@ func TestAPI_DeriveTask_SourceNotFound(t *testing.T) {
 	}
 }
 
+func TestAPI_CancelInputRequest_NotWired(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.IRSvc = nil
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Post(s.URL+"/api/input_requests/anything/cancel",
+		"application/json", strings.NewReader(`{"message":"nm"}`))
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+}
+
+func TestAPI_CancelInputRequest_NotFound(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Post(s.URL+"/api/input_requests/nope/cancel",
+		"application/json", strings.NewReader(`{"message":"nm"}`))
+	if resp.StatusCode != 404 && resp.StatusCode != 500 {
+		t.Fatalf("got %d", resp.StatusCode)
+	}
+}
+
 func TestAPI_RespondInputRequest_NotFound(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)

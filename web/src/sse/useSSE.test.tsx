@@ -81,10 +81,12 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.messages('C1') });
   });
 
-  it('input_request.created invalidates IRs + bumps badge', () => {
+  it('input_request.created invalidates IRs (badge derived from query, not bumped)', () => {
     dispatchToQueryClient(qc, ev('input_request.created'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.inputRequests() });
-    expect(useAppStore.getState().navBadges.inputRequests).toBe(1);
+    // Badge no longer bumped by SSE — derived from useInputRequests in
+    // AppLayout. The store counter is kept for forward-compat but stays 0.
+    expect(useAppStore.getState().navBadges.inputRequests).toBe(0);
   });
 
   it('agent_instance.created invalidates agents list', () => {

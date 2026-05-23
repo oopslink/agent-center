@@ -179,8 +179,11 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'input_request.created':
     case 'input_request.responded':
     case 'input_request.cancelled':
+      // Invalidate the query so the sidebar's useInputRequests() (and the
+      // inbox page) refetch + the badge recomputes from pending count.
+      // We deliberately do NOT bump a Zustand counter here — the badge
+      // reflects the actual server state, not the number of SSE pushes.
       void qc.invalidateQueries({ queryKey: qk.inputRequests() });
-      useAppStore.getState().incInputRequestBadge();
       return;
     case 'agent_instance.created':
     case 'agent_instance.archived':

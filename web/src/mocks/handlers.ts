@@ -97,6 +97,7 @@ export const handlers = [
     ]),
   ),
   http.post('/api/input_requests/:id/respond', () => ok({ event_id: 'E-resp' })),
+  http.post('/api/input_requests/:id/cancel', () => ok({ cancelled: true })),
 
   // Agents
   http.get('/api/agents', () =>

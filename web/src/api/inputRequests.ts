@@ -23,3 +23,17 @@ export function useRespondInputRequest() {
     },
   });
 }
+
+export function useCancelInputRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, message, reason }: { id: string; message: string; reason?: string }) =>
+      api.post<{ cancelled: boolean }>(`/input_requests/${id}/cancel`, {
+        message,
+        reason: reason ?? 'user_cancel',
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.inputRequests() });
+    },
+  });
+}
