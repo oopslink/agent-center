@@ -87,6 +87,116 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, arr)
 }
 
+// createConversationReq is the unified create payload (SPA F2).
+//
+//   - kind=channel: requires `name`; `members` ignored (caller becomes
+//     sole owner; further invites use the participants endpoint).
+//   - kind=dm:      requires at least one entry in `members` (peers besides
+//     the caller); `name` optional. Caller is automatically added as a
+//     participant with role=owner alongside each peer (role=member).
+type createConversationReq struct {
+	Kind        string   `json:"kind"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Members     []string `json:"members"`
+}
+
+func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req createConversationReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	switch conversation.ConversationKind(req.Kind) {
+	case conversation.ConversationKindChannel:
+		s.createChannel(w, r, d, req)
+	case conversation.ConversationKindDM:
+		s.createDM(w, r, d, req)
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_input",
+			"kind must be channel or dm")
+	}
+}
+
+func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, d HandlerDeps, req createConversationReq) {
+	if d.ChannelMgmtSvc == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "channel management service not wired")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "name required for kind=channel")
+		return
+	}
+	res, err := d.ChannelMgmtSvc.CreateChannel(r.Context(), convservice.CreateChannelCommand{
+		Name:        req.Name,
+		Description: req.Description,
+		CreatedBy:   conversation.IdentityRef(d.Actor),
+		Actor:       d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"conversation_id": string(res.ConversationID),
+		"event_id":        string(res.EventID),
+		"kind":            string(conversation.ConversationKindChannel),
+	})
+}
+
+func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps, req createConversationReq) {
+	if d.MessageWriter == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "message writer not wired")
+		return
+	}
+	if len(req.Members) == 0 {
+		writeError(w, http.StatusBadRequest, "invalid_input",
+			"kind=dm requires at least one entry in members")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	owner := conversation.IdentityRef(d.Actor)
+	parts := []conversation.ParticipantElement{{
+		IdentityID: owner, Role: "owner",
+		JoinedAt: now, JoinedBy: owner,
+	}}
+	seen := map[conversation.IdentityRef]bool{owner: true}
+	for _, m := range req.Members {
+		ref := conversation.IdentityRef(m)
+		if err := ref.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input",
+				"member identity invalid: "+m)
+			return
+		}
+		if seen[ref] {
+			continue
+		}
+		seen[ref] = true
+		parts = append(parts, conversation.ParticipantElement{
+			IdentityID: ref, Role: "member",
+			JoinedAt: now, JoinedBy: owner,
+		})
+	}
+	res, err := d.MessageWriter.OpenConversation(r.Context(), convservice.OpenCommand{
+		Kind:         conversation.ConversationKindDM,
+		Name:         req.Name,
+		Description:  req.Description,
+		Participants: parts,
+		CreatedBy:    owner,
+		Actor:        d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"conversation_id": string(res.ConversationID),
+		"event_id":        string(res.EventID),
+		"kind":            string(conversation.ConversationKindDM),
+	})
+}
+
 func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := r.PathValue("id")

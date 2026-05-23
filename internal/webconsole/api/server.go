@@ -106,8 +106,9 @@ func (s *Server) routes() {
 	// Health + version (utility endpoints, not in plan but useful).
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
 
-	// Conversations (read-only subset).
+	// Conversations.
 	s.mux.HandleFunc("GET /api/conversations", s.listConversationsHandler)
+	s.mux.HandleFunc("POST /api/conversations", s.createConversationHandler)
 	s.mux.HandleFunc("GET /api/conversations/{id}", s.showConversationHandler)
 	s.mux.HandleFunc("GET /api/conversations/{id}/messages", s.listMessagesHandler)
 	s.mux.HandleFunc("POST /api/conversations/{id}/messages", s.sendMessageHandler)
