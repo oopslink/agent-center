@@ -155,57 +155,103 @@ export function startSSE(args: StartArgs): Controller {
 }
 
 // dispatchToQueryClient maps SSE event types to react-query invalidations.
-// Adding a new type? wire it here so any page subscribing to the affected
-// query refetches.
+//
+// Names are the LITERAL backend EventType strings (verified by F13 SSE
+// wire-in audit — see docs/plans/sse-wiring-audit.md). The SSE Bus
+// passes EventType through verbatim (sse/fanout.go:97 `EventType:
+// string(e.Type())`), so BC-prefixed names like
+// `workforce.agent_instance.created` are what arrives at the client —
+// NOT the unprefixed `agent_instance.created` we used to assume.
+//
+// Adding a new event type? Find the literal `EventType: "..."` string
+// via `rg '^\s*EventType:\s*"' internal/` and wire here.
 export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev: SSEEvent): void {
+  const invalidate = (key: readonly unknown[]) =>
+    void qc.invalidateQueries({ queryKey: key as readonly unknown[] });
+
   switch (ev.event_type) {
+    // Conversation lifecycle.
     case 'conversation.opened':
-    case 'conversation.archived':
-      void qc.invalidateQueries({ queryKey: qk.conversations() });
+      invalidate(qk.conversations());
       if (ev.conversation_id) {
-        void qc.invalidateQueries({ queryKey: qk.conversation(ev.conversation_id) });
+        invalidate(qk.conversation(ev.conversation_id));
       }
       return;
     case 'conversation.message_added':
       if (ev.conversation_id) {
-        void qc.invalidateQueries({ queryKey: qk.messages(ev.conversation_id) });
+        invalidate(qk.messages(ev.conversation_id));
       }
       return;
-    case 'conversation.participants_changed':
+    case 'conversation.participant_joined':
+    case 'conversation.participant_left':
       if (ev.conversation_id) {
-        void qc.invalidateQueries({ queryKey: qk.conversation(ev.conversation_id) });
+        invalidate(qk.conversation(ev.conversation_id));
       }
       return;
-    case 'input_request.created':
+    case 'conversation.message_references_added':
+      if (ev.conversation_id) {
+        invalidate(qk.refs(ev.conversation_id));
+        invalidate(qk.messages(ev.conversation_id));
+      }
+      return;
+
+    // Input request lifecycle.
+    case 'input_request.requested':
     case 'input_request.responded':
-    case 'input_request.cancelled':
-      // Invalidate the query so the sidebar's useInputRequests() (and the
-      // inbox page) refetch + the badge recomputes from pending count.
-      // We deliberately do NOT bump a Zustand counter here — the badge
-      // reflects the actual server state, not the number of SSE pushes.
-      void qc.invalidateQueries({ queryKey: qk.inputRequests() });
+    case 'input_request.canceled':
+    case 'input_request.timed_out':
+    case 'input_request.escalated':
+      invalidate(qk.inputRequests());
       return;
-    case 'agent_instance.created':
-    case 'agent_instance.archived':
-    case 'agent_instance.state_changed':
-      void qc.invalidateQueries({ queryKey: qk.agents() });
-      void qc.invalidateQueries({ queryKey: qk.fleet() });
+
+    // Agent instance lifecycle. Backend emits BC-prefixed names.
+    case 'workforce.agent_instance.created':
+    case 'workforce.agent_instance.archived':
+    case 'workforce.agent_instance.activated':
+    case 'workforce.agent_instance.idle':
+    case 'workforce.agent_instance.sleeping':
+    case 'workforce.agent_instance.awakened':
+    case 'workforce.agent_instance.config_updated':
+      invalidate(qk.agents());
+      invalidate(qk.fleet());
       return;
-    case 'worker.enrolled':
-    case 'worker.heartbeat':
-    case 'worker.offline':
-      void qc.invalidateQueries({ queryKey: qk.fleet() });
+
+    // Worker lifecycle. Backend emits BC-prefixed names.
+    case 'workforce.worker.enrolled':
+    case 'workforce.worker.config.updated':
+    case 'workforce.worker.capability.updated':
+      invalidate(qk.fleet());
       return;
-    case 'user_secret.created':
-    case 'user_secret.revoked':
-      void qc.invalidateQueries({ queryKey: qk.secrets() });
+
+    // Secret lifecycle. Backend emits BC-prefixed names.
+    case 'secretmgmt.user_secret.created':
+    case 'secretmgmt.user_secret.rotated':
+    case 'secretmgmt.user_secret.revoked':
+      invalidate(qk.secrets());
       return;
-    case 'task_execution.state_changed':
-      void qc.invalidateQueries({ queryKey: qk.fleet() });
+
+    // Task execution lifecycle — fleet view refreshes on any move.
+    case 'task.created':
+    case 'task.abandoned':
+    case 'task.suspended':
+    case 'task_execution.submitted':
+    case 'task_execution.dispatched':
+    case 'task_execution.acked':
+    case 'task_execution.nacked':
+    case 'task_execution.failed':
+    case 'task_execution.killed':
+    case 'task_execution.kill_requested':
+    case 'task_execution.dispatch_rejected':
+      invalidate(qk.fleet());
       return;
+    case 'task_execution.input_required':
+      invalidate(qk.fleet());
+      invalidate(qk.inputRequests());
+      return;
+
     default:
       // Unknown event type — no-op (forwards-compatible with new server
-      // event types).
+      // event types added before the dispatch table catches up).
       return;
   }
 }

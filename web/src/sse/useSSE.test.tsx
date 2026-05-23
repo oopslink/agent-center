@@ -81,40 +81,101 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.messages('C1') });
   });
 
-  it('input_request.created invalidates IRs (badge derived from query, not bumped)', () => {
-    dispatchToQueryClient(qc, ev('input_request.created'));
+  it('input_request.requested invalidates IRs (badge derived from query, not bumped)', () => {
+    dispatchToQueryClient(qc, ev('input_request.requested'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.inputRequests() });
     // Badge no longer bumped by SSE — derived from useInputRequests in
     // AppLayout. The store counter is kept for forward-compat but stays 0.
     expect(useAppStore.getState().navBadges.inputRequests).toBe(0);
   });
 
-  it('agent_instance.created invalidates agents list + fleet', () => {
-    dispatchToQueryClient(qc, ev('agent_instance.created'));
+  it('all input_request.* variants invalidate IRs', () => {
+    for (const t of [
+      'input_request.requested',
+      'input_request.responded',
+      'input_request.canceled',
+      'input_request.timed_out',
+      'input_request.escalated',
+    ]) {
+      dispatchToQueryClient(qc, ev(t));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.inputRequests() });
+  });
+
+  it('workforce.agent_instance.* invalidates agents + fleet (note BC prefix)', () => {
+    for (const t of [
+      'workforce.agent_instance.created',
+      'workforce.agent_instance.archived',
+      'workforce.agent_instance.activated',
+      'workforce.agent_instance.idle',
+      'workforce.agent_instance.sleeping',
+      'workforce.agent_instance.awakened',
+      'workforce.agent_instance.config_updated',
+    ]) {
+      dispatchToQueryClient(qc, ev(t));
+    }
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
   });
 
-  it('worker.enrolled / heartbeat / offline invalidate fleet', () => {
-    for (const t of ['worker.enrolled', 'worker.heartbeat', 'worker.offline']) {
+  it('workforce.worker.* invalidates fleet (note BC prefix)', () => {
+    for (const t of [
+      'workforce.worker.enrolled',
+      'workforce.worker.config.updated',
+      'workforce.worker.capability.updated',
+    ]) {
       dispatchToQueryClient(qc, ev(t));
     }
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
   });
 
-  it('user_secret.created invalidates secrets', () => {
-    dispatchToQueryClient(qc, ev('user_secret.created'));
+  it('secretmgmt.user_secret.* invalidates secrets (note BC prefix)', () => {
+    for (const t of [
+      'secretmgmt.user_secret.created',
+      'secretmgmt.user_secret.rotated',
+      'secretmgmt.user_secret.revoked',
+    ]) {
+      dispatchToQueryClient(qc, ev(t));
+    }
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.secrets() });
   });
 
-  it('task_execution.state_changed invalidates fleet', () => {
-    dispatchToQueryClient(qc, ev('task_execution.state_changed'));
+  it('task_execution.* + task.* variants invalidate fleet', () => {
+    for (const t of [
+      'task.created',
+      'task.abandoned',
+      'task.suspended',
+      'task_execution.submitted',
+      'task_execution.dispatched',
+      'task_execution.acked',
+      'task_execution.nacked',
+      'task_execution.failed',
+      'task_execution.killed',
+      'task_execution.kill_requested',
+      'task_execution.dispatch_rejected',
+    ]) {
+      dispatchToQueryClient(qc, ev(t));
+    }
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
   });
 
-  it('participants_changed invalidates the affected conversation', () => {
-    dispatchToQueryClient(qc, ev('conversation.participants_changed', 'C1'));
+  it('task_execution.input_required invalidates fleet + IRs', () => {
+    dispatchToQueryClient(qc, ev('task_execution.input_required'));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.inputRequests() });
+  });
+
+  it('participant_joined / participant_left invalidate the affected conversation', () => {
+    for (const t of ['conversation.participant_joined', 'conversation.participant_left']) {
+      dispatchToQueryClient(qc, ev(t, 'C1'));
+    }
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversation('C1') });
+  });
+
+  it('conversation.message_references_added invalidates refs + messages of child', () => {
+    dispatchToQueryClient(qc, ev('conversation.message_references_added', 'CHILD'));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.refs('CHILD') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.messages('CHILD') });
   });
 
   it('unknown event is no-op', () => {
