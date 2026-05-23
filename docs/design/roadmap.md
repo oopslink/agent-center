@@ -1,3 +1,5 @@
+> ⚠ **v1-era doc** — pending v2 update. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 superseded by [ADR-0039](decisions/drafts/0039-conversation-business-model-v2-unified.md). 本文中 Bridge / vendor / 飞书 引用是 v1 残留。
+
 # Roadmap
 
 记录"推迟做"的功能 —— 节奏决策（v1 不做，但早晚要做）。**明确不做（边界决策）**的去 [requirements/03-out-of-scope.md](requirements/03-out-of-scope.md)。
@@ -10,12 +12,14 @@
 
 ## v2（短期，紧接 v1 后）
 
-### 飞书 Slash 命令（高优）
+### ~~飞书 Slash 命令（高优）~~ → v3+: 外部 IM / 渠道接入重新设计（per ADR-0031 后规划）
 
-D2 路线 —— `/dispatch project=X agent=claude "..."` 这种结构化命令。
-- **v1 不做的原因**：D1（@bot 自由文本）+ D3（卡片）已覆盖 90% 体验，D2 是 power user / 脚本化场景的 UX 增强
-- **触发条件**：用户日常飞书内频繁需要批量 / 精确派单；自由文本歧义影响效率
-- **影响**：Feishu 集成模块加 slash parser；不动核心模型
+~~D2 路线 —— `/dispatch project=X agent=claude "..."` 这种结构化命令。~~
+- ~~**v1 不做的原因**：D1（@bot 自由文本）+ D3（卡片）已覆盖 90% 体验，D2 是 power user / 脚本化场景的 UX 增强~~
+- ~~**触发条件**：用户日常飞书内频繁需要批量 / 精确派单；自由文本歧义影响效率~~
+- ~~**影响**：Feishu 集成模块加 slash parser；不动核心模型~~
+
+（v2 删 vendor 集成 per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)；slash 命令等 vendor-specific UX 待 v3+ 外部 IM / 渠道接入重新设计时一并考虑）
 
 ### Remote CLI
 
@@ -40,13 +44,17 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
 
 ---
 
-### 多 vendor 接入（DingTalk / Web chat / Slack 等）
+### v3+: 外部 IM / 渠道接入重新设计（per ADR-0031 后规划）
 
-[Bridge BC](architecture/strategic/03-bounded-contexts.md#bc8-bridge渠道桥接层) 架构上支持多 Bridge；v1 只实现 FeishuBridge。
-- **v1 不做的原因**：飞书 + Web Console 覆盖个人场景；额外 vendor 是体量 / 协作场景拓展
-- **触发条件**：用户开始通过非飞书入口（公司用 DingTalk / 团队接入 Web chat）
-- **影响**：每个 vendor 一个 `XxxBridge`，复用 Conversation / Message / Identity / IssueComment 抽象；ChannelBinding 表已就绪
-- **同一 Conversation 多 vendor 送达**（如紧急 InputRequest 同时飞书 + DingTalk）→ v3 视需求
+~~多 vendor 接入（DingTalk / Web chat / Slack 等）~~
+
+~~[Bridge BC](architecture/strategic/03-bounded-contexts.md#bc8-bridge渠道桥接层) 架构上支持多 Bridge；v1 只实现 FeishuBridge。~~
+- ~~**v1 不做的原因**：飞书 + Web Console 覆盖个人场景；额外 vendor 是体量 / 协作场景拓展~~
+- ~~**触发条件**：用户开始通过非飞书入口（公司用 DingTalk / 团队接入 Web chat）~~
+- ~~**影响**：每个 vendor 一个 `XxxBridge`，复用 Conversation / Message / Identity / IssueComment 抽象；ChannelBinding 表已就绪~~
+- ~~**同一 Conversation 多 vendor 送达**（如紧急 InputRequest 同时飞书 + DingTalk）→ v3 视需求~~
+
+（v2 撤回 Bridge BC + 飞书集成 per [ADR-0031](decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)；外部 IM / 渠道接入在 v3+ 重新设计，届时整体重做架构而非沿用 v1 BridgeBC + Adapter 抽象）
 
 ---
 
@@ -135,7 +143,7 @@ v1 已统计 token 数，v2 折算成 RMB / USD。
   - v1 现状是 `kind=task` + `task.conversation_id` 双向都做，两轴交叉时表达力不足（如"task 的 group_thread 讨论"无法表达）
 - **`group_thread` 嵌套结构**：当前 `kind=group_thread` 是扁平 Conversation，`primary_channel_thread_key` 只是 vendor 字符串；在 Slack/DingTalk 多 channel 场景下，IM 语义里的"channel → thread"嵌套需要一等公民建模（child-of-channel-conversation 指针）
 - **Channel 作为领域实体**：当前 channel 仅以 `primary_channel_hint` 字符串体现（[01-conversation.md § 3 注释](architecture/tactical/conversation/01-conversation.md) 已承认"务实而非纯粹"）；多 vendor + 多 channel 时可能要 `conversation_channel_routes` 表 / Channel AR
-- **v1 不做的原因**：单 user / 单 channel / FeishuBridge 唯一，6 kinds 扁平模型够用；拆轴成本高（迁现有数据 + 改所有 query + 改 5 个 ADR 的 1:1 模型）
+- **v1 不做的原因**：单 user / 单 channel / ~~FeishuBridge~~ 单一渠道（v2 删 vendor 集成 per ADR-0031），6 kinds 扁平模型够用；拆轴成本高（迁现有数据 + 改所有 query + 改 5 个 ADR 的 1:1 模型）
 - **触发条件**：多 vendor 接入落地（特别是 Slack/DingTalk 的 channel-thread 嵌套结构进来）；或出现"同一 task 在多个 scope 内讨论"等 v1 拍扁建模兜不住的场景
 - **影响**：Conversation schema 拆列 + 迁数据；[ADR-0017](decisions/0017-task-as-conversation.md) / [ADR-0021](decisions/0021-issue-as-conversation.md) 的 1:1 模型要重新评估；跨 BC 引用方向（`task.conversation_id` / `issue.conversation_id`）保持不变
 
@@ -159,7 +167,7 @@ v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 
 
 - **自动 cascade abandon**：dep 进 `abandoned` 时自动 abandon 依赖它的 task（v1 现状是 supervisor wake 后决定）
 - **复杂依赖语义**：OR 依赖（"任一 dep done 即可"）、only-if-failed（"等 dep failed 才跑"）、conditional（"dep.artifact 满足条件才跑"）
-- **DAG 可视化**：Web Console / 飞书展示依赖图
+- **DAG 可视化**：Web Console ~~/ 飞书~~ (v2 删 vendor per ADR-0031) 展示依赖图
 - **拓扑排序自动派单**：center 端做调度器（v1 是 supervisor 一个一个评估）
 - **触发条件**：多步流水线高频出现，supervisor 用 working memory 兜不住
 - **影响**：跨 BC 影响大，要重新评估"center 不做硬编码调度"的边界
@@ -170,8 +178,8 @@ v1 已有基础 deps：`task.depends_on_task_ids` JSON 数组 + 运行时可改 
 
 ### Supervisor 自动收敛 Issue
 
-低风险 / 高置信场景下 supervisor 自动 conclude Issue，不必每次推飞书等用户。
-- **v1 不做的原因**：v1 一律推飞书；机制（supervisor 决策接口）已留好
+低风险 / 高置信场景下 supervisor 自动 conclude Issue，不必每次推 ~~飞书~~ vendor (v2 删 vendor 集成 per ADR-0031) 等用户。
+- **v1 不做的原因**：v1 一律推 ~~飞书~~ vendor (v2 删 per ADR-0031)；机制（supervisor 决策接口）已留好
 - **触发条件**：用户对 supervisor 决策信任度建立；某类 Issue 反复采纳率 100%
 - **影响**：Supervisor 加 auto-promote policy 配置；Issue 决策路径加自动分支
 

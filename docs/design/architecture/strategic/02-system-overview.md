@@ -1,12 +1,16 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+
 # 系统总览
 
 > **DDD 战略层**
 
 ## 高层拓扑
 
+> **v2 注**：以下 ASCII 拓扑包含 v1 飞书 / feishu module（v2 撤回 per ADR-0031）。整图待 Phase 10/11 重绘；下方 v1 残留仅供历史参考。
+
 ```
                         ┌─────────────────────────────────┐
-                        │     飞书开放平台                  │
+                        │     飞书开放平台 [v1; v2 删 per ADR-0031]  │
                         └────────┬────────────────────────┘
                                  │ WebSocket 长连接
                                  │ (Center 作为 client 主动建立)
@@ -14,7 +18,7 @@
    ┌──────────────────────────────────────────────────────────────┐
    │  agent-center server  (VPS 常驻 / 单一二进制 / 多模式)         │
    │                                                              │
-   │   ├─ feishu module           接事件 / 发卡片                  │
+   │   ├─ feishu module           接事件 / 发卡片 [v1; v2 删 per ADR-0031] │
    │   ├─ worker gRPC endpoint    与 worker 长连接                 │
    │   ├─ supervisor launcher     事件触发 spawn supervisor 进程    │
    │   ├─ admin CLI (unix sock)   人 / supervisor 调用工具         │
@@ -53,7 +57,7 @@
 
 | 角色 | 部署 | 职责 |
 |---|---|---|
-| **Center server** | VPS 常驻 | 状态权威、事件流总线、飞书入口、worker 长连接端、ADR 的事实承载 |
+| **Center server** | VPS 常驻 | 状态权威、事件流总线、~~飞书入口~~ 用户 UI 入口（v2 Web Console / CLI per ADR-0031）、worker 长连接端、ADR 的事实承载 |
 | **Supervisor agent** | VPS 同机短生命周期进程 | LLM 驱动的调度官，事件触发 spawn 一次。**它也是 agent**（claude code 进程），区别是工具集偏向调度 / 决策 |
 | **Worker daemon** | 用户的开发机 | 接派单、起 agent 子进程、维持 agent ↔ CLI 工具的本地 socket、收集 trace / 日志、上报状态 |
 | **Worker agent** | 用户的开发机短生命周期进程 | 真正干活的 agent（claude code 或其它 CLI）。spawn 进 worktree，干活 |
@@ -62,8 +66,8 @@
 
 | 流向 | 内容 |
 |---|---|
-| 飞书 → Center | DM / @bot 消息、card action 回调 |
-| Center → 飞书 | 普通消息、交互卡片、Issue 讨论回复 |
+| ~~飞书 → Center~~ | ~~DM / @bot 消息、card action 回调~~ (v1; v2 删 per ADR-0031) |
+| ~~Center → 飞书~~ | ~~普通消息、交互卡片、Issue 讨论回复~~ (v1; v2 删 per ADR-0031) |
 | Worker daemon → Center | 状态事件、心跳、agent trace 流、suggestion / open-issue、input-request、任务结束日志归档上传 |
 | Center → Worker daemon | 派单、input-response、控制指令（取消 / 暂停） |
 | Worker agent → Worker daemon | CLI 调用（request-input / report-progress / open-issue / read-task-context / ...） |
@@ -87,12 +91,12 @@
 
 - VPS 一台：跑 Center + Supervisor。
 - 用户开发机 N 台：每台跑一个 Worker daemon。
-- 飞书：作为 IO 通道，不存状态。
+- ~~飞书：作为 IO 通道，不存状态。~~ (v1; v2 撤回 per ADR-0031)
 - 项目仓库：在 Worker 本地已 clone（agent-center 不管理 git）。
 
 ## 网络方向
 
-- 飞书 ↔ Center：**Center 主动出站**建立 WebSocket（无需 VPS 暴露入站到飞书）
+- ~~飞书 ↔ Center：**Center 主动出站**建立 WebSocket（无需 VPS 暴露入站到飞书）~~ (v1; v2 删 per ADR-0031)
 - Worker → Center：**Worker 主动出站**建立 gRPC 长连接
 - 用户操作：SSH 到 VPS 跑 CLI（v1 不开远程 admin RPC）
 

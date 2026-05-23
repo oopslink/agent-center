@@ -1,3 +1,5 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+
 # TaskExecution 聚合
 
 > **DDD 战术层** · BC: TaskRuntime · 独立 Aggregate Root
@@ -205,7 +207,7 @@ failed_reason 是 supervisor 重派决策的关键信号：
 | `worker_lost` | Worker 心跳超 `worker_heartbeat_timeout`（默认 60s） |
 | `dispatch_no_ack` | Envelope 发出后 30s 没 ACK |
 | `dispatch_nack:<sub_reason>` | Worker 显式 NACK（含 worker_at_capacity / mapping_missing / 等） |
-| `no_input_channel` | agent 调 `request-input` 时 task.conversation_id=null 且 `notification.default_channel` 未配 → fallback 失败、InputRequest 无法创建（[ADR-0017 § 10.4](../../../decisions/0017-task-as-conversation.md)） |
+| `no_input_channel` | agent 调 `request-input` 时 task.conversation_id=null 且 `notification.default_channel` 未配 → fallback 失败、InputRequest 无法创建（[ADR-0017 § 10.4](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)） |
 | `shim_no_hello` | Daemon spawn shim 后 60s 内未收到 ShimHello（[ADR-0018 § 7](../../../decisions/0018-detached-agent-via-per-execution-shim.md)） |
 | `shim_crashed` | Shim 进程崩溃（PID 死 / start_time mismatch）；agent 若还活则连带 SIGTERM（同上 ADR） |
 
@@ -425,7 +427,7 @@ Worker daemon（实际是 shim → daemon 转）边解析 agent JSONL 边判断 
 
 阈值（30s / N=20）走配置。
 
-> **不 emit `task.progress_milestone_reached` 事件** —— 进度通过 `conversation.message_added` 走 outbound 链路；不需要专门 progress 事件类。详见 [ADR-0017 § 4](../../../decisions/0017-task-as-conversation.md)。
+> **不 emit `task.progress_milestone_reached` 事件** —— 进度通过 `conversation.message_added` 走 outbound 链路；不需要专门 progress 事件类。详见 [ADR-0017 § 4](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)。
 
 ---
 
@@ -562,7 +564,7 @@ CLI → shim → worker daemon → forward to center → insert + emit `artifact
 - [ADR-0011 派单可靠性协议](../../../decisions/0011-dispatch-reliability-protocol.md)
 - [ADR-0014 事件溯源 L1](../../../decisions/0014-event-sourcing-level.md)
 - [ADR-0015 agent_trace 不进 events 表](../../../decisions/0015-agent-trace-not-in-events-table.md)
-- [ADR-0017 Task ↔ Conversation 1:1](../../../decisions/0017-task-as-conversation.md)
+- [ADR-0017 (superseded by 0039) Conversation 业务模型 v2 统一](../../../decisions/drafts/0039-conversation-business-model-v2-unified.md)
 - [ADR-0018 Detached agent + per-execution shim 模型](../../../decisions/0018-detached-agent-via-per-execution-shim.md)
 - [ADR-0019 BC 合并](../../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)
 
@@ -576,7 +578,7 @@ CLI → shim → worker daemon → forward to center → insert + emit `artifact
 
 - [workforce/00-overview.md](../workforce/00-overview.md) — Workforce BC 入口（Worker 注册 / heartbeat / Mapping / Proposal）
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — Prompt 组装（worker spawn agent 时使用）
-- [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — Bridge 渲染 milestone / Artifact
+- ~~tactical/bridge/01-feishu-integration.md — Bridge 渲染 milestone / Artifact~~ (v2 deleted per ADR-0031)
 - [observability/00-overview.md](../observability/00-overview.md) — 事件总览 / inspect
 
 ### 横切方法论

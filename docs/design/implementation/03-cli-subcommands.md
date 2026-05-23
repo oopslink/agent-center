@@ -1,3 +1,5 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+
 # CLI 子命令完整签名
 
 > **实现层** · 把各 BC 设计的 CLI 入口落到 `agent-center` 单 binary（[conventions § 10](../../rules/conventions.md)）的子命令树。
@@ -38,10 +40,10 @@ agent-center <agent-verb> [<arg>] [--flag ...]
 | `issue` | Discussion | issues 聚合 |
 | `worker` / `worker proposal` / `project` | Workforce | 各聚合 |
 | `conversation` | Conversation | conversations 聚合 |
-| `identity` | Bridge | Bridge 内 vendor 身份 |
+| ~~`identity`~~ | ~~Bridge~~ | ~~Bridge 内 vendor 身份~~ (v2 删 per ADR-0031) |
 | `supervisor` / `record-decision` | Cognition | SupervisorInvocation / DecisionRecord |
 | `inspect` / `query` / `ps` / `stats` / `logs` / `peek-trace` | Observability | Open Host — 跨 BC 五动词 + peek |
-| `bridge` | Bridge | vendor 集成管理 |
+| ~~`bridge`~~ | ~~Bridge~~ | ~~vendor 集成管理~~ (v2 删 per ADR-0031) |
 | `admin` | System | 运维 |
 
 **vendor 概念不进 subject / verb / flag 名**（[conventions § 9.y](../../rules/conventions.md)）。`task bind-card` 是反例 —— 2026-05-20 已修正为 `task bind-conversation`（commit `0212f5a`）。
@@ -186,7 +188,7 @@ human 输出格式：`Error: <reason>: <message>` 一行红字到 stderr。
 
 | 命令 | audience | 简述 |
 |---|---|---|
-| `task create <project_id> <title> [--description=...] [--parent=<task_id>] [--from-issue=<issue_id>]` | U / S | 创建 task；a/e 路径同事务建 task + Conversation（[ADR-0017](../decisions/0017-task-as-conversation.md)）|
+| `task create <project_id> <title> [--description=...] [--parent=<task_id>] [--from-issue=<issue_id>]` | U / S | 创建 task；a/e 路径同事务建 task + Conversation（[ADR-0017](../decisions/drafts/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0017 superseded by ADR-0039 -->|
 | `task bind-conversation <task_id> [--channel=...] [--auto\|--to=<conv_id>]` | U / S | 懒创建：把没有 Conversation 的 task 绑到 / 新建 Conversation |
 | `task unbind-conversation <task_id>` | U | v1 接口保留不实现（v2+ 多 channel 镜像） |
 | `request-input <execution_id> --reason=... --message=... [--options=...]` | A | execution 阻塞等用户拍板；写 InputRequest + Conversation Message |
@@ -201,10 +203,10 @@ human 输出格式：`Error: <reason>: <message>` 一行红字到 stderr。
 
 | 命令 | audience | 简述 |
 |---|---|---|
-| `issue open <project_id> <title> [--description=...]` | U / S | 创建 Issue；CLI 路径懒创建 Conversation（[ADR-0021](../decisions/0021-issue-as-conversation.md)）|
+| `issue open <project_id> <title> [--description=...]` | U / S | 创建 Issue；CLI 路径懒创建 Conversation（[ADR-0021](../decisions/drafts/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0021 superseded by ADR-0039 -->|
 | `issue comment <issue_id> --content=... [--kind=user_comment\|agent_finding\|...]` | U / S / A | 写入 IssueComment（facade，落 Conversation Message）|
 | `issue conclude <issue_id> --resolution=... [--spawn-tasks=...]` | U / S | 结案；若 `--spawn-tasks` 则在同事务批量 spawn Task |
-| `issue bind-conversation <issue_id> [--channel=...] [--auto\|--to=<conv_id>]` | U / S | 懒创建路径触发（[ADR-0021 § 1](../decisions/0021-issue-as-conversation.md)）|
+| `issue bind-conversation <issue_id> [--channel=...] [--auto\|--to=<conv_id>]` | U / S | 懒创建路径触发（[ADR-0021 § 1](../decisions/drafts/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0021 superseded by ADR-0039 -->|
 | `issue link-conversation <issue_id> --conversation=<conv_id>` | S | 关联血缘 conversation（写 `issue.related_conversation_ids`，弱关联）|
 | `open-issue <project_id> <title> [--description=...]` | A | agent 主动开 Issue（[conventions § 1](../../rules/conventions.md) 单一来源；worker 不允许造 Task，只能开 Issue 走讨论）|
 
@@ -232,7 +234,7 @@ human 输出格式：`Error: <reason>: <message>` 一行红字到 stderr。
 
 | 命令 | audience | 简述 |
 |---|---|---|
-| `conversation add-message <conversation_id> --kind=... --content=... [--actor=...] [--input-request-ref=<id>]` | U / S / A / Sys | 写一条 Message；Bridge 自动外发 |
+| `conversation add-message <conversation_id> --kind=... --content=... [--actor=...] [--input-request-ref=<id>]` | U / S / A / Sys | 写一条 Message <!-- v1 ref: "Bridge 自动外发" v2 删 per ADR-0031 -->|
 | `conversation list [--kind=task\|issue\|dm\|...] [--owner=...]` | U / S | 列 conversation |
 | `conversation read <conversation_id> [--since=...] [--limit=...]` | U / S | 读消息时间线 |
 
@@ -242,17 +244,17 @@ human 输出格式：`Error: <reason>: <message>` 一行红字到 stderr。
 |---|---|---|
 | `supervisor retrigger <invocation_id>` | U | 人工重新激活失败 / 超时的 invocation（[ADR-0013](../decisions/0013-supervisor-invocation-concurrency.md)）|
 | `record-decision --invocation=<id> --rationale=... --actions=...` | S | supervisor 决策落库 + 同事务 emit events |
-| `escalate-input-request <input_request_id>` | S | 跨 BC 命令 — supervisor 把 agent 的 InputRequest 升级到飞书 |
+| ~~`escalate-input-request <input_request_id>`~~ | ~~S~~ | ~~跨 BC 命令 — supervisor 把 agent 的 InputRequest 升级到飞书~~ (v2 删 per ADR-0031) |
 
-### 8.6 Bridge
+### 8.6 ~~Bridge~~ (v2 删 per ADR-0031)
 
 | 命令 | audience | 简述 |
 |---|---|---|
-| `identity add --vendor=feishu --vendor-id=... --bind-to=<user_id>` | U | 把 vendor 身份绑到 center user |
-| `identity list [--vendor=...]` | U | 列所有身份映射 |
-| `identity bind <identity_id> --user=<user_id>` | U | 修改已存在身份的归属 |
-| `identity unbind <identity_id>` | U | 解绑 |
-| `bridge feishu setup [--app-id=...] [--app-secret=...]` | U / Sys | 飞书 vendor 初始化（写配置 + 验证 WebSocket）|
+| ~~`identity add --vendor=feishu --vendor-id=... --bind-to=<user_id>`~~ | ~~U~~ | ~~把 vendor 身份绑到 center user~~ (v2 删 per ADR-0031) |
+| ~~`identity list [--vendor=...]`~~ | ~~U~~ | ~~列所有身份映射~~ (v2 删 per ADR-0031) |
+| ~~`identity bind <identity_id> --user=<user_id>`~~ | ~~U~~ | ~~修改已存在身份的归属~~ (v2 删 per ADR-0031) |
+| ~~`identity unbind <identity_id>`~~ | ~~U~~ | ~~解绑~~ (v2 删 per ADR-0031) |
+| ~~`bridge feishu setup [--app-id=...] [--app-secret=...]`~~ | ~~U / Sys~~ | ~~飞书 vendor 初始化（写配置 + 验证 WebSocket）~~ (v2 删 per ADR-0031) |
 
 ### 8.7 Observability — Open Host 五动词 + peek
 
@@ -297,7 +299,7 @@ agent-center task create <project_id> <title> [--description=...] [--parent=<tas
 | `--description` | task 描述 |
 | `--parent` | sub-task 时填 parent_task_id |
 | `--from-issue` | issue conclude spawn 路径填 from_issue_id |
-| `--no-conversation` | 跳过同事务建 Conversation（b/c/d 路径，[ADR-0017 § 1](../decisions/0017-task-as-conversation.md)）；默认会同事务建 |
+| `--no-conversation` | 跳过同事务建 Conversation（b/c/d 路径，[ADR-0017 § 1](../decisions/drafts/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0017 superseded by ADR-0039 -->；默认会同事务建 |
 
 **实现路径**（同事务）：
 
@@ -370,7 +372,7 @@ agent-center server [--config=<path>] [--migrate-only]
 4. 初始化 BlobStore（按 config）
 5. 启动 gRPC worker 端口
 6. 启动 supervisor invocation 触发器（events 驱动 spawn）
-7. 启动 Bridge 长连接（飞书 WebSocket）
+7. ~~启动 Bridge 长连接（飞书 WebSocket）~~ (v2 删 per ADR-0031)
 8. ready；接受请求
 
 ### 9.5 `peek-trace` — agent trace 实时窥视
@@ -402,7 +404,7 @@ agent-center peek-trace <execution_id> [--last=N] [--kind=tool_call|thinking|too
 | Conversation | ConversationRepository | `conversation add-message / list / read` |
 | Cognition | SupervisorInvocationRepository | `supervisor retrigger` / `inspect supervisor` |
 | Cognition | DecisionRecordRepository | `record-decision` / `inspect decision` |
-| Bridge | FeishuDeliveryLedgerRepository | `bridge feishu setup`（内部表初始化）/ `identity *` |
+| ~~Bridge~~ | ~~FeishuDeliveryLedgerRepository~~ | ~~`bridge feishu setup`（内部表初始化）/ `identity *`~~ (v2 删 per ADR-0031) |
 | Observability | EventRepository | `query events` / `inspect <kind>` 的事件流字段 |
 | Observability | TaskExecutionProjectionRepository | `inspect execution --include-projection` / `ps` |
 | Observability | TraceArchiveRepository | `peek-trace` / `logs` 归档段 |

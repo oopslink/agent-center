@@ -1,3 +1,5 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 (see `docs/plans/phase-10-conversation-v2.md` and `phase-11-user-entry.md`). v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留，待 P10/P11 重写。
+
 # Cognition BC — DDD 战术设计 Overview
 
 > **DDD 战术层** · BC: Cognition
@@ -434,7 +436,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 - [conversation/00-overview.md](../conversation/00-overview.md) — conversation.message_added 唤醒事件
 - [observability/00-overview.md](../observability/00-overview.md) — events 表 + `inspect supervisor` 查询接口
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — Worker-side prompt 组装（跟本 BC 独立）
-- [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — 失败 invocation 推飞书提醒人工 retrigger
+- ~~[bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — 失败 invocation 推飞书提醒人工 retrigger~~ (v2 删 per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))
 
 ### 横切方法论
 

@@ -1,3 +1,5 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+
 # agent-center 子域分类（Subdomain Classification）
 
 > **DDD 战略层**
@@ -39,28 +41,28 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 | Workforce（工作池）| Supporting | **Essential** | 系统骨架——失去 worker 注册 / project mapping，supervisor 不知有谁可派单。Thesis 角度：thesis 还在（用户手填 worker 列表理论可行）；系统角度：直接不 work |
 | Conversation（会话）| Supporting | **Essential** | 系统骨架——失去 conversation 抽象，task 进度无承载、IM 消息无锚。Thesis 角度：thesis 还在；系统角度：用户层无法运作 |
 | Observability（观测）| Supporting | Peripheral | 降级可运行——失去 fleet view / trace 投影，可 grep events 表 / 看 DB 兜底。可观测性能力降级但 Core 三件套（认知 / TaskRuntime / 讨论）依然成立 |
-| Bridge（渠道桥接层）| Supporting | Peripheral | 降级可运行——失去飞书 bridge，SSH CLI / Web Console 仍可用。S3 "对话即审计" 退化到 Web 端而非 IM，但 thesis 不靠 IM 唯一渠道 |
+| ~~Bridge（渠道桥接层）~~ | ~~Supporting~~ | ~~Peripheral~~ | ~~降级可运行——失去飞书 bridge，SSH CLI / Web Console 仍可用。S3 "对话即审计" 退化到 Web 端而非 IM，但 thesis 不靠 IM 唯一渠道~~ (v2 撤回 per ADR-0031) |
 
 **汇总**：
 
 - **Core**: 3 个 —— Cognition / TaskRuntime / Discussion
 - **Supporting – Essential**: 2 个 —— Workforce / Conversation
-- **Supporting – Peripheral**: 2 个 —— Observability / Bridge
+- **Supporting – Peripheral**: 1 个 —— Observability（~~Bridge~~ v2 撤回 per ADR-0031）
 - **Generic**: 0 个
 
-**总计 7 BC**（原 8 BC，BC1 Scheduling + BC4 Execution 合并为 BC1 TaskRuntime；[ADR-0019](../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)）。
+**总计 ~~7~~ 6 BC**（原 8 BC，BC1 Scheduling + BC4 Execution 合并为 BC1 TaskRuntime；[ADR-0019](../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)；v2 删 Bridge BC per ADR-0031）。
 
 ---
 
 ## § 3. 为什么 0 个 Generic
 
-7 个 BC 全是 agent-center specific 设计，没有"业界现成实现可整体替换"的：
+~~7~~ 6 个 BC 全是 agent-center specific 设计（v2 删 Bridge BC per ADR-0031），没有"业界现成实现可整体替换"的：
 
-- 业界 generic 组件——BlobStore / DB / gRPC / Feishu SDK / OTel 等——都是**基础设施 / ACL 内部依赖**，不构成 BC
+- 业界 generic 组件——BlobStore / DB / gRPC / ~~Feishu SDK~~ (v2 撤回 per ADR-0031) / OTel 等——都是**基础设施 / ACL 内部依赖**，不构成 BC
 - 每个 BC 的核心模型都是为 agent-center thesis 专门设计：
   - **Task / TaskExecution 两层模型**（[ADR-0010](../../decisions/0010-task-execution-two-layer-model.md)）
   - **Issue 协商流**（[discussion/00-overview](../tactical/discussion/00-overview.md)）
-  - **Task ↔ Conversation 1:1**（[ADR-0017](../../decisions/0017-task-as-conversation.md)）
+  - **Task ↔ Conversation 1:1**（[ADR-0039](../../decisions/drafts/0039-conversation-business-model-v2-unified.md)；原 ADR-0017 已 superseded）
   - **Worker enrollment 通过 Discovery Proposal**（[ADR-0008](../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)）
   - **Per-execution shim**（[ADR-0018](../../decisions/0018-detached-agent-via-per-execution-shim.md)）
   - **Supervisor file-based memory**（[ADR-0012](../../decisions/0012-memory-file-based.md)）
@@ -75,7 +77,7 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 |---|---|---|
 | **Core** | 最强投入 / 最聪明设计 / 最高质量门槛 / 出 bug 视为 P0 / Refactor 投入足 | Supervisor decision prompt 调优 / Task / TaskExecution 状态机精细 / Issue 收敛协议 / Dispatch reliability 协议 |
 | **Supporting – Essential** | 务实精巧 / 不思辨 / 做好就行 / 出 bug 视为 P1 / 解决方案优先选简单的 | Workforce Discovery Proposal（ADR-0008）/ Task ↔ Conversation 1:1（ADR-0017）——都是必要支撑的"做好"，不需要花体力探索"更优雅设计" |
-| **Supporting – Peripheral** | 最低投入度 / 够用即可 / 优先复用社区模式 / 出 bug 视为 P2 / refactor 阈值高 | Fleet view 用基础列表（[roadmap v3](../../roadmap.md) 推迟时间轴 / 对接 OTel）/ Bridge 只做飞书 adapter，多 vendor 推迟 |
+| **Supporting – Peripheral** | 最低投入度 / 够用即可 / 优先复用社区模式 / 出 bug 视为 P2 / refactor 阈值高 | Fleet view 用基础列表（[roadmap v3](../../roadmap.md) 推迟时间轴 / 对接 OTel）/ ~~Bridge 只做飞书 adapter，多 vendor 推迟~~ (v2 撤回 Bridge BC + 飞书 per ADR-0031) |
 | **Generic** | 直接用库 / 不自研 | — |
 
 **投入优先级**（出 bug / refactor / code review 严苛度）：
@@ -99,7 +101,7 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 ## § 6. 相关文档
 
 - [00-domain-vision](00-domain-vision.md) —— 判别锚（thesis + strategic stance）
-- [03-bounded-contexts § 2](03-bounded-contexts.md#-2-限界上下文bounded-contexts) —— 7 个 BC 详细定义
+- [03-bounded-contexts § 2](03-bounded-contexts.md#-2-限界上下文bounded-contexts) —— ~~7~~ 6 个 BC 详细定义（v2 删 Bridge BC per ADR-0031）
 - [03-bounded-contexts § 3](03-bounded-contexts.md#-3-上下文映射context-map) —— Context Map（上下游关系 + ACL）
 - [ddd-blueprint](../../ddd-blueprint.md) —— DDD 推进状态
 - [conventions § 0](../../../rules/conventions.md#-0-设计方法论ddd--统一语言) —— DDD 是方法论根基

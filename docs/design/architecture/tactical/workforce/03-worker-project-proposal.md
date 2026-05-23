@@ -1,8 +1,10 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+
 # WorkerProjectProposal 聚合
 
 > **DDD 战术层** · BC: Workforce · 聚合: WorkerProjectProposal（独立 AR）
 
-WorkerProjectProposal 是 Worker 自动扫描发现的 "候选项目映射"。**需要用户飞书 / Web Console / CLI 确认才能升级成 WorkerProjectMapping**。
+WorkerProjectProposal 是 Worker 自动扫描发现的 "候选项目映射"。**需要用户 ~~飞书~~ / Web Console / CLI 确认才能升级成 WorkerProjectMapping**（v2 撤回飞书 per ADR-0031）。
 
 设计动机：避免 Worker 一发现 git repo 就建出无用 mapping —— 用户决策权前置，明示"哪些项目你打算在哪些 worker 上跑"。详见 [ADR-0008](../../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)。
 
@@ -23,7 +25,7 @@ stateDiagram-v2
 
 | 转移 | 触发 |
 |---|---|
-| `pending → accepted` | 用户点 [✅ 加入] / [✏️ 改后加入]（ProposalReviewService accept）|
+| `pending → accepted` | 用户点 [✅ 加入] / [✏️ 改后加入]（ProposalReviewService accept；v2 在 Web Console / CLI per ADR-0031）|
 | `pending → ignored` | 用户点 [❌ 忽略] |
 | `ignored → pending` | `agent-center worker proposal unignore <id>` 显式恢复 |
 | `pending → superseded` | 新的 proposal 提议同 (worker_id, candidate_path) 时旧的标 superseded（v1 罕见，Worker 端 scan 已查重不重复 propose）|
@@ -75,10 +77,10 @@ worker_project_proposal (
 
 4. Center 入库 worker_project_proposals(status=pending) + 触发 supervisor 唤醒
 
-5. Supervisor 决定如何呈现 (v1: 直接推飞书卡片):
-   多条 proposal 可批量打包成一张卡片, 也可逐条
+5. Supervisor 决定如何呈现 (v1: ~~直接推飞书卡片~~ / v2: Web Console + CLI per ADR-0031):
+   多条 proposal 可批量打包, 也可逐条
 
-6. 飞书卡片:
+6. 用户 UI（~~飞书卡片~~ → v2 Web Console / CLI per ADR-0031）:
    🔍 Worker mac-mini-1 发现候选项目:
        📁 /Users/oopslink/code/agent-center  (Go, 2.1k commits, github.com/.../agent-center)
        建议 project_id: agent-center
@@ -102,7 +104,7 @@ worker_project_proposal (
 ```
 单事务内：
   a. 校验 suggested_project_id 不跟既有 project 冲突
-     冲突 → 飞书卡片标红，让用户改 project_id 后再提交（不允许同名）
+     冲突 → ~~飞书卡片标红~~ 用户 UI 提示（v2 Web Console / CLI per ADR-0031），让用户改 project_id 后再提交（不允许同名）
   b. 若 project 不存在: 自动创建 Project（用 suggested_project_id + suggested_kind）
      emit project.created
   c. 创建 WorkerProjectMapping(base_path=candidate_path, source_proposal_id=...)
@@ -114,7 +116,7 @@ worker_project_proposal (
 ### 4.2 用户点击 ✏️ 改后加入
 
 ```
-1. Bridge 弹卡片让用户编辑 project_id / name / kind / default_agent_cli
+1. ~~Bridge 弹卡片~~ 用户 UI（v2 Web Console / CLI per ADR-0031）让用户编辑 project_id / name / kind / default_agent_cli
 2. 用户提交后走 § 4.1 流程，用编辑后的字段
 ```
 
@@ -143,7 +145,7 @@ agent-center worker proposal unignore <proposal_id>
 Worker A 已 accepted `agent-center → /Users/.../code/agent-center`。
 Worker B 扫到自己本地 `/home/.../code/agent-center`，suggested_project_id 也是 `agent-center`。
 
-Center 检测到 Project `agent-center` 已存在 → 仍然走 propose + 飞书路径：
+Center 检测到 Project `agent-center` 已存在 → 仍然走 propose + ~~飞书~~ 用户 UI 路径（v2 Web Console / CLI per ADR-0031）：
 
 ```
 Worker home-server 也发现 agent-center 项目:
@@ -187,8 +189,8 @@ Accept 时不再建 Project（已存在），只建 Mapping。
 |---|---|
 | `agent-center worker proposal list [--worker-id=...] [--status=pending|ignored|accepted]` | 列 |
 | `agent-center worker proposal show <proposal_id>` | 详情（含 candidate_metadata）|
-| `agent-center worker proposal accept <proposal_id> [--project-id=...] [--kind=...]` | 同飞书 ✅；--project-id / --kind 覆盖 suggested |
-| `agent-center worker proposal ignore <proposal_id>` | 同飞书 ❌ |
+| `agent-center worker proposal accept <proposal_id> [--project-id=...] [--kind=...]` | 同 UI ✅（v2 per ADR-0031）；--project-id / --kind 覆盖 suggested |
+| `agent-center worker proposal ignore <proposal_id>` | 同 UI ❌（v2 per ADR-0031） |
 | `agent-center worker proposal unignore <proposal_id>` | 复活 |
 
 详见 [agent-harness/02-skill-cli-tooling.md](../agent-harness/02-skill-cli-tooling.md)。
@@ -202,5 +204,5 @@ Accept 时不再建 Project（已存在），只建 Mapping。
 - [00-overview.md § 3.2-3.3](00-overview.md) — ProposalDiscoveryService / ProposalReviewService
 - [01-worker.md § 4 WorkerProjectMapping](01-worker.md) — accept 产物
 - [02-project.md § 3.1](02-project.md) — Project accept 时自动创建路径
-- [bridge/01-feishu-integration.md](../bridge/01-feishu-integration.md) — 飞书 Proposal 卡片渲染
+- ~~[bridge/01-feishu-integration.md] — 飞书 Proposal 卡片渲染~~ → [~~tactical/bridge/* (v2 deleted per ADR-0031)~~](../../../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 在 proposal 决策中的角色（提醒用户，不替决策）

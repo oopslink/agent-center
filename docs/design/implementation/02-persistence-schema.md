@@ -1,3 +1,5 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+
 # 持久化 schema
 
 > **实现层** · 把 [P8a](../ddd-blueprint.md) 各 BC § 5 的 Repository 接口绑到 SQLite。
@@ -197,7 +199,7 @@ var migrationsFS embed.FS
 
 ## § 8. BC 实现切片（代表性 BC：TaskRuntime + Observability）
 
-其余 5 BC（Cognition / Workforce / Discussion / Conversation / Bridge）的 DDL 不在 P8b 展开；落代码时按 § 1-7 套用即可。出现新 schema pattern 时回 P8b 补元层规则。
+其余 5 BC（Cognition / Workforce / Discussion / Conversation / ~~Bridge (v2 deleted per ADR-0031)~~）的 DDL 不在 P8b 展开；落代码时按 § 1-7 套用即可。出现新 schema pattern 时回 P8b 补元层规则。
 
 ### 8.1 TaskRuntime
 
@@ -213,7 +215,7 @@ CREATE TABLE tasks (
     title                    TEXT NOT NULL,
     description              TEXT NOT NULL DEFAULT '',
     status                   TEXT NOT NULL,
-    conversation_id          TEXT,                       -- 1:1 强引用（ADR-0017）
+    conversation_id          TEXT,                       -- 1:1 强引用（ADR-0017，superseded by ADR-0039；v2 待 Phase 10 重写）
     current_execution_id     TEXT,
     created_at               TEXT NOT NULL,
     updated_at               TEXT NOT NULL,
@@ -286,7 +288,7 @@ RETURNING version;
 
 #### 8.1.3 关键实现要点
 
-- **task + conversation 同事务双写**（[ADR-0017](../decisions/0017-task-as-conversation.md) a/e 路径）：application service 用 § 5 tx-via-ctx 模板；`tasks.conversation_id` 在创建即填
+- **task + conversation 同事务双写**（[ADR-0017](../decisions/drafts/0039-conversation-business-model-v2-unified.md) a/e 路径）：application service 用 § 5 tx-via-ctx 模板；`tasks.conversation_id` 在创建即填 <!-- v1 ref: ADR-0017 superseded by ADR-0039 -->
 - **CAS 重试边界**：Repository 层**不重试**；返回 `*VersionConflict` 后由 caller（通常 supervisor）决定。避免 Repository 内置 retry 与 application 层重试策略叠加
 - **dispatch_state vs status**：两个状态机正交（[ADR-0011](../decisions/0011-dispatch-reliability-protocol.md)），各自 UPDATE 各自列；dispatch_state 不参与 status CAS 校验
 
@@ -393,7 +395,7 @@ LIMIT ?;
 | Observability | EventRepository | `events` | append-only INSERT |
 | Observability | TaskExecutionProjectionRepository | `task_execution_projections` | UPSERT（不走 CAS） |
 | Observability | TraceArchiveRepository | **不在 DB** | 见 [01-blob-store](01-blob-store.md) |
-| Cognition / Workforce / Discussion / Conversation / Bridge | 各 § 5 Repository | DDL 落代码时按 § 1-7 套用 | - |
+| Cognition / Workforce / Discussion / Conversation / ~~Bridge (v2 删 per ADR-0031)~~ | 各 § 5 Repository | DDL 落代码时按 § 1-7 套用 | - |
 
 ---
 

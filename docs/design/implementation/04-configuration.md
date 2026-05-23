@@ -1,3 +1,5 @@
+> ⚠ **v1-era doc** — pending rewrite in Phase 10 / 11 / 12. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md))；本文中 Bridge / vendor / 飞书 / 已删 ADR 引用是 v1 残留。
+
 # 配置文件 schema
 
 > **实现层** · `agent-center` 单 binary 多模式共用一份 YAML 配置文件 + env 覆盖 + CLI flag 兜顶。
@@ -65,11 +67,13 @@ CLI flag > env var > YAML file > built-in default
 
 每个 secret 字段有对应的 `<field>_file: <path>` 备用 key（读取文件首行作为 secret）。例：
 
+<!-- v2 删 per ADR-0031 — Bridge BC + 飞书集成已撤回 -->
 ```yaml
-bridge:
-  feishu:
-    app_id: "cli_abc123"                     # 非 secret，明文 OK
-    app_secret_file: "/etc/secrets/feishu"   # secret 走文件
+# ~~v2 删 per ADR-0031~~
+# bridge:
+#   feishu:
+#     app_id: "cli_abc123"                     # 非 secret，明文 OK
+#     app_secret_file: "/etc/secrets/feishu"   # secret 走文件
 ```
 
 ### 3.1 v1 凭据存储
@@ -144,7 +148,7 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 
 | Mode | 必读 section |
 |---|---|
-| `server` | `server` / `blob_store` / `supervisor` / `notification` / `bridge` / `execution` / `observability` |
+| `server` | `server` / `blob_store` / `supervisor` / `notification` / ~~`bridge`~~ (v2 删 per ADR-0031) / `execution` / `observability` |
 | `worker` | `worker` / `worker_config` / `blob_store`（如需上传日志）|
 | `supervisor` | 不读 config（CLI flag 注入参数）|
 
@@ -192,16 +196,16 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| `notification.default_channel` | string | - | [ADR-0017 § 10.5](../decisions/0017-task-as-conversation.md) | InputRequest fallback 渠道（如 `feishu:user:hayang:dm`）|
+| ~~`notification.default_channel`~~ | ~~string~~ | ~~-~~ | ~~[ADR-0017 § 10.5](../decisions/drafts/0039-conversation-business-model-v2-unified.md)~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~InputRequest fallback 渠道（如 `feishu:user:hayang:dm`）~~ (v2 删 per ADR-0031) |
 
-### 7.5 `bridge.*`
+### 7.5 ~~`bridge.*`~~ (v2 删 per ADR-0031)
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| `bridge.feishu.enabled` | bool | false | [bridge/01](../architecture/tactical/bridge/01-feishu-integration.md) | 是否启用飞书 Bridge |
-| `bridge.feishu.app_id` | string | - | 同上 | 飞书 app id（非 secret）|
-| `bridge.feishu.app_secret_file` | path | - | 同上 | 飞书 secret 文件（[§ 3](#-3-凭据处理)）|
-| `bridge.feishu.message_retry_count` | int | 3 | 同上 | 投递重试次数 |
+| ~~`bridge.feishu.enabled`~~ | ~~bool~~ | ~~false~~ | ~~tactical/bridge/* (v2 deleted per ADR-0031)~~ | ~~是否启用飞书 Bridge~~ (v2 删 per ADR-0031) |
+| ~~`bridge.feishu.app_id`~~ | ~~string~~ | ~~-~~ | ~~同上~~ | ~~飞书 app id（非 secret）~~ (v2 删 per ADR-0031) |
+| ~~`bridge.feishu.app_secret_file`~~ | ~~path~~ | ~~-~~ | ~~同上~~ | ~~飞书 secret 文件（[§ 3](#-3-凭据处理)）~~ (v2 删 per ADR-0031) |
+| ~~`bridge.feishu.message_retry_count`~~ | ~~int~~ | ~~3~~ | ~~同上~~ | ~~投递重试次数~~ (v2 删 per ADR-0031) |
 
 ### 7.6 `execution.*`
 
@@ -298,15 +302,16 @@ supervisor:
   invocation_timeout_seconds: 180
   invocation_timeout_global_seconds: 600
 
-notification:
-  default_channel: "feishu:user:hayang:dm"
-
-bridge:
-  feishu:
-    enabled: true
-    app_id: "cli_abc123"
-    app_secret_file: "/etc/secrets/agent-center/feishu"
-    message_retry_count: 3
+# ~~v2 删 per ADR-0031 — notification / bridge sections removed~~
+# notification:
+#   default_channel: "feishu:user:hayang:dm"
+#
+# bridge:
+#   feishu:
+#     enabled: true
+#     app_id: "cli_abc123"
+#     app_secret_file: "/etc/secrets/agent-center/feishu"
+#     message_retry_count: 3
 
 execution:
   submitted_timeout_seconds: 300
@@ -363,7 +368,7 @@ blob_store:
 | [ADR-0011 Dispatch reliability](../decisions/0011-dispatch-reliability-protocol.md) | `execution.dispatch_ack_timeout_seconds` |
 | [ADR-0013 Supervisor 并发](../decisions/0013-supervisor-invocation-concurrency.md) | `supervisor.*` |
 | [ADR-0015 trace 不进 events 表](../decisions/0015-agent-trace-not-in-events-table.md) | `observability.peek_trace_buffer_lines` |
-| [ADR-0017 Task ↔ Conversation](../decisions/0017-task-as-conversation.md) § 10.5 | `notification.default_channel` |
+| ~~[ADR-0017 Task ↔ Conversation](../decisions/drafts/0039-conversation-business-model-v2-unified.md) § 10.5~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~`notification.default_channel`~~ (v2 删 per ADR-0031) |
 | [ADR-0018 Per-execution shim](../decisions/0018-detached-agent-via-per-execution-shim.md) | `execution.shim_*` / `worker_config.exec_base_dir` / `gc_exec_retention_hours` |
 | [NF1 零 LLM SDK](../requirements/02-non-functional.md) | 整个 config 不含任何 LLM SDK key |
 | [NF6 并发 capacity](../requirements/02-non-functional.md) | `worker_config.concurrency.per_agent_type` |
