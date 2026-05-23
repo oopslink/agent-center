@@ -96,4 +96,58 @@ should point users there rather than duplicate the content.
 
 ## § 5. Execution log
 
-To be appended by the edit commit.
+### 5.1 Audit commit
+`5963e68 docs(p12 S5) decisions README + roadmap polish audit` — this file.
+
+### 5.2 Edit commit
+- `docs/design/decisions/README.md` — already 95% updated in S4 commit
+  `cd548d7`; no edits needed in S5 beyond verifying the existing state.
+  Decision documented in § 1.2: keep title column as "key change"
+  summary rather than adding a 4th column.
+- `docs/design/roadmap.md` — rewritten end-to-end:
+  - Top banner dropped (no longer v1-era).
+  - Three top-level sections: **v2 ✅ 已完成** (8 categories with ADR
+    links to the 17 v2 ADRs) / **v2.1 backlog** (refs
+    `docs/plans/v2.1-backlog.md` as canonical) / **v3 推迟**
+    (preserves all v3 / v3+ / 长期愿景 content with the vendor /
+    strikethrough notes rewritten to vendor-neutral language).
+  - All `~~...~~` strikethroughs removed (`grep -c '~~' roadmap.md == 0`).
+  - All `feishu` / `lark` / `dingtalk` references removed (`grep -ic`
+    returns 0).
+  - Deleted-ADR references (0017/0021/0022) consolidated to point at
+    [ADR-0039](decisions/0039-conversation-business-model-v2-unified.md).
+  - "Per v2 P12 决策" performance section preserved (sourced from
+    real 2026-05-23 user decision, no rewrite needed).
+  - "内容维护" section updated to mention v2.1 backlog + v3 推迟 as
+    valid destinations alongside v1-era "01-functional / out-of-scope".
+
+### 5.3 Verification
+
+```
+$ grep -c '~~' docs/design/roadmap.md
+0
+$ grep -ic 'feishu\|lark\|dingtalk' docs/design/roadmap.md
+0
+$ make lint-vendor          # clean
+$ make lint-vendor-selftest # both phases OK
+$ go test ./...             # green
+$ go vet ./...              # clean
+```
+
+### 5.4 S6 hand-off
+
+The roadmap.md is now done. The remaining v1-era docs to clean in S6
+(Wave 2 Group A banner sweep) per `s1-v1-residue-audit.md § 2.3`:
+
+- `docs/index.md` (4 hits)
+- `docs/rules/conventions.md` (2 hits)
+- `docs/rules/testing.md` (1 hit)
+- `docs/design/ddd-blueprint.md` (2 hits)
+- `docs/design/architecture/strategic/*.md` (5 hits)
+- `docs/design/architecture/tactical/**/*.md` (~20 hits across 9 docs)
+- `docs/design/implementation/03-cli-subcommands.md` (3 hits)
+- `docs/design/implementation/04-configuration.md` (10 hits — biggest)
+- `docs/design/implementation/06-deployment.md` (11 hits — biggest)
+
+When S6 finishes, the S1 lint allowlist TEMPORARY block should be
+empty (S6 acceptance criterion per S1 audit § 8.4).
