@@ -62,6 +62,8 @@ type App struct {
 	MessageWriter      *convservice.MessageWriter
 	ChannelMgmtSvc     *convservice.ChannelManagementService
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
+	CarryOverSvc       *convservice.CarryOverService
+	ConvRefRepo        conversation.ConversationMessageReferenceRepository
 
 	// TaskRuntime
 	TaskRepo         task.Repository
@@ -133,6 +135,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, clk)
 	channelMgmt := convservice.NewChannelManagementService(db, cr, sink, gen, clk)
 	participantMgmt := convservice.NewParticipantManagementService(db, cr, sink, clk)
+	convRefRepo := convsqlite.NewReferenceRepo(db)
+	carryOver := convservice.NewCarryOverService(db, cr, mgRepo, convRefRepo, sink, gen, clk)
 
 	// TaskRuntime
 	taskRepo := trsqlite.NewTaskRepo(db)
@@ -222,6 +226,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		MessageWriter:      writer,
 		ChannelMgmtSvc:     channelMgmt,
 		ParticipantMgmtSvc: participantMgmt,
+		CarryOverSvc:       carryOver,
+		ConvRefRepo:        convRefRepo,
 		TaskRepo:        taskRepo,
 		ExecRepo:        execRepo,
 		IRRepo:          irRepo,

@@ -86,6 +86,13 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 		}
 	}
 
+	// message group (ADR-0035 CV3 reverse lookup).
+	for _, c := range provider.messageCommands() {
+		if err := router.Add([]string{"message"}, c); err != nil {
+			return nil, "", err
+		}
+	}
+
 	// channel group (ADR-0032 CV1 — first-class channel commands).
 	for _, c := range provider.channelCommands() {
 		if err := router.Add([]string{"channel"}, c); err != nil {
@@ -321,12 +328,24 @@ func (l *lazyApp) projectCommands() []*Command {
 }
 
 func (l *lazyApp) conversationCommands() []*Command {
-	names := []string{"open", "add-message", "list", "read", "close"}
+	names := []string{"open", "add-message", "send", "list", "read", "tail", "show", "refs", "close"}
 	out := make([]*Command, 0, len(names))
 	for _, n := range names {
 		n := n
 		out = append(out, l.withApp(func(a *App) *Command {
 			return findCmd(a.ConversationCommands(), n)
+		}))
+	}
+	return out
+}
+
+func (l *lazyApp) messageCommands() []*Command {
+	names := []string{"refs"}
+	out := make([]*Command, 0, len(names))
+	for _, n := range names {
+		n := n
+		out = append(out, l.withApp(func(a *App) *Command {
+			return findCmd(a.MessageCommands(), n)
 		}))
 	}
 	return out
