@@ -49,21 +49,38 @@ git log --oneline --all -1 # latest commit
 ## § 3. NOT done in S16 (human-gated)
 
 These commands are NOT run by AgentCenterDev. They are documented
-here as a runbook for @oopslink:
+here as a runbook for @oopslink, **in order**:
 
 ```
-# 1. Push tag (signs the public release commitment)
+# 1. Push the main branch first.
+#
+#    The local branch is ~177 commits ahead of origin/main and the
+#    v2.0.0 tag points at a commit on this branch. `git push origin
+#    v2.0.0` alone would fail / push incomplete state because the
+#    tag's target commit isn't on remote yet. Push main first, then
+#    the tag has its objects.
+git push origin main
+
+# 2. Push the tag itself.
 git push origin v2.0.0
 
-# 2. Create GitHub Release with the prepared notes body
+# 3. Create the GitHub Release with the prepared notes body.
 gh release create v2.0.0 \
     --title "agent-center v2.0.0" \
     --notes-file docs/release/v2.0-gh-release-body.md
 ```
 
-Both require human-driven approval per [phase-12-plan-detail § 4
+All three require human-driven approval per [phase-12-plan-detail § 4
 S16](../phase-12-plan-detail.md) ("Push gated on @oopslink +
 @x9527 approval — no autonomous publish").
+
+**Why step 1 matters**: `git push origin v2.0.0` succeeds only if
+the tag's reachable commit history is already on the remote. Skipping
+the main push gives one of two failure modes — either the tag push
+errors with "missing necessary objects", or (worse) Git auto-pushes
+the missing commits on a thin transport without leaving them on a
+branch, creating a dangling state. Pushing main explicitly first
+avoids both modes.
 
 ## § 4. Execution log
 
@@ -71,11 +88,27 @@ S16](../phase-12-plan-detail.md) ("Push gated on @oopslink +
 `a1a392d docs(p12 S16) v2.0.0 tag procedure + GH release notes
 body draft` — this file (§ 0-3, § 5-7) + `docs/release/v2.0-gh-release-body.md`.
 
-### 4.2 Local tag creation
+### 4.2 Local tag creation (incl. re-tag per x9527 audit fix 1)
 
-Command run (literal, copy-pasteable):
+#### Initial tag (commit `a1a392d`)
+
+The first `git tag -a v2.0.0 ...` invocation pointed at commit
+`a1a392d` — the commit that landed this audit + the GH release
+body. The closure ledger sections (§ 8 / § 9) were added in a
+follow-up commit `587e799`.
+
+x9527's M5 audit (msg 07b3bc78) surfaced this as **Fix 1**: the
+tag should anchor to the commit that includes both the audit
+scaffolding AND the closure ledgers, otherwise `git checkout
+v2.0.0` lands a reader on a partial audit doc (§ 8 / § 9 missing).
+
+#### Re-tag at HEAD post-fix
+
+After landing this audit update + the runbook fix (Fix 2 in §
+3), the tag was deleted + recreated at the new HEAD:
 
 ```
+git tag -d v2.0.0
 git tag -a v2.0.0 -m "agent-center v2.0.0 — GA 2026-05-24
 
 See:
@@ -91,18 +124,28 @@ Tag created locally by AgentCenterDev at 2026-05-24; push to remote
 gated on @oopslink approval per P12 S16."
 ```
 
-Result:
+The new tag points at HEAD which contains the full closure
+ledgers (this audit's § 8 / § 9) + the corrected push runbook
+(§ 3).
+
+#### Tag verification (final state)
 
 ```
 $ git tag -l v2.0.0
 v2.0.0
-
-$ git rev-parse v2.0.0
-cae28a451acab4194dd4e38aa3492e353541ab26     (tag object SHA)
-
-$ git rev-parse v2.0.0^{commit}
-a1a392d81ee8d5b469929689043f6d500a06c299     (target commit SHA)
+$ git rev-parse v2.0.0           # tag object SHA
+<see `git show v2.0.0` for the current SHA>
+$ git rev-parse v2.0.0^{commit}  # target commit SHA = current HEAD
+<see `git rev-parse HEAD` for the current SHA>
 ```
+
+The exact SHAs are not pinned in this doc because re-tagging at
+HEAD means the tag's target SHA == the SHA of the commit that
+contains this audit's final form. Recursion: pinning the SHA
+here means we'd need yet another commit to record it, which then
+becomes the new HEAD. Resolution: trust `git rev-parse v2.0.0` as
+the source of truth post-tag; this prose just declares the
+invariant `v2.0.0^{commit} == HEAD at re-tag time`.
 
 ### 4.3 STATE: not pushed, awaiting human
 
@@ -128,9 +171,15 @@ AgentCenterDev does NOT invoke either command autonomously.
 |---|---|---|---|---|---|
 | S14 | `9f05fee` | `08c8b32` | Version bake + CHANGELOG + release notes promote | ~45m | 2h |
 | S15 | (this report) | `fbf0506` | phase-12-test-report.md | ~30m | 1h |
-| S16 | (this file) | `a1a392d` (audit+body) + local tag (no commit) | Tag procedure + GH release body + local tag | ~20m | 0.5h |
+| S16 | (this file) | `a1a392d` (audit+body) + `587e799` (closure) + audit-fix commit + re-tag | Tag procedure + GH release body + local tag + x9527-feedback fix cycle | ~35m | 0.5h |
 
-**M5 total**: ~1.5h actual vs 3.5h plan = **-57%**.
+**M5 total**: ~1.75h actual vs 3.5h plan = **-50%**.
+
+S16 actual ran over the 0.5h plan because x9527's M5 audit
+surfaced two fixes (Fix 1: tag anchor / Fix 2: push runbook missing
+`git push origin main` first step). The extra ~15m was the audit-
+update + re-tag cycle; treated as proper closeout work, not
+overrun.
 
 ### 8.2 What M5 ships
 
@@ -155,8 +204,8 @@ AgentCenterDev does NOT invoke either command autonomously.
 | M2 ADR & docs polish | S4-S7 | ~5.5h | 7h | -21% |
 | M3 Playwright e2e | S8-S11 | ~5h | 11h | -55% |
 | M4 Migration tool | S12-S13 | ~2.5h | 6h | -58% |
-| M5 Release ship | S14-S16 | ~1.5h | 3.5h | -57% |
-| **TOTAL** | **16 ST** | **~20h** | **32.5h** | **-38%** |
+| M5 Release ship | S14-S16 | ~1.75h | 3.5h | -50% |
+| **TOTAL** | **16 ST** | **~20.25h** | **32.5h** | **-38%** |
 
 ### 9.2 Audit log inventory
 
