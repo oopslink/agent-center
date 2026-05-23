@@ -1,189 +1,125 @@
 package identity
 
 import (
-	"errors"
-	"strings"
 	"testing"
 	"time"
 )
 
-func TestKindFromID(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		in     IdentityID
-		want   Kind
-		errSub string
-	}{
-		{IdentityID("user:hayang"), KindUser, ""},
-		{IdentityID("supervisor:inv-1"), KindSupervisor, ""},
-		{IdentityID("agent:a-1"), KindAgent, ""},
-		{IdentityID("bot"), KindBot, ""},
-		{IdentityID(""), "", "cannot derive"},
-		{IdentityID("worker:w-1"), "", "cannot derive"},
-		{IdentityID("user:"), "", "cannot derive"},
+func TestNewIdentity_Happy(t *testing.T) {
+	now := time.Now().UTC()
+	for _, in := range []NewIdentityInput{
+		{ID: "user:hayang", Kind: KindUser, DisplayName: "Hayang", CreatedAt: now},
+		{ID: "agent:s-1", Kind: KindAgent, DisplayName: "Agent1", CreatedAt: now},
+		{ID: "system", Kind: KindSystem, DisplayName: "System", CreatedAt: now},
 	} {
-		got, err := KindFromID(tc.in)
-		if tc.errSub != "" {
-			if err == nil || !strings.Contains(err.Error(), tc.errSub) {
-				t.Errorf("KindFromID(%q) want err containing %q, got %v", tc.in, tc.errSub, err)
-			}
-			continue
-		}
+		i, err := NewIdentity(in)
 		if err != nil {
-			t.Errorf("KindFromID(%q) unexpected err: %v", tc.in, err)
+			t.Fatalf("%s: %v", in.ID, err)
 		}
-		if got != tc.want {
-			t.Errorf("KindFromID(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestIdentityIDValidate(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		id    IdentityID
-		valid bool
-	}{
-		{"user:hayang", true},
-		{"supervisor:inv-1", true},
-		{"agent:a-1", true},
-		{"bot", true},
-		{"", false},
-		{"user:", false},
-		{"worker:w-1", false},
-	} {
-		err := tc.id.Validate()
-		if (err == nil) != tc.valid {
-			t.Errorf("Validate(%q) valid=%v err=%v", tc.id, tc.valid, err)
+		if i.ID() != in.ID || i.Kind() != in.Kind {
+			t.Fatalf("got %v", i)
 		}
 	}
 }
 
-func TestChannelValidate(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		c     Channel
-		valid bool
-	}{
-		{"feishu", true},
-		{"dingtalk", true},
-		{"web-chat", true},
-		{"", false},
-		{"Feishu", false},
-		{"feishu chat", false},
-		{"feishu/x", false},
-	} {
-		err := tc.c.Validate()
-		if (err == nil) != tc.valid {
-			t.Errorf("Channel(%q) valid=%v err=%v", tc.c, tc.valid, err)
-		}
-	}
-}
-
-func TestNewIdentityHappyAndMismatch(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
-	id, err := NewIdentity(NewIdentityInput{
-		ID: "user:hayang", Kind: KindUser, DisplayName: "hayang", CreatedAt: now,
+func TestNewIdentity_KindMismatch(t *testing.T) {
+	_, err := NewIdentity(NewIdentityInput{
+		ID: "user:x", Kind: KindAgent, DisplayName: "x", CreatedAt: time.Now(),
 	})
-	if err != nil {
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestNewIdentity_BadInputs(t *testing.T) {
+	if _, err := NewIdentity(NewIdentityInput{ID: "", Kind: KindUser, DisplayName: "x", CreatedAt: time.Now()}); err == nil {
+		t.Fatal("empty id")
+	}
+	if _, err := NewIdentity(NewIdentityInput{ID: "user:x", Kind: "weird", DisplayName: "x", CreatedAt: time.Now()}); err != ErrIdentityInvalidKind {
+		t.Fatal("bad kind")
+	}
+	if _, err := NewIdentity(NewIdentityInput{ID: "user:x", Kind: KindUser, DisplayName: "", CreatedAt: time.Now()}); err == nil {
+		t.Fatal("empty display_name")
+	}
+	if _, err := NewIdentity(NewIdentityInput{ID: "user:x", Kind: KindUser, DisplayName: "x"}); err == nil {
+		t.Fatal("zero created_at")
+	}
+}
+
+func TestKindFromID(t *testing.T) {
+	cases := map[IdentityID]Kind{
+		"user:hayang": KindUser,
+		"agent:s-1":   KindAgent,
+		"system":      KindSystem,
+	}
+	for id, want := range cases {
+		got, err := KindFromID(id)
+		if err != nil || got != want {
+			t.Fatalf("%s: got (%s, %v)", id, got, err)
+		}
+	}
+	if _, err := KindFromID("bot"); err == nil {
+		t.Fatal("bot should not derive a v2 kind")
+	}
+}
+
+func TestIdentityID_Validate(t *testing.T) {
+	cases := map[IdentityID]bool{
+		"":            false,
+		"system":      true,
+		"user:x":      true,
+		"agent:y":    true,
+		"user:":       false,
+		"bot":         false,
+		"supervisor:x": false,
+	}
+	for id, ok := range cases {
+		err := id.Validate()
+		if (err == nil) != ok {
+			t.Errorf("%s: ok=%v err=%v", id, ok, err)
+		}
+	}
+}
+
+func TestKindValid(t *testing.T) {
+	for _, k := range []Kind{KindUser, KindAgent, KindSystem} {
+		if !k.IsValid() {
+			t.Fatalf("%s should be valid", k)
+		}
+	}
+	if Kind("nope").IsValid() {
+		t.Fatal()
+	}
+}
+
+func TestIdentity_Rename(t *testing.T) {
+	now := time.Now()
+	i, _ := NewIdentity(NewIdentityInput{ID: "user:x", Kind: KindUser, DisplayName: "old", CreatedAt: now})
+	if err := i.Rename("new", now); err != nil {
 		t.Fatal(err)
 	}
-	if id.Version() != 1 || id.Kind() != KindUser || id.DisplayName() != "hayang" {
-		t.Fatalf("identity construction lost data: %+v", id)
+	if i.DisplayName() != "new" || i.Version() != 2 {
+		t.Fatalf("got name=%s ver=%d", i.DisplayName(), i.Version())
 	}
-	if _, err := NewIdentity(NewIdentityInput{
-		ID: "user:hayang", Kind: KindSupervisor, DisplayName: "hayang", CreatedAt: now,
-	}); err == nil {
-		t.Fatal("want kind mismatch err")
-	}
-	if _, err := NewIdentity(NewIdentityInput{
-		ID: "user:hayang", Kind: KindUser, DisplayName: "  ", CreatedAt: now,
-	}); err == nil {
-		t.Fatal("want empty display_name err")
-	}
-	if _, err := NewIdentity(NewIdentityInput{
-		ID: "user:hayang", Kind: KindUser, DisplayName: "x",
-	}); err == nil {
-		t.Fatal("want zero time err")
-	}
-	if _, err := NewIdentity(NewIdentityInput{
-		ID: "", Kind: KindUser, DisplayName: "x", CreatedAt: now,
-	}); err == nil {
-		t.Fatal("want empty id err")
+	if err := i.Rename("", now); err == nil {
+		t.Fatal("empty name should error")
 	}
 }
 
-func TestRenameBumpsVersion(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
-	id, _ := NewIdentity(NewIdentityInput{
-		ID: "user:hayang", Kind: KindUser, DisplayName: "hayang", CreatedAt: now,
+func TestRehydrateIdentity_RejectsBadKind(t *testing.T) {
+	_, err := RehydrateIdentity(RehydrateIdentityInput{
+		ID: "x", Kind: "weird", DisplayName: "n", Version: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	})
-	if err := id.Rename("Hayang Updated", now.Add(time.Minute)); err != nil {
-		t.Fatal(err)
-	}
-	if id.Version() != 2 {
-		t.Fatalf("version: %d", id.Version())
-	}
-	if id.DisplayName() != "Hayang Updated" {
-		t.Fatalf("display: %s", id.DisplayName())
-	}
-	if err := id.Rename("  ", now); err == nil {
-		t.Fatal("want empty display err")
+	if err != ErrIdentityInvalidKind {
+		t.Fatal()
 	}
 }
 
-func TestRehydrateIdentityVersionGuard(t *testing.T) {
-	t.Parallel()
-	if _, err := RehydrateIdentity(RehydrateIdentityInput{
-		ID: "user:x", Kind: KindUser, Version: 0,
-	}); err == nil {
-		t.Fatal("want err on version<1")
-	}
-	if _, err := RehydrateIdentity(RehydrateIdentityInput{
-		ID: "user:x", Kind: "weird", Version: 1,
-	}); !errors.Is(err, ErrIdentityInvalidKind) {
-		t.Fatalf("want ErrIdentityInvalidKind, got %v", err)
-	}
-}
-
-func TestNewChannelBindingHappyAndErrors(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
-	b, err := NewChannelBinding(NewChannelBindingInput{
-		ID: "01J0000000000000000000000B", IdentityID: "user:x", Channel: "feishu",
-		VendorUserID: "ou_xxx", Preferred: true, BoundAt: now,
+func TestRehydrateIdentity_RejectsZeroVersion(t *testing.T) {
+	_, err := RehydrateIdentity(RehydrateIdentityInput{
+		ID: "x", Kind: KindUser, DisplayName: "n", Version: 0, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !b.Preferred() {
-		t.Fatal("preferred lost")
-	}
-	if _, err := NewChannelBinding(NewChannelBindingInput{
-		ID: "", IdentityID: "user:x", Channel: "feishu", VendorUserID: "ou", BoundAt: now,
-	}); err == nil {
-		t.Fatal("want id err")
-	}
-	if _, err := NewChannelBinding(NewChannelBindingInput{
-		ID: "x", IdentityID: "bad", Channel: "feishu", VendorUserID: "ou", BoundAt: now,
-	}); err == nil {
-		t.Fatal("want identity_id err")
-	}
-	if _, err := NewChannelBinding(NewChannelBindingInput{
-		ID: "x", IdentityID: "user:x", Channel: "", VendorUserID: "ou", BoundAt: now,
-	}); err == nil {
-		t.Fatal("want channel err")
-	}
-	if _, err := NewChannelBinding(NewChannelBindingInput{
-		ID: "x", IdentityID: "user:x", Channel: "feishu", VendorUserID: "", BoundAt: now,
-	}); err == nil {
-		t.Fatal("want vendor_user_id err")
-	}
-	if _, err := NewChannelBinding(NewChannelBindingInput{
-		ID: "x", IdentityID: "user:x", Channel: "feishu", VendorUserID: "ou",
-	}); err == nil {
-		t.Fatal("want bound_at err")
+	if err == nil {
+		t.Fatal()
 	}
 }

@@ -91,9 +91,8 @@ type App struct {
 	LogsSvc         *query.LogsService
 	BlobStore       blobstore.BlobStore
 
-	// Identity (Phase 5; Bridge BC removed per ADR-0031 in P10 § 3.9)
+	// Identity (Phase 5; ChannelBinding removed per ADR-0031/0033 in P10 § 3.9 + § 3.2)
 	IdentityRepo         identity.IdentityRepository
-	ChannelBindingRepo   identity.ChannelBindingRepository
 	IdentityRegistration *identity.RegistrationService
 
 	// Cognition (Phase 6)
@@ -187,10 +186,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	}
 	logsSvc := query.NewLogsService(deps, bs)
 
-	// Phase 5: Identity (Bridge BC removed per ADR-0031 in P10 § 3.9).
+	// Phase 5: Identity (ChannelBinding removed per ADR-0031/0033).
 	identityRepo := identity.NewSQLiteIdentityRepo(db)
-	channelBindingRepo := identity.NewSQLiteChannelBindingRepo(db)
-	identityReg := identity.NewRegistrationService(db, identityRepo, channelBindingRepo, sink, gen, clk)
+	identityReg := identity.NewRegistrationService(db, identityRepo, sink, gen, clk)
 
 	// Phase 6: Cognition (Supervisor + DecisionRecord).
 	cognitiondbInv := cognitiondb.NewInvocationRepo(db)
@@ -246,7 +244,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		BlobStore:      bs,
 
 		IdentityRepo:         identityRepo,
-		ChannelBindingRepo:   channelBindingRepo,
 		IdentityRegistration: identityReg,
 
 		InvocationRepo:   cognitiondbInv,

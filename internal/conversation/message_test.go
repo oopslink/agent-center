@@ -1,141 +1,162 @@
 package conversation
 
 import (
-	"errors"
 	"testing"
 	"time"
 )
 
-func newTestMessage(t *testing.T) *Message {
-	t.Helper()
+func TestNewMessage_Happy(t *testing.T) {
 	m, err := NewMessage(NewMessageInput{
-		ID:               "M-1",
-		ConversationID:   "C-1",
-		SenderIdentityID: "user:hayang",
-		ContentKind:      MessageContentText,
-		Content:          "hello",
-		Direction:        DirectionInbound,
-		PostedAt:         time.Now(),
+		ID: "m-1", ConversationID: "c-1",
+		SenderIdentityID: "user:hayang", ContentKind: MessageContentText,
+		Content: "hi", Direction: DirectionInbound, PostedAt: time.Now(),
 	})
 	if err != nil {
-		t.Fatalf("NewMessage: %v", err)
-	}
-	return m
-}
-
-func TestMessage_New_Happy(t *testing.T) {
-	m := newTestMessage(t)
-	if m.ID() != "M-1" {
-		t.Fatal()
-	}
-	if m.Direction() != DirectionInbound {
-		t.Fatal()
-	}
-	if m.HasVendorMsgRef() {
-		t.Fatal()
-	}
-}
-
-func TestMessage_New_RejectsBadInputs(t *testing.T) {
-	cases := []NewMessageInput{
-		{},                                                                      // all missing
-		{ID: "M"},                                                               // missing conv
-		{ID: "M", ConversationID: "C"},                                          // missing identity
-		{ID: "M", ConversationID: "C", SenderIdentityID: "bogus:x"},             // bad identity
-		{ID: "M", ConversationID: "C", SenderIdentityID: "user:x"},              // missing kind
-		{ID: "M", ConversationID: "C", SenderIdentityID: "user:x", ContentKind: "bogus"}, // bad kind
-		{ID: "M", ConversationID: "C", SenderIdentityID: "user:x", ContentKind: MessageContentText, Direction: "bad"}, // bad dir
-		{ID: "M", ConversationID: "C", SenderIdentityID: "user:x", ContentKind: MessageContentText, Direction: DirectionInbound}, // missing time
-	}
-	for i, in := range cases {
-		if _, err := NewMessage(in); err == nil {
-			t.Fatalf("case %d: expected error", i)
-		}
-	}
-}
-
-func TestMessage_SetVendorMsgRef_FirstTime(t *testing.T) {
-	m := newTestMessage(t)
-	if err := m.SetVendorMsgRef("vendor-1"); err != nil {
 		t.Fatal(err)
 	}
-	if m.VendorMsgRef() != "vendor-1" || !m.HasVendorMsgRef() {
-		t.Fatal()
+	if m.ID() != "m-1" || m.ContentKind() != MessageContentText {
+		t.Fatalf("got %+v", m)
 	}
 }
 
-func TestMessage_SetVendorMsgRef_AlreadySet(t *testing.T) {
-	m := newTestMessage(t)
-	_ = m.SetVendorMsgRef("v-1")
-	err := m.SetVendorMsgRef("v-2")
-	if !errors.Is(err, ErrMessageImmutable) {
+func TestNewMessage_BadSender(t *testing.T) {
+	_, err := NewMessage(NewMessageInput{
+		ID: "m", ConversationID: "c",
+		SenderIdentityID: "", ContentKind: MessageContentText,
+		Direction: DirectionInbound, PostedAt: time.Now(),
+	})
+	if err != ErrMessageInvalidSender {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestMessage_SetVendorMsgRef_RequiresValue(t *testing.T) {
-	m := newTestMessage(t)
-	if err := m.SetVendorMsgRef(""); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestMessage_RehydrateBadKind(t *testing.T) {
-	_, err := RehydrateMessage(RehydrateMessageInput{ContentKind: "bogus", Direction: DirectionInbound})
+func TestNewMessage_BadKind(t *testing.T) {
+	_, err := NewMessage(NewMessageInput{
+		ID: "m", ConversationID: "c", SenderIdentityID: "system",
+		ContentKind: "x", Direction: DirectionInbound, PostedAt: time.Now(),
+	})
 	if err == nil {
 		t.Fatal()
 	}
 }
 
-func TestMessage_RehydrateBadDirection(t *testing.T) {
-	_, err := RehydrateMessage(RehydrateMessageInput{ContentKind: MessageContentText, Direction: "bogus"})
+func TestNewMessage_BadDirection(t *testing.T) {
+	_, err := NewMessage(NewMessageInput{
+		ID: "m", ConversationID: "c", SenderIdentityID: "system",
+		ContentKind: MessageContentText, Direction: "x", PostedAt: time.Now(),
+	})
 	if err == nil {
 		t.Fatal()
 	}
 }
 
-func TestMessageContentKind_Validation(t *testing.T) {
-	for _, k := range []MessageContentKind{
-		MessageContentText, MessageContentSystem, MessageContentAgentFinding,
-		MessageContentSupervisorSummary, MessageContentConclusionDraft, MessageContentTaskProposal,
-	} {
-		if !k.IsValid() {
-			t.Fatal()
-		}
+func TestNewMessage_MissingIDs(t *testing.T) {
+	if _, err := NewMessage(NewMessageInput{
+		ContentKind: MessageContentText, Direction: DirectionInbound,
+		SenderIdentityID: "system", PostedAt: time.Now(),
+	}); err == nil {
+		t.Fatal("id required")
 	}
-	if MessageContentKind("x").IsValid() {
-		t.Fatal()
+	if _, err := NewMessage(NewMessageInput{
+		ID: "m", ContentKind: MessageContentText, Direction: DirectionInbound,
+		SenderIdentityID: "system", PostedAt: time.Now(),
+	}); err == nil {
+		t.Fatal("conv id required")
 	}
-	if MessageContentText.String() != "text" {
+}
+
+func TestNewMessage_ZeroPostedAt(t *testing.T) {
+	_, err := NewMessage(NewMessageInput{
+		ID: "m", ConversationID: "c", SenderIdentityID: "system",
+		ContentKind: MessageContentText, Direction: DirectionInbound,
+	})
+	if err == nil {
 		t.Fatal()
 	}
 }
 
-func TestMessageDirection_Validation(t *testing.T) {
-	for _, d := range []MessageDirection{DirectionInbound, DirectionOutbound, DirectionInternal} {
-		if !d.IsValid() {
-			t.Fatal()
-		}
-	}
-	if MessageDirection("x").IsValid() {
-		t.Fatal()
-	}
-	if DirectionInbound.String() != "inbound" {
-		t.Fatal()
-	}
-}
-
-func TestMessage_AllowsInputRequestRefField(t *testing.T) {
-	m, err := NewMessage(NewMessageInput{
-		ID: "M-1", ConversationID: "C-1", SenderIdentityID: "agent:a-1",
-		ContentKind: MessageContentAgentFinding, Direction: DirectionOutbound,
-		Content: "request input?", InputRequestRef: "IR-1",
-		PostedAt: time.Now(),
+func TestRehydrateMessage_Happy(t *testing.T) {
+	m, err := RehydrateMessage(RehydrateMessageInput{
+		ID: "m", ConversationID: "c", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound,
+		PostedAt: time.Now(), CreatedAt: time.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.InputRequestRef() != "IR-1" {
+	if m.SenderIdentityID() != "user:a" {
+		t.Fatal()
+	}
+}
+
+func TestRehydrateMessage_BadKind(t *testing.T) {
+	if _, err := RehydrateMessage(RehydrateMessageInput{
+		ContentKind: "x", Direction: DirectionInbound,
+	}); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestRehydrateMessage_BadDirection(t *testing.T) {
+	if _, err := RehydrateMessage(RehydrateMessageInput{
+		ContentKind: MessageContentText, Direction: "x",
+	}); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestIdentityRefValidate(t *testing.T) {
+	cases := []struct {
+		in  IdentityRef
+		ok  bool
+	}{
+		{"", false},
+		{"system", true},
+		{"user:hayang", true},
+		{"agent:s-1", true},
+		{"supervisor:x", false},
+		{"bot", false},
+		{"user:", false},
+	}
+	for _, c := range cases {
+		err := c.in.Validate()
+		if (err == nil) != c.ok {
+			t.Errorf("ref %q ok=%v err=%v", c.in, c.ok, err)
+		}
+	}
+}
+
+func TestMessageContentKindEnum(t *testing.T) {
+	for _, k := range []MessageContentKind{MessageContentText, MessageContentSystem,
+		MessageContentAgentFinding, MessageContentSupervisorSummary,
+		MessageContentConclusionDraft, MessageContentTaskProposal} {
+		if !k.IsValid() {
+			t.Fatalf("%s should be valid", k)
+		}
+	}
+	if MessageContentKind("nope").IsValid() {
+		t.Fatal()
+	}
+}
+
+func TestMessageDirectionEnum(t *testing.T) {
+	for _, d := range []MessageDirection{DirectionInbound, DirectionOutbound, DirectionInternal} {
+		if !d.IsValid() {
+			t.Fatalf("%s should be valid", d)
+		}
+	}
+	if MessageDirection("nope").IsValid() {
+		t.Fatal()
+	}
+}
+
+func TestParticipantElement_IsActive(t *testing.T) {
+	p := ParticipantElement{IdentityID: "user:a", Role: "owner"}
+	if !p.IsActive() {
+		t.Fatal()
+	}
+	p.LeftAt = "t"
+	if p.IsActive() {
 		t.Fatal()
 	}
 }

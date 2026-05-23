@@ -80,12 +80,12 @@ func MapDomainError(err error) (reason string, code ExitCode, ok bool) {
 	// Message
 	case errors.Is(err, conversation.ErrMessageNotFound):
 		return "message_not_found", ExitNotFound, true
-	case errors.Is(err, conversation.ErrMessageDuplicate):
-		return "message_duplicate", ExitBusinessError, true
 	case errors.Is(err, conversation.ErrMessageImmutable):
 		return "message_immutable", ExitInvalidTransition, true
 	case errors.Is(err, conversation.ErrMessageInvalidSender):
 		return "message_invalid_sender", ExitUsage, true
+	case errors.Is(err, conversation.ErrConversationArchived):
+		return "conversation_archived", ExitInvalidTransition, true
 
 	// TaskRuntime — Task
 	case errors.Is(err, task.ErrTaskNotFound):

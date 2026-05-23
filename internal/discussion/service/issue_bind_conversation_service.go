@@ -155,7 +155,10 @@ func (s *IssueBindConversationService) BindTo(ctx context.Context, in BindToInpu
 			return fmt.Errorf("%w: target conversation kind=%s (want issue)",
 				conversation.ErrConversationInvalidKind, conv.Kind())
 		}
-		if !conv.IsOpen() {
+		if !conv.IsActive() {
+			if conv.IsTerminal() {
+				return conversation.ErrConversationArchived
+			}
 			return conversation.ErrConversationClosed
 		}
 		// Check target conversation is not already owned by another Issue.

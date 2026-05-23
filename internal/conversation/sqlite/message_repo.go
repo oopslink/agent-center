@@ -11,7 +11,8 @@ import (
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
-// MessageRepo implements conversation.MessageRepository.
+// MessageRepo implements conversation.MessageRepository (v2 — vendor_msg_ref
+// dropped per ADR-0031).
 type MessageRepo struct {
 	db *sql.DB
 }
@@ -21,8 +22,7 @@ func NewMessageRepo(db *sql.DB) *MessageRepo {
 	return &MessageRepo{db: db}
 }
 
-// Append inserts a message row. (channel,vendor_msg_ref) collision →
-// ErrMessageDuplicate.
+// Append inserts a message row (append-only).
 func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error {
 	if m == nil {
 		return errors.New("message repo: nil message")
@@ -30,8 +30,8 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO messages (
 		id, conversation_id, sender_identity_id, content_kind, content,
-		direction, vendor_msg_ref, input_request_ref, posted_at, created_at
-	) VALUES (?,?,?,?,?,?,?,?,?,?)`
+		direction, input_request_ref, posted_at, created_at
+	) VALUES (?,?,?,?,?,?,?,?,?)`
 	_, err := exec.ExecContext(ctx, stmt,
 		string(m.ID()),
 		string(m.ConversationID()),
@@ -39,18 +39,11 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 		string(m.ContentKind()),
 		m.Content(),
 		string(m.Direction()),
-		nullString(m.VendorMsgRef()),
 		nullString(m.InputRequestRef()),
 		m.PostedAt().Format(time.RFC3339Nano),
 		m.CreatedAt().Format(time.RFC3339Nano),
 	)
-	if err != nil {
-		if isUniqueConstraint(err) {
-			return conversation.ErrMessageDuplicate
-		}
-		return err
-	}
-	return nil
+	return err
 }
 
 // FindByID returns a message; ErrMessageNotFound if absent.
@@ -109,8 +102,6 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 	if err != nil {
 		return nil, err
 	}
-	// FindByConversationID with Tail returns DESC; flip to ASC for callers
-	// who want chronological order.
 	out := make([]*conversation.Message, len(msgs))
 	for i, m := range msgs {
 		out[len(msgs)-1-i] = m
@@ -118,63 +109,18 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 	return out, nil
 }
 
-// FindByVendorMsgRef returns the message with the given vendor msg ref
-// (Bridge dedupe path).
-func (r *MessageRepo) FindByVendorMsgRef(ctx context.Context, vendorMsgRef string) (*conversation.Message, error) {
-	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	row := exec.QueryRowContext(ctx, messageSelect+` WHERE vendor_msg_ref = ?`, vendorMsgRef)
-	m, err := scanMessage(row.Scan)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, conversation.ErrMessageNotFound
-	}
-	return m, err
-}
-
-// UpdateVendorMsgRef performs the one-shot backfill. Returns
-// ErrMessageImmutable if the message already has a vendor_msg_ref.
-func (r *MessageRepo) UpdateVendorMsgRef(ctx context.Context, id conversation.MessageID, vendorMsgRef string) error {
-	if vendorMsgRef == "" {
-		return errors.New("message repo: vendor_msg_ref required")
-	}
-	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	// Atomic conditional UPDATE: only set when currently NULL.
-	res, err := exec.ExecContext(ctx,
-		`UPDATE messages SET vendor_msg_ref = ? WHERE id = ? AND vendor_msg_ref IS NULL`,
-		vendorMsgRef, string(id))
-	if err != nil {
-		if isUniqueConstraint(err) {
-			return conversation.ErrMessageDuplicate
-		}
-		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		// Disambiguate: not found vs already set.
-		var c int
-		row := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages WHERE id = ?`, string(id))
-		if err := row.Scan(&c); err != nil {
-			return err
-		}
-		if c == 0 {
-			return conversation.ErrMessageNotFound
-		}
-		return conversation.ErrMessageImmutable
-	}
-	return nil
-}
-
 const messageSelect = `SELECT id, conversation_id, sender_identity_id, content_kind, content,
-	direction, vendor_msg_ref, input_request_ref, posted_at, created_at
+	direction, input_request_ref, posted_at, created_at
 	FROM messages`
 
 func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 	var (
 		id, conversationID, senderIdentityID, contentKind, content, direction string
-		vendorMsgRef, inputRequestRef                                          sql.NullString
+		inputRequestRef                                                        sql.NullString
 		postedAt, createdAt                                                    string
 	)
 	if err := scan(&id, &conversationID, &senderIdentityID, &contentKind, &content,
-		&direction, &vendorMsgRef, &inputRequestRef, &postedAt, &createdAt); err != nil {
+		&direction, &inputRequestRef, &postedAt, &createdAt); err != nil {
 		return nil, err
 	}
 	pt, err := time.Parse(time.RFC3339Nano, postedAt)
@@ -192,7 +138,6 @@ func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 		ContentKind:      conversation.MessageContentKind(contentKind),
 		Content:          content,
 		Direction:        conversation.MessageDirection(direction),
-		VendorMsgRef:     vendorMsgRef.String,
 		InputRequestRef:  inputRequestRef.String,
 		PostedAt:         pt,
 		CreatedAt:        ct,

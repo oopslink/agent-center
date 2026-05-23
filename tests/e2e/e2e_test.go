@@ -208,7 +208,7 @@ func TestE2E3_IgnoreUnignoreAccept(t *testing.T) {
 
 func TestE2E4_ConversationOpenAddRead(t *testing.T) {
 	h := newHarness(t)
-	res, code := h.runJSON("conversation", "open", "--kind=dm", "--title=DM")
+	res, code := h.runJSON("conversation", "open", "--kind=dm", "--name=DM")
 	if code != 0 {
 		t.Fatalf("open: %d", code)
 	}
@@ -324,8 +324,8 @@ func TestE2E8_ServerStartSIGTERM(t *testing.T) {
 	if startErr := cmd.Start(); startErr != nil {
 		t.Fatal(startErr)
 	}
-	// Give it a moment to start listening...
-	time.Sleep(200 * time.Millisecond)
+	// Give it a moment to start + flush the banner before we kill it.
+	time.Sleep(1500 * time.Millisecond)
 	// Send SIGTERM via context cancel.
 	cancel()
 	// Wait for exit.

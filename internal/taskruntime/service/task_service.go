@@ -133,10 +133,11 @@ func (s *TaskService) Create(ctx context.Context, in TaskCreateInput) (*TaskCrea
 		var convID conversation.ConversationID
 		if in.WithConversation {
 			conv, err := conversation.NewConversation(conversation.NewConversationInput{
-				ID:       conversation.ConversationID(s.idgen.NewULID()),
-				Kind:     conversation.ConversationKindTask,
-				Title:    in.ConversationTitle,
-				OpenedAt: now,
+				ID:        conversation.ConversationID(s.idgen.NewULID()),
+				Kind:      conversation.ConversationKindTask,
+				Name:      in.ConversationTitle,
+				CreatedBy: conversation.IdentityRef(in.Actor.String()),
+				OpenedAt:  now,
 			})
 			if err != nil {
 				return err
@@ -231,11 +232,11 @@ func (s *TaskService) BindConversation(ctx context.Context, in BindConversationI
 		switch in.Mode {
 		case "auto":
 			conv, err := conversation.NewConversation(conversation.NewConversationInput{
-				ID:                 conversation.ConversationID(s.idgen.NewULID()),
-				Kind:               conversation.ConversationKindTask,
-				Title:              in.Title,
-				PrimaryChannelHint: in.ChannelHint,
-				OpenedAt:           now,
+				ID:        conversation.ConversationID(s.idgen.NewULID()),
+				Kind:      conversation.ConversationKindTask,
+				Name:      in.Title,
+				CreatedBy: conversation.IdentityRef(in.Actor.String()),
+				OpenedAt:  now,
 			})
 			if err != nil {
 				return err
@@ -263,7 +264,10 @@ func (s *TaskService) BindConversation(ctx context.Context, in BindConversationI
 			if err != nil {
 				return err
 			}
-			if !existing.IsOpen() {
+			if !existing.IsActive() {
+				if existing.IsTerminal() {
+					return conversation.ErrConversationArchived
+				}
 				return conversation.ErrConversationClosed
 			}
 			convID = existing.ID()

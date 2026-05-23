@@ -15,11 +15,8 @@ import (
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
-// MessageWriter combines the Conversation lifecycle (Open / Close) and
-// AddMessage. Per conversation/00 § 3.1 + plan-1 § 3.6.3.
-//
-// All mutating calls go through this service so the same-tx double-write
-// (state + event) invariant (ADR-0014 § 2) is always preserved.
+// MessageWriter combines Conversation lifecycle (Open / Close / Archive)
+// and AddMessage (v2 per ADR-0014 same-tx double-write).
 type MessageWriter struct {
 	db       *sql.DB
 	convRepo conversation.ConversationRepository
@@ -51,13 +48,15 @@ func NewMessageWriter(
 	}
 }
 
-// OpenCommand opens a conversation.
+// OpenCommand opens a conversation (v2 per ADR-0032).
 type OpenCommand struct {
-	Kind                     conversation.ConversationKind
-	Title                    string
-	PrimaryChannelHint       string
-	PrimaryChannelThreadKey  string
-	Actor                    observability.Actor
+	Kind                 conversation.ConversationKind
+	Name                 string
+	Description          string
+	ParentConversationID conversation.ConversationID
+	Participants         []conversation.ParticipantElement
+	CreatedBy            conversation.IdentityRef
+	Actor                observability.Actor
 }
 
 // OpenResult tracks the created conversation id + event id.
@@ -67,9 +66,8 @@ type OpenResult struct {
 }
 
 // OpenConversation creates a fresh conversation and emits
-// `conversation.opened`. task / issue kinds are rejected (plan § 3.6.1 +
-// conversation/01 § 6.5: those must come via the TaskRuntime / Discussion
-// sync-create paths).
+// `conversation.opened`. task / issue kinds rejected — they go through
+// TaskRuntime / Discussion sync-create paths.
 func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (OpenResult, error) {
 	if err := cmd.Actor.Validate(); err != nil {
 		return OpenResult{}, err
@@ -77,17 +75,19 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 	if !cmd.Kind.IsValid() {
 		return OpenResult{}, conversation.ErrConversationInvalidKind
 	}
-	if !cmd.Kind.IsPhase1OpenAllowed() {
-		return OpenResult{}, fmt.Errorf("%w: kind=%s requires cross-BC sync-create path (Phase 2/3)",
+	if !cmd.Kind.IsDirectOpenAllowed() {
+		return OpenResult{}, fmt.Errorf("%w: kind=%s requires cross-BC sync-create path",
 			conversation.ErrConversationInvalidKind, cmd.Kind)
 	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:                      conversation.ConversationID(w.idgen.NewULID()),
-		Kind:                    cmd.Kind,
-		Title:                   cmd.Title,
-		PrimaryChannelHint:      cmd.PrimaryChannelHint,
-		PrimaryChannelThreadKey: cmd.PrimaryChannelThreadKey,
-		OpenedAt:                w.clock.Now(),
+		ID:                   conversation.ConversationID(w.idgen.NewULID()),
+		Kind:                 cmd.Kind,
+		Name:                 cmd.Name,
+		Description:          cmd.Description,
+		ParentConversationID: cmd.ParentConversationID,
+		Participants:         cmd.Participants,
+		CreatedBy:            cmd.CreatedBy,
+		OpenedAt:             w.clock.Now(),
 	})
 	if err != nil {
 		return OpenResult{}, err
@@ -102,8 +102,11 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 			Refs:      observability.EventRefs{ConversationID: string(conv.ID())},
 			Actor:     cmd.Actor,
 			Payload: map[string]any{
-				"conversation_id": string(conv.ID()),
-				"kind":            string(conv.Kind()),
+				"conversation_id":         string(conv.ID()),
+				"kind":                    string(conv.Kind()),
+				"name":                    conv.Name(),
+				"parent_conversation_id":  string(conv.ParentConversationID()),
+				"with_carry_over":         false,
 			},
 		})
 		if err != nil {
@@ -120,14 +123,13 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 
 // AddMessageCommand wraps the add-message CLI input.
 type AddMessageCommand struct {
-	ConversationID    conversation.ConversationID
-	SenderIdentityID  conversation.IdentityRef
-	ContentKind       conversation.MessageContentKind
-	Content           string
-	Direction         conversation.MessageDirection
-	VendorMsgRef      string
-	InputRequestRef   string
-	Actor             observability.Actor
+	ConversationID   conversation.ConversationID
+	SenderIdentityID conversation.IdentityRef
+	ContentKind      conversation.MessageContentKind
+	Content          string
+	Direction        conversation.MessageDirection
+	InputRequestRef  string
+	Actor            observability.Actor
 }
 
 // AddMessageResult tracks the message id + event id.
@@ -151,7 +153,10 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 		if err != nil {
 			return err
 		}
-		if !conv.IsOpen() {
+		if !conv.IsActive() {
+			if conv.IsTerminal() {
+				return conversation.ErrConversationArchived
+			}
 			return conversation.ErrConversationClosed
 		}
 		m, err := conversation.NewMessage(conversation.NewMessageInput{
@@ -161,7 +166,6 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			ContentKind:      cmd.ContentKind,
 			Content:          cmd.Content,
 			Direction:        cmd.Direction,
-			VendorMsgRef:     cmd.VendorMsgRef,
 			InputRequestRef:  cmd.InputRequestRef,
 			PostedAt:         w.clock.Now(),
 		})
@@ -216,7 +220,7 @@ func (w *MessageWriter) Close(ctx context.Context, cmd CloseCommand) (observabil
 	err := persistence.RunInTx(ctx, w.db, func(txCtx context.Context) error {
 		now := w.clock.Now()
 		if err := w.convRepo.UpdateStatus(txCtx, cmd.ConversationID,
-			conversation.ConversationOpen, conversation.ConversationClosed,
+			conversation.ConversationActive, conversation.ConversationClosed,
 			cmd.Version, cmd.Reason, cmd.Message, now); err != nil {
 			return err
 		}
@@ -228,6 +232,46 @@ func (w *MessageWriter) Close(ctx context.Context, cmd CloseCommand) (observabil
 				"conversation_id": string(cmd.ConversationID),
 				"reason":          cmd.Reason,
 				"message":         cmd.Message,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		evID = id
+		return nil
+	})
+	return evID, err
+}
+
+// ArchiveCommand wraps the archive call.
+type ArchiveCommand struct {
+	ConversationID conversation.ConversationID
+	Version        int
+	ArchivedBy     conversation.IdentityRef
+	Actor          observability.Actor
+}
+
+// Archive transitions the conversation to archived (terminal).
+func (w *MessageWriter) Archive(ctx context.Context, cmd ArchiveCommand) (observability.EventID, error) {
+	if err := cmd.Actor.Validate(); err != nil {
+		return "", err
+	}
+	if err := cmd.ArchivedBy.Validate(); err != nil {
+		return "", fmt.Errorf("archive: archived_by: %w", err)
+	}
+	var evID observability.EventID
+	err := persistence.RunInTx(ctx, w.db, func(txCtx context.Context) error {
+		now := w.clock.Now()
+		if err := w.convRepo.UpdateArchive(txCtx, cmd.ConversationID, cmd.Version, cmd.ArchivedBy, now); err != nil {
+			return err
+		}
+		id, err := w.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "conversation.archived",
+			Refs:      observability.EventRefs{ConversationID: string(cmd.ConversationID)},
+			Actor:     cmd.Actor,
+			Payload: map[string]any{
+				"conversation_id": string(cmd.ConversationID),
+				"archived_by":     string(cmd.ArchivedBy),
 			},
 		})
 		if err != nil {

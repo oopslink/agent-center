@@ -6,21 +6,20 @@ import (
 	"time"
 )
 
-// Message is the Conversation sub-entity (conversation/01 § 4).
+// Message is the Conversation sub-entity (v2 per ADR-0031: vendor_msg_ref
+// dropped — Bridge BC撤回).
 //
-// Append-only with one exception: vendor_msg_ref may be backfilled once
-// (nil → set). Any second mutation of vendor_msg_ref → ErrMessageImmutable.
+// Append-only: once inserted, immutable.
 type Message struct {
-	id                MessageID
-	conversationID    ConversationID
-	senderIdentityID  IdentityRef
-	contentKind       MessageContentKind
-	content           string
-	direction         MessageDirection
-	vendorMsgRef      string
-	inputRequestRef   string
-	postedAt          time.Time
-	createdAt         time.Time
+	id               MessageID
+	conversationID   ConversationID
+	senderIdentityID IdentityRef
+	contentKind      MessageContentKind
+	content          string
+	direction        MessageDirection
+	inputRequestRef  string
+	postedAt         time.Time
+	createdAt        time.Time
 }
 
 // NewMessageInput captures the constructor args.
@@ -31,7 +30,6 @@ type NewMessageInput struct {
 	ContentKind      MessageContentKind
 	Content          string
 	Direction        MessageDirection
-	VendorMsgRef     string
 	InputRequestRef  string
 	PostedAt         time.Time
 }
@@ -64,7 +62,6 @@ func NewMessage(in NewMessageInput) (*Message, error) {
 		contentKind:      in.ContentKind,
 		content:          in.Content,
 		direction:        in.Direction,
-		vendorMsgRef:     in.VendorMsgRef,
 		inputRequestRef:  in.InputRequestRef,
 		postedAt:         at,
 		createdAt:        at,
@@ -79,7 +76,6 @@ type RehydrateMessageInput struct {
 	ContentKind      MessageContentKind
 	Content          string
 	Direction        MessageDirection
-	VendorMsgRef     string
 	InputRequestRef  string
 	PostedAt         time.Time
 	CreatedAt        time.Time
@@ -100,7 +96,6 @@ func RehydrateMessage(in RehydrateMessageInput) (*Message, error) {
 		contentKind:      in.ContentKind,
 		content:          in.Content,
 		direction:        in.Direction,
-		vendorMsgRef:     in.VendorMsgRef,
 		inputRequestRef:  in.InputRequestRef,
 		postedAt:         in.PostedAt.UTC(),
 		createdAt:        in.CreatedAt.UTC(),
@@ -109,27 +104,12 @@ func RehydrateMessage(in RehydrateMessageInput) (*Message, error) {
 
 // Getters.
 
-func (m *Message) ID() MessageID                  { return m.id }
-func (m *Message) ConversationID() ConversationID { return m.conversationID }
-func (m *Message) SenderIdentityID() IdentityRef  { return m.senderIdentityID }
+func (m *Message) ID() MessageID                   { return m.id }
+func (m *Message) ConversationID() ConversationID  { return m.conversationID }
+func (m *Message) SenderIdentityID() IdentityRef   { return m.senderIdentityID }
 func (m *Message) ContentKind() MessageContentKind { return m.contentKind }
-func (m *Message) Content() string                { return m.content }
-func (m *Message) Direction() MessageDirection    { return m.direction }
-func (m *Message) VendorMsgRef() string           { return m.vendorMsgRef }
-func (m *Message) HasVendorMsgRef() bool          { return m.vendorMsgRef != "" }
-func (m *Message) InputRequestRef() string        { return m.inputRequestRef }
-func (m *Message) PostedAt() time.Time            { return m.postedAt }
-func (m *Message) CreatedAt() time.Time           { return m.createdAt }
-
-// SetVendorMsgRef backfills the vendor message id. Once set (non-empty)
-// it cannot be changed.
-func (m *Message) SetVendorMsgRef(ref string) error {
-	if strings.TrimSpace(ref) == "" {
-		return errors.New("message: vendor_msg_ref required")
-	}
-	if m.vendorMsgRef != "" {
-		return ErrMessageImmutable
-	}
-	m.vendorMsgRef = ref
-	return nil
-}
+func (m *Message) Content() string                 { return m.content }
+func (m *Message) Direction() MessageDirection     { return m.direction }
+func (m *Message) InputRequestRef() string         { return m.inputRequestRef }
+func (m *Message) PostedAt() time.Time             { return m.postedAt }
+func (m *Message) CreatedAt() time.Time            { return m.createdAt }

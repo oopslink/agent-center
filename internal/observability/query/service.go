@@ -271,12 +271,13 @@ func (s *Service) inspectConversation(ctx context.Context, id string) (InspectRe
 		return InspectResult{}, mapNotFound(err)
 	}
 	out := map[string]any{
-		"id":         string(c.ID()),
-		"kind":       string(c.Kind()),
-		"status":     string(c.Status()),
-		"title":      c.Title(),
-		"opened_at":  c.OpenedAt().UTC().Format(time.RFC3339Nano),
-		"version":    c.Version(),
+		"id":          string(c.ID()),
+		"kind":        string(c.Kind()),
+		"status":      string(c.Status()),
+		"name":        c.Name(),
+		"description": c.Description(),
+		"opened_at":   c.OpenedAt().UTC().Format(time.RFC3339Nano),
+		"version":     c.Version(),
 	}
 	if s.deps.Messages != nil {
 		msgs, _ := s.deps.Messages.FindByConversationID(ctx, c.ID(), conversation.MessageFilter{Limit: 100})

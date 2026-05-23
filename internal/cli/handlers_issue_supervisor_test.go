@@ -102,7 +102,7 @@ func TestADR0014_ConversationAddMessage_SupervisorRecord(t *testing.T) {
 	os.Unsetenv("AGENT_CENTER_INVOCATION_ID")
 	openCmd := findCmd(app.ConversationCommands(), "open")
 	out, _, code := runHandler(t, openCmd, []string{
-		"--kind=dm", "--title=test", "--format=json",
+		"--kind=dm", "--name=test", "--format=json",
 	})
 	if code != ExitOK {
 		t.Fatalf("open conv: %d", code)

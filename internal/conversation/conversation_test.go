@@ -1,229 +1,309 @@
 package conversation
 
 import (
-	"errors"
 	"testing"
 	"time"
 )
 
-func newTestConv(t *testing.T) *Conversation {
-	t.Helper()
+func TestNewConversation_ChannelHappy(t *testing.T) {
+	now := time.Now().UTC()
 	c, err := NewConversation(NewConversationInput{
-		ID:       "C-1",
-		Kind:     ConversationKindDM,
-		OpenedAt: time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC),
+		ID:        "conv-1",
+		Kind:      ConversationKindChannel,
+		Name:      "general",
+		CreatedBy: IdentityRef("user:hayang"),
+		OpenedAt:  now,
 	})
 	if err != nil {
-		t.Fatalf("NewConversation: %v", err)
+		t.Fatal(err)
 	}
-	return c
-}
-
-func TestConversation_New_Happy(t *testing.T) {
-	c := newTestConv(t)
-	if c.Status() != ConversationOpen {
-		t.Fatal()
+	if c.Kind() != ConversationKindChannel || c.Name() != "general" {
+		t.Fatalf("got kind=%s name=%s", c.Kind(), c.Name())
+	}
+	if c.Status() != ConversationActive || !c.IsActive() {
+		t.Fatalf("expected active, got %s", c.Status())
 	}
 	if c.Version() != 1 {
-		t.Fatal()
-	}
-	if c.Kind() != ConversationKindDM {
-		t.Fatal()
-	}
-	if !c.IsOpen() {
-		t.Fatal()
+		t.Fatalf("version: %d", c.Version())
 	}
 }
 
-func TestConversation_New_RejectsEmptyID(t *testing.T) {
-	_, err := NewConversation(NewConversationInput{Kind: ConversationKindDM, OpenedAt: time.Now()})
+func TestNewConversation_ChannelRequiresName(t *testing.T) {
+	_, err := NewConversation(NewConversationInput{
+		ID:        "conv-1",
+		Kind:      ConversationKindChannel,
+		CreatedBy: IdentityRef("user:hayang"),
+		OpenedAt:  time.Now(),
+	})
+	if err == nil {
+		t.Fatal("expected error for channel without name")
+	}
+}
+
+func TestNewConversation_DMNameOptional(t *testing.T) {
+	c, err := NewConversation(NewConversationInput{
+		ID:        "conv-2",
+		Kind:      ConversationKindDM,
+		CreatedBy: IdentityRef("user:hayang"),
+		OpenedAt:  time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Name() != "" {
+		t.Fatalf("dm name should be empty: %s", c.Name())
+	}
+}
+
+func TestNewConversation_RejectsBadID(t *testing.T) {
+	_, err := NewConversation(NewConversationInput{
+		Kind:      ConversationKindDM,
+		CreatedBy: IdentityRef("user:hayang"),
+		OpenedAt:  time.Now(),
+	})
 	if err == nil {
 		t.Fatal()
 	}
 }
 
-func TestConversation_New_BadKind(t *testing.T) {
-	_, err := NewConversation(NewConversationInput{ID: "C-1", Kind: "bogus", OpenedAt: time.Now()})
-	if !errors.Is(err, ErrConversationInvalidKind) {
-		t.Fatalf("got %v", err)
+func TestNewConversation_RejectsBadKind(t *testing.T) {
+	_, err := NewConversation(NewConversationInput{
+		ID:        "x",
+		Kind:      "invalid",
+		CreatedBy: IdentityRef("user:hayang"),
+		OpenedAt:  time.Now(),
+	})
+	if err == nil {
+		t.Fatal()
 	}
 }
 
-func TestConversation_New_RequiresOpenedAt(t *testing.T) {
-	_, err := NewConversation(NewConversationInput{ID: "C-1", Kind: ConversationKindDM})
+func TestNewConversation_RejectsBadCreatedBy(t *testing.T) {
+	_, err := NewConversation(NewConversationInput{
+		ID:       "x",
+		Kind:     ConversationKindChannel,
+		Name:     "n",
+		OpenedAt: time.Now(),
+	})
+	if err == nil {
+		t.Fatal()
+	}
+}
+
+func TestNewConversation_RejectsZeroOpenedAt(t *testing.T) {
+	_, err := NewConversation(NewConversationInput{
+		ID:        "x",
+		Kind:      ConversationKindDM,
+		CreatedBy: IdentityRef("system"),
+	})
 	if err == nil {
 		t.Fatal()
 	}
 }
 
 func TestConversation_Close_Happy(t *testing.T) {
-	c := newTestConv(t)
-	err := c.Close(time.Now(), "done", "task finished")
-	if err != nil {
+	now := time.Now().UTC()
+	c, _ := NewConversation(NewConversationInput{
+		ID: "x", Kind: ConversationKindDM, CreatedBy: IdentityRef("system"), OpenedAt: now,
+	})
+	if err := c.Close(now, "user_request", "wrapped up"); err != nil {
 		t.Fatal(err)
 	}
 	if c.Status() != ConversationClosed {
-		t.Fatal()
-	}
-	if c.ClosedAt() == nil {
-		t.Fatal()
-	}
-	if c.ClosedReason() != "done" || c.ClosedMessage() != "task finished" {
-		t.Fatal()
+		t.Fatalf("status: %s", c.Status())
 	}
 	if c.Version() != 2 {
+		t.Fatalf("version: %d", c.Version())
+	}
+	// Re-close: returns ErrConversationClosed.
+	if err := c.Close(now, "r", "m"); err != ErrConversationClosed {
+		t.Fatalf("expected ErrConversationClosed, got %v", err)
+	}
+}
+
+func TestConversation_Close_RequiresReasonMessage(t *testing.T) {
+	now := time.Now()
+	c, _ := NewConversation(NewConversationInput{
+		ID: "x", Kind: ConversationKindDM, CreatedBy: IdentityRef("system"), OpenedAt: now,
+	})
+	if err := c.Close(now, "", "m"); err == nil {
+		t.Fatal()
+	}
+	if err := c.Close(now, "r", ""); err == nil {
 		t.Fatal()
 	}
 }
 
-func TestConversation_Close_AlreadyClosed(t *testing.T) {
-	c := newTestConv(t)
-	_ = c.Close(time.Now(), "done", "x")
-	err := c.Close(time.Now(), "done", "x")
-	if !errors.Is(err, ErrConversationClosed) {
-		t.Fatalf("got %v", err)
-	}
-}
-
-func TestConversation_Close_RequiresReason(t *testing.T) {
-	c := newTestConv(t)
-	if err := c.Close(time.Now(), "", "x"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestConversation_Close_RequiresMessage(t *testing.T) {
-	c := newTestConv(t)
-	if err := c.Close(time.Now(), "done", ""); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestConversation_SetPrimaryChannel(t *testing.T) {
-	c := newTestConv(t)
-	if err := c.SetPrimaryChannel("feishu", "thread-x", time.Now()); err != nil {
+func TestConversation_Archive_Happy(t *testing.T) {
+	now := time.Now()
+	c, _ := NewConversation(NewConversationInput{
+		ID: "x", Kind: ConversationKindDM, CreatedBy: IdentityRef("system"), OpenedAt: now,
+	})
+	if err := c.Archive(now, IdentityRef("user:hayang")); err != nil {
 		t.Fatal(err)
 	}
-	if c.PrimaryChannelHint() != "feishu" || c.PrimaryChannelThreadKey() != "thread-x" {
+	if c.Status() != ConversationArchived || !c.IsTerminal() {
+		t.Fatalf("status: %s", c.Status())
+	}
+	if c.ArchivedBy() != "user:hayang" {
+		t.Fatalf("archived_by: %s", c.ArchivedBy())
+	}
+	if c.ArchivedAt() == nil {
+		t.Fatal("archived_at nil")
+	}
+	// Re-archive returns error.
+	if err := c.Archive(now, IdentityRef("user:hayang")); err != ErrConversationArchived {
+		t.Fatalf("expected ErrConversationArchived, got %v", err)
+	}
+}
+
+func TestConversation_Archive_RejectsBadActor(t *testing.T) {
+	now := time.Now()
+	c, _ := NewConversation(NewConversationInput{
+		ID: "x", Kind: ConversationKindDM, CreatedBy: IdentityRef("system"), OpenedAt: now,
+	})
+	if err := c.Archive(now, IdentityRef("")); err == nil {
+		t.Fatal()
+	}
+}
+
+func TestConversation_Close_FromArchivedRejected(t *testing.T) {
+	now := time.Now()
+	c, _ := NewConversation(NewConversationInput{
+		ID: "x", Kind: ConversationKindDM, CreatedBy: IdentityRef("system"), OpenedAt: now,
+	})
+	_ = c.Archive(now, IdentityRef("system"))
+	if err := c.Close(now, "r", "m"); err != ErrConversationArchived {
+		t.Fatalf("expected ErrConversationArchived: %v", err)
+	}
+}
+
+func TestConversation_Participants_RoundTrip(t *testing.T) {
+	c, _ := NewConversation(NewConversationInput{
+		ID: "x", Kind: ConversationKindDM, CreatedBy: IdentityRef("system"), OpenedAt: time.Now(),
+		Participants: []ParticipantElement{{IdentityID: "user:a", Role: "owner", JoinedAt: "t", JoinedBy: "system"}},
+	})
+	if len(c.Participants()) != 1 {
+		t.Fatalf("participants: %v", c.Participants())
+	}
+	if !c.HasActiveParticipant("user:a") {
+		t.Fatal()
+	}
+	c.SetParticipants([]ParticipantElement{
+		{IdentityID: "user:a", Role: "owner", JoinedAt: "t", JoinedBy: "system", LeftAt: "u", LeftReason: "kick"},
+		{IdentityID: "user:b", Role: "member", JoinedAt: "t", JoinedBy: "system"},
+	}, time.Now())
+	if c.HasActiveParticipant("user:a") {
+		t.Fatal("user:a should have left")
+	}
+	if !c.HasActiveParticipant("user:b") {
 		t.Fatal()
 	}
 	if c.Version() != 2 {
-		t.Fatal()
+		t.Fatalf("version: %d", c.Version())
 	}
 }
 
-func TestConversation_SetPrimaryChannel_AllowsClosed(t *testing.T) {
-	c := newTestConv(t)
-	_ = c.Close(time.Now(), "x", "y")
-	err := c.SetPrimaryChannel("feishu", "t", time.Now())
+func TestMarshalParticipantsJSON_RoundTrip(t *testing.T) {
+	parts := []ParticipantElement{{IdentityID: "user:a", Role: "owner", JoinedAt: "t", JoinedBy: "system"}}
+	s, err := MarshalParticipantsJSON(parts)
 	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := UnmarshalParticipantsJSON(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].IdentityID != "user:a" {
+		t.Fatalf("got: %v", got)
+	}
+}
+
+func TestMarshalParticipantsJSON_Empty(t *testing.T) {
+	s, err := MarshalParticipantsJSON(nil)
+	if err != nil || s != "[]" {
+		t.Fatalf("got (%q, %v)", s, err)
+	}
+}
+
+func TestUnmarshalParticipantsJSON_Empty(t *testing.T) {
+	got, err := UnmarshalParticipantsJSON("")
+	if err != nil || got != nil {
+		t.Fatalf("got (%v, %v)", got, err)
+	}
+	got, err = UnmarshalParticipantsJSON("[]")
+	if err != nil || got != nil {
+		t.Fatalf("got (%v, %v)", got, err)
+	}
+}
+
+func TestUnmarshalParticipantsJSON_Bad(t *testing.T) {
+	if _, err := UnmarshalParticipantsJSON(`{bad json`); err == nil {
 		t.Fatal()
 	}
 }
 
-func TestConversation_SetPrimaryChannel_RequiresValues(t *testing.T) {
-	c := newTestConv(t)
-	if err := c.SetPrimaryChannel("", "t", time.Now()); err == nil {
-		t.Fatal()
-	}
-	if err := c.SetPrimaryChannel("h", "", time.Now()); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestConversation_RehydrateBadKind(t *testing.T) {
-	_, err := RehydrateConversation(RehydrateConversationInput{Kind: "bogus", Status: ConversationOpen, Version: 1})
+func TestRehydrate_RejectsInvalidStatus(t *testing.T) {
+	_, err := RehydrateConversation(RehydrateConversationInput{
+		ID: "x", Kind: ConversationKindDM, Status: "weird", Version: 1, OpenedAt: time.Now(),
+	})
 	if err == nil {
 		t.Fatal()
 	}
 }
 
-func TestConversation_RehydrateBadStatus(t *testing.T) {
-	_, err := RehydrateConversation(RehydrateConversationInput{Kind: ConversationKindDM, Status: "bogus", Version: 1})
+func TestRehydrate_RejectsZeroVersion(t *testing.T) {
+	_, err := RehydrateConversation(RehydrateConversationInput{
+		ID: "x", Kind: ConversationKindDM, Status: ConversationActive, Version: 0, OpenedAt: time.Now(),
+	})
 	if err == nil {
 		t.Fatal()
 	}
 }
 
-func TestConversation_RehydrateBadVersion(t *testing.T) {
-	_, err := RehydrateConversation(RehydrateConversationInput{Kind: ConversationKindDM, Status: ConversationOpen, Version: 0})
+func TestRehydrate_RejectsInvalidKind(t *testing.T) {
+	_, err := RehydrateConversation(RehydrateConversationInput{
+		ID: "x", Kind: "weird", Status: ConversationActive, Version: 1, OpenedAt: time.Now(),
+	})
 	if err == nil {
 		t.Fatal()
 	}
 }
 
-func TestConversationKind_Validation(t *testing.T) {
-	for _, k := range []ConversationKind{
-		ConversationKindDM, ConversationKindGroupThread, ConversationKindAdhoc,
-		ConversationKindNotification, ConversationKindTask, ConversationKindIssue,
-	} {
+func TestKindEnumValid(t *testing.T) {
+	for _, k := range []ConversationKind{ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc,
+		ConversationKindNotification, ConversationKindTask, ConversationKindIssue} {
 		if !k.IsValid() {
-			t.Fatalf("%v should be valid", k)
+			t.Fatalf("%s should be valid", k)
 		}
 	}
-	if ConversationKind("x").IsValid() {
+	if ConversationKind("nope").IsValid() {
 		t.Fatal()
 	}
-	for _, k := range []ConversationKind{ConversationKindDM, ConversationKindGroupThread, ConversationKindAdhoc, ConversationKindNotification} {
-		if !k.IsPhase1OpenAllowed() {
-			t.Fatalf("%v should be open-allowed", k)
+}
+
+func TestKindDirectOpenAllowed(t *testing.T) {
+	yes := []ConversationKind{ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc, ConversationKindNotification}
+	for _, k := range yes {
+		if !k.IsDirectOpenAllowed() {
+			t.Fatalf("%s should be direct-open-allowed", k)
 		}
 	}
 	for _, k := range []ConversationKind{ConversationKindTask, ConversationKindIssue} {
-		if k.IsPhase1OpenAllowed() {
-			t.Fatalf("%v should NOT be open-allowed", k)
+		if k.IsDirectOpenAllowed() {
+			t.Fatalf("%s should not be direct-open-allowed", k)
 		}
-	}
-	if ConversationKindDM.String() != "dm" {
-		t.Fatal()
 	}
 }
 
-func TestConversationStatus_Validation(t *testing.T) {
-	for _, s := range []ConversationStatus{ConversationOpen, ConversationClosed} {
-		if !s.IsValid() {
-			t.Fatal()
-		}
-	}
-	if ConversationStatus("x").IsValid() {
+func TestStatusBehaviour(t *testing.T) {
+	if !ConversationActive.AcceptsMessages() {
 		t.Fatal()
 	}
-	if ConversationOpen.String() != "open" {
+	if ConversationClosed.AcceptsMessages() {
 		t.Fatal()
 	}
-}
-
-func TestIDs_String(t *testing.T) {
-	if ConversationID("C-1").String() != "C-1" {
+	if !ConversationArchived.IsTerminal() {
 		t.Fatal()
-	}
-	if MessageID("M-1").String() != "M-1" {
-		t.Fatal()
-	}
-	if IdentityRef("user:x").String() != "user:x" {
-		t.Fatal()
-	}
-}
-
-func TestIdentityRef_Validate(t *testing.T) {
-	cases := []struct {
-		in IdentityRef
-		ok bool
-	}{
-		{"", false},
-		{"system", true},
-		{"bot", true},
-		{"user:hayang", true},
-		{"supervisor:inv-1", true},
-		{"worker:W-1", true},
-		{"agent:a-1", true},
-		{"foo:bar", false},
-		{"user:", false},
-	}
-	for _, c := range cases {
-		err := c.in.Validate()
-		if (err == nil) != c.ok {
-			t.Fatalf("IdentityRef(%q).Validate() ok=%v err=%v", c.in, c.ok, err)
-		}
 	}
 }

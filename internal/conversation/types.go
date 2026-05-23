@@ -1,13 +1,12 @@
 // Package conversation hosts the Conversation BC tactical types:
 //   - Aggregate Root: Conversation (+ Message sub-entity)
-//   - Value Objects: ConversationID / MessageID / kinds / directions / etc.
+//   - Value Objects: ConversationID / MessageID / kinds / directions /
+//     ParticipantElement
 //   - Repository interfaces + sentinel errors
 //
-// Per conversation/00-overview § 1 + § 5. The BC zero-touches vendor SDKs
-// (conventions § 9.y); Bridge subscribes to its events.
-//
-// Phase 1 scope: Identity AR is deferred to Phase 5 (plan § 6 R4).
-// sender_identity_id is treated as a typed formal string here.
+// v2 (post P10): vendor SDK coupling fully removed per ADR-0031;
+// ConversationKind 'group_thread' renamed to 'channel' per ADR-0032;
+// participants JSON field per ADR-0034; carry-over per ADR-0035.
 package conversation
 
 import (
@@ -19,9 +18,8 @@ import (
 type (
 	ConversationID string
 	MessageID      string
-	// IdentityRef is the formal prefix-or-`system` string used until Phase
-	// 5 (plan § 6 R4: Identity AR is deferred). Format examples:
-	// `user:hayang`, `supervisor:inv-1`, `agent:a-1`, `system`.
+	// IdentityRef is the formal kind-prefixed string per ADR-0033 (v2):
+	// `user:<id>` / `agent:<id>` / `system`. Other prefixes rejected.
 	IdentityRef string
 )
 
@@ -29,8 +27,8 @@ func (id ConversationID) String() string { return string(id) }
 func (id MessageID) String() string      { return string(id) }
 func (id IdentityRef) String() string    { return string(id) }
 
-// Validate enforces the same prefix vocabulary as observability.Actor —
-// shared formal-string contract.
+// Validate enforces the v2 kind-prefixed vocabulary (ADR-0033): one of
+// `user:<id>`, `agent:<id>`, or the literal `system`.
 func (r IdentityRef) Validate() error {
 	s := string(r)
 	if s == "" {
@@ -39,24 +37,21 @@ func (r IdentityRef) Validate() error {
 	if s == "system" {
 		return nil
 	}
-	allowed := []string{"user:", "supervisor:", "worker:", "agent:", "bot"}
-	if s == "bot" {
-		return nil
-	}
-	for _, p := range allowed {
+	for _, p := range []string{"user:", "agent:"} {
 		if strings.HasPrefix(s, p) && len(s) > len(p) {
 			return nil
 		}
 	}
-	return errors.New("identity ref: must be 'system', 'bot', or one of user:/supervisor:/worker:/agent: with non-empty suffix")
+	return errors.New("identity ref: must be 'system' or 'user:<id>' / 'agent:<id>' (ADR-0033)")
 }
 
-// ConversationKind is the 6-value enum (conversation/01 § 2).
+// ConversationKind is the 6-value enum (ADR-0032 § 1):
+// dm / channel / adhoc / notification / task / issue.
 type ConversationKind string
 
 const (
 	ConversationKindDM           ConversationKind = "dm"
-	ConversationKindGroupThread  ConversationKind = "group_thread"
+	ConversationKindChannel      ConversationKind = "channel"
 	ConversationKindAdhoc        ConversationKind = "adhoc"
 	ConversationKindNotification ConversationKind = "notification"
 	ConversationKindTask         ConversationKind = "task"
@@ -66,20 +61,19 @@ const (
 // IsValid checks enum membership.
 func (k ConversationKind) IsValid() bool {
 	switch k {
-	case ConversationKindDM, ConversationKindGroupThread, ConversationKindAdhoc,
+	case ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc,
 		ConversationKindNotification, ConversationKindTask, ConversationKindIssue:
 		return true
 	}
 	return false
 }
 
-// IsPhase1OpenAllowed reports whether kind is allowed for direct
-// `conversation open` in Phase 1 (workforce/01 § 6 + plan-1 § 3.7 hidden
-// admin command). task/issue go through their respective BC paths in
-// Phase 2/3 (conversation/01 § 6.5 invariant).
-func (k ConversationKind) IsPhase1OpenAllowed() bool {
+// IsDirectOpenAllowed reports whether kind is allowed for direct
+// `conversation open` (dm / channel / adhoc / notification). task / issue
+// must come via TaskRuntime / Discussion sync-create paths.
+func (k ConversationKind) IsDirectOpenAllowed() bool {
 	switch k {
-	case ConversationKindDM, ConversationKindGroupThread,
+	case ConversationKindDM, ConversationKindChannel,
 		ConversationKindAdhoc, ConversationKindNotification:
 		return true
 	}
@@ -89,22 +83,30 @@ func (k ConversationKind) IsPhase1OpenAllowed() bool {
 // String returns the enum value.
 func (k ConversationKind) String() string { return string(k) }
 
-// ConversationStatus is the 2-state enum (conversation/01 § 1).
+// ConversationStatus is the 3-state enum (ADR-0032 § 5):
+// active → closed (task done / issue concluded) → archived (terminal, read-only).
 type ConversationStatus string
 
 const (
-	ConversationOpen   ConversationStatus = "open"
-	ConversationClosed ConversationStatus = "closed"
+	ConversationActive   ConversationStatus = "active"
+	ConversationClosed   ConversationStatus = "closed"
+	ConversationArchived ConversationStatus = "archived"
 )
 
 // IsValid checks enum membership.
 func (s ConversationStatus) IsValid() bool {
 	switch s {
-	case ConversationOpen, ConversationClosed:
+	case ConversationActive, ConversationClosed, ConversationArchived:
 		return true
 	}
 	return false
 }
+
+// IsTerminal returns true when no further messages may be added.
+func (s ConversationStatus) IsTerminal() bool { return s == ConversationArchived }
+
+// AcceptsMessages returns true only when status == active.
+func (s ConversationStatus) AcceptsMessages() bool { return s == ConversationActive }
 
 // String returns the enum.
 func (s ConversationStatus) String() string { return string(s) }
@@ -134,7 +136,9 @@ func (k MessageContentKind) IsValid() bool {
 // String returns the enum.
 func (k MessageContentKind) String() string { return string(k) }
 
-// MessageDirection is the 3-value enum (conversation/01 § 4.3).
+// MessageDirection is the 3-value enum. v2 keeps it for back-compat
+// with the audit columns but the value is always derivable from sender
+// kind; v3 may drop entirely (ADR-0039 § 6).
 type MessageDirection string
 
 const (
@@ -155,19 +159,33 @@ func (d MessageDirection) IsValid() bool {
 // String returns the enum.
 func (d MessageDirection) String() string { return string(d) }
 
+// ParticipantElement is the JSON-encoded VO stored in
+// conversations.participants (ADR-0034 § 2).
+type ParticipantElement struct {
+	IdentityID IdentityRef `json:"identity_id"`
+	Role       string      `json:"role"`            // owner | member | observer
+	JoinedAt   string      `json:"joined_at"`       // RFC3339Nano
+	JoinedBy   IdentityRef `json:"joined_by"`
+	LeftAt     string      `json:"left_at,omitempty"`
+	LeftReason string      `json:"left_reason,omitempty"`
+}
+
+// IsActive returns true when the participant has not left.
+func (p ParticipantElement) IsActive() bool { return p.LeftAt == "" }
+
 // Sentinel errors.
 var (
 	// Conversation
 	ErrConversationNotFound      = errors.New("conversation: conversation not found")
-	ErrConversationAlreadyExists = errors.New("conversation: id or (channel,thread_key) already exists")
+	ErrConversationAlreadyExists = errors.New("conversation: id or channel name already exists")
 	ErrConversationClosed        = errors.New("conversation: conversation is closed, cannot accept new message")
+	ErrConversationArchived      = errors.New("conversation: conversation is archived, read-only (ADR-0032 § 5)")
 	ErrConversationInvalidKind   = errors.New("conversation: invalid kind for operation")
 	ErrConversationInvalidStatus = errors.New("conversation: invalid status")
 	ErrConversationVersionConflict = errors.New("conversation: conversation version conflict (optimistic lock)")
 
 	// Message
 	ErrMessageNotFound      = errors.New("conversation: message not found")
-	ErrMessageDuplicate     = errors.New("conversation: vendor_msg_ref duplicate")
-	ErrMessageImmutable     = errors.New("conversation: message is append-only, cannot modify (only vendor_msg_ref backfill allowed)")
+	ErrMessageImmutable     = errors.New("conversation: message is append-only, cannot modify")
 	ErrMessageInvalidSender = errors.New("conversation: message sender_identity_id invalid")
 )

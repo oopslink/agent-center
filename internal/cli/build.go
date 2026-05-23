@@ -386,7 +386,7 @@ func (l *lazyApp) observabilityCommands() []*Command {
 }
 
 func (l *lazyApp) identityCommands() []*Command {
-	names := []string{"add", "list", "bind", "unbind"}
+	names := []string{"add", "list"}
 	out := make([]*Command, 0, len(names))
 	for _, n := range names {
 		n := n

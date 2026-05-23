@@ -258,7 +258,9 @@ func TestINT_P3_LinkDedupesAcrossCalls(t *testing.T) {
 		Origin: discussion.OriginCLI, Actor: observability.Actor("user:h"),
 	})
 	dm, err := s.writer.OpenConversation(context.Background(), convservice.OpenCommand{
-		Kind: conversation.ConversationKindDM, Title: "dm", Actor: observability.Actor("user:h"),
+		Kind: conversation.ConversationKindDM, Name: "dm",
+		CreatedBy: conversation.IdentityRef("user:h"),
+		Actor:     observability.Actor("user:h"),
 	})
 	if err != nil {
 		t.Fatal(err)

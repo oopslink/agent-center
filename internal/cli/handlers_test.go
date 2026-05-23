@@ -508,9 +508,9 @@ func TestMapDomainError_AllSentinels(t *testing.T) {
 		conversation.ErrConversationInvalidStatus,
 		conversation.ErrConversationVersionConflict,
 		conversation.ErrMessageNotFound,
-		conversation.ErrMessageDuplicate,
 		conversation.ErrMessageImmutable,
 		conversation.ErrMessageInvalidSender,
+		conversation.ErrConversationArchived,
 	}
 	for _, e := range cases {
 		reason, code, ok := MapDomainError(e)

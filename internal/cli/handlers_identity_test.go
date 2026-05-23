@@ -50,7 +50,7 @@ func TestIdentityAddHappyAndDuplicate(t *testing.T) {
 
 func TestIdentityAddDerivesKindFromID(t *testing.T) {
 	app := newTestApp(t)
-	_, _, code := runIdentity(t, app, "add", []string{"supervisor:inv-1", "--display-name=S1"})
+	_, _, code := runIdentity(t, app, "add", []string{"agent:s-1", "--display-name=S1"})
 	if code != ExitOK {
 		t.Fatalf("exit %d", code)
 	}
@@ -76,7 +76,7 @@ func TestIdentityListFilter(t *testing.T) {
 	app := newTestApp(t)
 	for _, x := range [][]string{
 		{"user:hayang", "--kind=user", "--display-name=Hayang"},
-		{"supervisor:inv-1", "--kind=supervisor", "--display-name=S1"},
+		{"agent:s-1", "--kind=agent", "--display-name=S1"},
 	} {
 		if _, _, code := runIdentity(t, app, "add", x); code != ExitOK {
 			t.Fatalf("seed %v code=%d", x, code)
@@ -94,69 +94,11 @@ func TestIdentityListFilter(t *testing.T) {
 		t.Fatalf("unexpected list: %v", arr)
 	}
 	stdout, _, _ = runIdentity(t, app, "list", nil)
-	if !strings.Contains(stdout, "user:hayang") || !strings.Contains(stdout, "supervisor:inv-1") {
+	if !strings.Contains(stdout, "user:hayang") || !strings.Contains(stdout, "agent:s-1") {
 		t.Fatalf("human list missing entries: %s", stdout)
 	}
 	_, _, code = runIdentity(t, app, "list", []string{"--kind=weird"})
 	if code != ExitUsage {
 		t.Fatalf("bad kind code=%d", code)
-	}
-}
-
-func TestIdentityBindHappyAndErrors(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runIdentity(t, app, "add", []string{"user:hayang", "--kind=user", "--display-name=H"})
-	if code != ExitOK {
-		t.Fatal("seed failed")
-	}
-	// Missing flags
-	_, _, code = runIdentity(t, app, "bind", []string{"user:hayang"})
-	if code != ExitUsage {
-		t.Fatalf("missing flags expected ExitUsage, got %d", code)
-	}
-	_, _, code = runIdentity(t, app, "bind", []string{"user:hayang", "--channel=feishu"})
-	if code != ExitUsage {
-		t.Fatal("missing vendor expected ExitUsage")
-	}
-	// Happy
-	stdout, _, code := runIdentity(t, app, "bind", []string{
-		"user:hayang", "--channel=feishu", "--vendor-user-id=ou_x", "--preferred",
-	})
-	if code != ExitOK {
-		t.Fatalf("bind: exit %d stdout=%s", code, stdout)
-	}
-	if !strings.Contains(stdout, "preferred") {
-		t.Fatalf("expected preferred label: %s", stdout)
-	}
-	// Unknown identity
-	_, stderr, code := runIdentity(t, app, "bind", []string{
-		"user:ghost", "--channel=feishu", "--vendor-user-id=ou_y",
-	})
-	if code != ExitNotFound || !strings.Contains(stderr, "identity_not_found") {
-		t.Fatalf("unknown id: exit=%d stderr=%s", code, stderr)
-	}
-}
-
-func TestIdentityUnbindHappyAndMissing(t *testing.T) {
-	app := newTestApp(t)
-	_, _, _ = runIdentity(t, app, "add", []string{"user:hayang", "--kind=user", "--display-name=H"})
-	_, _, _ = runIdentity(t, app, "bind", []string{"user:hayang", "--channel=feishu", "--vendor-user-id=ou_x"})
-	_, _, code := runIdentity(t, app, "unbind", []string{"user:hayang", "--channel=feishu"})
-	if code != ExitOK {
-		t.Fatalf("exit %d", code)
-	}
-	// Missing arg
-	_, _, code = runIdentity(t, app, "unbind", []string{"--channel=feishu"})
-	if code != ExitUsage {
-		t.Fatalf("missing arg: %d", code)
-	}
-	_, _, code = runIdentity(t, app, "unbind", []string{"user:hayang"})
-	if code != ExitUsage {
-		t.Fatalf("missing channel: %d", code)
-	}
-	// Idempotent: second unbind not found
-	_, stderr, code := runIdentity(t, app, "unbind", []string{"user:hayang", "--channel=feishu"})
-	if code != ExitNotFound || !strings.Contains(stderr, "channel_binding_not_found") {
-		t.Fatalf("second unbind: %d stderr=%s", code, stderr)
 	}
 }

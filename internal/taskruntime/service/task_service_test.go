@@ -176,10 +176,11 @@ func TestTaskService_BindConversation_ToExisting(t *testing.T) {
 	// Pre-create a Conversation directly via OpenConversation path is
 	// not available without convsvc; we just craft one via the AR.
 	conv, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID:       conversation.ConversationID(rig.idgen.NewULID()),
-		Kind:     conversation.ConversationKindTask,
-		Title:    "x",
-		OpenedAt: rig.clk.Now(),
+		ID:        conversation.ConversationID(rig.idgen.NewULID()),
+		Kind:      conversation.ConversationKindTask,
+		Name:      "x",
+		CreatedBy: conversation.IdentityRef("system"),
+		OpenedAt:  rig.clk.Now(),
 	})
 	if err := rig.convRepo.Save(ctx, conv); err != nil {
 		t.Fatal(err)

@@ -138,7 +138,7 @@ func TestINT2_MigrationIdempotent(t *testing.T) {
 		t.Fatalf("second Up: %v", err)
 	}
 	v, _ := m.Version(context.Background())
-	if v != 12 {
+	if v != 24 {
 		t.Fatalf("version: %d", v)
 	}
 	if err := m.Down(context.Background(), 0); err != nil {
@@ -373,11 +373,15 @@ func TestINT9_AcceptCrossAggregate(t *testing.T) {
 	}
 }
 
-// INT-10: Message append-only via Repository API.
+// INT-10: Message append-only — v2 Repository exposes no mutation API
+// (vendor_msg_ref dropped per ADR-0031). Round-trip a single Append +
+// FindByID + ensure repeat Append with the same id fails.
 func TestINT10_MessageAppendOnly_API(t *testing.T) {
 	k := newKit(t)
 	c, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID: "C-1", Kind: conversation.ConversationKindDM, OpenedAt: k.clock.Now(),
+		ID: "C-1", Kind: conversation.ConversationKindDM,
+		CreatedBy: conversation.IdentityRef("system"),
+		OpenedAt:  k.clock.Now(),
 	})
 	_ = k.convRepo.Save(context.Background(), c)
 	m, _ := conversation.NewMessage(conversation.NewMessageInput{
@@ -386,14 +390,15 @@ func TestINT10_MessageAppendOnly_API(t *testing.T) {
 		Direction:   conversation.DirectionInbound,
 		Content:     "hi", PostedAt: k.clock.Now(),
 	})
-	_ = k.msgRepo.Append(context.Background(), m)
-	// Repository interface offers no UpdateContent / etc; vendor_msg_ref
-	// is the only mutable surface.
-	if err := k.msgRepo.UpdateVendorMsgRef(context.Background(), "M-1", "v-1"); err != nil {
+	if err := k.msgRepo.Append(context.Background(), m); err != nil {
 		t.Fatal(err)
 	}
-	if err := k.msgRepo.UpdateVendorMsgRef(context.Background(), "M-1", "v-2"); !errors.Is(err, conversation.ErrMessageImmutable) {
-		t.Fatalf("got %v", err)
+	if got, err := k.msgRepo.FindByID(context.Background(), "M-1"); err != nil || got.Content() != "hi" {
+		t.Fatalf("round-trip: %v / %v", got, err)
+	}
+	// Append-only — duplicate id should error.
+	if err := k.msgRepo.Append(context.Background(), m); err == nil {
+		t.Fatal("expected append-twice to fail (PK collision)")
 	}
 }
 

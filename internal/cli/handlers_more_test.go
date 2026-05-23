@@ -437,10 +437,10 @@ func TestCLI_ConvList_BadStatus(t *testing.T) {
 func TestCLI_ConvList_HumanFormat(t *testing.T) {
 	app := newTestApp(t)
 	open := runByName(t, app, "conversation", "open")
-	_, _, _ = open([]string{"--kind=dm", "--title=My Title"})
+	_, _, _ = open([]string{"--kind=dm", "--name=My Name"})
 	list := runByName(t, app, "conversation", "list")
 	stdout, _, _ := list([]string{})
-	if !strings.Contains(stdout, "My Title") {
+	if !strings.Contains(stdout, "My Name") {
 		t.Fatalf("got %s", stdout)
 	}
 }
@@ -519,7 +519,8 @@ func TestWorkerToMap_WithHeartbeat(t *testing.T) {
 
 func TestConvToMap(t *testing.T) {
 	c, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID: "C-1", Kind: conversation.ConversationKindDM, OpenedAt: timeNow(),
+		ID: "C-1", Kind: conversation.ConversationKindDM,
+		CreatedBy: conversation.IdentityRef("system"), OpenedAt: timeNow(),
 	})
 	m := convToMap(c)
 	if m["conversation_id"] != "C-1" {

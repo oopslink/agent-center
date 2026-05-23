@@ -163,7 +163,8 @@ func (e *qenv) seedIssue(t *testing.T, id, project, title string) *discussion.Is
 func (e *qenv) seedConversation(t *testing.T, id string, kind conversation.ConversationKind) *conversation.Conversation {
 	t.Helper()
 	c, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID: conversation.ConversationID(id), Kind: kind, Title: "t", OpenedAt: e.clk.Now(),
+		ID: conversation.ConversationID(id), Kind: kind, Name: "t",
+		CreatedBy: conversation.IdentityRef("system"), OpenedAt: e.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)

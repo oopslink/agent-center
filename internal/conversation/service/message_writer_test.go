@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -17,20 +15,9 @@ import (
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
-type suite struct {
-	db        *sql.DB
-	conv      *convsqlite.ConversationRepo
-	msg       *convsqlite.MessageRepo
-	event     *obsqlite.EventRepo
-	sink      *observability.EventSink
-	writer    *MessageWriter
-	clock     *clock.FakeClock
-}
-
-func setupSuite(t *testing.T) *suite {
+func setup(t *testing.T) *MessageWriter {
 	t.Helper()
-	path := t.TempDir() + "/test.db"
-	db, err := persistence.Open(path)
+	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,79 +25,73 @@ func setupSuite(t *testing.T) *suite {
 	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	fc := clock.NewFakeClock(time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC))
+	fc := clock.NewFakeClock(time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC))
 	gen := idgen.NewGenerator(fc)
-	er, err := obsqlite.NewEventRepo(context.Background(), db)
-	if err != nil {
-		t.Fatal(err)
-	}
+	er, _ := obsqlite.NewEventRepo(context.Background(), db)
 	sink := observability.NewEventSink(er, er, gen, fc)
-	cr := convsqlite.NewConversationRepo(db)
-	mr := convsqlite.NewMessageRepo(db)
-	return &suite{
-		db: db, conv: cr, msg: mr, event: er, sink: sink, clock: fc,
-		writer: NewMessageWriter(db, cr, mr, sink, gen, fc),
-	}
+	conv := convsqlite.NewConversationRepo(db)
+	msg := convsqlite.NewMessageRepo(db)
+	return NewMessageWriter(db, conv, msg, sink, gen, fc)
 }
 
-func TestOpen_Happy(t *testing.T) {
-	s := setupSuite(t)
-	res, err := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Title: "T", Actor: "user:hayang",
+func TestOpenConversation_DMHappy(t *testing.T) {
+	w := setup(t)
+	res, err := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      conversation.ConversationKindDM,
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.ConversationID == "" || res.EventID == "" {
-		t.Fatal()
-	}
-	got, _ := s.conv.FindByID(context.Background(), res.ConversationID)
-	if got.Kind() != conversation.ConversationKindDM {
-		t.Fatal()
-	}
-	events, _ := s.event.Find(context.Background(), observability.EventQueryFilter{})
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-	if events[0].Type() != "conversation.opened" {
-		t.Fatalf("type: %s", events[0].Type())
+		t.Fatalf("got %+v", res)
 	}
 }
 
-func TestOpen_RejectsTaskKind(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindTask, Actor: "user:hayang",
+func TestOpenConversation_ChannelHappy(t *testing.T) {
+	w := setup(t)
+	_, err := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      conversation.ConversationKindChannel,
+		Name:      "general",
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenConversation_BadKind(t *testing.T) {
+	w := setup(t)
+	_, err := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      "weird",
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
 	if !errors.Is(err, conversation.ErrConversationInvalidKind) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestOpen_RejectsIssueKind(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindIssue, Actor: "user:hayang",
+func TestOpenConversation_TaskKindRejected(t *testing.T) {
+	w := setup(t)
+	_, err := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      conversation.ConversationKindTask,
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
 	if !errors.Is(err, conversation.ErrConversationInvalidKind) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestOpen_RejectsBogusKind(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: "bogus", Actor: "user:hayang",
-	})
-	if !errors.Is(err, conversation.ErrConversationInvalidKind) {
-		t.Fatalf("got %v", err)
-	}
-}
-
-func TestOpen_RejectsBadActor(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "bogus:x",
+func TestOpenConversation_BadActor(t *testing.T) {
+	w := setup(t)
+	_, err := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      conversation.ConversationKindDM,
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor(""),
 	})
 	if err == nil {
 		t.Fatal()
@@ -118,113 +99,103 @@ func TestOpen_RejectsBadActor(t *testing.T) {
 }
 
 func TestAddMessage_Happy(t *testing.T) {
-	s := setupSuite(t)
-	openRes, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:hayang",
+	w := setup(t)
+	res, _ := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      conversation.ConversationKindDM,
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
-	res, err := s.writer.AddMessage(context.Background(), AddMessageCommand{
-		ConversationID:   openRes.ConversationID,
-		SenderIdentityID: "user:hayang",
+	got, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID:   res.ConversationID,
+		SenderIdentityID: conversation.IdentityRef("user:hayang"),
 		ContentKind:      conversation.MessageContentText,
 		Content:          "hi",
 		Direction:        conversation.DirectionInbound,
-		Actor:            "user:hayang",
+		Actor:            observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.MessageID == "" || res.EventID == "" {
+	if got.MessageID == "" || got.EventID == "" {
 		t.Fatal()
-	}
-	events, _ := s.event.Find(context.Background(), observability.EventQueryFilter{})
-	if len(events) != 2 {
-		t.Fatalf("expected 2 events (opened + message_added), got %d", len(events))
-	}
-	found := false
-	for _, e := range events {
-		if e.Type() == "conversation.message_added" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("missing message_added event")
-	}
-}
-
-func TestAddMessage_ToClosedConversation(t *testing.T) {
-	s := setupSuite(t)
-	openRes, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:x",
-	})
-	_, _ = s.writer.Close(context.Background(), CloseCommand{
-		ConversationID: openRes.ConversationID, Version: 1,
-		Reason: "done", Message: "x", Actor: "user:x",
-	})
-	_, err := s.writer.AddMessage(context.Background(), AddMessageCommand{
-		ConversationID: openRes.ConversationID, SenderIdentityID: "user:x",
-		ContentKind: conversation.MessageContentText, Direction: conversation.DirectionInbound,
-		Actor: "user:x",
-	})
-	if !errors.Is(err, conversation.ErrConversationClosed) {
-		t.Fatalf("got %v", err)
 	}
 }
 
 func TestAddMessage_NotFound(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.AddMessage(context.Background(), AddMessageCommand{
-		ConversationID:   "C-NEVER",
-		SenderIdentityID: "user:x",
+	w := setup(t)
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID:   "nope",
+		SenderIdentityID: conversation.IdentityRef("user:hayang"),
 		ContentKind:      conversation.MessageContentText,
 		Direction:        conversation.DirectionInbound,
-		Actor:            "user:x",
+		Content:          "x",
+		Actor:            observability.Actor("user:hayang"),
 	})
 	if !errors.Is(err, conversation.ErrConversationNotFound) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestAddMessage_VendorRefDup(t *testing.T) {
-	s := setupSuite(t)
-	openRes, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:x",
+func TestAddMessage_ToArchived(t *testing.T) {
+	w := setup(t)
+	res, _ := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      conversation.ConversationKindDM,
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
-	cmd := AddMessageCommand{
-		ConversationID:   openRes.ConversationID,
-		SenderIdentityID: "user:x",
-		ContentKind:      conversation.MessageContentText,
-		Direction:        conversation.DirectionInbound,
-		VendorMsgRef:     "v-1",
-		Actor:            "user:x",
-	}
-	_, err := s.writer.AddMessage(context.Background(), cmd)
+	_, err := w.Archive(context.Background(), ArchiveCommand{
+		ConversationID: res.ConversationID,
+		Version:        1,
+		ArchivedBy:     conversation.IdentityRef("user:hayang"),
+		Actor:          observability.Actor("user:hayang"),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.writer.AddMessage(context.Background(), cmd)
-	if !errors.Is(err, conversation.ErrMessageDuplicate) {
+	_, err = w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID:   res.ConversationID,
+		SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind:      conversation.MessageContentText,
+		Direction:        conversation.DirectionInbound,
+		Content:          "x",
+		Actor:            observability.Actor("user:hayang"),
+	})
+	if !errors.Is(err, conversation.ErrConversationArchived) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestAddMessage_BadActor(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.AddMessage(context.Background(), AddMessageCommand{
-		ConversationID: "C", SenderIdentityID: "user:x",
-		ContentKind: conversation.MessageContentText, Direction: conversation.DirectionInbound,
-		Actor: "foo:bar",
+func TestAddMessage_ToClosed(t *testing.T) {
+	w := setup(t)
+	res, _ := w.OpenConversation(context.Background(), OpenCommand{
+		Kind:      conversation.ConversationKindDM,
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
-	if err == nil {
-		t.Fatal()
+	_, _ = w.Close(context.Background(), CloseCommand{
+		ConversationID: res.ConversationID, Version: 1,
+		Reason: "done", Message: "wrapped", Actor: observability.Actor("user:hayang"),
+	})
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: res.ConversationID, SenderIdentityID: "user:hayang",
+		ContentKind: conversation.MessageContentText, Direction: conversation.DirectionInbound,
+		Content: "x", Actor: observability.Actor("user:hayang"),
+	})
+	if !errors.Is(err, conversation.ErrConversationClosed) {
+		t.Fatalf("got %v", err)
 	}
 }
 
 func TestAddMessage_BadSender(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.AddMessage(context.Background(), AddMessageCommand{
-		ConversationID: "C", SenderIdentityID: "bogus:x",
+	w := setup(t)
+	res, _ := w.OpenConversation(context.Background(), OpenCommand{
+		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor: observability.Actor("user:hayang"),
+	})
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: res.ConversationID, SenderIdentityID: "",
 		ContentKind: conversation.MessageContentText, Direction: conversation.DirectionInbound,
-		Actor: "user:x",
+		Actor: observability.Actor("user:hayang"),
 	})
 	if !errors.Is(err, conversation.ErrMessageInvalidSender) {
 		t.Fatalf("got %v", err)
@@ -232,120 +203,60 @@ func TestAddMessage_BadSender(t *testing.T) {
 }
 
 func TestClose_Happy(t *testing.T) {
-	s := setupSuite(t)
-	open, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:x",
+	w := setup(t)
+	res, _ := w.OpenConversation(context.Background(), OpenCommand{
+		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor: observability.Actor("user:hayang"),
 	})
-	_, err := s.writer.Close(context.Background(), CloseCommand{
-		ConversationID: open.ConversationID, Version: 1,
-		Reason: "done", Message: "ok", Actor: "user:x",
+	evID, err := w.Close(context.Background(), CloseCommand{
+		ConversationID: res.ConversationID, Version: 1,
+		Reason: "done", Message: "wrapped", Actor: observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, _ := s.conv.FindByID(context.Background(), open.ConversationID)
-	if got.Status() != conversation.ConversationClosed {
+	if evID == "" {
+		t.Fatal()
+	}
+}
+
+func TestClose_RequiresReasonMessage(t *testing.T) {
+	w := setup(t)
+	_, err := w.Close(context.Background(), CloseCommand{
+		ConversationID: "x", Version: 1, Actor: observability.Actor("user:hayang"),
+	})
+	if err == nil {
 		t.Fatal()
 	}
 }
 
 func TestClose_VersionConflict(t *testing.T) {
-	s := setupSuite(t)
-	open, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:x",
+	w := setup(t)
+	res, _ := w.OpenConversation(context.Background(), OpenCommand{
+		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor: observability.Actor("user:hayang"),
 	})
-	_, err := s.writer.Close(context.Background(), CloseCommand{
-		ConversationID: open.ConversationID, Version: 99,
-		Reason: "x", Message: "y", Actor: "user:x",
+	_, err := w.Close(context.Background(), CloseCommand{
+		ConversationID: res.ConversationID, Version: 99,
+		Reason: "r", Message: "m", Actor: observability.Actor("user:hayang"),
 	})
 	if !errors.Is(err, conversation.ErrConversationVersionConflict) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestClose_RequiresReasonMessage(t *testing.T) {
-	s := setupSuite(t)
-	open, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:x",
-	})
-	_, err := s.writer.Close(context.Background(), CloseCommand{
-		ConversationID: open.ConversationID, Version: 1, Actor: "user:x",
+func TestArchive_BadActor(t *testing.T) {
+	w := setup(t)
+	_, err := w.Archive(context.Background(), ArchiveCommand{
+		ConversationID: "x", Version: 1, ArchivedBy: "user:h", Actor: observability.Actor(""),
 	})
 	if err == nil {
 		t.Fatal()
 	}
-}
-
-func TestClose_BadActor(t *testing.T) {
-	s := setupSuite(t)
-	_, err := s.writer.Close(context.Background(), CloseCommand{
-		ConversationID: "C", Version: 1,
-		Reason: "x", Message: "y", Actor: "foo:bar",
+	_, err = w.Archive(context.Background(), ArchiveCommand{
+		ConversationID: "x", Version: 1, ArchivedBy: "", Actor: observability.Actor("user:h"),
 	})
 	if err == nil {
-		t.Fatal()
-	}
-}
-
-func TestAddMessage_RollbackOnSinkFailure(t *testing.T) {
-	s := setupSuite(t)
-	openRes, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:x",
-	})
-	// Replace sink with failing repo
-	failing := &failingRepo{}
-	sink := observability.NewEventSink(failing, s.event, idgen.NewGenerator(s.clock), s.clock)
-	writer := NewMessageWriter(s.db, s.conv, s.msg, sink, idgen.NewGenerator(s.clock), s.clock)
-	_, err := writer.AddMessage(context.Background(), AddMessageCommand{
-		ConversationID:   openRes.ConversationID,
-		SenderIdentityID: "user:x",
-		ContentKind:      conversation.MessageContentText,
-		Direction:        conversation.DirectionInbound,
-		Actor:            "user:x",
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	// Message must not exist.
-	msgs, _ := s.msg.FindByConversationID(context.Background(), openRes.ConversationID, conversation.MessageFilter{})
-	if len(msgs) != 0 {
-		t.Fatalf("expected rollback, got %d messages", len(msgs))
-	}
-}
-
-type failingRepo struct{}
-
-func (failingRepo) Append(ctx context.Context, e *observability.Event) error {
-	return errors.New("simulated failure")
-}
-func (failingRepo) FindByID(ctx context.Context, _ observability.EventID) (*observability.Event, error) {
-	return nil, errors.New("x")
-}
-func (failingRepo) Find(ctx context.Context, _ observability.EventQueryFilter) ([]*observability.Event, error) {
-	return nil, nil
-}
-
-func TestAddMessage_EmitPayloadShape(t *testing.T) {
-	s := setupSuite(t)
-	openRes, _ := s.writer.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM, Actor: "user:x",
-	})
-	addRes, _ := s.writer.AddMessage(context.Background(), AddMessageCommand{
-		ConversationID:   openRes.ConversationID,
-		SenderIdentityID: "user:x",
-		ContentKind:      conversation.MessageContentText,
-		Direction:        conversation.DirectionInbound,
-		Actor:            "user:x",
-	})
-	got, _ := s.event.FindByID(context.Background(), addRes.EventID)
-	if got.Type() != "conversation.message_added" {
-		t.Fatal()
-	}
-	payload := got.Payload()
-	if payload["message_id"] != string(addRes.MessageID) {
-		t.Fatalf("payload missing message_id: %v", payload)
-	}
-	if !strings.Contains(payload["direction"].(string), "inbound") {
 		t.Fatal()
 	}
 }

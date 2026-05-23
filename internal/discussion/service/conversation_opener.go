@@ -49,11 +49,11 @@ func (o *IssueConversationOpener) OpenIssueConversation(ctx context.Context, in 
 		return "", errors.New("issue conversation opener: issue_id required")
 	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:                 conversation.ConversationID(o.idgen.NewULID()),
-		Kind:               conversation.ConversationKindIssue,
-		Title:              in.Title,
-		PrimaryChannelHint: in.PrimaryChannelHint,
-		OpenedAt:           o.clock.Now(),
+		ID:        conversation.ConversationID(o.idgen.NewULID()),
+		Kind:      conversation.ConversationKindIssue,
+		Name:      in.Title,
+		CreatedBy: conversation.IdentityRef(in.Actor.String()),
+		OpenedAt:  o.clock.Now(),
 	})
 	if err != nil {
 		return "", err

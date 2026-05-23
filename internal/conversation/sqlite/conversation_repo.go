@@ -1,4 +1,5 @@
-// Package sqlite implements the Conversation BC repositories.
+// Package sqlite implements the Conversation BC repositories (v2 per
+// ADR-0032 / 0034 / 0035).
 package sqlite
 
 import (
@@ -23,29 +24,39 @@ func NewConversationRepo(db *sql.DB) *ConversationRepo {
 	return &ConversationRepo{db: db}
 }
 
-// Save inserts a new conversation row. Re-saving an existing id returns
-// ErrConversationAlreadyExists.
+// Save inserts a new conversation row. Re-saving an existing id or a
+// duplicate channel name returns ErrConversationAlreadyExists.
 func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversation) error {
 	if c == nil {
 		return errors.New("conversation repo: nil conversation")
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	partsJSON, err := conversation.MarshalParticipantsJSON(c.Participants())
+	if err != nil {
+		return fmt.Errorf("conversation repo: marshal participants: %w", err)
+	}
 	const stmt = `INSERT INTO conversations (
-		id, kind, title, primary_channel_hint, primary_channel_thread_key,
+		id, kind, name, description, parent_conversation_id,
+		participants, created_by,
 		status, opened_at, closed_at, closed_reason, closed_message,
+		archived_at, archived_by,
 		created_at, updated_at, version
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
-	_, err := exec.ExecContext(ctx, stmt,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	_, err = exec.ExecContext(ctx, stmt,
 		string(c.ID()),
 		string(c.Kind()),
-		nullString(c.Title()),
-		nullString(c.PrimaryChannelHint()),
-		nullString(c.PrimaryChannelThreadKey()),
+		nullString(c.Name()),
+		nullString(c.Description()),
+		nullString(string(c.ParentConversationID())),
+		partsJSON,
+		string(c.CreatedBy()),
 		string(c.Status()),
 		c.OpenedAt().Format(time.RFC3339Nano),
 		nullTimePtr(c.ClosedAt()),
 		nullString(c.ClosedReason()),
 		nullString(c.ClosedMessage()),
+		nullTimePtr(c.ArchivedAt()),
+		nullString(string(c.ArchivedBy())),
 		c.CreatedAt().Format(time.RFC3339Nano),
 		c.UpdatedAt().Format(time.RFC3339Nano),
 		c.Version(),
@@ -112,13 +123,10 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 	return out, rows.Err()
 }
 
-// FindByChannelAndThreadKey looks up by (channel, threadKey) (Bridge
-// inbound reverse lookup).
-func (r *ConversationRepo) FindByChannelAndThreadKey(ctx context.Context, channel, threadKey string) (*conversation.Conversation, error) {
+// FindByName looks up a channel by its unique business name (ADR-0032 § 3).
+func (r *ConversationRepo) FindByName(ctx context.Context, name string) (*conversation.Conversation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	row := exec.QueryRowContext(ctx,
-		convSelect+` WHERE primary_channel_hint = ? AND primary_channel_thread_key = ? LIMIT 1`,
-		channel, threadKey)
+	row := exec.QueryRowContext(ctx, convSelect+` WHERE name = ? AND kind = 'channel' LIMIT 1`, name)
 	c, err := scanConversation(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, conversation.ErrConversationNotFound
@@ -126,19 +134,41 @@ func (r *ConversationRepo) FindByChannelAndThreadKey(ctx context.Context, channe
 	return c, err
 }
 
-// UpdateStatus performs the CAS open→closed (or any from→to) transition.
-func (r *ConversationRepo) UpdateStatus(ctx context.Context, id conversation.ConversationID, from, to conversation.ConversationStatus, version int, closedReason, closedMessage string, closedAt time.Time) error {
+// FindByParent returns the children of a Conversation (CV3 carry-over /
+// CV4 派生入口 navigates the parent chain).
+func (r *ConversationRepo) FindByParent(ctx context.Context, parentID conversation.ConversationID) ([]*conversation.Conversation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		convSelect+` WHERE parent_conversation_id = ? ORDER BY created_at ASC`, string(parentID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*conversation.Conversation
+	for rows.Next() {
+		c, err := scanConversation(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// UpdateStatus performs the CAS active→closed transition. archived
+// transitions go through UpdateArchive.
+func (r *ConversationRepo) UpdateStatus(ctx context.Context, id conversation.ConversationID, from, to conversation.ConversationStatus, version int, closedReason, closedMessage string, at time.Time) error {
 	if !from.IsValid() || !to.IsValid() {
 		return conversation.ErrConversationInvalidStatus
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	now := closedAt.UTC().Format(time.RFC3339Nano)
+	now := at.UTC().Format(time.RFC3339Nano)
 	const stmt = `UPDATE conversations
 		SET status = ?, closed_at = ?, closed_reason = ?, closed_message = ?,
 		    updated_at = ?, version = version + 1
 		WHERE id = ? AND status = ? AND version = ?`
 	res, err := exec.ExecContext(ctx, stmt,
-		string(to), nullTimePtrFromTime(closedAt, to == conversation.ConversationClosed),
+		string(to), nullTimePtrFromTime(at, to == conversation.ConversationClosed),
 		nullString(closedReason), nullString(closedMessage),
 		now, string(id), string(from), version)
 	if err != nil {
@@ -146,68 +176,90 @@ func (r *ConversationRepo) UpdateStatus(ctx context.Context, id conversation.Con
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		var c int
-		row := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM conversations WHERE id = ?`, string(id))
-		if err := row.Scan(&c); err != nil {
-			return err
-		}
-		if c == 0 {
-			return conversation.ErrConversationNotFound
-		}
-		return conversation.ErrConversationVersionConflict
+		return r.casConflict(ctx, exec, id)
 	}
 	return nil
 }
 
-// UpdatePrimaryChannel sets the channel hint + thread key (Bridge async
-// writeback).
-func (r *ConversationRepo) UpdatePrimaryChannel(ctx context.Context, id conversation.ConversationID, channel, threadKey string, version int, at time.Time) error {
+// UpdateArchive transitions to archived (terminal) with audit who/when.
+func (r *ConversationRepo) UpdateArchive(ctx context.Context, id conversation.ConversationID, version int, archivedBy conversation.IdentityRef, at time.Time) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	now := at.UTC().Format(time.RFC3339Nano)
 	const stmt = `UPDATE conversations
-		SET primary_channel_hint = ?, primary_channel_thread_key = ?,
+		SET status = 'archived', archived_at = ?, archived_by = ?,
 		    updated_at = ?, version = version + 1
-		WHERE id = ? AND version = ?`
-	res, err := exec.ExecContext(ctx, stmt, channel, threadKey, now, string(id), version)
+		WHERE id = ? AND status != 'archived' AND version = ?`
+	res, err := exec.ExecContext(ctx, stmt, now, string(archivedBy), now, string(id), version)
 	if err != nil {
-		if isUniqueConstraint(err) {
-			return conversation.ErrConversationAlreadyExists
-		}
 		return err
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		var c int
-		row := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM conversations WHERE id = ?`, string(id))
-		if err := row.Scan(&c); err != nil {
-			return err
-		}
-		if c == 0 {
-			return conversation.ErrConversationNotFound
-		}
-		return conversation.ErrConversationVersionConflict
+		return r.casConflict(ctx, exec, id)
 	}
 	return nil
 }
 
-const convSelect = `SELECT id, kind, title, primary_channel_hint, primary_channel_thread_key,
+// UpdateParticipants does a CAS r-m-w on the JSON participants column.
+func (r *ConversationRepo) UpdateParticipants(ctx context.Context, id conversation.ConversationID, participants []conversation.ParticipantElement, version int, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	partsJSON, err := conversation.MarshalParticipantsJSON(participants)
+	if err != nil {
+		return fmt.Errorf("conversation repo: marshal participants: %w", err)
+	}
+	now := at.UTC().Format(time.RFC3339Nano)
+	const stmt = `UPDATE conversations
+		SET participants = ?, updated_at = ?, version = version + 1
+		WHERE id = ? AND version = ?`
+	res, err := exec.ExecContext(ctx, stmt, partsJSON, now, string(id), version)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return r.casConflict(ctx, exec, id)
+	}
+	return nil
+}
+
+func (r *ConversationRepo) casConflict(ctx context.Context, exec persistence.SQLExecutor, id conversation.ConversationID) error {
+	var c int
+	row := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM conversations WHERE id = ?`, string(id))
+	if err := row.Scan(&c); err != nil {
+		return err
+	}
+	if c == 0 {
+		return conversation.ErrConversationNotFound
+	}
+	return conversation.ErrConversationVersionConflict
+}
+
+const convSelect = `SELECT id, kind, name, description, parent_conversation_id,
+	participants, created_by,
 	status, opened_at, closed_at, closed_reason, closed_message,
+	archived_at, archived_by,
 	created_at, updated_at, version
 	FROM conversations`
 
 func scanConversation(scan func(...any) error) (*conversation.Conversation, error) {
 	var (
-		id, kind                                                 string
-		title, channelHint, threadKey                            sql.NullString
-		status                                                   string
-		openedAt                                                 string
-		closedAt                                                 sql.NullString
-		closedReason, closedMessage                              sql.NullString
-		createdAt, updatedAt                                     string
-		version                                                  int
+		id, kind                                      string
+		name, description, parent                     sql.NullString
+		participantsJSON                              string
+		createdBy                                     string
+		status                                        string
+		openedAt                                      string
+		closedAt                                      sql.NullString
+		closedReason, closedMessage                   sql.NullString
+		archivedAt                                    sql.NullString
+		archivedBy                                    sql.NullString
+		createdAt, updatedAt                          string
+		version                                       int
 	)
-	if err := scan(&id, &kind, &title, &channelHint, &threadKey,
+	if err := scan(&id, &kind, &name, &description, &parent,
+		&participantsJSON, &createdBy,
 		&status, &openedAt, &closedAt, &closedReason, &closedMessage,
+		&archivedAt, &archivedBy,
 		&createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
@@ -227,20 +279,32 @@ func scanConversation(scan func(...any) error) (*conversation.Conversation, erro
 	if err != nil {
 		return nil, err
 	}
+	ar, err := parseNullTime(archivedAt)
+	if err != nil {
+		return nil, err
+	}
+	parts, err := conversation.UnmarshalParticipantsJSON(participantsJSON)
+	if err != nil {
+		return nil, err
+	}
 	return conversation.RehydrateConversation(conversation.RehydrateConversationInput{
-		ID:                      conversation.ConversationID(id),
-		Kind:                    conversation.ConversationKind(kind),
-		Title:                   title.String,
-		PrimaryChannelHint:      channelHint.String,
-		PrimaryChannelThreadKey: threadKey.String,
-		Status:                  conversation.ConversationStatus(status),
-		OpenedAt:                op,
-		ClosedAt:                cl,
-		ClosedReason:            closedReason.String,
-		ClosedMessage:           closedMessage.String,
-		CreatedAt:               cr,
-		UpdatedAt:               up,
-		Version:                 version,
+		ID:                   conversation.ConversationID(id),
+		Kind:                 conversation.ConversationKind(kind),
+		Name:                 name.String,
+		Description:          description.String,
+		ParentConversationID: conversation.ConversationID(parent.String),
+		Participants:         parts,
+		CreatedBy:            conversation.IdentityRef(createdBy),
+		Status:               conversation.ConversationStatus(status),
+		OpenedAt:             op,
+		ClosedAt:             cl,
+		ClosedReason:         closedReason.String,
+		ClosedMessage:        closedMessage.String,
+		ArchivedAt:           ar,
+		ArchivedBy:           conversation.IdentityRef(archivedBy.String),
+		CreatedAt:            cr,
+		UpdatedAt:            up,
+		Version:              version,
 	})
 }
 

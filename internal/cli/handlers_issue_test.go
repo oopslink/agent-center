@@ -19,9 +19,10 @@ import (
 
 func newDMOpenCmd(title string, actor observability.Actor) convservice.OpenCommand {
 	return convservice.OpenCommand{
-		Kind:  conversation.ConversationKindDM,
-		Title: title,
-		Actor: actor,
+		Kind:      conversation.ConversationKindDM,
+		Name:      title,
+		CreatedBy: conversation.IdentityRef(actor),
+		Actor:     actor,
 	}
 }
 

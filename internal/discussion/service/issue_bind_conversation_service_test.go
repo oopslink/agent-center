@@ -122,10 +122,11 @@ func TestBindAuto_OpenerFailsRollsBack(t *testing.T) {
 func setupSecondConvKind(t *testing.T, h *testHarness, kind conversation.ConversationKind) conversation.ConversationID {
 	t.Helper()
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:       conversation.ConversationID("CONV-X"),
-		Kind:     kind,
-		Title:    "stand-alone",
-		OpenedAt: time.Now().UTC(),
+		ID:        conversation.ConversationID("CONV-X"),
+		Kind:      kind,
+		Name:      "stand-alone",
+		CreatedBy: conversation.IdentityRef("system"),
+		OpenedAt:  time.Now().UTC(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +190,7 @@ func TestBindTo_RejectsClosed(t *testing.T) {
 	// close it
 	now := time.Now().UTC()
 	if err := h.convRepo.UpdateStatus(context.Background(), cid,
-		conversation.ConversationOpen, conversation.ConversationClosed,
+		conversation.ConversationActive, conversation.ConversationClosed,
 		1, "reason", "msg", now); err != nil {
 		t.Fatal(err)
 	}

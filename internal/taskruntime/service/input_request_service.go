@@ -105,11 +105,11 @@ func (s *InputRequestService) Create(ctx context.Context, in CreateInput) (*Crea
 				return errNoInputChannel
 			}
 			conv, err := conversation.NewConversation(conversation.NewConversationInput{
-				ID:                 conversation.ConversationID(s.idgen.NewULID()),
-				Kind:               conversation.ConversationKindTask,
-				Title:              t.Title(),
-				PrimaryChannelHint: s.DefaultChannel,
-				OpenedAt:           now,
+				ID:        conversation.ConversationID(s.idgen.NewULID()),
+				Kind:      conversation.ConversationKindTask,
+				Name:      t.Title(),
+				CreatedBy: conversation.IdentityRef("system"),
+				OpenedAt:  now,
 			})
 			if err != nil {
 				return err

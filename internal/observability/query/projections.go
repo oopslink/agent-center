@@ -153,15 +153,14 @@ func projectMessageList(items []*conversation.Message) []any {
 	out := make([]any, 0, len(items))
 	for _, m := range items {
 		out = append(out, map[string]any{
-			"id":                  string(m.ID()),
-			"conversation_id":     string(m.ConversationID()),
-			"sender_identity_id":  string(m.SenderIdentityID()),
-			"content_kind":        string(m.ContentKind()),
-			"content":             m.Content(),
-			"direction":           string(m.Direction()),
-			"posted_at":           m.PostedAt().UTC().Format(time.RFC3339Nano),
-			"vendor_msg_ref":      m.VendorMsgRef(),
-			"input_request_ref":   m.InputRequestRef(),
+			"id":                 string(m.ID()),
+			"conversation_id":    string(m.ConversationID()),
+			"sender_identity_id": string(m.SenderIdentityID()),
+			"content_kind":       string(m.ContentKind()),
+			"content":            m.Content(),
+			"direction":          string(m.Direction()),
+			"posted_at":          m.PostedAt().UTC().Format(time.RFC3339Nano),
+			"input_request_ref":  m.InputRequestRef(),
 		})
 	}
 	return out

@@ -2,37 +2,35 @@ package sqlite
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
-func openTestDB(t *testing.T) *sql.DB {
+func setupDB(t *testing.T) *ConversationRepo {
 	t.Helper()
-	path := t.TempDir() + "/test.db"
-	db, err := persistence.Open(path)
+	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	return db
+	t.Cleanup(func() { _ = db.Close() })
+	return NewConversationRepo(db)
 }
 
-func newConv(t *testing.T, kind conversation.ConversationKind) *conversation.Conversation {
+func mkConv(t *testing.T, id conversation.ConversationID, kind conversation.ConversationKind, name string) *conversation.Conversation {
 	t.Helper()
 	c, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:       conversation.ConversationID(idgen.MustNewULID()),
-		Kind:     kind,
-		Title:    "Title",
-		OpenedAt: time.Now(),
+		ID:        id,
+		Kind:      kind,
+		Name:      name,
+		CreatedBy: conversation.IdentityRef("user:hayang"),
+		OpenedAt:  time.Now().UTC(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -41,222 +39,208 @@ func newConv(t *testing.T, kind conversation.ConversationKind) *conversation.Con
 }
 
 func TestConversationRepo_SaveAndFindByID(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c := newConv(t, conversation.ConversationKindDM)
-	if err := repo.Save(context.Background(), c); err != nil {
+	r := setupDB(t)
+	c := mkConv(t, "conv-1", conversation.ConversationKindChannel, "general")
+	if err := r.Save(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
-	got, err := repo.FindByID(context.Background(), c.ID())
+	got, err := r.FindByID(context.Background(), "conv-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Kind() != conversation.ConversationKindDM {
-		t.Fatal()
+	if got.Name() != "general" || got.Kind() != conversation.ConversationKindChannel {
+		t.Fatalf("got %+v", got)
 	}
-	if got.Status() != conversation.ConversationOpen {
-		t.Fatal()
-	}
-}
-
-func TestConversationRepo_Save_Duplicate(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c)
-	err := repo.Save(context.Background(), c)
-	if !errors.Is(err, conversation.ErrConversationAlreadyExists) {
-		t.Fatalf("got %v", err)
+	if got.Status() != conversation.ConversationActive {
+		t.Fatalf("status: %s", got.Status())
 	}
 }
 
-func TestConversationRepo_FindByID_NotFound(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	_, err := repo.FindByID(context.Background(), "C-NEVER")
+func TestConversationRepo_FindByName(t *testing.T) {
+	r := setupDB(t)
+	if err := r.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindChannel, "general")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.FindByName(context.Background(), "general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID() != "c-1" {
+		t.Fatalf("got id=%s", got.ID())
+	}
+}
+
+func TestConversationRepo_FindByName_NotFound(t *testing.T) {
+	r := setupDB(t)
+	_, err := r.FindByName(context.Background(), "nope")
 	if !errors.Is(err, conversation.ErrConversationNotFound) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestConversationRepo_UpdateStatus_OpenToClosed(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c)
-	err := repo.UpdateStatus(context.Background(), c.ID(),
-		conversation.ConversationOpen, conversation.ConversationClosed,
-		1, "done", "task finished", time.Now())
-	if err != nil {
+func TestConversationRepo_FindByID_NotFound(t *testing.T) {
+	r := setupDB(t)
+	_, err := r.FindByID(context.Background(), "nope")
+	if !errors.Is(err, conversation.ErrConversationNotFound) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestConversationRepo_Save_DuplicateID(t *testing.T) {
+	r := setupDB(t)
+	c := mkConv(t, "conv-1", conversation.ConversationKindDM, "")
+	if err := r.Save(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
-	got, _ := repo.FindByID(context.Background(), c.ID())
-	if got.Status() != conversation.ConversationClosed {
-		t.Fatal()
+	if err := r.Save(context.Background(), c); !errors.Is(err, conversation.ErrConversationAlreadyExists) {
+		t.Fatalf("expected ErrConversationAlreadyExists, got %v", err)
 	}
-	if got.ClosedReason() != "done" {
-		t.Fatal()
+}
+
+func TestConversationRepo_Save_DuplicateChannelName(t *testing.T) {
+	r := setupDB(t)
+	if err := r.Save(context.Background(), mkConv(t, "c-a", conversation.ConversationKindChannel, "shared")); err != nil {
+		t.Fatal(err)
+	}
+	c2 := mkConv(t, "c-b", conversation.ConversationKindChannel, "shared")
+	if err := r.Save(context.Background(), c2); !errors.Is(err, conversation.ErrConversationAlreadyExists) {
+		t.Fatalf("expected dup channel name to error, got %v", err)
+	}
+}
+
+func TestConversationRepo_UpdateStatus_ActiveToClosed(t *testing.T) {
+	r := setupDB(t)
+	c := mkConv(t, "c-1", conversation.ConversationKindDM, "")
+	_ = r.Save(context.Background(), c)
+	now := time.Now().UTC()
+	if err := r.UpdateStatus(context.Background(), "c-1",
+		conversation.ConversationActive, conversation.ConversationClosed, 1,
+		"user_request", "done", now); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.FindByID(context.Background(), "c-1")
+	if got.Status() != conversation.ConversationClosed || got.Version() != 2 {
+		t.Fatalf("got status=%s ver=%d", got.Status(), got.Version())
+	}
+	if got.ClosedAt() == nil || got.ClosedReason() != "user_request" {
+		t.Fatalf("closed_*: %v / %s", got.ClosedAt(), got.ClosedReason())
 	}
 }
 
 func TestConversationRepo_UpdateStatus_VersionConflict(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c)
-	err := repo.UpdateStatus(context.Background(), c.ID(),
-		conversation.ConversationOpen, conversation.ConversationClosed,
-		99, "x", "y", time.Now())
+	r := setupDB(t)
+	c := mkConv(t, "c-1", conversation.ConversationKindDM, "")
+	_ = r.Save(context.Background(), c)
+	err := r.UpdateStatus(context.Background(), "c-1",
+		conversation.ConversationActive, conversation.ConversationClosed, 99,
+		"r", "m", time.Now())
 	if !errors.Is(err, conversation.ErrConversationVersionConflict) {
 		t.Fatalf("got %v", err)
 	}
 }
 
 func TestConversationRepo_UpdateStatus_NotFound(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	err := repo.UpdateStatus(context.Background(), "C-NEVER",
-		conversation.ConversationOpen, conversation.ConversationClosed,
-		1, "x", "y", time.Now())
+	r := setupDB(t)
+	err := r.UpdateStatus(context.Background(), "nope",
+		conversation.ConversationActive, conversation.ConversationClosed, 1,
+		"r", "m", time.Now())
 	if !errors.Is(err, conversation.ErrConversationNotFound) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestConversationRepo_UpdateStatus_InvalidStatus(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	err := repo.UpdateStatus(context.Background(), "C-1",
-		"bogus", conversation.ConversationClosed, 1, "x", "y", time.Now())
-	if !errors.Is(err, conversation.ErrConversationInvalidStatus) {
-		t.Fatalf("got %v", err)
-	}
-}
-
-func TestConversationRepo_UpdatePrimaryChannel(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c)
-	err := repo.UpdatePrimaryChannel(context.Background(), c.ID(),
-		"feishu", "thread-x", 1, time.Now())
-	if err != nil {
+func TestConversationRepo_UpdateArchive_Happy(t *testing.T) {
+	r := setupDB(t)
+	c := mkConv(t, "c-1", conversation.ConversationKindDM, "")
+	_ = r.Save(context.Background(), c)
+	now := time.Now().UTC()
+	if err := r.UpdateArchive(context.Background(), "c-1", 1,
+		conversation.IdentityRef("user:hayang"), now); err != nil {
 		t.Fatal(err)
 	}
-	got, _ := repo.FindByID(context.Background(), c.ID())
-	if got.PrimaryChannelHint() != "feishu" {
-		t.Fatal()
+	got, _ := r.FindByID(context.Background(), "c-1")
+	if got.Status() != conversation.ConversationArchived {
+		t.Fatalf("got %s", got.Status())
+	}
+	if got.ArchivedBy() != "user:hayang" || got.ArchivedAt() == nil {
+		t.Fatalf("archived fields: %s / %v", got.ArchivedBy(), got.ArchivedAt())
 	}
 }
 
-func TestConversationRepo_UpdatePrimaryChannel_NotFound(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	err := repo.UpdatePrimaryChannel(context.Background(), "C-NEVER", "x", "y", 1, time.Now())
-	if !errors.Is(err, conversation.ErrConversationNotFound) {
-		t.Fatalf("got %v", err)
-	}
-}
-
-func TestConversationRepo_UpdatePrimaryChannel_VersionConflict(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c)
-	err := repo.UpdatePrimaryChannel(context.Background(), c.ID(), "x", "y", 99, time.Now())
+func TestConversationRepo_UpdateArchive_Conflict(t *testing.T) {
+	r := setupDB(t)
+	c := mkConv(t, "c-1", conversation.ConversationKindDM, "")
+	_ = r.Save(context.Background(), c)
+	err := r.UpdateArchive(context.Background(), "c-1", 999, "user:h", time.Now())
 	if !errors.Is(err, conversation.ErrConversationVersionConflict) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestConversationRepo_UpdatePrimaryChannel_DuplicateChannelThread(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c1 := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c1)
-	_ = repo.UpdatePrimaryChannel(context.Background(), c1.ID(), "feishu", "t-1", 1, time.Now())
-
-	c2 := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c2)
-	err := repo.UpdatePrimaryChannel(context.Background(), c2.ID(), "feishu", "t-1", 1, time.Now())
-	if !errors.Is(err, conversation.ErrConversationAlreadyExists) {
-		t.Fatalf("got %v", err)
-	}
-}
-
-func TestConversationRepo_FindByChannelAndThreadKey(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c := newConv(t, conversation.ConversationKindDM)
-	_ = repo.Save(context.Background(), c)
-	_ = repo.UpdatePrimaryChannel(context.Background(), c.ID(), "feishu", "t-1", 1, time.Now())
-	got, err := repo.FindByChannelAndThreadKey(context.Background(), "feishu", "t-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.ID() != c.ID() {
-		t.Fatal()
-	}
-}
-
-func TestConversationRepo_FindByChannelAndThreadKey_NotFound(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	_, err := repo.FindByChannelAndThreadKey(context.Background(), "feishu", "missing")
+func TestConversationRepo_UpdateArchive_NotFound(t *testing.T) {
+	r := setupDB(t)
+	err := r.UpdateArchive(context.Background(), "nope", 1, "user:h", time.Now())
 	if !errors.Is(err, conversation.ErrConversationNotFound) {
 		t.Fatalf("got %v", err)
 	}
 }
 
-func TestConversationRepo_Find_AllFilters(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	c1 := newConv(t, conversation.ConversationKindDM)
-	c2 := newConv(t, conversation.ConversationKindGroupThread)
-	_ = repo.Save(context.Background(), c1)
-	_ = repo.Save(context.Background(), c2)
-
-	kind := conversation.ConversationKindDM
-	got, _ := repo.Find(context.Background(), conversation.ConversationFilter{Kind: &kind})
-	if len(got) != 1 {
-		t.Fatalf("kind filter: %d", len(got))
+func TestConversationRepo_UpdateParticipants(t *testing.T) {
+	r := setupDB(t)
+	c := mkConv(t, "c-1", conversation.ConversationKindChannel, "ch")
+	_ = r.Save(context.Background(), c)
+	parts := []conversation.ParticipantElement{
+		{IdentityID: "user:a", Role: "owner", JoinedAt: "t", JoinedBy: "system"},
+		{IdentityID: "user:b", Role: "member", JoinedAt: "t", JoinedBy: "user:a"},
 	}
-
-	status := conversation.ConversationOpen
-	got, _ = repo.Find(context.Background(), conversation.ConversationFilter{Status: &status})
-	if len(got) != 2 {
-		t.Fatalf("status filter: %d", len(got))
+	if err := r.UpdateParticipants(context.Background(), "c-1", parts, 1, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := r.FindByID(context.Background(), "c-1")
+	if len(got.Participants()) != 2 || got.Version() != 2 {
+		t.Fatalf("got %d participants ver=%d", len(got.Participants()), got.Version())
 	}
 }
 
-func TestConversationRepo_Find_Pagination(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	for i := 0; i < 5; i++ {
-		_ = repo.Save(context.Background(), newConv(t, conversation.ConversationKindDM))
-	}
-	page1, _ := repo.Find(context.Background(), conversation.ConversationFilter{Limit: 2})
-	if len(page1) != 2 {
-		t.Fatalf("page1: %d", len(page1))
-	}
-	cursor := page1[1].ID()
-	page2, _ := repo.Find(context.Background(), conversation.ConversationFilter{Cursor: &cursor, Limit: 2})
-	if len(page2) != 2 {
-		t.Fatalf("page2: %d", len(page2))
-	}
-	for _, e := range page2 {
-		for _, p := range page1 {
-			if e.ID() == p.ID() {
-				t.Fatalf("cursor leak")
-			}
-		}
+func TestConversationRepo_UpdateParticipants_Conflict(t *testing.T) {
+	r := setupDB(t)
+	c := mkConv(t, "c-1", conversation.ConversationKindChannel, "ch")
+	_ = r.Save(context.Background(), c)
+	err := r.UpdateParticipants(context.Background(), "c-1", nil, 99, time.Now())
+	if !errors.Is(err, conversation.ErrConversationVersionConflict) {
+		t.Fatalf("got %v", err)
 	}
 }
 
-func TestConversationRepo_Save_NilConversation(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewConversationRepo(db)
-	if err := repo.Save(context.Background(), nil); err == nil {
-		t.Fatal()
+func TestConversationRepo_FindByParent(t *testing.T) {
+	r := setupDB(t)
+	parent := mkConv(t, "p-1", conversation.ConversationKindChannel, "p")
+	_ = r.Save(context.Background(), parent)
+	child, _ := conversation.NewConversation(conversation.NewConversationInput{
+		ID: "c-1", Kind: conversation.ConversationKindIssue,
+		CreatedBy: "user:h", ParentConversationID: "p-1",
+		OpenedAt: time.Now(),
+	})
+	_ = r.Save(context.Background(), child)
+	got, err := r.FindByParent(context.Background(), "p-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID() != "c-1" {
+		t.Fatalf("got %d children", len(got))
+	}
+}
+
+func TestConversationRepo_Find_KindAndStatus(t *testing.T) {
+	r := setupDB(t)
+	_ = r.Save(context.Background(), mkConv(t, "c-a", conversation.ConversationKindChannel, "a"))
+	_ = r.Save(context.Background(), mkConv(t, "c-b", conversation.ConversationKindDM, ""))
+	k := conversation.ConversationKindChannel
+	got, err := r.Find(context.Background(), conversation.ConversationFilter{Kind: &k})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID() != "c-a" {
+		t.Fatalf("got %v", got)
 	}
 }

@@ -25,8 +25,9 @@ func (a *App) ConversationCommands() []*Command {
 }
 
 func (a *App) convOpenHandler(fs *flag.FlagSet) Handler {
-	kindStr := fs.String("kind", "", "kind (dm|group_thread|adhoc|notification)")
-	title := fs.String("title", "", "title")
+	kindStr := fs.String("kind", "", "kind (dm|channel|adhoc|notification)")
+	name := fs.String("name", "", "name (channel kind requires non-empty)")
+	description := fs.String("description", "", "description")
 	format := fs.String("format", "human", "")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		kind := conversation.ConversationKind(*kindStr)
@@ -34,7 +35,11 @@ func (a *App) convOpenHandler(fs *flag.FlagSet) Handler {
 			return PrintError(errw, *format, "usage_error", "invalid --kind", ExitUsage)
 		}
 		res, err := a.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
-			Kind: kind, Title: *title, Actor: a.DefaultActor(),
+			Kind:        kind,
+			Name:        *name,
+			Description: *description,
+			CreatedBy:   conversation.IdentityRef(a.DefaultActor()),
+			Actor:       a.DefaultActor(),
 		})
 		if err != nil {
 			return HandleDomainError(errw, *format, err)
@@ -146,9 +151,9 @@ func (a *App) convListHandler(fs *flag.FlagSet) Handler {
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
 		} else {
-			fmt.Fprintf(out, "%-32s %-15s %-8s %s\n", "ID", "KIND", "STATUS", "TITLE")
+			fmt.Fprintf(out, "%-32s %-15s %-8s %s\n", "ID", "KIND", "STATUS", "NAME")
 			for _, c := range convs {
-				fmt.Fprintf(out, "%-32s %-15s %-8s %s\n", c.ID(), c.Kind(), c.Status(), c.Title())
+				fmt.Fprintf(out, "%-32s %-15s %-8s %s\n", c.ID(), c.Kind(), c.Status(), c.Name())
 			}
 		}
 		return ExitOK
@@ -234,24 +239,26 @@ func (a *App) convCloseHandler(fs *flag.FlagSet) Handler {
 
 func convToMap(c *conversation.Conversation) map[string]any {
 	return map[string]any{
-		"conversation_id": string(c.ID()),
-		"kind":            string(c.Kind()),
-		"status":          string(c.Status()),
-		"title":           c.Title(),
-		"version":         c.Version(),
+		"conversation_id":        string(c.ID()),
+		"kind":                   string(c.Kind()),
+		"status":                 string(c.Status()),
+		"name":                   c.Name(),
+		"description":            c.Description(),
+		"parent_conversation_id": string(c.ParentConversationID()),
+		"created_by":             string(c.CreatedBy()),
+		"version":                c.Version(),
 	}
 }
 
 func msgToMap(m *conversation.Message) map[string]any {
 	return map[string]any{
-		"message_id":       string(m.ID()),
-		"conversation_id":  string(m.ConversationID()),
-		"sender":           string(m.SenderIdentityID()),
-		"content_kind":     string(m.ContentKind()),
-		"direction":        string(m.Direction()),
-		"content":          m.Content(),
-		"vendor_msg_ref":   m.VendorMsgRef(),
+		"message_id":        string(m.ID()),
+		"conversation_id":   string(m.ConversationID()),
+		"sender":            string(m.SenderIdentityID()),
+		"content_kind":      string(m.ContentKind()),
+		"direction":         string(m.Direction()),
+		"content":           m.Content(),
 		"input_request_ref": m.InputRequestRef(),
-		"posted_at":        m.PostedAt().Format(time.RFC3339Nano),
+		"posted_at":         m.PostedAt().Format(time.RFC3339Nano),
 	}
 }
