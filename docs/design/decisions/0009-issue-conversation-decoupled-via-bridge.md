@@ -2,11 +2,13 @@
 
 | Field | Value |
 |---|---|
-| Status | **Superseded by [ADR-0021](0021-issue-as-conversation.md)** |
+| Status | **Superseded by [ADR-0021](0021-issue-as-conversation.md)** (further v2: Bridge BC 已撤回 per [ADR-0031](drafts/0031-v2-drop-bridge-vendor-integration.md)) |
 | Date | 2026-05-16 |
 | Superseded-Date | 2026-05-20 |
 | Refines | [ADR-0007](0007-conversation-as-unified-session.md) |
-| Superseded-By | [ADR-0021](0021-issue-as-conversation.md)（§ 1 Issue ↔ Conversation 解耦 + § 3 Issue Bound Card 字段结构两条均被推翻；§ 2 Bridge 模式作为通用原则继续保留）|
+| Superseded-By | [ADR-0021](0021-issue-as-conversation.md)（§ 1 Issue ↔ Conversation 解耦 + § 3 Issue Bound Card 字段结构两条均被推翻；§ 2 Bridge 模式 v1 沿用但 v2 撤回 per [ADR-0031](drafts/0031-v2-drop-bridge-vendor-integration.md)）|
+
+> ⚠️ **v2 读者**：v2 已撤回 Bridge BC + 所有 vendor 集成 (per [ADR-0031](drafts/0031-v2-drop-bridge-vendor-integration.md))；本 ADR 完全是 v1 历史。Issue ↔ Conversation 当前模型见 [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md)。
 
 > **本 ADR 已被 [ADR-0021](0021-issue-as-conversation.md) 接管**。2026-05-20 P3 推进 Discussion BC 重组时识别到：本 ADR 当年驳回 Issue ↔ Conversation 1:1 的 R1 反驳前提（"Issue 评论需要 Issue 独有维度"）实际上不成立 —— 5 个具体字段证据全部是普适 Message 能力或轻量 content_kind 扩展；加上 [ADR-0017](0017-task-as-conversation.md) 已为 Task 走通 Conversation 1:1 路线，Issue 跟上是自然延伸。**新模型见 [ADR-0021](0021-issue-as-conversation.md)**：Issue ↔ Conversation 1:1，IssueComment 删独立表（= Message），Bound Card 概念消失。保留本文供 history 追溯，不要据此实现。
 

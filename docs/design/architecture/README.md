@@ -14,7 +14,7 @@ architecture/
     ├── cognition/         # BC4: 认知 / Supervisor
     ├── observability/     # BC5: 观测
     ├── conversation/      # BC6: 会话
-    ├── bridge/            # BC7: 渠道桥接
+    # ~~BC7 Bridge~~ — v2 已撤回（per ADR-0031）；v3+ 重新设计
     ├── secret-management/ # BC8: 用户密钥管理（v2 新增；ADR-0026）
     ├── agent-harness/     # 主题: agent 运行时支撑（prompt 组装 + skill/CLI 工具）
     └── presentation/      # 主题: 表现层 / 前端（Web Console、未来 Mobile / Desktop）
@@ -94,12 +94,9 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 | 01 | [Conversation 聚合（+ Message）](tactical/conversation/01-conversation.md) | Draft |
 | 02 | [Identity 聚合（+ ChannelBinding）](tactical/conversation/02-identity.md) | Draft |
 
-### Bridge（渠道桥接）— BC7
+### ~~Bridge（渠道桥接）— BC7~~
 
-| # | 主题 | 状态 |
-|---|---|---|
-| 00 | [Bridge BC Overview](tactical/bridge/00-overview.md) | Draft |
-| 01 | [飞书集成（FeishuBridge）](tactical/bridge/01-feishu-integration.md) | Draft |
+> **v2 已撤回**（per [ADR-0031](../decisions/drafts/0031-v2-drop-bridge-vendor-integration.md)）；vendor 接入 v3+ 重新设计（[roadmap.md](../roadmap.md) v3+ AgentImage / Bridge 重设计条）。
 
 ### SecretManagement（用户密钥管理）— BC8
 
