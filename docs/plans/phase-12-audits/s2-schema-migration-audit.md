@@ -142,5 +142,54 @@ We re-use the in-memory sqlite pattern from existing migrator_test.go
 
 ## § 8. Execution log
 
-To be filled in when the test commit lands (cross-reference commit
-SHA + `go test` output + final `make lint-vendor` status).
+### 8.1 Audit commit
+`b5ead7d docs(p12 S2) schema migration round-trip + v1 column-absence audit` — this file as initially drafted (§ 0-7).
+
+### 8.2 Test commit
+`internal/persistence/migration_round_trip_test.go` — 5 tests + 6 helpers.
+
+Test results (`go test ./internal/persistence/ -run TestMigration -v -count=1`):
+
+```
+=== RUN   TestMigrations_FullRoundTrip
+--- PASS: TestMigrations_FullRoundTrip (0.06s)
+=== RUN   TestMigration_0025_BridgeFeishuTablesDrop
+--- PASS: TestMigration_0025_BridgeFeishuTablesDrop (0.01s)
+=== RUN   TestMigrations_V1ColumnsAbsent
+--- PASS: TestMigrations_V1ColumnsAbsent (0.01s)
+=== RUN   TestMigrations_V1TablesAbsent
+--- PASS: TestMigrations_V1TablesAbsent (0.01s)
+=== RUN   TestMigrations_V1KindValuesAbsent
+--- PASS: TestMigrations_V1KindValuesAbsent (0.03s)
+PASS
+ok      github.com/oopslink/agent-center/internal/persistence  0.339s
+```
+
+Full suite + lint sweep:
+- `go test ./...` — all packages green.
+- `go vet ./...` — clean.
+- `make lint-vendor` — `clean (all hits whitelisted)` (S1 wiring preserved).
+
+### 8.3 Seed fixture note
+`TestMigrations_V1KindValuesAbsent` required the v1 conversations row
+to include `opened_at` (NOT NULL on v1 `conversations` table) — caught
+on first run, fixed in the test commit. The v1 column inventory in § 1
+references this implicitly via "v1 base — conversations / messages",
+but worth flagging: any future test that seeds v1 rows must consult
+`0001_init.up.sql` for the full NOT NULL set.
+
+### 8.4 What changed in v1 schema that the v2 migrations rely on
+
+Documented here for the S12 v1→v2 migration tool:
+
+| Migration | Operation | Why |
+|---|---|---|
+| 0007 | DROP `workers.capabilities` | replaced by `capabilities_json` |
+| 0020 | DROP `conversations.{primary_channel_hint, primary_channel_thread_key, title}` | vendor撤回 + name/description shape |
+| 0021 | DROP `channel_bindings` table | vendor撤回 |
+| 0021 | DELETE `identities WHERE kind NOT IN (user, agent, system)` | ADR-0033 (4 → 3 kinds) |
+| 0023 | DROP `messages.vendor_msg_ref` + uniq idx | vendor撤回 |
+| 0024 | UPDATE `conversations.kind 'group_thread' → 'channel'` | ADR-0032 |
+| 0025 | DROP `feishu_delivery_ledger` + `bridge_subscription_cursors` | Bridge BC撤回 |
+
+S12 acceptance test will replay this list against a real v1 snapshot.
