@@ -70,4 +70,35 @@ describe('TaskDetail page', () => {
     wrap('/tasks/missing');
     await waitFor(() => expect(screen.getByTestId('task-not-found')).toHaveTextContent(/no such task/));
   });
+
+  // v2.1-B: cover the optional-description render of TaskDetail.tsx
+  // (lines 57-58 — `conv.data.description && <p>...</p>`). F14 audit
+  // logged as "🟡 worth covering — pass description in seed".
+  it('renders the task description when set on the bound conversation', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'T-2',
+          kind: 'task',
+          name: 'investigate auth',
+          description: 'auth flow occasionally returns 401 after refresh',
+          status: 'active',
+          participants: [
+            { identity_id: 'agent:bot-1', role: 'owner', joined_at: 'x', joined_by: 'agent:bot-1' },
+          ],
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+    );
+    wrap('/tasks/T-2');
+    await waitFor(() =>
+      expect(screen.getByText(/auth flow occasionally returns 401/)).toBeInTheDocument(),
+    );
+    // Flip select mode so the truthy arm of the select-mode-toggle
+    // ternary className (line 71) is exercised. F14 audit grouped this
+    // tool-quirk branch with the description render.
+    const toggle = screen.getByTestId('select-mode-toggle');
+    toggle.click();
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
+  });
 });

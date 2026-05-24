@@ -118,4 +118,37 @@ describe('DMDetail page', () => {
     wrap('/dms/C-DM');
     await waitFor(() => expect(screen.getByTestId('dm-messages-error')).toHaveTextContent(/db down/));
   });
+
+  // v2.1-B: cover the "solo DM" branch of DMDetail.tsx (lines 70-72)
+  // where peers.length === 0 because the only participant is the
+  // current user. F14 audit logged as "🟡 worth covering".
+  it('renders "solo DM" heading when current user is the only participant', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-SOLO',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          participants: [
+            {
+              identity_id: 'user:hayang',
+              role: 'owner',
+              joined_at: '2026-05-24T00:00:00Z',
+              joined_by: 'user:hayang',
+            },
+          ],
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+    );
+    wrap('/dms/C-SOLO');
+    await waitFor(() => expect(screen.getByText(/solo DM/i)).toBeInTheDocument());
+    // Flip select mode so the truthy arm of the select-mode-toggle
+    // ternary className (line 81) is exercised. F14 audit listed this
+    // alongside the solo DM branch.
+    const toggle = screen.getByTestId('select-mode-toggle');
+    toggle.click();
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
+  });
 });

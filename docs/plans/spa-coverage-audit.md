@@ -142,6 +142,14 @@ nice-to-haves, not gaps in feature behaviour. Logged as a P12
 backlog item if the next coverage review wants them closed:
 **v2.1-backlog "SPA coverage micro-pass"** (~1h, post-GA).
 
+**✅ Closed by v2.1-B on 2026-05-24** — see
+[`docs/plans/v2.1-audits/v21-B-spa-coverage-audit.md`](v2.1-audits/v21-B-spa-coverage-audit.md).
+4 targeted tests landed; headline coverage moved 98.62 → 98.83
+lines / 90.54 → 91.60 branches. Remaining ~1.2% gap classified
+🟢 per v2.1-B § 4.3 (network-error fallback / v8 arrow-fn
+miscount / `??` fallback for unknown SSE strings / isError JSX
+line-span artifacts) — anti-pattern to chase further.
+
 ## § 4. Future-proofing
 
 `vitest.config.ts` already has thresholds at 80% across all four

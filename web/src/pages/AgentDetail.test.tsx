@@ -113,4 +113,35 @@ describe('AgentDetail page', () => {
     wrap('/agents/ghost');
     await waitFor(() => expect(screen.getByTestId('agent-not-found')).toHaveTextContent(/no such agent/));
   });
+
+  // v2.1-B: cover the agent-OK + fleet-error 2-handler MSW setup.
+  // Exercises the `fleet.isError` arm of AgentDetail.tsx (lines 77-80)
+  // that the F14 audit logged as "🟡 worth covering".
+  it('renders agent profile but shows exec-error when fleet endpoint fails', async () => {
+    server.use(
+      http.get('/api/agents/:name', () =>
+        HttpResponse.json({
+          id: 'A1',
+          identity_id: 'agent:A1',
+          name: 'maybe-bot',
+          agent_cli: 'claudecode',
+          state: 'active',
+          worker_id: 'w-1',
+        }),
+      ),
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          { error: 'find_failed', message: 'fleet snapshot down' },
+          { status: 500 },
+        ),
+      ),
+    );
+    wrap('/agents/maybe-bot');
+    await waitFor(() => expect(screen.getByText('maybe-bot')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-exec-error')).toHaveTextContent(
+        /fleet snapshot down/,
+      ),
+    );
+  });
 });

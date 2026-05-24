@@ -35,6 +35,16 @@ describe('react-query hooks', () => {
     expect(result.current.data?.[0].name).toBe('alpha');
   });
 
+  // v2.1-B: cover the no-filter / no-search-params branch in
+  // useConversations (the path where the query string stays empty).
+  it('useConversations with no filter hits /conversations unfiltered', async () => {
+    const { result } = renderHook(() => useConversations(), {
+      wrapper: makeWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(Array.isArray(result.current.data)).toBe(true);
+  });
+
   it('useConversation skips fetch when id is undefined', () => {
     const { result } = renderHook(() => useConversation(undefined), { wrapper: makeWrapper() });
     expect(result.current.fetchStatus).toBe('idle');
