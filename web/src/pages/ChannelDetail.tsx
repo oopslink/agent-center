@@ -1,10 +1,12 @@
 import type React from 'react';
+import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   useConversation,
   useConversations,
   useMessages,
 } from '@/api/conversations';
+import { useMarkSeen } from '@/api/readState';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
@@ -25,6 +27,18 @@ export default function ChannelDetail(): React.ReactElement {
   const conv = useConversation(channel?.id);
   const messages = useMessages(channel?.id);
   const selection = useSelection();
+  const markSeen = useMarkSeen();
+
+  // Fire-and-forget: bump read cursor to the latest message whenever a
+  // new message list arrives (mount + SSE-driven refetch). Server-side
+  // only-forward guard makes redundant POSTs cheap (no event, no row
+  // write past the conditional UPSERT early-return).
+  const latestMessageId = messages.data?.[messages.data.length - 1]?.id;
+  useEffect(() => {
+    if (!channel?.id || !latestMessageId) return;
+    markSeen.mutate({ conversationId: channel.id, lastSeenMessageId: latestMessageId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel?.id, latestMessageId]);
 
   if (channels.isLoading || (channel && conv.isLoading)) {
     return (

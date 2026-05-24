@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { ChannelCreateModal } from '@/components/ChannelCreateModal';
+import { UnreadBadge } from '@/components/UnreadBadge';
 
 // ChannelList page (/channels). Lists kind=channel conversations + a
 // "New channel" button. Empty state offers the same button inline.
@@ -60,6 +61,7 @@ export default function Channels(): React.ReactElement {
               >
                 <span className="flex items-center gap-3">
                   <span className="font-medium">{c.name}</span>
+                  <UnreadBadge conversationId={c.id} />
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">
                     {c.status}
                   </span>

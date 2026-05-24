@@ -205,4 +205,52 @@ Cold-start journey:
 
 ## § 7. Execution log
 
-To be filled by the impl commit.
+**Files landed:**
+
+- `web/src/api/readState.ts` — `useUnread` + `useMarkSeen`. New
+  query key `qk.unread(convId)`.
+- `web/src/api/queryKeys.ts` + `queryKeys.test.ts` — add `unread` slot.
+- `web/src/components/UnreadBadge.tsx` — small per-conv pill,
+  renders nothing when count == 0, renders `999+` at the cap.
+- `web/src/components/UnreadBadge.test.tsx` — 4 cases (loading +
+  zero / numeric / 999+ overflow / errored).
+- `web/src/api/readState.test.tsx` — 5 hook cases (skip when undef /
+  fetch summary / mutate bumped=true / no-op bumped=false / 422
+  server-error surface).
+- `web/src/pages/Channels.tsx` — `<UnreadBadge>` between name + status.
+- `web/src/pages/DMs.tsx` — same; the v2.1-backlog "not yet" comment
+  removed.
+- `web/src/pages/ChannelDetail.tsx` — `useMarkSeen` fire-and-forget
+  on `messages.data` change.
+- `web/src/pages/DMDetail.tsx` — same.
+- `web/src/sse/useSSE.ts` — `conversation.message_added` now
+  invalidates both `qk.messages` AND `qk.unread`;
+  `conversation.read_state.changed` is a new handler invalidating
+  `qk.unread`.
+- `web/src/sse/useSSE.test.tsx` — two dispatch tests updated /
+  added (message_added now expects both invalidations;
+  read_state.changed gets its own assertion).
+- `web/src/mocks/handlers.ts` — MSW handlers for the two new
+  endpoints so unit / page tests don't need ad-hoc overrides.
+- `tests/e2e/v2/tests/unread-tracking.spec.ts` — full cold-start
+  e2e: seed channel + 3 messages → assert badge "3" on `/channels` →
+  visit conversation → return → assert badge cleared.
+
+**Verification:**
+
+- `pnpm test` — 41 files / **203 tests passed** (was 193; +10
+  read-state coverage). Coverage **lines 98.83% / branches 91.6% /
+  functions 93.59% / statements 98.83%** — matches v2.1-B closeout
+  numbers; no regression.
+- `pnpm typecheck` — clean.
+- `make build` — green; SPA bundle picks up Channels / DMs /
+  ChannelDetail / DMDetail / sse module changes.
+- `pnpm test:e2e` — **13 / 13 e2e specs pass** (was 12; +1 new
+  unread-tracking spec). Run on chromium-mac in ~8s.
+- `go test ./...` — green overall (no backend changes in this ST).
+
+**Cadence:** audit log shipped first (commit `5a90821`); impl shipped
+as a second commit per the per-ST P12 cadence rule. This closes
+v2.1-C end-to-end — schema (C-1) + backend (C-2) + frontend + e2e
+(C-3). Task #94 ready for `in_review`; #4 (v2.1-C parent) ready for
+`in_review` after this.

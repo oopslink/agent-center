@@ -56,6 +56,17 @@ export const handlers = [
   http.delete('/api/conversations/:id/participants/:identity_id', () =>
     ok({ event_id: 'E-kick' }),
   ),
+  http.get('/api/conversations/:id/unread', ({ params }) =>
+    ok({
+      conversation_id: String(params.id),
+      user_id: 'user:hayang',
+      last_seen_message_id: '',
+      unread_count: 0,
+    }),
+  ),
+  http.post('/api/conversations/:id/seen', () =>
+    ok({ last_seen_message_id: 'M1', version: 1, bumped: true, event_id: 'E-seen' }),
+  ),
 
   // Derivation
   http.post('/api/issues', () =>

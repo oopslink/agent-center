@@ -76,9 +76,15 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversation('C1') });
   });
 
-  it('conversation.message_added invalidates messages', () => {
+  it('conversation.message_added invalidates messages + unread', () => {
     dispatchToQueryClient(qc, ev('conversation.message_added', 'C1'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.messages('C1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
+  });
+
+  it('conversation.read_state.changed invalidates unread', () => {
+    dispatchToQueryClient(qc, ev('conversation.read_state.changed', 'C1'));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
   });
 
   it('input_request.requested invalidates IRs (badge derived from query, not bumped)', () => {

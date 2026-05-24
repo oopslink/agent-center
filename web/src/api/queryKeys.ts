@@ -13,4 +13,5 @@ export const qk = {
   inputRequests: () => ['inputRequests'] as const,
   fleet: () => ['fleet'] as const,
   taskTrace: (taskId: string) => ['taskTrace', taskId] as const,
+  unread: (convId: string) => ['unread', convId] as const,
 };

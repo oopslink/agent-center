@@ -1,6 +1,8 @@
 import type React from 'react';
+import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
+import { useMarkSeen } from '@/api/readState';
 import { useAppStore } from '@/store/app';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
@@ -20,6 +22,17 @@ export default function DMDetail(): React.ReactElement {
   const conv = useConversation(id);
   const messages = useMessages(id);
   const selection = useSelection();
+  const markSeen = useMarkSeen();
+
+  // See ChannelDetail for rationale: fire-and-forget auto-mark-seen
+  // bumps the cursor whenever a fresh message list lands (mount or SSE
+  // refetch). Server-side only-forward guard keeps this cheap.
+  const latestMessageId = messages.data?.[messages.data.length - 1]?.id;
+  useEffect(() => {
+    if (!id || !latestMessageId) return;
+    markSeen.mutate({ conversationId: id, lastSeenMessageId: latestMessageId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, latestMessageId]);
 
   if (conv.isLoading) {
     return (

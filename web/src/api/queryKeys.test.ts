@@ -13,5 +13,6 @@ describe('query key factory', () => {
     expect(qk.inputRequests()).toEqual(['inputRequests']);
     expect(qk.fleet()).toEqual(['fleet']);
     expect(qk.taskTrace('T1')).toEqual(['taskTrace', 'T1']);
+    expect(qk.unread('C1')).toEqual(['unread', 'C1']);
   });
 });

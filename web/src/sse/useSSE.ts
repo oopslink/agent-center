@@ -180,6 +180,14 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'conversation.message_added':
       if (ev.conversation_id) {
         invalidate(qk.messages(ev.conversation_id));
+        // New message ticks the unread badge on every listener; the
+        // focused tab will then auto-mark-seen which clears it again.
+        invalidate(qk.unread(ev.conversation_id));
+      }
+      return;
+    case 'conversation.read_state.changed':
+      if (ev.conversation_id) {
+        invalidate(qk.unread(ev.conversation_id));
       }
       return;
     case 'conversation.participant_joined':

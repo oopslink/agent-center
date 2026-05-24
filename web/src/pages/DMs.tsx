@@ -3,12 +3,9 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { DMStartModal } from '@/components/DMStartModal';
+import { UnreadBadge } from '@/components/UnreadBadge';
 
 // DMList page (/dms). Lists kind=dm conversations + "Start a DM" button.
-//
-// Unread badges are intentionally noop here — the backend doesn't track
-// per-user read-state yet (see docs/plans/v2.1-backlog.md "Unread
-// message tracking"). When that lands, surface it inside the row.
 export default function DMs(): React.ReactElement {
   const dms = useConversations({ kind: 'dm' });
   const [startOpen, setStartOpen] = useState(false);
@@ -64,16 +61,11 @@ export default function DMs(): React.ReactElement {
               >
                 <span className="flex items-center gap-3">
                   <span className="font-medium">{c.name || c.id}</span>
+                  <UnreadBadge conversationId={c.id} />
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">
                     {c.status}
                   </span>
                 </span>
-                {/*
-                 * Unread badge — v2.1-backlog "Unread message tracking".
-                 * Backend has no per-user read-state model yet; render
-                 * blank for now.
-                 */}
-                <span className="text-xs text-slate-500"></span>
               </Link>
             </li>
           ))}
