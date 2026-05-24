@@ -4,12 +4,15 @@ import { Link } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { ChannelCreateModal } from '@/components/ChannelCreateModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
+import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 
 // ChannelList page (/channels). Lists kind=channel conversations + a
 // "New channel" button. Empty state offers the same button inline.
 export default function Channels(): React.ReactElement {
   const channels = useConversations({ kind: 'channel' });
   const [createOpen, setCreateOpen] = useState(false);
+  // Subscribe to every visible channel so badge auto-ticks via SSE.
+  useSSEConversationSubscribe(channels.data?.map((c) => c.id));
 
   return (
     <section className="space-y-4" data-testid="page-Channels">

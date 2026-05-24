@@ -147,6 +147,12 @@ export const handlers = [
   ),
   http.delete('/api/secrets/:id', () => ok({ revoked: true })),
 
+  // SSE subscribe / unsubscribe (no streaming — the EventSource side
+  // is intentionally not mocked here; tests that need stream data use
+  // the fakeEventSource in src/sse/fakeEventSource.ts directly).
+  http.post('/api/sse/subscribe', () => ok({ subscribed: true })),
+  http.post('/api/sse/unsubscribe', () => ok({ unsubscribed: true })),
+
   // Fleet + trace
   http.get('/api/fleet', () =>
     ok({

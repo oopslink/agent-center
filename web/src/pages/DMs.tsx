@@ -4,12 +4,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { DMStartModal } from '@/components/DMStartModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
+import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 
 // DMList page (/dms). Lists kind=dm conversations + "Start a DM" button.
 export default function DMs(): React.ReactElement {
   const dms = useConversations({ kind: 'dm' });
   const [startOpen, setStartOpen] = useState(false);
   const navigate = useNavigate();
+  useSSEConversationSubscribe(dms.data?.map((c) => c.id));
 
   return (
     <section className="space-y-4" data-testid="page-DMs">

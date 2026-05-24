@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
 import { useMarkSeen } from '@/api/readState';
+import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { useAppStore } from '@/store/app';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
@@ -23,6 +24,7 @@ export default function DMDetail(): React.ReactElement {
   const messages = useMessages(id);
   const selection = useSelection();
   const markSeen = useMarkSeen();
+  useSSEConversationSubscribe(id ? [id] : undefined);
 
   // See ChannelDetail for rationale: fire-and-forget auto-mark-seen
   // bumps the cursor whenever a fresh message list lands (mount or SSE

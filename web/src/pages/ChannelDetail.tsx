@@ -7,6 +7,7 @@ import {
   useMessages,
 } from '@/api/conversations';
 import { useMarkSeen } from '@/api/readState';
+import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
@@ -28,6 +29,7 @@ export default function ChannelDetail(): React.ReactElement {
   const messages = useMessages(channel?.id);
   const selection = useSelection();
   const markSeen = useMarkSeen();
+  useSSEConversationSubscribe(channel?.id ? [channel.id] : undefined);
 
   // Fire-and-forget: bump read cursor to the latest message whenever a
   // new message list arrives (mount + SSE-driven refetch). Server-side
