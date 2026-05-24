@@ -101,17 +101,12 @@ func (s *CarryOverService) Materialise(ctx context.Context, cmd MaterialiseComma
 		if _, err := s.convRepo.FindByID(txCtx, cmd.SourceConversationID); err != nil {
 			return fmt.Errorf("carry_over: source conversation: %w", err)
 		}
+		if err := validateMessagesInSourceConv(txCtx, s.msgRepo, cmd.SourceConversationID, cmd.SourceMessageIDs); err != nil {
+			return fmt.Errorf("carry_over: %w", err)
+		}
 		now := s.clock.Now()
 		refs := make([]*conversation.ConversationMessageReference, 0, len(cmd.SourceMessageIDs))
 		for _, msgID := range cmd.SourceMessageIDs {
-			m, err := s.msgRepo.FindByID(txCtx, msgID)
-			if err != nil {
-				return fmt.Errorf("carry_over: source message %s: %w", msgID, err)
-			}
-			if m.ConversationID() != cmd.SourceConversationID {
-				return fmt.Errorf("%w: message %s belongs to %s, not %s",
-					ErrCarryOverSourceMsgNotInConv, msgID, m.ConversationID(), cmd.SourceConversationID)
-			}
 			refs = append(refs, &conversation.ConversationMessageReference{
 				ID:                   s.idgen.NewULID(),
 				ChildConversationID:  cmd.ChildConversationID,

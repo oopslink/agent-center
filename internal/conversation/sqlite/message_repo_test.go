@@ -55,6 +55,43 @@ func TestMessageRepo_AppendAndFind(t *testing.T) {
 	}
 }
 
+func TestMessageRepo_FindByIDs_Batch(t *testing.T) {
+	convR, msgR := setupMsgDB(t)
+	_ = convR.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindDM, ""))
+	for _, id := range []conversation.MessageID{"m-1", "m-2", "m-3"} {
+		if err := msgR.Append(context.Background(), mkMsg(t, id, "c-1")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Lookup with one missing id — missing one is silently skipped.
+	got, err := msgR.FindByIDs(context.Background(),
+		[]conversation.MessageID{"m-1", "missing", "m-3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d rows want 2 (m-1 + m-3)", len(got))
+	}
+	ids := make(map[conversation.MessageID]bool, len(got))
+	for _, m := range got {
+		ids[m.ID()] = true
+	}
+	if !ids["m-1"] || !ids["m-3"] || ids["missing"] {
+		t.Fatalf("unexpected id set: %v", ids)
+	}
+}
+
+func TestMessageRepo_FindByIDs_Empty(t *testing.T) {
+	_, msgR := setupMsgDB(t)
+	got, err := msgR.FindByIDs(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected empty result, got %d", len(got))
+	}
+}
+
 func TestMessageRepo_FindByID_NotFound(t *testing.T) {
 	_, msgR := setupMsgDB(t)
 	_, err := msgR.FindByID(context.Background(), "nope")

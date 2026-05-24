@@ -57,6 +57,40 @@ func (r *MessageRepo) FindByID(ctx context.Context, id conversation.MessageID) (
 	return m, err
 }
 
+// FindByIDs batches lookups via a single `WHERE id IN (?,...)` query.
+// Missing ids are silently skipped per the interface contract.
+func (r *MessageRepo) FindByIDs(ctx context.Context, ids []conversation.MessageID) ([]*conversation.Message, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	// Build `(?,?,...)` placeholders + args.
+	placeholders := make([]byte, 0, len(ids)*2)
+	args := make([]any, 0, len(ids))
+	for i, id := range ids {
+		if i > 0 {
+			placeholders = append(placeholders, ',')
+		}
+		placeholders = append(placeholders, '?')
+		args = append(args, string(id))
+	}
+	q := messageSelect + ` WHERE id IN (` + string(placeholders) + `)`
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]*conversation.Message, 0, len(ids))
+	for rows.Next() {
+		m, err := scanMessage(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 // FindByConversationID returns messages in a conversation; filter supports
 // Since cutoff + Limit + Tail.
 func (r *MessageRepo) FindByConversationID(ctx context.Context, conversationID conversation.ConversationID, filter conversation.MessageFilter) ([]*conversation.Message, error) {

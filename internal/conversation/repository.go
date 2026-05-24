@@ -38,6 +38,11 @@ type MessageFilter struct {
 // MessageRepository per ADR-0031 (v2 — vendor_msg_ref dropped).
 type MessageRepository interface {
 	FindByID(ctx context.Context, id MessageID) (*Message, error)
+	// FindByIDs batches lookups of multiple message ids in a single
+	// query. Returns the messages that exist; missing ids are silently
+	// skipped (caller compares len(input) vs len(output) to detect).
+	// Order of returned messages is not guaranteed.
+	FindByIDs(ctx context.Context, ids []MessageID) ([]*Message, error)
 	FindByConversationID(ctx context.Context, conversationID ConversationID, filter MessageFilter) ([]*Message, error)
 	FindRecent(ctx context.Context, conversationID ConversationID, n int) ([]*Message, error)
 	Append(ctx context.Context, m *Message) error

@@ -278,14 +278,32 @@ func (s *MessageDerivationService) validateCommon(ctx context.Context, sourceID 
 	if source.Kind() == conversation.ConversationKindChannel && !source.HasActiveParticipant(createdBy) {
 		return ErrDerivationCallerNotParticipant
 	}
-	for _, msgID := range msgIDs {
-		m, err := s.msgRepo.FindByID(ctx, msgID)
-		if err != nil {
-			return fmt.Errorf("derivation: message %s: %w", msgID, err)
+	return validateMessagesInSourceConv(ctx, s.msgRepo, sourceID, msgIDs)
+}
+
+// validateMessagesInSourceConv batches the message lookup (1 query for
+// all ids instead of N) and asserts each lives in sourceID. Shared with
+// CarryOverService.Materialise.
+func validateMessagesInSourceConv(ctx context.Context, msgRepo conversation.MessageRepository, sourceID conversation.ConversationID, msgIDs []conversation.MessageID) error {
+	if len(msgIDs) == 0 {
+		return nil
+	}
+	msgs, err := msgRepo.FindByIDs(ctx, msgIDs)
+	if err != nil {
+		return fmt.Errorf("derivation: messages: %w", err)
+	}
+	found := make(map[conversation.MessageID]*conversation.Message, len(msgs))
+	for _, m := range msgs {
+		found[m.ID()] = m
+	}
+	for _, mid := range msgIDs {
+		m, ok := found[mid]
+		if !ok {
+			return fmt.Errorf("derivation: message %s: %w", mid, conversation.ErrMessageNotFound)
 		}
 		if m.ConversationID() != sourceID {
 			return fmt.Errorf("%w: message %s belongs to %s, not %s",
-				ErrCarryOverSourceMsgNotInConv, msgID, m.ConversationID(), sourceID)
+				ErrCarryOverSourceMsgNotInConv, mid, m.ConversationID(), sourceID)
 		}
 	}
 	return nil
