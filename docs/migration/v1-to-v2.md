@@ -90,7 +90,7 @@ Expected output (numbers vary by install):
 
 ```
 current schema version: 6
-target  schema version: 26
+target  schema version: 27
 bridge rows to archive:
   feishu_delivery_ledger:    427
   bridge_subscription_cursors: 1
@@ -99,11 +99,12 @@ dry-run: no changes applied
 
 Read the numbers:
 
-- **current schema version** ≤ 25 — the tool will run the missing
-  migrations.
+- **current schema version** < target — the tool will run the missing
+  migrations (target tracks the latest v2.x release; v2.0 GA = 25,
+  v2.1 currently = 27).
 - **bridge rows** — these will be exported to a JSON archive (§ 4
   below).
-- If `current == 25` already, output is `already at v2; no action`
+- If `current >= target` already, output is `already at v2; no action`
   and the upgrade is a no-op.
 
 ### 2.2 Apply
@@ -117,10 +118,10 @@ Expected output:
 
 ```
 current schema version: 6
-target  schema version: 26
+target  schema version: 27
 bridge rows to archive: ...
 bridge archive written: /var/lib/agent-center/migration-archive/bridge-archive-20260524T093017Z.json
-migration applied; new schema version: 25
+migration applied; new schema version: 27
 ```
 
 The tool is **idempotent** — running `--apply` a second time exits 0

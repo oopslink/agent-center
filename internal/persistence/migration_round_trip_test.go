@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -54,9 +55,37 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 26 || v2 != 26 {
-		t.Fatalf("Version after Up: got (%d, %d) want (26, 26)", v1, v2)
+	if v1 != 27 || v2 != 27 {
+		t.Fatalf("Version after Up: got (%d, %d) want (27, 27)", v1, v2)
 	}
+
+	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
+	// the unread query. Without this index the query falls back to a
+	// SCAN inside the conversation (the bug v2.1-E fixes).
+	rows, err := db.Query(`EXPLAIN QUERY PLAN
+		SELECT COUNT(*) FROM (
+			SELECT 1 FROM messages
+			WHERE conversation_id = ? AND id > ? LIMIT 1000
+		)`, "c-1", "")
+	if err != nil {
+		t.Fatalf("explain query plan: %v", err)
+	}
+	defer rows.Close()
+	var planContainsIdx bool
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(detail, "idx_messages_conv_id") {
+			planContainsIdx = true
+		}
+	}
+	if !planContainsIdx {
+		t.Fatal("EXPLAIN QUERY PLAN did not use idx_messages_conv_id — v2.1-E migration regressed")
+	}
+
 	if !sameSchema(snap1, snap2) {
 		t.Fatalf("round-trip schema drift:\n  first:  %v\n  second: %v", snap1, snap2)
 	}
