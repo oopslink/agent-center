@@ -17,11 +17,26 @@ function wrap(ui: React.ReactElement) {
   );
 }
 
+const projectFixture = [
+  { id: 'p-demo', name: 'Demo Project', kind: 'coding', created_at: '2026-05-24T00:00:00Z' },
+  { id: 'p-other', name: 'Other Project', created_at: '2026-05-24T01:00:00Z' },
+];
+
 describe('DeriveModal', () => {
   beforeEach(() => {
     server.use(
-      http.post('/api/issues', () =>
-        HttpResponse.json(
+      http.get('/api/projects', () => HttpResponse.json(projectFixture)),
+      http.post('/api/issues', async ({ request }) => {
+        const body = (await request.json()) as { project_id?: string };
+        // v2.1-A — project_id is required; if absent, simulate the
+        // backend's 500 (project_not_found at service layer).
+        if (!body.project_id) {
+          return HttpResponse.json(
+            { error: 'internal', message: 'project_id required' },
+            { status: 400 },
+          );
+        }
+        return HttpResponse.json(
           {
             issue_id: 'IS-NEW',
             conversation_id: 'I-NEW',
@@ -30,10 +45,17 @@ describe('DeriveModal', () => {
             carry_over_event_id: 'E-c',
           },
           { status: 201 },
-        ),
-      ),
-      http.post('/api/tasks', () =>
-        HttpResponse.json(
+        );
+      }),
+      http.post('/api/tasks', async ({ request }) => {
+        const body = (await request.json()) as { project_id?: string };
+        if (!body.project_id) {
+          return HttpResponse.json(
+            { error: 'internal', message: 'project_id required' },
+            { status: 400 },
+          );
+        }
+        return HttpResponse.json(
           {
             task_id: 'TS-NEW',
             conversation_id: 'T-NEW',
@@ -42,8 +64,8 @@ describe('DeriveModal', () => {
             carry_over_event_id: '',
           },
           { status: 201 },
-        ),
-      ),
+        );
+      }),
     );
   });
   afterEach(() => cleanup());
@@ -61,7 +83,7 @@ describe('DeriveModal', () => {
     expect(screen.queryByTestId('derive-modal')).not.toBeInTheDocument();
   });
 
-  it('issue happy path: submit → success pane → view link points to /issues/:id', async () => {
+  it('issue happy path: pick project + title → submit → success pane → /issues/:id link', async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();
     wrap(
@@ -74,6 +96,11 @@ describe('DeriveModal', () => {
         onCreated={onCreated}
       />,
     );
+    // wait for project list to load
+    await waitFor(() => expect(screen.getByTestId('derive-project-select')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('derive-project-select'), {
+      target: { value: 'p-demo' },
+    });
     await userEvent.type(screen.getByTestId('derive-title-input'), 'fix login');
     fireEvent.click(screen.getByTestId('derive-modal-submit'));
     await waitFor(() => expect(screen.getByTestId('derive-success')).toBeInTheDocument());
@@ -96,13 +123,19 @@ describe('DeriveModal', () => {
         onCreated={onCreated}
       />,
     );
+    await waitFor(() => expect(screen.getByTestId('derive-project-select')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('derive-project-select'), {
+      target: { value: 'p-other' },
+    });
     await userEvent.type(screen.getByTestId('derive-title-input'), 'rebuild');
     fireEvent.click(screen.getByTestId('derive-modal-submit'));
-    await waitFor(() => expect(screen.getByTestId('derive-success-link')).toHaveAttribute('href', '/tasks/T-NEW'));
+    await waitFor(() =>
+      expect(screen.getByTestId('derive-success-link')).toHaveAttribute('href', '/tasks/T-NEW'),
+    );
     expect(onCreated).toHaveBeenCalledWith('T-NEW');
   });
 
-  it('cancel from form closes without submitting', () => {
+  it('cancel from form closes without submitting', async () => {
     const onClose = vi.fn();
     wrap(
       <DeriveModal
@@ -113,6 +146,7 @@ describe('DeriveModal', () => {
         onClose={onClose}
       />,
     );
+    await waitFor(() => expect(screen.getByTestId('derive-project-select')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('derive-modal-cancel'));
     expect(onClose).toHaveBeenCalled();
   });
@@ -132,13 +166,19 @@ describe('DeriveModal', () => {
         onClose={() => undefined}
       />,
     );
+    await waitFor(() => expect(screen.getByTestId('derive-project-select')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('derive-project-select'), {
+      target: { value: 'p-demo' },
+    });
     await userEvent.type(screen.getByTestId('derive-title-input'), 'short');
     fireEvent.click(screen.getByTestId('derive-modal-submit'));
-    await waitFor(() => expect(screen.getByTestId('derive-error')).toHaveTextContent(/title required/));
+    await waitFor(() =>
+      expect(screen.getByTestId('derive-error')).toHaveTextContent(/title required/),
+    );
     expect(screen.queryByTestId('derive-success')).not.toBeInTheDocument();
   });
 
-  it('submit disabled when title is empty', () => {
+  it('submit disabled until BOTH project and title are filled', async () => {
     wrap(
       <DeriveModal
         kind="issue"
@@ -148,6 +188,37 @@ describe('DeriveModal', () => {
         onClose={() => undefined}
       />,
     );
+    // After load — submit still disabled (no title yet)
+    await waitFor(() => expect(screen.getByTestId('derive-project-select')).toBeInTheDocument());
+    expect(screen.getByTestId('derive-modal-submit')).toBeDisabled();
+
+    // Type title only → still disabled (no project selected)
+    await userEvent.type(screen.getByTestId('derive-title-input'), 'a');
+    expect(screen.getByTestId('derive-modal-submit')).toBeDisabled();
+
+    // Pick project → now enabled
+    fireEvent.change(screen.getByTestId('derive-project-select'), {
+      target: { value: 'p-demo' },
+    });
+    expect(screen.getByTestId('derive-modal-submit')).toBeEnabled();
+  });
+
+  it('shows the no-projects empty state + does not render the picker', async () => {
+    server.use(http.get('/api/projects', () => HttpResponse.json([])));
+    wrap(
+      <DeriveModal
+        kind="issue"
+        open
+        sourceConversationId="C1"
+        sourceMessageIds={['M1']}
+        onClose={() => undefined}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('derive-no-projects')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('derive-project-select')).not.toBeInTheDocument();
+    // submit still disabled — no project to pick
     expect(screen.getByTestId('derive-modal-submit')).toBeDisabled();
   });
 });

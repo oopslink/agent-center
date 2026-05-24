@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDeriveIssue, useDeriveTask } from '@/api/derive';
+import { useProjects } from '@/api/projects';
 
 export type DeriveKind = 'issue' | 'task';
 
@@ -31,16 +32,19 @@ export function DeriveModal({
 }: Props): React.ReactElement | null {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [createdId, setCreatedId] = useState<string | null>(null);
   const deriveIssue = useDeriveIssue();
   const deriveTask = useDeriveTask();
   const mut = kind === 'issue' ? deriveIssue : deriveTask;
+  const projects = useProjects();
 
   if (!open) return null;
 
   const reset = () => {
     setTitle('');
     setDescription('');
+    setProjectId('');
     setCreatedId(null);
   };
 
@@ -51,11 +55,12 @@ export function DeriveModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !projectId) return;
     try {
       const res = await mut.mutateAsync({
         source_conversation_id: sourceConversationId,
         source_message_ids: sourceMessageIds,
+        project_id: projectId,
         title: title.trim(),
         description,
       });
@@ -65,6 +70,8 @@ export function DeriveModal({
       // Error renders below.
     }
   };
+
+  const hasProjects = (projects.data?.length ?? 0) > 0;
 
   const targetPath =
     kind === 'issue' ? `/issues/${createdId}` : `/tasks/${createdId}`;
@@ -87,6 +94,46 @@ export function DeriveModal({
 
         {createdId === null ? (
           <form className="mt-4 space-y-3" onSubmit={submit}>
+            <div>
+              <label className="block text-xs font-medium text-slate-700">
+                Project
+              </label>
+              {projects.isLoading ? (
+                <p
+                  className="mt-1 text-xs text-slate-500"
+                  data-testid="derive-projects-loading"
+                >
+                  Loading projects…
+                </p>
+              ) : hasProjects ? (
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+                  data-testid="derive-project-select"
+                >
+                  <option value="" disabled>
+                    Select project…
+                  </option>
+                  {projects.data!.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p
+                  className="mt-1 text-xs text-slate-600"
+                  data-testid="derive-no-projects"
+                >
+                  No projects yet — create one via{' '}
+                  <code className="rounded bg-slate-100 px-1">
+                    agent-center project add &lt;id&gt; --name=…
+                  </code>{' '}
+                  first.
+                </p>
+              )}
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-700">Title</label>
               <input
@@ -128,7 +175,7 @@ export function DeriveModal({
               </button>
               <button
                 type="submit"
-                disabled={!title.trim() || mut.isPending}
+                disabled={!title.trim() || !projectId || mut.isPending}
                 className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
                 data-testid="derive-modal-submit"
               >

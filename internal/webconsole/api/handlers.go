@@ -37,6 +37,7 @@ type HandlerDeps struct {
 	AgentInstanceRepo  workforce.AgentInstanceRepository
 	UserSecretRepo     secretmgmt.UserSecretRepository
 	UserSecretSvc      *secretservice.UserSecretService
+	ProjectRepo        workforce.ProjectRepository
 	QuerySvc           *query.Service
 	FleetSvc           *query.FleetSnapshotService
 }
@@ -628,6 +629,35 @@ func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	arr := make([]map[string]any, len(list))
 	for i, ai := range list {
 		arr[i] = agentPublicMap(ai)
+	}
+	writeJSON(w, http.StatusOK, arr)
+}
+
+// listProjectsHandler powers the v2.1-A DeriveModal project picker:
+// returns every project as {id, name, kind, created_at}. Read-only;
+// CRUD verbs go through the `agent-center project` CLI subtree.
+func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ProjectRepo == nil {
+		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
+		return
+	}
+	list, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	arr := make([]map[string]any, len(list))
+	for i, p := range list {
+		row := map[string]any{
+			"id":         string(p.ID()),
+			"name":       p.Name(),
+			"created_at": p.CreatedAt().Format(time.RFC3339Nano),
+		}
+		if k := p.Kind(); k != "" {
+			row["kind"] = string(k)
+		}
+		arr[i] = row
 	}
 	writeJSON(w, http.StatusOK, arr)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -368,6 +369,100 @@ func TestAPI_ShowAgent_NotFound(t *testing.T) {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
+
+// ============================================================================
+// Projects (v2.1-A — powers DeriveModal project picker)
+// ============================================================================
+
+func TestAPI_ListProjects_Empty(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.ProjectRepo = &fakeProjectRepo{}
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, err := http.Get(s.URL + "/api/projects")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if strings.TrimSpace(string(body)) != "[]" {
+		t.Fatalf("expected [] got %q", body)
+	}
+}
+
+func TestAPI_ListProjects_SingleProject(t *testing.T) {
+	deps, _ := setupAPI(t)
+	p, err := workforce.NewProject(workforce.NewProjectInput{
+		ID: "p-1", Name: "Demo", Kind: workforce.ProjectKindCoding,
+		CreatedByIdentityID: "user:hayang",
+		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects")
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	var arr []map[string]any
+	if err := json.Unmarshal(body, &arr); err != nil {
+		t.Fatal(err)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 project got %d", len(arr))
+	}
+	if arr[0]["id"] != "p-1" || arr[0]["name"] != "Demo" || arr[0]["kind"] != "coding" {
+		t.Fatalf("bad row: %v", arr[0])
+	}
+}
+
+func TestAPI_ListProjects_RepoNotWired(t *testing.T) {
+	deps, _ := setupAPI(t)
+	// deps.ProjectRepo intentionally not set
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects")
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status=%d want 501", resp.StatusCode)
+	}
+}
+
+func TestAPI_ListProjects_RepoError(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.ProjectRepo = &fakeProjectRepo{findAllErr: errors.New("db boom")}
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects")
+	if resp.StatusCode != 500 {
+		t.Fatalf("status=%d want 500", resp.StatusCode)
+	}
+}
+
+type fakeProjectRepo struct {
+	projects   []*workforce.Project
+	findAllErr error
+}
+
+func (f *fakeProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*workforce.Project, error) {
+	return nil, workforce.ErrProjectNotFound
+}
+func (f *fakeProjectRepo) FindAll(ctx context.Context, filter workforce.ProjectFilter) ([]*workforce.Project, error) {
+	if f.findAllErr != nil {
+		return nil, f.findAllErr
+	}
+	return f.projects, nil
+}
+func (f *fakeProjectRepo) Save(ctx context.Context, p *workforce.Project) error { return nil }
+func (f *fakeProjectRepo) Update(ctx context.Context, id workforce.ProjectID, fields workforce.ProjectUpdateFields, version int, at time.Time) (*workforce.Project, error) {
+	return nil, nil
+}
+func (f *fakeProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error { return nil }
 
 type fakeAgentRepo struct{}
 

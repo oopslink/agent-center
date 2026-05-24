@@ -33,6 +33,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		AgentInstanceRepo:  a.AgentInstanceRepo,
 		UserSecretRepo:     a.UserSecretRepo,
 		UserSecretSvc:      a.UserSecretSvc,
+		ProjectRepo:        a.ProjectRepo,
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -62,6 +63,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, logge
 		AgentInstanceRepo:  a.AgentInstanceRepo,
 		UserSecretRepo:     a.UserSecretRepo,
 		UserSecretSvc:      a.UserSecretSvc,
+		ProjectRepo:        a.ProjectRepo,
 		QuerySvc:           a.QuerySvc,
 		FleetSvc:           a.FleetSvc,
 	}

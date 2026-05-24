@@ -179,6 +179,7 @@ describe('react-query hooks', () => {
       issue.result.current.mutate({
         source_conversation_id: 'C1',
         source_message_ids: ['M1'],
+        project_id: 'p-demo',
         title: 'fix it',
       });
     });
@@ -190,6 +191,7 @@ describe('react-query hooks', () => {
       task.result.current.mutate({
         source_conversation_id: 'C1',
         source_message_ids: ['M1'],
+        project_id: 'p-demo',
         title: 'do it',
       });
     });

@@ -77,6 +77,11 @@ describe('ChannelDetail — derive flow integration', () => {
   it('toggles select mode, selects messages, derive bar appears, derive issue end-to-end', async () => {
     server.use(
       ...seedHandlers,
+      http.get('/api/projects', () =>
+        HttpResponse.json([
+          { id: 'p-demo', name: 'Demo', kind: 'coding', created_at: '2026-05-24T00:00:00Z' },
+        ]),
+      ),
       http.post('/api/issues', () =>
         HttpResponse.json(
           {
@@ -101,8 +106,12 @@ describe('ChannelDetail — derive flow integration', () => {
     fireEvent.click(checks[0]);
     fireEvent.click(checks[1]);
     expect(screen.getByTestId('derive-bar-count')).toHaveTextContent('2 messages selected');
-    // Open Issue modal + submit.
+    // Open Issue modal + pick project + fill title + submit.
     fireEvent.click(screen.getByTestId('derive-open-issue'));
+    await waitFor(() => expect(screen.getByTestId('derive-project-select')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('derive-project-select'), {
+      target: { value: 'p-demo' },
+    });
     await userEvent.type(screen.getByTestId('derive-title-input'), 'continuing discussion');
     fireEvent.click(screen.getByTestId('derive-modal-submit'));
     await waitFor(() => expect(screen.getByTestId('derive-success-link')).toHaveAttribute('href', '/issues/I-NEW'));

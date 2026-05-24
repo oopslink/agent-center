@@ -133,6 +133,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/input_requests/{id}/respond", s.respondInputRequestHandler)
 	s.mux.HandleFunc("POST /api/input_requests/{id}/cancel", s.cancelInputRequestHandler)
 
+	// Projects (read-only; CRUD verbs go through CLI). Powers the
+	// DeriveModal project picker (v2.1-A).
+	s.mux.HandleFunc("GET /api/projects", s.listProjectsHandler)
+
 	// Agents (read-only; admin verbs go through CLI).
 	s.mux.HandleFunc("GET /api/agents", s.listAgentsHandler)
 	s.mux.HandleFunc("GET /api/agents/{name}", s.showAgentHandler)

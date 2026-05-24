@@ -10,7 +10,10 @@ export interface DeriveIssueInput {
   source_message_ids: string[];
   title: string;
   description?: string;
-  project_id?: string;
+  // Required since v2.1-A — DeriveModal collects via the project picker.
+  // Backend deriveIssue / deriveTask handlers require it at the service
+  // layer (would otherwise 500 with a project_not_found error).
+  project_id: string;
 }
 
 export interface DeriveTaskInput extends DeriveIssueInput {

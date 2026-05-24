@@ -9,6 +9,7 @@ export const qk = {
   agents: () => ['agents'] as const,
   agent: (name: string) => ['agent', name] as const,
   secrets: () => ['secrets'] as const,
+  projects: () => ['projects'] as const,
   inputRequests: () => ['inputRequests'] as const,
   fleet: () => ['fleet'] as const,
   taskTrace: (taskId: string) => ['taskTrace', taskId] as const,
