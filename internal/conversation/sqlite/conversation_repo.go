@@ -135,11 +135,13 @@ func (r *ConversationRepo) FindByName(ctx context.Context, name string) (*conver
 }
 
 // FindByParent returns the children of a Conversation (CV3 carry-over /
-// CV4 派生入口 navigates the parent chain).
+// CV4 派生入口 navigates the parent chain). Capped at
+// DefaultReferenceLimit to prevent unbounded scans.
 func (r *ConversationRepo) FindByParent(ctx context.Context, parentID conversation.ConversationID) ([]*conversation.Conversation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		convSelect+` WHERE parent_conversation_id = ? ORDER BY created_at ASC`, string(parentID))
+		convSelect+` WHERE parent_conversation_id = ? ORDER BY created_at ASC LIMIT ?`,
+		string(parentID), conversation.DefaultReferenceLimit)
 	if err != nil {
 		return nil, err
 	}

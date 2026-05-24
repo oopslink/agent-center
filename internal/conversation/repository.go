@@ -60,9 +60,18 @@ type ConversationMessageReference struct {
 }
 
 // ConversationMessageReferenceRepository persists carry-over links.
+//
+// Both lookup methods cap results at DefaultReferenceLimit to prevent
+// unbounded scans when a child conv accumulates many carry-overs or a
+// popular source message gets cited across many derivations.
 type ConversationMessageReferenceRepository interface {
 	Save(ctx context.Context, refs []*ConversationMessageReference) error
 	FindByChildConvID(ctx context.Context, childConvID ConversationID) ([]*ConversationMessageReference, error)
 	FindBySourceMsgID(ctx context.Context, sourceMsgID MessageID) ([]*ConversationMessageReference, error)
 	DeleteByChildConvID(ctx context.Context, childConvID ConversationID) error
 }
+
+// DefaultReferenceLimit caps both reference lookups + FindByParent so a
+// pathological history (e.g. issue accumulating 10k+ source-message
+// citations) doesn't return an unbounded slice. UI shows N most-recent.
+const DefaultReferenceLimit = 1000

@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -49,6 +50,33 @@ func TestReferenceRepo_SaveAndFindByChild(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d", len(got))
+	}
+}
+
+func TestReferenceRepo_FindByChild_CapsAtDefaultLimit(t *testing.T) {
+	r := setupRefRepo(t)
+	ctx := context.Background()
+	// Seed cap+5 rows in batches to avoid the per-call slice churn.
+	const overshoot = 5
+	refs := make([]*conversation.ConversationMessageReference, 0, conversation.DefaultReferenceLimit+overshoot)
+	for i := 0; i < conversation.DefaultReferenceLimit+overshoot; i++ {
+		refs = append(refs, mkRef(
+			"r-"+strconv.Itoa(i),
+			"big-child",
+			"src-x",
+			conversation.MessageID("m-"+strconv.Itoa(i)),
+		))
+	}
+	if err := r.Save(ctx, refs); err != nil {
+		t.Fatalf("save batch: %v", err)
+	}
+	got, err := r.FindByChildConvID(ctx, "big-child")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != conversation.DefaultReferenceLimit {
+		t.Fatalf("got %d want exactly DefaultReferenceLimit=%d (cap not enforced)",
+			len(got), conversation.DefaultReferenceLimit)
 	}
 }
 

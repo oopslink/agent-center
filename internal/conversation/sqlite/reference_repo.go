@@ -56,13 +56,13 @@ func (r *ReferenceRepo) Save(ctx context.Context, refs []*conversation.Conversat
 	return nil
 }
 
-// FindByChildConvID returns all references attached to a child conv,
-// ordered by created_at ASC.
+// FindByChildConvID returns references attached to a child conv,
+// ordered by created_at ASC. Capped at DefaultReferenceLimit.
 func (r *ReferenceRepo) FindByChildConvID(ctx context.Context, childConvID conversation.ConversationID) ([]*conversation.ConversationMessageReference, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		refSelect+` WHERE child_conversation_id = ? ORDER BY created_at ASC`,
-		string(childConvID))
+		refSelect+` WHERE child_conversation_id = ? ORDER BY created_at ASC LIMIT ?`,
+		string(childConvID), conversation.DefaultReferenceLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -70,14 +70,13 @@ func (r *ReferenceRepo) FindByChildConvID(ctx context.Context, childConvID conve
 	return scanRefs(rows)
 }
 
-// FindBySourceMsgID returns all references that point at a given source
-// message (reverse lookup; useful for "which child convs carried this
-// message over").
+// FindBySourceMsgID returns references that point at a given source
+// message (reverse lookup). Capped at DefaultReferenceLimit.
 func (r *ReferenceRepo) FindBySourceMsgID(ctx context.Context, sourceMsgID conversation.MessageID) ([]*conversation.ConversationMessageReference, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		refSelect+` WHERE source_message_id = ? ORDER BY created_at ASC`,
-		string(sourceMsgID))
+		refSelect+` WHERE source_message_id = ? ORDER BY created_at ASC LIMIT ?`,
+		string(sourceMsgID), conversation.DefaultReferenceLimit)
 	if err != nil {
 		return nil, err
 	}
