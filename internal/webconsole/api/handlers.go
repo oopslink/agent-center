@@ -40,6 +40,8 @@ type HandlerDeps struct {
 	ProjectRepo        workforce.ProjectRepository
 	QuerySvc           *query.Service
 	FleetSvc           *query.FleetSnapshotService
+	ReadStateRepo      conversation.UserConversationReadStateRepository
+	ReadStateSvc       *convservice.ReadStateService
 }
 
 // hd retrieves the typed dep bag from the request context.
@@ -225,6 +227,98 @@ func (s *Server) listRefsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, arr)
+}
+
+// unreadHandler reports {last_seen_message_id, unread_count} for the
+// (user, conversation) pair. Powers the v2.1-C unread badge.
+func (s *Server) unreadHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ReadStateSvc == nil {
+		writeError(w, http.StatusNotImplemented, "read_state_not_wired", "")
+		return
+	}
+	convID := conversation.ConversationID(r.PathValue("id"))
+	userID := readStateUserID(r, d)
+	if err := userID.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_user_id", err.Error())
+		return
+	}
+	// Resolve the conversation so a missing one returns 404 rather
+	// than a silent zero-count answer.
+	if _, err := d.ConvRepo.FindByID(r.Context(), convID); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	summary, err := d.ReadStateSvc.Unread(r.Context(), userID, convID)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"conversation_id":      string(convID),
+		"user_id":              string(userID),
+		"last_seen_message_id": string(summary.LastSeenMessageID),
+		"unread_count":         summary.UnreadCount,
+	})
+}
+
+type markSeenReq struct {
+	UserID            string `json:"user_id"`
+	LastSeenMessageID string `json:"last_seen_message_id"`
+}
+
+// markSeenHandler advances the read cursor. Only-forward; backward
+// requests return 200 with `bumped: false` (caller can treat as a
+// no-op success).
+func (s *Server) markSeenHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ReadStateSvc == nil {
+		writeError(w, http.StatusNotImplemented, "read_state_not_wired", "")
+		return
+	}
+	convID := conversation.ConversationID(r.PathValue("id"))
+	var req markSeenReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if req.LastSeenMessageID == "" {
+		writeError(w, http.StatusBadRequest, "missing_message_id", "last_seen_message_id required")
+		return
+	}
+	userID := conversation.IdentityRef(req.UserID)
+	if userID == "" {
+		userID = conversation.IdentityRef(d.Actor)
+	}
+	if err := userID.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_user_id", err.Error())
+		return
+	}
+	res, err := d.ReadStateSvc.MarkSeen(r.Context(), convservice.MarkSeenCommand{
+		UserID:            userID,
+		ConversationID:    convID,
+		LastSeenMessageID: conversation.MessageID(req.LastSeenMessageID),
+		Actor:             d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"last_seen_message_id": string(res.LastSeenMessageID),
+		"version":              res.Version,
+		"bumped":               res.Bumped,
+		"event_id":             string(res.EventID),
+	})
+}
+
+// readStateUserID picks the user id from the query string and falls
+// back to the request actor (single-user v2 case).
+func readStateUserID(r *http.Request, d HandlerDeps) conversation.IdentityRef {
+	if u := r.URL.Query().Get("user_id"); u != "" {
+		return conversation.IdentityRef(u)
+	}
+	return conversation.IdentityRef(d.Actor)
 }
 
 func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request) {
@@ -861,8 +955,11 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, inputrequest.ErrInputRequestNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, conversation.ErrConversationVersionConflict),
+		errors.Is(err, conversation.ErrReadStateVersionConflict),
 		errors.Is(err, secretmgmt.ErrUserSecretVersionConflict):
 		writeError(w, http.StatusConflict, "version_conflict", err.Error())
+	case errors.Is(err, conversation.ErrReadStateMessageNotInConversation):
+		writeError(w, http.StatusUnprocessableEntity, "message_not_in_conversation", err.Error())
 	case errors.Is(err, conversation.ErrConversationArchived),
 		errors.Is(err, conversation.ErrConversationClosed):
 		writeError(w, http.StatusForbidden, "conversation_terminal", err.Error())

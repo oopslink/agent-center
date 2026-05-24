@@ -55,6 +55,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	chSvc := convservice.NewChannelManagementService(db, convRepo, sink, gen, clk)
 	pSvc := convservice.NewParticipantManagementService(db, convRepo, sink, clk)
 	coSvc := convservice.NewCarryOverService(db, convRepo, msgRepo, refRepo, sink, gen, clk)
+	rsRepo := convsqlite.NewReadStateRepo(db)
+	rsSvc := convservice.NewReadStateService(db, rsRepo, msgRepo, sink, clk)
 	_, _ = idReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
 		ID: "user:hayang", DisplayName: "Hayang", Actor: observability.Actor("system"),
 	})
@@ -89,6 +91,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		UserSecretRepo:     userSecretRepo,
 		UserSecretSvc:      userSecretSvc,
 		AgentInstanceRepo:  aiRepo,
+		ReadStateRepo:      rsRepo,
+		ReadStateSvc:       rsSvc,
 	}
 	return deps, db
 }

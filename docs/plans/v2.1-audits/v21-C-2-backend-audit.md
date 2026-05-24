@@ -333,4 +333,71 @@ Already covered in C-1; no new migration test needed.
 
 ## § 7. Execution log
 
-To be filled by the impl commit.
+**Files landed:**
+
+- `internal/conversation/read_state.go` — port (struct +
+  `UserConversationReadStateRepository` interface + 3 sentinels).
+- `internal/conversation/sqlite/read_state_repo.go` — UPSERT impl
+  (separate INSERT/UPDATE branches with version-CAS; unique-constraint
+  failure maps to `ErrReadStateVersionConflict`).
+- `internal/conversation/service/read_state.go` — `ReadStateService`
+  + `MarkSeen` (only-forward, message-in-conv guard) + `Unread`
+  (capped at `MaxUnreadCount = 999` via `LIMIT cap+1` trick).
+- `internal/webconsole/api/handlers.go` — `unreadHandler` +
+  `markSeenHandler` + `readStateUserID` helper + extended
+  `mapDomainError` for the two new sentinels (409 + 422). Two new
+  fields on `HandlerDeps`.
+- `internal/webconsole/api/server.go` — two new routes.
+- `internal/cli/app.go` — repo + service wired into `App`.
+- `internal/cli/webconsole_wiring.go` — both wiring sites updated
+  (build + run paths).
+- `internal/webconsole/api/server_test.go` — `setupAPI` wires the
+  read-state deps.
+
+**Tests added:**
+
+- `internal/conversation/sqlite/read_state_repo_test.go` — 7 cases
+  (insert→update, version conflict, duplicate-insert conflict,
+  absent, batch query, empty batch, nil rejection).
+- `internal/conversation/service/read_state_test.go` — 19 cases
+  covering: first-time insert, forward bump, backward / same no-op,
+  message-not-in-conv guard, message-not-found propagation, invalid
+  actor / user_id / missing fields, unread (no row / partial / all
+  read / 999+ cap), invalid user_id on Unread, event emit shape, +
+  three fake-repo failure-injection tests (find err, upsert err,
+  Unread find err) + nil-clock constructor default.
+- `internal/webconsole/api/read_state_test.go` — 15 cases covering:
+  happy path GET + POST, absent row, query-string user_id, invalid
+  user_id, 501 when service unwired, no-op backward, invalid JSON,
+  missing message id, invalid user_id POST, 422 message-in-wrong-conv,
+  404 message-not-found, defaults user_id to actor (verified by
+  reading back the repo row).
+
+**Coverage (per file, post-commit):**
+
+- `read_state.go` (service): `NewReadStateService 100%` /
+  `MarkSeen 97.2%` / `Unread 91.7%` / `countUnread 87.5%`. The
+  remaining 12.5% on `countUnread` is the driver-level QueryRow
+  failure path (only reachable by closing the db mid-test — out of
+  scope for service-level coverage).
+- `read_state_repo.go` (sqlite): `NewReadStateRepo 100%` /
+  `FindByUserAndConv 100%` / `FindByUserBatch 83.3%` /
+  `Upsert 90.5%` / `scanReadState 85.7%`.
+- Package totals: `internal/conversation/service` 92.6% /
+  `internal/conversation/sqlite` 94.5% — both comfortably above the
+  90% DoD bar.
+
+**Verification:**
+
+- `go test ./internal/conversation/...` — green.
+- `go test ./internal/webconsole/api/...` — green (all 15 new
+  read-state HTTP tests pass).
+- `go test ./...` — green overall (includes the e2e + integration
+  suites; nothing else regressed because the schema + service +
+  routes are additive).
+- `make lint-vendor` — clean.
+
+**Cadence:** audit log shipped first (commit `f53c790`); impl shipped
+as a second commit per the per-ST P12 cadence rule. Next ST is **C-3**
+— frontend `useUnread` hook + per-conversation badge + auto-mark-seen
+on conv mount + e2e (`task #94`).

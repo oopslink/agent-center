@@ -68,6 +68,8 @@ type App struct {
 	CarryOverSvc       *convservice.CarryOverService
 	ConvRefRepo        conversation.ConversationMessageReferenceRepository
 	DerivationSvc      *convservice.MessageDerivationService
+	ReadStateRepo      conversation.UserConversationReadStateRepository
+	ReadStateSvc       *convservice.ReadStateService
 
 	// Workforce — AgentInstance (P10 § 3.8 + F5)
 	AgentInstanceRepo workforce.AgentInstanceRepository
@@ -149,6 +151,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	participantMgmt := convservice.NewParticipantManagementService(db, cr, sink, clk)
 	convRefRepo := convsqlite.NewReferenceRepo(db)
 	carryOver := convservice.NewCarryOverService(db, cr, mgRepo, convRefRepo, sink, gen, clk)
+	readStateRepo := convsqlite.NewReadStateRepo(db)
+	readStateSvc := convservice.NewReadStateService(db, readStateRepo, mgRepo, sink, clk)
 
 	// TaskRuntime
 	taskRepo := trsqlite.NewTaskRepo(db)
@@ -274,6 +278,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		CarryOverSvc:       carryOver,
 		ConvRefRepo:        convRefRepo,
 		DerivationSvc:      derivationSvc,
+		ReadStateRepo:      readStateRepo,
+		ReadStateSvc:       readStateSvc,
 
 		AgentInstanceRepo: aiRepo,
 		AgentMgmtSvc:      agentMgmt,
