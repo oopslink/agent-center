@@ -1,4 +1,4 @@
-.PHONY: build build-frontend build-backend build-worker-daemon test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean e2e e2e-install
+.PHONY: build build-frontend build-backend build-worker-daemon build-fakeagent test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean e2e e2e-install
 
 # Build pipeline composes a frontend bundle then embeds it into the Go
 # binary via go:embed (Phase 11 § 3.4 + F15).
@@ -20,7 +20,7 @@ WEB := web
 VERSION ?= v2.0.0
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-build: build-frontend build-backend build-worker-daemon
+build: build-frontend build-backend build-worker-daemon build-fakeagent
 
 build-frontend:
 	cd $(WEB) && pnpm install --frozen-lockfile
@@ -39,6 +39,11 @@ build-backend:
 # admin endpoint, not by re-opening sqlite).
 build-worker-daemon:
 	go build -o ./bin/agent-center-worker-daemon ./cmd/worker-daemon
+
+# v2.2-D fakeagent — LLM-free agent stub used by e2e tests. Without
+# this in bin/ the Phase D deploy-binary e2e cannot run.
+build-fakeagent:
+	go build -o ./bin/fakeagent ./cmd/fakeagent
 
 test:
 	go test ./...

@@ -134,6 +134,30 @@ func (c *AdminClient) PullKills(ctx context.Context) ([]dispatchq.KillRequest, e
 	return out, nil
 }
 
+// NotifyWorking POSTs to /admin/taskruntime/exec/notify-working. Flips
+// the execution state machine submitted → working (v2.2 Phase D state-
+// machine fix). Idempotent — the server returns 200 on repeat calls
+// against an already-working execution.
+func (c *AdminClient) NotifyWorking(ctx context.Context, executionID, cwd, branchName string) error {
+	body := map[string]any{
+		"execution_id": executionID,
+		"cwd":          cwd,
+		"branch_name":  branchName,
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/taskruntime/exec/notify-working", body, nil)
+}
+
+// Conclude POSTs to /admin/taskruntime/exec/conclude. Closes the state
+// machine on clean agent exit: working → completed + task → done.
+// Idempotent.
+func (c *AdminClient) Conclude(ctx context.Context, executionID, message string) error {
+	body := map[string]any{
+		"execution_id": executionID,
+		"message":      message,
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/taskruntime/exec/conclude", body, nil)
+}
+
 // ReportProgress POSTs to /admin/taskruntime/exec/report-progress. The
 // `milestone` field maps to the server's `kind` parameter (agent trace
 // event kind: `started` | `progress` | `done` | etc.).

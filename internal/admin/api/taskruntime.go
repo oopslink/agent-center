@@ -504,6 +504,67 @@ func (s *Server) execReportProgressHandler(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 }
 
+// notifyWorkingReq drives the v2.2 Phase D state machine fix
+// (submitted → working). The worker daemon calls this after the agent
+// subprocess is up; the center is authoritative on execution state.
+type notifyWorkingReq struct {
+	ExecutionID string `json:"execution_id"`
+	CWD         string `json:"cwd"`
+	BranchName  string `json:"branch_name"`
+}
+
+func (s *Server) execNotifyWorkingHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ExecSvc == nil {
+		writeError(w, http.StatusNotImplemented, "exec_svc_not_wired", "")
+		return
+	}
+	var req notifyWorkingReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.ExecSvc.NotifyWorking(r.Context(), trservice.NotifyWorkingInput{
+		ExecutionID: taskruntime.TaskExecutionID(req.ExecutionID),
+		CWD:         req.CWD,
+		BranchName:  req.BranchName,
+		Actor:       observability.Actor("worker:" + req.ExecutionID),
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "working"})
+}
+
+// concludeReq closes out the state machine (working → completed +
+// task → done). Companion to /admin/taskruntime/exec/notify-working.
+type concludeReq struct {
+	ExecutionID string `json:"execution_id"`
+	Message     string `json:"message"`
+}
+
+func (s *Server) execConcludeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ExecSvc == nil {
+		writeError(w, http.StatusNotImplemented, "exec_svc_not_wired", "")
+		return
+	}
+	var req concludeReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.ExecSvc.ConcludeSuccess(r.Context(), trservice.ConcludeSuccessInput{
+		ExecutionID: taskruntime.TaskExecutionID(req.ExecutionID),
+		Message:     req.Message,
+		Actor:       observability.Actor("worker:" + req.ExecutionID),
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "completed"})
+}
+
 type reportFailureReq struct {
 	ExecutionID string `json:"execution_id"`
 	Reason      string `json:"reason"`

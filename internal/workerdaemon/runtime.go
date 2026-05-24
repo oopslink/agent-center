@@ -35,6 +35,12 @@ type CenterClient interface {
 	Heartbeat(ctx context.Context, workerID string, capabilities []string) error
 	PullDispatches(ctx context.Context, workerID string) ([]dispatch.DispatchEnvelope, error)
 	PullKills(ctx context.Context) ([]dispatchq.KillRequest, error)
+	// NotifyWorking flips the center-side execution state submitted →
+	// working. v2.2 Phase D state-machine fix.
+	NotifyWorking(ctx context.Context, executionID, cwd, branchName string) error
+	// Conclude closes the state machine on clean exit (working →
+	// completed + task → done). v2.2 Phase D state-machine fix.
+	Conclude(ctx context.Context, executionID, message string) error
 	ReportProgress(ctx context.Context, executionID, milestone, content string) error
 	ReportFailure(ctx context.Context, executionID, reason, message string) error
 	ReportArtifact(ctx context.Context, executionID string, blob []byte, kind string) error
@@ -322,6 +328,17 @@ func defaultAgentSpawner(ctx context.Context, env dispatch.DispatchEnvelope, rt 
 		rt.registerLive(string(env.ExecutionID), h)
 	}()
 
+	// Flip server-side state machine submitted → working. This is the
+	// v2.2 Phase D fix for gap #1: without this call the execution
+	// sits in `submitted` forever even though the worker is running it.
+	if err := rt.client.NotifyWorking(ctx, string(env.ExecutionID),
+		"", ""); err != nil {
+		rt.log("notify-working %s: %v", env.ExecutionID, err)
+		// Non-fatal — agent can still run; ReportProgress will surface
+		// trace events even if the state didn't transition. The
+		// supervisor reconciler will eventually catch the stuck state.
+	}
+
 	// Report start as a progress event so SSE/trace shows the
 	// transition out of submitted.
 	_ = rt.client.ReportProgress(ctx, string(env.ExecutionID), "started",
@@ -398,6 +415,12 @@ func defaultAgentSpawner(ctx context.Context, env dispatch.DispatchEnvelope, rt 
 	// progress with milestone=done here is idempotent on the server.
 	_ = rt.client.ReportProgress(ctx, string(env.ExecutionID), "done",
 		fmt.Sprintf("agent exited cleanly pid=%d", res.PID))
+	// Close out the state machine: working → completed + task → done.
+	// v2.2 Phase D state-machine fix (gap #1 from C report).
+	if err := rt.client.Conclude(ctx, string(env.ExecutionID),
+		fmt.Sprintf("agent exited cleanly pid=%d", res.PID)); err != nil {
+		rt.log("conclude %s: %v", env.ExecutionID, err)
+	}
 	return nil
 }
 

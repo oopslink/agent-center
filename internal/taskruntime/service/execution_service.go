@@ -108,6 +108,194 @@ func (s *ExecutionService) ReportProgress(ctx context.Context, in ReportProgress
 	})
 }
 
+// NotifyWorkingInput flips an execution submitted→working (v2.2 Phase D
+// gap #1). The worker daemon calls this from defaultAgentSpawner right
+// after PullDispatches accepted an envelope but before — or in parallel
+// to — spawning the actual agent subprocess. The center is the authority
+// on execution state (conventions § 0.4); the worker only owns the
+// subprocess.
+type NotifyWorkingInput struct {
+	ExecutionID taskruntime.TaskExecutionID
+	CWD         string // worker-reported working directory; informational
+	BranchName  string // worker-reported branch (worktree mode); informational
+	Actor       observability.Actor
+}
+
+// NotifyWorking transitions a submitted execution → working and also
+// records the ACK (dispatch_state=acked) so the no-ACK timeout scanner
+// stops watching it. Idempotent on the working state — repeat calls on
+// an already-working execution return nil (the daemon may retry across
+// poll cycles after transient transport errors).
+func (s *ExecutionService) NotifyWorking(ctx context.Context, in NotifyWorkingInput) error {
+	if err := in.Actor.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(in.ExecutionID)) == "" {
+		return errors.New("notify-working: execution_id required")
+	}
+	now := s.clock.Now()
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		e, err := s.execRepo.FindByID(txCtx, in.ExecutionID)
+		if err != nil {
+			return err
+		}
+		if e.IsTerminal() {
+			// Race: kill arrived before notify-working. Don't error — just
+			// no-op so the worker can finish its cleanup.
+			return nil
+		}
+		if e.Status() == execution.StatusWorking {
+			return nil // idempotent
+		}
+		// Record ACK first if still pending_ack (AckDispatch bumps version
+		// on its own; we need a separate Update so the CAS WHERE clause
+		// matches on-disk state). StartWorking then bumps again with its
+		// own Update.
+		if e.DispatchState() == execution.DispatchPendingAck {
+			if err := e.AckDispatch(now); err != nil {
+				return err
+			}
+			if err := s.execRepo.Update(txCtx, e); err != nil {
+				return err
+			}
+		}
+		if err := e.StartWorking(in.CWD, now); err != nil {
+			return err
+		}
+		if in.BranchName != "" {
+			e.SetBranchName(in.BranchName)
+		}
+		if err := s.execRepo.Update(txCtx, e); err != nil {
+			return err
+		}
+		_, err = s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "task_execution.working",
+			Refs: observability.EventRefs{
+				ExecutionID: string(e.ID()),
+				TaskID:      string(e.TaskID()),
+				WorkerID:    e.WorkerID(),
+			},
+			Actor: in.Actor,
+			Payload: map[string]any{
+				"execution_id": string(e.ID()),
+				"cwd":          in.CWD,
+				"branch":       in.BranchName,
+			},
+		})
+		return err
+	})
+}
+
+// ConcludeSuccessInput marks an execution → completed(agent_reported_success)
+// (v2.2 Phase D gap #1). Driven by the worker daemon when the agent
+// subprocess exits with code 0. The companion to NotifyWorking — closes
+// the state machine submitted → working → completed.
+type ConcludeSuccessInput struct {
+	ExecutionID taskruntime.TaskExecutionID
+	Message     string
+	Actor       observability.Actor
+}
+
+// ConcludeSuccess transitions working|input_required → completed and also
+// flips the parent Task → done. Idempotent on already-completed
+// executions.
+func (s *ExecutionService) ConcludeSuccess(ctx context.Context, in ConcludeSuccessInput) error {
+	if err := in.Actor.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(in.ExecutionID)) == "" {
+		return errors.New("conclude: execution_id required")
+	}
+	msg := strings.TrimSpace(in.Message)
+	if msg == "" {
+		msg = "agent exited cleanly"
+	}
+	now := s.clock.Now()
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		e, err := s.execRepo.FindByID(txCtx, in.ExecutionID)
+		if err != nil {
+			return err
+		}
+		if e.IsTerminal() {
+			return nil // idempotent — repeat conclude is a no-op
+		}
+		// Permit conclude from submitted as a defensive fallback (the
+		// daemon may emit `done` before it manages to NotifyWorking on a
+		// very fast agent). Each version-bumping method needs its own
+		// Update so the per-row CAS WHERE clause matches on-disk state.
+		if e.Status() == execution.StatusSubmitted {
+			if e.DispatchState() == execution.DispatchPendingAck {
+				if err := e.AckDispatch(now); err != nil {
+					return err
+				}
+				if err := s.execRepo.Update(txCtx, e); err != nil {
+					return err
+				}
+			}
+			if err := e.StartWorking("", now); err != nil {
+				return err
+			}
+			if err := s.execRepo.Update(txCtx, e); err != nil {
+				return err
+			}
+		}
+		if err := e.MarkCompleted(execution.CompletedAgentReportedSuccess, msg, now); err != nil {
+			return err
+		}
+		if err := s.execRepo.Update(txCtx, e); err != nil {
+			return err
+		}
+		// Flip parent Task → done.
+		t, err := s.taskRepo.FindByID(txCtx, e.TaskID())
+		if err != nil {
+			return err
+		}
+		if !t.IsTerminal() {
+			if string(t.CurrentExecutionID()) != "" {
+				t.ClearCurrentExecutionID(now)
+				if err := s.taskRepo.Update(txCtx, t); err != nil {
+					return err
+				}
+			}
+			if err := t.MarkDone(now); err != nil {
+				return err
+			}
+			if err := s.taskRepo.Update(txCtx, t); err != nil {
+				return err
+			}
+		}
+		if _, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "task_execution.completed",
+			Refs: observability.EventRefs{
+				ExecutionID: string(e.ID()),
+				TaskID:      string(e.TaskID()),
+				WorkerID:    e.WorkerID(),
+			},
+			Actor: in.Actor,
+			Payload: map[string]any{
+				"execution_id": string(e.ID()),
+				"reason":       string(execution.CompletedAgentReportedSuccess),
+				"message":      msg,
+			},
+		}); err != nil {
+			return err
+		}
+		_, err = s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "task.done",
+			Refs: observability.EventRefs{
+				TaskID:    string(t.ID()),
+				ProjectID: t.ProjectID(),
+			},
+			Actor: in.Actor,
+			Payload: map[string]any{
+				"task_id":      string(t.ID()),
+				"execution_id": string(e.ID()),
+			},
+		})
+		return err
+	})
+}
+
 // ReportFailureInput is the input for `report-failure` (agent → CLI).
 type ReportFailureInput struct {
 	ExecutionID taskruntime.TaskExecutionID

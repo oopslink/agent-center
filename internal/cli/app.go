@@ -181,6 +181,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 			MaxExecutionsPerTask: cfg.Execution.MaxExecutionsPerTask,
 			DispatchAckTimeout:   cfg.Execution.DispatchAckTimeout(),
 		})
+	// (AgentResolver wiring: deferred below after aiRepo is constructed —
+	// it lives in the AgentInstance management block.)
 	killCoord := kill.NewCoordinator(db, execRepo, taskRepo, irRepo, sink,
 		dispatchq.KillSender{Q: dispatchQ}, clk)
 	issueSpawn := dispatch.NewIssueConcludeSpawn(db, taskRepo, sink, gen, clk)
@@ -247,6 +249,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
 	agentMgmt := wfservice.NewAgentInstanceManagementService(db, aiRepo, gen, sink, clk).
 		WithIdentityRegistrar(identityReg)
+
+	// v2.2 Phase D (gap #3 from C report): wire the DB-backed AgentResolver
+	// so v2 envelopes carrying agent_instance_id resolve to (worker_id,
+	// agent_cli) at dispatch time. Without this, any v2 dispatch returns
+	// dispatch.ErrAgentResolverNotConfigured (500 to the caller).
+	dispatchSvc.WithAgentResolver(wfservice.NewAgentResolver(aiRepo, wr))
 
 	// P11 § 3.7b: UserSecret management — wired iff master key file is
 	// configured. Without master key the CLI handlers refuse with

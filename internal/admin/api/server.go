@@ -194,6 +194,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/taskruntime/artifact/append", s.artifactAppendHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-progress", s.execReportProgressHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-failure", s.execReportFailureHandler)
+	// v2.2 Phase D: state-machine progression endpoints — worker daemon
+	// calls notify-working post-spawn and conclude on clean exit. Without
+	// these the execution never leaves `submitted`.
+	s.mux.HandleFunc("POST /admin/taskruntime/exec/notify-working", s.execNotifyWorkingHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/exec/conclude", s.execConcludeHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch", s.dispatchHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/kill/request", s.killExecutionHandler)
 

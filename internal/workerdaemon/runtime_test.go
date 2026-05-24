@@ -27,6 +27,8 @@ type fakeCenter struct {
 	progress  []reportEvent
 	failures  []reportEvent
 	artifacts []reportEvent
+	working   []reportEvent
+	conclude  []reportEvent
 }
 
 type reportEvent struct {
@@ -77,6 +79,18 @@ func (f *fakeCenter) ReportArtifact(_ context.Context, execID string, _ []byte, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.artifacts = append(f.artifacts, reportEvent{execID, kind, ""})
+	return nil
+}
+func (f *fakeCenter) NotifyWorking(_ context.Context, execID, cwd, branch string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.working = append(f.working, reportEvent{execID, cwd, branch})
+	return nil
+}
+func (f *fakeCenter) Conclude(_ context.Context, execID, message string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.conclude = append(f.conclude, reportEvent{execID, "completed", message})
 	return nil
 }
 
