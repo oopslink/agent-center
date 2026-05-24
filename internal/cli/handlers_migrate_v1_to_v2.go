@@ -19,8 +19,10 @@ import (
 //
 // Per P12 S12 audit (docs/plans/phase-12-audits/s12-migration-tool-audit.md):
 //   - --dry-run reports planned ops (bridge row counts; current vs target version)
-//   - --apply runs them: bridge tables → JSON archive → drop via 0025 → Up to 25
-//   - Idempotent: if already at v2 (version == 25), exits 0 with "already at v2"
+//   - --apply runs them: bridge tables → JSON archive → drop via 0025 → Up to
+//     targetSchemaVersion (currently 26 — v2.0 GA was 25, v2.1-C added 0026)
+//   - Idempotent: if already at v2 (currentVer >= targetSchemaVersion), exits 0
+//     with "already at v2"
 //   - Refuses to run silently — neither flag → usage error
 func MigrateV1ToV2Command() *Command {
 	return &Command{
