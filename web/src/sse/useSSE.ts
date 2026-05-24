@@ -172,6 +172,11 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
   switch (ev.event_type) {
     // Conversation lifecycle.
     case 'conversation.opened':
+    case 'conversation.archived':
+    case 'conversation.closed':
+      // archived / closed change the row's status field on /channels +
+      // /dms list and the detail page header; both queries refresh so
+      // the user sees the new state without a manual reload.
       invalidate(qk.conversations());
       if (ev.conversation_id) {
         invalidate(qk.conversation(ev.conversation_id));

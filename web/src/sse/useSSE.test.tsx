@@ -82,6 +82,14 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
   });
 
+  it('conversation.archived / conversation.closed invalidate list + detail', () => {
+    for (const t of ['conversation.archived', 'conversation.closed']) {
+      dispatchToQueryClient(qc, ev(t, 'C1'));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversations() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversation('C1') });
+  });
+
   it('conversation.read_state.changed invalidates unread', () => {
     dispatchToQueryClient(qc, ev('conversation.read_state.changed', 'C1'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
