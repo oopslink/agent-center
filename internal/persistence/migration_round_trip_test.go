@@ -20,7 +20,7 @@ import (
 // full inventory + acceptance criteria.
 
 // TestMigrations_FullRoundTrip runs Up → Down(0) → Up and asserts that
-// (a) Version() is 25 both times Up returns, and (b) the set of user
+// (a) Version() is 26 both times Up returns, and (b) the set of user
 // tables and the set of column names per table are identical across the
 // two post-Up snapshots. Catches the class of bug where a down.sql
 // silently leaves a column behind that the next Up then re-adds with a
@@ -54,8 +54,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 25 || v2 != 25 {
-		t.Fatalf("Version after Up: got (%d, %d) want (25, 25)", v1, v2)
+	if v1 != 26 || v2 != 26 {
+		t.Fatalf("Version after Up: got (%d, %d) want (26, 26)", v1, v2)
 	}
 	if !sameSchema(snap1, snap2) {
 		t.Fatalf("round-trip schema drift:\n  first:  %v\n  second: %v", snap1, snap2)
@@ -169,6 +169,58 @@ func TestMigrations_V1TablesAbsent(t *testing.T) {
 		if tableExists(t, db, tbl) {
 			t.Fatalf("v1 table %s must be absent after Up (regression)", tbl)
 		}
+	}
+}
+
+// TestMigration_0026_UserConvReadStateShape — v2.1-C-1 guard: assert
+// the new user_conversation_read_state table lands with the expected
+// shape (composite PK + supporting index + NOT NULL columns) after a
+// full Up.
+func TestMigration_0026_UserConvReadStateShape(t *testing.T) {
+	db, err := Open(t.TempDir() + "/m26.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if !tableExists(t, db, "user_conversation_read_state") {
+		t.Fatal("user_conversation_read_state must exist after Up")
+	}
+	if !indexExists(t, db, "idx_ucrs_conversation") {
+		t.Fatal("idx_ucrs_conversation must exist after Up")
+	}
+	cols := tableColumns(t, db, "user_conversation_read_state")
+	wantCols := []string{
+		"conversation_id", "last_seen_message_id", "updated_at",
+		"user_id", "version",
+	}
+	if len(cols) != len(wantCols) {
+		t.Fatalf("columns: got %v want %v", cols, wantCols)
+	}
+	for i, c := range wantCols {
+		if cols[i] != c {
+			t.Fatalf("columns[%d]=%q want %q (full: %v)", i, cols[i], c, cols)
+		}
+	}
+
+	// Composite PRIMARY KEY (user_id, conversation_id) — duplicate
+	// inserts on the same pair must fail with constraint error.
+	now := "2026-05-24T15:00:00Z"
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO user_conversation_read_state
+		 (user_id, conversation_id, last_seen_message_id, updated_at, version)
+		 VALUES ('user:hayang','C-1','M-1',?,1)`, now); err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO user_conversation_read_state
+		 (user_id, conversation_id, last_seen_message_id, updated_at, version)
+		 VALUES ('user:hayang','C-1','M-2',?,1)`, now); err == nil {
+		t.Fatal("duplicate PK should have failed")
 	}
 }
 

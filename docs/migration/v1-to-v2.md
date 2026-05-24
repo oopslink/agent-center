@@ -90,7 +90,7 @@ Expected output (numbers vary by install):
 
 ```
 current schema version: 6
-target  schema version: 25
+target  schema version: 26
 bridge rows to archive:
   feishu_delivery_ledger:    427
   bridge_subscription_cursors: 1
@@ -117,7 +117,7 @@ Expected output:
 
 ```
 current schema version: 6
-target  schema version: 25
+target  schema version: 26
 bridge rows to archive: ...
 bridge archive written: /var/lib/agent-center/migration-archive/bridge-archive-20260524T093017Z.json
 migration applied; new schema version: 25

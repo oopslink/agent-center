@@ -97,4 +97,48 @@ asserts `Version() == 25`. Bump to 26 in this commit.
 
 ## § 4. Execution log
 
-To be filled by the impl commit.
+**Files landed:**
+
+- `internal/persistence/migrations/0026_user_conversation_read_state.up.sql`
+  — CREATE TABLE + `idx_ucrs_conversation` index, exactly as § 1.
+- `internal/persistence/migrations/0026_user_conversation_read_state.down.sql`
+  — DROP INDEX + DROP TABLE (both `IF EXISTS` for clean re-run).
+- `internal/persistence/migration_round_trip_test.go` — new
+  `TestMigration_0026_UserConvReadStateShape` asserts table presence,
+  five-column shape (`user_id` / `conversation_id` /
+  `last_seen_message_id` / `updated_at` / `version`), the
+  `idx_ucrs_conversation` index, and PK enforcement via duplicate
+  INSERT. Also bumped two embedded numeric checks (Up baseline 25→26).
+
+**Version bump cascade (25 → 26):**
+
+The migration count is referenced in several places — every one
+flipped 25→26 in the same impl commit so the test suite stays
+consistent:
+
+| File | Spot |
+|------|------|
+| `internal/persistence/migrator_test.go` | `TestMigrator_VersionTracksApplied` final assertion |
+| `internal/persistence/migration_round_trip_test.go` | Up baseline check + comment |
+| `internal/cli/handlers_migrate_v1_to_v2.go` | `targetSchemaVersion` const + comment now explains "carries install to latest v2.x schema" |
+| `internal/cli/handlers_migrate_v1_to_v2_test.go` | "target schema version: 26" / "new schema version: 26" + post-apply assertion |
+| `tests/integration/integration_test.go` | `TestINT2_MigrationIdempotent` post-Up assertion |
+| `docs/migration/v1-to-v2.md` | All operator-facing example output (`replace_all` on "target  schema version: 25" → 26) |
+
+The frozen S12 migration-tool audit was intentionally left untouched.
+
+**Verification:**
+
+- `go test ./internal/persistence/...` — green (round-trip + shape +
+  version-tracks-applied all pass).
+- `go test ./internal/cli/... ./tests/integration/...` — green
+  (migrate v1→v2 dry-run / apply / idempotent / refuses / fresh-v2
+  all assert 26).
+- `go test ./...` — green overall (no callsites yet; schema is purely
+  additive, no behavior changed).
+- `make lint-vendor` — clean.
+
+**Cadence:** audit log shipped first (commit `ff0920e`); impl shipped
+as a second commit per the per-ST P12 cadence rule for ≥3h
+schema/BC/wire work. Next ST is **C-2** — backend service + repo +
+2 HTTP endpoints + SSE event (`task #93`).

@@ -68,9 +68,12 @@ func MigrateV1ToV2Command() *Command {
 	}
 }
 
-// targetSchemaVersion is the v2 GA highest applied migration version.
-// Kept as a const so tests can refer to it explicitly.
-const targetSchemaVersion = 25
+// targetSchemaVersion tracks the highest applied migration version
+// for the currently-shipped v2.x line. v2.0 GA was 25; v2.1 added
+// 0026 (user_conversation_read_state). Update this constant when any
+// future migration lands so `migrate v1-to-v2` always carries the
+// install to the latest schema instead of leaving it mid-version.
+const targetSchemaVersion = 26
 
 func runMigrateV1ToV2(
 	ctx context.Context,
