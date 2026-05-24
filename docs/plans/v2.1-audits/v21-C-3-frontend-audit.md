@@ -182,8 +182,11 @@ endpoint returns count=3 → assert the badge text "3" is rendered.
 ### 5.6 e2e (`tests/e2e/v2/tests/unread-tracking.spec.ts`)
 
 Cold-start journey:
-1. Seed channel `unread-e2e` + 3 messages via direct sqlite INSERT
-   (S9 rule).
+1. Seed channel `unread-e2e` + 3 messages via the HTTP API. S9's
+   "direct sqlite, never CLI subprocess" rule only forbids spawning
+   the `agent-center` CLI while the server is running; in-process
+   HTTP POSTs against the running server are fine and avoid the
+   subprocess-races S9 was guarding against.
 2. Open `/channels` → wait for row.
 3. Assert `[data-testid='unread-badge']` reads "3".
 4. Click row → channel detail.
