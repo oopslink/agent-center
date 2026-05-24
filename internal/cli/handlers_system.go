@@ -105,11 +105,13 @@ func ServerCommand() *Command {
 					fmt.Fprintf(errw, "[server] escalator: %v\n", err)
 				})
 
-				// v2.2-A1: admin endpoint (unix socket) — AppService
+				// v2.2-A2: admin endpoint (unix socket) — AppService
 				// transport for in-process tools per conventions § 0.4.
+				// Full 93-route surface populated from cli.App via
+				// adminDepsFromApp.
 				var adminCleanup func() error
 				if sock := cfg.Server.AdminSocketPath; sock != "" {
-					cleanup, aerr := runAdminEndpoint(ctx, sock, func(msg string) {
+					cleanup, aerr := runAdminEndpoint(ctx, app, sock, func(msg string) {
 						fmt.Fprintf(errw, "[server] %s\n", msg)
 					})
 					if aerr != nil {

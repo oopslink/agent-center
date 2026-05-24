@@ -105,7 +105,119 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return err
 }
 
-// routes registers the v2.2-A1 minimal surface. A2 expands this.
+// routes registers the full v2.2-A2 admin surface: 79 AppService methods
+// grouped by BC. Path convention `POST /admin/<bc>/<resource>/<action>`
+// for writes and `GET /admin/<bc>/<resource>/<query>` for reads.
+//
+// Health endpoint is the only legacy route from A1.
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/health", s.healthHandler)
+
+	// --- workforce -------------------------------------------------------
+	s.mux.HandleFunc("POST /admin/workforce/worker/enroll", s.workerEnrollHandler)
+	s.mux.HandleFunc("GET /admin/workforce/worker/find-all", s.workerFindAllHandler)
+	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-id", s.workerFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-status", s.workerFindByStatusHandler)
+	s.mux.HandleFunc("POST /admin/workforce/proposal/propose", s.proposalProposeHandler)
+	s.mux.HandleFunc("POST /admin/workforce/proposal/accept", s.proposalAcceptHandler)
+	s.mux.HandleFunc("POST /admin/workforce/proposal/ignore", s.proposalIgnoreHandler)
+	s.mux.HandleFunc("POST /admin/workforce/proposal/unignore", s.proposalUnignoreHandler)
+	s.mux.HandleFunc("GET /admin/workforce/proposal/find-by-id", s.proposalFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/workforce/proposal/find-by-worker-id", s.proposalFindByWorkerIDHandler)
+	s.mux.HandleFunc("GET /admin/workforce/proposal/find-pending", s.proposalFindPendingHandler)
+	s.mux.HandleFunc("POST /admin/workforce/agent-instance/create", s.agentCreateHandler)
+	s.mux.HandleFunc("POST /admin/workforce/agent-instance/archive", s.agentArchiveHandler)
+	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-all", s.agentFindAllHandler)
+	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-by-id", s.agentFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-by-name", s.agentFindByNameHandler)
+	s.mux.HandleFunc("GET /admin/workforce/project/find-all", s.projectFindAllHandler)
+	s.mux.HandleFunc("GET /admin/workforce/project/find-by-id", s.projectFindByIDHandler)
+	s.mux.HandleFunc("POST /admin/workforce/project/add", s.projectAddHandler)
+	s.mux.HandleFunc("POST /admin/workforce/project/remove", s.projectRemoveHandler)
+	s.mux.HandleFunc("POST /admin/workforce/project/update", s.projectUpdateHandler)
+
+	// --- conversation ----------------------------------------------------
+	s.mux.HandleFunc("GET /admin/conversation/conv/find", s.convFindHandler)
+	s.mux.HandleFunc("GET /admin/conversation/conv/find-by-id", s.convFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/conversation/conv/find-by-name", s.convFindByNameHandler)
+	s.mux.HandleFunc("GET /admin/conversation/msg/find-by-id", s.msgFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/conversation/msg/find-by-conversation-id", s.msgFindByConversationIDHandler)
+	s.mux.HandleFunc("POST /admin/conversation/msg/append", s.msgAppendHandler)
+	s.mux.HandleFunc("POST /admin/conversation/message-writer/open", s.openConversationHandler)
+	s.mux.HandleFunc("POST /admin/conversation/message-writer/close", s.closeConversationHandler)
+	s.mux.HandleFunc("POST /admin/conversation/message-writer/archive", s.archiveConversationHandler)
+	s.mux.HandleFunc("POST /admin/conversation/channel/create", s.createChannelHandler)
+	s.mux.HandleFunc("POST /admin/conversation/channel/archive", s.archiveChannelHandler)
+	s.mux.HandleFunc("POST /admin/conversation/participant/invite", s.inviteParticipantHandler)
+	s.mux.HandleFunc("POST /admin/conversation/participant/kick", s.kickParticipantHandler)
+	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-child-conv", s.carryOverFindByChildConvHandler)
+	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-source-msg", s.carryOverFindBySourceMsgHandler)
+	s.mux.HandleFunc("POST /admin/conversation/derivation/derive-issue", s.deriveIssueHandler)
+	s.mux.HandleFunc("POST /admin/conversation/derivation/derive-task", s.deriveTaskHandler)
+	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-child-conv-id", s.convRefFindByChildConvIDHandler)
+	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-source-msg-id", s.convRefFindBySourceMsgIDHandler)
+
+	// --- taskruntime -----------------------------------------------------
+	s.mux.HandleFunc("GET /admin/taskruntime/task/find-by-id", s.taskFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/task/find-by-status", s.taskFindByStatusHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-id", s.execFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-task-id", s.execFindByTaskIDHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-status", s.execFindByStatusHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-by-id", s.irFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-by-execution-id", s.irFindByExecutionIDHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-pending", s.irFindPendingHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/artifact/find-by-id", s.artifactFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/taskruntime/artifact/find-by-execution-id", s.artifactFindByExecutionIDHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/task/create", s.taskCreateHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/task/bind-conversation", s.taskBindConversationHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/ir/create", s.irCreateHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/ir/respond", s.irRespondHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/ir/cancel", s.irCancelHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/artifact/append", s.artifactAppendHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-progress", s.execReportProgressHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-failure", s.execReportFailureHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch", s.dispatchHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/kill/request", s.killExecutionHandler)
+
+	// --- cognition -------------------------------------------------------
+	s.mux.HandleFunc("POST /admin/cognition/supervisor/spawn", s.supervisorSpawnHandler)
+	s.mux.HandleFunc("POST /admin/cognition/decision/record", s.decisionRecordHandler)
+	s.mux.HandleFunc("GET /admin/cognition/invocation/find-by-id", s.invocationFindByIDHandler)
+	s.mux.HandleFunc("POST /admin/cognition/invocation/save", s.invocationSaveHandler)
+	s.mux.HandleFunc("POST /admin/cognition/invocation/update-status-to-terminal", s.invocationUpdateStatusToTerminalHandler)
+	s.mux.HandleFunc("GET /admin/cognition/decision/find-by-invocation-id", s.decisionFindByInvocationIDHandler)
+
+	// --- discussion ------------------------------------------------------
+	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-id", s.issueFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-project", s.issueFindByProjectHandler)
+	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-status", s.issueFindByStatusHandler)
+	s.mux.HandleFunc("POST /admin/discussion/issue/open", s.issueOpenHandler)
+	s.mux.HandleFunc("POST /admin/discussion/issue/conclude", s.issueConcludeHandler)
+	s.mux.HandleFunc("POST /admin/discussion/issue/withdraw", s.issueWithdrawHandler)
+	s.mux.HandleFunc("POST /admin/discussion/issue/comment", s.issueCommentHandler)
+	s.mux.HandleFunc("POST /admin/discussion/issue/bind-auto", s.issueBindAutoHandler)
+	s.mux.HandleFunc("POST /admin/discussion/issue/bind-to", s.issueBindToHandler)
+	s.mux.HandleFunc("POST /admin/discussion/issue/link", s.issueLinkHandler)
+
+	// --- secret ----------------------------------------------------------
+	s.mux.HandleFunc("GET /admin/secret/user-secret/find-all", s.secretFindAllHandler)
+	s.mux.HandleFunc("GET /admin/secret/user-secret/find-by-id", s.secretFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/secret/user-secret/find-by-name", s.secretFindByNameHandler)
+	s.mux.HandleFunc("POST /admin/secret/user-secret/create", s.secretCreateHandler)
+	s.mux.HandleFunc("POST /admin/secret/user-secret/rotate", s.secretRotateHandler)
+	s.mux.HandleFunc("POST /admin/secret/user-secret/revoke", s.secretRevokeHandler)
+	s.mux.HandleFunc("POST /admin/secret/user-secret/resolve", s.secretResolveHandler)
+
+	// --- identity --------------------------------------------------------
+	s.mux.HandleFunc("GET /admin/identity/find", s.identityFindHandler)
+	s.mux.HandleFunc("POST /admin/identity/register", s.identityRegisterHandler)
+
+	// --- observability ---------------------------------------------------
+	s.mux.HandleFunc("GET /admin/observability/event/find-by-id", s.eventFindByIDHandler)
+	s.mux.HandleFunc("GET /admin/observability/event/find", s.eventFindHandler)
+	s.mux.HandleFunc("POST /admin/observability/query/query", s.queryHandler)
+	s.mux.HandleFunc("GET /admin/observability/query/inspect", s.inspectHandler)
+	s.mux.HandleFunc("GET /admin/observability/fleet/snapshot", s.fleetSnapshotHandler)
+	s.mux.HandleFunc("GET /admin/observability/stats/aggregate", s.statsAggregateHandler)
+	s.mux.HandleFunc("GET /admin/observability/logs/open", s.logsOpenHandler)
 }

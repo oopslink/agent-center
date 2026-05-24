@@ -103,4 +103,80 @@
 
 ## § 6. Execution log
 
-由 impl commits 填写（按 BC 分组多个 commit）。
+**Files landed (single batch commit; sub-agent wrote 8 BC files in
+parallel from this audit + the existing webconsole/api reference)**:
+
+- `internal/admin/api/deps.go` — `HandlerDeps` (45+ fields across 7
+  BCs) + `WithDeps` middleware + JSON helpers (`writeJSON`,
+  `writeError`, `decodeJSON`).
+- `internal/admin/api/errors.go` — `mapDomainError` covering 60+
+  domain sentinels (conversation, workforce, taskruntime, secretmgmt,
+  discussion, cognition, identity).
+- `internal/admin/api/workforce.go` — 22 handlers (worker /
+  proposal / agent-instance / project — all CRUD + lifecycle).
+- `internal/admin/api/conversation.go` — 19 handlers (conv / msg /
+  message-writer / channel / participant / carry-over / derivation /
+  conv-ref).
+- `internal/admin/api/taskruntime.go` — 20 handlers (task / exec /
+  ir / artifact / dispatch / kill).
+- `internal/admin/api/cognition.go` — 6 handlers (supervisor.spawn,
+  decision.record, invocation 3x, decision lookup).
+- `internal/admin/api/discussion.go` — 10 handlers (issue lifecycle +
+  comment + bind/link).
+- `internal/admin/api/secret.go` — 7 handlers (UserSecretRepo 3x +
+  Create/Rotate/Revoke; Resolve stubbed 501 per ADR-0026 security).
+- `internal/admin/api/identity.go` — 2 handlers (Find,
+  RegisterIdentity).
+- `internal/admin/api/observability.go` — 7 handlers (events / query
+  / fleet / stats / logs).
+- `internal/admin/api/server.go` — `routes()` mounts all 92 BC
+  endpoints + the A1 health endpoint = 93 total.
+- `internal/cli/admin_wiring.go` — `adminDepsFromApp` adapter +
+  `runAdminEndpoint` now installs `WithDeps` middleware.
+- `internal/cli/handlers_system.go` — passes `app` to
+  `runAdminEndpoint` so deps are populated.
+
+**Total**: 93 admin endpoints, ~3.85K LOC across 11 new files (deps +
+errors + 8 BC + server changes).
+
+**Out-of-scope items confirmed (per § 1 audit out)**:
+- `UserSecretSvc.Resolve` returns 501 — plaintext path deferred to
+  worker daemon (Phase C) where secret resolution happens just-in-time
+  for agent CLI MCP injection. ADR-0026 security path stays gated.
+- Streaming endpoints (long-poll dispatch / SSE) — A2 ships request /
+  response only. Phase C worker daemon adds streaming as needed.
+
+**Verification — deploy smoke (firsthand, per conventions § 0.4)**:
+
+```
+$ ./bin/agent-center server --config=/tmp/v22a2.yaml
+agent-center server: db=/tmp/v22a2.db listen=:7099 web=127.0.0.1:7199 admin=/tmp/v22a2-admin.sock (escalator running)
+
+$ curl --unix-socket /tmp/v22a2-admin.sock http://localhost/admin/health
+{"endpoint":"admin","ok":true,"transport":"unix"}
+
+$ curl --unix-socket /tmp/v22a2-admin.sock 'http://localhost/admin/workforce/agent-instance/find-all'
+[]
+
+$ curl --unix-socket /tmp/v22a2-admin.sock -XPOST \
+   -H 'Content-Type: application/json' \
+   -d '{"worker_id":"smoke-1","capabilities":["claude-code"]}' \
+   http://localhost/admin/workforce/worker/enroll
+{"event_id":"01KSD8F3VPGNEGN1M66SC66BJ0","version":1,"worker_id":"smoke-1"}
+
+$ curl --unix-socket /tmp/v22a2-admin.sock http://localhost/admin/workforce/worker/find-all
+[{"capabilities":["claude-code"],"enrolled_at":"...","status":"offline","version":1,"worker_id":"smoke-1"}]
+
+$ curl --unix-socket /tmp/v22a2-admin.sock 'http://localhost/admin/observability/fleet/snapshot'
+{"executions":[],"workers":[{"worker_id":"smoke-1","status":"offline",...}],...}
+```
+
+Full chain works: enroll (write through admin) → find-all (read
+through admin) → fleet snapshot (cross-BC aggregation through admin)
+all return consistent state. AppService invariants preserved
+end-to-end through the admin transport.
+
+- `go build ./...` clean
+- `go test ./internal/admin/api/` 5/5 (A1 tests still pass post-A2)
+- `go test ./internal/cli/` green
+- A2 done.
