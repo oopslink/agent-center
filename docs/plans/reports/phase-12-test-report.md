@@ -159,11 +159,10 @@ Per [phase-12-cleanup-release.md § 4](../phase-12-cleanup-release.md):
       TOP Breaking Changes + release notes promoted from draft
 - [x] master_key backup procedure documented (S13)
 - [x] DEPLOYMENT v2 upgrade section (S13)
-- [ ] v2.0.0 git tag — **pending S16** (push gated on x9527 post-S16
-      audit pass + @oopslink human approval)
+- [x] v2.0.0 git tag created + pushed (S16 + post-ship)
 - [x] phase-12-test-report.md (this file)
 
-## § 8. Release readiness checklist
+## § 8. Release readiness checklist — **SHIPPED 2026-05-24** 🚀
 
 - [x] All M1-M4 STs audit-passed
 - [x] S14 version bake + CHANGELOG land
@@ -173,10 +172,12 @@ Per [phase-12-cleanup-release.md § 4](../phase-12-cleanup-release.md):
 - [x] Operator docs cross-link migration guide + master-key ops
 - [x] Breaking changes documented loud in CHANGELOG + release notes
 - [x] v2.1+ + v3 carryovers filed with owner + reason
-- [ ] **S16 git tag created locally** (next)
-- [ ] **S16 audit-passed by x9527** (post-tag)
-- [ ] **`git push origin v2.0.0` executed by @oopslink** (human-gated)
-- [ ] **`gh release create v2.0.0 ... --notes-file docs/release/v2.0.md` executed by @oopslink** (human-gated)
+- [x] S16 git tag created locally (audit `a2e16d5`; re-tagged at HEAD per x9527 Fix 1)
+- [x] S16 audit-passed by x9527 (msg `21d2afad` final M5 pass)
+- [x] `git push origin main && git push origin v2.0.0` executed by @oopslink
+- [x] `gh release create v2.0.0 ... --notes-file docs/release/v2.0-gh-release-body.md` executed by @oopslink
+
+**Release URL**: https://github.com/oopslink/agent-center/releases/tag/v2.0.0
 
 ## § 9. References
 

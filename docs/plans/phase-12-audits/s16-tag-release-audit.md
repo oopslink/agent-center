@@ -4,8 +4,11 @@
 > annotated tag **locally only**. Push + `gh release create` are
 > human-gated (double signature: x9527 post-S16 audit pass + @oopslink
 > actual `git push` + `gh release create` invocation). This audit
-> records the tag SHA + commands + the explicit "not pushed,
-> awaiting human" state.
+> records the tag SHA + commands + the (originally) "not pushed,
+> awaiting human" state. **Post-ship update 2026-05-24**: @oopslink
+> ran the 3-step push sequence successfully; release live at
+> https://github.com/oopslink/agent-center/releases/tag/v2.0.0.
+> § 4.3 + § 9.6 carry the SHIPPED state.
 
 ## § 0. Scope
 
@@ -147,21 +150,31 @@ becomes the new HEAD. Resolution: trust `git rev-parse v2.0.0` as
 the source of truth post-tag; this prose just declares the
 invariant `v2.0.0^{commit} == HEAD at re-tag time`.
 
-### 4.3 STATE: not pushed, awaiting human
+### 4.3 STATE: **SHIPPED 2026-05-24** ✅
 
-```
-$ git ls-remote origin v2.0.0
-                                              (empty — tag NOT on remote)
-```
+Post-final-audit timeline:
 
-The local tag is created. **It is NOT pushed.** Per oversight ②,
-push is gated on:
-1. **x9527 post-S16 audit pass** — confirms M5 closure ledger is
-   correct + the tag annotation is acceptable
-2. **@oopslink human execution** of `git push origin v2.0.0` +
-   `gh release create v2.0.0 --notes-file docs/release/v2.0-gh-release-body.md`
+1. **x9527 final M5 audit pass** — msg `21d2afad` (2026-05-24 07:48 UTC+8):
+   "🟢 M5 final audit PASS + P12 complete (16/16 ST)".
+2. **@oopslink ran the 3-step push** — confirmed via msg `83063b36`
+   (2026-05-24 13:31 UTC+8):
+   - `git push origin main` → `2233fe0..a2e16d5  main -> main` ✓
+   - `git push origin v2.0.0` → `[new tag] v2.0.0 -> v2.0.0`
+     (remote tag SHA `3e93b2fb...` matches local) ✓
+   - `gh release create v2.0.0 --title "agent-center v2.0.0"
+     --notes-file docs/release/v2.0-gh-release-body.md` ✓
 
-AgentCenterDev does NOT invoke either command autonomously.
+**Release URL**: https://github.com/oopslink/agent-center/releases/tag/v2.0.0
+
+Double-sig discipline (oversight ②) honored end-to-end:
+- AgentCenterDev: prepared all artifacts + local tag + runbook
+- x9527: per-ST audits across S1-S16 + 2 final-pass fixes caught
+- @oopslink: executed the actual `git push` + `gh release create`
+  (identity-binding commands; never agent-driven)
+
+Original "not pushed" state preserved above for audit-trail
+fidelity — this prose was the truth at S16 commit time + carried
+through x9527's final audit.
 
 ## § 8. M5 closure ledger
 
@@ -259,14 +272,17 @@ Per S15 § 4 — 7 items filed with owner + reason + audit cross-ref:
 (worker-chain e2e / chromium-linux CI / KMS multi-machine / master-
 key envelope rotation).
 
-### 9.6 Final state
+### 9.6 Final state — SHIPPED ✅
 
 - v2.0.0 binary builds + reports correct version
 - All gates green: go test / go vet / make lint-vendor / make
   lint-vendor-selftest / make e2e
-- Local tag `v2.0.0` at `a1a392d` ready for push
+- Tag `v2.0.0` at commit `a2e16d5` (re-tagged per x9527 Fix 1);
+  pushed to remote 2026-05-24 by @oopslink
 - All 16 P12 STs complete
-- Awaiting x9527 post-S16 audit + @oopslink human push + GH release
+- **GitHub Release live**: https://github.com/oopslink/agent-center/releases/tag/v2.0.0
+- v2.0.0 shipped per double-sig discipline: AgentCenterDev
+  artifacts + x9527 audits + @oopslink push
 
 ## § 5. Rollback (if x9527 finds an issue post-tag)
 
@@ -332,12 +348,14 @@ Critical operational caveats:
 
 ## § 7. Acceptance criteria
 
-- Audit log committed first (this file with § 4 placeholder).
-- Release body file committed as part of this audit's same commit.
-- Local tag `v2.0.0` created via the command in § 1.
-- This audit's § 4 filled in with the tag SHA + verification
-  output.
-- Status reported to x9527 with explicit "not pushed; awaiting
-  human" line.
-- M5 closure ledger appended (§ 8).
-- P12 closure ledger appended (§ 9).
+- [x] Audit log committed first (this file with § 4 placeholder).
+- [x] Release body file committed as part of this audit's same commit.
+- [x] Local tag `v2.0.0` created via the command in § 1.
+- [x] This audit's § 4 filled in with the tag SHA + verification output.
+- [x] Status reported to x9527 with explicit "not pushed; awaiting human" line.
+- [x] M5 closure ledger appended (§ 8).
+- [x] P12 closure ledger appended (§ 9).
+- [x] x9527 final M5 audit pass (msg `21d2afad`).
+- [x] @oopslink ran the 3-step push (msg `83063b36`).
+- [x] GitHub Release live at https://github.com/oopslink/agent-center/releases/tag/v2.0.0.
+- [x] S16 audit post-ship update (this commit).
