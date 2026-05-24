@@ -408,7 +408,10 @@ func (s *Server) archiveConversationHandler(w http.ResponseWriter, r *http.Reque
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
 	var req archiveReq
-	_ = decodeJSON(r, &req)
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
 	if req.ArchivedBy == "" {
 		req.ArchivedBy = string(d.Actor)
 	}
@@ -652,7 +655,10 @@ func (s *Server) cancelInputRequestHandler(w http.ResponseWriter, r *http.Reques
 	d := hd(r)
 	id := taskruntime.InputRequestID(r.PathValue("id"))
 	var req cancelInputRequestReq
-	_ = decodeJSON(r, &req)
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
 	if req.Reason == "" {
 		req.Reason = "user_cancel"
 	}

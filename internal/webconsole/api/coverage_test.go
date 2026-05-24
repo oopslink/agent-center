@@ -988,6 +988,38 @@ func TestAPI_DeriveTask_SourceNotFound(t *testing.T) {
 	}
 }
 
+func TestAPI_ArchiveConversation_BadJSON(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Post(s.URL+"/api/conversations/anything/archive",
+		"application/json", strings.NewReader(`{not json`))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d want 400", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "invalid_json" {
+		t.Fatalf("error=%v want invalid_json", body["error"])
+	}
+}
+
+func TestAPI_CancelInputRequest_BadJSON(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Post(s.URL+"/api/input_requests/anything/cancel",
+		"application/json", strings.NewReader(`{not json`))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d want 400", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "invalid_json" {
+		t.Fatalf("error=%v want invalid_json", body["error"])
+	}
+}
+
 func TestAPI_CancelInputRequest_NotWired(t *testing.T) {
 	deps, _ := setupAPI(t)
 	deps.IRSvc = nil
