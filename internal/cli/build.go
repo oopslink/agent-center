@@ -256,6 +256,20 @@ type lazyApp struct {
 
 // build opens the DB + constructs the App. Caller is responsible for
 // closing app.DB after use.
+//
+// v2.2 Phase B (per conventions § 0.4 + docs/plans/v2.2-audits/v22-B-cli-refactor-audit.md):
+// In addition to the legacy DB-open path, build also constructs an admin
+// Client when cfg.Server.AdminSocketPath is set. The Client is stored
+// in App.Client so handlers migrated to the new pattern can route their
+// AppService calls through the admin endpoint. Unmigrated handlers
+// continue to use the directly-wired Service / Repo fields until they
+// are converted in a follow-up pass. This dual-mode wiring keeps the
+// refactor incremental — the build stays green at every step.
+//
+// Once every handler is migrated, the DB-open block here can be deleted
+// and the App returned as NewClientApp (with `build()` reduced to
+// "load config + dial admin"). At that point `server` mode will be the
+// only path that opens the DB locally.
 func (l *lazyApp) build() (*App, error) {
 	cfg, err := config.Load(config.LoadOptions{Path: l.cfgPath})
 	if err != nil {
@@ -269,7 +283,50 @@ func (l *lazyApp) build() (*App, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	return NewApp(cfg, db, nil)
+	app, err := NewApp(cfg, db, nil)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	// v2.2-B: wire an admin Client ONLY when the configured socket
+	// actually exists on disk. Otherwise leave app.Client nil and
+	// handlers fall back to direct Service / Repo access (the legacy
+	// in-process path) — this is the transitional behaviour during
+	// the multi-stage handler migration. Once every handler is
+	// migrated AND every test uses setupAdminServerForTests, the
+	// audit's target state is: `buildClientOnly()` is the only path
+	// here and an absent socket is a hard error pointing at
+	// `agent-center server`.
+	if sock := cfg.Server.AdminSocketPath; sock != "" {
+		if _, statErr := os.Stat(sock); statErr == nil {
+			app.Client = NewClient(sock, 0)
+		}
+	}
+	return app, nil
+}
+
+// buildClientOnly is the post-migration (target) form of build(): no DB
+// open, only a Client. Reserved for the next stage of v2.2-B once every
+// handler routes through Client. Currently unused but kept here so the
+// next agent can flip the switch in one place. The user-facing error
+// when the socket isn't reachable points at how to start the server.
+//
+//nolint:unused // pending full handler migration in v2.2-B follow-up.
+func (l *lazyApp) buildClientOnly() (*App, error) {
+	cfg, err := config.Load(config.LoadOptions{Path: l.cfgPath})
+	if err != nil {
+		return nil, fmt.Errorf("config: %w", err)
+	}
+	sock := cfg.Server.AdminSocketPath
+	if sock == "" {
+		return nil, fmt.Errorf("cli: server.admin_socket_path not configured " +
+			"— set it in config and start `agent-center server`")
+	}
+	client := NewClient(sock, 0)
+	if err := EnsureSocketExists(client); err != nil {
+		return nil, err
+	}
+	return NewClientApp(cfg, client), nil
 }
 
 // withApp wraps a Handler-builder so the App is opened on first run.

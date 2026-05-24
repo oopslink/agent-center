@@ -44,11 +44,33 @@ import (
 )
 
 // App carries everything CLI handlers need.
+//
+// Two construction modes (v2.2 Phase B per conventions § 0.4):
+//
+//   - **Server mode**: NewApp opens the DB and wires every Service / Repo
+//     field. Used by `agent-center server` (handlers_system.go) which IS
+//     the process that owns the DB and serves the admin endpoint.
+//   - **CLI mode**: NewClientApp builds a lightweight App with only
+//     Config + Clock + Client populated; every Service / Repo field is
+//     nil. CLI handlers go through Client to talk to a running server
+//     (the only legitimate AppService entry point per § 0.4).
+//
+// Handlers that need to run in BOTH modes (rare; mostly only server
+// boot + schema migrations) must consult whichever fields the active
+// mode populates. The pattern across handlers_*.go (post-Phase B
+// migration) is: prefer `a.Client.<Method>` over `a.<Svc>.<Method>`.
 type App struct {
 	Config config.Config
-	DB     *sql.DB
-	Clock  clock.Clock
-	IDGen  idgen.Generator
+
+	// Client is the admin transport. Populated in CLI mode; may be nil
+	// in server mode (the server doesn't dial itself).
+	Client *Client
+
+	// DB / Clock / IDGen / Service / Repo fields below are wired only
+	// in server mode (NewApp). CLI mode (NewClientApp) leaves them nil.
+	DB    *sql.DB
+	Clock clock.Clock
+	IDGen idgen.Generator
 
 	WorkerRepo   workforce.WorkerRepository
 	MappingRepo  workforce.WorkerProjectMappingRepository
@@ -348,6 +370,20 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 
 		DispatchQueue: dispatchQ,
 	}, nil
+}
+
+// NewClientApp constructs a lightweight CLI-mode App. The DB / Service /
+// Repo fields are intentionally nil — handlers MUST go through Client
+// (v2.2 Phase B; conventions § 0.4 "AppService is the only entry").
+//
+// Use this for every CLI command except `agent-center server` (which
+// IS the server and uses NewApp + an open DB).
+func NewClientApp(cfg config.Config, client *Client) *App {
+	return &App{
+		Config: cfg,
+		Client: client,
+		Clock:  clock.SystemClock{},
+	}
 }
 
 // SetSupervisorSpawner installs (or replaces) the spawner. Tests + the
