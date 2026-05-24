@@ -24,7 +24,9 @@ func runAdminEndpoint(ctx context.Context, app *App, socketPath string, logger f
 		return func() error { return nil }, errors.New("admin: app nil")
 	}
 	deps := adminDepsFromApp(app)
-	srv := api.NewServer(socketPath)
+	srv := api.NewServerWithDeps(socketPath, api.ServerDeps{
+		Queue: app.DispatchQueue,
+	})
 	// Wrap the inner mux with deps middleware (parallel to
 	// webconsole_wiring.go pattern).
 	srv.SetHandler(api.WithDeps(deps)(srv.Handler()))

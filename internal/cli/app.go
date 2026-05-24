@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition"
@@ -118,6 +119,11 @@ type App struct {
 	DecisionRepo      cognition.DecisionRecordRepository
 	DecisionRecorder  *decision.Recorder
 	SupervisorSpawner *scheduler.Spawner
+
+	// v2.2-A3: in-process dispatch/kill queue. DispatchService +
+	// KillCoordinator push into it; worker daemon drains via admin
+	// endpoint. Replaces v2.0 GA NoopSender/NoopKillSender.
+	DispatchQueue *dispatchq.Queue
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -164,11 +170,19 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, cr, mgRepo, sink, gen, clk, cfg.Notification.DefaultChannel)
 	artifactSvc := trservice.NewArtifactService(db, artifactRepo, execRepo, sink, gen, clk)
 	execSvc := trservice.NewExecutionService(db, execRepo, taskRepo, cr, mgRepo, sink, gen, clk)
-	dispatchSvc := dispatch.NewService(db, taskRepo, execRepo, sink, dispatch.NoopSender{}, clk, gen, dispatch.DispatchConfig{
-		MaxExecutionsPerTask: cfg.Execution.MaxExecutionsPerTask,
-		DispatchAckTimeout:   cfg.Execution.DispatchAckTimeout(),
-	})
-	killCoord := kill.NewCoordinator(db, execRepo, taskRepo, irRepo, sink, kill.NoopKillSender{}, clk)
+	// v2.2-A3: real EnvelopeSender + KillSender backed by the in-process
+	// dispatchq queue. Replaces v2.0 GA's dispatch.NoopSender{} /
+	// kill.NoopKillSender{} stubs (per conventions § 0.4 mock-as-default
+	// cleanup). Worker daemon (Phase C) drains the queue via the admin
+	// endpoint.
+	dispatchQ := dispatchq.New()
+	dispatchSvc := dispatch.NewService(db, taskRepo, execRepo, sink,
+		dispatchq.DispatchSender{Q: dispatchQ}, clk, gen, dispatch.DispatchConfig{
+			MaxExecutionsPerTask: cfg.Execution.MaxExecutionsPerTask,
+			DispatchAckTimeout:   cfg.Execution.DispatchAckTimeout(),
+		})
+	killCoord := kill.NewCoordinator(db, execRepo, taskRepo, irRepo, sink,
+		dispatchq.KillSender{Q: dispatchQ}, clk)
 	issueSpawn := dispatch.NewIssueConcludeSpawn(db, taskRepo, sink, gen, clk)
 
 	// Discussion BC
@@ -323,6 +337,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		// the actual subprocess binary path + memory dir); CLI invocations
 		// of `supervisor retrigger` from a tester / one-shot context can
 		// inject one via SetSupervisorSpawner.
+
+		DispatchQueue: dispatchQ,
 	}, nil
 }
 

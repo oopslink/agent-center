@@ -21,7 +21,17 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 )
+
+// ServerDeps is the dependency bag for Server-level state shared
+// across handlers (NOT the per-request HandlerDeps in deps.go).
+// v2.2-A3: holds the dispatchq.Queue so dispatch/kill pull endpoints
+// can drain it.
+type ServerDeps struct {
+	Queue *dispatchq.Queue
+}
 
 // Server is the admin endpoint HTTP server bound to a unix socket.
 type Server struct {
@@ -29,14 +39,22 @@ type Server struct {
 	mux        *http.ServeMux
 	srv        *http.Server
 	listener   net.Listener
+	deps       ServerDeps
 }
 
-// NewServer constructs a Server. The socket file at socketPath will
-// be created on ListenAndServe and removed on Shutdown.
+// NewServer constructs a Server with no Queue wired. Use
+// NewServerWithDeps when the dispatch/kill pull endpoints should be
+// live (v2.2-A3 wiring path).
 func NewServer(socketPath string) *Server {
+	return NewServerWithDeps(socketPath, ServerDeps{})
+}
+
+// NewServerWithDeps constructs a Server with Server-level deps.
+func NewServerWithDeps(socketPath string, deps ServerDeps) *Server {
 	s := &Server{
 		socketPath: socketPath,
 		mux:        http.NewServeMux(),
+		deps:       deps,
 	}
 	s.routes()
 	s.srv = &http.Server{
@@ -220,4 +238,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/observability/fleet/snapshot", s.fleetSnapshotHandler)
 	s.mux.HandleFunc("GET /admin/observability/stats/aggregate", s.statsAggregateHandler)
 	s.mux.HandleFunc("GET /admin/observability/logs/open", s.logsOpenHandler)
+
+	// --- dispatch queue (v2.2-A3 — worker daemon drains via these) ------
+	s.mux.HandleFunc("GET /admin/dispatch/queue/pull", s.dispatchQueuePullHandler)
+	s.mux.HandleFunc("GET /admin/dispatch/queue/peek", s.queuePeekHandler)
+	s.mux.HandleFunc("GET /admin/kill/queue/pull", s.killQueuePullHandler)
 }
