@@ -1,4 +1,4 @@
-.PHONY: build build-frontend build-backend test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean e2e e2e-install
+.PHONY: build build-frontend build-backend build-worker-daemon test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean e2e e2e-install
 
 # Build pipeline composes a frontend bundle then embeds it into the Go
 # binary via go:embed (Phase 11 § 3.4 + F15).
@@ -20,7 +20,7 @@ WEB := web
 VERSION ?= v2.0.0
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-build: build-frontend build-backend
+build: build-frontend build-backend build-worker-daemon
 
 build-frontend:
 	cd $(WEB) && pnpm install --frozen-lockfile
@@ -33,6 +33,12 @@ build-frontend:
 build-backend:
 	go build -ldflags "-X main.buildVersion=$(VERSION) -X main.buildCommit=$(COMMIT)" \
 	    -o ./bin/$(BIN) ./cmd/agent-center
+
+# v2.2-C worker daemon binary — the missing v2.0 GA consumer of the
+# dispatchq queue (conventions § 0.4: worker talks to center via the
+# admin endpoint, not by re-opening sqlite).
+build-worker-daemon:
+	go build -o ./bin/agent-center-worker-daemon ./cmd/worker-daemon
 
 test:
 	go test ./...
