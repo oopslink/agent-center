@@ -85,4 +85,46 @@ WebConsole api 包的 handler 函数与 admin endpoint 想要的 surface **高�
 
 ## § 6. Execution log
 
-由 impl commit 填写。
+**Files landed:**
+- `internal/admin/api/server.go` — `Server` (unix socket listener +
+  graceful shutdown that removes socket file; 0600 perm + stale-file
+  cleanup).
+- `internal/admin/api/health.go` — `GET /admin/health` returning
+  `{"ok": true, "transport": "unix", "endpoint": "admin"}`.
+- `internal/admin/api/server_test.go` — 5 cases: health round-trip,
+  socket permissions (mode & 077 == 0), stale-file removal on start,
+  socket cleanup on shutdown, empty-path rejection. Helper
+  `shortSocketPath` works around the macOS 104-byte socket path limit
+  (t.TempDir's /var/folders/... is too long).
+- `internal/cli/admin_wiring.go` — `runAdminEndpoint` (parallel to
+  `runWebConsole`); fires the server goroutine + returns cleanup.
+- `internal/cli/handlers_system.go` — ServerCommand now binds admin
+  socket if `cfg.Server.AdminSocketPath != ""`; banner shows
+  `admin=<path>`; defer-cleanup pattern matches WebConsole.
+
+**Verification:**
+- `go test ./internal/admin/api/` — 5/5 green.
+- `go test ./...` — full regression green (no other packages
+  affected; new package is additive).
+- `make build` — binary built.
+- **Deploy smoke** (firsthand, per conventions § 0.4):
+  ```
+  $ ./bin/agent-center server --config=/tmp/v22-smoke.yaml
+  agent-center server: db=/tmp/v22-smoke.db listen=:7099 web=127.0.0.1:7199 admin=/tmp/v22-admin.sock (escalator running)
+
+  $ curl --unix-socket /tmp/v22-admin.sock http://localhost/admin/health
+  {"endpoint":"admin","ok":true,"transport":"unix"}
+
+  $ ls -la /tmp/v22-admin.sock
+  srw-------@ 1 oopslink  wheel  0  5月 24 21:43 /tmp/v22-admin.sock
+
+  $ kill $pid  &&  ls /tmp/v22-admin.sock
+  ls: /tmp/v22-admin.sock: No such file or directory
+  ```
+  - Banner now lists admin path ✓
+  - Health endpoint returns JSON over unix socket ✓
+  - File permissions are 0600, owner-only ✓
+  - Graceful shutdown removes the socket file ✓
+
+A1 complete. Ready to proceed with A2 (expose CLI-consumed AppService
+methods through admin endpoint).

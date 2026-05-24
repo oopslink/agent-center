@@ -105,6 +105,25 @@ func ServerCommand() *Command {
 					fmt.Fprintf(errw, "[server] escalator: %v\n", err)
 				})
 
+				// v2.2-A1: admin endpoint (unix socket) — AppService
+				// transport for in-process tools per conventions § 0.4.
+				var adminCleanup func() error
+				if sock := cfg.Server.AdminSocketPath; sock != "" {
+					cleanup, aerr := runAdminEndpoint(ctx, sock, func(msg string) {
+						fmt.Fprintf(errw, "[server] %s\n", msg)
+					})
+					if aerr != nil {
+						fmt.Fprintf(errw, "Error: admin: %v\n", aerr)
+						return ExitBusinessError
+					}
+					adminCleanup = cleanup
+					defer func() {
+						if adminCleanup != nil {
+							_ = adminCleanup()
+						}
+					}()
+				}
+
 				// P11 § 3.2/3.3: Web Console HTTP + SSE.
 				var webCleanup func() error
 				webAddr := cfg.WebConsole.ListenAddr
@@ -133,8 +152,12 @@ func ServerCommand() *Command {
 				if webEnabled {
 					bannerWeb = webAddr
 				}
-				fmt.Fprintf(out, "agent-center server: db=%s listen=%s web=%s (escalator running)\n",
-					cfg.Server.SqlitePath, cfg.Server.ListenAddr, bannerWeb)
+				bannerAdmin := "disabled"
+				if cfg.Server.AdminSocketPath != "" {
+					bannerAdmin = cfg.Server.AdminSocketPath
+				}
+				fmt.Fprintf(out, "agent-center server: db=%s listen=%s web=%s admin=%s (escalator running)\n",
+					cfg.Server.SqlitePath, cfg.Server.ListenAddr, bannerWeb, bannerAdmin)
 				// Wait for SIGINT / SIGTERM.
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
