@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { useRespondInputRequest } from '@/api/inputRequests';
 import type { InputRequest } from '@/api/types';
+import { useModalA11y } from './useModalA11y';
 
 interface Props {
   open: boolean;
@@ -20,17 +21,17 @@ export function RespondInputRequestModal({
 }: Props): React.ReactElement | null {
   const [answer, setAnswer] = useState('');
   const respond = useRespondInputRequest();
+  const close = () => {
+    setAnswer('');
+    onClose();
+  };
+  const containerRef = useModalA11y({ open, onClose: close });
   if (!open || !ir) return null;
 
   // Defensive typing: read the optional field through a structural cast
   // rather than extending the InputRequest interface upstream. Today's
   // backend doesn't emit it; the UI is forward-compatible.
   const suggested = (ir as { suggested_response?: string }).suggested_response;
-
-  const close = () => {
-    setAnswer('');
-    onClose();
-  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +46,7 @@ export function RespondInputRequestModal({
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4"
       role="dialog"
       aria-modal="true"

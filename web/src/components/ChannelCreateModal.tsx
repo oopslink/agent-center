@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useCreateConversation } from '@/api/conversations';
+import { useModalA11y } from './useModalA11y';
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ export function ChannelCreateModal({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const create = useCreateConversation();
+  const containerRef = useModalA11y({ open, onClose });
   if (!open) return null;
 
   const submit = async (e: React.FormEvent) => {
@@ -38,6 +40,7 @@ export function ChannelCreateModal({
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/40 p-4"
       role="dialog"
       aria-modal="true"

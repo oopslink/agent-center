@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDeriveIssue, useDeriveTask } from '@/api/derive';
 import { useProjects } from '@/api/projects';
+import { useModalA11y } from './useModalA11y';
 
 export type DeriveKind = 'issue' | 'task';
 
@@ -39,19 +40,19 @@ export function DeriveModal({
   const mut = kind === 'issue' ? deriveIssue : deriveTask;
   const projects = useProjects();
 
-  if (!open) return null;
-
-  const reset = () => {
-    setTitle('');
-    setDescription('');
-    setProjectId('');
-    setCreatedId(null);
-  };
-
   const handleClose = () => {
     reset();
     onClose();
   };
+  const containerRef = useModalA11y({ open, onClose: handleClose });
+  if (!open) return null;
+
+  function reset() {
+    setTitle('');
+    setDescription('');
+    setProjectId('');
+    setCreatedId(null);
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +80,7 @@ export function DeriveModal({
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4"
       role="dialog"
       aria-modal="true"

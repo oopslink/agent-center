@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { useCreateSecret } from '@/api/secrets';
 import type { SecretKind } from '@/api/types';
+import { useModalA11y } from './useModalA11y';
 
 interface Props {
   open: boolean;
@@ -29,21 +30,21 @@ export function SecretCreateModal({
   const [value, setValue] = useState('');
   const [createdName, setCreatedName] = useState<string | null>(null);
   const create = useCreateSecret();
-  if (!open) return null;
-
-  const reset = () => {
-    setName('');
-    setKind('other');
-    setValue('');
-    setCreatedName(null);
-  };
-
   const handleClose = () => {
     // Defensive: clear value even on cancel so memory snapshot is clean.
     setValue('');
     reset();
     onClose();
   };
+  const containerRef = useModalA11y({ open, onClose: handleClose });
+  if (!open) return null;
+
+  function reset() {
+    setName('');
+    setKind('other');
+    setValue('');
+    setCreatedName(null);
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +65,7 @@ export function SecretCreateModal({
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4"
       role="dialog"
       aria-modal="true"
