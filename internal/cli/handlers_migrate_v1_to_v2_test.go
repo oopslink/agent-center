@@ -3,13 +3,58 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/persistence"
 )
+
+// TestTargetSchemaVersion_TracksLatestMigration guards against the
+// drift scenario where a future migration (e.g. 0027) lands but the
+// migrate v1-to-v2 tool's targetSchemaVersion constant is forgotten.
+// The audit Bug found: nothing today fails if those drift, so the
+// tool would silently leave installs mid-version. This test scans the
+// embedded migrations FS for the highest NNNN_*.up.sql file and
+// asserts it matches the constant.
+func TestTargetSchemaVersion_TracksLatestMigration(t *testing.T) {
+	entries, err := fs.ReadDir(persistence.MigrationsFS, "migrations")
+	if err != nil {
+		t.Fatalf("read migrations fs: %v", err)
+	}
+	highest := 0
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".up.sql") {
+			continue
+		}
+		// File names are NNNN_<slug>.up.sql per parseMigrationName.
+		i := strings.IndexByte(name, '_')
+		if i < 0 {
+			continue
+		}
+		n, err := strconv.Atoi(name[:i])
+		if err != nil {
+			continue
+		}
+		if n > highest {
+			highest = n
+		}
+	}
+	if highest == 0 {
+		t.Fatal("scanned 0 migrations; embed broken?")
+	}
+	if targetSchemaVersion != highest {
+		t.Fatalf("targetSchemaVersion drift: const=%d highest migration=%d. "+
+			"Bump the const in internal/cli/handlers_migrate_v1_to_v2.go "+
+			"when adding a new migration so v1-to-v2 carries fresh installs "+
+			"to the latest schema.",
+			targetSchemaVersion, highest)
+	}
+}
 
 // helper: write a config that points at a fresh sqlite at dbPath.
 func writeMigrateCfg(t *testing.T, cfgPath, dbPath string) {
