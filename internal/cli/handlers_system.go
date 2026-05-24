@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/cognition/scheduler"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability/escalator"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -95,6 +96,39 @@ func ServerCommand() *Command {
 				if err != nil {
 					fmt.Fprintf(errw, "Error: app_bootstrap: %v\n", err)
 					return ExitBusinessError
+				}
+
+				// v2.2-A4: wire real SupervisorSpawner (was nil in v2.0 GA;
+				// supervisor retrigger / cron / etc. would silently no-op
+				// in production). Use ExecProcessRunner so subprocess
+				// `agent-center supervisor ...` actually forks+execs.
+				if app.SupervisorSpawner == nil {
+					exe, exErr := os.Executable()
+					if exErr != nil {
+						exe = "agent-center" // PATH fallback
+					}
+					sp, sperr := scheduler.NewSpawner(
+						scheduler.SpawnerConfig{
+							Binary: exe,
+							EnvAllowList: []string{
+								"PATH", "HOME", "USER", "LOGNAME",
+								"LANG", "LC_ALL", "TZ",
+							},
+						},
+						scheduler.SpawnerDeps{
+							DB:    db,
+							Repo:  app.InvocationRepo,
+							Sink:  app.Sink,
+							Clock: app.Clock,
+							IDGen: app.IDGen,
+						},
+						nil, // default ExecProcessRunner
+					)
+					if sperr != nil {
+						fmt.Fprintf(errw, "Error: spawner: %v\n", sperr)
+						return ExitBusinessError
+					}
+					app.SetSupervisorSpawner(sp)
 				}
 				esc := escalator.NewService(app.EventRepo, app.Sink, app.Clock, escalator.Config{
 					Interval:  1 * time.Hour,
