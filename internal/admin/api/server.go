@@ -260,6 +260,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/observability/stats/aggregate", s.statsAggregateHandler)
 	s.mux.HandleFunc("GET /admin/observability/logs/open", s.logsOpenHandler)
 
+	// --- admin token (v2.3-3a task #28) ----------------------------------
+	s.mux.HandleFunc("POST /admin/admintoken/create", s.admintokenCreateHandler)
+	s.mux.HandleFunc("GET /admin/admintoken/list", s.admintokenListHandler)
+	s.mux.HandleFunc("POST /admin/admintoken/revoke", s.admintokenRevokeHandler)
+
 	// --- dispatch queue (v2.2-A3 — worker daemon drains via these) ------
 	s.mux.HandleFunc("GET /admin/dispatch/queue/pull", s.dispatchQueuePullHandler)
 	s.mux.HandleFunc("GET /admin/dispatch/queue/peek", s.queuePeekHandler)

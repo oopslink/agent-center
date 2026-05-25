@@ -8,6 +8,9 @@ import (
 	"io"
 
 	"github.com/oopslink/agent-center/internal/admin/dispatchq"
+	"github.com/oopslink/agent-center/internal/admintoken"
+	admintokensqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
+	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/cognition"
@@ -101,6 +104,12 @@ type App struct {
 	// SecretManagement (P11 § 3.7b)
 	UserSecretRepo secretmgmt.UserSecretRepository
 	UserSecretSvc  *secretservice.UserSecretService
+
+	// AdminToken (v2.3-3a task #28) — bearer tokens that gate the admin
+	// endpoint. Server mode wires both fields; CLI mode (NewClientApp)
+	// leaves them nil — the CLI talks to a server that already has them.
+	AdminTokenRepo admintoken.Repository
+	AdminTokenSvc  *admintokensvc.Service
 
 	// TaskRuntime
 	TaskRepo         task.Repository
@@ -282,6 +291,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// configured. Without master key the CLI handlers refuse with
 	// ExitNotImplemented (handler-side gate).
 	userSecretRepo := secretsqlite.NewUserSecretRepo(db)
+	// v2.3-3a (task #28): AdminToken repo + service always wired in server
+	// mode. The bootstrap token writer (admin_bootstrap.go) lives at the
+	// server-boot site and writes a fresh `*` token to disk when the table
+	// is empty, so the operator can issue scoped tokens via the CLI.
+	adminTokenRepo := admintokensqlite.New(db)
+	adminTokenSvc := admintokensvc.New(adminTokenRepo, gen, clk)
 	var userSecretSvc *secretservice.UserSecretService
 	if cfg.SecretManagement.MasterKeyFile != "" {
 		mk, err := secretmgmt.LoadMasterKey(cfg.SecretManagement.MasterKeyFile, cfg.SecretManagement.SkipPermsCheck)
@@ -330,6 +345,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 
 		UserSecretRepo: userSecretRepo,
 		UserSecretSvc:  userSecretSvc,
+
+		AdminTokenRepo: adminTokenRepo,
+		AdminTokenSvc:  adminTokenSvc,
 		TaskRepo:        taskRepo,
 		ExecRepo:        execRepo,
 		IRRepo:          irRepo,

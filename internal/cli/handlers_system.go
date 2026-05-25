@@ -139,6 +139,27 @@ func ServerCommand() *Command {
 					fmt.Fprintf(errw, "[server] escalator: %v\n", err)
 				})
 
+				// v2.3-3a (task #28): ensure the admin endpoint has at
+				// least one valid bearer token. EnsureBootstrapToken is
+				// a no-op when admin_tokens is non-empty; on a fresh
+				// deploy it mints a system superuser token + writes
+				// plaintext to <sqlite_dir>/bootstrap_token (0600).
+				//
+				// We pass context.Background() instead of the boot
+				// context because bootstrap is an atomic schema-level
+				// operation: a canceled ctx (e.g. SIGINT during tests
+				// that exercise the cancel path) would mean we shut
+				// down without writing the token — but the admin
+				// endpoint never starts in that case either, so the
+				// missing token is irrelevant. Decoupling avoids
+				// spurious admin_bootstrap errors during cancellation.
+				if berr := EnsureBootstrapToken(context.Background(), app, "", func(msg string) {
+					fmt.Fprintf(out, "[server] %s\n", msg)
+				}); berr != nil {
+					fmt.Fprintf(errw, "Error: admin_bootstrap: %v\n", berr)
+					return ExitBusinessError
+				}
+
 				// v2.2-A2: admin endpoint (unix socket) — AppService
 				// transport for in-process tools per conventions § 0.4.
 				// Full 93-route surface populated from cli.App via

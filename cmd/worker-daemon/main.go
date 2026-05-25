@@ -53,6 +53,8 @@ func main() {
 		fakeAgent    = flag.String("fake-agent", "", "override path for the 'fakeagent' agent_cli (e2e tests)")
 		pollInterval = flag.Duration("poll-interval", 1*time.Second, "queue poll interval")
 		capsFlag     = flag.String("capabilities", "", "comma-separated capability list")
+		adminToken   = flag.String("admin-token", "",
+			"admin bearer token (required by v2.3-3a auth); falls back to AGENT_CENTER_ADMIN_TOKEN env")
 	)
 	flag.Parse()
 
@@ -74,8 +76,17 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Build AdminClient.
-	client := workerdaemon.NewAdminClient(sock, 30*time.Second)
+	// Build AdminClient. v2.3-3a (task #28): admin endpoint requires a
+	// bearer token on every request. Resolution order: --admin-token
+	// flag, then AGENT_CENTER_ADMIN_TOKEN env. An empty token is
+	// permitted at construct-time so existing operator scripts that
+	// inject the token via a wrapper continue to work — the server
+	// will 401 if no header reaches it.
+	token := strings.TrimSpace(*adminToken)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("AGENT_CENTER_ADMIN_TOKEN"))
+	}
+	client := workerdaemon.NewAdminClient(sock, 30*time.Second).WithToken(token)
 	logger := func(msg string) { fmt.Fprintf(os.Stderr, "[worker] %s\n", msg) }
 
 	// Build Runtime config.

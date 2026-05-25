@@ -36,6 +36,11 @@ import (
 type AdminClient struct {
 	socketPath string
 	httpc      *http.Client
+	// token is the bearer attached to every request via
+	// `Authorization: Bearer <token>`. Wired by cmd/worker-daemon via
+	// WithToken; v2.3-3a (task #28) requires it on every non-public
+	// endpoint.
+	token string
 }
 
 // NewAdminClient constructs a client targeting the given unix socket.
@@ -64,6 +69,16 @@ func NewAdminClient(socketPath string, timeout time.Duration) *AdminClient {
 
 // SocketPath returns the configured socket path (for logging/diagnostics).
 func (c *AdminClient) SocketPath() string { return c.socketPath }
+
+// WithToken sets the bearer token attached to every request. Returns
+// the receiver to allow chaining at construction sites.
+func (c *AdminClient) WithToken(t string) *AdminClient {
+	if c == nil {
+		return c
+	}
+	c.token = strings.TrimSpace(t)
+	return c
+}
 
 // Enroll POSTs to /admin/workforce/worker/enroll. The center's
 // WorkerEnrollService is idempotent on worker_id — re-calling Enroll
@@ -225,6 +240,12 @@ func (c *AdminClient) doJSON(ctx context.Context, method, path string, body any,
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
+	if c.token != "" {
+		// v2.3-3a (task #28): admin endpoint requires bearer auth on
+		// every non-public path. cmd/worker-daemon plumbs the token
+		// from --admin-token / AGENT_CENTER_ADMIN_TOKEN.
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 	resp, err := c.httpc.Do(req)
 	if err != nil {
 		return fmt.Errorf("adminclient: do %s %s: %w", method, path, err)

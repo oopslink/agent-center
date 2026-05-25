@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convidentity "github.com/oopslink/agent-center/internal/conversation/identity"
@@ -46,7 +47,8 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
 		errors.Is(err, discussion.ErrIssueNotFound),
 		errors.Is(err, cognition.ErrInvocationNotFound),
-		errors.Is(err, cognition.ErrDecisionNotFound):
+		errors.Is(err, cognition.ErrDecisionNotFound),
+		errors.Is(err, admintoken.ErrTokenNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 
 	// ---- already_exists (409) -------------------------------------------

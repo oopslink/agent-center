@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/cognition"
 	cogdec "github.com/oopslink/agent-center/internal/cognition/decision"
@@ -86,6 +87,13 @@ type HandlerDeps struct {
 	// SecretManagement BC
 	UserSecretRepo secretmgmt.UserSecretRepository
 	UserSecretSvc  *secretservice.UserSecretService
+
+	// AdminToken BC (v2.3-3a task #28) — drives the
+	// /admin/admintoken/{create,list,revoke} surface used by the admin
+	// CLI. The middleware Verifier is the SAME *Service; we wire it as
+	// a concrete pointer here so handlers can reach FindAll / Create /
+	// Revoke too (the Verifier interface only exposes verify/mark).
+	AdminTokenSvc *admintokensvc.Service
 
 	// Identity (subdomain of Conversation BC)
 	IdentityRepo         convidentity.IdentityRepository

@@ -299,10 +299,63 @@ func (l *lazyApp) build() (*App, error) {
 	// `agent-center server`.
 	if sock := cfg.Server.AdminSocketPath; sock != "" {
 		if _, statErr := os.Stat(sock); statErr == nil {
-			app.Client = NewClient(sock, 0)
+			app.Client = NewClient(sock, 0).WithToken(resolveAdminToken(cfg.Server.SqlitePath))
 		}
 	}
 	return app, nil
+}
+
+// resolveAdminToken picks the admin bearer for CLI requests. Resolution
+// order (v2.3-3a task #28):
+//
+//  1. env AGENT_CENTER_ADMIN_TOKEN — convenient for scripting + tests.
+//  2. ~/.agent-center/admin_token — operator's personal token file.
+//  3. <sqlite_dir>/bootstrap_token — the file written by
+//     EnsureBootstrapToken on the same host. This is the fallback that
+//     lets a freshly-deployed single-host install run CLI commands
+//     immediately after `agent-center server`.
+//
+// Returns empty when none are set; the Client will issue requests
+// without an Authorization header. The server will then 401 — that's
+// the desired behaviour (legacy non-auth path is gone).
+func resolveAdminToken(sqlitePath string) string {
+	if v := strings.TrimSpace(os.Getenv("AGENT_CENTER_ADMIN_TOKEN")); v != "" {
+		return v
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		p := home + "/.agent-center/admin_token"
+		if b, err := os.ReadFile(p); err == nil {
+			t := strings.TrimSpace(string(b))
+			if t != "" {
+				return t
+			}
+		}
+	}
+	// Fallback to the bootstrap_token written by EnsureBootstrapToken
+	// next to the SQLite file. This is the "happy path" for the v2.3
+	// single-host deploy where the same uid runs server + CLI.
+	if strings.TrimSpace(sqlitePath) != "" {
+		p := pathDir(sqlitePath) + "/" + BootstrapTokenFilename
+		if b, err := os.ReadFile(p); err == nil {
+			t := strings.TrimSpace(string(b))
+			if t != "" {
+				return t
+			}
+		}
+	}
+	return ""
+}
+
+// pathDir is filepath.Dir with no need to import the package at this
+// site (build.go already has plenty of imports). Mirrors the stdlib
+// semantics on the platforms we care about.
+func pathDir(p string) string {
+	for i := len(p) - 1; i >= 0; i-- {
+		if p[i] == '/' {
+			return p[:i]
+		}
+	}
+	return "."
 }
 
 // buildClientOnly is the post-migration (target) form of build(): no DB
@@ -575,13 +628,26 @@ func (l *lazyApp) identityCommands() []*Command {
 
 func (l *lazyApp) adminCommands() []*Command {
 	names := []string{"backup"}
-	out := make([]*Command, 0, len(names))
+	out := make([]*Command, 0, len(names)+1)
 	for _, n := range names {
 		n := n
 		out = append(out, l.withApp(func(a *App) *Command {
 			return findCmd(a.AdminCommands(), n)
 		}))
 	}
+	// v2.3-3a (task #28): `admin token` group with create/list/revoke
+	// subcommands. Each subcommand goes through the lazyApp + Client
+	// pipeline so the bearer (from env / file in build()) is attached.
+	tokenGroup := &Command{Name: "token", Summary: "Admin bearer tokens for the admin endpoint"}
+	for _, sub := range []string{"create", "list", "revoke"} {
+		s := sub
+		tokenGroup.Subcommands = append(tokenGroup.Subcommands,
+			l.withApp(func(a *App) *Command {
+				return findCmd(findCmd(a.AdminCommands(), "token").Subcommands, s)
+			}),
+		)
+	}
+	out = append(out, tokenGroup)
 	return out
 }
 

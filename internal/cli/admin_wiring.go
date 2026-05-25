@@ -28,8 +28,10 @@ func runAdminEndpoint(ctx context.Context, app *App, socketPath string, logger f
 		Queue: app.DispatchQueue,
 	})
 	// Wrap the inner mux with deps middleware (parallel to
-	// webconsole_wiring.go pattern).
-	srv.SetHandler(api.WithDeps(deps)(srv.Handler()))
+	// webconsole_wiring.go pattern), then layer auth on top so every
+	// non-public request must carry a valid bearer (v2.3-3a task #28).
+	srv.SetHandler(api.AuthMiddleware(app.AdminTokenSvc)(
+		api.WithDeps(deps)(srv.Handler())))
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger("admin: " + err.Error())
@@ -94,6 +96,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// SecretManagement BC
 		UserSecretRepo: a.UserSecretRepo,
 		UserSecretSvc:  a.UserSecretSvc,
+
+		// AdminToken BC (v2.3-3a task #28)
+		AdminTokenSvc: a.AdminTokenSvc,
 
 		// Identity (Conversation subdomain)
 		IdentityRepo:         a.IdentityRepo,

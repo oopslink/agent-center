@@ -20,8 +20,8 @@ import (
 // Per P12 S12 audit (docs/plans/phase-12-audits/s12-migration-tool-audit.md):
 //   - --dry-run reports planned ops (bridge row counts; current vs target version)
 //   - --apply runs them: bridge tables → JSON archive → drop via 0025 → Up to
-//     targetSchemaVersion (currently 27 — v2.0 GA was 25, v2.1-C added 0026,
-//     v2.1-E added 0027)
+//     targetSchemaVersion (currently 28 — v2.0 GA was 25, v2.1-C added 0026,
+//     v2.1-E added 0027, v2.3-3a added 0028 admin_tokens)
 //   - Idempotent: if already at v2 (currentVer >= targetSchemaVersion), exits 0
 //     with "already at v2"
 //   - Refuses to run silently — neither flag → usage error
@@ -73,10 +73,11 @@ func MigrateV1ToV2Command() *Command {
 
 // targetSchemaVersion tracks the highest applied migration version
 // for the currently-shipped v2.x line. v2.0 GA was 25; v2.1 added
-// 0026 (user_conversation_read_state). Update this constant when any
+// 0026 (user_conversation_read_state); v2.1-E added 0027;
+// v2.3-3a added 0028 (admin_tokens). Update this constant when any
 // future migration lands so `migrate v1-to-v2` always carries the
 // install to the latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 27
+const targetSchemaVersion = 28
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -50,6 +50,11 @@ import (
 type Client struct {
 	socketPath string
 	httpc      *http.Client
+	// token is the bearer attached to every request via the
+	// `Authorization: Bearer <token>` header. Populated via WithToken
+	// (or left empty for tests that pre-date v2.3-3a auth; production
+	// build() pulls from env / bootstrap file).
+	token string
 }
 
 // NewClient returns a Client targeting the given unix socket path.
@@ -81,6 +86,27 @@ func (c *Client) SocketPath() string {
 		return ""
 	}
 	return c.socketPath
+}
+
+// WithToken sets the bearer token attached to every subsequent request.
+// Returns the receiver to allow chaining at construction sites.
+//
+// Empty strings clear the token (so tests can deliberately exercise the
+// unauthenticated path).
+func (c *Client) WithToken(t string) *Client {
+	if c == nil {
+		return c
+	}
+	c.token = strings.TrimSpace(t)
+	return c
+}
+
+// Token exposes the configured bearer (for diagnostics / tests).
+func (c *Client) Token() string {
+	if c == nil {
+		return ""
+	}
+	return c.token
 }
 
 // ErrClientNotConfigured is returned from Client methods when the
@@ -179,6 +205,12 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
+	if c.token != "" {
+		// v2.3-3a (task #28): admin endpoint requires bearer auth.
+		// Tokens carry an `acat_` prefix so the server can recognise
+		// them in logs / grep without inspecting the raw bytes.
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 	resp, err := c.httpc.Do(req)
 	if err != nil {
 		// Translate dial/connect errors into ErrServerUnreachable so

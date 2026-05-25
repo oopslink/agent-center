@@ -22,7 +22,7 @@
 import { test, expect } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -37,24 +37,23 @@ const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center-worker-daemon");
 const FAKEAGENT_BIN = resolve(REPO_ROOT, "bin/fakeagent");
 
 // adminPOST issues an HTTP POST over the admin unix socket and resolves
-// to {status, body} or rejects on transport error.
+// to {status, body} or rejects on transport error. v2.3-3a (task #28):
+// requires a bearer token — pass it via the `token` argument.
 function adminPOST(
   socketPath: string,
   path: string,
   body: unknown,
+  token: string,
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolveP, rejectP) => {
     const data = body == null ? "" : JSON.stringify(body);
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(data).toString(),
+    };
+    if (token) headers["Authorization"] = "Bearer " + token;
     const req = http.request(
-      {
-        socketPath,
-        method: "POST",
-        path,
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(data).toString(),
-        },
-      },
+      { socketPath, method: "POST", path, headers },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (c) => chunks.push(c));
@@ -72,14 +71,18 @@ function adminPOST(
   });
 }
 
-// adminGET issues an HTTP GET over the admin unix socket.
+// adminGET issues an HTTP GET over the admin unix socket. v2.3-3a:
+// requires a bearer token.
 function adminGET(
   socketPath: string,
   path: string,
+  token: string,
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolveP, rejectP) => {
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = "Bearer " + token;
     const req = http.request(
-      { socketPath, method: "GET", path },
+      { socketPath, method: "GET", path, headers },
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (c) => chunks.push(c));
@@ -94,6 +97,32 @@ function adminGET(
     req.on("error", rejectP);
     req.end();
   });
+}
+
+// readBootstrapToken waits up to deadlineMs for the server-side
+// EnsureBootstrapToken to write <sqlite_dir>/bootstrap_token and
+// returns the trimmed plaintext. Throws on timeout.
+async function readBootstrapToken(
+  bootstrapPath: string,
+  deadlineMs: number,
+): Promise<string> {
+  const deadline = Date.now() + deadlineMs;
+  let lastErr: unknown = null;
+  while (Date.now() < deadline) {
+    try {
+      const buf = await readFile(bootstrapPath, "utf8");
+      const tok = buf.trim();
+      if (tok) return tok;
+    } catch (err) {
+      lastErr = err;
+    }
+    await sleep(75);
+  }
+  throw new Error(
+    `bootstrap_token not written to ${bootstrapPath} within ${deadlineMs}ms (last err=${String(
+      lastErr,
+    )})`,
+  );
 }
 
 // sleep is a tiny polling helper.
@@ -202,28 +231,41 @@ identity:
         );
       }
 
+      // --- read bootstrap token written by the server -----------------------
+      // v2.3-3a (task #28): the server mints a `*` token + writes the
+      // plaintext to <sqlite_dir>/bootstrap_token at boot. We use it as
+      // the smoke pipeline's bearer.
+      const bootstrapPath = join(tempDir, "bootstrap_token");
+      const adminToken = await readBootstrapToken(bootstrapPath, 5_000);
+
       // --- seed via admin endpoint: project + task --------------------------
       // project add
       const pid = "p-v22d";
-      let r = await adminPOST(sockPath, "/admin/workforce/project/add", {
-        id: pid,
-        name: "v22d-test",
-        kind: "coding",
-      });
+      let r = await adminPOST(
+        sockPath,
+        "/admin/workforce/project/add",
+        { id: pid, name: "v22d-test", kind: "coding" },
+        adminToken,
+      );
       expect(r.status, "project add: " + r.body).toBe(200);
 
       // task create — with_conversation=true so ReportProgress doesn't
       // silently no-op per ADR-0017 (Phase D gap #2: TaskService.Create
       // already supports WithConversation; we exercise it here).
-      r = await adminPOST(sockPath, "/admin/taskruntime/task/create", {
-        project_id: pid,
-        title: "v22d task",
-        description: "fakeagent-script: " + scriptPath,
-        priority: "medium",
-        requires_worktree: false,
-        with_conversation: true,
-        conversation_title: "v22d conv",
-      });
+      r = await adminPOST(
+        sockPath,
+        "/admin/taskruntime/task/create",
+        {
+          project_id: pid,
+          title: "v22d task",
+          description: "fakeagent-script: " + scriptPath,
+          priority: "medium",
+          requires_worktree: false,
+          with_conversation: true,
+          conversation_title: "v22d conv",
+        },
+        adminToken,
+      );
       expect(r.status, "task create: " + r.body).toBe(200);
       const created = JSON.parse(r.body) as {
         task_id: string;
@@ -244,6 +286,8 @@ identity:
           FAKEAGENT_BIN,
           "--poll-interval",
           "200ms",
+          "--admin-token",
+          adminToken,
         ],
         {
           stdio: ["ignore", "pipe", "pipe"],
@@ -268,12 +312,17 @@ identity:
       // --- dispatch the task to the worker ---------------------------------
       // v1 dispatch path (worker_id + agent_cli explicit); the
       // AgentResolver wiring is exercised separately by unit tests.
-      r = await adminPOST(sockPath, "/admin/taskruntime/dispatch/dispatch", {
-        task_id: created.task_id,
-        worker_id: "test-w-1",
-        agent_cli: "fakeagent",
-        base_branch: "main",
-      });
+      r = await adminPOST(
+        sockPath,
+        "/admin/taskruntime/dispatch/dispatch",
+        {
+          task_id: created.task_id,
+          worker_id: "test-w-1",
+          agent_cli: "fakeagent",
+          base_branch: "main",
+        },
+        adminToken,
+      );
       expect(r.status, "dispatch: " + r.body).toBe(200);
       const disp = JSON.parse(r.body) as { execution_id: string };
       expect(disp.execution_id).toBeTruthy();
@@ -286,6 +335,7 @@ identity:
         const er = await adminGET(
           sockPath,
           "/admin/taskruntime/exec/find-by-id?id=" + disp.execution_id,
+          adminToken,
         );
         if (er.status === 200) {
           const e = JSON.parse(er.body) as { status: string };
@@ -297,6 +347,7 @@ identity:
         const tr = await adminGET(
           sockPath,
           "/admin/taskruntime/task/find-by-id?id=" + created.task_id,
+          adminToken,
         );
         if (tr.status === 200) {
           lastTaskStatus = (JSON.parse(tr.body) as { status: string }).status;
@@ -308,6 +359,7 @@ identity:
       const tr = await adminGET(
         sockPath,
         "/admin/taskruntime/task/find-by-id?id=" + created.task_id,
+        adminToken,
       );
       expect(tr.status).toBe(200);
       lastTaskStatus = (JSON.parse(tr.body) as { status: string }).status;

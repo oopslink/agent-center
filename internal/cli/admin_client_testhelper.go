@@ -32,6 +32,8 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/api"
+	"github.com/oopslink/agent-center/internal/admintoken"
+	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -70,18 +72,40 @@ func setupAdminServerForTests(t *testing.T) (*App, func()) {
 
 	sock := testShortSocketPath(t, "admin.sock")
 	srv := api.NewServerWithDeps(sock, api.ServerDeps{Queue: app.DispatchQueue})
-	srv.SetHandler(api.WithDeps(adminDepsFromApp(app))(srv.Handler()))
+	// v2.3-3a (task #28): mint a test bearer with `*` scope so all
+	// endpoints pass auth + scope checks, then wrap the mux with the
+	// same AuthMiddleware production uses. Tests that want to
+	// exercise the unauthenticated / unscoped paths can clear the
+	// Client token via app.Client.WithToken("") or construct their
+	// own request.
+	res, terr := app.AdminTokenSvc.Create(context.Background(), admintokensvc.CreateCommand{
+		Owner:     "system:test",
+		Scopes:    []admintoken.Scope{"*"},
+		CreatedBy: "test",
+	})
+	if terr != nil {
+		_ = db.Close()
+		t.Fatalf("setupAdminServerForTests: mint test token: %v", terr)
+	}
+	srv.SetHandler(api.AuthMiddleware(app.AdminTokenSvc)(
+		api.WithDeps(adminDepsFromApp(app))(srv.Handler())))
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
 	waitForUnixSocket(t, sock, errCh, 2*time.Second)
 
-	app.Client = NewClient(sock, 5*time.Second)
+	app.Client = NewClient(sock, 5*time.Second).WithToken(res.Plaintext)
 
 	cleanup := func() {
 		shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutCtx)
+		// v2.3-3a (task #28): stop the AdminToken bookkeeping pump
+		// BEFORE closing the DB to avoid a goroutine racing with the
+		// torn-down sql.DB handle on the next test.
+		if app.AdminTokenSvc != nil {
+			app.AdminTokenSvc.Close()
+		}
 		_ = db.Close()
 	}
 	return app, cleanup
