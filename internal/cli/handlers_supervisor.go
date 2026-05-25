@@ -73,53 +73,106 @@ func (a *App) SupervisorRetriggerCommand() *Command {
 				if len(args) < 1 {
 					return PrintError(errw, *format, "usage_error", "usage: supervisor retrigger <invocation_id>", ExitUsage)
 				}
-				id := cognition.InvocationID(args[0])
-				prev, err := a.InvocationRepo.FindByID(ctx, id)
-				if err != nil {
-					if errors.Is(err, cognition.ErrInvocationNotFound) {
-						return PrintError(errw, *format, "invocation_not_found",
-							fmt.Sprintf("invocation %q not found", id), ExitNotFound)
+				id := args[0]
+				// Look up previous invocation (status + scope + triggers).
+				var prevScopeKind, prevScopeKey, prevStatus string
+				var prevTriggers []string
+				if a.Client != nil {
+					inv, err := a.Client.InvocationFindByID(ctx, id)
+					if err != nil {
+						if ce := new(ClientError); errors.As(err, &ce) && ce.IsNotFound() {
+							return PrintError(errw, *format, "invocation_not_found",
+								fmt.Sprintf("invocation %q not found", id), ExitNotFound)
+						}
+						return HandleClientError(errw, *format, err)
 					}
-					return PrintError(errw, *format, "internal_error", err.Error(), ExitBusinessError)
+					prevScopeKind, prevScopeKey, prevStatus = inv.ScopeKind, inv.ScopeKey, inv.Status
+					prevTriggers = inv.TriggerEventIDs
+				} else {
+					prev, err := a.InvocationRepo.FindByID(ctx, cognition.InvocationID(id))
+					if err != nil {
+						if errors.Is(err, cognition.ErrInvocationNotFound) {
+							return PrintError(errw, *format, "invocation_not_found",
+								fmt.Sprintf("invocation %q not found", id), ExitNotFound)
+						}
+						return PrintError(errw, *format, "internal_error", err.Error(), ExitBusinessError)
+					}
+					prevScopeKind = string(prev.Scope().Kind())
+					prevScopeKey = prev.Scope().Key()
+					prevStatus = string(prev.Status())
+					triggers := prev.TriggerEvents().IDs()
+					prevTriggers = make([]string, len(triggers))
+					for i, e := range triggers {
+						prevTriggers[i] = string(e)
+					}
 				}
-				if prev.Status() != cognition.StatusFailed && prev.Status() != cognition.StatusTimedOut {
+				if prevStatus != string(cognition.StatusFailed) && prevStatus != string(cognition.StatusTimedOut) {
 					return PrintError(errw, *format, "invalid_status",
-						"only failed/timed_out invocations can be retriggered; got "+prev.Status().String(),
+						"only failed/timed_out invocations can be retriggered; got "+prevStatus,
 						ExitInvalidTransition)
 				}
-				if a.SupervisorSpawner == nil {
-					return PrintError(errw, *format, "spawner_not_wired",
-						"supervisor spawner not wired in this CLI (server-only path)", ExitNotImplemented)
-				}
-				newID, err := a.SupervisorSpawner.Spawn(ctx, scheduler.InvocationRequest{
-					Scope:         prev.Scope(),
-					TriggerEvents: prev.TriggerEvents(),
-				})
-				if err != nil {
-					return PrintError(errw, *format, "spawn_failed", err.Error(), ExitBusinessError)
-				}
-				// emit supervisor.retriggered
-				if a.Sink != nil {
-					_ = persistence.RunInTx(ctx, a.DB, func(txCtx context.Context) error {
-						_, e := a.Sink.Emit(txCtx, observability.EmitCommand{
-							EventType: "supervisor.retriggered",
-							Refs:      refsForScope(prev.Scope()),
-							Actor:     a.DefaultActor(),
-							Payload: map[string]any{
-								"prev_invocation_id": string(id),
-								"new_invocation_id":  string(newID),
-								"scope_kind":         string(prev.Scope().Kind()),
-								"scope_key":          prev.Scope().Key(),
-								"operator":           string(a.DefaultActor()),
-							},
-						})
-						return e
+				var newID string
+				if a.Client != nil {
+					res, cerr := a.Client.SupervisorSpawn(ctx, SupervisorSpawnRequest{
+						ScopeKind:     prevScopeKind,
+						ScopeKey:      prevScopeKey,
+						TriggerEvents: prevTriggers,
 					})
+					if cerr != nil {
+						return HandleClientError(errw, *format, cerr)
+					}
+					newID = res.InvocationID
+				} else {
+					if a.SupervisorSpawner == nil {
+						return PrintError(errw, *format, "spawner_not_wired",
+							"supervisor spawner not wired in this CLI (server-only path)", ExitNotImplemented)
+					}
+					scope, err := cognition.NewInvocationScope(cognition.ScopeKind(prevScopeKind), prevScopeKey)
+					if err != nil {
+						return PrintError(errw, *format, "invalid_scope", err.Error(), ExitBusinessError)
+					}
+					eids := make([]observability.EventID, 0, len(prevTriggers))
+					for _, t := range prevTriggers {
+						if t != "" {
+							eids = append(eids, observability.EventID(t))
+						}
+					}
+					triggers, err := cognition.NewTriggerEventSet(eids)
+					if err != nil {
+						return PrintError(errw, *format, "invalid_triggers", err.Error(), ExitBusinessError)
+					}
+					nid, err := a.SupervisorSpawner.Spawn(ctx, scheduler.InvocationRequest{
+						Scope:         scope,
+						TriggerEvents: triggers,
+					})
+					if err != nil {
+						return PrintError(errw, *format, "spawn_failed", err.Error(), ExitBusinessError)
+					}
+					newID = string(nid)
+					// emit supervisor.retriggered (in-process Sink only).
+					if a.Sink != nil {
+						refs := refsForScopeKindKey(prevScopeKind, prevScopeKey)
+						_ = persistence.RunInTx(ctx, a.DB, func(txCtx context.Context) error {
+							_, e := a.Sink.Emit(txCtx, observability.EmitCommand{
+								EventType: "supervisor.retriggered",
+								Refs:      refs,
+								Actor:     a.DefaultActor(),
+								Payload: map[string]any{
+									"prev_invocation_id": id,
+									"new_invocation_id":  newID,
+									"scope_kind":         prevScopeKind,
+									"scope_key":          prevScopeKey,
+									"operator":           string(a.DefaultActor()),
+								},
+							})
+							return e
+						})
+					}
 				}
 				if *format == "json" {
 					b, _ := json.Marshal(map[string]any{
-						"prev_invocation_id": string(id),
-						"new_invocation_id":  string(newID),
+						"prev_invocation_id": id,
+						"new_invocation_id":  newID,
 					})
 					writeOut(out, string(b))
 				} else {
@@ -165,23 +218,39 @@ func (a *App) RecordDecisionCommand() *Command {
 					return PrintError(errw, *format, "rationale_required",
 						"--rationale required (cognition § 4.7)", ExitUsage)
 				}
-				actor := decision.Actor{Kind: "supervisor", ID: envInvocation, InvocationID: cognition.InvocationID(envInvocation)}
-				var did cognition.DecisionID
-				err := persistence.RunInTx(ctx, a.DB, func(txCtx context.Context) error {
-					d, rerr := a.DecisionRecorder.Record(txCtx, actor, decision.RecordRequest{
-						Kind:           cognition.DecisionNoOp,
+				var did string
+				if a.Client != nil {
+					res, cerr := a.Client.DecisionRecord(ctx, DecisionRecordRequest{
+						InvocationID:   envInvocation,
+						Kind:           string(cognition.DecisionNoOp),
 						TargetRefsJSON: targetJSON(*target),
 						Rationale:      *rationale,
-						Outcome:        cognition.OutcomeSucceeded,
+						Outcome:        string(cognition.OutcomeSucceeded),
 					})
-					did = d
-					return rerr
-				})
-				if err != nil {
-					return PrintError(errw, *format, "decision_failed", err.Error(), ExitBusinessError)
+					if cerr != nil {
+						return HandleClientError(errw, *format, cerr)
+					}
+					did = res.DecisionID
+				} else {
+					actor := decision.Actor{Kind: "supervisor", ID: envInvocation, InvocationID: cognition.InvocationID(envInvocation)}
+					var domainID cognition.DecisionID
+					err := persistence.RunInTx(ctx, a.DB, func(txCtx context.Context) error {
+						d, rerr := a.DecisionRecorder.Record(txCtx, actor, decision.RecordRequest{
+							Kind:           cognition.DecisionNoOp,
+							TargetRefsJSON: targetJSON(*target),
+							Rationale:      *rationale,
+							Outcome:        cognition.OutcomeSucceeded,
+						})
+						domainID = d
+						return rerr
+					})
+					if err != nil {
+						return PrintError(errw, *format, "decision_failed", err.Error(), ExitBusinessError)
+					}
+					did = string(domainID)
 				}
 				if *format == "json" {
-					b, _ := json.Marshal(map[string]string{"decision_id": string(did)})
+					b, _ := json.Marshal(map[string]string{"decision_id": did})
 					writeOut(out, string(b))
 				} else {
 					fmt.Fprintf(out, "recorded decision %s (kind=no_op)\n", did)
@@ -212,45 +281,70 @@ func (a *App) EscalateInputRequestCommand() *Command {
 				irID := args[0]
 				envInvocation := os.Getenv("AGENT_CENTER_INVOCATION_ID")
 				actor := decision.InferActorFromEnv(os.LookupEnv, a.Config.Identity.DefaultUser)
-				ir, err := a.IRRepo.FindByID(ctx, taskruntime.InputRequestID(irID))
-				if err != nil {
-					return PrintError(errw, *format, "input_request_not_found", err.Error(), ExitNotFound)
+				// In-process path: pre-load the IR (we never mutate it; the
+				// original handler did the same as a sanity check). With the
+				// Client there is no equivalent admin endpoint for an IR FindByID
+				// today, so we skip the check — the underlying admin event-emit
+				// path doesn't need IR existence (events are append-only).
+				if a.Client == nil {
+					if _, err := a.IRRepo.FindByID(ctx, taskruntime.InputRequestID(irID)); err != nil {
+						return PrintError(errw, *format, "input_request_not_found", err.Error(), ExitNotFound)
+					}
 				}
-				// We don't mutate IR status (cognition just emits an event +
-				// optionally writes a decision record); v1 IR doesn't carry
-				// "escalated" state — Phase 7 may extend it.
-				_ = ir
-				err = persistence.RunInTx(ctx, a.DB, func(txCtx context.Context) error {
-					if a.DecisionRecorder != nil && actor.IsSupervisor() {
+				if a.Client != nil {
+					// Supervisor escalation maps to a decision record over the
+					// admin endpoint. The corresponding event_emit is performed
+					// by the admin server-side decision recorder hook when
+					// scheduled (v2.3); v2.2 records the decision only.
+					if actor.IsSupervisor() {
 						refsJSON, _ := json.Marshal(map[string]any{
 							"input_request_id": irID,
 							"channel":          *channel,
 						})
-						if _, rerr := a.DecisionRecorder.Record(txCtx, actor, decision.RecordRequest{
-							Kind:           cognition.DecisionEscalateInputRequest,
+						_, cerr := a.Client.DecisionRecord(ctx, DecisionRecordRequest{
+							InvocationID:   envInvocation,
+							Kind:           string(cognition.DecisionEscalateInputRequest),
 							TargetRefsJSON: string(refsJSON),
 							Rationale:      *rationale,
-							Outcome:        cognition.OutcomeSucceeded,
-						}); rerr != nil {
-							return rerr
+							Outcome:        string(cognition.OutcomeSucceeded),
+						})
+						if cerr != nil {
+							return HandleClientError(errw, *format, cerr)
 						}
 					}
-					_, e := a.Sink.Emit(txCtx, observability.EmitCommand{
-						EventType:     "input_request.escalated",
-						Refs:          observability.EventRefs{InputRequestID: irID},
-						Actor:         observability.Actor(actor.ActorString()),
-						Payload:       map[string]any{
-							"input_request_id":    irID,
-							"notification_channel": *channel,
-							"reason":              "supervisor_escalation",
-							"message":             *rationale,
-						},
-						CorrelationID: envInvocation,
+				} else {
+					err := persistence.RunInTx(ctx, a.DB, func(txCtx context.Context) error {
+						if a.DecisionRecorder != nil && actor.IsSupervisor() {
+							refsJSON, _ := json.Marshal(map[string]any{
+								"input_request_id": irID,
+								"channel":          *channel,
+							})
+							if _, rerr := a.DecisionRecorder.Record(txCtx, actor, decision.RecordRequest{
+								Kind:           cognition.DecisionEscalateInputRequest,
+								TargetRefsJSON: string(refsJSON),
+								Rationale:      *rationale,
+								Outcome:        cognition.OutcomeSucceeded,
+							}); rerr != nil {
+								return rerr
+							}
+						}
+						_, e := a.Sink.Emit(txCtx, observability.EmitCommand{
+							EventType:     "input_request.escalated",
+							Refs:          observability.EventRefs{InputRequestID: irID},
+							Actor:         observability.Actor(actor.ActorString()),
+							Payload: map[string]any{
+								"input_request_id":     irID,
+								"notification_channel": *channel,
+								"reason":               "supervisor_escalation",
+								"message":              *rationale,
+							},
+							CorrelationID: envInvocation,
+						})
+						return e
 					})
-					return e
-				})
-				if err != nil {
-					return PrintError(errw, *format, "escalate_failed", err.Error(), ExitBusinessError)
+					if err != nil {
+						return PrintError(errw, *format, "escalate_failed", err.Error(), ExitBusinessError)
+					}
 				}
 				if *format == "json" {
 					writeOut(out, fmt.Sprintf(`{"input_request_id":"%s","status":"escalated"}`, irID))
@@ -293,15 +387,19 @@ func targetJSON(target string) string {
 }
 
 func refsForScope(scope cognition.InvocationScope) observability.EventRefs {
-	switch scope.Kind() {
+	return refsForScopeKindKey(string(scope.Kind()), scope.Key())
+}
+
+func refsForScopeKindKey(kind, key string) observability.EventRefs {
+	switch cognition.ScopeKind(kind) {
 	case cognition.ScopeTask:
-		return observability.EventRefs{TaskID: scope.Key()}
+		return observability.EventRefs{TaskID: key}
 	case cognition.ScopeIssue:
-		return observability.EventRefs{IssueID: scope.Key()}
+		return observability.EventRefs{IssueID: key}
 	case cognition.ScopeConversation:
-		return observability.EventRefs{ConversationID: scope.Key()}
+		return observability.EventRefs{ConversationID: key}
 	case cognition.ScopeWorker:
-		return observability.EventRefs{WorkerID: scope.Key()}
+		return observability.EventRefs{WorkerID: key}
 	}
 	return observability.EventRefs{}
 }
@@ -385,6 +483,39 @@ func runSupervisorActionTx(
 		}
 		return recordSupervisorDecisionInTx(txCtx, app, kind, refsJSON, rationale)
 	})
+}
+
+// recordSupervisorDecisionViaClient is the Client-mode counterpart to
+// recordSupervisorDecision. It posts the DecisionRecord through the
+// admin endpoint when the caller is a supervisor; no-op for user /
+// system actors.
+//
+// Note: unlike recordSupervisorDecisionInTx, this helper CANNOT share a
+// transaction with the preceding action call (they're separate HTTP
+// roundtrips). v2.2 Phase B accepts the looser atomicity because the
+// admin endpoint itself wraps each action in its own tx; the
+// DecisionRecord lands in a sibling tx milliseconds later. v2.3 will
+// re-bundle these via a server-side composite endpoint.
+func recordSupervisorDecisionViaClient(ctx context.Context, app *App, kind cognition.DecisionKind, refsJSON, rationale string) error {
+	if app == nil || app.Client == nil {
+		return nil
+	}
+	envInvocation := os.Getenv("AGENT_CENTER_INVOCATION_ID")
+	if envInvocation == "" {
+		return nil // user / system caller — no DecisionRecord required
+	}
+	actor := decision.InferActorFromEnv(os.LookupEnv, app.Config.Identity.DefaultUser)
+	if !actor.IsSupervisor() {
+		return nil
+	}
+	_, err := app.Client.DecisionRecord(ctx, DecisionRecordRequest{
+		InvocationID:   envInvocation,
+		Kind:           string(kind),
+		TargetRefsJSON: refsJSON,
+		Rationale:      rationale,
+		Outcome:        string(cognition.OutcomeSucceeded),
+	})
+	return err
 }
 
 // clockToPersistence is a no-op type alias to keep the imports tidy.

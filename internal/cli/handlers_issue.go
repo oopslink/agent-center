@@ -110,36 +110,57 @@ func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 			opener = "user:" + a.Config.Identity.DefaultUser
 		}
 		actor := a.DefaultActor()
-		var res *disservice.OpenIssueResult
-		err = runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
-			r, oerr := a.IssueLifecycleSvc.Open(txCtx, disservice.OpenIssueCommand{
+		var issueID, convID string
+		if a.Client != nil {
+			res, cerr := a.Client.IssueOpen(ctx, IssueOpenRequest{
 				ProjectID:          projectID,
 				Title:              title,
 				Description:        *description,
-				OpenedByIdentityID: opener,
-				Origin:             o,
+				OpenedBy:           opener,
+				Origin:             string(o),
 				PrimaryChannelHint: *channelHint,
-				Actor:              actor,
 			})
-			if oerr != nil {
-				return oerr
+			if cerr != nil {
+				return HandleClientError(errw, *format, cerr)
 			}
-			res = r
-			return nil
-		}, cognition.DecisionOpenIssue,
-			fmt.Sprintf(`{"project_id":%q,"title":%q}`, projectID, title),
-			*rationale)
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+			issueID, convID = res.IssueID, res.ConversationID
+			if rerr := recordSupervisorDecisionViaClient(ctx, a, cognition.DecisionOpenIssue,
+				fmt.Sprintf(`{"project_id":%q,"title":%q}`, projectID, title), *rationale); rerr != nil {
+				return HandleClientError(errw, *format, rerr)
+			}
+		} else {
+			var res *disservice.OpenIssueResult
+			derr := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+				r, oerr := a.IssueLifecycleSvc.Open(txCtx, disservice.OpenIssueCommand{
+					ProjectID:          projectID,
+					Title:              title,
+					Description:        *description,
+					OpenedByIdentityID: opener,
+					Origin:             o,
+					PrimaryChannelHint: *channelHint,
+					Actor:              actor,
+				})
+				if oerr != nil {
+					return oerr
+				}
+				res = r
+				return nil
+			}, cognition.DecisionOpenIssue,
+				fmt.Sprintf(`{"project_id":%q,"title":%q}`, projectID, title),
+				*rationale)
+			if derr != nil {
+				return HandleDomainError(errw, *format, derr)
+			}
+			issueID, convID = string(res.IssueID), string(res.ConversationID)
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{
-				"issue_id":        string(res.IssueID),
-				"conversation_id": string(res.ConversationID),
+				"issue_id":        issueID,
+				"conversation_id": convID,
 			})
 			writeOut(out, string(b))
 		} else {
-			fmt.Fprintf(out, "opened issue %s (conversation %s)\n", res.IssueID, res.ConversationID)
+			fmt.Fprintf(out, "opened issue %s (conversation %s)\n", issueID, convID)
 		}
 		return ExitOK
 	}
@@ -168,20 +189,36 @@ func (a *App) openIssueAgentHandler(fs *flag.FlagSet) Handler {
 		if err := actor.Validate(); err != nil {
 			return PrintError(errw, *format, "usage_error", err.Error(), ExitUsage)
 		}
-		res, err := a.IssueLifecycleSvc.Open(ctx, disservice.OpenIssueCommand{
-			ProjectID:          projectID,
-			Title:              title,
-			Description:        *description,
-			OpenedByIdentityID: opener,
-			Origin:             discussion.OriginAgentOpenIssue,
-			Actor:              actor,
-		})
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		var issueID, convID string
+		if a.Client != nil {
+			res, cerr := a.Client.IssueOpen(ctx, IssueOpenRequest{
+				ProjectID:   projectID,
+				Title:       title,
+				Description: *description,
+				OpenedBy:    opener,
+				Origin:      string(discussion.OriginAgentOpenIssue),
+			})
+			if cerr != nil {
+				return HandleClientError(errw, *format, cerr)
+			}
+			issueID, convID = res.IssueID, res.ConversationID
+		} else {
+			res, err := a.IssueLifecycleSvc.Open(ctx, disservice.OpenIssueCommand{
+				ProjectID:          projectID,
+				Title:              title,
+				Description:        *description,
+				OpenedByIdentityID: opener,
+				Origin:             discussion.OriginAgentOpenIssue,
+				Actor:              actor,
+			})
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			issueID, convID = string(res.IssueID), string(res.ConversationID)
 		}
 		b, _ := json.Marshal(map[string]any{
-			"issue_id":        string(res.IssueID),
-			"conversation_id": string(res.ConversationID),
+			"issue_id":        issueID,
+			"conversation_id": convID,
 		})
 		writeOut(out, string(b))
 		return ExitOK
@@ -217,32 +254,52 @@ func (a *App) issueCommentHandler(fs *flag.FlagSet) Handler {
 		if *actorFlag == "" {
 			sender = conversation.IdentityRef("user:" + a.Config.Identity.DefaultUser)
 		}
-		var res *disservice.CommentResult
-		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
-			r, cerr := a.IssueCommentSvc.Comment(txCtx, disservice.CommentInput{
-				IssueID:          discussion.IssueID(args[0]),
+		var messageID string
+		if a.Client != nil {
+			res, cerr := a.Client.IssueComment(ctx, IssueCommentRequest{
+				IssueID:          args[0],
 				Content:          *content,
-				ContentKind:      conversation.MessageContentKind(*kind),
-				SenderIdentityID: sender,
-				Direction:        conversation.MessageDirection(*direction),
-				Actor:            actor,
+				ContentKind:      *kind,
+				SenderIdentityID: string(sender),
+				Direction:        *direction,
 			})
 			if cerr != nil {
-				return cerr
+				return HandleClientError(errw, *format, cerr)
 			}
-			res = r
-			return nil
-		}, cognition.DecisionIssueComment,
-			fmt.Sprintf(`{"issue_id":%q}`, args[0]),
-			*rationale)
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+			messageID = res.MessageID
+			if rerr := recordSupervisorDecisionViaClient(ctx, a, cognition.DecisionIssueComment,
+				fmt.Sprintf(`{"issue_id":%q}`, args[0]), *rationale); rerr != nil {
+				return HandleClientError(errw, *format, rerr)
+			}
+		} else {
+			var res *disservice.CommentResult
+			err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+				r, cerr := a.IssueCommentSvc.Comment(txCtx, disservice.CommentInput{
+					IssueID:          discussion.IssueID(args[0]),
+					Content:          *content,
+					ContentKind:      conversation.MessageContentKind(*kind),
+					SenderIdentityID: sender,
+					Direction:        conversation.MessageDirection(*direction),
+					Actor:            actor,
+				})
+				if cerr != nil {
+					return cerr
+				}
+				res = r
+				return nil
+			}, cognition.DecisionIssueComment,
+				fmt.Sprintf(`{"issue_id":%q}`, args[0]),
+				*rationale)
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			messageID = string(res.MessageID)
 		}
 		if *format == "json" {
-			b, _ := json.Marshal(map[string]any{"message_id": string(res.MessageID)})
+			b, _ := json.Marshal(map[string]any{"message_id": messageID})
 			writeOut(out, string(b))
 		} else {
-			fmt.Fprintf(out, "comment added: message %s\n", res.MessageID)
+			fmt.Fprintf(out, "comment added: message %s\n", messageID)
 		}
 		return ExitOK
 	}
@@ -302,38 +359,71 @@ func (a *App) issueConcludeHandler(fs *flag.FlagSet) Handler {
 		if kind == discussion.ResolutionWithdrawn {
 			decKind = cognition.DecisionCloseIssue
 		}
-		var res *disservice.ConcludeIssueResult
-		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
-			r, cerr := a.IssueLifecycleSvc.Conclude(txCtx, disservice.ConcludeIssueCommand{
-				IssueID:     discussion.IssueID(args[0]),
-				Resolution:  discussion.Resolution{Kind: kind, Summary: *summary, Tasks: tasks},
+		var issueID string
+		var taskIDs []string
+		if a.Client != nil {
+			wireTasks := make([]IssueConcludeTaskSpec, len(tasks))
+			for i, t := range tasks {
+				wireTasks[i] = IssueConcludeTaskSpec{
+					LocalID:           t.LocalID,
+					Title:             t.Title,
+					Description:       t.Description,
+					Priority:          string(t.Priority),
+					RequiresWorktree:  t.RequiresWorktree,
+					DependsOnLocalIDs: t.DependsOnLocalIDs,
+				}
+			}
+			res, cerr := a.Client.IssueConclude(ctx, IssueConcludeRequest{
+				IssueID:     args[0],
+				Kind:        string(kind),
+				Summary:     *summary,
+				Tasks:       wireTasks,
 				ConcludedBy: concBy,
-				Actor:       a.DefaultActor(),
 			})
 			if cerr != nil {
-				return cerr
+				return HandleClientError(errw, *format, cerr)
 			}
-			res = r
-			return nil
-		}, decKind,
-			fmt.Sprintf(`{"issue_id":%q,"resolution":%q}`, args[0], kind),
-			*rationale)
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+			issueID = res.IssueID
+			taskIDs = res.TaskIDs
+			if rerr := recordSupervisorDecisionViaClient(ctx, a, decKind,
+				fmt.Sprintf(`{"issue_id":%q,"resolution":%q}`, args[0], kind), *rationale); rerr != nil {
+				return HandleClientError(errw, *format, rerr)
+			}
+		} else {
+			var res *disservice.ConcludeIssueResult
+			err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+				r, cerr := a.IssueLifecycleSvc.Conclude(txCtx, disservice.ConcludeIssueCommand{
+					IssueID:     discussion.IssueID(args[0]),
+					Resolution:  discussion.Resolution{Kind: kind, Summary: *summary, Tasks: tasks},
+					ConcludedBy: concBy,
+					Actor:       a.DefaultActor(),
+				})
+				if cerr != nil {
+					return cerr
+				}
+				res = r
+				return nil
+			}, decKind,
+				fmt.Sprintf(`{"issue_id":%q,"resolution":%q}`, args[0], kind),
+				*rationale)
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			issueID = string(res.IssueID)
+			taskIDs = make([]string, len(res.TaskIDs))
+			for i, t := range res.TaskIDs {
+				taskIDs[i] = string(t)
+			}
 		}
 		if *format == "json" {
-			ids := make([]string, len(res.TaskIDs))
-			for i, t := range res.TaskIDs {
-				ids[i] = string(t)
-			}
 			b, _ := json.Marshal(map[string]any{
-				"issue_id":    string(res.IssueID),
-				"task_ids":    ids,
+				"issue_id":    issueID,
+				"task_ids":    taskIDs,
 				"resolution":  string(kind),
 			})
 			writeOut(out, string(b))
 		} else {
-			fmt.Fprintf(out, "issue %s → %s (%d tasks spawned)\n", res.IssueID, kind, len(res.TaskIDs))
+			fmt.Fprintf(out, "issue %s → %s (%d tasks spawned)\n", issueID, kind, len(taskIDs))
 		}
 		return ExitOK
 	}
@@ -366,20 +456,35 @@ func (a *App) issueWithdrawHandler(fs *flag.FlagSet) Handler {
 		if by == "" {
 			by = "user:" + a.Config.Identity.DefaultUser
 		}
-		err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
-			_, werr := a.IssueLifecycleSvc.Withdraw(txCtx, disservice.WithdrawIssueCommand{
-				IssueID:     discussion.IssueID(args[0]),
+		if a.Client != nil {
+			if _, cerr := a.Client.IssueWithdraw(ctx, IssueWithdrawRequest{
+				IssueID:     args[0],
 				Reason:      *reason,
 				Message:     *message,
 				WithdrawnBy: by,
-				Actor:       a.DefaultActor(),
-			})
-			return werr
-		}, cognition.DecisionCloseIssue,
-			fmt.Sprintf(`{"issue_id":%q,"reason":%q}`, args[0], *reason),
-			*rationale)
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+			}); cerr != nil {
+				return HandleClientError(errw, *format, cerr)
+			}
+			if rerr := recordSupervisorDecisionViaClient(ctx, a, cognition.DecisionCloseIssue,
+				fmt.Sprintf(`{"issue_id":%q,"reason":%q}`, args[0], *reason), *rationale); rerr != nil {
+				return HandleClientError(errw, *format, rerr)
+			}
+		} else {
+			err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
+				_, werr := a.IssueLifecycleSvc.Withdraw(txCtx, disservice.WithdrawIssueCommand{
+					IssueID:     discussion.IssueID(args[0]),
+					Reason:      *reason,
+					Message:     *message,
+					WithdrawnBy: by,
+					Actor:       a.DefaultActor(),
+				})
+				return werr
+			}, cognition.DecisionCloseIssue,
+				fmt.Sprintf(`{"issue_id":%q,"reason":%q}`, args[0], *reason),
+				*rationale)
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{"issue_id": args[0], "status": "withdrawn"})
@@ -413,29 +518,49 @@ func (a *App) issueBindConversationHandler(fs *flag.FlagSet) Handler {
 			return PrintError(errw, *format, "usage_error",
 				"either --auto or --to=<conv_id> required", ExitUsage)
 		}
-		issueID := discussion.IssueID(args[0])
-		actor := a.DefaultActor()
-		var convID conversation.ConversationID
-		if *auto {
-			id, err := a.IssueBindConversationSvc.BindAuto(ctx, disservice.BindAutoInput{
-				IssueID: issueID, Channel: *channel, Actor: actor,
-			})
-			if err != nil {
-				return HandleDomainError(errw, *format, err)
+		issueID := args[0]
+		var convID string
+		if a.Client != nil {
+			if *auto {
+				res, cerr := a.Client.IssueBindAuto(ctx, IssueBindAutoRequest{
+					IssueID: issueID, Channel: *channel,
+				})
+				if cerr != nil {
+					return HandleClientError(errw, *format, cerr)
+				}
+				convID = res.ConversationID
+			} else {
+				res, cerr := a.Client.IssueBindTo(ctx, IssueBindToRequest{
+					IssueID: issueID, ConversationID: *to,
+				})
+				if cerr != nil {
+					return HandleClientError(errw, *format, cerr)
+				}
+				convID = res.ConversationID
 			}
-			convID = id
 		} else {
-			if err := a.IssueBindConversationSvc.BindTo(ctx, disservice.BindToInput{
-				IssueID: issueID, ConversationID: conversation.ConversationID(*to), Actor: actor,
-			}); err != nil {
-				return HandleDomainError(errw, *format, err)
+			actor := a.DefaultActor()
+			if *auto {
+				id, err := a.IssueBindConversationSvc.BindAuto(ctx, disservice.BindAutoInput{
+					IssueID: discussion.IssueID(issueID), Channel: *channel, Actor: actor,
+				})
+				if err != nil {
+					return HandleDomainError(errw, *format, err)
+				}
+				convID = string(id)
+			} else {
+				if err := a.IssueBindConversationSvc.BindTo(ctx, disservice.BindToInput{
+					IssueID: discussion.IssueID(issueID), ConversationID: conversation.ConversationID(*to), Actor: actor,
+				}); err != nil {
+					return HandleDomainError(errw, *format, err)
+				}
+				convID = *to
 			}
-			convID = conversation.ConversationID(*to)
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{
-				"issue_id":        string(issueID),
-				"conversation_id": string(convID),
+				"issue_id":        issueID,
+				"conversation_id": convID,
 			})
 			writeOut(out, string(b))
 		} else {
@@ -460,12 +585,21 @@ func (a *App) issueLinkConversationHandler(fs *flag.FlagSet) Handler {
 		if *convID == "" {
 			return PrintError(errw, *format, "usage_error", "--conversation required", ExitUsage)
 		}
-		if err := a.IssueLinkConversationSvc.Link(ctx, disservice.LinkInput{
-			IssueID:        discussion.IssueID(args[0]),
-			ConversationID: conversation.ConversationID(*convID),
-			Actor:          a.DefaultActor(),
-		}); err != nil {
-			return HandleDomainError(errw, *format, err)
+		if a.Client != nil {
+			if _, cerr := a.Client.IssueLink(ctx, IssueLinkRequest{
+				IssueID:        args[0],
+				ConversationID: *convID,
+			}); cerr != nil {
+				return HandleClientError(errw, *format, cerr)
+			}
+		} else {
+			if err := a.IssueLinkConversationSvc.Link(ctx, disservice.LinkInput{
+				IssueID:        discussion.IssueID(args[0]),
+				ConversationID: conversation.ConversationID(*convID),
+				Actor:          a.DefaultActor(),
+			}); err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{"issue_id": args[0], "linked": *convID})

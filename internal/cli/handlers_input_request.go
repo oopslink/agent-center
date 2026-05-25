@@ -21,6 +21,12 @@ import (
 // InputRequestCommands returns the user-facing `input-request` subcommand
 // tree per P11 § 3.7. Agent-facing `request-input` lives separately under
 // agent runtime CLI; this group is for the user to **answer** pending IRs.
+//
+// v2.2 Phase B (per docs/plans/v2.2-audits/v22-B-cli-refactor-audit.md):
+// every handler in this file routes through a.Client (admin endpoint)
+// when a Client is configured. The transitional Service / Repo fallback
+// remains for the test path that constructs an App via newTestApp()
+// without a Client.
 func (a *App) InputRequestCommands() []*Command {
 	return []*Command{
 		{
@@ -55,45 +61,66 @@ func (a *App) irListHandler(fs *flag.FlagSet) Handler {
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = pending
 		var (
-			irs []*inputrequest.InputRequest
-			err error
+			dtos []InputRequestDTO
+			err  error
 		)
-		if *execID != "" {
-			ir, ferr := a.IRRepo.FindByTaskExecutionID(ctx, taskruntime.TaskExecutionID(*execID))
-			if ferr == nil {
-				irs = []*inputrequest.InputRequest{ir}
-			} else if !errors.Is(ferr, inputrequest.ErrInputRequestNotFound) {
-				err = ferr
+		if a.Client != nil {
+			if *execID != "" {
+				dto, ferr := a.Client.IRFindByExecutionID(ctx, *execID)
+				if ferr == nil {
+					dtos = []InputRequestDTO{dto}
+				} else if ce, ok := ferr.(*ClientError); ok && ce.IsNotFound() {
+					// Empty list — same legacy semantics as
+					// inputrequest.ErrInputRequestNotFound below.
+				} else {
+					err = ferr
+				}
+			} else {
+				dtos, err = a.Client.IRFindPending(ctx)
+			}
+			if err != nil {
+				return HandleClientError(errw, *format, err)
 			}
 		} else {
-			// FindPending(olderThan=now+1y) returns every pending IR.
-			irs, err = a.IRRepo.FindPending(ctx, time.Now().UTC().Add(24*365*time.Hour))
-		}
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+			var irs []*inputrequest.InputRequest
+			if *execID != "" {
+				ir, ferr := a.IRRepo.FindByTaskExecutionID(ctx, taskruntime.TaskExecutionID(*execID))
+				if ferr == nil {
+					irs = []*inputrequest.InputRequest{ir}
+				} else if !errors.Is(ferr, inputrequest.ErrInputRequestNotFound) {
+					err = ferr
+				}
+			} else {
+				// FindPending(olderThan=now+1y) returns every pending IR.
+				irs, err = a.IRRepo.FindPending(ctx, time.Now().UTC().Add(24*365*time.Hour))
+			}
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			dtos = irsToDTOs(irs)
 		}
 		switch *format {
 		case FormatJSON:
-			arr := make([]map[string]any, len(irs))
-			for i, ir := range irs {
-				arr[i] = irToMap(ir)
+			arr := make([]map[string]any, len(dtos))
+			for i, ir := range dtos {
+				arr[i] = irDTOToMap(ir)
 			}
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
 		case FormatText:
-			ids := make([]string, len(irs))
-			for i, ir := range irs {
-				ids[i] = string(ir.ID())
+			ids := make([]string, len(dtos))
+			for i, ir := range dtos {
+				ids[i] = ir.ID
 			}
 			writeTextLines(out, ids)
 		default:
 			fmt.Fprintf(out, "%-30s %-12s %-30s %s\n", "ID", "STATUS", "EXECUTION", "QUESTION")
-			for _, ir := range irs {
-				q := ir.Question()
+			for _, ir := range dtos {
+				q := ir.Question
 				if len(q) > 50 {
 					q = q[:50] + "…"
 				}
-				fmt.Fprintf(out, "%-30s %-12s %-30s %s\n", ir.ID(), ir.Status(), ir.TaskExecutionID(), q)
+				fmt.Fprintf(out, "%-30s %-12s %-30s %s\n", ir.ID, ir.Status, ir.ExecutionID, q)
 			}
 		}
 		return ExitOK
@@ -106,27 +133,41 @@ func (a *App) irShowHandler(fs *flag.FlagSet) Handler {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "input-request show <id>", ExitUsage)
 		}
-		ir, err := a.IRRepo.FindByID(ctx, taskruntime.InputRequestID(args[0]))
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		var dto InputRequestDTO
+		if a.Client != nil {
+			d, err := a.Client.IRFindByID(ctx, args[0])
+			if err != nil {
+				return HandleClientError(errw, *format, err)
+			}
+			dto = d
+		} else {
+			ir, err := a.IRRepo.FindByID(ctx, taskruntime.InputRequestID(args[0]))
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			dto = irToDTO(ir)
 		}
-		m := irToMap(ir)
 		if *format == "json" {
-			b, _ := json.Marshal(m)
+			b, _ := json.Marshal(irDTOToMap(dto))
 			writeOut(out, string(b))
 		} else {
 			fmt.Fprintf(out, "input request %s\n  status: %s\n  execution: %s\n  question: %s\n",
-				ir.ID(), ir.Status(), ir.TaskExecutionID(), ir.Question())
-			opts := ir.Options()
-			if len(opts) > 0 {
+				dto.ID, dto.Status, dto.ExecutionID, dto.Question)
+			if len(dto.Options) > 0 {
 				fmt.Fprintf(out, "  options:\n")
-				for _, o := range opts {
+				for _, o := range dto.Options {
 					fmt.Fprintf(out, "    - %s\n", o)
 				}
 			}
-			if ra := ir.RespondedAt(); ra != nil {
+			if dto.DecidedAt != "" {
+				// Re-format the timestamp to RFC3339 to preserve the legacy
+				// human-readable output (the DTO carries RFC3339Nano).
+				ts := dto.DecidedAt
+				if t, perr := time.Parse(time.RFC3339Nano, dto.DecidedAt); perr == nil {
+					ts = t.Format(time.RFC3339)
+				}
 				fmt.Fprintf(out, "  responded_at: %s\n  decided_by: %s\n  answer: %s\n",
-					ra.Format(time.RFC3339), ir.RespondedBy(), ir.ResponseText())
+					ts, dto.DecidedBy, dto.Answer)
 			}
 		}
 		return ExitOK
@@ -152,17 +193,27 @@ func (a *App) irRespondHandler(fs *flag.FlagSet) Handler {
 		if who == "" {
 			who = string(actor)
 		}
-		if a.IRSvc == nil {
-			return PrintError(errw, *format, "internal_error",
-				"input request service not wired", ExitNotImplemented)
-		}
-		if err := a.IRSvc.Respond(ctx, trservice.RespondInput{
-			InputRequestID: irID,
-			Answer:         body,
-			DecidedBy:      who,
-			Actor:          actor,
-		}); err != nil {
-			return HandleDomainError(errw, *format, err)
+		if a.Client != nil {
+			if _, err := a.Client.IRRespond(ctx, IRRespondRequest{
+				InputRequestID: string(irID),
+				Answer:         body,
+				DecidedBy:      who,
+			}); err != nil {
+				return HandleClientError(errw, *format, err)
+			}
+		} else {
+			if a.IRSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"input request service not wired", ExitNotImplemented)
+			}
+			if err := a.IRSvc.Respond(ctx, trservice.RespondInput{
+				InputRequestID: irID,
+				Answer:         body,
+				DecidedBy:      who,
+				Actor:          actor,
+			}); err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{
@@ -189,39 +240,85 @@ func (a *App) irCancelHandler(fs *flag.FlagSet) Handler {
 		if *message == "" {
 			return PrintError(errw, *format, "usage_error", "--message required", ExitUsage)
 		}
-		if a.IRSvc == nil {
-			return PrintError(errw, *format, "internal_error",
-				"input request service not wired", ExitNotImplemented)
-		}
-		if err := a.IRSvc.Cancel(ctx, trservice.CancelInput{
-			InputRequestID: taskruntime.InputRequestID(args[0]),
-			Reason:         *reason,
-			Message:        *message,
-			Actor:          a.DefaultActor(),
-		}); err != nil {
-			return HandleDomainError(errw, *format, err)
+		if a.Client != nil {
+			if _, err := a.Client.IRCancel(ctx, IRCancelRequest{
+				InputRequestID: args[0],
+				Reason:         *reason,
+				Message:        *message,
+			}); err != nil {
+				return HandleClientError(errw, *format, err)
+			}
+		} else {
+			if a.IRSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"input request service not wired", ExitNotImplemented)
+			}
+			if err := a.IRSvc.Cancel(ctx, trservice.CancelInput{
+				InputRequestID: taskruntime.InputRequestID(args[0]),
+				Reason:         *reason,
+				Message:        *message,
+				Actor:          a.DefaultActor(),
+			}); err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
 		}
 		writeOut(out, fmt.Sprintf("canceled input request %s", args[0]))
 		return ExitOK
 	}
 }
 
-func irToMap(ir *inputrequest.InputRequest) map[string]any {
+// irDTOToMap mirrors the legacy irToMap for JSON output.
+func irDTOToMap(ir InputRequestDTO) map[string]any {
 	m := map[string]any{
-		"id":           string(ir.ID()),
-		"status":       string(ir.Status()),
-		"execution_id": string(ir.TaskExecutionID()),
-		"question":     ir.Question(),
-		"options":      ir.Options(),
-		"urgency":      string(ir.Urgency()),
-		"created_at":   ir.CreatedAt().Format(time.RFC3339Nano),
+		"id":           ir.ID,
+		"status":       ir.Status,
+		"execution_id": ir.ExecutionID,
+		"question":     ir.Question,
+		"options":      ir.Options,
+		"urgency":      ir.Urgency,
+		"created_at":   ir.CreatedAt,
 	}
-	if ra := ir.RespondedAt(); ra != nil {
-		m["answer"] = ir.ResponseText()
-		m["decided_by"] = ir.RespondedBy()
-		m["decided_at"] = ra.Format(time.RFC3339Nano)
+	if ir.DecidedAt != "" {
+		m["answer"] = ir.Answer
+		m["decided_by"] = ir.DecidedBy
+		m["decided_at"] = ir.DecidedAt
 	}
 	return m
+}
+
+// irToDTO adapts a domain InputRequest to the DTO shape for the
+// transitional Service / Repo fallback path (when a.Client is nil).
+func irToDTO(ir *inputrequest.InputRequest) InputRequestDTO {
+	dto := InputRequestDTO{
+		ID:          string(ir.ID()),
+		Status:      string(ir.Status()),
+		ExecutionID: string(ir.TaskExecutionID()),
+		Question:    ir.Question(),
+		Options:     ir.Options(),
+		Urgency:     string(ir.Urgency()),
+		CreatedAt:   ir.CreatedAt().Format(time.RFC3339Nano),
+	}
+	if ra := ir.RespondedAt(); ra != nil {
+		dto.Answer = ir.ResponseText()
+		dto.DecidedBy = ir.RespondedBy()
+		dto.DecidedAt = ra.Format(time.RFC3339Nano)
+	}
+	return dto
+}
+
+func irsToDTOs(irs []*inputrequest.InputRequest) []InputRequestDTO {
+	out := make([]InputRequestDTO, len(irs))
+	for i, ir := range irs {
+		out[i] = irToDTO(ir)
+	}
+	return out
+}
+
+// irToMap is the legacy projection helper preserved here for any tests
+// that still call it directly. New callers should go through Client +
+// irDTOToMap.
+func irToMap(ir *inputrequest.InputRequest) map[string]any {
+	return irDTOToMap(irToDTO(ir))
 }
 
 // resolveAnswerInput resolves the answer body from one of the supported

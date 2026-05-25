@@ -54,34 +54,54 @@ func (a *App) agentCreateHandler(fs *flag.FlagSet) Handler {
 		if *workerID == "" {
 			return PrintError(errw, *format, "usage_error", "--worker required", ExitUsage)
 		}
-		if a.AgentMgmtSvc == nil {
-			return PrintError(errw, *format, "internal_error",
-				"agent management service not wired", ExitNotImplemented)
-		}
-		cmd := wfservice.CreateAgentInstanceCommand{
-			Name:          *name,
-			AgentCLI:      *agentCLI,
-			WorkerID:      workforce.WorkerID(*workerID),
-			Config:        *config,
-			ActorIdentity: a.DefaultActor(),
-		}
-		if *maxConcurrent >= 0 {
-			mc := *maxConcurrent
-			cmd.MaxConcurrent = &mc
-		}
-		res, err := a.AgentMgmtSvc.Create(ctx, cmd)
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		var id, eventID string
+		if a.Client != nil {
+			req := AgentCreateRequest{
+				Name:     *name,
+				AgentCLI: *agentCLI,
+				WorkerID: *workerID,
+				Config:   *config,
+			}
+			if *maxConcurrent >= 0 {
+				mc := *maxConcurrent
+				req.MaxConcurrent = &mc
+			}
+			res, cerr := a.Client.AgentInstanceCreate(ctx, req)
+			if cerr != nil {
+				return HandleClientError(errw, *format, cerr)
+			}
+			id, eventID = res.ID, res.EventID
+		} else {
+			if a.AgentMgmtSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"agent management service not wired", ExitNotImplemented)
+			}
+			cmd := wfservice.CreateAgentInstanceCommand{
+				Name:          *name,
+				AgentCLI:      *agentCLI,
+				WorkerID:      workforce.WorkerID(*workerID),
+				Config:        *config,
+				ActorIdentity: a.DefaultActor(),
+			}
+			if *maxConcurrent >= 0 {
+				mc := *maxConcurrent
+				cmd.MaxConcurrent = &mc
+			}
+			res, err := a.AgentMgmtSvc.Create(ctx, cmd)
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			id, eventID = string(res.ID), string(res.EventID)
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{
-				"id":          string(res.ID),
-				"identity_id": "agent:" + string(res.ID),
-				"event_id":    string(res.EventID),
+				"id":          id,
+				"identity_id": "agent:" + id,
+				"event_id":    eventID,
 			})
 			writeOut(out, string(b))
 		} else {
-			fmt.Fprintf(out, "created agent instance %q id=%s (Identity=agent:%s)\n", *name, res.ID, res.ID)
+			fmt.Fprintf(out, "created agent instance %q id=%s (Identity=agent:%s)\n", *name, id, id)
 		}
 		return ExitOK
 	}
@@ -92,41 +112,47 @@ func (a *App) agentListHandler(fs *flag.FlagSet) Handler {
 	workerFlag := fs.String("worker", "", "filter by worker id")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-		filter := workforce.AgentInstanceFilter{}
-		if *stateFlag != "" {
-			st := workforce.AgentInstanceState(*stateFlag)
-			filter.State = &st
-		}
-		if *workerFlag != "" {
-			wid := workforce.WorkerID(*workerFlag)
-			filter.WorkerID = &wid
-		}
-		list, err := a.AgentInstanceRepo.FindAll(ctx, filter)
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		var dtos []AgentInstanceDTO
+		if a.Client != nil {
+			var err error
+			dtos, err = a.Client.AgentInstanceFindAll(ctx, *stateFlag, *workerFlag)
+			if err != nil {
+				return HandleClientError(errw, *format, err)
+			}
+		} else {
+			filter := workforce.AgentInstanceFilter{}
+			if *stateFlag != "" {
+				st := workforce.AgentInstanceState(*stateFlag)
+				filter.State = &st
+			}
+			if *workerFlag != "" {
+				wid := workforce.WorkerID(*workerFlag)
+				filter.WorkerID = &wid
+			}
+			list, err := a.AgentInstanceRepo.FindAll(ctx, filter)
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			dtos = agentsToDTOs(list)
 		}
 		switch *format {
 		case FormatJSON:
-			arr := make([]map[string]any, len(list))
-			for i, ai := range list {
-				arr[i] = agentToMap(ai)
+			arr := make([]map[string]any, len(dtos))
+			for i, ai := range dtos {
+				arr[i] = agentDTOToMap(ai)
 			}
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
 		case FormatText:
-			ids := make([]string, len(list))
-			for i, ai := range list {
-				ids[i] = string(ai.ID())
+			ids := make([]string, len(dtos))
+			for i, ai := range dtos {
+				ids[i] = ai.ID
 			}
 			writeTextLines(out, ids)
 		default:
 			fmt.Fprintf(out, "%-30s %-12s %-30s %-15s %s\n", "ID", "STATE", "NAME", "AGENT_CLI", "WORKER")
-			for _, ai := range list {
-				w := ""
-				if ai.WorkerID() != nil {
-					w = string(*ai.WorkerID())
-				}
-				fmt.Fprintf(out, "%-30s %-12s %-30s %-15s %s\n", ai.ID(), ai.State(), ai.Name(), ai.AgentCLI(), w)
+			for _, ai := range dtos {
+				fmt.Fprintf(out, "%-30s %-12s %-30s %-15s %s\n", ai.ID, ai.State, ai.Name, ai.AgentCLI, ai.WorkerID)
 			}
 		}
 		return ExitOK
@@ -139,25 +165,35 @@ func (a *App) agentShowHandler(fs *flag.FlagSet) Handler {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "agent show <id-or-name>", ExitUsage)
 		}
-		// Try id first; fall back to name lookup.
-		ai, err := a.AgentInstanceRepo.FindByID(ctx, workforce.AgentInstanceID(args[0]))
-		if err != nil {
-			ai, err = a.AgentInstanceRepo.FindByName(ctx, args[0])
+		var dto AgentInstanceDTO
+		if a.Client != nil {
+			var err error
+			dto, err = a.Client.AgentInstanceFindByID(ctx, args[0])
 			if err != nil {
-				return HandleDomainError(errw, *format, err)
+				// Fall back to name lookup on not-found.
+				dto, err = a.Client.AgentInstanceFindByName(ctx, args[0])
+				if err != nil {
+					return HandleClientError(errw, *format, err)
+				}
 			}
+		} else {
+			// Try id first; fall back to name lookup.
+			ai, err := a.AgentInstanceRepo.FindByID(ctx, workforce.AgentInstanceID(args[0]))
+			if err != nil {
+				ai, err = a.AgentInstanceRepo.FindByName(ctx, args[0])
+				if err != nil {
+					return HandleDomainError(errw, *format, err)
+				}
+			}
+			dto = agentToDTO(ai)
 		}
-		m := agentToMap(ai)
+		m := agentDTOToMap(dto)
 		if *format == "json" {
 			b, _ := json.Marshal(m)
 			writeOut(out, string(b))
 		} else {
-			w := ""
-			if ai.WorkerID() != nil {
-				w = string(*ai.WorkerID())
-			}
 			fmt.Fprintf(out, "agent %s\n  name: %s\n  state: %s\n  agent_cli: %s\n  worker: %s\n  is_builtin: %v\n  max_concurrent: %v\n  identity_id: agent:%s\n",
-				ai.ID(), ai.Name(), ai.State(), ai.AgentCLI(), w, ai.IsBuiltin(), ai.MaxConcurrent(), ai.ID())
+				dto.ID, dto.Name, dto.State, dto.AgentCLI, dto.WorkerID, dto.IsBuiltin, dto.MaxConcurrent, dto.ID)
 		}
 		return ExitOK
 	}
@@ -178,42 +214,85 @@ func (a *App) agentArchiveHandler(fs *flag.FlagSet) Handler {
 		if *versionFlag <= 0 {
 			return PrintError(errw, *format, "usage_error", "--version required for CAS", ExitUsage)
 		}
-		if a.AgentMgmtSvc == nil {
-			return PrintError(errw, *format, "internal_error",
-				"agent management service not wired", ExitNotImplemented)
-		}
-		_, err := a.AgentMgmtSvc.Archive(ctx, wfservice.ArchiveAgentInstanceCommand{
-			ID:            workforce.AgentInstanceID(args[0]),
-			Reason:        workforce.AgentInstanceArchivedReason(strings.TrimSpace(*reasonFlag)),
-			Message:       *message,
-			Version:       *versionFlag,
-			ActorIdentity: a.DefaultActor(),
-		})
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		if a.Client != nil {
+			if _, cerr := a.Client.AgentInstanceArchive(ctx, AgentArchiveRequest{
+				ID:      args[0],
+				Reason:  strings.TrimSpace(*reasonFlag),
+				Message: *message,
+				Version: *versionFlag,
+			}); cerr != nil {
+				return HandleClientError(errw, *format, cerr)
+			}
+		} else {
+			if a.AgentMgmtSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"agent management service not wired", ExitNotImplemented)
+			}
+			_, err := a.AgentMgmtSvc.Archive(ctx, wfservice.ArchiveAgentInstanceCommand{
+				ID:            workforce.AgentInstanceID(args[0]),
+				Reason:        workforce.AgentInstanceArchivedReason(strings.TrimSpace(*reasonFlag)),
+				Message:       *message,
+				Version:       *versionFlag,
+				ActorIdentity: a.DefaultActor(),
+			})
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
 		}
 		writeOut(out, fmt.Sprintf("archived agent instance %s", args[0]))
 		return ExitOK
 	}
 }
 
+// agentToMap is the legacy projection helper preserved for tests that
+// still produce a domain *workforce.AgentInstance.
 func agentToMap(ai *workforce.AgentInstance) map[string]any {
-	w := ""
-	if ai.WorkerID() != nil {
-		w = string(*ai.WorkerID())
-	}
+	return agentDTOToMap(agentToDTO(ai))
+}
+
+// agentDTOToMap renders an AgentInstanceDTO into the canonical JSON
+// map shape preserved by the CLI's human/json formatting contract.
+func agentDTOToMap(ai AgentInstanceDTO) map[string]any {
 	return map[string]any{
-		"id":             string(ai.ID()),
-		"name":           ai.Name(),
-		"state":          string(ai.State()),
-		"agent_cli":      ai.AgentCLI(),
-		"worker_id":      w,
-		"is_builtin":     ai.IsBuiltin(),
-		"max_concurrent": ai.MaxConcurrent(),
-		"config":         ai.Config(),
-		"version":        ai.Version(),
-		"identity_id":    "agent:" + string(ai.ID()),
+		"id":             ai.ID,
+		"name":           ai.Name,
+		"state":          ai.State,
+		"agent_cli":      ai.AgentCLI,
+		"worker_id":      ai.WorkerID,
+		"is_builtin":     ai.IsBuiltin,
+		"max_concurrent": ai.MaxConcurrent,
+		"config":         ai.Config,
+		"version":        ai.Version,
+		"identity_id":    "agent:" + ai.ID,
 	}
+}
+
+func agentToDTO(ai *workforce.AgentInstance) AgentInstanceDTO {
+	dto := AgentInstanceDTO{
+		ID:         string(ai.ID()),
+		Name:       ai.Name(),
+		State:      string(ai.State()),
+		AgentCLI:   ai.AgentCLI(),
+		IsBuiltin:  ai.IsBuiltin(),
+		Config:     ai.Config(),
+		Version:    ai.Version(),
+		IdentityID: "agent:" + string(ai.ID()),
+	}
+	if mc := ai.MaxConcurrent(); mc != nil {
+		dto.MaxConcurrent = *mc
+	}
+	if ai.WorkerID() != nil {
+		dto.WorkerID = string(*ai.WorkerID())
+	}
+	return dto
+}
+
+func agentsToDTOs(list []*workforce.AgentInstance) []AgentInstanceDTO {
+	out := make([]AgentInstanceDTO, len(list))
+	for i, ai := range list {
+		out[i] = agentToDTO(ai)
+	}
+	return out
 }
 
 // _ keeps observability import alive (used via DefaultActor → Actor).

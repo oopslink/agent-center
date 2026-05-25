@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -50,9 +51,17 @@ func (a *App) inspectCommand() *Command {
 					return PrintError(errw, *format, "unknown_kind",
 						fmt.Sprintf("inspect kind must be one of %s", strings.Join(inspectKindNames(), "|")), ExitUsage)
 				}
-				res, err := a.QuerySvc.Inspect(ctx, kind, id)
-				if err != nil {
-					return mapInspectErr(err, *format, errw)
+				var res query.InspectResult
+				if a.Client != nil {
+					if cerr := a.Client.InspectRaw(ctx, kind, id, &res); cerr != nil {
+						return mapInspectClientErr(cerr, *format, errw)
+					}
+				} else {
+					r, err := a.QuerySvc.Inspect(ctx, kind, id)
+					if err != nil {
+						return mapInspectErr(err, *format, errw)
+					}
+					res = r
 				}
 				return printInspect(out, *format, res)
 			}
@@ -126,13 +135,34 @@ func (a *App) queryCommand() *Command {
 					}
 					filter.Until = &t
 				}
-				res, err := a.QuerySvc.Query(ctx, resource, filter)
-				if err != nil {
-					if errors.Is(err, observability.ErrEventQueryLimitTooLarge) {
-						return PrintError(errw, *format, "limit_too_large",
-							fmt.Sprintf("limit must be <= %d", observability.MaxEventQueryLimit), ExitUsage)
+				var res query.QueryResult
+				if a.Client != nil {
+					req := QueryRequest{
+						Resource:    resource,
+						Status:      *status,
+						ProjectID:   *project,
+						WorkerID:    *workerID,
+						TaskID:      *taskID,
+						ExecutionID: *execID,
+						IssueID:     *issueID,
+						Opener:      *opener,
+						EventType:   *eventType,
+						Limit:       *limit,
+						Cursor:      *cursor,
 					}
-					return PrintError(errw, *format, "query_failed", err.Error(), ExitBusinessError)
+					if cerr := a.Client.QueryRaw(ctx, req, &res); cerr != nil {
+						return mapQueryClientErr(cerr, *format, errw)
+					}
+				} else {
+					r, err := a.QuerySvc.Query(ctx, resource, filter)
+					if err != nil {
+						if errors.Is(err, observability.ErrEventQueryLimitTooLarge) {
+							return PrintError(errw, *format, "limit_too_large",
+								fmt.Sprintf("limit must be <= %d", observability.MaxEventQueryLimit), ExitUsage)
+						}
+						return PrintError(errw, *format, "query_failed", err.Error(), ExitBusinessError)
+					}
+					res = r
 				}
 				return printQueryResult(out, *format, res)
 			}
@@ -155,7 +185,14 @@ func (a *App) psCommand() *Command {
 			project := fs.String("project", "", "Filter all segments to this project slug")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				doSnap := func() ExitCode {
-					snap := a.FleetSvc.Snapshot(ctx, query.SnapshotFilter{ProjectID: *project})
+					var snap query.FleetSnapshot
+					if a.Client != nil {
+						if cerr := a.Client.FleetSnapshotRaw(ctx, *project, &snap); cerr != nil {
+							return PrintError(errw, *format, "fleet_failed", cerr.Error(), ExitBusinessError)
+						}
+					} else {
+						snap = a.FleetSvc.Snapshot(ctx, query.SnapshotFilter{ProjectID: *project})
+					}
 					return printFleet(out, errw, *format, snap)
 				}
 				if !*watch {
@@ -202,9 +239,18 @@ func (a *App) statsCommand() *Command {
 					}
 					sincePtr = &t
 				}
-				res, err := a.StatsSvc.Aggregate(ctx, *scope, sincePtr)
-				if err != nil {
-					return PrintError(errw, *format, "stats_failed", err.Error(), ExitBusinessError)
+				var res query.StatsResult
+				if a.Client != nil {
+					// Server-side accepts duration OR RFC3339; pass the raw string.
+					if cerr := a.Client.StatsAggregateRaw(ctx, *scope, *since, &res); cerr != nil {
+						return PrintError(errw, *format, "stats_failed", cerr.Error(), ExitBusinessError)
+					}
+				} else {
+					r, err := a.StatsSvc.Aggregate(ctx, *scope, sincePtr)
+					if err != nil {
+						return PrintError(errw, *format, "stats_failed", err.Error(), ExitBusinessError)
+					}
+					res = r
 				}
 				return printStats(out, *format, res)
 			}
@@ -224,6 +270,20 @@ func (a *App) logsCommand() *Command {
 					return PrintError(errw, *format, "usage_error", "logs requires <kind> <id>", ExitUsage)
 				}
 				kind, id := args[0], args[1]
+				if *follow {
+					return PrintError(errw, *format, "follow_not_supported",
+						"--follow not supported on archived blobs; use peek-trace for live", ExitUsage)
+				}
+				if a.Client != nil {
+					body, _, cerr := a.Client.LogsOpen(ctx, kind, id)
+					if cerr != nil {
+						return mapLogsClientErr(cerr, *format, errw)
+					}
+					if _, err := io.Copy(out, bytes.NewReader(body)); err != nil {
+						return PrintError(errw, *format, "logs_stream_error", err.Error(), ExitBusinessError)
+					}
+					return ExitOK
+				}
 				if a.LogsSvc == nil {
 					return PrintError(errw, *format, "blob_store_unavailable",
 						"BlobStore not configured", ExitBusinessError)
@@ -318,6 +378,87 @@ func mapInspectErr(err error, format string, errw io.Writer) ExitCode {
 		return PrintError(errw, format, "not_found", err.Error(), ExitNotFound)
 	}
 	return PrintError(errw, format, "inspect_failed", err.Error(), ExitBusinessError)
+}
+
+// mapInspectClientErr translates a Client error from the inspect
+// endpoint into the same reason+exit-code shape as mapInspectErr.
+func mapInspectClientErr(err error, format string, errw io.Writer) ExitCode {
+	if err == nil {
+		return ExitOK
+	}
+	if errors.Is(err, ErrClientNotConfigured) || errors.Is(err, ErrServerUnreachable) {
+		return PrintError(errw, format, "server_unreachable",
+			err.Error()+" (start the server: agent-center server)", ExitBusinessError)
+	}
+	var ce *ClientError
+	if errors.As(err, &ce) {
+		switch ce.Code {
+		case "unknown_kind", "invalid_input":
+			return PrintError(errw, format, "unknown_kind", ce.Message, ExitUsage)
+		case "not_found":
+			return PrintError(errw, format, "not_found", ce.Message, ExitNotFound)
+		case "missing_kind_or_id":
+			return PrintError(errw, format, "usage_error", ce.Message, ExitUsage)
+		}
+		if ce.IsNotFound() {
+			return PrintError(errw, format, "not_found", ce.Message, ExitNotFound)
+		}
+	}
+	return PrintError(errw, format, "inspect_failed", err.Error(), ExitBusinessError)
+}
+
+// mapQueryClientErr is the Client-mode counterpart for the query
+// endpoint; preserves the "limit_too_large" + "unknown_resource"
+// human-facing reasons.
+func mapQueryClientErr(err error, format string, errw io.Writer) ExitCode {
+	if err == nil {
+		return ExitOK
+	}
+	if errors.Is(err, ErrClientNotConfigured) || errors.Is(err, ErrServerUnreachable) {
+		return PrintError(errw, format, "server_unreachable",
+			err.Error()+" (start the server: agent-center server)", ExitBusinessError)
+	}
+	var ce *ClientError
+	if errors.As(err, &ce) {
+		switch ce.Code {
+		case "limit_too_large":
+			return PrintError(errw, format, "limit_too_large", ce.Message, ExitUsage)
+		case "unknown_resource":
+			return PrintError(errw, format, "unknown_resource", ce.Message, ExitUsage)
+		case "missing_resource", "invalid_input":
+			return PrintError(errw, format, "usage_error", ce.Message, ExitUsage)
+		}
+	}
+	return PrintError(errw, format, "query_failed", err.Error(), ExitBusinessError)
+}
+
+// mapLogsClientErr mirrors the inline error mapping from the legacy
+// LogsSvc.Open path for the Client-mode logs endpoint.
+func mapLogsClientErr(err error, format string, errw io.Writer) ExitCode {
+	if err == nil {
+		return ExitOK
+	}
+	if errors.Is(err, ErrClientNotConfigured) || errors.Is(err, ErrServerUnreachable) {
+		return PrintError(errw, format, "server_unreachable",
+			err.Error()+" (start the server: agent-center server)", ExitBusinessError)
+	}
+	var ce *ClientError
+	if errors.As(err, &ce) {
+		switch ce.Code {
+		case "unknown_kind":
+			return PrintError(errw, format, "unknown_kind", ce.Message, ExitUsage)
+		case "blob_not_found", "not_found":
+			return PrintError(errw, format, "blob_not_found", ce.Message, ExitNotFound)
+		case "blob_store_unavailable", "logs_svc_not_wired":
+			return PrintError(errw, format, "blob_store_unavailable", ce.Message, ExitBusinessError)
+		case "missing_kind_or_id":
+			return PrintError(errw, format, "usage_error", ce.Message, ExitUsage)
+		}
+		if ce.IsNotFound() {
+			return PrintError(errw, format, "blob_not_found", ce.Message, ExitNotFound)
+		}
+	}
+	return PrintError(errw, format, "logs_failed", err.Error(), ExitBusinessError)
 }
 
 func mapPeekReason(reason string) ExitCode {

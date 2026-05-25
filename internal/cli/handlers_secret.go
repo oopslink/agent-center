@@ -63,41 +63,51 @@ func (a *App) secretListHandler(fs *flag.FlagSet) Handler {
 	stateFlag := fs.String("state", "", "filter by state (active|revoked)")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-		if a.UserSecretRepo == nil {
-			return PrintError(errw, *format, "internal_error", "secret repo not wired", ExitNotImplemented)
-		}
-		filter := secretmgmt.UserSecretFilter{}
-		if *kindFlag != "" {
-			k := secretmgmt.UserSecretKind(*kindFlag)
-			filter.Kind = &k
-		}
-		if *stateFlag != "" {
-			s := secretmgmt.UserSecretState(*stateFlag)
-			filter.State = &s
-		}
-		secrets, err := a.UserSecretRepo.FindAll(ctx, filter)
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		var dtos []UserSecretDTO
+		if a.Client != nil {
+			var err error
+			dtos, err = a.Client.SecretFindAll(ctx, *kindFlag, *stateFlag)
+			if err != nil {
+				return HandleClientError(errw, *format, err)
+			}
+		} else {
+			if a.UserSecretRepo == nil {
+				return PrintError(errw, *format, "internal_error", "secret repo not wired", ExitNotImplemented)
+			}
+			filter := secretmgmt.UserSecretFilter{}
+			if *kindFlag != "" {
+				k := secretmgmt.UserSecretKind(*kindFlag)
+				filter.Kind = &k
+			}
+			if *stateFlag != "" {
+				s := secretmgmt.UserSecretState(*stateFlag)
+				filter.State = &s
+			}
+			secrets, err := a.UserSecretRepo.FindAll(ctx, filter)
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			dtos = secretsToDTOs(secrets)
 		}
 		switch *format {
 		case FormatJSON:
-			arr := make([]map[string]any, len(secrets))
-			for i, s := range secrets {
-				arr[i] = secretToMap(s)
+			arr := make([]map[string]any, len(dtos))
+			for i, s := range dtos {
+				arr[i] = secretDTOToMap(s)
 			}
 			b, _ := json.Marshal(arr)
 			writeOut(out, string(b))
 		case FormatText:
-			ids := make([]string, len(secrets))
-			for i, s := range secrets {
-				ids[i] = string(s.ID())
+			ids := make([]string, len(dtos))
+			for i, s := range dtos {
+				ids[i] = s.ID
 			}
 			writeTextLines(out, ids)
 		default:
 			fmt.Fprintf(out, "%-32s %-20s %-8s %-20s %s\n", "ID", "NAME", "KIND", "STATE", "CREATED_AT")
-			for _, s := range secrets {
+			for _, s := range dtos {
 				fmt.Fprintf(out, "%-32s %-20s %-8s %-20s %s\n",
-					s.ID(), s.Name(), s.Kind(), s.State(), s.CreatedAt().Format(time.RFC3339))
+					s.ID, s.Name, s.Kind, s.State, formatTS(s.CreatedAt))
 			}
 		}
 		return ExitOK
@@ -111,30 +121,43 @@ func (a *App) secretShowHandler(fs *flag.FlagSet) Handler {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "secret show <id-or-name> [--by-name]", ExitUsage)
 		}
-		if a.UserSecretRepo == nil {
-			return PrintError(errw, *format, "internal_error", "secret repo not wired", ExitNotImplemented)
-		}
-		var s *secretmgmt.UserSecret
-		var err error
-		if *byName {
-			s, err = a.UserSecretRepo.FindByName(ctx, args[0])
+		var dto UserSecretDTO
+		if a.Client != nil {
+			var err error
+			if *byName {
+				dto, err = a.Client.SecretFindByName(ctx, args[0])
+			} else {
+				dto, err = a.Client.SecretFindByID(ctx, args[0])
+			}
+			if err != nil {
+				return HandleClientError(errw, *format, err)
+			}
 		} else {
-			s, err = a.UserSecretRepo.FindByID(ctx, secretmgmt.UserSecretID(args[0]))
+			if a.UserSecretRepo == nil {
+				return PrintError(errw, *format, "internal_error", "secret repo not wired", ExitNotImplemented)
+			}
+			var s *secretmgmt.UserSecret
+			var err error
+			if *byName {
+				s, err = a.UserSecretRepo.FindByName(ctx, args[0])
+			} else {
+				s, err = a.UserSecretRepo.FindByID(ctx, secretmgmt.UserSecretID(args[0]))
+			}
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
+			dto = secretToDTO(s)
 		}
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
-		}
-		m := secretToMap(s)
+		m := secretDTOToMap(dto)
 		if *format == "json" {
 			b, _ := json.Marshal(m)
 			writeOut(out, string(b))
 		} else {
 			fmt.Fprintf(out, "secret %s\n  name: %s\n  kind: %s\n  state: %s\n  created_at: %s\n  created_by: %s\n",
-				s.ID(), s.Name(), s.Kind(), s.State(),
-				s.CreatedAt().Format(time.RFC3339), s.CreatedBy())
-			if r := s.RevokedAt(); r != nil {
+				dto.ID, dto.Name, dto.Kind, dto.State, formatTS(dto.CreatedAt), dto.CreatedBy)
+			if dto.RevokedAt != "" {
 				fmt.Fprintf(out, "  revoked_at: %s\n  revoked_by: %s\n  revoked_reason: %s\n  revoked_message: %s\n",
-					r.Format(time.RFC3339), s.RevokedBy(), s.RevokedReason(), s.RevokedMessage())
+					formatTS(dto.RevokedAt), dto.RevokedBy, dto.RevokedReason, dto.RevokedMessage)
 			}
 		}
 		return ExitOK
@@ -155,34 +178,51 @@ func (a *App) secretCreateHandler(fs *flag.FlagSet) Handler {
 			return PrintError(errw, *format, "usage_error",
 				"--kind must be one of mcp|cloud_credential|repo_deploy_key|other", ExitUsage)
 		}
-		if a.UserSecretSvc == nil {
-			return PrintError(errw, *format, "internal_error",
-				"user secret service not wired", ExitNotImplemented)
-		}
 		plaintext, err := resolveSecretInput(*valueFile)
 		if err != nil {
 			return PrintError(errw, *format, "usage_error", err.Error(), ExitUsage)
 		}
-		res, err := a.UserSecretSvc.Create(ctx, secretservice.CreateSecretCommand{
-			Name: *name, Kind: kind,
-			Plaintext: plaintext, ActorIdentity: a.DefaultActor(),
-		})
-		// Best-effort wipe of plaintext buffer.
-		for i := range plaintext {
-			plaintext[i] = 0
-		}
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		var id, resName, eventID string
+		if a.Client != nil {
+			res, cerr := a.Client.SecretCreate(ctx, SecretCreateRequest{
+				Name:      *name,
+				Kind:      string(kind),
+				Plaintext: string(plaintext),
+			})
+			for i := range plaintext {
+				plaintext[i] = 0
+			}
+			if cerr != nil {
+				return HandleClientError(errw, *format, cerr)
+			}
+			id, resName, eventID = res.ID, res.Name, res.EventID
+		} else {
+			if a.UserSecretSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"user secret service not wired", ExitNotImplemented)
+			}
+			res, serr := a.UserSecretSvc.Create(ctx, secretservice.CreateSecretCommand{
+				Name: *name, Kind: kind,
+				Plaintext: plaintext, ActorIdentity: a.DefaultActor(),
+			})
+			// Best-effort wipe of plaintext buffer.
+			for i := range plaintext {
+				plaintext[i] = 0
+			}
+			if serr != nil {
+				return HandleDomainError(errw, *format, serr)
+			}
+			id, resName, eventID = string(res.ID), res.Name, string(res.EventID)
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{
-				"id":       string(res.ID),
-				"name":     res.Name,
-				"event_id": string(res.EventID),
+				"id":       id,
+				"name":     resName,
+				"event_id": eventID,
 			})
 			writeOut(out, string(b))
 		} else {
-			fmt.Fprintf(out, "created secret %s (id=%s) — plaintext stored encrypted; not echoed\n", res.Name, res.ID)
+			fmt.Fprintf(out, "created secret %s (id=%s) — plaintext stored encrypted; not echoed\n", resName, id)
 		}
 		return ExitOK
 	}
@@ -201,55 +241,128 @@ func (a *App) secretRevokeHandler(fs *flag.FlagSet) Handler {
 		if *message == "" {
 			return PrintError(errw, *format, "usage_error", "--message required", ExitUsage)
 		}
-		if a.UserSecretSvc == nil {
-			return PrintError(errw, *format, "internal_error",
-				"user secret service not wired", ExitNotImplemented)
-		}
 		ver := *versionFlag
-		if ver == 0 {
-			sec, err := a.UserSecretRepo.FindByID(ctx, secretmgmt.UserSecretID(args[0]))
-			if err != nil {
+		if a.Client != nil {
+			if ver == 0 {
+				dto, err := a.Client.SecretFindByID(ctx, args[0])
+				if err != nil {
+					return HandleClientError(errw, *format, err)
+				}
+				ver = dto.Version
+			}
+			if _, cerr := a.Client.SecretRevoke(ctx, SecretRevokeRequest{
+				ID:      args[0],
+				Reason:  *reasonStr,
+				Message: *message,
+				Version: ver,
+			}); cerr != nil {
+				return HandleClientError(errw, *format, cerr)
+			}
+		} else {
+			if a.UserSecretSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"user secret service not wired", ExitNotImplemented)
+			}
+			if ver == 0 {
+				sec, err := a.UserSecretRepo.FindByID(ctx, secretmgmt.UserSecretID(args[0]))
+				if err != nil {
+					return HandleDomainError(errw, *format, err)
+				}
+				ver = sec.Version()
+			}
+			if _, err := a.UserSecretSvc.Revoke(ctx, secretservice.RevokeSecretCommand{
+				ID:            secretmgmt.UserSecretID(args[0]),
+				Reason:        secretmgmt.UserSecretRevokedReason(*reasonStr),
+				Message:       *message,
+				Version:       ver,
+				ActorIdentity: a.DefaultActor(),
+			}); err != nil {
 				return HandleDomainError(errw, *format, err)
 			}
-			ver = sec.Version()
-		}
-		if _, err := a.UserSecretSvc.Revoke(ctx, secretservice.RevokeSecretCommand{
-			ID:            secretmgmt.UserSecretID(args[0]),
-			Reason:        secretmgmt.UserSecretRevokedReason(*reasonStr),
-			Message:       *message,
-			Version:       ver,
-			ActorIdentity: a.DefaultActor(),
-		}); err != nil {
-			return HandleDomainError(errw, *format, err)
 		}
 		writeOut(out, fmt.Sprintf("revoked secret %s", args[0]))
 		return ExitOK
 	}
 }
 
+// secretToMap is the legacy projection helper preserved for any
+// remaining test callers that still build *secretmgmt.UserSecret in
+// the transitional fallback path.
 func secretToMap(s *secretmgmt.UserSecret) map[string]any {
+	return secretDTOToMap(secretToDTO(s))
+}
+
+// secretDTOToMap renders a UserSecretDTO into the canonical JSON map
+// shape preserved by the CLI's human/json formatting contract.
+func secretDTOToMap(s UserSecretDTO) map[string]any {
 	m := map[string]any{
-		"id":         string(s.ID()),
-		"name":       s.Name(),
-		"kind":       string(s.Kind()),
-		"state":      string(s.State()),
-		"created_at": s.CreatedAt().Format(time.RFC3339Nano),
-		"created_by": s.CreatedBy(),
-		"version":    s.Version(),
+		"id":         s.ID,
+		"name":       s.Name,
+		"kind":       s.Kind,
+		"state":      s.State,
+		"created_at": s.CreatedAt,
+		"created_by": s.CreatedBy,
+		"version":    s.Version,
 	}
-	if r := s.RevokedAt(); r != nil {
-		m["revoked_at"] = r.Format(time.RFC3339Nano)
-		m["revoked_by"] = s.RevokedBy()
-		m["revoked_reason"] = string(s.RevokedReason())
-		m["revoked_message"] = s.RevokedMessage()
+	if s.RevokedAt != "" {
+		m["revoked_at"] = s.RevokedAt
+		m["revoked_by"] = s.RevokedBy
+		m["revoked_reason"] = s.RevokedReason
+		m["revoked_message"] = s.RevokedMessage
 	}
-	if ru := s.RotatedAt(); ru != nil {
-		m["rotated_at"] = ru.Format(time.RFC3339Nano)
+	if s.RotatedAt != "" {
+		m["rotated_at"] = s.RotatedAt
 	}
-	if lu := s.LastUsedAt(); lu != nil {
-		m["last_used_at"] = lu.Format(time.RFC3339Nano)
+	if s.LastUsedAt != "" {
+		m["last_used_at"] = s.LastUsedAt
 	}
 	return m
+}
+
+func secretToDTO(s *secretmgmt.UserSecret) UserSecretDTO {
+	dto := UserSecretDTO{
+		ID:        string(s.ID()),
+		Name:      s.Name(),
+		Kind:      string(s.Kind()),
+		State:     string(s.State()),
+		CreatedAt: s.CreatedAt().Format(time.RFC3339Nano),
+		CreatedBy: s.CreatedBy(),
+		Version:   s.Version(),
+	}
+	if r := s.RevokedAt(); r != nil {
+		dto.RevokedAt = r.Format(time.RFC3339Nano)
+		dto.RevokedBy = s.RevokedBy()
+		dto.RevokedReason = string(s.RevokedReason())
+		dto.RevokedMessage = s.RevokedMessage()
+	}
+	if ru := s.RotatedAt(); ru != nil {
+		dto.RotatedAt = ru.Format(time.RFC3339Nano)
+	}
+	if lu := s.LastUsedAt(); lu != nil {
+		dto.LastUsedAt = lu.Format(time.RFC3339Nano)
+	}
+	return dto
+}
+
+func secretsToDTOs(ss []*secretmgmt.UserSecret) []UserSecretDTO {
+	out := make([]UserSecretDTO, len(ss))
+	for i, s := range ss {
+		out[i] = secretToDTO(s)
+	}
+	return out
+}
+
+// formatTS reformats an RFC3339Nano timestamp to RFC3339 for human
+// table display. Returns the input unchanged if it can't be parsed
+// (defensive: server emits nano precision but other formats are OK).
+func formatTS(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	if t, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return t.Format(time.RFC3339)
+	}
+	return raw
 }
 
 func validSecretKind(k secretmgmt.UserSecretKind) bool {
