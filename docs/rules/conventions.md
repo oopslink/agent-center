@@ -99,6 +99,33 @@
 - "调用 / RPC / 接口" → 跨聚合或跨 BC 时明示是 **Customer-Supplier** / **Shared Kernel** / **ACL** 哪种模式
 - "中央 / 大脑 / 总管" → Supervisor，**不是** Brain（[ADR-0003](../design/decisions/0003-supervisor-not-brain.md)）
 
+### § 0.6 「没做」≠「不支持」≠「假设了反面」
+
+描述系统现状时**止步于「未实现」**，不向「设计意图」越界推断。**「展示缺口」与「设计假设」必须分层陈述，不得合并推断**。
+
+分析系统现状时，若某功能在前端 / UI 层缺失，**只能**表述为：
+
+- ✅ 「该功能在 UI 层尚未实现」
+- ✅ 「后端 / 模型层已支持，但 SPA 未暴露」
+
+**不得**表述为：
+
+- ❌ 「设计上假设了 X」
+- ❌ 「当前架构不支持 X」
+
+除非能提供以下至少一条**可定位的证据**：
+
+1. **代码注释或文档明确写出该假设**（grep 得到的具体文件 + 行号）
+2. **数据模型层有结构性约束**（schema unique constraint、`NOT NULL` 设计意图注释、AR 字段缺失）
+3. **API 设计有明确的单数语义**（如 `/api/X` 返回 object 而非 array、CLI 命令无 `--all` flag 等）
+
+写"为什么 SPA 没有 X 入口" / "为什么 v1/v2 不能做 Y" 这种回答前，先 grep 一次相应层。grep 不出来 → 只描述观察 + 能力两层，不补第三层（设计意图）。
+
+**反例**（违反本节）：「v2 web console scope 是 *per-user single project context* 隐式假设，所以没有 Projects 入口」——这把「SPA 没暴露 Project」（观察）和「模型支持 Project」（能力）越界推断成「设计上假设单 project」（意图），没有 grep 出任何支撑。
+
+**正确写法**：
+> 「Project 是 Workforce BC 的独立 AR（`internal/workforce/project.go`），backend `/api/projects` + admin endpoint 全套接通；SPA 的侧栏没有 Projects 入口，仅 DeriveModal 在派生 issue / task 时调用 list。这是 SPA 暴露的缺口，模型层不限制。」
+
 ## § 1. 单一来源 / 无野任务
 
 **Center 是任务的唯一权威**。Task 只能由 supervisor 或用户创建。Worker / Agent **不允许造任务**，它们想要新工作必须开 [Issue](../design/architecture/tactical/discussion/00-overview.md) 走讨论。
