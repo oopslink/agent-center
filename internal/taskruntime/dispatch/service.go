@@ -56,6 +56,10 @@ func NewService(
 	cfg DispatchConfig,
 ) *Service {
 	if sender == nil {
+		// FIXME(prod-wiring): noop fallback — production callers MUST
+		// pass a real EnvelopeSender (e.g. dispatchq.DispatchSender).
+		// Reaching this branch silently swallows every dispatched
+		// envelope. See conventions § 0.4 enforce mechanism #2.
 		sender = NoopSender{}
 	}
 	if clk == nil {

@@ -1,4 +1,32 @@
-.PHONY: build build-frontend build-backend build-worker-daemon build-fakeagent test cover cover-html lint lint-vendor lint-vendor-selftest vet tidy clean e2e e2e-install
+.PHONY: help build build-frontend build-backend build-worker-daemon build-fakeagent test cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift smoke vet tidy clean e2e e2e-install
+
+# Default target prints discoverable entry points. Run `make` (no
+# args) or `make help` to see what's available.
+help:
+	@echo "agent-center make targets:"
+	@echo ""
+	@echo "  build / build-frontend / build-backend"
+	@echo "  build-worker-daemon / build-fakeagent"
+	@echo ""
+	@echo "  test                 — go test ./..."
+	@echo "  cover / cover-html   — go test with coverage report"
+	@echo "  vet                  — go vet ./..."
+	@echo "  tidy                 — go mod tidy"
+	@echo "  clean                — remove ./bin and coverage artifacts"
+	@echo ""
+	@echo "Lint (conventions § 0.4 enforce mechanisms):"
+	@echo "  lint                     — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift"
+	@echo "  lint-vendor              — #v1 vendor residue grep (ADR-0031)"
+	@echo "  lint-vendor-selftest     — positive-fail check for lint-vendor"
+	@echo "  lint-mock-default        — § 0.4 #2: NoopSender/NoopKillSender prod-wiring guard"
+	@echo "  lint-doc-impl-drift      — § 0.4 #3: ADR claim vs code contradiction checks"
+	@echo ""
+	@echo "Deployed-binary smoke (conventions § 0.4 #4):"
+	@echo "  smoke                — fresh-binary deploy + drive task pipeline → done"
+	@echo ""
+	@echo "End-to-end (Playwright):"
+	@echo "  e2e-install          — one-time pnpm + chromium install"
+	@echo "  e2e                  — full e2e suite (includes deployed-pipeline spec)"
 
 # Build pipeline composes a frontend bundle then embeds it into the Go
 # binary via go:embed (Phase 11 § 3.4 + F15).
@@ -71,8 +99,31 @@ lint-vendor:
 lint-vendor-selftest:
 	./scripts/lint/test-no-vendor-refs.sh
 
+# lint-mock-default — conventions § 0.4 enforce mechanism #2: catch
+# mock-as-default literals (NoopSender / NoopKillSender) on production
+# wiring paths without an explicit `// FIXME(prod-wiring):` annotation.
+# v2.0 GA shipped with these silently wired into the real server boot;
+# dispatch events were dropped and no one noticed until hand-deploy.
+lint-mock-default:
+	./scripts/lint/no-mock-default.sh
+
+# lint-doc-impl-drift — conventions § 0.4 enforce mechanism #3: encode
+# "ADR claims X → grep code condition Y" so docs that are no longer
+# true (or never were) fail fast. See script header for how to add a
+# new check.
+lint-doc-impl-drift:
+	./scripts/lint/doc-impl-drift.sh
+
+# smoke — conventions § 0.4 enforce mechanism #4: deployed-binary
+# smoke gate. Builds fresh binaries and drives the full task-dispatch
+# pipeline via the v22-deployed-pipeline Playwright spec. Phase-close
+# rule (per testing.md § 2.3): deployed-smoke count = 0 means the
+# phase MUST NOT close.
+smoke:
+	./scripts/smoke/deploy-smoke.sh
+
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor
+lint: vet lint-vendor lint-mock-default lint-doc-impl-drift
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.

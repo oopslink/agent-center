@@ -55,6 +55,10 @@ func NewCoordinator(
 	clk clock.Clock,
 ) *Coordinator {
 	if sender == nil {
+		// FIXME(prod-wiring): noop fallback — production callers MUST
+		// pass a real KillSender (e.g. dispatchq.KillSender). Reaching
+		// this branch silently drops every kill request. See
+		// conventions § 0.4 enforce mechanism #2.
 		sender = NoopKillSender{}
 	}
 	if clk == nil {

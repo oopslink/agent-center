@@ -100,6 +100,52 @@
 
 **自检：** 我提交的改动是否同时有计划 + 报告？每条计划项是否在报告里被显式确认（即使是 skip）？
 
+### § 2.3 分层测试报告标准 (Layered Test Report Standard)
+
+> 任何 phase / GA / release 测试报告**必须**把测试数按下面三类**分别**列出。一次性的"55 packages ok / 12 e2e cases pass"那种打包数字是 [§ 0.4 enforce mechanism #5](conventions.md#-04-ddd-原则下做正确的事顶层架构铁律) 防的反面教材。
+
+#### 三类测试
+
+| 类 | 定义 | 例 |
+|---|---|---|
+| **Unit (in-package)** | `go test ./internal/<pkg>/...`；不出包；外部依赖全是 test double | `internal/cli/handlers_*_test.go`、`internal/taskruntime/dispatch/service_test.go` |
+| **Integration with mocks** | 跨包；起 in-process service；走 in-memory channel / sqlite-in-tmpdir / sse-in-process；agent CLI 仍 stub；其它跨进程组件仍 mock | `tests/integration/phase2_test.go`、`internal/cli` 的 `setupAdminServerForTests` 起 in-process admin server 后通过 Client 调 → 真 sqlite + 真 Service，但没 spawn 真 binary |
+| **Deployed-binary smoke** | 真 `bin/agent-center` / `bin/agent-center-worker-daemon` / `bin/fakeagent` 子进程；真 unix socket；真 subprocess spawn；no in-process shortcut | `tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts`，通过 `make smoke` / `scripts/smoke/deploy-smoke.sh` 跑 |
+
+#### 报告模板（必填段）
+
+```markdown
+## 测试分层 (Layered Test Inventory)
+
+| 层 | 计数 | 入口 |
+|---|---|---|
+| Unit (in-package) | NN packages / MM cases | `go test ./internal/...` |
+| Integration with mocks | NN cases | `go test ./tests/integration/... ./tests/e2e/...`（in-process harness） |
+| **Deployed-binary smoke** | NN cases | `make smoke` / Playwright `v22-deployed-pipeline.spec.ts` 等 |
+```
+
+#### 硬约束
+
+- **Deployed-smoke 计数 = 0 的 phase / release 不许 close**。这一条覆盖 [§ 0.4 enforce mechanism #4 + #5](conventions.md#-04-ddd-原则下做正确的事顶层架构铁律)：不强制部署 = v2.0 GA 反面教材重演
+- 三类之间**不能合并**报。"e2e 12 cases" 不告诉读者其中几个是 in-process / 几个真起 binary
+- 数字**必须**对应到具体测试文件 / spec 路径，方便审计 reproduce
+- 新增 deployed-smoke spec 的话，同步登记到 [conventions.md § 14](conventions.md#-14-测试) 的关键路径表
+
+#### 反面教材（what NOT to do）
+
+[`docs/plans/reports/phase-12-test-report.md` § 3.1-3.2](../plans/reports/phase-12-test-report.md#-3-test-inventory) 是 v2.0 GA 的测试报告，里面写：
+
+```
+55 Go packages compile + test
+12 Playwright e2e cases pass
+```
+
+这两行数字加起来 67 看着稳，**但 deployed-binary smoke 实际数 = 0**——`bin/agent-center-worker-daemon` 在 v2.0 GA 根本没 build target，所有"e2e"都是 in-process server + 模拟 worker。这正是 @oopslink 在 2026-05-24 firsthand 部署验证时识破整个 transport 层缺失的根因：CI 上 67 个 green test，部署上一个都 cover 不了 "server 进程实际做了什么" 这件事。
+
+v2.2 起每份报告必须分层；分层后这个盲点就**算得出来**——deployed-smoke = 0 = phase 不许 close。
+
+**自检：** 我的报告把 unit / integration-mocked / deployed-smoke 三类分开列了吗？deployed-smoke 计数 ≥ 1 吗？数字能 1:1 对应到具体 test 文件 / spec 路径吗？
+
 ## § 3. 测试分层与关键路径
 
 | 层 | 范围 | 强制要求 |
@@ -139,6 +185,7 @@
 - [ ] 覆盖率报告已生成并附在 PR
 - [ ] 测试计划 / 测试报告两份齐全，条目编号 1:1 对齐
 - [ ] 计划里的每条用例在报告里被显式确认（pass / fail / skip + 理由）
+- [ ] **报告按 § 2.3 三层分类列计数**（unit / integration-mocked / deployed-smoke）；phase / release 报告 deployed-smoke ≥ 1
 - [ ] 关键路径 e2e 覆盖（§ 3）
 - [ ] 异常路径用 mock 显式注入，没有靠真实超时 / 真实网络抖动来"自然触发"
 - [ ] 没用 sleep；时间 / 随机 / IO 通过注入控制
