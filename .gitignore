@@ -51,3 +51,6 @@ sites/.vitepress/cache/
 # cleans it up via trap, but guard against accidentally committing
 # leftover sample files if a run is interrupted.
 /scripts/lint/.selftest/
+
+# UI/UX Pro Max skill — Python bytecode cache
+.claude/skills/*/scripts/__pycache__/
