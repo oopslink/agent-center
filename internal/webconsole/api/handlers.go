@@ -11,6 +11,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/conversation/identity"
+	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
+	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -42,6 +44,14 @@ type HandlerDeps struct {
 	FleetSvc           *query.FleetSnapshotService
 	ReadStateRepo      conversation.UserConversationReadStateRepository
 	ReadStateSvc       *convservice.ReadStateService
+	// IssueRepo / TaskRepo back the BC-native list + detail
+	// endpoints (`GET /api/issues`, `GET /api/issues/{id}`,
+	// `GET /api/tasks`, `GET /api/tasks/{id}`). Restores BC ownership:
+	// Issue projection lives in Discussion BC and Task projection
+	// lives in TaskRuntime BC, so SPA reads no longer require the
+	// Conversation BC's `kind=issue|task` filter.
+	IssueRepo discussion.IssueRepository
+	TaskRepo  task.Repository
 }
 
 // hd retrieves the typed dep bag from the request context.
@@ -777,6 +787,129 @@ func (s *Server) showProjectHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, projectPublicMap(p))
 }
 
+// =============================================================================
+// Issues (BC-native read; Discussion BC owns the Issue projection)
+// =============================================================================
+//
+// v2.3-5a per Option C in #agent-center:97f6710d — backend-only ST.
+// The SPA's #5b cutover replaces its `GET /api/conversations?kind=issue`
+// call with these endpoints; this restores BC ownership (Issue
+// projection from Discussion BC, not Conversation BC).
+//
+// Read-only. Mutations (open / withdraw / conclude / link / bind /
+// comment) flow through the CLI / admin server per ADR-0029.
+
+// listIssuesHandler serves `GET /api/issues?project_id=<id>[&status=<s>]`.
+// project_id is REQUIRED — returns 400 if missing. Optional `status`
+// filters by Discussion BC's 6-state status enum.
+func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.IssueRepo == nil {
+		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
+		return
+	}
+	projectID := r.URL.Query().Get("project_id")
+	if projectID == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "project_id required")
+		return
+	}
+	filter := discussion.IssueFilter{}
+	if st := r.URL.Query().Get("status"); st != "" {
+		ss := discussion.Status(st)
+		filter.Status = &ss
+	}
+	list, err := d.IssueRepo.FindByProject(r.Context(), projectID, filter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	arr := make([]map[string]any, len(list))
+	for i, is := range list {
+		arr[i] = issuePublicMap(is)
+	}
+	writeJSON(w, http.StatusOK, arr)
+}
+
+// showIssueHandler serves `GET /api/issues/{id}`. 404 on not found.
+func (s *Server) showIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.IssueRepo == nil {
+		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
+		return
+	}
+	id := discussion.IssueID(r.PathValue("id"))
+	is, err := d.IssueRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, discussion.ErrIssueNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, issuePublicMap(is))
+}
+
+// =============================================================================
+// Tasks (BC-native read; TaskRuntime BC owns the Task projection)
+// =============================================================================
+//
+// Sibling to the Issues read endpoints above. Coexists with the
+// existing `GET /api/tasks/{id}/trace` — net/http's pattern-matcher
+// resolves `/{id}/trace` ahead of `/{id}` because the longer pattern
+// wins on tie-break (ServeMux specificity rule). Verified by
+// TestAPI_TaskTrace + TestAPI_ShowTask_Happy in this package.
+
+// listTasksHandler serves `GET /api/tasks?project_id=<id>[&status=<s>]`.
+// project_id REQUIRED — returns 400 if missing.
+func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskRepo == nil {
+		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
+		return
+	}
+	projectID := r.URL.Query().Get("project_id")
+	if projectID == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "project_id required")
+		return
+	}
+	filter := task.Filter{}
+	if st := r.URL.Query().Get("status"); st != "" {
+		ss := task.Status(st)
+		filter.Status = &ss
+	}
+	list, err := d.TaskRepo.FindByProject(r.Context(), projectID, filter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	arr := make([]map[string]any, len(list))
+	for i, tk := range list {
+		arr[i] = taskPublicMap(tk)
+	}
+	writeJSON(w, http.StatusOK, arr)
+}
+
+// showTaskHandler serves `GET /api/tasks/{id}`. 404 on not found.
+func (s *Server) showTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskRepo == nil {
+		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
+		return
+	}
+	id := taskruntime.TaskID(r.PathValue("id"))
+	tk, err := d.TaskRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, task.ErrTaskNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, taskPublicMap(tk))
+}
+
 func (s *Server) showAgentHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	name := r.PathValue("name")
@@ -1103,6 +1236,64 @@ func projectPublicMap(p *workforce.Project) map[string]any {
 		row["description"] = d
 	}
 	return row
+}
+
+// issuePublicMap is the wire-format projection for a Discussion BC
+// Issue AR — v2.3-5a `GET /api/issues[/{id}]`. Only fields the Issue
+// AR exposes via getters are projected (the AR has neither `kind` nor
+// `priority` getters in v2; do NOT invent them from the
+// `discussion.Origin` enum — that classifies the entry-point, not the
+// issue's category). `closed_at` mirrors AR's `concluded_at` (nil
+// until conclude/withdraw lands). `closed_reason` is included only
+// for the withdrawn terminal — Discussion BC's conclusion paths use
+// `conclusion_summary`, which we do not project here to avoid
+// confusing the SPA's terminal-banner shape.
+func issuePublicMap(i *discussion.Issue) map[string]any {
+	m := map[string]any{
+		"id":              string(i.ID()),
+		"project_id":      i.ProjectID(),
+		"conversation_id": string(i.ConversationID()),
+		"title":           i.Title(),
+		"status":          string(i.Status()),
+		"opened_at":       i.OpenedAt().Format(time.RFC3339Nano),
+		"opener":          i.OpenedByIdentityID(),
+	}
+	if ca := i.ConcludedAt(); ca != nil {
+		m["closed_at"] = ca.Format(time.RFC3339Nano)
+	}
+	if reason := i.WithdrawReason(); reason != "" {
+		m["closed_reason"] = reason
+	}
+	return m
+}
+
+// taskPublicMap is the wire-format projection for a TaskRuntime BC
+// Task AR — v2.3-5a `GET /api/tasks[/{id}]`. Mirrors the Issue
+// projection shape (id / project_id / conversation_id / title /
+// status / priority / created_at) plus task-only addenda
+// (current_execution_id when active, depends_on_task_ids when
+// non-empty).
+func taskPublicMap(t *task.Task) map[string]any {
+	m := map[string]any{
+		"id":              string(t.ID()),
+		"project_id":      t.ProjectID(),
+		"conversation_id": t.ConversationID(),
+		"title":           t.Title(),
+		"status":          string(t.Status()),
+		"priority":        string(t.Priority()),
+		"created_at":      t.CreatedAt().Format(time.RFC3339Nano),
+	}
+	if execID := string(t.CurrentExecutionID()); execID != "" {
+		m["current_execution_id"] = execID
+	}
+	if deps := t.DependsOnTaskIDs(); len(deps) > 0 {
+		as := make([]string, len(deps))
+		for k, d := range deps {
+			as[k] = string(d)
+		}
+		m["depends_on_task_ids"] = as
+	}
+	return m
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

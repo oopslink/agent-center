@@ -15,6 +15,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
+	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
@@ -69,6 +70,7 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, convRepo, msgRepo,
 		sink, gen, clk, "")
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
+	issueRepo := disqlite.NewIssueRepo(db)
 	// Wire UserSecret with a test master key.
 	userSecretRepo := secretsqlite.NewUserSecretRepo(db)
 	mk, err := secretmgmt.GenerateMasterKey()
@@ -93,6 +95,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		AgentInstanceRepo:  aiRepo,
 		ReadStateRepo:      rsRepo,
 		ReadStateSvc:       rsSvc,
+		IssueRepo:          issueRepo,
+		TaskRepo:           taskRepo,
 	}
 	return deps, db
 }

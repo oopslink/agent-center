@@ -36,6 +36,8 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		ProjectRepo:        a.ProjectRepo,
 		ReadStateRepo:      a.ReadStateRepo,
 		ReadStateSvc:       a.ReadStateSvc,
+		IssueRepo:          a.IssueRepo,
+		TaskRepo:           a.TaskRepo,
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -70,6 +72,8 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, logge
 		FleetSvc:           a.FleetSvc,
 		ReadStateRepo:      a.ReadStateRepo,
 		ReadStateSvc:       a.ReadStateSvc,
+		IssueRepo:          a.IssueRepo,
+		TaskRepo:           a.TaskRepo,
 	}
 	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler()})
 	// Wrap the inner mux with deps middleware; install it as the

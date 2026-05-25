@@ -130,6 +130,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/issues", s.deriveIssueHandler)
 	s.mux.HandleFunc("POST /api/tasks", s.deriveTaskHandler)
 
+	// BC-native list + detail reads (v2.3-5a). Issue projection lives
+	// in Discussion BC; Task projection lives in TaskRuntime BC. SPA
+	// #5b switches to these in place of `GET /api/conversations?kind=...`.
+	s.mux.HandleFunc("GET /api/issues", s.listIssuesHandler)
+	s.mux.HandleFunc("GET /api/issues/{id}", s.showIssueHandler)
+	s.mux.HandleFunc("GET /api/tasks", s.listTasksHandler)
+	s.mux.HandleFunc("GET /api/tasks/{id}", s.showTaskHandler)
+
 	// Input requests.
 	s.mux.HandleFunc("GET /api/input_requests", s.listInputRequestsHandler)
 	s.mux.HandleFunc("POST /api/input_requests/{id}/respond", s.respondInputRequestHandler)
