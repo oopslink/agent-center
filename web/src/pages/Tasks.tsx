@@ -1,20 +1,64 @@
 import type React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
+import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 
 // Tasks page (/tasks). Lists kind=task conversations. Like issues but
 // task lifecycle is owned by TaskRuntime BC; here we only render the
 // conversation surface.
+//
+// PROJECT FILTER: the Conversation projection does NOT carry
+// project_id today (the Task AR holds the project link in its own BC).
+// The chip row is rendered for UX continuity with the v2.3-4 project
+// surface and writes the selection back to the URL (?project=…).
+// Filtering is COSMETIC for now — wiring requires projecting
+// project_id onto the conversation read model (follow-up pass).
 export default function Tasks(): React.ReactElement {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectFilter = searchParams.get('project') ?? 'all';
+  const projects = useProjects();
   const all = useConversations({ kind: 'task' });
+
+  const setProject = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === 'all') next.delete('project');
+    else next.set('project', id);
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <section className="space-y-4" data-testid="page-Tasks">
       <header className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Tasks</h2>
       </header>
+
+      <div
+        className="flex flex-wrap items-center gap-1"
+        role="tablist"
+        aria-label="project filter"
+        data-testid="tasks-project-filter"
+      >
+        <span className="mr-1 text-[0.6875rem] uppercase tracking-wider text-text-muted">
+          Project:
+        </span>
+        <ProjectChip
+          label="All"
+          value="all"
+          selected={projectFilter === 'all'}
+          onClick={() => setProject('all')}
+        />
+        {(projects.data ?? []).map((p) => (
+          <ProjectChip
+            key={p.id}
+            label={p.name}
+            value={p.id}
+            selected={projectFilter === p.id}
+            onClick={() => setProject(p.id)}
+          />
+        ))}
+      </div>
 
       {all.isLoading && (
         <div className="space-y-2" data-testid="tasks-loading">
@@ -61,5 +105,36 @@ export default function Tasks(): React.ReactElement {
         </ul>
       )}
     </section>
+  );
+}
+
+function ProjectChip({
+  label,
+  value,
+  selected,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  selected: boolean;
+  onClick: () => void;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onClick}
+      data-testid="tasks-project-chip"
+      data-project={value}
+      className={[
+        'rounded-full px-3 py-0.5 text-xs',
+        selected
+          ? 'bg-brand text-white'
+          : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated',
+      ].join(' ')}
+    >
+      {label}
+    </button>
   );
 }

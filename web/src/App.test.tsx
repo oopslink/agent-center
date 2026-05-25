@@ -48,7 +48,7 @@ describe('App shell + route tree', () => {
     });
   });
 
-  it('renders DMs / Issues / IssueDetail / Tasks / TaskDetail / TaskTrace / Agents / AgentDetail / InputRequests / Secrets / Fleet / Settings', async () => {
+  it('renders DMs / Issues / IssueDetail / Tasks / TaskDetail / TaskTrace / Agents / AgentDetail / Projects / ProjectDetail / InputRequests / Secrets / Fleet / Settings', async () => {
     const cases: Array<[string, string]> = [
       ['/dms', 'page-DMs'],
       ['/dms/01HXXX', 'page-DMDetail'],
@@ -59,6 +59,8 @@ describe('App shell + route tree', () => {
       ['/tasks/01HXXX/trace', 'page-TaskTrace'],
       ['/agents', 'page-Agents'],
       ['/agents/worker-1', 'page-AgentDetail'],
+      ['/projects', 'page-Projects'],
+      ['/projects/proj-a', 'page-ProjectDetail'],
       ['/inputrequests', 'page-InputRequests'],
       ['/secrets', 'page-Secrets'],
       ['/fleet', 'page-Fleet'],

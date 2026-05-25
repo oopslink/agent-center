@@ -444,12 +444,128 @@ func TestAPI_ListProjects_RepoError(t *testing.T) {
 	}
 }
 
+// v2.3-4: list projection now includes default_agent_cli + description
+// + updated_at on top of the legacy {id, name, kind, created_at}.
+func TestAPI_ListProjects_FullProjection(t *testing.T) {
+	deps, _ := setupAPI(t)
+	p, err := workforce.NewProject(workforce.NewProjectInput{
+		ID: "p-2", Name: "Beta", Kind: workforce.ProjectKindCoding,
+		DefaultAgentCLI:     "claudecode",
+		Description:         "the beta project",
+		CreatedByIdentityID: "user:hayang",
+		CreatedAt:           time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects")
+	body, _ := io.ReadAll(resp.Body)
+	var arr []map[string]any
+	if err := json.Unmarshal(body, &arr); err != nil {
+		t.Fatal(err)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("len=%d", len(arr))
+	}
+	row := arr[0]
+	if row["default_agent_cli"] != "claudecode" {
+		t.Fatalf("missing default_agent_cli: %v", row)
+	}
+	if row["description"] != "the beta project" {
+		t.Fatalf("missing description: %v", row)
+	}
+	if row["updated_at"] == nil {
+		t.Fatalf("missing updated_at: %v", row)
+	}
+}
+
+// v2.3-4: GET /api/projects/{id} happy path.
+func TestAPI_ShowProject_Happy(t *testing.T) {
+	deps, _ := setupAPI(t)
+	p, err := workforce.NewProject(workforce.NewProjectInput{
+		ID: "p-1", Name: "Demo", Kind: workforce.ProjectKindCoding,
+		DefaultAgentCLI:     "claudecode",
+		Description:         "demo project",
+		CreatedByIdentityID: "user:hayang",
+		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects/p-1")
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["id"] != "p-1" || got["name"] != "Demo" || got["kind"] != "coding" {
+		t.Fatalf("bad: %v", got)
+	}
+	if got["default_agent_cli"] != "claudecode" {
+		t.Fatalf("default_agent_cli missing: %v", got)
+	}
+}
+
+// v2.3-4: GET /api/projects/{id} 404.
+func TestAPI_ShowProject_NotFound(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.ProjectRepo = &fakeProjectRepo{}
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects/ghost")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status=%d want 404", resp.StatusCode)
+	}
+}
+
+// v2.3-4: GET /api/projects/{id} 501 when repo unwired.
+func TestAPI_ShowProject_RepoNotWired(t *testing.T) {
+	deps, _ := setupAPI(t)
+	// deps.ProjectRepo intentionally not set
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects/p-1")
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status=%d want 501", resp.StatusCode)
+	}
+}
+
+// v2.3-4: GET /api/projects/{id} surfaces non-404 errors as 500.
+func TestAPI_ShowProject_RepoError(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.ProjectRepo = &fakeProjectRepo{findByIDErr: errors.New("db down")}
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/projects/p-1")
+	if resp.StatusCode != 500 {
+		t.Fatalf("status=%d want 500", resp.StatusCode)
+	}
+}
+
 type fakeProjectRepo struct {
-	projects   []*workforce.Project
-	findAllErr error
+	projects    []*workforce.Project
+	findAllErr  error
+	findByIDErr error
 }
 
 func (f *fakeProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*workforce.Project, error) {
+	if f.findByIDErr != nil {
+		return nil, f.findByIDErr
+	}
+	for _, p := range f.projects {
+		if p.ID() == id {
+			return p, nil
+		}
+	}
 	return nil, workforce.ErrProjectNotFound
 }
 func (f *fakeProjectRepo) FindAll(ctx context.Context, filter workforce.ProjectFilter) ([]*workforce.Project, error) {

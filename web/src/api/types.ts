@@ -132,6 +132,20 @@ export interface TraceEvent {
   payload?: Record<string, unknown>;
 }
 
+// Project mirrors the backend projection emitted by projectPublicMap
+// (id, name, kind, default_agent_cli, description, created_at,
+// updated_at). All fields except id/name/created_at/updated_at are
+// optional — the backend omits empty strings.
+export interface Project {
+  id: string;
+  name: string;
+  kind?: string;
+  default_agent_cli?: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ConversationMessageReference {
   id: string;
   child_conversation_id: string;

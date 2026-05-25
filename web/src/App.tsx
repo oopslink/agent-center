@@ -18,6 +18,8 @@ const TaskDetail = lazy(() => import('./pages/TaskDetail'));
 const TaskTrace = lazy(() => import('./pages/TaskTrace'));
 const Agents = lazy(() => import('./pages/Agents'));
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
+const Projects = lazy(() => import('./pages/Projects'));
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const InputRequests = lazy(() => import('./pages/InputRequests'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Fleet = lazy(() => import('./pages/Fleet'));
@@ -43,6 +45,8 @@ export function App(): React.ReactElement {
           <Route path="/tasks/:id/trace" element={<TaskTrace />} />
           <Route path="/agents" element={<Agents />} />
           <Route path="/agents/:name" element={<AgentDetail />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:id" element={<ProjectDetail />} />
           <Route path="/inputrequests" element={<InputRequests />} />
           <Route path="/secrets" element={<Secrets />} />
           <Route path="/fleet" element={<Fleet />} />

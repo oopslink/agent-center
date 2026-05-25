@@ -31,12 +31,20 @@ function renderShell(initial = '/channels') {
 describe('AppLayout v2 shell (v2.3 P2)', () => {
   afterEach(() => cleanup());
 
-  it('renders the three sidebar sections', () => {
+  it('renders the sidebar sections', () => {
     renderShell();
     // Section headings live in the always-mounted desktop sidebar.
     expect(screen.getByText('Conversations')).toBeInTheDocument();
     expect(screen.getByText('Work')).toBeInTheDocument();
     expect(screen.getByText('System')).toBeInTheDocument();
+  });
+
+  // v2.3-4: Workspace section + Projects nav item.
+  it('renders the Workspace section with a Projects link', () => {
+    renderShell();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    const projectsLink = screen.getByRole('link', { name: /projects/i });
+    expect(projectsLink).toHaveAttribute('href', '/projects');
   });
 
   it('hamburger toggle exists and toggles aria-expanded', () => {

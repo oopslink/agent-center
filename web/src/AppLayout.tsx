@@ -175,6 +175,15 @@ const navSections: ReadonlyArray<NavSection> = [
     ],
   },
   {
+    // v2.3-4: Workspace surface — Projects were not previously exposed
+    // in the SPA top-level nav (backend already supported the read
+    // endpoint via /api/projects since v2.1-A).
+    label: 'Workspace',
+    items: [
+      { to: '/projects', label: 'Projects', Icon: FolderIcon },
+    ],
+  },
+  {
     label: 'Conversations',
     items: [
       { to: '/channels', label: 'Channels', Icon: HashIcon },
@@ -348,6 +357,13 @@ function HamburgerIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.75" aria-hidden="true">
       <path d="M3.5 5h13M3.5 10h13M3.5 15h13" strokeLinecap="round" />
+    </svg>
+  );
+}
+function FolderIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h6.5A1.5 1.5 0 0 1 17 8.5v6A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-8z" strokeLinejoin="round" />
     </svg>
   );
 }

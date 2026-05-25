@@ -18,6 +18,7 @@ import { useSecrets, useCreateSecret, useRevokeSecret } from './secrets';
 import { useInputRequests, useRespondInputRequest } from './inputRequests';
 import { useFleet, useTaskTrace } from './fleet';
 import { useDeriveIssue, useDeriveTask } from './derive';
+import { useProjects, useProject } from './projects';
 
 // Mutation tests use the sync `mutate(args)` API + waitFor on isSuccess
 // rather than `await act(async () => await mutateAsync(...))`. The async
@@ -207,6 +208,23 @@ describe('react-query hooks', () => {
     });
     await waitFor(() => expect(task.result.current.isSuccess).toBe(true));
     expect(task.result.current.data?.conversation_id).toBe('T-1');
+  });
+
+  it('useProjects + useProject round-trip through MSW', async () => {
+    const wrapper = makeWrapper();
+    const list = renderHook(() => useProjects(), { wrapper });
+    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
+    expect(list.result.current.data?.[0].id).toBe('proj-a');
+    expect(list.result.current.data?.[0].default_agent_cli).toBe('claudecode');
+
+    const one = renderHook(() => useProject('proj-a'), { wrapper });
+    await waitFor(() => expect(one.result.current.isSuccess).toBe(true));
+    expect(one.result.current.data?.name).toBe('Project Alpha');
+  });
+
+  it('useProject skips when id is undefined', () => {
+    const { result } = renderHook(() => useProject(undefined), { wrapper: makeWrapper() });
+    expect(result.current.fetchStatus).toBe('idle');
   });
 
   it('hooks surface ApiError from the server', async () => {

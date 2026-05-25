@@ -153,6 +153,34 @@ export const handlers = [
   http.post('/api/sse/subscribe', () => ok({ subscribed: true })),
   http.post('/api/sse/unsubscribe', () => ok({ unsubscribed: true })),
 
+  // Projects (v2.1-A + v2.3-4). Full projection includes
+  // default_agent_cli, description, updated_at on top of the legacy
+  // {id, name, kind, created_at}.
+  http.get('/api/projects', () =>
+    ok([
+      {
+        id: 'proj-a',
+        name: 'Project Alpha',
+        kind: 'coding',
+        default_agent_cli: 'claudecode',
+        description: 'First sample project for v2.3-4',
+        created_at: '2026-05-20T01:00:00Z',
+        updated_at: '2026-05-20T01:00:00Z',
+      },
+    ]),
+  ),
+  http.get('/api/projects/:id', ({ params }) =>
+    ok({
+      id: String(params.id),
+      name: 'Project Alpha',
+      kind: 'coding',
+      default_agent_cli: 'claudecode',
+      description: 'First sample project for v2.3-4',
+      created_at: '2026-05-20T01:00:00Z',
+      updated_at: '2026-05-20T01:00:00Z',
+    }),
+  ),
+
   // Fleet + trace
   http.get('/api/fleet', () =>
     ok({

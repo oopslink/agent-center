@@ -733,9 +733,11 @@ func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, arr)
 }
 
-// listProjectsHandler powers the v2.1-A DeriveModal project picker:
-// returns every project as {id, name, kind, created_at}. Read-only;
-// CRUD verbs go through the `agent-center project` CLI subtree.
+// listProjectsHandler returns every project as the full projection
+// (id, name, kind, default_agent_cli, description, created_at,
+// updated_at). Powers both the v2.1-A DeriveModal project picker AND
+// the v2.3-4 /projects list page. Read-only; CRUD verbs go through
+// the `agent-center project` CLI subtree (ADR-0029).
 func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.ProjectRepo == nil {
@@ -749,17 +751,30 @@ func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	arr := make([]map[string]any, len(list))
 	for i, p := range list {
-		row := map[string]any{
-			"id":         string(p.ID()),
-			"name":       p.Name(),
-			"created_at": p.CreatedAt().Format(time.RFC3339Nano),
-		}
-		if k := p.Kind(); k != "" {
-			row["kind"] = string(k)
-		}
-		arr[i] = row
+		arr[i] = projectPublicMap(p)
 	}
 	writeJSON(w, http.StatusOK, arr)
+}
+
+// showProjectHandler returns a single Project projection (404 if not
+// found). Powers the v2.3-4 /projects/{id} detail page.
+func (s *Server) showProjectHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ProjectRepo == nil {
+		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
+		return
+	}
+	id := workforce.ProjectID(r.PathValue("id"))
+	p, err := d.ProjectRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, workforce.ErrProjectNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, projectPublicMap(p))
 }
 
 func (s *Server) showAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -1065,6 +1080,29 @@ func agentPublicMap(ai *workforce.AgentInstance) map[string]any {
 		"max_concurrent": ai.MaxConcurrent(),
 		"identity_id":    "agent:" + string(ai.ID()),
 	}
+}
+
+// projectPublicMap is the wire-format projection for a workforce
+// Project. Includes the full set of read-only fields the SPA needs
+// (id, name, kind, default_agent_cli, description, created_at,
+// updated_at). Mutations stay in the CLI surface per ADR-0029.
+func projectPublicMap(p *workforce.Project) map[string]any {
+	row := map[string]any{
+		"id":         string(p.ID()),
+		"name":       p.Name(),
+		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
+	}
+	if k := p.Kind(); k != "" {
+		row["kind"] = string(k)
+	}
+	if cli := p.DefaultAgentCLI(); cli != "" {
+		row["default_agent_cli"] = cli
+	}
+	if d := p.Description(); d != "" {
+		row["description"] = d
+	}
+	return row
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {
