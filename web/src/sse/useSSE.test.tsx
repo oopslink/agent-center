@@ -159,6 +159,7 @@ describe('dispatchToQueryClient', () => {
       'task.created',
       'task.abandoned',
       'task.suspended',
+      'task.done',
       'task_execution.submitted',
       'task_execution.dispatched',
       'task_execution.acked',
@@ -171,6 +172,31 @@ describe('dispatchToQueryClient', () => {
       dispatchToQueryClient(qc, ev(t));
     }
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
+  });
+
+  // v2.3-5b: task lifecycle also invalidates the BC-native Task list
+  // cache (qk.tasksList) so the Tasks page refreshes when an event
+  // arrives without the user reloading the route.
+  it('task.* lifecycle invalidates the BC-native tasks list cache', () => {
+    for (const t of ['task.created', 'task.abandoned', 'task.suspended', 'task.done']) {
+      dispatchToQueryClient(qc, ev(t));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.tasksList() });
+  });
+
+  // v2.3-5b: issue lifecycle invalidates the BC-native Issue list
+  // cache (qk.issues). Mirrors the task path above.
+  it('issue.* lifecycle invalidates the BC-native issues list cache', () => {
+    for (const t of [
+      'issue.opened',
+      'issue.withdrawn',
+      'issue.concluded',
+      'issue.tasks_spawned',
+      'issue.discussion_started',
+    ]) {
+      dispatchToQueryClient(qc, ev(t));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.issues() });
   });
 
   it('task_execution.input_required invalidates fleet + IRs', () => {

@@ -1,39 +1,44 @@
 import type React from 'react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useConversations } from '@/api/conversations';
+import { useIssues } from '@/api/issues';
 import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
-import type { ConversationStatus } from '@/api/types';
+import type { IssueStatus } from '@/api/types';
 
-// Issues page (/issues). Lists kind=issue conversations with a status
-// filter chip row + a project filter chip row.
+// Issues page (/issues). Lists Discussion BC Issues with a status
+// filter row + a project filter chip row.
 //
-// PROJECT FILTER: the Conversation projection does NOT carry a
-// project_id field today — the Issue/Task AR holds the project link in
-// its own BC. The chip row is rendered for UX continuity with the
-// v2.3-4 project surface and writes the selection back to the URL
-// (?project=…). Filtering is COSMETIC for now — the row visually
-// scopes the page without altering the result set. Wiring the actual
-// filter requires projecting project_id onto the conversation read
-// model (follow-up pass).
-const STATUS_TABS: Array<{ label: string; value: ConversationStatus | 'all' }> = [
+// v2.3-5b cutover (per § 0.6): this page now reads from the Discussion
+// BC-native `GET /api/issues?project_id=...` endpoint (was previously
+// `useConversations({kind:'issue'})`, a cross-BC reach). The project
+// chip filter is now REAL — the backend rejects requests without a
+// project_id, so the page is gated on "pick a project" and shows a
+// nudge in the all-projects state. Status enum here is Discussion BC's
+// 6-value Issue.Status (different from ConversationStatus).
+const STATUS_TABS: Array<{ label: string; value: IssueStatus | 'all' }> = [
   { label: 'All', value: 'all' },
-  { label: 'Active', value: 'active' },
-  { label: 'Closed', value: 'closed' },
-  { label: 'Archived', value: 'archived' },
+  { label: 'Open', value: 'open' },
+  { label: 'Discussing', value: 'under_discussion' },
+  { label: 'Concluded', value: 'concluded' },
+  { label: 'Closed (tasks)', value: 'closed_with_tasks' },
+  { label: 'Closed (no-op)', value: 'closed_no_action' },
+  { label: 'Withdrawn', value: 'withdrawn' },
 ];
 
 export default function Issues(): React.ReactElement {
-  const [filter, setFilter] = useState<ConversationStatus | 'all'>('all');
+  const [filter, setFilter] = useState<IssueStatus | 'all'>('all');
   const [searchParams, setSearchParams] = useSearchParams();
   const projectFilter = searchParams.get('project') ?? 'all';
   const projects = useProjects();
-  const all = useConversations({ kind: 'issue' });
-  // Status filtering is real; project filtering is cosmetic (see
-  // module docstring) — we still slice by status so the UI behaves.
-  const data = (all.data ?? []).filter((c) => filter === 'all' || c.status === filter);
+  // Status filter is server-side now (backend accepts optional `status`
+  // query param mapped to discussion.IssueFilter.Status).
+  const issues = useIssues({
+    projectId: projectFilter === 'all' ? undefined : projectFilter,
+    status: filter === 'all' ? undefined : filter,
+  });
+  const data = issues.data ?? [];
 
   const setProject = (id: string) => {
     const next = new URLSearchParams(searchParams);
@@ -74,7 +79,7 @@ export default function Issues(): React.ReactElement {
         ))}
       </div>
 
-      <div className="flex gap-1" role="tablist" aria-label="status filter">
+      <div className="flex flex-wrap gap-1" role="tablist" aria-label="status filter">
         {STATUS_TABS.map((t) => (
           <button
             key={t.value}
@@ -96,21 +101,28 @@ export default function Issues(): React.ReactElement {
         ))}
       </div>
 
-      {all.isLoading && (
+      {projectFilter === 'all' && (
+        <EmptyState
+          testId="issues-pick-project"
+          title="Pick a project"
+          body="Issues live inside a project — choose one from the chip row above to see its issues."
+        />
+      )}
+      {projectFilter !== 'all' && issues.isLoading && (
         <div className="space-y-2" data-testid="issues-loading">
           <Skeleton height="2.5rem" />
           <Skeleton height="2.5rem" />
         </div>
       )}
-      {all.isError && (
+      {projectFilter !== 'all' && issues.isError && (
         <p className="text-sm text-danger" data-testid="issues-error">
-          {(all.error as Error).message}
+          {(issues.error as Error).message}
         </p>
       )}
-      {all.isSuccess && data.length === 0 && (
+      {projectFilter !== 'all' && issues.isSuccess && data.length === 0 && (
         <EmptyState
           testId="issues-empty"
-          title={filter === 'all' ? 'No issues yet' : `No ${filter} issues`}
+          title={filter === 'all' ? 'No issues yet' : `No ${filter.replace(/_/g, ' ')} issues`}
           body={
             filter === 'all'
               ? 'Issues capture decisions or problems that need resolution. Open one from a conversation via the Derive menu.'
@@ -118,22 +130,23 @@ export default function Issues(): React.ReactElement {
           }
         />
       )}
-      {data.length > 0 && (
+      {projectFilter !== 'all' && data.length > 0 && (
         <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
-          {data.map((c) => (
-            <li key={c.id} data-testid="issue-row" data-issue-id={c.id}>
+          {data.map((iss) => (
+            <li key={iss.id} data-testid="issue-row" data-issue-id={iss.id}>
               <Link
-                to={`/issues/${encodeURIComponent(c.id)}`}
+                to={`/issues/${encodeURIComponent(iss.id)}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
               >
                 <span className="flex items-center gap-3">
-                  <span className="font-medium">{c.name || c.id}</span>
+                  <span className="font-medium">{iss.title || iss.id}</span>
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">
-                    {c.status}
+                    {iss.status.replace(/_/g, ' ')}
                   </span>
                 </span>
-                <span className="max-w-[40ch] truncate text-xs text-slate-500">
-                  {c.description}
+                <span className="flex items-center gap-3 text-xs text-slate-500">
+                  <span className="font-mono">{iss.opener}</span>
+                  <span>{formatRelative(iss.opened_at)}</span>
                 </span>
               </Link>
             </li>
@@ -173,4 +186,16 @@ function ProjectChip({
       {label}
     </button>
   );
+}
+
+// Tiny relative-time helper (mirrors Home.tsx — kept inline so this
+// page has zero extra deps).
+function formatRelative(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '—';
+  const delta = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (delta < 60) return `${delta}s ago`;
+  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
+  if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
+  return `${Math.floor(delta / 86400)}d ago`;
 }

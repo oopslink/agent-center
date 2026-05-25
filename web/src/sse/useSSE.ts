@@ -243,10 +243,16 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       invalidate(qk.secrets());
       return;
 
-    // Task execution lifecycle — fleet view refreshes on any move.
+    // Task lifecycle — fleet view + BC-native Task list/show
+    // refresh on any move (v2.3-5b: qk.tasksList / qk.task were
+    // added when the SPA stopped going through Conversation BC).
     case 'task.created':
     case 'task.abandoned':
     case 'task.suspended':
+    case 'task.done':
+      invalidate(qk.fleet());
+      invalidate(qk.tasksList());
+      return;
     case 'task_execution.submitted':
     case 'task_execution.dispatched':
     case 'task_execution.acked':
@@ -260,6 +266,17 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'task_execution.input_required':
       invalidate(qk.fleet());
       invalidate(qk.inputRequests());
+      return;
+
+    // Issue lifecycle — BC-native Issue list/show refresh on any
+    // status move (v2.3-5b: qk.issues / qk.issue were added when
+    // the SPA stopped going through Conversation BC).
+    case 'issue.opened':
+    case 'issue.withdrawn':
+    case 'issue.concluded':
+    case 'issue.tasks_spawned':
+    case 'issue.discussion_started':
+      invalidate(qk.issues());
       return;
 
     default:

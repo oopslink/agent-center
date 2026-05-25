@@ -24,18 +24,33 @@ function wrap(path: string) {
   );
 }
 
+// v2.3-5b: route param is now the ISSUE_ID (Discussion BC), not the
+// conversation_id. Detail page fetches the Issue projection first
+// then uses its conversation_id to fetch the message thread from
+// Conversation BC.
+
 describe('IssueDetail page', () => {
   afterEach(() => cleanup());
 
-  it('renders header + messages + composer + participants', async () => {
+  it('renders header from the Issue projection + messages from the bound conversation', async () => {
     server.use(
-      http.get('/api/conversations/:id', () =>
+      http.get('/api/issues/:id', ({ params }) =>
         HttpResponse.json({
-          id: 'I-1',
+          id: String(params.id),
+          project_id: 'proj-a',
+          conversation_id: 'I-conv-1',
+          title: 'login bug',
+          status: 'open',
+          opened_at: '2026-05-24T01:00:00Z',
+          opener: 'user:hayang',
+        }),
+      ),
+      http.get('/api/conversations/I-conv-1', () =>
+        HttpResponse.json({
+          id: 'I-conv-1',
           kind: 'issue',
           name: 'login bug',
           status: 'active',
-          description: 'cookie not set',
           participants: [
             {
               identity_id: 'user:hayang',
@@ -46,11 +61,11 @@ describe('IssueDetail page', () => {
           ],
         }),
       ),
-      http.get('/api/conversations/I-1/messages', () =>
+      http.get('/api/conversations/I-conv-1/messages', () =>
         HttpResponse.json([
           {
             id: 'M-own',
-            conversation_id: 'I-1',
+            conversation_id: 'I-conv-1',
             sender_identity_id: 'user:hayang',
             content_kind: 'text',
             content: 'native discussion',
@@ -59,18 +74,33 @@ describe('IssueDetail page', () => {
           },
         ]),
       ),
-      http.get('/api/conversations/I-1/refs', () => HttpResponse.json([])),
+      http.get('/api/conversations/I-conv-1/refs', () => HttpResponse.json([])),
     );
-    wrap('/issues/I-1');
+    wrap('/issues/IS-1');
     await waitFor(() => expect(screen.getByText('native discussion')).toBeInTheDocument());
     expect(screen.getByText('login bug')).toBeInTheDocument();
-    expect(screen.getByText(/cookie not set/)).toBeInTheDocument();
+    expect(screen.getByText(/opened/i)).toBeInTheDocument();
+    expect(screen.getByTestId('issue-project-link')).toHaveAttribute(
+      'href',
+      '/projects/proj-a',
+    );
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     expect(screen.getByTestId('participants-panel')).toBeInTheDocument();
   });
 
   it('renders the carry-over divider when refs + source messages are present', async () => {
     server.use(
+      http.get('/api/issues/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          project_id: 'proj-a',
+          conversation_id: 'I-2',
+          title: 'follow up',
+          status: 'open',
+          opened_at: '2026-05-24T01:00:00Z',
+          opener: 'user:hayang',
+        }),
+      ),
       http.get('/api/conversations/:id', ({ params }) =>
         HttpResponse.json({
           id: params.id,
@@ -120,21 +150,21 @@ describe('IssueDetail page', () => {
         ]),
       ),
     );
-    wrap('/issues/I-2');
+    wrap('/issues/IS-2');
     await waitFor(() => expect(screen.getByText('carried snippet')).toBeInTheDocument());
     expect(screen.getByTestId('carry-over-divider')).toBeInTheDocument();
     expect(screen.getByText('continuing in child')).toBeInTheDocument();
   });
 
-  it('surfaces conversation lookup error', async () => {
+  it('surfaces issue lookup error', async () => {
     server.use(
-      http.get('/api/conversations/:id', () =>
+      http.get('/api/issues/:id', () =>
         HttpResponse.json({ error: 'not_found', message: 'no such issue' }, { status: 404 }),
       ),
-      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
-      http.get('/api/conversations/:id/refs', () => HttpResponse.json([])),
     );
     wrap('/issues/missing');
-    await waitFor(() => expect(screen.getByTestId('issue-not-found')).toHaveTextContent(/no such issue/));
+    await waitFor(() =>
+      expect(screen.getByTestId('issue-not-found')).toHaveTextContent(/no such issue/),
+    );
   });
 });

@@ -68,6 +68,70 @@ export const handlers = [
     ok({ last_seen_message_id: 'M1', version: 1, bumped: true, event_id: 'E-seen' }),
   ),
 
+  // BC-native Issue list/show (v2.3-5a). Discussion BC ownership; the
+  // /api/conversations?kind=issue path is retained for backwards-compat
+  // but the SPA cutover (v2.3-5b) reads from these.
+  http.get('/api/issues', ({ request }) => {
+    const url = new URL(request.url);
+    const projectId = url.searchParams.get('project_id');
+    if (!projectId) {
+      return err(400, 'missing_project_id', 'project_id required');
+    }
+    return ok([
+      {
+        id: 'IS-1',
+        project_id: projectId,
+        conversation_id: 'I-1',
+        title: 'sample issue',
+        status: 'open',
+        opened_at: '2026-05-24T01:00:00Z',
+        opener: 'user:hayang',
+      },
+    ]);
+  }),
+  http.get('/api/issues/:id', ({ params }) =>
+    ok({
+      id: String(params.id),
+      project_id: 'proj-a',
+      conversation_id: 'I-1',
+      title: 'sample issue',
+      status: 'open',
+      opened_at: '2026-05-24T01:00:00Z',
+      opener: 'user:hayang',
+    }),
+  ),
+
+  // BC-native Task list/show (v2.3-5a). TaskRuntime BC ownership.
+  http.get('/api/tasks', ({ request }) => {
+    const url = new URL(request.url);
+    const projectId = url.searchParams.get('project_id');
+    if (!projectId) {
+      return err(400, 'missing_project_id', 'project_id required');
+    }
+    return ok([
+      {
+        id: 'TS-1',
+        project_id: projectId,
+        conversation_id: 'T-1',
+        title: 'sample task',
+        status: 'open',
+        priority: 'medium',
+        created_at: '2026-05-24T01:00:00Z',
+      },
+    ]);
+  }),
+  http.get('/api/tasks/:id', ({ params }) =>
+    ok({
+      id: String(params.id),
+      project_id: 'proj-a',
+      conversation_id: 'T-1',
+      title: 'sample task',
+      status: 'open',
+      priority: 'medium',
+      created_at: '2026-05-24T01:00:00Z',
+    }),
+  ),
+
   // Derivation
   http.post('/api/issues', () =>
     ok(

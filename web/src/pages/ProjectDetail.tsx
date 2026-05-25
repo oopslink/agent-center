@@ -1,21 +1,21 @@
 import React from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useProject } from '@/api/projects';
-import { useConversations } from '@/api/conversations';
+import { useIssues } from '@/api/issues';
+import { useTasksList } from '@/api/tasks';
 import { Skeleton } from '@/components/Skeleton';
 
 // ProjectDetail (/projects/:id). Read-only profile + Issues/Tasks
 // preview panels.
 //
-// IMPLEMENTATION NOTE on the Issues/Tasks panels:
-//   The Conversation projection does NOT carry a project_id field
-//   (the Conversation AR has no link to Project — derivation passes
-//   project_id to the Issue/Task AR but the resulting child
-//   conversation only references project via its parent BC). The
-//   panels therefore show "All recent" issues/tasks with a hint that
-//   per-project filtering is the next pass (parallels Issues.tsx /
-//   Tasks.tsx). Once a project_id column is projected on conversations
-//   we can wire `c.project_id === p.id` here.
+// v2.3-5b cutover (per § 0.6): the Issues/Tasks panels now read real
+// per-project lists via the BC-native endpoints (Discussion BC for
+// issues, TaskRuntime BC for tasks). Previously these were a
+// cross-BC `useConversations({kind:'issue'|'task'})` read filtered
+// purely on the client (the Conversation projection carries no
+// project_id), which surfaced cross-project data with a hint chip.
+// Cutover deletes that hint — the panels now answer the obvious
+// question accurately.
 export default function ProjectDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const project = useProject(id);
@@ -134,28 +134,26 @@ function PanelCard({
 }
 
 function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const issues = useConversations({ kind: 'issue' });
-  // Conversation has no project_id field today (see ProjectDetail
-  // module docstring). Show the 5 most recent issues + a hint.
+  const issues = useIssues({ projectId });
   const recent = (issues.data ?? []).slice(0, 5);
   return (
     <PanelCard
       title="Issues"
       to={`/issues?project=${encodeURIComponent(projectId)}`}
-      empty="No issues yet (cross-project view)"
+      empty="No issues yet"
       loading={issues.isLoading}
       data-testid="project-issues-panel"
     >
-      {recent.map((c) => (
-        <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
+      {recent.map((iss) => (
+        <li key={iss.id} className="flex items-center justify-between gap-3 py-1.5">
           <Link
-            to={`/issues/${encodeURIComponent(c.id)}`}
+            to={`/issues/${encodeURIComponent(iss.id)}`}
             className="truncate text-sm text-text-primary hover:text-accent"
           >
-            {c.name || c.id}
+            {iss.title || iss.id}
           </Link>
           <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-            {c.status}
+            {iss.status.replace(/_/g, ' ')}
           </span>
         </li>
       ))}
@@ -164,26 +162,26 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
 }
 
 function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const tasks = useConversations({ kind: 'task' });
+  const tasks = useTasksList({ projectId });
   const recent = (tasks.data ?? []).slice(0, 5);
   return (
     <PanelCard
       title="Tasks"
       to={`/tasks?project=${encodeURIComponent(projectId)}`}
-      empty="No tasks yet (cross-project view)"
+      empty="No tasks yet"
       loading={tasks.isLoading}
       data-testid="project-tasks-panel"
     >
-      {recent.map((c) => (
-        <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
+      {recent.map((tk) => (
+        <li key={tk.id} className="flex items-center justify-between gap-3 py-1.5">
           <Link
-            to={`/tasks/${encodeURIComponent(c.id)}`}
+            to={`/tasks/${encodeURIComponent(tk.id)}`}
             className="truncate text-sm text-text-primary hover:text-accent"
           >
-            {c.name || c.id}
+            {tk.title || tk.id}
           </Link>
           <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-            {c.status}
+            {tk.status}
           </span>
         </li>
       ))}

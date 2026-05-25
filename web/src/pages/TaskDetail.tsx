@@ -1,33 +1,41 @@
 import type React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
+import { useTask } from '@/api/tasks';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
 import { useSelection } from '@/components/useSelection';
 
-// TaskDetail (/tasks/:id). Renders the task conversation + a link to
-// the trace view; the trace itself lives at /tasks/:id/trace so users
-// can deep-link directly to it without the composer noise.
+// TaskDetail (/tasks/:id).
+//
+// v2.3-5b route shape (per § 0.6, Option B): `:id` is now the TASK_ID
+// (TaskRuntime BC), not the conversation_id. Header is driven by the
+// Task projection (title / status / priority / created_at / project
+// link / optional current_execution_id); message thread + composer
+// stay on Conversation BC, scoped to the `conversation_id` the Task
+// projection points at.
 export default function TaskDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
-  const conv = useConversation(id);
-  const messages = useMessages(id);
+  const task = useTask(id);
+  const convId = task.data?.conversation_id;
+  const conv = useConversation(convId);
+  const messages = useMessages(convId);
   const selection = useSelection();
 
-  if (conv.isLoading) {
+  if (task.isLoading) {
     return (
       <section className="text-sm text-slate-500" data-testid="page-TaskDetail">
         Loading task…
       </section>
     );
   }
-  if (conv.isError) {
+  if (task.isError) {
     return (
       <section className="space-y-3" data-testid="page-TaskDetail">
         <p className="text-sm text-danger" data-testid="task-not-found">
-          {(conv.error as Error).message}
+          {(task.error as Error).message}
         </p>
         <Link to="/tasks" className="text-blue-600 hover:underline">
           Back to tasks
@@ -35,7 +43,7 @@ export default function TaskDetail(): React.ReactElement {
       </section>
     );
   }
-  if (!conv.data) {
+  if (!task.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-TaskDetail">
         Task lookup failed.
@@ -43,23 +51,41 @@ export default function TaskDetail(): React.ReactElement {
     );
   }
 
-  const participants = conv.data.participants ?? [];
+  const participants = conv.data?.participants ?? [];
+  const tk = task.data;
 
   return (
     <section
       className="flex h-full flex-col"
       data-testid="page-TaskDetail"
-      data-task-id={conv.data.id}
+      data-task-id={tk.id}
     >
       <header className="flex items-start justify-between border-b border-slate-200 pb-3">
-        <div>
-          <h2 className="text-xl font-semibold">{conv.data.name || conv.data.id}</h2>
-          {conv.data.description && (
-            <p className="text-sm text-slate-500">{conv.data.description}</p>
-          )}
-          <p className="text-xs text-slate-500">
-            state: <span className="font-mono">{conv.data.status}</span>
-          </p>
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span className="rounded bg-slate-100 px-2 py-0.5 uppercase text-slate-600">
+              {tk.status}
+            </span>
+            <span className="rounded bg-slate-100 px-2 py-0.5 uppercase text-slate-600">
+              {tk.priority}
+            </span>
+            <span>
+              created <span className="font-mono">{formatRelative(tk.created_at)}</span>
+            </span>
+            {tk.project_id && (
+              <Link
+                to={`/projects/${encodeURIComponent(tk.project_id)}`}
+                className="text-accent hover:underline"
+                data-testid="task-project-link"
+              >
+                project · {tk.project_id}
+              </Link>
+            )}
+            {tk.current_execution_id && (
+              <span className="font-mono">exec · {tk.current_execution_id}</span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -77,7 +103,7 @@ export default function TaskDetail(): React.ReactElement {
             {selection.selectMode ? 'Cancel select' : 'Select messages'}
           </button>
           <Link
-            to={`/tasks/${encodeURIComponent(conv.data.id)}/trace`}
+            to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
             className="rounded bg-slate-100 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200"
             data-testid="task-view-trace"
           >
@@ -106,14 +132,30 @@ export default function TaskDetail(): React.ReactElement {
               onToggle={selection.toggle}
             />
           )}
-          <ConversationDeriveControls
-            conversationId={conv.data.id}
-            selection={selection}
-          />
-          <MessageComposer conversationId={conv.data.id} />
+          {convId && (
+            <>
+              <ConversationDeriveControls
+                conversationId={convId}
+                selection={selection}
+              />
+              <MessageComposer conversationId={convId} />
+            </>
+          )}
         </div>
-        <ParticipantsPanel conversationId={conv.data.id} participants={participants} />
+        {convId && (
+          <ParticipantsPanel conversationId={convId} participants={participants} />
+        )}
       </div>
     </section>
   );
+}
+
+function formatRelative(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '—';
+  const delta = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (delta < 60) return `${delta}s ago`;
+  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
+  if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
+  return `${Math.floor(delta / 86400)}d ago`;
 }

@@ -12,54 +12,141 @@ beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
 });
 
-function wrap(ui: React.ReactElement) {
+function wrap(ui: React.ReactElement, initialEntries: string[] = ['/issues']) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-const seedHandler = http.get('/api/conversations', () =>
+// v2.3-5b cutover: page now reads from the BC-native /api/issues
+// endpoint with a REQUIRED project_id query param. The "all
+// projects" state shows a pick-a-project nudge instead of a list.
+
+const issuesHandler = http.get('/api/issues', ({ request }) => {
+  const url = new URL(request.url);
+  const projectId = url.searchParams.get('project_id');
+  const status = url.searchParams.get('status');
+  if (!projectId) {
+    return HttpResponse.json(
+      { error: 'missing_project_id', message: 'project_id required' },
+      { status: 400 },
+    );
+  }
+  const all = [
+    {
+      id: 'IS-1',
+      project_id: 'proj-a',
+      conversation_id: 'I-1',
+      title: 'login bug',
+      status: 'open',
+      opened_at: '2026-05-24T01:00:00Z',
+      opener: 'user:hayang',
+    },
+    {
+      id: 'IS-2',
+      project_id: 'proj-a',
+      conversation_id: 'I-2',
+      title: 'sso flake',
+      status: 'withdrawn',
+      opened_at: '2026-05-22T01:00:00Z',
+      opener: 'user:hayang',
+    },
+    {
+      id: 'IS-9',
+      project_id: 'proj-b',
+      conversation_id: 'I-9',
+      title: 'other-project issue',
+      status: 'open',
+      opened_at: '2026-05-24T01:00:00Z',
+      opener: 'user:hayang',
+    },
+  ];
+  return HttpResponse.json(
+    all.filter(
+      (iss) => iss.project_id === projectId && (status === null || iss.status === status),
+    ),
+  );
+});
+
+const projectsHandler = http.get('/api/projects', () =>
   HttpResponse.json([
-    { id: 'I-1', kind: 'issue', name: 'login bug', status: 'active', description: '' },
-    { id: 'I-2', kind: 'issue', name: 'old issue', status: 'archived', description: '' },
+    {
+      id: 'proj-a',
+      name: 'Project Alpha',
+      kind: 'coding',
+      created_at: '2026-05-20T01:00:00Z',
+      updated_at: '2026-05-20T01:00:00Z',
+    },
+    {
+      id: 'proj-b',
+      name: 'Project Beta',
+      kind: 'coding',
+      created_at: '2026-05-20T01:00:00Z',
+      updated_at: '2026-05-20T01:00:00Z',
+    },
   ]),
 );
 
 describe('Issues page', () => {
   afterEach(() => cleanup());
 
-  it('renders all issues by default', async () => {
-    server.use(seedHandler);
+  it('shows the pick-project nudge when no project is selected', async () => {
+    server.use(projectsHandler, issuesHandler);
     wrap(<Issues />);
-    await waitFor(() => expect(screen.getAllByTestId('issue-row')).toHaveLength(2));
+    expect(await screen.findByTestId('issues-pick-project')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('issue-row')).toHaveLength(0);
   });
 
-  it('filter tab narrows to a single status', async () => {
-    server.use(seedHandler);
-    wrap(<Issues />);
+  it('renders the project issues when the project chip is selected via URL', async () => {
+    server.use(projectsHandler, issuesHandler);
+    wrap(<Issues />, ['/issues?project=proj-a']);
     await waitFor(() => expect(screen.getAllByTestId('issue-row')).toHaveLength(2));
-    fireEvent.click(screen.getByRole('tab', { name: /^archived$/i }));
+    expect(screen.getByText('login bug')).toBeInTheDocument();
+    expect(screen.getByText('sso flake')).toBeInTheDocument();
+    // Cross-project issue must NOT appear — project chip filter is now
+    // real, not cosmetic.
+    expect(screen.queryByText('other-project issue')).not.toBeInTheDocument();
+  });
+
+  it('project chip click narrows the list to a different project', async () => {
+    server.use(projectsHandler, issuesHandler);
+    wrap(<Issues />, ['/issues?project=proj-a']);
+    await waitFor(() => expect(screen.getAllByTestId('issue-row')).toHaveLength(2));
+    fireEvent.click(screen.getByRole('tab', { name: /Project Beta/i }));
+    await waitFor(() =>
+      expect(screen.getByText('other-project issue')).toBeInTheDocument(),
+    );
+    expect(screen.queryByText('login bug')).not.toBeInTheDocument();
+  });
+
+  it('status tab narrows to a single status (server-side filter)', async () => {
+    server.use(projectsHandler, issuesHandler);
+    wrap(<Issues />, ['/issues?project=proj-a']);
+    await waitFor(() => expect(screen.getAllByTestId('issue-row')).toHaveLength(2));
+    fireEvent.click(screen.getByRole('tab', { name: /^withdrawn$/i }));
     await waitFor(() => expect(screen.getAllByTestId('issue-row')).toHaveLength(1));
+    expect(screen.getByText('sso flake')).toBeInTheDocument();
   });
 
-  it('empty state shows when filter has no matches', async () => {
-    server.use(seedHandler);
-    wrap(<Issues />);
+  it('empty state shows when status filter has no matches', async () => {
+    server.use(projectsHandler, issuesHandler);
+    wrap(<Issues />, ['/issues?project=proj-a']);
     await waitFor(() => expect(screen.getAllByTestId('issue-row')).toHaveLength(2));
-    fireEvent.click(screen.getByRole('tab', { name: /^closed$/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^concluded$/i }));
     await waitFor(() => expect(screen.getByTestId('issues-empty')).toBeInTheDocument());
   });
 
-  it('surfaces API error', async () => {
+  it('surfaces API error from the BC-native endpoint', async () => {
     server.use(
-      http.get('/api/conversations', () =>
+      projectsHandler,
+      http.get('/api/issues', () =>
         HttpResponse.json({ error: 'find_failed', message: 'db down' }, { status: 500 }),
       ),
     );
-    wrap(<Issues />);
+    wrap(<Issues />, ['/issues?project=proj-a']);
     await waitFor(() => expect(screen.getByTestId('issues-error')).toHaveTextContent(/db down/));
   });
 });

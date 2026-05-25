@@ -6,6 +6,7 @@ import {
   useConversationRefs,
   useMessages,
 } from '@/api/conversations';
+import { useIssue } from '@/api/issues';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
@@ -16,20 +17,27 @@ import { api } from '@/api/client';
 import type { Message } from '@/api/types';
 import { useQuery } from '@tanstack/react-query';
 
-// IssueDetail page (/issues/:id). Renders the issue conversation + a
-// carry-over section at the top showing the source messages that were
-// referenced into this issue at creation.
+// IssueDetail page (/issues/:id).
 //
-// To render carry-over messages we need their content, which lives in
-// the SOURCE conversation. We fetch refs first, then for each unique
-// source_conversation_id we fetch its messages and pick the referenced
-// ones. Source convs are typically small (channels), so this is cheap;
-// react-query dedupes if the user has the channel page open elsewhere.
+// v2.3-5b route shape (per § 0.6, Option B): `:id` is now the
+// ISSUE_ID (Discussion BC), not the conversation_id. The header is
+// driven by the Issue projection from Discussion BC; the message
+// thread + carry-over still pull from Conversation BC, scoped to the
+// `conversation_id` the Issue projection points at. Conversation BC
+// stays the owner of message content — only the header attribution
+// (title / opener / opened_at / project link / status) is owed to
+// Discussion BC, which now answers directly instead of being faked
+// through `name` / `status` of the bound conversation.
 export default function IssueDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
-  const conv = useConversation(id);
-  const messages = useMessages(id);
-  const refs = useConversationRefs(id);
+  const issue = useIssue(id);
+  // Conversation lookups are enabled only after we know the bound
+  // conversation_id from the Issue projection. Avoids an extra round
+  // trip + a stale fetch when navigating between issues.
+  const convId = issue.data?.conversation_id;
+  const conv = useConversation(convId);
+  const messages = useMessages(convId);
+  const refs = useConversationRefs(convId);
   const selection = useSelection();
 
   // Unique source conversation ids from the refs.
@@ -43,18 +51,18 @@ export default function IssueDetail(): React.ReactElement {
   // referenced ids on the render side.
   const sourceMessages = useSourceMessages(sourceIds);
 
-  if (conv.isLoading) {
+  if (issue.isLoading) {
     return (
       <section className="text-sm text-slate-500" data-testid="page-IssueDetail">
         Loading issue…
       </section>
     );
   }
-  if (conv.isError) {
+  if (issue.isError) {
     return (
       <section className="space-y-3" data-testid="page-IssueDetail">
         <p className="text-sm text-danger" data-testid="issue-not-found">
-          {(conv.error as Error).message}
+          {(issue.error as Error).message}
         </p>
         <Link to="/issues" className="text-blue-600 hover:underline">
           Back to issues
@@ -62,7 +70,7 @@ export default function IssueDetail(): React.ReactElement {
       </section>
     );
   }
-  if (!conv.data) {
+  if (!issue.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-IssueDetail">
         Issue lookup failed.
@@ -70,23 +78,36 @@ export default function IssueDetail(): React.ReactElement {
     );
   }
 
-  const participants = conv.data.participants ?? [];
+  const participants = conv.data?.participants ?? [];
+  const iss = issue.data;
 
   return (
     <section
       className="flex h-full flex-col"
       data-testid="page-IssueDetail"
-      data-issue-id={conv.data.id}
+      data-issue-id={iss.id}
     >
       <header className="flex items-start justify-between border-b border-slate-200 pb-3">
-        <div>
-          <h2 className="text-xl font-semibold">{conv.data.name || conv.data.id}</h2>
-          {conv.data.description && (
-            <p className="text-sm text-slate-500">{conv.data.description}</p>
-          )}
-          <p className="text-xs text-slate-500">
-            state: <span className="font-mono">{conv.data.status}</span>
-          </p>
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">{iss.title || iss.id}</h2>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span className="rounded bg-slate-100 px-2 py-0.5 uppercase text-slate-600">
+              {iss.status.replace(/_/g, ' ')}
+            </span>
+            <span>
+              opened <span className="font-mono">{formatRelative(iss.opened_at)}</span> by{' '}
+              <span className="font-mono">{iss.opener}</span>
+            </span>
+            {iss.project_id && (
+              <Link
+                to={`/projects/${encodeURIComponent(iss.project_id)}`}
+                className="text-accent hover:underline"
+                data-testid="issue-project-link"
+              >
+                project · {iss.project_id}
+              </Link>
+            )}
+          </div>
         </div>
         <button
           type="button"
@@ -125,13 +146,19 @@ export default function IssueDetail(): React.ReactElement {
               onToggle={selection.toggle}
             />
           )}
-          <ConversationDeriveControls
-            conversationId={conv.data.id}
-            selection={selection}
-          />
-          <MessageComposer conversationId={conv.data.id} />
+          {convId && (
+            <>
+              <ConversationDeriveControls
+                conversationId={convId}
+                selection={selection}
+              />
+              <MessageComposer conversationId={convId} />
+            </>
+          )}
         </div>
-        <ParticipantsPanel conversationId={conv.data.id} participants={participants} />
+        {convId && (
+          <ParticipantsPanel conversationId={convId} participants={participants} />
+        )}
       </div>
     </section>
   );
@@ -158,4 +185,14 @@ function useSourceMessages(sourceIds: string[]): Message[] {
     enabled: sourceIds.length > 0,
   });
   return q.data ?? [];
+}
+
+function formatRelative(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '—';
+  const delta = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (delta < 60) return `${delta}s ago`;
+  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
+  if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
+  return `${Math.floor(delta / 86400)}d ago`;
 }

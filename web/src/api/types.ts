@@ -146,6 +146,54 @@ export interface Project {
   updated_at: string;
 }
 
+// Issue mirrors the Discussion BC projection emitted by issuePublicMap
+// (v2.3-5a `GET /api/issues[/{id}]`). Field names match backend JSON
+// keys verbatim — these are what `internal/webconsole/api/handlers.go`
+// emits. Note: the Issue AR has NO `kind` or `priority` getter — those
+// fields exist on Task only. `closed_at` / `closed_reason` are present
+// only on terminal states (concluded / withdrawn respectively).
+//
+// Status is the 6-value Discussion BC enum (see
+// internal/discussion/status.go) — different from ConversationStatus.
+export type IssueStatus =
+  | 'open'
+  | 'under_discussion'
+  | 'concluded'
+  | 'closed_no_action'
+  | 'closed_with_tasks'
+  | 'withdrawn';
+
+export interface Issue {
+  id: string;
+  project_id: string;
+  conversation_id: string;
+  title: string;
+  status: IssueStatus;
+  opened_at: string;
+  opener: string;
+  closed_at?: string;
+  closed_reason?: string;
+}
+
+// Task mirrors the TaskRuntime BC projection emitted by taskPublicMap
+// (v2.3-5a `GET /api/tasks[/{id}]`). 4-state Task status enum (see
+// internal/taskruntime/task/types.go) and 3-value priority. Task has
+// both `priority` and `current_execution_id` getters; Issue does not.
+export type TaskStatus = 'open' | 'suspended' | 'done' | 'abandoned';
+export type TaskPriority = 'high' | 'medium' | 'low';
+
+export interface Task {
+  id: string;
+  project_id: string;
+  conversation_id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  created_at: string;
+  current_execution_id?: string;
+  depends_on_task_ids?: string[];
+}
+
 export interface ConversationMessageReference {
   id: string;
   child_conversation_id: string;

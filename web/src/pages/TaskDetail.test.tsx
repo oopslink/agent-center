@@ -24,14 +24,29 @@ function wrap(path: string) {
   );
 }
 
+// v2.3-5b: route param is now the TASK_ID (TaskRuntime BC), not the
+// conversation_id. Detail page fetches the Task projection first then
+// uses its conversation_id to fetch the message thread.
+
 describe('TaskDetail page', () => {
   afterEach(() => cleanup());
 
-  it('renders header + messages + composer + trace link', async () => {
+  it('renders header from the Task projection + messages + trace link', async () => {
     server.use(
-      http.get('/api/conversations/:id', () =>
+      http.get('/api/tasks/:id', ({ params }) =>
         HttpResponse.json({
-          id: 'T-1',
+          id: String(params.id),
+          project_id: 'proj-a',
+          conversation_id: 'T-conv-1',
+          title: 'rebuild docs',
+          status: 'open',
+          priority: 'high',
+          created_at: '2026-05-24T01:00:00Z',
+        }),
+      ),
+      http.get('/api/conversations/T-conv-1', () =>
+        HttpResponse.json({
+          id: 'T-conv-1',
           kind: 'task',
           name: 'rebuild docs',
           status: 'active',
@@ -40,11 +55,11 @@ describe('TaskDetail page', () => {
           ],
         }),
       ),
-      http.get('/api/conversations/:id/messages', () =>
+      http.get('/api/conversations/T-conv-1/messages', () =>
         HttpResponse.json([
           {
             id: 'M-1',
-            conversation_id: 'T-1',
+            conversation_id: 'T-conv-1',
             sender_identity_id: 'agent:bot-1',
             content_kind: 'text',
             content: 'starting work',
@@ -54,49 +69,60 @@ describe('TaskDetail page', () => {
         ]),
       ),
     );
-    wrap('/tasks/T-1');
+    wrap('/tasks/TS-1');
     await waitFor(() => expect(screen.getByText('starting work')).toBeInTheDocument());
     expect(screen.getByText('rebuild docs')).toBeInTheDocument();
-    expect(screen.getByTestId('task-view-trace')).toHaveAttribute('href', '/tasks/T-1/trace');
+    expect(screen.getByTestId('task-view-trace')).toHaveAttribute('href', '/tasks/TS-1/trace');
+    expect(screen.getByTestId('task-project-link')).toHaveAttribute(
+      'href',
+      '/projects/proj-a',
+    );
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
   });
 
   it('surfaces task lookup error', async () => {
     server.use(
-      http.get('/api/conversations/:id', () =>
+      http.get('/api/tasks/:id', () =>
         HttpResponse.json({ error: 'not_found', message: 'no such task' }, { status: 404 }),
       ),
     );
     wrap('/tasks/missing');
-    await waitFor(() => expect(screen.getByTestId('task-not-found')).toHaveTextContent(/no such task/));
+    await waitFor(() =>
+      expect(screen.getByTestId('task-not-found')).toHaveTextContent(/no such task/),
+    );
   });
 
-  // v2.1-B: cover the optional-description render of TaskDetail.tsx
-  // (lines 57-58 — `conv.data.description && <p>...</p>`). F14 audit
-  // logged as "🟡 worth covering — pass description in seed".
-  it('renders the task description when set on the bound conversation', async () => {
+  it('renders the priority chip and exercises the select-mode toggle', async () => {
     server.use(
-      http.get('/api/conversations/:id', () =>
+      http.get('/api/tasks/:id', ({ params }) =>
         HttpResponse.json({
-          id: 'T-2',
+          id: String(params.id),
+          project_id: 'proj-a',
+          conversation_id: 'T-conv-2',
+          title: 'investigate auth',
+          status: 'open',
+          priority: 'low',
+          created_at: '2026-05-24T01:00:00Z',
+          current_execution_id: 'E-7',
+        }),
+      ),
+      http.get('/api/conversations/T-conv-2', () =>
+        HttpResponse.json({
+          id: 'T-conv-2',
           kind: 'task',
           name: 'investigate auth',
-          description: 'auth flow occasionally returns 401 after refresh',
           status: 'active',
           participants: [
             { identity_id: 'agent:bot-1', role: 'owner', joined_at: 'x', joined_by: 'agent:bot-1' },
           ],
         }),
       ),
-      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+      http.get('/api/conversations/T-conv-2/messages', () => HttpResponse.json([])),
     );
-    wrap('/tasks/T-2');
-    await waitFor(() =>
-      expect(screen.getByText(/auth flow occasionally returns 401/)).toBeInTheDocument(),
-    );
-    // Flip select mode so the truthy arm of the select-mode-toggle
-    // ternary className (line 71) is exercised. F14 audit grouped this
-    // tool-quirk branch with the description render.
+    wrap('/tasks/TS-2');
+    await waitFor(() => expect(screen.getByText('investigate auth')).toBeInTheDocument());
+    expect(screen.getByText(/exec · E-7/)).toBeInTheDocument();
+    expect(screen.getByText('low')).toBeInTheDocument();
     const toggle = screen.getByTestId('select-mode-toggle');
     toggle.click();
     await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));

@@ -41,7 +41,11 @@ export function useDeriveIssue() {
   return useMutation({
     mutationFn: (input: DeriveIssueInput) => api.post<DeriveIssueResult>('/issues', input),
     onSuccess: () => {
+      // v2.3-5b: BC-native Issue list lives at qk.issues. Conversation
+      // BC cache is still invalidated because the derive flow creates a
+      // bound `kind=issue` conversation (CV4 carry-over flow).
       void qc.invalidateQueries({ queryKey: qk.conversations() });
+      void qc.invalidateQueries({ queryKey: qk.issues() });
     },
   });
 }
@@ -51,7 +55,11 @@ export function useDeriveTask() {
   return useMutation({
     mutationFn: (input: DeriveTaskInput) => api.post<DeriveTaskResult>('/tasks', input),
     onSuccess: () => {
+      // v2.3-5b: BC-native Task list lives at qk.tasksList. Conversation
+      // BC cache is still invalidated because the derive flow creates a
+      // bound `kind=task` conversation.
       void qc.invalidateQueries({ queryKey: qk.conversations() });
+      void qc.invalidateQueries({ queryKey: qk.tasksList() });
     },
   });
 }

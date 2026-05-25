@@ -78,17 +78,30 @@ describe('Detail pages — loading + error branches', () => {
   });
 
   it('TaskDetail isLoading branch', async () => {
+    // v2.3-5b: TaskDetail's outer loading state now keys on the Task
+    // projection fetch (BC-native), not the bound conversation.
     server.use(
-      http.get('/api/conversations/:id', async () => {
+      http.get('/api/tasks/:id', async () => {
         await delay(50);
         return HttpResponse.json({
           id: 'T-1',
+          project_id: 'proj-a',
+          conversation_id: 'T-conv-1',
+          title: 'x',
+          status: 'open',
+          priority: 'medium',
+          created_at: '2026-05-24T01:00:00Z',
+        });
+      }),
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'T-conv-1',
           kind: 'task',
           name: 'x',
           status: 'active',
           participants: [],
-        });
-      }),
+        }),
+      ),
       http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
     );
     wrap('/tasks/T-1', '/tasks/:id', <TaskDetail />);
@@ -98,9 +111,20 @@ describe('Detail pages — loading + error branches', () => {
 
   it('TaskDetail messages-loading inner branch', async () => {
     server.use(
-      http.get('/api/conversations/:id', () =>
+      http.get('/api/tasks/:id', () =>
         HttpResponse.json({
           id: 'T-1',
+          project_id: 'proj-a',
+          conversation_id: 'T-conv-1',
+          title: 'x',
+          status: 'open',
+          priority: 'medium',
+          created_at: '2026-05-24T01:00:00Z',
+        }),
+      ),
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'T-conv-1',
           kind: 'task',
           name: 'x',
           status: 'active',
@@ -119,17 +143,30 @@ describe('Detail pages — loading + error branches', () => {
   });
 
   it('IssueDetail isLoading branch', async () => {
+    // v2.3-5b: IssueDetail's outer loading state now keys on the
+    // Issue projection fetch (BC-native), not the bound conversation.
     server.use(
-      http.get('/api/conversations/:id', async () => {
+      http.get('/api/issues/:id', async () => {
         await delay(50);
         return HttpResponse.json({
           id: 'I-1',
+          project_id: 'proj-a',
+          conversation_id: 'I-conv-1',
+          title: 'x',
+          status: 'open',
+          opened_at: '2026-05-24T01:00:00Z',
+          opener: 'user:hayang',
+        });
+      }),
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'I-conv-1',
           kind: 'issue',
           name: 'x',
           status: 'active',
           participants: [],
-        });
-      }),
+        }),
+      ),
       http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
       http.get('/api/conversations/:id/refs', () => HttpResponse.json([])),
     );
@@ -140,9 +177,20 @@ describe('Detail pages — loading + error branches', () => {
 
   it('IssueDetail messages-loading inner branch', async () => {
     server.use(
-      http.get('/api/conversations/:id', () =>
+      http.get('/api/issues/:id', () =>
         HttpResponse.json({
           id: 'I-1',
+          project_id: 'proj-a',
+          conversation_id: 'I-conv-1',
+          title: 'x',
+          status: 'open',
+          opened_at: '2026-05-24T01:00:00Z',
+          opener: 'user:hayang',
+        }),
+      ),
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'I-conv-1',
           kind: 'issue',
           name: 'x',
           status: 'active',
