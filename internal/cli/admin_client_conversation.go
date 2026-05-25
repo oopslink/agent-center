@@ -11,22 +11,19 @@
 // keys emitted by the admin endpoint's projection helpers
 // (convMap, messageMap, refsToMap) exactly.
 //
-// Mismatch report (flagged per task scope, NOT fixed here):
-//   - admin endpoint has NO `participant/leave` route — the
-//     ParticipantMgmtSvc.Leave service exists and `channel leave` CLI
-//     calls it, but there is no admin proxy. The dual-mode handler keeps
-//     the legacy direct-service path; once an admin endpoint is added a
-//     `ParticipantLeave` method should be appended here to match.
-//   - admin endpoint has NO `msg/find-recent` route — MsgRepo.FindRecent
-//     is used by `conversation read --tail=N` and `conversation tail`.
-//     We approximate by calling MsgFindByConversationID (which returns
-//     up to 200 messages newest-last) and trimming client-side; the
-//     existing admin endpoint hard-codes MessageFilter{Limit: 200} so
-//     we have no `since` / arbitrary-tail control over the wire.
+// v2.3-1 (task #24) closed the two prior v2.2 mismatches:
+//   - `POST /admin/conversation/participant/leave` now exists →
+//     ParticipantLeave method below; `channel leave` CLI goes through
+//     Client uniformly (no more direct-service fallback).
+//   - `GET /admin/conversation/msg/find-recent` now exists →
+//     MessageFindRecent method below; `conversation read --tail=N` and
+//     `conversation tail` no longer trim client-side off the
+//     200-cap find-by-conversation-id helper.
 package cli
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/oopslink/agent-center/internal/conversation"
 )
@@ -172,6 +169,14 @@ type ParticipantKickRequest struct {
 	Reason           string `json:"reason"`
 }
 
+// ParticipantLeaveRequest mirrors api leaveParticipantReq (v2.3-1).
+// IdentityID may be empty — server defaults to the actor.
+type ParticipantLeaveRequest struct {
+	ConversationName string `json:"conversation_name"`
+	IdentityID       string `json:"identity_id"`
+	Reason           string `json:"reason"`
+}
+
 // DeriveIssueRequest mirrors api deriveIssueReq.
 type DeriveIssueRequest struct {
 	SourceConversationID string   `json:"source_conversation_id"`
@@ -252,12 +257,22 @@ func (c *Client) MessageFindByID(ctx context.Context, id string) (MessageDTO, er
 }
 
 // MessageFindByConversationID GETs /admin/conversation/msg/find-by-conversation-id?conversation_id=…
-// Server hard-codes MessageFilter{Limit: 200}; arbitrary filters not yet
-// proxied (see file-header mismatch note).
+// Server hard-codes MessageFilter{Limit: 200}. For arbitrary-tail
+// queries use MessageFindRecent below (v2.3-1).
 func (c *Client) MessageFindByConversationID(ctx context.Context, convID string) ([]MessageDTO, error) {
 	var out []MessageDTO
 	err := c.getJSON(ctx, "/admin/conversation/msg/find-by-conversation-id"+
 		buildQuery("conversation_id", convID), &out)
+	return out, err
+}
+
+// MessageFindRecent GETs /admin/conversation/msg/find-recent?conversation_id=…&n=…
+// (v2.3-1). n=0 lets the server pick the default (50). Returns
+// messages oldest-first, mirroring MessageRepo.FindRecent's contract.
+func (c *Client) MessageFindRecent(ctx context.Context, convID string, n int) ([]MessageDTO, error) {
+	var out []MessageDTO
+	err := c.getJSON(ctx, "/admin/conversation/msg/find-recent"+
+		buildQuery("conversation_id", convID, "n", strconv.Itoa(n)), &out)
 	return out, err
 }
 
@@ -313,8 +328,7 @@ func (c *Client) ChannelArchive(ctx context.Context, req ChannelArchiveRequest) 
 }
 
 // =============================================================================
-// ParticipantMgmtSvc — Invite / Kick
-// (NOTE: no /participant/leave proxy yet — see file-header mismatch.)
+// ParticipantMgmtSvc — Invite / Kick / Leave
 // =============================================================================
 
 // ParticipantInvite POSTs /admin/conversation/participant/invite.
@@ -328,6 +342,13 @@ func (c *Client) ParticipantInvite(ctx context.Context, req ParticipantInviteReq
 func (c *Client) ParticipantKick(ctx context.Context, req ParticipantKickRequest) (EventIDResponse, error) {
 	var res EventIDResponse
 	err := c.postJSON(ctx, "/admin/conversation/participant/kick", req, &res)
+	return res, err
+}
+
+// ParticipantLeave POSTs /admin/conversation/participant/leave (v2.3-1).
+func (c *Client) ParticipantLeave(ctx context.Context, req ParticipantLeaveRequest) (EventIDResponse, error) {
+	var res EventIDResponse
+	err := c.postJSON(ctx, "/admin/conversation/participant/leave", req, &res)
 	return res, err
 }
 

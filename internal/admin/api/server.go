@@ -133,6 +133,9 @@ func (s *Server) routes() {
 
 	// --- workforce -------------------------------------------------------
 	s.mux.HandleFunc("POST /admin/workforce/worker/enroll", s.workerEnrollHandler)
+	// v2.3-1 (task #24): proper heartbeat (replaces the v2.2 hack of
+	// re-calling enroll + swallowing 409).
+	s.mux.HandleFunc("POST /admin/workforce/worker/heartbeat", s.workerHeartbeatHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-all", s.workerFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-id", s.workerFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-status", s.workerFindByStatusHandler)
@@ -160,6 +163,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/conversation/conv/find-by-name", s.convFindByNameHandler)
 	s.mux.HandleFunc("GET /admin/conversation/msg/find-by-id", s.msgFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/conversation/msg/find-by-conversation-id", s.msgFindByConversationIDHandler)
+	// v2.3-1 (task #24): proper tail/recent (replaces the v2.2 client-side
+	// trim against the 200-cap find-by-conversation-id helper).
+	s.mux.HandleFunc("GET /admin/conversation/msg/find-recent", s.msgFindRecentHandler)
 	s.mux.HandleFunc("POST /admin/conversation/msg/append", s.msgAppendHandler)
 	s.mux.HandleFunc("POST /admin/conversation/message-writer/open", s.openConversationHandler)
 	s.mux.HandleFunc("POST /admin/conversation/message-writer/close", s.closeConversationHandler)
@@ -168,6 +174,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/conversation/channel/archive", s.archiveChannelHandler)
 	s.mux.HandleFunc("POST /admin/conversation/participant/invite", s.inviteParticipantHandler)
 	s.mux.HandleFunc("POST /admin/conversation/participant/kick", s.kickParticipantHandler)
+	// v2.3-1 (task #24): self-leave proxy (was missing, forcing CLI to
+	// fall back to direct ParticipantMgmtSvc — broke single-entry rule).
+	s.mux.HandleFunc("POST /admin/conversation/participant/leave", s.leaveParticipantHandler)
 	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-child-conv", s.carryOverFindByChildConvHandler)
 	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-source-msg", s.carryOverFindBySourceMsgHandler)
 	s.mux.HandleFunc("POST /admin/conversation/derivation/derive-issue", s.deriveIssueHandler)
@@ -188,6 +197,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/taskruntime/artifact/find-by-execution-id", s.artifactFindByExecutionIDHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/task/create", s.taskCreateHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/task/bind-conversation", s.taskBindConversationHandler)
+	// v2.3-1 (task #24): agent-facing read-context proxy (was missing,
+	// `read-task-context` returned ExitNotImplemented in Client mode).
+	s.mux.HandleFunc("GET /admin/taskruntime/task/read-context", s.taskReadContextHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/ir/create", s.irCreateHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/ir/respond", s.irRespondHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/ir/cancel", s.irCancelHandler)

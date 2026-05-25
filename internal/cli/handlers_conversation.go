@@ -243,14 +243,22 @@ func (a *App) convReadHandler(fs *flag.FlagSet) Handler {
 		}
 		var msgs []MessageDTO
 		if a.Client != nil {
-			ms, err := a.Client.MessageFindByConversationID(ctx, convID)
-			if err != nil {
-				return HandleClientError(errw, *format, err)
+			// v2.3-1: prefer the dedicated find-recent route when --tail
+			// alone is set; otherwise fall back to the broader fetch +
+			// optional client-side --since filter.
+			if *tail > 0 && *since == "" {
+				ms, err := a.Client.MessageFindRecent(ctx, convID, *tail)
+				if err != nil {
+					return HandleClientError(errw, *format, err)
+				}
+				msgs = ms
+			} else {
+				ms, err := a.Client.MessageFindByConversationID(ctx, convID)
+				if err != nil {
+					return HandleClientError(errw, *format, err)
+				}
+				msgs = filterMessagesClientSide(ms, *tail, *since)
 			}
-			// Apply --tail / --since client-side; admin endpoint hard-codes
-			// MessageFilter{Limit:200} (see admin_client_conversation.go
-			// mismatch note). Server returns oldest→newest.
-			msgs = filterMessagesClientSide(ms, *tail, *since)
 		} else {
 			filter := conversation.MessageFilter{Tail: *tail}
 			if *since != "" {
@@ -429,14 +437,12 @@ func (a *App) convTailHandler(fs *flag.FlagSet) Handler {
 }
 
 // tailFetch returns the last `tail` messages from either Client or
-// direct MsgRepo (whichever is wired).
+// direct MsgRepo (whichever is wired). v2.3-1: Client path now uses
+// the dedicated find-recent endpoint instead of the prior
+// find-by-conversation-id + client-side trim hack.
 func tailFetch(ctx context.Context, a *App, convID string, tail int) ([]MessageDTO, error) {
 	if a.Client != nil {
-		ms, err := a.Client.MessageFindByConversationID(ctx, convID)
-		if err != nil {
-			return nil, err
-		}
-		return filterMessagesClientSide(ms, tail, ""), nil
+		return a.Client.MessageFindRecent(ctx, convID, tail)
 	}
 	ms, err := a.MsgRepo.FindRecent(ctx, conversation.ConversationID(convID), tail)
 	if err != nil {

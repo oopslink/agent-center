@@ -45,6 +45,36 @@ func (s *Server) workerEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// v2.3-1 (task #24): dedicated heartbeat endpoint. Replaces the v2.2
+// worker-daemon hack that re-called /enroll per tick and swallowed
+// the 409 already_exists as "alive". With this endpoint the daemon
+// asserts liveness cleanly; the 409 path collapses to a real 200.
+type heartbeatReq struct {
+	WorkerID                 string `json:"worker_id"`
+	AdditionalWorkingSeconds int64  `json:"additional_working_seconds"`
+}
+
+func (s *Server) workerHeartbeatHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.EnrollSvc == nil {
+		writeError(w, http.StatusNotImplemented, "enroll_svc_not_wired", "")
+		return
+	}
+	var req heartbeatReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.EnrollSvc.Heartbeat(r.Context(), wfservice.HeartbeatCommand{
+		WorkerID:                 workforce.WorkerID(req.WorkerID),
+		AdditionalWorkingSeconds: req.AdditionalWorkingSeconds,
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"worker_id": req.WorkerID})
+}
+
 // =============================================================================
 // AcceptanceSvc — Propose / Accept / Ignore / Unignore
 // =============================================================================

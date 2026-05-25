@@ -82,23 +82,25 @@ func (c *AdminClient) Enroll(ctx context.Context, workerID string, capabilities 
 	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/enroll", body, nil)
 }
 
-// Heartbeat is an alias for Enroll. In v2.2 the server's enroll IS
-// the heartbeat (v2.3 may split via /admin/workforce/worker/heartbeat).
+// Heartbeat asserts liveness for an already-enrolled worker.
 //
-// The server's Enroll currently rejects repeat enrolments with
-// 409 already_exists; for v2.2 single-host that's fine — we treat
-// the 409 as the success-after-first-call signal (the worker IS
-// enrolled, that's what we wanted to assert). v2.3 will replace this
-// with a proper /heartbeat endpoint.
+// v2.3-1 (task #24): now POSTs to the dedicated
+// /admin/workforce/worker/heartbeat endpoint that calls
+// WorkerEnrollService.Heartbeat (idempotent, no event emit). The
+// `capabilities` parameter is accepted for source compat but ignored
+// by this endpoint — capabilities only mutate on enroll. If the
+// server returns 404 (worker not found, e.g. cold restart wiped state)
+// the caller should fall back to Enroll on the next tick.
 func (c *AdminClient) Heartbeat(ctx context.Context, workerID string, capabilities []string) error {
-	err := c.Enroll(ctx, workerID, capabilities)
-	if err == nil {
-		return nil
+	if strings.TrimSpace(workerID) == "" {
+		return errors.New("adminclient: worker_id required")
 	}
-	if ae, ok := err.(*AdminError); ok && ae.Status == http.StatusConflict {
-		return nil
+	_ = capabilities // intentional: server ignores; kept for v2.2 ABI compat
+	body := map[string]any{
+		"worker_id":                  workerID,
+		"additional_working_seconds": 0,
 	}
-	return err
+	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/heartbeat", body, nil)
 }
 
 // PullDispatches GETs /admin/dispatch/queue/pull?worker_id=X and decodes

@@ -109,6 +109,36 @@ func (s *WorkerEnrollService) Enroll(ctx context.Context, cmd EnrollCommand) (En
 // errors.Is. Tests rely on this rather than string matching.
 var ErrEnrollMisconfigured = errors.New("workforce: enroll service misconfigured (nil dep)")
 
+// HeartbeatCommand is the input for a per-tick worker liveness ping.
+// v2.3-1 (task #24): replaces the v2.2 workaround where the worker
+// daemon re-called Enroll and swallowed the 409 already_exists as the
+// success signal. This dedicated path lets the daemon assert "I'm
+// alive" without abusing the create-only Enroll semantics.
+type HeartbeatCommand struct {
+	WorkerID                 workforce.WorkerID
+	AdditionalWorkingSeconds int64
+}
+
+// Heartbeat advances last_seen_at + accumulated working seconds for an
+// already-enrolled worker. No event is emitted (heartbeats are noisy by
+// design — per-tick events would flood the audit log). The worker
+// must exist; calling Heartbeat on an unknown worker_id returns the
+// repo's not-found error so the daemon knows to re-enroll.
+func (s *WorkerEnrollService) Heartbeat(ctx context.Context, cmd HeartbeatCommand) error {
+	if cmd.WorkerID == "" {
+		return errors.New("workforce.heartbeat: worker_id required")
+	}
+	if cmd.AdditionalWorkingSeconds < 0 {
+		return errors.New("workforce.heartbeat: working_seconds delta must be >= 0")
+	}
+	// Surface ErrWorkerNotFound (or the sqlite equivalent) untouched so
+	// the caller can drive the re-enroll branch on a cold center.
+	if _, err := s.repo.FindByID(ctx, cmd.WorkerID); err != nil {
+		return err
+	}
+	return s.repo.UpdateLastHeartbeatAt(ctx, cmd.WorkerID, s.clock.Now(), cmd.AdditionalWorkingSeconds)
+}
+
 // =============================================================================
 // v2 Exchange-based Enroll (ADR-0023 § 1)
 // =============================================================================

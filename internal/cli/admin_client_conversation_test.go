@@ -141,3 +141,61 @@ func TestClient_MessageRefs_EmptyResult_OverAdminEndpoint(t *testing.T) {
 		t.Fatalf("refs JSON should be at minimum []: %q", out)
 	}
 }
+
+// v2.3-1 (task #24): channel-leave Client path covers the new
+// /admin/conversation/participant/leave endpoint. Pre-v2.3 this CLI
+// fell back to the legacy direct service.
+func TestClient_ChannelLeave_OverAdminEndpoint(t *testing.T) {
+	app, cleanup := setupAdminServerForTests(t)
+	defer cleanup()
+
+	create := findCmd(app.ChannelCommands(), "create")
+	if _, _, code := runHandler(t, create, []string{"--name=leaveme", "--format=json"}); code != ExitOK {
+		t.Fatalf("create exit=%d", code)
+	}
+	leave := findCmd(app.ChannelCommands(), "leave")
+	out, errOut, code := runHandler(t, leave, []string{"leaveme"})
+	if code != ExitOK {
+		t.Fatalf("leave exit=%d out=%s err=%s", code, out, errOut)
+	}
+	if !strings.Contains(out, "left leaveme") {
+		t.Fatalf("leave output unexpected: %s", out)
+	}
+}
+
+// v2.3-1 (task #24): convReadHandler --tail Client path covers the new
+// /admin/conversation/msg/find-recent endpoint. Pre-v2.3 the CLI did
+// a client-side trim against the 200-cap find-by-conversation-id helper.
+func TestClient_ConversationRead_TailUsesFindRecent_OverAdminEndpoint(t *testing.T) {
+	app, cleanup := setupAdminServerForTests(t)
+	defer cleanup()
+
+	open := findCmd(app.ConversationCommands(), "open")
+	out, _, code := runHandler(t, open, []string{"--kind=channel", "--name=fr-test", "--format=json"})
+	if code != ExitOK {
+		t.Fatalf("open exit=%d out=%s", code, out)
+	}
+	var opened map[string]any
+	_ = json.Unmarshal([]byte(out), &opened)
+	convID, _ := opened["conversation_id"].(string)
+
+	send := findCmd(app.ConversationCommands(), "send")
+	for i, body := range []string{"alpha", "beta", "gamma", "delta"} {
+		if _, _, code := runHandler(t, send, []string{convID, body, "--format=json"}); code != ExitOK {
+			t.Fatalf("send %d exit=%d", i, code)
+		}
+	}
+	read := findCmd(app.ConversationCommands(), "read")
+	out2, _, code := runHandler(t, read, []string{convID, "--tail=2", "--format=json"})
+	if code != ExitOK {
+		t.Fatalf("read exit=%d out=%s", code, out2)
+	}
+	// Only the 2 most-recent messages should land — earlier ones suppressed
+	// at the server (proper FindRecent), not by client-side trim.
+	if !strings.Contains(out2, "gamma") || !strings.Contains(out2, "delta") {
+		t.Fatalf("read --tail=2 should include gamma+delta: %s", out2)
+	}
+	if strings.Contains(out2, "alpha") {
+		t.Fatalf("read --tail=2 should NOT include alpha: %s", out2)
+	}
+}

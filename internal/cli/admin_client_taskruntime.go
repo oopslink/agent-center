@@ -9,15 +9,17 @@
 // endpoint's projection helpers (`taskMap`, `executionMap`, `irMap`,
 // `artifactMap`).
 //
-// Note: there is no admin endpoint for `TaskService.ReadContext` — the
-// agent-facing `read-task-context` CLI still talks to the Service
-// directly (handlers_task.go falls back to a.TaskSvc when Client is
-// nil and there is no Client-side method here). Filed as a mismatch
-// in the v2.2-B audit log; promoting ReadContext to the admin surface
-// is a v2.3 follow-up.
+// v2.3-1 (task #24) closed the prior v2.2 mismatch: a proper
+// `GET /admin/taskruntime/task/read-context` endpoint now exists →
+// TaskReadContext method below; `read-task-context` CLI goes through
+// Client uniformly (no more ExitNotImplemented in Client mode).
 package cli
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+	"strconv"
+)
 
 // =============================================================================
 // DTOs — JSON shape returned by admin/api/taskruntime.go projection helpers.
@@ -276,6 +278,19 @@ func (c *Client) TaskBindConversation(ctx context.Context, req TaskBindConversat
 	var res TaskBindConversationResponse
 	err := c.postJSON(ctx, "/admin/taskruntime/task/bind-conversation", req, &res)
 	return res, err
+}
+
+// TaskReadContext GETs /admin/taskruntime/task/read-context?task_id=…&recent_messages_n=…
+// (v2.3-1). Returns the raw JSON body verbatim so the caller can stream
+// it to stdout (the handler historically just json.Marshal'd the service
+// result). This keeps the wire shape stable without forcing the cli
+// package to take a compile dependency on taskruntime/service for the
+// TaskContext struct.
+func (c *Client) TaskReadContext(ctx context.Context, taskID string, recentN int) (json.RawMessage, error) {
+	var out json.RawMessage
+	err := c.getJSON(ctx, "/admin/taskruntime/task/read-context"+
+		buildQuery("task_id", taskID, "recent_messages_n", strconv.Itoa(recentN)), &out)
+	return out, err
 }
 
 // TaskFindByID GETs /admin/taskruntime/task/find-by-id?id=…

@@ -115,6 +115,13 @@ func (fs *fakeServer) registerRoutes() {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"worker_id":"w-1","event_id":"E-1","version":1}`))
 	})
+	// v2.3-1: dedicated heartbeat endpoint (replaces the v2.2 re-enroll
+	// hack that swallowed 409 already_exists as the success signal).
+	fs.mux.HandleFunc("/admin/workforce/worker/heartbeat", func(w http.ResponseWriter, r *http.Request) {
+		fs.record(r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"worker_id":"w-1"}`))
+	})
 	fs.mux.HandleFunc("/admin/dispatch/queue/pull", func(w http.ResponseWriter, r *http.Request) {
 		fs.record(r)
 		w.Header().Set("Content-Type", "application/json")
@@ -191,14 +198,32 @@ func TestAdminClient_Enroll_EmptyWorkerIDFails(t *testing.T) {
 	}
 }
 
-func TestAdminClient_Heartbeat_AliasesEnroll(t *testing.T) {
+// v2.3-1: Heartbeat now hits the dedicated endpoint (was an Enroll alias
+// in v2.2 that swallowed 409 already_exists).
+func TestAdminClient_Heartbeat_PostsToHeartbeatEndpoint(t *testing.T) {
 	fs, client, cleanup := newFakeServer(t)
 	defer cleanup()
 	if err := client.Heartbeat(context.Background(), "w-1", nil); err != nil {
 		t.Fatalf("Heartbeat: %v", err)
 	}
-	if len(fs.reqs()) != 1 || fs.reqs()[0].Path != "/admin/workforce/worker/enroll" {
-		t.Fatalf("Heartbeat should hit enroll endpoint; got %+v", fs.reqs())
+	reqs := fs.reqs()
+	if len(reqs) != 1 || reqs[0].Method != "POST" || reqs[0].Path != "/admin/workforce/worker/heartbeat" {
+		t.Fatalf("Heartbeat should POST to /heartbeat endpoint; got %+v", reqs)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(reqs[0].Body, &body); err != nil {
+		t.Fatalf("body decode: %v", err)
+	}
+	if body["worker_id"] != "w-1" {
+		t.Fatalf("worker_id=%v", body["worker_id"])
+	}
+}
+
+func TestAdminClient_Heartbeat_EmptyWorkerIDFails(t *testing.T) {
+	_, client, cleanup := newFakeServer(t)
+	defer cleanup()
+	if err := client.Heartbeat(context.Background(), "  ", nil); err == nil {
+		t.Fatal("expected error for empty worker_id")
 	}
 }
 

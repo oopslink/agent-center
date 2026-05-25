@@ -268,9 +268,9 @@ func (a *App) channelInviteHandler(fs *flag.FlagSet) Handler {
 	}
 }
 
-// channelLeaveHandler stays on the direct ParticipantMgmtSvc.Leave path:
-// there is no admin endpoint mirror yet (see admin_client_conversation.go
-// file header mismatch note). When one is added, switch to Client.
+// channelLeaveHandler — v2.3-1 switched to the dual-mode pattern after
+// `POST /admin/conversation/participant/leave` landed. Test-path apps
+// (newTestApp without a Client) still use the direct service.
 func (a *App) channelLeaveHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "reason for leaving (optional)")
 	format := fs.String("format", FormatTable, formatFlagHelp())
@@ -278,18 +278,28 @@ func (a *App) channelLeaveHandler(fs *flag.FlagSet) Handler {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "channel leave <name>", ExitUsage)
 		}
-		if a.ParticipantMgmtSvc == nil {
-			return PrintError(errw, *format, "internal_error",
-				"participant management service not wired (no admin endpoint for participant/leave yet)", ExitNotImplemented)
-		}
-		_, err := a.ParticipantMgmtSvc.Leave(ctx, convservice.LeaveCommand{
-			ConversationName: args[0],
-			IdentityID:       conversation.IdentityRef(a.DefaultActor()),
-			Reason:           *reason,
-			Actor:            a.DefaultActor(),
-		})
-		if err != nil {
-			return HandleDomainError(errw, *format, err)
+		if a.Client != nil {
+			if _, err := a.Client.ParticipantLeave(ctx, ParticipantLeaveRequest{
+				ConversationName: args[0],
+				IdentityID:       string(a.DefaultActor()),
+				Reason:           *reason,
+			}); err != nil {
+				return HandleClientError(errw, *format, err)
+			}
+		} else {
+			if a.ParticipantMgmtSvc == nil {
+				return PrintError(errw, *format, "internal_error",
+					"participant management service not wired", ExitNotImplemented)
+			}
+			_, err := a.ParticipantMgmtSvc.Leave(ctx, convservice.LeaveCommand{
+				ConversationName: args[0],
+				IdentityID:       conversation.IdentityRef(a.DefaultActor()),
+				Reason:           *reason,
+				Actor:            a.DefaultActor(),
+			})
+			if err != nil {
+				return HandleDomainError(errw, *format, err)
+			}
 		}
 		writeOut(out, fmt.Sprintf("left %s", args[0]))
 		return ExitOK

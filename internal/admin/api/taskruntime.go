@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -327,6 +328,36 @@ func (s *Server) taskBindConversationHandler(w http.ResponseWriter, r *http.Requ
 		"task_id":         req.TaskID,
 		"conversation_id": string(convID),
 	})
+}
+
+// v2.3-1 (task #24): agent-facing read-context proxy. Without this the
+// `read-task-context` CLI returns ExitNotImplemented in Client mode
+// (worker daemon / agent dispatch context). Returns the TaskContext
+// struct verbatim; its JSON tags already match the legacy direct-write
+// output so consumers see no shape change.
+func (s *Server) taskReadContextHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskSvc == nil {
+		writeError(w, http.StatusNotImplemented, "task_svc_not_wired", "")
+		return
+	}
+	taskID := r.URL.Query().Get("task_id")
+	if taskID == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	recentN := 0
+	if v := r.URL.Query().Get("recent_messages_n"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			recentN = parsed
+		}
+	}
+	tctx, err := d.TaskSvc.ReadContext(r.Context(), taskruntime.TaskID(taskID), recentN)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tctx)
 }
 
 // =============================================================================

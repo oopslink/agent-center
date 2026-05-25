@@ -692,6 +692,74 @@ func TestProjectCRUD_Remove_NotFound(t *testing.T) {
 }
 
 // =============================================================================
+// Heartbeat (v2.3-1 task #24)
+// =============================================================================
+
+func TestHeartbeat_Happy(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	if _, err := enroll.Enroll(context.Background(), EnrollCommand{
+		WorkerID: "W-HB", Capabilities: []string{"claude-code"}, ActorIdentity: "user:hayang",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.clock.Advance(30 * time.Second)
+	if err := enroll.Heartbeat(context.Background(), HeartbeatCommand{
+		WorkerID: "W-HB", AdditionalWorkingSeconds: 30,
+	}); err != nil {
+		t.Fatalf("Heartbeat: %v", err)
+	}
+	w, err := s.workerRepo.FindByID(context.Background(), "W-HB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.LastHeartbeatAt() == nil {
+		t.Fatal("last_heartbeat_at not updated")
+	}
+	if w.WorkingSeconds() != 30 {
+		t.Fatalf("working_seconds=%d want 30", w.WorkingSeconds())
+	}
+}
+
+func TestHeartbeat_Idempotent(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	if _, err := enroll.Enroll(context.Background(), EnrollCommand{
+		WorkerID: "W-HB2", ActorIdentity: "user:hayang",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Repeat heartbeat should not error (this is the whole point of
+	// the new endpoint vs v2.2 re-enroll which returned 409).
+	for i := 0; i < 3; i++ {
+		s.clock.Advance(time.Second)
+		if err := enroll.Heartbeat(context.Background(), HeartbeatCommand{WorkerID: "W-HB2"}); err != nil {
+			t.Fatalf("iter %d: %v", i, err)
+		}
+	}
+}
+
+func TestHeartbeat_UnknownWorker(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	err := enroll.Heartbeat(context.Background(), HeartbeatCommand{WorkerID: "W-MISSING"})
+	if err == nil {
+		t.Fatal("expected error on unknown worker")
+	}
+}
+
+func TestHeartbeat_ValidatesArgs(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	if err := enroll.Heartbeat(context.Background(), HeartbeatCommand{}); err == nil {
+		t.Fatal("expected error on empty worker_id")
+	}
+	if err := enroll.Heartbeat(context.Background(), HeartbeatCommand{WorkerID: "W-X", AdditionalWorkingSeconds: -1}); err == nil {
+		t.Fatal("expected error on negative working seconds")
+	}
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 

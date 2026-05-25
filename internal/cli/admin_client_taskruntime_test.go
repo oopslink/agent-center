@@ -231,23 +231,21 @@ func TestClient_TaskRuntime_IRListShow_OverAdminEndpoint(t *testing.T) {
 	}
 }
 
-// TestClient_TaskRuntime_ReadContext_NotImplementedOverClient documents
-// the v2.2-B mismatch: there is no admin endpoint that mirrors
-// TaskService.ReadContext, so the Client path of `read-task-context`
-// returns ExitNotImplemented while the Service path still works.
-func TestClient_TaskRuntime_ReadContext_NotImplementedOverClient(t *testing.T) {
+// TestClient_TaskRuntime_ReadContext_OverClient verifies the v2.3-1
+// admin endpoint at /admin/taskruntime/task/read-context. Previously
+// the Client path returned ExitNotImplemented; with the endpoint
+// landed, a missing task should now surface ExitNotFound (the same
+// error the direct-service path returns).
+func TestClient_TaskRuntime_ReadContext_OverClient(t *testing.T) {
 	app, cleanup := setupAdminServerForTests(t)
 	defer cleanup()
 	seedProjectAndWorkerClient(t, app)
 
-	// Build a Client-only App that mirrors a true CLI invocation (no
-	// TaskSvc wired). The admin server already running from above is
-	// reused via the same Client.
 	clientOnly := NewClientApp(app.Config, app.Client)
 
 	rt := findCmd(clientOnly.AgentRuntimeCommands(), "read-task-context")
 	_, errw, code := runHandler(t, rt, []string{string(taskruntime.TaskID("T-NONE"))})
-	if code != ExitNotImplemented {
-		t.Fatalf("expected ExitNotImplemented, got code=%d err=%s", code, errw)
+	if code != ExitNotFound {
+		t.Fatalf("expected ExitNotFound for unknown task over Client, got code=%d err=%s", code, errw)
 	}
 }

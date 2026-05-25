@@ -591,18 +591,20 @@ func (a *App) readTaskContextHandler(fs *flag.FlagSet) Handler {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "usage: read-task-context <task_id>", ExitUsage)
 		}
-		// v2.2-B mismatch: TaskSvc.ReadContext is the only Service method
-		// in the TaskRuntime BC without a 1:1 admin endpoint counterpart
-		// (admin/api/taskruntime.go exposes Create + BindConversation but
-		// no read-context handler). The Client path therefore returns
-		// ExitNotImplemented; Service-mode (server boot + tests) still
-		// works. Filed for v2.3 follow-up: add
-		// /admin/taskruntime/task/read-context.
+		// v2.3-1: Client mode now reaches /admin/taskruntime/task/read-context
+		// (was ExitNotImplemented in v2.2). Test path with newTestApp still
+		// uses the direct service.
+		if a.Client != nil {
+			raw, err := a.Client.TaskReadContext(ctx, args[0], *recent)
+			if err != nil {
+				return HandleClientError(errw, *format, err)
+			}
+			writeOut(out, string(raw))
+			return ExitOK
+		}
 		if a.TaskSvc == nil {
-			return PrintError(errw, *format, "not_implemented_v22",
-				"read-task-context has no admin endpoint yet; run inside server mode "+
-					"or wait for the v2.3 /admin/taskruntime/task/read-context endpoint",
-				ExitNotImplemented)
+			return PrintError(errw, *format, "internal_error",
+				"task service not wired", ExitNotImplemented)
 		}
 		ctxRes, err := a.TaskSvc.ReadContext(ctx, taskruntime.TaskID(args[0]), *recent)
 		if err != nil {

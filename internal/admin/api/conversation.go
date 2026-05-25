@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -114,6 +115,39 @@ func (s *Server) msgFindByConversationIDHandler(w http.ResponseWriter, r *http.R
 	list, err := d.MsgRepo.FindByConversationID(r.Context(),
 		conversation.ConversationID(convID),
 		conversation.MessageFilter{Limit: 200})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	out := make([]map[string]any, len(list))
+	for i, m := range list {
+		out[i] = messageMap(m)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// v2.3-1 (task #24): proper tail/recent proxy. Replaces the prior
+// CLI workaround that called find-by-conversation-id and trimmed the
+// last N client-side (which capped at the server's hard-coded 200).
+// `?n=` honours MessageRepo.FindRecent's zero-default (50) when omitted.
+func (s *Server) msgFindRecentHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.MsgRepo == nil {
+		writeError(w, http.StatusNotImplemented, "msg_repo_not_wired", "")
+		return
+	}
+	convID := r.URL.Query().Get("conversation_id")
+	if convID == "" {
+		writeError(w, http.StatusBadRequest, "missing_conversation_id", "")
+		return
+	}
+	n := 0
+	if v := r.URL.Query().Get("n"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			n = parsed
+		}
+	}
+	list, err := d.MsgRepo.FindRecent(r.Context(), conversation.ConversationID(convID), n)
 	if err != nil {
 		mapDomainError(w, err)
 		return
@@ -430,6 +464,44 @@ func (s *Server) kickParticipantHandler(w http.ResponseWriter, r *http.Request) 
 		ConversationName: req.ConversationName,
 		IdentityID:       conversation.IdentityRef(req.IdentityID),
 		KickedBy:         kickedBy,
+		Reason:           req.Reason,
+		Actor:            d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"event_id": string(evID)})
+}
+
+// v2.3-1 (task #24): self-leave proxy. Previously `channel leave` CLI
+// fell back to the legacy direct-service path because there was no
+// admin endpoint mirror; this closes that gap so the CLI uniformly
+// goes through Client → admin endpoint → AppService (conventions § 0.4).
+type leaveParticipantReq struct {
+	ConversationName string `json:"conversation_name"`
+	IdentityID       string `json:"identity_id"`
+	Reason           string `json:"reason"`
+}
+
+func (s *Server) leaveParticipantHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ParticipantMgmtSvc == nil {
+		writeError(w, http.StatusNotImplemented, "participant_mgmt_svc_not_wired", "")
+		return
+	}
+	var req leaveParticipantReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	identity := req.IdentityID
+	if identity == "" {
+		identity = string(d.Actor)
+	}
+	evID, err := d.ParticipantMgmtSvc.Leave(r.Context(), convservice.LeaveCommand{
+		ConversationName: req.ConversationName,
+		IdentityID:       conversation.IdentityRef(identity),
 		Reason:           req.Reason,
 		Actor:            d.Actor,
 	})
