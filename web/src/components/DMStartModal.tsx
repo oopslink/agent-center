@@ -83,7 +83,7 @@ export function DMStartModal({
               onChange={(e) => setPeers(e.target.value)}
               placeholder="agent:supervisor-1&#10;user:alice"
               autoFocus
-              className="mt-1 w-full resize-none rounded border border-slate-300 px-2 py-1 font-mono text-xs focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full resize-none rounded border border-slate-300 px-2 py-1 font-mono text-xs focus:border-accent"
               data-testid="dm-peers-input"
             />
           </div>
@@ -120,12 +120,12 @@ export function DMStartModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="leave blank for default"
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
               data-testid="dm-label-input"
             />
           </div>
           {create.isError && (
-            <p className="text-xs text-red-600" data-testid="dm-start-error">
+            <p className="text-xs text-danger" data-testid="dm-start-error">
               {(create.error as Error).message}
             </p>
           )}

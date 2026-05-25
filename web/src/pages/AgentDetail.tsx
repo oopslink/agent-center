@@ -21,7 +21,7 @@ export default function AgentDetail(): React.ReactElement {
   if (agent.isError) {
     return (
       <section className="space-y-3" data-testid="page-AgentDetail">
-        <p className="text-sm text-red-600" data-testid="agent-not-found">
+        <p className="text-sm text-danger" data-testid="agent-not-found">
           {(agent.error as Error).message}
         </p>
         <Link to="/agents" className="text-blue-600 hover:underline">
@@ -32,7 +32,7 @@ export default function AgentDetail(): React.ReactElement {
   }
   if (!agent.data) {
     return (
-      <section className="text-sm text-red-600" data-testid="page-AgentDetail">
+      <section className="text-sm text-danger" data-testid="page-AgentDetail">
         Agent lookup failed.
       </section>
     );
@@ -75,7 +75,7 @@ export default function AgentDetail(): React.ReactElement {
           </p>
         )}
         {fleet.isError && (
-          <p className="text-xs text-red-600" data-testid="agent-exec-error">
+          <p className="text-xs text-danger" data-testid="agent-exec-error">
             {(fleet.error as Error).message}
           </p>
         )}

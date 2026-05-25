@@ -80,7 +80,7 @@ export function RespondInputRequestModal({
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="your response"
             autoFocus
-            className="w-full resize-none rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+            className="w-full resize-none rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
             data-testid="ir-answer-textarea"
           />
           {suggested && (
@@ -94,7 +94,7 @@ export function RespondInputRequestModal({
             </button>
           )}
           {respond.isError && (
-            <p className="text-xs text-red-600" data-testid="ir-respond-error">
+            <p className="text-xs text-danger" data-testid="ir-respond-error">
               {(respond.error as Error).message}
             </p>
           )}

@@ -87,7 +87,7 @@ export function SecretCreateModal({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="github-token"
                 autoFocus
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
                 data-testid="secret-name-input"
               />
             </div>
@@ -96,7 +96,7 @@ export function SecretCreateModal({
               <select
                 value={kind}
                 onChange={(e) => setKind(e.target.value as SecretKind)}
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
                 data-testid="secret-kind-select"
               >
                 {KINDS.map((k) => (
@@ -118,7 +118,7 @@ export function SecretCreateModal({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder="paste secret"
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono text-sm focus:border-slate-500 focus:outline-none"
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono text-sm focus:border-accent"
                 data-testid="secret-value-input"
               />
               <p className="mt-1 text-xs text-slate-500">
@@ -127,7 +127,7 @@ export function SecretCreateModal({
               </p>
             </div>
             {create.isError && (
-              <p className="text-xs text-red-600" data-testid="secret-create-error">
+              <p className="text-xs text-danger" data-testid="secret-create-error">
                 {(create.error as Error).message}
               </p>
             )}

@@ -68,7 +68,7 @@ export default function ChannelDetail(): React.ReactElement {
 
   if (!channel || !conv.data) {
     return (
-      <section className="text-sm text-red-600" data-testid="page-ChannelDetail">
+      <section className="text-sm text-danger" data-testid="page-ChannelDetail">
         Channel lookup failed.
       </section>
     );
@@ -119,7 +119,7 @@ export default function ChannelDetail(): React.ReactElement {
             </p>
           )}
           {messages.isError && (
-            <p className="p-4 text-sm text-red-600" data-testid="messages-error">
+            <p className="p-4 text-sm text-danger" data-testid="messages-error">
               {(messages.error as Error).message}
             </p>
           )}

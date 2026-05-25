@@ -60,7 +60,7 @@ export function ChannelCreateModal({
               onChange={(e) => setName(e.target.value)}
               placeholder="alpha"
               autoFocus
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
               data-testid="create-channel-name"
             />
           </div>
@@ -71,12 +71,12 @@ export function ChannelCreateModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="optional"
-              className="mt-1 w-full resize-none rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"
+              className="mt-1 w-full resize-none rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
               data-testid="create-channel-description"
             />
           </div>
           {create.isError && (
-            <p className="text-xs text-red-600" data-testid="create-channel-error">
+            <p className="text-xs text-danger" data-testid="create-channel-error">
               {(create.error as Error).message}
             </p>
           )}

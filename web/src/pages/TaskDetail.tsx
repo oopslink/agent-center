@@ -26,7 +26,7 @@ export default function TaskDetail(): React.ReactElement {
   if (conv.isError) {
     return (
       <section className="space-y-3" data-testid="page-TaskDetail">
-        <p className="text-sm text-red-600" data-testid="task-not-found">
+        <p className="text-sm text-danger" data-testid="task-not-found">
           {(conv.error as Error).message}
         </p>
         <Link to="/tasks" className="text-blue-600 hover:underline">
@@ -37,7 +37,7 @@ export default function TaskDetail(): React.ReactElement {
   }
   if (!conv.data) {
     return (
-      <section className="text-sm text-red-600" data-testid="page-TaskDetail">
+      <section className="text-sm text-danger" data-testid="page-TaskDetail">
         Task lookup failed.
       </section>
     );
@@ -94,7 +94,7 @@ export default function TaskDetail(): React.ReactElement {
             </p>
           )}
           {messages.isError && (
-            <p className="p-4 text-sm text-red-600" data-testid="task-messages-error">
+            <p className="p-4 text-sm text-danger" data-testid="task-messages-error">
               {(messages.error as Error).message}
             </p>
           )}

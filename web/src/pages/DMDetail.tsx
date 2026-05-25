@@ -46,7 +46,7 @@ export default function DMDetail(): React.ReactElement {
   if (conv.isError) {
     return (
       <section className="space-y-3 text-sm" data-testid="page-DMDetail">
-        <p className="text-red-600" data-testid="dm-not-found">
+        <p className="text-danger" data-testid="dm-not-found">
           {(conv.error as Error).message}
         </p>
         <Link to="/dms" className="text-blue-600 hover:underline">
@@ -57,7 +57,7 @@ export default function DMDetail(): React.ReactElement {
   }
   if (!conv.data) {
     return (
-      <section className="text-sm text-red-600" data-testid="page-DMDetail">
+      <section className="text-sm text-danger" data-testid="page-DMDetail">
         DM lookup failed.
       </section>
     );
@@ -110,7 +110,7 @@ export default function DMDetail(): React.ReactElement {
           </p>
         )}
         {messages.isError && (
-          <p className="p-4 text-sm text-red-600" data-testid="dm-messages-error">
+          <p className="p-4 text-sm text-danger" data-testid="dm-messages-error">
             {(messages.error as Error).message}
           </p>
         )}

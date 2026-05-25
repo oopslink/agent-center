@@ -53,7 +53,7 @@ export default function IssueDetail(): React.ReactElement {
   if (conv.isError) {
     return (
       <section className="space-y-3" data-testid="page-IssueDetail">
-        <p className="text-sm text-red-600" data-testid="issue-not-found">
+        <p className="text-sm text-danger" data-testid="issue-not-found">
           {(conv.error as Error).message}
         </p>
         <Link to="/issues" className="text-blue-600 hover:underline">
@@ -64,7 +64,7 @@ export default function IssueDetail(): React.ReactElement {
   }
   if (!conv.data) {
     return (
-      <section className="text-sm text-red-600" data-testid="page-IssueDetail">
+      <section className="text-sm text-danger" data-testid="page-IssueDetail">
         Issue lookup failed.
       </section>
     );
@@ -113,7 +113,7 @@ export default function IssueDetail(): React.ReactElement {
             </p>
           )}
           {messages.isError && (
-            <p className="text-sm text-red-600" data-testid="issue-messages-error">
+            <p className="text-sm text-danger" data-testid="issue-messages-error">
               {(messages.error as Error).message}
             </p>
           )}

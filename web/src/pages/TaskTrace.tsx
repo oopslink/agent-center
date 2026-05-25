@@ -35,7 +35,7 @@ export default function TaskTrace(): React.ReactElement {
         </p>
       )}
       {trace.isError && (
-        <p className="text-sm text-red-600" data-testid="trace-error">
+        <p className="text-sm text-danger" data-testid="trace-error">
           {(trace.error as Error).message}
         </p>
       )}

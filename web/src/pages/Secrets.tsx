@@ -111,7 +111,7 @@ export default function Secrets(): React.ReactElement {
                       type="button"
                       onClick={() => handleRevoke(s)}
                       disabled={revoke.isPending}
-                      className="rounded px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      className="rounded px-3 py-1 text-xs text-danger hover:bg-bg-subtle disabled:opacity-50"
                       data-testid="secret-revoke-button"
                     >
                       Revoke

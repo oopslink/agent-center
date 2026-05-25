@@ -28,7 +28,7 @@ export default function Fleet(): React.ReactElement {
         </p>
       )}
       {fleet.isError && (
-        <p className="text-sm text-red-600" data-testid="fleet-error">
+        <p className="text-sm text-danger" data-testid="fleet-error">
           {(fleet.error as Error).message}
         </p>
       )}

@@ -44,8 +44,9 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
       }}
     >
       <textarea
-        className="min-h-[2.5rem] flex-1 resize-none rounded border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+        className="min-h-[2.5rem] flex-1 resize-none rounded border border-border-strong px-3 py-2 text-sm focus:border-accent"
         rows={1}
+        aria-label="Message"
         placeholder="Type a message — Enter to send, Shift+Enter for newline"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -62,7 +63,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
         {send.isPending ? 'Sending…' : 'Send'}
       </button>
       {send.isError && (
-        <span className="text-xs text-red-600" data-testid="composer-error">
+        <span className="text-xs text-danger" data-testid="composer-error">
           {(send.error as Error).message}
         </span>
       )}

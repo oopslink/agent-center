@@ -67,7 +67,7 @@ export function ParticipantsPanel({
             {isOwner && p.role !== 'owner' && (
               <button
                 type="button"
-                className="text-xs text-red-600 hover:underline"
+                className="text-xs text-danger hover:underline"
                 onClick={() => remove.mutate({ conversationId, identityId: p.identity_id })}
                 data-testid="participant-remove"
               >
@@ -86,7 +86,7 @@ export function ParticipantsPanel({
             value={inviteId}
             onChange={(e) => setInviteId(e.target.value)}
             placeholder="agent:bot-1 or user:alice"
-            className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none"
+            className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:border-accent"
             data-testid="invite-input"
           />
           <button
@@ -98,7 +98,7 @@ export function ParticipantsPanel({
             {invite.isPending ? 'Inviting…' : 'Invite'}
           </button>
           {invite.isError && (
-            <span className="block text-xs text-red-600" data-testid="invite-error">
+            <span className="block text-xs text-danger" data-testid="invite-error">
               {(invite.error as Error).message}
             </span>
           )}
