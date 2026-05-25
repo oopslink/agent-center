@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { DMStartModal } from '@/components/DMStartModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
+import { EmptyState } from '@/components/EmptyState';
+import { Skeleton } from '@/components/Skeleton';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 
 // DMList page (/dms). Lists kind=dm conversations + "Start a DM" button.
@@ -28,30 +30,23 @@ export default function DMs(): React.ReactElement {
       </header>
 
       {dms.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="dms-loading">
-          Loading…
-        </p>
+        <div className="space-y-2" data-testid="dms-loading">
+          <Skeleton height="2.5rem" />
+          <Skeleton height="2.5rem" />
+        </div>
       )}
       {dms.isError && (
-        <p className="text-sm text-red-600" data-testid="dms-error">
+        <p className="text-sm text-danger" data-testid="dms-error">
           {(dms.error as Error).message}
         </p>
       )}
       {dms.isSuccess && dms.data.length === 0 && (
-        <div
-          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
-          data-testid="dms-empty"
-        >
-          No DMs yet.{' '}
-          <button
-            type="button"
-            className="font-medium text-blue-600 hover:underline"
-            onClick={() => setStartOpen(true)}
-          >
-            Start one
-          </button>
-          .
-        </div>
+        <EmptyState
+          testId="dms-empty"
+          title="No DMs yet"
+          body="DMs are private conversations between two parties (human or agent). Start one to message someone directly."
+          action={{ label: 'Start a DM', onClick: () => setStartOpen(true) }}
+        />
       )}
       {dms.isSuccess && dms.data.length > 0 && (
         <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">

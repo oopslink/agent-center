@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { ChannelCreateModal } from '@/components/ChannelCreateModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
+import { EmptyState } from '@/components/EmptyState';
+import { Skeleton } from '@/components/Skeleton';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 
 // ChannelList page (/channels). Lists kind=channel conversations + a
@@ -29,30 +31,24 @@ export default function Channels(): React.ReactElement {
       </header>
 
       {channels.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="channels-loading">
-          Loading…
-        </p>
+        <div className="space-y-2" data-testid="channels-loading">
+          <Skeleton height="2.5rem" />
+          <Skeleton height="2.5rem" />
+          <Skeleton height="2.5rem" />
+        </div>
       )}
       {channels.isError && (
-        <p className="text-sm text-red-600" data-testid="channels-error">
+        <p className="text-sm text-danger" data-testid="channels-error">
           {(channels.error as Error).message}
         </p>
       )}
       {channels.isSuccess && channels.data.length === 0 && (
-        <div
-          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
-          data-testid="channels-empty"
-        >
-          No channels yet.{' '}
-          <button
-            type="button"
-            className="font-medium text-blue-600 hover:underline"
-            onClick={() => setCreateOpen(true)}
-          >
-            Create one
-          </button>
-          .
-        </div>
+        <EmptyState
+          testId="channels-empty"
+          title="No channels yet"
+          body="Channels group humans + agents around a topic. Create one to start a conversation that anyone in this server can join."
+          action={{ label: 'New channel', onClick: () => setCreateOpen(true) }}
+        />
       )}
       {channels.isSuccess && channels.data.length > 0 && (
         <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">

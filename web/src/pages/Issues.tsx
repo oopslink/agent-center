@@ -2,6 +2,8 @@ import type React from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
+import { EmptyState } from '@/components/EmptyState';
+import { Skeleton } from '@/components/Skeleton';
 import type { ConversationStatus } from '@/api/types';
 
 // Issues page (/issues). Lists kind=issue conversations with a status
@@ -47,22 +49,26 @@ export default function Issues(): React.ReactElement {
       </div>
 
       {all.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="issues-loading">
-          Loading…
-        </p>
+        <div className="space-y-2" data-testid="issues-loading">
+          <Skeleton height="2.5rem" />
+          <Skeleton height="2.5rem" />
+        </div>
       )}
       {all.isError && (
-        <p className="text-sm text-red-600" data-testid="issues-error">
+        <p className="text-sm text-danger" data-testid="issues-error">
           {(all.error as Error).message}
         </p>
       )}
       {all.isSuccess && data.length === 0 && (
-        <p
-          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
-          data-testid="issues-empty"
-        >
-          No issues for this filter.
-        </p>
+        <EmptyState
+          testId="issues-empty"
+          title={filter === 'all' ? 'No issues yet' : `No ${filter} issues`}
+          body={
+            filter === 'all'
+              ? 'Issues capture decisions or problems that need resolution. Open one from a conversation via the Derive menu.'
+              : 'Switch the filter above or open a new issue from a conversation.'
+          }
+        />
       )}
       {data.length > 0 && (
         <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">

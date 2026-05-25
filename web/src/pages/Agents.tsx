@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import type { AgentInstance } from '@/api/types';
+import { EmptyState } from '@/components/EmptyState';
+import { Skeleton } from '@/components/Skeleton';
 
 type StateFilter = 'all' | AgentInstance['state'];
 
@@ -55,29 +57,26 @@ export default function Agents(): React.ReactElement {
       </div>
 
       {agents.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="agents-loading">
-          Loading…
-        </p>
+        <div className="space-y-2" data-testid="agents-loading">
+          <Skeleton height="2.5rem" />
+          <Skeleton height="2.5rem" />
+        </div>
       )}
       {agents.isError && (
-        <p className="text-sm text-red-600" data-testid="agents-error">
+        <p className="text-sm text-danger" data-testid="agents-error">
           {(agents.error as Error).message}
         </p>
       )}
       {agents.isSuccess && filtered.length === 0 && (
-        <div
-          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
-          data-testid="agents-empty"
-        >
-          <p>No agents for this filter.</p>
-          <p className="mt-1 text-xs">
-            Create one with{' '}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">
-              agent-center agent create --name=… --agent-cli=…
-            </code>
-            .
-          </p>
-        </div>
+        <EmptyState
+          testId="agents-empty"
+          title={filter === 'all' ? 'No agents yet' : `No ${filter} agents`}
+          body={
+            filter === 'all'
+              ? 'Agents are CLI-driven entities (claude-code, codex, opencode) registered as participants in conversations. Per ADR-0029 they’re created via CLI: agent-center agent create --name=… --agent-cli=…'
+              : 'Switch the filter above to see agents in other states.'
+          }
+        />
       )}
       {filtered.length > 0 && (
         <table

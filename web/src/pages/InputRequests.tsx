@@ -6,6 +6,8 @@ import {
 } from '@/api/inputRequests';
 import type { InputRequest } from '@/api/types';
 import { RespondInputRequestModal } from '@/components/RespondInputRequestModal';
+import { EmptyState } from '@/components/EmptyState';
+import { Skeleton } from '@/components/Skeleton';
 
 type StatusFilter = 'pending' | 'responded' | 'cancelled' | 'all';
 
@@ -65,22 +67,32 @@ export default function InputRequests(): React.ReactElement {
       </div>
 
       {all.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="ir-loading">
-          Loading…
-        </p>
+        <div className="space-y-2" data-testid="ir-loading">
+          <Skeleton height="3rem" />
+          <Skeleton height="3rem" />
+        </div>
       )}
       {all.isError && (
-        <p className="text-sm text-red-600" data-testid="ir-error">
+        <p className="text-sm text-danger" data-testid="ir-error">
           {(all.error as Error).message}
         </p>
       )}
       {all.isSuccess && filtered.length === 0 && (
-        <p
-          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
-          data-testid="ir-empty"
-        >
-          No input requests for this filter.
-        </p>
+        <EmptyState
+          testId="ir-empty"
+          title={
+            filter === 'pending'
+              ? 'No pending input requests'
+              : filter === 'all'
+                ? 'No input requests yet'
+                : `No ${filter} input requests`
+          }
+          body={
+            filter === 'pending'
+              ? 'When an agent needs a decision from you mid-task, it shows up here. The sidebar badge tracks pending count in realtime.'
+              : 'Agents raise input requests when they need a human-in-the-loop answer.'
+          }
+        />
       )}
 
       {filtered.length > 0 && (

@@ -1,6 +1,8 @@
 import type React from 'react';
 import { Link } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
+import { EmptyState } from '@/components/EmptyState';
+import { Skeleton } from '@/components/Skeleton';
 
 // Tasks page (/tasks). Lists kind=task conversations. Like issues but
 // task lifecycle is owned by TaskRuntime BC; here we only render the
@@ -15,22 +17,22 @@ export default function Tasks(): React.ReactElement {
       </header>
 
       {all.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="tasks-loading">
-          Loading…
-        </p>
+        <div className="space-y-2" data-testid="tasks-loading">
+          <Skeleton height="2.5rem" />
+          <Skeleton height="2.5rem" />
+        </div>
       )}
       {all.isError && (
-        <p className="text-sm text-red-600" data-testid="tasks-error">
+        <p className="text-sm text-danger" data-testid="tasks-error">
           {(all.error as Error).message}
         </p>
       )}
       {all.isSuccess && all.data.length === 0 && (
-        <p
-          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
-          data-testid="tasks-empty"
-        >
-          No tasks yet.
-        </p>
+        <EmptyState
+          testId="tasks-empty"
+          title="No tasks yet"
+          body="Tasks are units of work an agent can pick up and execute. Create one from a conversation via Derive → Task, or via the CLI."
+        />
       )}
       {all.isSuccess && all.data.length > 0 && (
         <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">

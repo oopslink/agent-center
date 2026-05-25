@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useRevokeSecret, useSecrets } from '@/api/secrets';
 import type { Secret } from '@/api/types';
 import { SecretCreateModal } from '@/components/SecretCreateModal';
+import { EmptyState } from '@/components/EmptyState';
+import { Skeleton } from '@/components/Skeleton';
 
 // Secrets page (/secrets). List + create + revoke.
 //
@@ -43,22 +45,23 @@ export default function Secrets(): React.ReactElement {
       </p>
 
       {secrets.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="secrets-loading">
-          Loading…
-        </p>
+        <div className="space-y-2" data-testid="secrets-loading">
+          <Skeleton height="2.5rem" />
+          <Skeleton height="2.5rem" />
+        </div>
       )}
       {secrets.isError && (
-        <p className="text-sm text-red-600" data-testid="secrets-error">
+        <p className="text-sm text-danger" data-testid="secrets-error">
           {(secrets.error as Error).message}
         </p>
       )}
       {secrets.isSuccess && secrets.data.length === 0 && (
-        <p
-          className="rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
-          data-testid="secrets-empty"
-        >
-          No secrets yet.
-        </p>
+        <EmptyState
+          testId="secrets-empty"
+          title="No secrets yet"
+          body="Secrets store API keys + tokens that agents reference at runtime. Values are encrypted at rest and never displayed after creation."
+          action={{ label: 'New secret', onClick: () => setCreateOpen(true) }}
+        />
       )}
       {secrets.isSuccess && secrets.data.length > 0 && (
         <table
