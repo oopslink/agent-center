@@ -213,6 +213,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/taskruntime/exec/conclude", s.execConcludeHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch", s.dispatchHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/kill/request", s.killExecutionHandler)
+	// v2.3-2 (task #25): composite endpoints that bundle the action
+	// + DecisionRecord in one tx (ADR-0014 § 2 atomicity in client mode).
+	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch-with-decision", s.dispatchWithDecisionHandler)
+	s.mux.HandleFunc("POST /admin/taskruntime/kill/request-with-decision", s.killWithDecisionHandler)
 
 	// --- cognition -------------------------------------------------------
 	s.mux.HandleFunc("POST /admin/cognition/supervisor/spawn", s.supervisorSpawnHandler)

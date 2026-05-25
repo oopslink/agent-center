@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
@@ -38,6 +39,13 @@ import (
 // changes to either transport don't ripple into the other.
 type HandlerDeps struct {
 	Actor observability.Actor
+
+	// DB is the raw connection pool used by composite endpoints that
+	// must wrap two AppService calls in the SAME tx (ADR-0014 § 2 —
+	// dispatch/kill + DecisionRecord atomicity, v2.3-2). Nested
+	// persistence.RunInTx calls reuse the outer tx; lower-level
+	// services don't need to know whether they are nested.
+	DB *sql.DB
 
 	// Conversation BC
 	ConvRepo            conversation.ConversationRepository

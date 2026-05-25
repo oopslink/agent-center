@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/cognition"
@@ -255,27 +256,49 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 		// in one tx. DispatchSvc internally calls persistence.RunInTx which
 		// is tx-reentrant — it joins this outer tx.
 		//
-		// v2.2-B mismatch: the Client path skips the local DecisionRecord
-		// write because there is no admin endpoint that bundles
-		// dispatch + decision record in one tx (the admin
-		// `dispatch.Dispatch` handler records its own event but doesn't
-		// touch DecisionRepo). Server-mode tests still go through the
-		// runSupervisorActionTx wrapper below — Client-mode CLI loses the
-		// rationale persistence. Filed for v2.3 follow-up: extend
-		// /admin/taskruntime/dispatch/dispatch to accept rationale and
-		// internally call DecisionRecorder.Record in the same tx.
+		// v2.3-2: Client mode now routes to the composite endpoint
+		// /admin/taskruntime/dispatch/dispatch-with-decision when invoked
+		// from a supervisor (env AGENT_CENTER_INVOCATION_ID set). That
+		// endpoint wraps Dispatch + DecisionRecord in one server-side tx,
+		// closing the atomicity gap the v2.2 split-endpoint design left
+		// open. User-driven dispatch (no supervisor env) keeps the simple
+		// endpoint since no DecisionRecord is required.
 		var execIDOut string
 		if a.Client != nil {
-			res, derr := a.Client.Dispatch(ctx, DispatchRequest{
-				TaskID:     args[0],
-				WorkerID:   *worker,
-				AgentCLI:   *agentCLI,
-				BaseBranch: *baseBranch,
-			})
-			if derr != nil {
-				return HandleClientError(errw, *format, derr)
+			envInvocation := os.Getenv("AGENT_CENTER_INVOCATION_ID")
+			if envInvocation != "" {
+				refsJSON := fmt.Sprintf(`{"task_id":%q,"worker_id":%q}`, args[0], *worker)
+				res, derr := a.Client.DispatchWithDecision(ctx, DispatchWithDecisionRequest{
+					Dispatch: DispatchRequest{
+						TaskID:     args[0],
+						WorkerID:   *worker,
+						AgentCLI:   *agentCLI,
+						BaseBranch: *baseBranch,
+					},
+					Decision: DecisionRecordRequest{
+						InvocationID:   envInvocation,
+						Kind:           string(cognition.DecisionDispatch),
+						TargetRefsJSON: refsJSON,
+						Rationale:      *rationale,
+						Outcome:        string(cognition.OutcomeSucceeded),
+					},
+				})
+				if derr != nil {
+					return HandleClientError(errw, *format, derr)
+				}
+				execIDOut = res.ExecutionID
+			} else {
+				res, derr := a.Client.Dispatch(ctx, DispatchRequest{
+					TaskID:     args[0],
+					WorkerID:   *worker,
+					AgentCLI:   *agentCLI,
+					BaseBranch: *baseBranch,
+				})
+				if derr != nil {
+					return HandleClientError(errw, *format, derr)
+				}
+				execIDOut = res.ExecutionID
 			}
-			execIDOut = res.ExecutionID
 		} else {
 			var res *dispatch.DispatchResult
 			err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
@@ -342,13 +365,35 @@ func (a *App) killExecutionHandler(fs *flag.FlagSet) Handler {
 		case execution.KilledSuspendPrecondition:
 			kind = cognition.DecisionSuspendTask
 		}
+		// v2.3-2: same composite-endpoint switch as dispatch above.
 		if a.Client != nil {
-			if _, err := a.Client.KillRequest(ctx, KillExecutionRequest{
-				ExecutionID: string(execID),
-				Reason:      string(killReason),
-				Message:     *message,
-			}); err != nil {
-				return HandleClientError(errw, *format, err)
+			envInvocation := os.Getenv("AGENT_CENTER_INVOCATION_ID")
+			if envInvocation != "" {
+				refsJSON := fmt.Sprintf(`{"execution_id":%q,"reason":%q}`, execID, *reason)
+				if _, err := a.Client.KillWithDecision(ctx, KillWithDecisionRequest{
+					Kill: KillExecutionRequest{
+						ExecutionID: string(execID),
+						Reason:      string(killReason),
+						Message:     *message,
+					},
+					Decision: DecisionRecordRequest{
+						InvocationID:   envInvocation,
+						Kind:           string(kind),
+						TargetRefsJSON: refsJSON,
+						Rationale:      *rationale,
+						Outcome:        string(cognition.OutcomeSucceeded),
+					},
+				}); err != nil {
+					return HandleClientError(errw, *format, err)
+				}
+			} else {
+				if _, err := a.Client.KillRequest(ctx, KillExecutionRequest{
+					ExecutionID: string(execID),
+					Reason:      string(killReason),
+					Message:     *message,
+				}); err != nil {
+					return HandleClientError(errw, *format, err)
+				}
 			}
 		} else {
 			refsJSON := fmt.Sprintf(`{"execution_id":%q,"reason":%q}`, execID, *reason)

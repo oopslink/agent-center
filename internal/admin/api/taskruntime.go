@@ -1,12 +1,16 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/cognition"
+	cogdec "github.com/oopslink/agent-center/internal/cognition/decision"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
@@ -702,6 +706,177 @@ func (s *Server) killExecutionHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"execution_id": req.ExecutionID,
 		"status":       "kill_requested",
+	})
+}
+
+// =============================================================================
+// v2.3-2 composite endpoints (ADR-0014 § 2 atomicity)
+//
+// These wrap two AppService calls in one tx so supervisor-driven
+// CLI flows don't risk "state mutated but DecisionRecord missing"
+// (or vice versa) across two sibling HTTP roundtrips.
+// =============================================================================
+
+type dispatchWithDecisionReq struct {
+	Dispatch dispatchReq        `json:"dispatch"`
+	Decision recordDecisionReq  `json:"decision"`
+}
+
+func (s *Server) dispatchWithDecisionHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.DispatchSvc == nil {
+		writeError(w, http.StatusNotImplemented, "dispatch_svc_not_wired", "")
+		return
+	}
+	if d.DecisionRecorder == nil {
+		writeError(w, http.StatusNotImplemented, "decision_recorder_not_wired", "")
+		return
+	}
+	if d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
+		return
+	}
+	var req dispatchWithDecisionReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if req.Decision.Rationale == "" {
+		writeError(w, http.StatusBadRequest, "rationale_required",
+			"decision.rationale is required for supervisor-driven dispatch")
+		return
+	}
+	if req.Decision.InvocationID == "" {
+		writeError(w, http.StatusBadRequest, "invocation_required",
+			"decision.invocation_id is required for supervisor-driven dispatch")
+		return
+	}
+	in := dispatch.DispatchInput{
+		TaskID:          taskruntime.TaskID(req.Dispatch.TaskID),
+		WorkerID:        req.Dispatch.WorkerID,
+		AgentCLI:        req.Dispatch.AgentCLI,
+		AgentInstanceID: req.Dispatch.AgentInstanceID,
+		BaseBranch:      req.Dispatch.BaseBranch,
+		Actor:           d.Actor,
+	}
+	if req.Dispatch.ExecutionTimeoutSecs != nil {
+		dur := time.Duration(*req.Dispatch.ExecutionTimeoutSecs) * time.Second
+		in.ExecutionTimeoutOverride = &dur
+	}
+	var (
+		dispatchRes *dispatch.DispatchResult
+		decisionID  cognition.DecisionID
+	)
+	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		res, derr := d.DispatchSvc.Dispatch(txCtx, in)
+		if derr != nil {
+			return derr
+		}
+		dispatchRes = res
+		actor := cogdec.Actor{
+			Kind:         "supervisor",
+			ID:           req.Decision.InvocationID,
+			InvocationID: cognition.InvocationID(req.Decision.InvocationID),
+		}
+		outcome := cognition.DecisionOutcome(req.Decision.Outcome)
+		if outcome == "" {
+			outcome = cognition.OutcomeSucceeded
+		}
+		did, derr := d.DecisionRecorder.Record(txCtx, actor, cogdec.RecordRequest{
+			Kind:           cognition.DecisionKind(req.Decision.Kind),
+			TargetRefsJSON: req.Decision.TargetRefsJSON,
+			Rationale:      req.Decision.Rationale,
+			Outcome:        outcome,
+			OutcomeMessage: req.Decision.OutcomeMessage,
+		})
+		if derr != nil {
+			return derr
+		}
+		decisionID = did
+		return nil
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"execution_id": string(dispatchRes.ExecutionID),
+		"decision_id":  string(decisionID),
+	})
+}
+
+type killWithDecisionReq struct {
+	Kill     killExecReq        `json:"kill"`
+	Decision recordDecisionReq  `json:"decision"`
+}
+
+func (s *Server) killWithDecisionHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.KillCoordinator == nil {
+		writeError(w, http.StatusNotImplemented, "kill_coordinator_not_wired", "")
+		return
+	}
+	if d.DecisionRecorder == nil {
+		writeError(w, http.StatusNotImplemented, "decision_recorder_not_wired", "")
+		return
+	}
+	if d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
+		return
+	}
+	var req killWithDecisionReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if req.Decision.Rationale == "" {
+		writeError(w, http.StatusBadRequest, "rationale_required",
+			"decision.rationale is required for supervisor-driven kill")
+		return
+	}
+	if req.Decision.InvocationID == "" {
+		writeError(w, http.StatusBadRequest, "invocation_required",
+			"decision.invocation_id is required for supervisor-driven kill")
+		return
+	}
+	var decisionID cognition.DecisionID
+	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		reason := execution.KilledReason(req.Kill.Reason)
+		if err := d.KillCoordinator.RequestKill(txCtx,
+			taskruntime.TaskExecutionID(req.Kill.ExecutionID),
+			reason, req.Kill.Message, d.Actor); err != nil {
+			return err
+		}
+		actor := cogdec.Actor{
+			Kind:         "supervisor",
+			ID:           req.Decision.InvocationID,
+			InvocationID: cognition.InvocationID(req.Decision.InvocationID),
+		}
+		outcome := cognition.DecisionOutcome(req.Decision.Outcome)
+		if outcome == "" {
+			outcome = cognition.OutcomeSucceeded
+		}
+		did, derr := d.DecisionRecorder.Record(txCtx, actor, cogdec.RecordRequest{
+			Kind:           cognition.DecisionKind(req.Decision.Kind),
+			TargetRefsJSON: req.Decision.TargetRefsJSON,
+			Rationale:      req.Decision.Rationale,
+			Outcome:        outcome,
+			OutcomeMessage: req.Decision.OutcomeMessage,
+		})
+		if derr != nil {
+			return derr
+		}
+		decisionID = did
+		return nil
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"execution_id": req.Kill.ExecutionID,
+		"status":       "kill_requested",
+		"decision_id":  string(decisionID),
 	})
 }
 
