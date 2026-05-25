@@ -42,10 +42,10 @@ help:
 BIN := agent-center
 WEB := web
 
-# v2.0 GA build identity. VERSION can be overridden at build time
-# (e.g. `VERSION=v2.0.1 make build`); COMMIT is auto-discovered from
+# v2.2 GA build identity. VERSION can be overridden at build time
+# (e.g. `VERSION=v2.2.1 make build`); COMMIT is auto-discovered from
 # the working tree (falls back to "unknown" outside a checkout).
-VERSION ?= v2.0.0
+VERSION ?= v2.2.0
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 build: build-frontend build-backend build-worker-daemon build-fakeagent

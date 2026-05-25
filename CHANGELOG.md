@@ -11,6 +11,92 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.2.0] — 2026-05-25
+
+⚠ **MINOR VERSION** with one breaking config-default change
+(Web Console default flipped to ON). Full upgrade procedure in
+[docs/migration/v2.0-to-v2.2.md](docs/migration/v2.0-to-v2.2.md).
+
+### Highlights
+
+v2.2 closes the v2.0 GA defect that @oopslink surfaced on 2026-05-24
+("前端 + 数据面完整，但 worker process 装配从未交付"). v2.0/v2.1
+shipped without an actual worker process, without admin transport
+between CLI and server, and with `dispatch.NoopSender{}` wired into
+production — dispatched tasks went into /dev/null. v2.2 ships the
+full transport architecture per `conventions.md § 0.4` ("AppService
+is the only entry to domain state").
+
+### Added
+
+- **`cmd/worker-daemon` binary** — separate process that connects to
+  the server via admin unix socket, enrolls, polls the dispatch + kill
+  queues, spawns the agent CLI subprocess, and reports back via admin
+  endpoints. Replaces the placeholder `agent-center worker run` that
+  v2.0 GA shipped as "reserved for Phase 2".
+- **`cmd/fakeagent` binary** — scripted agent stub for LLM-independent
+  testing. Used by the deployed-binary e2e smoke and operator
+  manual-verify recipes.
+- **Admin endpoint (unix socket)** — `internal/admin/api` package with
+  93 routes covering the full CLI AppService surface, per BC. Default
+  socket path `/run/agent-center/admin.sock` (configurable via
+  `server.admin_socket_path`). Per ADR-0037 still loopback only;
+  multi-host TCP reserved for v2.3 (ADR-0040).
+- **In-process dispatch queue** (`internal/admin/dispatchq`) — real
+  `EnvelopeSender` + `KillSender` backed by per-worker FIFO. Worker
+  daemons drain via admin endpoint.
+- **Real `SupervisorSpawner` wired in ServerCommand** — supervisor
+  invocations actually fork+exec. v2.0 GA had `app.SupervisorSpawner = nil`.
+- **Deployed-binary smoke gate** — `make smoke` runs Phase D Playwright
+  spec end-to-end against real binaries (no mocks). New
+  `tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts` drives a task
+  through `submitted → working → completed`.
+- **Process gates** (per `conventions § 0.4` Enforce mechanisms):
+  - `make lint-mock-default` — `NoopSender{}` / `NoopKillSender{}` in
+    production wiring must carry `// FIXME(prod-wiring):` annotation.
+  - `make lint-doc-impl-drift` — anchor-based check for documented
+    architecture claims vs codebase reality.
+  - `TestArch_NoDirectPersistenceOpenInHandlers` — enforces
+    `internal/cli/handlers_*.go` whitelist.
+- **Layered test report standard** (`docs/rules/testing.md § 2.3`) —
+  unit / integration-with-mocks / deployed-binary-smoke must be
+  reported separately; deployed-smoke = 0 means the phase MUST NOT
+  close.
+- **v2.0 → v2.2 upgrade guide** (`docs/migration/v2.0-to-v2.2.md`).
+- **Mac single-host deployment guide** (`docs/deployment/v2.2-mac-single-host.md`).
+
+### Breaking changes
+
+1. **Web Console default flipped to ON**. `config.WebConsoleConfig`
+   default seeds `Enabled: true, ListenAddr: "127.0.0.1:7100"`. v2.0
+   configs that omitted `web_console.enabled` ran headless; v2.2 such
+   configs now boot the SPA on loopback. Opt out with explicit
+   `web_console: {enabled: false}`. See migration guide § 2.1.
+
+### Refactor
+
+- **CLI through admin transport** — all 36 CLI subcommands now route
+  through admin endpoint via `internal/cli/admin_client.go` instead
+  of opening sqlite directly. Whitelist: `handlers_migrate*.go` and
+  `handlers_system.go` only.
+- **`dispatch.NoopSender` + `kill.NoopKillSender` removed from
+  production wiring** — replaced with `dispatchq.DispatchSender` and
+  `dispatchq.KillSender`. The Noop variants remain in their packages
+  as legitimate test doubles (with `// FIXME(prod-wiring):` annotations
+  on the constructor fallback paths).
+- **`internal/workerdaemon/` package** — previously ~2500 LOC never
+  imported in production; v2.2 wires it through `cmd/worker-daemon`.
+
+### Known follow-ups (v2.3 backlog)
+
+Filed in `docs/plans/v2.2-audits/v22-closeout-audit.md § 4`:
+participant/leave endpoint, msg/find-recent endpoint, dispatch +
+DecisionRecord same-tx, kill + DecisionRecord same-tx,
+read-task-context endpoint, worker heartbeat endpoint, MCP injection
+wire, artifact blob upload, multi-host TCP transport.
+
+---
+
 ## [v2.0.0] — 2026-05-24
 
 ⚠ **MAJOR VERSION**. Read the [breaking changes](#breaking-changes)
