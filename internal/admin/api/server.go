@@ -260,6 +260,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/observability/stats/aggregate", s.statsAggregateHandler)
 	s.mux.HandleFunc("GET /admin/observability/logs/open", s.logsOpenHandler)
 
+	// --- blob (v2.3-3b task #29) ----------------------------------------
+	s.mux.HandleFunc("POST /admin/blob/put", s.blobPutHandler)
+
 	// --- admin token (v2.3-3a task #28) ----------------------------------
 	s.mux.HandleFunc("POST /admin/admintoken/create", s.admintokenCreateHandler)
 	s.mux.HandleFunc("GET /admin/admintoken/list", s.admintokenListHandler)

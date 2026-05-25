@@ -46,6 +46,12 @@ import (
 	"github.com/oopslink/agent-center/internal/workerdaemon"
 )
 
+// fsSkillLoader wraps os.DirFS so the worker daemon's prompt assembly
+// can load skill files (worker-agent.md + any extra skills referenced by
+// the envelope) from disk. Built only when --skills-dir is supplied;
+// when omitted the daemon falls back to a StaticSkillLoader{} (empty),
+// which AssemblePrompt tolerates by skipping missing skills.
+
 func main() {
 	var (
 		cfgPath      = flag.String("config", "", "path to agent-center.yaml")
@@ -55,6 +61,8 @@ func main() {
 		capsFlag     = flag.String("capabilities", "", "comma-separated capability list")
 		adminToken   = flag.String("admin-token", "",
 			"admin bearer token (required by v2.3-3a auth); falls back to AGENT_CENTER_ADMIN_TOKEN env")
+		skillsDir = flag.String("skills-dir", "",
+			"directory containing worker-agent.md + extra skills (real-agent dispatch)")
 	)
 	flag.Parse()
 
@@ -110,7 +118,19 @@ func main() {
 		AgentCLIOverrides: overrides,
 		Logger:            logger,
 	}
-	rt := workerdaemon.NewRuntime(rtCfg, client, nil)
+	// v2.3-3b (task #29): wire the real-agent dispatch chain so real
+	// agents (claude-code / codex / opencode) — not just fakeagent —
+	// pick up assembled prompts + MCP runtime config. fakeagent path
+	// skips both (handled inside defaultAgentSpawner).
+	var skillLoader workerdaemon.SkillLoader
+	if strings.TrimSpace(*skillsDir) != "" {
+		skillLoader = workerdaemon.FSSkillLoader{FS: os.DirFS(*skillsDir)}
+	}
+	injector := workerdaemon.NewMCPInjector(workerdaemon.NewAdminClientSecretResolver(client))
+	rt := workerdaemon.NewRuntimeWithDeps(rtCfg, client, nil, workerdaemon.RuntimeDeps{
+		SkillLoader: skillLoader,
+		MCPInjector: injector,
+	})
 
 	// Signal-aware context.
 	ctx, cancel := context.WithCancel(context.Background())

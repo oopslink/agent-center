@@ -94,8 +94,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		KillCoordinator: a.KillCoordinator,
 
 		// SecretManagement BC
-		UserSecretRepo: a.UserSecretRepo,
-		UserSecretSvc:  a.UserSecretSvc,
+		UserSecretRepo:       a.UserSecretRepo,
+		UserSecretSvc:        a.UserSecretSvc,
+		UserSecretResolveSvc: a.UserSecretResolveSvc,
 
 		// AdminToken BC (v2.3-3a task #28)
 		AdminTokenSvc: a.AdminTokenSvc,

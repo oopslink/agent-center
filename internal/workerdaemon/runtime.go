@@ -68,11 +68,34 @@ type RuntimeConfig struct {
 	Logger func(msg string)
 }
 
+// RuntimeDeps bundles optional dependencies the daemon's defaultAgentSpawner
+// needs to do the v2.3-3b real-agent dispatch chain (per task #29):
+//
+//   - SkillLoader supplies worker-agent.md + any envelope ExtraSkillFiles.
+//     Production wires FSSkillLoader{FS: os.DirFS(--skills-dir)}. Nil
+//     defaults to StaticSkillLoader{} (empty); AssemblePrompt skips
+//     missing skills gracefully.
+//   - MCPInjector materialises mcp_config.runtime.json from each agent's
+//     home_dir/mcp_config.json template, resolving `secret:<name>` refs
+//     via the wired SecretResolver. Nil defaults to NewMCPInjector(nil);
+//     Inject becomes a no-op for empty home_dir + a hard error otherwise.
+//
+// fakeagent skips both regardless of wiring (script is supplied via the
+// task_description fakeagent-script: line — no prompt assembly nor MCP
+// needed).
+type RuntimeDeps struct {
+	SkillLoader SkillLoader
+	MCPInjector *MCPInjector
+}
+
 // Runtime is the daemon orchestrator.
 type Runtime struct {
 	cfg     RuntimeConfig
 	client  CenterClient
 	spawner AgentSpawnerFunc
+
+	skillLoader SkillLoader
+	mcpInjector *MCPInjector
 
 	mu   sync.Mutex
 	live map[string]*procHandle // executionID → process handle
@@ -80,9 +103,18 @@ type Runtime struct {
 	wg sync.WaitGroup // tracks in-flight spawn goroutines
 }
 
-// NewRuntime constructs a Runtime. If spawner is nil, the production
-// agent spawner is wired (real subprocess).
+// NewRuntime constructs a Runtime with default RuntimeDeps. Kept for
+// source compat; new callers should prefer NewRuntimeWithDeps so the
+// real-agent dispatch chain is wired explicitly.
 func NewRuntime(cfg RuntimeConfig, client CenterClient, spawner AgentSpawnerFunc) *Runtime {
+	return NewRuntimeWithDeps(cfg, client, spawner, RuntimeDeps{})
+}
+
+// NewRuntimeWithDeps is the v2.3-3b constructor that takes the
+// real-agent dispatch chain dependencies. spawner == nil wires the
+// production defaultAgentSpawner; deps fields default to safe no-ops
+// when nil (StaticSkillLoader{}, NewMCPInjector(nil)).
+func NewRuntimeWithDeps(cfg RuntimeConfig, client CenterClient, spawner AgentSpawnerFunc, deps RuntimeDeps) *Runtime {
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 1 * time.Second
 	}
@@ -98,11 +130,19 @@ func NewRuntime(cfg RuntimeConfig, client CenterClient, spawner AgentSpawnerFunc
 	if cfg.Logger == nil {
 		cfg.Logger = func(msg string) {}
 	}
+	if deps.SkillLoader == nil {
+		deps.SkillLoader = StaticSkillLoader{}
+	}
+	if deps.MCPInjector == nil {
+		deps.MCPInjector = NewMCPInjector(nil)
+	}
 	rt := &Runtime{
-		cfg:     cfg,
-		client:  client,
-		spawner: spawner,
-		live:    map[string]*procHandle{},
+		cfg:         cfg,
+		client:      client,
+		spawner:     spawner,
+		skillLoader: deps.SkillLoader,
+		mcpInjector: deps.MCPInjector,
+		live:        map[string]*procHandle{},
 	}
 	if rt.spawner == nil {
 		rt.spawner = defaultAgentSpawner
@@ -279,28 +319,29 @@ func (r *Runtime) log(format string, args ...any) {
 // defaultAgentSpawner is the production spawn path used when
 // NewRuntime is called with spawner == nil.
 //
-// Step sequence (Phase C minimal):
-//  1. Build prompt — Phase C just uses the envelope's TaskTitle +
-//     TaskDescription concatenated. PromptAssemblyService is the v2.3
-//     callsite but for fakeagent the prompt is irrelevant (script
-//     arg is passed via AgentRunnerConfig.Args).
-//  2. Resolve agent binary + spawn.
-//  3. Stream JSONL → forward to admin endpoint.
-//  4. On exit: emit final done / failure event.
+// Step sequence (v2.3-3b real-agent dispatch chain per task #29):
+//  1. fakeagent shortcut — extract script + skip prompt/MCP wiring.
+//  2. Real agents — AssemblePrompt(loader, BaseSkill=worker-agent.md,
+//     HomeDir=env.HomeDir). Falls back to title+description when
+//     HomeDir is empty (v1 envelopes).
+//  3. Real agents — MCPInjector.Inject(env.HomeDir) → runtimePath
+//     + cleanup. Defer cleanup. Pass runtimePath through
+//     AgentRunnerConfig.MCPConfigPath so the subprocess sees it via
+//     MCP_CONFIG=<path>.
+//  4. On Inject error: ReportFailure(reason=secret_unresolvable) + abort.
+//  5. Spawn the subprocess; stream JSONL → forward to admin endpoint.
+//  6. On exit: emit final done / failure event.
 func defaultAgentSpawner(ctx context.Context, env dispatch.DispatchEnvelope, rt *Runtime) error {
-	// Built prompt. For fakeagent we just hand it the description; real
-	// agents would get the full prompt-assembly output. Phase D may
-	// wire prompt_assembly.go in.
-	prompt := env.TaskTitle
-	if env.TaskDescription != "" {
-		prompt = env.TaskTitle + "\n\n" + env.TaskDescription
-	}
-	// Args: fakeagent expects --script=<path>. For real agents this is
-	// agent-specific; Phase C only commits to making fakeagent work
-	// end-to-end. The fakeagent script path is embedded in the task
-	// description as a convention: "fakeagent-script: <path>" line.
-	var args []string
+	var (
+		prompt        string
+		args          []string
+		mcpRuntimePath string
+		mcpCleanup     = func() {}
+	)
 	if env.AgentCLI == "fakeagent" {
+		// fakeagent skips the real-agent chain entirely: no prompt
+		// assembly (script is the source of truth) and no MCP injection
+		// (no secret resolution needed in tests).
 		script := extractFakeAgentScript(env)
 		if script == "" {
 			err := errors.New("fakeagent: no script path in envelope (expect 'fakeagent-script: <path>' line in task_description)")
@@ -308,7 +349,52 @@ func defaultAgentSpawner(ctx context.Context, env dispatch.DispatchEnvelope, rt 
 			return err
 		}
 		args = []string{"--script=" + script}
+		prompt = env.TaskTitle
+		if env.TaskDescription != "" {
+			prompt = env.TaskTitle + "\n\n" + env.TaskDescription
+		}
+	} else {
+		// Real-agent path. Both AssemblePrompt + MCPInjector require a
+		// HomeDir; if empty we degrade gracefully — prompt falls back to
+		// title+description and MCP injection is skipped. This protects
+		// v1 envelopes that pre-date HomeDir.
+		if env.HomeDir != "" && rt.skillLoader != nil {
+			p, err := AssemblePrompt(rt.skillLoader, AssemblePromptInput{
+				Envelope:  env,
+				BaseSkill: "worker-agent.md",
+				HomeDir:   env.HomeDir,
+			})
+			if err == nil {
+				prompt = p
+			} else {
+				rt.log("prompt assembly %s: %v (falling back to title+description)",
+					env.ExecutionID, err)
+			}
+		}
+		if prompt == "" {
+			prompt = env.TaskTitle
+			if env.TaskDescription != "" {
+				prompt = env.TaskTitle + "\n\n" + env.TaskDescription
+			}
+		}
+		if env.HomeDir != "" && rt.mcpInjector != nil {
+			rp, cleanup, err := rt.mcpInjector.Inject(ctx, env.HomeDir)
+			if err != nil {
+				// Per ADR-0011 reason set: secret_unresolvable is the
+				// canonical NACK reason when MCP injection fails (most
+				// commonly a missing/revoked secret). Don't spawn an
+				// agent with broken config — fail fast.
+				_ = rt.client.ReportFailure(ctx, string(env.ExecutionID),
+					"secret_unresolvable", err.Error())
+				return err
+			}
+			mcpRuntimePath = rp
+			if cleanup != nil {
+				mcpCleanup = cleanup
+			}
+		}
 	}
+	defer mcpCleanup()
 
 	runner := NewAgentRunner(AgentRunnerConfig{
 		AgentCLI:          env.AgentCLI,
@@ -317,6 +403,7 @@ func defaultAgentSpawner(ctx context.Context, env dispatch.DispatchEnvelope, rt 
 		AgentCLIOverrides: rt.cfg.AgentCLIOverrides,
 		EnvAllowList:      nil, // use defaults
 		ExtraEnv:          nil,
+		MCPConfigPath:     mcpRuntimePath,
 	})
 	startedCh := make(chan *procHandle, 1)
 	// Register handle as soon as it lands.

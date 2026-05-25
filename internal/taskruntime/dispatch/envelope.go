@@ -52,6 +52,12 @@ type DispatchEnvelope struct {
 	EtaAt                    *time.Time                  `json:"eta_at,omitempty"`
 	ExecutionTimeoutOverride *int64                      `json:"execution_timeout_override_seconds,omitempty"`
 	ExtraSkillFiles          []string                    `json:"extra_skill_files,omitempty"`
+	// HomeDir is the agent_instance home directory on the worker host
+	// (per ADR-0024 § 5 + ADR-0029 § 3). v2 envelopes fill this from
+	// AgentResolution; v1 envelopes leave it empty. The worker daemon
+	// reads `<HomeDir>/instructions.md` + `<HomeDir>/mcp_config.json`
+	// (see internal/workerdaemon/prompt_assembly.go + mcp_injection.go).
+	HomeDir string `json:"home_dir,omitempty"`
 }
 
 // Validate checks the envelope has required fields and a supported version.

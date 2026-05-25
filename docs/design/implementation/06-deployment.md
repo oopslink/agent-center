@@ -228,6 +228,35 @@ journalctl --user -u agent-center-worker -f
 
 > **`KillMode=process` 是必需的**（[ADR-0018 § 2](../decisions/0018-detached-agent-via-per-execution-shim.md)）。默认 `KillMode=control-group` 会把 daemon 的子孙进程一起 SIGTERM —— 而 shim 应该跟 daemon 生命周期解耦。结合 shim 内 `setsid()` 脱 cgroup，二者必须**同时**做对，单一保险层不够。
 
+### 4.3 Admin token scopes（v2.3-3a/3b）
+
+每次 `agent-center server` 首次启动会在 `<sqlite_dir>/bootstrap_token` 写入一个 `*` scope 的 system bootstrap token（mode 0600）。Operator **应该**用它 mint 长期 scoped token 后立即 revoke，长期持有 `*` 是 anti-pattern。
+
+| 调用者 | 必需 scopes | 用途 |
+|---|---|---|
+| **Worker daemon**（real-agent 派发） | `dispatch:pull`, `secret:resolve`, `blob:put`, `task:*` | 分发 pull、MCP 注入时拉 plaintext、artifact blob 上传、状态回报（notify-working/conclude/artifact/append/report-*） |
+| **Admin CLI**（minting） | `admin:token` | 创建 / 列出 / 撤销 admin token |
+| **Regular CLI**（任务驱动） | `task:*` + 域 BC scopes | 创建任务、对话、issue 等；**不**带 `secret:resolve`（plaintext 回放只属于 worker daemon） |
+| **Bootstrap (system)** | `*` | 仅用于首启动 unblock；rotate ASAP |
+
+mint 示例：
+
+```bash
+# 用 bootstrap token mint worker daemon 的长期 token
+export AGENT_CENTER_ADMIN_TOKEN=$(cat /var/lib/agent-center/bootstrap_token)
+agent-center admin token create \
+  --owner=worker:mac-w-1 \
+  --scopes=dispatch:pull,secret:resolve,blob:put,task:* \
+  > /etc/agent-center/worker-mac-w-1.token
+
+# 给 worker daemon
+sudo install -m 0600 -o agent-center -g agent-center \
+  /etc/agent-center/worker-mac-w-1.token \
+  ~/.agent-center-worker/admin_token
+```
+
+worker daemon `--admin-token <file>` / `AGENT_CENTER_ADMIN_TOKEN=...` 任一种方式注入；缺少任一 scope 会在 daemon stderr 显示 `403 scope_forbidden: token lacks required scope: <scope>`，是诊断切入点。
+
 ---
 
 ## § 5. 升级流程

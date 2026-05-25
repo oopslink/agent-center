@@ -85,8 +85,11 @@ type HandlerDeps struct {
 	KillCoordinator *kill.Coordinator
 
 	// SecretManagement BC
-	UserSecretRepo secretmgmt.UserSecretRepository
-	UserSecretSvc  *secretservice.UserSecretService
+	UserSecretRepo       secretmgmt.UserSecretRepository
+	UserSecretSvc        *secretservice.UserSecretService
+	// UserSecretResolveSvc returns plaintext for `secret:resolve`-scoped
+	// callers (worker daemon agent dispatch). v2.3-3b (task #29).
+	UserSecretResolveSvc *secretservice.SecretResolutionService
 
 	// AdminToken BC (v2.3-3a task #28) — drives the
 	// /admin/admintoken/{create,list,revoke} surface used by the admin

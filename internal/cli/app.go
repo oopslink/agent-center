@@ -104,6 +104,11 @@ type App struct {
 	// SecretManagement (P11 § 3.7b)
 	UserSecretRepo secretmgmt.UserSecretRepository
 	UserSecretSvc  *secretservice.UserSecretService
+	// UserSecretResolveSvc gates plaintext via SecretResolutionService.
+	// v2.3-3b (task #29): wired alongside UserSecretSvc when master key is
+	// loaded, so the admin endpoint can serve secret:resolve to worker
+	// daemons that hold a `secret:resolve`-scoped admin token.
+	UserSecretResolveSvc *secretservice.SecretResolutionService
 
 	// AdminToken (v2.3-3a task #28) — bearer tokens that gate the admin
 	// endpoint. Server mode wires both fields; CLI mode (NewClientApp)
@@ -297,13 +302,20 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// is empty, so the operator can issue scoped tokens via the CLI.
 	adminTokenRepo := admintokensqlite.New(db)
 	adminTokenSvc := admintokensvc.New(adminTokenRepo, gen, clk)
-	var userSecretSvc *secretservice.UserSecretService
+	var (
+		userSecretSvc        *secretservice.UserSecretService
+		userSecretResolveSvc *secretservice.SecretResolutionService
+	)
 	if cfg.SecretManagement.MasterKeyFile != "" {
 		mk, err := secretmgmt.LoadMasterKey(cfg.SecretManagement.MasterKeyFile, cfg.SecretManagement.SkipPermsCheck)
 		if err != nil {
 			return nil, fmt.Errorf("load master key: %w", err)
 		}
 		userSecretSvc = secretservice.NewUserSecretService(db, userSecretRepo, gen, sink, clk, mk)
+		// v2.3-3b (task #29): SecretResolutionService is the only path that
+		// returns plaintext. Wired here so the admin endpoint can expose
+		// /admin/secret/user-secret/resolve to worker daemons.
+		userSecretResolveSvc = secretservice.NewSecretResolutionService(db, userSecretRepo, sink, clk, mk)
 	}
 
 	// Phase 6: Cognition (Supervisor + DecisionRecord).
@@ -343,8 +355,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AgentInstanceRepo: aiRepo,
 		AgentMgmtSvc:      agentMgmt,
 
-		UserSecretRepo: userSecretRepo,
-		UserSecretSvc:  userSecretSvc,
+		UserSecretRepo:       userSecretRepo,
+		UserSecretSvc:        userSecretSvc,
+		UserSecretResolveSvc: userSecretResolveSvc,
 
 		AdminTokenRepo: adminTokenRepo,
 		AdminTokenSvc:  adminTokenSvc,

@@ -1,12 +1,20 @@
 package api
 
 import (
+	"encoding/base64"
 	"net/http"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/admintoken"
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 )
+
+// secretResolveScopeRequired gates /admin/secret/user-secret/resolve. v2.3-3b
+// (task #29): worker daemon tokens carry this scope to fetch plaintext during
+// MCP injection. Operator-issued CLI tokens should NOT carry this scope.
+const secretResolveScopeRequired admintoken.Scope = "secret:resolve"
 
 // =============================================================================
 // UserSecretRepo — FindAll / FindByID / FindByName
@@ -203,16 +211,72 @@ func (s *Server) secretRevokeHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"event_id": string(evID)})
 }
 
-// secretResolveHandler is intentionally out of scope. The audit lists
-// UserSecretSvc.Resolve, but the production Resolve lives on the
-// SecretResolutionService (separate type) and returns plaintext —
-// admin transport adoption is gated on v2.3 (security review). This stub
-// returns 501 so the route slot is reserved.
+// secretResolveReq mirrors the worker-daemon ResolveSecret payload.
+type secretResolveReq struct {
+	Name string `json:"name"`
+}
+
+// secretResolveResp echoes the secret id + name + plaintext (base64 std).
+// Plaintext is returned exactly once per call and MUST NOT be logged on
+// either side of the transport (ADR-0026 § 5 + ADR-0027 § 7).
+type secretResolveResp struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	PlaintextBase64 string `json:"plaintext_base64"`
+}
+
+// secretResolveHandler is the v2.3-3b admin transport for
+// SecretResolutionService.Resolve. Worker daemons reach it during MCP
+// injection to materialise `secret:<name>` references into plaintext.
+//
+// Plaintext is JSON-encoded as std-base64 so raw bytes survive transport;
+// this is a wire-format choice, NOT encryption. The endpoint requires:
+//   - bearer with `secret:resolve` scope (RequireScope)
+//   - SecretResolutionService wired in deps
+//   - secret state = active (service emits user_secret.access_denied audit
+//     when revoked + returns 403)
+//
+// Caller actor is the bearer's Owner verbatim (e.g. `worker:mac-w-1`).
 func (s *Server) secretResolveHandler(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "resolve_not_admin_exposed",
-		"UserSecretService.Resolve returns plaintext and is wired through "+
-			"SecretResolutionService in worker daemon — admin transport "+
-			"intentionally omits it pending v2.3 security review.")
+	if !RequireScope(w, r, secretResolveScopeRequired) {
+		return
+	}
+	d := hd(r)
+	if d.UserSecretResolveSvc == nil {
+		writeError(w, http.StatusNotImplemented, "secret_resolve_svc_not_wired",
+			"SecretResolutionService is wired only when master_key_file is configured")
+		return
+	}
+	var req secretResolveReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "missing_name", "")
+		return
+	}
+	auth, _ := AuthFromContext(r.Context())
+	res, err := d.UserSecretResolveSvc.Resolve(r.Context(), secretservice.ResolveRequest{
+		SecretName:  req.Name,
+		CallerActor: observability.Actor(string(auth.Owner)),
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	// Encode to std-base64 (matches Go's default — caller decodes with
+	// base64.StdEncoding). Defensive: wipe local plaintext copy after
+	// encoding so the only path the bytes leave is the response body.
+	encoded := base64.StdEncoding.EncodeToString(res.Plaintext)
+	for i := range res.Plaintext {
+		res.Plaintext[i] = 0
+	}
+	writeJSON(w, http.StatusOK, secretResolveResp{
+		ID:              string(res.ID),
+		Name:            res.Name,
+		PlaintextBase64: encoded,
+	})
 }
 
 // =============================================================================

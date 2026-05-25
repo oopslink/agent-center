@@ -17,6 +17,7 @@ package workerdaemon
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -199,25 +200,84 @@ func (c *AdminClient) ReportFailure(ctx context.Context, executionID, reason, me
 
 // ReportArtifact POSTs to /admin/taskruntime/artifact/append.
 //
-// v2.2 worker-daemon scope: blob bytes are not transferred over the
-// admin endpoint (the artifact_append handler expects a blob_ref the
-// caller already wrote to the BlobStore). For Phase C we treat
-// `blob` as an inline payload, base64-encode-able, but in practice
-// fakeagent emits artifact events with already-resolved refs. To keep
-// the surface minimal and not couple BlobStore here, this method
-// accepts the blob and embeds it as a base64 metadata field; the
-// canonical write path is artifact_append with kind + title only.
-// Phase D may grow a real blob upload route.
+// v2.3-3b (task #29): when `blob` is non-empty, the bytes are first
+// pushed through BlobPut to land them in the center's BlobStore, and
+// the returned rel_path is sent as `blob_ref` to artifact/append. When
+// `blob` is empty the call degrades to a metadata-only append (legacy
+// fakeagent path that pre-resolves refs locally).
+//
+// rel_path convention: `artifacts/<execution_id>/<kind>-<unix_nanos>`.
+// The unique suffix is needed because a single execution can emit
+// multiple artifacts of the same kind.
 func (c *AdminClient) ReportArtifact(ctx context.Context, executionID string, blob []byte, kind string) error {
+	blobRef := ""
+	if len(blob) > 0 {
+		safeKind := kind
+		if safeKind == "" {
+			safeKind = "artifact"
+		}
+		relPath := fmt.Sprintf("artifacts/%s/%s-%d",
+			executionID, safeKind, time.Now().UnixNano())
+		if err := c.BlobPut(ctx, relPath, blob); err != nil {
+			return fmt.Errorf("adminclient: blob_put %s: %w", relPath, err)
+		}
+		blobRef = relPath
+	}
 	body := map[string]any{
 		"execution_id":  executionID,
 		"kind":          kind,
 		"title":         kind, // default title = kind
-		"blob_ref":      "",
+		"blob_ref":      blobRef,
 		"url":           "",
+		// `inline_size` kept for backwards-compat with v2.2 tests that
+		// only checked the metadata payload existed.
 		"metadata_json": fmt.Sprintf(`{"inline_size":%d}`, len(blob)),
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/taskruntime/artifact/append", body, nil)
+}
+
+// ResolveSecret POSTs to /admin/secret/user-secret/resolve and returns
+// the plaintext bytes. Caller must wipe the returned slice after use
+// per ADR-0026 § 5 (plaintext never lingers).
+//
+// The admin endpoint requires `secret:resolve` scope on the bearer.
+// 401 / 403 / 404 are surfaced verbatim via *AdminError so the caller
+// can decide whether to retry / report failure.
+func (c *AdminClient) ResolveSecret(ctx context.Context, name string) ([]byte, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("adminclient: secret name required")
+	}
+	body := map[string]any{"name": name}
+	var out struct {
+		ID              string `json:"id"`
+		Name            string `json:"name"`
+		PlaintextBase64 string `json:"plaintext_base64"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost,
+		"/admin/secret/user-secret/resolve", body, &out); err != nil {
+		return nil, err
+	}
+	plain, err := base64.StdEncoding.DecodeString(out.PlaintextBase64)
+	if err != nil {
+		return nil, fmt.Errorf("adminclient: decode plaintext: %w", err)
+	}
+	return plain, nil
+}
+
+// BlobPut POSTs to /admin/blob/put with base64-encoded content. Returns
+// nil on success; on non-2xx the typed *AdminError is returned so the
+// caller can surface scope / validation errors verbatim.
+//
+// Requires `blob:put` scope on the bearer.
+func (c *AdminClient) BlobPut(ctx context.Context, relPath string, content []byte) error {
+	if strings.TrimSpace(relPath) == "" {
+		return errors.New("adminclient: rel_path required")
+	}
+	body := map[string]any{
+		"rel_path":       relPath,
+		"content_base64": base64.StdEncoding.EncodeToString(content),
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/blob/put", body, nil)
 }
 
 // doJSON is the shared request helper. Returns a typed error on non-2xx

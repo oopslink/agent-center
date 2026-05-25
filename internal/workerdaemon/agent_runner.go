@@ -82,6 +82,12 @@ type AgentRunnerConfig struct {
 	// ExtraEnv is appended (KEY=VAL strings) after allow-list filtering.
 	// Use for MCP_CONFIG / secrets / etc.
 	ExtraEnv []string
+	// MCPConfigPath is the absolute path of the per-execution
+	// mcp_config.runtime.json written by MCPInjector. When non-empty
+	// and AgentCLI is a real-agent kind, exposed to the subprocess via
+	// MCP_CONFIG=<path> env so the agent picks up the resolved-secret
+	// MCP server list (ADR-0027 § 7). fakeagent ignores it.
+	MCPConfigPath string
 }
 
 // defaultEnvAllowList covers the minimum the agent CLIs need to run.
@@ -156,7 +162,15 @@ func (r *AgentRunner) Run(ctx context.Context, handler AgentEventHandler, starte
 	if r.cfg.CWD != "" {
 		cmd.Dir = r.cfg.CWD
 	}
-	cmd.Env = buildEnv(r.cfg.EnvAllowList, r.cfg.ExtraEnv)
+	extraEnv := r.cfg.ExtraEnv
+	if strings.TrimSpace(r.cfg.MCPConfigPath) != "" {
+		// Pass the per-execution mcp_config.runtime.json to the agent via
+		// the standard MCP_CONFIG env (per ADR-0027 § 7). Appended so the
+		// caller's ExtraEnv wins if it already set MCP_CONFIG.
+		extraEnv = append([]string(nil), r.cfg.ExtraEnv...)
+		extraEnv = append(extraEnv, "MCP_CONFIG="+r.cfg.MCPConfigPath)
+	}
+	cmd.Env = buildEnv(r.cfg.EnvAllowList, extraEnv)
 	// Place the child in its own process group so we can SIGTERM the
 	// whole tree (agent CLIs frequently fork helpers).
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

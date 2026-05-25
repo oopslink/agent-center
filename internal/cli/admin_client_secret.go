@@ -1,13 +1,19 @@
 // Package cli — admin_client_secret.go: Client methods for the
-// SecretManagement BC admin surface (user_secret CRUD). Mirrors
-// internal/admin/api/secret.go 1:1.
+// SecretManagement BC admin surface (user_secret CRUD + Resolve).
+// Mirrors internal/admin/api/secret.go 1:1.
 //
-// Resolve is intentionally NOT exposed on the Client; the admin
-// endpoint stubs it as 501 because UserSecretSvc.Resolve returns
-// plaintext and is gated behind SecretResolutionService (v2.3 review).
+// SecretResolve is v2.3-3b (task #29) and gated server-side by the
+// `secret:resolve` scope. CLI tokens generally don't carry this scope —
+// the method is here for test parity with the worker-daemon AdminClient
+// (and so any future CLI command like `secret reveal` can plug in).
 package cli
 
-import "context"
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+)
 
 // =============================================================================
 // DTOs — JSON shape returned by admin/api/secret.go::secretMap.
@@ -112,4 +118,31 @@ func (c *Client) SecretRevoke(ctx context.Context, req SecretRevokeRequest) (Eve
 	var res EventIDResponse
 	err := c.postJSON(ctx, "/admin/secret/user-secret/revoke", req, &res)
 	return res, err
+}
+
+// SecretResolveResponse mirrors the server's secret resolve envelope.
+// PlaintextBase64 is std base64 of the raw bytes (NOT URL-safe).
+type SecretResolveResponse struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	PlaintextBase64 string `json:"plaintext_base64"`
+}
+
+// SecretResolve POSTs /admin/secret/user-secret/resolve. Returns the
+// decoded plaintext bytes; caller is responsible for wiping them after
+// use (ADR-0026 § 5). Requires `secret:resolve` scope on the bearer.
+func (c *Client) SecretResolve(ctx context.Context, name string) ([]byte, error) {
+	if name == "" {
+		return nil, errors.New("admin client: secret name required")
+	}
+	var res SecretResolveResponse
+	if err := c.postJSON(ctx, "/admin/secret/user-secret/resolve",
+		map[string]any{"name": name}, &res); err != nil {
+		return nil, err
+	}
+	plain, err := base64.StdEncoding.DecodeString(res.PlaintextBase64)
+	if err != nil {
+		return nil, fmt.Errorf("admin client: decode resolve plaintext: %w", err)
+	}
+	return plain, nil
 }

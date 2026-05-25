@@ -296,6 +296,10 @@ func (s *Service) Dispatch(ctx context.Context, in DispatchInput) (*DispatchResu
 			EtaAt:                    t.EtaAt(),
 			ExecutionTimeoutOverride: timeoutOverrideSecs,
 			ExtraSkillFiles:          append([]string(nil), in.ExtraSkillFiles...),
+			// v2.3-3b (task #29): worker daemon needs the agent home_dir
+			// to load instructions.md + mcp_config.json. Filled from the
+			// v2 AgentResolution; v1 path leaves it empty.
+			HomeDir: resolution.HomeDir,
 		}
 		res.ExecutionID = e.ID()
 		res.Envelope = env

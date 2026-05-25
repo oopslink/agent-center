@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -160,6 +161,20 @@ func (fs *fakeServer) registerRoutes() {
 		fs.record(r)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"artifact_id":"A-1"}`))
+	})
+	// v2.3-3b: blob_put is the new pre-step for ReportArtifact when the
+	// agent emits inline blob bytes.
+	fs.mux.HandleFunc("/admin/blob/put", func(w http.ResponseWriter, r *http.Request) {
+		fs.record(r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"rel_path":"ok"}`))
+	})
+	// v2.3-3b: secret resolve handler — echoes a deterministic base64
+	// plaintext so AdminClient.ResolveSecret can round-trip.
+	fs.mux.HandleFunc("/admin/secret/user-secret/resolve", func(w http.ResponseWriter, r *http.Request) {
+		fs.record(r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"S-1","name":"db_password","plaintext_base64":"c2VjcmV0LXZhbA=="}`))
 	})
 }
 
@@ -342,13 +357,49 @@ func TestAdminClient_ReportArtifact(t *testing.T) {
 		t.Fatalf("ReportArtifact: %v", err)
 	}
 	reqs := fs.reqs()
-	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/artifact/append" {
-		t.Fatalf("bad path: %+v", reqs)
+	// v2.3-3b: non-empty blob now triggers BlobPut first, then the
+	// artifact/append carries the resulting blob_ref.
+	if len(reqs) != 2 {
+		t.Fatalf("want 2 requests (blob_put + artifact append), got %d: %+v", len(reqs), reqs)
 	}
-	var body map[string]string
-	_ = json.Unmarshal(reqs[0].Body, &body)
-	if body["kind"] != "log" || body["execution_id"] != "E-5" {
-		t.Fatalf("body=%v", body)
+	if reqs[0].Path != "/admin/blob/put" {
+		t.Fatalf("first request should be blob_put; got %+v", reqs[0])
+	}
+	if reqs[1].Path != "/admin/taskruntime/artifact/append" {
+		t.Fatalf("second request should be artifact append; got %+v", reqs[1])
+	}
+	var put map[string]string
+	_ = json.Unmarshal(reqs[0].Body, &put)
+	if put["rel_path"] == "" || put["content_base64"] == "" {
+		t.Fatalf("blob_put body missing fields: %v", put)
+	}
+	if !strings.HasPrefix(put["rel_path"], "artifacts/E-5/log-") {
+		t.Fatalf("rel_path shape unexpected: %v", put["rel_path"])
+	}
+	var append map[string]string
+	_ = json.Unmarshal(reqs[1].Body, &append)
+	if append["kind"] != "log" || append["execution_id"] != "E-5" {
+		t.Fatalf("artifact body=%v", append)
+	}
+	if append["blob_ref"] == "" || append["blob_ref"] != put["rel_path"] {
+		t.Fatalf("blob_ref mismatch: append=%v put=%v", append["blob_ref"], put["rel_path"])
+	}
+}
+
+func TestAdminClient_ReportArtifact_EmptyBlobSkipsBlobPut(t *testing.T) {
+	fs, client, cleanup := newFakeServer(t)
+	defer cleanup()
+	if err := client.ReportArtifact(context.Background(), "E-6", nil, "log"); err != nil {
+		t.Fatalf("ReportArtifact: %v", err)
+	}
+	reqs := fs.reqs()
+	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/artifact/append" {
+		t.Fatalf("expected single artifact append; got %+v", reqs)
+	}
+	var append map[string]string
+	_ = json.Unmarshal(reqs[0].Body, &append)
+	if append["blob_ref"] != "" {
+		t.Fatalf("blob_ref should be empty for empty blob; got %v", append["blob_ref"])
 	}
 }
 
