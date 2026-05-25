@@ -35,6 +35,10 @@
 # the positive-fail assertion is meaningless.
 ^scripts/lint/no-vendor-refs\.(sh|allowlist)
 ^scripts/lint/test-no-vendor-refs\.sh
+# doc-impl-drift.sh comment explains its own scope ("not all vendor
+# SDKs; lark SDK is still tracked by no-vendor-refs.sh") — the meta
+# reference is legitimate, lint not aware of comment context.
+^scripts/lint/doc-impl-drift\.sh:.*lark SDK is still
 ^docs/plans/phase-12-audits/
 ^Makefile:.*(lint-vendor|vendor_msg_ref|internal/bridge|feishu / lark)
 # ADR promote script embeds the ADR-0031 evidence string which names

@@ -215,6 +215,18 @@ Notable deltas from § 4 plan:
 - Active doc sweep (Wave 2 Group A): `docs/index.md`, `docs/rules/*.md`, `docs/design/**/*.md` (the ~73 hits from § 2.3 minus what landed in `docs/release/v2.0-draft.md` already) — currently allowlisted under category 1 (history-of-record paths) and category 5 (TEMPORARY). After S6 lands, narrow the `^docs/design/` and `^docs/rules/` allowlist scopes to only the ADR / banner-marked sections.
 - `sites/.vitepress/` v1 nav menu cleanup — currently allowlisted under category 5.
 
+### 8.4.1 Post-P12 allowlist additions
+
+- `^scripts/lint/doc-impl-drift\.sh:.*lark SDK is still` — added 2026-05-25
+  during v2.2 closeout. The v2.2-E doc-impl-drift lint
+  (`scripts/lint/doc-impl-drift.sh`) contains a comment explaining its
+  own scope ("not all vendor SDKs; lark SDK is still tracked by
+  no-vendor-refs.sh"). The meta-reference is legitimate documentation
+  of which lint owns which token class. Caught by @x9527 during v2.2
+  release-gate review (would have shipped with `make lint` failing);
+  allowlist entry is path + content-anchored so only this exact
+  comment matches.
+
 ### 8.5 Final grep status
 ```
 $ make lint-vendor
