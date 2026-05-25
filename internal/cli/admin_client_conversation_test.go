@@ -181,8 +181,9 @@ func TestClient_ConversationRead_TailUsesFindRecent_OverAdminEndpoint(t *testing
 
 	send := findCmd(app.ConversationCommands(), "send")
 	for i, body := range []string{"alpha", "beta", "gamma", "delta"} {
-		if _, _, code := runHandler(t, send, []string{convID, body, "--format=json"}); code != ExitOK {
-			t.Fatalf("send %d exit=%d", i, code)
+		stdout, stderr, code := runHandler(t, send, []string{convID, body, "--format=json"})
+		if code != ExitOK {
+			t.Fatalf("send %d exit=%d stdout=%q stderr=%q", i, code, stdout, stderr)
 		}
 	}
 	read := findCmd(app.ConversationCommands(), "read")

@@ -87,6 +87,14 @@ func setupAdminServerForTests(t *testing.T) (*App, func()) {
 		_ = db.Close()
 		t.Fatalf("setupAdminServerForTests: mint test token: %v", terr)
 	}
+	// Tests don't care about LastUsedAt bookkeeping; closing the pump up
+	// front ensures the background UPDATE never races against the test's
+	// foreground writes on the same SQLite file. Without this, a quick
+	// burst of admin requests (e.g. open + send + send) could see
+	// SQLITE_BUSY (5) when the pump's first UPDATE happens to overlap
+	// with a foreground transaction. Idempotent: cleanup() Close()s again
+	// safely.
+	app.AdminTokenSvc.Close()
 	srv.SetHandler(api.AuthMiddleware(app.AdminTokenSvc)(
 		api.WithDeps(adminDepsFromApp(app))(srv.Handler())))
 
