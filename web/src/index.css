@@ -1,3 +1,66 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Design tokens — v2.3 P1 (task #23). Source of truth:
+ * docs/design/web-console-design-system.md. Semantic names so a
+ * dark-mode toggle in a later pass only needs a parallel `:root.dark`
+ * block; component code never touches raw slate-/blue- shades.
+ */
+:root {
+  --color-bg-base:        #f8fafc;
+  --color-bg-elevated:    #ffffff;
+  --color-bg-subtle:      #f1f5f9;
+  --color-border:         #e2e8f0;
+  --color-border-strong:  #cbd5e1;
+  --color-text-primary:   #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted:     #94a3b8;
+  --color-brand:          #1e40af;
+  --color-brand-hover:    #1d4ed8;
+  --color-accent:         #3b82f6;
+  --color-success:        #22c55e;
+  --color-warning:        #f59e0b;
+  --color-danger:         #ef4444;
+
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-2: 0 4px 8px rgba(15, 23, 42, 0.08);
+  --shadow-3: 0 12px 24px rgba(15, 23, 42, 0.12);
+
+  /* Focus ring used by `focus-visible` utilities (skill rule
+   * `focus-states`: 2-4px, must be visible). */
+  --ring-color: rgba(59, 130, 246, 0.5);
+}
+
+/*
+ * Body fallback in case index.html drops `bg-slate-50 text-slate-900`
+ * during a future refactor.
+ */
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+/*
+ * Global focus-visible ring. Tailwind ships per-utility focus styles
+ * but several baseline elements (anchor, button) inherit nothing
+ * unless explicitly opted in. This restores a visible 2px ring
+ * everywhere `:focus-visible` matches, honouring reduced-motion.
+ */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Respect prefers-reduced-motion globally (skill rule `reduced-motion`). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
