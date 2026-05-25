@@ -230,6 +230,25 @@ v2 已有基础 deps（`task.depends_on_task_ids` JSON 数组 + 运行时可改 
 - **触发条件**：多项目有共性的"额外维度"需求
 - **影响**：定义"扩展点规范"（custom event type / agent 可发的 metric event）让项目按规范对接，**不**让项目侵入 agent-center 观测层代码
 
+### Deployment as Product
+
+把 deployment 从「ops 周边脚本」升级为「一级产品主题」 —— 同等于 Conversation v2 / SecretManagement 在 v2 周期里的待遇：有 design / impl / iteration 节奏，有 ADR，有 phase plan。来自 2026-05-25 用户决策（thread #agent-center:85ebe2c2）：「部署是软件的第一步，我希望他也能够作为产品的重要组成，进行产品级的设计、实现和迭代」。
+
+- **v2.x 不做的原因**：v2.0-v2.3 一直在补功能 BC（Conversation / Secret / Worker / WebConsole），部署体验保持在「`contrib/install.sh` + 单一 mac-single-host guide」状态够用；v3 周期才有带宽系统性做
+- **当前已具备（避免回归遗忘）**：`contrib/install.sh` + `install-worker.sh`（idempotent + dry-run + KillMode 强校验）；3 systemd unit（NoNewPrivileges / PrivateTmp / ProtectSystem=strict）；`internal/admin/backup/`（WAL checkpoint + retention + observability event）；`make smoke` + `make lint` 4 项强校验；v1→v2 + v2.0→v2.2 migration CLI + guide；`/admin/health` + `/api/health` endpoint
+- **v3 主题候选范围**：
+  - DDD 框架决策：Deployment 是独立 BC（候选 AR: `Deployment` / `UpgradeRun` / `BackupRun`），还是 cross-cutting infrastructure 主题
+  - ADR 候选：deployment topology model（single-host / multi-host / containerized）/ upgrade as first-class operation（rolling / drain / rollback）/ observability surface（metrics / health / readiness SLI）/ operator-facing CLI（`agent-center deploy` / `upgrade` / `diagnose` 作为产品 surface）
+  - Linux single-host 独立 deploy guide（当前只有 mac-single-host）
+  - Dockerfile + docker-compose + GitHub Actions CI/release pipeline（仓里目前都没有）
+  - Prometheus `/metrics` endpoint + 日志轮转适配
+  - `agent-center diagnose` 自检工具
+  - 与已 parked 的 v3 主题协同：Remote CLI（admin token + TLS + TCP transport）/ Prometheus·OTel·Grafana 接入 / 云 Computer 节点支持 / 多用户·SaaS
+  - 与 Multi-host TCP transport（v2.3 task #27 仍 TODO）的衔接
+  - KMS-backed master key 替代 destructive rotation（`docs/operations/master-key.md` § 4 已留 v3 候选）
+- **触发条件**：本主题已被用户明确放进 v3 路线图（不依赖触发条件，是 v3 周期的既定主题之一）
+- **影响**：跨 conventions（新增 "deployment-impact assessment" 横切要求，类似 § 0.4）、跨 schema 演进、跨 release process
+
 ### 多用户 / SaaS
 
 支持多个用户共享 agent-center 实例 / SaaS 化运营。
