@@ -73,6 +73,7 @@ interface NavItem {
   to: string;
   label: string;
   badge?: NavBadgeKey;
+  end?: boolean; // react-router NavLink end-match (used for '/' Home)
   Icon: () => React.ReactElement;
 }
 
@@ -82,6 +83,12 @@ interface NavSection {
 }
 
 const navSections: ReadonlyArray<NavSection> = [
+  {
+    label: 'Home',
+    items: [
+      { to: '/', label: 'Overview', Icon: HomeIcon, end: true },
+    ],
+  },
   {
     label: 'Conversations',
     items: [
@@ -136,6 +143,7 @@ function Sidebar({
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
+                    end={item.end}
                     className={({ isActive }) =>
                       [
                         'flex items-center justify-between rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
@@ -207,6 +215,13 @@ function Sidebar({
 // color. Inlining avoids pulling a whole icon library for ~7 glyphs.
 // ============================================================================
 
+function HomeIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M3 10l7-6 7 6v6.5A1.5 1.5 0 0 1 15.5 18h-3v-5h-5v5h-3A1.5 1.5 0 0 1 3 16.5V10z" strokeLinejoin="round" />
+    </svg>
+  );
+}
 function HamburgerIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.75" aria-hidden="true">

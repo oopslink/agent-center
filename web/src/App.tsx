@@ -1,11 +1,12 @@
 import type React from 'react';
 import { lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './AppLayout';
 
 // All pages are lazy-loaded so the initial bundle stays small and each
 // route ships as its own chunk (per F3 oversight #3). The Suspense
 // boundary inside AppLayout renders a fallback while a chunk streams.
+const Home = lazy(() => import('./pages/Home'));
 const Channels = lazy(() => import('./pages/Channels'));
 const ChannelDetail = lazy(() => import('./pages/ChannelDetail'));
 const DMs = lazy(() => import('./pages/DMs'));
@@ -28,7 +29,9 @@ export function App(): React.ReactElement {
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route index element={<Navigate to="/channels" replace />} />
+          {/* v2.3 P3: `/` is the Home / Overview dashboard. Previously
+              redirected straight to /channels. */}
+          <Route index element={<Home />} />
           <Route path="/channels" element={<Channels />} />
           <Route path="/channels/:name" element={<ChannelDetail />} />
           <Route path="/dms" element={<DMs />} />

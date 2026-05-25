@@ -33,12 +33,12 @@ function renderAppAt(path: string) {
 }
 
 describe('App shell + route tree', () => {
-  it('redirects / to /channels and renders the Channels page', async () => {
+  it('renders Home / Overview at / (v2.3 P3 — previously redirected to /channels)', async () => {
     await renderAt('/');
     await waitFor(() => {
-      expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
+      expect(screen.getByTestId('page-Home')).toBeInTheDocument();
     });
-    expect(window.location.pathname).toBe('/channels');
+    expect(window.location.pathname).toBe('/');
   });
 
   it('renders ChannelDetail for /channels/:name', async () => {
