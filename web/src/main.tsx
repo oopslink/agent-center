@@ -4,6 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 import { App } from './App';
 import { ErrorBoundary } from './ErrorBoundary';
+import { applyInitialTheme } from './theme';
+
+// Apply the persisted theme before React mounts so the first paint
+// matches user preference — no FOUC on dark-mode reload.
+applyInitialTheme();
 
 // QueryClient lives at module scope (per F4 oversight #2) so HMR + tests
 // can swap App without losing cached queries.

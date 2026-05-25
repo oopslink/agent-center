@@ -1,32 +1,81 @@
 import type React from 'react';
-import { Suspense, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
 import { useInputRequests } from '@/api/inputRequests';
 import { PageSkeleton } from '@/components/Skeleton';
+import { CommandPalette } from '@/components/CommandPalette';
+import { useKeyShortcuts } from '@/useKeyShortcuts';
+import { readTheme, writeTheme, type Theme } from '@/theme';
 
-// AppLayout v2 — v2.3 P2. Three changes vs v2.2 shell:
-//   1. Sidebar grouped into Conversations / Work / System (skill rule
-//      `nav-hierarchy`: primary vs secondary nav must be visually
-//      separated); each item has a Heroicons-style outline SVG.
-//   2. Responsive: <768px collapses the sidebar into a drawer behind
-//      a hamburger button in the header (skill rule `mobile-first`).
-//   3. PageSkeleton replaces the "Loading…" plain-text fallback
-//      (skill rule `progressive-loading`).
-//
-// No router change. No new dependency. Identity affordance + Home /
-// Overview page land in P3.
+// AppLayout v3 — v2.3 P6 layered on P2's shell + P3's Home wire-in.
+//   - desktop sidebar can collapse to an icon-only strip (persisted)
+//   - dark mode toggle in header (persisted; applied pre-React in main.tsx)
+//   - keyboard shortcuts: ⌘K palette, ⌘B sidebar toggle, ⌘D theme,
+//     ⌘1..7 jump to top-level pages
+//   - <CommandPalette> mounts at root so ⌘K works from anywhere
+
+const SIDEBAR_KEY = 'ac.sidebar.collapsed';
+
+function readSidebarCollapsed(): boolean {
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return false;
+    return localStorage.getItem(SIDEBAR_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function AppLayout(): React.ReactElement {
   useSSE();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(readSidebarCollapsed);
+  const [theme, setTheme] = useState<Theme>(readTheme);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Auto-close the drawer on navigation so a tap on a nav item also
   // dismisses the overlay (common mobile pattern).
   useEffect(() => {
     setDrawerOpen(false);
   }, [location.pathname]);
+
+  // Persist sidebar + theme on change. Guarded against test environments
+  // where localStorage may be a stub without setItem.
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+        localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+      }
+    } catch {
+      // ignore
+    }
+  }, [collapsed]);
+
+  useEffect(() => {
+    writeTheme(theme);
+  }, [theme]);
+
+  // Cmd/Ctrl shortcuts. Defined inside the component so closures bind
+  // to the current setState handles.
+  const shortcuts = useMemo(
+    () => ({
+      'mod+k': () => setPaletteOpen((v) => !v),
+      'mod+b': () => setCollapsed((v) => !v),
+      'mod+d': () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
+      'mod+1': () => navigate('/'),
+      'mod+2': () => navigate('/channels'),
+      'mod+3': () => navigate('/dms'),
+      'mod+4': () => navigate('/issues'),
+      'mod+5': () => navigate('/tasks'),
+      'mod+6': () => navigate('/inputrequests'),
+      'mod+7': () => navigate('/agents'),
+    }),
+    [navigate],
+  );
+  useKeyShortcuts(shortcuts);
 
   return (
     <div className="flex h-screen flex-col bg-bg-base">
@@ -42,19 +91,54 @@ export default function AppLayout(): React.ReactElement {
           >
             <HamburgerIcon />
           </button>
+          <button
+            type="button"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-pressed={collapsed}
+            data-testid="sidebar-collapse-toggle"
+            onClick={() => setCollapsed((v) => !v)}
+            className="hidden h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors md:inline-flex"
+            title="Toggle sidebar (⌘B)"
+          >
+            <SidebarToggleIcon collapsed={collapsed} />
+          </button>
           <span className="font-heading text-base font-semibold tracking-tight text-text-primary">
             agent-center
           </span>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Open command palette"
+            data-testid="open-palette"
+            className="hidden items-center gap-2 rounded border border-border-base px-2 py-1 text-xs text-text-muted hover:bg-bg-subtle motion-safe:transition-colors sm:inline-flex"
+          >
+            <span>Search</span>
+            <kbd className="font-mono">⌘K</kbd>
+          </button>
           <SSEIndicator />
+          <button
+            type="button"
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            data-testid="theme-toggle"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors"
+            title="Toggle theme (⌘D)"
+          >
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
           <span className="hidden text-xs text-text-muted sm:inline">
             v2 · loopback
           </span>
         </div>
       </header>
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar drawerOpen={drawerOpen} onDismiss={() => setDrawerOpen(false)} />
+        <Sidebar
+          drawerOpen={drawerOpen}
+          collapsed={collapsed}
+          onDismiss={() => setDrawerOpen(false)}
+        />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="mx-auto max-w-6xl">
             <Suspense fallback={<PageSkeleton />}>
@@ -63,6 +147,7 @@ export default function AppLayout(): React.ReactElement {
           </div>
         </main>
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }
@@ -115,26 +200,29 @@ const navSections: ReadonlyArray<NavSection> = [
 
 function Sidebar({
   drawerOpen,
+  collapsed,
   onDismiss,
 }: {
   drawerOpen: boolean;
+  collapsed: boolean;
   onDismiss: () => void;
 }): React.ReactElement {
-  // Derive the IR badge directly from server state so the count always
-  // reflects pending IRs (not the number of SSE pushes received).
   const irs = useInputRequests();
   const inputRequestBadge = (irs.data ?? []).filter(
     (ir) => ir.status === 'pending',
   ).length;
 
-  // Build the nav once; both the desktop sidebar and the drawer reuse it.
-  const navTree = (
+  // The drawer always shows full labels; the desktop bar shrinks to an
+  // icon-only strip when `collapsed` is true.
+  const navTree = (isCollapsed: boolean) => (
     <ul className="space-y-4">
       {navSections.map((section) => (
         <li key={section.label}>
-          <h2 className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
-            {section.label}
-          </h2>
+          {!isCollapsed && (
+            <h2 className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
+              {section.label}
+            </h2>
+          )}
           <ul className="space-y-0.5">
             {section.items.map((item) => {
               const badgeCount =
@@ -144,24 +232,31 @@ function Sidebar({
                   <NavLink
                     to={item.to}
                     end={item.end}
+                    title={isCollapsed ? item.label : undefined}
                     className={({ isActive }) =>
                       [
-                        'flex items-center justify-between rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
+                        'flex items-center rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
+                        isCollapsed ? 'justify-center' : 'justify-between',
                         isActive
                           ? 'bg-brand text-white'
                           : 'text-text-primary hover:bg-bg-subtle',
                       ].join(' ')
                     }
                   >
-                    <span className="flex items-center gap-2">
+                    <span className={isCollapsed ? 'inline-flex' : 'flex items-center gap-2'}>
                       <span aria-hidden="true" className="inline-flex h-4 w-4">
                         <item.Icon />
                       </span>
-                      <span>{item.label}</span>
+                      {!isCollapsed && <span>{item.label}</span>}
                     </span>
                     {badgeCount > 0 && (
                       <span
-                        className="rounded-full bg-accent px-1.5 py-0.5 text-xs font-medium text-white tabular-nums"
+                        className={[
+                          'rounded-full bg-accent text-xs font-medium text-white tabular-nums',
+                          isCollapsed
+                            ? 'absolute ml-3 -mt-3 h-3.5 w-3.5 text-[0.625rem] leading-none flex items-center justify-center'
+                            : 'px-1.5 py-0.5',
+                        ].join(' ')}
                         data-testid={`nav-badge-${item.badge}`}
                       >
                         {badgeCount}
@@ -179,14 +274,18 @@ function Sidebar({
 
   return (
     <>
-      {/* Desktop sidebar — always visible at ≥768px. */}
+      {/* Desktop sidebar — width depends on collapsed flag. */}
       <nav
         aria-label="primary"
-        className="hidden w-52 flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:block"
+        data-collapsed={collapsed}
+        className={[
+          'hidden flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:block',
+          collapsed ? 'w-14' : 'w-52',
+        ].join(' ')}
       >
-        {navTree}
+        {navTree(collapsed)}
       </nav>
-      {/* Mobile drawer — opens on hamburger toggle. */}
+      {/* Mobile drawer — opens on hamburger toggle (always full-width labels). */}
       {drawerOpen && (
         <div className="fixed inset-0 z-40 flex md:hidden" role="dialog" aria-modal="true">
           <button
@@ -198,10 +297,9 @@ function Sidebar({
           <nav
             aria-label="primary mobile"
             className="w-64 max-w-[80%] flex-shrink-0 overflow-y-auto border-l border-border-base bg-bg-subtle p-3 shadow-3"
-            // Stop bubbling so clicks inside don't dismiss the drawer.
             onClick={(e) => e.stopPropagation()}
           >
-            {navTree}
+            {navTree(false)}
           </nav>
         </div>
       )}
@@ -215,6 +313,30 @@ function Sidebar({
 // color. Inlining avoids pulling a whole icon library for ~7 glyphs.
 // ============================================================================
 
+function SidebarToggleIcon({ collapsed }: { collapsed: boolean }): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="3" y="4" width="14" height="12" rx="1.5" />
+      <path d="M8 4v12" />
+      <path d={collapsed ? 'M11 8l2 2-2 2' : 'M13 8l-2 2 2 2'} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function SunIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="10" cy="10" r="3" />
+      <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function MoonIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M16.5 12a6.5 6.5 0 1 1-8.5-8.5 5.5 5.5 0 0 0 8.5 8.5z" strokeLinejoin="round" />
+    </svg>
+  );
+}
 function HomeIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">

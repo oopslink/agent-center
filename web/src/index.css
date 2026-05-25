@@ -34,6 +34,35 @@
 }
 
 /*
+ * Dark mode tokens — v2.3 P6. Activated by `<html class="dark">`.
+ * Semantic names match the light palette; component code stays
+ * untouched. Per skill rule `color-dark-mode`: use desaturated /
+ * lighter tonal variants, not raw inversion.
+ */
+:root.dark {
+  --color-bg-base:        #0f172a;
+  --color-bg-elevated:    #1e293b;
+  --color-bg-subtle:      #1e293b;
+  --color-border:         #334155;
+  --color-border-strong:  #475569;
+  --color-text-primary:   #f1f5f9;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted:     #64748b;
+  --color-brand:          #3b82f6;
+  --color-brand-hover:    #2563eb;
+  --color-accent:         #60a5fa;
+  --color-success:        #4ade80;
+  --color-warning:        #fbbf24;
+  --color-danger:         #f87171;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 4px 8px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 12px 24px rgba(0, 0, 0, 0.45);
+
+  --ring-color: rgba(96, 165, 250, 0.6);
+}
+
+/*
  * Body fallback in case index.html drops `bg-slate-50 text-slate-900`
  * during a future refactor.
  */
