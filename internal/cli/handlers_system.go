@@ -160,10 +160,15 @@ func ServerCommand() *Command {
 					}()
 				}
 
-				// P11 § 3.2/3.3: Web Console HTTP + SSE.
+				// P11 § 3.2/3.3: Web Console HTTP + SSE. Default-on per
+				// v2.2 (config.DefaultConfig sets enabled=true +
+				// listen_addr=127.0.0.1:7100). Operators opt out with
+				// explicit `web_console: {enabled: false}`. The
+				// listen_addr fallback covers configs that wipe both
+				// fields back to zero (unusual but possible).
 				var webCleanup func() error
 				webAddr := cfg.WebConsole.ListenAddr
-				webEnabled := cfg.WebConsole.Enabled || webAddr != ""
+				webEnabled := cfg.WebConsole.Enabled
 				if webEnabled {
 					if webAddr == "" {
 						webAddr = "127.0.0.1:7100"

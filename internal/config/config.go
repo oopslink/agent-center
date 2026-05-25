@@ -184,6 +184,15 @@ func DefaultConfig() Config {
 		Peek: PeekConfig{
 			WorkerSocket: "/var/run/agent-center-worker/peek.sock",
 		},
+		// Web Console enabled by default per @oopslink directive
+		// 2026-05-25: the primary v2 user entry is the SPA, so
+		// default-off was the wrong shape. Operators can disable
+		// explicitly with `web_console: {enabled: false}` if they
+		// truly want a headless server.
+		WebConsole: WebConsoleConfig{
+			Enabled:    true,
+			ListenAddr: "127.0.0.1:7100",
+		},
 	}
 }
 
