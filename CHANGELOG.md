@@ -11,6 +11,49 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.5
+
+Project model simplification (#59) per @oopslink design discussion
+in `#agent-center:68d33af4`. v2.5.3 shipped Project CRUD UI on
+top of a model that still carried three fields the operator no
+longer wanted: a user-typed slug `id`, a single `kind` enum, and a
+`default_agent_cli`. v2.5.5 removes all three, slimming Project
+to its essential shape (id / name / description / tags + audit
+fields).
+
+### Changed (BREAKING)
+
+- **Project.id** is now **server-generated** in `proj-<8hex>`
+  format, immutable from create. Operators no longer pick the
+  slug; consistency with the v2.5 worker-id pattern.
+- **`kind` field replaced by `tags []string`**. Tags are a free
+  multi-value list with 6 builtin suggestions (`coding`,
+  `research`, `ops`, `docs`, `experimental`, `archived`) plus
+  free-text entry — the v2.5.5 frontend Create / Edit modals
+  render a chip-style combobox.
+- **`default_agent_cli` dropped**. Dispatch routing is the
+  supervisor's responsibility per ADR-0011; the field was an
+  unused shortcut. No replacement; supervisor sees the available
+  AgentInstances on workers mapped to the project and chooses.
+
+### Migration
+
+No backward compatibility (per @oopslink `#agent-center:4a58a286`).
+Migration 0032 drops `projects` + `worker_project_mappings` +
+`worker_project_proposals` and recreates them with the new
+schema. Any v2.5.3 / v2.5.4 install will lose its Project rows on
+upgrade — operators must re-create projects after upgrading.
+
+### Verification
+
+- Backend: full `go test ./...` green; new schema round-trips;
+  `make smoke` end-to-end.
+- Frontend: 276 vitest specs green; Create / Edit modals show
+  the simplified 3-field form (name + description + tags); list +
+  detail surfaces drop kind / agent_cli columns.
+
+---
+
 ## [v2.5.4] — 2026-05-26
 
 @oopslink (#agent-center msg=464872a5): the `make release` tarball

@@ -70,7 +70,7 @@ func TestCLI_ProposalPropose_NoSuggestedID(t *testing.T) {
 	enroll := runByName(t, app, "worker", "enroll")
 	_, _, _ = enroll([]string{"--worker-id=W-1"})
 	propose := runByName(t, app, "worker", "proposal", "propose")
-	out, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/home/u/dirname", "--suggested-kind=coding", "--format=json"})
+	out, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/home/u/dirname", "--format=json"})
 	if code != ExitOK {
 		t.Fatalf("code: %d", code)
 	}
@@ -88,7 +88,7 @@ func TestCLI_ProposalPropose_TextFormat(t *testing.T) {
 	enroll := runByName(t, app, "worker", "enroll")
 	_, _, _ = enroll([]string{"--worker-id=W-1"})
 	propose := runByName(t, app, "worker", "proposal", "propose")
-	out, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/text/x", "--suggested-kind=coding"})
+	out, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/text/x"})
 	if code != ExitOK {
 		t.Fatalf("code: %d out: %s", code, out)
 	}
@@ -96,7 +96,7 @@ func TestCLI_ProposalPropose_TextFormat(t *testing.T) {
 		t.Fatalf("expected 'proposed' banner in text out: %s", out)
 	}
 	// Repeating the same propose hits the "already exists" suffix branch.
-	out2, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/text/x", "--suggested-kind=coding"})
+	out2, _, code := propose([]string{"--worker-id=W-1", "--candidate-path=/text/x"})
 	if code != ExitOK {
 		t.Fatalf("rerun code: %d out: %s", code, out2)
 	}
@@ -112,7 +112,7 @@ func TestCLI_ProposalList_TextFormat(t *testing.T) {
 	enroll := runByName(t, app, "worker", "enroll")
 	_, _, _ = enroll([]string{"--worker-id=W-list"})
 	propose := runByName(t, app, "worker", "proposal", "propose")
-	if _, _, c := propose([]string{"--worker-id=W-list", "--candidate-path=/p/q", "--suggested-kind=coding"}); c != ExitOK {
+	if _, _, c := propose([]string{"--worker-id=W-list", "--candidate-path=/p/q"}); c != ExitOK {
 		t.Fatalf("propose: %d", c)
 	}
 	list := runByName(t, app, "worker", "proposal", "list")
@@ -233,7 +233,7 @@ func TestCLI_ProposalList_WorkerFilter_BadStatus(t *testing.T) {
 func TestCLI_ProjectShow(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding"})
+	_, _, _ = add([]string{"p", "--name=p"})
 	show := runByName(t, app, "project", "show")
 	out, _, code := show([]string{"p", "--format=json"})
 	if code != ExitOK {
@@ -249,7 +249,7 @@ func TestCLI_ProjectShow(t *testing.T) {
 func TestCLI_ProjectShow_HumanFormat(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding", "--name=Pname"})
+	_, _, _ = add([]string{"p", "--name=Pname"})
 	show := runByName(t, app, "project", "show")
 	stdout, _, _ := show([]string{"p"})
 	if !strings.Contains(stdout, "Pname") {
@@ -278,7 +278,7 @@ func TestCLI_ProjectShow_MissingArg(t *testing.T) {
 func TestCLI_ProjectAdd_BadSlug(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, code := add([]string{"BAD SLUG", "--kind=coding"})
+	_, _, code := add([]string{"BAD SLUG", "--name=BAD SLUG"})
 	if code != ExitUsage {
 		t.Fatalf("code: %d", code)
 	}
@@ -287,7 +287,7 @@ func TestCLI_ProjectAdd_BadSlug(t *testing.T) {
 func TestCLI_ProjectAdd_BadKind(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, code := add([]string{"p", "--kind=bogus"})
+	_, _, code := add([]string{"p", "--kind=bogus", "--name=p"})
 	if code != ExitUsage {
 		t.Fatalf("code: %d", code)
 	}
@@ -336,7 +336,7 @@ func TestCLI_ProjectRemove_Happy(t *testing.T) {
 func TestCLI_ProjectUpdate_BadKind(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding"})
+	_, _, _ = add([]string{"p", "--name=p"})
 	upd := runByName(t, app, "project", "update")
 	_, _, code := upd([]string{"p", "--version=1", "--kind=bogus"})
 	if code != ExitUsage {
@@ -356,7 +356,7 @@ func TestCLI_ProjectUpdate_NoArg(t *testing.T) {
 func TestCLI_ProjectUpdate_Happy(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding"})
+	_, _, _ = add([]string{"p", "--name=p"})
 	upd := runByName(t, app, "project", "update")
 	out, _, code := upd([]string{"p", "--name=Renamed", "--version=1", "--format=json"})
 	if code != ExitOK {
@@ -381,7 +381,7 @@ func TestCLI_ProjectList_BadKind(t *testing.T) {
 func TestCLI_ProjectList_HumanFormat(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding", "--name=PName"})
+	_, _, _ = add([]string{"p", "--name=PName"})
 	list := runByName(t, app, "project", "list")
 	stdout, _, _ := list([]string{})
 	if !strings.Contains(stdout, "PName") {
@@ -401,7 +401,7 @@ func TestCLI_ConvAddMessage_MissingID(t *testing.T) {
 func TestCLI_ConvAddMessage_BadKind(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "conversation", "add-message")
-	_, _, code := add([]string{"C-1", "--kind=bogus"})
+	_, _, code := add([]string{"C-1", "--kind=bogus", "--name=C-1"})
 	if code != ExitUsage {
 		t.Fatalf("code: %d", code)
 	}
@@ -410,7 +410,7 @@ func TestCLI_ConvAddMessage_BadKind(t *testing.T) {
 func TestCLI_ConvAddMessage_BadDirection(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "conversation", "add-message")
-	_, _, code := add([]string{"C-1", "--direction=bogus"})
+	_, _, code := add([]string{"C-1", "--direction=bogus", "--name=C-1"})
 	if code != ExitUsage {
 		t.Fatalf("code: %d", code)
 	}

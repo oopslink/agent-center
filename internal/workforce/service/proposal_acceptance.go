@@ -62,7 +62,6 @@ type ProposeCommand struct {
 	WorkerID           workforce.WorkerID
 	CandidatePath      string
 	SuggestedProjectID workforce.ProjectID
-	SuggestedKind      workforce.ProjectKind
 	CandidateMetadata  workforce.CandidateMetadata
 	Actor              observability.Actor
 }
@@ -95,7 +94,6 @@ func (s *ProposalAcceptanceService) Propose(ctx context.Context, cmd ProposeComm
 		WorkerID:           cmd.WorkerID,
 		CandidatePath:      cmd.CandidatePath,
 		SuggestedProjectID: cmd.SuggestedProjectID,
-		SuggestedKind:      cmd.SuggestedKind,
 		CandidateMetadata:  cmd.CandidateMetadata,
 		ProposedAt:         s.clock.Now(),
 	})
@@ -119,7 +117,6 @@ func (s *ProposalAcceptanceService) Propose(ctx context.Context, cmd ProposeComm
 				"worker_id":            string(p.WorkerID()),
 				"candidate_path":       p.CandidatePath(),
 				"suggested_project_id": string(p.SuggestedProjectID()),
-				"suggested_kind":       string(p.SuggestedKind()),
 			},
 		})
 		if err != nil {
@@ -135,12 +132,15 @@ func (s *ProposalAcceptanceService) Propose(ctx context.Context, cmd ProposeComm
 }
 
 // AcceptCommand is the CLI input.
+//
+// v2.5.5 dropped OverrideKind alongside ProjectKind. OverrideProjectID
+// is empty by default (server-gen new id at Accept time); supplied to
+// claim an existing project instead.
 type AcceptCommand struct {
-	ProposalID         workforce.ProposalID
-	OverrideProjectID  workforce.ProjectID // empty → use proposal.suggested_project_id
-	OverrideKind       workforce.ProjectKind
+	ProposalID          workforce.ProposalID
+	OverrideProjectID   workforce.ProjectID
 	OverrideProjectName string
-	Actor              observability.Actor
+	Actor               observability.Actor
 }
 
 // AcceptResult captures what happened.
@@ -171,10 +171,6 @@ func (s *ProposalAcceptanceService) Accept(ctx context.Context, cmd AcceptComman
 		if projectID == "" {
 			projectID = p.SuggestedProjectID()
 		}
-		kind := cmd.OverrideKind
-		if kind == "" {
-			kind = p.SuggestedKind()
-		}
 		name := cmd.OverrideProjectName
 		if name == "" {
 			name = string(projectID) // sensible default; user can update later
@@ -182,12 +178,12 @@ func (s *ProposalAcceptanceService) Accept(ctx context.Context, cmd AcceptComman
 		ensureRes, err := s.discovery.EnsureProject(txCtx, EnsureProjectInput{
 			ID:        projectID,
 			Name:      name,
-			Kind:      kind,
 			CreatedBy: cmd.Actor,
 		})
 		if err != nil {
 			return err
 		}
+		projectID = ensureRes.Project.ID()
 		// Pre-check: no active mapping for (worker, project) — enforced by
 		// DB unique index too, but checking here lets us return a clean
 		// domain error before INSERT.

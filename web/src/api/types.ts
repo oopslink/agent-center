@@ -135,20 +135,20 @@ export interface TraceEvent {
   payload?: Record<string, unknown>;
 }
 
-// Project mirrors the backend projection emitted by projectPublicMap
-// (id, name, kind, default_agent_cli, description, created_at,
-// updated_at). All fields except id/name/created_at/updated_at are
-// optional — the backend omits empty strings.
+// Project mirrors the backend projection emitted by projectPublicMap.
+//
+// v2.5.5 simplified the shape: id is server-generated (proj-<8hex>),
+// kind and default_agent_cli are gone, tags is a free-text JSON array
+// (UI surfaces a builtin suggestion set but the server doesn't
+// validate it). tags is always emitted by the backend (possibly empty)
+// so a stable empty-state can render without a defensive default.
 export interface Project {
   id: string;
   name: string;
-  kind?: string;
-  default_agent_cli?: string;
-  description?: string;
-  // version is required for PATCH /api/projects/{id} CAS (v2.5.3 #58).
-  // The backend now always emits it; older read paths that don't pass
-  // it through will need updating before edit-form CAS works there.
-  version?: number;
+  description: string;
+  tags: string[];
+  // version is required for PATCH /api/projects/{id} CAS.
+  version: number;
   created_at: string;
   updated_at: string;
 }

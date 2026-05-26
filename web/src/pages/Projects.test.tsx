@@ -24,24 +24,25 @@ function wrap(ui: React.ReactElement) {
 describe('Projects page', () => {
   afterEach(() => cleanup());
 
-  it('renders project rows with name, kind chip, and agent CLI badge', async () => {
+  it('renders project rows with name + tag chips', async () => {
     server.use(
       http.get('/api/projects', () =>
         HttpResponse.json([
           {
             id: 'proj-a',
             name: 'Project Alpha',
-            kind: 'coding',
-            default_agent_cli: 'claudecode',
             description: 'first',
+            tags: ['coding', 'ops'],
+            version: 1,
             created_at: '2026-05-20T01:00:00Z',
             updated_at: '2026-05-20T01:00:00Z',
           },
           {
             id: 'proj-b',
             name: 'Project Beta',
-            kind: 'writing',
             description: 'second',
+            tags: [],
+            version: 1,
             created_at: '2026-05-21T01:00:00Z',
             updated_at: '2026-05-21T01:00:00Z',
           },
@@ -52,8 +53,8 @@ describe('Projects page', () => {
     await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
     expect(screen.getByText('Project Alpha')).toBeInTheDocument();
     expect(screen.getByText('Project Beta')).toBeInTheDocument();
-    expect(screen.getByText('claudecode')).toBeInTheDocument();
-    // Row Link wraps the content; check href on the anchor.
+    expect(screen.getByTestId('project-tag-coding')).toBeInTheDocument();
+    expect(screen.getByTestId('project-tag-ops')).toBeInTheDocument();
     const links = screen.getAllByRole('link');
     expect(links.some((a) => a.getAttribute('href') === '/projects/proj-a')).toBe(true);
   });

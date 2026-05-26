@@ -47,8 +47,8 @@ func TestProposalRepo_Save_Duplicate(t *testing.T) {
 	repo := setupProposalDeps(t)
 	id := workforce.ProposalID(idgen.MustNewULID())
 	p1, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID: id, WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "x",
-		SuggestedKind: workforce.ProjectKindCoding, ProposedAt: time.Now(),
+		ID: id, WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "proj-deadbeef",
+		ProposedAt: time.Now(),
 	})
 	_ = repo.Save(context.Background(), p1)
 	err := repo.Save(context.Background(), p1)

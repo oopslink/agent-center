@@ -155,7 +155,6 @@ type proposeReq struct {
 	WorkerID           string `json:"worker_id"`
 	CandidatePath      string `json:"candidate_path"`
 	SuggestedProjectID string `json:"suggested_project_id"`
-	SuggestedKind      string `json:"suggested_kind"`
 }
 
 func (s *Server) proposalProposeHandler(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +176,6 @@ func (s *Server) proposalProposeHandler(w http.ResponseWriter, r *http.Request) 
 		WorkerID:           workforce.WorkerID(req.WorkerID),
 		CandidatePath:      req.CandidatePath,
 		SuggestedProjectID: workforce.ProjectID(req.SuggestedProjectID),
-		SuggestedKind:      workforce.ProjectKind(req.SuggestedKind),
 		Actor:              actor,
 	})
 	if err != nil {
@@ -192,9 +190,8 @@ func (s *Server) proposalProposeHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 type proposalAcceptReq struct {
-	ProposalID         string `json:"proposal_id"`
-	OverrideProjectID  string `json:"override_project_id"`
-	OverrideKind       string `json:"override_kind"`
+	ProposalID          string `json:"proposal_id"`
+	OverrideProjectID   string `json:"override_project_id"`
 	OverrideProjectName string `json:"override_project_name"`
 }
 
@@ -212,7 +209,6 @@ func (s *Server) proposalAcceptHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := d.AcceptanceSvc.Accept(r.Context(), wfservice.AcceptCommand{
 		ProposalID:          workforce.ProposalID(req.ProposalID),
 		OverrideProjectID:   workforce.ProjectID(req.OverrideProjectID),
-		OverrideKind:        workforce.ProjectKind(req.OverrideKind),
 		OverrideProjectName: req.OverrideProjectName,
 		Actor:               d.Actor,
 	})
@@ -502,12 +498,10 @@ func (s *Server) projectFindAllHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
-	filter := workforce.ProjectFilter{}
-	if v := r.URL.Query().Get("kind"); v != "" {
-		k := workforce.ProjectKind(v)
-		filter.Kind = &k
-	}
-	list, err := d.ProjectRepo.FindAll(r.Context(), filter)
+	// v2.5.5: filter has no fields yet (ProjectKind dropped). The query
+	// is read tolerantly so existing clients passing ?kind=... don't
+	// 400 on unknown params.
+	list, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{})
 	if err != nil {
 		mapDomainError(w, err)
 		return
@@ -542,12 +536,14 @@ func (s *Server) projectFindByIDHandler(w http.ResponseWriter, r *http.Request) 
 // ProjectSvc — Add / Remove / Update
 // =============================================================================
 
+// projectAddReq mirrors v2.5.5 ProjectCRUDService.AddCommand. The id
+// is normally server-generated; CLI callers can pin a specific id
+// (id-override) by sending one. kind / default_agent_cli were dropped.
 type projectAddReq struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Kind            string `json:"kind"`
-	DefaultAgentCLI string `json:"default_agent_cli"`
-	Description     string `json:"description"`
+	ID          string   `json:"id,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
 }
 
 func (s *Server) projectAddHandler(w http.ResponseWriter, r *http.Request) {
@@ -562,12 +558,11 @@ func (s *Server) projectAddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := d.ProjectSvc.Add(r.Context(), wfservice.AddCommand{
-		ID:              workforce.ProjectID(req.ID),
-		Name:            req.Name,
-		Kind:            workforce.ProjectKind(req.Kind),
-		DefaultAgentCLI: req.DefaultAgentCLI,
-		Description:     req.Description,
-		Actor:           d.Actor,
+		ID:          workforce.ProjectID(req.ID),
+		Name:        req.Name,
+		Description: req.Description,
+		Tags:        req.Tags,
+		Actor:       d.Actor,
 	})
 	if err != nil {
 		mapDomainError(w, err)
@@ -606,12 +601,11 @@ func (s *Server) projectRemoveHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type projectUpdateReq struct {
-	ID              string  `json:"id"`
-	Version         int     `json:"version"`
-	Name            *string `json:"name"`
-	Kind            *string `json:"kind"`
-	DefaultAgentCLI *string `json:"default_agent_cli"`
-	Description     *string `json:"description"`
+	ID          string    `json:"id"`
+	Version     int       `json:"version"`
+	Name        *string   `json:"name"`
+	Description *string   `json:"description"`
+	Tags        *[]string `json:"tags"`
 }
 
 func (s *Server) projectUpdateHandler(w http.ResponseWriter, r *http.Request) {
@@ -625,19 +619,10 @@ func (s *Server) projectUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	fields := workforce.ProjectUpdateFields{}
-	if req.Name != nil {
-		fields.Name = req.Name
-	}
-	if req.Kind != nil {
-		k := workforce.ProjectKind(*req.Kind)
-		fields.Kind = &k
-	}
-	if req.DefaultAgentCLI != nil {
-		fields.DefaultAgentCLI = req.DefaultAgentCLI
-	}
-	if req.Description != nil {
-		fields.Description = req.Description
+	fields := workforce.ProjectUpdateFields{
+		Name:        req.Name,
+		Description: req.Description,
+		Tags:        req.Tags,
 	}
 	res, err := d.ProjectSvc.Update(r.Context(), wfservice.UpdateCommand{
 		ID:      workforce.ProjectID(req.ID),
@@ -744,20 +729,22 @@ func proposalMap(p *workforce.WorkerProjectProposal) map[string]any {
 		"status":               string(p.Status()),
 		"candidate_path":       p.CandidatePath(),
 		"suggested_project_id": string(p.SuggestedProjectID()),
-		"suggested_kind":       string(p.SuggestedKind()),
 		"version":              p.Version(),
 	}
 }
 
 func projectMap(p *workforce.Project) map[string]any {
+	tags := p.Tags()
+	if tags == nil {
+		tags = []string{}
+	}
 	return map[string]any{
-		"id":                string(p.ID()),
-		"name":              p.Name(),
-		"kind":              string(p.Kind()),
-		"default_agent_cli": p.DefaultAgentCLI(),
-		"description":       p.Description(),
-		"version":           p.Version(),
-		"created_at":        p.CreatedAt().Format(time.RFC3339Nano),
+		"id":          string(p.ID()),
+		"name":        p.Name(),
+		"description": p.Description(),
+		"tags":        tags,
+		"version":     p.Version(),
+		"created_at":  p.CreatedAt().Format(time.RFC3339Nano),
 	}
 }
 

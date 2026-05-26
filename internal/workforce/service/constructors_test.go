@@ -50,16 +50,15 @@ func TestNewProposalAcceptanceService_NilClock(t *testing.T) {
 	}
 }
 
-// changedFields helper coverage — all 4 fields set.
+// changedFields helper coverage — all v2.5.5 fields set.
 func TestChangedFields_AllFields(t *testing.T) {
 	name := "n"
-	kind := workforce.ProjectKindCoding
-	cli := "c"
 	desc := "d"
+	tags := []string{"a"}
 	got := changedFields(workforce.ProjectUpdateFields{
-		Name: &name, Kind: &kind, DefaultAgentCLI: &cli, Description: &desc,
+		Name: &name, Description: &desc, Tags: &tags,
 	})
-	if len(got) != 4 {
+	if len(got) != 3 {
 		t.Fatalf("got %v", got)
 	}
 }
@@ -80,7 +79,6 @@ func TestPropose_BadCandidatePath(t *testing.T) {
 		WorkerID:           "W-1",
 		CandidatePath:      "",
 		SuggestedProjectID: "p",
-		SuggestedKind:      workforce.ProjectKindCoding,
 		Actor:              "user:x",
 	})
 	if err == nil {
@@ -128,7 +126,7 @@ func TestProjectCRUD_Add_BadActor(t *testing.T) {
 	s := setupSuite(t)
 	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
 	_, err := svc.Add(context.Background(), AddCommand{
-		ID: "p", Name: "P", Kind: workforce.ProjectKindCoding, Actor: "bogus:x",
+		Name: "P", Actor: "bogus:x",
 	})
 	if err == nil {
 		t.Fatal()
@@ -175,11 +173,10 @@ func TestPropose_DedupNoExtraEvent(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	cmd := ProposeCommand{
-		WorkerID:      "W-1",
-		CandidatePath: "/x",
+		WorkerID:           "W-1",
+		CandidatePath:      "/x",
 		SuggestedProjectID: "p",
-		SuggestedKind: workforce.ProjectKindCoding,
-		Actor:         "user:x",
+		Actor:              "user:x",
 	}
 	r1, _ := svc.Propose(context.Background(), cmd)
 	r2, _ := svc.Propose(context.Background(), cmd)

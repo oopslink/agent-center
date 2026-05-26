@@ -97,31 +97,6 @@ func (s MappingStatus) IsValid() bool {
 // String returns the enum value.
 func (s MappingStatus) String() string { return string(s) }
 
-// ProjectKind is the open-set enum of project kinds (workforce/02 § 2).
-type ProjectKind string
-
-const (
-	ProjectKindCoding    ProjectKind = "coding"
-	ProjectKindWriting   ProjectKind = "writing"
-	ProjectKindInvesting ProjectKind = "investing"
-)
-
-// IsValid reports whether k is one of the known kinds or empty (kind=null
-// is allowed per workforce/02 § 5.5).
-func (k ProjectKind) IsValid() bool {
-	if k == "" {
-		return true
-	}
-	switch k {
-	case ProjectKindCoding, ProjectKindWriting, ProjectKindInvesting:
-		return true
-	}
-	return false
-}
-
-// String returns the underlying value.
-func (k ProjectKind) String() string { return string(k) }
-
 // InvalidateReason is the enum used by WorkerProjectMapping.Invalidate
 // (workforce/01 § 4.1).
 type InvalidateReason string
@@ -232,6 +207,5 @@ var (
 	ErrProjectAlreadyExists   = errors.New("workforce: project_id already taken")
 	ErrProjectVersionConflict = errors.New("workforce: project version conflict (optimistic lock)")
 	ErrProjectHasActiveDeps   = errors.New("workforce: project has active task or mapping, cannot delete")
-	ErrProjectInvalidSlug     = errors.New("workforce: project_id must be lowercase hyphenated slug")
-	ErrProjectInvalidKind     = errors.New("workforce: project kind invalid")
+	ErrProjectInvalidID       = errors.New("workforce: project id invalid")
 )

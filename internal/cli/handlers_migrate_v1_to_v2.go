@@ -77,10 +77,12 @@ func MigrateV1ToV2Command() *Command {
 // v2.3-3a added 0028 (admin_tokens); v2.4-D-A3 added 0029 (enroll
 // token columns); v2.4-D-X1 added 0030 (workers.name); v2.5-B2
 // added 0031 (admin_tokens.worker_id + plaintext ciphertext columns
-// for the show-install-command flow). Update this constant when any
-// future migration lands so `migrate v1-to-v2` always carries the
-// install to the latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 31
+// for the show-install-command flow); v2.5.5 (task #59) added 0032
+// (projects drop+recreate — server-gen id, tags replace kind). Update
+// this constant when any future migration lands so `migrate v1-to-v2`
+// always carries the install to the latest schema instead of leaving
+// it mid-version.
+const targetSchemaVersion = 32
 
 func runMigrateV1ToV2(
 	ctx context.Context,

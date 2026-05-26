@@ -193,7 +193,7 @@ func enrollAndPropose(t *testing.T, app *App) string {
 		t.Fatal("enroll failed")
 	}
 	propose := runByName(t, app, "worker", "proposal", "propose")
-	out, _, c := propose([]string{"--worker-id=W-1", "--candidate-path=/x/y", "--suggested-kind=coding", "--format=json"})
+	out, _, c := propose([]string{"--worker-id=W-1", "--candidate-path=/x/y", "--format=json"})
 	if c != ExitOK {
 		t.Fatalf("propose failed: %s", out)
 	}
@@ -297,7 +297,7 @@ func TestCLI_ProposalShow_Happy(t *testing.T) {
 func TestCLI_ProjectAdd_Happy(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	out, _, code := add([]string{"my-proj", "--kind=coding", "--format=json"})
+	out, _, code := add([]string{"my-proj", "--name=My Proj", "--format=json"})
 	if code != ExitOK {
 		t.Fatalf("code: %d err out: %s", code, out)
 	}
@@ -308,11 +308,11 @@ func TestCLI_ProjectAdd_Happy(t *testing.T) {
 	}
 }
 
-func TestCLI_ProjectAdd_DupSlug(t *testing.T) {
+func TestCLI_ProjectAdd_DupID(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding"})
-	_, errOut, code := add([]string{"p", "--kind=coding", "--format=json"})
+	_, _, _ = add([]string{"p", "--name=p"})
+	_, errOut, code := add([]string{"p", "--name=p", "--format=json"})
 	if code != ExitBusinessError {
 		t.Fatalf("code: %d", code)
 	}
@@ -341,7 +341,7 @@ func TestCLI_ProjectRemove_HasActiveDeps(t *testing.T) {
 func TestCLI_ProjectUpdate_VersionConflict(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding"})
+	_, _, _ = add([]string{"p", "--name=p"})
 	upd := runByName(t, app, "project", "update")
 	_, errOut, code := upd([]string{"p", "--name=Renamed", "--version=99"})
 	if code != ExitVersionConflict {
@@ -364,7 +364,7 @@ func TestCLI_ProjectUpdate_NoVersion(t *testing.T) {
 func TestCLI_ProjectUpdate_NoFields(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--kind=coding"})
+	_, _, _ = add([]string{"p", "--name=p"})
 	upd := runByName(t, app, "project", "update")
 	_, _, code := upd([]string{"p", "--version=1"})
 	if code != ExitUsage {
@@ -372,16 +372,16 @@ func TestCLI_ProjectUpdate_NoFields(t *testing.T) {
 	}
 }
 
-func TestCLI_ProjectList_FilterKind(t *testing.T) {
+func TestCLI_ProjectList_All(t *testing.T) {
 	app := newTestApp(t)
 	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"a", "--kind=coding"})
-	_, _, _ = add([]string{"b", "--kind=writing"})
+	_, _, _ = add([]string{"a", "--name=a"})
+	_, _, _ = add([]string{"b", "--name=b"})
 	list := runByName(t, app, "project", "list")
-	out, _, _ := list([]string{"--kind=coding", "--format=json"})
+	out, _, _ := list([]string{"--format=json"})
 	var arr []map[string]any
 	_ = json.Unmarshal([]byte(out), &arr)
-	if len(arr) != 1 {
+	if len(arr) != 2 {
 		t.Fatalf("got %d", len(arr))
 	}
 }
@@ -501,8 +501,6 @@ func TestMapDomainError_AllSentinels(t *testing.T) {
 		workforce.ErrProjectAlreadyExists,
 		workforce.ErrProjectVersionConflict,
 		workforce.ErrProjectHasActiveDeps,
-		workforce.ErrProjectInvalidSlug,
-		workforce.ErrProjectInvalidKind,
 		conversation.ErrConversationNotFound,
 		conversation.ErrConversationAlreadyExists,
 		conversation.ErrConversationClosed,

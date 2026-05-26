@@ -38,7 +38,7 @@ func TestPhase4_CLIHandlers_FullStack(t *testing.T) {
 	if _, _, code := runHandler(t, findCmd(app.WorkerCommands(), "enroll"), []string{"--worker-id=W-1"}); code != cli.ExitOK {
 		t.Fatalf("enroll: %d", code)
 	}
-	if _, _, code := runHandler(t, findCmd(app.ProjectCommands(), "add"), []string{"proj", "--name=Proj", "--kind=coding"}); code != cli.ExitOK {
+	if _, _, code := runHandler(t, findCmd(app.ProjectCommands(), "add"), []string{"--name=Proj", "proj"}); code != cli.ExitOK {
 		t.Fatalf("project add: %d", code)
 	}
 	// task create

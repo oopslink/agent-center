@@ -11,20 +11,21 @@ import type { Project } from './types';
 // previously imported it from `@/api/projects` keep working.
 export type { Project };
 
+// CreateProjectInput / UpdateProjectInput mirror the v2.5.5 backend
+// shape (handlers.go createProjectReq / updateProjectReq). id is
+// server-generated, tags is free-text (UI surfaces a small builtin
+// suggestion pool).
 export interface CreateProjectInput {
-  id: string;
   name: string;
-  kind?: string;
-  default_agent_cli?: string;
   description?: string;
+  tags?: string[];
 }
 
 export interface UpdateProjectInput {
   version: number;
   name?: string;
-  kind?: string;
-  default_agent_cli?: string;
   description?: string;
+  tags?: string[];
 }
 
 export interface WorkerMapping {

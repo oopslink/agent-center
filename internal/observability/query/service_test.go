@@ -178,7 +178,7 @@ func (e *qenv) seedConversation(t *testing.T, id string, kind conversation.Conve
 func (e *qenv) seedProject(t *testing.T, id, name string) *workforce.Project {
 	t.Helper()
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: workforce.ProjectID(id), Name: name, Kind: workforce.ProjectKind(""),
+		ID: workforce.ProjectID(id), Name: name,
 		CreatedByIdentityID: "user:test", CreatedAt: e.clk.Now(),
 	})
 	if err != nil {
@@ -525,8 +525,7 @@ func TestQuery_Proposals_FilterByWorker(t *testing.T) {
 	env := newQEnv(t)
 	p, err := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
 		ID: "P-1", WorkerID: "W-1", CandidatePath: "/tmp/a", SuggestedProjectID: "x",
-		SuggestedKind: workforce.ProjectKind(""),
-		ProposedAt:    env.clk.Now(),
+		ProposedAt: env.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)

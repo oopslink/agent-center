@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -28,15 +29,18 @@ func (r *ProjectRepo) Save(ctx context.Context, p *workforce.Project) error {
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO projects (
-		id, name, kind, default_agent_cli, description,
+		id, name, description, tags,
 		created_by_identity_id, created_at, updated_at, version
-	) VALUES (?,?,?,?,?,?,?,?,?)`
-	_, err := exec.ExecContext(ctx, stmt,
+	) VALUES (?,?,?,?,?,?,?,?)`
+	tagsJSON, err := marshalTags(p.Tags())
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, stmt,
 		string(p.ID()),
 		p.Name(),
-		nullString(string(p.Kind())),
-		nullString(p.DefaultAgentCLI()),
-		nullString(p.Description()),
+		p.Description(),
+		tagsJSON,
 		p.CreatedByIdentityID(),
 		p.CreatedAt().Format(time.RFC3339Nano),
 		p.UpdatedAt().Format(time.RFC3339Nano),
@@ -62,17 +66,14 @@ func (r *ProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*wo
 	return p, err
 }
 
-// FindAll lists all projects (optionally filtered by kind).
-func (r *ProjectRepo) FindAll(ctx context.Context, filter workforce.ProjectFilter) ([]*workforce.Project, error) {
+// FindAll lists all projects.
+//
+// v2.5.5 dropped the by-kind filter alongside ProjectKind; tag-based
+// filtering, when introduced, will read the JSON column at the
+// service layer or via a future projection table.
+func (r *ProjectRepo) FindAll(ctx context.Context, _ workforce.ProjectFilter) ([]*workforce.Project, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	q := projectSelect
-	var args []any
-	if filter.Kind != nil {
-		q += ` WHERE kind = ?`
-		args = append(args, string(*filter.Kind))
-	}
-	q += ` ORDER BY id`
-	rows, err := exec.QueryContext(ctx, q, args...)
+	rows, err := exec.QueryContext(ctx, projectSelect+` ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +95,6 @@ func (r *ProjectRepo) Update(ctx context.Context, id workforce.ProjectID, fields
 		return nil, errors.New("project repo: update has no changes")
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	// Load existing → apply via domain method → CAS UPDATE.
 	cur, err := r.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -105,13 +105,17 @@ func (r *ProjectRepo) Update(ctx context.Context, id workforce.ProjectID, fields
 	if err := cur.ApplyAndBumpVersion(fields, at); err != nil {
 		return nil, err
 	}
+	tagsJSON, err := marshalTags(cur.Tags())
+	if err != nil {
+		return nil, err
+	}
 	const stmt = `UPDATE projects
-		SET name = ?, kind = ?, default_agent_cli = ?, description = ?,
+		SET name = ?, description = ?, tags = ?,
 		    updated_at = ?, version = ?
 		WHERE id = ? AND version = ?`
 	res, err := exec.ExecContext(ctx, stmt,
-		cur.Name(), nullString(string(cur.Kind())), nullString(cur.DefaultAgentCLI()),
-		nullString(cur.Description()), cur.UpdatedAt().Format(time.RFC3339Nano), cur.Version(),
+		cur.Name(), cur.Description(), tagsJSON,
+		cur.UpdatedAt().Format(time.RFC3339Nano), cur.Version(),
 		string(id), version,
 	)
 	if err != nil {
@@ -143,21 +147,24 @@ func (r *ProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error 
 	return nil
 }
 
-const projectSelect = `SELECT id, name, kind, default_agent_cli, description,
+const projectSelect = `SELECT id, name, description, tags,
 	created_by_identity_id, created_at, updated_at, version
 	FROM projects`
 
 func scanProject(scan func(...any) error) (*workforce.Project, error) {
 	var (
-		id, name                           string
-		kind                               sql.NullString
-		defaultAgentCLI, description       sql.NullString
-		createdByIdentityID                string
-		createdAt, updatedAt               string
-		version                            int
+		id, name, description string
+		tagsJSON              string
+		createdByIdentityID   string
+		createdAt, updatedAt  string
+		version               int
 	)
-	if err := scan(&id, &name, &kind, &defaultAgentCLI, &description,
+	if err := scan(&id, &name, &description, &tagsJSON,
 		&createdByIdentityID, &createdAt, &updatedAt, &version); err != nil {
+		return nil, err
+	}
+	tags, err := unmarshalTags(tagsJSON)
+	if err != nil {
 		return nil, err
 	}
 	created, err := time.Parse(time.RFC3339Nano, createdAt)
@@ -171,12 +178,33 @@ func scanProject(scan func(...any) error) (*workforce.Project, error) {
 	return workforce.RehydrateProject(workforce.RehydrateProjectInput{
 		ID:                  workforce.ProjectID(id),
 		Name:                name,
-		Kind:                workforce.ProjectKind(kind.String),
-		DefaultAgentCLI:     defaultAgentCLI.String,
-		Description:         description.String,
+		Description:         description,
+		Tags:                tags,
 		CreatedByIdentityID: createdByIdentityID,
 		CreatedAt:           created,
 		UpdatedAt:           updated,
 		Version:             version,
 	})
+}
+
+func marshalTags(tags []string) (string, error) {
+	if len(tags) == 0 {
+		return "[]", nil
+	}
+	b, err := json.Marshal(tags)
+	if err != nil {
+		return "", fmt.Errorf("marshal tags: %w", err)
+	}
+	return string(b), nil
+}
+
+func unmarshalTags(s string) ([]string, error) {
+	if s == "" || s == "[]" {
+		return nil, nil
+	}
+	var out []string
+	if err := json.Unmarshal([]byte(s), &out); err != nil {
+		return nil, fmt.Errorf("unmarshal tags: %w", err)
+	}
+	return out, nil
 }

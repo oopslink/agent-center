@@ -122,9 +122,13 @@ type WorkerProjectProposalRepository interface {
 }
 
 // ProjectFilter narrows ProjectRepository.FindAll.
-type ProjectFilter struct {
-	Kind *ProjectKind
-}
+//
+// v2.5.5 dropped the Kind filter along with the ProjectKind type;
+// projects are now organised by free-text tags handled in the read
+// path / Web Console, not at the DB level. Left as a struct for forward
+// compat — future filters (e.g. by tag, by recency) will add fields
+// here.
+type ProjectFilter struct{}
 
 // ProjectRepository (workforce/00 § 5.4).
 type ProjectRepository interface {

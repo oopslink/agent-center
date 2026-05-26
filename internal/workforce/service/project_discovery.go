@@ -32,12 +32,16 @@ func NewProjectDiscoveryService(repo workforce.ProjectRepository, sink *observab
 }
 
 // EnsureProjectInput captures the args.
+//
+// v2.5.5: when ID is empty, a server-generated id is minted via
+// workforce.NewProjectID. When ID is non-empty (existing project
+// being claimed by Accept), the project is looked up; if found, the
+// existing row is returned untouched.
 type EnsureProjectInput struct {
-	ID             workforce.ProjectID
-	Name           string
-	Kind           workforce.ProjectKind
-	CreatedBy      observability.Actor
-	DefaultAgentCLI string
+	ID        workforce.ProjectID
+	Name      string
+	Tags      []string
+	CreatedBy observability.Actor
 }
 
 // EnsureProjectResult tracks whether the project was created (true) or
@@ -61,19 +65,27 @@ func (s *ProjectDiscoveryService) EnsureProject(ctx context.Context, in EnsurePr
 	if err := in.CreatedBy.Validate(); err != nil {
 		return EnsureProjectResult{}, err
 	}
-	existing, err := s.repo.FindByID(ctx, in.ID)
-	if err == nil {
-		return EnsureProjectResult{Project: existing, Created: false}, nil
+	if in.ID != "" {
+		existing, err := s.repo.FindByID(ctx, in.ID)
+		if err == nil {
+			return EnsureProjectResult{Project: existing, Created: false}, nil
+		}
+		if !errors.Is(err, workforce.ErrProjectNotFound) {
+			return EnsureProjectResult{}, err
+		}
 	}
-	if !errors.Is(err, workforce.ErrProjectNotFound) {
-		return EnsureProjectResult{}, err
+	id := in.ID
+	if id == "" {
+		gen, err := workforce.NewProjectID()
+		if err != nil {
+			return EnsureProjectResult{}, fmt.Errorf("EnsureProject: generate id: %w", err)
+		}
+		id = gen
 	}
-	// Create new project.
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID:                  in.ID,
+		ID:                  id,
 		Name:                in.Name,
-		Kind:                in.Kind,
-		DefaultAgentCLI:     in.DefaultAgentCLI,
+		Tags:                in.Tags,
 		CreatedByIdentityID: string(in.CreatedBy),
 		CreatedAt:           s.clock.Now(),
 	})
@@ -90,7 +102,7 @@ func (s *ProjectDiscoveryService) EnsureProject(ctx context.Context, in EnsurePr
 		Payload: map[string]any{
 			"project_id": string(p.ID()),
 			"name":       p.Name(),
-			"kind":       string(p.Kind()),
+			"tags":       p.Tags(),
 		},
 	})
 	if err != nil {

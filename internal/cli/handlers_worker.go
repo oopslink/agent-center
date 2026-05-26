@@ -365,9 +365,9 @@ func (a *App) proposalShowHandler(fs *flag.FlagSet) Handler {
 			b, _ := json.Marshal(proposalDTOToMap(p))
 			writeOut(out, string(b))
 		} else {
-			fmt.Fprintf(out, "Proposal %s\n  worker: %s\n  status: %s\n  candidate_path: %s\n  suggested: %s/%s\n",
+			fmt.Fprintf(out, "Proposal %s\n  worker: %s\n  status: %s\n  candidate_path: %s\n  suggested: %s\n",
 				p.ProposalID, p.WorkerID, p.Status, p.CandidatePath,
-				p.SuggestedProjectID, p.SuggestedKind)
+				p.SuggestedProjectID)
 		}
 		return ExitOK
 	}
@@ -376,8 +376,7 @@ func (a *App) proposalShowHandler(fs *flag.FlagSet) Handler {
 func (a *App) proposalProposeHandler(fs *flag.FlagSet) Handler {
 	workerID := fs.String("worker-id", "", "worker id")
 	candidatePath := fs.String("candidate-path", "", "candidate filesystem path")
-	suggestedID := fs.String("suggested-project-id", "", "suggested project slug (default = path basename)")
-	suggestedKind := fs.String("suggested-kind", "", "suggested kind")
+	suggestedID := fs.String("suggested-project-id", "", "suggested project id (default = path basename)")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *workerID == "" || *candidatePath == "" {
@@ -387,11 +386,6 @@ func (a *App) proposalProposeHandler(fs *flag.FlagSet) Handler {
 		sugID := *suggestedID
 		if sugID == "" {
 			sugID = pathBasename(*candidatePath)
-		}
-		kind := workforce.ProjectKind(*suggestedKind)
-		if !kind.IsValid() {
-			return PrintError(errw, *format, "usage_error",
-				"invalid --suggested-kind", ExitUsage)
 		}
 		var (
 			propID        string
@@ -403,7 +397,6 @@ func (a *App) proposalProposeHandler(fs *flag.FlagSet) Handler {
 				WorkerID:           *workerID,
 				CandidatePath:      *candidatePath,
 				SuggestedProjectID: sugID,
-				SuggestedKind:      string(kind),
 			})
 			if err != nil {
 				return HandleClientError(errw, *format, err)
@@ -414,7 +407,6 @@ func (a *App) proposalProposeHandler(fs *flag.FlagSet) Handler {
 				WorkerID:           workforce.WorkerID(*workerID),
 				CandidatePath:      *candidatePath,
 				SuggestedProjectID: workforce.ProjectID(sugID),
-				SuggestedKind:      kind,
 				Actor:              observability.Actor("worker:" + *workerID),
 			})
 			if err != nil {
@@ -442,15 +434,10 @@ func (a *App) proposalProposeHandler(fs *flag.FlagSet) Handler {
 
 func (a *App) proposalAcceptHandler(fs *flag.FlagSet) Handler {
 	projectID := fs.String("project-id", "", "override target project id")
-	kind := fs.String("kind", "", "override project kind")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
 			return PrintError(errw, *format, "usage_error", "proposal accept <id>", ExitUsage)
-		}
-		k := workforce.ProjectKind(*kind)
-		if !k.IsValid() {
-			return PrintError(errw, *format, "usage_error", "invalid --kind", ExitUsage)
 		}
 		var (
 			propID, mappingID, projID string
@@ -460,7 +447,6 @@ func (a *App) proposalAcceptHandler(fs *flag.FlagSet) Handler {
 			res, err := a.Client.ProposalAccept(ctx, ProposalAcceptRequest{
 				ProposalID:        args[0],
 				OverrideProjectID: *projectID,
-				OverrideKind:      string(k),
 			})
 			if err != nil {
 				return HandleClientError(errw, *format, err)
@@ -470,7 +456,6 @@ func (a *App) proposalAcceptHandler(fs *flag.FlagSet) Handler {
 			res, err := a.AcceptanceSvc.Accept(ctx, wfservice.AcceptCommand{
 				ProposalID:        workforce.ProposalID(args[0]),
 				OverrideProjectID: workforce.ProjectID(*projectID),
-				OverrideKind:      k,
 				Actor:             a.DefaultActor(),
 			})
 			if err != nil {
@@ -550,7 +535,6 @@ func proposalDTOToMap(p ProposalDTO) map[string]any {
 		"status":               p.Status,
 		"candidate_path":       p.CandidatePath,
 		"suggested_project_id": p.SuggestedProjectID,
-		"suggested_kind":       p.SuggestedKind,
 		"version":              p.Version,
 	}
 }
@@ -564,7 +548,6 @@ func proposalToDTO(p *workforce.WorkerProjectProposal) ProposalDTO {
 		Status:             string(p.Status()),
 		CandidatePath:      p.CandidatePath(),
 		SuggestedProjectID: string(p.SuggestedProjectID()),
-		SuggestedKind:      string(p.SuggestedKind()),
 		Version:            p.Version(),
 	}
 }

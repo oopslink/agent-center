@@ -247,7 +247,7 @@ func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 	})
 	_ = app.IssueRepo.Save(context.Background(), issue)
 	proj, _ := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p", Name: "P", Kind: workforce.ProjectKind(""), CreatedByIdentityID: "user:t", CreatedAt: time.Now(),
+		ID: "p", Name: "P", CreatedByIdentityID: "user:t", CreatedAt: time.Now(),
 	})
 	_ = app.ProjectRepo.Save(context.Background(), proj)
 

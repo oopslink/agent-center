@@ -320,10 +320,14 @@ func (s *Service) inspectProject(ctx context.Context, id string) (InspectResult,
 	if err != nil {
 		return InspectResult{}, mapNotFound(err)
 	}
+	tags := p.Tags()
+	if tags == nil {
+		tags = []string{}
+	}
 	out := map[string]any{
 		"id":          string(p.ID()),
 		"name":        p.Name(),
-		"kind":        string(p.Kind()),
+		"tags":        tags,
 		"description": p.Description(),
 		"version":     p.Version(),
 		"created_at":  p.CreatedAt().UTC().Format(time.RFC3339Nano),

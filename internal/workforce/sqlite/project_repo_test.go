@@ -13,19 +13,20 @@ import (
 func TestProjectRepo_SaveAndFindByID(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	p := newProject(t, "agent-center")
+	p := newProject(t, "proj-aabb0001")
 	if err := repo.Save(context.Background(), p); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	got, err := repo.FindByID(context.Background(), "agent-center")
+	got, err := repo.FindByID(context.Background(), "proj-aabb0001")
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
 	}
-	if got.ID() != "agent-center" {
+	if got.ID() != "proj-aabb0001" {
 		t.Fatal()
 	}
-	if got.Kind() != workforce.ProjectKindCoding {
-		t.Fatal()
+	tags := got.Tags()
+	if len(tags) != 1 || tags[0] != "coding" {
+		t.Fatalf("tags = %v", tags)
 	}
 	if got.Version() != 1 {
 		t.Fatal()
@@ -35,8 +36,8 @@ func TestProjectRepo_SaveAndFindByID(t *testing.T) {
 func TestProjectRepo_Save_Duplicate(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	_ = repo.Save(context.Background(), newProject(t, "p"))
-	err := repo.Save(context.Background(), newProject(t, "p"))
+	_ = repo.Save(context.Background(), newProject(t, "proj-aabb0002"))
+	err := repo.Save(context.Background(), newProject(t, "proj-aabb0002"))
 	if !errors.Is(err, workforce.ErrProjectAlreadyExists) {
 		t.Fatalf("got %v", err)
 	}
@@ -45,7 +46,7 @@ func TestProjectRepo_Save_Duplicate(t *testing.T) {
 func TestProjectRepo_FindByID_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	_, err := repo.FindByID(context.Background(), "nope")
+	_, err := repo.FindByID(context.Background(), "proj-99999999")
 	if !errors.Is(err, workforce.ErrProjectNotFound) {
 		t.Fatalf("got %v", err)
 	}
@@ -54,9 +55,9 @@ func TestProjectRepo_FindByID_NotFound(t *testing.T) {
 func TestProjectRepo_Update_Happy(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	_ = repo.Save(context.Background(), newProject(t, "p"))
+	_ = repo.Save(context.Background(), newProject(t, "proj-aabb0003"))
 	newName := "Renamed"
-	got, err := repo.Update(context.Background(), "p",
+	got, err := repo.Update(context.Background(), "proj-aabb0003",
 		workforce.ProjectUpdateFields{Name: &newName}, 1, time.Now())
 	if err != nil {
 		t.Fatalf("Update: %v", err)
@@ -69,12 +70,28 @@ func TestProjectRepo_Update_Happy(t *testing.T) {
 	}
 }
 
+func TestProjectRepo_Update_Tags(t *testing.T) {
+	db := openTestDB(t)
+	repo := NewProjectRepo(db)
+	_ = repo.Save(context.Background(), newProject(t, "proj-aabb0004"))
+	newTags := []string{"ops", "docs"}
+	got, err := repo.Update(context.Background(), "proj-aabb0004",
+		workforce.ProjectUpdateFields{Tags: &newTags}, 1, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := got.Tags()
+	if len(tags) != 2 || tags[0] != "ops" || tags[1] != "docs" {
+		t.Fatalf("tags = %v", tags)
+	}
+}
+
 func TestProjectRepo_Update_VersionConflict(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	_ = repo.Save(context.Background(), newProject(t, "p"))
+	_ = repo.Save(context.Background(), newProject(t, "proj-aabb0005"))
 	newName := "Renamed"
-	_, err := repo.Update(context.Background(), "p",
+	_, err := repo.Update(context.Background(), "proj-aabb0005",
 		workforce.ProjectUpdateFields{Name: &newName}, 99, time.Now())
 	if !errors.Is(err, workforce.ErrProjectVersionConflict) {
 		t.Fatalf("got %v", err)
@@ -85,7 +102,7 @@ func TestProjectRepo_Update_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
 	n := "x"
-	_, err := repo.Update(context.Background(), "nope",
+	_, err := repo.Update(context.Background(), "proj-99999999",
 		workforce.ProjectUpdateFields{Name: &n}, 1, time.Now())
 	if !errors.Is(err, workforce.ErrProjectNotFound) {
 		t.Fatalf("got %v", err)
@@ -95,8 +112,8 @@ func TestProjectRepo_Update_NotFound(t *testing.T) {
 func TestProjectRepo_Update_NoChanges(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	_ = repo.Save(context.Background(), newProject(t, "p"))
-	_, err := repo.Update(context.Background(), "p",
+	_ = repo.Save(context.Background(), newProject(t, "proj-aabb0006"))
+	_, err := repo.Update(context.Background(), "proj-aabb0006",
 		workforce.ProjectUpdateFields{}, 1, time.Now())
 	if err == nil {
 		t.Fatal("expected error")
@@ -106,11 +123,11 @@ func TestProjectRepo_Update_NoChanges(t *testing.T) {
 func TestProjectRepo_Delete_Happy(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	_ = repo.Save(context.Background(), newProject(t, "p"))
-	if err := repo.Delete(context.Background(), "p"); err != nil {
+	_ = repo.Save(context.Background(), newProject(t, "proj-aabb0007"))
+	if err := repo.Delete(context.Background(), "proj-aabb0007"); err != nil {
 		t.Fatal(err)
 	}
-	_, err := repo.FindByID(context.Background(), "p")
+	_, err := repo.FindByID(context.Background(), "proj-aabb0007")
 	if !errors.Is(err, workforce.ErrProjectNotFound) {
 		t.Fatalf("got %v", err)
 	}
@@ -119,7 +136,7 @@ func TestProjectRepo_Delete_Happy(t *testing.T) {
 func TestProjectRepo_Delete_NotFound(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	err := repo.Delete(context.Background(), "nope")
+	err := repo.Delete(context.Background(), "proj-99999999")
 	if !errors.Is(err, workforce.ErrProjectNotFound) {
 		t.Fatalf("got %v", err)
 	}
@@ -135,18 +152,16 @@ func TestProjectRepo_Delete_RowOnly_NoFKPrecondition(t *testing.T) {
 	workerRepo := NewWorkerRepo(db)
 	mapRepo := NewMappingRepo(db)
 	_ = workerRepo.Save(context.Background(), newWorker(t, "W-1"))
-	_ = projRepo.Save(context.Background(), newProject(t, "p"))
+	_ = projRepo.Save(context.Background(), newProject(t, "proj-aabb0008"))
 	m, _ := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
 		ID:       workforce.MappingID(idgen.MustNewULID()),
-		WorkerID: "W-1", ProjectID: "p", BasePath: "/x", AddedAt: time.Now(),
+		WorkerID: "W-1", ProjectID: "proj-aabb0008", BasePath: "/x", AddedAt: time.Now(),
 	})
 	_ = mapRepo.Save(context.Background(), m)
-	// Delete succeeds even with mapping still pointing at the project
-	// (no FK constraint). Service-layer guards this in production.
-	if err := projRepo.Delete(context.Background(), "p"); err != nil {
+	if err := projRepo.Delete(context.Background(), "proj-aabb0008"); err != nil {
 		t.Fatalf("Delete should succeed without FK: %v", err)
 	}
-	if _, err := projRepo.FindByID(context.Background(), "p"); !errors.Is(err, workforce.ErrProjectNotFound) {
+	if _, err := projRepo.FindByID(context.Background(), "proj-aabb0008"); !errors.Is(err, workforce.ErrProjectNotFound) {
 		t.Fatalf("project should be gone: %v", err)
 	}
 }
@@ -154,7 +169,7 @@ func TestProjectRepo_Delete_RowOnly_NoFKPrecondition(t *testing.T) {
 func TestProjectRepo_FindAll(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewProjectRepo(db)
-	for _, id := range []workforce.ProjectID{"a-proj", "b-proj"} {
+	for _, id := range []workforce.ProjectID{"proj-aabbcc01", "proj-aabbcc02"} {
 		_ = repo.Save(context.Background(), newProject(t, id))
 	}
 	got, err := repo.FindAll(context.Background(), workforce.ProjectFilter{})
@@ -163,24 +178,6 @@ func TestProjectRepo_FindAll(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("FindAll: %d", len(got))
-	}
-}
-
-func TestProjectRepo_FindAll_FilterByKind(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewProjectRepo(db)
-	for _, id := range []workforce.ProjectID{"a-proj", "b-proj"} {
-		_ = repo.Save(context.Background(), newProject(t, id))
-	}
-	wp, _ := workforce.NewProject(workforce.NewProjectInput{
-		ID: "writing-proj", Name: "W", Kind: workforce.ProjectKindWriting,
-		CreatedByIdentityID: "user:x", CreatedAt: time.Now(),
-	})
-	_ = repo.Save(context.Background(), wp)
-	kind := workforce.ProjectKindCoding
-	got, _ := repo.FindAll(context.Background(), workforce.ProjectFilter{Kind: &kind})
-	if len(got) != 2 {
-		t.Fatalf("expected 2 coding projects, got %d", len(got))
 	}
 }
 

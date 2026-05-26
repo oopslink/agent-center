@@ -13,8 +13,7 @@ func newTestProposal(t *testing.T) *WorkerProjectProposal {
 		ID:                 "PR-1",
 		WorkerID:           "W-1",
 		CandidatePath:      "/home/u/agent-center",
-		SuggestedProjectID: "agent-center",
-		SuggestedKind:      ProjectKindCoding,
+		SuggestedProjectID: "proj-cafefade",
 		CandidateMetadata: CandidateMetadata{
 			GitRemoteURL: "https://github.com/x/x",
 			CommitCount:  100,
@@ -46,27 +45,12 @@ func TestProposal_New_BadInputs(t *testing.T) {
 		{ID: "PR-1"},
 		{ID: "PR-1", WorkerID: "W-1"},
 		{ID: "PR-1", WorkerID: "W-1", CandidatePath: "/x"},
-		{ID: "PR-1", WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "p", SuggestedKind: "bogus"},
 		{ID: "PR-1", WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "p"}, // missing ProposedAt
 	}
 	for i, in := range cases {
 		if _, err := NewWorkerProjectProposal(in); err == nil {
 			t.Fatalf("case %d: expected error", i)
 		}
-	}
-}
-
-func TestProposal_New_AllowsEmptyKind(t *testing.T) {
-	_, err := NewWorkerProjectProposal(NewProposalInput{
-		ID:                 "PR-1",
-		WorkerID:           "W-1",
-		CandidatePath:      "/x",
-		SuggestedProjectID: "p",
-		SuggestedKind:      "", // null kind OK
-		ProposedAt:         time.Now(),
-	})
-	if err != nil {
-		t.Fatalf("nil kind should be allowed: %v", err)
 	}
 }
 

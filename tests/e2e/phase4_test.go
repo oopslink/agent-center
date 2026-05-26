@@ -27,7 +27,7 @@ func TestE2EP4_Inspect_Task_Roundtrip(t *testing.T) {
 	h := newHarness(t)
 	// Seed: enroll worker, register a project, create a task.
 	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("project", "add", "proj", "--name=proj", "--kind=coding")
+	_, _, _ = h.run("project", "add", "--name=proj", "proj")
 	_, _, code := h.run("task", "create", "proj", "build foo")
 	if code != 0 {
 		t.Fatalf("task create: %d", code)
@@ -78,7 +78,7 @@ func TestE2EP4_Inspect_UnknownKind_ExitUsage(t *testing.T) {
 func TestE2EP4_Query_Events_PrefixMatch(t *testing.T) {
 	h := newHarness(t)
 	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("project", "add", "proj", "--name=proj", "--kind=coding")
+	_, _, _ = h.run("project", "add", "--name=proj", "proj")
 	_, _, _ = h.run("task", "create", "proj", "title 1")
 	// Pull events
 	out, _, code := h.run("query", "events", "--type=task.", "--format=json")

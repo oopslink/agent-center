@@ -38,12 +38,12 @@ func newWorker(t *testing.T, id workforce.WorkerID) *workforce.Worker {
 	return w
 }
 
-func newProject(t *testing.T, slug workforce.ProjectID) *workforce.Project {
+func newProject(t *testing.T, id workforce.ProjectID) *workforce.Project {
 	t.Helper()
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID:                  slug,
+		ID:                  id,
 		Name:                "Test Project",
-		Kind:                workforce.ProjectKindCoding,
+		Tags:                []string{"coding"},
 		CreatedByIdentityID: "user:hayang",
 		CreatedAt:           time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC),
 	})
@@ -59,8 +59,7 @@ func newProposal(t *testing.T, workerID workforce.WorkerID, candidatePath string
 		ID:                 workforce.ProposalID(idgen.MustNewULID()),
 		WorkerID:           workerID,
 		CandidatePath:      candidatePath,
-		SuggestedProjectID: "test-proj",
-		SuggestedKind:      workforce.ProjectKindCoding,
+		SuggestedProjectID: "proj-deadbeef",
 		ProposedAt:         time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC),
 	})
 	if err != nil {

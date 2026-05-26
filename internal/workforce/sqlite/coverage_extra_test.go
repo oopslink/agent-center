@@ -774,9 +774,9 @@ func TestProjectRepo_Scan_BadUpdatedAt(t *testing.T) {
 func TestProposalRepo_Scan_BadCreatedAt(t *testing.T) {
 	db := openTestDB(t)
 	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_proposals
-		(id, worker_id, candidate_path, suggested_project_id, suggested_kind, status,
+		(id, worker_id, candidate_path, suggested_project_id, status,
 		 proposed_at, created_at, updated_at, version)
-		VALUES ('PR-BC', 'W-1', '/x', 'p', 'coding', 'pending',
+		VALUES ('PR-BC', 'W-1', '/x', 'p', 'pending',
 		        '2026-05-22T00:00:00Z', 'not-a-time', '2026-05-22T00:00:00Z', 1)`)
 	if err != nil {
 		t.Fatal(err)
@@ -790,9 +790,9 @@ func TestProposalRepo_Scan_BadCreatedAt(t *testing.T) {
 func TestProposalRepo_Scan_BadProposedAt(t *testing.T) {
 	db := openTestDB(t)
 	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_proposals
-		(id, worker_id, candidate_path, suggested_project_id, suggested_kind, status,
+		(id, worker_id, candidate_path, suggested_project_id, status,
 		 proposed_at, created_at, updated_at, version)
-		VALUES ('PR-BF', 'W-1', '/x', 'p', 'coding', 'pending',
+		VALUES ('PR-BF', 'W-1', '/x', 'p', 'pending',
 		        'not-a-time', '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', 1)`)
 	if err != nil {
 		t.Fatal(err)

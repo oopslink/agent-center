@@ -35,21 +35,19 @@ func TestWorkerGetters_AllFields(t *testing.T) {
 
 func TestProjectGetters_AllFields(t *testing.T) {
 	p, _ := NewProject(NewProjectInput{
-		ID: "p-1", Name: "P", Kind: ProjectKindCoding,
-		DefaultAgentCLI: "claude-code", Description: "desc",
+		ID: "proj-aabbccdd", Name: "P",
+		Description: "desc", Tags: []string{"coding", "ops"},
 		CreatedByIdentityID: "user:hayang", CreatedAt: time.Now(),
 	})
-	if p.ID() != "p-1" {
+	if p.ID() != "proj-aabbccdd" {
 		t.Fatal()
 	}
 	if p.Name() != "P" {
 		t.Fatal()
 	}
-	if p.Kind() != ProjectKindCoding {
-		t.Fatal()
-	}
-	if p.DefaultAgentCLI() != "claude-code" {
-		t.Fatal()
+	tags := p.Tags()
+	if len(tags) != 2 || tags[0] != "coding" || tags[1] != "ops" {
+		t.Fatalf("tags = %v", tags)
 	}
 	if p.Description() != "desc" {
 		t.Fatal()
@@ -107,9 +105,9 @@ func TestMappingGetters_AllFields(t *testing.T) {
 func TestProposalGetters_AllFields(t *testing.T) {
 	p, _ := NewWorkerProjectProposal(NewProposalInput{
 		ID: "PR-1", WorkerID: "W-1", CandidatePath: "/x",
-		SuggestedProjectID: "p", SuggestedKind: ProjectKindCoding,
-		CandidateMetadata: CandidateMetadata{GitRemoteURL: "url"},
-		ProposedAt:        time.Now(),
+		SuggestedProjectID: "p",
+		CandidateMetadata:  CandidateMetadata{GitRemoteURL: "url"},
+		ProposedAt:         time.Now(),
 	})
 	if p.ID() != "PR-1" {
 		t.Fatal()
@@ -121,9 +119,6 @@ func TestProposalGetters_AllFields(t *testing.T) {
 		t.Fatal()
 	}
 	if p.SuggestedProjectID() != "p" {
-		t.Fatal()
-	}
-	if p.SuggestedKind() != ProjectKindCoding {
 		t.Fatal()
 	}
 	if p.CandidateMetadata().GitRemoteURL != "url" {

@@ -37,16 +37,15 @@ func (r *ProposalRepo) Save(ctx context.Context, p *workforce.WorkerProjectPropo
 		return fmt.Errorf("marshal candidate_metadata: %w", err)
 	}
 	const stmt = `INSERT INTO worker_project_proposals (
-		id, worker_id, candidate_path, suggested_project_id, suggested_kind,
+		id, worker_id, candidate_path, suggested_project_id,
 		candidate_metadata, status, proposed_at, reviewed_at,
 		reviewed_by_identity_id, resulting_mapping_id, created_at, updated_at, version
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(p.ID()),
 		string(p.WorkerID()),
 		p.CandidatePath(),
 		string(p.SuggestedProjectID()),
-		nullString(string(p.SuggestedKind())),
 		string(meta),
 		string(p.Status()),
 		p.ProposedAt().Format(time.RFC3339Nano),
@@ -183,7 +182,7 @@ func (r *ProposalRepo) FindByCandidatePath(ctx context.Context, workerID workfor
 	return p, err
 }
 
-const proposalSelect = `SELECT id, worker_id, candidate_path, suggested_project_id, suggested_kind,
+const proposalSelect = `SELECT id, worker_id, candidate_path, suggested_project_id,
 	candidate_metadata, status, proposed_at, reviewed_at, reviewed_by_identity_id,
 	resulting_mapping_id, created_at, updated_at, version
 	FROM worker_project_proposals`
@@ -203,7 +202,6 @@ func scanProposals(rows *sql.Rows) ([]*workforce.WorkerProjectProposal, error) {
 func scanProposal(scan func(...any) error) (*workforce.WorkerProjectProposal, error) {
 	var (
 		id, workerID, candidatePath, suggestedProjectID string
-		suggestedKind                                   sql.NullString
 		metaJSON                                        string
 		status                                          string
 		proposedAt                                      string
@@ -212,7 +210,7 @@ func scanProposal(scan func(...any) error) (*workforce.WorkerProjectProposal, er
 		createdAt, updatedAt                            string
 		version                                         int
 	)
-	if err := scan(&id, &workerID, &candidatePath, &suggestedProjectID, &suggestedKind,
+	if err := scan(&id, &workerID, &candidatePath, &suggestedProjectID,
 		&metaJSON, &status, &proposedAt, &reviewedAt, &reviewedBy, &resultingMappingID,
 		&createdAt, &updatedAt, &version); err != nil {
 		return nil, err
@@ -244,7 +242,6 @@ func scanProposal(scan func(...any) error) (*workforce.WorkerProjectProposal, er
 		WorkerID:             workforce.WorkerID(workerID),
 		CandidatePath:        candidatePath,
 		SuggestedProjectID:   workforce.ProjectID(suggestedProjectID),
-		SuggestedKind:        workforce.ProjectKind(suggestedKind.String),
 		CandidateMetadata:    meta,
 		Status:               workforce.ProposalStatus(status),
 		ProposedAt:           proposed,

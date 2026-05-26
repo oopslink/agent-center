@@ -340,7 +340,6 @@ func TestEnsureProject_New(t *testing.T) {
 		res, err = disc.EnsureProject(ctx, EnsureProjectInput{
 			ID:        "x",
 			Name:      "X",
-			Kind:      workforce.ProjectKindCoding,
 			CreatedBy: "user:hayang",
 		})
 		return err
@@ -370,7 +369,6 @@ func TestEnsureProject_AlreadyExists(t *testing.T) {
 		res, err = disc.EnsureProject(ctx, EnsureProjectInput{
 			ID:        "x",
 			Name:      "X",
-			Kind:      workforce.ProjectKindCoding,
 			CreatedBy: "user:hayang",
 		})
 		return err
@@ -412,7 +410,7 @@ func TestEnsureProject_BadActor(t *testing.T) {
 	}
 }
 
-func TestEnsureProject_BadSlug(t *testing.T) {
+func TestEnsureProject_BadID(t *testing.T) {
 	s := setupSuite(t)
 	disc := NewProjectDiscoveryService(s.projectRepo, s.sink, s.clock)
 	err := persistence.RunInTx(context.Background(), s.db, func(ctx context.Context) error {
@@ -423,8 +421,8 @@ func TestEnsureProject_BadSlug(t *testing.T) {
 		})
 		return e
 	})
-	if !errors.Is(err, workforce.ErrProjectInvalidSlug) {
-		t.Fatalf("got %v", err)
+	if err == nil {
+		t.Fatal("expected validation error for malformed id")
 	}
 }
 
@@ -447,7 +445,6 @@ func TestPropose_Happy(t *testing.T) {
 		WorkerID:           "W-1",
 		CandidatePath:      "/x/y",
 		SuggestedProjectID: "agent-center",
-		SuggestedKind:      workforce.ProjectKindCoding,
 		Actor:              "worker:W-1",
 	})
 	if err != nil {
@@ -466,8 +463,7 @@ func TestPropose_Dedup(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	cmd := ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "p",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "p", Actor: "worker:W-1",
 	}
 	res1, _ := svc.Propose(context.Background(), cmd)
 	res2, _ := svc.Propose(context.Background(), cmd)
@@ -505,8 +501,7 @@ func TestAccept_NewProject(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	proposeRes, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x/y", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x/y", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	res, err := svc.Accept(context.Background(), AcceptCommand{
 		ProposalID: proposeRes.ProposalID,
@@ -548,14 +543,13 @@ func TestAccept_ExistingProject(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	// Pre-create project.
 	p, _ := workforce.NewProject(workforce.NewProjectInput{
-		ID: "ac", Name: "AC", Kind: workforce.ProjectKindCoding,
+		ID: "ac", Name: "AC",
 		CreatedByIdentityID: "user:x", CreatedAt: s.clock.Now(),
 	})
 	_ = s.projectRepo.Save(context.Background(), p)
 	svc := acceptanceService(s)
 	proposeRes, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	res, err := svc.Accept(context.Background(), AcceptCommand{
 		ProposalID: proposeRes.ProposalID,
@@ -584,8 +578,7 @@ func TestAccept_AlreadyAccepted(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	_, _ = svc.Accept(context.Background(), AcceptCommand{ProposalID: pr.ProposalID, Actor: "user:x"})
 	_, err := svc.Accept(context.Background(), AcceptCommand{ProposalID: pr.ProposalID, Actor: "user:x"})
@@ -599,8 +592,7 @@ func TestAccept_RollsBackOnMappingFailure(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	// Pre-populate active mapping → second Accept attempt collides on
 	// (worker, project) pre-check, all writes roll back.
@@ -614,7 +606,7 @@ func TestAccept_RollsBackOnMappingFailure(t *testing.T) {
 	})
 	// Pre-create project so mapping FK passes.
 	p, _ := workforce.NewProject(workforce.NewProjectInput{
-		ID: "ac", Name: "AC", Kind: workforce.ProjectKindCoding,
+		ID: "ac", Name: "AC",
 		CreatedByIdentityID: "user:x", CreatedAt: s.clock.Now(),
 	})
 	_ = s.projectRepo.Save(context.Background(), p)
@@ -642,8 +634,7 @@ func TestAccept_OverrideProjectID(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "suggested",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "suggested", Actor: "worker:W-1",
 	})
 	res, err := svc.Accept(context.Background(), AcceptCommand{
 		ProposalID:        pr.ProposalID,
@@ -667,8 +658,7 @@ func TestIgnore_Happy(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	_, err := svc.Ignore(context.Background(), IgnoreCommand{
 		ProposalID: pr.ProposalID,
@@ -688,8 +678,7 @@ func TestUnignore_Happy(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	_, _ = svc.Ignore(context.Background(), IgnoreCommand{ProposalID: pr.ProposalID, Actor: "user:x"})
 	_, err := svc.Unignore(context.Background(), IgnoreCommand{ProposalID: pr.ProposalID, Actor: "user:x"})
@@ -707,8 +696,7 @@ func TestIgnore_NotPending(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	_, _ = svc.Accept(context.Background(), AcceptCommand{ProposalID: pr.ProposalID, Actor: "user:x"})
 	_, err := svc.Ignore(context.Background(), IgnoreCommand{ProposalID: pr.ProposalID, Actor: "user:x"})
@@ -722,8 +710,7 @@ func TestUnignore_NotIgnored(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-1"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	_, err := svc.Unignore(context.Background(), IgnoreCommand{ProposalID: pr.ProposalID, Actor: "user:x"})
 	if !errors.Is(err, workforce.ErrProposalInvalidTransition) {
@@ -739,7 +726,7 @@ func TestProjectCRUD_Add(t *testing.T) {
 	s := setupSuite(t)
 	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
 	res, err := svc.Add(context.Background(), AddCommand{
-		ID: "p", Name: "P", Kind: workforce.ProjectKindCoding, Actor: "user:hayang",
+		ID: "p", Name: "P", Actor: "user:hayang",
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -33,9 +33,9 @@ describe('ProjectDetail page', () => {
         HttpResponse.json({
           id: 'proj-a',
           name: 'Project Alpha',
-          kind: 'coding',
-          default_agent_cli: 'claudecode',
+          tags: ['coding'],
           description: 'the alpha project',
+          version: 1,
           created_at: '2026-05-20T01:00:00Z',
           updated_at: '2026-05-20T01:00:00Z',
         }),
@@ -77,7 +77,7 @@ describe('ProjectDetail page', () => {
     wrap('/projects/proj-a');
     await waitFor(() => expect(screen.getByText('Project Alpha')).toBeInTheDocument());
     expect(screen.getByTestId('project-description')).toHaveTextContent('the alpha project');
-    expect(screen.getByTestId('project-default-agent-cli')).toHaveTextContent('claudecode');
+    expect(screen.getByTestId('project-tag-coding')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('login bug')).toBeInTheDocument());
     expect(screen.getByText('rebuild docs')).toBeInTheDocument();
     expect(screen.getByTestId('project-fleet-link')).toBeInTheDocument();
@@ -91,6 +91,9 @@ describe('ProjectDetail page', () => {
         HttpResponse.json({
           id: 'proj-empty',
           name: 'Empty Project',
+          tags: [],
+          description: '',
+          version: 1,
           created_at: '2026-05-20T01:00:00Z',
           updated_at: '2026-05-20T01:00:00Z',
         }),

@@ -15,12 +15,18 @@ import (
 // ProjectCRUDService backs `agent-center project {add,update,remove}` CLI
 // handlers. Each method runs in its own tx, emits the matching domain
 // event, and enforces invariants.
+//
+// v2.5.5 (task #59) — Project.ID is now server-generated (proj-<8hex>)
+// and the kind / default_agent_cli fields were dropped in favour of a
+// free-text tags list. See migration 0032 + Project AR for the new
+// shape.
 type ProjectCRUDService struct {
 	db          *sql.DB
 	projectRepo workforce.ProjectRepository
 	mappingRepo workforce.WorkerProjectMappingRepository
 	sink        *observability.EventSink
 	clock       clock.Clock
+	newID       func() (workforce.ProjectID, error)
 }
 
 // NewProjectCRUDService constructs the service.
@@ -40,17 +46,31 @@ func NewProjectCRUDService(
 		mappingRepo: mappingRepo,
 		sink:        sink,
 		clock:       clk,
+		newID:       workforce.NewProjectID,
 	}
 }
 
+// WithIDGenerator swaps the project id generator (tests inject a
+// deterministic source).
+func (s *ProjectCRUDService) WithIDGenerator(gen func() (workforce.ProjectID, error)) *ProjectCRUDService {
+	if gen != nil {
+		s.newID = gen
+	}
+	return s
+}
+
 // AddCommand wraps `project add` flags.
+//
+// v2.5.5: ID is normally server-generated. The optional ID field is
+// kept for the cross-aggregate Accept path (which may want to bind a
+// proposal to a pre-named project id) and for tests with stable
+// fixture ids. Empty ID → generate via NewProjectID.
 type AddCommand struct {
-	ID              workforce.ProjectID
-	Name            string
-	Kind            workforce.ProjectKind
-	DefaultAgentCLI string
-	Description     string
-	Actor           observability.Actor
+	ID          workforce.ProjectID
+	Name        string
+	Description string
+	Tags        []string
+	Actor       observability.Actor
 }
 
 // AddResult returns the created project + emit event id.
@@ -64,12 +84,19 @@ func (s *ProjectCRUDService) Add(ctx context.Context, cmd AddCommand) (AddResult
 	if err := cmd.Actor.Validate(); err != nil {
 		return AddResult{}, err
 	}
+	id := cmd.ID
+	if id == "" {
+		gen, err := s.newID()
+		if err != nil {
+			return AddResult{}, fmt.Errorf("project: generate id: %w", err)
+		}
+		id = gen
+	}
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID:                  cmd.ID,
+		ID:                  id,
 		Name:                cmd.Name,
-		Kind:                cmd.Kind,
-		DefaultAgentCLI:     cmd.DefaultAgentCLI,
 		Description:         cmd.Description,
+		Tags:                cmd.Tags,
 		CreatedByIdentityID: string(cmd.Actor),
 		CreatedAt:           s.clock.Now(),
 	})
@@ -88,7 +115,7 @@ func (s *ProjectCRUDService) Add(ctx context.Context, cmd AddCommand) (AddResult
 			Payload: map[string]any{
 				"project_id": string(p.ID()),
 				"name":       p.Name(),
-				"kind":       string(p.Kind()),
+				"tags":       p.Tags(),
 			},
 		})
 		if err != nil {
@@ -105,10 +132,10 @@ func (s *ProjectCRUDService) Add(ctx context.Context, cmd AddCommand) (AddResult
 
 // UpdateCommand wraps `project update` flags.
 type UpdateCommand struct {
-	ID              workforce.ProjectID
-	Version         int
-	Fields          workforce.ProjectUpdateFields
-	Actor           observability.Actor
+	ID      workforce.ProjectID
+	Version int
+	Fields  workforce.ProjectUpdateFields
+	Actor   observability.Actor
 }
 
 // UpdateResult returns the updated project.
@@ -170,8 +197,6 @@ func (s *ProjectCRUDService) Remove(ctx context.Context, cmd RemoveCommand) (obs
 	}
 	var evID observability.EventID
 	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		// Existence check first (so we return ErrProjectNotFound rather than
-		// ErrProjectHasActiveDeps for missing projects).
 		if _, err := s.projectRepo.FindByID(txCtx, cmd.ID); err != nil {
 			return err
 		}
@@ -207,14 +232,11 @@ func changedFields(f workforce.ProjectUpdateFields) []string {
 	if f.Name != nil {
 		out = append(out, "name")
 	}
-	if f.Kind != nil {
-		out = append(out, "kind")
-	}
-	if f.DefaultAgentCLI != nil {
-		out = append(out, "default_agent_cli")
-	}
 	if f.Description != nil {
 		out = append(out, "description")
+	}
+	if f.Tags != nil {
+		out = append(out, "tags")
 	}
 	return out
 }

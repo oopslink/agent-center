@@ -58,10 +58,8 @@ func MapDomainError(err error) (reason string, code ExitCode, ok bool) {
 		return "project_version_conflict", ExitVersionConflict, true
 	case errors.Is(err, workforce.ErrProjectHasActiveDeps):
 		return "project_has_active_deps", ExitInvariantViolation, true
-	case errors.Is(err, workforce.ErrProjectInvalidSlug):
-		return "project_invalid_slug", ExitUsage, true
-	case errors.Is(err, workforce.ErrProjectInvalidKind):
-		return "project_invalid_kind", ExitUsage, true
+	case errors.Is(err, workforce.ErrProjectInvalidID):
+		return "project_invalid_id", ExitUsage, true
 
 	// Conversation
 	case errors.Is(err, conversation.ErrConversationNotFound):

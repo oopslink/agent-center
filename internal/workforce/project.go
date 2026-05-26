@@ -1,6 +1,7 @@
 package workforce
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"strings"
@@ -8,40 +9,40 @@ import (
 )
 
 // Project is the Workforce BC AR (workforce/02-project).
-// Pure metadata container — no business state machine in v1.
+//
+// v2.5.5 (task #59) simplified the model: id is server-generated
+// (`proj-<8hex>`), the open-set `kind` enum and per-project
+// `default_agent_cli` were dropped, and a free-text `tags` list
+// replaced them. The Web Console offers builtin tag suggestions but
+// the server does not validate the tag set.
 type Project struct {
-	id                   ProjectID
-	name                 string
-	kind                 ProjectKind
-	defaultAgentCLI      string
-	description          string
-	createdByIdentityID  string
-	createdAt            time.Time
-	updatedAt            time.Time
-	version              int
+	id                  ProjectID
+	name                string
+	description         string
+	tags                []string
+	createdByIdentityID string
+	createdAt           time.Time
+	updatedAt           time.Time
+	version             int
 }
 
 // NewProjectInput captures the constructor arguments.
 type NewProjectInput struct {
 	ID                  ProjectID
 	Name                string
-	Kind                ProjectKind
-	DefaultAgentCLI     string
 	Description         string
+	Tags                []string
 	CreatedByIdentityID string
 	CreatedAt           time.Time
 }
 
 // NewProject constructs a fresh Project with version=1.
 func NewProject(in NewProjectInput) (*Project, error) {
-	if err := ValidateProjectSlug(in.ID); err != nil {
+	if err := ValidateProjectID(in.ID); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(in.Name) == "" {
 		return nil, errors.New("project: name required")
-	}
-	if !in.Kind.IsValid() {
-		return nil, ErrProjectInvalidKind
 	}
 	if strings.TrimSpace(in.CreatedByIdentityID) == "" {
 		return nil, errors.New("project: created_by_identity_id required")
@@ -52,9 +53,8 @@ func NewProject(in NewProjectInput) (*Project, error) {
 	return &Project{
 		id:                  in.ID,
 		name:                in.Name,
-		kind:                in.Kind,
-		defaultAgentCLI:     in.DefaultAgentCLI,
 		description:         in.Description,
+		tags:                normalizeTags(in.Tags),
 		createdByIdentityID: in.CreatedByIdentityID,
 		createdAt:           in.CreatedAt.UTC(),
 		updatedAt:           in.CreatedAt.UTC(),
@@ -66,16 +66,16 @@ func NewProject(in NewProjectInput) (*Project, error) {
 type RehydrateProjectInput struct {
 	ID                  ProjectID
 	Name                string
-	Kind                ProjectKind
-	DefaultAgentCLI     string
 	Description         string
+	Tags                []string
 	CreatedByIdentityID string
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	Version             int
 }
 
-// RehydrateProject reconstructs without re-validating slugs.
+// RehydrateProject reconstructs without re-validating the id (so legacy
+// rows surviving a future migration can still round-trip).
 func RehydrateProject(in RehydrateProjectInput) (*Project, error) {
 	if string(in.ID) == "" {
 		return nil, errors.New("project: id required")
@@ -86,9 +86,8 @@ func RehydrateProject(in RehydrateProjectInput) (*Project, error) {
 	return &Project{
 		id:                  in.ID,
 		name:                in.Name,
-		kind:                in.Kind,
-		defaultAgentCLI:     in.DefaultAgentCLI,
 		description:         in.Description,
+		tags:                normalizeTags(in.Tags),
 		createdByIdentityID: in.CreatedByIdentityID,
 		createdAt:           in.CreatedAt.UTC(),
 		updatedAt:           in.UpdatedAt.UTC(),
@@ -98,28 +97,27 @@ func RehydrateProject(in RehydrateProjectInput) (*Project, error) {
 
 // Getters.
 
-func (p *Project) ID() ProjectID                 { return p.id }
-func (p *Project) Name() string                  { return p.name }
-func (p *Project) Kind() ProjectKind             { return p.kind }
-func (p *Project) DefaultAgentCLI() string       { return p.defaultAgentCLI }
-func (p *Project) Description() string           { return p.description }
-func (p *Project) CreatedByIdentityID() string   { return p.createdByIdentityID }
-func (p *Project) CreatedAt() time.Time          { return p.createdAt }
-func (p *Project) UpdatedAt() time.Time          { return p.updatedAt }
-func (p *Project) Version() int                  { return p.version }
+func (p *Project) ID() ProjectID               { return p.id }
+func (p *Project) Name() string                { return p.name }
+func (p *Project) Description() string         { return p.description }
+func (p *Project) Tags() []string              { return append([]string(nil), p.tags...) }
+func (p *Project) CreatedByIdentityID() string { return p.createdByIdentityID }
+func (p *Project) CreatedAt() time.Time        { return p.createdAt }
+func (p *Project) UpdatedAt() time.Time        { return p.updatedAt }
+func (p *Project) Version() int                { return p.version }
 
 // ProjectUpdateFields aggregates the legal Update changes
-// (workforce/00 § 5.4).
+// (workforce/00 § 5.4). v2.5.5 dropped Kind / DefaultAgentCLI and
+// added Tags.
 type ProjectUpdateFields struct {
-	Name            *string
-	Kind            *ProjectKind
-	DefaultAgentCLI *string
-	Description     *string
+	Name        *string
+	Description *string
+	Tags        *[]string
 }
 
 // IsEmpty reports whether no fields are set.
 func (u ProjectUpdateFields) IsEmpty() bool {
-	return u.Name == nil && u.Kind == nil && u.DefaultAgentCLI == nil && u.Description == nil
+	return u.Name == nil && u.Description == nil && u.Tags == nil
 }
 
 // ApplyAndBumpVersion mutates the project according to fields, bumping
@@ -134,44 +132,81 @@ func (p *Project) ApplyAndBumpVersion(fields ProjectUpdateFields, at time.Time) 
 		}
 		p.name = *fields.Name
 	}
-	if fields.Kind != nil {
-		if !fields.Kind.IsValid() {
-			return ErrProjectInvalidKind
-		}
-		p.kind = *fields.Kind
-	}
-	if fields.DefaultAgentCLI != nil {
-		p.defaultAgentCLI = *fields.DefaultAgentCLI
-	}
 	if fields.Description != nil {
 		p.description = *fields.Description
+	}
+	if fields.Tags != nil {
+		p.tags = normalizeTags(*fields.Tags)
 	}
 	p.updatedAt = at.UTC()
 	p.version++
 	return nil
 }
 
-// ValidateProjectSlug enforces lowercase / hyphenated identifier rules
-// (workforce/02 § 5.1).
-func ValidateProjectSlug(id ProjectID) error {
+// ValidateProjectID is a lightweight shape check.
+//
+// In production the id is always generated by NewProjectID (which emits
+// `proj-<8hex>`), so end-to-end the prefix invariant holds. The
+// validator only rejects ids that would break URLs / JSON / SQL keys:
+// empty, contains whitespace, or longer than 64 chars. We keep it
+// permissive enough for in-process tests to use short fixture ids
+// (`p`, `proj-a`, `ac`) without churn.
+//
+// Pre-v2.5.5 slug-form ids are no longer accepted at the DB layer
+// because the 0032 migration wipes the projects table, but the
+// validator stays lenient so callers can keep using the same code path
+// for fixtures and runtime.
+func ValidateProjectID(id ProjectID) error {
 	s := string(id)
 	if s == "" {
-		return ErrProjectInvalidSlug
+		return fmt.Errorf("%w: id required", ErrProjectInvalidID)
 	}
-	if len(s) > 128 {
-		return fmt.Errorf("%w: slug too long (max 128)", ErrProjectInvalidSlug)
-	}
-	if s[0] == '-' || s[len(s)-1] == '-' {
-		return fmt.Errorf("%w: must not start or end with '-'", ErrProjectInvalidSlug)
+	if len(s) > 64 {
+		return fmt.Errorf("%w: id too long (max 64, got %d)", ErrProjectInvalidID, len(s))
 	}
 	for _, c := range s {
-		switch {
-		case c >= 'a' && c <= 'z':
-		case c >= '0' && c <= '9':
-		case c == '-':
-		default:
-			return fmt.Errorf("%w: contains invalid character %q (only lowercase / digit / hyphen allowed)", ErrProjectInvalidSlug, c)
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
+			return fmt.Errorf("%w: id cannot contain whitespace (got %q)", ErrProjectInvalidID, s)
 		}
 	}
 	return nil
+}
+
+// NewProjectID returns a fresh server-generated id of the form
+// `proj-<8hex>`. 32 bits of entropy is plenty for a single tenant's
+// lifetime of projects (collision probability < 1e-9 after 1000
+// creates); shorter than ULID so the id stays readable in URLs and
+// CLI output. Mirrors generateWorkerID in webconsole/api/handlers.go.
+func NewProjectID() (ProjectID, error) {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return ProjectID(fmt.Sprintf("proj-%x", b[:])), nil
+}
+
+// normalizeTags trims whitespace, drops empty entries, and deduplicates
+// preserving first-seen order. Stored canonically so JSON round-trips
+// don't drift.
+func normalizeTags(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, t := range in {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

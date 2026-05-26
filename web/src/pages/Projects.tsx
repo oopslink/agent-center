@@ -19,7 +19,7 @@ export default function Projects(): React.ReactElement {
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">Projects</h1>
           <p className="text-xs text-text-muted">
-            Projects organize Issues, Tasks, and Workers under a single slug.
+            Projects organize Issues, Tasks, and Workers. Tags help group them.
           </p>
         </div>
         <button
@@ -69,16 +69,15 @@ export default function Projects(): React.ReactElement {
                   <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
                     {p.id}
                   </span>
-                  {p.kind && (
-                    <span className="rounded bg-brand/10 px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide text-brand">
-                      {p.kind}
+                  {p.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded bg-brand/10 px-2 py-0.5 text-[0.6875rem] tracking-wide text-brand"
+                      data-testid={`project-tag-${t}`}
+                    >
+                      {t}
                     </span>
-                  )}
-                  {p.default_agent_cli && (
-                    <span className="rounded border border-border-base px-2 py-0.5 font-mono text-[0.6875rem] text-text-secondary">
-                      {p.default_agent_cli}
-                    </span>
-                  )}
+                  ))}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="max-w-[60ch] truncate text-xs text-text-secondary">

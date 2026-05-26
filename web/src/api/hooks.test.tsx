@@ -215,7 +215,7 @@ describe('react-query hooks', () => {
     const list = renderHook(() => useProjects(), { wrapper });
     await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
     expect(list.result.current.data?.[0].id).toBe('proj-a');
-    expect(list.result.current.data?.[0].default_agent_cli).toBe('claudecode');
+    expect(list.result.current.data?.[0].tags).toContain('coding');
 
     const one = renderHook(() => useProject('proj-a'), { wrapper });
     await waitFor(() => expect(one.result.current.isSuccess).toBe(true));

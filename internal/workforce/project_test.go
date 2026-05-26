@@ -2,6 +2,7 @@ package workforce
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -9,9 +10,9 @@ import (
 func newTestProject(t *testing.T) *Project {
 	t.Helper()
 	p, err := NewProject(NewProjectInput{
-		ID:                  "agent-center",
+		ID:                  "proj-aabb0011",
 		Name:                "Agent Center",
-		Kind:                ProjectKindCoding,
+		Tags:                []string{"coding"},
 		CreatedByIdentityID: "user:hayang",
 		CreatedAt:           time.Now(),
 	})
@@ -23,47 +24,40 @@ func newTestProject(t *testing.T) *Project {
 
 func TestProject_New_Happy(t *testing.T) {
 	p := newTestProject(t)
-	if p.ID() != "agent-center" {
+	if p.ID() != "proj-aabb0011" {
 		t.Fatal()
 	}
-	if p.Kind() != ProjectKindCoding {
-		t.Fatal()
+	tags := p.Tags()
+	if len(tags) != 1 || tags[0] != "coding" {
+		t.Fatalf("tags = %v", tags)
 	}
 	if p.Version() != 1 {
 		t.Fatal()
 	}
 }
 
-func TestProject_New_BadSlug(t *testing.T) {
-	for _, slug := range []ProjectID{"", "UPPER", "with space", "with_underscore", "-leading", "trailing-", "with/slash"} {
+func TestProject_New_BadID(t *testing.T) {
+	cases := []ProjectID{
+		"",                    // empty
+		"with whitespace",     // whitespace rejected
+		ProjectID(strings.Repeat("x", 80)), // over 64 chars
+	}
+	for _, id := range cases {
 		_, err := NewProject(NewProjectInput{
-			ID:                  slug,
+			ID:                  id,
 			Name:                "x",
 			CreatedByIdentityID: "user:x",
 			CreatedAt:           time.Now(),
 		})
-		if !errors.Is(err, ErrProjectInvalidSlug) {
-			t.Fatalf("expected slug error for %q, got %v", slug, err)
+		if err == nil {
+			t.Fatalf("expected error for id %q", id)
 		}
-	}
-}
-
-func TestProject_New_BadKind(t *testing.T) {
-	_, err := NewProject(NewProjectInput{
-		ID:                  "p",
-		Name:                "P",
-		Kind:                "unicorns",
-		CreatedByIdentityID: "user:x",
-		CreatedAt:           time.Now(),
-	})
-	if !errors.Is(err, ErrProjectInvalidKind) {
-		t.Fatalf("expected kind error, got %v", err)
 	}
 }
 
 func TestProject_New_EmptyName(t *testing.T) {
 	_, err := NewProject(NewProjectInput{
-		ID:                  "p",
+		ID:                  "proj-aabbccdd",
 		Name:                "",
 		CreatedByIdentityID: "user:x",
 		CreatedAt:           time.Now(),
@@ -75,7 +69,7 @@ func TestProject_New_EmptyName(t *testing.T) {
 
 func TestProject_New_RequiresIdentity(t *testing.T) {
 	_, err := NewProject(NewProjectInput{
-		ID:        "p",
+		ID:        "proj-aabbccdd",
 		Name:      "P",
 		CreatedAt: time.Now(),
 	})
@@ -86,7 +80,7 @@ func TestProject_New_RequiresIdentity(t *testing.T) {
 
 func TestProject_New_RequiresCreatedAt(t *testing.T) {
 	_, err := NewProject(NewProjectInput{
-		ID:                  "p",
+		ID:                  "proj-aabbccdd",
 		Name:                "P",
 		CreatedByIdentityID: "user:x",
 	})
@@ -95,16 +89,20 @@ func TestProject_New_RequiresCreatedAt(t *testing.T) {
 	}
 }
 
-func TestProject_New_AllowsNullKind(t *testing.T) {
-	_, err := NewProject(NewProjectInput{
-		ID:                  "p",
+func TestProject_New_NormalizesTags(t *testing.T) {
+	p, err := NewProject(NewProjectInput{
+		ID:                  "proj-aabbccdd",
 		Name:                "P",
-		Kind:                "",
+		Tags:                []string{" coding ", "", "coding", "ops"},
 		CreatedByIdentityID: "user:x",
 		CreatedAt:           time.Now(),
 	})
 	if err != nil {
-		t.Fatalf("null kind should be allowed: %v", err)
+		t.Fatal(err)
+	}
+	tags := p.Tags()
+	if len(tags) != 2 || tags[0] != "coding" || tags[1] != "ops" {
+		t.Fatalf("tags = %v", tags)
 	}
 }
 
@@ -144,33 +142,24 @@ func TestProject_Update_EmptyName(t *testing.T) {
 	}
 }
 
-func TestProject_Update_BadKind(t *testing.T) {
-	p := newTestProject(t)
-	bad := ProjectKind("bogus")
-	err := p.ApplyAndBumpVersion(ProjectUpdateFields{Kind: &bad}, time.Now())
-	if !errors.Is(err, ErrProjectInvalidKind) {
-		t.Fatalf("got %v", err)
-	}
-}
-
 func TestProject_Update_AllFields(t *testing.T) {
 	p := newTestProject(t)
 	name := "n"
-	kind := ProjectKindWriting
-	cli := "codex"
 	desc := "d"
+	tags := []string{"ops", "docs"}
 	if err := p.ApplyAndBumpVersion(ProjectUpdateFields{
-		Name: &name, Kind: &kind, DefaultAgentCLI: &cli, Description: &desc,
+		Name: &name, Description: &desc, Tags: &tags,
 	}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if p.Name() != "n" || p.Kind() != "writing" || p.DefaultAgentCLI() != "codex" || p.Description() != "d" {
-		t.Fatal("fields not applied")
+	got := p.Tags()
+	if p.Name() != "n" || p.Description() != "d" || len(got) != 2 || got[0] != "ops" || got[1] != "docs" {
+		t.Fatalf("fields not applied: name=%q desc=%q tags=%v", p.Name(), p.Description(), got)
 	}
 }
 
 func TestProject_RehydrateBadVersion(t *testing.T) {
-	_, err := RehydrateProject(RehydrateProjectInput{ID: "p", Version: 0})
+	_, err := RehydrateProject(RehydrateProjectInput{ID: "proj-aabbccdd", Version: 0})
 	if err == nil {
 		t.Fatal()
 	}
@@ -183,21 +172,6 @@ func TestProject_RehydrateNoID(t *testing.T) {
 	}
 }
 
-func TestProjectKind_Validation(t *testing.T) {
-	if !ProjectKindCoding.IsValid() {
-		t.Fatal()
-	}
-	if !ProjectKind("").IsValid() {
-		t.Fatal("empty kind should be valid")
-	}
-	if ProjectKind("nope").IsValid() {
-		t.Fatal()
-	}
-	if ProjectKindCoding.String() != "coding" {
-		t.Fatal()
-	}
-}
-
 func TestProjectUpdateFields_IsEmpty(t *testing.T) {
 	if !(ProjectUpdateFields{}).IsEmpty() {
 		t.Fatal()
@@ -206,20 +180,62 @@ func TestProjectUpdateFields_IsEmpty(t *testing.T) {
 	if (ProjectUpdateFields{Name: &n}).IsEmpty() {
 		t.Fatal()
 	}
+	tags := []string{"x"}
+	if (ProjectUpdateFields{Tags: &tags}).IsEmpty() {
+		t.Fatal()
+	}
 }
 
-func TestValidateProjectSlug_TooLong(t *testing.T) {
-	long := ""
-	for i := 0; i < 200; i++ {
-		long += "a"
-	}
-	if err := ValidateProjectSlug(ProjectID(long)); !errors.Is(err, ErrProjectInvalidSlug) {
-		t.Fatalf("got %v", err)
+func TestValidateProjectID_ShapeChecks(t *testing.T) {
+	good := []ProjectID{"proj-00000000", "proj-abcdef01", "proj-deadbeef"}
+	for _, id := range good {
+		if err := ValidateProjectID(id); err != nil {
+			t.Fatalf("good id %q rejected: %v", id, err)
+		}
 	}
 }
 
 func TestProjectID_String(t *testing.T) {
-	if ProjectID("foo").String() != "foo" {
+	if ProjectID("proj-aabbccdd").String() != "proj-aabbccdd" {
 		t.Fatal()
+	}
+}
+
+func TestNewProjectID_FormatAndUniqueness(t *testing.T) {
+	id, err := NewProjectID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateProjectID(id); err != nil {
+		t.Fatalf("generated id failed validation: %v", err)
+	}
+	if !strings.HasPrefix(string(id), "proj-") {
+		t.Fatal("expected proj- prefix")
+	}
+	// Generate a second id; collision probability is ~1/2^32, so two
+	// fresh ids should differ in normal runs.
+	id2, err := NewProjectID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == id2 {
+		t.Fatalf("expected distinct ids, got %q twice", id)
+	}
+}
+
+func TestValidateProjectID_BareWordIsLegal(t *testing.T) {
+	// The lenient validator accepts the legacy `bogus`-style ids that
+	// fixtures/tests still pass; the prefix invariant is preserved at
+	// the generator (NewProjectID), not enforced at the validator. If
+	// this assertion ever needs to flip, audit fixture ids first.
+	if err := ValidateProjectID(ProjectID("bogus")); err != nil {
+		t.Fatalf("bare id should be accepted by lenient validator, got %v", err)
+	}
+}
+
+func TestValidateProjectID_WhitespaceRejected(t *testing.T) {
+	err := ValidateProjectID(ProjectID("with whitespace"))
+	if !errors.Is(err, ErrProjectInvalidID) {
+		t.Fatalf("expected ErrProjectInvalidID, got %v", err)
 	}
 }

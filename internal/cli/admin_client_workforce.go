@@ -34,19 +34,17 @@ type ProposalDTO struct {
 	Status             string `json:"status"`
 	CandidatePath      string `json:"candidate_path"`
 	SuggestedProjectID string `json:"suggested_project_id"`
-	SuggestedKind      string `json:"suggested_kind"`
 	Version            int    `json:"version"`
 }
 
-// ProjectDTO mirrors admin api projectMap.
+// ProjectDTO mirrors admin api projectMap (v2.5.5 shape).
 type ProjectDTO struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Kind            string `json:"kind"`
-	DefaultAgentCLI string `json:"default_agent_cli"`
-	Description     string `json:"description"`
-	Version         int    `json:"version"`
-	CreatedAt       string `json:"created_at"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+	Version     int      `json:"version"`
+	CreatedAt   string   `json:"created_at"`
 }
 
 // AgentInstanceDTO mirrors admin api agentInstanceMap.
@@ -86,7 +84,6 @@ type ProposalProposeRequest struct {
 	WorkerID           string `json:"worker_id"`
 	CandidatePath      string `json:"candidate_path"`
 	SuggestedProjectID string `json:"suggested_project_id"`
-	SuggestedKind      string `json:"suggested_kind"`
 }
 
 // ProposalProposeResponse mirrors the projection emitted on success.
@@ -100,7 +97,6 @@ type ProposalProposeResponse struct {
 type ProposalAcceptRequest struct {
 	ProposalID          string `json:"proposal_id"`
 	OverrideProjectID   string `json:"override_project_id"`
-	OverrideKind        string `json:"override_kind"`
 	OverrideProjectName string `json:"override_project_name"`
 }
 
@@ -124,13 +120,15 @@ type EventIDResponse struct {
 	EventID string `json:"event_id"`
 }
 
-// ProjectAddRequest mirrors api projectAddReq.
+// ProjectAddRequest mirrors api projectAddReq (v2.5.5 shape — no
+// kind / default_agent_cli). The ID field is normally empty so the
+// server generates a `proj-<8hex>` id; CLI scripts that pin a specific
+// id can supply it via the positional `project add <id>` arg.
 type ProjectAddRequest struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Kind            string `json:"kind"`
-	DefaultAgentCLI string `json:"default_agent_cli"`
-	Description     string `json:"description"`
+	ID          string   `json:"id,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
 }
 
 // ProjectMutateResponse is the response shape for add/update (both return
@@ -142,12 +140,11 @@ type ProjectMutateResponse struct {
 
 // ProjectUpdateRequest mirrors api projectUpdateReq.
 type ProjectUpdateRequest struct {
-	ID              string  `json:"id"`
-	Version         int     `json:"version"`
-	Name            *string `json:"name"`
-	Kind            *string `json:"kind"`
-	DefaultAgentCLI *string `json:"default_agent_cli"`
-	Description     *string `json:"description"`
+	ID          string    `json:"id"`
+	Version     int       `json:"version"`
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Tags        *[]string `json:"tags,omitempty"`
 }
 
 // ProjectRemoveRequest mirrors api projectRemoveReq.
@@ -332,10 +329,12 @@ func (c *Client) ProjectUpdate(ctx context.Context, req ProjectUpdateRequest) (P
 	return res, err
 }
 
-// ProjectFindAll GETs /admin/workforce/project/find-all?kind=…
-func (c *Client) ProjectFindAll(ctx context.Context, kind string) ([]ProjectDTO, error) {
+// ProjectFindAll GETs /admin/workforce/project/find-all. v2.5.5 dropped
+// the by-kind filter; the param is kept on the signature for callers
+// that haven't been updated yet, but is no longer transmitted.
+func (c *Client) ProjectFindAll(ctx context.Context, _ string) ([]ProjectDTO, error) {
 	var out []ProjectDTO
-	err := c.getJSON(ctx, "/admin/workforce/project/find-all"+buildQuery("kind", kind), &out)
+	err := c.getJSON(ctx, "/admin/workforce/project/find-all", &out)
 	return out, err
 }
 

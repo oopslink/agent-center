@@ -23,21 +23,25 @@ func (m CandidateMetadata) Marshal() ([]byte, error) {
 }
 
 // WorkerProjectProposal is the Workforce BC AR (workforce/03).
+//
+// v2.5.5 dropped suggested_kind along with the ProjectKind type. The
+// proposal still names a suggested target project (existing or to be
+// created during Accept); kind was unused once Project lost the
+// concept.
 type WorkerProjectProposal struct {
-	id                    ProposalID
-	workerID              WorkerID
-	candidatePath         string
-	suggestedProjectID    ProjectID
-	suggestedKind         ProjectKind
-	candidateMetadata     CandidateMetadata
-	status                ProposalStatus
-	proposedAt            time.Time
-	reviewedAt            *time.Time
-	reviewedByIdentityID  string
-	resultingMappingID    MappingID
-	createdAt             time.Time
-	updatedAt             time.Time
-	version               int
+	id                   ProposalID
+	workerID             WorkerID
+	candidatePath        string
+	suggestedProjectID   ProjectID
+	candidateMetadata    CandidateMetadata
+	status               ProposalStatus
+	proposedAt           time.Time
+	reviewedAt           *time.Time
+	reviewedByIdentityID string
+	resultingMappingID   MappingID
+	createdAt            time.Time
+	updatedAt            time.Time
+	version              int
 }
 
 // NewProposalInput captures constructor args.
@@ -46,7 +50,6 @@ type NewProposalInput struct {
 	WorkerID           WorkerID
 	CandidatePath      string
 	SuggestedProjectID ProjectID
-	SuggestedKind      ProjectKind
 	CandidateMetadata  CandidateMetadata
 	ProposedAt         time.Time
 }
@@ -65,10 +68,6 @@ func NewWorkerProjectProposal(in NewProposalInput) (*WorkerProjectProposal, erro
 	if strings.TrimSpace(string(in.SuggestedProjectID)) == "" {
 		return nil, errors.New("proposal: suggested_project_id required")
 	}
-	// Note: SuggestedKind can be empty per workforce/03 § 2.
-	if !in.SuggestedKind.IsValid() {
-		return nil, ErrProjectInvalidKind
-	}
 	if in.ProposedAt.IsZero() {
 		return nil, errors.New("proposal: proposed_at required")
 	}
@@ -78,7 +77,6 @@ func NewWorkerProjectProposal(in NewProposalInput) (*WorkerProjectProposal, erro
 		workerID:           in.WorkerID,
 		candidatePath:      in.CandidatePath,
 		suggestedProjectID: in.SuggestedProjectID,
-		suggestedKind:      in.SuggestedKind,
 		candidateMetadata:  in.CandidateMetadata,
 		status:             ProposalPending,
 		proposedAt:         at,
@@ -94,7 +92,6 @@ type RehydrateProposalInput struct {
 	WorkerID             WorkerID
 	CandidatePath        string
 	SuggestedProjectID   ProjectID
-	SuggestedKind        ProjectKind
 	CandidateMetadata    CandidateMetadata
 	Status               ProposalStatus
 	ProposedAt           time.Time
@@ -119,7 +116,6 @@ func RehydrateWorkerProjectProposal(in RehydrateProposalInput) (*WorkerProjectPr
 		workerID:             in.WorkerID,
 		candidatePath:        in.CandidatePath,
 		suggestedProjectID:   in.SuggestedProjectID,
-		suggestedKind:        in.SuggestedKind,
 		candidateMetadata:    in.CandidateMetadata,
 		status:               in.Status,
 		proposedAt:           in.ProposedAt.UTC(),
@@ -134,11 +130,10 @@ func RehydrateWorkerProjectProposal(in RehydrateProposalInput) (*WorkerProjectPr
 
 // Getters.
 
-func (p *WorkerProjectProposal) ID() ProposalID                    { return p.id }
-func (p *WorkerProjectProposal) WorkerID() WorkerID                { return p.workerID }
-func (p *WorkerProjectProposal) CandidatePath() string             { return p.candidatePath }
-func (p *WorkerProjectProposal) SuggestedProjectID() ProjectID     { return p.suggestedProjectID }
-func (p *WorkerProjectProposal) SuggestedKind() ProjectKind        { return p.suggestedKind }
+func (p *WorkerProjectProposal) ID() ProposalID                { return p.id }
+func (p *WorkerProjectProposal) WorkerID() WorkerID            { return p.workerID }
+func (p *WorkerProjectProposal) CandidatePath() string         { return p.candidatePath }
+func (p *WorkerProjectProposal) SuggestedProjectID() ProjectID { return p.suggestedProjectID }
 func (p *WorkerProjectProposal) CandidateMetadata() CandidateMetadata {
 	return p.candidateMetadata
 }

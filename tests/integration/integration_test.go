@@ -138,7 +138,7 @@ func TestINT2_MigrationIdempotent(t *testing.T) {
 		t.Fatalf("second Up: %v", err)
 	}
 	v, _ := m.Version(context.Background())
-	if v != 31 {
+	if v != 32 {
 		t.Fatalf("version: %d", v)
 	}
 	if err := m.Down(context.Background(), 0); err != nil {
@@ -287,7 +287,7 @@ func TestINT7_ProposalDedupActivePending(t *testing.T) {
 	p1, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
 		ID: workforce.ProposalID(k.idgen.NewULID()),
 		WorkerID: "W-1", CandidatePath: "/same",
-		SuggestedProjectID: "p", SuggestedKind: workforce.ProjectKindCoding,
+		SuggestedProjectID: "p",
 		ProposedAt: k.clock.Now(),
 	})
 	if err := k.proposalRepo.Save(context.Background(), p1); err != nil {
@@ -296,7 +296,7 @@ func TestINT7_ProposalDedupActivePending(t *testing.T) {
 	p2, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
 		ID: workforce.ProposalID(k.idgen.NewULID()),
 		WorkerID: "W-1", CandidatePath: "/same",
-		SuggestedProjectID: "p", SuggestedKind: workforce.ProjectKindCoding,
+		SuggestedProjectID: "p",
 		ProposedAt: k.clock.Now(),
 	})
 	if err := k.proposalRepo.Save(context.Background(), p2); !errors.Is(err, workforce.ErrProposalAlreadyExists) {
@@ -310,7 +310,7 @@ func TestINT7_ProposalDedupActivePending(t *testing.T) {
 	p3, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
 		ID: workforce.ProposalID(k.idgen.NewULID()),
 		WorkerID: "W-1", CandidatePath: "/same",
-		SuggestedProjectID: "p", SuggestedKind: workforce.ProjectKindCoding,
+		SuggestedProjectID: "p",
 		ProposedAt: k.clock.Now(),
 	})
 	if err := k.proposalRepo.Save(context.Background(), p3); err != nil {
@@ -350,8 +350,7 @@ func TestINT9_AcceptCrossAggregate(t *testing.T) {
 	w := mkWorker(t, k, "W-1")
 	_ = k.workerRepo.Save(context.Background(), w)
 	prRes, err := k.acceptance.Propose(context.Background(), wfservice.ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "worker:W-1",
+		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -462,7 +461,7 @@ func mkWorker(t *testing.T, k *kit, id workforce.WorkerID) *workforce.Worker {
 func mkProject(t *testing.T, k *kit, slug workforce.ProjectID) *workforce.Project {
 	t.Helper()
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: slug, Name: string(slug), Kind: workforce.ProjectKindCoding,
+		ID: slug, Name: string(slug),
 		CreatedByIdentityID: "user:hayang", CreatedAt: k.clock.Now(),
 	})
 	if err != nil {

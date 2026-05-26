@@ -155,8 +155,7 @@ func TestE2E2_ProposeAccept(t *testing.T) {
 	h := newHarness(t)
 	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
 	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac",
-		"--suggested-kind=coding")
+		"--worker-id=W-1", "--candidate-path=/x/ac")
 	list, _ := h.runJSONArray("worker", "proposal", "list")
 	if len(list) != 1 {
 		t.Fatalf("expected 1 proposal, got %d", len(list))
@@ -187,8 +186,7 @@ func TestE2E3_IgnoreUnignoreAccept(t *testing.T) {
 	h := newHarness(t)
 	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
 	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac",
-		"--suggested-kind=coding")
+		"--worker-id=W-1", "--candidate-path=/x/ac")
 	list, _ := h.runJSONArray("worker", "proposal", "list")
 	pid := list[0]["proposal_id"].(string)
 	if _, _, c := h.run("worker", "proposal", "ignore", pid); c != 0 {
@@ -256,8 +254,7 @@ func TestE2E6_ProposalAcceptEmitsEvents_NewProject(t *testing.T) {
 	h := newHarness(t)
 	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
 	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac",
-		"--suggested-kind=coding")
+		"--worker-id=W-1", "--candidate-path=/x/ac")
 	list, _ := h.runJSONArray("worker", "proposal", "list")
 	pid := list[0]["proposal_id"].(string)
 	if _, _, c := h.run("worker", "proposal", "accept", pid); c != 0 {

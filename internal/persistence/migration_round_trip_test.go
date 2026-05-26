@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 31 || v2 != 31 {
-		t.Fatalf("Version after Up: got (%d, %d) want (31, 31)", v1, v2)
+	if v1 != 32 || v2 != 32 {
+		t.Fatalf("Version after Up: got (%d, %d) want (32, 32)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for

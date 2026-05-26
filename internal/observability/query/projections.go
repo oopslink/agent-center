@@ -129,7 +129,6 @@ func projectProposal(p *workforce.WorkerProjectProposal) map[string]any {
 		"worker_id":            string(p.WorkerID()),
 		"candidate_path":       p.CandidatePath(),
 		"suggested_project_id": string(p.SuggestedProjectID()),
-		"suggested_kind":       string(p.SuggestedKind()),
 		"status":               string(p.Status()),
 		"proposed_at":          p.ProposedAt().UTC().Format(time.RFC3339Nano),
 		"version":              p.Version(),

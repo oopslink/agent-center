@@ -395,7 +395,7 @@ func TestAPI_ListProjects_Empty(t *testing.T) {
 func TestAPI_ListProjects_SingleProject(t *testing.T) {
 	deps, _ := setupAPI(t)
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p-1", Name: "Demo", Kind: workforce.ProjectKindCoding,
+		ID: "p-1", Name: "Demo", Tags: []string{"coding"},
 		CreatedByIdentityID: "user:hayang",
 		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
 	})
@@ -417,8 +417,12 @@ func TestAPI_ListProjects_SingleProject(t *testing.T) {
 	if len(arr) != 1 {
 		t.Fatalf("expected 1 project got %d", len(arr))
 	}
-	if arr[0]["id"] != "p-1" || arr[0]["name"] != "Demo" || arr[0]["kind"] != "coding" {
+	if arr[0]["id"] != "p-1" || arr[0]["name"] != "Demo" {
 		t.Fatalf("bad row: %v", arr[0])
+	}
+	tagsAny, _ := arr[0]["tags"].([]any)
+	if len(tagsAny) != 1 || tagsAny[0] != "coding" {
+		t.Fatalf("bad tags: %v", arr[0]["tags"])
 	}
 }
 
@@ -444,13 +448,12 @@ func TestAPI_ListProjects_RepoError(t *testing.T) {
 	}
 }
 
-// v2.3-4: list projection now includes default_agent_cli + description
-// + updated_at on top of the legacy {id, name, kind, created_at}.
+// v2.5.5: list projection emits {id, name, description, tags, version,
+// created_at, updated_at}. kind / default_agent_cli were removed.
 func TestAPI_ListProjects_FullProjection(t *testing.T) {
 	deps, _ := setupAPI(t)
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p-2", Name: "Beta", Kind: workforce.ProjectKindCoding,
-		DefaultAgentCLI:     "claudecode",
+		ID: "p-2", Name: "Beta", Tags: []string{"coding", "ops"},
 		Description:         "the beta project",
 		CreatedByIdentityID: "user:hayang",
 		CreatedAt:           time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC),
@@ -471,23 +474,23 @@ func TestAPI_ListProjects_FullProjection(t *testing.T) {
 		t.Fatalf("len=%d", len(arr))
 	}
 	row := arr[0]
-	if row["default_agent_cli"] != "claudecode" {
-		t.Fatalf("missing default_agent_cli: %v", row)
-	}
 	if row["description"] != "the beta project" {
 		t.Fatalf("missing description: %v", row)
 	}
 	if row["updated_at"] == nil {
 		t.Fatalf("missing updated_at: %v", row)
 	}
+	tagsAny, _ := row["tags"].([]any)
+	if len(tagsAny) != 2 {
+		t.Fatalf("expected 2 tags, got %v", row["tags"])
+	}
 }
 
-// v2.3-4: GET /api/projects/{id} happy path.
+// v2.5.5: GET /api/projects/{id} happy path emits the simplified shape.
 func TestAPI_ShowProject_Happy(t *testing.T) {
 	deps, _ := setupAPI(t)
 	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p-1", Name: "Demo", Kind: workforce.ProjectKindCoding,
-		DefaultAgentCLI:     "claudecode",
+		ID: "p-1", Name: "Demo", Tags: []string{"coding"},
 		Description:         "demo project",
 		CreatedByIdentityID: "user:hayang",
 		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
@@ -507,11 +510,12 @@ func TestAPI_ShowProject_Happy(t *testing.T) {
 	if err := json.Unmarshal(body, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got["id"] != "p-1" || got["name"] != "Demo" || got["kind"] != "coding" {
+	if got["id"] != "p-1" || got["name"] != "Demo" {
 		t.Fatalf("bad: %v", got)
 	}
-	if got["default_agent_cli"] != "claudecode" {
-		t.Fatalf("default_agent_cli missing: %v", got)
+	tagsAny, _ := got["tags"].([]any)
+	if len(tagsAny) != 1 || tagsAny[0] != "coding" {
+		t.Fatalf("bad tags: %v", got["tags"])
 	}
 }
 

@@ -260,7 +260,6 @@ func TestProposalAcceptance_Propose_FindError(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-X"))
 	_, err := svc.Propose(context.Background(), ProposeCommand{
 		WorkerID: "W-X", CandidatePath: "/x", SuggestedProjectID: "p",
-		SuggestedKind: workforce.ProjectKindCoding,
 		Actor:         "user:hayang",
 	})
 	if err != nil {
@@ -308,7 +307,7 @@ func TestProposalAcceptance_Accept_HappyPath(t *testing.T) {
 	svc := acceptanceService(s)
 	pr, err := svc.Propose(context.Background(), ProposeCommand{
 		WorkerID: "W-AC", CandidatePath: "/home/dev/foo",
-		SuggestedProjectID: "p-acc", SuggestedKind: workforce.ProjectKindCoding,
+		SuggestedProjectID: "p-acc",
 		Actor: "user:hayang",
 	})
 	if err != nil {
@@ -330,8 +329,7 @@ func TestProposalAcceptance_Ignore_HappyPath(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-IG"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-IG", CandidatePath: "/x", SuggestedProjectID: "p",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "user:hayang",
+		WorkerID: "W-IG", CandidatePath: "/x", SuggestedProjectID: "p", Actor: "user:hayang",
 	})
 	evID, err := svc.Ignore(context.Background(), IgnoreCommand{
 		ProposalID: pr.ProposalID, Actor: "user:hayang",
@@ -372,7 +370,7 @@ func TestEnsureProject_NoTxRejected(t *testing.T) {
 	s := setupSuite(t)
 	disc := NewProjectDiscoveryService(s.projectRepo, s.sink, s.clock)
 	_, err := disc.EnsureProject(context.Background(), EnsureProjectInput{
-		ID: "p", Name: "P", Kind: workforce.ProjectKindCoding,
+		ID: "p", Name: "P",
 		CreatedBy: "user:x",
 	})
 	if err == nil {
@@ -386,7 +384,7 @@ func TestEnsureProject_BadActorInTx(t *testing.T) {
 	disc := NewProjectDiscoveryService(s.projectRepo, s.sink, s.clock)
 	persistence.RunInTx(context.Background(), s.db, func(txCtx context.Context) error {
 		_, err := disc.EnsureProject(txCtx, EnsureProjectInput{
-			ID: "p", Name: "P", Kind: workforce.ProjectKindCoding,
+			ID: "p", Name: "P",
 			CreatedBy: "bogus:x",
 		})
 		if err == nil {
@@ -401,7 +399,7 @@ func TestProjectCRUD_Add_HappyPath(t *testing.T) {
 	s := setupSuite(t)
 	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
 	_, err := svc.Add(context.Background(), AddCommand{
-		ID: "p-new", Name: "P", Kind: workforce.ProjectKindCoding,
+		ID: "p-new", Name: "P",
 		Actor: "user:hayang",
 	})
 	if err != nil {
@@ -414,7 +412,7 @@ func TestProjectCRUD_Remove_Happy(t *testing.T) {
 	s := setupSuite(t)
 	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
 	_, err := svc.Add(context.Background(), AddCommand{
-		ID: "p-rem", Name: "PR", Kind: workforce.ProjectKindCoding,
+		ID: "p-rem", Name: "PR",
 		Actor: "user:hayang",
 	})
 	if err != nil {
@@ -675,8 +673,7 @@ func TestPropose_SaveFailure(t *testing.T) {
 	}
 	svc := acceptanceService(s)
 	_, err := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-PF", CandidatePath: "/x", SuggestedProjectID: "p",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "user:x",
+		WorkerID: "W-PF", CandidatePath: "/x", SuggestedProjectID: "p", Actor: "user:x",
 	})
 	if err == nil {
 		t.Fatal()
@@ -689,8 +686,7 @@ func TestAccept_UpdateFailure(t *testing.T) {
 	_ = s.workerRepo.Save(context.Background(), newW(t, "W-AC2"))
 	svc := acceptanceService(s)
 	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-AC2", CandidatePath: "/x", SuggestedProjectID: "p-acc2",
-		SuggestedKind: workforce.ProjectKindCoding, Actor: "user:x",
+		WorkerID: "W-AC2", CandidatePath: "/x", SuggestedProjectID: "p-acc2", Actor: "user:x",
 	})
 	if _, err := s.db.ExecContext(context.Background(),
 		`CREATE TEMP TRIGGER block_proposals_upd BEFORE UPDATE ON worker_project_proposals BEGIN

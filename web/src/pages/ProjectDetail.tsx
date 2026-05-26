@@ -91,19 +91,15 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
           <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-muted">
             {p.id}
           </span>
-          {p.kind && (
-            <span className="rounded bg-brand/10 px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide text-brand">
-              {p.kind}
-            </span>
-          )}
-          {p.default_agent_cli && (
+          {p.tags.map((t) => (
             <span
-              className="rounded border border-border-base px-2 py-0.5 font-mono text-[0.6875rem] text-text-secondary"
-              data-testid="project-default-agent-cli"
+              key={t}
+              className="rounded bg-brand/10 px-2 py-0.5 text-[0.6875rem] tracking-wide text-brand"
+              data-testid={`project-tag-${t}`}
             >
-              {p.default_agent_cli}
+              {t}
             </span>
-          )}
+          ))}
         </div>
         <div className="flex gap-2">
           <button
@@ -143,23 +139,41 @@ function ProjectEditModal({
   onClose: () => void;
 }): React.ReactElement {
   const [name, setName] = useState(p.name);
-  const [kind, setKind] = useState(p.kind ?? '');
-  const [defaultAgentCLI, setDefaultAgentCLI] = useState(p.default_agent_cli ?? '');
   const [description, setDescription] = useState(p.description ?? '');
+  const [tags, setTags] = useState<string[]>(p.tags ?? []);
+  const [tagInput, setTagInput] = useState('');
   const update = useUpdateProject(p.id);
+
+  const addTag = (raw: string) => {
+    const t = raw.trim();
+    if (!t || tags.includes(t)) return;
+    setTags([...tags, t]);
+    setTagInput('');
+  };
+  const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
+  const onTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(tagInput);
+    } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
+    }
+  };
+
+  const sameTags = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((v, i) => v === b[i]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const fields: {
       version: number;
       name?: string;
-      kind?: string;
-      default_agent_cli?: string;
       description?: string;
+      tags?: string[];
     } = { version: p.version ?? 1 };
     if (name !== p.name) fields.name = name;
-    if (kind !== (p.kind ?? '')) fields.kind = kind;
-    if (defaultAgentCLI !== (p.default_agent_cli ?? '')) fields.default_agent_cli = defaultAgentCLI;
     if (description !== (p.description ?? '')) fields.description = description;
+    if (!sameTags(tags, p.tags ?? [])) fields.tags = tags;
     try {
       await update.mutateAsync(fields);
       onClose();
@@ -186,20 +200,6 @@ function ProjectEditModal({
           className={editInputClass}
           data-testid="project-edit-name"
         />
-        <label className="mb-2 mt-3 block text-xs font-medium">Kind</label>
-        <input
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
-          className={editInputClass}
-          data-testid="project-edit-kind"
-        />
-        <label className="mb-2 mt-3 block text-xs font-medium">Default agent CLI</label>
-        <input
-          value={defaultAgentCLI}
-          onChange={(e) => setDefaultAgentCLI(e.target.value)}
-          className={editInputClass}
-          data-testid="project-edit-agent-cli"
-        />
         <label className="mb-2 mt-3 block text-xs font-medium">Description</label>
         <textarea
           value={description}
@@ -208,6 +208,30 @@ function ProjectEditModal({
           className={editInputClass}
           data-testid="project-edit-description"
         />
+        <label className="mb-2 mt-3 block text-xs font-medium">Tags</label>
+        <div className={editTagChipsContainerClass}>
+          {tags.map((t) => (
+            <span key={t} className={editTagChipClass} data-testid={`project-edit-tag-chip-${t}`}>
+              {t}
+              <button
+                type="button"
+                className="ml-1 text-text-muted hover:text-text-primary"
+                onClick={() => removeTag(t)}
+                aria-label={`Remove tag ${t}`}
+              >
+                x
+              </button>
+            </span>
+          ))}
+          <input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={onTagKeyDown}
+            placeholder={tags.length === 0 ? 'add a tag...' : ''}
+            data-testid="project-edit-tag-input"
+            className="flex-1 min-w-[6rem] bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
+          />
+        </div>
         {update.isError && (
           <p className="mt-3 text-xs text-danger" data-testid="project-edit-error">
             {(update.error as Error).message}
@@ -459,6 +483,12 @@ function WorkersPanel({ projectId }: { projectId: string }): React.ReactElement 
 
 const editInputClass =
   'mt-1 block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent';
+
+const editTagChipsContainerClass =
+  'mt-1 flex flex-wrap items-center gap-1.5 rounded border border-border-base bg-bg-elevated px-2 py-1.5 focus-within:border-accent';
+
+const editTagChipClass =
+  'inline-flex items-center rounded bg-bg-subtle px-2 py-0.5 text-xs text-text-primary';
 
 // -----------------------------------------------------------------------------
 // Inline PanelCard — mirrors the Home.tsx shape (per brief: don't extract a

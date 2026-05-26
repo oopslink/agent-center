@@ -1279,25 +1279,24 @@ func agentPublicMap(ai *workforce.AgentInstance) map[string]any {
 }
 
 // projectPublicMap is the wire-format projection for a workforce
-// Project. Includes the full set of read-only fields the SPA needs
-// (id, name, kind, default_agent_cli, description, created_at,
-// updated_at). Mutations stay in the CLI surface per ADR-0029.
+// Project. v2.5.5 simplified the shape to id / name / description /
+// tags / version / created_at / updated_at — kind and
+// default_agent_cli are gone alongside the type. Tags is always
+// emitted (possibly empty) so the SPA can render a stable empty-state
+// chip row.
 func projectPublicMap(p *workforce.Project) map[string]any {
+	tags := p.Tags()
+	if tags == nil {
+		tags = []string{}
+	}
 	row := map[string]any{
-		"id":         string(p.ID()),
-		"name":       p.Name(),
-		"version":    p.Version(),
-		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
-	}
-	if k := p.Kind(); k != "" {
-		row["kind"] = string(k)
-	}
-	if cli := p.DefaultAgentCLI(); cli != "" {
-		row["default_agent_cli"] = cli
-	}
-	if d := p.Description(); d != "" {
-		row["description"] = d
+		"id":          string(p.ID()),
+		"name":        p.Name(),
+		"description": p.Description(),
+		"tags":        tags,
+		"version":     p.Version(),
+		"created_at":  p.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at":  p.UpdatedAt().Format(time.RFC3339Nano),
 	}
 	return row
 }
@@ -1819,12 +1818,14 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 // invalidates the mappings + drops the project anyway.
 // =============================================================================
 
+// createProjectReq is the POST /api/projects body. v2.5.5 simplified
+// the shape: the id is server-generated, kind / default_agent_cli are
+// gone, and tags is a JSON array of free-text strings (UI suggests a
+// builtin pool but the server doesn't validate the set).
 type createProjectReq struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Kind            string `json:"kind"`
-	DefaultAgentCLI string `json:"default_agent_cli"`
-	Description     string `json:"description"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
 }
 
 func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
@@ -1838,18 +1839,16 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if strings.TrimSpace(req.ID) == "" || strings.TrimSpace(req.Name) == "" {
+	if strings.TrimSpace(req.Name) == "" {
 		writeError(w, http.StatusBadRequest, "missing_field",
-			"id and name are required")
+			"name is required")
 		return
 	}
 	res, err := d.ProjectCRUDSvc.Add(r.Context(), wfservice.AddCommand{
-		ID:              workforce.ProjectID(req.ID),
-		Name:            req.Name,
-		Kind:            workforce.ProjectKind(req.Kind),
-		DefaultAgentCLI: req.DefaultAgentCLI,
-		Description:     req.Description,
-		Actor:           d.Actor,
+		Name:        req.Name,
+		Description: req.Description,
+		Tags:        req.Tags,
+		Actor:       d.Actor,
 	})
 	if err != nil {
 		mapWorkforceError(w, err)
@@ -1858,12 +1857,14 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, projectPublicMap(res.Project))
 }
 
+// updateProjectReq is the PATCH /api/projects/{id} body. v2.5.5
+// dropped kind / default_agent_cli; mutable surface is now name +
+// description + tags.
 type updateProjectReq struct {
-	Version         int     `json:"version"`
-	Name            *string `json:"name,omitempty"`
-	Kind            *string `json:"kind,omitempty"`
-	DefaultAgentCLI *string `json:"default_agent_cli,omitempty"`
-	Description     *string `json:"description,omitempty"`
+	Version     int       `json:"version"`
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Tags        *[]string `json:"tags,omitempty"`
 }
 
 func (s *Server) updateProjectHandler(w http.ResponseWriter, r *http.Request) {
@@ -1883,13 +1884,9 @@ func (s *Server) updateProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fields := workforce.ProjectUpdateFields{
-		Name:            req.Name,
-		DefaultAgentCLI: req.DefaultAgentCLI,
-		Description:     req.Description,
-	}
-	if req.Kind != nil {
-		k := workforce.ProjectKind(*req.Kind)
-		fields.Kind = &k
+		Name:        req.Name,
+		Description: req.Description,
+		Tags:        req.Tags,
 	}
 	res, err := d.ProjectCRUDSvc.Update(r.Context(), wfservice.UpdateCommand{
 		ID:      workforce.ProjectID(id),
