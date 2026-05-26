@@ -1,13 +1,27 @@
-# pnpm 10 honors `onlyBuiltDependencies` from pnpm-workspace.yaml as
-# the explicit allow-list of packages whose lifecycle scripts may
-# run during install. Mirrors the same list in web/package.json's
-# `pnpm` block for older pnpm versions; pnpm 10+ prefers this file.
+# pnpm 10 prompts on install when a transitive dep ships lifecycle
+# scripts that aren't explicitly approved. The two formats it
+# understands in this file (pnpm 10.31.0 verified):
 #
-# esbuild + msw both ship native binaries / service-worker fetches
-# that legitimately need their postinstall scripts to land usable
-# artifacts. Without this allow-list pnpm 10 warns
-# `[ERR_PNPM_IGNORED_BUILDS]` on every install and skips them,
-# producing a non-fatal but noisy first-clone experience.
+#   onlyBuiltDependencies:    # legacy list form
+#     - <pkg>
+#
+#   allowBuilds:              # current map form (per-pkg boolean)
+#     <pkg>: true|false
+#
+# We declare BOTH so pnpm 10.31+ takes the `allowBuilds:` map (which
+# is what its auto-stub injects) and older pnpm 10 / pnpm 9 fall
+# back to `onlyBuiltDependencies`.
+#
+# esbuild + msw both have legitimate postinstall scripts: esbuild
+# installs the platform-specific native binary; msw drops its
+# service-worker stub. Without explicit `true` here pnpm prints
+# `[ERR_PNPM_IGNORED_BUILDS]` and skips them, leaving a noisy /
+# (in stricter pnpm versions) failing install.
+
+allowBuilds:
+  esbuild: true
+  msw: true
+
 onlyBuiltDependencies:
   - esbuild
   - msw
