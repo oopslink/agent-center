@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.8
+## [v2.5.8] — 2026-05-27
 
 Web Console Task management — Create + Suspend/Resume/Abandon
 (#62, partial). PM created #65 to track Edit (title/description)
