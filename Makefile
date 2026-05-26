@@ -136,8 +136,18 @@ lint-no-raw-colors-spa:
 smoke:
 	./scripts/smoke/deploy-smoke.sh
 
+# lint-spa-tsc — TypeScript compile check for the Web Console SPA.
+# `npm test` (vitest) doesn't run tsc, and `npm run build` is only
+# triggered manually during release — which let v2.5.9 ship a type
+# break that surfaced only at PM smoke (#agent-center:700dde8d → #66).
+# Putting `tsc --noEmit` into the composite `lint` target catches the
+# class of issue (typed missing field, projection/SPA-type drift) in
+# the local + CI lint loop instead.
+lint-spa-tsc:
+	cd web && npx tsc --noEmit
+
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa
+lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.

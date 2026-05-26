@@ -11,6 +11,27 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.12
+
+### Changed
+
+- **Makefile `lint` target** now runs `lint-spa-tsc` (cd web &&
+  npx tsc --noEmit) as part of the composite lint pipeline (#66,
+  follow-up from #65 build break at
+  `#agent-center:700dde8d`). `npm test` (vitest) doesn't run the
+  TypeScript compiler and `npm run build` is only triggered at
+  release time — which let v2.5.9 ship a type break that
+  surfaced only during PM smoke. Adding `tsc --noEmit` to the
+  local + CI lint loop catches the class of issue (typed missing
+  field, backend projection / SPA type drift) before ship.
+
+### Verification
+
+- `make lint` runs all existing linters plus the new TypeScript
+  check; clean against current `main`.
+
+---
+
 ## [Unreleased] — v2.5.11
 
 Web Console Issue Edit + Reopen (#64, follow-up to #61 split).
