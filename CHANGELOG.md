@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.7
+## [v2.5.7] — 2026-05-27
 
 Web Console Issue management — Create + Conclude (#61, partial). PM
 created #64 to track Edit + Reopen as a follow-up since those
