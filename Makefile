@@ -51,7 +51,7 @@ WEB := web
 # `VERSION=v2.4.1 make build`); COMMIT is auto-discovered from the
 # working tree (falls back to "unknown" outside a checkout). Kept in
 # sync with CHANGELOG's top section.
-VERSION ?= v2.5.3
+VERSION ?= v2.5.4
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 build: build-frontend build-backend build-worker-daemon build-fakeagent
@@ -200,8 +200,15 @@ release: build
 	# lose the `install` subcommand prefix (argv[0] is consulted as
 	# the binary name, not as a router hint), so we ship a thin
 	# shell wrapper instead. Wrapper kept tiny + POSIX-portable.
+	#
+	# v2.5.4 adds the `./uninstall` + `./upgrade` companions so the
+	# whole install / upgrade / uninstall lifecycle is reachable
+	# from the extracted tarball without the operator having to
+	# remember the `bin/agent-center <verb>` form.
 	printf '#!/bin/sh\n# v2.4 first-mile install entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" install "$$@"\n' > $(RELEASE_DIR)/install
-	chmod +x $(RELEASE_DIR)/install
+	printf '#!/bin/sh\n# v2.5.4 uninstall entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" uninstall "$$@"\n' > $(RELEASE_DIR)/uninstall
+	printf '#!/bin/sh\n# v2.5.4 upgrade entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" upgrade "$$@"\n' > $(RELEASE_DIR)/upgrade
+	chmod +x $(RELEASE_DIR)/install $(RELEASE_DIR)/uninstall $(RELEASE_DIR)/upgrade
 	# Tar with -C so the archive starts at the versioned dir,
 	# matching what the first-mile guide assumes ("cd agent-center-
 	# vX.Y.Z-<os>-<arch>" after extract).

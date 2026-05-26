@@ -11,6 +11,32 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.5.4] — 2026-05-26
+
+@oopslink (#agent-center msg=464872a5): the `make release` tarball
+shipped from v2.5.1+ only included the `./install` wrapper. Operators
+running `./uninstall center` or `./upgrade center` directly from
+the extracted release tarball got a "command not found" because
+the wrappers didn't exist — only `bin/agent-center uninstall ...`
+worked.
+
+### Fixed
+
+- **`make release`** now ships three POSIX shell wrappers at the
+  tarball root: `./install`, `./uninstall`, `./upgrade`. Each
+  one-liner forwards `"$@"` to its subcommand on the bundled
+  `bin/agent-center` so the full install / upgrade / uninstall
+  lifecycle is reachable without remembering the binary path.
+  Workaround for tarballs already deployed: invoke
+  `bin/agent-center uninstall ...` or `bin/agent-center upgrade ...`
+  directly; the binary itself was always complete.
+
+Verified end-to-end: `make release` produces a tarball that lists
+all three wrappers at the top level. No code changes outside the
+Makefile.
+
+---
+
 ## [v2.5.3] — 2026-05-26
 
 Project management UI completion (#58). @oopslink ask:
