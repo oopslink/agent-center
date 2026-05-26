@@ -11,6 +11,103 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased — v2.4.0 draft] — 2026-05-26
+
+> This is the draft release-notes section for v2.4. v2.3 work landed
+> on `main` between v2.2 and v2.4 without its own tag — its highlights
+> are summarized below under "v2.3 carry-over" so the v2.2 → v2.4
+> diff stays readable.
+
+### Highlights
+
+v2.4 ships the **first-mile deployment** experience that v2.0 GA was
+missing. Before v2.4 you assembled the worker invocation by hand
+(fingerprint, bearer token, capabilities, etc.); now `./install center`
+and a Web Console **Add Worker** Modal cover the path from extracted
+tarball to running worker in well under a minute on Mac.
+
+### Added (v2.4-D first-mile)
+
+- **`agent-center install center|worker` subcommand** — single
+  idempotent command for fresh install + upgrade, with cross-OS
+  service unit generation (launchd on Mac, systemd on Linux).
+- **Atomic symlink-swap upgrade with auto-rollback** — new version is
+  laid down at `<prefix>/versions/<new>/`, the schema migration runs,
+  `<prefix>/current` is flipped via POSIX `rename(2)`, and the
+  installer probes the health endpoint. Probe failure → automatic
+  symlink rollback + service restart.
+- **One-time-use enroll tokens** — new `AdminToken` flavor with
+  `is_enroll + expires_at + used_at` columns (migration 0029).
+  30-minute default TTL; CAS-based first-use-burns via
+  `used_at IS NULL` in the auth middleware. Coexists with v2.3-3a
+  long-term tokens.
+- **Web Console Add Worker UX** — `/fleet` top-bar **+ Add Worker**
+  button + `AddWorkerModal` (7-state machine: minting / ready /
+  success / token_used / token_expired / timeout_hint) showing a
+  copyable install command. Live transition to **Worker connected**
+  via SSE `workforce.worker.enrolled`. Newly-enrolled Fleet rows
+  briefly pulse green; a global toast in the bottom-right acts as
+  fallback when the Modal is closed.
+- **Home Get-started card** — Home page shows a prominent **Add a
+  worker** CTA when no workers are enrolled, so the first-mile gap
+  is visible on the landing surface.
+- **Friendly install failure messages** — disk full, port in use,
+  permission denied (systemd unit / binary write), upgrade health
+  probe failure all map to `<friendly> / What to try / Underlying`
+  output instead of raw syscall errors. Preflight port-availability
+  check runs before service activation.
+
+### Added (v2.3 carry-over — already on `main`)
+
+- **Multi-host TCP+TLS admin endpoint** with SSH-style fingerprint
+  pinning, per-token bucket rate limiting, and audit IP capture.
+  See [docs/deployment/v2.3-multi-host.md](docs/deployment/v2.3-multi-host.md)
+  for the operator walkthrough — still authoritative for the cross-
+  host internals.
+- **Real agent dispatch chain** — `/admin/secret/user-secret/resolve`,
+  `/admin/blob/put`, `defaultAgentSpawner` wires `AssemblePrompt` +
+  `MCPInjector`. Previously v2.2 wired the transport but the agent
+  spawn was a stub.
+- **`AdminToken` AR + middleware + CLI** — `agent-center admintoken
+  create/list/revoke` for long-lived per-worker tokens. v2.4-D's
+  enroll-token model layers on top.
+- **BC-native `/api/issues` + `/api/tasks` list endpoints** + SPA
+  surfaces driven by them (project filter is now a real filter, not
+  cosmetic).
+- **SPA polish** — DeriveModal project picker, unread tracking
+  schema + service + frontend, per-conversation SSE subscribe, Web
+  Console UX/UI overhaul, Home `bento-grid` dashboard.
+
+### Schema
+
+- **migration 0029** — `admin_tokens` gains `is_enroll`,
+  `expires_at`, `used_at` columns + partial index for the
+  enroll-token sub-table.
+- `targetSchemaVersion` bumped 28 → 29.
+
+### Docs
+
+- New: [docs/deployment/v2.4-first-mile.md](docs/deployment/v2.4-first-mile.md)
+  — operator guide for install / enroll / upgrade / rollback / 12
+  failure modes.
+- The v2.3 multi-host guide is unchanged and remains authoritative
+  for fingerprint hygiene, rate-limit tuning, and cross-host
+  internals.
+
+### Deferred to v3 (or later v2 minors)
+
+- Tarball distribution (downloads.agent-center.dev etc.) — v2.5+
+- New SSE events `worker.enroll_attempt_failed` +
+  `admintoken.expired` — these are nice-to-have for richer Modal
+  feedback; the client's 5-min timeout state covers the silent-fail
+  case in v2.4. See audit
+  [v24-D-A4](docs/plans/v2.4-audits/v24-D-A4-sse-events-audit.md).
+- Linux acceptance — v2.4 scope is Mac-only per @oopslink's
+  acceptance scope. Linux units are written + unit-tested but not
+  acceptance-validated; that lands in v2.5.
+
+---
+
 ## [v2.2.0] — 2026-05-25
 
 ⚠ **MINOR VERSION** with one breaking config-default change
