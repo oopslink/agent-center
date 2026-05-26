@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.5
+## [v2.5.5] — 2026-05-26
 
 Project model simplification (#59) per @oopslink design discussion
 in `#agent-center:68d33af4`. v2.5.3 shipped Project CRUD UI on
