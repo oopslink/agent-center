@@ -11,6 +11,74 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased — v2.5.0 draft]
+
+Add Worker flow redesign — split the logical "add a worker"
+(creates a record, status=offline) from the physical
+"install the worker" (operator runs `./install worker` on the
+worker machine). Per @oopslink design statement in
+#agent-center:5f8a6f7e (msg=61fcab27): "添加是逻辑动作 = 创建记录
+status=offline；用户在机器上 install 后 worker 上线时 update status".
+
+### Highlights
+
+- **Add Worker Modal collapses from 7 states to 3** (name_prompt /
+  minting / mint_error). Clicking Add closes the Modal immediately;
+  the new offline row appears in Fleet via SSE.
+- **Per-row install command actions** on offline Fleet rows: Show
+  install command (re-displays the original token while alive) and
+  Re-mint install command (revokes old + issues fresh, refuses when
+  the worker is already online).
+- **Remove worker** action on every Fleet row: revokes the worker's
+  admin tokens (long-term + any active install token) and drops the
+  Worker record. SSE retires the row in other tabs automatically.
+- **Plaintext-never-at-rest invariant preserved** (ADR-0026): enroll
+  token plaintext is AES-GCM-encrypted with the same `master_key`
+  UserSecret BC uses, only for the install-command re-display flow,
+  and NULL-ed on first use.
+
+### Added
+
+- `WorkerEnrollService.AddWorker` + `RemoveWorker` (workforce
+  service) + `Worker.Delete` (repository).
+- `AdminTokenService.ShowInstallToken` /
+  `RevokeAllForWorker` / `RevokeActiveEnrollForWorker` /
+  `HasLongTermTokenForWorker` + `WithMasterKey` config.
+- Webconsole endpoints:
+  - `GET /api/workers/{id}/install-command` (B2)
+  - `POST /api/workers/{id}/install-command/re-mint` (B3)
+  - `DELETE /api/workers/{id}` (B4)
+- SPA: `InstallCommandModal` component, Fleet row Actions column
+  (Show install / Re-mint install / Remove buttons), SSE handler
+  for `workforce.worker.added` + `workforce.worker.removed`.
+
+### Schema (migration 0031)
+
+- `admin_tokens.worker_id TEXT NULL` — binds the row to a Worker AR.
+- `admin_tokens.plaintext_ciphertext BLOB NULL` +
+  `plaintext_nonce BLOB NULL` — AES-GCM-encrypted bearer for the
+  show-install-command flow. NULL for long-term tokens and after
+  `ConsumeEnrollToken`.
+- Partial index `idx_admin_tokens_worker_id` on
+  `(worker_id) WHERE is_enroll = 1 AND worker_id IS NOT NULL`.
+
+### Events
+
+- New `workforce.worker.added` — emitted by `AddWorker` so SSE
+  paints the Fleet row before the daemon enrolls.
+- New `workforce.worker.removed` — emitted by `RemoveWorker` so
+  Fleet rows in other tabs retire automatically.
+
+### Docs
+
+- `docs/deployment/v2.4-first-mile.md § 3` rewritten for the v2.5
+  decoupled flow (add ≠ install + Show / Re-mint / Remove actions).
+- `docs/plans/v2.4-deployment-ui-design.md § 4` marked archived —
+  States 1/3/6 of the old Modal state machine are retired; the
+  rationale stays as v2.4 design history.
+
+---
+
 ## [v2.4.1] — 2026-05-26
 
 Post-v2.4.0 polish from real-binary dogfood on @oopslink's machine.
