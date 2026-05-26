@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFleet } from '@/api/fleet';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
@@ -9,10 +9,37 @@ import { AddWorkerModal } from '@/components/AddWorkerModal';
 //
 // SSE invalidation: F5 wires worker.* + agent_instance.* +
 // task_execution.state_changed → invalidate qk.fleet().
+//
+// v2.4-D-F4: newly-enrolled worker rows briefly highlight green
+// (3s fade) so the user sees which row is the one they just added.
+const HIGHLIGHT_MS = 3_000;
+
 export default function Fleet(): React.ReactElement {
   const fleet = useFleet();
   // v2.4-D-F1 (task #41): "Add Worker" button + Modal launch.
   const [modalOpen, setModalOpen] = useState(false);
+  // v2.4-D-F4 (task #44): worker_ids currently flashing the "just
+  // enrolled" highlight. Map of id → expiry timestamp.
+  const [highlighted, setHighlighted] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ worker_id?: string }>).detail || {};
+      if (!detail.worker_id) return;
+      const id = detail.worker_id;
+      setHighlighted((prev) => ({ ...prev, [id]: Date.now() + HIGHLIGHT_MS }));
+      setTimeout(() => {
+        setHighlighted((prev) => {
+          if (!prev[id]) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }, HIGHLIGHT_MS);
+    };
+    window.addEventListener('agent-center:worker-enrolled', handler);
+    return () => window.removeEventListener('agent-center:worker-enrolled', handler);
+  }, []);
 
   return (
     <section className="space-y-6" data-testid="page-Fleet">
@@ -80,8 +107,20 @@ export default function Fleet(): React.ReactElement {
                   </tr>
                 </thead>
                 <tbody>
-                  {fleet.data.workers.map((w) => (
-                    <tr key={w.worker_id} data-testid="fleet-worker-row" data-worker-id={w.worker_id}>
+                  {fleet.data.workers.map((w) => {
+                    const flashing = Boolean(highlighted[w.worker_id]);
+                    return (
+                    <tr
+                      key={w.worker_id}
+                      data-testid="fleet-worker-row"
+                      data-worker-id={w.worker_id}
+                      data-just-enrolled={flashing ? 'true' : undefined}
+                      className={
+                        flashing
+                          ? 'motion-safe:animate-pulse bg-emerald-50 motion-safe:transition-colors motion-safe:duration-700'
+                          : 'motion-safe:transition-colors motion-safe:duration-700'
+                      }
+                    >
                       <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
                         {w.worker_id}
                       </td>
@@ -100,7 +139,8 @@ export default function Fleet(): React.ReactElement {
                         {w.last_heartbeat_at || '—'}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             )}

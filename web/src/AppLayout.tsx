@@ -6,6 +6,7 @@ import { useSSE } from '@/sse/useSSE';
 import { useInputRequests } from '@/api/inputRequests';
 import { PageSkeleton } from '@/components/Skeleton';
 import { CommandPalette } from '@/components/CommandPalette';
+import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
 import { useKeyShortcuts } from '@/useKeyShortcuts';
 import { readTheme, writeTheme, type Theme } from '@/theme';
 
@@ -148,6 +149,7 @@ export default function AppLayout(): React.ReactElement {
         </main>
       </div>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <WorkerEnrolledToast />
     </div>
   );
 }

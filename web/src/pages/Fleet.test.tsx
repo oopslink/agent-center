@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -123,5 +123,41 @@ describe('Fleet page', () => {
     );
     wrap(<Fleet />);
     await waitFor(() => expect(screen.getByTestId('fleet-error')).toHaveTextContent(/down/));
+  });
+
+  // v2.4-D-F4: when a workforce.worker.enrolled event arrives, the
+  // matching row picks up data-just-enrolled="true" for ~3s so the
+  // user sees which row is the one they just connected.
+  it('highlights a newly enrolled worker row when the DOM event fires', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json({
+          executions: [],
+          workers: [
+            {
+              worker_id: 'w-1',
+              status: 'online',
+              active_count: 0,
+              mappings_count: 0,
+              last_heartbeat_at: '2026-05-24T01:00:01Z',
+            },
+          ],
+          open_input_requests: [],
+          pending_issues: [],
+        }),
+      ),
+    );
+    wrap(<Fleet />);
+    await waitFor(() => expect(screen.getByTestId('fleet-worker-row')).toBeInTheDocument());
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent('agent-center:worker-enrolled', {
+          detail: { worker_id: 'w-1' },
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('fleet-worker-row')).toHaveAttribute('data-just-enrolled', 'true'),
+    );
   });
 });

@@ -21,12 +21,17 @@ export interface AppState {
   sseStatus: SSEStatus;
   sseLastEventId: string | null;
   navBadges: NavBadges;
+  // True while the AddWorkerModal is mounted; lets the global
+  // WorkerEnrolledToast suppress itself so we don't show the success
+  // card and a toast at the same time (v2.4-D-F4 UI § 6 fallback).
+  addWorkerModalOpen: boolean;
 
   setCurrentUserId: (id: string) => void;
   setSSEStatus: (s: SSEStatus) => void;
   setSSELastEventId: (id: string | null) => void;
   incInputRequestBadge: () => void;
   resetInputRequestBadge: () => void;
+  setAddWorkerModalOpen: (open: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -34,6 +39,7 @@ export const useAppStore = create<AppState>((set) => ({
   sseStatus: 'idle',
   sseLastEventId: null,
   navBadges: { inputRequests: 0 },
+  addWorkerModalOpen: false,
 
   setCurrentUserId: (id) => set({ currentUserId: id }),
   setSSEStatus: (s) => set({ sseStatus: s }),
@@ -42,4 +48,5 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => ({ navBadges: { ...s.navBadges, inputRequests: s.navBadges.inputRequests + 1 } })),
   resetInputRequestBadge: () =>
     set((s) => ({ navBadges: { ...s.navBadges, inputRequests: 0 } })),
+  setAddWorkerModalOpen: (open) => set({ addWorkerModalOpen: open }),
 }));

@@ -231,6 +231,15 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
 
     // Worker lifecycle. Backend emits BC-prefixed names.
     case 'workforce.worker.enrolled':
+      invalidate(qk.fleet());
+      // v2.4-D-F3: bridge worker.enrolled to AddWorkerModal via DOM
+      // CustomEvent. The Modal listens for this to transition from
+      // State 2 (token ready) → State 3 (success). Payload carries
+      // worker_id, host/os fingerprint for the success card.
+      window.dispatchEvent(
+        new CustomEvent('agent-center:worker-enrolled', { detail: ev.data }),
+      );
+      return;
     case 'workforce.worker.config.updated':
     case 'workforce.worker.capability.updated':
       invalidate(qk.fleet());

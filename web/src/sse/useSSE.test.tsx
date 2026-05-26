@@ -143,6 +143,38 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
   });
 
+  // v2.4-D-F3: workforce.worker.enrolled also dispatches a window
+  // CustomEvent so the AddWorkerModal can transition State 2 → State 3.
+  it('workforce.worker.enrolled dispatches agent-center:worker-enrolled CustomEvent', () => {
+    const got: CustomEvent[] = [];
+    const handler = (e: Event) => got.push(e as CustomEvent);
+    window.addEventListener('agent-center:worker-enrolled', handler);
+    try {
+      dispatchToQueryClient(qc, {
+        event_type: 'workforce.worker.enrolled',
+        data: { worker_id: 'w-42', capabilities: ['claudecode'] },
+      });
+    } finally {
+      window.removeEventListener('agent-center:worker-enrolled', handler);
+    }
+    expect(got).toHaveLength(1);
+    expect((got[0].detail as { worker_id: string }).worker_id).toBe('w-42');
+  });
+
+  // Sibling worker.* events must NOT dispatch the custom event — only
+  // enrolled is the bridge to AddWorkerModal.
+  it('workforce.worker.config.updated does NOT dispatch agent-center:worker-enrolled', () => {
+    const got: Event[] = [];
+    const handler = (e: Event) => got.push(e);
+    window.addEventListener('agent-center:worker-enrolled', handler);
+    try {
+      dispatchToQueryClient(qc, ev('workforce.worker.config.updated'));
+    } finally {
+      window.removeEventListener('agent-center:worker-enrolled', handler);
+    }
+    expect(got).toHaveLength(0);
+  });
+
   it('secretmgmt.user_secret.* invalidates secrets (note BC prefix)', () => {
     for (const t of [
       'secretmgmt.user_secret.created',

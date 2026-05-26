@@ -15,11 +15,12 @@
 //
 // Modal close + unused token: auto-revokes per UI design § 9 D2.
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAppStore } from '@/store/app';
 
 type ModalState =
   | { kind: 'minting' }
   | { kind: 'ready'; token: string; expiresAt: Date; mintedAt: Date; command: string }
-  | { kind: 'success'; worker: { id: string; host: string; os: string } }
+  | { kind: 'success'; worker: { id: string; capabilities: string[] } }
   | { kind: 'token_used' }
   | { kind: 'token_expired' }
   | { kind: 'timeout_hint'; token: string; expiresAt: Date; command: string };
@@ -68,6 +69,14 @@ function renderCommand(token: string, bootstrapHost: string): string {
 
 export function AddWorkerModal({ onClose }: Props): React.ReactElement {
   const [state, setState] = useState<ModalState>({ kind: 'minting' });
+
+  // Tell the global WorkerEnrolledToast (F4) to suppress itself while
+  // the Modal is mounted; on close we let the toast handle subsequent
+  // enrollments.
+  useEffect(() => {
+    useAppStore.getState().setAddWorkerModalOpen(true);
+    return () => useAppStore.getState().setAddWorkerModalOpen(false);
+  }, []);
 
   // Mint on mount.
   useEffect(() => {
@@ -146,24 +155,24 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     return () => clearTimeout(id);
   }, [state]);
 
-  // SSE wire-up for worker.enrolled → State 3.
-  // F3 (#43) plumbs the actual subscription; for v0 we listen for a
-  // custom DOM event that F3 dispatches when it sees workforce.worker.
-  // enrolled on the SSE stream.
+  // SSE wire-up for worker.enrolled → State 3. useSSE dispatches the
+  // DOM event "agent-center:worker-enrolled" whenever it sees the
+  // backend `workforce.worker.enrolled` SSE message. Backend payload
+  // currently ships {worker_id, capabilities}; the success card shows
+  // only those (no host/os/version placeholders — see PD note in
+  // task #44 thread: empty dashes look like a failed connect).
   useEffect(() => {
     if (state.kind !== 'ready' && state.kind !== 'timeout_hint') return;
     const handler = (ev: Event) => {
       const detail = (ev as CustomEvent).detail as {
         worker_id?: string;
-        host?: string;
-        os?: string;
+        capabilities?: string[];
       };
       setState({
         kind: 'success',
         worker: {
           id: detail.worker_id || 'unknown',
-          host: detail.host || 'unknown',
-          os: detail.os || 'unknown',
+          capabilities: Array.isArray(detail.capabilities) ? detail.capabilities : [],
         },
       });
     };
@@ -294,13 +303,19 @@ function ModalBody({ state, onGenerateNew, onAddAnother, onClose }: BodyProps): 
           <p className="mb-3 text-sm font-medium text-emerald-600">Worker connected.</p>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
             <dt className="text-slate-500">Name</dt>
-            <dd className="font-mono text-xs">{state.worker.id}</dd>
-            <dt className="text-slate-500">Host</dt>
-            <dd>{state.worker.host}</dd>
-            <dt className="text-slate-500">OS</dt>
-            <dd>{state.worker.os}</dd>
+            <dd className="font-mono text-xs" data-testid="modal-success-worker-id">
+              {state.worker.id}
+            </dd>
+            {state.worker.capabilities.length > 0 && (
+              <>
+                <dt className="text-slate-500">Capabilities</dt>
+                <dd className="text-xs" data-testid="modal-success-capabilities">
+                  {state.worker.capabilities.join(', ')}
+                </dd>
+              </>
+            )}
             <dt className="text-slate-500">Status</dt>
-            <dd>● Online</dd>
+            <dd>Online</dd>
           </dl>
           <p className="mt-3 text-xs text-slate-500">
             Your worker is now visible in the Fleet table.
