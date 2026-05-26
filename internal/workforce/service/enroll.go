@@ -49,6 +49,10 @@ func NewWorkerEnrollServiceV2(db *sql.DB, repo workforce.WorkerRepository, token
 // EnrollCommand captures the CLI input.
 type EnrollCommand struct {
 	WorkerID       workforce.WorkerID
+	// Name is the operator-facing friendly label set at enroll time
+	// (v2.4-D-X1 @oopslink). Empty falls back to WorkerID inside the
+	// Worker AR.
+	Name           string
 	Capabilities   []string
 	ActorIdentity  observability.Actor
 }
@@ -67,6 +71,7 @@ func (s *WorkerEnrollService) Enroll(ctx context.Context, cmd EnrollCommand) (En
 	}
 	w, err := workforce.NewWorker(workforce.NewWorkerInput{
 		ID:           cmd.WorkerID,
+		Name:         cmd.Name,
 		Capabilities: cmd.Capabilities,
 		EnrolledAt:   s.clock.Now(),
 	})
@@ -170,6 +175,47 @@ func (s *WorkerEnrollService) Heartbeat(ctx context.Context, cmd HeartbeatComman
 		})
 	}
 	return s.repo.UpdateLastHeartbeatAt(ctx, cmd.WorkerID, now, cmd.AdditionalWorkingSeconds)
+}
+
+// RenameCommand carries the inputs to Rename. Actor identifies who
+// performed the rename for the audit event.
+type RenameCommand struct {
+	WorkerID workforce.WorkerID
+	Name     string
+	Actor    observability.Actor
+}
+
+// Rename mutates the worker's friendly label. Emits
+// `workforce.worker.renamed` so SSE consumers (Fleet view) refresh.
+// Returns workforce.ErrWorkerNotFound if id is unknown.
+// v2.4-D-X1 (@oopslink ask).
+func (s *WorkerEnrollService) Rename(ctx context.Context, cmd RenameCommand) error {
+	if cmd.WorkerID == "" {
+		return errors.New("workforce.rename: worker_id required")
+	}
+	w, err := s.repo.FindByID(ctx, cmd.WorkerID)
+	if err != nil {
+		return err
+	}
+	now := s.clock.Now()
+	if err := w.SetName(now, cmd.Name); err != nil {
+		return err
+	}
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if err := s.repo.UpdateName(txCtx, w.ID(), w.Name(), w.Version()-1); err != nil {
+			return err
+		}
+		_, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "workforce.worker.renamed",
+			Refs:      observability.EventRefs{WorkerID: string(w.ID())},
+			Actor:     cmd.Actor,
+			Payload: map[string]any{
+				"worker_id": string(w.ID()),
+				"name":      w.Name(),
+			},
+		})
+		return err
+	})
 }
 
 // =============================================================================

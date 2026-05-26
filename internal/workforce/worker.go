@@ -19,7 +19,12 @@ import (
 //
 // All fields are unexported; mutators bump version and validate transitions.
 type Worker struct {
-	id              WorkerID
+	id WorkerID
+	// name is the operator-facing friendly label (v2.4-D-X1
+	// @oopslink ask). id is immutable, name is editable post-enroll.
+	// When unset, the worker projection falls back to id so the
+	// Fleet view never shows an empty cell.
+	name            string
 	status          WorkerStatus
 	capabilities    []Capability
 	concurrency     WorkerConcurrency
@@ -42,6 +47,9 @@ type Worker struct {
 // For richer initialisation use CapabilityList directly.
 type NewWorkerInput struct {
 	ID             WorkerID
+	// Name is the operator-facing friendly label. Optional; defaults
+	// to ID when empty so legacy callers continue to work.
+	Name           string
 	Capabilities   []string
 	CapabilityList []Capability
 	Concurrency    *WorkerConcurrency
@@ -72,8 +80,13 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 	if created.IsZero() {
 		created = in.EnrolledAt
 	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		name = string(in.ID)
+	}
 	return &Worker{
 		id:           in.ID,
+		name:         name,
 		status:       WorkerOffline,
 		capabilities: caps,
 		concurrency:  concurrency,
@@ -90,6 +103,7 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 // transition validation.
 type RehydrateWorkerInput struct {
 	ID              WorkerID
+	Name            string
 	Status          WorkerStatus
 	Capabilities    []string // legacy convenience: list of CLI names
 	CapabilityList  []Capability
@@ -128,8 +142,13 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 	if in.Discovery != nil {
 		discovery = *in.Discovery
 	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		name = string(in.ID)
+	}
 	return &Worker{
 		id:              in.ID,
+		name:            name,
 		status:          in.Status,
 		capabilities:    caps,
 		concurrency:     concurrency,
@@ -150,6 +169,7 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 // Getters.
 
 func (w *Worker) ID() WorkerID                 { return w.id }
+func (w *Worker) Name() string                 { return w.name }
 func (w *Worker) Status() WorkerStatus         { return w.status }
 func (w *Worker) LastHeartbeatAt() *time.Time  { return copyTimePtr(w.lastHeartbeatAt) }
 func (w *Worker) WorkingSeconds() int64        { return w.workingSeconds }
@@ -300,6 +320,24 @@ func (w *Worker) MarkOffline(at time.Time, reason OfflineReason, message string)
 	w.offlineReason = reason
 	w.offlineMessage = message
 	w.updatedAt = at
+	w.version++
+	return nil
+}
+
+// SetName mutates the operator-facing friendly label. id stays
+// immutable; only name changes. Empty / whitespace-only names are
+// rejected so the projection can rely on a non-empty value.
+// v2.4-D-X1 (@oopslink ask).
+func (w *Worker) SetName(at time.Time, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("worker: name must be non-empty")
+	}
+	if name == w.name {
+		return nil
+	}
+	w.name = name
+	w.updatedAt = at.UTC()
 	w.version++
 	return nil
 }

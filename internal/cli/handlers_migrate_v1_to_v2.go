@@ -75,10 +75,11 @@ func MigrateV1ToV2Command() *Command {
 // for the currently-shipped v2.x line. v2.0 GA was 25; v2.1 added
 // 0026 (user_conversation_read_state); v2.1-E added 0027;
 // v2.3-3a added 0028 (admin_tokens); v2.4-D-A3 added 0029 (enroll
-// token columns). Update this constant when any future migration
-// lands so `migrate v1-to-v2` always carries the install to the
-// latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 29
+// token columns); v2.4-D-X1 added 0030 (workers.name). Update this
+// constant when any future migration lands so `migrate v1-to-v2`
+// always carries the install to the latest schema instead of leaving
+// it mid-version.
+const targetSchemaVersion = 30
 
 func runMigrateV1ToV2(
 	ctx context.Context,

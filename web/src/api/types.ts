@@ -93,6 +93,9 @@ export interface FleetExecutionRow {
 
 export interface FleetWorkerRow {
   worker_id: string;
+  // Friendly operator-facing label (v2.4-D-X1). Falls back to
+  // worker_id when unset.
+  name: string;
   status: string;
   active_count: number;
   mappings_count: number;

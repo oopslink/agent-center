@@ -31,6 +31,7 @@ var workerLongTermTokenScopes = []admintoken.Scope{
 
 type enrollReq struct {
 	WorkerID     string   `json:"worker_id"`
+	Name         string   `json:"name"`
 	Capabilities []string `json:"capabilities"`
 }
 
@@ -47,6 +48,7 @@ func (s *Server) workerEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := d.EnrollSvc.Enroll(r.Context(), wfservice.EnrollCommand{
 		WorkerID:      workforce.WorkerID(req.WorkerID),
+		Name:          req.Name,
 		Capabilities:  req.Capabilities,
 		ActorIdentity: d.Actor,
 	})
@@ -83,6 +85,36 @@ func (s *Server) workerEnrollHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// renameReq is the body for /admin/workforce/worker/rename
+// (v2.4-D-X1 @oopslink ask). worker_id identifies the target; name
+// is the new friendly label (non-empty after trim).
+type renameReq struct {
+	WorkerID string `json:"worker_id"`
+	Name     string `json:"name"`
+}
+
+func (s *Server) workerRenameHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.EnrollSvc == nil {
+		writeError(w, http.StatusNotImplemented, "enroll_svc_not_wired", "")
+		return
+	}
+	var req renameReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.EnrollSvc.Rename(r.Context(), wfservice.RenameCommand{
+		WorkerID: workforce.WorkerID(req.WorkerID),
+		Name:     req.Name,
+		Actor:    d.Actor,
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"worker_id": req.WorkerID, "name": req.Name})
 }
 
 // v2.3-1 (task #24): dedicated heartbeat endpoint. Replaces the v2.2

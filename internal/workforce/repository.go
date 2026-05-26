@@ -22,6 +22,10 @@ type WorkerRepository interface {
 	Save(ctx context.Context, w *Worker) error
 	UpdateStatus(ctx context.Context, id WorkerID, from, to WorkerStatus, version int) error
 	UpdateLastHeartbeatAt(ctx context.Context, id WorkerID, at time.Time, workingSeconds int64) error
+	// UpdateName mutates the friendly label (v2.4-D-X1 @oopslink ask).
+	// CAS on version; returns ErrWorkerVersionConflict on mismatch,
+	// ErrWorkerNotFound if id is unknown.
+	UpdateName(ctx context.Context, id WorkerID, name string, version int) error
 	// UpdateConfig writes the v2 behavior config (per ADR-0023 § 3).
 	// Optimistic lock on version; returns ErrWorkerVersionConflict on mismatch.
 	UpdateConfig(ctx context.Context, id WorkerID, fields WorkerConfigFields, version int) error

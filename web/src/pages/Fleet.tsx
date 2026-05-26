@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useFleet } from '@/api/fleet';
+import { qk } from '@/api/queryKeys';
+import type { FleetWorkerRow } from '@/api/types';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
 
 // Fleet (/fleet). 4-segment overview: workers + active executions +
@@ -121,8 +124,8 @@ export default function Fleet(): React.ReactElement {
                           : 'motion-safe:transition-colors motion-safe:duration-700'
                       }
                     >
-                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
-                        {w.worker_id}
+                      <td className="border-b border-slate-100 px-3 py-2">
+                        <WorkerNameCell worker={w} />
                       </td>
                       <td className="border-b border-slate-100 px-3 py-2">
                         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase">
@@ -274,5 +277,106 @@ function Section({
       <h3 className="mb-2 text-sm font-semibold text-slate-700">{title}</h3>
       {children ?? <p className="text-xs text-slate-500">{empty}</p>}
     </section>
+  );
+}
+
+// WorkerNameCell shows the friendly name + worker id, with inline
+// edit on click. v2.4-D-X1 @oopslink ask. Falls back to id when the
+// projection is missing a name (older rows pre-migration 0030 are
+// backfilled to name=id so this only triggers on partial responses).
+function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const displayName = worker.name || worker.worker_id;
+  const [draft, setDraft] = useState(displayName);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const next = draft.trim();
+    if (!next || next === displayName) {
+      setEditing(false);
+      setDraft(displayName);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const resp = await fetch(`/api/workers/${encodeURIComponent(worker.worker_id)}/name`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: next }),
+      });
+      if (!resp.ok) {
+        const body = (await resp.json().catch(() => ({}))) as { error?: string; message?: string };
+        throw new Error(body.message || body.error || `HTTP ${resp.status}`);
+      }
+      setEditing(false);
+      // Local cache flip; the SSE workforce.worker.renamed event
+      // will re-invalidate fleet for any other tab.
+      void qc.invalidateQueries({ queryKey: qk.fleet() });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          disabled={busy}
+          className="w-40 rounded border border-slate-300 px-2 py-0.5 text-sm focus:border-blue-500"
+          data-testid="fleet-worker-name-input"
+        />
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:bg-slate-300"
+          data-testid="fleet-worker-name-save"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setEditing(false);
+            setDraft(displayName);
+            setError(null);
+          }}
+          className="text-xs text-slate-500 hover:text-slate-700"
+        >
+          Cancel
+        </button>
+        {error && <span className="text-xs text-danger">{error}</span>}
+      </form>
+    );
+  }
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        className="text-left text-sm font-medium text-slate-800 hover:text-accent"
+        onClick={() => setEditing(true)}
+        title="Click to rename"
+        data-testid="fleet-worker-name"
+      >
+        {displayName}
+      </button>
+      <span className="font-mono text-[0.6875rem] text-slate-500" data-testid="fleet-worker-id">
+        {worker.worker_id}
+      </span>
+    </div>
   );
 }

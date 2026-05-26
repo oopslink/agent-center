@@ -58,6 +58,8 @@ func main() {
 	var (
 		cfgPath      = flag.String("config", "", "path to agent-center.yaml")
 		workerID     = flag.String("worker-id", "", "worker identity (required)")
+		workerName   = flag.String("worker-name", "",
+			"operator-facing friendly label set at enroll time (v2.4-D-X1); blank defaults to worker-id server-side")
 		fakeAgent    = flag.String("fake-agent", "", "override path for the 'fakeagent' agent_cli (e2e tests)")
 		pollInterval = flag.Duration("poll-interval", 1*time.Second, "queue poll interval")
 		capsFlag     = flag.String("capabilities", "", "comma-separated capability list")
@@ -152,7 +154,7 @@ func main() {
 
 	if enrollNeeded {
 		ctxEnroll, cancelEnroll := context.WithTimeout(context.Background(), 30*time.Second)
-		enrollResp, eerr := client.EnrollWithExchange(ctxEnroll, *workerID, parseCaps(*capsFlag))
+		enrollResp, eerr := client.EnrollWithExchange(ctxEnroll, *workerID, *workerName, parseCaps(*capsFlag))
 		cancelEnroll()
 		if eerr != nil {
 			fmt.Fprintf(os.Stderr, "[worker] enroll failed: %v\n", eerr)

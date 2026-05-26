@@ -31,6 +31,10 @@ type FleetExecutionRow struct {
 // FleetWorkerRow is one row in FleetSnapshot.Workers.
 type FleetWorkerRow struct {
 	WorkerID        string `json:"worker_id"`
+	// Name is the operator-facing friendly label (v2.4-D-X1).
+	// Defaults to WorkerID when unset so the Fleet view never shows
+	// an empty cell.
+	Name            string `json:"name"`
 	Status          string `json:"status"`
 	ActiveCount     int    `json:"active_count"`
 	MappingsCount   int    `json:"mappings_count"`
@@ -208,8 +212,12 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 	for _, w := range all {
 		row := FleetWorkerRow{
 			WorkerID:        string(w.ID()),
+			Name:            w.Name(),
 			Status:          string(w.Status()),
 			LastHeartbeatAt: fmtTimePtrStr(w.LastHeartbeatAt()),
+		}
+		if row.Name == "" {
+			row.Name = row.WorkerID
 		}
 		if s.deps.Mappings != nil {
 			ms, _ := s.deps.Mappings.FindByWorkerID(ctx, w.ID())

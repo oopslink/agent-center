@@ -49,13 +49,14 @@ func (r *WorkerRepo) Save(ctx context.Context, w *workforce.Worker) error {
 		return fmt.Errorf("marshal discovery: %w", err)
 	}
 	const stmt = `INSERT INTO workers (
-		id, status, concurrency_json, discovery_json, capabilities_json,
+		id, name, status, concurrency_json, discovery_json, capabilities_json,
 		last_heartbeat_at, working_seconds,
 		enrolled_at, online_at, offline_at, offline_reason, offline_message,
 		created_at, updated_at, version
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(w.ID()),
+		w.Name(),
 		string(w.Status()),
 		string(concurrency),
 		string(discovery),
@@ -150,6 +151,35 @@ func (r *WorkerRepo) UpdateStatus(ctx context.Context, id workforce.WorkerID, fr
 	}
 	if n == 0 {
 		// Disambiguate: is it not-found, or CAS conflict?
+		return r.cassDiagnose(ctx, exec, id, workforce.ErrWorkerVersionConflict, workforce.ErrWorkerNotFound)
+	}
+	return nil
+}
+
+// UpdateName mutates the friendly label with CAS on version. Empty
+// names are rejected at the AR layer so callers should already have
+// validated. v2.4-D-X1 (@oopslink ask).
+func (r *WorkerRepo) UpdateName(ctx context.Context, id workforce.WorkerID, name string, version int) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("worker repo: UpdateName called with empty name")
+	}
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	const stmt = `UPDATE workers
+		SET name = ?, updated_at = ?, version = version + 1
+		WHERE id = ? AND version = ?`
+	res, err := exec.ExecContext(ctx, stmt, name, now, string(id), version)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
 		return r.cassDiagnose(ctx, exec, id, workforce.ErrWorkerVersionConflict, workforce.ErrWorkerNotFound)
 	}
 	return nil
@@ -329,7 +359,7 @@ func (r *WorkerRepo) cassDiagnose(ctx context.Context, exec persistence.SQLExecu
 	return conflict
 }
 
-const workerSelect = `SELECT id, status, concurrency_json, discovery_json, capabilities_json,
+const workerSelect = `SELECT id, name, status, concurrency_json, discovery_json, capabilities_json,
 	last_heartbeat_at, working_seconds,
 	enrolled_at, online_at, offline_at, offline_reason, offline_message,
 	created_at, updated_at, version
@@ -350,6 +380,7 @@ func scanWorkers(rows *sql.Rows) ([]*workforce.Worker, error) {
 func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 	var (
 		id               string
+		name             string
 		status           string
 		concurrencyJSON  string
 		discoveryJSON    string
@@ -365,7 +396,7 @@ func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 		updatedAt        string
 		version          int
 	)
-	if err := scan(&id, &status, &concurrencyJSON, &discoveryJSON, &capsJSON,
+	if err := scan(&id, &name, &status, &concurrencyJSON, &discoveryJSON, &capsJSON,
 		&lastHeartbeatAt, &workingSeconds,
 		&enrolledAt, &onlineAt, &offlineAt, &offlineReason, &offlineMessage,
 		&createdAt, &updatedAt, &version); err != nil {
@@ -415,6 +446,7 @@ func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 	}
 	return workforce.RehydrateWorker(workforce.RehydrateWorkerInput{
 		ID:              workforce.WorkerID(id),
+		Name:            name,
 		Status:          workforce.WorkerStatus(status),
 		CapabilityList:  caps,
 		Concurrency:     &concurrency,

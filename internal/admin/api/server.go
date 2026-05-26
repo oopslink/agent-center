@@ -281,6 +281,7 @@ func (s *Server) routes() {
 	// v2.3-1 (task #24): proper heartbeat (replaces the v2.2 hack of
 	// re-calling enroll + swallowing 409).
 	s.mux.HandleFunc("POST /admin/workforce/worker/heartbeat", s.workerHeartbeatHandler)
+	s.mux.HandleFunc("POST /admin/workforce/worker/rename", s.workerRenameHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-all", s.workerFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-id", s.workerFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-status", s.workerFindByStatusHandler)

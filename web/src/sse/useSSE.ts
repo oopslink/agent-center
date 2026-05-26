@@ -244,6 +244,7 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'workforce.worker.capability.updated':
     case 'workforce.worker.online':
     case 'workforce.worker.offline':
+    case 'workforce.worker.renamed':
       invalidate(qk.fleet());
       return;
 

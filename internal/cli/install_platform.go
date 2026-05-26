@@ -158,12 +158,15 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath string) str
 // here prepended ["worker", "run", ...] which flag.Parse() treated
 // as a non-flag terminator, causing every flag after to be ignored
 // and the daemon to exit with `--worker-id is required`.
-func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, bootstrap, token, fingerprint, caps string) string {
+func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, caps string) string {
 	args := []string{
 		"--config=" + configPath,
 		"--worker-id=" + workerID,
 		"--admin-target=" + bootstrap,
 		"--admin-token=" + token,
+	}
+	if workerName != "" {
+		args = append(args, "--worker-name="+workerName)
 	}
 	if fingerprint != "" {
 		args = append(args, "--server-fingerprint="+fingerprint)

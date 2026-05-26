@@ -118,7 +118,7 @@ func (c *AdminClient) WithToken(t string) *AdminClient {
 // Kept for source compat. The v2.4-D path prefers EnrollWithExchange,
 // which captures the long-term admin token returned by the server.
 func (c *AdminClient) Enroll(ctx context.Context, workerID string, capabilities []string) error {
-	_, err := c.EnrollWithExchange(ctx, workerID, capabilities)
+	_, err := c.EnrollWithExchange(ctx, workerID, "", capabilities)
 	return err
 }
 
@@ -141,7 +141,10 @@ type EnrollResponse struct {
 // daemon should swap into its AdminClient bearer + persist locally;
 // continuing to use the enroll token after this call will 401
 // because the AuthMiddleware burned it during the same request.
-func (c *AdminClient) EnrollWithExchange(ctx context.Context, workerID string, capabilities []string) (EnrollResponse, error) {
+//
+// `name` is the operator-facing friendly label (v2.4-D-X1 @oopslink).
+// Empty falls back server-side to worker_id.
+func (c *AdminClient) EnrollWithExchange(ctx context.Context, workerID, name string, capabilities []string) (EnrollResponse, error) {
 	if strings.TrimSpace(workerID) == "" {
 		return EnrollResponse{}, errors.New("adminclient: worker_id required")
 	}
@@ -150,6 +153,7 @@ func (c *AdminClient) EnrollWithExchange(ctx context.Context, workerID string, c
 	}
 	body := map[string]any{
 		"worker_id":    workerID,
+		"name":         name,
 		"capabilities": capabilities,
 	}
 	var out EnrollResponse

@@ -230,7 +230,7 @@ func TestRenderWorkerServiceUnit_NoPositionalPrefix(t *testing.T) {
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center-worker-daemon",
 		"/opt/agent-center/config.yaml",
-		"my-worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode")
+		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode")
 	if strings.Contains(body, "<string>worker</string>") {
 		t.Errorf("plist still has positional 'worker' prefix:\n%s", body)
 	}
@@ -258,12 +258,15 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 		WorkerUnitPath:  "/tmp/test.plist",
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
-		"w", "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "" /* no caps */)
+		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "" /* no caps */)
 	if strings.Contains(body, "--server-fingerprint=") {
 		t.Errorf("empty fingerprint should be omitted:\n%s", body)
 	}
 	if strings.Contains(body, "--capabilities=") {
 		t.Errorf("empty capabilities should be omitted:\n%s", body)
+	}
+	if strings.Contains(body, "--worker-name=") {
+		t.Errorf("empty worker-name should be omitted:\n%s", body)
 	}
 }
 

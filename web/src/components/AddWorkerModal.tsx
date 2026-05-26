@@ -18,8 +18,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/store/app';
 
 type ModalState =
+  // v2.4-D-X1 @oopslink a-i: ask the user for a friendly name first;
+  // mint only fires once they click Generate. id is server-generated;
+  // name is what they type here and embeds into the install command.
+  | { kind: 'name_prompt'; name: string }
   | { kind: 'minting' }
-  | { kind: 'mint_error'; message: string }
+  | { kind: 'mint_error'; message: string; lastName: string }
   | {
       kind: 'ready';
       tokenID: string;
@@ -28,7 +32,7 @@ type ModalState =
       mintedAt: Date;
       command: string;
     }
-  | { kind: 'success'; worker: { id: string; capabilities: string[] } }
+  | { kind: 'success'; worker: { id: string; name: string; capabilities: string[] } }
   | { kind: 'token_used' }
   | { kind: 'token_expired' }
   | {
@@ -54,10 +58,16 @@ interface MintResponse {
   expires_at: string; // RFC3339
   fingerprint: string;
   bootstrap_host: string;
+  worker_id: string;
+  worker_name: string;
 }
 
-async function mintEnrollToken(): Promise<MintResponse> {
-  const resp = await fetch('/api/admintoken/mint-enroll', { method: 'POST' });
+async function mintEnrollToken(name: string): Promise<MintResponse> {
+  const resp = await fetch('/api/admintoken/mint-enroll', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
   if (!resp.ok) {
     let detail = `HTTP ${resp.status}`;
     try {
@@ -87,15 +97,39 @@ async function revokeEnrollToken(tokenID: string): Promise<void> {
 // fills in nothing here, so a wrong bootstrap host or fingerprint can
 // only come from the backend (which has authoritative knowledge of
 // the cert + listener config).
-function renderCommand(token: string, bootstrapHost: string, fingerprint: string): string {
-  return `./install worker \\
-  --bootstrap=tcp://${bootstrapHost} \\
-  --server-fingerprint=${fingerprint} \\
-  --token=${token}`;
+function renderCommand(
+  token: string,
+  bootstrapHost: string,
+  fingerprint: string,
+  workerID: string,
+  workerName: string,
+): string {
+  const lines = [
+    `./install worker \\`,
+    `  --bootstrap=tcp://${bootstrapHost} \\`,
+    `  --server-fingerprint=${fingerprint} \\`,
+    `  --worker-id=${workerID} \\`,
+  ];
+  if (workerName) {
+    lines.push(`  --worker-name=${shellQuote(workerName)} \\`);
+  }
+  lines.push(`  --token=${token}`);
+  return lines.join('\n');
+}
+
+// shellQuote single-quotes a string for safe paste into a POSIX
+// shell, escaping any internal single-quotes via '\''. Worker names
+// can have spaces / shell metacharacters when typed by a user (e.g.
+// "tenant Foo's box"); without quoting the command line would break.
+function shellQuote(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
 export function AddWorkerModal({ onClose }: Props): React.ReactElement {
-  const [state, setState] = useState<ModalState>({ kind: 'minting' });
+  // v2.4-D-X1 @oopslink a-i: Modal opens on the name_prompt step.
+  // The user types a friendly name, clicks Generate, and only then
+  // do we mint. id is server-generated as part of mint-enroll.
+  const [state, setState] = useState<ModalState>({ kind: 'name_prompt', name: '' });
 
   // Tell the global WorkerEnrolledToast (F4) to suppress itself while
   // the Modal is mounted; on close we let the toast handle subsequent
@@ -105,15 +139,11 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     return () => useAppStore.getState().setAddWorkerModalOpen(false);
   }, []);
 
-  // Mint on mount. No silent fallback: if /api/admintoken/mint-enroll
-  // fails we show the error so the operator sees it instead of a
-  // placeholder token that would fail on the worker box.
-  useEffect(() => {
-    let cancelled = false;
+  const startMint = (name: string) => {
+    setState({ kind: 'minting' });
     void (async () => {
       try {
-        const resp = await mintEnrollToken();
-        if (cancelled) return;
+        const resp = await mintEnrollToken(name);
         const expires = new Date(resp.expires_at);
         setState({
           kind: 'ready',
@@ -121,18 +151,20 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
           token: resp.token,
           expiresAt: expires,
           mintedAt: new Date(),
-          command: renderCommand(resp.token, resp.bootstrap_host, resp.fingerprint),
+          command: renderCommand(
+            resp.token,
+            resp.bootstrap_host,
+            resp.fingerprint,
+            resp.worker_id,
+            resp.worker_name,
+          ),
         });
       } catch (err) {
-        if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
-        setState({ kind: 'mint_error', message });
+        setState({ kind: 'mint_error', message, lastName: name });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  };
 
   // Countdown for expiry → transition to State 5.
   useEffect(() => {
@@ -190,12 +222,14 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     const handler = (ev: Event) => {
       const detail = (ev as CustomEvent).detail as {
         worker_id?: string;
+        name?: string;
         capabilities?: string[];
       };
       setState({
         kind: 'success',
         worker: {
           id: detail.worker_id || 'unknown',
+          name: detail.name || detail.worker_id || 'unknown',
           capabilities: Array.isArray(detail.capabilities) ? detail.capabilities : [],
         },
       });
@@ -214,29 +248,10 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     onClose();
   };
 
-  const handleGenerateNew = () => {
-    setState({ kind: 'minting' });
-    void (async () => {
-      try {
-        const resp = await mintEnrollToken();
-        const expires = new Date(resp.expires_at);
-        setState({
-          kind: 'ready',
-          tokenID: resp.id,
-          token: resp.token,
-          expiresAt: expires,
-          mintedAt: new Date(),
-          command: renderCommand(resp.token, resp.bootstrap_host, resp.fingerprint),
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setState({ kind: 'mint_error', message });
-      }
-    })();
-  };
-
   const handleAddAnother = () => {
-    handleGenerateNew();
+    // Restart the flow at name_prompt — the next worker needs its
+    // own friendly name (and gets a fresh server-generated id).
+    setState({ kind: 'name_prompt', name: '' });
   };
 
   return (
@@ -261,7 +276,8 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
         </div>
         <ModalBody
           state={state}
-          onGenerateNew={handleGenerateNew}
+          onSubmitName={(name) => startMint(name)}
+          onNameChange={(name) => setState({ kind: 'name_prompt', name })}
           onAddAnother={handleAddAnother}
           onClose={handleClose}
         />
@@ -272,13 +288,67 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
 
 interface BodyProps {
   state: ModalState;
-  onGenerateNew: () => void;
+  onSubmitName: (name: string) => void;
+  onNameChange: (name: string) => void;
   onAddAnother: () => void;
   onClose: () => void;
 }
 
-function ModalBody({ state, onGenerateNew, onAddAnother, onClose }: BodyProps): React.ReactElement {
+function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }: BodyProps): React.ReactElement {
   switch (state.kind) {
+    case 'name_prompt': {
+      const trimmed = state.name.trim();
+      const canSubmit = trimmed.length > 0;
+      return (
+        <form
+          data-testid="modal-state-name-prompt"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSubmit) onSubmitName(trimmed);
+          }}
+        >
+          <label
+            htmlFor="add-worker-name-input"
+            className="mb-1 block text-sm font-medium text-slate-700"
+          >
+            Worker name
+          </label>
+          <input
+            id="add-worker-name-input"
+            data-testid="modal-name-input"
+            type="text"
+            value={state.name}
+            onChange={(e) => onNameChange(e.target.value)}
+            autoFocus
+            placeholder="e.g. test-1 or tenant-foo"
+            className="block w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Use a unique name (e.g. <code className="font-mono">test-1</code>,{' '}
+            <code className="font-mono">tenant-foo</code>) so you can spot this worker in Fleet.
+            You can rename it later from the Fleet row.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              onClick={onClose}
+              data-testid="modal-name-prompt-cancel"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              data-testid="modal-name-prompt-submit"
+            >
+              Generate install command
+            </button>
+          </div>
+        </form>
+      );
+    }
     case 'minting':
       return (
         <div className="py-8 text-center" data-testid="modal-state-minting">
@@ -311,7 +381,7 @@ function ModalBody({ state, onGenerateNew, onAddAnother, onClose }: BodyProps): 
             <button
               type="button"
               className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-              onClick={onGenerateNew}
+              onClick={() => onSubmitName(state.lastName)}
               data-testid="modal-mint-error-retry"
             >
               Try again
@@ -355,6 +425,10 @@ function ModalBody({ state, onGenerateNew, onAddAnother, onClose }: BodyProps): 
           <p className="mb-3 text-sm font-medium text-emerald-600">Worker connected.</p>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
             <dt className="text-slate-500">Name</dt>
+            <dd className="text-sm" data-testid="modal-success-worker-name">
+              {state.worker.name}
+            </dd>
+            <dt className="text-slate-500">ID</dt>
             <dd className="font-mono text-xs" data-testid="modal-success-worker-id">
               {state.worker.id}
             </dd>
@@ -402,7 +476,7 @@ function ModalBody({ state, onGenerateNew, onAddAnother, onClose }: BodyProps): 
           <button
             type="button"
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            onClick={onGenerateNew}
+            onClick={onAddAnother}
             data-testid="modal-generate-new"
           >
             Generate new token
@@ -419,7 +493,7 @@ function ModalBody({ state, onGenerateNew, onAddAnother, onClose }: BodyProps): 
           <button
             type="button"
             className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            onClick={onGenerateNew}
+            onClick={onAddAnother}
             data-testid="modal-generate-new"
           >
             Generate new token

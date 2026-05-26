@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
@@ -23,6 +26,7 @@ import (
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
+	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
 
 // HandlerDeps is the narrow surface handlers need. The cli.App provides
@@ -54,6 +58,13 @@ type HandlerDeps struct {
 	// Conversation BC's `kind=issue|task` filter.
 	IssueRepo discussion.IssueRepository
 	TaskRepo  task.Repository
+
+	// v2.4-D-X1 (@oopslink ask): workers.name editing surface in the
+	// Fleet view. WorkerRenameSvc is the workforce service that wraps
+	// WorkerRepo.UpdateName + emits workforce.worker.renamed.
+	WorkerRenameSvc interface {
+		Rename(ctx context.Context, cmd wfservice.RenameCommand) error
+	}
 
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses
@@ -1317,12 +1328,34 @@ func taskPublicMap(t *task.Task) map[string]any {
 // /admin/admintoken/mint-enroll for cross-host / multi-user setups.
 // =============================================================================
 
+type mintEnrollReq struct {
+	// Name is the operator-facing friendly label for the future worker
+	// (v2.4-D-X1 @oopslink). The Modal user types this; daemon embeds
+	// it in --worker-name. id is generated server-side and immutable.
+	Name string `json:"name"`
+}
+
 type mintEnrollResp struct {
 	ID            string `json:"id"`
 	Token         string `json:"token"`
 	ExpiresAt     string `json:"expires_at"`
 	Fingerprint   string `json:"fingerprint"`
 	BootstrapHost string `json:"bootstrap_host"`
+	WorkerID      string `json:"worker_id"`
+	WorkerName    string `json:"worker_name"`
+}
+
+// generateWorkerID returns a short, human-typeable worker id like
+// `worker-7f3a91c2`. 32 bits of entropy is plenty for a single
+// operator's lifetime of installs (collision probability < 1e-9 after
+// 1000 mints); shorter than a full ULID so the install command fits
+// on one screen.
+func generateWorkerID() (string, error) {
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("worker-%x", b[:]), nil
 }
 
 func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
@@ -1337,6 +1370,11 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 			"admin TCP listener not enabled — set server.admin_tcp_listen in config")
 		return
 	}
+	var req mintEnrollReq
+	// Body is optional — older clients don't send {name}. decodeJSON
+	// tolerates empty body, leaving req.Name = "".
+	_ = decodeJSON(r, &req)
+	workerName := strings.TrimSpace(req.Name)
 	createdBy := ""
 	if string(d.Actor) != "" {
 		createdBy = string(d.Actor)
@@ -1360,12 +1398,22 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	if exp := tok.ExpiresAt(); exp != nil {
 		expiresAt = exp.UTC().Format(time.RFC3339Nano)
 	}
+	workerID, gerr := generateWorkerID()
+	if gerr != nil {
+		writeError(w, http.StatusInternalServerError, "gen_worker_id_failed", gerr.Error())
+		return
+	}
+	if workerName == "" {
+		workerName = workerID // safe default — Fleet shows id when name absent
+	}
 	writeJSON(w, http.StatusOK, mintEnrollResp{
 		ID:            string(res.ID),
 		Token:         res.Plaintext,
 		ExpiresAt:     expiresAt,
 		Fingerprint:   d.EnrollFingerprint,
 		BootstrapHost: d.EnrollBootstrapHost,
+		WorkerID:      workerID,
+		WorkerName:    workerName,
 	})
 }
 
@@ -1404,6 +1452,52 @@ func (s *Server) revokeEnrollHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// =============================================================================
+// Worker rename — PATCH /api/workers/{id}/name
+//
+// Loopback-only; no auth gate (matches existing webconsole pattern per
+// ADR-0037). Returns 200 with the new {id, name} on success.
+// =============================================================================
+
+type workerRenameReq struct {
+	Name string `json:"name"`
+}
+
+func (s *Server) workerRenameHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.WorkerRenameSvc == nil {
+		writeError(w, http.StatusNotImplemented, "worker_rename_svc_not_wired", "")
+		return
+	}
+	id := r.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	var req workerRenameReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		writeError(w, http.StatusBadRequest, "missing_name", "name must be non-empty")
+		return
+	}
+	if err := d.WorkerRenameSvc.Rename(r.Context(), wfservice.RenameCommand{
+		WorkerID: workforce.WorkerID(id),
+		Name:     req.Name,
+		Actor:    d.Actor,
+	}); err != nil {
+		if errors.Is(err, workforce.ErrWorkerNotFound) {
+			writeError(w, http.StatusNotFound, "worker_not_found", "")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "rename_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "name": strings.TrimSpace(req.Name)})
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

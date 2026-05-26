@@ -175,6 +175,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/admintoken/mint-enroll", s.mintEnrollHandler)
 	s.mux.HandleFunc("POST /api/admintoken/revoke", s.revokeEnrollHandler)
 
+	// v2.4-D-X1 (@oopslink ask): rename worker friendly name.
+	s.mux.HandleFunc("PATCH /api/workers/{id}/name", s.workerRenameHandler)
+
 	// SPA catch-all. Registered LAST so all the /api/* patterns take
 	// precedence. Serves the embedded React build (web/dist/ baked in
 	// by go:embed) for "/" + every non-/api path, with index.html
