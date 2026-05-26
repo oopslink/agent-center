@@ -182,6 +182,11 @@ func (s *Server) routes() {
 	// whose enroll token is still alive (not used / expired / revoked).
 	s.mux.HandleFunc("GET /api/workers/{id}/install-command", s.showInstallCommandHandler)
 
+	// v2.5-B3 (#51): mint a fresh enroll token for an existing worker
+	// whose old enroll token has expired or been burned. 403 if the
+	// worker already has a long-term token (daemon already enrolled).
+	s.mux.HandleFunc("POST /api/workers/{id}/install-command/re-mint", s.reMintInstallCommandHandler)
+
 	// SPA catch-all. Registered LAST so all the /api/* patterns take
 	// precedence. Serves the embedded React build (web/dist/ baked in
 	// by go:embed) for "/" + every non-/api path, with index.html

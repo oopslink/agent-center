@@ -273,6 +273,54 @@ type ShowInstallTokenResult struct {
 // hint rather than a generic 401.
 var ErrShowInstallNoMasterKey = errors.New("admin token: show-install-command requires a master key (set secret_management.master_key_file)")
 
+// HasLongTermTokenForWorker reports whether the worker has at least
+// one active (non-revoked) long-term admin token under the canonical
+// `worker:<id>` owner — i.e., a daemon has successfully enrolled at
+// least once. v2.5-B3 uses this to gate the re-mint flow (if a worker
+// is already enrolled the operator should redeploy / remove the
+// worker, not generate another enroll token that would just sit
+// unused).
+func (s *Service) HasLongTermTokenForWorker(ctx context.Context, workerID string) (bool, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return false, nil
+	}
+	owners := []admintoken.Owner{admintoken.Owner("worker:" + workerID)}
+	for _, owner := range owners {
+		toks, err := s.repo.FindByOwner(ctx, owner)
+		if err != nil {
+			return false, err
+		}
+		for _, t := range toks {
+			if t.IsEnroll() {
+				continue
+			}
+			if t.IsRevoked() {
+				continue
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// RevokeActiveEnrollForWorker tears down any active enroll token bound
+// to workerID so a fresh re-mint can take its place. Idempotent: if
+// nothing is found (or it's already consumed / revoked), returns nil.
+// v2.5-B3.
+func (s *Service) RevokeActiveEnrollForWorker(ctx context.Context, workerID, reason string) error {
+	if strings.TrimSpace(workerID) == "" {
+		return nil
+	}
+	t, err := s.repo.FindActiveEnrollByWorkerID(ctx, workerID)
+	if err != nil {
+		if errors.Is(err, admintoken.ErrTokenNotFound) {
+			return nil
+		}
+		return err
+	}
+	return s.repo.Revoke(ctx, t.ID(), "re-mint", reason, t.Version())
+}
+
 // ShowInstallToken returns the active enroll token's decrypted
 // plaintext for workerID, suitable for re-displaying the install
 // command in the Web Console. Returns:

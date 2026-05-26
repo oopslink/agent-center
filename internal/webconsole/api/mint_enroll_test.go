@@ -278,6 +278,155 @@ func TestShowInstallCommand_NoMasterKey_503(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// v2.5-B3 re-mint install command endpoint
+// =============================================================================
+
+// Re-mint after the original token was consumed (e.g. operator burned
+// it on an aborted install) should issue a fresh token bound to the
+// same worker_id, and the new install command should round-trip
+// through show-install-command.
+func TestReMintInstallCommand_HappyPath(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	withMasterKey(t, tokenSvc)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	// Mint original.
+	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json",
+		strings.NewReader(`{"name":"alice-box"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mintResp.Body.Close()
+	var minted mintEnrollResp
+	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
+	// Burn it.
+	if err := tokenSvc.ConsumeEnrollToken(context.Background(), admintoken.TokenID(minted.ID)); err != nil {
+		t.Fatal(err)
+	}
+	// Re-mint via the endpoint.
+	rmResp, err := http.Post(srv.URL+"/api/workers/"+minted.WorkerID+"/install-command/re-mint",
+		"application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rmResp.Body.Close()
+	if rmResp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", rmResp.StatusCode)
+	}
+	var fresh showInstallCommandResp
+	if err := json.NewDecoder(rmResp.Body).Decode(&fresh); err != nil {
+		t.Fatal(err)
+	}
+	if fresh.WorkerID != minted.WorkerID {
+		t.Errorf("worker_id changed: %q want %q", fresh.WorkerID, minted.WorkerID)
+	}
+	if fresh.WorkerName != "alice-box" {
+		t.Errorf("worker_name = %q", fresh.WorkerName)
+	}
+	if fresh.Token == "" || fresh.Token == minted.Token {
+		t.Errorf("token didn't rotate: old=%q new=%q", minted.Token, fresh.Token)
+	}
+	if fresh.ID == minted.ID {
+		t.Errorf("token id didn't rotate: %q", fresh.ID)
+	}
+	// And show-install-command should now return the NEW token.
+	showResp, err := http.Get(srv.URL + "/api/workers/" + minted.WorkerID + "/install-command")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer showResp.Body.Close()
+	if showResp.StatusCode != http.StatusOK {
+		t.Fatalf("show status = %d", showResp.StatusCode)
+	}
+	var shown showInstallCommandResp
+	_ = json.NewDecoder(showResp.Body).Decode(&shown)
+	if shown.Token != fresh.Token {
+		t.Errorf("show returned %q want fresh %q", shown.Token, fresh.Token)
+	}
+}
+
+// Re-mint should 404 when the worker doesn't exist yet (operator
+// clicked re-mint on a stale Fleet row that got removed elsewhere).
+func TestReMintInstallCommand_WorkerNotFound_404(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	withMasterKey(t, tokenSvc)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	resp, err := http.Post(srv.URL+"/api/workers/worker-ghost/install-command/re-mint",
+		"application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+// Re-mint should 409 when the worker has already enrolled (long-term
+// token present); operator must remove + re-add.
+func TestReMintInstallCommand_AlreadyEnrolled_409(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	withMasterKey(t, tokenSvc)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	// Pre-create worker via mint-enroll.
+	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mintResp.Body.Close()
+	var minted mintEnrollResp
+	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
+	// Simulate daemon enroll: mint a long-term `worker:<id>` token.
+	if _, err := tokenSvc.Create(context.Background(), admintokensvc.CreateCommand{
+		Owner:  admintoken.Owner("worker:" + minted.WorkerID),
+		Scopes: []admintoken.Scope{"workforce:enroll", "dispatch:pull"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Re-mint must refuse.
+	resp, err := http.Post(srv.URL+"/api/workers/"+minted.WorkerID+"/install-command/re-mint",
+		"application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "worker_already_online" {
+		t.Errorf("error code = %v", body["error"])
+	}
+}
+
 // A consumed enroll token (daemon already enrolled successfully)
 // surfaces 401 + no_active_enroll_token so the UI knows to offer
 // re-mint instead.

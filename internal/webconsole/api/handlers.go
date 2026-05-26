@@ -1622,6 +1622,111 @@ func (s *Server) showInstallCommandHandler(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// =============================================================================
+// Re-mint install command — POST /api/workers/{id}/install-command/re-mint
+//
+// v2.5-B3 (#51). Mints a fresh enroll token bound to an existing
+// Worker so the operator can retry an install after the original
+// token expired or was burned by an unrelated process. Same response
+// shape as show-install-command so the SPA can reuse the renderer.
+//
+// Preconditions (in priority order):
+//   - 503 enroll_not_configured   — admin TCP listener disabled
+//   - 404 worker_not_found        — no such worker id
+//   - 409 worker_already_online   — daemon already enrolled (long-
+//                                    term token exists); re-minting
+//                                    would just churn an orphan
+//                                    enroll token. Operator should
+//                                    remove + re-add (v2.5-B4) if
+//                                    they really want to reset.
+//   - 200 with fresh install command on success.
+//
+// Side effects: any prior active enroll token for this worker_id is
+// revoked first so the show-install-command lookup returns the new
+// one. Best-effort: a revoke failure isn't fatal (the new token is
+// what the user needs).
+// =============================================================================
+
+func (s *Server) reMintInstallCommandHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.AdminTokenSvc == nil {
+		writeError(w, http.StatusNotImplemented, "admintoken_svc_not_wired", "")
+		return
+	}
+	if d.EnrollBootstrapHost == "" || d.EnrollFingerprint == "" {
+		writeError(w, http.StatusServiceUnavailable, "enroll_not_configured",
+			"admin TCP listener not enabled — set server.admin_tcp_listen in config")
+		return
+	}
+	id := r.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	// Worker must exist + must not already be enrolled.
+	if d.WorkerRepo == nil {
+		writeError(w, http.StatusNotImplemented, "worker_repo_not_wired", "")
+		return
+	}
+	worker, werr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(id))
+	if werr != nil {
+		if errors.Is(werr, workforce.ErrWorkerNotFound) {
+			writeError(w, http.StatusNotFound, "worker_not_found",
+				"no worker with id "+id+" — add it via the Fleet 'Add Worker' button first.")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "worker_lookup_failed", werr.Error())
+		return
+	}
+	enrolled, herr := d.AdminTokenSvc.HasLongTermTokenForWorker(r.Context(), id)
+	if herr != nil {
+		writeError(w, http.StatusInternalServerError, "enroll_check_failed", herr.Error())
+		return
+	}
+	if enrolled {
+		writeError(w, http.StatusConflict, "worker_already_online",
+			"worker has already enrolled — remove it from the Fleet (Remove action) "+
+				"first if you want to re-install.")
+		return
+	}
+	// Tear down any stale enroll token bound to this worker so the
+	// show-install-command lookup returns the new one cleanly.
+	_ = d.AdminTokenSvc.RevokeActiveEnrollForWorker(r.Context(), id, "re-mint via Web Console")
+	createdBy := ""
+	if string(d.Actor) != "" {
+		createdBy = string(d.Actor)
+	}
+	res, err := d.AdminTokenSvc.CreateEnrollToken(r.Context(), admintokensvc.CreateEnrollCommand{
+		Owner:     admintoken.Owner("enroll:worker:" + id),
+		Scopes:    []admintoken.Scope{"workforce:enroll"},
+		CreatedBy: createdBy,
+		TTL:       30 * time.Minute,
+		WorkerID:  id,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "mint_failed", err.Error())
+		return
+	}
+	tok, ferr := d.AdminTokenSvc.FindByID(r.Context(), res.ID)
+	if ferr != nil {
+		writeError(w, http.StatusInternalServerError, "mint_lookup_failed", ferr.Error())
+		return
+	}
+	expiresAt := ""
+	if exp := tok.ExpiresAt(); exp != nil {
+		expiresAt = exp.UTC().Format(time.RFC3339Nano)
+	}
+	writeJSON(w, http.StatusOK, showInstallCommandResp{
+		ID:            string(res.ID),
+		Token:         res.Plaintext,
+		ExpiresAt:     expiresAt,
+		Fingerprint:   d.EnrollFingerprint,
+		BootstrapHost: d.EnrollBootstrapHost,
+		WorkerID:      id,
+		WorkerName:    worker.Name(),
+	})
+}
+
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {
 	m := map[string]any{
 		"id":         string(s.ID()),
