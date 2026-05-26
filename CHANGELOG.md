@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased — v2.5.0 draft]
+## [v2.5.0] — 2026-05-26
 
 Add Worker flow redesign — split the logical "add a worker"
 (creates a record, status=offline) from the physical
