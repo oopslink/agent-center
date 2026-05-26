@@ -42,6 +42,9 @@ sites/.vitepress/cache/
 # Build output
 /bin/
 
+# Release tarballs from `make release` (host-platform output).
+/dist/
+
 # SPA build output baked by go:embed — populated by `make build-frontend`.
 # .gitkeep stays so the directory exists for go:embed to find.
 /internal/webconsole/spa/dist/*
