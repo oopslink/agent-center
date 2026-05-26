@@ -1,156 +1,241 @@
 <h1 align="center">agent-center</h1>
 
 <p align="center">
-  <strong>简体中文</strong>
+  <strong>English</strong>
   &nbsp;·&nbsp;
-  <a href="./docs/index.md">设计文档</a>
+  <a href="./README.zh-CN.md">简体中文</a>
+  &nbsp;·&nbsp;
+  <a href="./docs/index.md">Docs</a>
   &nbsp;·&nbsp;
   <a href="./docs/design/roadmap.md">Roadmap</a>
   &nbsp;·&nbsp;
-  <a href="./docs/deployment/v2.4-first-mile.md">部署指南</a>
+  <a href="./docs/deployment/v2.4-first-mile.md">Deploy Guide</a>
   &nbsp;·&nbsp;
   <a href="./CHANGELOG.md">CHANGELOG</a>
 </p>
 
 <br/>
 
-<h3 align="center">个人 AI agent 调度中心。</h3>
-<p align="center">一台机器开 server，多台机器跑 worker；agent 在哪都行，对话和决策都收到 conversation 线程里。</p>
+<h3 align="center">A personal AI agent dispatch center.</h3>
+<p align="center">Run one server. Attach workers from any machine. Agents run wherever — every conversation and decision lands on a thread you can trace.</p>
 
 <br/>
 
 > [!TIP]
-> **Conversation 不是日志，是产品骨架。** Task / Issue / 决策 / 进度全挂在 Conversation 上 —— 这是 agent-center 跟"agent 是脚本"思路最大的区别。每一次 dispatch、每一个 InputRequest、每一份 artifact，都能在原线程里追溯。
+> **Conversation is the product spine, not a log.** Tasks, Issues, decisions, progress — all hang off Conversation threads. This is the deepest difference between agent-center and the "agents are scripts" mindset: every dispatch, every InputRequest, every artifact is recoverable in its original thread.
 
 > [!IMPORTANT]
-> **v2.4.0 已发布（2026-05-26）** —— first-mile deployment 完成：单条命令装好 center 和 worker，Web Console 加 worker 一键复制命令；同机多 worker 隔离；atomic 升级 + 失败自动回滚。详见 [CHANGELOG](./CHANGELOG.md)。
+> **v2.4.0 shipped (2026-05-26)** — First-mile deployment complete: one command installs center, one command installs worker (the Web Console gives you the exact command to copy-paste). Multi-worker per machine, atomic upgrade with auto-rollback. See [CHANGELOG](./CHANGELOG.md).
 
 <br/>
 
-## 安装
+## Install
 
-`agent-center` 现在是**装一次跑全套**。解压官方 tarball 后，两条命令分别装 center 和 worker：
+`agent-center` is now **install-once-and-go**. Extract the release tarball, then run one command to install the center and another to install each worker:
 
 ```bash
-# 装 center（本机）
+# Install the center (on the host machine)
 cd agent-center-v2.4.0-<os>-<arch>/
 ./install center
-# 输出末尾给你 Web Console URL，浏览器打开继续
+# The last line prints a Web Console URL — open it in a browser.
 
-# 装 worker（同机或任意机器）
-# 在 Web Console 点 "+ Add Worker"，填一个 friendly name → 复制命令 → 粘贴到 worker 机器执行
+# Install a worker (same machine or any other machine)
+# In the Web Console, click "+ Add Worker", type a friendly name,
+# copy the generated command, and run it on the worker machine:
 ./install worker --bootstrap=... --worker-id=... --worker-name=... --token=...
 ```
 
-支持 macOS（Mac 是本期 acceptance 平台）+ Linux（systemd 自动注册，代码就位但本期未验）。**升级也是同一条命令** —— 解压新版本 tarball → `./install center` → 原子切 symlink + 自动回滚兜底。
+Supported on macOS (this cycle's acceptance target) and Linux (systemd unit installed automatically; full validation deferred). **Upgrades use the same command** — extract the new tarball, run `./install center`, and the installer atomically swaps the symlink with auto-rollback if the new version fails its health probe.
 
-| 命令 | 干嘛 |
+| Command | What it does |
 |---|---|
-| `agent-center install center` | 装 / 升级 center（idempotent） |
-| `agent-center install worker` | 装 / 升级 worker daemon |
-| `agent-center server` | 直接前台启动 server（开发用） |
-| `agent-center help` | 全命令树（subject-verb 分组） |
-| `agent-center task create <proj> <title>` | 建任务 |
-| `agent-center issue open <proj> <title>` | 开 Issue 走讨论 |
-| `agent-center ps [--watch]` | 实时 fleet 视图（worker × execution） |
-| `agent-center inspect <kind> <id>` | 看单个实体（task / issue / worker / ...） |
+| `agent-center install center` | Install / upgrade the center (idempotent) |
+| `agent-center install worker` | Install / upgrade a worker daemon |
+| `agent-center server` | Run the center in the foreground (development) |
+| `agent-center help` | Full command tree (subject-verb grouped) |
+| `agent-center task create <proj> <title>` | Create a task |
+| `agent-center issue open <proj> <title>` | Open an issue to discuss before doing |
+| `agent-center ps [--watch]` | Live fleet view (worker × execution) |
+| `agent-center inspect <kind> <id>` | Inspect a single entity (task / issue / worker / ...) |
 
-详细 CLI 全签名见 [CLI 子命令](./docs/design/implementation/03-cli-subcommands.md)；部署完整 journey 见 [v2.4 first-mile 指南](./docs/deployment/v2.4-first-mile.md)。
+Full CLI surface: [CLI subcommands reference](./docs/design/implementation/03-cli-subcommands.md). Full deploy walkthrough: [v2.4 first-mile guide](./docs/deployment/v2.4-first-mile.md).
 
 <br/>
 
-## 它解决什么
+## What it solves
 
-| 痛点 | agent-center 怎么处理 |
+| Pain | How agent-center handles it |
 |---|---|
-| 多 agent / 多机器并行做事，状态散在 N 个终端里 | 单 server 收口；`/fleet` 实时看所有 worker × execution × IR |
-| Agent 跑一半要你拍板（"要不要 commit？"） | InputRequest 一等公民 —— WC 卡片回 yes/no/choice，agent 续跑 |
-| Agent 干了啥、为啥这么干、谁让它干的，事后查不到 | 每个 task / issue 都挂一个 Conversation 线程，dispatch / decision / progress / artifact 全在里面 |
-| Skill / MCP 配置散在每个 agent 项目里 | AgentInstance 一等 AR：instructions + MCP + skill mount 跟 agent 绑，集中可见 |
-| 凭证管理 | UserSecret BC，AES-256，plaintext-never-echo，agent 引用 `secret:<name>` |
-| 多机部署难 | v2.3 multi-host TCP+TLS 落地（SSH-style fingerprint pinning）+ v2.4 一条命令 first-mile |
+| Multiple agents on multiple machines, state scattered across N terminals | One server collects everything; `/fleet` shows every worker × execution × pending IR in real time |
+| Agent stops mid-task to ask you something ("should I commit?") | InputRequest is a first-class concept — answer in a Web Console card and the agent resumes |
+| Hard to trace what the agent did, why, and on whose authority | Every Task / Issue gets a Conversation thread; dispatch, decision, progress, and artifacts all land in it |
+| Skill / MCP config scattered across each agent's repo | AgentInstance is a first-class AR: instructions + MCP servers + skill mounts are bound to the agent identity |
+| Credentials | UserSecret BC, AES-256, plaintext-never-echo; agents reference secrets by `secret:<name>` |
+| Multi-host deployment | v2.3 multi-host TCP+TLS (SSH-style fingerprint pinning) + v2.4 one-command first-mile |
 
 <br/>
 
-## 核心抽象
+## Core concepts
 
-每一个都是用户要学的名词，对应 DDD 的 AR / VO / 事件 / 服务：
+Each is a noun your users will learn, backed by a DDD aggregate / value object / event / service:
 
-| 概念 | 一句话理解 |
+| Concept | One-line definition |
 |---|---|
-| **Task** | 你或 Supervisor 派的一次工作；可重试（每次 retry 是新 TaskExecution，task identity 不变） |
-| **Issue** | 一个待讨论的题目（"该用 X 还是 Y？"），结论可以是 0/1/N 个 Task |
-| **Conversation** | 一条消息线索，挂在 Task / Issue / Channel / DM 上；产品骨架 |
-| **Worker** | 跑 agent 的机器（本机或远程）；一台机器可装多个 worker（v2.4） |
-| **AgentInstance** | 命名 + 持久化的 agent 身份（"我的 mbp 上的 coder"）；含 instructions / MCP / skill |
-| **Supervisor** | 内置 agent，看 Conversation 上下文做调度决策；不是"大脑"，跟其他 agent 一样有日志 |
-| **InputRequest** | Agent 卡住向你请示；你在 WC 卡片回，agent 续跑 |
-| **Project** | Task 的归属容器；一个 worker 可以 mapped 到多个 Project |
-| **Artifact** | Agent 跑完的产物（PR URL / 文件 / 报告） |
-| **Memory** | Supervisor 的持久笔记（markdown 文件，按 scope 分） |
+| **Task** | A unit of work you (or Supervisor) created; retryable — each retry is a new TaskExecution, task identity stays |
+| **Issue** | A topic to discuss ("should we use X or Y?"); the conclusion can spawn 0, 1, or N Tasks |
+| **Conversation** | A message thread attached to a Task / Issue / Channel / DM — the product spine |
+| **Worker** | A machine running agents (local or remote); one machine can host multiple workers (v2.4) |
+| **AgentInstance** | A named, persistent agent identity ("the coder on my MBP") with instructions + MCP + skills |
+| **Supervisor** | A built-in agent that reads Conversation context and decides what to dispatch next — not a "brain," just another agent with logs |
+| **InputRequest** | Agent blocks mid-execution asking you to decide; you answer in the Web Console and the agent resumes |
+| **Project** | The container Tasks belong to; a worker can be mapped to multiple Projects |
+| **Artifact** | The output of an execution (PR URL, file, report) |
+| **Memory** | Supervisor's persistent notes (markdown files, scoped per project / task / global) |
 
-完整术语表见 [bounded contexts § 1](./docs/design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language)。
+Full ubiquitous-language glossary: [bounded contexts § 1](./docs/design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language).
 
 <br/>
 
-## 设计
+## Design
 
-`agent-center` 以 [DDD](https://en.wikipedia.org/wiki/Domain-driven_design) 为方法论，**7 个 Bounded Context**：
+`agent-center` follows [Domain-Driven Design](https://en.wikipedia.org/wiki/Domain-driven_design) with **seven Bounded Contexts**:
 
-- **TaskRuntime**（Task / Execution / Dispatch / Kill）
-- **Discussion**（Issue / IssueComment / Conclude）
-- **Workforce**（Worker / AgentInstance / Project / Mapping）
-- **Cognition**（Supervisor / Invocation / Memory）
-- **Observability**（Event / Trace / Stats）
-- **Conversation**（Channel / DM / Thread / Message）
-- **SecretManagement**（UserSecret + master key）
+- **TaskRuntime** — Task, TaskExecution, Dispatch, Kill
+- **Discussion** — Issue, IssueComment, Conclude
+- **Workforce** — Worker, AgentInstance, Project, WorkerProjectMapping
+- **Cognition** — Supervisor, Invocation, Memory
+- **Observability** — Event, Trace, Stats
+- **Conversation** — Channel, DM, Thread, Message
+- **SecretManagement** — UserSecret + master key
 
-跨 BC 走 events / RPC，不共享物理表（[§ 9.z](./docs/rules/conventions.md)）。所有持久化只走对应 BC 的 AppService —— transport 层（unix socket / TCP+TLS）是工件，**领域不变量永远在 AppService 后面**。
+Cross-BC interactions go through events / RPC; no shared physical tables (see [§ 9.z](./docs/rules/conventions.md)). All persistence is gated by each BC's Application Service — the transport (unix socket / TCP+TLS) is an implementation detail; **domain invariants always live behind the AppService**.
+
+Documentation entry points:
+- [Design overview](./docs/design/README.md)
+- [DDD blueprint (plan + status)](./docs/design/ddd-blueprint.md)
+- [Strategic / domain vision](./docs/design/architecture/strategic/00-domain-vision.md)
+- [Tactical / per-BC overviews](./docs/design/architecture/tactical/)
+- [ADR index](./docs/design/decisions/)
+- [Project conventions (must-read)](./docs/rules/conventions.md)
+- [Roadmap (deferred features)](./docs/design/roadmap.md)
+
+<br/>
+
+## Development
+
+### Prerequisites
+
+- **Go** 1.22+
+- **Node.js** 20+ with **pnpm** (for the Web Console SPA)
+- **macOS** or **Linux** (Windows untested)
+
+### Build
 
 ```bash
-# 跑一次 smoke：build 三 binary + enroll worker + 派 task + 看它 done
-make smoke
+make build                  # frontend (vite) + backend (go) + worker-daemon + fakeagent
+                            # produces ./bin/{agent-center, agent-center-worker-daemon, fakeagent}
+
+VERSION=v2.4.1 make build   # build with a specific version (default v2.4.0)
 ```
 
-文档入口：
-- [设计入口](./docs/design/README.md)
-- [DDD 蓝图（推进 plan + status）](./docs/design/ddd-blueprint.md)
-- [战略层 / 领域愿景](./docs/design/architecture/strategic/00-domain-vision.md)
-- [战术层 / 各 BC overview](./docs/design/architecture/tactical/)
-- [ADR 索引](./docs/design/decisions/)
-- [项目规约（必读）](./docs/rules/conventions.md)
-- [Roadmap（v3 推迟项）](./docs/design/roadmap.md)
+The frontend SPA is built first (`web/` → `internal/webconsole/spa/dist/`) and then embedded into the Go binary via `go:embed`, so a single binary ships the full Web Console.
 
-<br/>
+For SPA development, run the vite dev server separately and proxy `/api` to the loopback Go server — vite hot-reloads and the embedded chunk in the binary is ignored:
 
-## 现状
+```bash
+pnpm --dir web install      # one-time
+pnpm --dir web run dev      # http://localhost:5173 with proxy → 127.0.0.1:7100
+```
 
-| Cycle | 状态 |
-|---|---|
-| v1 | 飞书 / 钉钉 / Bridge BC 路线（已撤回，见 [ADR-0031](./docs/design/decisions/0031-v2-drop-bridge-vendor-integration.md)） |
-| **v2.0 – v2.4** | **已 ship** —— 单 binary + Web Console 主入口 + 7 BC 全套 + Multi-host TCP+TLS + first-mile deployment + 同机多 worker |
-| v3+ | Deployment-as-Product 主题（容器化 / Dockerfile / CI / metrics / KMS master key）、外部 IM 渠道重新设计、云 computer 节点、多用户/SaaS 等 —— 见 [Roadmap](./docs/design/roadmap.md) |
+### Test, lint, smoke
 
-<br/>
+```bash
+make test            # go test ./...
+make cover           # go test with coverage report
+make cover-html      # render coverage as ./coverage.html
+make vet             # go vet ./...
+make lint            # vet + lint-vendor + lint-mock-default + lint-doc-impl-drift
+                     # (enforces conventions § 0.4 architectural rules)
+make smoke           # fresh-binary deploy + drive a task to done — § 0.4 #4 gate
+```
 
-## 本地文档站点
+End-to-end tests (Playwright):
 
-仓内 [`sites/`](./sites/) 是 VitePress 静态站点脚手架，源 markdown 直接来自 [`docs/`](./docs/)：
+```bash
+make e2e-install     # one-time: pnpm install + chromium download
+make e2e             # full E2E suite, including deployed-pipeline spec
+```
+
+### Project layout
+
+```
+agent-center/
+├── cmd/
+│   ├── agent-center/               # main binary (server + CLI + install command)
+│   ├── worker-daemon/              # worker daemon (separate binary)
+│   └── fakeagent/                  # smoke-test agent (no LLM)
+├── internal/                       # one subpackage per Bounded Context
+│   ├── taskruntime/  discussion/   # plus admin transport, webconsole, cli, ...
+│   ├── workforce/    cognition/
+│   ├── observability/ conversation/
+│   ├── secret/       admintoken/
+│   └── ...
+├── web/                            # React SPA (vite + TS + Tailwind)
+│   └── src/                        # → internal/webconsole/spa/dist via go:embed
+├── docs/
+│   ├── design/                     # DDD architecture, ADRs, requirements
+│   ├── plans/                      # phase / cycle plans + audits
+│   ├── deployment/                 # deploy guides per version
+│   ├── operations/                 # runbooks
+│   └── rules/conventions.md        # cross-cutting design rules — read this
+├── sites/                          # VitePress docs site (sources from docs/)
+├── tests/                          # E2E suites
+├── contrib/                        # legacy install scripts (kept for reference)
+└── Makefile
+```
+
+### Conventions
+
+Read [`docs/rules/conventions.md`](./docs/rules/conventions.md) before contributing. Two rules that catch new contributors most often:
+
+- **§ 0.4 — AppService is the only entry to domain state.** No process other than the server reads SQLite directly; CLI / worker / web all go through the admin transport.
+- **§ 0.6 — Don't infer design intent without evidence.** Describe what *is* (observation) and what's *capable* (model). Don't bridge to "the system was designed to assume X" unless you can `grep` for it.
+
+### Packaging (release tarballs)
+
+v2.4 ships an `./install` command that operates on **an already-extracted tarball directory**. The release process — building per-platform tarballs (`agent-center-v<ver>-<os>-<arch>.tar.gz`), signing, distribution — is **not yet automated** in this repo; tarballs are built ad-hoc for now and full release tooling is part of the v3 "Deployment as Product" roadmap theme.
+
+To package locally for testing the install flow:
+
+```bash
+make build
+mkdir -p dist/agent-center-$(VERSION)-darwin-arm64/bin
+cp bin/agent-center bin/agent-center-worker-daemon \
+   dist/agent-center-$(VERSION)-darwin-arm64/bin/
+ln -s bin/agent-center dist/agent-center-$(VERSION)-darwin-arm64/install
+tar -czf dist/agent-center-$(VERSION)-darwin-arm64.tar.gz \
+        -C dist agent-center-$(VERSION)-darwin-arm64
+```
+
+### Local docs site
+
+The `sites/` directory is a VitePress scaffold whose markdown sources point straight at `docs/`:
 
 ```bash
 cd sites/
 npm install
-npm run dev      # http://localhost:5173，markdown 热重载
-npm run build    # → sites/.vitepress/dist/ 静态产物，拷哪都能跑
+npm run dev      # http://localhost:5173 with markdown hot-reload
+npm run build    # static output → sites/.vitepress/dist/, copy anywhere
 ```
 
 <br/>
 
-## 贡献 & 反馈
+## Contributing & feedback
 
-本仓库当前是单人项目（[设计前提](./docs/plans/v2.4-deployment-first-mile.md#-1-为什么这件事是-v24-主线)）。
-- Bug / 设计讨论：开 GitHub Issue
-- 代码贡献：先扫一遍 [conventions](./docs/rules/conventions.md)（特别是 § 0.4 AppService 唯一入口 + § 0.6 不越界推断设计意图）
-- 路线图反馈：在 [Roadmap](./docs/design/roadmap.md) 讨论
+This is currently a single-author project. If you'd like to contribute:
 
-文档站点（如部署到 GitHub Pages 后）将作为统一的入口；当前请直接看仓内 `docs/`。
+- **Bugs and design discussion** — open a GitHub Issue
+- **Code contributions** — read [`docs/rules/conventions.md`](./docs/rules/conventions.md) first (§ 0.4 AppService discipline + § 0.6 layer discipline catch most issues)
+- **Roadmap input** — point to a row in [Roadmap](./docs/design/roadmap.md) or open a Discussion
+
+The VitePress site under `sites/` will be the canonical entry point once deployed; for now please browse `docs/` directly in the repo.
