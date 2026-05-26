@@ -133,6 +133,7 @@ type installLayout struct {
 	ConfigDir     string // <prefix>/etc
 	ConfigPath    string // <prefix>/etc/config.yaml
 	DataDir       string // <prefix>/var
+	LogsDir       string // <prefix>/logs (launchd stdout/stderr land here)
 	CurrentLink   string // <prefix>/current
 	CurrentBinDir string // <prefix>/current/bin (stable across upgrades)
 }
@@ -148,6 +149,7 @@ func newInstallLayout(prefix, version string) installLayout {
 		ConfigDir:     filepath.Join(prefix, "etc"),
 		ConfigPath:    filepath.Join(prefix, "etc", "config.yaml"),
 		DataDir:       filepath.Join(prefix, "var"),
+		LogsDir:       filepath.Join(prefix, "logs"),
 		CurrentLink:   currentLink,
 		CurrentBinDir: filepath.Join(currentLink, "bin"),
 	}

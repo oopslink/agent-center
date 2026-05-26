@@ -86,7 +86,7 @@ func TestRenderSystemdUnit_Center_SystemMode_HasHardening(t *testing.T) {
 }
 
 func TestRenderLaunchdPlist_HasLabel(t *testing.T) {
-	body := renderLaunchdPlist("com.test.x", "/bin/agent-center", []string{"server", "--config=/tmp/c.yaml"})
+	body := renderLaunchdPlist("com.test.x", "/bin/agent-center", []string{"server", "--config=/tmp/c.yaml"}, "/var/logs/ac")
 	if !strings.Contains(body, "com.test.x") {
 		t.Errorf("missing label: %s", body)
 	}
@@ -98,6 +98,24 @@ func TestRenderLaunchdPlist_HasLabel(t *testing.T) {
 	}
 	if !strings.Contains(body, "KeepAlive") {
 		t.Errorf("missing KeepAlive: %s", body)
+	}
+	// v2.4.1: stdout/stderr land under the per-install logs dir so a
+	// `~/.agent-center/` install keeps the daemon log next to the rest
+	// of the install (no more /tmp scavenging on reboot).
+	if !strings.Contains(body, "<string>/var/logs/ac/com.test.x.err.log</string>") {
+		t.Errorf("StandardErrorPath not under logsDir:\n%s", body)
+	}
+	if !strings.Contains(body, "<string>/var/logs/ac/com.test.x.out.log</string>") {
+		t.Errorf("StandardOutPath not under logsDir:\n%s", body)
+	}
+}
+
+// renderLaunchdPlist falls back to /tmp when logsDir is empty — the
+// safety net for test fixtures that don't bother constructing a layout.
+func TestRenderLaunchdPlist_EmptyLogsDirFallsBackToTmp(t *testing.T) {
+	body := renderLaunchdPlist("com.test.x", "/bin/x", nil, "")
+	if !strings.Contains(body, "<string>/tmp/com.test.x.err.log</string>") {
+		t.Errorf("expected /tmp fallback for empty logsDir:\n%s", body)
 	}
 }
 
@@ -230,7 +248,7 @@ func TestRenderWorkerServiceUnit_NoPositionalPrefix(t *testing.T) {
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center-worker-daemon",
 		"/opt/agent-center/config.yaml",
-		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode")
+		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode", "/opt/agent-center/logs")
 	if strings.Contains(body, "<string>worker</string>") {
 		t.Errorf("plist still has positional 'worker' prefix:\n%s", body)
 	}
@@ -258,7 +276,7 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 		WorkerUnitPath:  "/tmp/test.plist",
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
-		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "" /* no caps */)
+		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "" /* no caps */, "/opt/logs")
 	if strings.Contains(body, "--server-fingerprint=") {
 		t.Errorf("empty fingerprint should be omitted:\n%s", body)
 	}
@@ -313,16 +331,21 @@ func TestApplyWorkerIDToServicePaths_Systemd(t *testing.T) {
 
 // Two installs on one machine with different --worker-id must yield
 // non-overlapping prefixes + non-overlapping launchd labels.
+//
+// v2.4.1: worker subtree relocated to `<base>/workers/<id>/` so the
+// center install and all per-worker installs nest under one ~/.agent-
+// center tree instead of scattering peer worker-<id> dirs at the
+// home root.
 func TestDefaultWorkerInstallPrefix_PerWorker(t *testing.T) {
 	a := defaultWorkerInstallPrefix(true, "alice")
 	b := defaultWorkerInstallPrefix(true, "bob")
 	if a == b {
 		t.Fatalf("alice + bob got same prefix %q", a)
 	}
-	if !strings.HasSuffix(a, "worker-alice") {
+	if !strings.HasSuffix(a, "/workers/alice") {
 		t.Errorf("alice prefix = %q", a)
 	}
-	if !strings.HasSuffix(b, "worker-bob") {
+	if !strings.HasSuffix(b, "/workers/bob") {
 		t.Errorf("bob prefix = %q", b)
 	}
 }

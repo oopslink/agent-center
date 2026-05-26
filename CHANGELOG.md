@@ -11,6 +11,60 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.4.1] — 2026-05-26
+
+Post-v2.4.0 polish from real-binary dogfood on @oopslink's machine.
+No new feature surface; all changes target install ergonomics on a
+greenfield deploy (no existing v2.4.0 installs in the field).
+
+### Changed
+
+- **Install prefix unified to `~/.agent-center`** across Mac and
+  Linux user-mode (#agent-center msg=68b04496). The previous per-OS
+  defaults (`~/Library/Application Support/agent-center` on Mac;
+  `~/.local/share/agent-center` on Linux user) scattered the install
+  across three conventions and were hard to find from a terminal.
+  Linux system-mode keeps `/opt/agent-center` since `~/.agent-center`
+  resolves to root's home (wrong for a system daemon).
+- **Worker subtree relocated to `<base>/workers/<id>/`** so a center
+  install at `<base>/{bin,etc,var,logs}/` and each worker at
+  `<base>/workers/<id>/{bin,etc,var,logs}/` nest under one tree
+  instead of scattering peer `worker-<id>/` dirs at home root.
+- **launchd `StandardOutPath` / `StandardErrorPath`** moved from
+  `/tmp/<label>.{out,err}.log` to `<prefix>/logs/<label>.{out,err}.log`,
+  so daemon logs survive reboot and live alongside the rest of the
+  install (no more `/tmp` scavenging when a worker fails to enroll).
+
+### Added
+
+- **`make release`** — host-platform tarball at
+  `dist/agent-center-vX.Y.Z-<os>-<arch>.tar.gz`, with bundled
+  `./install` POSIX shell wrapper that delegates to
+  `bin/agent-center install <args>` (symlink would lose the
+  subcommand prefix). Prints sha256 + verify recipe.
+- **`make clean-dist`** — removes `./dist` tarballs.
+- **`web/pnpm-workspace.yaml`** declares both `allowBuilds:` map
+  (pnpm 10.31+) and `onlyBuiltDependencies:` list (older pnpm)
+  for `esbuild` + `msw`, eliminating the
+  `ERR_PNPM_IGNORED_BUILDS` warning that broke `make build`.
+
+### BREAKING CHANGE
+
+- The unified `~/.agent-center` layout is a hard break — there is
+  no auto-migration from the v2.4.0 paths. Justification:
+  v2.4.0 only saw single-user dogfood and the operator opted in
+  ("不考虑向下兼容，现在还没有实际部署的环境", msg=68b04496).
+  Manual move recipe for any straggler v2.4.0 install:
+  ```
+  systemctl --user stop agent-center            # or: launchctl unload <plist>
+  mv ~/Library/Application\ Support/agent-center ~/.agent-center  # mac
+  mv ~/.local/share/agent-center ~/.agent-center                  # linux
+  # reinstall to refresh service unit + log paths:
+  ./install center --prefix=~/.agent-center
+  ```
+
+---
+
 ## [v2.4.0] — 2026-05-26
 
 > v2.3 work landed on `main` between v2.2 and v2.4 without its own

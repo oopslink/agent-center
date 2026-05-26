@@ -128,12 +128,12 @@ func platformPaths(osName string, userMode bool, homeDir string) (servicePaths, 
 // fully-resolved path to agent-center under <prefix>/current/bin/
 // (we use the `current` symlink so upgrades swap-without-touching
 // the service unit — that's the whole point of A5's atomic swap).
-func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath string) string {
+func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath, logsDir string) string {
 	switch sp.ServiceManager {
 	case "launchd":
 		return renderLaunchdPlist(sp.CenterServiceID, binaryPath, []string{
 			"server", "--config=" + configPath,
-		})
+		}, logsDir)
 	case "systemd":
 		return renderSystemdUnit(systemdUnit{
 			Description:   "agent-center server",
@@ -158,7 +158,7 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath string) str
 // here prepended ["worker", "run", ...] which flag.Parse() treated
 // as a non-flag terminator, causing every flag after to be ignored
 // and the daemon to exit with `--worker-id is required`.
-func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, caps string) string {
+func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, caps, logsDir string) string {
 	args := []string{
 		"--config=" + configPath,
 		"--worker-id=" + workerID,
@@ -176,7 +176,7 @@ func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, 
 	}
 	switch sp.ServiceManager {
 	case "launchd":
-		return renderLaunchdPlist(sp.WorkerServiceID, binaryPath, args)
+		return renderLaunchdPlist(sp.WorkerServiceID, binaryPath, args, logsDir)
 	case "systemd":
 		return renderSystemdUnit(systemdUnit{
 			Description:  "agent-center worker daemon",
@@ -239,13 +239,19 @@ func renderSystemdUnit(u systemdUnit) string {
 }
 
 // renderLaunchdPlist returns a minimal LaunchAgent plist that runs the
-// given binary with args, restarts on crash, and logs to ~/Library/Logs.
-func renderLaunchdPlist(label, binaryPath string, args []string) string {
+// given binary with args, restarts on crash, and writes stdout/stderr
+// under logsDir (per-install `<prefix>/logs/`). v2.4.1 moved these off
+// `/tmp/` so a `~/.agent-center/` install keeps everything in one tree
+// and reboots don't wipe the daemon log (operator finds last-failure
+// context where the rest of the install lives).
+func renderLaunchdPlist(label, binaryPath string, args []string, logsDir string) string {
 	var argsXML strings.Builder
 	argsXML.WriteString("\t\t<string>" + xmlEscape(binaryPath) + "</string>\n")
 	for _, a := range args {
 		argsXML.WriteString("\t\t<string>" + xmlEscape(a) + "</string>\n")
 	}
+	outPath := launchdLogPath(logsDir, label, "out")
+	errPath := launchdLogPath(logsDir, label, "err")
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -263,12 +269,22 @@ func renderLaunchdPlist(label, binaryPath string, args []string) string {
 		<false/>
 	</dict>
 	<key>StandardOutPath</key>
-	<string>/tmp/` + xmlEscape(label) + `.out.log</string>
+	<string>` + xmlEscape(outPath) + `</string>
 	<key>StandardErrorPath</key>
-	<string>/tmp/` + xmlEscape(label) + `.err.log</string>
+	<string>` + xmlEscape(errPath) + `</string>
 </dict>
 </plist>
 `
+}
+
+// launchdLogPath returns `<logsDir>/<label>.<kind>.log`, falling back to
+// /tmp when logsDir is empty (test fixtures still pass "" through
+// renderLaunchdPlist directly).
+func launchdLogPath(logsDir, label, kind string) string {
+	if logsDir == "" {
+		return "/tmp/" + label + "." + kind + ".log"
+	}
+	return logsDir + "/" + label + "." + kind + ".log"
 }
 
 // xmlEscape is a tiny escaper for the strings we put in plist values.

@@ -109,8 +109,11 @@ func TestDefaultInstallPrefix_Linux_User(t *testing.T) {
 		t.Skip("linux-only")
 	}
 	got := defaultInstallPrefix(true)
-	if !strings.HasSuffix(got, "/.local/share/agent-center") {
-		t.Errorf("linux user mode default = %q, want suffix .local/share/agent-center", got)
+	// v2.4.1: unified to ~/.agent-center across Mac + Linux user-mode
+	// (@oopslink ask msg=68b04496). Hard break, no migration —
+	// v2.4.0 only saw single-user dogfood.
+	if !strings.HasSuffix(got, "/.agent-center") {
+		t.Errorf("linux user mode default = %q, want suffix .agent-center", got)
 	}
 }
 
@@ -119,11 +122,13 @@ func TestDefaultInstallPrefix_Mac(t *testing.T) {
 		t.Skip("mac-only")
 	}
 	got := defaultInstallPrefix(true)
-	if !strings.Contains(got, "Library/Application Support/agent-center") {
-		t.Errorf("mac default = %q", got)
+	// v2.4.1: unified to ~/.agent-center; old Library/Application Support
+	// path retired (see defaultInstallPrefix godoc).
+	if !strings.HasSuffix(got, "/.agent-center") {
+		t.Errorf("mac default = %q, want suffix .agent-center", got)
 	}
-	// Mac always returns Library dir regardless of userMode flag (per
-	// commented spec).
+	// Mac never hits the linux system-mode branch, so userMode is a
+	// no-op for darwin.
 	got2 := defaultInstallPrefix(false)
 	if got != got2 {
 		t.Errorf("mac userMode flag should be no-op: %q vs %q", got, got2)

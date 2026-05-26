@@ -104,7 +104,7 @@ func InstallWorkerCommand() *Command {
 // installCenterHandler binds flags + dispatches the install center
 // action by InstallState.
 func installCenterHandler(fs *flag.FlagSet) Handler {
-	prefix := fs.String("prefix", "", "install prefix (default: /opt/agent-center linux system mode, ~/Library/Application Support/agent-center on Mac, ~/.local/share/agent-center on linux user mode)")
+	prefix := fs.String("prefix", "", "install prefix (default: ~/.agent-center on Mac + Linux user mode; /opt/agent-center on Linux system mode)")
 	userMode := fs.Bool("user-mode", isMacRuntime(), "install under the current user (no sudo). Mac default true, linux default false (use system mode + sudo).")
 	port := fs.Int("port", 7100, "Web Console listen port (loopback only)")
 	// v2.4-D-F4 fix: default-on so the Web Console's Add Worker Modal
@@ -336,8 +336,11 @@ func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err := atomicSymlinkSwap(layout); err != nil {
 		return PrintError(errw, FormatText, "install_symlink_swap_failed", err.Error(), ExitBusinessError)
 	}
+	if err := os.MkdirAll(layout.LogsDir, 0o755); err != nil {
+		return PrintError(errw, FormatText, "install_mkdir_logs_failed", err.Error(), ExitBusinessError)
+	}
 	currentBin := filepath.Join(layout.CurrentBinDir, "agent-center")
-	unitBody := renderCenterServiceUnit(sp, currentBin, layout.ConfigPath)
+	unitBody := renderCenterServiceUnit(sp, currentBin, layout.ConfigPath, layout.LogsDir)
 	if err := writeUnitFile(sp.CenterUnitPath, unitBody); err != nil {
 		return PrintError(errw, FormatText, "install_write_unit_failed",
 			renderInstallError(err, installErrorContext{Operation: "write_unit", Path: sp.CenterUnitPath}),
@@ -416,13 +419,16 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err := atomicSymlinkSwap(layout); err != nil {
 		return PrintError(errw, FormatText, "install_symlink_swap_failed", err.Error(), ExitBusinessError)
 	}
+	if err := os.MkdirAll(layout.LogsDir, 0o755); err != nil {
+		return PrintError(errw, FormatText, "install_mkdir_logs_failed", err.Error(), ExitBusinessError)
+	}
 	currentBin := filepath.Join(layout.CurrentBinDir, "agent-center-worker-daemon")
 	// A2: bootstrap URL is passed straight through; fingerprint is
 	// embedded in the URL (tcp://<fp>@host:port). A3 (#37) will burn
 	// the token on first enroll. Until then the worker daemon will
 	// 401 on a stale token, which is the right behavior.
 	unitBody := renderWorkerServiceUnit(sp, currentBin, layout.ConfigPath,
-		ic.WorkerID, ic.WorkerName, ic.Bootstrap, ic.Token, ic.Fingerprint, ic.Caps)
+		ic.WorkerID, ic.WorkerName, ic.Bootstrap, ic.Token, ic.Fingerprint, ic.Caps, layout.LogsDir)
 	if err := writeUnitFile(sp.WorkerUnitPath, unitBody); err != nil {
 		return PrintError(errw, FormatText, "install_write_unit_failed", err.Error(), ExitBusinessError)
 	}
@@ -438,9 +444,10 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	// stderr log themselves to find out the worker wasn't connected.
 	if installShouldActivate(sp) && sp.ServiceManager == "launchd" {
 		tokenFile := workerTokenFile(layout)
-		if err := waitForWorkerEnroll(sp.WorkerServiceID, 30*time.Second, out); err != nil {
+		logPath := launchdLogPath(layout.LogsDir, sp.WorkerServiceID, "err")
+		if err := waitForWorkerEnroll(logPath, 30*time.Second, out); err != nil {
 			fmt.Fprintln(errw, "")
-			fmt.Fprintln(errw, renderWorkerEnrollFailure(err, ic, layout, sp, tokenFile))
+			fmt.Fprintln(errw, renderWorkerEnrollFailure(err, ic, layout, sp, tokenFile, logPath))
 			return ExitBusinessError
 		}
 	}
@@ -521,31 +528,37 @@ func detectExistingInstall(prefix, thisVersion string) (InstallState, string, er
 }
 
 // defaultInstallPrefix picks the install prefix when --prefix is empty.
+//
+// v2.4.1 (@oopslink ask, #agent-center msg=68b04496): unified to
+// `~/.agent-center` across Mac + Linux user-mode. The previous
+// per-OS defaults (`~/Library/Application Support/agent-center` on
+// Mac; `~/.local/share/agent-center` on Linux user-mode) scattered
+// the install across three different conventions and were hard to
+// find from a terminal — `~/.agent-center` is one short, predictable
+// path. Hard break: no auto-migration from the old paths (v2.4.0
+// only saw single-user dogfood); CHANGELOG documents the manual
+// move recipe.
+//
+// Linux system-mode default stays at `/opt/agent-center` since that
+// path is rooted (`~/.agent-center` resolves to root's home, which
+// is wrong for a service running as a system daemon).
 func defaultInstallPrefix(userMode bool) string {
-	if runtime.GOOS == "darwin" {
-		// Mac: always user mode in v2.4 (launchd user agent).
-		// Explicit user-mode=false on Mac falls back to user dir too,
-		// because Mac system-wide install needs root + /Library/...
-		// flow we explicitly defer.
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, "Library", "Application Support", "agent-center")
+	if runtime.GOOS == "linux" && !userMode {
+		return "/opt/agent-center"
 	}
-	if userMode {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, ".local", "share", "agent-center")
-	}
-	// Linux system mode default.
-	return "/opt/agent-center"
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".agent-center")
 }
 
 // defaultWorkerInstallPrefix is the worker-equivalent of
-// defaultInstallPrefix. v2.4-D-X1 fix (@oopslink ask): when running
-// multiple workers on one machine, scope the prefix per worker-id so
-// each gets its own SQLite DB + worker-token + log paths. The user
-// can override with --prefix to put all workers under one tree.
+// defaultInstallPrefix. v2.4-D-X1 multi-worker per machine:
+// worker installs go under `<base>/workers/<id>/` so the center
+// install at `<base>/{bin,etc,var,logs}/` and each worker at
+// `<base>/workers/<id>/{bin,etc,var,logs}/` coexist cleanly under
+// one tree. The user can still --prefix to a custom path.
 func defaultWorkerInstallPrefix(userMode bool, workerID string) string {
 	base := defaultInstallPrefix(userMode)
-	return filepath.Join(base, "worker-"+sanitizeWorkerIDForLabel(workerID))
+	return filepath.Join(base, "workers", sanitizeWorkerIDForLabel(workerID))
 }
 
 // isMacRuntime reports whether the current OS is macOS. Used to set the
@@ -615,8 +628,7 @@ func workerTokenFile(layout installLayout) string {
 // machine and (for cross-host setups) has no direct path back to
 // the center, and we want the answer locally rather than chase a
 // network round-trip just to confirm a process started.
-func waitForWorkerEnroll(serviceID string, timeout time.Duration, out io.Writer) error {
-	logPath := "/tmp/" + serviceID + ".err.log"
+func waitForWorkerEnroll(logPath string, timeout time.Duration, out io.Writer) error {
 	deadline := time.Now().Add(timeout)
 	fmt.Fprintln(out, "  waiting for daemon to connect...")
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -663,12 +675,12 @@ func tailLines(s string, n int) string {
 // message after a daemon-start watch failed. Includes a concrete
 // "to retry" recipe (PD's ask in #agent-center:0c9f6bb7): the user
 // shouldn't be left guessing which file to remove.
-func renderWorkerEnrollFailure(err error, ic installContext, layout installLayout, sp servicePaths, tokenFile string) string {
+func renderWorkerEnrollFailure(err error, ic installContext, layout installLayout, sp servicePaths, tokenFile, logPath string) string {
 	var b strings.Builder
 	b.WriteString("Error: worker installed but daemon failed to come up\n\n")
 	b.WriteString(err.Error())
 	b.WriteString("\nWhat to try:\n")
-	b.WriteString("  - Inspect the full launchd log at /tmp/" + sp.WorkerServiceID + ".err.log\n")
+	b.WriteString("  - Inspect the full launchd log at " + logPath + "\n")
 	b.WriteString("  - Common causes:\n")
 	b.WriteString("      • enroll token already used / expired (mint a new one from the Web Console)\n")
 	b.WriteString("      • center unreachable (check --bootstrap host:port + firewall)\n")
