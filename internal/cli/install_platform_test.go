@@ -267,6 +267,63 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 	}
 }
 
+// v2.4-D-X1 multi-worker: launchd Label + plist path must be scoped
+// by worker-id so two workers on one machine don't collide.
+func TestApplyWorkerIDToServicePaths_Launchd(t *testing.T) {
+	base, err := platformPaths("darwin", true, "/Users/test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		workerID string
+		wantSvc  string
+	}{
+		{"w-alpha", "com.agent-center.worker.w-alpha"},
+		{"Tenant Foo", "com.agent-center.worker.tenant-foo"},
+		{"!!!", "com.agent-center.worker.default"},
+		{"", "com.agent-center.worker.default"},
+	} {
+		got := applyWorkerIDToServicePaths(base, c.workerID)
+		if got.WorkerServiceID != c.wantSvc {
+			t.Errorf("workerID=%q got=%q want=%q", c.workerID, got.WorkerServiceID, c.wantSvc)
+		}
+		if !strings.HasSuffix(got.WorkerUnitPath, "/"+c.wantSvc+".plist") {
+			t.Errorf("workerID=%q plist path missing suffix: %q", c.workerID, got.WorkerUnitPath)
+		}
+		// CenterServiceID and CenterUnitPath untouched.
+		if got.CenterServiceID != base.CenterServiceID {
+			t.Errorf("center id mutated: %q", got.CenterServiceID)
+		}
+	}
+}
+
+func TestApplyWorkerIDToServicePaths_Systemd(t *testing.T) {
+	base, _ := platformPaths("linux", true, "/home/test")
+	got := applyWorkerIDToServicePaths(base, "tenant-x")
+	if got.WorkerServiceID != "agent-center-worker-tenant-x.service" {
+		t.Errorf("svc id = %q", got.WorkerServiceID)
+	}
+	if !strings.HasSuffix(got.WorkerUnitPath, "/agent-center-worker-tenant-x.service") {
+		t.Errorf("unit path = %q", got.WorkerUnitPath)
+	}
+}
+
+// Two installs on one machine with different --worker-id must yield
+// non-overlapping prefixes + non-overlapping launchd labels.
+func TestDefaultWorkerInstallPrefix_PerWorker(t *testing.T) {
+	a := defaultWorkerInstallPrefix(true, "alice")
+	b := defaultWorkerInstallPrefix(true, "bob")
+	if a == b {
+		t.Fatalf("alice + bob got same prefix %q", a)
+	}
+	if !strings.HasSuffix(a, "worker-alice") {
+		t.Errorf("alice prefix = %q", a)
+	}
+	if !strings.HasSuffix(b, "worker-bob") {
+		t.Errorf("bob prefix = %q", b)
+	}
+}
+
 // v2.4-D-F4 X1 fix: install center default tcp-listen + helper that
 // rewrites 0.0.0.0 to the host's name for the Modal install command.
 func TestEnrollBootstrapHost(t *testing.T) {

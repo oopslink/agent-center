@@ -42,6 +42,10 @@ type Deps struct {
 	// adapter (webconsole_wiring.go) to spa.Handler(). Optional —
 	// nil means no SPA mounted (e.g. headless test harness).
 	SPA http.Handler
+	// Version is the linker-injected build tag (e.g. "v2.4.0") echoed
+	// back from /api/health. Empty falls back to "dev" for the
+	// `go run` / unversioned path. v2.4-D-X1 fix B10.
+	Version string
 }
 
 // AppFacade narrows the cli.App surface that handlers need (we don't
@@ -182,9 +186,13 @@ func (s *Server) routes() {
 }
 
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+	v := s.deps.Version
+	if v == "" {
+		v = "dev"
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":  "ok",
-		"version": "v2-dev",
+		"version": v,
 	})
 }
 

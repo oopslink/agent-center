@@ -18,6 +18,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/escalator"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
+	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
 
 // globalConfigPath is set by BuildRouter to the value of the global
@@ -234,6 +235,19 @@ func ServerCommand() *Command {
 						}
 					}()
 				}
+
+				// v2.4-D-X1 fix B8: worker heartbeat reconciler. Scans
+				// online workers every 30s; flips to offline when
+				// last_heartbeat_at goes stale (default 60s). Without
+				// this, a worker that stopped heartbeating stayed
+				// pinned at `online` forever — Fleet view lied about
+				// the cluster state.
+				reconciler := wfservice.NewHeartbeatReconciler(app.WorkerRepo, app.Sink, nil, 0, 0)
+				reconcilerCtx, reconcilerCancel := context.WithCancel(ctx)
+				go func() {
+					_ = reconciler.Run(reconcilerCtx, app.DefaultActor())
+				}()
+				defer reconcilerCancel()
 
 				bannerWeb := "disabled"
 				if webEnabled {

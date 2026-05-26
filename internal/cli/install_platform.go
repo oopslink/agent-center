@@ -25,6 +25,55 @@ type servicePaths struct {
 	ServiceManager  string // "systemd" or "launchd"
 }
 
+// sanitizeWorkerIDForLabel returns a worker_id form that's safe for
+// embedding in a launchd Label / systemd unit name / filesystem path.
+// Lowercases, replaces every non-[a-z0-9] char with '-', collapses
+// repeated dashes, trims leading/trailing dashes. Empty input or
+// fully-non-alphanumeric input returns "default".
+func sanitizeWorkerIDForLabel(id string) string {
+	if id == "" {
+		return "default"
+	}
+	var b strings.Builder
+	b.Grow(len(id))
+	prevDash := false
+	for _, r := range strings.ToLower(id) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			prevDash = false
+		default:
+			if !prevDash {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		}
+	}
+	s := strings.Trim(b.String(), "-")
+	if s == "" {
+		return "default"
+	}
+	return s
+}
+
+// applyWorkerIDToServicePaths returns sp with the worker label + unit
+// path scoped by worker-id, so multiple workers can coexist on the
+// same machine without trampling each other's launchd / systemd
+// registration. @oopslink 2026-05-26 ask in #agent-center:0c9f6bb7
+// (multi-tenancy / per-tenant testing).
+func applyWorkerIDToServicePaths(sp servicePaths, workerID string) servicePaths {
+	safe := sanitizeWorkerIDForLabel(workerID)
+	switch sp.ServiceManager {
+	case "launchd":
+		sp.WorkerServiceID = "com.agent-center.worker." + safe
+		sp.WorkerUnitPath = strings.Replace(sp.WorkerUnitPath, "com.agent-center.worker.plist", sp.WorkerServiceID+".plist", 1)
+	case "systemd":
+		sp.WorkerServiceID = "agent-center-worker-" + safe + ".service"
+		sp.WorkerUnitPath = strings.Replace(sp.WorkerUnitPath, "agent-center-worker.service", sp.WorkerServiceID, 1)
+	}
+	return sp
+}
+
 // platformPaths picks the install target dirs for a given OS + mode.
 // homeDir is needed for user-mode paths; pass os.UserHomeDir().
 func platformPaths(osName string, userMode bool, homeDir string) (servicePaths, error) {

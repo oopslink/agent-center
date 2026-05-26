@@ -137,6 +137,8 @@ describe('dispatchToQueryClient', () => {
       'workforce.worker.enrolled',
       'workforce.worker.config.updated',
       'workforce.worker.capability.updated',
+      'workforce.worker.online',
+      'workforce.worker.offline',
     ]) {
       dispatchToQueryClient(qc, ev(t));
     }

@@ -120,10 +120,18 @@ type HeartbeatCommand struct {
 }
 
 // Heartbeat advances last_seen_at + accumulated working seconds for an
-// already-enrolled worker. No event is emitted (heartbeats are noisy by
-// design — per-tick events would flood the audit log). The worker
-// must exist; calling Heartbeat on an unknown worker_id returns the
-// repo's not-found error so the daemon knows to re-enroll.
+// already-enrolled worker. No event is emitted on the steady-state
+// tick (heartbeats are noisy by design — per-tick events would flood
+// the audit log).
+//
+// v2.4-D-X1 fix B8: if the worker is currently `offline` (either
+// because it was just enrolled — `NewWorker` defaults to offline —
+// or because the reconciler marked it offline after a heartbeat
+// stall) we transition to `online` and emit `workforce.worker.online`
+// in the same tx. PD's acceptance saw `last_heartbeat_at` advancing
+// while status stuck on offline; the Modal said Online and the Fleet
+// table said offline. Without an explicit transition there was no
+// path from the initial offline state to online.
 func (s *WorkerEnrollService) Heartbeat(ctx context.Context, cmd HeartbeatCommand) error {
 	if cmd.WorkerID == "" {
 		return errors.New("workforce.heartbeat: worker_id required")
@@ -131,12 +139,37 @@ func (s *WorkerEnrollService) Heartbeat(ctx context.Context, cmd HeartbeatComman
 	if cmd.AdditionalWorkingSeconds < 0 {
 		return errors.New("workforce.heartbeat: working_seconds delta must be >= 0")
 	}
-	// Surface ErrWorkerNotFound (or the sqlite equivalent) untouched so
-	// the caller can drive the re-enroll branch on a cold center.
-	if _, err := s.repo.FindByID(ctx, cmd.WorkerID); err != nil {
+	w, err := s.repo.FindByID(ctx, cmd.WorkerID)
+	if err != nil {
+		// Surface ErrWorkerNotFound (or the sqlite equivalent) untouched
+		// so the caller can drive the re-enroll branch on a cold center.
 		return err
 	}
-	return s.repo.UpdateLastHeartbeatAt(ctx, cmd.WorkerID, s.clock.Now(), cmd.AdditionalWorkingSeconds)
+	now := s.clock.Now()
+	if w.Status() != workforce.WorkerOnline {
+		// Status transition: CAS via UpdateStatus + event emit, all
+		// in one tx with the heartbeat update. Save() can't be used
+		// here — it's INSERT-only for fresh AR creation; existing
+		// rows go through the dedicated Update* hot paths.
+		return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+			if err := s.repo.UpdateStatus(txCtx, w.ID(), w.Status(), workforce.WorkerOnline, w.Version()); err != nil {
+				return err
+			}
+			if _, err := s.sink.Emit(txCtx, observability.EmitCommand{
+				EventType: "workforce.worker.online",
+				Refs:      observability.EventRefs{WorkerID: string(w.ID())},
+				Actor:     observability.Actor("worker:" + string(w.ID())),
+				Payload: map[string]any{
+					"worker_id": string(w.ID()),
+					"online_at": now.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+				},
+			}); err != nil {
+				return err
+			}
+			return s.repo.UpdateLastHeartbeatAt(txCtx, cmd.WorkerID, now, cmd.AdditionalWorkingSeconds)
+		})
+	}
+	return s.repo.UpdateLastHeartbeatAt(ctx, cmd.WorkerID, now, cmd.AdditionalWorkingSeconds)
 }
 
 // =============================================================================

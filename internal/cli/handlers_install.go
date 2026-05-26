@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // InstallState reflects the outcome of detectExistingInstall.
@@ -208,13 +209,13 @@ func installWorkerHandler(fs *flag.FlagSet) Handler {
 				ExitUsage)
 		}
 
-		resolvedPrefix := *prefix
-		if resolvedPrefix == "" {
-			resolvedPrefix = defaultInstallPrefix(*userMode)
-		}
 		resolvedWorkerID := strings.TrimSpace(*workerID)
 		if resolvedWorkerID == "" {
 			resolvedWorkerID, _ = os.Hostname()
+		}
+		resolvedPrefix := *prefix
+		if resolvedPrefix == "" {
+			resolvedPrefix = defaultWorkerInstallPrefix(*userMode, resolvedWorkerID)
 		}
 		version := installerVersion()
 
@@ -393,6 +394,12 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err != nil {
 		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
 	}
+	// v2.4-D-X1 fix (@oopslink ask): scope launchd label + unit path
+	// by worker-id so multiple workers can coexist on one machine
+	// (per-tenant testing / dev sandbox). When two installs reuse
+	// the same --worker-id, the second is treated as an update of
+	// the first by launchd, which is the intended re-enroll path.
+	sp = applyWorkerIDToServicePaths(sp, ic.WorkerID)
 	if _, _, err := copyBinaries(layout); err != nil {
 		return PrintError(errw, FormatText, "install_copy_binaries_failed", err.Error(), ExitBusinessError)
 	}
@@ -419,12 +426,26 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 		fmt.Fprintf(errw, "warning: service activation failed: %v\n", err)
 		fmt.Fprintln(errw, "  Service unit written but not started. Run activation commands manually.")
 	}
-	fmt.Fprintf(out, "\n✓ AgentCenter worker %s installed\n", ic.Version)
+	// v2.4-D-X1 fix B9: wait for the daemon to actually enroll (or
+	// hit a clear failure) before claiming the install succeeded.
+	// Previously we declared ✓ installed before the daemon had even
+	// started, hiding burned-token / fingerprint-mismatch / unreachable-
+	// center failures from the operator. They had to hunt the launchd
+	// stderr log themselves to find out the worker wasn't connected.
+	if installShouldActivate(sp) && sp.ServiceManager == "launchd" {
+		tokenFile := workerTokenFile(layout)
+		if err := waitForWorkerEnroll(sp.WorkerServiceID, 30*time.Second, out); err != nil {
+			fmt.Fprintln(errw, "")
+			fmt.Fprintln(errw, renderWorkerEnrollFailure(err, ic, layout, sp, tokenFile))
+			return ExitBusinessError
+		}
+	}
+	fmt.Fprintf(out, "\n✓ AgentCenter worker %s installed + connected\n", ic.Version)
 	fmt.Fprintf(out, "  worker-id: %s\n", ic.WorkerID)
 	fmt.Fprintf(out, "  bootstrap: %s\n", ic.Bootstrap)
 	fmt.Fprintf(out, "  service:   %s (%s)\n", sp.WorkerServiceID, sp.ServiceManager)
 	fmt.Fprintf(out, "  config:    %s\n", layout.ConfigPath)
-	fmt.Fprintln(out, "  (the worker will enroll on first start; check Fleet view in the Web Console)")
+	fmt.Fprintln(out, "  Visible now in the Web Console Fleet view.")
 	return ExitOK
 }
 
@@ -435,6 +456,7 @@ func installWorkerUpgrade(out, errw io.Writer, ic installContext) ExitCode {
 	if err != nil {
 		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
 	}
+	sp = applyWorkerIDToServicePaths(sp, ic.WorkerID)
 	fmt.Fprintf(out, "\nUpgrading worker: %s → %s\n", ic.CurrentVersion, ic.Version)
 
 	if _, _, err := copyBinaries(layout); err != nil {
@@ -512,6 +534,16 @@ func defaultInstallPrefix(userMode bool) string {
 	return "/opt/agent-center"
 }
 
+// defaultWorkerInstallPrefix is the worker-equivalent of
+// defaultInstallPrefix. v2.4-D-X1 fix (@oopslink ask): when running
+// multiple workers on one machine, scope the prefix per worker-id so
+// each gets its own SQLite DB + worker-token + log paths. The user
+// can override with --prefix to put all workers under one tree.
+func defaultWorkerInstallPrefix(userMode bool, workerID string) string {
+	base := defaultInstallPrefix(userMode)
+	return filepath.Join(base, "worker-"+sanitizeWorkerIDForLabel(workerID))
+}
+
 // isMacRuntime reports whether the current OS is macOS. Used to set the
 // --user-mode default (Mac defaults to user-mode true because system-wide
 // install requires the operator to manage /Library permissions manually).
@@ -549,4 +581,98 @@ func SetInstallBuildVersion(v string) {
 	}
 	bv := v
 	installBuildVersion = func() string { return bv }
+}
+
+// ResolvedBuildVersion returns the linker-injected version string if
+// main() called SetInstallBuildVersion, otherwise "dev". Mirrors
+// installerVersion() but exported so other server-side surfaces
+// (e.g. /api/health) can echo the same value the install command
+// printed. v2.4-D-X1 fix B10.
+func ResolvedBuildVersion() string {
+	return installerVersion()
+}
+
+// workerTokenFile returns the on-disk path the worker daemon
+// persists its long-term token at (v2.4-D B5 fix). Kept here so the
+// install handler's failure renderer can name it without duplicating
+// the path logic. The daemon main.go owns the actual read/write.
+func workerTokenFile(layout installLayout) string {
+	return filepath.Join(layout.DataDir, "worker-token")
+}
+
+// waitForWorkerEnroll tails the launchd stderr log file for the
+// worker daemon, polling for the success marker the daemon prints
+// after it has either loaded a persisted token or completed enroll.
+// Returns nil on success, an error containing the tail of the log
+// on failure or timeout.
+//
+// Why tail launchd's redirected stderr instead of e.g. asking the
+// admin endpoint? Because the install command runs ON the worker
+// machine and (for cross-host setups) has no direct path back to
+// the center, and we want the answer locally rather than chase a
+// network round-trip just to confirm a process started.
+func waitForWorkerEnroll(serviceID string, timeout time.Duration, out io.Writer) error {
+	logPath := "/tmp/" + serviceID + ".err.log"
+	deadline := time.Now().Add(timeout)
+	fmt.Fprintln(out, "  waiting for daemon to connect...")
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		body, _ := os.ReadFile(logPath)
+		s := string(body)
+		// Daemon prints one of these two as soon as it has a usable
+		// bearer (see cmd/worker-daemon/main.go).
+		if strings.Contains(s, "loaded long-term token") || strings.Contains(s, "enrolled + persisted long-term token") {
+			return nil
+		}
+		// Hard failures the daemon prints before exiting.
+		if strings.Contains(s, "enroll failed:") || strings.Contains(s, "[worker] fatal:") {
+			return fmt.Errorf("worker daemon failed to enroll:\n%s", tailLines(s, 12))
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("worker daemon did not enroll within %s. Last log lines:\n%s", timeout, tailLines(s, 12))
+		}
+		<-ticker.C
+	}
+}
+
+// tailLines returns the last n non-empty lines of s, indented with
+// 4 spaces for embedding in CLI error output.
+func tailLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	var b strings.Builder
+	for _, l := range lines {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		b.WriteString("    ")
+		b.WriteString(l)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// renderWorkerEnrollFailure produces the operator-facing failure
+// message after a daemon-start watch failed. Includes a concrete
+// "to retry" recipe (PD's ask in #agent-center:0c9f6bb7): the user
+// shouldn't be left guessing which file to remove.
+func renderWorkerEnrollFailure(err error, ic installContext, layout installLayout, sp servicePaths, tokenFile string) string {
+	var b strings.Builder
+	b.WriteString("Error: worker installed but daemon failed to come up\n\n")
+	b.WriteString(err.Error())
+	b.WriteString("\nWhat to try:\n")
+	b.WriteString("  - Inspect the full launchd log at /tmp/" + sp.WorkerServiceID + ".err.log\n")
+	b.WriteString("  - Common causes:\n")
+	b.WriteString("      • enroll token already used / expired (mint a new one from the Web Console)\n")
+	b.WriteString("      • center unreachable (check --bootstrap host:port + firewall)\n")
+	b.WriteString("      • fingerprint mismatch (cert rotated; copy the new fingerprint from the Web Console)\n")
+	b.WriteString("\nTo retry from scratch:\n")
+	b.WriteString("  launchctl unload " + sp.WorkerUnitPath + "\n")
+	b.WriteString("  rm -f " + tokenFile + "\n")
+	b.WriteString("  # mint a fresh enroll token from the Web Console, then:\n")
+	b.WriteString("  ./install worker --bootstrap=" + ic.Bootstrap + " --server-fingerprint=" + ic.Fingerprint + " --token=<NEW>\n")
+	return b.String()
 }

@@ -90,7 +90,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		EnrollBootstrapHost: enroll.BootstrapHost,
 		EnrollFingerprint:   enroll.Fingerprint,
 	}
-	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler()})
+	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler(), Version: ResolvedBuildVersion()})
 	// Wrap the inner mux with deps middleware; install it as the
 	// server's handler so the loopback guard in api.Server.ListenAndServe
 	// still applies.
