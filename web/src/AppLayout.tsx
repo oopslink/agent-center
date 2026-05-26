@@ -140,8 +140,8 @@ export default function AppLayout(): React.ReactElement {
           collapsed={collapsed}
           onDismiss={() => setDrawerOpen(false)}
         />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="mx-auto max-w-6xl">
+        <main className="flex flex-1 overflow-hidden">
+          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-y-auto p-4 sm:p-6">
             <Suspense fallback={<PageSkeleton />}>
               <Outlet />
             </Suspense>

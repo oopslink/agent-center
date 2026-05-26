@@ -11,6 +11,43 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.6
+
+Channel / DM chat composer pin + auto-scroll (#60). @oopslink
+(`#agent-center:475113f5`): the conversation pages let the
+composer float in the middle of the page with empty space below,
+instead of pinning to the bottom of the channel container the way
+Slack / Discord do. The MessageList also stayed at the same
+scroll position when new messages arrived, so the user had to
+manually scroll to see them.
+
+### Changed
+
+- **AppLayout main pane** now hosts a flex column scroll wrapper
+  (`flex h-full flex-col overflow-y-auto`) instead of a plain
+  centered div. Lets routed pages stretch to the full visible
+  height while still scrolling overflowing content. List pages
+  (Channels / Issues / etc.) are unaffected — they fall back to
+  the wrapper's own overflow when content exceeds the viewport.
+- **MessageList** owns its own scroll container now (wrapped in
+  a `relative flex min-h-0 flex-1 flex-col`) and auto-scrolls to
+  the bottom when a new message arrives — but only when the user
+  is already near the bottom (within 40px). Scrolled-up readers
+  are not yanked back.
+- **"New messages ↓" pill** appears at the bottom-center when a
+  new message lands while the user is scrolled up. Clicking it
+  jumps to the latest message.
+
+### Verification
+
+- Frontend: 280 vitest specs green (4 new MessageList tests
+  covering pill visibility + scroll-stick heuristic).
+- ChannelDetail / DMDetail / IssueDetail / TaskDetail keep their
+  `h-full flex flex-col` root — the layout fix is purely upstream
+  in AppLayout.
+
+---
+
 ## [v2.5.5] — 2026-05-26
 
 Project model simplification (#59) per @oopslink design discussion
