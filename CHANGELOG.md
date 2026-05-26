@@ -11,6 +11,54 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.7
+
+Web Console Issue management — Create + Conclude (#61, partial). PM
+created #64 to track Edit + Reopen as a follow-up since those
+require new Discussion BC domain methods (UpdateMetadata + Reopen
+with state-machine extension) and a spec discussion on the Reopen
+semantics that #61 should not block on.
+
+### Added
+
+- **POST /api/issues** now routes to either the existing CV4 derive
+  flow or a new open-from-scratch path, branching on whether the
+  payload includes `source_conversation_id` / `source_message_ids`.
+  The open-from-scratch path wraps `IssueLifecycleSvc.Open` with
+  `OriginWebConsole` (sync-build: the sibling `kind=issue`
+  Conversation is created in the same tx, so `issue.conversation_id`
+  is bound immediately). Returns `{issue_id, conversation_id,
+  event_id}`.
+- **POST /api/issues/{id}/conclude** wraps
+  `IssueLifecycleSvc.Conclude`. Accepts `kind` ∈
+  {`closed_no_action`, `closed_with_tasks`, `withdrawn`} +
+  `summary` + optional `tasks[]` (required for closed_with_tasks).
+  Returns `{issue_id, task_ids, event_ids}`. Wires
+  `IssueLifecycleSvc` into the Web Console `HandlerDeps` (was
+  read-only on the Discussion BC up to v2.5.6).
+- **Issues page**: `+ Open Issue` button in the header. New
+  `IssueCreateModal` (project picker + title + description). After
+  open, the new issue invalidates the project's issue list so it
+  shows up without a page reload.
+- **IssueDetail page**: `[Conclude]` action in the header (hidden
+  when the issue is already in a terminal status). New
+  `IssueConcludeModal` with three radio options + a dynamic task
+  list that appears only for `closed_with_tasks`.
+
+### Verification
+
+- Backend: full `go test ./...` green; 7 new webconsole API tests
+  cover open-from-scratch + conclude (no_action / withdrawn /
+  invalid-kind / not-wired) plus the derive path still routes.
+- Frontend: 289 vitest specs green (9 new across
+  `IssueCreateModal` + `IssueConcludeModal`).
+- Out of scope (deferred to #64): Edit (title/description) and
+  Reopen — both require new Discussion BC AR methods + state
+  machine extension; tracked separately so the spec discussion can
+  land without blocking #61's mechanical wrap.
+
+---
+
 ## [v2.5.6] — 2026-05-27
 
 Channel / DM chat composer pin + auto-scroll (#60). @oopslink

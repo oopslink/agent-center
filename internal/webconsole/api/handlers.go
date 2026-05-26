@@ -17,11 +17,13 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/conversation/identity"
 	"github.com/oopslink/agent-center/internal/discussion"
+	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/taskruntime"
+	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
@@ -58,6 +60,12 @@ type HandlerDeps struct {
 	// Conversation BC's `kind=issue|task` filter.
 	IssueRepo discussion.IssueRepository
 	TaskRepo  task.Repository
+
+	// v2.5.x #61: IssueLifecycleSvc backs the Web Console "Open Issue"
+	// + "Conclude" mutation surfaces. Same service the CLI uses; the
+	// webconsole calls it directly (no admin transport hop) since both
+	// surfaces run in the same process per ADR-0037.
+	IssueLifecycleSvc *disservice.IssueLifecycleService
 
 	// v2.4-D-X1 (@oopslink ask): workers.name editing surface in the
 	// Fleet view. WorkerRenameSvc is the workforce service that wraps
@@ -591,11 +599,21 @@ type deriveIssueReq struct {
 	Description          string   `json:"description"`
 }
 
-func (s *Server) deriveIssueHandler(w http.ResponseWriter, r *http.Request) {
+// postIssueHandler routes POST /api/issues to either derive (with source
+// fields) or open-from-scratch (v2.5.x #61 Create Issue Modal). Branching
+// keeps the URL stable while letting the SPA pick the flow by payload
+// shape; the existing DeriveModal omits nothing, the new CreateIssueModal
+// sends only project_id / title / description.
+func (s *Server) postIssueHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req deriveIssueReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	// Open-from-scratch path: no source conversation/messages.
+	if strings.TrimSpace(req.SourceConversationID) == "" && len(req.SourceMessageIDs) == 0 {
+		s.openIssueFromScratch(w, r, d, req)
 		return
 	}
 	if d.DerivationSvc == nil {
@@ -625,6 +643,125 @@ func (s *Server) deriveIssueHandler(w http.ResponseWriter, r *http.Request) {
 		"reference_count":     res.ReferenceCount,
 		"issue_event_id":      string(res.IssueEventID),
 		"carry_over_event_id": string(res.CarryOverEventID),
+	})
+}
+
+// openIssueFromScratch implements the v2.5.x #61 Create Issue Modal path.
+// Wraps IssueLifecycleSvc.Open with OriginWebConsole (sync-build: a sibling
+// kind=issue Conversation is created in the same tx, so issue.conversation_id
+// is bound immediately).
+func (s *Server) openIssueFromScratch(w http.ResponseWriter, r *http.Request, d HandlerDeps, req deriveIssueReq) {
+	if d.IssueLifecycleSvc == nil {
+		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "project_id required")
+		return
+	}
+	if strings.TrimSpace(req.Title) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "title required")
+		return
+	}
+	res, err := d.IssueLifecycleSvc.Open(r.Context(), disservice.OpenIssueCommand{
+		ProjectID:          req.ProjectID,
+		Title:              req.Title,
+		Description:        req.Description,
+		OpenedByIdentityID: string(d.Actor),
+		Origin:             discussion.OriginWebConsole,
+		Actor:              d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"issue_id":        string(res.IssueID),
+		"conversation_id": string(res.ConversationID),
+		"event_id":        string(res.EventID),
+	})
+}
+
+// concludeIssueReq is the POST /api/issues/{id}/conclude body. Tasks is
+// only required when kind=closed_with_tasks; otherwise omitted.
+type concludeIssueReq struct {
+	Kind    string                  `json:"kind"`
+	Summary string                  `json:"summary"`
+	Tasks   []concludeIssueTaskReq  `json:"tasks,omitempty"`
+}
+
+type concludeIssueTaskReq struct {
+	LocalID     string `json:"local_id,omitempty"`
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Priority    string `json:"priority,omitempty"`
+}
+
+// concludeIssueHandler serves POST /api/issues/{id}/conclude. Wraps
+// IssueLifecycleSvc.Conclude. v2.5.x #61.
+func (s *Server) concludeIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.IssueLifecycleSvc == nil {
+		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
+		return
+	}
+	id := discussion.IssueID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	var req concludeIssueReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	kind := discussion.ResolutionKind(req.Kind)
+	if !kind.IsValid() {
+		writeError(w, http.StatusBadRequest, "invalid_input",
+			"kind must be one of closed_no_action / closed_with_tasks / withdrawn")
+		return
+	}
+	resolution := discussion.Resolution{
+		Kind:    kind,
+		Summary: req.Summary,
+	}
+	if kind == discussion.ResolutionClosedWithTasks {
+		resolution.Tasks = make([]dispatch.IssueConcludeTaskSpec, 0, len(req.Tasks))
+		for i, t := range req.Tasks {
+			localID := t.LocalID
+			if localID == "" {
+				localID = fmt.Sprintf("t%d", i+1)
+			}
+			resolution.Tasks = append(resolution.Tasks, dispatch.IssueConcludeTaskSpec{
+				LocalID:     localID,
+				Title:       t.Title,
+				Description: t.Description,
+				Priority:    task.Priority(t.Priority),
+			})
+		}
+	}
+	res, err := d.IssueLifecycleSvc.Conclude(r.Context(), disservice.ConcludeIssueCommand{
+		IssueID:     id,
+		Resolution:  resolution,
+		ConcludedBy: string(d.Actor),
+		Actor:       d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	taskIDs := make([]string, len(res.TaskIDs))
+	for i, tid := range res.TaskIDs {
+		taskIDs[i] = string(tid)
+	}
+	eventIDs := make([]string, len(res.EventIDs))
+	for i, eid := range res.EventIDs {
+		eventIDs[i] = string(eid)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"issue_id":  string(res.IssueID),
+		"task_ids":  taskIDs,
+		"event_ids": eventIDs,
 	})
 }
 

@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   useConversation,
@@ -12,6 +12,7 @@ import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { CarryOverDivider } from '@/components/CarryOverDivider';
 import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
+import { IssueConcludeModal } from '@/components/IssueConcludeModal';
 import { useSelection } from '@/components/useSelection';
 import { api } from '@/api/client';
 import type { Message } from '@/api/types';
@@ -39,6 +40,7 @@ export default function IssueDetail(): React.ReactElement {
   const messages = useMessages(convId);
   const refs = useConversationRefs(convId);
   const selection = useSelection();
+  const [concludeOpen, setConcludeOpen] = useState(false);
 
   // Unique source conversation ids from the refs.
   const sourceIds = useMemo(() => {
@@ -80,6 +82,10 @@ export default function IssueDetail(): React.ReactElement {
 
   const participants = conv.data?.participants ?? [];
   const iss = issue.data;
+  const isTerminal =
+    iss.status === 'closed_no_action' ||
+    iss.status === 'closed_with_tasks' ||
+    iss.status === 'withdrawn';
 
   return (
     <section
@@ -109,21 +115,39 @@ export default function IssueDetail(): React.ReactElement {
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={selection.toggleSelectMode}
-          className={[
-            'rounded px-2.5 py-1 text-xs font-medium',
-            selection.selectMode
-              ? 'bg-text-primary text-bg-elevated'
-              : 'bg-bg-subtle text-text-primary hover:bg-border-base',
-          ].join(' ')}
-          data-testid="select-mode-toggle"
-          aria-pressed={selection.selectMode}
-        >
-          {selection.selectMode ? 'Cancel select' : 'Select messages'}
-        </button>
+        <div className="flex items-center gap-2">
+          {!isTerminal && (
+            <button
+              type="button"
+              onClick={() => setConcludeOpen(true)}
+              className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+              data-testid="issue-conclude-button"
+            >
+              Conclude
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={selection.toggleSelectMode}
+            className={[
+              'rounded px-2.5 py-1 text-xs font-medium',
+              selection.selectMode
+                ? 'bg-text-primary text-bg-elevated'
+                : 'bg-bg-subtle text-text-primary hover:bg-border-base',
+            ].join(' ')}
+            data-testid="select-mode-toggle"
+            aria-pressed={selection.selectMode}
+          >
+            {selection.selectMode ? 'Cancel select' : 'Select messages'}
+          </button>
+        </div>
       </header>
+      {concludeOpen && (
+        <IssueConcludeModal
+          issueId={iss.id}
+          onClose={() => setConcludeOpen(false)}
+        />
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden p-4">

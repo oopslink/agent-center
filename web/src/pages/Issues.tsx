@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useIssues } from '@/api/issues';
 import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
+import { IssueCreateModal } from '@/components/IssueCreateModal';
 import { Skeleton } from '@/components/Skeleton';
 import type { IssueStatus } from '@/api/types';
 
@@ -32,6 +33,7 @@ export default function Issues(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const projectFilter = searchParams.get('project') ?? 'all';
   const projects = useProjects();
+  const [createOpen, setCreateOpen] = useState(false);
   // Status filter is server-side now (backend accepts optional `status`
   // query param mapped to discussion.IssueFilter.Status).
   const issues = useIssues({
@@ -51,7 +53,21 @@ export default function Issues(): React.ReactElement {
     <section className="space-y-4" data-testid="page-Issues">
       <header className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Issues</h2>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          data-testid="issues-open-button"
+          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+        >
+          + Open Issue
+        </button>
       </header>
+      {createOpen && (
+        <IssueCreateModal
+          defaultProjectId={projectFilter === 'all' ? undefined : projectFilter}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
 
       <div
         className="flex flex-wrap items-center gap-1"

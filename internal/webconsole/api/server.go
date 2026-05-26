@@ -130,9 +130,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/conversations/{id}/participants", s.inviteParticipantHandler)
 	s.mux.HandleFunc("DELETE /api/conversations/{id}/participants/{identity_id}", s.removeParticipantHandler)
 
-	// Derivation entry points (CV4).
-	s.mux.HandleFunc("POST /api/issues", s.deriveIssueHandler)
+	// Derivation entry points (CV4) — POST /api/issues also branches to
+	// open-from-scratch when source_conversation_id is empty (v2.5.x #61
+	// CreateIssueModal).
+	s.mux.HandleFunc("POST /api/issues", s.postIssueHandler)
 	s.mux.HandleFunc("POST /api/tasks", s.deriveTaskHandler)
+
+	// v2.5.x #61 — Issue mutation surface (Conclude).
+	s.mux.HandleFunc("POST /api/issues/{id}/conclude", s.concludeIssueHandler)
 
 	// BC-native list + detail reads (v2.3-5a). Issue projection lives
 	// in Discussion BC; Task projection lives in TaskRuntime BC. SPA

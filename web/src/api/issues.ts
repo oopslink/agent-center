@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 import type { Issue, IssueStatus } from './types';
@@ -37,5 +37,73 @@ export function useIssue(id: string | undefined) {
     queryKey: qk.issue(id ?? ''),
     queryFn: () => api.get<Issue>(`/issues/${id}`),
     enabled: !!id,
+  });
+}
+
+// v2.5.x #61 — Open Issue from scratch (no message source). The same
+// POST /api/issues endpoint also serves the CV4 derive flow when the
+// payload includes source_conversation_id; this mutation only fires
+// the open-from-scratch branch.
+
+export interface OpenIssueInput {
+  project_id: string;
+  title: string;
+  description?: string;
+}
+
+export interface OpenIssueResult {
+  issue_id: string;
+  conversation_id: string;
+  event_id: string;
+}
+
+export function useOpenIssue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: OpenIssueInput) =>
+      api.post<OpenIssueResult>('/issues', input),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({
+        queryKey: qk.issues({ projectId: vars.project_id }),
+      });
+    },
+  });
+}
+
+// v2.5.x #61 — Conclude an Issue with one of 3 kinds.
+// closed_with_tasks requires at least one task spec (title required;
+// description + priority optional). closed_no_action / withdrawn only
+// need a summary.
+
+export type ConcludeKind = 'closed_no_action' | 'closed_with_tasks' | 'withdrawn';
+
+export interface ConcludeTaskSpec {
+  title: string;
+  description?: string;
+  priority?: string;
+  local_id?: string;
+}
+
+export interface ConcludeIssueInput {
+  kind: ConcludeKind;
+  summary: string;
+  tasks?: ConcludeTaskSpec[];
+}
+
+export interface ConcludeIssueResult {
+  issue_id: string;
+  task_ids: string[];
+  event_ids: string[];
+}
+
+export function useConcludeIssue(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ConcludeIssueInput) =>
+      api.post<ConcludeIssueResult>(`/issues/${issueId}/conclude`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
+      void qc.invalidateQueries({ queryKey: qk.issues() });
+    },
   });
 }
