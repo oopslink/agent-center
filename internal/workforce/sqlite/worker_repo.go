@@ -127,6 +127,30 @@ func (r *WorkerRepo) FindAll(ctx context.Context) ([]*workforce.Worker, error) {
 	return scanWorkers(rows)
 }
 
+// Delete removes the Worker row. v2.5-B4 (#52) hard-delete: the row
+// is gone forever after this commits. Repository layer doesn't
+// cascade child tables (agent_instances, mappings) — the service
+// layer + operator-facing confirm dialog handle that. Returns
+// ErrWorkerNotFound if id doesn't match.
+func (r *WorkerRepo) Delete(ctx context.Context, id workforce.WorkerID) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	res, err := exec.ExecContext(ctx, `DELETE FROM workers WHERE id = ?`, string(id))
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return workforce.ErrWorkerNotFound
+	}
+	return nil
+}
+
 // UpdateStatus is the CAS path for state transitions
 // (02-persistence § 4).
 func (r *WorkerRepo) UpdateStatus(ctx context.Context, id workforce.WorkerID, from, to workforce.WorkerStatus, version int) error {

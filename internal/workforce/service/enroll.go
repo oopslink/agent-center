@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -207,6 +208,72 @@ type AddWorkerResult struct {
 	WorkerID workforce.WorkerID
 	EventID  observability.EventID
 	Version  int
+}
+
+// RemoveWorkerCommand drops a Worker AR and lets SSE notify Fleet
+// to retire the row from the table. v2.5-B4 (#52). Caller is
+// responsible for revoking any cross-BC tokens (admin tokens bound
+// to the worker) before / after — the workforce BC only owns the
+// Worker AR itself.
+type RemoveWorkerCommand struct {
+	WorkerID      workforce.WorkerID
+	ActorIdentity observability.Actor
+	// Reason is the operator-supplied audit string ("removed via Fleet
+	// UI", "tenant teardown", etc.). Embedded in the emitted event
+	// payload for auditability.
+	Reason string
+}
+
+// RemoveWorkerResult mirrors the other service result shapes.
+type RemoveWorkerResult struct {
+	WorkerID workforce.WorkerID
+	EventID  observability.EventID
+}
+
+// RemoveWorker drops the Worker AR + emits workforce.worker.removed.
+// Returns ErrWorkerNotFound if the id doesn't match. v2.5-B4 (#52).
+func (s *WorkerEnrollService) RemoveWorker(ctx context.Context, cmd RemoveWorkerCommand) (RemoveWorkerResult, error) {
+	if err := cmd.ActorIdentity.Validate(); err != nil {
+		return RemoveWorkerResult{}, fmt.Errorf("remove worker: %w", err)
+	}
+	if cmd.WorkerID == "" {
+		return RemoveWorkerResult{}, errors.New("workforce.remove_worker: worker_id required")
+	}
+	var eventID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if err := s.repo.Delete(txCtx, cmd.WorkerID); err != nil {
+			return err
+		}
+		payload := map[string]any{
+			"worker_id": string(cmd.WorkerID),
+		}
+		// conventions § 16: payload.reason requires paired payload.message
+		// (the message gives operators a human-readable string; the
+		// reason is the machine-categorisable why-code). Skip the pair
+		// when no operator-supplied reason was passed.
+		if reason := strings.TrimSpace(cmd.Reason); reason != "" {
+			payload["reason"] = "operator_removed"
+			payload["message"] = reason
+		}
+		evID, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "workforce.worker.removed",
+			Refs:      observability.EventRefs{WorkerID: string(cmd.WorkerID)},
+			Actor:     cmd.ActorIdentity,
+			Payload:   payload,
+		})
+		if err != nil {
+			return err
+		}
+		eventID = evID
+		return nil
+	})
+	if err != nil {
+		return RemoveWorkerResult{}, err
+	}
+	return RemoveWorkerResult{
+		WorkerID: cmd.WorkerID,
+		EventID:  eventID,
+	}, nil
 }
 
 // AddWorker creates a Worker row at mint-enroll time so Fleet sees

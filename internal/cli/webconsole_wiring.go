@@ -91,6 +91,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		EnrollFingerprint:   enroll.Fingerprint,
 		WorkerRenameSvc:    a.EnrollSvc,
 		WorkerAddSvc:       a.EnrollSvc,
+		WorkerRemoveSvc:    a.EnrollSvc,
 		WorkerRepo:         a.WorkerRepo,
 	}
 	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler(), Version: ResolvedBuildVersion()})

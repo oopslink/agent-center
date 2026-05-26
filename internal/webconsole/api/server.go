@@ -187,6 +187,11 @@ func (s *Server) routes() {
 	// worker already has a long-term token (daemon already enrolled).
 	s.mux.HandleFunc("POST /api/workers/{id}/install-command/re-mint", s.reMintInstallCommandHandler)
 
+	// v2.5-B4 (#52): drop the worker row + revoke its tokens. SSE
+	// emits workforce.worker.removed so Fleet rows in other tabs
+	// retire automatically.
+	s.mux.HandleFunc("DELETE /api/workers/{id}", s.removeWorkerHandler)
+
 	// SPA catch-all. Registered LAST so all the /api/* patterns take
 	// precedence. Serves the embedded React build (web/dist/ baked in
 	// by go:embed) for "/" + every non-/api path, with index.html

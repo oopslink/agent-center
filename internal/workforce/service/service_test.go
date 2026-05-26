@@ -207,6 +207,51 @@ func TestAddWorker_Happy(t *testing.T) {
 	}
 }
 
+// v2.5-B4: RemoveWorker drops the row and emits
+// workforce.worker.removed so SSE consumers retire the Fleet row.
+func TestRemoveWorker_Happy(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	if _, err := enroll.AddWorker(context.Background(), AddWorkerCommand{
+		WorkerID: "W-rm", Name: "doomed", ActorIdentity: "user:hayang",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := enroll.RemoveWorker(context.Background(), RemoveWorkerCommand{
+		WorkerID: "W-rm", ActorIdentity: "user:hayang", Reason: "test cleanup",
+	}); err != nil {
+		t.Fatalf("RemoveWorker: %v", err)
+	}
+	if _, err := s.workerRepo.FindByID(context.Background(), "W-rm"); !errors.Is(err, workforce.ErrWorkerNotFound) {
+		t.Fatalf("worker still present after Remove: %v", err)
+	}
+	events, _ := s.eventRepo.Find(context.Background(), observability.EventQueryFilter{
+		Refs: observability.EventRefsFilter{WorkerID: "W-rm"},
+	})
+	var sawRemoved bool
+	for _, e := range events {
+		if e.Type() == "workforce.worker.removed" {
+			sawRemoved = true
+		}
+	}
+	if !sawRemoved {
+		t.Fatalf("expected workforce.worker.removed event, got %d total", len(events))
+	}
+}
+
+// RemoveWorker on a missing id surfaces ErrWorkerNotFound (handler
+// turns this into a 404).
+func TestRemoveWorker_NotFound(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	_, err := enroll.RemoveWorker(context.Background(), RemoveWorkerCommand{
+		WorkerID: "W-ghost", ActorIdentity: "user:hayang",
+	})
+	if !errors.Is(err, workforce.ErrWorkerNotFound) {
+		t.Fatalf("expected ErrWorkerNotFound, got %v", err)
+	}
+}
+
 // AddWorker is single-shot per worker_id: a second AddWorker call
 // with the same id surfaces ErrWorkerAlreadyExists (caller can then
 // either remove + re-add, or use the future re-mint flow in B3).

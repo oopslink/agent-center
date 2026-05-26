@@ -303,6 +303,38 @@ func (s *Service) HasLongTermTokenForWorker(ctx context.Context, workerID string
 	return false, nil
 }
 
+// RevokeAllForWorker revokes every non-revoked admin token bound to
+// workerID — both the long-term `worker:<id>` bearer and any active
+// `enroll:worker:<id>` enroll token. Returns the count of tokens
+// revoked (0 if none, which is not an error). v2.5-B4 (#52) uses
+// this during Remove Worker so a deleted worker's daemon will 401
+// on its next admin call.
+func (s *Service) RevokeAllForWorker(ctx context.Context, workerID, reason string) (int, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return 0, nil
+	}
+	revoked := 0
+	for _, owner := range []admintoken.Owner{
+		admintoken.Owner("worker:" + workerID),
+		admintoken.Owner("enroll:worker:" + workerID),
+	} {
+		toks, err := s.repo.FindByOwner(ctx, owner)
+		if err != nil {
+			return revoked, err
+		}
+		for _, t := range toks {
+			if t.IsRevoked() {
+				continue
+			}
+			if err := s.repo.Revoke(ctx, t.ID(), "remove-worker", reason, t.Version()); err != nil {
+				return revoked, err
+			}
+			revoked++
+		}
+	}
+	return revoked, nil
+}
+
 // RevokeActiveEnrollForWorker tears down any active enroll token bound
 // to workerID so a fresh re-mint can take its place. Idempotent: if
 // nothing is found (or it's already consumed / revoked), returns nil.

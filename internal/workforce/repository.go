@@ -20,6 +20,10 @@ type WorkerRepository interface {
 	FindByStatus(ctx context.Context, status WorkerStatus) ([]*Worker, error)
 	FindAll(ctx context.Context) ([]*Worker, error)
 	Save(ctx context.Context, w *Worker) error
+	// Delete hard-removes the Worker row (v2.5-B4 #52). Returns
+	// ErrWorkerNotFound if id is unknown. Repository layer doesn't
+	// cascade to child tables — the service layer owns that policy.
+	Delete(ctx context.Context, id WorkerID) error
 	UpdateStatus(ctx context.Context, id WorkerID, from, to WorkerStatus, version int) error
 	UpdateLastHeartbeatAt(ctx context.Context, id WorkerID, at time.Time, workingSeconds int64) error
 	// UpdateName mutates the friendly label (v2.4-D-X1 @oopslink ask).

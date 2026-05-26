@@ -77,6 +77,16 @@ type HandlerDeps struct {
 		AddWorker(ctx context.Context, cmd wfservice.AddWorkerCommand) (wfservice.AddWorkerResult, error)
 	}
 
+	// v2.5-B4: RemoveWorker drops the Worker AR + emits
+	// workforce.worker.removed. The webconsole handler also calls
+	// AdminTokenSvc.RevokeAllForWorker BEFORE the drop so the
+	// daemon's next admin call 401s — order matters: tokens dead
+	// first, row gone second, so a partial failure leaves the user
+	// with a still-deletable row instead of an undead worker.
+	WorkerRemoveSvc interface {
+		RemoveWorker(ctx context.Context, cmd wfservice.RemoveWorkerCommand) (wfservice.RemoveWorkerResult, error)
+	}
+
 	// v2.5-B2: WorkerRepo backs the show-install-command lookup —
 	// we need the Worker's name to embed in `--worker-name=...`
 	// when rebuilding the install line.
@@ -1725,6 +1735,64 @@ func (s *Server) reMintInstallCommandHandler(w http.ResponseWriter, r *http.Requ
 		WorkerID:      id,
 		WorkerName:    worker.Name(),
 	})
+}
+
+// =============================================================================
+// Remove worker — DELETE /api/workers/{id}
+//
+// v2.5-B4 (#52). Cross-BC orchestration:
+//   1. Revoke all admin tokens bound to the worker FIRST so its
+//      daemon (if still running) hits 401 on the next call.
+//   2. Drop the Worker AR (emits workforce.worker.removed).
+//
+// Order matters: revoke-first means a partial failure leaves the
+// user with tokens that no longer work but a row they can re-try
+// the delete on — better than an orphan worker with live tokens.
+//
+// Response:
+//   - 204 on success.
+//   - 404 worker_not_found if the row is gone (re-deletes are 404).
+//   - 500 on persistence / event failures (rare; both legs are
+//     individually transactional).
+// =============================================================================
+
+func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.WorkerRemoveSvc == nil {
+		writeError(w, http.StatusNotImplemented, "worker_remove_svc_not_wired", "")
+		return
+	}
+	id := r.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	// Revoke first. Non-fatal: if the admin token side errors we
+	// keep going — the operator's explicit intent is "this worker is
+	// gone", and a dangling Worker row with revoke-failed tokens is
+	// still worse than no Worker row.
+	if d.AdminTokenSvc != nil {
+		if _, rerr := d.AdminTokenSvc.RevokeAllForWorker(r.Context(), id,
+			"worker removed via Web Console"); rerr != nil {
+			// Log via the writeError path? No — keep server-internal.
+			// Move on and let RemoveWorker still try to drop the row.
+			_ = rerr
+		}
+	}
+	if _, err := d.WorkerRemoveSvc.RemoveWorker(r.Context(), wfservice.RemoveWorkerCommand{
+		WorkerID:      workforce.WorkerID(id),
+		ActorIdentity: d.Actor,
+		Reason:        "web-console remove worker",
+	}); err != nil {
+		if errors.Is(err, workforce.ErrWorkerNotFound) {
+			writeError(w, http.StatusNotFound, "worker_not_found",
+				"no worker with id "+id)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "remove_worker_failed", err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

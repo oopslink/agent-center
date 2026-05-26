@@ -245,6 +245,7 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     // runs the install command. Just an invalidate — no Modal-bridge
     // since the v2.5 Modal closes immediately after Generate.
     case 'workforce.worker.added':
+    case 'workforce.worker.removed':
     case 'workforce.worker.config.updated':
     case 'workforce.worker.capability.updated':
     case 'workforce.worker.online':

@@ -427,6 +427,98 @@ func TestReMintInstallCommand_AlreadyEnrolled_409(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// v2.5-B4 delete worker endpoint
+// =============================================================================
+
+// DELETE /api/workers/{id} removes the row + revokes its tokens.
+// Subsequent show-install-command returns 401 since the enroll token
+// is now revoked (the partial filter excludes revoked rows).
+func TestRemoveWorker_Endpoint(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	withMasterKey(t, tokenSvc)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRemoveSvc:     enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	// Pre-create a worker via mint-enroll.
+	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mintResp.Body.Close()
+	var minted mintEnrollResp
+	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
+	// Add a long-term token too so the revoke-cascade is observable.
+	if _, err := tokenSvc.Create(context.Background(), admintokensvc.CreateCommand{
+		Owner:  admintoken.Owner("worker:" + minted.WorkerID),
+		Scopes: []admintoken.Scope{"workforce:enroll"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// DELETE the worker.
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/workers/"+minted.WorkerID, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	}
+	// Worker row gone.
+	if _, err := workerRepo.FindByID(context.Background(), workforce.WorkerID(minted.WorkerID)); err == nil {
+		t.Errorf("worker row still present after DELETE")
+	}
+	// All tokens for this worker revoked.
+	for _, owner := range []admintoken.Owner{
+		admintoken.Owner("worker:" + minted.WorkerID),
+		admintoken.Owner("enroll:worker:" + minted.WorkerID),
+	} {
+		toks, _ := tokenSvc.FindAll(context.Background())
+		for _, tok := range toks {
+			if tok.Owner() != owner {
+				continue
+			}
+			if !tok.IsRevoked() {
+				t.Errorf("token %s owner %q still active after DELETE", tok.ID(), owner)
+			}
+		}
+	}
+}
+
+// DELETE on a missing worker returns 404.
+func TestRemoveWorker_NotFound_404(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRemoveSvc:     enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/workers/worker-ghost", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
 // A consumed enroll token (daemon already enrolled successfully)
 // surfaces 401 + no_active_enroll_token so the UI knows to offer
 // re-mint instead.
