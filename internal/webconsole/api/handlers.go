@@ -1665,6 +1665,7 @@ func taskPublicMap(t *task.Task) map[string]any {
 		"project_id":      t.ProjectID(),
 		"conversation_id": t.ConversationID(),
 		"title":           t.Title(),
+		"description":     t.Description(),
 		"status":          string(t.Status()),
 		"priority":        string(t.Priority()),
 		"created_at":      t.CreatedAt().Format(time.RFC3339Nano),

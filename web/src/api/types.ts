@@ -194,6 +194,7 @@ export interface Task {
   project_id: string;
   conversation_id: string;
   title: string;
+  description: string;
   status: TaskStatus;
   priority: TaskPriority;
   created_at: string;
