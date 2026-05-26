@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	"github.com/oopslink/agent-center/internal/secretmgmt"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
@@ -174,6 +175,150 @@ var errSimulatedAddFailure = &stringError{"simulated add failure"}
 type stringError struct{ s string }
 
 func (e *stringError) Error() string { return e.s }
+
+// =============================================================================
+// v2.5-B2 show-install-command endpoint
+// =============================================================================
+
+// withMasterKey returns the service with a freshly-generated master
+// key set so the encrypt/decrypt path runs end-to-end.
+func withMasterKey(t *testing.T, svc *admintokensvc.Service) *admintokensvc.Service {
+	t.Helper()
+	mk, err := secretmgmt.GenerateMasterKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc.WithMasterKey(mk)
+}
+
+func TestShowInstallCommand_HappyPath(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	withMasterKey(t, tokenSvc)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	// Mint a token (also pre-creates the worker via WorkerAddSvc).
+	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json",
+		strings.NewReader(`{"name":"alice-box"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mintResp.Body.Close()
+	var minted mintEnrollResp
+	if err := json.NewDecoder(mintResp.Body).Decode(&minted); err != nil {
+		t.Fatal(err)
+	}
+	// Now re-display via the show endpoint.
+	resp, err := http.Get(srv.URL + "/api/workers/" + minted.WorkerID + "/install-command")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var body showInstallCommandResp
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Token != minted.Token {
+		t.Errorf("token round-trip mismatch")
+	}
+	if body.WorkerID != minted.WorkerID {
+		t.Errorf("worker_id = %q want %q", body.WorkerID, minted.WorkerID)
+	}
+	if body.WorkerName != "alice-box" {
+		t.Errorf("worker_name = %q", body.WorkerName)
+	}
+	if body.Fingerprint != "sha256:AA" || body.BootstrapHost != "h:7300" {
+		t.Errorf("missing fingerprint/bootstrap_host: %+v", body)
+	}
+	if body.ExpiresAt == "" {
+		t.Errorf("expires_at empty")
+	}
+}
+
+// Without a master key the show endpoint surfaces a clear
+// "not configured" hint rather than a generic 401 — operators
+// running v2.5+ without secret_management need to know why
+// install-command re-display is unavailable.
+func TestShowInstallCommand_NoMasterKey_503(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	// NB: no WithMasterKey call → ShowInstallToken returns the
+	// sentinel error and the handler maps to 503.
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	resp, err := http.Get(srv.URL + "/api/workers/worker-unknown/install-command")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "show_install_no_master_key" {
+		t.Errorf("error code = %v", body["error"])
+	}
+}
+
+// A consumed enroll token (daemon already enrolled successfully)
+// surfaces 401 + no_active_enroll_token so the UI knows to offer
+// re-mint instead.
+func TestShowInstallCommand_AfterConsume_401(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	withMasterKey(t, tokenSvc)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mintResp.Body.Close()
+	var minted mintEnrollResp
+	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
+	// Burn the token (simulating daemon enroll).
+	if err := tokenSvc.ConsumeEnrollToken(context.Background(), admintoken.TokenID(minted.ID)); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Get(srv.URL + "/api/workers/" + minted.WorkerID + "/install-command")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "no_active_enroll_token" {
+		t.Errorf("error code = %v", body["error"])
+	}
+}
 
 func TestMintEnroll_HappyPath(t *testing.T) {
 	svc := newRealAdminTokenSvc(t)

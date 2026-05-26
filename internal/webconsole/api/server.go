@@ -178,6 +178,10 @@ func (s *Server) routes() {
 	// v2.4-D-X1 (@oopslink ask): rename worker friendly name.
 	s.mux.HandleFunc("PATCH /api/workers/{id}/name", s.workerRenameHandler)
 
+	// v2.5-B2 (#50): re-display the install command for a worker
+	// whose enroll token is still alive (not used / expired / revoked).
+	s.mux.HandleFunc("GET /api/workers/{id}/install-command", s.showInstallCommandHandler)
+
 	// SPA catch-all. Registered LAST so all the /api/* patterns take
 	// precedence. Serves the embedded React build (web/dist/ baked in
 	// by go:embed) for "/" + every non-/api path, with index.html

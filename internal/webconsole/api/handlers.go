@@ -77,6 +77,11 @@ type HandlerDeps struct {
 		AddWorker(ctx context.Context, cmd wfservice.AddWorkerCommand) (wfservice.AddWorkerResult, error)
 	}
 
+	// v2.5-B2: WorkerRepo backs the show-install-command lookup —
+	// we need the Worker's name to embed in `--worker-name=...`
+	// when rebuilding the install line.
+	WorkerRepo workforce.WorkerRepository
+
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses
 	// (loopback only — ADR-0037 — so no per-request auth check on
@@ -1390,11 +1395,24 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	if string(d.Actor) != "" {
 		createdBy = string(d.Actor)
 	}
+	// v2.5-B1: generate worker_id BEFORE the token so we can bind the
+	// token to it. The binding lets the show-install-command endpoint
+	// (v2.5-B2) look the token up by worker_id and decrypt the
+	// stored ciphertext.
+	workerID, gerr := generateWorkerID()
+	if gerr != nil {
+		writeError(w, http.StatusInternalServerError, "gen_worker_id_failed", gerr.Error())
+		return
+	}
+	if workerName == "" {
+		workerName = workerID // safe default — Fleet shows id when name absent
+	}
 	res, err := d.AdminTokenSvc.CreateEnrollToken(r.Context(), admintokensvc.CreateEnrollCommand{
-		Owner:     admintoken.Owner("enroll:web-console"),
+		Owner:     admintoken.Owner("enroll:worker:" + workerID),
 		Scopes:    []admintoken.Scope{"workforce:enroll"},
 		CreatedBy: createdBy,
 		TTL:       30 * time.Minute,
+		WorkerID:  workerID,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "mint_failed", err.Error())
@@ -1408,14 +1426,6 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	expiresAt := ""
 	if exp := tok.ExpiresAt(); exp != nil {
 		expiresAt = exp.UTC().Format(time.RFC3339Nano)
-	}
-	workerID, gerr := generateWorkerID()
-	if gerr != nil {
-		writeError(w, http.StatusInternalServerError, "gen_worker_id_failed", gerr.Error())
-		return
-	}
-	if workerName == "" {
-		workerName = workerID // safe default — Fleet shows id when name absent
 	}
 	// v2.5-B1: pre-create the Worker AR (status=offline) so Fleet
 	// shows the new row immediately; Modal can close right away.
@@ -1528,6 +1538,88 @@ func (s *Server) workerRenameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "name": strings.TrimSpace(req.Name)})
+}
+
+// =============================================================================
+// Show install command — GET /api/workers/{id}/install-command
+//
+// v2.5-B2 (#50). Re-displays the install command for a worker whose
+// enroll token is still alive (not consumed / not expired / not
+// revoked). Plaintext is AES-GCM-decrypted from the row on the fly
+// (the master_key path lives in admintoken/service). 401 when the
+// token has any of those terminal states, OR when the server was
+// started without a master_key (no plaintext was ever stored).
+//
+// Response mirrors mintEnrollResp so the SPA can re-use the same
+// command-rendering helper (no logic duplication on the frontend).
+// =============================================================================
+
+type showInstallCommandResp struct {
+	ID            string `json:"id"`             // admin_token row id
+	Token         string `json:"token"`          // decrypted plaintext bearer
+	ExpiresAt     string `json:"expires_at"`     // RFC3339Nano UTC
+	Fingerprint   string `json:"fingerprint"`    // pinned server cert sha256
+	BootstrapHost string `json:"bootstrap_host"` // host:port for tcp://
+	WorkerID      string `json:"worker_id"`
+	WorkerName    string `json:"worker_name"`
+}
+
+func (s *Server) showInstallCommandHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.AdminTokenSvc == nil {
+		writeError(w, http.StatusNotImplemented, "admintoken_svc_not_wired",
+			"server started without AdminTokenSvc; check ServerCommand wiring")
+		return
+	}
+	if d.EnrollBootstrapHost == "" || d.EnrollFingerprint == "" {
+		writeError(w, http.StatusServiceUnavailable, "enroll_not_configured",
+			"admin TCP listener not enabled — set server.admin_tcp_listen in config")
+		return
+	}
+	id := r.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	res, err := d.AdminTokenSvc.ShowInstallToken(r.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, admintokensvc.ErrShowInstallNoMasterKey):
+			writeError(w, http.StatusServiceUnavailable, "show_install_no_master_key",
+				"server started without secret_management.master_key_file; install-command "+
+					"re-display unavailable. Re-mint a fresh enroll token instead.")
+			return
+		case errors.Is(err, admintoken.ErrTokenNotFound):
+			writeError(w, http.StatusUnauthorized, "no_active_enroll_token",
+				"no active enroll token for this worker — token was used, expired, or revoked. "+
+					"Re-mint via the Fleet row's 'Re-mint install command' action.")
+			return
+		case errors.Is(err, admintoken.ErrTokenExpired):
+			writeError(w, http.StatusUnauthorized, "enroll_token_expired",
+				"enroll token expired (30 min cap) — re-mint via Fleet row action.")
+			return
+		default:
+			writeError(w, http.StatusInternalServerError, "show_install_failed", err.Error())
+			return
+		}
+	}
+	workerName := id
+	if d.WorkerRepo != nil {
+		w2, ferr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(id))
+		if ferr == nil {
+			workerName = w2.Name()
+		}
+		// ErrWorkerNotFound is non-fatal: fall back to id as name.
+	}
+	writeJSON(w, http.StatusOK, showInstallCommandResp{
+		ID:            string(res.ID),
+		Token:         res.Plaintext,
+		ExpiresAt:     res.ExpiresAt.UTC().Format(time.RFC3339Nano),
+		Fingerprint:   d.EnrollFingerprint,
+		BootstrapHost: d.EnrollBootstrapHost,
+		WorkerID:      id,
+		WorkerName:    workerName,
+	})
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

@@ -316,6 +316,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		// returns plaintext. Wired here so the admin endpoint can expose
 		// /admin/secret/user-secret/resolve to worker daemons.
 		userSecretResolveSvc = secretservice.NewSecretResolutionService(db, userSecretRepo, sink, clk, mk)
+		// v2.5-B2: hand the same master key to the AdminToken service so
+		// it can AES-GCM-encrypt enroll-token plaintext for the show-
+		// install-command flow. Without the master key the show endpoint
+		// returns a "not configured" hint instead of leaking nothing.
+		adminTokenSvc.WithMasterKey(mk)
 	}
 
 	// Phase 6: Cognition (Supervisor + DecisionRecord).

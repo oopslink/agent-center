@@ -36,6 +36,18 @@ type AdminToken struct {
 	isEnroll  bool
 	expiresAt *time.Time // nil for long-term tokens
 	usedAt    *time.Time // nil until first verify burns the enroll token
+	// v2.5-B2 enroll-token install-command re-display fields.
+	// workerID binds the enroll token to a Worker AR row pre-created
+	// at mint time (#49). Empty for long-term tokens and legacy
+	// enroll tokens minted before v2.5.
+	workerID string
+	// plaintextCiphertext + plaintextNonce hold the AES-GCM-encrypted
+	// `acat_…` bearer so the show-install-command endpoint can
+	// reconstruct the install command after the Modal closes. Both
+	// nil for long-term tokens and for enroll tokens that have
+	// been Consume()d.
+	plaintextCiphertext []byte
+	plaintextNonce      []byte
 }
 
 // NewAdminTokenInput captures the fields available at creation.
@@ -51,6 +63,15 @@ type NewAdminTokenInput struct {
 	// leave both at zero values.
 	IsEnroll  bool
 	ExpiresAt *time.Time
+	// v2.5-B2: WorkerID + PlaintextCiphertext + PlaintextNonce are
+	// optional companions for enroll tokens. WorkerID binds the
+	// token to a Worker AR; ciphertext/nonce hold the AES-GCM
+	// encrypted bearer so /api/workers/{id}/install-command can
+	// reconstruct the install line. Legacy callers that don't pass
+	// them remain valid (Show endpoint will 401 on no-plaintext).
+	WorkerID            string
+	PlaintextCiphertext []byte
+	PlaintextNonce      []byte
 }
 
 // New constructs an AdminToken AR with the given pre-computed value hash.
@@ -102,6 +123,16 @@ func New(in NewAdminTokenInput) (*AdminToken, error) {
 	if in.IsEnroll && t.expiresAt == nil {
 		return nil, errors.New("admintoken: enroll token requires ExpiresAt")
 	}
+	t.workerID = strings.TrimSpace(in.WorkerID)
+	if len(in.PlaintextCiphertext) > 0 {
+		t.plaintextCiphertext = append([]byte(nil), in.PlaintextCiphertext...)
+	}
+	if len(in.PlaintextNonce) > 0 {
+		t.plaintextNonce = append([]byte(nil), in.PlaintextNonce...)
+	}
+	if (len(t.plaintextCiphertext) == 0) != (len(t.plaintextNonce) == 0) {
+		return nil, errors.New("admintoken: plaintext ciphertext + nonce must both be present or both absent")
+	}
 	return t, nil
 }
 
@@ -123,6 +154,10 @@ type RehydrateInput struct {
 	IsEnroll  bool
 	ExpiresAt *time.Time
 	UsedAt    *time.Time
+	// v2.5-B2 install-command re-display fields.
+	WorkerID            string
+	PlaintextCiphertext []byte
+	PlaintextNonce      []byte
 }
 
 // Rehydrate rebuilds an AR from a row read.
@@ -140,6 +175,7 @@ func Rehydrate(in RehydrateInput) *AdminToken {
 		revokedReason: in.RevokedReason,
 		version:       in.Version,
 		isEnroll:      in.IsEnroll,
+		workerID:      strings.TrimSpace(in.WorkerID),
 	}
 	if in.RevokedAt != nil {
 		ra := in.RevokedAt.UTC()
@@ -156,6 +192,12 @@ func Rehydrate(in RehydrateInput) *AdminToken {
 	if in.UsedAt != nil {
 		ua := in.UsedAt.UTC()
 		t.usedAt = &ua
+	}
+	if len(in.PlaintextCiphertext) > 0 {
+		t.plaintextCiphertext = append([]byte(nil), in.PlaintextCiphertext...)
+	}
+	if len(in.PlaintextNonce) > 0 {
+		t.plaintextNonce = append([]byte(nil), in.PlaintextNonce...)
 	}
 	return t
 }
@@ -188,6 +230,28 @@ func (t *AdminToken) ExpiresAt() *time.Time { return t.expiresAt }
 // until burnt by middleware (Consume).
 func (t *AdminToken) UsedAt() *time.Time { return t.usedAt }
 
+// WorkerID returns the worker_id this enroll token was minted for
+// (v2.5-B2). Empty for long-term tokens and legacy enroll tokens.
+func (t *AdminToken) WorkerID() string { return t.workerID }
+
+// PlaintextCiphertext + PlaintextNonce return the AES-GCM encrypted
+// bearer + paired nonce so the service layer can decrypt with the
+// master key for /api/workers/{id}/install-command (v2.5-B2). Both
+// nil after Consume() or for tokens minted without plaintext-storage
+// opt-in (legacy enroll tokens, long-term bearers).
+func (t *AdminToken) PlaintextCiphertext() []byte {
+	return append([]byte(nil), t.plaintextCiphertext...)
+}
+func (t *AdminToken) PlaintextNonce() []byte {
+	return append([]byte(nil), t.plaintextNonce...)
+}
+
+// HasShowablePlaintext reports whether the AR currently carries an
+// encrypted bearer the show-install-command endpoint can decrypt.
+func (t *AdminToken) HasShowablePlaintext() bool {
+	return len(t.plaintextCiphertext) > 0 && len(t.plaintextNonce) > 0
+}
+
 // IsExpired reports whether an enroll token is past its expires_at.
 // Long-term tokens never expire (returns false).
 func (t *AdminToken) IsExpired(now time.Time) bool {
@@ -203,10 +267,12 @@ func (t *AdminToken) IsConsumed() bool {
 	return t.isEnroll && t.usedAt != nil
 }
 
-// Consume burns an enroll token: marks used_at = now. Idempotent: a
-// second call returns ErrTokenConsumed so the middleware can reject
-// reuse. No-op + nil for long-term tokens (MarkUsed is the right call
-// for those).
+// Consume burns an enroll token: marks used_at = now AND clears the
+// stored encrypted plaintext (v2.5-B2 defense in depth, so a burned
+// token can never be re-shown by /api/workers/{id}/install-command).
+// Idempotent: a second call returns ErrTokenConsumed so middleware
+// can reject reuse. No-op + nil for long-term tokens (MarkUsed is
+// the right call for those).
 func (t *AdminToken) Consume(at time.Time) error {
 	if !t.isEnroll {
 		return nil
@@ -216,6 +282,8 @@ func (t *AdminToken) Consume(at time.Time) error {
 	}
 	u := at.UTC()
 	t.usedAt = &u
+	t.plaintextCiphertext = nil
+	t.plaintextNonce = nil
 	t.version++
 	return nil
 }

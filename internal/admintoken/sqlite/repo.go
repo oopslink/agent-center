@@ -24,7 +24,8 @@ func New(db *sql.DB) *Repo { return &Repo{db: db} }
 
 const tokenSelect = `SELECT id, owner, scopes_json, value_hash,
 		created_at, created_by, revoked_at, revoked_by, revoked_reason,
-		last_used_at, version, is_enroll, expires_at, used_at
+		last_used_at, version, is_enroll, expires_at, used_at,
+		worker_id, plaintext_ciphertext, plaintext_nonce
 	FROM admin_tokens`
 
 // Save inserts a new row.
@@ -40,8 +41,9 @@ func (r *Repo) Save(ctx context.Context, t *admintoken.AdminToken) error {
 	const stmt = `INSERT INTO admin_tokens
 		(id, owner, scopes_json, value_hash, created_at, created_by,
 		 revoked_at, revoked_by, revoked_reason, last_used_at, version,
-		 is_enroll, expires_at, used_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		 is_enroll, expires_at, used_at,
+		 worker_id, plaintext_ciphertext, plaintext_nonce)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	isEnrollInt := 0
 	if t.IsEnroll() {
 		isEnrollInt = 1
@@ -52,6 +54,7 @@ func (r *Repo) Save(ctx context.Context, t *admintoken.AdminToken) error {
 		nullTimePtr(t.RevokedAt()), nullString(t.RevokedBy()), nullString(t.RevokedReason()),
 		nullTimePtr(t.LastUsedAt()), t.Version(),
 		isEnrollInt, nullTimePtr(t.ExpiresAt()), nullTimePtr(t.UsedAt()),
+		nullString(t.WorkerID()), nullBytes(t.PlaintextCiphertext()), nullBytes(t.PlaintextNonce()),
 	); err != nil {
 		if isUnique(err) {
 			return admintoken.ErrTokenAlreadyExists
@@ -103,6 +106,30 @@ func (r *Repo) FindAll(ctx context.Context) ([]*admintoken.AdminToken, error) {
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// FindActiveEnrollByWorkerID returns the most recent enroll token
+// minted for the given worker that is still showable: is_enroll=1,
+// not revoked, not consumed, and has a non-NULL plaintext_ciphertext
+// (token can be re-displayed). Returns ErrTokenNotFound if no row
+// matches. v2.5-B2 (#50).
+func (r *Repo) FindActiveEnrollByWorkerID(ctx context.Context, workerID string) (*admintoken.AdminToken, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return nil, admintoken.ErrTokenNotFound
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		tokenSelect+` WHERE worker_id = ? AND is_enroll = 1
+			AND revoked_at IS NULL AND used_at IS NULL
+			AND plaintext_ciphertext IS NOT NULL
+			ORDER BY created_at DESC LIMIT 1`,
+		workerID,
+	)
+	t, err := scanToken(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, admintoken.ErrTokenNotFound
+	}
+	return t, err
 }
 
 // FindByOwner returns tokens owned by a single principal.
@@ -173,13 +200,16 @@ func (r *Repo) UpdateLastUsedAt(ctx context.Context, id admintoken.TokenID, atRF
 	return err
 }
 
-// ConsumeEnrollToken atomically marks an enroll token as used. Returns
-// ErrTokenConsumed if already consumed (CAS via used_at IS NULL guard),
-// or ErrTokenNotFound if no row matches. v2.4-D-A3 (task #37).
+// ConsumeEnrollToken atomically marks an enroll token as used. v2.5-B2
+// also NULLs the encrypted plaintext columns in the same write so a
+// burned token can never be re-shown by the install-command endpoint.
+// Returns ErrTokenConsumed if already consumed (CAS via used_at IS NULL
+// guard), or ErrTokenNotFound if no row matches. v2.4-D-A3 (task #37).
 func (r *Repo) ConsumeEnrollToken(ctx context.Context, id admintoken.TokenID, atRFC3339Nano string) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `UPDATE admin_tokens
-		SET used_at = ?, version = version + 1
+		SET used_at = ?, plaintext_ciphertext = NULL, plaintext_nonce = NULL,
+		    version = version + 1
 		WHERE id = ? AND is_enroll = 1 AND used_at IS NULL`
 	res, err := exec.ExecContext(ctx, stmt, atRFC3339Nano, string(id))
 	if err != nil {
@@ -259,10 +289,13 @@ func scanToken(scan scanFn) (*admintoken.AdminToken, error) {
 		version                                     int
 		isEnrollInt                                 int
 		expiresAt, usedAt                           sql.NullString
+		workerID                                    sql.NullString
+		plaintextCiphertext, plaintextNonce         []byte
 	)
 	if err := scan(&id, &owner, &scopesJSON, &valueHash,
 		&createdAt, &createdBy, &revokedAt, &revokedBy, &revokedReason,
-		&lastUsedAt, &version, &isEnrollInt, &expiresAt, &usedAt); err != nil {
+		&lastUsedAt, &version, &isEnrollInt, &expiresAt, &usedAt,
+		&workerID, &plaintextCiphertext, &plaintextNonce); err != nil {
 		return nil, err
 	}
 	scopes, err := decodeScopes(scopesJSON)
@@ -290,20 +323,23 @@ func scanToken(scan scanFn) (*admintoken.AdminToken, error) {
 		return nil, err
 	}
 	return admintoken.Rehydrate(admintoken.RehydrateInput{
-		ID:            admintoken.TokenID(id),
-		Owner:         admintoken.Owner(owner),
-		Scopes:        scopes,
-		ValueHash:     valueHash,
-		CreatedAt:     created,
-		CreatedBy:     createdBy,
-		RevokedAt:     revoked,
-		RevokedBy:     revokedBy.String,
-		RevokedReason: revokedReason.String,
-		LastUsedAt:    used,
-		Version:       version,
-		IsEnroll:      isEnrollInt != 0,
-		ExpiresAt:     expires,
-		UsedAt:        usedAtT,
+		ID:                  admintoken.TokenID(id),
+		Owner:               admintoken.Owner(owner),
+		Scopes:              scopes,
+		ValueHash:           valueHash,
+		CreatedAt:           created,
+		CreatedBy:           createdBy,
+		RevokedAt:           revoked,
+		RevokedBy:           revokedBy.String,
+		RevokedReason:       revokedReason.String,
+		LastUsedAt:          used,
+		Version:             version,
+		IsEnroll:            isEnrollInt != 0,
+		ExpiresAt:           expires,
+		UsedAt:              usedAtT,
+		WorkerID:            workerID.String,
+		PlaintextCiphertext: plaintextCiphertext,
+		PlaintextNonce:      plaintextNonce,
 	}), nil
 }
 
@@ -327,6 +363,15 @@ func nullString(s string) any {
 		return nil
 	}
 	return s
+}
+
+// nullBytes maps an empty/nil byte slice to a SQL NULL (so columns
+// that distinguish "absent" vs "empty" stay NULL).
+func nullBytes(b []byte) any {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
 }
 
 func nullTimePtr(t *time.Time) any {

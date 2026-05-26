@@ -13,6 +13,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/secretmgmt"
 )
 
 // Service wraps the AdminToken repository with creation + revocation
@@ -21,6 +22,12 @@ type Service struct {
 	repo  admintoken.Repository
 	idgen idgen.Generator
 	clock clock.Clock
+	// masterKey is the AES-256 master key used to encrypt enroll-token
+	// plaintext at rest for the v2.5-B2 show-install-command flow. nil
+	// when secret management isn't configured: CreateEnrollToken still
+	// works (no plaintext stored) and ShowInstallCommand 401s. Long-
+	// term tokens never touch this path.
+	masterKey *secretmgmt.MasterKey
 
 	// markUsedCh serializes last_used_at writes onto a single goroutine
 	// so concurrent MarkUsedAsync calls don't pile up SQLite write-lock
@@ -61,6 +68,18 @@ func New(repo admintoken.Repository, gen idgen.Generator, clk clock.Clock) *Serv
 		lastMarkUsed: map[admintoken.TokenID]time.Time{},
 	}
 	go s.markUsedPump()
+	return s
+}
+
+// WithMasterKey enables AES-GCM encryption of enroll-token plaintext
+// so the Web Console's show-install-command endpoint (v2.5-B2) can
+// re-display the bearer after the Add Worker Modal closes. Without a
+// master key, CreateEnrollToken stops persisting plaintext and the
+// show endpoint always 401s. Returns the service for fluent chaining.
+func (s *Service) WithMasterKey(mk *secretmgmt.MasterKey) *Service {
+	if s != nil {
+		s.masterKey = mk
+	}
 	return s
 }
 
@@ -169,18 +188,30 @@ func (s *Service) VerifyPlaintext(ctx context.Context, plaintext string) (*admin
 }
 
 // CreateEnrollCommand mints a one-time-use bootstrap-enroll token.
-// v2.4-D-A3 (task #37).
+// v2.4-D-A3 (task #37). v2.5-B2 adds WorkerID — when non-empty AND
+// the service was wired with a master key, the plaintext bearer is
+// AES-GCM encrypted and persisted so the Web Console can re-display
+// the install command later (#50).
 type CreateEnrollCommand struct {
 	Owner     admintoken.Owner
 	Scopes    []admintoken.Scope
 	CreatedBy string
 	TTL       time.Duration // window of validity from now; e.g. 30 * time.Minute
+	// WorkerID binds the enroll token to a Worker AR row (v2.5-B1).
+	// Optional; legacy callers leave empty and lose show-install-command
+	// support for that token.
+	WorkerID string
 }
 
 // CreateEnrollToken mints a fresh enroll token. The plaintext is
 // returned ONCE; the AR records expires_at = now + ttl. After first
 // successful VerifyPlaintext, middleware should call ConsumeEnrollToken
 // to mark used_at and prevent reuse.
+//
+// v2.5-B2: when WorkerID is non-empty AND the service has a master
+// key, the plaintext is encrypted and persisted alongside the row so
+// `/api/workers/{id}/install-command` can re-display the bearer after
+// the Add Worker Modal closes.
 func (s *Service) CreateEnrollToken(ctx context.Context, cmd CreateEnrollCommand) (CreateResult, error) {
 	if strings.TrimSpace(string(cmd.Owner)) == "" {
 		return CreateResult{}, admintoken.ErrTokenOwnerRequired
@@ -198,7 +229,8 @@ func (s *Service) CreateEnrollToken(ctx context.Context, cmd CreateEnrollCommand
 	hash := admintoken.HashPlaintext(plaintext)
 	id := admintoken.TokenID(s.idgen.NewULID())
 	expiresAt := s.clock.Now().Add(cmd.TTL)
-	t, err := admintoken.New(admintoken.NewAdminTokenInput{
+
+	in := admintoken.NewAdminTokenInput{
 		ID:        id,
 		Owner:     cmd.Owner,
 		Scopes:    cmd.Scopes,
@@ -207,7 +239,17 @@ func (s *Service) CreateEnrollToken(ctx context.Context, cmd CreateEnrollCommand
 		CreatedBy: cmd.CreatedBy,
 		IsEnroll:  true,
 		ExpiresAt: &expiresAt,
-	})
+		WorkerID:  cmd.WorkerID,
+	}
+	if strings.TrimSpace(cmd.WorkerID) != "" && s.masterKey != nil {
+		ct, nonce, encErr := s.masterKey.Encrypt([]byte(plaintext))
+		if encErr != nil {
+			return CreateResult{}, fmt.Errorf("admin token: encrypt plaintext: %w", encErr)
+		}
+		in.PlaintextCiphertext = ct
+		in.PlaintextNonce = nonce
+	}
+	t, err := admintoken.New(in)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -215,6 +257,58 @@ func (s *Service) CreateEnrollToken(ctx context.Context, cmd CreateEnrollCommand
 		return CreateResult{}, err
 	}
 	return CreateResult{ID: id, Plaintext: plaintext}, nil
+}
+
+// ShowInstallTokenResult is the lookup payload for an active enroll
+// token. Plaintext is the decrypted bearer the install command needs.
+type ShowInstallTokenResult struct {
+	ID        admintoken.TokenID
+	Plaintext string
+	ExpiresAt time.Time
+}
+
+// ErrShowInstallNoMasterKey signals that the service was constructed
+// without WithMasterKey, so no enroll token has stored ciphertext —
+// callers should surface a "server not configured for show-install"
+// hint rather than a generic 401.
+var ErrShowInstallNoMasterKey = errors.New("admin token: show-install-command requires a master key (set secret_management.master_key_file)")
+
+// ShowInstallToken returns the active enroll token's decrypted
+// plaintext for workerID, suitable for re-displaying the install
+// command in the Web Console. Returns:
+//   - ErrTokenNotFound: no active enroll token for this worker (or
+//     it was burned/expired/revoked, or plaintext was never stored)
+//   - ErrTokenExpired: row found but the TTL has elapsed
+//   - ErrShowInstallNoMasterKey: service has no master key
+//
+// v2.5-B2 (#50).
+func (s *Service) ShowInstallToken(ctx context.Context, workerID string) (ShowInstallTokenResult, error) {
+	if s.masterKey == nil {
+		return ShowInstallTokenResult{}, ErrShowInstallNoMasterKey
+	}
+	t, err := s.repo.FindActiveEnrollByWorkerID(ctx, workerID)
+	if err != nil {
+		return ShowInstallTokenResult{}, err
+	}
+	if t.IsExpired(s.clock.Now()) {
+		return ShowInstallTokenResult{}, admintoken.ErrTokenExpired
+	}
+	if !t.HasShowablePlaintext() {
+		return ShowInstallTokenResult{}, admintoken.ErrTokenNotFound
+	}
+	plain, err := s.masterKey.Decrypt(t.PlaintextCiphertext(), t.PlaintextNonce())
+	if err != nil {
+		return ShowInstallTokenResult{}, fmt.Errorf("admin token: decrypt plaintext: %w", err)
+	}
+	exp := time.Time{}
+	if e := t.ExpiresAt(); e != nil {
+		exp = *e
+	}
+	return ShowInstallTokenResult{
+		ID:        t.ID(),
+		Plaintext: string(plain),
+		ExpiresAt: exp,
+	}, nil
 }
 
 // ConsumeEnrollToken burns an enroll token (idempotent at the repo
