@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.12
+## [v2.5.12] — 2026-05-27
 
 ### Changed
 
@@ -32,7 +32,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.11
+## [v2.5.11] — 2026-05-27
 
 Web Console Issue Edit + Reopen (#64, follow-up to #61 split).
 Closes the last gap in the v2.5.x Issue management surface.
