@@ -64,6 +64,17 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add(nil, BootstrapCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.4-D-A1 (task #35): `install center|worker` skeleton. A2 (#36)
+	// + A5 (#39) fill in the systemd/launchd + symlink-swap work.
+	if err := router.Add(nil, InstallCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"install"}, InstallCenterCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"install"}, InstallWorkerCommand()); err != nil {
+		return nil, "", err
+	}
 
 	// Resource commands. We use a lazy *App provider so each invocation
 	// opens / closes the DB.
