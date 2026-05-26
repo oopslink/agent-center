@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased — v2.5.3 draft]
+## [v2.5.3] — 2026-05-26
 
 Project management UI completion (#58). @oopslink ask:
 `agent-center project` CRUD was CLI-only since the v2.3-4 #30 ship
