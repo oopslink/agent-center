@@ -120,13 +120,15 @@ func TestRenderLaunchdPlist_EmptyLogsDirFallsBackToTmp(t *testing.T) {
 }
 
 func TestCenterConfigYAML_HasFields(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "")
+	yaml := centerConfigYAML("/var/data", 7100, "", "/var/data/master.key")
 	for _, want := range []string{
 		"sqlite_path:",
 		"admin_socket_path:",
 		"listen_addr",
 		"web_console:",
 		"127.0.0.1:7100",
+		// v2.5 X1 polish: master_key auto-provisioned at install time.
+		`master_key_file: "/var/data/master.key"`,
 	} {
 		if !strings.Contains(yaml, want) {
 			t.Errorf("missing %q in yaml:\n%s", want, yaml)
@@ -138,9 +140,48 @@ func TestCenterConfigYAML_HasFields(t *testing.T) {
 }
 
 func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300")
+	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "/var/data/master.key")
 	if !strings.Contains(yaml, `admin_tcp_listen: "0.0.0.0:7300"`) {
 		t.Errorf("missing admin_tcp_listen:\n%s", yaml)
+	}
+}
+
+// v2.5 X1 polish: writeCenterConfig must auto-generate the master_key
+// file (mode 0600) on first install and reuse it on re-install so the
+// AdminToken Show install command + UserSecret BC don't need the
+// operator to manually provision one.
+func TestWriteCenterConfig_AutoProvisionsMasterKey(t *testing.T) {
+	prefix := t.TempDir()
+	layout := newInstallLayout(prefix, "v2.5.0")
+	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300"); err != nil {
+		t.Fatalf("writeCenterConfig: %v", err)
+	}
+	keyPath := filepath.Join(layout.DataDir, "master.key")
+	info, err := os.Stat(keyPath)
+	if err != nil {
+		t.Fatalf("master key not provisioned: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Fatalf("master key perms = %o, want 0600", mode)
+	}
+	original, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(original) == 0 {
+		t.Fatal("master key file empty")
+	}
+	// Re-install should preserve the existing key (otherwise every
+	// upgrade would orphan all encrypted UserSecret payloads).
+	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300"); err != nil {
+		t.Fatalf("re-install: %v", err)
+	}
+	preserved, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(original) != string(preserved) {
+		t.Fatalf("master key rotated on re-install — data loss risk")
 	}
 }
 

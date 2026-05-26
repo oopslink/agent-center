@@ -20,6 +20,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+
+	"github.com/oopslink/agent-center/internal/secretmgmt"
 )
 
 // activationStep is one shell command in the activation sequence,
@@ -258,8 +260,20 @@ func atomicSymlinkSwap(layout installLayout) error {
 }
 
 // writeCenterConfig writes a minimal default config.yaml for the
-// center. The operator can edit later. Defaults align with v2.2
-// single-host guide.
+// center + provisions a master_key file (v2.5 X1 polish — see
+// #agent-center:3f970c5d). The operator can edit either later.
+// Defaults align with v2.2 single-host guide.
+//
+// v2.5 first-boot master_key: SecretManagement BC's AES-256 master
+// key is treated as a first-class first-boot asset alongside
+// bootstrap_token — we generate `<prefix>/var/master.key` (mode
+// 0600) and reference it from the config. Without this, B2's
+// install-command re-display always returns 503 on fresh installs
+// since the AdminToken service has no master key to encrypt the
+// enroll-token plaintext with. UserSecret BC also stays disabled
+// until the operator manually provisions one. Auto-provisioning
+// matches v2.4-D-A2's bootstrap_token approach: opinionated
+// defaults so the happy path works out of the box.
 func writeCenterConfig(layout installLayout, port int, tcpListen string) error {
 	if err := os.MkdirAll(layout.ConfigDir, 0o755); err != nil {
 		return err
@@ -267,13 +281,39 @@ func writeCenterConfig(layout installLayout, port int, tcpListen string) error {
 	if err := os.MkdirAll(layout.DataDir, 0o755); err != nil {
 		return err
 	}
-	yaml := centerConfigYAML(layout.DataDir, port, tcpListen)
+	masterKeyPath := filepath.Join(layout.DataDir, "master.key")
+	if err := ensureMasterKeyFile(masterKeyPath); err != nil {
+		return err
+	}
+	yaml := centerConfigYAML(layout.DataDir, port, tcpListen, masterKeyPath)
 	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o644)
+}
+
+// ensureMasterKeyFile creates the AES-256 master key on first install
+// (idempotent: re-installs keep the existing key so the encrypted
+// UserSecret + enroll-token plaintext payloads survive). Mode 0600,
+// owner-only.
+func ensureMasterKeyFile(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil // preserve existing key on re-install / upgrade
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat master key: %w", err)
+	}
+	mk, err := secretmgmt.GenerateMasterKey()
+	if err != nil {
+		return fmt.Errorf("generate master key: %w", err)
+	}
+	// secretmgmt.LoadMasterKey accepts base64 (std + URL); write base64.
+	body := mk.Base64() + "\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		return fmt.Errorf("write master key: %w", err)
+	}
+	return nil
 }
 
 // centerConfigYAML returns the YAML body for the default center config.
 // Kept as a pure function so tests can assert content.
-func centerConfigYAML(dataDir string, port int, tcpListen string) string {
+func centerConfigYAML(dataDir string, port int, tcpListen, masterKeyPath string) string {
 	yaml := `# agent-center — installed by v2.4-D-A2 install command.
 # Edit this file then ` + "`systemctl --user restart agent-center`" + ` (or launchctl) to apply.
 
@@ -290,10 +330,16 @@ server:
 identity:
   default_user: hayang
 
+secret_management:
+  # v2.5 X1 polish: auto-generated at install time (mode 0600).
+  # UserSecret BC + Add Worker Show install command depend on this
+  # being present; without it Show install command returns 503.
+  master_key_file: "%s"
+
 web_console:
   enabled: true
   listen_addr: "127.0.0.1:%d"
-`, port)
+`, masterKeyPath, port)
 	return yaml
 }
 
