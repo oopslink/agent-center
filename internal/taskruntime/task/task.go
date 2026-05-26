@@ -327,6 +327,28 @@ func (t *Task) UpdatePriority(p Priority, now time.Time) error {
 	return nil
 }
 
+// UpdateMetadata changes title / description / priority on a non-terminal
+// task (v2.5.x #65). title is required (mirrors NewInput invariant);
+// description is free-form (may be empty). priority validation reuses
+// the Priority.IsValid check.
+func (t *Task) UpdateMetadata(title, description string, priority Priority, now time.Time) error {
+	if t.IsTerminal() {
+		return fmt.Errorf("%w: terminal task is immutable", ErrTaskInvalidTransition)
+	}
+	if strings.TrimSpace(title) == "" {
+		return errors.New("task: title required")
+	}
+	if !priority.IsValid() {
+		return ErrInvalidPriority
+	}
+	t.title = title
+	t.description = description
+	t.priority = priority
+	t.updatedAt = now.UTC()
+	t.version++
+	return nil
+}
+
 // UpdateDependencies replaces depends_on_task_ids; rejects when task has
 // active execution (01-task § 8.4).
 func (t *Task) UpdateDependencies(deps []taskruntime.TaskID, now time.Time) error {

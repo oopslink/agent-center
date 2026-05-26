@@ -8,6 +8,7 @@ import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
 import { TaskAbandonModal } from '@/components/TaskAbandonModal';
+import { TaskEditModal } from '@/components/TaskEditModal';
 import { useSelection } from '@/components/useSelection';
 
 // TaskDetail (/tasks/:id).
@@ -26,6 +27,7 @@ export default function TaskDetail(): React.ReactElement {
   const messages = useMessages(convId);
   const selection = useSelection();
   const [abandonOpen, setAbandonOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const suspend = useSuspendTask(id);
   const resume = useResumeTask(id);
 
@@ -96,6 +98,16 @@ export default function TaskDetail(): React.ReactElement {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!isTerminal && (
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
+              data-testid="task-edit-button"
+            >
+              Edit
+            </button>
+          )}
           {isOpen && (
             <button
               type="button"
@@ -155,6 +167,12 @@ export default function TaskDetail(): React.ReactElement {
         <TaskAbandonModal
           taskId={tk.id}
           onClose={() => setAbandonOpen(false)}
+        />
+      )}
+      {editOpen && (
+        <TaskEditModal
+          task={tk}
+          onClose={() => setEditOpen(false)}
         />
       )}
 

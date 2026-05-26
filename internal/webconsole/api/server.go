@@ -140,11 +140,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/issues/{id}/conclude", s.concludeIssueHandler)
 
 	// v2.5.x #62 — Task lifecycle mutation surface (Suspend / Resume /
-	// Abandon). Edit (title/description) is deferred to follow-up #65
-	// — needs new Task AR UpdateMetadata method first.
+	// Abandon). v2.5.x #65 adds Edit (PATCH metadata) on top.
 	s.mux.HandleFunc("POST /api/tasks/{id}/suspend", s.suspendTaskHandler)
 	s.mux.HandleFunc("POST /api/tasks/{id}/resume", s.resumeTaskHandler)
 	s.mux.HandleFunc("POST /api/tasks/{id}/abandon", s.abandonTaskHandler)
+	s.mux.HandleFunc("PATCH /api/tasks/{id}", s.updateTaskHandler)
 
 	// BC-native list + detail reads (v2.3-5a). Issue projection lives
 	// in Discussion BC; Task projection lives in TaskRuntime BC. SPA

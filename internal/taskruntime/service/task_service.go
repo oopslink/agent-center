@@ -395,6 +395,68 @@ func (s *TaskService) Resume(ctx context.Context, cmd LifecycleCommand) (observa
 	return evID, err
 }
 
+// UpdateMetadataCommand drives TaskService.UpdateMetadata (v2.5.x #65).
+type UpdateMetadataCommand struct {
+	TaskID      taskruntime.TaskID
+	Title       string
+	Description string
+	Priority    task.Priority
+	Actor       observability.Actor
+}
+
+// UpdateMetadata edits title / description / priority on a non-terminal
+// task. The AR rejects edits on terminal status; this method handles tx +
+// repo write + observability emit. Per conventions § 9.w no project FK
+// check needed (project_id not mutated here).
+func (s *TaskService) UpdateMetadata(ctx context.Context, cmd UpdateMetadataCommand) (observability.EventID, error) {
+	if err := cmd.Actor.Validate(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(string(cmd.TaskID)) == "" {
+		return "", errors.New("task service: task_id required")
+	}
+	if strings.TrimSpace(cmd.Title) == "" {
+		return "", errors.New("task service: title required")
+	}
+	priority := cmd.Priority
+	if priority == "" {
+		priority = task.PriorityMedium
+	}
+	var evID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		t, err := s.taskRepo.FindByID(txCtx, cmd.TaskID)
+		if err != nil {
+			return err
+		}
+		if err := t.UpdateMetadata(cmd.Title, cmd.Description, priority, s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.taskRepo.Update(txCtx, t); err != nil {
+			return err
+		}
+		id, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "task.metadata_updated",
+			Refs: observability.EventRefs{
+				TaskID:    string(t.ID()),
+				ProjectID: t.ProjectID(),
+			},
+			Actor: cmd.Actor,
+			Payload: map[string]any{
+				"task_id":     string(t.ID()),
+				"title":       t.Title(),
+				"description": t.Description(),
+				"priority":    string(t.Priority()),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		evID = id
+		return nil
+	})
+	return evID, err
+}
+
 // Abandon transitions open/suspended → abandoned. Reason + message both
 // required (conventions § 16). Emits `task.abandoned`.
 func (s *TaskService) Abandon(ctx context.Context, cmd AbandonCommand) (observability.EventID, error) {

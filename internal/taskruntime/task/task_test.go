@@ -218,6 +218,50 @@ func TestUpdatePriority(t *testing.T) {
 	}
 }
 
+func TestUpdateMetadata_Happy(t *testing.T) {
+	tk := mkOpen(t)
+	if err := tk.UpdateMetadata("new title", "new desc", PriorityHigh, ref); err != nil {
+		t.Fatal(err)
+	}
+	if tk.Title() != "new title" {
+		t.Fatalf("title=%q", tk.Title())
+	}
+	if tk.Description() != "new desc" {
+		t.Fatalf("description=%q", tk.Description())
+	}
+	if tk.Priority() != PriorityHigh {
+		t.Fatalf("priority=%s", tk.Priority())
+	}
+	if tk.Version() != 2 {
+		t.Fatalf("version=%d", tk.Version())
+	}
+}
+
+func TestUpdateMetadata_RejectsEmptyTitle(t *testing.T) {
+	tk := mkOpen(t)
+	if err := tk.UpdateMetadata("   ", "x", PriorityHigh, ref); err == nil ||
+		!strings.Contains(err.Error(), "title required") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestUpdateMetadata_RejectsInvalidPriority(t *testing.T) {
+	tk := mkOpen(t)
+	if err := tk.UpdateMetadata("ok", "x", "bogus", ref); !errors.Is(err, ErrInvalidPriority) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestUpdateMetadata_RejectsTerminal(t *testing.T) {
+	tk := mkOpen(t)
+	if err := tk.MarkDone(ref); err != nil {
+		t.Fatal(err)
+	}
+	if err := tk.UpdateMetadata("new", "x", PriorityHigh, ref); !errors.Is(err, ErrTaskInvalidTransition) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestUpdateDependencies_ActiveExecutionBlocks(t *testing.T) {
 	task := mkOpen(t)
 	_ = task.SetCurrentExecutionID("E-1", ref)

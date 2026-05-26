@@ -99,6 +99,26 @@ export function useResumeTask(taskId: string) {
   });
 }
 
+// v2.5.x #65 — Edit task metadata.
+
+export interface UpdateTaskInput {
+  title: string;
+  description?: string;
+  priority?: string;
+}
+
+export function useUpdateTask(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateTaskInput) =>
+      api.patch<LifecycleResult>(`/tasks/${taskId}`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+    },
+  });
+}
+
 export interface AbandonTaskInput {
   reason: string;
   message: string;

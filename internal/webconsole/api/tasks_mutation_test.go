@@ -144,6 +144,83 @@ func TestAPI_AbandonTask_MissingReason(t *testing.T) {
 	}
 }
 
+func TestAPI_UpdateTask_Happy(t *testing.T) {
+	deps, _ := setupAPI(t)
+	tk := seedTask(t, deps, "tk-edit", "p-1", "old title", task.StatusOpen, task.PriorityMedium)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	body := `{"title":"new title","description":"new desc","priority":"high"}`
+	req, _ := http.NewRequest("PATCH", s.URL+"/api/tasks/"+string(tk.ID()), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	got, err := deps.TaskRepo.FindByID(context.Background(), tk.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title() != "new title" {
+		t.Fatalf("title=%q want %q", got.Title(), "new title")
+	}
+	if got.Description() != "new desc" {
+		t.Fatalf("description=%q", got.Description())
+	}
+	if got.Priority() != task.PriorityHigh {
+		t.Fatalf("priority=%s", got.Priority())
+	}
+}
+
+func TestAPI_UpdateTask_MissingTitle(t *testing.T) {
+	deps, _ := setupAPI(t)
+	tk := seedTask(t, deps, "tk-edit2", "p-1", "x", task.StatusOpen, task.PriorityMedium)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	req, _ := http.NewRequest("PATCH", s.URL+"/api/tasks/"+string(tk.ID()),
+		strings.NewReader(`{"description":"x","priority":"medium"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ := http.DefaultClient.Do(req)
+	if resp.StatusCode == 200 {
+		t.Fatalf("status=%d expected non-200", resp.StatusCode)
+	}
+}
+
+func TestAPI_UpdateTask_TerminalRejected(t *testing.T) {
+	deps, _ := setupAPI(t)
+	// Seed a task and abandon it via the service so it lands in terminal.
+	tk := seedTask(t, deps, "tk-edit3", "p-1", "x", task.StatusOpen, task.PriorityMedium)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	// Abandon first.
+	abandon := `{"reason":"obsolete","message":"x"}`
+	_, _ = http.Post(s.URL+"/api/tasks/"+string(tk.ID())+"/abandon",
+		"application/json", strings.NewReader(abandon))
+	// Edit should now fail.
+	req, _ := http.NewRequest("PATCH", s.URL+"/api/tasks/"+string(tk.ID()),
+		strings.NewReader(`{"title":"new","priority":"medium"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ := http.DefaultClient.Do(req)
+	if resp.StatusCode == 200 {
+		t.Fatalf("status=%d expected non-200 (terminal task)", resp.StatusCode)
+	}
+}
+
+func TestAPI_UpdateTask_NotWired(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.TaskSvc = nil
+	s := newTestServer(t, deps)
+	defer s.Close()
+	req, _ := http.NewRequest("PATCH", s.URL+"/api/tasks/tk", strings.NewReader(`{"title":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, _ := http.DefaultClient.Do(req)
+	if resp.StatusCode != 501 {
+		t.Fatalf("status=%d want 501", resp.StatusCode)
+	}
+}
+
 func TestAPI_TaskLifecycle_NotWired(t *testing.T) {
 	deps, _ := setupAPI(t)
 	deps.TaskSvc = nil

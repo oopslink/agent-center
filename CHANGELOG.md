@@ -11,6 +11,39 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.10
+
+Web Console Task Edit metadata (#65, follow-up to #62 split).
+Closes the last gap in the v2.5.x Task management surface so the
+Edit action shows up alongside Suspend / Resume / Abandon on a
+non-terminal task.
+
+### Added
+
+- **TaskRuntime BC** — `Task.UpdateMetadata(title, description,
+  priority, now)` AR method. Enforces title required + valid
+  priority enum; rejects edits on terminal status (done /
+  abandoned). Bumps version on success.
+- **TaskService.UpdateMetadata** wraps the AR method with tx +
+  repo write + `task.metadata_updated` event emit.
+- **PATCH /api/tasks/{id}** wraps the service. Accepts `title`
+  (required) + `description` + `priority`. Returns
+  `{task_id, event_id}`.
+- **TaskDetail page**: `[Edit]` action in the header (hidden
+  when terminal). New `TaskEditModal` prefills from the current
+  task and PATCHes on submit.
+
+### Verification
+
+- Domain: 4 new task AR unit tests (happy + missing title +
+  invalid priority + terminal-rejected).
+- Backend: 4 new webconsole API tests (happy + missing title +
+  terminal-rejected + not-wired).
+- Frontend: 305 vitest specs green (3 new in
+  `TaskEditModal.test.tsx`).
+
+---
+
 ## [v2.5.9] — 2026-05-27
 
 Sidebar collapsible groups + Channels/DMs sub-lists (#63).

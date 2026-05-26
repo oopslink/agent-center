@@ -956,6 +956,48 @@ func (s *Server) abandonTaskHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// updateTaskReq is the PATCH /api/tasks/{id} body (v2.5.x #65 Edit).
+type updateTaskReq struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Priority    string `json:"priority"`
+}
+
+// updateTaskHandler serves PATCH /api/tasks/{id} — wraps
+// TaskService.UpdateMetadata for the Web Console Edit modal.
+func (s *Server) updateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskSvc == nil {
+		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
+		return
+	}
+	id := taskruntime.TaskID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	var req updateTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	evID, err := d.TaskSvc.UpdateMetadata(r.Context(), trservice.UpdateMetadataCommand{
+		TaskID:      id,
+		Title:       req.Title,
+		Description: req.Description,
+		Priority:    task.Priority(req.Priority),
+		Actor:       d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"task_id":  string(id),
+		"event_id": string(evID),
+	})
+}
+
 // =============================================================================
 // Input requests
 // =============================================================================
