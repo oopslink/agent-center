@@ -1,6 +1,7 @@
-import type React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFleet } from '@/api/fleet';
+import { AddWorkerModal } from '@/components/AddWorkerModal';
 
 // Fleet (/fleet). 4-segment overview: workers + active executions +
 // open input requests + pending issues. Warnings (when the backend
@@ -10,17 +11,31 @@ import { useFleet } from '@/api/fleet';
 // task_execution.state_changed → invalidate qk.fleet().
 export default function Fleet(): React.ReactElement {
   const fleet = useFleet();
+  // v2.4-D-F1 (task #41): "Add Worker" button + Modal launch.
+  const [modalOpen, setModalOpen] = useState(false);
 
   return (
     <section className="space-y-6" data-testid="page-Fleet">
       <header className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Fleet</h2>
-        {fleet.data?.generated_at && (
-          <span className="text-xs text-slate-500" data-testid="fleet-generated-at">
-            generated {fleet.data.generated_at}
-          </span>
-        )}
+        <div>
+          <h2 className="text-xl font-semibold">Fleet</h2>
+          {fleet.data?.generated_at && (
+            <span className="text-xs text-slate-500" data-testid="fleet-generated-at">
+              generated {fleet.data.generated_at}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          onClick={() => setModalOpen(true)}
+          data-testid="fleet-add-worker-btn"
+        >
+          + Add Worker
+        </button>
       </header>
+
+      {modalOpen && <AddWorkerModal onClose={() => setModalOpen(false)} />}
 
       {fleet.isLoading && (
         <p className="text-sm text-slate-500" data-testid="fleet-loading">
@@ -90,16 +105,26 @@ export default function Fleet(): React.ReactElement {
               </table>
             )}
             {fleet.data.workers.length === 0 && (
-              <p
-                className="text-xs text-slate-500"
+              <div
+                className="rounded border border-dashed border-slate-300 bg-slate-50 p-6 text-center"
                 data-testid="fleet-workers-empty"
               >
-                No workers enrolled. Enroll a worker via{' '}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">
-                  agent-center worker enroll
-                </code>
-                .
-              </p>
+                <p className="text-sm text-slate-600">
+                  No workers connected yet.
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  A worker is a machine where agents actually run.
+                  Add at least one to start dispatching tasks.
+                </p>
+                <button
+                  type="button"
+                  className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  onClick={() => setModalOpen(true)}
+                  data-testid="fleet-workers-empty-cta"
+                >
+                  + Add your first worker
+                </button>
+              </div>
             )}
           </Section>
 

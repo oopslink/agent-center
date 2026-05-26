@@ -34,6 +34,11 @@ export default function Home(): React.ReactElement {
     .sort((a, b) => ((a.opened_at ?? '') < (b.opened_at ?? '') ? 1 : -1))
     .slice(0, 5);
 
+  // v2.4-D-F5 (task #45): "Get started: add your first worker" card.
+  // Shows when no workers are enrolled — the first-mile gap that blocks
+  // the user from running any agent.
+  const noWorkers = (fleet.data?.workers ?? []).length === 0 && !fleet.isLoading;
+
   return (
     <section className="space-y-4" data-testid="page-Home">
       <header className="flex items-center justify-between">
@@ -44,6 +49,28 @@ export default function Home(): React.ReactElement {
           </span>
         )}
       </header>
+
+      {noWorkers && (
+        <div
+          className="rounded-lg border border-blue-200 bg-blue-50 p-5"
+          data-testid="home-get-started"
+        >
+          <h2 className="text-base font-semibold text-blue-900">
+            Get started: add your first worker
+          </h2>
+          <p className="mt-1 text-sm text-blue-800">
+            AgentCenter is running, but no workers are connected yet. Workers
+            are where agents (claude-code, codex, opencode, …) actually run.
+          </p>
+          <Link
+            to="/fleet"
+            className="mt-3 inline-block rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            data-testid="home-get-started-cta"
+          >
+            Add a worker →
+          </Link>
+        </div>
+      )}
 
       {/* Row 1 — at-a-glance stat cards. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

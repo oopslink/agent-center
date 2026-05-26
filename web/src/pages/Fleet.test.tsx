@@ -93,7 +93,8 @@ describe('Fleet page', () => {
       ),
     );
     wrap(<Fleet />);
-    await waitFor(() => expect(screen.getByTestId('fleet-workers-empty')).toHaveTextContent(/agent-center worker enroll/));
+    await waitFor(() => expect(screen.getByTestId('fleet-workers-empty')).toHaveTextContent(/No workers connected yet/));
+    expect(screen.getByTestId('fleet-workers-empty-cta')).toHaveTextContent(/Add your first worker/);
     expect(screen.getByTestId('fleet-exec-empty')).toBeInTheDocument();
   });
 
