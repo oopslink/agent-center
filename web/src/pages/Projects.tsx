@@ -1,26 +1,38 @@
-import type React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
+import { ProjectCreateModal } from '@/components/ProjectCreateModal';
 
-// Projects page (/projects). Read-only list with name, kind, default
-// agent CLI badge, description preview, and a relative-time stamp.
-// Mutations go through the `agent-center project` CLI subtree per
-// ADR-0029 — the empty state surfaces that. Mirrors the structure of
-// pages/Agents.tsx.
+// Projects page (/projects). Lists every project; the v2.5.3 (#58)
+// "+ Add Project" button + modal lets operators create projects from
+// the Web Console (previously CLI-only per ADR-0037 W1.4, retired in
+// v2.5.x trajectory). Mirrors the structure of pages/Agents.tsx.
 export default function Projects(): React.ReactElement {
   const projects = useProjects();
+  const [createOpen, setCreateOpen] = useState(false);
 
   return (
     <section className="space-y-4" data-testid="page-Projects">
-      <header>
-        <h1 className="font-heading text-2xl font-semibold text-text-primary">Projects</h1>
-        <p className="text-xs text-text-muted">
-          Projects organize Issues, Tasks, and Workers under a single slug. Managed via
-          the <span className="font-mono">agent-center project</span> CLI.
-        </p>
+      <header className="flex items-start justify-between">
+        <div>
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">Projects</h1>
+          <p className="text-xs text-text-muted">
+            Projects organize Issues, Tasks, and Workers under a single slug.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+          onClick={() => setCreateOpen(true)}
+          data-testid="projects-add-btn"
+        >
+          + Add Project
+        </button>
       </header>
+
+      {createOpen && <ProjectCreateModal onClose={() => setCreateOpen(false)} />}
 
       {projects.isLoading && (
         <div className="space-y-2" data-testid="projects-loading">
@@ -38,7 +50,7 @@ export default function Projects(): React.ReactElement {
         <EmptyState
           testId="projects-empty"
           title="No projects yet"
-          body="Projects organize work — Issues + Tasks + Workers all link to a project. Create one via `agent-center project add --id=... --name=... --kind=...` (CLI per ADR-0029)."
+          body="Projects organize work — Issues + Tasks + Workers all link to a project. Click + Add Project to create one."
         />
       )}
       {projects.isSuccess && projects.data.length > 0 && (

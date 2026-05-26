@@ -152,6 +152,13 @@ func (s *Server) routes() {
 	// /projects/{id} detail surfaces (v2.3-4).
 	s.mux.HandleFunc("GET /api/projects", s.listProjectsHandler)
 	s.mux.HandleFunc("GET /api/projects/{id}", s.showProjectHandler)
+	// v2.5.3 (#58): Project CRUD UI.
+	s.mux.HandleFunc("POST /api/projects", s.createProjectHandler)
+	s.mux.HandleFunc("PATCH /api/projects/{id}", s.updateProjectHandler)
+	s.mux.HandleFunc("DELETE /api/projects/{id}", s.deleteProjectHandler)
+	s.mux.HandleFunc("GET /api/projects/{id}/workers", s.listProjectMappingsHandler)
+	s.mux.HandleFunc("POST /api/projects/{id}/workers", s.createProjectMappingHandler)
+	s.mux.HandleFunc("DELETE /api/projects/{id}/workers/{mapping_id}", s.deleteProjectMappingHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
 	s.mux.HandleFunc("GET /api/agents", s.listAgentsHandler)

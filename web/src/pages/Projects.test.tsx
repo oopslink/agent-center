@@ -62,7 +62,7 @@ describe('Projects page', () => {
     server.use(http.get('/api/projects', () => HttpResponse.json([])));
     wrap(<Projects />);
     await waitFor(() => expect(screen.getByTestId('projects-empty')).toBeInTheDocument());
-    expect(screen.getByTestId('projects-empty')).toHaveTextContent(/agent-center project add/);
+    expect(screen.getByTestId('projects-empty')).toHaveTextContent(/Add Project/);
   });
 
   it('renders the Skeleton while loading', () => {

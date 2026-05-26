@@ -93,6 +93,8 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		WorkerAddSvc:       a.EnrollSvc,
 		WorkerRemoveSvc:    a.EnrollSvc,
 		WorkerRepo:         a.WorkerRepo,
+		ProjectCRUDSvc:     a.ProjectSvc,
+		MappingRepo:        a.MappingRepo,
 	}
 	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler(), Version: ResolvedBuildVersion()})
 	// Wrap the inner mux with deps middleware; install it as the

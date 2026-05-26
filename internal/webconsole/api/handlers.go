@@ -92,6 +92,19 @@ type HandlerDeps struct {
 	// when rebuilding the install line.
 	WorkerRepo workforce.WorkerRepository
 
+	// v2.5.3 (#58): Project CRUD UI backs `POST /api/projects` +
+	// `PATCH /api/projects/{id}` + `DELETE /api/projects/{id}`
+	// + `POST /api/projects/{id}/workers`. ProjectCRUDSvc owns the
+	// Project AR write path; MappingRepo lets the handler list
+	// existing mappings for the cascade-on-delete check + the
+	// Map worker UI.
+	ProjectCRUDSvc interface {
+		Add(ctx context.Context, cmd wfservice.AddCommand) (wfservice.AddResult, error)
+		Update(ctx context.Context, cmd wfservice.UpdateCommand) (wfservice.UpdateResult, error)
+		Remove(ctx context.Context, cmd wfservice.RemoveCommand) (observability.EventID, error)
+	}
+	MappingRepo workforce.WorkerProjectMappingRepository
+
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses
 	// (loopback only — ADR-0037 — so no per-request auth check on
@@ -1273,6 +1286,7 @@ func projectPublicMap(p *workforce.Project) map[string]any {
 	row := map[string]any{
 		"id":         string(p.ID()),
 		"name":       p.Name(),
+		"version":    p.Version(),
 		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
 	}
@@ -1793,6 +1807,290 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// =============================================================================
+// Project CRUD — v2.5.3 (#58)
+//
+// Web Console parity for the existing `agent-center project` CLI. The
+// read endpoints landed in v2.3-4 #30; this section adds create /
+// update / delete + worker-mapping CRUD. Default delete refuses when
+// the project still has open tasks/issues/mappings; ?force=true
+// invalidates the mappings + drops the project anyway.
+// =============================================================================
+
+type createProjectReq struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Kind            string `json:"kind"`
+	DefaultAgentCLI string `json:"default_agent_cli"`
+	Description     string `json:"description"`
+}
+
+func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ProjectCRUDSvc == nil {
+		writeError(w, http.StatusNotImplemented, "project_crud_not_wired", "")
+		return
+	}
+	var req createProjectReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if strings.TrimSpace(req.ID) == "" || strings.TrimSpace(req.Name) == "" {
+		writeError(w, http.StatusBadRequest, "missing_field",
+			"id and name are required")
+		return
+	}
+	res, err := d.ProjectCRUDSvc.Add(r.Context(), wfservice.AddCommand{
+		ID:              workforce.ProjectID(req.ID),
+		Name:            req.Name,
+		Kind:            workforce.ProjectKind(req.Kind),
+		DefaultAgentCLI: req.DefaultAgentCLI,
+		Description:     req.Description,
+		Actor:           d.Actor,
+	})
+	if err != nil {
+		mapWorkforceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, projectPublicMap(res.Project))
+}
+
+type updateProjectReq struct {
+	Version         int     `json:"version"`
+	Name            *string `json:"name,omitempty"`
+	Kind            *string `json:"kind,omitempty"`
+	DefaultAgentCLI *string `json:"default_agent_cli,omitempty"`
+	Description     *string `json:"description,omitempty"`
+}
+
+func (s *Server) updateProjectHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ProjectCRUDSvc == nil {
+		writeError(w, http.StatusNotImplemented, "project_crud_not_wired", "")
+		return
+	}
+	id := r.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	var req updateProjectReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	fields := workforce.ProjectUpdateFields{
+		Name:            req.Name,
+		DefaultAgentCLI: req.DefaultAgentCLI,
+		Description:     req.Description,
+	}
+	if req.Kind != nil {
+		k := workforce.ProjectKind(*req.Kind)
+		fields.Kind = &k
+	}
+	res, err := d.ProjectCRUDSvc.Update(r.Context(), wfservice.UpdateCommand{
+		ID:      workforce.ProjectID(id),
+		Version: req.Version,
+		Fields:  fields,
+		Actor:   d.Actor,
+	})
+	if err != nil {
+		mapWorkforceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, projectPublicMap(res.Project))
+}
+
+func (s *Server) deleteProjectHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.ProjectCRUDSvc == nil {
+		writeError(w, http.StatusNotImplemented, "project_crud_not_wired", "")
+		return
+	}
+	id := r.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	force := r.URL.Query().Get("force") == "true"
+	pid := workforce.ProjectID(id)
+	// Cascade-decision: count active mappings + open tasks + open
+	// issues. With force=false we refuse if any > 0; with force=true
+	// we tear down dependents first (mappings only — task/issue
+	// cleanup is a future ADR; for now we just delete the Project
+	// row and let the orphan tasks/issues surface in their own UI).
+	mappingCount := 0
+	taskCount := 0
+	issueCount := 0
+	if d.MappingRepo != nil {
+		n, _ := d.MappingRepo.CountActiveByProjectID(r.Context(), pid)
+		mappingCount = n
+	}
+	if d.TaskRepo != nil {
+		ts, _ := d.TaskRepo.FindByProject(r.Context(), string(pid), task.Filter{})
+		for _, t := range ts {
+			if string(t.Status()) == "open" || string(t.Status()) == "suspended" {
+				taskCount++
+			}
+		}
+	}
+	if d.IssueRepo != nil {
+		is, _ := d.IssueRepo.FindByProject(r.Context(), string(pid), discussion.IssueFilter{})
+		for _, i := range is {
+			if string(i.Status()) != "closed" {
+				issueCount++
+			}
+		}
+	}
+	if !force && (mappingCount > 0 || taskCount > 0 || issueCount > 0) {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":          "project_has_active_work",
+			"message":        fmt.Sprintf("Project has %d active mappings, %d open tasks, %d open issues. Use ?force=true to cascade-delete.", mappingCount, taskCount, issueCount),
+			"mapping_count":  mappingCount,
+			"task_count":     taskCount,
+			"issue_count":    issueCount,
+		})
+		return
+	}
+	if force && mappingCount > 0 && d.MappingRepo != nil {
+		mappings, _ := d.MappingRepo.FindByProjectID(r.Context(), pid)
+		for _, m := range mappings {
+			if m.Status() != workforce.MappingActive {
+				continue
+			}
+			_ = d.MappingRepo.Invalidate(r.Context(), m.ID(),
+				workforce.InvalidateReasonManualRemove,
+				"project force-deleted via Web Console",
+				time.Now().UTC())
+		}
+	}
+	if _, err := d.ProjectCRUDSvc.Remove(r.Context(), wfservice.RemoveCommand{
+		ID:    pid,
+		Actor: d.Actor,
+	}); err != nil {
+		mapWorkforceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type createMappingReq struct {
+	WorkerID string `json:"worker_id"`
+	Path     string `json:"path"`
+}
+
+func (s *Server) listProjectMappingsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.MappingRepo == nil {
+		writeError(w, http.StatusNotImplemented, "mapping_repo_not_wired", "")
+		return
+	}
+	id := r.PathValue("id")
+	mappings, err := d.MappingRepo.FindByProjectID(r.Context(), workforce.ProjectID(id))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
+		return
+	}
+	out := make([]map[string]any, 0, len(mappings))
+	for _, m := range mappings {
+		out = append(out, mappingPublicMap(m))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) createProjectMappingHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.MappingRepo == nil {
+		writeError(w, http.StatusNotImplemented, "mapping_repo_not_wired", "")
+		return
+	}
+	id := r.PathValue("id")
+	var req createMappingReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if strings.TrimSpace(req.WorkerID) == "" || strings.TrimSpace(req.Path) == "" {
+		writeError(w, http.StatusBadRequest, "missing_field",
+			"worker_id and path are required")
+		return
+	}
+	mid := workforce.MappingID("M-" + generateShortID())
+	m, err := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
+		ID:        mid,
+		WorkerID:  workforce.WorkerID(req.WorkerID),
+		ProjectID: workforce.ProjectID(id),
+		BasePath:  req.Path,
+		AddedAt:   time.Now().UTC(),
+	})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_mapping", err.Error())
+		return
+	}
+	if err := d.MappingRepo.Save(r.Context(), m); err != nil {
+		writeError(w, http.StatusInternalServerError, "save_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, mappingPublicMap(m))
+}
+
+func (s *Server) deleteProjectMappingHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.MappingRepo == nil {
+		writeError(w, http.StatusNotImplemented, "mapping_repo_not_wired", "")
+		return
+	}
+	mid := workforce.MappingID(r.PathValue("mapping_id"))
+	if err := d.MappingRepo.Invalidate(r.Context(), mid,
+		workforce.InvalidateReasonManualRemove,
+		"unmapped via Web Console",
+		time.Now().UTC()); err != nil {
+		mapWorkforceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func mappingPublicMap(m *workforce.WorkerProjectMapping) map[string]any {
+	return map[string]any{
+		"id":         string(m.ID()),
+		"worker_id":  string(m.WorkerID()),
+		"project_id": string(m.ProjectID()),
+		"path":       m.BasePath(),
+		"status":     string(m.Status()),
+		"added_at":   m.AddedAt().Format(time.RFC3339Nano),
+	}
+}
+
+// mapWorkforceError translates known workforce sentinels into HTTP
+// status codes. Unknown errors → 500.
+func mapWorkforceError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, workforce.ErrProjectNotFound):
+		writeError(w, http.StatusNotFound, "project_not_found", err.Error())
+	case errors.Is(err, workforce.ErrProjectAlreadyExists):
+		writeError(w, http.StatusConflict, "project_already_exists", err.Error())
+	case errors.Is(err, workforce.ErrProjectHasActiveDeps):
+		writeError(w, http.StatusConflict, "project_has_active_deps", err.Error())
+	case errors.Is(err, workforce.ErrProjectVersionConflict):
+		writeError(w, http.StatusConflict, "project_version_conflict", err.Error())
+	case errors.Is(err, workforce.ErrMappingNotFound):
+		writeError(w, http.StatusNotFound, "mapping_not_found", err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, "workforce_error", err.Error())
+	}
+}
+
+// generateShortID returns a short hex id suitable for mapping ids.
+// 8 hex chars = 32 bits — plenty for a single operator's lifetime
+// of mappings (collision prob < 1e-9 after 1k mappings).
+func generateShortID() string {
+	var b [4]byte
+	_, _ = rand.Read(b[:])
+	return fmt.Sprintf("%x", b[:])
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

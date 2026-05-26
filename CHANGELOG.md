@@ -11,6 +11,51 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased — v2.5.3 draft]
+
+Project management UI completion (#58). @oopslink ask:
+`agent-center project` CRUD was CLI-only since the v2.3-4 #30 ship
+(per ADR-0037 W1.4); the v2.4/v2.5 trajectory reversed that
+recommendation. v2.5.3 cuts the create / edit / delete /
+worker-mapping CRUD into the Web Console directly so operators
+don't context-switch into the CLI for routine project work.
+
+### Added
+
+- **Backend** — six new Web Console endpoints under `/api/projects`:
+  - `POST   /api/projects`                            create
+  - `PATCH  /api/projects/{id}`                       update (CAS on version)
+  - `DELETE /api/projects/{id}[?force=true]`          delete (409 with
+    counts when active tasks / open issues / mappings exist; ?force=true
+    invalidates mappings and drops the row anyway)
+  - `GET    /api/projects/{id}/workers`               list active mappings
+  - `POST   /api/projects/{id}/workers`               create mapping
+  - `DELETE /api/projects/{id}/workers/{mapping_id}`  invalidate mapping
+- **Frontend** —
+  - `Projects` page: "+ Add Project" header button + `ProjectCreateModal`
+    (id / name / kind / default_agent_cli / description form).
+  - `ProjectDetail`: Edit + Delete buttons in the header.
+    `ProjectEditModal` lets the operator update name / kind /
+    default_agent_cli / description with optimistic-lock CAS.
+    `ProjectDeleteModal` walks the two-stage cascade flow — refuse
+    first with dependency counts, then surface a force-delete with an
+    "I understand" checkbox before allowing the destructive path.
+  - `WorkersPanel` on ProjectDetail: combobox of all known workers
+    from `/api/fleet` + path input → POST mapping; existing mappings
+    list with per-row Unmap.
+- **api/client.ts** gains a `patch()` method to feed the new mutations.
+- **projectPublicMap** now emits `version` so the SPA can supply CAS
+  values without a second fetch.
+
+### Docs / notes
+
+- Both PD pre-flight defaults from #agent-center:23d6fbd6 are honoured:
+  cascade-on-delete is refuse-by-default with a force-delete path
+  behind a second confirm + "I understand" checkbox, and the Map
+  worker UI is a combobox sourced from `/api/fleet`.
+
+---
+
 ## [v2.5.2] — 2026-05-26
 
 Explicit `upgrade` subcommand. Reverses the scope-cut from v2.5.1
