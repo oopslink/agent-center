@@ -404,10 +404,11 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
   );
 }
 
-// WorkerRowActions hosts the v2.5-F2 per-row install command
-// affordances. Only offline workers get the buttons — once a daemon
-// has enrolled (online) the install command is no longer useful and
-// would just confuse the operator.
+// WorkerRowActions hosts the v2.5-F2 / F3 per-row affordances:
+// install command show + re-mint for offline rows (those buttons
+// are useless once the daemon connects), plus a Remove button on
+// every row (online included — operator may want to tear down a
+// stuck worker).
 function WorkerRowActions({
   worker,
   onShowInstall,
@@ -416,35 +417,97 @@ function WorkerRowActions({
   worker: FleetWorkerRow;
   onShowInstall: () => void;
   onReMintInstall: () => void;
-}): React.ReactElement | null {
-  if (worker.status !== 'offline') {
-    return null;
-  }
+}): React.ReactElement {
+  const showInstallActions = worker.status === 'offline';
   return (
     <div className="flex justify-end gap-2" data-testid="fleet-worker-actions">
-      <button
-        type="button"
-        className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
-        onClick={onShowInstall}
-        data-testid="fleet-worker-show-install"
-      >
-        Show install command
-      </button>
-      <button
-        type="button"
-        className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
-        onClick={() => {
-          if (window.confirm(
-            'Re-mint will revoke the current install token and issue a fresh one. ' +
-              'Use this if the original command expired or got lost. Continue?',
-          )) {
-            onReMintInstall();
-          }
-        }}
-        data-testid="fleet-worker-remint-install"
-      >
-        Re-mint install command
-      </button>
+      {showInstallActions && (
+        <>
+          <button
+            type="button"
+            className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            onClick={onShowInstall}
+            data-testid="fleet-worker-show-install"
+          >
+            Show install command
+          </button>
+          <button
+            type="button"
+            className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            onClick={() => {
+              if (window.confirm(
+                'Re-mint will revoke the current install token and issue a fresh one. ' +
+                  'Use this if the original command expired or got lost. Continue?',
+              )) {
+                onReMintInstall();
+              }
+            }}
+            data-testid="fleet-worker-remint-install"
+          >
+            Re-mint install command
+          </button>
+        </>
+      )}
+      <RemoveWorkerButton worker={worker} />
     </div>
+  );
+}
+
+// RemoveWorkerButton fires DELETE /api/workers/{id} after operator
+// confirms. The SSE workforce.worker.removed event invalidates
+// Fleet so the row disappears without an explicit refetch. v2.5-F3.
+function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const handleRemove = async () => {
+    const message =
+      worker.status === 'online'
+        ? `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
+          'This will revoke the worker token and remove the record. ' +
+          'The worker daemon will hit 401 next cycle.'
+        : `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
+          'This will revoke any active install token and remove the record.';
+    if (!window.confirm(message)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const resp = await fetch(`/api/workers/${encodeURIComponent(worker.worker_id)}`, {
+        method: 'DELETE',
+      });
+      if (!resp.ok && resp.status !== 204) {
+        let detail = `HTTP ${resp.status}`;
+        try {
+          const body = (await resp.json()) as { message?: string };
+          if (body.message) detail = body.message;
+        } catch {
+          // ignore parse failure
+        }
+        throw new Error(detail);
+      }
+      // SSE workforce.worker.removed will invalidate the fleet query
+      // and retire this row; no further client-side cleanup needed.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="flex items-center gap-2">
+      {error && (
+        <span className="text-xs text-danger" data-testid="fleet-worker-remove-error">
+          {error}
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={busy}
+        className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:text-text-muted"
+        onClick={() => void handleRemove()}
+        data-testid="fleet-worker-remove"
+      >
+        {busy ? 'Removing...' : 'Remove'}
+      </button>
+    </span>
   );
 }
