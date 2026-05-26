@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/api"
+	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/observability"
 )
 
 // AdminTransportConfig captures the v2.3-7a (task #27) admin listener
@@ -83,11 +85,14 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 		Queue: app.DispatchQueue,
 	})
 	// Wrap the inner mux with deps middleware (parallel to
-	// webconsole_wiring.go pattern), then layer auth on top so every
-	// non-public request must carry a valid bearer (v2.3-3a task #28).
-	// SetHandler applies to BOTH unix + tcp legs (server.go fans it out).
+	// webconsole_wiring.go pattern), then rate-limit (v2.3-7c task #27),
+	// then auth on top so every non-public request must carry a valid
+	// bearer (v2.3-3a task #28). SetHandler applies to BOTH unix + tcp
+	// legs (server.go fans it out).
+	rateLimitSink := newAdminRateLimitSink(app)
 	srv.SetHandler(api.AuthMiddleware(app.AdminTokenSvc)(
-		api.WithDeps(deps)(srv.Handler())))
+		api.RateLimitMiddleware(api.RateLimitDefaults, rateLimitSink)(
+			api.WithDeps(deps)(srv.Handler()))))
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger("admin: " + err.Error())
@@ -147,6 +152,37 @@ func defaultTLSDir(sqlitePath string) string {
 		return "/var/lib/agent-center"
 	}
 	return filepath.Dir(sqlitePath)
+}
+
+// adminRateLimitSink bridges api.RateLimitMiddleware events to the
+// observability EventSink. Emits `admin.rate_limit_hit` with token_id +
+// client_ip + method + path for audit trail. v2.3-7c (task #27).
+type adminRateLimitSink struct {
+	sink  *observability.EventSink
+	actor observability.Actor
+}
+
+func newAdminRateLimitSink(app *App) api.RateLimitSink {
+	if app == nil || app.Sink == nil {
+		return nil // Middleware uses noopRateLimitSink as fallback.
+	}
+	return &adminRateLimitSink{sink: app.Sink, actor: app.DefaultActor()}
+}
+
+func (s *adminRateLimitSink) EmitRateLimitHit(id admintoken.TokenID, ip, method, path string) {
+	if s == nil || s.sink == nil {
+		return
+	}
+	_, _ = s.sink.Emit(context.Background(), observability.EmitCommand{
+		EventType: "admin.rate_limit_hit",
+		Actor:     s.actor,
+		Payload: map[string]any{
+			"token_id":  string(id),
+			"client_ip": ip,
+			"method":    method,
+			"path":      path,
+		},
+	})
 }
 
 // adminDepsFromApp adapts cli.App into the admin/api HandlerDeps bag.

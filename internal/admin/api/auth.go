@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 
@@ -18,6 +19,11 @@ type AuthContext struct {
 	TokenID admintoken.TokenID
 	Owner   admintoken.Owner
 	Scopes  []admintoken.Scope
+	// ClientIP is the request's remote IP (host portion of
+	// http.Request.RemoteAddr; empty for unix-socket requests where
+	// RemoteAddr is "@"). v2.3-7c (task #27): added for audit log so
+	// rate-limit / auth events can attribute cross-host traffic.
+	ClientIP string
 }
 
 // HasScope reports whether the token carries the required scope or the
@@ -98,9 +104,10 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 				return
 			}
 			auth := AuthContext{
-				TokenID: tok.ID(),
-				Owner:   tok.Owner(),
-				Scopes:  tok.Scopes(),
+				TokenID:  tok.ID(),
+				Owner:    tok.Owner(),
+				Scopes:   tok.Scopes(),
+				ClientIP: clientIPFromRequest(r),
 			}
 			verifier.MarkUsedAsync(tok.ID())
 			ctx := context.WithValue(r.Context(), authKey{}, auth)
@@ -150,3 +157,21 @@ func writeAuthError(w http.ResponseWriter, err error) {
 
 // suppress unused import in tests where strings may not be referenced
 var _ = strings.TrimSpace
+
+// clientIPFromRequest extracts the host part of r.RemoteAddr. For unix
+// socket connections (`r.RemoteAddr` is "@" or similar) returns empty.
+// For TCP connections returns the host (without port).
+func clientIPFromRequest(r *http.Request) string {
+	addr := strings.TrimSpace(r.RemoteAddr)
+	if addr == "" || addr == "@" {
+		return ""
+	}
+	// SplitHostPort handles both [::1]:7300 and 1.2.3.4:7300.
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// Not host:port (e.g. unix socket peer with weird addr); return
+		// the raw value so audit log still has something.
+		return addr
+	}
+	return host
+}
