@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.10
+## [v2.5.10] — 2026-05-27
 
 Web Console Task Edit metadata (#65, follow-up to #62 split).
 Closes the last gap in the v2.5.x Task management surface so the
