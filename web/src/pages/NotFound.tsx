@@ -7,18 +7,18 @@ export default function NotFound(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-NotFound">
       <h2 className="text-xl font-semibold">404 — Not found</h2>
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-text-muted">
         The page you requested does not exist.
       </p>
       <div className="space-x-3">
         <Link
           to="/channels"
-          className="text-blue-600 hover:underline"
+          className="text-accent hover:underline"
           data-testid="nav-home"
         >
           Back to channels
         </Link>
-        <Link to="/fleet" className="text-blue-600 hover:underline">
+        <Link to="/fleet" className="text-accent hover:underline">
           Fleet overview
         </Link>
       </div>

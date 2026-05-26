@@ -45,11 +45,11 @@ export function ParticipantsPanel({
 
   return (
     <aside
-      className="w-64 flex-shrink-0 border-l border-slate-200 bg-slate-50 p-4"
+      className="w-64 flex-shrink-0 border-l border-border-base bg-bg-subtle p-4"
       aria-label="participants"
       data-testid="participants-panel"
     >
-      <h3 className="mb-3 text-sm font-semibold text-slate-700">
+      <h3 className="mb-3 text-sm font-semibold text-text-primary">
         Participants ({active.length})
       </h3>
       <ul className="space-y-2">
@@ -62,7 +62,7 @@ export function ParticipantsPanel({
           >
             <span>
               <span className="font-mono text-xs">{p.identity_id}</span>
-              <span className="ml-2 text-xs uppercase text-slate-500">{p.role}</span>
+              <span className="ml-2 text-xs uppercase text-text-muted">{p.role}</span>
             </span>
             {isOwner && p.role !== 'owner' && (
               <button
@@ -80,19 +80,19 @@ export function ParticipantsPanel({
 
       {isOwner && (
         <form className="mt-4 space-y-2" onSubmit={handleInvite}>
-          <label className="block text-xs text-slate-600">Invite identity</label>
+          <label className="block text-xs text-text-secondary">Invite identity</label>
           <input
             type="text"
             value={inviteId}
             onChange={(e) => setInviteId(e.target.value)}
             placeholder="agent:bot-1 or user:alice"
-            className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:border-accent"
+            className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus:border-accent"
             data-testid="invite-input"
           />
           <button
             type="submit"
             disabled={!inviteId.trim() || invite.isPending}
-            className="w-full rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+            className="w-full rounded bg-text-primary px-2 py-1 text-xs font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="invite-submit"
           >
             {invite.isPending ? 'Inviting…' : 'Invite'}

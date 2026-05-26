@@ -44,10 +44,10 @@ export function WorkerEnrolledToast(): React.ReactElement | null {
       role="status"
       aria-live="polite"
       data-testid="worker-enrolled-toast"
-      className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-green-300 bg-green-50 px-4 py-3 shadow-2 motion-safe:animate-fade-in"
+      className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-success/40 bg-success/10 px-4 py-3 shadow-2 motion-safe:animate-fade-in"
     >
-      <p className="text-sm font-semibold text-green-900">Worker connected</p>
-      <p className="mt-0.5 font-mono text-xs text-green-800" data-testid="worker-enrolled-toast-id">
+      <p className="text-sm font-semibold text-success">Worker connected</p>
+      <p className="mt-0.5 font-mono text-xs text-success" data-testid="worker-enrolled-toast-id">
         {visible.workerId}
       </p>
     </div>

@@ -45,25 +45,25 @@ export function CarryOverDivider({
       {Array.from(bySource.entries()).map(([sourceConvId, msgs]) => (
         <section
           key={sourceConvId}
-          className="rounded-lg border border-blue-200 bg-blue-50/40 p-3"
+          className="rounded-lg border border-accent/40 bg-accent/10 p-3"
           data-testid="carry-over-block"
           data-source-conversation-id={sourceConvId}
         >
-          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-blue-700">
+          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">
             from <span className="font-mono">{sourceConvId}</span>
           </h4>
           <ul className="space-y-2">
             {msgs.map((m) => (
               <li
                 key={m.id}
-                className="rounded border border-slate-200 bg-white p-2 text-xs"
+                className="rounded border border-border-base bg-bg-elevated p-2 text-xs"
                 data-testid="carry-over-message"
                 data-message-id={m.id}
               >
-                <div className="mb-0.5 font-mono text-slate-500">
+                <div className="mb-0.5 font-mono text-text-muted">
                   {m.sender_identity_id}
                 </div>
-                <div className="whitespace-pre-wrap text-slate-900">
+                <div className="whitespace-pre-wrap text-text-primary">
                   {m.content}
                 </div>
               </li>
@@ -72,12 +72,12 @@ export function CarryOverDivider({
         </section>
       ))}
       <div
-        className="my-2 flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500"
+        className="my-2 flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted"
         data-testid="carry-over-divider"
       >
-        <span className="flex-1 border-t border-slate-200" />
+        <span className="flex-1 border-t border-border-base" />
         Discussion below
-        <span className="flex-1 border-t border-slate-200" />
+        <span className="flex-1 border-t border-border-base" />
       </div>
     </div>
   );

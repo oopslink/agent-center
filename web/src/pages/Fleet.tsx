@@ -50,14 +50,14 @@ export default function Fleet(): React.ReactElement {
         <div>
           <h2 className="text-xl font-semibold">Fleet</h2>
           {fleet.data?.generated_at && (
-            <span className="text-xs text-slate-500" data-testid="fleet-generated-at">
+            <span className="text-xs text-text-muted" data-testid="fleet-generated-at">
               generated {fleet.data.generated_at}
             </span>
           )}
         </div>
         <button
           type="button"
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
           onClick={() => setModalOpen(true)}
           data-testid="fleet-add-worker-btn"
         >
@@ -68,7 +68,7 @@ export default function Fleet(): React.ReactElement {
       {modalOpen && <AddWorkerModal onClose={() => setModalOpen(false)} />}
 
       {fleet.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="fleet-loading">
+        <p className="text-sm text-text-muted" data-testid="fleet-loading">
           Loading…
         </p>
       )}
@@ -80,7 +80,7 @@ export default function Fleet(): React.ReactElement {
 
       {fleet.data?.warnings && fleet.data.warnings.length > 0 && (
         <div
-          className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          className="rounded border border-warning/40 bg-warning/10 p-3 text-sm text-warning"
           data-testid="fleet-warnings"
         >
           <p className="font-medium">Partial snapshot:</p>
@@ -97,16 +97,16 @@ export default function Fleet(): React.ReactElement {
           <Section title="Workers" empty="No workers enrolled yet — see install docs.">
             {fleet.data.workers.length > 0 && (
               <table
-                className="w-full table-fixed border-separate border-spacing-0 rounded border border-slate-200 bg-white text-sm"
+                className="w-full table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
                 data-testid="fleet-workers-table"
               >
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th className="border-b border-slate-200 px-3 py-2">Worker</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Status</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Active</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Mappings</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Last heartbeat</th>
+                  <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
+                    <th className="border-b border-border-base px-3 py-2">Worker</th>
+                    <th className="border-b border-border-base px-3 py-2">Status</th>
+                    <th className="border-b border-border-base px-3 py-2">Active</th>
+                    <th className="border-b border-border-base px-3 py-2">Mappings</th>
+                    <th className="border-b border-border-base px-3 py-2">Last heartbeat</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,25 +120,25 @@ export default function Fleet(): React.ReactElement {
                       data-just-enrolled={flashing ? 'true' : undefined}
                       className={
                         flashing
-                          ? 'motion-safe:animate-pulse bg-emerald-50 motion-safe:transition-colors motion-safe:duration-700'
+                          ? 'motion-safe:animate-pulse bg-success/10 motion-safe:transition-colors motion-safe:duration-700'
                           : 'motion-safe:transition-colors motion-safe:duration-700'
                       }
                     >
-                      <td className="border-b border-slate-100 px-3 py-2">
+                      <td className="border-b border-border-base px-3 py-2">
                         <WorkerNameCell worker={w} />
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-2">
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase">
+                      <td className="border-b border-border-base px-3 py-2">
+                        <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                           {w.status}
                         </span>
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
+                      <td className="border-b border-border-base px-3 py-2 font-mono text-xs">
                         {w.active_count}
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
+                      <td className="border-b border-border-base px-3 py-2 font-mono text-xs">
                         {w.mappings_count}
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                      <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
                         {w.last_heartbeat_at || '—'}
                       </td>
                     </tr>
@@ -149,19 +149,19 @@ export default function Fleet(): React.ReactElement {
             )}
             {fleet.data.workers.length === 0 && (
               <div
-                className="rounded border border-dashed border-slate-300 bg-slate-50 p-6 text-center"
+                className="rounded border border-dashed border-border-strong bg-bg-subtle p-6 text-center"
                 data-testid="fleet-workers-empty"
               >
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-text-secondary">
                   No workers connected yet.
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-text-muted">
                   A worker is a machine where agents actually run.
                   Add at least one to start dispatching tasks.
                 </p>
                 <button
                   type="button"
-                  className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className="mt-4 rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
                   onClick={() => setModalOpen(true)}
                   data-testid="fleet-workers-empty-cta"
                 >
@@ -173,7 +173,7 @@ export default function Fleet(): React.ReactElement {
 
           <Section title="Active executions" empty="No active executions.">
             {fleet.data.executions.length > 0 && (
-              <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white text-sm" data-testid="fleet-exec-list">
+              <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary" data-testid="fleet-exec-list">
                 {fleet.data.executions.map((e) => (
                   <li
                     key={e.execution_id}
@@ -184,14 +184,14 @@ export default function Fleet(): React.ReactElement {
                     <span>
                       <Link
                         to={`/tasks/${encodeURIComponent(e.task_id)}`}
-                        className="font-mono text-blue-600 hover:underline"
+                        className="font-mono text-accent hover:underline"
                       >
                         {e.task_id}
                       </Link>{' '}
-                      <span className="text-slate-500">on worker</span>{' '}
+                      <span className="text-text-muted">on worker</span>{' '}
                       <span className="font-mono">{e.worker_id}</span>
                     </span>
-                    <span className="rounded bg-slate-100 px-2 py-0.5 uppercase text-slate-600">
+                    <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
                       {e.status}
                     </span>
                   </li>
@@ -200,7 +200,7 @@ export default function Fleet(): React.ReactElement {
             )}
             {fleet.data.executions.length === 0 && (
               <p
-                className="text-xs text-slate-500"
+                className="text-xs text-text-muted"
                 data-testid="fleet-exec-empty"
               >
                 Nothing running right now.
@@ -211,7 +211,7 @@ export default function Fleet(): React.ReactElement {
           <Section title="Open input requests" empty="No open input requests.">
             {fleet.data.open_input_requests.length > 0 && (
               <ul
-                className="divide-y divide-slate-200 rounded border border-slate-200 bg-white text-sm"
+                className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
                 data-testid="fleet-ir-list"
               >
                 {fleet.data.open_input_requests.map((ir) => (
@@ -222,7 +222,7 @@ export default function Fleet(): React.ReactElement {
                     <span>{ir.question}</span>
                     <Link
                       to="/inputrequests"
-                      className="text-blue-600 hover:underline"
+                      className="text-accent hover:underline"
                     >
                       respond →
                     </Link>
@@ -231,21 +231,21 @@ export default function Fleet(): React.ReactElement {
               </ul>
             )}
             {fleet.data.open_input_requests.length === 0 && (
-              <p className="text-xs text-slate-500">No open input requests.</p>
+              <p className="text-xs text-text-muted">No open input requests.</p>
             )}
           </Section>
 
           <Section title="Pending issues" empty="No pending issues.">
             {fleet.data.pending_issues.length > 0 && (
               <ul
-                className="divide-y divide-slate-200 rounded border border-slate-200 bg-white text-sm"
+                className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
                 data-testid="fleet-issues-list"
               >
                 {fleet.data.pending_issues.map((i) => (
                   <li key={i.issue_id} className="px-3 py-2 text-xs">
                     <Link
                       to={`/issues/${encodeURIComponent(i.issue_id)}`}
-                      className="text-blue-600 hover:underline"
+                      className="text-accent hover:underline"
                     >
                       {i.title}
                     </Link>
@@ -254,7 +254,7 @@ export default function Fleet(): React.ReactElement {
               </ul>
             )}
             {fleet.data.pending_issues.length === 0 && (
-              <p className="text-xs text-slate-500">No pending issues.</p>
+              <p className="text-xs text-text-muted">No pending issues.</p>
             )}
           </Section>
         </>
@@ -274,8 +274,8 @@ function Section({
 }): React.ReactElement {
   return (
     <section>
-      <h3 className="mb-2 text-sm font-semibold text-slate-700">{title}</h3>
-      {children ?? <p className="text-xs text-slate-500">{empty}</p>}
+      <h3 className="mb-2 text-sm font-semibold text-text-primary">{title}</h3>
+      {children ?? <p className="text-xs text-text-muted">{empty}</p>}
     </section>
   );
 }
@@ -336,13 +336,13 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={busy}
-          className="w-40 rounded border border-slate-300 px-2 py-0.5 text-sm focus:border-blue-500"
+          className="w-40 rounded border border-border-base bg-bg-elevated px-2 py-0.5 text-sm text-text-primary focus:border-accent"
           data-testid="fleet-worker-name-input"
         />
         <button
           type="submit"
           disabled={busy}
-          className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:bg-slate-300"
+          className="rounded bg-brand px-2 py-0.5 text-xs text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
           data-testid="fleet-worker-name-save"
         >
           Save
@@ -355,7 +355,7 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
             setDraft(displayName);
             setError(null);
           }}
-          className="text-xs text-slate-500 hover:text-slate-700"
+          className="text-xs text-text-muted hover:text-text-primary"
         >
           Cancel
         </button>
@@ -367,14 +367,14 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
     <div className="flex flex-col">
       <button
         type="button"
-        className="text-left text-sm font-medium text-slate-800 hover:text-accent"
+        className="text-left text-sm font-medium text-text-primary hover:text-accent"
         onClick={() => setEditing(true)}
         title="Click to rename"
         data-testid="fleet-worker-name"
       >
         {displayName}
       </button>
-      <span className="font-mono text-[0.6875rem] text-slate-500" data-testid="fleet-worker-id">
+      <span className="font-mono text-[0.6875rem] text-text-muted" data-testid="fleet-worker-id">
         {worker.worker_id}
       </span>
     </div>

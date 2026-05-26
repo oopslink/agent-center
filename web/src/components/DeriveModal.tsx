@@ -81,14 +81,14 @@ export function DeriveModal({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="derive-title"
       data-testid="derive-modal"
       data-kind={kind}
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="derive-title" className="text-lg font-semibold">
           Open {label} from {sourceMessageIds.length} message
           {sourceMessageIds.length === 1 ? '' : 's'}
@@ -97,12 +97,12 @@ export function DeriveModal({
         {createdId === null ? (
           <form className="mt-4 space-y-3" onSubmit={submit}>
             <div>
-              <label className="block text-xs font-medium text-slate-700">
+              <label className="block text-xs font-medium text-text-primary">
                 Project
               </label>
               {projects.isLoading ? (
                 <p
-                  className="mt-1 text-xs text-slate-500"
+                  className="mt-1 text-xs text-text-muted"
                   data-testid="derive-projects-loading"
                 >
                   Loading projects…
@@ -111,7 +111,7 @@ export function DeriveModal({
                 <select
                   value={projectId}
                   onChange={(e) => setProjectId(e.target.value)}
-                  className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+                  className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary focus:border-accent"
                   data-testid="derive-project-select"
                 >
                   <option value="" disabled>
@@ -125,11 +125,11 @@ export function DeriveModal({
                 </select>
               ) : (
                 <p
-                  className="mt-1 text-xs text-slate-600"
+                  className="mt-1 text-xs text-text-secondary"
                   data-testid="derive-no-projects"
                 >
                   No projects yet — create one via{' '}
-                  <code className="rounded bg-slate-100 px-1">
+                  <code className="rounded bg-bg-subtle px-1">
                     agent-center project add &lt;id&gt; --name=…
                   </code>{' '}
                   first.
@@ -137,19 +137,19 @@ export function DeriveModal({
               )}
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700">Title</label>
+              <label className="block text-xs font-medium text-text-primary">Title</label>
               <input
                 type="text"
                 autoFocus
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={`${label.toLowerCase()} title`}
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+                className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
                 data-testid="derive-title-input"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700">
+              <label className="block text-xs font-medium text-text-primary">
                 Description
               </label>
               <textarea
@@ -157,7 +157,7 @@ export function DeriveModal({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="optional"
-                className="mt-1 w-full resize-none rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+                className="mt-1 w-full resize-none rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
                 data-testid="derive-description-input"
               />
             </div>
@@ -170,7 +170,7 @@ export function DeriveModal({
               <button
                 type="button"
                 onClick={handleClose}
-                className="rounded px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
                 data-testid="derive-modal-cancel"
               >
                 Cancel
@@ -178,7 +178,7 @@ export function DeriveModal({
               <button
                 type="submit"
                 disabled={!title.trim() || !projectId || mut.isPending}
-                className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+                className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
                 data-testid="derive-modal-submit"
               >
                 {mut.isPending ? 'Creating…' : `Create ${label}`}
@@ -187,14 +187,14 @@ export function DeriveModal({
           </form>
         ) : (
           <div className="mt-4 space-y-3" data-testid="derive-success">
-            <p className="rounded bg-emerald-50 p-3 text-sm text-emerald-800">
+            <p className="rounded bg-success/10 p-3 text-sm text-success">
               {label} created.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={handleClose}
-                className="rounded px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
                 data-testid="derive-success-close"
               >
                 Close
@@ -202,7 +202,7 @@ export function DeriveModal({
               <Link
                 to={targetPath}
                 onClick={handleClose}
-                className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+                className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
                 data-testid="derive-success-link"
               >
                 View {label} →

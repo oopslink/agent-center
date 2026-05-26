@@ -90,8 +90,8 @@ export default function Issues(): React.ReactElement {
             className={[
               'rounded px-3 py-1 text-xs uppercase tracking-wide',
               filter === t.value
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                ? 'bg-text-primary text-bg-elevated'
+                : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
             ].join(' ')}
             data-testid="issues-status-tab"
             data-status={t.value}
@@ -131,20 +131,20 @@ export default function Issues(): React.ReactElement {
         />
       )}
       {projectFilter !== 'all' && data.length > 0 && (
-        <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
+        <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {data.map((iss) => (
             <li key={iss.id} data-testid="issue-row" data-issue-id={iss.id}>
               <Link
                 to={`/issues/${encodeURIComponent(iss.id)}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+                className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
                 <span className="flex items-center gap-3">
                   <span className="font-medium">{iss.title || iss.id}</span>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">
+                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {iss.status.replace(/_/g, ' ')}
                   </span>
                 </span>
-                <span className="flex items-center gap-3 text-xs text-slate-500">
+                <span className="flex items-center gap-3 text-xs text-text-muted">
                   <span className="font-mono">{iss.opener}</span>
                   <span>{formatRelative(iss.opened_at)}</span>
                 </span>
@@ -180,7 +180,7 @@ function ProjectChip({
         'rounded-full px-3 py-0.5 text-xs',
         selected
           ? 'bg-brand text-white'
-          : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated',
+          : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
       ].join(' ')}
     >
       {label}

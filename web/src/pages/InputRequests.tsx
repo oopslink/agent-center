@@ -55,8 +55,8 @@ export default function InputRequests(): React.ReactElement {
             className={[
               'rounded px-3 py-1 text-xs uppercase tracking-wide',
               filter === t.value
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                ? 'bg-text-primary text-bg-elevated'
+                : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
             ].join(' ')}
             data-testid="ir-status-tab"
             data-status={t.value}
@@ -97,7 +97,7 @@ export default function InputRequests(): React.ReactElement {
 
       {filtered.length > 0 && (
         <ul
-          className="divide-y divide-slate-200 rounded border border-slate-200 bg-white"
+          className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary"
           data-testid="ir-list"
         >
           {filtered.map((ir) => (
@@ -109,14 +109,14 @@ export default function InputRequests(): React.ReactElement {
               data-ir-status={ir.status}
             >
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-slate-900">{ir.question}</p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="font-medium text-text-primary">{ir.question}</p>
+                <p className="mt-0.5 text-xs text-text-muted">
                   execution <span className="font-mono">{ir.execution_id}</span> ·{' '}
                   {ir.created_at}
                 </p>
                 {ir.answer && (
                   <p
-                    className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700"
+                    className="mt-1 rounded bg-bg-subtle p-2 text-xs text-text-secondary"
                     data-testid="ir-answer-preview"
                   >
                     {ir.answer}
@@ -129,7 +129,7 @@ export default function InputRequests(): React.ReactElement {
                     <button
                       type="button"
                       onClick={() => setRespondTo(ir)}
-                      className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                      className="rounded bg-text-primary px-3 py-1.5 text-xs font-medium text-bg-elevated hover:opacity-90"
                       data-testid="ir-respond-button"
                     >
                       Respond
@@ -138,7 +138,7 @@ export default function InputRequests(): React.ReactElement {
                       type="button"
                       onClick={() => handleCancel(ir)}
                       disabled={cancel.isPending}
-                      className="rounded px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                      className="rounded px-3 py-1.5 text-xs text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                       data-testid="ir-cancel-button"
                     >
                       Cancel

@@ -13,16 +13,16 @@ export default function TaskTrace(): React.ReactElement {
 
   return (
     <section className="space-y-4" data-testid="page-TaskTrace" data-task-id={id}>
-      <header className="flex items-center justify-between border-b border-slate-200 pb-3">
+      <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
           <h2 className="text-xl font-semibold">Trace</h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-text-muted">
             task: <span className="font-mono">{id}</span>
           </p>
         </div>
         <Link
           to={`/tasks/${encodeURIComponent(id)}`}
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm text-accent hover:underline"
           data-testid="trace-back"
         >
           ← Back to task
@@ -30,7 +30,7 @@ export default function TaskTrace(): React.ReactElement {
       </header>
 
       {trace.isLoading && (
-        <p className="text-sm text-slate-500" data-testid="trace-loading">
+        <p className="text-sm text-text-muted" data-testid="trace-loading">
           Loading trace…
         </p>
       )}

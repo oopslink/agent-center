@@ -29,12 +29,12 @@ export class ErrorBoundary extends Component<Props, State> {
   override render(): React.ReactNode {
     if (this.state.error) {
       return (
-        <div className="m-6 max-w-xl rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="m-6 max-w-xl rounded border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
           <p className="font-semibold">Something went wrong.</p>
-          <p className="mt-1 text-red-700">{this.state.error.message}</p>
+          <p className="mt-1 text-danger">{this.state.error.message}</p>
           <button
             type="button"
-            className="mt-3 rounded bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700"
+            className="mt-3 rounded bg-danger px-3 py-1 text-xs text-white hover:opacity-90"
             onClick={() => {
               this.setState({ error: null });
               if (typeof window !== 'undefined') {

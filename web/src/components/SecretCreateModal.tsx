@@ -66,13 +66,13 @@ export function SecretCreateModal({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="secret-create-title"
       data-testid="secret-create-modal"
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="secret-create-title" className="text-lg font-semibold">
           New secret
         </h2>
@@ -80,23 +80,23 @@ export function SecretCreateModal({
         {createdName === null ? (
           <form className="mt-4 space-y-3" onSubmit={submit} autoComplete="off">
             <div>
-              <label className="block text-xs font-medium text-slate-700">Name</label>
+              <label className="block text-xs font-medium text-text-primary">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="github-token"
                 autoFocus
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+                className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
                 data-testid="secret-name-input"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700">Kind</label>
+              <label className="block text-xs font-medium text-text-primary">Kind</label>
               <select
                 value={kind}
                 onChange={(e) => setKind(e.target.value as SecretKind)}
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+                className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary focus:border-accent"
                 data-testid="secret-kind-select"
               >
                 {KINDS.map((k) => (
@@ -107,7 +107,7 @@ export function SecretCreateModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700">Value</label>
+              <label className="block text-xs font-medium text-text-primary">Value</label>
               <input
                 // type=password keeps the value invisible in the DOM render +
                 // tells password managers to NOT autofill from history.
@@ -118,10 +118,10 @@ export function SecretCreateModal({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder="paste secret"
-                className="mt-1 w-full rounded border border-slate-300 px-2 py-1 font-mono text-sm focus:border-accent"
+                className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
                 data-testid="secret-value-input"
               />
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-text-muted">
                 Stored encrypted. Never displayed again — to rotate, revoke this
                 secret and create a new one.
               </p>
@@ -135,7 +135,7 @@ export function SecretCreateModal({
               <button
                 type="button"
                 onClick={handleClose}
-                className="rounded px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
                 data-testid="secret-create-cancel"
               >
                 Cancel
@@ -143,7 +143,7 @@ export function SecretCreateModal({
               <button
                 type="submit"
                 disabled={!name.trim() || !value || create.isPending}
-                className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+                className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
                 data-testid="secret-create-submit"
               >
                 {create.isPending ? 'Creating…' : 'Create'}
@@ -152,14 +152,14 @@ export function SecretCreateModal({
           </form>
         ) : (
           <div className="mt-4 space-y-3" data-testid="secret-create-success">
-            <p className="rounded bg-emerald-50 p-3 text-sm text-emerald-800">
+            <p className="rounded bg-success/10 p-3 text-sm text-success">
               Secret <span className="font-mono">{createdName}</span> created.
             </p>
             <div className="flex justify-end">
               <button
                 type="button"
                 onClick={handleClose}
-                className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+                className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
                 data-testid="secret-create-close"
               >
                 Done

@@ -22,7 +22,7 @@ export function MessageList({
   if (messages.length === 0) {
     return (
       <div
-        className="flex flex-1 items-center justify-center text-sm text-slate-400"
+        className="flex flex-1 items-center justify-center text-sm text-text-muted"
         data-testid="message-list-empty"
       >
         No messages yet.
@@ -40,8 +40,8 @@ export function MessageList({
           <article
             key={m.id}
             className={[
-              'flex gap-3 rounded border bg-white p-3 text-sm shadow-sm',
-              checked ? 'border-blue-400 ring-1 ring-blue-200' : 'border-slate-200',
+              'flex gap-3 rounded border bg-bg-elevated p-3 text-sm shadow-sm',
+              checked ? 'border-accent ring-1 ring-accent/40' : 'border-border-base',
             ].join(' ')}
             data-testid="message-row"
             data-message-id={m.id}
@@ -60,11 +60,11 @@ export function MessageList({
               </label>
             )}
             <div className="flex-1">
-              <header className="mb-1 flex items-center justify-between text-xs text-slate-500">
+              <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
                 <span className="font-mono">{m.sender_identity_id}</span>
                 <time>{m.posted_at}</time>
               </header>
-              <div className="whitespace-pre-wrap text-slate-900">{m.content}</div>
+              <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
             </div>
           </article>
         );

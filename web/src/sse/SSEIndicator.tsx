@@ -2,11 +2,11 @@ import type React from 'react';
 import { useAppStore } from '@/store/app';
 
 const COLORS: Record<string, string> = {
-  idle: 'bg-slate-300',
-  connecting: 'bg-amber-400',
-  open: 'bg-emerald-500',
-  reconnecting: 'bg-amber-500 animate-pulse',
-  closed: 'bg-slate-400',
+  idle: 'bg-text-muted',
+  connecting: 'bg-warning',
+  open: 'bg-success',
+  reconnecting: 'bg-warning animate-pulse',
+  closed: 'bg-text-muted',
 };
 
 const LABEL: Record<string, string> = {
@@ -24,7 +24,7 @@ export function SSEIndicator(): React.ReactElement {
   const status = useAppStore((s) => s.sseStatus);
   return (
     <span
-      className="flex items-center gap-1.5 text-xs text-slate-500"
+      className="flex items-center gap-1.5 text-xs text-text-muted"
       data-testid="sse-indicator"
       data-status={status}
     >

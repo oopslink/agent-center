@@ -7,7 +7,7 @@ export default function Settings(): React.ReactElement {
   return (
     <section className="space-y-2" data-testid="page-Settings">
       <h2 className="text-xl font-semibold">Settings</h2>
-      <p className="text-sm text-slate-500">F3 placeholder — replaced in a later ST.</p>
+      <p className="text-sm text-text-muted">F3 placeholder — replaced in a later ST.</p>
     </section>
   );
 }

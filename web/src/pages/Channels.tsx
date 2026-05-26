@@ -22,7 +22,7 @@ export default function Channels(): React.ReactElement {
         <h2 className="text-xl font-semibold">Channels</h2>
         <button
           type="button"
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
           onClick={() => setCreateOpen(true)}
           data-testid="channels-new-button"
         >
@@ -51,21 +51,21 @@ export default function Channels(): React.ReactElement {
         />
       )}
       {channels.isSuccess && channels.data.length > 0 && (
-        <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
+        <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {channels.data.map((c) => (
             <li key={c.id} data-testid="channel-row" data-channel-name={c.name}>
               <Link
                 to={`/channels/${encodeURIComponent(c.name)}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+                className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
                 <span className="flex items-center gap-3">
                   <span className="font-medium">{c.name}</span>
                   <UnreadBadge conversationId={c.id} />
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">
+                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {c.status}
                   </span>
                 </span>
-                <span className="max-w-[40ch] truncate text-xs text-slate-500">
+                <span className="max-w-[40ch] truncate text-xs text-text-muted">
                   {c.description}
                 </span>
               </Link>

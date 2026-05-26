@@ -44,7 +44,7 @@ export default function ChannelDetail(): React.ReactElement {
 
   if (channels.isLoading || (channel && conv.isLoading)) {
     return (
-      <section className="text-sm text-slate-500" data-testid="page-ChannelDetail">
+      <section className="text-sm text-text-muted" data-testid="page-ChannelDetail">
         Loading channel…
       </section>
     );
@@ -53,13 +53,13 @@ export default function ChannelDetail(): React.ReactElement {
   if (channels.isSuccess && !channel) {
     return (
       <section
-        className="space-y-3 text-sm text-slate-500"
+        className="space-y-3 text-sm text-text-muted"
         data-testid="page-ChannelDetail"
       >
         <p data-testid="channel-not-found">
           Channel <span className="font-mono">{name}</span> not found.
         </p>
-        <Link to="/channels" className="text-blue-600 hover:underline">
+        <Link to="/channels" className="text-accent hover:underline">
           Back to channels
         </Link>
       </section>
@@ -83,11 +83,11 @@ export default function ChannelDetail(): React.ReactElement {
       data-testid="page-ChannelDetail"
       data-channel-id={channel.id}
     >
-      <header className="flex items-center justify-between border-b border-slate-200 pb-3">
+      <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
           <h2 className="text-xl font-semibold">{channel.name}</h2>
           {channel.description && (
-            <p className="text-sm text-slate-500">{channel.description}</p>
+            <p className="text-sm text-text-muted">{channel.description}</p>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -97,15 +97,15 @@ export default function ChannelDetail(): React.ReactElement {
             className={[
               'rounded px-2.5 py-1 text-xs font-medium',
               selection.selectMode
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                ? 'bg-text-primary text-bg-elevated'
+                : 'bg-bg-subtle text-text-primary hover:bg-border-base',
             ].join(' ')}
             data-testid="select-mode-toggle"
             aria-pressed={selection.selectMode}
           >
             {selection.selectMode ? 'Cancel select' : 'Select messages'}
           </button>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-text-muted">
             {activeCount} {activeCount === 1 ? 'participant' : 'participants'}
           </span>
         </div>
@@ -114,7 +114,7 @@ export default function ChannelDetail(): React.ReactElement {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden">
           {messages.isLoading && (
-            <p className="p-4 text-sm text-slate-500" data-testid="messages-loading">
+            <p className="p-4 text-sm text-text-muted" data-testid="messages-loading">
               Loading messages…
             </p>
           )}

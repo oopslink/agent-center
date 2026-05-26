@@ -32,14 +32,14 @@ export default function Secrets(): React.ReactElement {
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
           data-testid="secrets-new-button"
         >
           New secret
         </button>
       </header>
 
-      <p className="text-xs text-slate-500" data-testid="secrets-disclaimer">
+      <p className="text-xs text-text-muted" data-testid="secrets-disclaimer">
         Values are stored encrypted and never displayed after creation. To
         rotate a secret, revoke and create a new one.
       </p>
@@ -65,16 +65,16 @@ export default function Secrets(): React.ReactElement {
       )}
       {secrets.isSuccess && secrets.data.length > 0 && (
         <table
-          className="w-full table-fixed border-separate border-spacing-0 rounded border border-slate-200 bg-white"
+          className="w-full table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary"
           data-testid="secrets-table"
         >
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="w-1/4 border-b border-slate-200 px-3 py-2">Name</th>
-              <th className="w-1/6 border-b border-slate-200 px-3 py-2">Kind</th>
-              <th className="w-1/6 border-b border-slate-200 px-3 py-2">State</th>
-              <th className="w-1/4 border-b border-slate-200 px-3 py-2">Created</th>
-              <th className="border-b border-slate-200 px-3 py-2 text-right" />
+            <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
+              <th className="w-1/4 border-b border-border-base px-3 py-2">Name</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">Kind</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">State</th>
+              <th className="w-1/4 border-b border-border-base px-3 py-2">Created</th>
+              <th className="border-b border-border-base px-3 py-2 text-right" />
             </tr>
           </thead>
           <tbody>
@@ -86,26 +86,26 @@ export default function Secrets(): React.ReactElement {
                 data-secret-id={s.id}
                 data-secret-state={s.state}
               >
-                <td className="border-b border-slate-100 px-3 py-2 font-medium">{s.name}</td>
-                <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
+                <td className="border-b border-border-base px-3 py-2 font-medium">{s.name}</td>
+                <td className="border-b border-border-base px-3 py-2 font-mono text-xs">
                   {s.kind}
                 </td>
-                <td className="border-b border-slate-100 px-3 py-2">
+                <td className="border-b border-border-base px-3 py-2">
                   <span
                     className={[
                       'rounded px-2 py-0.5 text-xs uppercase',
                       s.state === 'active'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-slate-200 text-slate-600',
+                        ? 'bg-success/20 text-success'
+                        : 'bg-bg-subtle text-text-secondary',
                     ].join(' ')}
                   >
                     {s.state}
                   </span>
                 </td>
-                <td className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+                <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
                   {s.created_at}
                 </td>
-                <td className="border-b border-slate-100 px-3 py-2 text-right">
+                <td className="border-b border-border-base px-3 py-2 text-right">
                   {s.state === 'active' && (
                     <button
                       type="button"

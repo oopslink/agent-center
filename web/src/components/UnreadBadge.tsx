@@ -20,7 +20,7 @@ export function UnreadBadge({
   const label = data.unread_count >= MaxUnreadDisplay ? `${MaxUnreadDisplay}+` : String(data.unread_count);
   return (
     <span
-      className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-medium text-white"
+      className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand px-1.5 text-xs font-medium text-white"
       data-testid="unread-badge"
       data-unread-count={data.unread_count}
     >

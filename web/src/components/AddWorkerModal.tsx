@@ -261,12 +261,12 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
+      <div className="w-full max-w-2xl rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Add a Worker</h2>
           <button
             type="button"
-            className="text-slate-400 hover:text-slate-700"
+            className="text-text-muted hover:text-text-primary"
             onClick={handleClose}
             aria-label="Close"
             data-testid="add-worker-close"
@@ -309,7 +309,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
         >
           <label
             htmlFor="add-worker-name-input"
-            className="mb-1 block text-sm font-medium text-slate-700"
+            className="mb-1 block text-sm font-medium text-text-primary"
           >
             Worker name
           </label>
@@ -321,9 +321,9 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
             onChange={(e) => onNameChange(e.target.value)}
             autoFocus
             placeholder="e.g. test-1 or tenant-foo"
-            className="block w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500"
+            className="block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-text-muted">
             Use a unique name (e.g. <code className="font-mono">test-1</code>,{' '}
             <code className="font-mono">tenant-foo</code>) so you can spot this worker in Fleet.
             You can rename it later from the Fleet row.
@@ -331,7 +331,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
           <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               onClick={onClose}
               data-testid="modal-name-prompt-cancel"
             >
@@ -340,7 +340,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
             <button
               type="submit"
               disabled={!canSubmit}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="modal-name-prompt-submit"
             >
               Generate install command
@@ -352,8 +352,8 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
     case 'minting':
       return (
         <div className="py-8 text-center" data-testid="modal-state-minting">
-          <p className="text-sm text-slate-600">Preparing your worker install command...</p>
-          <div className="mt-4 inline-block h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+          <p className="text-sm text-text-secondary">Preparing your worker install command...</p>
+          <div className="mt-4 inline-block h-6 w-6 animate-spin rounded-full border-2 border-border-base border-t-brand" />
         </div>
       );
     case 'mint_error':
@@ -362,8 +362,8 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
           <p className="mb-3 text-sm font-medium text-danger">
             Could not mint an enroll token.
           </p>
-          <p className="mb-3 text-sm text-slate-700">{state.message}</p>
-          <p className="mb-4 text-xs text-slate-500">
+          <p className="mb-3 text-sm text-text-primary">{state.message}</p>
+          <p className="mb-4 text-xs text-text-muted">
             Common causes: admin TCP listener is not enabled on the
             center (set <code className="font-mono">server.admin_tcp_listen</code> in the config,
             e.g. <code className="font-mono">0.0.0.0:7300</code>) or the AdminToken service is not
@@ -372,7 +372,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               onClick={onClose}
               data-testid="modal-mint-error-close"
             >
@@ -380,7 +380,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
             </button>
             <button
               type="button"
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
               onClick={() => onSubmitName(state.lastName)}
               data-testid="modal-mint-error-retry"
             >
@@ -394,19 +394,19 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
       const isTimeout = state.kind === 'timeout_hint';
       return (
         <div data-testid={isTimeout ? 'modal-state-timeout-hint' : 'modal-state-ready'}>
-          <p className="mb-3 text-sm text-slate-600">
+          <p className="mb-3 text-sm text-text-secondary">
             On your worker machine, make sure the AgentCenter tarball is extracted, then run:
           </p>
           <CommandBlock command={state.command} />
           <ExpiresHint expiresAt={state.expiresAt} />
           {!isTimeout && (
-            <p className="mt-4 flex items-center text-sm text-slate-600">
-              <span className="mr-2 inline-block h-4 w-4 animate-pulse rounded-full bg-blue-400" />
+            <p className="mt-4 flex items-center text-sm text-text-secondary">
+              <span className="mr-2 inline-block h-4 w-4 animate-pulse rounded-full bg-accent" />
               Waiting for worker to connect…
             </p>
           )}
           {isTimeout && (
-            <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <div className="mt-4 rounded border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
               <p className="font-medium">Worker hasn't connected yet (5 min).</p>
               <p className="mt-1">Common causes:</p>
               <ul className="ml-4 list-disc">
@@ -422,34 +422,34 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
     case 'success':
       return (
         <div data-testid="modal-state-success">
-          <p className="mb-3 text-sm font-medium text-emerald-600">Worker connected.</p>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
-            <dt className="text-slate-500">Name</dt>
+          <p className="mb-3 text-sm font-medium text-success">Worker connected.</p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 rounded border border-border-base bg-bg-subtle p-3 text-sm text-text-primary">
+            <dt className="text-text-muted">Name</dt>
             <dd className="text-sm" data-testid="modal-success-worker-name">
               {state.worker.name}
             </dd>
-            <dt className="text-slate-500">ID</dt>
+            <dt className="text-text-muted">ID</dt>
             <dd className="font-mono text-xs" data-testid="modal-success-worker-id">
               {state.worker.id}
             </dd>
             {state.worker.capabilities.length > 0 && (
               <>
-                <dt className="text-slate-500">Capabilities</dt>
+                <dt className="text-text-muted">Capabilities</dt>
                 <dd className="text-xs" data-testid="modal-success-capabilities">
                   {state.worker.capabilities.join(', ')}
                 </dd>
               </>
             )}
-            <dt className="text-slate-500">Status</dt>
+            <dt className="text-text-muted">Status</dt>
             <dd>Online</dd>
           </dl>
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-text-muted">
             Your worker is now visible in the Fleet table.
           </p>
           <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               onClick={onAddAnother}
               data-testid="modal-add-another"
             >
@@ -457,7 +457,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
             </button>
             <button
               type="button"
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
               onClick={onClose}
               data-testid="modal-done"
             >
@@ -469,13 +469,13 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
     case 'token_used':
       return (
         <div data-testid="modal-state-token-used">
-          <p className="mb-2 text-sm font-medium text-amber-700">This token was just used by another worker.</p>
-          <p className="mb-4 text-xs text-slate-600">
+          <p className="mb-2 text-sm font-medium text-warning">This token was just used by another worker.</p>
+          <p className="mb-4 text-xs text-text-secondary">
             Generate a new token to add another worker.
           </p>
           <button
             type="button"
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
             onClick={onAddAnother}
             data-testid="modal-generate-new"
           >
@@ -486,13 +486,13 @@ function ModalBody({ state, onSubmitName, onNameChange, onAddAnother, onClose }:
     case 'token_expired':
       return (
         <div data-testid="modal-state-token-expired">
-          <p className="mb-2 text-sm font-medium text-slate-700">Token expired (30 min cap).</p>
-          <p className="mb-4 text-xs text-slate-600">
+          <p className="mb-2 text-sm font-medium text-text-primary">Token expired (30 min cap).</p>
+          <p className="mb-4 text-xs text-text-secondary">
             Generate a new token if you'd still like to add this worker.
           </p>
           <button
             type="button"
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
             onClick={onAddAnother}
             data-testid="modal-generate-new"
           >
@@ -512,12 +512,14 @@ function CommandBlock({ command }: { command: string }): React.ReactElement {
   };
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100">
+      {/* Terminal-style block; intentionally dark in both modes (mimics
+          a shell window). Not a dark-mode-token candidate. */}
+      <pre className="overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100"> {/* raw-color-ok: terminal shell window stays dark in both modes */}
         <code data-testid="modal-command">{command}</code>
       </pre>
       <button
         type="button"
-        className="absolute right-2 top-2 rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600"
+        className="absolute right-2 top-2 rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600" /* raw-color-ok: copy button overlay on the terminal block above */
         onClick={copy}
         data-testid="modal-copy-btn"
       >
@@ -534,5 +536,5 @@ function ExpiresHint({ expiresAt }: { expiresAt: Date }): React.ReactElement {
     const hhmm = expiresAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     return `Token expires at ${hhmm} (${minutes} min remaining)`;
   }, [expiresAt]);
-  return <p className="mt-2 text-xs text-slate-500">{text}</p>;
+  return <p className="mt-2 text-xs text-text-muted">{text}</p>;
 }

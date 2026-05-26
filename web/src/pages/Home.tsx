@@ -52,19 +52,19 @@ export default function Home(): React.ReactElement {
 
       {noWorkers && (
         <div
-          className="rounded-lg border border-blue-200 bg-blue-50 p-5"
+          className="rounded-lg border border-accent/40 bg-accent/10 p-5"
           data-testid="home-get-started"
         >
-          <h2 className="text-base font-semibold text-blue-900">
+          <h2 className="text-base font-semibold text-text-primary">
             Get started: add your first worker
           </h2>
-          <p className="mt-1 text-sm text-blue-800">
+          <p className="mt-1 text-sm text-text-secondary">
             AgentCenter is running, but no workers are connected yet. Workers
             are where agents (claude-code, codex, opencode, …) actually run.
           </p>
           <Link
             to="/fleet"
-            className="mt-3 inline-block rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="mt-3 inline-block rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
             data-testid="home-get-started-cta"
           >
             Add a worker →

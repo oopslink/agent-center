@@ -41,37 +41,37 @@ export function ChannelCreateModal({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-10 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-channel-title"
       data-testid="channel-create-modal"
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="create-channel-title" className="text-lg font-semibold">
           New channel
         </h2>
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <div>
-            <label className="block text-xs font-medium text-slate-700">Name</label>
+            <label className="block text-xs font-medium text-text-primary">Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="alpha"
               autoFocus
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+              className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
               data-testid="create-channel-name"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700">Description</label>
+            <label className="block text-xs font-medium text-text-primary">Description</label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="optional"
-              className="mt-1 w-full resize-none rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+              className="mt-1 w-full resize-none rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
               data-testid="create-channel-description"
             />
           </div>
@@ -84,7 +84,7 @@ export function ChannelCreateModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+              className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               data-testid="create-channel-cancel"
             >
               Cancel
@@ -92,7 +92,7 @@ export function ChannelCreateModal({
             <button
               type="submit"
               disabled={!name.trim() || create.isPending}
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+              className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="create-channel-submit"
             >
               {create.isPending ? 'Creating…' : 'Create'}

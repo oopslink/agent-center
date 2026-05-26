@@ -36,7 +36,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
 
   return (
     <form
-      className="flex items-end gap-2 border-t border-slate-200 bg-white p-3"
+      className="flex items-end gap-2 border-t border-border-base bg-bg-elevated p-3"
       data-testid="message-composer"
       onSubmit={(e) => {
         e.preventDefault();
@@ -44,7 +44,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
       }}
     >
       <textarea
-        className="min-h-[2.5rem] flex-1 resize-none rounded border border-border-strong px-3 py-2 text-sm focus:border-accent"
+        className="min-h-[2.5rem] flex-1 resize-none rounded border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
         rows={1}
         aria-label="Message"
         placeholder="Type a message — Enter to send, Shift+Enter for newline"
@@ -57,7 +57,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
       <button
         type="submit"
         disabled={disabled}
-        className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+        className="rounded bg-text-primary px-4 py-2 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
         data-testid="composer-send"
       >
         {send.isPending ? 'Sending…' : 'Send'}

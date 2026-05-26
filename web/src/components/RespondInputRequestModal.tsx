@@ -47,17 +47,17 @@ export function RespondInputRequestModal({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ir-respond-title"
       data-testid="ir-respond-modal"
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="ir-respond-title" className="text-lg font-semibold">
           Respond to input request
         </h2>
-        <p className="mt-1 text-sm text-slate-600">{ir.question}</p>
+        <p className="mt-1 text-sm text-text-secondary">{ir.question}</p>
         {(ir.options ?? []).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1" data-testid="ir-options">
             {ir.options!.map((o) => (
@@ -65,7 +65,7 @@ export function RespondInputRequestModal({
                 key={o}
                 type="button"
                 onClick={() => setAnswer(o)}
-                className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-200"
+                className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-border-base"
                 data-testid="ir-option-chip"
               >
                 {o}
@@ -80,14 +80,14 @@ export function RespondInputRequestModal({
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="your response"
             autoFocus
-            className="w-full resize-none rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+            className="w-full resize-none rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
             data-testid="ir-answer-textarea"
           />
           {suggested && (
             <button
               type="button"
               onClick={() => setAnswer(suggested)}
-              className="text-xs text-blue-600 hover:underline"
+              className="text-xs text-accent hover:underline"
               data-testid="ir-adopt-suggestion"
             >
               Adopt supervisor suggestion
@@ -102,7 +102,7 @@ export function RespondInputRequestModal({
             <button
               type="button"
               onClick={close}
-              className="rounded px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+              className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               data-testid="ir-respond-cancel"
             >
               Cancel
@@ -110,7 +110,7 @@ export function RespondInputRequestModal({
             <button
               type="submit"
               disabled={!answer.trim() || respond.isPending}
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+              className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="ir-respond-submit"
             >
               {respond.isPending ? 'Sending…' : 'Send'}

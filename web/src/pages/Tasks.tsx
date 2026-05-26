@@ -87,8 +87,8 @@ export default function Tasks(): React.ReactElement {
             className={[
               'rounded px-3 py-1 text-xs uppercase tracking-wide',
               filter === t.value
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                ? 'bg-text-primary text-bg-elevated'
+                : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
             ].join(' ')}
             data-testid="tasks-status-tab"
             data-status={t.value}
@@ -128,28 +128,28 @@ export default function Tasks(): React.ReactElement {
         />
       )}
       {projectFilter !== 'all' && data.length > 0 && (
-        <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
+        <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {data.map((tk) => (
             <li key={tk.id} data-testid="task-row" data-task-id={tk.id}>
               <Link
                 to={`/tasks/${encodeURIComponent(tk.id)}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+                className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
                 <span className="flex items-center gap-3">
                   <span className="font-medium">{tk.title || tk.id}</span>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">
+                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {tk.status}
                   </span>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-600">
+                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {tk.priority}
                   </span>
                 </span>
-                <span className="flex items-center gap-3 text-xs text-slate-500">
+                <span className="flex items-center gap-3 text-xs text-text-muted">
                   <span>{formatRelative(tk.created_at)}</span>
                   {tk.current_execution_id && (
                     <Link
                       to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
-                      className="text-blue-600 hover:underline"
+                      className="text-accent hover:underline"
                       onClick={(e) => e.stopPropagation()}
                       data-testid="task-row-trace-link"
                     >
@@ -189,7 +189,7 @@ function ProjectChip({
         'rounded-full px-3 py-0.5 text-xs',
         selected
           ? 'bg-brand text-white'
-          : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated',
+          : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
       ].join(' ')}
     >
       {label}

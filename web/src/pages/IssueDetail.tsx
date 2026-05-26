@@ -53,7 +53,7 @@ export default function IssueDetail(): React.ReactElement {
 
   if (issue.isLoading) {
     return (
-      <section className="text-sm text-slate-500" data-testid="page-IssueDetail">
+      <section className="text-sm text-text-muted" data-testid="page-IssueDetail">
         Loading issue…
       </section>
     );
@@ -64,7 +64,7 @@ export default function IssueDetail(): React.ReactElement {
         <p className="text-sm text-danger" data-testid="issue-not-found">
           {(issue.error as Error).message}
         </p>
-        <Link to="/issues" className="text-blue-600 hover:underline">
+        <Link to="/issues" className="text-accent hover:underline">
           Back to issues
         </Link>
       </section>
@@ -87,11 +87,11 @@ export default function IssueDetail(): React.ReactElement {
       data-testid="page-IssueDetail"
       data-issue-id={iss.id}
     >
-      <header className="flex items-start justify-between border-b border-slate-200 pb-3">
+      <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
           <h2 className="text-xl font-semibold">{iss.title || iss.id}</h2>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span className="rounded bg-slate-100 px-2 py-0.5 uppercase text-slate-600">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+            <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
               {iss.status.replace(/_/g, ' ')}
             </span>
             <span>
@@ -115,8 +115,8 @@ export default function IssueDetail(): React.ReactElement {
           className={[
             'rounded px-2.5 py-1 text-xs font-medium',
             selection.selectMode
-              ? 'bg-slate-900 text-white'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+              ? 'bg-text-primary text-bg-elevated'
+              : 'bg-bg-subtle text-text-primary hover:bg-border-base',
           ].join(' ')}
           data-testid="select-mode-toggle"
           aria-pressed={selection.selectMode}
@@ -129,7 +129,7 @@ export default function IssueDetail(): React.ReactElement {
         <div className="flex flex-1 flex-col overflow-hidden p-4">
           <CarryOverDivider refs={refs.data ?? []} messages={sourceMessages} />
           {messages.isLoading && (
-            <p className="text-sm text-slate-500" data-testid="issue-messages-loading">
+            <p className="text-sm text-text-muted" data-testid="issue-messages-loading">
               Loading messages…
             </p>
           )}

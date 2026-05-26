@@ -62,19 +62,19 @@ export function DMStartModal({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-10 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="start-dm-title"
       data-testid="dm-start-modal"
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="start-dm-title" className="text-lg font-semibold">
           Start a DM
         </h2>
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <div>
-            <label className="block text-xs font-medium text-slate-700">
+            <label className="block text-xs font-medium text-text-primary">
               Peer identity refs (one per line)
             </label>
             <textarea
@@ -83,13 +83,13 @@ export function DMStartModal({
               onChange={(e) => setPeers(e.target.value)}
               placeholder="agent:supervisor-1&#10;user:alice"
               autoFocus
-              className="mt-1 w-full resize-none rounded border border-slate-300 px-2 py-1 font-mono text-xs focus:border-accent"
+              className="mt-1 w-full resize-none rounded border border-border-base bg-bg-elevated px-2 py-1 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent"
               data-testid="dm-peers-input"
             />
           </div>
           {agents.isSuccess && agents.data.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-slate-700">
+              <label className="block text-xs font-medium text-text-primary">
                 Add an agent
               </label>
               <div
@@ -101,7 +101,7 @@ export function DMStartModal({
                     key={a.id}
                     type="button"
                     onClick={() => addPeer(a.identity_id)}
-                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-200"
+                    className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-border-base"
                     data-testid="dm-agent-chip"
                     data-identity={a.identity_id}
                   >
@@ -112,7 +112,7 @@ export function DMStartModal({
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-slate-700">
+            <label className="block text-xs font-medium text-text-primary">
               Label (optional)
             </label>
             <input
@@ -120,7 +120,7 @@ export function DMStartModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="leave blank for default"
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-accent"
+              className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
               data-testid="dm-label-input"
             />
           </div>
@@ -133,7 +133,7 @@ export function DMStartModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+              className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               data-testid="dm-start-cancel"
             >
               Cancel
@@ -141,7 +141,7 @@ export function DMStartModal({
             <button
               type="submit"
               disabled={parsePeers(peers).length === 0 || create.isPending}
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:bg-slate-300"
+              className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="dm-start-submit"
             >
               {create.isPending ? 'Starting…' : 'Start DM'}

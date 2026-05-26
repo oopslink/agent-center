@@ -21,17 +21,17 @@ export function DeriveBar({
   if (count === 0) return null;
   return (
     <div
-      className="sticky bottom-0 z-10 flex items-center justify-between border-t border-slate-200 bg-white px-4 py-2 shadow"
+      className="sticky bottom-0 z-10 flex items-center justify-between border-t border-border-base bg-bg-elevated px-4 py-2 shadow"
       data-testid="derive-bar"
     >
-      <span className="text-sm text-slate-700" data-testid="derive-bar-count">
+      <span className="text-sm text-text-primary" data-testid="derive-bar-count">
         {count} message{count === 1 ? '' : 's'} selected
       </span>
       <div className="flex gap-2">
         <button
           type="button"
           onClick={onOpenIssue}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
           data-testid="derive-open-issue"
         >
           Open Issue
@@ -39,7 +39,7 @@ export function DeriveBar({
         <button
           type="button"
           onClick={onOpenTask}
-          className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded bg-text-secondary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
           data-testid="derive-open-task"
         >
           Open Task
@@ -47,7 +47,7 @@ export function DeriveBar({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+          className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
           data-testid="derive-cancel"
         >
           Cancel

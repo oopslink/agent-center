@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-worker-daemon build-fakeagent test cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift smoke vet tidy clean clean-dist release e2e e2e-install
+.PHONY: help build build-frontend build-backend build-worker-daemon build-fakeagent test cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa smoke vet tidy clean clean-dist release e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -19,11 +19,12 @@ help:
 	@echo "  release              — host-platform tarball at ./dist/agent-center-\$$VERSION-\$$os-\$$arch.tar.gz"
 	@echo ""
 	@echo "Lint (conventions § 0.4 enforce mechanisms):"
-	@echo "  lint                     — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift"
-	@echo "  lint-vendor              — #v1 vendor residue grep (ADR-0031)"
-	@echo "  lint-vendor-selftest     — positive-fail check for lint-vendor"
-	@echo "  lint-mock-default        — § 0.4 #2: NoopSender/NoopKillSender prod-wiring guard"
-	@echo "  lint-doc-impl-drift      — § 0.4 #3: ADR claim vs code contradiction checks"
+	@echo "  lint                       — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa"
+	@echo "  lint-vendor                — #v1 vendor residue grep (ADR-0031)"
+	@echo "  lint-vendor-selftest       — positive-fail check for lint-vendor"
+	@echo "  lint-mock-default          — § 0.4 #2: NoopSender/NoopKillSender prod-wiring guard"
+	@echo "  lint-doc-impl-drift        — § 0.4 #3: ADR claim vs code contradiction checks"
+	@echo "  lint-no-raw-colors-spa     — web/src/ design-token guard (no raw Tailwind palette classes)"
 	@echo ""
 	@echo "Deployed-binary smoke (conventions § 0.4 #4):"
 	@echo "  smoke                — fresh-binary deploy + drive task pipeline → done"
@@ -119,6 +120,14 @@ lint-mock-default:
 lint-doc-impl-drift:
 	./scripts/lint/doc-impl-drift.sh
 
+# lint-no-raw-colors-spa — guard the React SPA design-token migration
+# (v2.3 P6 dark mode + v2.4 polish): no raw Tailwind palette classes
+# (slate/gray/blue/amber/emerald/red/…) without a paired dark: override
+# or an explicit `// raw-color-ok:` annotation. Keeps `<html class="dark">`
+# theme flip working as the SPA evolves.
+lint-no-raw-colors-spa:
+	./scripts/lint/no-raw-colors-spa.sh
+
 # smoke — conventions § 0.4 enforce mechanism #4: deployed-binary
 # smoke gate. Builds fresh binaries and drives the full task-dispatch
 # pipeline via the v22-deployed-pipeline Playwright spec. Phase-close
@@ -128,7 +137,7 @@ smoke:
 	./scripts/smoke/deploy-smoke.sh
 
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor lint-mock-default lint-doc-impl-drift
+lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.

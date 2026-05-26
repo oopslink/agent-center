@@ -26,7 +26,7 @@ export default function TaskDetail(): React.ReactElement {
 
   if (task.isLoading) {
     return (
-      <section className="text-sm text-slate-500" data-testid="page-TaskDetail">
+      <section className="text-sm text-text-muted" data-testid="page-TaskDetail">
         Loading task…
       </section>
     );
@@ -37,7 +37,7 @@ export default function TaskDetail(): React.ReactElement {
         <p className="text-sm text-danger" data-testid="task-not-found">
           {(task.error as Error).message}
         </p>
-        <Link to="/tasks" className="text-blue-600 hover:underline">
+        <Link to="/tasks" className="text-accent hover:underline">
           Back to tasks
         </Link>
       </section>
@@ -60,14 +60,14 @@ export default function TaskDetail(): React.ReactElement {
       data-testid="page-TaskDetail"
       data-task-id={tk.id}
     >
-      <header className="flex items-start justify-between border-b border-slate-200 pb-3">
+      <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
           <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span className="rounded bg-slate-100 px-2 py-0.5 uppercase text-slate-600">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+            <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
               {tk.status}
             </span>
-            <span className="rounded bg-slate-100 px-2 py-0.5 uppercase text-slate-600">
+            <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
               {tk.priority}
             </span>
             <span>
@@ -94,8 +94,8 @@ export default function TaskDetail(): React.ReactElement {
             className={[
               'rounded px-2.5 py-1 text-xs font-medium',
               selection.selectMode
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                ? 'bg-text-primary text-bg-elevated'
+                : 'bg-bg-subtle text-text-primary hover:bg-border-base',
             ].join(' ')}
             data-testid="select-mode-toggle"
             aria-pressed={selection.selectMode}
@@ -104,7 +104,7 @@ export default function TaskDetail(): React.ReactElement {
           </button>
           <Link
             to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
-            className="rounded bg-slate-100 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200"
+            className="rounded bg-bg-subtle px-3 py-1.5 text-xs text-text-primary hover:bg-border-base"
             data-testid="task-view-trace"
           >
             View trace →
@@ -115,7 +115,7 @@ export default function TaskDetail(): React.ReactElement {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden">
           {messages.isLoading && (
-            <p className="p-4 text-sm text-slate-500" data-testid="task-messages-loading">
+            <p className="p-4 text-sm text-text-muted" data-testid="task-messages-loading">
               Loading messages…
             </p>
           )}

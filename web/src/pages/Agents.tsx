@@ -45,8 +45,8 @@ export default function Agents(): React.ReactElement {
             className={[
               'rounded px-3 py-1 text-xs uppercase tracking-wide',
               filter === t.value
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                ? 'bg-text-primary text-bg-elevated'
+                : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
             ].join(' ')}
             data-testid="agents-state-tab"
             data-state={t.value}
@@ -80,16 +80,16 @@ export default function Agents(): React.ReactElement {
       )}
       {filtered.length > 0 && (
         <table
-          className="w-full table-fixed border-separate border-spacing-0 rounded border border-slate-200 bg-white"
+          className="w-full table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary"
           data-testid="agents-table"
         >
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="w-1/4 border-b border-slate-200 px-3 py-2">Name</th>
-              <th className="w-1/6 border-b border-slate-200 px-3 py-2">CLI</th>
-              <th className="w-1/6 border-b border-slate-200 px-3 py-2">State</th>
-              <th className="w-1/4 border-b border-slate-200 px-3 py-2">Worker</th>
-              <th className="border-b border-slate-200 px-3 py-2 text-right" />
+            <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
+              <th className="w-1/4 border-b border-border-base px-3 py-2">Name</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">CLI</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">State</th>
+              <th className="w-1/4 border-b border-border-base px-3 py-2">Worker</th>
+              <th className="border-b border-border-base px-3 py-2 text-right" />
             </tr>
           </thead>
           <tbody>
@@ -101,22 +101,22 @@ export default function Agents(): React.ReactElement {
                 data-agent-id={a.id}
                 data-agent-state={a.state}
               >
-                <td className="border-b border-slate-100 px-3 py-2 font-medium">{a.name}</td>
-                <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs">
+                <td className="border-b border-border-base px-3 py-2 font-medium">{a.name}</td>
+                <td className="border-b border-border-base px-3 py-2 font-mono text-xs">
                   {a.agent_cli}
                 </td>
-                <td className="border-b border-slate-100 px-3 py-2">
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs uppercase text-slate-700">
+                <td className="border-b border-border-base px-3 py-2">
+                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {a.state}
                   </span>
                 </td>
-                <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-500">
+                <td className="border-b border-border-base px-3 py-2 font-mono text-xs text-text-muted">
                   {a.worker_id || '—'}
                 </td>
-                <td className="border-b border-slate-100 px-3 py-2 text-right">
+                <td className="border-b border-border-base px-3 py-2 text-right">
                   <Link
                     to={`/agents/${encodeURIComponent(a.name)}`}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-accent hover:underline"
                   >
                     Open profile →
                   </Link>
