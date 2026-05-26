@@ -75,6 +75,16 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"install"}, InstallWorkerCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.5.1 (#agent-center:5f6288e6): uninstall — inverse of install.
+	if err := router.Add(nil, UninstallCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"uninstall"}, UninstallCenterCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"uninstall"}, UninstallWorkerCommand()); err != nil {
+		return nil, "", err
+	}
 
 	// Resource commands. We use a lazy *App provider so each invocation
 	// opens / closes the DB.

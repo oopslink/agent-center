@@ -11,6 +11,51 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased — v2.5.1 draft]
+
+Post-v2.5 uninstall command — closes the gap @oopslink flagged in
+#agent-center msg=74fb3fa6: there was no way to undo
+`install center` / `install worker` without manually unloading
+launchctl and rm-rf'ing the prefix. Upgrade was already wired in
+v2.4-D-A5; this cycle just adds the inverse.
+
+### Added
+
+- **`agent-center uninstall center [--prefix=...] [--purge] [--yes] [--dry-run]`**
+  Stops + unloads the service, removes the unit file +
+  `<prefix>/versions/` + `<prefix>/current` + `<prefix>/etc/`.
+  Preserves `<prefix>/var/` (sqlite + master.key + tokens) and
+  `<prefix>/logs/` by default so a subsequent reinstall at the
+  same prefix reuses the existing data — verified end-to-end:
+  install → checksum master.key → uninstall (no purge) →
+  reinstall → master.key identical.
+- **`agent-center uninstall worker --worker-id=<id> [...]`**
+  Same flag surface, scoped to `<prefix>/workers/<id>/`. Sibling
+  workers + the center install are untouched.
+- **`--purge`** opt-in destructive mode: wipes `var/`, `logs/`,
+  and the prefix itself. Interactive `yes` prompt by default;
+  `--yes` skips it for scripted teardown.
+- **`--dry-run`** prints the full plan (every shell command + every
+  `rm -rf` target) without mutating state.
+
+### Docs
+
+- `docs/deployment/v2.4-first-mile.md § 4.5 Journey D — uninstall`
+  walks all four flag combinations + shows the preserved-vs-purged
+  output. Reinstall-on-preserved-var path explicitly verified.
+
+### Why no `upgrade` alias
+
+`install center` (and `install worker`) already auto-detect the
+"upgrade" state and walk the atomic-symlink-swap / health-probe /
+auto-rollback path from v2.4-D-A5 (see § 4 Journey C). Adding an
+`agent-center upgrade` alias would split a single product action
+into two operator-visible commands without changing behaviour;
+PD-led design discussion in #agent-center:5f6288e6 retired the
+alias from this cycle's scope.
+
+---
+
 ## [v2.5.0] — 2026-05-26
 
 Add Worker flow redesign — split the logical "add a worker"
