@@ -39,16 +39,21 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 )
 
-// Client is the CLI-side admin transport. It dials a unix-domain socket
-// (typically cfg.Server.AdminSocketPath) and exchanges JSON with the
-// center's admin endpoint.
+// Client is the CLI-side admin transport. It dials either a unix-domain
+// socket (default; cfg.Server.AdminSocketPath) or a TCP+TLS endpoint
+// with SSH-style fingerprint pinning (v2.3-7b, task #27) — both go
+// through the same code path; the kind is captured at construct-time.
 //
-// Construct one per CLI invocation via NewClient. Zero value is invalid;
-// methods that try to use it return ErrClientNotConfigured.
+// Construct one per CLI invocation via NewClient (unix) or
+// NewClientFromTarget (any). Zero value is invalid; methods that try
+// to use it return ErrClientNotConfigured.
 type Client struct {
-	socketPath string
+	socketPath string // legacy: unix socket path (empty when TCP)
+	baseURL    string // "http://unix" or "https://host:port"
 	httpc      *http.Client
 	// token is the bearer attached to every request via the
 	// `Authorization: Bearer <token>` header. Populated via WithToken
@@ -59,6 +64,9 @@ type Client struct {
 
 // NewClient returns a Client targeting the given unix socket path.
 // timeout is applied per request; pass 0 for the default 30s.
+//
+// Preserved unchanged for backward compat with v2.2 callers + tests.
+// v2.3-7b callers wanting TCP+TLS should use NewClientFromTarget.
 func NewClient(socketPath string, timeout time.Duration) *Client {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
@@ -73,6 +81,7 @@ func NewClient(socketPath string, timeout time.Duration) *Client {
 	}
 	return &Client{
 		socketPath: socketPath,
+		baseURL:    "http://unix",
 		httpc: &http.Client{
 			Transport: tr,
 			Timeout:   timeout,
@@ -80,7 +89,33 @@ func NewClient(socketPath string, timeout time.Duration) *Client {
 	}
 }
 
+// NewClientFromTarget constructs a Client from a parsed transport
+// target (unix or tcp) + optional fingerprint (mandatory for tcp).
+// v2.3-7b (task #27). Returns an error rather than panicking when the
+// fingerprint is missing/malformed for tcp — security-sensitive path.
+func NewClientFromTarget(target clienttransport.Target, fingerprint string, timeout time.Duration) (*Client, error) {
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	tr, err := clienttransport.NewHTTPTransport(target, fingerprint, timeout)
+	if err != nil {
+		return nil, err
+	}
+	c := &Client{
+		baseURL: target.BaseURL(),
+		httpc: &http.Client{
+			Transport: tr,
+			Timeout:   timeout,
+		},
+	}
+	if target.Kind == clienttransport.KindUnix {
+		c.socketPath = target.Address
+	}
+	return c, nil
+}
+
 // SocketPath returns the configured socket path (diagnostics).
+// Empty when the Client was constructed from a TCP target.
 func (c *Client) SocketPath() string {
 	if c == nil {
 		return ""
@@ -196,7 +231,12 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		}
 		reader = bytes.NewReader(buf)
 	}
-	reqURL := "http://unix" + path
+	base := c.baseURL
+	if base == "" {
+		// Backward compat with zero-value / pre-7b Clients.
+		base = "http://unix"
+	}
+	reqURL := base + path
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, reader)
 	if err != nil {
 		return fmt.Errorf("admin client: build %s %s: %w", method, path, err)

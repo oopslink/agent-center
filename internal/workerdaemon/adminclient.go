@@ -27,15 +27,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 )
 
-// AdminClient wraps an *http.Client whose Transport dials the configured
-// unix domain socket regardless of URL host. The Host in URLs is a
-// placeholder ("unix") required by net/http URL parsing.
+// AdminClient wraps an *http.Client whose Transport dials either the
+// unix admin socket (v2.2 default) or a TCP+TLS admin endpoint with
+// SSH-style fingerprint pinning (v2.3-7b, task #27).
 type AdminClient struct {
-	socketPath string
+	socketPath string // legacy: unix socket path (empty when TCP)
+	baseURL    string // "http://unix" or "https://host:port"
 	httpc      *http.Client
 	// token is the bearer attached to every request via
 	// `Authorization: Bearer <token>`. Wired by cmd/worker-daemon via
@@ -46,6 +48,9 @@ type AdminClient struct {
 
 // NewAdminClient constructs a client targeting the given unix socket.
 // timeout is applied per-request; pass 0 for the default of 30s.
+//
+// Preserved unchanged for backward compat. v2.3-7b callers wanting
+// TCP+TLS should use NewAdminClientFromTarget.
 func NewAdminClient(socketPath string, timeout time.Duration) *AdminClient {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
@@ -61,6 +66,7 @@ func NewAdminClient(socketPath string, timeout time.Duration) *AdminClient {
 	}
 	return &AdminClient{
 		socketPath: socketPath,
+		baseURL:    "http://unix",
 		httpc: &http.Client{
 			Transport: tr,
 			Timeout:   timeout,
@@ -68,7 +74,31 @@ func NewAdminClient(socketPath string, timeout time.Duration) *AdminClient {
 	}
 }
 
+// NewAdminClientFromTarget constructs from a parsed transport target
+// (unix or tcp) + optional fingerprint (mandatory for tcp). v2.3-7b.
+func NewAdminClientFromTarget(target clienttransport.Target, fingerprint string, timeout time.Duration) (*AdminClient, error) {
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	tr, err := clienttransport.NewHTTPTransport(target, fingerprint, timeout)
+	if err != nil {
+		return nil, err
+	}
+	c := &AdminClient{
+		baseURL: target.BaseURL(),
+		httpc: &http.Client{
+			Transport: tr,
+			Timeout:   timeout,
+		},
+	}
+	if target.Kind == clienttransport.KindUnix {
+		c.socketPath = target.Address
+	}
+	return c, nil
+}
+
 // SocketPath returns the configured socket path (for logging/diagnostics).
+// Empty when constructed from a TCP target.
 func (c *AdminClient) SocketPath() string { return c.socketPath }
 
 // WithToken sets the bearer token attached to every request. Returns
@@ -291,7 +321,11 @@ func (c *AdminClient) doJSON(ctx context.Context, method, path string, body any,
 		}
 		reader = bytes.NewReader(buf)
 	}
-	url := "http://unix" + path
+	base := c.baseURL
+	if base == "" {
+		base = "http://unix"
+	}
+	url := base + path
 	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
 		return fmt.Errorf("adminclient: build %s %s: %w", method, path, err)

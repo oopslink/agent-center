@@ -42,6 +42,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/workerdaemon"
 )
@@ -61,6 +62,15 @@ func main() {
 		capsFlag     = flag.String("capabilities", "", "comma-separated capability list")
 		adminToken   = flag.String("admin-token", "",
 			"admin bearer token (required by v2.3-3a auth); falls back to AGENT_CENTER_ADMIN_TOKEN env")
+		// v2.3-7b (task #27): cross-host worker support. Either flag
+		// alone overrides cfg.Server.AdminSocketPath; --server-
+		// fingerprint is REQUIRED when --admin-target is tcp:// (no
+		// silent fallback to TLS-without-verify; pinning is the
+		// trust anchor).
+		adminTarget = flag.String("admin-target", "",
+			"admin endpoint, e.g. unix:/run/admin.sock or tcp://host:7300 (default: cfg.server.admin_socket_path)")
+		serverFingerprint = flag.String("server-fingerprint", "",
+			"sha256:HH:HH:... pinned server cert fingerprint (required with --admin-target=tcp://...); falls back to AGENT_CENTER_SERVER_FINGERPRINT env")
 		skillsDir = flag.String("skills-dir", "",
 			"directory containing worker-agent.md + extra skills (real-agent dispatch)")
 	)
@@ -78,23 +88,41 @@ func main() {
 		}
 		os.Exit(2)
 	}
-	sock := strings.TrimSpace(cfg.Server.AdminSocketPath)
-	if sock == "" {
-		fmt.Fprintln(os.Stderr, "[worker] config error: server.admin_socket_path is required (worker daemon talks to the center via unix socket per conventions § 0.4)")
+
+	// Build AdminClient. v2.3-7b: --admin-target overrides
+	// cfg.Server.AdminSocketPath; if neither set, fail.
+	targetSpec := strings.TrimSpace(*adminTarget)
+	if targetSpec == "" {
+		sock := strings.TrimSpace(cfg.Server.AdminSocketPath)
+		if sock == "" {
+			fmt.Fprintln(os.Stderr, "[worker] config error: either --admin-target (e.g. unix:/path or tcp://host:port) or server.admin_socket_path is required")
+			os.Exit(2)
+		}
+		targetSpec = "unix:" + sock
+	}
+	parsedTarget, err := clienttransport.ParseTarget(targetSpec)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[worker] config error: %v\n", err)
 		os.Exit(2)
 	}
-
-	// Build AdminClient. v2.3-3a (task #28): admin endpoint requires a
-	// bearer token on every request. Resolution order: --admin-token
-	// flag, then AGENT_CENTER_ADMIN_TOKEN env. An empty token is
-	// permitted at construct-time so existing operator scripts that
-	// inject the token via a wrapper continue to work — the server
-	// will 401 if no header reaches it.
+	fingerprint := strings.TrimSpace(*serverFingerprint)
+	if fingerprint == "" {
+		fingerprint = strings.TrimSpace(os.Getenv("AGENT_CENTER_SERVER_FINGERPRINT"))
+	}
+	// v2.3-3a (task #28): admin endpoint requires a bearer token on
+	// every request. Resolution order: --admin-token flag, then
+	// AGENT_CENTER_ADMIN_TOKEN env. Empty permitted at construct-time;
+	// server will 401 if no header reaches it.
 	token := strings.TrimSpace(*adminToken)
 	if token == "" {
 		token = strings.TrimSpace(os.Getenv("AGENT_CENTER_ADMIN_TOKEN"))
 	}
-	client := workerdaemon.NewAdminClient(sock, 30*time.Second).WithToken(token)
+	client, err := workerdaemon.NewAdminClientFromTarget(parsedTarget, fingerprint, 30*time.Second)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[worker] admin client: %v\n", err)
+		os.Exit(2)
+	}
+	client = client.WithToken(token)
 	logger := func(msg string) { fmt.Fprintf(os.Stderr, "[worker] %s\n", msg) }
 
 	// Build Runtime config.
@@ -143,8 +171,8 @@ func main() {
 		cancel()
 	}()
 
-	logger(fmt.Sprintf("starting: worker_id=%s socket=%s poll=%s overrides=%d",
-		*workerID, sock, *pollInterval, len(overrides)))
+	logger(fmt.Sprintf("starting: worker_id=%s target=%s poll=%s overrides=%d",
+		*workerID, targetSpec, *pollInterval, len(overrides)))
 
 	if err := rt.Run(ctx); err != nil {
 		// Two flavors:

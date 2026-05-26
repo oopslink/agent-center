@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
@@ -288,16 +289,21 @@ func (l *lazyApp) build() (*App, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	// v2.2-B: wire an admin Client ONLY when the configured socket
-	// actually exists on disk. Otherwise leave app.Client nil and
-	// handlers fall back to direct Service / Repo access (the legacy
-	// in-process path) — this is the transitional behaviour during
-	// the multi-stage handler migration. Once every handler is
-	// migrated AND every test uses setupAdminServerForTests, the
-	// audit's target state is: `buildClientOnly()` is the only path
-	// here and an absent socket is a hard error pointing at
-	// `agent-center server`.
-	if sock := cfg.Server.AdminSocketPath; sock != "" {
+	// v2.2-B + v2.3-7b: wire an admin Client. Resolution order:
+	//   1. AGENT_CENTER_ADMIN_TARGET env (unix:/path or tcp://host:port)
+	//      + AGENT_CENTER_SERVER_FINGERPRINT env (for tcp) → cross-host CLI
+	//   2. cfg.Server.AdminSocketPath when the socket file exists → local
+	//   3. nil → handlers fall back to direct Service / Repo (legacy
+	//      in-process path during the v2.2-B handler migration)
+	if envTarget := strings.TrimSpace(os.Getenv("AGENT_CENTER_ADMIN_TARGET")); envTarget != "" {
+		parsed, perr := clienttransport.ParseTarget(envTarget)
+		if perr == nil {
+			fp := strings.TrimSpace(os.Getenv("AGENT_CENTER_SERVER_FINGERPRINT"))
+			if cli, cerr := NewClientFromTarget(parsed, fp, 0); cerr == nil {
+				app.Client = cli.WithToken(resolveAdminToken(cfg.Server.SqlitePath))
+			}
+		}
+	} else if sock := cfg.Server.AdminSocketPath; sock != "" {
 		if _, statErr := os.Stat(sock); statErr == nil {
 			app.Client = NewClient(sock, 0).WithToken(resolveAdminToken(cfg.Server.SqlitePath))
 		}
