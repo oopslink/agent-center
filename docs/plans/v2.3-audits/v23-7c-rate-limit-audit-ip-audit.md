@@ -58,7 +58,7 @@ AuthMiddleware( RateLimitMiddleware( WithDeps( mux ) ) )
 | Per-token isolation | 是（key by TokenID）| 一个 token 被刷不影响其它 worker / CLI 的 token |
 | Public path exempt | `/admin/health` only | 跟 AuthMiddleware 白名单完全一致 |
 | 429 response | `Retry-After: 1` + JSON error `{reason: "rate_limited"}` | 客户端可以自动 backoff；error envelope 跟其它 admin error 同 shape |
-| Observability event | `admin.rate_limit_hit` 含 token_id + client_ip + method + path | 操作员可以 `agent-center inspect` / `query` 找出"哪个 IP 刷了哪个 token"，配合 v2.3-3a token revoke 一键封 |
+| Observability event | `admin.rate_limit_hit` 含 token_id + client_ip + method + path | 操作员可以 `agent-center query events --type=admin.rate_limit_hit` 找出"哪个 IP 刷了哪个 token"，配合 v2.3-3a token revoke 一键封 |
 | AuthContext.ClientIP | TCP 真 IP；unix socket 空 | 跨机请求都有可追溯 IP；单机不污染 |
 
 ## § 3. Verification
