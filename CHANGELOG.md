@@ -11,12 +11,17 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased — v2.4.0 draft] — 2026-05-26
+## [v2.4.0] — 2026-05-26
 
-> This is the draft release-notes section for v2.4. v2.3 work landed
-> on `main` between v2.2 and v2.4 without its own tag — its highlights
-> are summarized below under "v2.3 carry-over" so the v2.2 → v2.4
-> diff stays readable.
+> v2.3 work landed on `main` between v2.2 and v2.4 without its own
+> tag — its highlights are summarized below under "v2.3 carry-over"
+> so the v2.2 → v2.4 diff stays readable.
+>
+> PD-as-verifier note: this release went through 5 rounds of acceptance
+> bounce (@AgentCenterPD on Mac arm64). 10 ship-blockers + 4 polish
+> items + 1 architecture-class bug surfaced in the process, all
+> resolved before tag. See the "PD-acceptance bounce summary" section
+> below for what each round caught.
 
 ### Highlights
 
@@ -31,6 +36,8 @@ tarball to running worker in well under a minute on Mac.
 - **`agent-center install center|worker` subcommand** — single
   idempotent command for fresh install + upgrade, with cross-OS
   service unit generation (launchd on Mac, systemd on Linux).
+  Default `--tcp-listen=0.0.0.0:7300` so the Web Console can hand
+  out usable worker install commands out of the box.
 - **Atomic symlink-swap upgrade with auto-rollback** — new version is
   laid down at `<prefix>/versions/<new>/`, the schema migration runs,
   `<prefix>/current` is flipped via POSIX `rename(2)`, and the
@@ -41,21 +48,66 @@ tarball to running worker in well under a minute on Mac.
   30-minute default TTL; CAS-based first-use-burns via
   `used_at IS NULL` in the auth middleware. Coexists with v2.3-3a
   long-term tokens.
+- **Long-term worker token exchange** — `/admin/workforce/worker/enroll`
+  mints a worker-scoped `AdminToken` (`workforce:enroll`,
+  `dispatch:pull`, `task:*`, `secret:resolve`, `blob:put`) and
+  returns it in the response. Worker daemon persists it at
+  `<dataDir>/worker-token` (mode 0600, atomic tmp+rename) and
+  swaps its bearer; the one-time enroll token only carries the
+  first request. On restart the daemon reads the persisted token
+  and skips re-enroll — `launchd`/`systemd` recycles are
+  transparent (Day-2 Mac restart no longer drops the worker).
 - **Web Console Add Worker UX** — `/fleet` top-bar **+ Add Worker**
-  button + `AddWorkerModal` (7-state machine: minting / ready /
-  success / token_used / token_expired / timeout_hint) showing a
-  copyable install command. Live transition to **Worker connected**
-  via SSE `workforce.worker.enrolled`. Newly-enrolled Fleet rows
-  briefly pulse green; a global toast in the bottom-right acts as
-  fallback when the Modal is closed.
+  button + `AddWorkerModal` (`name_prompt` → `minting` → `ready` →
+  `success` / `token_used` / `token_expired` / `timeout_hint` /
+  `mint_error`) showing a copyable install command. Modal asks
+  for a friendly worker name first; server generates the
+  immutable `worker-<8hex>` id; both flow into `--worker-id` +
+  shell-quoted `--worker-name`. Live transition to **Worker
+  connected** via SSE `workforce.worker.enrolled`. Newly-enrolled
+  Fleet rows briefly pulse green; a global toast in the
+  bottom-right acts as fallback when the Modal is closed.
+- **Worker id/name split + inline rename** — id is server-generated
+  and immutable; name is editable post-enroll. New
+  `PATCH /api/workers/{id}/name` endpoint backs the inline-edit
+  on the Fleet row (`WorkerNameCell`). Migration 0030 adds the
+  `workers.name` column (backfilled to `id` for pre-existing
+  rows); `workforce.worker.renamed` SSE event keeps every tab in
+  sync.
+- **Worker liveness state machine** — `Heartbeat` CAS-transitions
+  `offline → online` and emits `workforce.worker.online`;
+  `HeartbeatReconciler` scans every 30s and flips workers to
+  `offline` after 60s of silence (`workforce.worker.offline`),
+  anchored on `max(enrolled_at, last_heartbeat_at)` so freshly
+  enrolled workers aren't false-flagged inside their first-tick
+  window. Before this, the Fleet view stayed pinned on `offline`
+  forever even while heartbeats landed.
+- **Multi-worker per machine** — launchd labels + systemd unit
+  names scope by worker-id (`com.agent-center.worker.<id>` /
+  `agent-center-worker-<id>.service`); default `--prefix` adds a
+  `worker-<id>/` suffix so two workers on one host don't trample
+  each other's SQLite, token file, or service registration.
 - **Home Get-started card** — Home page shows a prominent **Add a
   worker** CTA when no workers are enrolled, so the first-mile gap
   is visible on the landing surface.
+- **Sidebar Fleet entry** — `Fleet` route exposed in the System
+  nav group so operators can navigate back to the worker list
+  from any page after closing the Modal.
+- **`install worker` waits for daemon to enroll** — installer tails
+  the launchd stderr log for the daemon's success / failure
+  marker before claiming `✓ installed + connected`. On failure
+  prints the last 12 log lines + a concrete "To retry from
+  scratch:" recipe (`launchctl unload …; rm worker-token; ./install
+  worker --token=<NEW>`).
 - **Friendly install failure messages** — disk full, port in use,
   permission denied (systemd unit / binary write), upgrade health
   probe failure all map to `<friendly> / What to try / Underlying`
   output instead of raw syscall errors. Preflight port-availability
   check runs before service activation.
+- **`/api/health` reports the linker-injected version** — was
+  hard-coded to `"v2-dev"`; now echoes the same `buildVersion`
+  the `install` command prints so the operator sees a coherent
+  story.
 
 ### Added (v2.3 carry-over — already on `main`)
 
@@ -78,12 +130,65 @@ tarball to running worker in well under a minute on Mac.
   schema + service + frontend, per-conversation SSE subscribe, Web
   Console UX/UI overhaul, Home `bento-grid` dashboard.
 
+### Fixed (pre-existing latent bug surfaced during acceptance)
+
+- **SSE typed events were silently dropped on real browsers since
+  v2.0** — `writeSSE` emitted the W3C `event:` field on every line,
+  which routes browser EventSource delivery to
+  `addEventListener(<type>, …)` rather than the `onmessage` handler
+  that `useSSE` was actually listening on. The fake `EventSource`
+  used in tests bypassed spec dispatch entirely so 28+ green tests
+  masked the gap. Server now emits just `id:` + `data:`; event_type
+  stays inside the JSON payload where `dispatchToQueryClient`
+  already switches on it. Fixes every SSE-driven invalidation that
+  v2.0/v2.1/v2.2/v2.3 silently shipped broken — unread badges,
+  agent state changes, input-request inbox push, Fleet refresh,
+  conversation read-state. Found and fixed during the v2.4-D-X1
+  acceptance bounce; see the bounce summary below.
+
 ### Schema
 
 - **migration 0029** — `admin_tokens` gains `is_enroll`,
   `expires_at`, `used_at` columns + partial index for the
   enroll-token sub-table.
-- `targetSchemaVersion` bumped 28 → 29.
+- **migration 0030** — `workers` gains `name TEXT NOT NULL DEFAULT
+  ''`; pre-existing rows backfilled to `name = id` so the Fleet
+  projection always renders a non-empty value.
+- `targetSchemaVersion` bumped 28 → 29 → 30.
+
+### PD-acceptance bounce summary
+
+@AgentCenterPD ran 5 rounds of acceptance on a clean Mac. Each round
+exercised the first-mile journey end-to-end with real binaries, in
+order to validate ship-readiness against the actual user path (not
+against test-double green). The mapping of bounce-round → root cause
+is preserved in the commit history; condensed list:
+
+- Round 1: `install center` worked but the Modal handed out a
+  placeholder enroll token (the mint endpoint wasn't wired), the
+  install command was missing `--server-fingerprint` and a host, the
+  worker daemon plist prepended non-existent positional args, install
+  printed `v-dev` instead of `v2.4.0`, the Modal copy hard-coded a
+  fake tarball dir, `launchctl unload` noise leaked, sidebar didn't
+  expose Fleet. 4 ship-blockers + 4 polish.
+- Round 2: the worker daemon kept reusing its burned enroll token for
+  every heartbeat → 401-loop. Server now mints a long-term worker
+  token and the daemon persists it (mode 0600). Separately, every
+  typed SSE event was silently dropped on real browsers (see "Fixed"
+  above). 3 ship-blockers.
+- Round 3: worker stayed pinned on `offline` while heartbeats kept
+  arriving (`Heartbeat` never transitioned the status field; nothing
+  flipped it back to offline on stall). Reconciler + transition path
+  added. `install worker` claimed `✓ installed` before the daemon had
+  even tried to enroll — installer now waits for the daemon success
+  / failure marker. `/api/health` reported a stale version literal.
+  @oopslink extended scope to multi-worker per machine; launchd
+  labels + install prefix now scope by worker-id. 1 ship-blocker +
+  2 polish + 1 scope add.
+- Round 4: clean retry verification — all of the above landed.
+- Round 5: id/name split landed (server-generated immutable id +
+  user-typed editable name; Fleet inline rename) and clean
+  retry verification of the full first-mile journey.
 
 ### Docs
 
