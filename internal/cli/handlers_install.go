@@ -285,9 +285,25 @@ func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err != nil {
 		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
 	}
+	// v2.4-D-A6: pre-flight port check for the Web Console port.
+	webAddr := fmt.Sprintf("127.0.0.1:%d", ic.Port)
+	if err := preflightPortAvailable(webAddr); err != nil {
+		return PrintError(errw, FormatText, "install_port_in_use",
+			renderInstallError(err, installErrorContext{Operation: "bind_port", Port: webAddr}),
+			ExitBusinessError)
+	}
+	if ic.TCPListen != "" {
+		if err := preflightPortAvailable(ic.TCPListen); err != nil {
+			return PrintError(errw, FormatText, "install_port_in_use",
+				renderInstallError(err, installErrorContext{Operation: "bind_port", Port: ic.TCPListen}),
+				ExitBusinessError)
+		}
+	}
 
 	if _, _, err := copyBinaries(layout); err != nil {
-		return PrintError(errw, FormatText, "install_copy_binaries_failed", err.Error(), ExitBusinessError)
+		return PrintError(errw, FormatText, "install_copy_binaries_failed",
+			renderInstallError(err, installErrorContext{Operation: "write_binary", Path: layout.BinDir, Prefix: layout.Prefix}),
+			ExitBusinessError)
 	}
 	if err := writeVersionFile(layout); err != nil {
 		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
@@ -301,7 +317,9 @@ func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
 	currentBin := filepath.Join(layout.CurrentBinDir, "agent-center")
 	unitBody := renderCenterServiceUnit(sp, currentBin, layout.ConfigPath)
 	if err := writeUnitFile(sp.CenterUnitPath, unitBody); err != nil {
-		return PrintError(errw, FormatText, "install_write_unit_failed", err.Error(), ExitBusinessError)
+		return PrintError(errw, FormatText, "install_write_unit_failed",
+			renderInstallError(err, installErrorContext{Operation: "write_unit", Path: sp.CenterUnitPath}),
+			ExitBusinessError)
 	}
 	// Activate service; failure prints commands for manual activation.
 	if err := activateService(sp, sp.CenterServiceID, out, !installShouldActivate(sp)); err != nil {
