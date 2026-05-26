@@ -319,12 +319,36 @@ func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
 }
 
 func installCenterUpgrade(out, errw io.Writer, ic installContext) ExitCode {
-	fmt.Fprintf(out, "[a1-stub] upgrade center install → A5 (#39) will:\n")
-	fmt.Fprintf(out, "  1. mkdir %s/versions/%s (current=%s)\n", ic.Prefix, ic.Version, ic.CurrentVersion)
-	fmt.Fprintf(out, "  2. copy binaries; apply DB migrations\n")
-	fmt.Fprintf(out, "  3. atomic swap %s/current → versions/%s + restart service\n", ic.Prefix, ic.Version)
-	fmt.Fprintf(out, "  4. health probe; rollback on failure (swap back to versions/%s)\n", ic.CurrentVersion)
-	return ExitNotImplemented
+	layout := newInstallLayout(ic.Prefix, ic.Version)
+	home, _ := os.UserHomeDir()
+	sp, err := platformPaths(runtimeOS(), ic.UserMode, home)
+	if err != nil {
+		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
+	}
+	fmt.Fprintf(out, "\nUpgrading center: %s → %s\n", ic.CurrentVersion, ic.Version)
+
+	// Steps 1-3: copy binaries + write VERSION. Config + unit file NOT
+	// rewritten on upgrade (preserve operator edits; symlink swap
+	// makes <prefix>/current/bin/* refer to the new version).
+	if _, _, err := copyBinaries(layout); err != nil {
+		return PrintError(errw, FormatText, "install_copy_binaries_failed", err.Error(), ExitBusinessError)
+	}
+	if err := writeVersionFile(layout); err != nil {
+		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
+	}
+
+	if err := upgradeService(out, errw, layout, sp, sp.CenterServiceID, centerHealthProbe(layout)); err != nil {
+		// upgradeService returns post-rollback. The new versioned dir
+		// stays on disk (rollback only swapped the symlink) — operator
+		// can inspect it or `rm -rf` to retry from clean.
+		return PrintError(errw, FormatText, "install_upgrade_failed", err.Error(), ExitBusinessError)
+	}
+
+	fmt.Fprintf(out, "\n✓ Upgrade complete: %s → %s\n", ic.CurrentVersion, ic.Version)
+	fmt.Fprintf(out, "  service:   %s (%s)\n", sp.CenterServiceID, sp.ServiceManager)
+	fmt.Fprintf(out, "  current:   %s → %s\n", layout.CurrentLink, layout.VersionedDir)
+	fmt.Fprintf(out, "  Web Console: http://127.0.0.1:%d/\n", ic.Port)
+	return ExitOK
 }
 
 func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
@@ -370,10 +394,28 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 }
 
 func installWorkerUpgrade(out, errw io.Writer, ic installContext) ExitCode {
-	fmt.Fprintf(out, "[a1-stub] upgrade worker install → A5 (#39) will:\n")
-	fmt.Fprintf(out, "  1. mkdir %s/versions/%s (current=%s)\n", ic.Prefix, ic.Version, ic.CurrentVersion)
-	fmt.Fprintf(out, "  2. atomic swap %s/current → versions/%s + restart\n", ic.Prefix, ic.Version)
-	return ExitNotImplemented
+	layout := newInstallLayout(ic.Prefix, ic.Version)
+	home, _ := os.UserHomeDir()
+	sp, err := platformPaths(runtimeOS(), ic.UserMode, home)
+	if err != nil {
+		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
+	}
+	fmt.Fprintf(out, "\nUpgrading worker: %s → %s\n", ic.CurrentVersion, ic.Version)
+
+	if _, _, err := copyBinaries(layout); err != nil {
+		return PrintError(errw, FormatText, "install_copy_binaries_failed", err.Error(), ExitBusinessError)
+	}
+	if err := writeVersionFile(layout); err != nil {
+		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
+	}
+
+	if err := upgradeService(out, errw, layout, sp, sp.WorkerServiceID, workerHealthProbe(sp, sp.WorkerServiceID)); err != nil {
+		return PrintError(errw, FormatText, "install_upgrade_failed", err.Error(), ExitBusinessError)
+	}
+
+	fmt.Fprintf(out, "\n✓ Upgrade complete: %s → %s\n", ic.CurrentVersion, ic.Version)
+	fmt.Fprintf(out, "  service:   %s (%s)\n", sp.WorkerServiceID, sp.ServiceManager)
+	return ExitOK
 }
 
 // --- helpers ---------------------------------------------------------
