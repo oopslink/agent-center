@@ -96,6 +96,43 @@ export interface ConcludeIssueResult {
   event_ids: string[];
 }
 
+// v2.5.x #64 — Edit issue metadata.
+
+export interface UpdateIssueInput {
+  title: string;
+  description?: string;
+}
+
+interface LifecycleResult {
+  issue_id: string;
+  event_id: string;
+}
+
+export function useUpdateIssue(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateIssueInput) =>
+      api.patch<LifecycleResult>(`/issues/${issueId}`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
+      void qc.invalidateQueries({ queryKey: qk.issues() });
+    },
+  });
+}
+
+// v2.5.x #64 — Reopen issue (any concluded/withdrawn → open).
+
+export function useReopenIssue(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<LifecycleResult>(`/issues/${issueId}/reopen`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
+      void qc.invalidateQueries({ queryKey: qk.issues() });
+    },
+  });
+}
+
 export function useConcludeIssue(issueId: string) {
   const qc = useQueryClient();
   return useMutation({

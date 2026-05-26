@@ -6,13 +6,14 @@ import {
   useConversationRefs,
   useMessages,
 } from '@/api/conversations';
-import { useIssue } from '@/api/issues';
+import { useIssue, useReopenIssue } from '@/api/issues';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { CarryOverDivider } from '@/components/CarryOverDivider';
 import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
 import { IssueConcludeModal } from '@/components/IssueConcludeModal';
+import { IssueEditModal } from '@/components/IssueEditModal';
 import { useSelection } from '@/components/useSelection';
 import { api } from '@/api/client';
 import type { Message } from '@/api/types';
@@ -41,6 +42,8 @@ export default function IssueDetail(): React.ReactElement {
   const refs = useConversationRefs(convId);
   const selection = useSelection();
   const [concludeOpen, setConcludeOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const reopen = useReopenIssue(id);
 
   // Unique source conversation ids from the refs.
   const sourceIds = useMemo(() => {
@@ -115,7 +118,17 @@ export default function IssueDetail(): React.ReactElement {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {!isTerminal && (
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
+              data-testid="issue-edit-button"
+            >
+              Edit
+            </button>
+          )}
           {!isTerminal && (
             <button
               type="button"
@@ -124,6 +137,17 @@ export default function IssueDetail(): React.ReactElement {
               data-testid="issue-conclude-button"
             >
               Conclude
+            </button>
+          )}
+          {isTerminal && (
+            <button
+              type="button"
+              onClick={() => reopen.mutate()}
+              disabled={reopen.isPending}
+              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base disabled:opacity-50"
+              data-testid="issue-reopen-button"
+            >
+              {reopen.isPending ? 'Reopening…' : 'Reopen'}
             </button>
           )}
           <button
@@ -146,6 +170,12 @@ export default function IssueDetail(): React.ReactElement {
         <IssueConcludeModal
           issueId={iss.id}
           onClose={() => setConcludeOpen(false)}
+        />
+      )}
+      {editOpen && (
+        <IssueEditModal
+          issue={iss}
+          onClose={() => setEditOpen(false)}
         />
       )}
 

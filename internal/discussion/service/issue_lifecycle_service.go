@@ -289,6 +289,122 @@ func (s *IssueLifecycleService) Withdraw(ctx context.Context, cmd WithdrawIssueC
 	return evID, err
 }
 
+// UpdateMetadataCommand drives IssueLifecycleService.UpdateMetadata
+// (v2.5.x #64). Title required; description may be empty.
+type UpdateMetadataCommand struct {
+	IssueID     discussion.IssueID
+	Title       string
+	Description string
+	Actor       observability.Actor
+}
+
+// UpdateMetadata edits title + description on a non-terminal issue.
+// Wraps the AR's UpdateMetadata + repo's UpdateMetadata + emits
+// `issue.metadata_updated`.
+func (s *IssueLifecycleService) UpdateMetadata(ctx context.Context, cmd UpdateMetadataCommand) (observability.EventID, error) {
+	if err := cmd.Actor.Validate(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(string(cmd.IssueID)) == "" {
+		return "", errors.New("issue service: issue_id required")
+	}
+	if strings.TrimSpace(cmd.Title) == "" {
+		return "", errors.New("issue service: title required")
+	}
+	var evID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		issue, err := s.issueRepo.FindByID(txCtx, cmd.IssueID)
+		if err != nil {
+			return err
+		}
+		prevVersion := issue.Version()
+		if err := issue.UpdateMetadata(cmd.Title, cmd.Description, s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.issueRepo.UpdateMetadata(txCtx, issue.ID(), cmd.Title, cmd.Description, prevVersion, s.clock.Now()); err != nil {
+			return err
+		}
+		id, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "issue.metadata_updated",
+			Refs: observability.EventRefs{
+				IssueID:        string(issue.ID()),
+				ProjectID:      issue.ProjectID(),
+				ConversationID: string(issue.ConversationID()),
+			},
+			Actor: cmd.Actor,
+			Payload: map[string]any{
+				"issue_id":    string(issue.ID()),
+				"title":       cmd.Title,
+				"description": cmd.Description,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		evID = id
+		return nil
+	})
+	return evID, err
+}
+
+// ReopenCommand drives IssueLifecycleService.Reopen (v2.5.x #64).
+type ReopenCommand struct {
+	IssueID    discussion.IssueID
+	ReopenedBy string
+	Actor      observability.Actor
+}
+
+// Reopen transitions any concluded/withdrawn issue back to open per (c)
+// semantics @oopslink chose. Spawned tasks (closed_with_tasks) are NOT
+// cascaded.
+func (s *IssueLifecycleService) Reopen(ctx context.Context, cmd ReopenCommand) (observability.EventID, error) {
+	if err := cmd.Actor.Validate(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(string(cmd.IssueID)) == "" {
+		return "", errors.New("issue service: issue_id required")
+	}
+	reopenedBy := cmd.ReopenedBy
+	if strings.TrimSpace(reopenedBy) == "" {
+		reopenedBy = cmd.Actor.String()
+	}
+	var evID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		issue, err := s.issueRepo.FindByID(txCtx, cmd.IssueID)
+		if err != nil {
+			return err
+		}
+		prevVersion := issue.Version()
+		prevStatus := issue.Status()
+		if err := issue.Reopen(reopenedBy, s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.issueRepo.UpdateReopen(txCtx, issue.ID(), prevVersion, s.clock.Now()); err != nil {
+			return err
+		}
+		id, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "issue.reopened",
+			Refs: observability.EventRefs{
+				IssueID:        string(issue.ID()),
+				ProjectID:      issue.ProjectID(),
+				ConversationID: string(issue.ConversationID()),
+			},
+			Actor: cmd.Actor,
+			Payload: map[string]any{
+				"issue_id":     string(issue.ID()),
+				"from_status":  string(prevStatus),
+				"reopened_by":  reopenedBy,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		evID = id
+		return nil
+	})
+	return evID, err
+}
+
 // RecordDiscussionStartCommand drives RecordDiscussionStart.
 type RecordDiscussionStartCommand struct {
 	IssueID               discussion.IssueID

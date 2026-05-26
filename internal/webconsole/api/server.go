@@ -139,6 +139,10 @@ func (s *Server) routes() {
 	// v2.5.x #61 — Issue mutation surface (Conclude).
 	s.mux.HandleFunc("POST /api/issues/{id}/conclude", s.concludeIssueHandler)
 
+	// v2.5.x #64 — Issue Edit + Reopen.
+	s.mux.HandleFunc("PATCH /api/issues/{id}", s.updateIssueHandler)
+	s.mux.HandleFunc("POST /api/issues/{id}/reopen", s.reopenIssueHandler)
+
 	// v2.5.x #62 — Task lifecycle mutation surface (Suspend / Resume /
 	// Abandon). v2.5.x #65 adds Edit (PATCH metadata) on top.
 	s.mux.HandleFunc("POST /api/tasks/{id}/suspend", s.suspendTaskHandler)

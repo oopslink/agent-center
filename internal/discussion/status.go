@@ -67,9 +67,14 @@ var allowedTransitions = map[Status][]Status{
 		StatusClosedWithTasks,
 		StatusWithdrawn,
 	},
-	StatusClosedNoAction:  {}, // terminal
-	StatusClosedWithTasks: {}, // terminal
-	StatusWithdrawn:       {}, // terminal
+	// v2.5.x #65/#64 (c semantics per @oopslink #agent-center:93118955):
+	// Reopen edges allow any concluded/withdrawn issue to go back to open.
+	// Spawned tasks are NOT cascaded — the operator's mental model is
+	// "the discussion is reopened" rather than "we abandon the work that
+	// was already spawned". Same idea as Slack "reopen issue" semantics.
+	StatusClosedNoAction:  {StatusOpen},
+	StatusClosedWithTasks: {StatusOpen},
+	StatusWithdrawn:       {StatusOpen},
 }
 
 // CanTransitionTo reports whether from→to is in the allowed transition

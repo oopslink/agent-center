@@ -956,6 +956,74 @@ func (s *Server) abandonTaskHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// updateIssueReq is the PATCH /api/issues/{id} body (v2.5.x #64 Edit).
+type updateIssueReq struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+// updateIssueHandler serves PATCH /api/issues/{id} — wraps
+// IssueLifecycleSvc.UpdateMetadata.
+func (s *Server) updateIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.IssueLifecycleSvc == nil {
+		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
+		return
+	}
+	id := discussion.IssueID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	var req updateIssueReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	evID, err := d.IssueLifecycleSvc.UpdateMetadata(r.Context(), disservice.UpdateMetadataCommand{
+		IssueID:     id,
+		Title:       req.Title,
+		Description: req.Description,
+		Actor:       d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"issue_id": string(id),
+		"event_id": string(evID),
+	})
+}
+
+// reopenIssueHandler serves POST /api/issues/{id}/reopen — wraps
+// IssueLifecycleSvc.Reopen (v2.5.x #64, (c) semantics — spawned tasks
+// are NOT cascaded).
+func (s *Server) reopenIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.IssueLifecycleSvc == nil {
+		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
+		return
+	}
+	id := discussion.IssueID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	evID, err := d.IssueLifecycleSvc.Reopen(r.Context(), disservice.ReopenCommand{
+		IssueID: id,
+		Actor:   d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"issue_id": string(id),
+		"event_id": string(evID),
+	})
+}
+
 // updateTaskReq is the PATCH /api/tasks/{id} body (v2.5.x #65 Edit).
 type updateTaskReq struct {
 	Title       string `json:"title"`
@@ -1640,6 +1708,7 @@ func issuePublicMap(i *discussion.Issue) map[string]any {
 		"project_id":      i.ProjectID(),
 		"conversation_id": string(i.ConversationID()),
 		"title":           i.Title(),
+		"description":     i.Description(),
 		"status":          string(i.Status()),
 		"opened_at":       i.OpenedAt().Format(time.RFC3339Nano),
 		"opener":          i.OpenedByIdentityID(),

@@ -180,6 +180,121 @@ func TestAPI_ConcludeIssue_NotWired(t *testing.T) {
 	}
 }
 
+// v2.5.x #64 — Edit + Reopen tests.
+
+func TestAPI_UpdateIssue_Happy(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	openBody := `{"project_id":"p-1","title":"old title"}`
+	resp, _ := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(openBody))
+	var openOut map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&openOut)
+	id := openOut["issue_id"].(string)
+	patch := `{"title":"new title","description":"new desc"}`
+	req, _ := http.NewRequest("PATCH", s.URL+"/api/issues/"+id, strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json")
+	r2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.StatusCode != 200 {
+		t.Fatalf("status=%d", r2.StatusCode)
+	}
+	r3, _ := http.Get(s.URL + "/api/issues/" + id)
+	var iss map[string]any
+	_ = json.NewDecoder(r3.Body).Decode(&iss)
+	if iss["title"] != "new title" {
+		t.Fatalf("title=%v", iss["title"])
+	}
+}
+
+func TestAPI_UpdateIssue_TerminalRejected(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
+		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	var openOut map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&openOut)
+	id := openOut["issue_id"].(string)
+	// Conclude first → terminal.
+	_, _ = http.Post(s.URL+"/api/issues/"+id+"/conclude", "application/json",
+		strings.NewReader(`{"kind":"closed_no_action","summary":"x"}`))
+	// Edit should reject.
+	req, _ := http.NewRequest("PATCH", s.URL+"/api/issues/"+id, strings.NewReader(`{"title":"new"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r2, _ := http.DefaultClient.Do(req)
+	if r2.StatusCode == 200 {
+		t.Fatalf("status=%d expected non-200", r2.StatusCode)
+	}
+}
+
+func TestAPI_UpdateIssue_NotWired(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.IssueLifecycleSvc = nil
+	s := newTestServer(t, deps)
+	defer s.Close()
+	req, _ := http.NewRequest("PATCH", s.URL+"/api/issues/I-1", strings.NewReader(`{"title":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+	r, _ := http.DefaultClient.Do(req)
+	if r.StatusCode != 501 {
+		t.Fatalf("status=%d", r.StatusCode)
+	}
+}
+
+func TestAPI_ReopenIssue_Happy(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
+		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	var openOut map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&openOut)
+	id := openOut["issue_id"].(string)
+	// Conclude.
+	_, _ = http.Post(s.URL+"/api/issues/"+id+"/conclude", "application/json",
+		strings.NewReader(`{"kind":"closed_no_action","summary":"x"}`))
+	// Reopen.
+	r2, _ := http.Post(s.URL+"/api/issues/"+id+"/reopen", "application/json", strings.NewReader(`{}`))
+	if r2.StatusCode != 200 {
+		t.Fatalf("status=%d", r2.StatusCode)
+	}
+	r3, _ := http.Get(s.URL + "/api/issues/" + id)
+	var iss map[string]any
+	_ = json.NewDecoder(r3.Body).Decode(&iss)
+	if iss["status"] != string(discussion.StatusOpen) {
+		t.Fatalf("status=%v want open", iss["status"])
+	}
+}
+
+func TestAPI_ReopenIssue_NonTerminalRejected(t *testing.T) {
+	deps, _ := setupAPI(t)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
+		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	var openOut map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&openOut)
+	id := openOut["issue_id"].(string)
+	// Already open — reopen should reject.
+	r2, _ := http.Post(s.URL+"/api/issues/"+id+"/reopen", "application/json", strings.NewReader(`{}`))
+	if r2.StatusCode == 200 {
+		t.Fatalf("status=%d expected non-200 (already open)", r2.StatusCode)
+	}
+}
+
+func TestAPI_ReopenIssue_NotWired(t *testing.T) {
+	deps, _ := setupAPI(t)
+	deps.IssueLifecycleSvc = nil
+	s := newTestServer(t, deps)
+	defer s.Close()
+	r, _ := http.Post(s.URL+"/api/issues/I-1/reopen", "application/json", strings.NewReader(`{}`))
+	if r.StatusCode != 501 {
+		t.Fatalf("status=%d", r.StatusCode)
+	}
+}
+
 // Sanity: derive path is unaffected by the open-from-scratch branch.
 // Specifically, the previous deriveIssueHandler entry point still fires
 // when source_conversation_id is provided.

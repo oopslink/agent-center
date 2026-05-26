@@ -34,4 +34,7 @@ type IssueRepository interface {
 	UpdateConclusion(ctx context.Context, id IssueID, summary, concludedBy string, concludedAt time.Time, version int) error
 	UpdateRelatedConversationIDs(ctx context.Context, id IssueID, ids []conversation.ConversationID, version int, at time.Time) error
 	UpdateWithdraw(ctx context.Context, id IssueID, reason, message, withdrawnBy string, withdrawnAt time.Time, version int) error
+	// v2.5.x #64
+	UpdateMetadata(ctx context.Context, id IssueID, title, description string, version int, at time.Time) error
+	UpdateReopen(ctx context.Context, id IssueID, version int, at time.Time) error
 }

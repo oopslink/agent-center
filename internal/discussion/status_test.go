@@ -45,6 +45,12 @@ func TestCanTransitionTo_LegalSet(t *testing.T) {
 		{StatusConcluded, StatusClosedNoAction},
 		{StatusConcluded, StatusClosedWithTasks},
 		{StatusConcluded, StatusWithdrawn},
+		// v2.5.x #64 (c semantics @oopslink #agent-center:93118955):
+		// reopen is legal from any concluded/withdrawn terminal back to
+		// open. Spawned tasks (closed_with_tasks) are not cascaded.
+		{StatusClosedNoAction, StatusOpen},
+		{StatusClosedWithTasks, StatusOpen},
+		{StatusWithdrawn, StatusOpen},
 	}
 	for _, c := range legal {
 		if !CanTransitionTo(c.from, c.to) {
@@ -55,11 +61,12 @@ func TestCanTransitionTo_LegalSet(t *testing.T) {
 
 func TestCanTransitionTo_IllegalSet(t *testing.T) {
 	illegal := []struct{ from, to Status }{
-		{StatusClosedWithTasks, StatusOpen},
+		// Terminal states still reject non-open targets (reopen is
+		// explicitly the only outgoing edge added).
 		{StatusClosedNoAction, StatusUnderDiscussion},
 		{StatusWithdrawn, StatusConcluded},
-		{StatusWithdrawn, StatusOpen},
 		{StatusClosedWithTasks, StatusClosedNoAction},
+		{StatusClosedNoAction, StatusClosedWithTasks},
 		{StatusOpen, Status("bogus")},
 		{Status("bogus"), StatusOpen},
 	}

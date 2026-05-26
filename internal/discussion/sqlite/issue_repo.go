@@ -286,6 +286,50 @@ func (r *IssueRepo) UpdateWithdraw(ctx context.Context, id discussion.IssueID, r
 	return r.casResult(ctx, res, id)
 }
 
+// UpdateMetadata writes title + description (v2.5.x #64). Caller (the
+// AR via service) is responsible for the non-terminal guard; the SQL
+// keeps the guard belt-and-suspenders via status filter.
+func (r *IssueRepo) UpdateMetadata(ctx context.Context, id discussion.IssueID, title, description string, version int, at time.Time) error {
+	if strings.TrimSpace(title) == "" {
+		return errors.New("issue repo: title required for UpdateMetadata")
+	}
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	now := at.UTC().Format(time.RFC3339Nano)
+	const stmt = `UPDATE issues SET title = ?, description = ?, updated_at = ?, version = version + 1
+		WHERE id = ? AND version = ?
+		  AND status NOT IN ('withdrawn','closed_no_action','closed_with_tasks')`
+	res, err := exec.ExecContext(ctx, stmt, title, description, now, string(id), version)
+	if err != nil {
+		return err
+	}
+	return r.casResult(ctx, res, id)
+}
+
+// UpdateReopen flips a terminal issue back to open + clears the
+// conclusion / withdraw fields (v2.5.x #64, (c) semantics). Spawned
+// tasks are not cascaded by this method (or anywhere).
+func (r *IssueRepo) UpdateReopen(ctx context.Context, id discussion.IssueID, version int, at time.Time) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	now := at.UTC().Format(time.RFC3339Nano)
+	const stmt = `UPDATE issues SET
+			status = ?, conclusion_summary = '', concluded_by_identity_id = '',
+			concluded_at = NULL, withdraw_reason = '', withdraw_message = '',
+			updated_at = ?, version = version + 1
+		WHERE id = ? AND version = ?
+		  AND status IN ('withdrawn','closed_no_action','closed_with_tasks')`
+	res, err := exec.ExecContext(ctx, stmt, string(discussion.StatusOpen), now, string(id), version)
+	if err != nil {
+		return err
+	}
+	return r.casResult(ctx, res, id)
+}
+
 func (r *IssueRepo) casResult(ctx context.Context, res sql.Result, id discussion.IssueID) error {
 	n, err := res.RowsAffected()
 	if err != nil {

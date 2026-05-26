@@ -282,6 +282,51 @@ func (i *Issue) Conclude(resolution Resolution, concludedBy string, now time.Tim
 	return nil
 }
 
+// UpdateMetadata edits title + description on a non-terminal issue
+// (v2.5.x #64). Terminal issues must be reopened first if the operator
+// wants to change them. Bumps version on success.
+func (i *Issue) UpdateMetadata(title, description string, now time.Time) error {
+	if i.IsTerminal() {
+		return fmt.Errorf("%w: terminal issue is immutable (reopen first)", ErrIssueInvalidTransition)
+	}
+	if strings.TrimSpace(title) == "" {
+		return errors.New("issue: title required")
+	}
+	i.title = title
+	i.description = description
+	i.updatedAt = now.UTC()
+	i.version++
+	return nil
+}
+
+// Reopen transitions any concluded/withdrawn terminal back to open
+// (v2.5.x #64, semantics (c) per @oopslink #agent-center:93118955).
+// Spawned tasks (closed_with_tasks) are NOT cascaded — the mental model
+// is "the discussion is reopened" rather than "we abandon the work that
+// was already spawned". Clears conclusion / withdraw fields since they
+// no longer reflect current state; the event log captures the
+// historical conclude / withdraw.
+func (i *Issue) Reopen(reopenedBy string, now time.Time) error {
+	if !i.IsTerminal() {
+		return fmt.Errorf("%w: %s is not reopen-able (not terminal)", ErrIssueInvalidTransition, i.status)
+	}
+	if !CanTransitionTo(i.status, StatusOpen) {
+		return fmt.Errorf("%w: %s → open not allowed", ErrIssueInvalidTransition, i.status)
+	}
+	if strings.TrimSpace(reopenedBy) == "" {
+		return errors.New("issue: reopen actor required")
+	}
+	i.status = StatusOpen
+	i.conclusionSummary = ""
+	i.concludedByIdentityID = ""
+	i.concludedAt = nil
+	i.withdrawReason = ""
+	i.withdrawMessage = ""
+	i.updatedAt = now.UTC()
+	i.version++
+	return nil
+}
+
 // BindConversation sets conversation_id (null → non-null only). Rebinding
 // to a different id is rejected (invariant 5).
 func (i *Issue) BindConversation(convID conversation.ConversationID, now time.Time) error {

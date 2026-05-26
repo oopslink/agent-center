@@ -175,6 +175,7 @@ export interface Issue {
   project_id: string;
   conversation_id: string;
   title: string;
+  description: string;
   status: IssueStatus;
   opened_at: string;
   opener: string;

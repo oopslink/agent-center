@@ -382,3 +382,115 @@ func TestRehydrateIssue_RoundTrip(t *testing.T) {
 		t.Fatal("bad version should err")
 	}
 }
+
+// =============================================================================
+// v2.5.x #64 — UpdateMetadata + Reopen tests
+// =============================================================================
+
+func TestIssue_UpdateMetadata_Happy(t *testing.T) {
+	i := mustIssue(t, NewIssueInput{
+		ID: "I-1", ProjectID: "P-1", Title: "old", OpenedByIdentityID: "user:hayang", Origin: OriginCLI,
+	})
+	if err := i.UpdateMetadata("new title", "new desc", time.Date(2026, 5, 21, 2, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if i.Title() != "new title" {
+		t.Fatalf("title=%q", i.Title())
+	}
+	if i.Description() != "new desc" {
+		t.Fatalf("description=%q", i.Description())
+	}
+	if i.Version() != 2 {
+		t.Fatalf("version=%d", i.Version())
+	}
+}
+
+func TestIssue_UpdateMetadata_RejectsEmptyTitle(t *testing.T) {
+	i := mustIssue(t, NewIssueInput{
+		ID: "I-1", ProjectID: "P-1", Title: "x", OpenedByIdentityID: "u", Origin: OriginCLI,
+	})
+	if err := i.UpdateMetadata("   ", "", time.Now()); err == nil {
+		t.Fatal("expected err")
+	}
+}
+
+func TestIssue_UpdateMetadata_RejectsTerminal(t *testing.T) {
+	i := mustIssue(t, NewIssueInput{
+		ID: "I-1", ProjectID: "P-1", Title: "x", OpenedByIdentityID: "u", Origin: OriginCLI,
+	})
+	now := time.Date(2026, 5, 21, 2, 0, 0, 0, time.UTC)
+	res := Resolution{Kind: ResolutionClosedNoAction, Summary: "no"}
+	if err := i.Conclude(res, "u", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.UpdateMetadata("new", "x", now); !errors.Is(err, ErrIssueInvalidTransition) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestIssue_Reopen_Happy(t *testing.T) {
+	cases := []struct {
+		name       string
+		concludeTo func(*Issue) error
+	}{
+		{"from closed_no_action", func(i *Issue) error {
+			return i.Conclude(Resolution{Kind: ResolutionClosedNoAction, Summary: "no"}, "u", time.Date(2026, 5, 21, 2, 0, 0, 0, time.UTC))
+		}},
+		{"from withdrawn", func(i *Issue) error {
+			return i.Withdraw("r", "m", "u", time.Date(2026, 5, 21, 2, 0, 0, 0, time.UTC))
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			i := mustIssue(t, NewIssueInput{
+				ID: "I-1", ProjectID: "P-1", Title: "x", OpenedByIdentityID: "u", Origin: OriginCLI,
+			})
+			if err := c.concludeTo(i); err != nil {
+				t.Fatal(err)
+			}
+			if !i.IsTerminal() {
+				t.Fatal("expected terminal before reopen")
+			}
+			if err := i.Reopen("u", time.Date(2026, 5, 21, 3, 0, 0, 0, time.UTC)); err != nil {
+				t.Fatal(err)
+			}
+			if i.Status() != StatusOpen {
+				t.Fatalf("status=%s", i.Status())
+			}
+			if i.ConclusionSummary() != "" {
+				t.Fatalf("conclusion not cleared: %q", i.ConclusionSummary())
+			}
+			if i.WithdrawReason() != "" {
+				t.Fatalf("withdraw_reason not cleared: %q", i.WithdrawReason())
+			}
+			if i.ConcludedAt() != nil {
+				t.Fatal("concluded_at not cleared")
+			}
+		})
+	}
+}
+
+func TestIssue_Reopen_RejectsNonTerminal(t *testing.T) {
+	i := mustIssue(t, NewIssueInput{
+		ID: "I-1", ProjectID: "P-1", Title: "x", OpenedByIdentityID: "u", Origin: OriginCLI,
+	})
+	if err := i.Reopen("u", time.Now()); !errors.Is(err, ErrIssueInvalidTransition) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestIssue_Reopen_RequiresActor(t *testing.T) {
+	i := mustIssue(t, NewIssueInput{
+		ID: "I-1", ProjectID: "P-1", Title: "x", OpenedByIdentityID: "u", Origin: OriginCLI,
+	})
+	if err := i.Conclude(Resolution{Kind: ResolutionClosedNoAction, Summary: "no"}, "u", time.Date(2026, 5, 21, 2, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if err := i.Reopen("   ", time.Now()); err == nil {
+		t.Fatal("expected err")
+	}
+}
+
+// silence unused if conversation import isn't needed elsewhere.
+var _ = conversation.ConversationID("")
+var _ = dispatch.IssueConcludeTaskSpec{}

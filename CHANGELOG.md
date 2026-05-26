@@ -11,6 +11,64 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.11
+
+Web Console Issue Edit + Reopen (#64, follow-up to #61 split).
+Closes the last gap in the v2.5.x Issue management surface.
+Reopen semantics chosen by @oopslink at
+`#agent-center:93118955` — option (c) "Reopen does not touch
+spawned tasks": any concluded/withdrawn issue can be flipped
+back to open, but any tasks that were spawned at conclude time
+remain in their current state. This keeps the operator's mental
+model "reopen the discussion" simple and avoids a cross-BC
+cascade orchestrator.
+
+### Added
+
+- **Discussion BC** — `Issue.UpdateMetadata(title, description,
+  now)` AR method. Title required; rejects terminal status
+  (operator must reopen first).
+- **Discussion BC state machine** — new edges from each
+  concluded/withdrawn terminal back to `open`:
+  `closed_no_action → open`, `closed_with_tasks → open`,
+  `withdrawn → open`. `Status.IsTerminal()` is unchanged so
+  Conclude / Withdraw still reject double-application.
+- **Discussion BC** — `Issue.Reopen(reopenedBy, now)` AR method.
+  Clears `conclusion_summary` / `concluded_by` / `concluded_at`
+  / `withdraw_reason` / `withdraw_message` since they no longer
+  reflect current state (event log captures the historical
+  conclude/withdraw). Spawned tasks are not touched.
+- **IssueRepository** — `UpdateMetadata` + `UpdateReopen` CAS
+  methods. `UpdateReopen` is a single statement that flips
+  status + clears the conclusion/withdraw columns atomically.
+- **IssueLifecycleService.UpdateMetadata** / **Reopen** wrap the
+  AR methods with tx + repo write + observability emit
+  (`issue.metadata_updated` / `issue.reopened`).
+- **PATCH /api/issues/{id}** wraps UpdateMetadata.
+- **POST /api/issues/{id}/reopen** wraps Reopen.
+- **IssueDetail page**: `[Edit]` action (hidden when terminal);
+  `[Reopen]` action (only when terminal). New `IssueEditModal`
+  prefills from the current issue and PATCHes on submit.
+- **issuePublicMap** now emits `description` (the field was
+  always on the AR but was never exposed; the SPA `Issue` type
+  gains the field to keep `tsc --noEmit` happy).
+
+### Verification
+
+- Domain: 5 new Issue AR unit tests (UpdateMetadata happy /
+  empty-title / terminal-rejected, Reopen happy from both
+  closed_no_action + withdrawn, Reopen rejects non-terminal,
+  Reopen requires actor).
+- Discussion state machine: status_test.go updated — three new
+  legal edges, withdrawn → concluded still illegal.
+- Backend: 6 new webconsole API tests (Edit happy /
+  terminal-rejected / not-wired, Reopen happy /
+  non-terminal-rejected / not-wired).
+- Frontend: 308 vitest specs green (3 new for
+  `IssueEditModal`).
+
+---
+
 ## [v2.5.10] — 2026-05-27
 
 Web Console Task Edit metadata (#65, follow-up to #62 split).
