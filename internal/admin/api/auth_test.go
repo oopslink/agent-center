@@ -40,6 +40,12 @@ func (f *fakeVerifier) MarkUsedAsync(id admintoken.TokenID) {
 	atomic.AddInt64(&f.usedHits, 1)
 }
 
+// ConsumeEnrollToken stub for v2.4-D-A3 enroll-token consumption.
+func (f *fakeVerifier) ConsumeEnrollToken(ctx context.Context, id admintoken.TokenID) error {
+	atomic.AddInt64(&f.usedHits, 1)
+	return nil
+}
+
 // downstream is the handler the middleware wraps. It echoes whether
 // AuthContext is present + records the scopes it saw.
 type recordingHandler struct {

@@ -18,4 +18,8 @@ type Repository interface {
 	// UpdateLastUsedAt is best-effort, never blocks middleware. Implementations
 	// may swallow constraint errors.
 	UpdateLastUsedAt(ctx context.Context, id TokenID, atRFC3339Nano string) error
+	// ConsumeEnrollToken atomically burns an enroll token (v2.4-D-A3,
+	// task #37). Returns ErrTokenConsumed if already burnt,
+	// ErrTokenNotFound if id isn't an enroll token / doesn't exist.
+	ConsumeEnrollToken(ctx context.Context, id TokenID, atRFC3339Nano string) error
 }

@@ -55,4 +55,7 @@ var (
 	ErrTokenMissingBearer   = errors.New("admintoken: request missing Authorization bearer")
 	ErrTokenScopeForbidden  = errors.New("admintoken: token lacks required scope")
 	ErrTokenVersionConflict = errors.New("admintoken: version conflict (optimistic lock)")
+	// v2.4-D-A3 (task #37) enroll-token sentinels.
+	ErrTokenExpired  = errors.New("admintoken: enroll token expired")
+	ErrTokenConsumed = errors.New("admintoken: enroll token already used (one-time-use)")
 )

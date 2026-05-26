@@ -141,6 +141,10 @@ func (s *Service) Create(ctx context.Context, cmd CreateCommand) (CreateResult, 
 
 // VerifyPlaintext is the middleware fast-path: hash + lookup + revoked
 // check. Returns the AR for actor + scope use, or a sentinel error.
+//
+// v2.4-D-A3 (task #37): enroll tokens additionally checked for expiry
+// + consumption. Long-term tokens (IsEnroll=false) skip those checks
+// and behave identically to v2.3-3a.
 func (s *Service) VerifyPlaintext(ctx context.Context, plaintext string) (*admintoken.AdminToken, error) {
 	if plaintext == "" {
 		return nil, admintoken.ErrTokenMissingBearer
@@ -153,7 +157,72 @@ func (s *Service) VerifyPlaintext(ctx context.Context, plaintext string) (*admin
 	if t.IsRevoked() {
 		return nil, admintoken.ErrTokenRevoked
 	}
+	if t.IsEnroll() {
+		if t.IsExpired(s.clock.Now()) {
+			return nil, admintoken.ErrTokenExpired
+		}
+		if t.IsConsumed() {
+			return nil, admintoken.ErrTokenConsumed
+		}
+	}
 	return t, nil
+}
+
+// CreateEnrollCommand mints a one-time-use bootstrap-enroll token.
+// v2.4-D-A3 (task #37).
+type CreateEnrollCommand struct {
+	Owner     admintoken.Owner
+	Scopes    []admintoken.Scope
+	CreatedBy string
+	TTL       time.Duration // window of validity from now; e.g. 30 * time.Minute
+}
+
+// CreateEnrollToken mints a fresh enroll token. The plaintext is
+// returned ONCE; the AR records expires_at = now + ttl. After first
+// successful VerifyPlaintext, middleware should call ConsumeEnrollToken
+// to mark used_at and prevent reuse.
+func (s *Service) CreateEnrollToken(ctx context.Context, cmd CreateEnrollCommand) (CreateResult, error) {
+	if strings.TrimSpace(string(cmd.Owner)) == "" {
+		return CreateResult{}, admintoken.ErrTokenOwnerRequired
+	}
+	if len(cmd.Scopes) == 0 {
+		return CreateResult{}, admintoken.ErrTokenScopesRequired
+	}
+	if cmd.TTL <= 0 {
+		cmd.TTL = 30 * time.Minute
+	}
+	plaintext, err := admintoken.GeneratePlaintext()
+	if err != nil {
+		return CreateResult{}, fmt.Errorf("admin token: generate plaintext: %w", err)
+	}
+	hash := admintoken.HashPlaintext(plaintext)
+	id := admintoken.TokenID(s.idgen.NewULID())
+	expiresAt := s.clock.Now().Add(cmd.TTL)
+	t, err := admintoken.New(admintoken.NewAdminTokenInput{
+		ID:        id,
+		Owner:     cmd.Owner,
+		Scopes:    cmd.Scopes,
+		ValueHash: hash,
+		CreatedAt: s.clock.Now(),
+		CreatedBy: cmd.CreatedBy,
+		IsEnroll:  true,
+		ExpiresAt: &expiresAt,
+	})
+	if err != nil {
+		return CreateResult{}, err
+	}
+	if err := s.repo.Save(ctx, t); err != nil {
+		return CreateResult{}, err
+	}
+	return CreateResult{ID: id, Plaintext: plaintext}, nil
+}
+
+// ConsumeEnrollToken burns an enroll token (idempotent at the repo
+// CAS level). Returns ErrTokenConsumed if already used, ErrTokenNotFound
+// if id doesn't exist or isn't an enroll token. Middleware calls this
+// after VerifyPlaintext succeeds for an enroll token.
+func (s *Service) ConsumeEnrollToken(ctx context.Context, id admintoken.TokenID) error {
+	return s.repo.ConsumeEnrollToken(ctx, id, s.clock.Now().UTC().Format(time.RFC3339Nano))
 }
 
 // FindByID is a thin pass-through for the list/revoke CLI surface.

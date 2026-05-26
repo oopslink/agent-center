@@ -17,6 +17,9 @@ const PlaintextPrefix = "acat_"
 // AdminToken is the AR. value_hash is the only secret-derived field —
 // plaintext is never persisted and only flows back to the operator at
 // creation time via NewAdminTokenWithPlaintext.
+//
+// v2.4-D-A3 (task #37) added the enroll-token fields: isEnroll +
+// expiresAt + usedAt. Long-term tokens (v2.3-3a) leave all three zero.
 type AdminToken struct {
 	id            TokenID
 	owner         Owner
@@ -29,6 +32,10 @@ type AdminToken struct {
 	revokedReason string
 	lastUsedAt    *time.Time
 	version       int
+	// v2.4-D-A3 enroll-token fields.
+	isEnroll  bool
+	expiresAt *time.Time // nil for long-term tokens
+	usedAt    *time.Time // nil until first verify burns the enroll token
 }
 
 // NewAdminTokenInput captures the fields available at creation.
@@ -39,6 +46,11 @@ type NewAdminTokenInput struct {
 	ValueHash  []byte
 	CreatedAt  time.Time
 	CreatedBy  string
+	// v2.4-D-A3: set IsEnroll=true + ExpiresAt non-nil to mint an
+	// enroll-token (short TTL, first-use-burns). Long-term tokens
+	// leave both at zero values.
+	IsEnroll  bool
+	ExpiresAt *time.Time
 }
 
 // New constructs an AdminToken AR with the given pre-computed value hash.
@@ -73,7 +85,7 @@ func New(in NewAdminTokenInput) (*AdminToken, error) {
 	}
 	hashCopy := make([]byte, len(in.ValueHash))
 	copy(hashCopy, in.ValueHash)
-	return &AdminToken{
+	t := &AdminToken{
 		id:        in.ID,
 		owner:     in.Owner,
 		scopes:    scopes,
@@ -81,7 +93,16 @@ func New(in NewAdminTokenInput) (*AdminToken, error) {
 		createdAt: in.CreatedAt.UTC(),
 		createdBy: strings.TrimSpace(in.CreatedBy),
 		version:   1,
-	}, nil
+		isEnroll:  in.IsEnroll,
+	}
+	if in.ExpiresAt != nil {
+		ea := in.ExpiresAt.UTC()
+		t.expiresAt = &ea
+	}
+	if in.IsEnroll && t.expiresAt == nil {
+		return nil, errors.New("admintoken: enroll token requires ExpiresAt")
+	}
+	return t, nil
 }
 
 // RehydrateInput rebuilds an AR from persistence. Mirrors UserSecret's
@@ -98,6 +119,10 @@ type RehydrateInput struct {
 	RevokedReason string
 	LastUsedAt    *time.Time
 	Version       int
+	// v2.4-D-A3 enroll-token fields.
+	IsEnroll  bool
+	ExpiresAt *time.Time
+	UsedAt    *time.Time
 }
 
 // Rehydrate rebuilds an AR from a row read.
@@ -114,6 +139,7 @@ func Rehydrate(in RehydrateInput) *AdminToken {
 		revokedBy:     in.RevokedBy,
 		revokedReason: in.RevokedReason,
 		version:       in.Version,
+		isEnroll:      in.IsEnroll,
 	}
 	if in.RevokedAt != nil {
 		ra := in.RevokedAt.UTC()
@@ -122,6 +148,14 @@ func Rehydrate(in RehydrateInput) *AdminToken {
 	if in.LastUsedAt != nil {
 		lu := in.LastUsedAt.UTC()
 		t.lastUsedAt = &lu
+	}
+	if in.ExpiresAt != nil {
+		ea := in.ExpiresAt.UTC()
+		t.expiresAt = &ea
+	}
+	if in.UsedAt != nil {
+		ua := in.UsedAt.UTC()
+		t.usedAt = &ua
 	}
 	return t
 }
@@ -141,6 +175,50 @@ func (t *AdminToken) Version() int           { return t.version }
 
 // IsRevoked is a convenience predicate.
 func (t *AdminToken) IsRevoked() bool { return t.revokedAt != nil }
+
+// IsEnroll reports whether this is an enroll-token (v2.4-D-A3): short
+// TTL + one-time-use. Long-term v2.3-3a tokens return false.
+func (t *AdminToken) IsEnroll() bool { return t.isEnroll }
+
+// ExpiresAt returns the expiry time for enroll tokens (nil for
+// long-term tokens which never expire by built-in mechanism).
+func (t *AdminToken) ExpiresAt() *time.Time { return t.expiresAt }
+
+// UsedAt returns the time the enroll token was first consumed. nil
+// until burnt by middleware (Consume).
+func (t *AdminToken) UsedAt() *time.Time { return t.usedAt }
+
+// IsExpired reports whether an enroll token is past its expires_at.
+// Long-term tokens never expire (returns false).
+func (t *AdminToken) IsExpired(now time.Time) bool {
+	if t.expiresAt == nil {
+		return false
+	}
+	return now.UTC().After(*t.expiresAt)
+}
+
+// IsConsumed reports whether an enroll token has been burnt. Long-term
+// tokens are never "consumed" (they have many uses by design).
+func (t *AdminToken) IsConsumed() bool {
+	return t.isEnroll && t.usedAt != nil
+}
+
+// Consume burns an enroll token: marks used_at = now. Idempotent: a
+// second call returns ErrTokenConsumed so the middleware can reject
+// reuse. No-op + nil for long-term tokens (MarkUsed is the right call
+// for those).
+func (t *AdminToken) Consume(at time.Time) error {
+	if !t.isEnroll {
+		return nil
+	}
+	if t.usedAt != nil {
+		return ErrTokenConsumed
+	}
+	u := at.UTC()
+	t.usedAt = &u
+	t.version++
+	return nil
+}
 
 // HasScope returns true when the token carries the named scope or the
 // superuser `*` scope.

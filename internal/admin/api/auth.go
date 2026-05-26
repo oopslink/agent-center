@@ -69,6 +69,10 @@ func RequireScope(w http.ResponseWriter, r *http.Request, scope admintoken.Scope
 type Verifier interface {
 	VerifyPlaintext(ctx context.Context, plaintext string) (*admintoken.AdminToken, error)
 	MarkUsedAsync(id admintoken.TokenID)
+	// ConsumeEnrollToken burns a one-time-use enroll token. v2.4-D-A3
+	// (task #37). Called by the middleware AFTER a successful verify
+	// for enroll tokens; idempotent at the repo CAS level.
+	ConsumeEnrollToken(ctx context.Context, id admintoken.TokenID) error
 }
 
 // AuthMiddleware wraps the admin mux. Every request except whitelisted
@@ -109,7 +113,18 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 				Scopes:   tok.Scopes(),
 				ClientIP: clientIPFromRequest(r),
 			}
-			verifier.MarkUsedAsync(tok.ID())
+			// v2.4-D-A3 (task #37): enroll tokens are one-time-use.
+			// Consume BEFORE forwarding so a racing 2nd verify on the
+			// same plaintext fails (the repo CAS guarantees atomicity).
+			// Long-term tokens go through MarkUsedAsync as before.
+			if tok.IsEnroll() {
+				if err := verifier.ConsumeEnrollToken(r.Context(), tok.ID()); err != nil {
+					writeAuthError(w, err)
+					return
+				}
+			} else {
+				verifier.MarkUsedAsync(tok.ID())
+			}
 			ctx := context.WithValue(r.Context(), authKey{}, auth)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -146,6 +161,12 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	case errors.Is(err, admintoken.ErrTokenRevoked):
 		writeError(w, http.StatusUnauthorized, "auth_revoked",
 			"token has been revoked")
+	case errors.Is(err, admintoken.ErrTokenExpired):
+		writeError(w, http.StatusUnauthorized, "auth_expired",
+			"enroll token expired (30-min cap)")
+	case errors.Is(err, admintoken.ErrTokenConsumed):
+		writeError(w, http.StatusUnauthorized, "auth_consumed",
+			"enroll token already used (one-time-use)")
 	default:
 		// Don't expose unexpected errors verbatim — could leak DB
 		// internals on a misconfigured deploy.

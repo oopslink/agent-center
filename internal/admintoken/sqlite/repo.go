@@ -24,7 +24,7 @@ func New(db *sql.DB) *Repo { return &Repo{db: db} }
 
 const tokenSelect = `SELECT id, owner, scopes_json, value_hash,
 		created_at, created_by, revoked_at, revoked_by, revoked_reason,
-		last_used_at, version
+		last_used_at, version, is_enroll, expires_at, used_at
 	FROM admin_tokens`
 
 // Save inserts a new row.
@@ -39,13 +39,19 @@ func (r *Repo) Save(ctx context.Context, t *admintoken.AdminToken) error {
 	}
 	const stmt = `INSERT INTO admin_tokens
 		(id, owner, scopes_json, value_hash, created_at, created_by,
-		 revoked_at, revoked_by, revoked_reason, last_used_at, version)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+		 revoked_at, revoked_by, revoked_reason, last_used_at, version,
+		 is_enroll, expires_at, used_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	isEnrollInt := 0
+	if t.IsEnroll() {
+		isEnrollInt = 1
+	}
 	if _, err := exec.ExecContext(ctx, stmt,
 		string(t.ID()), string(t.Owner()), scopesJSON, t.ValueHash(),
 		t.CreatedAt().Format(time.RFC3339Nano), t.CreatedBy(),
 		nullTimePtr(t.RevokedAt()), nullString(t.RevokedBy()), nullString(t.RevokedReason()),
 		nullTimePtr(t.LastUsedAt()), t.Version(),
+		isEnrollInt, nullTimePtr(t.ExpiresAt()), nullTimePtr(t.UsedAt()),
 	); err != nil {
 		if isUnique(err) {
 			return admintoken.ErrTokenAlreadyExists
@@ -167,6 +173,47 @@ func (r *Repo) UpdateLastUsedAt(ctx context.Context, id admintoken.TokenID, atRF
 	return err
 }
 
+// ConsumeEnrollToken atomically marks an enroll token as used. Returns
+// ErrTokenConsumed if already consumed (CAS via used_at IS NULL guard),
+// or ErrTokenNotFound if no row matches. v2.4-D-A3 (task #37).
+func (r *Repo) ConsumeEnrollToken(ctx context.Context, id admintoken.TokenID, atRFC3339Nano string) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	const stmt = `UPDATE admin_tokens
+		SET used_at = ?, version = version + 1
+		WHERE id = ? AND is_enroll = 1 AND used_at IS NULL`
+	res, err := exec.ExecContext(ctx, stmt, atRFC3339Nano, string(id))
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 1 {
+		return nil
+	}
+	// 0 rows affected — distinguish "not found" vs "already consumed".
+	row := exec.QueryRowContext(ctx, `SELECT is_enroll, used_at FROM admin_tokens WHERE id = ?`, string(id))
+	var isEnroll int
+	var usedAt sql.NullString
+	if err := row.Scan(&isEnroll, &usedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return admintoken.ErrTokenNotFound
+		}
+		return err
+	}
+	if isEnroll == 0 {
+		// Not an enroll token at all — odd, but treat as not-found
+		// from this method's contract (callers shouldn't call Consume
+		// on non-enroll tokens).
+		return admintoken.ErrTokenNotFound
+	}
+	if usedAt.Valid && usedAt.String != "" {
+		return admintoken.ErrTokenConsumed
+	}
+	return admintoken.ErrTokenVersionConflict
+}
+
 // =============================================================================
 // helpers
 // =============================================================================
@@ -210,10 +257,12 @@ func scanToken(scan scanFn) (*admintoken.AdminToken, error) {
 		revokedAt, revokedBy, revokedReason         sql.NullString
 		lastUsedAt                                  sql.NullString
 		version                                     int
+		isEnrollInt                                 int
+		expiresAt, usedAt                           sql.NullString
 	)
 	if err := scan(&id, &owner, &scopesJSON, &valueHash,
 		&createdAt, &createdBy, &revokedAt, &revokedBy, &revokedReason,
-		&lastUsedAt, &version); err != nil {
+		&lastUsedAt, &version, &isEnrollInt, &expiresAt, &usedAt); err != nil {
 		return nil, err
 	}
 	scopes, err := decodeScopes(scopesJSON)
@@ -232,6 +281,14 @@ func scanToken(scan scanFn) (*admintoken.AdminToken, error) {
 	if err != nil {
 		return nil, err
 	}
+	expires, err := parseNullTime(expiresAt)
+	if err != nil {
+		return nil, err
+	}
+	usedAtT, err := parseNullTime(usedAt)
+	if err != nil {
+		return nil, err
+	}
 	return admintoken.Rehydrate(admintoken.RehydrateInput{
 		ID:            admintoken.TokenID(id),
 		Owner:         admintoken.Owner(owner),
@@ -244,6 +301,9 @@ func scanToken(scan scanFn) (*admintoken.AdminToken, error) {
 		RevokedReason: revokedReason.String,
 		LastUsedAt:    used,
 		Version:       version,
+		IsEnroll:      isEnrollInt != 0,
+		ExpiresAt:     expires,
+		UsedAt:        usedAtT,
 	}), nil
 }
 
