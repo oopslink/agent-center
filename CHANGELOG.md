@@ -11,6 +11,41 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.5.2] — 2026-05-26
+
+Explicit `upgrade` subcommand. Reverses the scope-cut from v2.5.1
+(@oopslink msg=8e5ea457): operators get a verb that says "I want
+to upgrade" out loud instead of relying on `install center`'s
+silent fresh-vs-upgrade auto-detect branch. The actual upgrade
+path is unchanged — atomic symlink swap + health probe +
+auto-rollback from v2.4-D-A5.
+
+### Added
+
+- **`agent-center upgrade center [--prefix=...] [--user-mode] [--dry-run]`**
+  Refuses with a clear error if no install exists at the prefix
+  ("upgrade_no_install — run `install center` first for fresh
+  installs"). Same-version walks the idempotent no-op path; a
+  different version walks the real upgrade. Mirrors the
+  install-center flag surface.
+- **`agent-center upgrade worker --worker-id=<id> [...]`**
+  Same shape, scoped to the worker subtree. `--worker-id` is
+  required.
+
+### Behaviour difference vs `install center`
+
+| state         | `install center`           | `upgrade center`        |
+|---------------|----------------------------|-------------------------|
+| Fresh prefix  | walks fresh path            | refuses; exits 2        |
+| Same version  | idempotent no-op           | idempotent no-op         |
+| Different ver | atomic-swap upgrade        | atomic-swap upgrade     |
+
+Existing `install center` retains its auto-detect behaviour so
+v2.4/v2.5 scripts keep working. Operators who want the explicit
+verb now have it.
+
+---
+
 ## [v2.5.1] — 2026-05-26
 
 Post-v2.5 uninstall command — closes the gap @oopslink flagged in

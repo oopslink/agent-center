@@ -85,6 +85,18 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"uninstall"}, UninstallWorkerCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.5.2 (@oopslink msg=8e5ea457): explicit `upgrade center|worker`
+	// entry — wraps the same upgrade path `install center` auto-detects
+	// but refuses to walk the fresh path when no install exists.
+	if err := router.Add(nil, UpgradeCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"upgrade"}, UpgradeCenterCommand()); err != nil {
+		return nil, "", err
+	}
+	if err := router.Add([]string{"upgrade"}, UpgradeWorkerCommand()); err != nil {
+		return nil, "", err
+	}
 
 	// Resource commands. We use a lazy *App provider so each invocation
 	// opens / closes the DB.
