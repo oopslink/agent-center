@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased — v2.5.1 draft]
+## [v2.5.1] — 2026-05-26
 
 Post-v2.5 uninstall command — closes the gap @oopslink flagged in
 #agent-center msg=74fb3fa6: there was no way to undo
