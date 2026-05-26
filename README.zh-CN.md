@@ -202,19 +202,20 @@ agent-center/
 
 ### 打包（release tarball）
 
-v2.4 的 `./install` 命令工作于**一个已经解压好的 tarball 目录**上。release tarball 的构建流程 —— 跨平台 tarball（`agent-center-v<ver>-<os>-<arch>.tar.gz`）、签名、分发 —— **目前还没自动化**，是手工搞的；完整 release 工具链是 v3 "Deployment as Product" 主题。
-
-本机打包测试 install 流程：
+`make release` 一条命令打出当前平台可直接喂给 `./install` 的 tarball：
 
 ```bash
-make build
-mkdir -p dist/agent-center-$(VERSION)-darwin-arm64/bin
-cp bin/agent-center bin/agent-center-worker-daemon \
-   dist/agent-center-$(VERSION)-darwin-arm64/bin/
-ln -s bin/agent-center dist/agent-center-$(VERSION)-darwin-arm64/install
-tar -czf dist/agent-center-$(VERSION)-darwin-arm64.tar.gz \
-        -C dist agent-center-$(VERSION)-darwin-arm64
+make clean-dist     # 可选：清旧 tarball
+make release        # → dist/agent-center-v<ver>-<os>-<arch>.tar.gz + sha256
+
+# 它做的事：
+#   1. make build（前端 + 后端 + worker-daemon）
+#   2. 在 dist/agent-center-v<ver>-<os>-<arch>/ 拼好 bin/ + install
+#      wrapper + LICENSE + README.md
+#   3. tar -czf 打包 + 输出 sha256 + 解压验证命令提示
 ```
+
+跨平台 tarball（Mac 上交叉编译 Linux × amd64/arm64 等）、签名、GitHub Releases publish、CI 都推迟到 v3 "Deployment as Product" 主题。当前 `make release` 覆盖当前平台 —— 是端到端测 install 流程的最小所需。
 
 ### 本地文档站点
 

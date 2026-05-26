@@ -203,19 +203,20 @@ Read [`docs/rules/conventions.md`](./docs/rules/conventions.md) before contribut
 
 ### Packaging (release tarballs)
 
-v2.4 ships an `./install` command that operates on **an already-extracted tarball directory**. The release process — building per-platform tarballs (`agent-center-v<ver>-<os>-<arch>.tar.gz`), signing, distribution — is **not yet automated** in this repo; tarballs are built ad-hoc for now and full release tooling is part of the v3 "Deployment as Product" roadmap theme.
-
-To package locally for testing the install flow:
+`make release` builds a self-contained tarball for the host platform that's ready to feed to `./install`:
 
 ```bash
-make build
-mkdir -p dist/agent-center-$(VERSION)-darwin-arm64/bin
-cp bin/agent-center bin/agent-center-worker-daemon \
-   dist/agent-center-$(VERSION)-darwin-arm64/bin/
-ln -s bin/agent-center dist/agent-center-$(VERSION)-darwin-arm64/install
-tar -czf dist/agent-center-$(VERSION)-darwin-arm64.tar.gz \
-        -C dist agent-center-$(VERSION)-darwin-arm64
+make clean-dist     # optional: wipe previous tarballs
+make release        # → dist/agent-center-v<ver>-<os>-<arch>.tar.gz + sha256
+
+# what it does:
+#   1. make build (frontend + backend + worker-daemon)
+#   2. assembles dist/agent-center-v<ver>-<os>-<arch>/ with bin/ +
+#      install wrapper + LICENSE + README.md
+#   3. tar -czf and prints sha256 + extract/verify recipe
 ```
+
+Cross-platform tarballs (Linux × amd64/arm64 from a Mac build host, etc.), signing, GitHub Releases publishing, and CI are all deferred to the v3 "Deployment as Product" theme. For now `make release` covers the local-platform case, which is what you need to test the install flow end-to-end before promoting a release.
 
 ### Local docs site
 
