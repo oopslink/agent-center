@@ -114,9 +114,36 @@ func (c *AdminClient) WithToken(t string) *AdminClient {
 // Enroll POSTs to /admin/workforce/worker/enroll. The center's
 // WorkerEnrollService is idempotent on worker_id — re-calling Enroll
 // is the v2.2 single-host heartbeat semantic (per task spec).
+//
+// Kept for source compat. The v2.4-D path prefers EnrollWithExchange,
+// which captures the long-term admin token returned by the server.
 func (c *AdminClient) Enroll(ctx context.Context, workerID string, capabilities []string) error {
+	_, err := c.EnrollWithExchange(ctx, workerID, capabilities)
+	return err
+}
+
+// EnrollResponse mirrors the fields the admin endpoint returns. The
+// AdminToken + AdminTokenID fields are only populated on the v2.4-D
+// path; older deployments leave them empty (caller continues using
+// whatever bearer it was constructed with).
+type EnrollResponse struct {
+	WorkerID        string `json:"worker_id"`
+	EventID         string `json:"event_id"`
+	Version         int    `json:"version"`
+	AdminToken      string `json:"admin_token,omitempty"`
+	AdminTokenID    string `json:"admin_token_id,omitempty"`
+	AdminTokenError string `json:"admin_token_error,omitempty"`
+}
+
+// EnrollWithExchange POSTs to /admin/workforce/worker/enroll and
+// returns the parsed response, including the long-term admin token
+// minted for this worker (v2.4-D B5 fix). The token is what the
+// daemon should swap into its AdminClient bearer + persist locally;
+// continuing to use the enroll token after this call will 401
+// because the AuthMiddleware burned it during the same request.
+func (c *AdminClient) EnrollWithExchange(ctx context.Context, workerID string, capabilities []string) (EnrollResponse, error) {
 	if strings.TrimSpace(workerID) == "" {
-		return errors.New("adminclient: worker_id required")
+		return EnrollResponse{}, errors.New("adminclient: worker_id required")
 	}
 	if capabilities == nil {
 		capabilities = []string{}
@@ -125,7 +152,11 @@ func (c *AdminClient) Enroll(ctx context.Context, workerID string, capabilities 
 		"worker_id":    workerID,
 		"capabilities": capabilities,
 	}
-	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/enroll", body, nil)
+	var out EnrollResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/enroll", body, &out); err != nil {
+		return EnrollResponse{}, err
+	}
+	return out, nil
 }
 
 // Heartbeat asserts liveness for an already-enrolled worker.

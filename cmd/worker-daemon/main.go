@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -125,26 +126,71 @@ func main() {
 	client = client.WithToken(token)
 	logger := func(msg string) { fmt.Fprintf(os.Stderr, "[worker] %s\n", msg) }
 
+	// v2.4-D-X1 fix B5: long-term worker token persistence.
+	//
+	// Path A — token file exists at <dataDir>/worker-token: load it,
+	// swap bearer, skip the initial enroll (worker already exists on
+	// the center).
+	//
+	// Path B — token file missing: the --token flag carries the
+	// one-time enroll bearer; call enroll, capture the long-term
+	// token from the response, persist it (mode 0600 atomic write),
+	// swap bearer.
+	//
+	// Either way the runtime loop runs with the long-term bearer +
+	// SkipInitialEnroll=true so we never re-burn the enroll token
+	// and never re-mint orphan long-term tokens.
+	tokenPath := workerTokenFilePath(cfg)
+	enrollNeeded := true
+	if existing, rerr := readWorkerTokenFile(tokenPath); rerr == nil && existing != "" {
+		client = client.WithToken(existing)
+		enrollNeeded = false
+		logger("loaded long-term token from " + tokenPath)
+	} else if !os.IsNotExist(rerr) && rerr != nil {
+		logger(fmt.Sprintf("warning: read %s: %v — will try enroll", tokenPath, rerr))
+	}
+
+	if enrollNeeded {
+		ctxEnroll, cancelEnroll := context.WithTimeout(context.Background(), 30*time.Second)
+		enrollResp, eerr := client.EnrollWithExchange(ctxEnroll, *workerID, parseCaps(*capsFlag))
+		cancelEnroll()
+		if eerr != nil {
+			fmt.Fprintf(os.Stderr, "[worker] enroll failed: %v\n", eerr)
+			os.Exit(1)
+		}
+		if enrollResp.AdminTokenError != "" {
+			fmt.Fprintf(os.Stderr, "[worker] enroll succeeded but server failed to mint long-term token: %s\n", enrollResp.AdminTokenError)
+			os.Exit(1)
+		}
+		if enrollResp.AdminToken == "" {
+			fmt.Fprintf(os.Stderr, "[worker] enroll succeeded but server returned no admin_token (older v2.x? check center version)\n")
+			os.Exit(1)
+		}
+		if werr := writeWorkerTokenFile(tokenPath, enrollResp.AdminToken); werr != nil {
+			fmt.Fprintf(os.Stderr, "[worker] failed to persist long-term token to %s: %v\n", tokenPath, werr)
+			os.Exit(1)
+		}
+		client = client.WithToken(enrollResp.AdminToken)
+		logger("enrolled + persisted long-term token to " + tokenPath)
+	}
+
 	// Build Runtime config.
 	overrides := map[string]string{}
 	if strings.TrimSpace(*fakeAgent) != "" {
 		overrides["fakeagent"] = *fakeAgent
 	}
-	var caps []string
-	if strings.TrimSpace(*capsFlag) != "" {
-		for _, c := range strings.Split(*capsFlag, ",") {
-			c = strings.TrimSpace(c)
-			if c != "" {
-				caps = append(caps, c)
-			}
-		}
-	}
+	caps := parseCaps(*capsFlag)
 	rtCfg := workerdaemon.RuntimeConfig{
 		WorkerID:          *workerID,
 		Capabilities:      caps,
 		PollInterval:      *pollInterval,
 		AgentCLIOverrides: overrides,
 		Logger:            logger,
+		// main.go already ran the enroll-or-load dance above, so the
+		// runtime loop must not re-enroll (that would either burn a
+		// fresh enroll token we don't have, or churn an orphan long-
+		// term token).
+		SkipInitialEnroll: true,
 	}
 	// v2.3-3b (task #29): wire the real-agent dispatch chain so real
 	// agents (claude-code / codex / opencode) — not just fakeagent —
@@ -193,4 +239,59 @@ func isShutdownErr(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "shutdown grace exceeded")
+}
+
+// parseCaps splits the comma-separated --capabilities flag into a
+// trimmed slice. Empty inputs yield nil (the enroll handler tolerates
+// nil but not [""]).
+func parseCaps(csv string) []string {
+	csv = strings.TrimSpace(csv)
+	if csv == "" {
+		return nil
+	}
+	var out []string
+	for _, c := range strings.Split(csv, ",") {
+		c = strings.TrimSpace(c)
+		if c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// workerTokenFilePath returns the on-disk path the worker daemon
+// uses to persist its long-term admin token across restarts. Lives
+// next to the worker's SQLite DB so backup boundaries match.
+func workerTokenFilePath(cfg config.Config) string {
+	sqlitePath := strings.TrimSpace(cfg.Server.SqlitePath)
+	if sqlitePath == "" {
+		return "worker-token"
+	}
+	return filepath.Join(filepath.Dir(sqlitePath), "worker-token")
+}
+
+// readWorkerTokenFile reads a previously-persisted long-term token.
+// Returns the trimmed token plaintext or the underlying os error
+// (callers use os.IsNotExist to distinguish "first-boot" from real
+// IO failures).
+func readWorkerTokenFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// writeWorkerTokenFile atomically writes the token plaintext to path
+// with mode 0600. Uses tmp-then-rename so a crash mid-write leaves
+// either the old contents or the new — never half a token.
+func writeWorkerTokenFile(path, token string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(token+"\n"), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

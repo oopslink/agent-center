@@ -229,9 +229,17 @@ func (b *Bus) matches(userID string, ev Event) bool {
 }
 
 // writeSSE writes a single Event in the W3C text/event-stream format.
+//
+// v2.4-D-X1 fix B6/B7: emit ONLY `id:` and `data:` — no `event:`
+// line. Browsers route typed events (where the `event:` field is set)
+// via addEventListener(<type>, ...) instead of onmessage. useSSE only
+// listens on onmessage, so adding `event:` silently dropped every
+// SSE message on real browsers. The event_type stays inside the JSON
+// payload (Event.EventType), which is what dispatchToQueryClient
+// already switches on.
 func writeSSE(w http.ResponseWriter, ev Event) {
 	body, _ := json.Marshal(ev)
-	fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", ev.ID, ev.EventType, body)
+	fmt.Fprintf(w, "id: %d\ndata: %s\n\n", ev.ID, body)
 }
 
 // SubscriberCount returns the count of active connections (test helper).

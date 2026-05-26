@@ -203,10 +203,13 @@ func TestServeHTTP_LastEventID_QueryFallback(t *testing.T) {
 			break
 		}
 		body := string(buf[:n])
-		if strings.Contains(body, "event: second") {
+		// v2.4-D-X1 fix: SSE wire no longer emits an `event:` line
+		// (typed events were silently dropped on real browsers). The
+		// event_type lives inside the JSON payload now.
+		if strings.Contains(body, `"event_type":"second"`) {
 			return // good — replayed the second event (id > 1)
 		}
-		if strings.Contains(body, "event: first") {
+		if strings.Contains(body, `"event_type":"first"`) {
 			t.Fatalf("query-param Last-Event-ID should have skipped id=1; got %s", body)
 		}
 	}

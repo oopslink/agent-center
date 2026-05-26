@@ -4,10 +4,26 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/admintoken"
+	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
+
+// workerLongTermTokenScopes is the scope set minted for a worker's
+// post-enroll long-term bearer. Mirrors every admin endpoint the
+// worker daemon exercises during its main loop (heartbeat, dispatch
+// + kill pull, exec report, secret resolve, blob put). Kept explicit
+// (rather than `*`) so a leaked worker token can't escalate to e.g.
+// admin:token operations.
+var workerLongTermTokenScopes = []admintoken.Scope{
+	"workforce:enroll",   // heartbeat / re-enroll
+	"dispatch:pull",      // /admin/dispatch/queue/pull
+	"task:*",             // exec/notify-working, report-success, etc.
+	"secret:resolve",     // /admin/secret/user-secret/resolve
+	"blob:put",           // /admin/blob/put
+}
 
 // =============================================================================
 // EnrollSvc — POST /admin/workforce/worker/enroll
@@ -38,11 +54,35 @@ func (s *Server) workerEnrollHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	// v2.4-D-X1 fix B5: mint a long-term worker token so the daemon
+	// can stop using its one-time enroll token (which the
+	// AuthMiddleware already burned during this request). Returned
+	// once in the response; the worker persists it locally and uses
+	// it for every subsequent admin call (heartbeat, pull, report).
+	resp := map[string]any{
 		"worker_id": string(res.WorkerID),
 		"event_id":  string(res.EventID),
 		"version":   res.Version,
-	})
+	}
+	if d.AdminTokenSvc != nil {
+		tokRes, terr := d.AdminTokenSvc.Create(r.Context(), admintokensvc.CreateCommand{
+			Owner:     admintoken.Owner("worker:" + req.WorkerID),
+			Scopes:    workerLongTermTokenScopes,
+			CreatedBy: "workforce.enroll",
+		})
+		if terr != nil {
+			// Don't leak token-mint failures up as 5xx — the enroll
+			// itself already committed. Surface as a partial response
+			// so the daemon can fail loudly with a clear diagnostic
+			// instead of silently 401-looping on the burnt enroll
+			// token.
+			resp["admin_token_error"] = terr.Error()
+		} else {
+			resp["admin_token"] = tokRes.Plaintext
+			resp["admin_token_id"] = string(tokRes.ID)
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // v2.3-1 (task #24): dedicated heartbeat endpoint. Replaces the v2.2

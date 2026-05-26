@@ -66,6 +66,12 @@ type RuntimeConfig struct {
 	ExecBaseDir string
 	// Logger receives one-line ops messages with `[worker] ` prefix.
 	Logger func(msg string)
+	// SkipInitialEnroll lets main.go own the enroll + long-term token
+	// exchange (v2.4-D B5 fix). When true, Run skips its initial
+	// Enroll call and goes straight to the poll loop. main.go must
+	// have ensured the AdminClient bearer is the long-term token
+	// before calling Run.
+	SkipInitialEnroll bool
 }
 
 // RuntimeDeps bundles optional dependencies the daemon's defaultAgentSpawner
@@ -156,12 +162,14 @@ func (r *Runtime) Run(ctx context.Context) error {
 	if r.cfg.WorkerID == "" {
 		return errors.New("runtime: worker_id required")
 	}
-	// Initial enroll. Failure here is fatal — without enrollment the
-	// center will reject all subsequent calls.
-	if err := r.client.Enroll(ctx, r.cfg.WorkerID, r.cfg.Capabilities); err != nil {
-		return fmt.Errorf("runtime: initial enroll: %w", err)
+	if !r.cfg.SkipInitialEnroll {
+		// Initial enroll. Failure here is fatal — without enrollment the
+		// center will reject all subsequent calls.
+		if err := r.client.Enroll(ctx, r.cfg.WorkerID, r.cfg.Capabilities); err != nil {
+			return fmt.Errorf("runtime: initial enroll: %w", err)
+		}
+		r.log("enrolled as worker_id=%s", r.cfg.WorkerID)
 	}
-	r.log("enrolled as worker_id=%s", r.cfg.WorkerID)
 
 	pollTick := time.NewTicker(r.cfg.PollInterval)
 	defer pollTick.Stop()
