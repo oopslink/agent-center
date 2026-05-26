@@ -1,11 +1,13 @@
 import type React from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
-import { useTask } from '@/api/tasks';
+import { useResumeTask, useSuspendTask, useTask } from '@/api/tasks';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
+import { TaskAbandonModal } from '@/components/TaskAbandonModal';
 import { useSelection } from '@/components/useSelection';
 
 // TaskDetail (/tasks/:id).
@@ -23,6 +25,9 @@ export default function TaskDetail(): React.ReactElement {
   const conv = useConversation(convId);
   const messages = useMessages(convId);
   const selection = useSelection();
+  const [abandonOpen, setAbandonOpen] = useState(false);
+  const suspend = useSuspendTask(id);
+  const resume = useResumeTask(id);
 
   if (task.isLoading) {
     return (
@@ -53,6 +58,9 @@ export default function TaskDetail(): React.ReactElement {
 
   const participants = conv.data?.participants ?? [];
   const tk = task.data;
+  const isOpen = tk.status === 'open';
+  const isSuspended = tk.status === 'suspended';
+  const isTerminal = tk.status === 'done' || tk.status === 'abandoned';
 
   return (
     <section
@@ -87,7 +95,39 @@ export default function TaskDetail(): React.ReactElement {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isOpen && (
+            <button
+              type="button"
+              onClick={() => suspend.mutate()}
+              disabled={suspend.isPending}
+              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base disabled:opacity-50"
+              data-testid="task-suspend-button"
+            >
+              {suspend.isPending ? 'Suspending…' : 'Suspend'}
+            </button>
+          )}
+          {isSuspended && (
+            <button
+              type="button"
+              onClick={() => resume.mutate()}
+              disabled={resume.isPending}
+              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base disabled:opacity-50"
+              data-testid="task-resume-button"
+            >
+              {resume.isPending ? 'Resuming…' : 'Resume'}
+            </button>
+          )}
+          {!isTerminal && (
+            <button
+              type="button"
+              onClick={() => setAbandonOpen(true)}
+              className="rounded bg-danger px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
+              data-testid="task-abandon-button"
+            >
+              Abandon
+            </button>
+          )}
           <button
             type="button"
             onClick={selection.toggleSelectMode}
@@ -111,6 +151,12 @@ export default function TaskDetail(): React.ReactElement {
           </Link>
         </div>
       </header>
+      {abandonOpen && (
+        <TaskAbandonModal
+          taskId={tk.id}
+          onClose={() => setAbandonOpen(false)}
+        />
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden">

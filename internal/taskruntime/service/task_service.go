@@ -288,6 +288,159 @@ func (s *TaskService) BindConversation(ctx context.Context, in BindConversationI
 	return convID, nil
 }
 
+// =============================================================================
+// v2.5.x #62 — lifecycle wrappers (Suspend / Resume / Abandon).
+//
+// The AR enforces transition invariants (task.go:Suspend/Resume/Abandon);
+// these service methods own the tx + repo write + observability emit so
+// the webconsole + CLI surfaces don't repeat the same plumbing.
+// =============================================================================
+
+// LifecycleCommand is the shared shape for status-only transitions where
+// the only relevant input besides task id is the actor.
+type LifecycleCommand struct {
+	TaskID taskruntime.TaskID
+	Actor  observability.Actor
+}
+
+// AbandonCommand drives Abandon — needs reason + message per conventions
+// § 16.
+type AbandonCommand struct {
+	TaskID  taskruntime.TaskID
+	Reason  string
+	Message string
+	Actor   observability.Actor
+}
+
+// Suspend transitions open → suspended (per task AR invariants). Emits
+// `task.suspended`. Active executions must be killed by the caller — the
+// AR rejects suspend on non-open status, so anything mid-flight is the
+// caller's problem (consistent with v2.0 CLI behavior).
+func (s *TaskService) Suspend(ctx context.Context, cmd LifecycleCommand) (observability.EventID, error) {
+	if err := cmd.Actor.Validate(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(string(cmd.TaskID)) == "" {
+		return "", errors.New("task service: task_id required")
+	}
+	var evID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		t, err := s.taskRepo.FindByID(txCtx, cmd.TaskID)
+		if err != nil {
+			return err
+		}
+		if err := t.Suspend(s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.taskRepo.Update(txCtx, t); err != nil {
+			return err
+		}
+		id, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "task.suspended",
+			Refs: observability.EventRefs{
+				TaskID:    string(t.ID()),
+				ProjectID: t.ProjectID(),
+			},
+			Actor: cmd.Actor,
+			Payload: map[string]any{
+				"task_id": string(t.ID()),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		evID = id
+		return nil
+	})
+	return evID, err
+}
+
+// Resume transitions suspended → open. Emits `task.resumed`.
+func (s *TaskService) Resume(ctx context.Context, cmd LifecycleCommand) (observability.EventID, error) {
+	if err := cmd.Actor.Validate(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(string(cmd.TaskID)) == "" {
+		return "", errors.New("task service: task_id required")
+	}
+	var evID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		t, err := s.taskRepo.FindByID(txCtx, cmd.TaskID)
+		if err != nil {
+			return err
+		}
+		if err := t.Resume(s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.taskRepo.Update(txCtx, t); err != nil {
+			return err
+		}
+		id, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "task.resumed",
+			Refs: observability.EventRefs{
+				TaskID:    string(t.ID()),
+				ProjectID: t.ProjectID(),
+			},
+			Actor: cmd.Actor,
+			Payload: map[string]any{
+				"task_id": string(t.ID()),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		evID = id
+		return nil
+	})
+	return evID, err
+}
+
+// Abandon transitions open/suspended → abandoned. Reason + message both
+// required (conventions § 16). Emits `task.abandoned`.
+func (s *TaskService) Abandon(ctx context.Context, cmd AbandonCommand) (observability.EventID, error) {
+	if err := cmd.Actor.Validate(); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(string(cmd.TaskID)) == "" {
+		return "", errors.New("task service: task_id required")
+	}
+	if strings.TrimSpace(cmd.Reason) == "" || strings.TrimSpace(cmd.Message) == "" {
+		return "", errors.New("task service: reason + message required (conventions § 16)")
+	}
+	var evID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		t, err := s.taskRepo.FindByID(txCtx, cmd.TaskID)
+		if err != nil {
+			return err
+		}
+		if err := t.Abandon(cmd.Reason, cmd.Message, s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.taskRepo.Update(txCtx, t); err != nil {
+			return err
+		}
+		id, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "task.abandoned",
+			Refs: observability.EventRefs{
+				TaskID:    string(t.ID()),
+				ProjectID: t.ProjectID(),
+			},
+			Actor: cmd.Actor,
+			Payload: map[string]any{
+				"task_id": string(t.ID()),
+				"reason":  cmd.Reason,
+				"message": cmd.Message,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		evID = id
+		return nil
+	})
+	return evID, err
+}
+
 // TaskContext is the read-side payload returned by ReadContext.
 type TaskContext struct {
 	TaskID             taskruntime.TaskID          `json:"task_id"`

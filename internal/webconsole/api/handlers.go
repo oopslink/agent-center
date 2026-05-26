@@ -67,6 +67,11 @@ type HandlerDeps struct {
 	// surfaces run in the same process per ADR-0037.
 	IssueLifecycleSvc *disservice.IssueLifecycleService
 
+	// v2.5.x #62: TaskSvc backs the Web Console New Task button +
+	// TaskDetail lifecycle actions (Suspend / Resume / Abandon). Same
+	// service the CLI uses.
+	TaskSvc *trservice.TaskService
+
 	// v2.4-D-X1 (@oopslink ask): workers.name editing surface in the
 	// Fleet view. WorkerRenameSvc is the workforce service that wraps
 	// WorkerRepo.UpdateName + emits workforce.worker.renamed.
@@ -772,13 +777,25 @@ type deriveTaskReq struct {
 	Title                string   `json:"title"`
 	Description          string   `json:"description"`
 	AgentInstanceID      string   `json:"agent_instance_id"`
+	// v2.5.x #62 — fields used only by the open-from-scratch branch.
+	ParentTaskID     string `json:"parent_task_id,omitempty"`
+	Priority         string `json:"priority,omitempty"`
+	RequiresWorktree bool   `json:"requires_worktree,omitempty"`
+	WithConversation bool   `json:"with_conversation,omitempty"`
 }
 
-func (s *Server) deriveTaskHandler(w http.ResponseWriter, r *http.Request) {
+// postTaskHandler routes POST /api/tasks to either derive (with source
+// fields) or create-from-scratch (v2.5.x #62 Create Task Modal). Same
+// branching pattern as postIssueHandler for symmetry.
+func (s *Server) postTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req deriveTaskReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if strings.TrimSpace(req.SourceConversationID) == "" && len(req.SourceMessageIDs) == 0 {
+		s.createTaskFromScratch(w, r, d, req)
 		return
 	}
 	if d.DerivationSvc == nil {
@@ -809,6 +826,133 @@ func (s *Server) deriveTaskHandler(w http.ResponseWriter, r *http.Request) {
 		"reference_count":     res.ReferenceCount,
 		"task_event_id":       string(res.TaskEventID),
 		"carry_over_event_id": string(res.CarryOverEventID),
+	})
+}
+
+// createTaskFromScratch implements the v2.5.x #62 Create Task Modal
+// path. Wraps TaskSvc.Create.
+func (s *Server) createTaskFromScratch(w http.ResponseWriter, r *http.Request, d HandlerDeps, req deriveTaskReq) {
+	if d.TaskSvc == nil {
+		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "project_id required")
+		return
+	}
+	if strings.TrimSpace(req.Title) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "title required")
+		return
+	}
+	in := trservice.TaskCreateInput{
+		ProjectID:        req.ProjectID,
+		Title:            req.Title,
+		Description:      req.Description,
+		ParentTaskID:     taskruntime.TaskID(req.ParentTaskID),
+		Priority:         task.Priority(req.Priority),
+		RequiresWorktree: req.RequiresWorktree,
+		WithConversation: req.WithConversation,
+		ConversationTitle: req.Title,
+		Actor:            d.Actor,
+	}
+	res, err := d.TaskSvc.Create(r.Context(), in)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"task_id":         string(res.TaskID),
+		"conversation_id": string(res.ConversationID),
+	})
+}
+
+// suspendTaskHandler / resumeTaskHandler / abandonTaskHandler wrap the
+// TaskService lifecycle methods. v2.5.x #62.
+
+func (s *Server) suspendTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskSvc == nil {
+		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
+		return
+	}
+	id := taskruntime.TaskID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	evID, err := d.TaskSvc.Suspend(r.Context(), trservice.LifecycleCommand{
+		TaskID: id,
+		Actor:  d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"task_id":  string(id),
+		"event_id": string(evID),
+	})
+}
+
+func (s *Server) resumeTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskSvc == nil {
+		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
+		return
+	}
+	id := taskruntime.TaskID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	evID, err := d.TaskSvc.Resume(r.Context(), trservice.LifecycleCommand{
+		TaskID: id,
+		Actor:  d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"task_id":  string(id),
+		"event_id": string(evID),
+	})
+}
+
+type abandonTaskReq struct {
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
+func (s *Server) abandonTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskSvc == nil {
+		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
+		return
+	}
+	id := taskruntime.TaskID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	var req abandonTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	evID, err := d.TaskSvc.Abandon(r.Context(), trservice.AbandonCommand{
+		TaskID:  id,
+		Reason:  req.Reason,
+		Message: req.Message,
+		Actor:   d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"task_id":  string(id),
+		"event_id": string(evID),
 	})
 }
 

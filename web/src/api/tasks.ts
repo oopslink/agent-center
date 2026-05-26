@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 import type { Task, TaskStatus } from './types';
@@ -35,5 +35,83 @@ export function useTask(id: string | undefined) {
     queryKey: qk.task(id ?? ''),
     queryFn: () => api.get<Task>(`/tasks/${id}`),
     enabled: !!id,
+  });
+}
+
+// v2.5.x #62 — Create Task from scratch (no message source). Same
+// POST /api/tasks endpoint also routes the CV4 derive flow when the
+// payload includes source_conversation_id.
+
+export interface CreateTaskInput {
+  project_id: string;
+  title: string;
+  description?: string;
+  parent_task_id?: string;
+  priority?: string;
+  requires_worktree?: boolean;
+  with_conversation?: boolean;
+}
+
+export interface CreateTaskResult {
+  task_id: string;
+  conversation_id?: string;
+}
+
+export function useCreateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTaskInput) =>
+      api.post<CreateTaskResult>('/tasks', input),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({
+        queryKey: qk.tasksList({ projectId: vars.project_id }),
+      });
+    },
+  });
+}
+
+// v2.5.x #62 — Task lifecycle transitions.
+
+interface LifecycleResult {
+  task_id: string;
+  event_id: string;
+}
+
+export function useSuspendTask(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<LifecycleResult>(`/tasks/${taskId}/suspend`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+    },
+  });
+}
+
+export function useResumeTask(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<LifecycleResult>(`/tasks/${taskId}/resume`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+    },
+  });
+}
+
+export interface AbandonTaskInput {
+  reason: string;
+  message: string;
+}
+
+export function useAbandonTask(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AbandonTaskInput) =>
+      api.post<LifecycleResult>(`/tasks/${taskId}/abandon`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+    },
   });
 }

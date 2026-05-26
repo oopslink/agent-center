@@ -130,14 +130,21 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/conversations/{id}/participants", s.inviteParticipantHandler)
 	s.mux.HandleFunc("DELETE /api/conversations/{id}/participants/{identity_id}", s.removeParticipantHandler)
 
-	// Derivation entry points (CV4) — POST /api/issues also branches to
-	// open-from-scratch when source_conversation_id is empty (v2.5.x #61
-	// CreateIssueModal).
+	// Derivation entry points (CV4) — POST /api/issues + POST /api/tasks
+	// also branch to open-from-scratch / create-from-scratch when
+	// source_conversation_id is empty (v2.5.x #61 + #62).
 	s.mux.HandleFunc("POST /api/issues", s.postIssueHandler)
-	s.mux.HandleFunc("POST /api/tasks", s.deriveTaskHandler)
+	s.mux.HandleFunc("POST /api/tasks", s.postTaskHandler)
 
 	// v2.5.x #61 — Issue mutation surface (Conclude).
 	s.mux.HandleFunc("POST /api/issues/{id}/conclude", s.concludeIssueHandler)
+
+	// v2.5.x #62 — Task lifecycle mutation surface (Suspend / Resume /
+	// Abandon). Edit (title/description) is deferred to follow-up #65
+	// — needs new Task AR UpdateMetadata method first.
+	s.mux.HandleFunc("POST /api/tasks/{id}/suspend", s.suspendTaskHandler)
+	s.mux.HandleFunc("POST /api/tasks/{id}/resume", s.resumeTaskHandler)
+	s.mux.HandleFunc("POST /api/tasks/{id}/abandon", s.abandonTaskHandler)
 
 	// BC-native list + detail reads (v2.3-5a). Issue projection lives
 	// in Discussion BC; Task projection lives in TaskRuntime BC. SPA

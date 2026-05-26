@@ -104,6 +104,7 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		IssueRepo:          issueRepo,
 		TaskRepo:           taskRepo,
 		IssueLifecycleSvc:  issueLifecycle,
+		TaskSvc:            trservice.NewTaskService(db, taskRepo, convRepo, execRepo, msgRepo, sink, gen, clk),
 	}
 	return deps, db
 }

@@ -39,6 +39,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		IssueRepo:          a.IssueRepo,
 		TaskRepo:           a.TaskRepo,
 		IssueLifecycleSvc:  a.IssueLifecycleSvc,
+		TaskSvc:            a.TaskSvc,
 		AdminTokenSvc:      a.AdminTokenSvc,
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
@@ -88,6 +89,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		IssueRepo:          a.IssueRepo,
 		TaskRepo:           a.TaskRepo,
 		IssueLifecycleSvc:  a.IssueLifecycleSvc,
+		TaskSvc:            a.TaskSvc,
 		AdminTokenSvc:      a.AdminTokenSvc,
 		EnrollBootstrapHost: enroll.BootstrapHost,
 		EnrollFingerprint:   enroll.Fingerprint,

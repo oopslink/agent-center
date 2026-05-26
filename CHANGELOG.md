@@ -11,6 +11,51 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.8
+
+Web Console Task management — Create + Suspend/Resume/Abandon
+(#62, partial). PM created #65 to track Edit (title/description)
+as a follow-up since it needs a new Task AR.UpdateMetadata
+method.
+
+### Added
+
+- **POST /api/tasks** now branches between the existing CV4
+  derive flow and a new create-from-scratch path. The new path
+  wraps `TaskSvc.Create` and accepts project_id / title /
+  description / parent_task_id / priority / requires_worktree.
+- **POST /api/tasks/{id}/suspend** wraps a new
+  `TaskService.Suspend` method (open → suspended). Caller is
+  responsible for killing active executions first; the AR
+  rejects suspend on non-open status.
+- **POST /api/tasks/{id}/resume** wraps `TaskService.Resume`
+  (suspended → open).
+- **POST /api/tasks/{id}/abandon** wraps `TaskService.Abandon`
+  (open/suspended → abandoned). Requires reason + message per
+  conventions § 16.
+- **TaskService** gains `Suspend`, `Resume`, `Abandon` lifecycle
+  wrappers (each owns the tx + repo write + observability emit).
+  Wires `TaskSvc` into the Web Console `HandlerDeps`.
+- **Tasks page**: `+ New Task` button in the header. New
+  `TaskCreateModal` (project / title / description / parent task
+  id / priority / requires-worktree).
+- **TaskDetail page**: `Suspend` / `Resume` / `Abandon` actions
+  in the header, gated on current status. New `TaskAbandonModal`
+  collects reason + message before the AR-required abandon call.
+
+### Verification
+
+- Backend: full `go test ./...` green; 8 new webconsole API
+  tests cover create-from-scratch + suspend/resume/abandon
+  (happy paths + status-rejected + not-wired) plus the derive
+  path still routes.
+- Frontend: 295 vitest specs green (6 new across
+  `TaskCreateModal` + `TaskAbandonModal`).
+- Out of scope (deferred to #65): Edit (title/description) —
+  needs a new Task AR UpdateMetadata method; tracked separately.
+
+---
+
 ## [v2.5.7] — 2026-05-27
 
 Web Console Issue management — Create + Conclude (#61, partial). PM

@@ -5,6 +5,7 @@ import { useTasksList } from '@/api/tasks';
 import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
+import { TaskCreateModal } from '@/components/TaskCreateModal';
 import type { TaskStatus } from '@/api/types';
 
 // Tasks page (/tasks). Lists TaskRuntime BC Tasks with status + project
@@ -31,6 +32,7 @@ export default function Tasks(): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const projectFilter = searchParams.get('project') ?? 'all';
   const projects = useProjects();
+  const [createOpen, setCreateOpen] = useState(false);
   const tasks = useTasksList({
     projectId: projectFilter === 'all' ? undefined : projectFilter,
     status: filter === 'all' ? undefined : filter,
@@ -48,7 +50,21 @@ export default function Tasks(): React.ReactElement {
     <section className="space-y-4" data-testid="page-Tasks">
       <header className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Tasks</h2>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          data-testid="tasks-new-button"
+          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+        >
+          + New Task
+        </button>
       </header>
+      {createOpen && (
+        <TaskCreateModal
+          defaultProjectId={projectFilter === 'all' ? undefined : projectFilter}
+          onClose={() => setCreateOpen(false)}
+        />
+      )}
 
       <div
         className="flex flex-wrap items-center gap-1"

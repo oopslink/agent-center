@@ -302,9 +302,14 @@ func TestAPI_DeriveTask_Happy(t *testing.T) {
 
 func TestAPI_DeriveTask_NotWired(t *testing.T) {
 	deps, _ := setupAPI(t)
+	// DerivationSvc nil; payload carries source fields so the post handler
+	// routes into the derive branch (v2.5.x #62: empty source now means
+	// create-from-scratch instead of derive-not-wired).
+	deps.DerivationSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/tasks", "application/json", strings.NewReader(`{}`))
+	body := `{"source_conversation_id":"C-1","source_message_ids":["M-1"]}`
+	resp, _ := http.Post(s.URL+"/api/tasks", "application/json", strings.NewReader(body))
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
