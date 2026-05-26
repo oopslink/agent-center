@@ -67,7 +67,7 @@ func TestRunWebConsole_StartsAndStops(t *testing.T) {
 	addr := ln.Addr().String()
 	_ = ln.Close()
 	logs := []string{}
-	cleanup, err := runWebConsole(context.Background(), app, bus, addr, func(s string) { logs = append(logs, s) })
+	cleanup, err := runWebConsole(context.Background(), app, bus, addr, WebConsoleEnrollWiring{}, func(s string) { logs = append(logs, s) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestRunWebConsole_StartsAndStops(t *testing.T) {
 func TestRunWebConsole_NilApp(t *testing.T) {
 	bus := sse.NewBus()
 	defer bus.Shutdown(context.Background())
-	_, err := runWebConsole(context.Background(), nil, bus, "127.0.0.1:0", func(string) {})
+	_, err := runWebConsole(context.Background(), nil, bus, "127.0.0.1:0", WebConsoleEnrollWiring{}, func(string) {})
 	if err == nil {
 		t.Fatal("expected error for nil app")
 	}

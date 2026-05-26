@@ -106,7 +106,11 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 	prefix := fs.String("prefix", "", "install prefix (default: /opt/agent-center linux system mode, ~/Library/Application Support/agent-center on Mac, ~/.local/share/agent-center on linux user mode)")
 	userMode := fs.Bool("user-mode", isMacRuntime(), "install under the current user (no sudo). Mac default true, linux default false (use system mode + sudo).")
 	port := fs.Int("port", 7100, "Web Console listen port (loopback only)")
-	tcpListen := fs.String("tcp-listen", "", "admin TCP listener address (e.g. 0.0.0.0:7300). Empty = unix-only.")
+	// v2.4-D-F4 fix: default-on so the Web Console's Add Worker Modal
+	// can mint a usable install command without requiring the operator
+	// to know they have to enable TCP. Pass --tcp-listen="" to disable
+	// (unix-socket-only deployments).
+	tcpListen := fs.String("tcp-listen", "0.0.0.0:7300", "admin TCP listener address (e.g. 0.0.0.0:7300). Pass --tcp-listen= to disable (unix-only).")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
 
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
@@ -175,8 +179,12 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 func installWorkerHandler(fs *flag.FlagSet) Handler {
 	prefix := fs.String("prefix", "", "install prefix (default: same defaults as install center)")
 	userMode := fs.Bool("user-mode", isMacRuntime(), "install under the current user (no sudo)")
-	bootstrap := fs.String("bootstrap", "", "admin endpoint URL the worker dials, e.g. tcp://<fingerprint>@host:7300 or unix:/path/admin.sock (required)")
+	bootstrap := fs.String("bootstrap", "", "admin endpoint URL the worker dials, e.g. tcp://host:7300 or unix:/path/admin.sock (required)")
 	token := fs.String("token", "", "one-time enrollment bearer token from the Web Console / mint-enroll endpoint (required)")
+	// v2.4-D-F4 X1 fix: explicit fingerprint flag — workers MUST pin
+	// the server's TLS cert (v2.3-7b client pinning). Required when
+	// --bootstrap is tcp://; optional for unix:/ sockets.
+	fingerprint := fs.String("server-fingerprint", "", "pinned server TLS cert sha256 fingerprint (sha256:HH:HH:...); required when --bootstrap is tcp://")
 	workerID := fs.String("worker-id", "", "worker identifier; default = OS hostname")
 	caps := fs.String("capabilities", "", "comma-separated agent capabilities advertised by this worker (e.g. claudecode,fakeagent)")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
@@ -191,6 +199,12 @@ func installWorkerHandler(fs *flag.FlagSet) Handler {
 		if strings.TrimSpace(*token) == "" {
 			return PrintError(errw, FormatText, "install_worker_missing_token",
 				"--token is required (mint via Web Console / agent-center admintoken mint-enroll)",
+				ExitUsage)
+		}
+		// Pinning gate: tcp:// MUST come with a fingerprint per v2.3-7b.
+		if strings.HasPrefix(strings.TrimSpace(*bootstrap), "tcp://") && strings.TrimSpace(*fingerprint) == "" {
+			return PrintError(errw, FormatText, "install_worker_missing_fingerprint",
+				"--server-fingerprint is required when --bootstrap is tcp:// (copy from the Web Console enroll Modal)",
 				ExitUsage)
 		}
 
@@ -234,13 +248,14 @@ func installWorkerHandler(fs *flag.FlagSet) Handler {
 			return ExitOK
 		case InstallStateFresh:
 			return installWorkerFresh(out, errw, installContext{
-				Prefix:    resolvedPrefix,
-				UserMode:  *userMode,
-				WorkerID:  resolvedWorkerID,
-				Bootstrap: *bootstrap,
-				Token:     *token,
-				Caps:      *caps,
-				Version:   version,
+				Prefix:      resolvedPrefix,
+				UserMode:    *userMode,
+				WorkerID:    resolvedWorkerID,
+				Bootstrap:   *bootstrap,
+				Token:       *token,
+				Fingerprint: strings.TrimSpace(*fingerprint),
+				Caps:        *caps,
+				Version:     version,
 			})
 		case InstallStateUpgrade:
 			return installWorkerUpgrade(out, errw, installContext{
@@ -249,6 +264,7 @@ func installWorkerHandler(fs *flag.FlagSet) Handler {
 				WorkerID:       resolvedWorkerID,
 				Bootstrap:      *bootstrap,
 				Token:          *token,
+				Fingerprint:    strings.TrimSpace(*fingerprint),
 				Caps:           *caps,
 				Version:        version,
 				CurrentVersion: currentVersion,
@@ -271,6 +287,7 @@ type installContext struct {
 	WorkerID       string
 	Bootstrap      string
 	Token          string
+	Fingerprint    string
 	Caps           string
 	Version        string
 	CurrentVersion string
@@ -394,7 +411,7 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	// the token on first enroll. Until then the worker daemon will
 	// 401 on a stale token, which is the right behavior.
 	unitBody := renderWorkerServiceUnit(sp, currentBin, layout.ConfigPath,
-		ic.WorkerID, ic.Bootstrap, ic.Token, "" /* fingerprint via bootstrap URL */, ic.Caps)
+		ic.WorkerID, ic.Bootstrap, ic.Token, ic.Fingerprint, ic.Caps)
 	if err := writeUnitFile(sp.WorkerUnitPath, unitBody); err != nil {
 		return PrintError(errw, FormatText, "install_write_unit_failed", err.Error(), ExitBusinessError)
 	}
@@ -514,8 +531,22 @@ func installerVersion() string {
 // touching the real build-time variable. Production reads the override
 // via the binary's main.buildVersion through this seam.
 var installBuildVersion = func() string {
-	// In test builds this returns "". The real CLI binary sets
-	// installBuildVersion to a closure capturing main.buildVersion in
-	// init() (added in v2.4-D-A2).
+	// In test builds this returns "". The real CLI binary calls
+	// SetInstallBuildVersion(main.buildVersion) in main() (added in
+	// v2.4-D-X1 fix so `install center` prints the real tag).
 	return ""
+}
+
+// SetInstallBuildVersion lets the binary's main() thread the linker-
+// injected buildVersion into the install command. Called only when
+// buildVersion is non-empty and not the "dev" sentinel; the empty
+// case stays "dev" for `go run` / unversioned builds. Tests don't
+// call this — they mutate installBuildVersion directly with a
+// restore-on-defer pattern.
+func SetInstallBuildVersion(v string) {
+	if v == "" || v == "dev" {
+		return
+	}
+	bv := v
+	installBuildVersion = func() string { return bv }
 }

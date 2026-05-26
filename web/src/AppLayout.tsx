@@ -203,6 +203,7 @@ const navSections: ReadonlyArray<NavSection> = [
   {
     label: 'System',
     items: [
+      { to: '/fleet', label: 'Fleet', Icon: FleetIcon },
       { to: '/agents', label: 'Agents', Icon: AgentsIcon },
       { to: '/settings', label: 'Settings', Icon: SettingsIcon },
     ],
@@ -403,6 +404,15 @@ function InboxIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M3 11.5V5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 17 5v6.5M3 11.5h4.5l1 2h3l1-2H17M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function FleetIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="2.5" y="6" width="6" height="8" rx="1" />
+      <rect x="11.5" y="6" width="6" height="8" rx="1" />
+      <path d="M5.5 9.5h0.01M14.5 9.5h0.01" strokeLinecap="round" />
     </svg>
   );
 }

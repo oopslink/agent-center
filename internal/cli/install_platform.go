@@ -101,9 +101,16 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath string) str
 }
 
 // renderWorkerServiceUnit ditto for worker.
+//
+// v2.4-D-F4 X1 fix: the binary is the standalone
+// `agent-center-worker-daemon` (cmd/worker-daemon/main.go), not the
+// `agent-center` multi-tool binary. Its arg parser is flag.Parse()
+// over flags only — no positional sub-commands. Earlier versions
+// here prepended ["worker", "run", ...] which flag.Parse() treated
+// as a non-flag terminator, causing every flag after to be ignored
+// and the daemon to exit with `--worker-id is required`.
 func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, bootstrap, token, fingerprint, caps string) string {
 	args := []string{
-		"worker", "run",
 		"--config=" + configPath,
 		"--worker-id=" + workerID,
 		"--admin-target=" + bootstrap,

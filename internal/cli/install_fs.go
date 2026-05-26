@@ -22,28 +22,44 @@ import (
 	"runtime"
 )
 
+// activationStep is one shell command in the activation sequence,
+// plus a flag for whether a non-zero exit should be tolerated (e.g.
+// launchctl unload of a service that isn't currently loaded).
+type activationStep struct {
+	Cmd      string
+	Tolerate bool
+}
+
 // activateService runs the platform-appropriate command to enable +
 // start the service. If skipActivate is true, prints the command the
 // operator would run manually instead. Returns nil on success or a
 // descriptive error.
 func activateService(sp servicePaths, serviceID string, out io.Writer, skipActivate bool) error {
-	cmds := serviceActivateCmds(sp, serviceID)
+	steps := serviceActivateCmds(sp, serviceID)
 	if skipActivate {
 		fmt.Fprintln(out, "  service activation skipped — run these to activate:")
-		for _, c := range cmds {
-			fmt.Fprintf(out, "    %s\n", c)
+		for _, s := range steps {
+			fmt.Fprintf(out, "    %s\n", s.Cmd)
 		}
 		return nil
 	}
-	for _, c := range cmds {
+	for _, s := range steps {
 		// Tokenize on space — safe because we built these strings, no
 		// user input goes in.
-		parts := splitSpaces(c)
+		parts := splitSpaces(s.Cmd)
 		cmd := exec.Command(parts[0], parts[1:]...) //nolint:gosec
+		if s.Tolerate {
+			// Suppress output so the operator doesn't see "Unload
+			// failed: 5: Input/output error" on a clean install.
+			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
+			_ = cmd.Run()
+			continue
+		}
 		cmd.Stdout = out
 		cmd.Stderr = out
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("activate service via %q: %w", c, err)
+			return fmt.Errorf("activate service via %q: %w", s.Cmd, err)
 		}
 	}
 	return nil
@@ -51,25 +67,25 @@ func activateService(sp servicePaths, serviceID string, out io.Writer, skipActiv
 
 // serviceActivateCmds returns the shell-level commands to enable +
 // start the service. Built strings, no operator input.
-func serviceActivateCmds(sp servicePaths, serviceID string) []string {
+func serviceActivateCmds(sp servicePaths, serviceID string) []activationStep {
 	switch sp.ServiceManager {
 	case "launchd":
-		return []string{
-			"launchctl unload " + sp.unitPathFor(serviceID), // tolerate "not loaded"
-			"launchctl load " + sp.unitPathFor(serviceID),
+		return []activationStep{
+			{Cmd: "launchctl unload " + sp.unitPathFor(serviceID), Tolerate: true},
+			{Cmd: "launchctl load " + sp.unitPathFor(serviceID)},
 		}
 	case "systemd":
 		if sp.UserMode {
-			return []string{
-				"systemctl --user daemon-reload",
-				"systemctl --user enable " + serviceID,
-				"systemctl --user restart " + serviceID,
+			return []activationStep{
+				{Cmd: "systemctl --user daemon-reload"},
+				{Cmd: "systemctl --user enable " + serviceID},
+				{Cmd: "systemctl --user restart " + serviceID},
 			}
 		}
-		return []string{
-			"systemctl daemon-reload",
-			"systemctl enable " + serviceID,
-			"systemctl restart " + serviceID,
+		return []activationStep{
+			{Cmd: "systemctl daemon-reload"},
+			{Cmd: "systemctl enable " + serviceID},
+			{Cmd: "systemctl restart " + serviceID},
 		}
 	}
 	return nil

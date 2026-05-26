@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -152,6 +153,40 @@ func defaultTLSDir(sqlitePath string) string {
 		return "/var/lib/agent-center"
 	}
 	return filepath.Dir(sqlitePath)
+}
+
+// enrollBootstrapHost converts an admin_tcp_listen address (e.g.
+// "0.0.0.0:7300" or "127.0.0.1:7300") into the host:port string the
+// AddWorkerModal will paste into the worker install command. When
+// the listener bound to 0.0.0.0 we substitute the OS hostname so the
+// worker can dial in from another machine; loopback / explicit hosts
+// are passed through unchanged.
+func enrollBootstrapHost(adminTCPListen string) string {
+	if adminTCPListen == "" {
+		return ""
+	}
+	host, port, err := splitHostPortFlexible(adminTCPListen)
+	if err != nil {
+		return adminTCPListen
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		// Substitute hostname so cross-host workers can dial. Falls
+		// back to 127.0.0.1 when hostname is unavailable.
+		if h := hostnameForCertSAN(); h != "" {
+			return h + ":" + port
+		}
+		return "127.0.0.1:" + port
+	}
+	return host + ":" + port
+}
+
+// splitHostPortFlexible accepts "host:port" or ":port" (bare port).
+func splitHostPortFlexible(addr string) (host, port string, err error) {
+	if addr != "" && addr[0] == ':' {
+		return "", addr[1:], nil
+	}
+	host, port, err = net.SplitHostPort(addr)
+	return host, port, err
 }
 
 // adminRateLimitSink bridges api.RateLimitMiddleware events to the

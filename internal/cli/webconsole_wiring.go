@@ -38,15 +38,27 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		ReadStateSvc:       a.ReadStateSvc,
 		IssueRepo:          a.IssueRepo,
 		TaskRepo:           a.TaskRepo,
+		AdminTokenSvc:      a.AdminTokenSvc,
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
 }
 
+// WebConsoleEnrollWiring carries the values the AddWorkerModal needs
+// to render a working install command for the worker box. Both are
+// known by ServerCommand after the admin TCP listener boots: the
+// fingerprint comes from AdminTransportInfo, the bootstrap host is
+// derived from the admin_tcp_listen config + the operator-facing
+// hostname (or 127.0.0.1 when the listener is loopback-only).
+type WebConsoleEnrollWiring struct {
+	BootstrapHost string // e.g. "192.168.1.10:7300" or "127.0.0.1:7300"
+	Fingerprint   string // SSH-style sha256:HH:HH:...
+}
+
 // runWebConsole binds + serves the Web Console HTTP API at addr,
 // enforcing the loopback bind guard (per ADR-0037 / NF2 — no remote
 // listen). Returns http.ErrServerClosed on graceful shutdown.
-func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, logger func(string)) (cleanup func() error, err error) {
+func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enroll WebConsoleEnrollWiring, logger func(string)) (cleanup func() error, err error) {
 	if addr == "" {
 		addr = "127.0.0.1:7100"
 	}
@@ -74,6 +86,9 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, logge
 		ReadStateSvc:       a.ReadStateSvc,
 		IssueRepo:          a.IssueRepo,
 		TaskRepo:           a.TaskRepo,
+		AdminTokenSvc:      a.AdminTokenSvc,
+		EnrollBootstrapHost: enroll.BootstrapHost,
+		EnrollFingerprint:   enroll.Fingerprint,
 	}
 	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler()})
 	// Wrap the inner mux with deps middleware; install it as the

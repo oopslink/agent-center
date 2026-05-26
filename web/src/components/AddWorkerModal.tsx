@@ -19,51 +19,78 @@ import { useAppStore } from '@/store/app';
 
 type ModalState =
   | { kind: 'minting' }
-  | { kind: 'ready'; token: string; expiresAt: Date; mintedAt: Date; command: string }
+  | { kind: 'mint_error'; message: string }
+  | {
+      kind: 'ready';
+      tokenID: string;
+      token: string;
+      expiresAt: Date;
+      mintedAt: Date;
+      command: string;
+    }
   | { kind: 'success'; worker: { id: string; capabilities: string[] } }
   | { kind: 'token_used' }
   | { kind: 'token_expired' }
-  | { kind: 'timeout_hint'; token: string; expiresAt: Date; command: string };
+  | {
+      kind: 'timeout_hint';
+      tokenID: string;
+      token: string;
+      expiresAt: Date;
+      command: string;
+    };
 
 interface Props {
   onClose: () => void;
 }
 
-// MintResponse mirrors what POST /api/admintoken/mint-enroll returns.
-// Backend ST for this endpoint is gated by A3 (#37); for v0 we fall
-// back to a mock if the call fails so the Modal flow can be exercised
-// in the dev env before the endpoint exists.
+// MintResponse mirrors what POST /api/admintoken/mint-enroll returns
+// from the Web Console webconsole/api handler (loopback-only, so no
+// bearer auth needed). The server fills in fingerprint + bootstrap
+// host from the admin TCP listener config + cert; the Modal renders
+// them straight into the install command (no client-side guesses).
 interface MintResponse {
+  id: string;
   token: string;
   expires_at: string; // RFC3339
+  fingerprint: string;
+  bootstrap_host: string;
 }
 
 async function mintEnrollToken(): Promise<MintResponse> {
   const resp = await fetch('/api/admintoken/mint-enroll', { method: 'POST' });
   if (!resp.ok) {
-    throw new Error(`mint failed: HTTP ${resp.status}`);
+    let detail = `HTTP ${resp.status}`;
+    try {
+      const body = (await resp.json()) as { error?: string; message?: string };
+      if (body.error || body.message) {
+        detail = `${body.error ?? ''}${body.error && body.message ? ': ' : ''}${body.message ?? ''}`;
+      }
+    } catch {
+      // body not JSON; keep status fallback
+    }
+    throw new Error(detail);
   }
   return resp.json();
 }
 
-async function revokeEnrollToken(token: string): Promise<void> {
-  // Best-effort; backend endpoint may not be live yet.
+async function revokeEnrollToken(tokenID: string): Promise<void> {
+  if (!tokenID) return;
   try {
-    await fetch(`/api/admintoken/revoke?token_hint=${encodeURIComponent(token.slice(0, 12))}`,
-      { method: 'POST' });
+    await fetch(`/api/admintoken/revoke?id=${encodeURIComponent(tokenID)}`, { method: 'POST' });
   } catch {
-    // ignore
+    // ignore — Modal close is fire-and-forget
   }
 }
 
-// renderCommand assembles the operator-facing install command from
-// the bootstrap URL + token returned by mint. The bootstrap URL is
-// constructed client-side because the server can't infer the public
-// host the worker will dial.
-function renderCommand(token: string, bootstrapHost: string): string {
-  return `cd agent-center-v2.4.0-darwin-arm64
-./install worker \\
-  --bootstrap=tcp://${bootstrapHost}:7300 \\
+// renderCommand assembles the operator-facing install command. All
+// substantive values come from the mint-enroll response — the client
+// fills in nothing here, so a wrong bootstrap host or fingerprint can
+// only come from the backend (which has authoritative knowledge of
+// the cert + listener config).
+function renderCommand(token: string, bootstrapHost: string, fingerprint: string): string {
+  return `./install worker \\
+  --bootstrap=tcp://${bootstrapHost} \\
+  --server-fingerprint=${fingerprint} \\
   --token=${token}`;
 }
 
@@ -78,7 +105,9 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     return () => useAppStore.getState().setAddWorkerModalOpen(false);
   }, []);
 
-  // Mint on mount.
+  // Mint on mount. No silent fallback: if /api/admintoken/mint-enroll
+  // fails we show the error so the operator sees it instead of a
+  // placeholder token that would fail on the worker box.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -88,23 +117,16 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
         const expires = new Date(resp.expires_at);
         setState({
           kind: 'ready',
+          tokenID: resp.id,
           token: resp.token,
           expiresAt: expires,
           mintedAt: new Date(),
-          command: renderCommand(resp.token, window.location.hostname || 'home.lan'),
+          command: renderCommand(resp.token, resp.bootstrap_host, resp.fingerprint),
         });
-      } catch {
+      } catch (err) {
         if (cancelled) return;
-        // Fallback for dev env when mint endpoint not yet live.
-        const tok = 'acat_dev_placeholder_xxxxxxxx';
-        const expires = new Date(Date.now() + 30 * 60_000);
-        setState({
-          kind: 'ready',
-          token: tok,
-          expiresAt: expires,
-          mintedAt: new Date(),
-          command: renderCommand(tok, window.location.hostname || 'home.lan'),
-        });
+        const message = err instanceof Error ? err.message : String(err);
+        setState({ kind: 'mint_error', message });
       }
     })();
     return () => {
@@ -133,6 +155,7 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     if (remaining <= 0) {
       setState({
         kind: 'timeout_hint',
+        tokenID: state.tokenID,
         token: state.token,
         expiresAt: state.expiresAt,
         command: state.command,
@@ -145,6 +168,7 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
         s.kind === 'ready'
           ? {
               kind: 'timeout_hint',
+              tokenID: s.tokenID,
               token: s.token,
               expiresAt: s.expiresAt,
               command: s.command,
@@ -180,12 +204,12 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     return () => window.removeEventListener('agent-center:worker-enrolled', handler);
   }, [state]);
 
-  // Auto-revoke unused token on Modal close (UI § 9 D2).
+  // Auto-revoke unused token on Modal close (UI § 9 D2). Revokes by
+  // the token's AdminToken ID returned by mint-enroll (not by
+  // plaintext — the backend never sees plaintext after mint).
   const handleClose = () => {
-    if (state.kind === 'ready' || state.kind === 'timeout_hint' || state.kind === 'token_expired') {
-      const tok =
-        state.kind === 'token_expired' ? '' : (state as { token: string }).token;
-      if (tok) void revokeEnrollToken(tok);
+    if (state.kind === 'ready' || state.kind === 'timeout_hint') {
+      void revokeEnrollToken(state.tokenID);
     }
     onClose();
   };
@@ -198,20 +222,15 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
         const expires = new Date(resp.expires_at);
         setState({
           kind: 'ready',
+          tokenID: resp.id,
           token: resp.token,
           expiresAt: expires,
           mintedAt: new Date(),
-          command: renderCommand(resp.token, window.location.hostname || 'home.lan'),
+          command: renderCommand(resp.token, resp.bootstrap_host, resp.fingerprint),
         });
-      } catch {
-        const tok = 'acat_dev_placeholder_xxxxxxxx';
-        setState({
-          kind: 'ready',
-          token: tok,
-          expiresAt: new Date(Date.now() + 30 * 60_000),
-          mintedAt: new Date(),
-          command: renderCommand(tok, window.location.hostname || 'home.lan'),
-        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setState({ kind: 'mint_error', message });
       }
     })();
   };
@@ -265,6 +284,39 @@ function ModalBody({ state, onGenerateNew, onAddAnother, onClose }: BodyProps): 
         <div className="py-8 text-center" data-testid="modal-state-minting">
           <p className="text-sm text-slate-600">Preparing your worker install command...</p>
           <div className="mt-4 inline-block h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+        </div>
+      );
+    case 'mint_error':
+      return (
+        <div data-testid="modal-state-mint-error">
+          <p className="mb-3 text-sm font-medium text-danger">
+            Could not mint an enroll token.
+          </p>
+          <p className="mb-3 text-sm text-slate-700">{state.message}</p>
+          <p className="mb-4 text-xs text-slate-500">
+            Common causes: admin TCP listener is not enabled on the
+            center (set <code className="font-mono">server.admin_tcp_listen</code> in the config,
+            e.g. <code className="font-mono">0.0.0.0:7300</code>) or the AdminToken service is not
+            wired. Check the server logs.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              onClick={onClose}
+              data-testid="modal-mint-error-close"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={onGenerateNew}
+              data-testid="modal-mint-error-retry"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       );
     case 'ready':

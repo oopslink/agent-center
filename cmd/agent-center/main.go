@@ -36,6 +36,10 @@ func main() {
 	}()
 
 	args := os.Args[1:]
+	// v2.4-D-X1 fix: pass the linker-injected version into the install
+	// command so it prints "AgentCenter v2.4.0 installed" instead of
+	// the "dev" sentinel for tagged builds.
+	cli.SetInstallBuildVersion(buildVersion)
 	router, configPath, err := cli.BuildRouter(buildVersion, buildCommit, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: build_router: %v\n", err)

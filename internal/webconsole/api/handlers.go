@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/admintoken"
+	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/conversation/identity"
@@ -52,6 +54,17 @@ type HandlerDeps struct {
 	// Conversation BC's `kind=issue|task` filter.
 	IssueRepo discussion.IssueRepository
 	TaskRepo  task.Repository
+
+	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
+	// Modal. AdminTokenSvc is the same service the admin endpoint uses
+	// (loopback only — ADR-0037 — so no per-request auth check on
+	// this surface). EnrollBootstrapHost + EnrollFingerprint are the
+	// values the Modal needs to render the worker install command;
+	// both are derived from the admin TCP listener config + cert at
+	// server boot.
+	AdminTokenSvc      *admintokensvc.Service
+	EnrollBootstrapHost string
+	EnrollFingerprint   string
 }
 
 // hd retrieves the typed dep bag from the request context.
@@ -1294,6 +1307,103 @@ func taskPublicMap(t *task.Task) map[string]any {
 		m["depends_on_task_ids"] = as
 	}
 	return m
+}
+
+// =============================================================================
+// AdminToken — enroll-token mint endpoint for the Add Worker Modal.
+//
+// Loopback-only Web Console per ADR-0037, so no bearer-auth check.
+// CLI mode-1 (admin endpoint) keeps the same shape via
+// /admin/admintoken/mint-enroll for cross-host / multi-user setups.
+// =============================================================================
+
+type mintEnrollResp struct {
+	ID            string `json:"id"`
+	Token         string `json:"token"`
+	ExpiresAt     string `json:"expires_at"`
+	Fingerprint   string `json:"fingerprint"`
+	BootstrapHost string `json:"bootstrap_host"`
+}
+
+func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.AdminTokenSvc == nil {
+		writeError(w, http.StatusNotImplemented, "admintoken_svc_not_wired",
+			"server started without AdminTokenSvc; check ServerCommand wiring")
+		return
+	}
+	if d.EnrollBootstrapHost == "" || d.EnrollFingerprint == "" {
+		writeError(w, http.StatusServiceUnavailable, "enroll_not_configured",
+			"admin TCP listener not enabled — set server.admin_tcp_listen in config")
+		return
+	}
+	createdBy := ""
+	if string(d.Actor) != "" {
+		createdBy = string(d.Actor)
+	}
+	res, err := d.AdminTokenSvc.CreateEnrollToken(r.Context(), admintokensvc.CreateEnrollCommand{
+		Owner:     admintoken.Owner("enroll:web-console"),
+		Scopes:    []admintoken.Scope{"workforce:enroll"},
+		CreatedBy: createdBy,
+		TTL:       30 * time.Minute,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "mint_failed", err.Error())
+		return
+	}
+	tok, ferr := d.AdminTokenSvc.FindByID(r.Context(), res.ID)
+	if ferr != nil {
+		writeError(w, http.StatusInternalServerError, "mint_lookup_failed", ferr.Error())
+		return
+	}
+	expiresAt := ""
+	if exp := tok.ExpiresAt(); exp != nil {
+		expiresAt = exp.UTC().Format(time.RFC3339Nano)
+	}
+	writeJSON(w, http.StatusOK, mintEnrollResp{
+		ID:            string(res.ID),
+		Token:         res.Plaintext,
+		ExpiresAt:     expiresAt,
+		Fingerprint:   d.EnrollFingerprint,
+		BootstrapHost: d.EnrollBootstrapHost,
+	})
+}
+
+// revokeEnrollHandler revokes the token whose plaintext sha256 hash
+// matches `token_hint` (first 12 chars of the plaintext are accepted
+// as a hint — we look up by ID prefix or full plaintext lookup).
+//
+// In v0 this is best-effort: the frontend already calls it from the
+// Modal-close auto-revoke (UI § 9 D2), and silently swallows any
+// failure. We accept either ?token_hint=<first-12-of-plaintext> or
+// ?id=<token-id>. If neither resolves to a row we return 204 so the
+// frontend stays quiet on no-op revokes.
+func (s *Server) revokeEnrollHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.AdminTokenSvc == nil {
+		writeError(w, http.StatusNotImplemented, "admintoken_svc_not_wired", "")
+		return
+	}
+	q := r.URL.Query()
+	id := admintoken.TokenID(q.Get("id"))
+	if string(id) == "" {
+		// token_hint is currently advisory — we don't index by
+		// plaintext prefix. Treat as no-op success so the Modal's
+		// fire-and-forget close path doesn't surface noise.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err := d.AdminTokenSvc.Revoke(r.Context(), admintokensvc.RevokeCommand{
+		ID:     id,
+		By:     string(d.Actor),
+		Reason: "web-console enroll-modal closed",
+	}); err != nil {
+		// Already-revoked / not-found → 204 is still acceptable for
+		// the close path.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

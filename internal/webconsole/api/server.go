@@ -167,6 +167,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/fleet", s.fleetSnapshotHandler)
 	s.mux.HandleFunc("GET /api/tasks/{id}/trace", s.taskTraceHandler)
 
+	// v2.4-D-F3 fix: AddWorkerModal mints enroll tokens here.
+	s.mux.HandleFunc("POST /api/admintoken/mint-enroll", s.mintEnrollHandler)
+	s.mux.HandleFunc("POST /api/admintoken/revoke", s.revokeEnrollHandler)
+
 	// SPA catch-all. Registered LAST so all the /api/* patterns take
 	// precedence. Serves the embedded React build (web/dist/ baked in
 	// by go:embed) for "/" + every non-/api path, with index.html

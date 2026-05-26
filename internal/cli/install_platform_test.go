@@ -216,3 +216,84 @@ func TestSplitSpaces(t *testing.T) {
 		t.Errorf("got %v", got)
 	}
 }
+
+// v2.4-D-F4 X1 fix: the worker service unit's binary IS the
+// worker-daemon, whose flag.Parse() only knows flags — no positional
+// `worker run` prefix, which previously caused launchd-launched
+// daemons to crash with `--worker-id is required`.
+func TestRenderWorkerServiceUnit_NoPositionalPrefix(t *testing.T) {
+	sp := servicePaths{
+		ServiceManager:  "launchd",
+		WorkerServiceID: "com.agent-center.worker",
+		WorkerUnitPath:  "/tmp/test.plist",
+		UserMode:        true,
+	}
+	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center-worker-daemon",
+		"/opt/agent-center/config.yaml",
+		"my-worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode")
+	if strings.Contains(body, "<string>worker</string>") {
+		t.Errorf("plist still has positional 'worker' prefix:\n%s", body)
+	}
+	if strings.Contains(body, "<string>run</string>") {
+		t.Errorf("plist still has positional 'run' prefix:\n%s", body)
+	}
+	// All four required flags present.
+	for _, want := range []string{
+		"--worker-id=my-worker",
+		"--admin-target=tcp://host:7300",
+		"--admin-token=tok-abc",
+		"--server-fingerprint=sha256:AA",
+		"--capabilities=claudecode",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("plist missing %q:\n%s", want, body)
+		}
+	}
+}
+
+func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
+	sp := servicePaths{
+		ServiceManager:  "launchd",
+		WorkerServiceID: "com.agent-center.worker",
+		WorkerUnitPath:  "/tmp/test.plist",
+	}
+	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
+		"w", "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "" /* no caps */)
+	if strings.Contains(body, "--server-fingerprint=") {
+		t.Errorf("empty fingerprint should be omitted:\n%s", body)
+	}
+	if strings.Contains(body, "--capabilities=") {
+		t.Errorf("empty capabilities should be omitted:\n%s", body)
+	}
+}
+
+// v2.4-D-F4 X1 fix: install center default tcp-listen + helper that
+// rewrites 0.0.0.0 to the host's name for the Modal install command.
+func TestEnrollBootstrapHost(t *testing.T) {
+	cases := []struct {
+		in       string
+		wantPort string
+		wantHost bool // host expected non-empty
+	}{
+		{in: "", wantPort: ""},
+		{in: "0.0.0.0:7300", wantPort: "7300", wantHost: true},
+		{in: ":7300", wantPort: "7300", wantHost: true},
+		{in: "127.0.0.1:7300", wantPort: "7300", wantHost: true},
+		{in: "host.local:7300", wantPort: "7300", wantHost: true},
+	}
+	for _, c := range cases {
+		got := enrollBootstrapHost(c.in)
+		if c.in == "" {
+			if got != "" {
+				t.Errorf("empty in → %q, want \"\"", got)
+			}
+			continue
+		}
+		if !strings.HasSuffix(got, ":"+c.wantPort) {
+			t.Errorf("in=%q got=%q want suffix :%s", c.in, got, c.wantPort)
+		}
+		if c.wantHost && len(got) <= len(":"+c.wantPort) {
+			t.Errorf("in=%q got=%q missing host part", c.in, got)
+		}
+	}
+}

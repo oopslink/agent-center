@@ -186,13 +186,47 @@ func TestInstallWorker_DryRun(t *testing.T) {
 	prefix := t.TempDir()
 	stdout, _, code := runHandler(t, cmd, []string{
 		"--prefix=" + prefix, "--dry-run",
-		"--bootstrap=tcp://x@y:7300", "--token=abc",
+		"--bootstrap=tcp://host:7300", "--token=abc",
+		"--server-fingerprint=sha256:AA:BB",
 	})
 	if code != ExitOK {
 		t.Fatalf("dry-run on fresh prefix should ExitOK, got %d", code)
 	}
 	if !strings.Contains(stdout, "[dry-run]") || !strings.Contains(stdout, "worker-id:") {
 		t.Errorf("dry-run output missing key lines: %s", stdout)
+	}
+}
+
+// v2.4-D-F4 X1 fix: install worker requires --server-fingerprint when
+// --bootstrap is tcp:// (per v2.3-7b pinning). Caught at the flag-
+// parsing layer so the operator gets a clean error before any state
+// mutation runs.
+func TestInstallWorker_TCPBootstrapRequiresFingerprint(t *testing.T) {
+	cmd := InstallWorkerCommand()
+	prefix := t.TempDir()
+	_, stderr, code := runHandler(t, cmd, []string{
+		"--prefix=" + prefix, "--dry-run",
+		"--bootstrap=tcp://host:7300", "--token=abc",
+	})
+	if code != ExitUsage {
+		t.Fatalf("missing --server-fingerprint should ExitUsage, got %d", code)
+	}
+	if !strings.Contains(stderr, "--server-fingerprint is required") {
+		t.Errorf("stderr missing fingerprint hint: %q", stderr)
+	}
+}
+
+// unix:/ bootstraps don't require pinning (no TLS), so the
+// fingerprint gate is skipped.
+func TestInstallWorker_UnixBootstrapOK(t *testing.T) {
+	cmd := InstallWorkerCommand()
+	prefix := t.TempDir()
+	_, _, code := runHandler(t, cmd, []string{
+		"--prefix=" + prefix, "--dry-run",
+		"--bootstrap=unix:/tmp/admin.sock", "--token=abc",
+	})
+	if code != ExitOK {
+		t.Fatalf("unix:/ bootstrap without fingerprint should succeed, got %d", code)
 	}
 }
 

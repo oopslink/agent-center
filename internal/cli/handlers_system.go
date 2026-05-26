@@ -212,8 +212,15 @@ func ServerCommand() *Command {
 					if webAddr == "" {
 						webAddr = "127.0.0.1:7100"
 					}
+					// v2.4-D-F3 fix: pass admin TCP fingerprint + public
+					// bootstrap host through to the Web Console so the
+					// AddWorkerModal can render a working install command.
+					enrollWiring := WebConsoleEnrollWiring{
+						BootstrapHost: enrollBootstrapHost(cfg.Server.AdminTCPListen),
+						Fingerprint:   adminInfo.TLSFingerprint,
+					}
 					bus := sse.NewBus()
-					cleanup, werr := runWebConsole(ctx, app, bus, webAddr, func(msg string) {
+					cleanup, werr := runWebConsole(ctx, app, bus, webAddr, enrollWiring, func(msg string) {
 						fmt.Fprintf(errw, "[server] %s\n", msg)
 					})
 					if werr != nil {
