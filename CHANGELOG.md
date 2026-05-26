@@ -11,6 +11,47 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased] — v2.5.9
+
+Sidebar collapsible groups + Channels/DMs sub-lists (#63).
+@oopslink (`#agent-center:475113f5` screenshot → #63): the
+sidebar's flat section labels mirrored the original v2.3 nav
+layout, but with the surface growing (channels, DMs, projects)
+the operator wanted a Slack-style collapsible grouping so they
+could see all channels they had joined inline + collapse rarely
+used groups out of the way.
+
+### Added
+
+- **Per-group collapse**: each top-level nav group (Workspace /
+  Conversations / Work / System / Home) now renders its label
+  as a button with `aria-expanded`. Click to collapse the
+  group's items.
+- **Channels + DMs sub-lists**: the Channels and DMs nav items
+  now expand into a child list of `# channel-name` / `@ peer`
+  links, with a per-item collapse toggle next to the link. Item
+  count badge shows the list size.
+- **localStorage persistence**: both group state
+  (`ac.sidebar.groups`) and sub-item state
+  (`ac.sidebar.subitems`) survive page reloads. Default for
+  unseen keys is `true` (expanded) so first-time operators see
+  everything.
+
+### Backward-compatible
+
+- No backend changes — the new sub-lists hydrate from the
+  existing `useConversations({kind:'channel'/'dm'})` reads.
+- Existing AppLayout tests still pass — group labels are still
+  rendered as text inside the new buttons.
+
+### Verification
+
+- Frontend: 302 vitest specs green (7 new in
+  `AppLayout.sidebar.test.tsx` cover group toggle / sub-list
+  render / persistence).
+
+---
+
 ## [v2.5.8] — 2026-05-27
 
 Web Console Task management — Create + Suspend/Resume/Abandon

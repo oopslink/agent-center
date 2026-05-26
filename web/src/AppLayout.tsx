@@ -4,6 +4,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
 import { useInputRequests } from '@/api/inputRequests';
+import { useConversations } from '@/api/conversations';
+import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { CommandPalette } from '@/components/CommandPalette';
 import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
@@ -18,6 +20,11 @@ import { readTheme, writeTheme, type Theme } from '@/theme';
 //   - <CommandPalette> mounts at root so ⌘K works from anywhere
 
 const SIDEBAR_KEY = 'ac.sidebar.collapsed';
+// v2.5.x #63 — per-group + per-expandable-item expand state lives in
+// these two localStorage JSON maps. Default for unseen keys is `true`
+// (expanded) per the design ask.
+const GROUP_STATE_KEY = 'ac.sidebar.groups';
+const SUBITEM_STATE_KEY = 'ac.sidebar.subitems';
 
 function readSidebarCollapsed(): boolean {
   try {
@@ -25,6 +32,29 @@ function readSidebarCollapsed(): boolean {
     return localStorage.getItem(SIDEBAR_KEY) === '1';
   } catch {
     return false;
+  }
+}
+
+function readJSONMap(key: string): Record<string, boolean> {
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return {};
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, boolean>;
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function writeJSONMap(key: string, value: Record<string, boolean>): void {
+  try {
+    if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch {
+    // ignore
   }
 }
 
@@ -224,63 +254,185 @@ function Sidebar({
     (ir) => ir.status === 'pending',
   ).length;
 
+  // v2.5.x #63 — per-group + per-expandable-item expand state. Default
+  // for unseen keys is true (expanded).
+  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(
+    () => readJSONMap(GROUP_STATE_KEY),
+  );
+  const [subItemExpanded, setSubItemExpanded] = useState<Record<string, boolean>>(
+    () => readJSONMap(SUBITEM_STATE_KEY),
+  );
+  useEffect(() => {
+    writeJSONMap(GROUP_STATE_KEY, groupExpanded);
+  }, [groupExpanded]);
+  useEffect(() => {
+    writeJSONMap(SUBITEM_STATE_KEY, subItemExpanded);
+  }, [subItemExpanded]);
+  const isGroupOpen = (label: string) =>
+    groupExpanded[label] === undefined ? true : groupExpanded[label];
+  const isSubItemOpen = (to: string) =>
+    subItemExpanded[to] === undefined ? true : subItemExpanded[to];
+  const toggleGroup = (label: string) =>
+    setGroupExpanded((m) => ({ ...m, [label]: !isGroupOpen(label) }));
+  const toggleSubItem = (to: string) =>
+    setSubItemExpanded((m) => ({ ...m, [to]: !isSubItemOpen(to) }));
+
+  // Pull channel + DM lists for the Conversations group's expandable
+  // sub-items. Each list is small + cached; backend already supports
+  // these reads since v2.0.
+  const channels = useConversations({ kind: 'channel' });
+  const dms = useConversations({ kind: 'dm' });
+  const me = useAppStore((s) => s.currentUserId);
+  const channelChildren = (channels.data ?? [])
+    .filter((c) => c.status !== 'archived')
+    .map((c) => ({ to: `/channels/${encodeURIComponent(c.name ?? '')}`, label: `# ${c.name}` }));
+  const dmChildren = (dms.data ?? []).map((d) => {
+    const peers = (d.participants ?? [])
+      .filter((p) => !p.left_at && p.identity_id !== me)
+      .map((p) => p.identity_id);
+    const peerLabel = d.name || peers.join(' · ') || d.id;
+    return { to: `/dms/${encodeURIComponent(d.id)}`, label: `@ ${peerLabel}` };
+  });
+
   // The drawer always shows full labels; the desktop bar shrinks to an
   // icon-only strip when `collapsed` is true.
   const navTree = (isCollapsed: boolean) => (
     <ul className="space-y-4">
-      {navSections.map((section) => (
-        <li key={section.label}>
-          {!isCollapsed && (
-            <h2 className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
-              {section.label}
-            </h2>
-          )}
-          <ul className="space-y-0.5">
-            {section.items.map((item) => {
-              const badgeCount =
-                item.badge === 'inputRequests' ? inputRequestBadge : 0;
-              return (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end={item.end}
-                    title={isCollapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      [
-                        'flex items-center rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
-                        isCollapsed ? 'justify-center' : 'justify-between',
-                        isActive
-                          ? 'bg-brand text-white'
-                          : 'text-text-primary hover:bg-bg-subtle',
-                      ].join(' ')
-                    }
-                  >
-                    <span className={isCollapsed ? 'inline-flex' : 'flex items-center gap-2'}>
-                      <span aria-hidden="true" className="inline-flex h-4 w-4">
-                        <item.Icon />
-                      </span>
-                      {!isCollapsed && <span>{item.label}</span>}
-                    </span>
-                    {badgeCount > 0 && (
-                      <span
-                        className={[
-                          'rounded-full bg-accent text-xs font-medium text-white tabular-nums',
-                          isCollapsed
-                            ? 'absolute ml-3 -mt-3 h-3.5 w-3.5 text-[0.625rem] leading-none flex items-center justify-center'
-                            : 'px-1.5 py-0.5',
-                        ].join(' ')}
-                        data-testid={`nav-badge-${item.badge}`}
-                      >
-                        {badgeCount}
-                      </span>
-                    )}
-                  </NavLink>
-                </li>
-              );
-            })}
-          </ul>
-        </li>
-      ))}
+      {navSections.map((section) => {
+        const open = isGroupOpen(section.label);
+        const showCollapsibleHeader = !isCollapsed && section.items.length > 0;
+        return (
+          <li key={section.label}>
+            {showCollapsibleHeader ? (
+              <button
+                type="button"
+                onClick={() => toggleGroup(section.label)}
+                aria-expanded={open}
+                data-testid={`sidebar-group-toggle-${section.label}`}
+                className="flex w-full items-center justify-between rounded px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted hover:bg-bg-subtle"
+              >
+                <span>{section.label}</span>
+                <span aria-hidden="true" className="text-text-muted">
+                  {open ? '⌄' : '›'}
+                </span>
+              </button>
+            ) : (
+              !isCollapsed && (
+                <h2 className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
+                  {section.label}
+                </h2>
+              )
+            )}
+            {(isCollapsed || open) && (
+              <ul className="space-y-0.5">
+                {section.items.map((item) => {
+                  const badgeCount =
+                    item.badge === 'inputRequests' ? inputRequestBadge : 0;
+                  // Channels + DMs nav items expand into sub-lists.
+                  const subChildren =
+                    item.to === '/channels'
+                      ? channelChildren
+                      : item.to === '/dms'
+                        ? dmChildren
+                        : null;
+                  const subOpen = isSubItemOpen(item.to);
+                  return (
+                    <li key={item.to}>
+                      <div className="flex items-center gap-1">
+                        <NavLink
+                          to={item.to}
+                          end={item.end}
+                          title={isCollapsed ? item.label : undefined}
+                          className={({ isActive }) =>
+                            [
+                              'flex flex-1 items-center rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
+                              isCollapsed ? 'justify-center' : 'justify-between',
+                              isActive
+                                ? 'bg-brand text-white'
+                                : 'text-text-primary hover:bg-bg-subtle',
+                            ].join(' ')
+                          }
+                        >
+                          <span className={isCollapsed ? 'inline-flex' : 'flex items-center gap-2'}>
+                            <span aria-hidden="true" className="inline-flex h-4 w-4">
+                              <item.Icon />
+                            </span>
+                            {!isCollapsed && (
+                              <span className="flex items-center gap-1.5">
+                                {item.label}
+                                {subChildren && (
+                                  <span className="rounded bg-bg-elevated px-1.5 text-[0.6875rem] text-text-muted tabular-nums">
+                                    {subChildren.length}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </span>
+                          {badgeCount > 0 && (
+                            <span
+                              className={[
+                                'rounded-full bg-accent text-xs font-medium text-white tabular-nums',
+                                isCollapsed
+                                  ? 'absolute ml-3 -mt-3 h-3.5 w-3.5 text-[0.625rem] leading-none flex items-center justify-center'
+                                  : 'px-1.5 py-0.5',
+                              ].join(' ')}
+                              data-testid={`nav-badge-${item.badge}`}
+                            >
+                              {badgeCount}
+                            </span>
+                          )}
+                        </NavLink>
+                        {!isCollapsed && subChildren && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSubItem(item.to)}
+                            aria-expanded={subOpen}
+                            aria-label={`Toggle ${item.label} list`}
+                            data-testid={`sidebar-subitem-toggle-${item.to}`}
+                            className="rounded p-1 text-xs text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+                          >
+                            {subOpen ? '⌄' : '›'}
+                          </button>
+                        )}
+                      </div>
+                      {!isCollapsed && subChildren && subOpen && (
+                        <ul
+                          className="ml-6 mt-0.5 space-y-0.5 border-l border-border-base pl-2"
+                          data-testid={`sidebar-subitem-list-${item.to}`}
+                        >
+                          {subChildren.length === 0 && (
+                            <li className="px-2 py-0.5 text-xs italic text-text-muted">
+                              (none)
+                            </li>
+                          )}
+                          {subChildren.map((child) => (
+                            <li key={child.to}>
+                              <NavLink
+                                to={child.to}
+                                className={({ isActive }) =>
+                                  [
+                                    'block truncate rounded px-2 py-0.5 text-xs',
+                                    isActive
+                                      ? 'bg-brand text-white'
+                                      : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
+                                  ].join(' ')
+                                }
+                                data-testid="sidebar-subitem-link"
+                              >
+                                {child.label}
+                              </NavLink>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 
