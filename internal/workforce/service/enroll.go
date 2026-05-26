@@ -65,9 +65,32 @@ type EnrollResult struct {
 }
 
 // Enroll persists the worker and emits a domain event in one tx.
+//
+// v2.5-B1: idempotent when the worker was pre-created by Add() at
+// mint-enroll time. The flow becomes:
+//   - worker not found        → legacy path: NewWorker + Save (create)
+//   - worker found, offline   → update capabilities only (claim path)
+//   - worker found, online    → ErrWorkerAlreadyExists (real re-enroll
+//                                of a live worker is rejected so a
+//                                second daemon can't silently shadow
+//                                the first; operator must Remove first)
+//
+// Either branch emits workforce.worker.enrolled — the event semantics
+// is "daemon successfully checked in for the first time", independent
+// of whether a row was pre-created at mint time.
 func (s *WorkerEnrollService) Enroll(ctx context.Context, cmd EnrollCommand) (EnrollResult, error) {
 	if err := cmd.ActorIdentity.Validate(); err != nil {
 		return EnrollResult{}, fmt.Errorf("enroll: %w", err)
+	}
+	existing, ferr := s.repo.FindByID(ctx, cmd.WorkerID)
+	if ferr != nil && !errors.Is(ferr, workforce.ErrWorkerNotFound) {
+		return EnrollResult{}, ferr
+	}
+	if existing != nil {
+		if existing.Status() == workforce.WorkerOnline {
+			return EnrollResult{}, workforce.ErrWorkerAlreadyExists
+		}
+		return s.claimPreEnrolled(ctx, existing, cmd)
 	}
 	w, err := workforce.NewWorker(workforce.NewWorkerInput{
 		ID:           cmd.WorkerID,
@@ -104,6 +127,131 @@ func (s *WorkerEnrollService) Enroll(ctx context.Context, cmd EnrollCommand) (En
 		return EnrollResult{}, err
 	}
 	return EnrollResult{
+		WorkerID: w.ID(),
+		EventID:  eventID,
+		Version:  w.Version(),
+	}, nil
+}
+
+// claimPreEnrolled handles the v2.5-B1 "worker pre-created at mint
+// time" path. The Worker AR already exists with status=offline; the
+// daemon now reports its probed capabilities. We update the capability
+// list (replacing whatever Add() seeded — typically empty) and emit
+// workforce.worker.enrolled. The first Heartbeat after this will
+// transition status offline → online (per the existing B8 fix).
+func (s *WorkerEnrollService) claimPreEnrolled(ctx context.Context, w *workforce.Worker, cmd EnrollCommand) (EnrollResult, error) {
+	caps := buildCapabilitiesForClaim(cmd.Capabilities)
+	var eventID observability.EventID
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if len(caps) > 0 {
+			if err := s.repo.UpdateCapabilities(txCtx, w.ID(), caps, w.Version()); err != nil {
+				return err
+			}
+		}
+		evID, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "workforce.worker.enrolled",
+			Refs:      observability.EventRefs{WorkerID: string(w.ID())},
+			Actor:     cmd.ActorIdentity,
+			Payload: map[string]any{
+				"worker_id":    string(w.ID()),
+				"capabilities": cmd.Capabilities,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		eventID = evID
+		return nil
+	})
+	if err != nil {
+		return EnrollResult{}, err
+	}
+	version := w.Version()
+	if len(caps) > 0 {
+		version++ // UpdateCapabilities bumps version on success
+	}
+	return EnrollResult{
+		WorkerID: w.ID(),
+		EventID:  eventID,
+		Version:  version,
+	}, nil
+}
+
+// buildCapabilitiesForClaim promotes a []string list of CLI names to
+// the Capability VO form the repo expects (detected + enabled). Empty
+// input → nil so the claim path skips the no-op UpdateCapabilities
+// write (avoids a version bump on a no-information claim).
+func buildCapabilitiesForClaim(names []string) []workforce.Capability {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]workforce.Capability, 0, len(names))
+	for _, n := range names {
+		out = append(out, workforce.Capability{AgentCLI: n, Detected: true, Enabled: true})
+	}
+	return out
+}
+
+// AddWorkerCommand is the input to AddWorker — the v2.5 "create
+// worker row at mint time" path. status=offline,
+// last_heartbeat_at=null. The Worker becomes visible in Fleet
+// immediately; the daemon's later Enroll() claims this row.
+type AddWorkerCommand struct {
+	WorkerID      workforce.WorkerID
+	Name          string
+	ActorIdentity observability.Actor
+}
+
+// AddWorkerResult mirrors EnrollResult for symmetry.
+type AddWorkerResult struct {
+	WorkerID workforce.WorkerID
+	EventID  observability.EventID
+	Version  int
+}
+
+// AddWorker creates a Worker row at mint-enroll time so Fleet sees
+// it offline before the operator runs the install command on the
+// worker machine. Emits workforce.worker.added (distinct from
+// enrolled, which marks the daemon's first successful check-in).
+//
+// v2.5-B1 per #agent-center:5f8a6f7e — "添加是逻辑动作 = 创建记录
+// status=offline；用户在机器上 install 后 worker 上线时 update status".
+func (s *WorkerEnrollService) AddWorker(ctx context.Context, cmd AddWorkerCommand) (AddWorkerResult, error) {
+	if err := cmd.ActorIdentity.Validate(); err != nil {
+		return AddWorkerResult{}, fmt.Errorf("add worker: %w", err)
+	}
+	w, err := workforce.NewWorker(workforce.NewWorkerInput{
+		ID:         cmd.WorkerID,
+		Name:       cmd.Name,
+		EnrolledAt: s.clock.Now(),
+	})
+	if err != nil {
+		return AddWorkerResult{}, err
+	}
+	var eventID observability.EventID
+	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if err := s.repo.Save(txCtx, w); err != nil {
+			return err
+		}
+		evID, err := s.sink.Emit(txCtx, observability.EmitCommand{
+			EventType: "workforce.worker.added",
+			Refs:      observability.EventRefs{WorkerID: string(w.ID())},
+			Actor:     cmd.ActorIdentity,
+			Payload: map[string]any{
+				"worker_id": string(w.ID()),
+				"name":      w.Name(),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		eventID = evID
+		return nil
+	})
+	if err != nil {
+		return AddWorkerResult{}, err
+	}
+	return AddWorkerResult{
 		WorkerID: w.ID(),
 		EventID:  eventID,
 		Version:  w.Version(),

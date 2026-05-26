@@ -11,11 +11,15 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
-	"github.com/oopslink/agent-center/internal/admintoken/sqlite"
+	atsqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
+	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	"github.com/oopslink/agent-center/internal/workforce"
+	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
+	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
 // v2.4-D-F4 X1 fix: mint-enroll endpoint tests. Exercises the contract
@@ -39,9 +43,137 @@ func newRealAdminTokenSvc(t *testing.T) *admintokensvc.Service {
 	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	repo := sqlite.New(db)
+	repo := atsqlite.New(db)
 	return admintokensvc.New(repo, idgen.NewGenerator(clock.SystemClock{}), clock.SystemClock{})
 }
+
+// newPreCreateFixture wires AdminTokenSvc + WorkerEnrollService on a
+// shared sqlite so v2.5-B1 tests can mint-enroll and then assert the
+// Worker row landed.
+func newPreCreateFixture(t *testing.T) (*admintokensvc.Service, *wfservice.WorkerEnrollService, *wfsqlite.WorkerRepo) {
+	t.Helper()
+	dir := t.TempDir()
+	db, err := persistence.Open(dir + "/preCreate.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	fc := clock.SystemClock{}
+	gen := idgen.NewGenerator(fc)
+	er, err := obsqlite.NewEventRepo(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := observability.NewEventSink(er, er, gen, fc)
+	tokenSvc := admintokensvc.New(atsqlite.New(db), gen, fc)
+	workerRepo := wfsqlite.NewWorkerRepo(db)
+	enrollSvc := wfservice.NewWorkerEnrollService(db, workerRepo, sink, fc)
+	return tokenSvc, enrollSvc, workerRepo
+}
+
+// v2.5-B1: mint-enroll pre-creates the Worker AR so Fleet sees the
+// offline row immediately. The handler call returns; we verify both
+// (a) the response includes the generated worker_id, and (b) the
+// Worker row is queryable with status=offline.
+func TestMintEnroll_PreCreatesWorker(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	resp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json",
+		strings.NewReader(`{"name":"alice-box"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var body mintEnrollResp
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.WorkerID == "" {
+		t.Fatal("worker_id empty")
+	}
+	if body.WorkerName != "alice-box" {
+		t.Fatalf("worker_name = %q", body.WorkerName)
+	}
+	w, err := workerRepo.FindByID(context.Background(), workforce.WorkerID(body.WorkerID))
+	if err != nil {
+		t.Fatalf("worker row not pre-created: %v", err)
+	}
+	if w.Status() != workforce.WorkerOffline {
+		t.Fatalf("expected offline status, got %v", w.Status())
+	}
+	if w.Name() != "alice-box" {
+		t.Fatalf("name = %q", w.Name())
+	}
+}
+
+// If WorkerAddSvc rejects (e.g. duplicate worker_id from a generator
+// collision), the just-minted token is revoked so the operator can
+// retry cleanly.
+func TestMintEnroll_RevokesTokenOnAddFailure(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	// Pre-create a Worker with a fixed id then stub generateWorkerID to
+	// always return that same id — simulates the collision branch.
+	// Instead of stubbing (no hook), we use a WorkerAddSvc wrapper
+	// that always fails to surface the revoke path.
+	failing := failingAddSvc{wrapped: enrollSvc}
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        failing,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	resp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["error"] != "add_worker_failed" {
+		t.Errorf("error code = %v", body["error"])
+	}
+	// And the failed-handler should NOT have left a Worker row.
+	wks, _ := workerRepo.FindAll(context.Background())
+	if len(wks) != 0 {
+		t.Errorf("expected 0 workers after revoke, got %d", len(wks))
+	}
+}
+
+// failingAddSvc always rejects AddWorker so we can exercise the
+// mint-enroll handler's revoke path without depending on a collision.
+type failingAddSvc struct {
+	wrapped *wfservice.WorkerEnrollService
+}
+
+func (f failingAddSvc) AddWorker(_ context.Context, _ wfservice.AddWorkerCommand) (wfservice.AddWorkerResult, error) {
+	return wfservice.AddWorkerResult{}, errSimulatedAddFailure
+}
+
+var errSimulatedAddFailure = &stringError{"simulated add failure"}
+
+type stringError struct{ s string }
+
+func (e *stringError) Error() string { return e.s }
 
 func TestMintEnroll_HappyPath(t *testing.T) {
 	svc := newRealAdminTokenSvc(t)

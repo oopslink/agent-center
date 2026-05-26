@@ -98,7 +98,11 @@ func TestEnroll_Happy(t *testing.T) {
 	}
 }
 
-func TestEnroll_DuplicateID(t *testing.T) {
+// v2.5-B1: Enroll is now idempotent for offline workers (claim path
+// after Add() pre-creates the row at mint time). Online workers stay
+// rejected so a second daemon can't shadow a live one — operator
+// must Remove the row first.
+func TestEnroll_RejectsOnlineWorker(t *testing.T) {
 	s := setupSuite(t)
 	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
 	cmd := EnrollCommand{
@@ -107,14 +111,115 @@ func TestEnroll_DuplicateID(t *testing.T) {
 	if _, err := enroll.Enroll(context.Background(), cmd); err != nil {
 		t.Fatal(err)
 	}
+	// Flip status to online (simulating first heartbeat) so the next
+	// enroll falls into the "already live" branch instead of claim.
+	if err := s.workerRepo.UpdateStatus(context.Background(), "W-1", workforce.WorkerOffline, workforce.WorkerOnline, 1); err != nil {
+		t.Fatal(err)
+	}
 	_, err := enroll.Enroll(context.Background(), cmd)
 	if !errors.Is(err, workforce.ErrWorkerAlreadyExists) {
 		t.Fatalf("got %v", err)
 	}
-	// And the second event should NOT have landed.
-	events, _ := s.eventRepo.Find(context.Background(), observability.EventQueryFilter{})
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event after failed retry, got %d", len(events))
+}
+
+// v2.5-B1: Enroll on a worker pre-created by Add() (status=offline,
+// no capabilities) takes the claim path: capabilities updated +
+// workforce.worker.enrolled emitted. The pre-create event
+// (workforce.worker.added) and the claim event coexist in the audit
+// log.
+func TestEnroll_ClaimsPreCreated(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	if _, err := enroll.AddWorker(context.Background(), AddWorkerCommand{
+		WorkerID: "W-1", Name: "alice-box", ActorIdentity: "user:hayang",
+	}); err != nil {
+		t.Fatalf("AddWorker: %v", err)
+	}
+	res, err := enroll.Enroll(context.Background(), EnrollCommand{
+		WorkerID: "W-1", Capabilities: []string{"claude-code"}, ActorIdentity: "user:hayang",
+	})
+	if err != nil {
+		t.Fatalf("Enroll: %v", err)
+	}
+	if res.WorkerID != "W-1" {
+		t.Fatal()
+	}
+	// Capabilities should now reflect the claim payload.
+	w, _ := s.workerRepo.FindByID(context.Background(), "W-1")
+	caps := w.Capabilities()
+	if len(caps) != 1 || caps[0] != "claude-code" {
+		t.Fatalf("capabilities not updated: %v", caps)
+	}
+	// Two events: added + enrolled.
+	events, _ := s.eventRepo.Find(context.Background(), observability.EventQueryFilter{
+		Refs: observability.EventRefsFilter{WorkerID: "W-1"},
+	})
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events (added+enrolled), got %d", len(events))
+	}
+	gotAdded, gotEnrolled := false, false
+	for _, e := range events {
+		switch e.Type() {
+		case "workforce.worker.added":
+			gotAdded = true
+		case "workforce.worker.enrolled":
+			gotEnrolled = true
+		}
+	}
+	if !gotAdded || !gotEnrolled {
+		t.Fatalf("missing event: added=%v enrolled=%v", gotAdded, gotEnrolled)
+	}
+}
+
+// v2.5-B1: AddWorker creates a Worker AR at mint-enroll time with
+// status=offline. Emits workforce.worker.added so SSE can refresh
+// Fleet immediately.
+func TestAddWorker_Happy(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	res, err := enroll.AddWorker(context.Background(), AddWorkerCommand{
+		WorkerID: "worker-abc123", Name: "tenant-foo", ActorIdentity: "user:hayang",
+	})
+	if err != nil {
+		t.Fatalf("AddWorker: %v", err)
+	}
+	if res.WorkerID != "worker-abc123" {
+		t.Fatal()
+	}
+	w, err := s.workerRepo.FindByID(context.Background(), "worker-abc123")
+	if err != nil {
+		t.Fatalf("worker missing: %v", err)
+	}
+	if w.Status() != workforce.WorkerOffline {
+		t.Fatalf("expected offline status, got %v", w.Status())
+	}
+	if w.Name() != "tenant-foo" {
+		t.Fatalf("name: %q", w.Name())
+	}
+	if w.LastHeartbeatAt() != nil {
+		t.Fatalf("expected nil last_heartbeat_at, got %v", w.LastHeartbeatAt())
+	}
+	events, _ := s.eventRepo.Find(context.Background(), observability.EventQueryFilter{
+		Refs: observability.EventRefsFilter{WorkerID: "worker-abc123"},
+	})
+	if len(events) != 1 || events[0].Type() != "workforce.worker.added" {
+		t.Fatalf("expected one workforce.worker.added event, got %v", events)
+	}
+}
+
+// AddWorker is single-shot per worker_id: a second AddWorker call
+// with the same id surfaces ErrWorkerAlreadyExists (caller can then
+// either remove + re-add, or use the future re-mint flow in B3).
+func TestAddWorker_DuplicateID(t *testing.T) {
+	s := setupSuite(t)
+	enroll := NewWorkerEnrollService(s.db, s.workerRepo, s.sink, s.clock)
+	cmd := AddWorkerCommand{WorkerID: "W-2", Name: "x", ActorIdentity: "user:hayang"}
+	if _, err := enroll.AddWorker(context.Background(), cmd); err != nil {
+		t.Fatal(err)
+	}
+	_, err := enroll.AddWorker(context.Background(), cmd)
+	if !errors.Is(err, workforce.ErrWorkerAlreadyExists) {
+		t.Fatalf("expected ErrWorkerAlreadyExists, got %v", err)
 	}
 }
 

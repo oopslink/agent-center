@@ -121,16 +121,18 @@ func TestCLI_WorkerEnroll_MissingID(t *testing.T) {
 	}
 }
 
-func TestCLI_WorkerEnroll_Duplicate(t *testing.T) {
+// v2.5-B1: Re-enrolling a worker whose row is offline now takes the
+// idempotent claim path (matches the post-mint flow where Add()
+// pre-creates the row). The "duplicate enroll → already_exists" CLI
+// branch only fires once the worker is actually online; that path
+// is exercised at the service layer in TestEnroll_RejectsOnlineWorker.
+func TestCLI_WorkerEnroll_IdempotentOnOffline(t *testing.T) {
 	app := newTestApp(t)
 	run := runByName(t, app, "worker", "enroll")
 	_, _, _ = run([]string{"--worker-id=W-1"})
-	_, errOut, code := run([]string{"--worker-id=W-1", "--format=json"})
-	if code != ExitBusinessError {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "worker_already_exists") {
-		t.Fatalf("err: %s", errOut)
+	_, _, code := run([]string{"--worker-id=W-1", "--format=json"})
+	if code != ExitOK {
+		t.Fatalf("expected ExitOK on re-enroll of offline worker, got %d", code)
 	}
 }
 

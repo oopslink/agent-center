@@ -66,6 +66,17 @@ type HandlerDeps struct {
 		Rename(ctx context.Context, cmd wfservice.RenameCommand) error
 	}
 
+	// v2.5-B1: AddWorker creates the Worker AR at mint-enroll time
+	// (status=offline) so the Modal can hand the user an install
+	// command and close immediately while Fleet shows the new row.
+	// Same *WorkerEnrollService instance satisfies both Rename and
+	// AddWorker; kept as a separate interface field so server boot
+	// can leave AddWorker unwired without losing rename (useful in
+	// tests that don't exercise the v2.5 flow).
+	WorkerAddSvc interface {
+		AddWorker(ctx context.Context, cmd wfservice.AddWorkerCommand) (wfservice.AddWorkerResult, error)
+	}
+
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses
 	// (loopback only — ADR-0037 — so no per-request auth check on
@@ -1405,6 +1416,25 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if workerName == "" {
 		workerName = workerID // safe default — Fleet shows id when name absent
+	}
+	// v2.5-B1: pre-create the Worker AR (status=offline) so Fleet
+	// shows the new row immediately; Modal can close right away.
+	// If the workforce write fails we revoke the just-minted token
+	// so the user doesn't end up with an unbound install command.
+	if d.WorkerAddSvc != nil {
+		if _, addErr := d.WorkerAddSvc.AddWorker(r.Context(), wfservice.AddWorkerCommand{
+			WorkerID:      workforce.WorkerID(workerID),
+			Name:          workerName,
+			ActorIdentity: d.Actor,
+		}); addErr != nil {
+			_ = d.AdminTokenSvc.Revoke(r.Context(), admintokensvc.RevokeCommand{
+				ID:     res.ID,
+				By:     createdBy,
+				Reason: "mint-enroll: add-worker failed: " + addErr.Error(),
+			})
+			writeError(w, http.StatusInternalServerError, "add_worker_failed", addErr.Error())
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, mintEnrollResp{
 		ID:            string(res.ID),
