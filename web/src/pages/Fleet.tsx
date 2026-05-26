@@ -5,6 +5,7 @@ import { useFleet } from '@/api/fleet';
 import { qk } from '@/api/queryKeys';
 import type { FleetWorkerRow } from '@/api/types';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
+import { InstallCommandModal } from '@/components/InstallCommandModal';
 
 // Fleet (/fleet). 4-segment overview: workers + active executions +
 // open input requests + pending issues. Warnings (when the backend
@@ -17,10 +18,16 @@ import { AddWorkerModal } from '@/components/AddWorkerModal';
 // (3s fade) so the user sees which row is the one they just added.
 const HIGHLIGHT_MS = 3_000;
 
+// v2.5-F2 (#54): Fleet row install-command actions. Tracks which
+// worker row's command modal is open + which mode (show vs re-mint).
+type InstallCommandModalState = { workerID: string; mode: 'show' | 'remint' } | null;
+
 export default function Fleet(): React.ReactElement {
   const fleet = useFleet();
   // v2.4-D-F1 (task #41): "Add Worker" button + Modal launch.
   const [modalOpen, setModalOpen] = useState(false);
+  // v2.5-F2 (#54): per-row install-command modal.
+  const [installModal, setInstallModal] = useState<InstallCommandModalState>(null);
   // v2.4-D-F4 (task #44): worker_ids currently flashing the "just
   // enrolled" highlight. Map of id → expiry timestamp.
   const [highlighted, setHighlighted] = useState<Record<string, number>>({});
@@ -67,6 +74,14 @@ export default function Fleet(): React.ReactElement {
 
       {modalOpen && <AddWorkerModal onClose={() => setModalOpen(false)} />}
 
+      {installModal && (
+        <InstallCommandModal
+          workerID={installModal.workerID}
+          mode={installModal.mode}
+          onClose={() => setInstallModal(null)}
+        />
+      )}
+
       {fleet.isLoading && (
         <p className="text-sm text-text-muted" data-testid="fleet-loading">
           Loading…
@@ -107,6 +122,7 @@ export default function Fleet(): React.ReactElement {
                     <th className="border-b border-border-base px-3 py-2">Active</th>
                     <th className="border-b border-border-base px-3 py-2">Mappings</th>
                     <th className="border-b border-border-base px-3 py-2">Last heartbeat</th>
+                    <th className="border-b border-border-base px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -140,6 +156,13 @@ export default function Fleet(): React.ReactElement {
                       </td>
                       <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
                         {w.last_heartbeat_at || '—'}
+                      </td>
+                      <td className="border-b border-border-base px-3 py-2 text-right">
+                        <WorkerRowActions
+                          worker={w}
+                          onShowInstall={() => setInstallModal({ workerID: w.worker_id, mode: 'show' })}
+                          onReMintInstall={() => setInstallModal({ workerID: w.worker_id, mode: 'remint' })}
+                        />
                       </td>
                     </tr>
                     );
@@ -377,6 +400,51 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
       <span className="font-mono text-[0.6875rem] text-text-muted" data-testid="fleet-worker-id">
         {worker.worker_id}
       </span>
+    </div>
+  );
+}
+
+// WorkerRowActions hosts the v2.5-F2 per-row install command
+// affordances. Only offline workers get the buttons — once a daemon
+// has enrolled (online) the install command is no longer useful and
+// would just confuse the operator.
+function WorkerRowActions({
+  worker,
+  onShowInstall,
+  onReMintInstall,
+}: {
+  worker: FleetWorkerRow;
+  onShowInstall: () => void;
+  onReMintInstall: () => void;
+}): React.ReactElement | null {
+  if (worker.status !== 'offline') {
+    return null;
+  }
+  return (
+    <div className="flex justify-end gap-2" data-testid="fleet-worker-actions">
+      <button
+        type="button"
+        className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+        onClick={onShowInstall}
+        data-testid="fleet-worker-show-install"
+      >
+        Show install command
+      </button>
+      <button
+        type="button"
+        className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+        onClick={() => {
+          if (window.confirm(
+            'Re-mint will revoke the current install token and issue a fresh one. ' +
+              'Use this if the original command expired or got lost. Continue?',
+          )) {
+            onReMintInstall();
+          }
+        }}
+        data-testid="fleet-worker-remint-install"
+      >
+        Re-mint install command
+      </button>
     </div>
   );
 }
