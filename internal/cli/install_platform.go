@@ -1,0 +1,223 @@
+// install_platform.go — generate systemd unit (Linux) / launchd plist
+// (Mac) for the center + worker services. v2.4-D-A2 (task #36).
+//
+// Mac launchd path is the only one that must actually work for v2.4 PM
+// acceptance (mac arm64 only per @oopslink 2026-05-26 scope narrow);
+// systemd path is implemented + has unit tests for the unit-file
+// rendering but is not validated end-to-end. Marked clearly so future
+// iterations can validate on Linux without re-deriving the layout.
+package cli
+
+import (
+	"fmt"
+	"strings"
+)
+
+// servicePaths bundles the OS-specific paths where service definitions
+// live. system mode → root-owned paths; user mode → per-user.
+type servicePaths struct {
+	OS              string // "darwin" or "linux"
+	UserMode        bool
+	CenterUnitPath  string // where the center service unit lives
+	WorkerUnitPath  string // where the worker service unit lives
+	CenterServiceID string // systemd service name or launchd plist Label
+	WorkerServiceID string
+	ServiceManager  string // "systemd" or "launchd"
+}
+
+// platformPaths picks the install target dirs for a given OS + mode.
+// homeDir is needed for user-mode paths; pass os.UserHomeDir().
+func platformPaths(osName string, userMode bool, homeDir string) (servicePaths, error) {
+	switch osName {
+	case "darwin":
+		// On Mac we always go user mode in v2.4 (system-wide LaunchDaemon
+		// would need root + /Library — deferred to v3 deployment-as-product).
+		// Operator opts out of user mode by setting --prefix to a system
+		// path — but the launchd plist still goes under their LaunchAgents.
+		if homeDir == "" {
+			return servicePaths{}, fmt.Errorf("install platform: empty home dir on darwin")
+		}
+		return servicePaths{
+			OS:              "darwin",
+			UserMode:        true, // forced on Mac
+			CenterUnitPath:  homeDir + "/Library/LaunchAgents/com.agent-center.center.plist",
+			WorkerUnitPath:  homeDir + "/Library/LaunchAgents/com.agent-center.worker.plist",
+			CenterServiceID: "com.agent-center.center",
+			WorkerServiceID: "com.agent-center.worker",
+			ServiceManager:  "launchd",
+		}, nil
+	case "linux":
+		if userMode {
+			if homeDir == "" {
+				return servicePaths{}, fmt.Errorf("install platform: empty home dir on linux user mode")
+			}
+			return servicePaths{
+				OS:              "linux",
+				UserMode:        true,
+				CenterUnitPath:  homeDir + "/.config/systemd/user/agent-center.service",
+				WorkerUnitPath:  homeDir + "/.config/systemd/user/agent-center-worker.service",
+				CenterServiceID: "agent-center.service",
+				WorkerServiceID: "agent-center-worker.service",
+				ServiceManager:  "systemd",
+			}, nil
+		}
+		return servicePaths{
+			OS:              "linux",
+			UserMode:        false,
+			CenterUnitPath:  "/etc/systemd/system/agent-center.service",
+			WorkerUnitPath:  "/etc/systemd/system/agent-center-worker.service",
+			CenterServiceID: "agent-center.service",
+			WorkerServiceID: "agent-center-worker.service",
+			ServiceManager:  "systemd",
+		}, nil
+	}
+	return servicePaths{}, fmt.Errorf("install platform: unsupported OS %q (only darwin + linux supported in v2.4)", osName)
+}
+
+// renderCenterServiceUnit returns the systemd unit body (linux) or
+// launchd plist body (mac) for the center service. binaryPath is the
+// fully-resolved path to agent-center under <prefix>/current/bin/
+// (we use the `current` symlink so upgrades swap-without-touching
+// the service unit — that's the whole point of A5's atomic swap).
+func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath string) string {
+	switch sp.ServiceManager {
+	case "launchd":
+		return renderLaunchdPlist(sp.CenterServiceID, binaryPath, []string{
+			"server", "--config=" + configPath,
+		})
+	case "systemd":
+		return renderSystemdUnit(systemdUnit{
+			Description:   "agent-center server",
+			ExecStart:     binaryPath + " server --config=" + configPath,
+			After:         "network-online.target",
+			Wants:         "network-online.target",
+			KillMode:      "", // server uses default (control-group); only worker needs KillMode=process
+			UserMode:      sp.UserMode,
+			WantedByUser:  "default.target",
+			WantedBySys:   "multi-user.target",
+		})
+	}
+	return ""
+}
+
+// renderWorkerServiceUnit ditto for worker.
+func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, bootstrap, token, fingerprint, caps string) string {
+	args := []string{
+		"worker", "run",
+		"--config=" + configPath,
+		"--worker-id=" + workerID,
+		"--admin-target=" + bootstrap,
+		"--admin-token=" + token,
+	}
+	if fingerprint != "" {
+		args = append(args, "--server-fingerprint="+fingerprint)
+	}
+	if caps != "" {
+		args = append(args, "--capabilities="+caps)
+	}
+	switch sp.ServiceManager {
+	case "launchd":
+		return renderLaunchdPlist(sp.WorkerServiceID, binaryPath, args)
+	case "systemd":
+		return renderSystemdUnit(systemdUnit{
+			Description:  "agent-center worker daemon",
+			ExecStart:    binaryPath + " " + strings.Join(args, " "),
+			After:        "network-online.target",
+			KillMode:     "process", // ADR-0018 (per-execution shim outlives daemon)
+			UserMode:     sp.UserMode,
+			WantedByUser: "default.target",
+			WantedBySys:  "multi-user.target",
+		})
+	}
+	return ""
+}
+
+// systemdUnit captures the systemd-unit-file fields we care about.
+type systemdUnit struct {
+	Description  string
+	ExecStart    string
+	After        string
+	Wants        string
+	KillMode     string
+	UserMode     bool
+	WantedByUser string
+	WantedBySys  string
+}
+
+func renderSystemdUnit(u systemdUnit) string {
+	var b strings.Builder
+	b.WriteString("[Unit]\n")
+	b.WriteString("Description=" + u.Description + "\n")
+	if u.After != "" {
+		b.WriteString("After=" + u.After + "\n")
+	}
+	if u.Wants != "" {
+		b.WriteString("Wants=" + u.Wants + "\n")
+	}
+	b.WriteString("\n[Service]\n")
+	b.WriteString("Type=simple\n")
+	b.WriteString("ExecStart=" + u.ExecStart + "\n")
+	b.WriteString("Restart=on-failure\n")
+	b.WriteString("RestartSec=5s\n")
+	b.WriteString("StandardOutput=journal\n")
+	b.WriteString("StandardError=journal\n")
+	if u.KillMode != "" {
+		b.WriteString("KillMode=" + u.KillMode + "\n")
+	}
+	if !u.UserMode {
+		// Security hardening only applies to system-mode units;
+		// user units run with the user's own permissions.
+		b.WriteString("NoNewPrivileges=true\n")
+		b.WriteString("PrivateTmp=true\n")
+	}
+	b.WriteString("\n[Install]\n")
+	if u.UserMode {
+		b.WriteString("WantedBy=" + u.WantedByUser + "\n")
+	} else {
+		b.WriteString("WantedBy=" + u.WantedBySys + "\n")
+	}
+	return b.String()
+}
+
+// renderLaunchdPlist returns a minimal LaunchAgent plist that runs the
+// given binary with args, restarts on crash, and logs to ~/Library/Logs.
+func renderLaunchdPlist(label, binaryPath string, args []string) string {
+	var argsXML strings.Builder
+	argsXML.WriteString("\t\t<string>" + xmlEscape(binaryPath) + "</string>\n")
+	for _, a := range args {
+		argsXML.WriteString("\t\t<string>" + xmlEscape(a) + "</string>\n")
+	}
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>` + xmlEscape(label) + `</string>
+	<key>ProgramArguments</key>
+	<array>
+` + argsXML.String() + `	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/tmp/` + xmlEscape(label) + `.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/` + xmlEscape(label) + `.err.log</string>
+</dict>
+</plist>
+`
+}
+
+// xmlEscape is a tiny escaper for the strings we put in plist values.
+// Paths + flags don't generally contain XML-sensitive chars but a
+// defensive escape costs nothing.
+func xmlEscape(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
+}

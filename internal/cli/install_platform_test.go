@@ -1,0 +1,218 @@
+package cli
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// v2.4-D-A2 tests for platform paths + unit-file rendering + actual
+// install (with activation skipped via env var).
+
+func TestPlatformPaths_Darwin(t *testing.T) {
+	home := "/Users/test"
+	sp, err := platformPaths("darwin", true, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sp.ServiceManager != "launchd" {
+		t.Errorf("manager = %q", sp.ServiceManager)
+	}
+	if !strings.HasPrefix(sp.CenterUnitPath, home+"/Library/LaunchAgents/") {
+		t.Errorf("center plist = %q", sp.CenterUnitPath)
+	}
+	if sp.CenterServiceID != "com.agent-center.center" {
+		t.Errorf("center id = %q", sp.CenterServiceID)
+	}
+}
+
+func TestPlatformPaths_LinuxUser(t *testing.T) {
+	home := "/home/test"
+	sp, err := platformPaths("linux", true, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sp.ServiceManager != "systemd" {
+		t.Errorf("manager = %q", sp.ServiceManager)
+	}
+	if !strings.Contains(sp.CenterUnitPath, "/.config/systemd/user/") {
+		t.Errorf("center unit = %q", sp.CenterUnitPath)
+	}
+}
+
+func TestPlatformPaths_LinuxSystem(t *testing.T) {
+	sp, err := platformPaths("linux", false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sp.CenterUnitPath != "/etc/systemd/system/agent-center.service" {
+		t.Errorf("system unit = %q", sp.CenterUnitPath)
+	}
+}
+
+func TestPlatformPaths_UnsupportedOS(t *testing.T) {
+	_, err := platformPaths("windows", false, "")
+	if err == nil || !strings.Contains(err.Error(), "unsupported OS") {
+		t.Fatalf("expected unsupported OS error, got %v", err)
+	}
+}
+
+func TestRenderSystemdUnit_Worker_HasKillModeProcess(t *testing.T) {
+	body := renderSystemdUnit(systemdUnit{
+		Description:  "worker",
+		ExecStart:    "/bin/x",
+		KillMode:     "process",
+		UserMode:     true,
+		WantedByUser: "default.target",
+	})
+	if !strings.Contains(body, "KillMode=process") {
+		t.Errorf("missing KillMode: %s", body)
+	}
+	if !strings.Contains(body, "WantedBy=default.target") {
+		t.Errorf("user mode WantedBy: %s", body)
+	}
+}
+
+func TestRenderSystemdUnit_Center_SystemMode_HasHardening(t *testing.T) {
+	body := renderSystemdUnit(systemdUnit{
+		Description: "center",
+		ExecStart:   "/bin/x",
+		UserMode:    false,
+	})
+	if !strings.Contains(body, "NoNewPrivileges=true") {
+		t.Errorf("missing hardening: %s", body)
+	}
+}
+
+func TestRenderLaunchdPlist_HasLabel(t *testing.T) {
+	body := renderLaunchdPlist("com.test.x", "/bin/agent-center", []string{"server", "--config=/tmp/c.yaml"})
+	if !strings.Contains(body, "com.test.x") {
+		t.Errorf("missing label: %s", body)
+	}
+	if !strings.Contains(body, "/bin/agent-center") {
+		t.Errorf("missing binary: %s", body)
+	}
+	if !strings.Contains(body, "<string>--config=/tmp/c.yaml</string>") {
+		t.Errorf("missing arg: %s", body)
+	}
+	if !strings.Contains(body, "KeepAlive") {
+		t.Errorf("missing KeepAlive: %s", body)
+	}
+}
+
+func TestCenterConfigYAML_HasFields(t *testing.T) {
+	yaml := centerConfigYAML("/var/data", 7100, "")
+	for _, want := range []string{
+		"sqlite_path:",
+		"admin_socket_path:",
+		"listen_addr",
+		"web_console:",
+		"127.0.0.1:7100",
+	} {
+		if !strings.Contains(yaml, want) {
+			t.Errorf("missing %q in yaml:\n%s", want, yaml)
+		}
+	}
+	if strings.Contains(yaml, "admin_tcp_listen:") {
+		t.Errorf("unexpected admin_tcp_listen for empty arg:\n%s", yaml)
+	}
+}
+
+func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
+	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300")
+	if !strings.Contains(yaml, `admin_tcp_listen: "0.0.0.0:7300"`) {
+		t.Errorf("missing admin_tcp_listen:\n%s", yaml)
+	}
+}
+
+func TestNewInstallLayout(t *testing.T) {
+	layout := newInstallLayout("/opt/ac", "v2.4.0")
+	if layout.VersionedDir != "/opt/ac/versions/v2.4.0" {
+		t.Errorf("versioned dir = %q", layout.VersionedDir)
+	}
+	if layout.CurrentLink != "/opt/ac/current" {
+		t.Errorf("current link = %q", layout.CurrentLink)
+	}
+	if layout.CurrentBinDir != "/opt/ac/current/bin" {
+		t.Errorf("current bin dir = %q", layout.CurrentBinDir)
+	}
+}
+
+func TestAtomicSymlinkSwap(t *testing.T) {
+	prefix := t.TempDir()
+	verDir := filepath.Join(prefix, "versions", "v2.4.0")
+	if err := os.MkdirAll(verDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	layout := newInstallLayout(prefix, "v2.4.0")
+	if err := atomicSymlinkSwap(layout); err != nil {
+		t.Fatal(err)
+	}
+	target, err := os.Readlink(layout.CurrentLink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != verDir {
+		t.Errorf("link target = %q, want %q", target, verDir)
+	}
+	// Re-swap (different version) should work without leftover .new file.
+	verDir2 := filepath.Join(prefix, "versions", "v2.4.1")
+	if err := os.MkdirAll(verDir2, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	layout2 := newInstallLayout(prefix, "v2.4.1")
+	if err := atomicSymlinkSwap(layout2); err != nil {
+		t.Fatal(err)
+	}
+	target, _ = os.Readlink(layout.CurrentLink)
+	if target != verDir2 {
+		t.Errorf("after re-swap, link target = %q, want %q", target, verDir2)
+	}
+	if _, err := os.Stat(layout.CurrentLink + ".new"); !os.IsNotExist(err) {
+		t.Errorf(".new file leftover")
+	}
+}
+
+func TestWriteVersionFile_RoundTrip(t *testing.T) {
+	prefix := t.TempDir()
+	verDir := filepath.Join(prefix, "versions", "v2.4.0")
+	if err := os.MkdirAll(verDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	layout := newInstallLayout(prefix, "v2.4.0")
+	if err := writeVersionFile(layout); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(verDir, "VERSION"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(body)) != "v2.4.0" {
+		t.Errorf("VERSION body = %q", body)
+	}
+}
+
+func TestInstallShouldActivate_EnvOverride(t *testing.T) {
+	sp := servicePaths{ServiceManager: "launchd"}
+	t.Setenv("AGENT_CENTER_INSTALL_SKIP_ACTIVATE", "1")
+	if installShouldActivate(sp) {
+		t.Error("env override should disable activation")
+	}
+}
+
+func TestInstallShouldActivate_UnknownManager(t *testing.T) {
+	if installShouldActivate(servicePaths{ServiceManager: ""}) {
+		t.Error("unknown manager should disable activation")
+	}
+}
+
+func TestSplitSpaces(t *testing.T) {
+	got := splitSpaces("systemctl --user enable foo.service")
+	if len(got) != 4 {
+		t.Fatalf("len=%d %v", len(got), got)
+	}
+	if got[0] != "systemctl" || got[3] != "foo.service" {
+		t.Errorf("got %v", got)
+	}
+}

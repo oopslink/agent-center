@@ -279,13 +279,43 @@ type installContext struct {
 // --- A1 stubs: real impl in A2/A5 -------------------------------------
 
 func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
-	fmt.Fprintf(out, "[a1-stub] fresh center install → A2 (#36) will:\n")
-	fmt.Fprintf(out, "  1. mkdir %s/versions/%s + copy binaries\n", ic.Prefix, ic.Version)
-	fmt.Fprintf(out, "  2. write systemd unit / launchd plist\n")
-	fmt.Fprintf(out, "  3. atomic ln -sf %s/versions/%s %s/current\n", ic.Prefix, ic.Version, ic.Prefix)
-	fmt.Fprintf(out, "  4. start service\n")
-	fmt.Fprintf(out, "  5. mint bootstrap admin token + print Web Console URL\n")
-	return ExitNotImplemented
+	layout := newInstallLayout(ic.Prefix, ic.Version)
+	home, _ := os.UserHomeDir()
+	sp, err := platformPaths(runtimeOS(), ic.UserMode, home)
+	if err != nil {
+		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
+	}
+
+	if _, _, err := copyBinaries(layout); err != nil {
+		return PrintError(errw, FormatText, "install_copy_binaries_failed", err.Error(), ExitBusinessError)
+	}
+	if err := writeVersionFile(layout); err != nil {
+		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
+	}
+	if err := writeCenterConfig(layout, ic.Port, ic.TCPListen); err != nil {
+		return PrintError(errw, FormatText, "install_write_config_failed", err.Error(), ExitBusinessError)
+	}
+	if err := atomicSymlinkSwap(layout); err != nil {
+		return PrintError(errw, FormatText, "install_symlink_swap_failed", err.Error(), ExitBusinessError)
+	}
+	currentBin := filepath.Join(layout.CurrentBinDir, "agent-center")
+	unitBody := renderCenterServiceUnit(sp, currentBin, layout.ConfigPath)
+	if err := writeUnitFile(sp.CenterUnitPath, unitBody); err != nil {
+		return PrintError(errw, FormatText, "install_write_unit_failed", err.Error(), ExitBusinessError)
+	}
+	// Activate service; failure prints commands for manual activation.
+	if err := activateService(sp, sp.CenterServiceID, out, !installShouldActivate(sp)); err != nil {
+		fmt.Fprintf(errw, "warning: service activation failed: %v\n", err)
+		fmt.Fprintln(errw, "  Service unit written but not started. Run activation commands manually.")
+	}
+	fmt.Fprintf(out, "\n✓ AgentCenter %s installed\n", ic.Version)
+	fmt.Fprintf(out, "  prefix:    %s\n", layout.Prefix)
+	fmt.Fprintf(out, "  service:   %s (%s)\n", sp.CenterServiceID, sp.ServiceManager)
+	fmt.Fprintf(out, "  config:    %s\n", layout.ConfigPath)
+	fmt.Fprintf(out, "  data:      %s\n", layout.DataDir)
+	fmt.Fprintf(out, "  Web Console: http://127.0.0.1:%d/\n", ic.Port)
+	fmt.Fprintln(out, "  (next: open the URL above; first-time setup will mint the bootstrap admin token)")
+	return ExitOK
 }
 
 func installCenterUpgrade(out, errw io.Writer, ic installContext) ExitCode {
@@ -298,12 +328,45 @@ func installCenterUpgrade(out, errw io.Writer, ic installContext) ExitCode {
 }
 
 func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
-	fmt.Fprintf(out, "[a1-stub] fresh worker install → A2 (#36) will:\n")
-	fmt.Fprintf(out, "  1. mkdir %s/versions/%s + copy worker binary\n", ic.Prefix, ic.Version)
-	fmt.Fprintf(out, "  2. write systemd unit / launchd plist with --admin-target=%s\n", ic.Bootstrap)
-	fmt.Fprintf(out, "  3. enroll via one-time token (A3 #37)\n")
-	fmt.Fprintf(out, "  4. start service\n")
-	return ExitNotImplemented
+	layout := newInstallLayout(ic.Prefix, ic.Version)
+	home, _ := os.UserHomeDir()
+	sp, err := platformPaths(runtimeOS(), ic.UserMode, home)
+	if err != nil {
+		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
+	}
+	if _, _, err := copyBinaries(layout); err != nil {
+		return PrintError(errw, FormatText, "install_copy_binaries_failed", err.Error(), ExitBusinessError)
+	}
+	if err := writeVersionFile(layout); err != nil {
+		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
+	}
+	if err := writeWorkerConfig(layout); err != nil {
+		return PrintError(errw, FormatText, "install_write_config_failed", err.Error(), ExitBusinessError)
+	}
+	if err := atomicSymlinkSwap(layout); err != nil {
+		return PrintError(errw, FormatText, "install_symlink_swap_failed", err.Error(), ExitBusinessError)
+	}
+	currentBin := filepath.Join(layout.CurrentBinDir, "agent-center-worker-daemon")
+	// A2: bootstrap URL is passed straight through; fingerprint is
+	// embedded in the URL (tcp://<fp>@host:port). A3 (#37) will burn
+	// the token on first enroll. Until then the worker daemon will
+	// 401 on a stale token, which is the right behavior.
+	unitBody := renderWorkerServiceUnit(sp, currentBin, layout.ConfigPath,
+		ic.WorkerID, ic.Bootstrap, ic.Token, "" /* fingerprint via bootstrap URL */, ic.Caps)
+	if err := writeUnitFile(sp.WorkerUnitPath, unitBody); err != nil {
+		return PrintError(errw, FormatText, "install_write_unit_failed", err.Error(), ExitBusinessError)
+	}
+	if err := activateService(sp, sp.WorkerServiceID, out, !installShouldActivate(sp)); err != nil {
+		fmt.Fprintf(errw, "warning: service activation failed: %v\n", err)
+		fmt.Fprintln(errw, "  Service unit written but not started. Run activation commands manually.")
+	}
+	fmt.Fprintf(out, "\n✓ AgentCenter worker %s installed\n", ic.Version)
+	fmt.Fprintf(out, "  worker-id: %s\n", ic.WorkerID)
+	fmt.Fprintf(out, "  bootstrap: %s\n", ic.Bootstrap)
+	fmt.Fprintf(out, "  service:   %s (%s)\n", sp.WorkerServiceID, sp.ServiceManager)
+	fmt.Fprintf(out, "  config:    %s\n", layout.ConfigPath)
+	fmt.Fprintln(out, "  (the worker will enroll on first start; check Fleet view in the Web Console)")
+	return ExitOK
 }
 
 func installWorkerUpgrade(out, errw io.Writer, ic installContext) ExitCode {
