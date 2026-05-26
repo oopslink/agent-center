@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.9
+## [v2.5.9] — 2026-05-27
 
 Sidebar collapsible groups + Channels/DMs sub-lists (#63).
 @oopslink (`#agent-center:475113f5` screenshot → #63): the
