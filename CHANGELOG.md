@@ -11,7 +11,7 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased] — v2.5.6
+## [v2.5.6] — 2026-05-27
 
 Channel / DM chat composer pin + auto-scroll (#60). @oopslink
 (`#agent-center:475113f5`): the conversation pages let the
