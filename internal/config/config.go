@@ -69,6 +69,18 @@ type ServerConfig struct {
 	ListenAddr      string `yaml:"listen_addr"`
 	SqlitePath      string `yaml:"sqlite_path"`
 	AdminSocketPath string `yaml:"admin_socket_path"`
+	// v2.3-7a (task #27): optional TCP admin listener. Empty = TCP
+	// disabled (default). When set (e.g. "0.0.0.0:7300"), the admin
+	// endpoint also serves TLS on this address using a self-signed
+	// cert auto-generated at AdminTLSCertPath/KeyPath if missing.
+	// Both AdminSocketPath and AdminTCPListen empty = boot error
+	// (server has no admin endpoint at all).
+	AdminTCPListen string `yaml:"admin_tcp_listen"`
+	// v2.3-7a: cert + key paths for the TCP admin listener. Empty =
+	// defaults under filepath.Dir(SqlitePath) (admin-tls.crt / .key /
+	// .fingerprint). Auto-generated on boot if missing.
+	AdminTLSCertPath string `yaml:"admin_tls_cert_path"`
+	AdminTLSKeyPath  string `yaml:"admin_tls_key_path"`
 }
 
 // NotificationConfig: 04-configuration § 7.4.
@@ -317,9 +329,12 @@ func collectKnownKeys(cfg Config) keyTree {
 	// avoids reflection in a security-sensitive layer (config validation).
 	return keyTree{
 		"server": keyTree{
-			"listen_addr":       nil,
-			"sqlite_path":       nil,
-			"admin_socket_path": nil,
+			"listen_addr":          nil,
+			"sqlite_path":          nil,
+			"admin_socket_path":    nil,
+			"admin_tcp_listen":     nil,
+			"admin_tls_cert_path":  nil,
+			"admin_tls_key_path":   nil,
 		},
 		"notification": keyTree{
 			"default_channel": nil,
@@ -480,6 +495,18 @@ func applyEnvOverrides(cfg *Config, env func(string) (string, bool)) error {
 		}},
 		{"AGENT_CENTER_SERVER_ADMIN_SOCKET_PATH", func(v string) error {
 			cfg.Server.AdminSocketPath = v
+			return nil
+		}},
+		{"AGENT_CENTER_SERVER_ADMIN_TCP_LISTEN", func(v string) error {
+			cfg.Server.AdminTCPListen = v
+			return nil
+		}},
+		{"AGENT_CENTER_SERVER_ADMIN_TLS_CERT_PATH", func(v string) error {
+			cfg.Server.AdminTLSCertPath = v
+			return nil
+		}},
+		{"AGENT_CENTER_SERVER_ADMIN_TLS_KEY_PATH", func(v string) error {
+			cfg.Server.AdminTLSKeyPath = v
 			return nil
 		}},
 		{"AGENT_CENTER_NOTIFICATION_DEFAULT_CHANNEL", func(v string) error {

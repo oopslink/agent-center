@@ -14,12 +14,14 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/dispatchq"
@@ -33,13 +35,23 @@ type ServerDeps struct {
 	Queue *dispatchq.Queue
 }
 
-// Server is the admin endpoint HTTP server bound to a unix socket.
+// Server is the admin endpoint HTTP server. v2.2 bound only to a unix
+// socket; v2.3-7a (task #27) adds an optional concurrent TCP+TLS
+// listener for cross-host worker / CLI access. Either or both
+// listeners may be configured; both empty = boot error.
 type Server struct {
 	socketPath string
 	mux        *http.ServeMux
 	srv        *http.Server
 	listener   net.Listener
 	deps       ServerDeps
+
+	// v2.3-7a — optional TCP+TLS transport.
+	tcpListenAddr  string
+	tlsCert        *tls.Certificate
+	tlsFingerprint string
+	tcpSrv         *http.Server
+	tcpListener    net.Listener
 }
 
 // NewServer constructs a Server with no Queue wired. Use
@@ -64,26 +76,134 @@ func NewServerWithDeps(socketPath string, deps ServerDeps) *Server {
 	return s
 }
 
+// NewServerWithTransports constructs a Server that may listen on either
+// or both of a unix socket (socketPath) and a TCP+TLS address
+// (tcpListenAddr). The TLS cert + fingerprint are produced by
+// LoadOrGenerateCert in tls.go; this constructor does not generate
+// them — boot code must do that and pass the result in.
+//
+// Either socketPath OR tcpListenAddr may be empty (or both — caller's
+// responsibility to validate that at least one is non-empty;
+// ListenAndServe rejects the all-empty case).
+//
+// v2.3-7a (task #27): adds the TCP+TLS leg for cross-host access.
+func NewServerWithTransports(
+	socketPath, tcpListenAddr string,
+	tlsCert *tls.Certificate, tlsFingerprint string,
+	deps ServerDeps,
+) *Server {
+	s := NewServerWithDeps(socketPath, deps)
+	s.tcpListenAddr = tcpListenAddr
+	s.tlsCert = tlsCert
+	s.tlsFingerprint = tlsFingerprint
+	return s
+}
+
+// TLSFingerprint returns the SHA256 cert fingerprint of the TCP
+// listener (empty if TCP not configured). Used by boot code to print
+// the banner.
+func (s *Server) TLSFingerprint() string {
+	return s.tlsFingerprint
+}
+
 // Handler exposes the mux (testable without a listener).
 func (s *Server) Handler() http.Handler { return s.mux }
 
 // SetHandler swaps the http.Server.Handler so dep-injection
 // middleware can wrap the mux for in-process serving. Mirrors
 // webconsole/api.Server.SetHandler pattern.
+//
+// Both unix + TCP listeners share the same wrapped handler so auth +
+// scope middleware applies uniformly across transports.
 func (s *Server) SetHandler(h http.Handler) {
 	s.srv.Handler = h
+	if s.tcpSrv != nil {
+		s.tcpSrv.Handler = h
+	}
 }
 
-// ListenAndServe binds the unix socket + serves. Returns
+// ListenAndServe binds the configured listeners (unix socket, TCP+TLS,
+// or both) and serves. Returns the first error from either leg or
 // http.ErrServerClosed on graceful Shutdown.
+//
+// v2.3-7a (task #27): if tcpListenAddr is non-empty, also serves
+// TLS using s.tlsCert. Both listeners share s.mux through SetHandler.
 func (s *Server) ListenAndServe() error {
-	if s.socketPath == "" {
-		return errors.New("admin api: socket path required")
+	if s.socketPath == "" && s.tcpListenAddr == "" {
+		return errors.New("admin api: at least one of socket_path or tcp_listen required")
 	}
+	if s.tcpListenAddr != "" && s.tlsCert == nil {
+		return errors.New("admin api: tcp_listen set but tlsCert is nil — boot code must call LoadOrGenerateCert + pass it via NewServerWithTransports")
+	}
+
+	type result struct {
+		from string
+		err  error
+	}
+	errs := make(chan result, 2)
+	var legs int
+
+	if s.socketPath != "" {
+		legs++
+		ln, err := s.bindUnix()
+		if err != nil {
+			return err
+		}
+		s.listener = ln
+		go func() { errs <- result{from: "unix", err: s.srv.Serve(ln)} }()
+	}
+
+	if s.tcpListenAddr != "" {
+		legs++
+		ln, err := s.bindTCP()
+		if err != nil {
+			// Clean up the unix leg if it managed to bind, so the
+			// caller doesn't have to.
+			if s.listener != nil {
+				_ = s.listener.Close()
+			}
+			return err
+		}
+		s.tcpListener = ln
+		// Build the TCP http.Server lazily so SetHandler applied
+		// before ListenAndServe is reflected. Mirror the unix
+		// srv's Handler + timeouts.
+		s.tcpSrv = &http.Server{
+			Handler:           s.srv.Handler,
+			ReadHeaderTimeout: 10 * time.Second,
+			TLSConfig: &tls.Config{
+				Certificates: []tls.Certificate{*s.tlsCert},
+				MinVersion:   tls.VersionTLS12,
+			},
+		}
+		go func() {
+			// ServeTLS reads cert from disk if path-args non-empty;
+			// our TLSConfig already has the cert in-memory so pass
+			// empty strings.
+			errs <- result{from: "tcp", err: s.tcpSrv.ServeTLS(ln, "", "")}
+		}()
+	}
+
+	// Return the first non-ErrServerClosed error, or wait for all to
+	// finish (which only happens after Shutdown).
+	var firstErr error
+	for i := 0; i < legs; i++ {
+		r := <-errs
+		if r.err != nil && !errors.Is(r.err, http.ErrServerClosed) && firstErr == nil {
+			firstErr = fmt.Errorf("admin api: %s leg: %w", r.from, r.err)
+		}
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+	return http.ErrServerClosed
+}
+
+func (s *Server) bindUnix() (net.Listener, error) {
 	// Ensure parent dir exists (mode 0700 — owner-only).
 	dir := filepath.Dir(s.socketPath)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("admin api: mkdir %q: %w", dir, err)
+		return nil, fmt.Errorf("admin api: mkdir %q: %w", dir, err)
 	}
 	// Remove stale socket file from prior crash. We intentionally
 	// do NOT guard against "another server is using this socket" —
@@ -92,35 +212,60 @@ func (s *Server) ListenAndServe() error {
 	// silently break it.
 	if _, err := os.Stat(s.socketPath); err == nil {
 		if err := os.Remove(s.socketPath); err != nil {
-			return fmt.Errorf("admin api: remove stale socket %q: %w", s.socketPath, err)
+			return nil, fmt.Errorf("admin api: remove stale socket %q: %w", s.socketPath, err)
 		}
 	}
 	ln, err := net.Listen("unix", s.socketPath)
 	if err != nil {
-		return fmt.Errorf("admin api: listen unix %q: %w", s.socketPath, err)
+		return nil, fmt.Errorf("admin api: listen unix %q: %w", s.socketPath, err)
 	}
 	// Restrict to owner only (mode 0600). MkdirAll above set the dir
 	// to 0700 so this is defense-in-depth.
 	if err := os.Chmod(s.socketPath, 0o600); err != nil {
 		_ = ln.Close()
-		return fmt.Errorf("admin api: chmod socket: %w", err)
+		return nil, fmt.Errorf("admin api: chmod socket: %w", err)
 	}
-	s.listener = ln
-	return s.srv.Serve(ln)
+	return ln, nil
 }
 
-// Shutdown cleanly stops the server + removes the socket file.
-func (s *Server) Shutdown(ctx context.Context) error {
-	if s.srv == nil {
-		return nil
+func (s *Server) bindTCP() (net.Listener, error) {
+	ln, err := net.Listen("tcp", s.tcpListenAddr)
+	if err != nil {
+		return nil, fmt.Errorf("admin api: listen tcp %q: %w", s.tcpListenAddr, err)
 	}
-	err := s.srv.Shutdown(ctx)
+	return ln, nil
+}
+
+// Shutdown cleanly stops both listeners (if active) + removes the
+// socket file. Safe to call multiple times.
+func (s *Server) Shutdown(ctx context.Context) error {
+	var firstErr error
+	var wg sync.WaitGroup
+	if s.srv != nil && s.listener != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.srv.Shutdown(ctx); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}()
+	}
+	if s.tcpSrv != nil && s.tcpListener != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.tcpSrv.Shutdown(ctx); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}()
+	}
+	wg.Wait()
 	// Always try to clean the socket file — leaving it stranded
 	// breaks the next start with EADDRINUSE.
 	if s.socketPath != "" {
 		_ = os.Remove(s.socketPath)
 	}
-	return err
+	return firstErr
 }
 
 // routes registers the full v2.2-A2 admin surface: 79 AppService methods

@@ -2,34 +2,90 @@ package cli
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/api"
+	"github.com/oopslink/agent-center/internal/config"
 )
 
-// runAdminEndpoint starts the v2.2 admin unix-socket server. v2.2-A1
-// scaffolded the listener + health endpoint; v2.2-A2 mounts the full
-// CLI AppService surface via api.HandlerDeps populated from the App.
+// AdminTransportConfig captures the v2.3-7a (task #27) admin listener
+// configuration: optional unix socket + optional TCP+TLS address with
+// auto-managed cert + fingerprint files. At least one of SocketPath or
+// TCPListenAddr must be non-empty.
+type AdminTransportConfig struct {
+	SocketPath       string
+	TCPListenAddr    string
+	TLSCertPath      string
+	TLSKeyPath       string
+	FingerprintPath  string
+	Hostname         string
+}
+
+// AdminTransportInfo is what runAdminEndpoint returns to the caller
+// (boot banner code in handlers_system.go uses this to print the cert
+// fingerprint, expiry, etc.).
+type AdminTransportInfo struct {
+	TLSFingerprint     string
+	TLSCertNotAfter    time.Time
+	TLSCertGenerated   bool
+	TLSExpiryWarn      bool
+	TLSExpiryDays      int
+}
+
+// runAdminEndpoint starts the v2.2 admin unix-socket server (and, since
+// v2.3-7a, an optional concurrent TCP+TLS listener). v2.2-A1 scaffolded
+// the unix listener + health endpoint; v2.2-A2 mounts the full CLI
+// AppService surface via api.HandlerDeps populated from the App; v2.3-7a
+// (task #27) adds the TCP+TLS leg for cross-host worker / CLI access.
 //
 // Returns a cleanup function that shuts the server down + removes the
 // socket file. cleanup is non-nil even on error so the caller can
 // always defer it safely.
-func runAdminEndpoint(ctx context.Context, app *App, socketPath string, logger func(string)) (cleanup func() error, err error) {
-	if socketPath == "" {
-		return func() error { return nil }, errors.New("admin: socket_path required")
+func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, logger func(string)) (info AdminTransportInfo, cleanup func() error, err error) {
+	noopCleanup := func() error { return nil }
+	if tc.SocketPath == "" && tc.TCPListenAddr == "" {
+		return AdminTransportInfo{}, noopCleanup, errors.New("admin: at least one of socket_path or tcp_listen required")
 	}
 	if app == nil {
-		return func() error { return nil }, errors.New("admin: app nil")
+		return AdminTransportInfo{}, noopCleanup, errors.New("admin: app nil")
 	}
+
+	var (
+		tlsCert        *tls.Certificate
+		tlsFingerprint string
+		tlsGenerated   bool
+	)
+	if tc.TCPListenAddr != "" {
+		var lerr error
+		tlsCert, tlsFingerprint, tlsGenerated, lerr = api.LoadOrGenerateCert(tc.TLSCertPath, tc.TLSKeyPath, tc.Hostname)
+		if lerr != nil {
+			return AdminTransportInfo{}, noopCleanup, lerr
+		}
+		// Best-effort fingerprint file write — never block boot.
+		if tc.FingerprintPath != "" {
+			if werr := api.WriteFingerprintFile(tc.FingerprintPath, tlsFingerprint); werr != nil {
+				logger("admin: write fingerprint file: " + werr.Error())
+			}
+		}
+		info.TLSCertGenerated = tlsGenerated
+		info.TLSFingerprint = tlsFingerprint
+		info.TLSCertNotAfter = api.CertNotAfter(tlsCert)
+		info.TLSExpiryWarn, info.TLSExpiryDays = api.CertExpiryWarning(tlsCert)
+	}
+
 	deps := adminDepsFromApp(app)
-	srv := api.NewServerWithDeps(socketPath, api.ServerDeps{
+	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{
 		Queue: app.DispatchQueue,
 	})
 	// Wrap the inner mux with deps middleware (parallel to
 	// webconsole_wiring.go pattern), then layer auth on top so every
 	// non-public request must carry a valid bearer (v2.3-3a task #28).
+	// SetHandler applies to BOTH unix + tcp legs (server.go fans it out).
 	srv.SetHandler(api.AuthMiddleware(app.AdminTokenSvc)(
 		api.WithDeps(deps)(srv.Handler())))
 	go func() {
@@ -42,7 +98,55 @@ func runAdminEndpoint(ctx context.Context, app *App, socketPath string, logger f
 		defer cancel()
 		return srv.Shutdown(shutCtx)
 	}
-	return cleanup, nil
+	return info, cleanup, nil
+}
+
+// hostnameForCertSAN returns os.Hostname() with the trailing domain
+// stripped (we only want the short name for SAN). Empty on error.
+func hostnameForCertSAN() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return h
+}
+
+// adminTransportFromCfg derives the AdminTransportConfig from the
+// server config. Empty TLS paths fall back to defaults under the
+// SqlitePath directory.
+func adminTransportFromCfg(cfg config.Config) AdminTransportConfig {
+	certPath := cfg.Server.AdminTLSCertPath
+	keyPath := cfg.Server.AdminTLSKeyPath
+	fingerprintPath := ""
+	if cfg.Server.AdminTCPListen != "" {
+		base := defaultTLSDir(cfg.Server.SqlitePath)
+		if certPath == "" {
+			certPath = filepath.Join(base, "admin-tls.crt")
+		}
+		if keyPath == "" {
+			keyPath = filepath.Join(base, "admin-tls.key")
+		}
+		fingerprintPath = filepath.Join(base, "admin-tls.fingerprint")
+	}
+	return AdminTransportConfig{
+		SocketPath:      cfg.Server.AdminSocketPath,
+		TCPListenAddr:   cfg.Server.AdminTCPListen,
+		TLSCertPath:     certPath,
+		TLSKeyPath:      keyPath,
+		FingerprintPath: fingerprintPath,
+		Hostname:        hostnameForCertSAN(),
+	}
+}
+
+// defaultTLSDir picks the directory to hold TLS cert + key + fingerprint
+// files when the operator hasn't set explicit paths. We mirror the
+// SQLite DB's parent dir on the assumption that DB + TLS state share
+// a single backup boundary.
+func defaultTLSDir(sqlitePath string) string {
+	if sqlitePath == "" {
+		return "/var/lib/agent-center"
+	}
+	return filepath.Dir(sqlitePath)
 }
 
 // adminDepsFromApp adapts cli.App into the admin/api HandlerDeps bag.

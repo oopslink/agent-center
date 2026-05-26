@@ -14,6 +14,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/cognition/scheduler"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/escalator"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
@@ -160,25 +161,42 @@ func ServerCommand() *Command {
 					return ExitBusinessError
 				}
 
-				// v2.2-A2: admin endpoint (unix socket) — AppService
-				// transport for in-process tools per conventions § 0.4.
-				// Full 93-route surface populated from cli.App via
-				// adminDepsFromApp.
+				// v2.2-A2 + v2.3-7a (task #27): admin endpoint — AppService
+				// transport for in-process tools (unix socket) and
+				// optional cross-host tools (TCP+TLS) per conventions
+				// § 0.4. Full 93-route surface populated from cli.App
+				// via adminDepsFromApp.
 				var adminCleanup func() error
-				if sock := cfg.Server.AdminSocketPath; sock != "" {
-					cleanup, aerr := runAdminEndpoint(ctx, app, sock, func(msg string) {
+				var adminInfo AdminTransportInfo
+				if cfg.Server.AdminSocketPath != "" || cfg.Server.AdminTCPListen != "" {
+					tc := adminTransportFromCfg(cfg)
+					info, cleanup, aerr := runAdminEndpoint(ctx, app, tc, func(msg string) {
 						fmt.Fprintf(errw, "[server] %s\n", msg)
 					})
 					if aerr != nil {
 						fmt.Fprintf(errw, "Error: admin: %v\n", aerr)
 						return ExitBusinessError
 					}
+					adminInfo = info
 					adminCleanup = cleanup
 					defer func() {
 						if adminCleanup != nil {
 							_ = adminCleanup()
 						}
 					}()
+					// v2.3-7a: emit cert-expiry-warning observability
+					// event if the cert is within 30 days of expiry.
+					if adminInfo.TLSExpiryWarn && app.Sink != nil {
+						_, _ = app.Sink.Emit(ctx, observability.EmitCommand{
+							EventType: "admin.tcp_cert_expiring",
+							Actor:     app.DefaultActor(),
+							Payload: map[string]any{
+								"cert_path":      cfg.Server.AdminTLSCertPath,
+								"expires_at":     adminInfo.TLSCertNotAfter.UTC().Format(time.RFC3339),
+								"days_remaining": adminInfo.TLSExpiryDays,
+							},
+						})
+					}
 				}
 
 				// P11 § 3.2/3.3: Web Console HTTP + SSE. Default-on per
@@ -220,6 +238,24 @@ func ServerCommand() *Command {
 				}
 				fmt.Fprintf(out, "agent-center server: db=%s listen=%s web=%s admin=%s (escalator running)\n",
 					cfg.Server.SqlitePath, cfg.Server.ListenAddr, bannerWeb, bannerAdmin)
+				// v2.3-7a banner: if TCP listener is enabled, print its
+				// address + cert fingerprint + expiry so operators can
+				// hand the fingerprint to clients (worker / CLI) for
+				// pinning. Cert generation status surfaces "auto-generated"
+				// vs "loaded existing" so the operator knows.
+				if cfg.Server.AdminTCPListen != "" {
+					gen := "loaded existing"
+					if adminInfo.TLSCertGenerated {
+						gen = "auto-generated"
+					}
+					fmt.Fprintf(out, "  admin tcp:  %s (TLS, %s)\n              cert valid until %s (%d days)\n              fingerprint: %s\n",
+						cfg.Server.AdminTCPListen,
+						gen,
+						adminInfo.TLSCertNotAfter.UTC().Format("2006-01-02"),
+						adminInfo.TLSExpiryDays,
+						adminInfo.TLSFingerprint,
+					)
+				}
 				// Wait for SIGINT / SIGTERM.
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
