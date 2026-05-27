@@ -11,6 +11,36 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.5.14] — 2026-05-27
+
+Web Console sidebar consistency fix (#67). The Workspace group's
+`Projects` link was the only nav entry that didn't follow the
+Slack-style expand-to-sub-items pattern introduced in v2.5.9 (#63)
+for Channels + DMs. With both sibling groups exposing their items
+inline, the operator expected the same affordance for Projects.
+
+### Changed
+
+- **AppLayout sidebar** (`web/src/AppLayout.tsx`) — Projects nav
+  item now expands to a sub-list of project names (link target
+  `/projects/<id>`) with the same count badge, toggle button, and
+  `ac.sidebar.subitems` persistence used by Channels and DMs. The
+  Workspace group label gains the collapsible toggle for free
+  since v2.5.9 made it data-driven.
+
+### Verification
+
+- 2 new specs in `AppLayout.sidebar.test.tsx`:
+  `Projects item exposes a sub-list of project names when expanded`
+  asserts the sub-list renders the seeded project names + correct
+  hrefs; `Projects sub-list toggle collapses + persists like
+  Channels/DMs` asserts the toggle button writes to
+  `ac.sidebar.subitems`. 311 vitest specs green (9 in
+  AppLayout.sidebar.test.tsx, +2 from v2.5.9's 7).
+- `make lint` clean.
+
+---
+
 ## [v2.5.13] — 2026-05-27
 
 Web Console SSE connection indicator cycling fix (#71). The topbar

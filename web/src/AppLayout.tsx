@@ -5,6 +5,7 @@ import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
 import { useInputRequests } from '@/api/inputRequests';
 import { useConversations } from '@/api/conversations';
+import { useProjects } from '@/api/projects';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -277,11 +278,12 @@ function Sidebar({
   const toggleSubItem = (to: string) =>
     setSubItemExpanded((m) => ({ ...m, [to]: !isSubItemOpen(to) }));
 
-  // Pull channel + DM lists for the Conversations group's expandable
-  // sub-items. Each list is small + cached; backend already supports
-  // these reads since v2.0.
+  // Pull channel + DM + project lists for the expandable sub-items.
+  // Each list is small + cached; backend already supports these reads
+  // (v2.0 conversations, v2.1-A projects).
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
+  const projects = useProjects();
   const me = useAppStore((s) => s.currentUserId);
   const channelChildren = (channels.data ?? [])
     .filter((c) => c.status !== 'archived')
@@ -293,6 +295,13 @@ function Sidebar({
     const peerLabel = d.name || peers.join(' · ') || d.id;
     return { to: `/dms/${encodeURIComponent(d.id)}`, label: `@ ${peerLabel}` };
   });
+  // v2.5.x #67 — Projects expand to the project list, mirroring the
+  // Channels/DMs pattern so the Workspace group is consistent with
+  // Conversations. Link target: /projects/<id>.
+  const projectChildren = (projects.data ?? []).map((p) => ({
+    to: `/projects/${encodeURIComponent(p.id)}`,
+    label: p.name || p.id,
+  }));
 
   // The drawer always shows full labels; the desktop bar shrinks to an
   // icon-only strip when `collapsed` is true.
@@ -328,13 +337,15 @@ function Sidebar({
                 {section.items.map((item) => {
                   const badgeCount =
                     item.badge === 'inputRequests' ? inputRequestBadge : 0;
-                  // Channels + DMs nav items expand into sub-lists.
+                  // Channels / DMs / Projects nav items expand into sub-lists.
                   const subChildren =
                     item.to === '/channels'
                       ? channelChildren
                       : item.to === '/dms'
                         ? dmChildren
-                        : null;
+                        : item.to === '/projects'
+                          ? projectChildren
+                          : null;
                   const subOpen = isSubItemOpen(item.to);
                   return (
                     <li key={item.to}>

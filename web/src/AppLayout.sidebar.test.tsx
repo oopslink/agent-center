@@ -70,6 +70,31 @@ beforeEach(() => {
       return HttpResponse.json([]);
     }),
   );
+  // v2.5.x #67 — Projects sub-list under Workspace group.
+  server.use(
+    http.get('/api/projects', () =>
+      HttpResponse.json([
+        {
+          id: 'proj-abc',
+          name: 'agent-center',
+          description: '',
+          tags: [],
+          version: 1,
+          created_at: '2026-05-27T00:00:00Z',
+          updated_at: '2026-05-27T00:00:00Z',
+        },
+        {
+          id: 'proj-def',
+          name: 'sandbox',
+          description: '',
+          tags: [],
+          version: 1,
+          created_at: '2026-05-27T00:00:00Z',
+          updated_at: '2026-05-27T00:00:00Z',
+        },
+      ]),
+    ),
+  );
 });
 
 function renderShell(initial = '/channels') {
@@ -151,6 +176,42 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
     fireEvent.click(subToggle);
     expect(subToggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByTestId('sidebar-subitem-list-/channels')).not.toBeInTheDocument();
+  });
+
+  // v2.5.x #67 — Projects mirrors the Channels/DMs sub-list pattern
+  // under the Workspace group so the operator can see each project by
+  // name without first navigating to /projects.
+  it('Projects item exposes a sub-list of project names when expanded', async () => {
+    renderShell();
+    await waitFor(() => {
+      const list = screen.getByTestId('sidebar-subitem-list-/projects');
+      expect(list.textContent).toContain('agent-center');
+    });
+    const list = screen.getByTestId('sidebar-subitem-list-/projects');
+    expect(list.textContent).toContain('sandbox');
+    // Each sub-link routes to /projects/<id>.
+    const links = list.querySelectorAll('a[data-testid="sidebar-subitem-link"]');
+    const hrefs = Array.from(links).map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('/projects/proj-abc');
+    expect(hrefs).toContain('/projects/proj-def');
+  });
+
+  it('Projects sub-list toggle collapses + persists like Channels/DMs', async () => {
+    renderShell();
+    await waitFor(() =>
+      expect(screen.getByTestId('sidebar-subitem-toggle-/projects')).toBeInTheDocument(),
+    );
+    const subToggle = screen.getByTestId('sidebar-subitem-toggle-/projects');
+    expect(subToggle).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(subToggle);
+    expect(subToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('sidebar-subitem-list-/projects')).not.toBeInTheDocument();
+    await waitFor(() => {
+      const stored = localStorage.getItem('ac.sidebar.subitems');
+      expect(stored).toBeTruthy();
+      const parsed = JSON.parse(stored as string);
+      expect(parsed['/projects']).toBe(false);
+    });
   });
 
   it('sub-item state persists to localStorage', async () => {
