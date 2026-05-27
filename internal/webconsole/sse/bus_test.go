@@ -152,8 +152,13 @@ func TestServeHTTP_StreamsEventAndHeartbeat(t *testing.T) {
 		if f.err != nil {
 			t.Fatalf("read: %v", f.err)
 		}
+		// v2.5.13 (#71): heartbeat is now a real data frame
+		// (`sse.heartbeat` event_type, no id line) instead of the
+		// `: ping` comment, so the client onmessage fires and the
+		// watchdog resets. Either the real event or the heartbeat
+		// frame is acceptable here.
 		if !strings.Contains(f.body, "conversation.message_added") &&
-			!strings.Contains(f.body, ": ping") {
+			!strings.Contains(f.body, "sse.heartbeat") {
 			t.Fatalf("unexpected body: %q", f.body)
 		}
 	case <-time.After(2 * time.Second):
@@ -214,6 +219,54 @@ func TestServeHTTP_LastEventID_QueryFallback(t *testing.T) {
 		}
 	}
 	t.Fatal("did not see replayed event within deadline")
+}
+
+// v2.5.13 (#71): the heartbeat frame must be a real data message
+// (so EventSource fires onmessage on the client) and must NOT carry
+// an `id:` field (so lastEventId stays anchored to the last real
+// event in the ringbuffer). Asserts the on-wire shape.
+func TestServeHTTP_HeartbeatIsRealDataMessageWithoutID(t *testing.T) {
+	b := NewBus()
+	b.heartbeat = 30 * time.Millisecond
+	_ = b.Subscribe("u1", "c1")
+
+	srv := httptest.NewServer(b)
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resp, err := httpGetStream(ctx, srv.URL+"?user_id=u1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Close()
+
+	buf := make([]byte, 4096)
+	deadline := time.Now().Add(2 * time.Second)
+	var seen string
+	for time.Now().Before(deadline) {
+		n, rerr := resp.Read(buf)
+		if rerr != nil {
+			break
+		}
+		seen += string(buf[:n])
+		if strings.Contains(seen, "sse.heartbeat") {
+			break
+		}
+	}
+	if !strings.Contains(seen, `data: {"event_type":"sse.heartbeat"}`) {
+		t.Fatalf("expected heartbeat data frame, got: %q", seen)
+	}
+	// The heartbeat frame must not carry an `id:` line — the bus
+	// reserves IDs for ringbuffer-replayable events.
+	for _, line := range strings.Split(seen, "\n\n") {
+		if !strings.Contains(line, "sse.heartbeat") {
+			continue
+		}
+		if strings.Contains(line, "id:") {
+			t.Fatalf("heartbeat frame must not carry id: line, got: %q", line)
+		}
+	}
 }
 
 func TestBus_Shutdown_ClosesSubscribers(t *testing.T) {

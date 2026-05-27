@@ -206,8 +206,17 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeSSE(w, ev)
 			flusher.Flush()
 		case <-ticker.C:
-			// Heartbeat comment line (per W3C EventSource spec).
-			fmt.Fprint(w, ": ping\n\n")
+			// v2.5.13 fix (#71): heartbeat as a real data message so the
+			// browser fires onmessage on the client, which is what the
+			// frontend watchdog uses to confirm liveness. The previous
+			// `: ping` comment line kept the TCP socket warm but did NOT
+			// fire onmessage (per W3C EventSource spec — comments are
+			// dropped), so the client's 30s no-event watchdog always
+			// expired and forced a reconnect every cycle. Sending a real
+			// data frame (no `id:` line so lastEventId is unchanged)
+			// resets the watchdog and falls into the dispatch table's
+			// default no-op branch.
+			fmt.Fprint(w, "data: {\"event_type\":\"sse.heartbeat\"}\n\n")
 			flusher.Flush()
 		}
 	}

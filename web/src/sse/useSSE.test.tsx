@@ -334,15 +334,42 @@ describe('startSSE', () => {
     start();
     const es1 = FakeEventSource.last()!;
     es1.openConnection();
-    // No events arrive; advance just past HEARTBEAT_TIMEOUT (30s) but
+    // No events arrive; advance just past HEARTBEAT_TIMEOUT (45s) but
     // BEFORE the backoff reconnect (~1s after) fires — the status should
     // be 'reconnecting' at this point. (Advancing further would tip into
     // 'connecting' as the reconnect timer takes over.)
     act(() => {
-      vi.advanceTimersByTime(30_100);
+      vi.advanceTimersByTime(45_100);
     });
     expect(es1.closed).toBe(true);
     expect(useAppStore.getState().sseStatus).toBe('reconnecting');
+  });
+
+  // v2.5.13 (#71): a heartbeat message arriving from the server (real
+  // data frame, not the prior `: ping` comment) must reset the
+  // client-side watchdog so the connection stays in `open` instead of
+  // cycling into `reconnecting` every backend heartbeat interval.
+  it('heartbeat data message resets the watchdog and keeps status open', () => {
+    start();
+    const es1 = FakeEventSource.last()!;
+    es1.openConnection();
+    // 30s into the connection — well past the backend heartbeat
+    // cadence (30s) — a heartbeat data frame lands.
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    es1.onmessage?.call(
+      es1 as unknown as EventSource,
+      new MessageEvent('message', { data: '{"event_type":"sse.heartbeat"}' }),
+    );
+    // Another 30s passes; the watchdog should have been pushed out so
+    // the connection is still alive (cumulative 60s > old 30s timeout,
+    // but the heartbeat at 30s reset the 45s timer).
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(es1.closed).toBe(false);
+    expect(useAppStore.getState().sseStatus).toBe('open');
   });
 
   it('close() stops reconnect + marks closed', () => {

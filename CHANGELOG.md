@@ -11,6 +11,58 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.5.13] — 2026-05-27
+
+Web Console SSE connection indicator cycling fix (#71). The topbar
+indicator was looping through `connecting → reconnecting → open`
+every 30s on a healthy connection — not because SSE was actually
+failing, but because the watchdog timer in the frontend hook was
+never being reset. Two coupled bugs:
+
+1. **Backend heartbeat was emitted as a `: ping` SSE comment line**
+   (W3C-spec correct for keep-alive), but EventSource drops comment
+   lines silently — they never fire `onmessage` on the client.
+2. **Frontend watchdog was set to 30s**, identical to the backend
+   heartbeat interval. Even if the comment had been a real event, a
+   symmetric timer pair would still race.
+
+The combined effect: zero `onmessage` traffic for 30s on every
+connection → watchdog fires → close + reconnect → repeat.
+
+### Changed
+
+- **SSE Bus `ServeHTTP` heartbeat** (`internal/webconsole/sse/bus.go`)
+  now emits a real `data: {"event_type":"sse.heartbeat"}\n\n`
+  frame instead of the `: ping` comment. No `id:` line is set, so
+  the ringbuffer ID sequence and clients' `lastEventId` anchor are
+  unaffected. The frame falls through `dispatchToQueryClient`'s
+  default branch (no invalidation), and crucially fires the
+  browser `onmessage` event so the client watchdog resets.
+- **Frontend SSE watchdog timeout** (`web/src/sse/useSSE.ts`)
+  bumped 30s → 45s. With backend heartbeats every 30s the watchdog
+  now has a 15s slack for network jitter / GC pauses, eliminating
+  the symmetric-timer race while still catching half-open sockets
+  (the original Safari/iOS guard) within ~75s of true silence.
+
+### Verification
+
+- Backend: new `TestServeHTTP_HeartbeatIsRealDataMessageWithoutID`
+  pins the on-wire shape (data frame containing `sse.heartbeat`,
+  no `id:` line). Existing
+  `TestServeHTTP_StreamsEventAndHeartbeat` updated to accept the
+  new heartbeat format.
+- Frontend: new `heartbeat data message resets the watchdog and
+  keeps status open` test simulates a 30s-in heartbeat + 30s of
+  silence (cumulative 60s past `onopen`) and asserts the
+  connection stays in `open`. Existing `heartbeat timeout forces
+  reconnect when no event arrives` updated for the new 45s
+  threshold. 29 useSSE specs + 7 useSSEConversationSubscribe + 1
+  SSEIndicator → 37 SSE-layer tests green.
+- `make lint` clean (`go vet`, arch lint, no-mock-default,
+  doc-impl-drift, raw-color SPA grep, `tsc --noEmit`).
+
+---
+
 ## [v2.5.12] — 2026-05-27
 
 ### Changed

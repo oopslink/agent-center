@@ -18,7 +18,13 @@ import { useAppStore } from '@/store/app';
 
 const BASE_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
-const HEARTBEAT_TIMEOUT_MS = 30_000;
+// v2.5.13 (#71): backend heartbeats arrive every 30s as a real data
+// frame (sse/bus.go ticker), and the watchdog timer is reset on every
+// onmessage. The watchdog must therefore be > the backend interval
+// with enough slack for network jitter — 45s gives a comfortable 15s
+// margin. A 30s/30s symmetric pairing raced and forced the cycling
+// `connecting → reconnecting → open` loop the indicator showed.
+const HEARTBEAT_TIMEOUT_MS = 45_000;
 const JITTER = 0.2;
 
 // computeBackoff returns the next reconnect delay in milliseconds with
