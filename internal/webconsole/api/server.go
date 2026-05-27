@@ -149,6 +149,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/tasks/{id}/resume", s.resumeTaskHandler)
 	s.mux.HandleFunc("POST /api/tasks/{id}/abandon", s.abandonTaskHandler)
 	s.mux.HandleFunc("PATCH /api/tasks/{id}", s.updateTaskHandler)
+	// v2.5.16 (#69) — late-bind a Conversation to a Task that was
+	// created without one. Wraps TaskService.BindConversation in auto
+	// mode (creates + binds in one tx).
+	s.mux.HandleFunc("POST /api/tasks/{id}/bind-conversation", s.bindTaskConversationHandler)
 
 	// BC-native list + detail reads (v2.3-5a). Issue projection lives
 	// in Discussion BC; Task projection lives in TaskRuntime BC. SPA

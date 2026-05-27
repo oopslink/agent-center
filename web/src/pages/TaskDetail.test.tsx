@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -90,6 +90,64 @@ describe('TaskDetail page', () => {
     await waitFor(() =>
       expect(screen.getByTestId('task-not-found')).toHaveTextContent(/no such task/),
     );
+  });
+
+  // v2.5.16 (#69): legacy tasks created without a bound Conversation
+  // showed only metadata + action buttons — no message panel, no
+  // composer. TaskDetail now surfaces an explicit empty-state with a
+  // "Start discussion" CTA wired to POST /api/tasks/{id}/bind-conversation
+  // (auto mode). After binding the task projection refresh re-renders
+  // the message panel.
+  it('offers Start discussion CTA when the task has no conversation', async () => {
+    let bound = false;
+    server.use(
+      http.get('/api/tasks/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          project_id: 'proj-a',
+          conversation_id: bound ? 'T-new-conv' : '',
+          title: 'feat abc',
+          status: 'open',
+          priority: 'medium',
+          created_at: '2026-05-24T01:00:00Z',
+        }),
+      ),
+      http.post('/api/tasks/:id/bind-conversation', () => {
+        bound = true;
+        return HttpResponse.json({
+          task_id: 'TS-legacy',
+          conversation_id: 'T-new-conv',
+        });
+      }),
+      http.get('/api/conversations/T-new-conv', () =>
+        HttpResponse.json({
+          id: 'T-new-conv',
+          kind: 'task',
+          name: 'feat abc',
+          status: 'active',
+          participants: [],
+        }),
+      ),
+      http.get('/api/conversations/T-new-conv/messages', () =>
+        HttpResponse.json([]),
+      ),
+    );
+    wrap('/tasks/TS-legacy');
+    // Empty-state CTA visible until the task gets a conversation.
+    await waitFor(() =>
+      expect(screen.getByTestId('task-no-conversation')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('message-composer')).not.toBeInTheDocument();
+    const cta = screen.getByTestId('task-start-discussion');
+    await act(async () => {
+      fireEvent.click(cta);
+    });
+    // After bind, the projection invalidation refreshes the task with
+    // a conversation_id; the message composer + list now render.
+    await waitFor(() =>
+      expect(screen.getByTestId('message-composer')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('task-no-conversation')).not.toBeInTheDocument();
   });
 
   it('renders the priority chip and exercises the select-mode toggle', async () => {

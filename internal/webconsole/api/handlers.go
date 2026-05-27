@@ -956,6 +956,37 @@ func (s *Server) abandonTaskHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// bindTaskConversationHandler serves POST /api/tasks/{id}/bind-conversation.
+// v2.5.16 (#69): operators want a chat thread on a task that was
+// created without one (CLI/SPA flows that skip the auto-conversation
+// path). The handler wraps TaskService.BindConversation in auto mode,
+// which creates a new conversation + binds it under one tx.
+func (s *Server) bindTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.TaskSvc == nil {
+		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
+		return
+	}
+	id := taskruntime.TaskID(r.PathValue("id"))
+	if strings.TrimSpace(string(id)) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	convID, err := d.TaskSvc.BindConversation(r.Context(), trservice.BindConversationInput{
+		TaskID: id,
+		Mode:   "auto",
+		Actor:  d.Actor,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"task_id":         string(id),
+		"conversation_id": string(convID),
+	})
+}
+
 // updateIssueReq is the PATCH /api/issues/{id} body (v2.5.x #64 Edit).
 type updateIssueReq struct {
 	Title       string `json:"title"`

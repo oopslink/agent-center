@@ -134,3 +134,27 @@ export function useAbandonTask(taskId: string) {
     },
   });
 }
+
+// v2.5.16 (#69) — bind a Conversation to a Task that was created
+// without one. Server uses auto mode (creates + binds in one tx) so
+// the operator just needs to click "Start discussion".
+
+export interface BindTaskConversationResult {
+  task_id: string;
+  conversation_id: string;
+}
+
+export function useBindTaskConversation(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.post<BindTaskConversationResult>(
+        `/tasks/${taskId}/bind-conversation`,
+        {},
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+    },
+  });
+}

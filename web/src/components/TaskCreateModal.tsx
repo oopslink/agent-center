@@ -46,6 +46,11 @@ export function TaskCreateModal({
         parent_task_id: parentTaskId.trim() || undefined,
         priority,
         requires_worktree: requiresWorktree,
+        // v2.5.16 (#69): always create a Conversation alongside the
+        // Task so TaskDetail can host the discussion thread + composer
+        // out of the box. Legacy tasks (without a conversation) get
+        // the explicit "Start discussion" affordance on TaskDetail.
+        with_conversation: true,
       });
       onCreated?.(res.task_id);
       onClose();

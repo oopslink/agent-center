@@ -11,6 +11,52 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.5.16] — 2026-05-27
+
+Web Console TaskDetail discussion thread (#69). Tasks created via
+the SPA's New Task modal — and any legacy task whose creator left
+`with_conversation` off — landed on a TaskDetail page with only
+metadata and action buttons. There was no MessageList, no
+composer, no way to discuss the task with collaborators or agents.
+
+### Added
+
+- **POST `/api/tasks/{id}/bind-conversation`** wraps
+  `TaskService.BindConversation` in `auto` mode — creates a
+  Conversation (kind=task) and binds it to the task under one tx.
+  Idempotent against re-bind: the AR rejects the second call
+  (`task: conversation_id already set`).
+- **`useBindTaskConversation(taskId)`** SPA mutation hook.
+- **TaskDetail empty-state** (`task-no-conversation` / `task-start-discussion`)
+  surfaces when `task.conversation_id` is empty. Clicking
+  `[Start discussion]` calls the new endpoint; on success the
+  query invalidation re-renders the page with the MessageList +
+  composer.
+
+### Changed
+
+- **TaskCreateModal** now passes `with_conversation: true` so
+  every newly-created task gets a discussion thread out of the
+  box. Operators who don't want a chat thread can still create
+  tasks via the CLI without the flag.
+- **TaskDetail** message panel / composer / participants now gate
+  on `convId` so the layout stays clean when a task has no
+  conversation (previously the composer was always mounted even
+  with no conversation, which silently dropped sends).
+
+### Verification
+
+- 3 new backend tests (`TestAPI_BindTaskConversation_Happy`,
+  `_AlreadyBound_Rejected`, `_NotWired`) cover the new endpoint,
+  including the re-bind rejection.
+- 1 new frontend spec (`offers Start discussion CTA when the task
+  has no conversation`) — toggles a stateful MSW handler to
+  simulate the bind flow + asserts the composer appears post-bind.
+  312 vitest specs green.
+- `make lint` + `go test ./...` clean.
+
+---
+
 ## [v2.5.15] — 2026-05-27
 
 Web Console "All projects" filter actually works now (#68 + #70 —

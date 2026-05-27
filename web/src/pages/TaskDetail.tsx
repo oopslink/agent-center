@@ -2,7 +2,12 @@ import type React from 'react';
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
-import { useResumeTask, useSuspendTask, useTask } from '@/api/tasks';
+import {
+  useBindTaskConversation,
+  useResumeTask,
+  useSuspendTask,
+  useTask,
+} from '@/api/tasks';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
@@ -30,6 +35,7 @@ export default function TaskDetail(): React.ReactElement {
   const [editOpen, setEditOpen] = useState(false);
   const suspend = useSuspendTask(id);
   const resume = useResumeTask(id);
+  const bindConv = useBindTaskConversation(id);
 
   if (task.isLoading) {
     return (
@@ -178,17 +184,48 @@ export default function TaskDetail(): React.ReactElement {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-hidden">
-          {messages.isLoading && (
+          {!convId && (
+            // v2.5.16 (#69): legacy task without a bound conversation.
+            // Offer an explicit "Start discussion" CTA so the operator
+            // can attach a chat thread on demand.
+            <div
+              className="m-4 flex flex-col items-start gap-3 rounded border border-dashed border-border-base bg-bg-subtle p-4 text-sm text-text-secondary"
+              data-testid="task-no-conversation"
+            >
+              <div>
+                <p className="font-medium text-text-primary">No discussion thread yet</p>
+                <p className="mt-1 text-text-muted">
+                  This task was created without a conversation. Start one to
+                  chat about it with collaborators or agents.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => bindConv.mutate()}
+                disabled={bindConv.isPending}
+                data-testid="task-start-discussion"
+                className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              >
+                {bindConv.isPending ? 'Starting…' : 'Start discussion'}
+              </button>
+              {bindConv.isError && (
+                <p className="text-xs text-danger" data-testid="task-start-discussion-error">
+                  {(bindConv.error as Error).message}
+                </p>
+              )}
+            </div>
+          )}
+          {convId && messages.isLoading && (
             <p className="p-4 text-sm text-text-muted" data-testid="task-messages-loading">
               Loading messages…
             </p>
           )}
-          {messages.isError && (
+          {convId && messages.isError && (
             <p className="p-4 text-sm text-danger" data-testid="task-messages-error">
               {(messages.error as Error).message}
             </p>
           )}
-          {messages.isSuccess && (
+          {convId && messages.isSuccess && (
             <MessageList
               messages={messages.data}
               selectable={selection.selectMode}
