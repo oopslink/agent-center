@@ -164,15 +164,26 @@ func (p *uninstallPlan) addServiceTeardown(sp servicePaths, unitPath, serviceID 
 	p.serviceSteps = serviceTeardownCmds(sp, serviceID)
 }
 
-// serviceTeardownCmds reverses serviceActivateCmds. launchctl unload
-// + plist removal is two steps; systemd disable + stop + rm is three.
-// All steps tolerate non-zero exits — the user wanted everything
-// gone, so a service that's already stopped isn't a failure.
+// serviceTeardownCmds reverses serviceActivateCmds. launchd uses
+// `bootout gui/<uid> <plist>` (modern API — kills daemon AND
+// deregisters from SMAppService so the entry leaves the operator's
+// System Settings → Login Items → Allow in Background list); systemd
+// disable + stop + daemon-reload is three. All steps tolerate
+// non-zero exits — operator wanted everything gone, so a service
+// that's already stopped isn't a failure.
+//
+// v2.5.17 fix (#72): pre-v2.5.17 launchd path used `launchctl unload`
+// which on macOS Ventura+ does NOT remove the SMAppService
+// registration; operator was left with a stale ON toggle in
+// Background Items even though daemon was stopped and plist file was
+// removed. `bootout gui/<uid>` is the documented modern replacement
+// (since macOS 10.10) and clears both layers in one call.
 func serviceTeardownCmds(sp servicePaths, serviceID string) []activationStep {
 	switch sp.ServiceManager {
 	case "launchd":
+		domain := launchdGUIDomain()
 		return []activationStep{
-			{Cmd: "launchctl unload " + sp.unitPathFor(serviceID), Tolerate: true},
+			{Cmd: "launchctl bootout " + domain + " " + sp.unitPathFor(serviceID), Tolerate: true},
 		}
 	case "systemd":
 		if sp.UserMode {
@@ -189,6 +200,14 @@ func serviceTeardownCmds(sp servicePaths, serviceID string) []activationStep {
 		}
 	}
 	return nil
+}
+
+// launchdGUIDomain returns the launchctl domain-target for the current
+// user's GUI session, e.g. "gui/501". Indirected so tests can stub it
+// out without forking a real launchctl call. macOS-only — callers
+// guard on sp.ServiceManager == "launchd" before invoking.
+var launchdGUIDomain = func() string {
+	return fmt.Sprintf("gui/%d", os.Getuid())
 }
 
 func runUninstall(ctx context.Context, plan *uninstallPlan, purge, yes, dryRun bool, out, errw io.Writer, label string) ExitCode {
@@ -226,7 +245,11 @@ func runUninstall(ctx context.Context, plan *uninstallPlan, purge, yes, dryRun b
 		return ExitOK
 	}
 
-	// Phase 1: stop + unload service. Best-effort.
+	// Phase 1: stop + unload service. Best-effort. v2.5.17 (#72) —
+	// stdout/stderr are now surfaced to the operator instead of being
+	// io.Discard'd, so a `launchctl bootout` that complains about
+	// "service target does not exist" or "permission denied" is visible
+	// at the terminal alongside the rest of the uninstall plan.
 	for _, s := range plan.serviceSteps {
 		runShellTolerant(out, s)
 	}
@@ -298,15 +321,25 @@ func confirmPurge(out, errw io.Writer, prefix string) bool {
 // runShellTolerant invokes one of the prebuilt teardown steps; never
 // returns an error because the operator wanted everything gone (a
 // service that's already stopped is not a failure).
+//
+// v2.5.17 (#72): stdout + stderr now flow to `out` so the operator can
+// see what the service manager actually said. Pre-v2.5.17 both streams
+// were io.Discard, which hid `launchctl unload` no-ops on modern macOS
+// (where the modern bootout/bootstrap API is required) and made the
+// uninstall feel like it "did nothing" when in fact the unload command
+// had silently failed.
 func runShellTolerant(out io.Writer, step activationStep) {
 	parts := splitSpaces(step.Cmd)
 	if len(parts) == 0 {
 		return
 	}
+	fmt.Fprintf(out, "  $ %s\n", step.Cmd)
 	cmd := exec.Command(parts[0], parts[1:]...) //nolint:gosec
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-	_ = cmd.Run()
+	cmd.Stdout = out
+	cmd.Stderr = out
+	if err := cmd.Run(); err != nil && !step.Tolerate {
+		fmt.Fprintf(out, "    (exit error: %v)\n", err)
+	}
 }
 
 // ensure linux import resolves when building cross-platform; the

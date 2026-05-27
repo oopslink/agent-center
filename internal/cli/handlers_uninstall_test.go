@@ -153,6 +153,58 @@ func TestUninstallWorker_RequiresID(t *testing.T) {
 	}
 }
 
+// v2.5.17 (#72): launchd teardown uses `launchctl bootout
+// gui/<uid> <plist>` rather than the deprecated `launchctl unload
+// <plist>`. The deprecated path leaves a stale SMAppService entry in
+// the operator's System Settings → Login Items → Allow in Background
+// list on macOS Ventura+ even after the daemon stops and the plist
+// is deleted; bootout removes both layers.
+func TestServiceTeardownCmds_LaunchdUsesBootout(t *testing.T) {
+	prevDomain := launchdGUIDomain
+	defer func() { launchdGUIDomain = prevDomain }()
+	launchdGUIDomain = func() string { return "gui/501" }
+	sp := servicePaths{
+		OS:              "darwin",
+		ServiceManager:  "launchd",
+		CenterUnitPath:  "/Users/x/Library/LaunchAgents/com.agent-center.center.plist",
+		CenterServiceID: "com.agent-center.center",
+	}
+	got := serviceTeardownCmds(sp, sp.CenterServiceID)
+	if len(got) != 1 {
+		t.Fatalf("len(got)=%d want 1, steps=%v", len(got), got)
+	}
+	wantCmd := "launchctl bootout gui/501 /Users/x/Library/LaunchAgents/com.agent-center.center.plist"
+	if got[0].Cmd != wantCmd {
+		t.Fatalf("cmd=%q\nwant=%q", got[0].Cmd, wantCmd)
+	}
+	if !got[0].Tolerate {
+		t.Fatalf("teardown step must tolerate non-zero exit (service may already be stopped)")
+	}
+}
+
+func TestServiceTeardownCmds_SystemdUnchanged(t *testing.T) {
+	sp := servicePaths{
+		OS:              "linux",
+		ServiceManager:  "systemd",
+		UserMode:        true,
+		CenterServiceID: "agent-center.service",
+	}
+	got := serviceTeardownCmds(sp, sp.CenterServiceID)
+	if len(got) != 3 {
+		t.Fatalf("len(got)=%d want 3", len(got))
+	}
+	wantCmds := []string{
+		"systemctl --user stop agent-center.service",
+		"systemctl --user disable agent-center.service",
+		"systemctl --user daemon-reload",
+	}
+	for i, want := range wantCmds {
+		if got[i].Cmd != want {
+			t.Errorf("step %d cmd=%q want %q", i, got[i].Cmd, want)
+		}
+	}
+}
+
 // TestUninstallCommand_HasSubcommands sanity-check on the command tree.
 func TestUninstallCommand_HasSubcommands(t *testing.T) {
 	root := UninstallCommand()

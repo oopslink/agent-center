@@ -11,6 +11,70 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.5.17] — 2026-05-27
+
+Uninstall now actually deregisters the launchd service from macOS
+Background Items (#72). `agent-center uninstall center|worker` on
+macOS Ventura+ used to leave a stale ON toggle in System Settings →
+Login Items & Extensions → Allow in Background even after the
+daemon stopped and the plist file was removed. Root cause: the
+teardown ran `launchctl unload <plist>`, which is the legacy API
+and only stops the running daemon — modern macOS tracks
+LaunchAgent registration via Service Management (SMAppService), and
+`unload` doesn't touch it.
+
+Secondary: `runShellTolerant` was swallowing both stdout and stderr,
+so when `launchctl unload` silently no-op'd (or failed for any
+reason — wrong domain, missing plist, etc.) the operator had no
+feedback and the uninstall looked successful while the entry stayed.
+
+### Changed
+
+- **`serviceTeardownCmds`** (`internal/cli/handlers_uninstall.go`)
+  on the launchd branch now emits
+  `launchctl bootout gui/<uid> <plist>` instead of
+  `launchctl unload <plist>`. `bootout` (since macOS 10.10) kills
+  the daemon AND removes the SMAppService registration in one call.
+  The GUI domain target uses `os.Getuid()` Go-side via a
+  `launchdGUIDomain` indirection so tests can stub it.
+- **`runShellTolerant`** now echoes each teardown command + writes
+  the subprocess stdout/stderr through to `out`, so the operator
+  sees what the service manager actually said. Still tolerant of
+  non-zero exits — a service that's already stopped is not a
+  failure.
+- **`docs/deployment/v2.4-first-mile.md` § 6.1** — manual
+  decommission recipe updated to use `launchctl bootout` with the
+  v2.5.17 rationale inline.
+
+### Verification
+
+- 2 new specs (`TestServiceTeardownCmds_LaunchdUsesBootout`,
+  `TestServiceTeardownCmds_SystemdUnchanged`) pin the wire-level
+  teardown commands per service manager so the bootout change is
+  guarded against regression. Existing dry-run + preserve + purge
+  uninstall specs still pass unchanged.
+- `make lint` + `go test ./internal/cli/...` clean.
+
+### Note (operator follow-up)
+
+If you already ran an earlier uninstall and your System Settings →
+Login Items & Extensions → Allow in Background still lists
+`agent-center` with a stale toggle, you can clear it one-time with
+either:
+
+```bash
+# Per-plist (if the plist is still on disk):
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.agent-center.center.plist
+
+# Or by label (works even if the plist was removed):
+launchctl bootout gui/$(id -u)/com.agent-center.center
+```
+
+After v2.5.17, `agent-center uninstall center|worker` does this
+automatically.
+
+---
+
 ## [v2.5.16] — 2026-05-27
 
 Web Console TaskDetail discussion thread (#69). Tasks created via
