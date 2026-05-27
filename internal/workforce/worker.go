@@ -39,6 +39,7 @@ type Worker struct {
 	createdAt       time.Time
 	updatedAt       time.Time
 	version         int
+	organizationID  string
 }
 
 // NewWorkerInput captures the constructor arguments for NewWorker
@@ -56,6 +57,7 @@ type NewWorkerInput struct {
 	Discovery      *WorkerDiscovery
 	EnrolledAt     time.Time
 	CreatedAt      time.Time
+	OrganizationID string
 }
 
 // NewWorker constructs a freshly enrolled Worker in `offline` state with
@@ -85,16 +87,17 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 		name = string(in.ID)
 	}
 	return &Worker{
-		id:           in.ID,
-		name:         name,
-		status:       WorkerOffline,
-		capabilities: caps,
-		concurrency:  concurrency,
-		discovery:    discovery,
-		enrolledAt:   in.EnrolledAt.UTC(),
-		createdAt:    created.UTC(),
-		updatedAt:    created.UTC(),
-		version:      1,
+		id:             in.ID,
+		name:           name,
+		status:         WorkerOffline,
+		capabilities:   caps,
+		concurrency:    concurrency,
+		discovery:      discovery,
+		enrolledAt:     in.EnrolledAt.UTC(),
+		createdAt:      created.UTC(),
+		updatedAt:      created.UTC(),
+		version:        1,
+		organizationID: in.OrganizationID,
 	}, nil
 }
 
@@ -119,6 +122,7 @@ type RehydrateWorkerInput struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	Version         int
+	OrganizationID  string
 }
 
 // RehydrateWorker reconstructs a Worker from persisted state. Not for use
@@ -163,6 +167,7 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 		createdAt:       in.CreatedAt.UTC(),
 		updatedAt:       in.UpdatedAt.UTC(),
 		version:         in.Version,
+		organizationID:  in.OrganizationID,
 	}, nil
 }
 
@@ -170,6 +175,7 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 
 func (w *Worker) ID() WorkerID                 { return w.id }
 func (w *Worker) Name() string                 { return w.name }
+func (w *Worker) OrganizationID() string       { return w.organizationID }
 func (w *Worker) Status() WorkerStatus         { return w.status }
 func (w *Worker) LastHeartbeatAt() *time.Time  { return copyTimePtr(w.lastHeartbeatAt) }
 func (w *Worker) WorkingSeconds() int64        { return w.workingSeconds }

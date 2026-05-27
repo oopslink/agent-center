@@ -24,7 +24,7 @@ func NewUserSecretRepo(db *sql.DB) *UserSecretRepo {
 }
 
 const userSecretSelect = `SELECT id, name, kind, value_ciphertext, value_nonce, state,
-	created_at, created_by, last_used_at, rotated_at, revoked_at, revoked_by, revoked_reason, revoked_message, version
+	created_at, created_by, last_used_at, rotated_at, revoked_at, revoked_by, revoked_reason, revoked_message, version, organization_id
 	FROM user_secrets`
 
 // Save inserts a fresh row.
@@ -35,8 +35,8 @@ func (r *UserSecretRepo) Save(ctx context.Context, s *secretmgmt.UserSecret) err
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO user_secrets (
 		id, name, kind, value_ciphertext, value_nonce, state,
-		created_at, created_by, last_used_at, rotated_at, revoked_at, revoked_by, revoked_reason, revoked_message, version
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		created_at, created_by, last_used_at, rotated_at, revoked_at, revoked_by, revoked_reason, revoked_message, version, organization_id
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err := exec.ExecContext(ctx, stmt,
 		string(s.ID()),
 		s.Name(),
@@ -53,6 +53,7 @@ func (r *UserSecretRepo) Save(ctx context.Context, s *secretmgmt.UserSecret) err
 		nullString(string(s.RevokedReason())),
 		nullString(s.RevokedMessage()),
 		s.Version(),
+		s.OrganizationID(),
 	)
 	if err != nil {
 		if isUnique(err) {
@@ -221,9 +222,10 @@ func scanUserSecret(scan func(...any) error) (*secretmgmt.UserSecret, error) {
 		revokedReason  sql.NullString
 		revokedMessage sql.NullString
 		version        int
+		organizationID string
 	)
 	if err := scan(&id, &name, &kind, &ciphertext, &nonce, &state,
-		&createdAt, &createdBy, &lastUsedAt, &rotatedAt, &revokedAt, &revokedBy, &revokedReason, &revokedMessage, &version); err != nil {
+		&createdAt, &createdBy, &lastUsedAt, &rotatedAt, &revokedAt, &revokedBy, &revokedReason, &revokedMessage, &version, &organizationID); err != nil {
 		return nil, err
 	}
 	created, err := time.Parse(time.RFC3339Nano, createdAt)
@@ -258,6 +260,7 @@ func scanUserSecret(scan func(...any) error) (*secretmgmt.UserSecret, error) {
 		RevokedReason:  secretmgmt.UserSecretRevokedReason(revokedReason.String),
 		RevokedMessage: revokedMessage.String,
 		Version:        version,
+		OrganizationID: organizationID,
 	})
 }
 

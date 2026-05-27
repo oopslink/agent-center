@@ -34,18 +34,20 @@ type UserSecret struct {
 	revokedReason  UserSecretRevokedReason
 	revokedMessage string
 	version        int
+	organizationID string
 }
 
 // NewUserSecretInput is the constructor input. Ciphertext + Nonce are produced
 // by the service layer via aes.Encrypt.
 type NewUserSecretInput struct {
-	ID         UserSecretID
-	Name       string
-	Kind       UserSecretKind
-	Ciphertext []byte
-	Nonce      []byte
-	CreatedAt  time.Time
-	CreatedBy  string
+	ID             UserSecretID
+	Name           string
+	Kind           UserSecretKind
+	Ciphertext     []byte
+	Nonce          []byte
+	CreatedAt      time.Time
+	CreatedBy      string
+	OrganizationID string
 }
 
 // NewUserSecret constructs an active secret.
@@ -72,15 +74,16 @@ func NewUserSecret(in NewUserSecretInput) (*UserSecret, error) {
 		return nil, errors.New("user secret: created_by required")
 	}
 	return &UserSecret{
-		id:         in.ID,
-		name:       in.Name,
-		kind:       in.Kind,
-		ciphertext: append([]byte(nil), in.Ciphertext...),
-		nonce:      append([]byte(nil), in.Nonce...),
-		state:      UserSecretActive,
-		createdAt:  in.CreatedAt.UTC(),
-		createdBy:  in.CreatedBy,
-		version:    1,
+		id:             in.ID,
+		name:           in.Name,
+		kind:           in.Kind,
+		ciphertext:     append([]byte(nil), in.Ciphertext...),
+		nonce:          append([]byte(nil), in.Nonce...),
+		state:          UserSecretActive,
+		createdAt:      in.CreatedAt.UTC(),
+		createdBy:      in.CreatedBy,
+		version:        1,
+		organizationID: in.OrganizationID,
 	}, nil
 }
 
@@ -101,6 +104,7 @@ type RehydrateUserSecretInput struct {
 	RevokedReason  UserSecretRevokedReason
 	RevokedMessage string
 	Version        int
+	OrganizationID string
 }
 
 // RehydrateUserSecret reconstructs from persisted state.
@@ -127,6 +131,7 @@ func RehydrateUserSecret(in RehydrateUserSecretInput) (*UserSecret, error) {
 		revokedReason:  in.RevokedReason,
 		revokedMessage: in.RevokedMessage,
 		version:        in.Version,
+		organizationID: in.OrganizationID,
 	}, nil
 }
 
@@ -147,6 +152,7 @@ func (u *UserSecret) RevokedBy() string                  { return u.revokedBy }
 func (u *UserSecret) RevokedReason() UserSecretRevokedReason { return u.revokedReason }
 func (u *UserSecret) RevokedMessage() string             { return u.revokedMessage }
 func (u *UserSecret) Version() int                       { return u.version }
+func (u *UserSecret) OrganizationID() string             { return u.organizationID }
 
 // Rotate replaces ciphertext + nonce. Bumps rotated_at + version. Rejects
 // revoked secrets.

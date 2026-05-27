@@ -52,8 +52,8 @@ func (r *WorkerRepo) Save(ctx context.Context, w *workforce.Worker) error {
 		id, name, status, concurrency_json, discovery_json, capabilities_json,
 		last_heartbeat_at, working_seconds,
 		enrolled_at, online_at, offline_at, offline_reason, offline_message,
-		created_at, updated_at, version
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		created_at, updated_at, version, organization_id
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(w.ID()),
 		w.Name(),
@@ -71,6 +71,7 @@ func (r *WorkerRepo) Save(ctx context.Context, w *workforce.Worker) error {
 		w.CreatedAt().Format(time.RFC3339Nano),
 		w.UpdatedAt().Format(time.RFC3339Nano),
 		w.Version(),
+		w.OrganizationID(),
 	)
 	if err != nil {
 		if IsUniqueConstraint(err) {
@@ -386,7 +387,7 @@ func (r *WorkerRepo) cassDiagnose(ctx context.Context, exec persistence.SQLExecu
 const workerSelect = `SELECT id, name, status, concurrency_json, discovery_json, capabilities_json,
 	last_heartbeat_at, working_seconds,
 	enrolled_at, online_at, offline_at, offline_reason, offline_message,
-	created_at, updated_at, version
+	created_at, updated_at, version, organization_id
 	FROM workers`
 
 func scanWorkers(rows *sql.Rows) ([]*workforce.Worker, error) {
@@ -419,11 +420,12 @@ func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 		createdAt        string
 		updatedAt        string
 		version          int
+		organizationID   string
 	)
 	if err := scan(&id, &name, &status, &concurrencyJSON, &discoveryJSON, &capsJSON,
 		&lastHeartbeatAt, &workingSeconds,
 		&enrolledAt, &onlineAt, &offlineAt, &offlineReason, &offlineMessage,
-		&createdAt, &updatedAt, &version); err != nil {
+		&createdAt, &updatedAt, &version, &organizationID); err != nil {
 		return nil, err
 	}
 	var caps []workforce.Capability
@@ -485,6 +487,7 @@ func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 		CreatedAt:       created,
 		UpdatedAt:       updated,
 		Version:         version,
+		OrganizationID:  organizationID,
 	})
 }
 
