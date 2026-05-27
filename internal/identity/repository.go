@@ -5,6 +5,7 @@ import "context"
 // IdentityRepository defines persistence operations for the Identity AR.
 type IdentityRepository interface {
 	Save(ctx context.Context, id *Identity) error
+	Update(ctx context.Context, id *Identity) error
 	GetByID(ctx context.Context, id string) (*Identity, error)
 	GetByDisplayName(ctx context.Context, name string) (*Identity, error)
 	List(ctx context.Context) ([]*Identity, error)

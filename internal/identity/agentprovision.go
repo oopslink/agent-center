@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
@@ -26,6 +27,7 @@ type AgentIdentityProvisionService struct {
 	db         *sql.DB
 	identities IdentityRepository
 	members    MemberRepository
+	sink       *observability.EventSink
 }
 
 // NewAgentIdentityProvisionService constructs the service.
@@ -35,6 +37,16 @@ func NewAgentIdentityProvisionService(
 	members MemberRepository,
 ) *AgentIdentityProvisionService {
 	return &AgentIdentityProvisionService{db: db, identities: identities, members: members}
+}
+
+// NewAgentIdentityProvisionServiceWithSink constructs the service with an event sink.
+func NewAgentIdentityProvisionServiceWithSink(
+	db *sql.DB,
+	identities IdentityRepository,
+	members MemberRepository,
+	sink *observability.EventSink,
+) *AgentIdentityProvisionService {
+	return &AgentIdentityProvisionService{db: db, identities: identities, members: members, sink: sink}
 }
 
 // Provision creates an Identity[kind=agent] + Member atomically (DS-5).
@@ -83,7 +95,14 @@ func (s *AgentIdentityProvisionService) Provision(
 		}
 
 		result = AgentProvisionResult{Identity: identity, Member: member}
-		return nil
+
+		// Emit domain events in same TX.
+		actor := observability.Actor("user:" + provisionedByIdentityID)
+		refs := observability.EventRefs{IdentityID: identity.ID(), OrganizationID: organizationID, MemberID: member.ID()}
+		if err := emitEvent(txCtx, s.sink, EvtIdentityCreated, refs, actor, map[string]any{"kind": "agent"}); err != nil {
+			return err
+		}
+		return emitEvent(txCtx, s.sink, EvtMemberAdded, refs, actor, map[string]any{"role": string(member.Role())})
 	})
 	if err != nil {
 		return nil, err

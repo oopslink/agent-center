@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
@@ -20,6 +21,7 @@ type MemberRoleChangeService struct {
 	db      *sql.DB
 	members MemberRepository
 	lock    *OrganizationLockManager
+	sink    *observability.EventSink
 }
 
 // NewMemberRoleChangeService constructs the service.
@@ -27,11 +29,15 @@ func NewMemberRoleChangeService(db *sql.DB, members MemberRepository, lock *Orga
 	return &MemberRoleChangeService{db: db, members: members, lock: lock}
 }
 
+// NewMemberRoleChangeServiceWithSink constructs the service with an event sink.
+func NewMemberRoleChangeServiceWithSink(db *sql.DB, members MemberRepository, lock *OrganizationLockManager, sink *observability.EventSink) *MemberRoleChangeService {
+	return &MemberRoleChangeService{db: db, members: members, lock: lock, sink: sink}
+}
+
 // Change updates the member's role. Rejects if the change would leave an
 // organization with no active owner (DS-2, M3 invariant).
 func (s *MemberRoleChangeService) Change(ctx context.Context, memberID string, newRole MemberRole, changedBy string) error {
 	var orgID string
-	// Pre-fetch org ID outside the lock to get the correct mutex key.
 	m, err := s.members.GetByID(ctx, memberID)
 	if err != nil {
 		return err
@@ -55,7 +61,15 @@ func (s *MemberRoleChangeService) Change(ctx context.Context, memberID string, n
 				}
 			}
 			member.ChangeRole(newRole)
-			return s.members.Save(txCtx, member)
+			if err := s.members.Save(txCtx, member); err != nil {
+				return err
+			}
+			actor := observability.Actor("user:" + changedBy)
+			refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
+			return emitEvent(txCtx, s.sink, EvtMemberRoleChanged, refs, actor, map[string]any{
+				"old_role": string(oldRole),
+				"new_role": string(newRole),
+			})
 		})
 	})
 }
@@ -72,11 +86,17 @@ type MemberDisableService struct {
 	db      *sql.DB
 	members MemberRepository
 	lock    *OrganizationLockManager
+	sink    *observability.EventSink
 }
 
 // NewMemberDisableService constructs the service.
 func NewMemberDisableService(db *sql.DB, members MemberRepository, lock *OrganizationLockManager) *MemberDisableService {
 	return &MemberDisableService{db: db, members: members, lock: lock}
+}
+
+// NewMemberDisableServiceWithSink constructs the service with an event sink.
+func NewMemberDisableServiceWithSink(db *sql.DB, members MemberRepository, lock *OrganizationLockManager, sink *observability.EventSink) *MemberDisableService {
+	return &MemberDisableService{db: db, members: members, lock: lock, sink: sink}
 }
 
 // Disable disables a member (idempotent if already disabled).
@@ -106,7 +126,11 @@ func (s *MemberDisableService) Disable(ctx context.Context, memberID, reason str
 				}
 			}
 			member.Disable(reason)
-			return s.members.Save(txCtx, member)
+			if err := s.members.Save(txCtx, member); err != nil {
+				return err
+			}
+			refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
+			return emitEvent(txCtx, s.sink, EvtMemberDisabled, refs, observability.Actor("system"), map[string]any{"reason": reason, "message": "member disabled"})
 		})
 	})
 }
@@ -122,7 +146,11 @@ func (s *MemberDisableService) ReEnable(ctx context.Context, memberID string) er
 			return nil // already joined; idempotent
 		}
 		member.ReEnable()
-		return s.members.Save(txCtx, member)
+		if err := s.members.Save(txCtx, member); err != nil {
+			return err
+		}
+		refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
+		return emitEvent(txCtx, s.sink, EvtMemberReEnabled, refs, observability.Actor("system"), nil)
 	})
 }
 
@@ -135,11 +163,17 @@ type OrganizationCreateService struct {
 	db      *sql.DB
 	orgs    OrganizationRepository
 	members MemberRepository
+	sink    *observability.EventSink
 }
 
 // NewOrganizationCreateService constructs the service.
 func NewOrganizationCreateService(db *sql.DB, orgs OrganizationRepository, members MemberRepository) *OrganizationCreateService {
 	return &OrganizationCreateService{db: db, orgs: orgs, members: members}
+}
+
+// NewOrganizationCreateServiceWithSink constructs the service with an event sink.
+func NewOrganizationCreateServiceWithSink(db *sql.DB, orgs OrganizationRepository, members MemberRepository, sink *observability.EventSink) *OrganizationCreateService {
+	return &OrganizationCreateService{db: db, orgs: orgs, members: members, sink: sink}
 }
 
 // Create atomically creates an Organization + owner Member for identityID.
@@ -167,7 +201,15 @@ func (s *OrganizationCreateService) Create(ctx context.Context, slug, name, iden
 		if err != nil {
 			return err
 		}
-		return s.members.Save(txCtx, member)
+		if err := s.members.Save(txCtx, member); err != nil {
+			return err
+		}
+		actor := observability.Actor("user:" + identityID)
+		refs := observability.EventRefs{OrganizationID: org.ID(), MemberID: member.ID(), IdentityID: identityID}
+		if err := emitEvent(txCtx, s.sink, EvtOrganizationCreated, refs, actor, map[string]any{"slug": org.Slug()}); err != nil {
+			return err
+		}
+		return emitEvent(txCtx, s.sink, EvtMemberAdded, refs, actor, map[string]any{"role": string(RoleOwner)})
 	})
 	if err != nil {
 		return nil, nil, err
@@ -186,6 +228,7 @@ type OrganizationLifecycleService struct {
 	orgs    OrganizationRepository
 	members MemberRepository
 	lock    *OrganizationLockManager
+	sink    *observability.EventSink
 }
 
 // NewOrganizationLifecycleService constructs the service.
@@ -196,6 +239,17 @@ func NewOrganizationLifecycleService(
 	lock *OrganizationLockManager,
 ) *OrganizationLifecycleService {
 	return &OrganizationLifecycleService{db: db, orgs: orgs, members: members, lock: lock}
+}
+
+// NewOrganizationLifecycleServiceWithSink constructs the service with an event sink.
+func NewOrganizationLifecycleServiceWithSink(
+	db *sql.DB,
+	orgs OrganizationRepository,
+	members MemberRepository,
+	lock *OrganizationLockManager,
+	sink *observability.EventSink,
+) *OrganizationLifecycleService {
+	return &OrganizationLifecycleService{db: db, orgs: orgs, members: members, lock: lock, sink: sink}
 }
 
 // Delete soft-deletes an organization and all its joined members (DS-3).
@@ -221,10 +275,223 @@ func (s *OrganizationLifecycleService) Delete(ctx context.Context, organizationI
 					if err := s.members.Save(txCtx, m); err != nil {
 						return err
 					}
+					refs := observability.EventRefs{MemberID: m.ID(), OrganizationID: organizationID, IdentityID: m.IdentityID()}
+					if err := emitEvent(txCtx, s.sink, EvtMemberDisabled, refs, observability.Actor("system"), map[string]any{"reason": "organization-deleted", "message": "member disabled due to org deletion"}); err != nil {
+						return err
+					}
 				}
 			}
 			org.SoftDelete()
-			return s.orgs.Save(txCtx, org)
+			if err := s.orgs.Save(txCtx, org); err != nil {
+				return err
+			}
+			return emitEvent(txCtx, s.sink, EvtOrganizationDeleted, observability.EventRefs{OrganizationID: organizationID}, observability.Actor("system"), nil)
 		})
+	})
+}
+
+// ============================================================
+// OrganizationUpdateService — update org name/slug
+// ============================================================
+
+// OrganizationUpdateService updates mutable organization fields.
+type OrganizationUpdateService struct {
+	db   *sql.DB
+	orgs OrganizationRepository
+	sink *observability.EventSink
+}
+
+// NewOrganizationUpdateService constructs the service.
+func NewOrganizationUpdateService(db *sql.DB, orgs OrganizationRepository) *OrganizationUpdateService {
+	return &OrganizationUpdateService{db: db, orgs: orgs}
+}
+
+// NewOrganizationUpdateServiceWithSink constructs the service with an event sink.
+func NewOrganizationUpdateServiceWithSink(db *sql.DB, orgs OrganizationRepository, sink *observability.EventSink) *OrganizationUpdateService {
+	return &OrganizationUpdateService{db: db, orgs: orgs, sink: sink}
+}
+
+// UpdateName updates the organization display name.
+func (s *OrganizationUpdateService) UpdateName(ctx context.Context, orgID, name, updatedByIdentityID string) error {
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		org, err := s.orgs.GetByID(txCtx, orgID)
+		if err != nil {
+			return err
+		}
+		if org.IsDeleted() {
+			return ErrOrganizationDeleted
+		}
+		org.UpdateName(name)
+		if err := s.orgs.Save(txCtx, org); err != nil {
+			return err
+		}
+		actor := observability.Actor("user:" + updatedByIdentityID)
+		return emitEvent(txCtx, s.sink, EvtOrganizationUpdated, observability.EventRefs{OrganizationID: orgID}, actor, map[string]any{"field": "name"})
+	})
+}
+
+// ============================================================
+// MemberRemoveService — hard-remove a member record
+// ============================================================
+
+// ErrCannotRemoveLastOwner is returned when removing the last owner.
+var ErrCannotRemoveLastOwner = errors.New("member: cannot remove last owner of organization")
+
+// MemberRemoveService removes a member from an organization.
+type MemberRemoveService struct {
+	db      *sql.DB
+	members MemberRepository
+	lock    *OrganizationLockManager
+	sink    *observability.EventSink
+}
+
+// NewMemberRemoveService constructs the service.
+func NewMemberRemoveService(db *sql.DB, members MemberRepository, lock *OrganizationLockManager) *MemberRemoveService {
+	return &MemberRemoveService{db: db, members: members, lock: lock}
+}
+
+// NewMemberRemoveServiceWithSink constructs the service with an event sink.
+func NewMemberRemoveServiceWithSink(db *sql.DB, members MemberRepository, lock *OrganizationLockManager, sink *observability.EventSink) *MemberRemoveService {
+	return &MemberRemoveService{db: db, members: members, lock: lock, sink: sink}
+}
+
+// Remove removes a member from an organization. Guards last-owner invariant.
+func (s *MemberRemoveService) Remove(ctx context.Context, memberID, removedByIdentityID string) error {
+	m, err := s.members.GetByID(ctx, memberID)
+	if err != nil {
+		return err
+	}
+	orgID := m.OrganizationID()
+
+	return s.lock.WithLock(orgID, func() error {
+		return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+			member, err := s.members.GetByID(txCtx, memberID)
+			if err != nil {
+				return err
+			}
+			if member.Role() == RoleOwner {
+				count, err := s.members.CountActiveOwners(txCtx, member.OrganizationID())
+				if err != nil {
+					return err
+				}
+				if count <= 1 {
+					return ErrCannotRemoveLastOwner
+				}
+			}
+			// Disable as removal (v2.6 uses soft-disable; full DELETE is v2.7+).
+			member.Disable("removed")
+			if err := s.members.Save(txCtx, member); err != nil {
+				return err
+			}
+			actor := observability.Actor("user:" + removedByIdentityID)
+			refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
+			return emitEvent(txCtx, s.sink, EvtMemberRemoved, refs, actor, nil)
+		})
+	})
+}
+
+// ============================================================
+// IdentityAccountService — disable/re-enable identity account
+// ============================================================
+
+// IdentityAccountService manages account-level enable/disable for identities.
+type IdentityAccountService struct {
+	db         *sql.DB
+	identities IdentityRepository
+	sink       *observability.EventSink
+}
+
+// NewIdentityAccountService constructs the service.
+func NewIdentityAccountService(db *sql.DB, identities IdentityRepository) *IdentityAccountService {
+	return &IdentityAccountService{db: db, identities: identities}
+}
+
+// NewIdentityAccountServiceWithSink constructs the service with an event sink.
+func NewIdentityAccountServiceWithSink(db *sql.DB, identities IdentityRepository, sink *observability.EventSink) *IdentityAccountService {
+	return &IdentityAccountService{db: db, identities: identities, sink: sink}
+}
+
+// Disable disables an identity's account (idempotent).
+func (s *IdentityAccountService) Disable(ctx context.Context, identityID, reason, disabledByIdentityID string) error {
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		identity, err := s.identities.GetByID(txCtx, identityID)
+		if err != nil {
+			return err
+		}
+		if identity.AccountStatus() == AccountDisabled {
+			return nil // idempotent
+		}
+		identity.Disable()
+		if err := s.identities.Update(txCtx, identity); err != nil {
+			return err
+		}
+		actor := observability.Actor("user:" + disabledByIdentityID)
+		return emitEvent(txCtx, s.sink, EvtIdentityAccountDisabled, observability.EventRefs{IdentityID: identityID}, actor, map[string]any{"reason": reason, "message": "account disabled"})
+	})
+}
+
+// ReEnable re-enables a disabled identity account (idempotent).
+func (s *IdentityAccountService) ReEnable(ctx context.Context, identityID, reEnabledByIdentityID string) error {
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		identity, err := s.identities.GetByID(txCtx, identityID)
+		if err != nil {
+			return err
+		}
+		if identity.AccountStatus() == AccountActive {
+			return nil // idempotent
+		}
+		identity.ReEnable()
+		if err := s.identities.Update(txCtx, identity); err != nil {
+			return err
+		}
+		actor := observability.Actor("user:" + reEnabledByIdentityID)
+		return emitEvent(txCtx, s.sink, EvtIdentityAccountReEnabled, observability.EventRefs{IdentityID: identityID}, actor, nil)
+	})
+}
+
+// ============================================================
+// PasscodeChangeService — change identity passcode
+// ============================================================
+
+// PasscodeChangeService changes a user identity's passcode.
+type PasscodeChangeService struct {
+	db         *sql.DB
+	identities IdentityRepository
+	sink       *observability.EventSink
+}
+
+// NewPasscodeChangeService constructs the service.
+func NewPasscodeChangeService(db *sql.DB, identities IdentityRepository) *PasscodeChangeService {
+	return &PasscodeChangeService{db: db, identities: identities}
+}
+
+// NewPasscodeChangeServiceWithSink constructs the service with an event sink.
+func NewPasscodeChangeServiceWithSink(db *sql.DB, identities IdentityRepository, sink *observability.EventSink) *PasscodeChangeService {
+	return &PasscodeChangeService{db: db, identities: identities, sink: sink}
+}
+
+// Change verifies the current passcode and replaces it with a new one.
+func (s *PasscodeChangeService) Change(ctx context.Context, identityID, currentPlain, newPlain string) error {
+	if err := ValidatePasscodePlain(newPlain); err != nil {
+		return err
+	}
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		identity, err := s.identities.GetByID(txCtx, identityID)
+		if err != nil {
+			return err
+		}
+		if !VerifyPasscode(identity.PasscodeHash(), currentPlain) {
+			return ErrPasscodeInvalid
+		}
+		newHash, err := HashPasscode(newPlain)
+		if err != nil {
+			return err
+		}
+		identity.SetPasscode(newHash)
+		if err := s.identities.Update(txCtx, identity); err != nil {
+			return err
+		}
+		actor := observability.Actor("user:" + identityID)
+		return emitEvent(txCtx, s.sink, EvtIdentityPasscodeChanged, observability.EventRefs{IdentityID: identityID}, actor, nil)
 	})
 }

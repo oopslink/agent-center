@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
@@ -42,13 +43,14 @@ type SignupResult struct {
 
 // SignupService executes the signup flow (DS-1).
 type SignupService struct {
-	db       *sql.DB
+	db         *sql.DB
 	identities IdentityRepository
 	orgs       OrganizationRepository
 	members    MemberRepository
+	sink       *observability.EventSink
 }
 
-// NewSignupService constructs the service.
+// NewSignupService constructs the service without an event sink.
 func NewSignupService(
 	db *sql.DB,
 	identities IdentityRepository,
@@ -56,6 +58,17 @@ func NewSignupService(
 	members MemberRepository,
 ) *SignupService {
 	return &SignupService{db: db, identities: identities, orgs: orgs, members: members}
+}
+
+// NewSignupServiceWithSink constructs the service with an event sink.
+func NewSignupServiceWithSink(
+	db *sql.DB,
+	identities IdentityRepository,
+	orgs OrganizationRepository,
+	members MemberRepository,
+	sink *observability.EventSink,
+) *SignupService {
+	return &SignupService{db: db, identities: identities, orgs: orgs, members: members, sink: sink}
 }
 
 // Execute validates the form and atomically creates Identity + Organization + Member.
@@ -102,7 +115,17 @@ func (s *SignupService) Execute(ctx context.Context, form SignupForm) (*SignupRe
 			return err
 		}
 		result = SignupResult{Identity: identity, Organization: org, Member: member}
-		return nil
+
+		// 6. Emit domain events in same TX.
+		actor := observability.Actor("user:" + identity.ID())
+		refs := observability.EventRefs{IdentityID: identity.ID(), OrganizationID: org.ID(), MemberID: member.ID()}
+		if err := emitEvent(txCtx, s.sink, EvtIdentityCreated, refs, actor, map[string]any{"kind": "user"}); err != nil {
+			return err
+		}
+		if err := emitEvent(txCtx, s.sink, EvtOrganizationCreated, refs, actor, map[string]any{"slug": org.Slug()}); err != nil {
+			return err
+		}
+		return emitEvent(txCtx, s.sink, EvtMemberAdded, refs, actor, map[string]any{"role": string(member.Role())})
 	})
 	if err != nil {
 		return nil, err
@@ -125,11 +148,17 @@ type SigninResult struct {
 type SigninService struct {
 	identities IdentityRepository
 	signingKey []byte
+	sink       *observability.EventSink
 }
 
-// NewSigninService constructs the service.
+// NewSigninService constructs the service without an event sink.
 func NewSigninService(identities IdentityRepository, signingKey []byte) *SigninService {
 	return &SigninService{identities: identities, signingKey: signingKey}
+}
+
+// NewSigninServiceWithSink constructs the service with an event sink.
+func NewSigninServiceWithSink(identities IdentityRepository, signingKey []byte, sink *observability.EventSink) *SigninService {
+	return &SigninService{identities: identities, signingKey: signingKey, sink: sink}
 }
 
 // Execute authenticates and returns a JWT. Returns ErrPasscodeInvalid on any
@@ -137,25 +166,50 @@ func NewSigninService(identities IdentityRepository, signingKey []byte) *SigninS
 func (s *SigninService) Execute(ctx context.Context, displayName, passcodePlain string) (*SigninResult, error) {
 	identity, err := s.identities.GetByDisplayName(ctx, displayName)
 	if err != nil || identity == nil {
-		return nil, ErrPasscodeInvalid // don't expose enumeration
+		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{}, observability.Actor("system"), map[string]any{"reason": "not_found", "message": "identity not found"})
+		return nil, ErrPasscodeInvalid
 	}
 	if identity.AccountStatus() == AccountDisabled {
+		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{IdentityID: identity.ID()}, observability.Actor("system"), map[string]any{"reason": "disabled", "message": "account disabled"})
 		return nil, ErrPasscodeInvalid
 	}
 	if !VerifyPasscode(identity.PasscodeHash(), passcodePlain) {
+		_ = emitEvent(ctx, s.sink, EvtAuthSigninFailed, observability.EventRefs{IdentityID: identity.ID()}, observability.Actor("system"), map[string]any{"reason": "bad_passcode", "message": "passcode mismatch"})
 		return nil, ErrPasscodeInvalid
 	}
 	token, err := MintJWT(identity.ID(), s.signingKey)
 	if err != nil {
 		return nil, err
 	}
-	// Extract jti from claims for event emission (best-effort).
 	claims, _ := VerifyJWT(token, s.signingKey)
 	jti := ""
 	if claims != nil {
 		jti = claims.Jti
 	}
+	actor := observability.Actor("user:" + identity.ID())
+	_ = emitEvent(ctx, s.sink, EvtAuthSignedIn, observability.EventRefs{IdentityID: identity.ID()}, actor, map[string]any{"jti": jti})
 	return &SigninResult{IdentityID: identity.ID(), JWT: token, Jti: jti}, nil
+}
+
+// ============================================================
+// SignoutService — emit auth.signed_out (stateless JWT; cookie cleared by HTTP layer)
+// ============================================================
+
+// SignoutService records signout events. JWT invalidation is out-of-scope for
+// v2.6 (stateless tokens; cookie cleared by the HTTP handler).
+type SignoutService struct {
+	sink *observability.EventSink
+}
+
+// NewSignoutService constructs the service.
+func NewSignoutService(sink *observability.EventSink) *SignoutService {
+	return &SignoutService{sink: sink}
+}
+
+// Execute emits auth.signed_out for the given identity.
+func (s *SignoutService) Execute(ctx context.Context, identityID, jti string) error {
+	actor := observability.Actor("user:" + identityID)
+	return emitEvent(ctx, s.sink, EvtAuthSignedOut, observability.EventRefs{IdentityID: identityID}, actor, map[string]any{"jti": jti})
 }
 
 // ============================================================
@@ -234,4 +288,22 @@ func (f *IdentityBCFacade) GetActiveOrganization(ctx context.Context, orgID stri
 // GetMemberForOrganization returns the joined Member for (org, identity) or nil.
 func (f *IdentityBCFacade) GetMemberForOrganization(ctx context.Context, orgID, identityID string) (*Member, error) {
 	return f.members.GetByOrganizationAndIdentity(ctx, orgID, identityID)
+}
+
+// ============================================================
+// emitEvent — nil-safe helper used by all identity services
+// ============================================================
+
+// emitEvent emits an event via sink. No-ops if sink is nil.
+func emitEvent(ctx context.Context, sink *observability.EventSink, evtType observability.EventType, refs observability.EventRefs, actor observability.Actor, payload map[string]any) error {
+	if sink == nil {
+		return nil
+	}
+	_, err := sink.Emit(ctx, observability.EmitCommand{
+		EventType: evtType,
+		Refs:      refs,
+		Actor:     actor,
+		Payload:   payload,
+	})
+	return err
 }
