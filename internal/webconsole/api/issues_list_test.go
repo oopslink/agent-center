@@ -118,18 +118,55 @@ func TestAPI_ListIssues_StatusFilter(t *testing.T) {
 	}
 }
 
-func TestAPI_ListIssues_MissingProjectID_400(t *testing.T) {
+// v2.5.15 (#68): project_id is now OPTIONAL. When omitted the handler
+// returns issues across all projects via IssueRepository.FindAll. The
+// previous behavior (400 missing_project_id) was the root cause of the
+// Web Console "All projects" filter rendering empty — the SPA gated on
+// projectFilter !== 'all' to even fire the request.
+func TestAPI_ListIssues_NoProjectID_ReturnsAllProjects(t *testing.T) {
 	deps, _ := setupAPI(t)
+	seedIssue(t, deps, "I-1", "p-1", "first", discussion.StatusOpen)
+	seedIssue(t, deps, "I-2", "p-2", "second", discussion.StatusOpen)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues")
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status=%d want 400", resp.StatusCode)
+	resp, err := http.Get(s.URL + "/api/issues")
+	if err != nil {
+		t.Fatal(err)
 	}
-	var body map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&body)
-	if body["error"] != "missing_project_id" {
-		t.Fatalf("err=%v want missing_project_id", body["error"])
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d want 200", resp.StatusCode)
+	}
+	var arr []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&arr)
+	if len(arr) != 2 {
+		t.Fatalf("len=%d want 2 (issues across p-1 + p-2)", len(arr))
+	}
+	// project_id column should be present on every row so the SPA can
+	// surface it in the "All projects" view.
+	for _, row := range arr {
+		if _, ok := row["project_id"]; !ok {
+			t.Fatalf("row missing project_id: %v", row)
+		}
+	}
+}
+
+func TestAPI_ListIssues_NoProjectID_StatusFilterApplies(t *testing.T) {
+	deps, _ := setupAPI(t)
+	seedIssue(t, deps, "I-1", "p-1", "open", discussion.StatusOpen)
+	seedIssue(t, deps, "I-2", "p-2", "underdisc", discussion.StatusUnderDiscussion)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/issues?status=open")
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	var arr []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&arr)
+	if len(arr) != 1 {
+		t.Fatalf("len=%d want 1 (status filter applies across projects)", len(arr))
+	}
+	if arr[0]["status"] != "open" {
+		t.Fatalf("wrong status: %v", arr[0])
 	}
 }
 

@@ -11,12 +11,10 @@ import type { Issue, IssueStatus } from './types';
 // BC reads stay in place for message thread rendering only — that is
 // genuinely Conversation BC's responsibility (message ownership).
 //
-// `project_id` is REQUIRED by the backend (returns 400 otherwise; see
-// internal/webconsole/api/handlers.go listIssuesHandler). The hook
-// therefore short-circuits via `enabled: !!projectId` — callers must
-// pick a project before the list is fetched. The Issues page renders
-// an "all projects" pseudo-filter by leaving the chip on "All" and
-// surfacing an empty-state nudge ("pick a project").
+// v2.5.15 (#68): both `project_id` and `status` are optional. Omitting
+// `project_id` returns issues across all projects (Discussion BC
+// FindAll). The hook is always enabled — callers no longer have to
+// gate on a chosen project.
 
 export function useIssues(filter?: { projectId?: string; status?: IssueStatus }) {
   const projectId = filter?.projectId;
@@ -28,7 +26,6 @@ export function useIssues(filter?: { projectId?: string; status?: IssueStatus })
   return useQuery({
     queryKey: qk.issues({ projectId, status }),
     queryFn: () => api.get<Issue[]>(`/issues${qs ? `?${qs}` : ''}`),
-    enabled: !!projectId,
   });
 }
 

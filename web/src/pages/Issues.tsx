@@ -35,12 +35,15 @@ export default function Issues(): React.ReactElement {
   const projects = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
   // Status filter is server-side now (backend accepts optional `status`
-  // query param mapped to discussion.IssueFilter.Status).
+  // query param mapped to discussion.IssueFilter.Status). v2.5.15 (#68)
+  // also makes project_id optional so "All projects" returns the
+  // cross-project list instead of an empty "pick a project" nudge.
   const issues = useIssues({
     projectId: projectFilter === 'all' ? undefined : projectFilter,
     status: filter === 'all' ? undefined : filter,
   });
   const data = issues.data ?? [];
+  const projectNameById = new Map((projects.data ?? []).map((p) => [p.id, p.name]));
 
   const setProject = (id: string) => {
     const next = new URLSearchParams(searchParams);
@@ -117,25 +120,18 @@ export default function Issues(): React.ReactElement {
         ))}
       </div>
 
-      {projectFilter === 'all' && (
-        <EmptyState
-          testId="issues-pick-project"
-          title="Pick a project"
-          body="Issues live inside a project — choose one from the chip row above to see its issues."
-        />
-      )}
-      {projectFilter !== 'all' && issues.isLoading && (
+      {issues.isLoading && (
         <div className="space-y-2" data-testid="issues-loading">
           <Skeleton height="2.5rem" />
           <Skeleton height="2.5rem" />
         </div>
       )}
-      {projectFilter !== 'all' && issues.isError && (
+      {issues.isError && (
         <p className="text-sm text-danger" data-testid="issues-error">
           {(issues.error as Error).message}
         </p>
       )}
-      {projectFilter !== 'all' && issues.isSuccess && data.length === 0 && (
+      {issues.isSuccess && data.length === 0 && (
         <EmptyState
           testId="issues-empty"
           title={filter === 'all' ? 'No issues yet' : `No ${filter.replace(/_/g, ' ')} issues`}
@@ -146,7 +142,7 @@ export default function Issues(): React.ReactElement {
           }
         />
       )}
-      {projectFilter !== 'all' && data.length > 0 && (
+      {data.length > 0 && (
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {data.map((iss) => (
             <li key={iss.id} data-testid="issue-row" data-issue-id={iss.id}>
@@ -159,6 +155,14 @@ export default function Issues(): React.ReactElement {
                   <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {iss.status.replace(/_/g, ' ')}
                   </span>
+                  {projectFilter === 'all' && (
+                    <span
+                      className="rounded bg-bg-subtle px-2 py-0.5 text-xs text-text-muted"
+                      data-testid="issue-row-project"
+                    >
+                      {projectNameById.get(iss.project_id) ?? iss.project_id}
+                    </span>
+                  )}
                 </span>
                 <span className="flex items-center gap-3 text-xs text-text-muted">
                   <span className="font-mono">{iss.opener}</span>

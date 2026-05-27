@@ -179,6 +179,36 @@ func (r *TaskRepo) FindByProject(ctx context.Context, projectID string, filter t
 	return scanTasks(rows)
 }
 
+// FindAll returns every task with the optional status / limit from
+// Filter applied. Used by the Web Console "All projects" filter
+// (v2.5.15 #70); FindByStatus already covered a cross-project read
+// but required a concrete status, so it couldn't service the "All
+// status × All projects" combination.
+func (r *TaskRepo) FindAll(ctx context.Context, filter task.Filter) ([]*task.Task, error) {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	q := taskSelect
+	args := []any{}
+	if filter.Status != nil {
+		q += ` WHERE status = ?`
+		args = append(args, string(*filter.Status))
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = task.DefaultLimit
+	}
+	q += ` ORDER BY created_at DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanTasks(rows)
+}
+
 // FindByStatus returns tasks across all projects matching status.
 func (r *TaskRepo) FindByStatus(ctx context.Context, status task.Status, filter task.Filter) ([]*task.Task, error) {
 	if !status.IsValid() {

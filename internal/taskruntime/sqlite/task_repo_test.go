@@ -209,6 +209,50 @@ func TestTaskRepo_FindByProject_FilterStatus(t *testing.T) {
 	}
 }
 
+// v2.5.15 (#70): FindAll returns every task, optionally narrowed by
+// status / limit. Backs the Web Console "All projects" filter.
+func TestTaskRepo_FindAll(t *testing.T) {
+	db := openTestDB(t)
+	repo := NewTaskRepo(db)
+	ctx := context.Background()
+	seeds := []struct {
+		id, proj string
+		status   task.Status
+	}{
+		{"T-1", "P-1", task.StatusOpen},
+		{"T-2", "P-2", task.StatusOpen},
+		{"T-3", "P-3", task.StatusDone},
+	}
+	for _, s := range seeds {
+		tt, err := task.New(task.NewInput{
+			ID: taskruntime.TaskID(s.id), ProjectID: s.proj, Title: "x",
+			CreatedBy: "u", Now: refTime,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.status == task.StatusDone {
+			_ = tt.MarkDone(refTime)
+		}
+		if err := repo.Save(ctx, tt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all, err := repo.FindAll(ctx, task.Filter{})
+	if err != nil || len(all) != 3 {
+		t.Fatalf("FindAll count: %d err=%v", len(all), err)
+	}
+	open := task.StatusOpen
+	got, err := repo.FindAll(ctx, task.Filter{Status: &open})
+	if err != nil || len(got) != 2 {
+		t.Fatalf("FindAll open count: %d err=%v", len(got), err)
+	}
+	capped, err := repo.FindAll(ctx, task.Filter{Limit: 1})
+	if err != nil || len(capped) != 1 {
+		t.Fatalf("FindAll capped: %d err=%v", len(capped), err)
+	}
+}
+
 func TestTaskRepo_FindBlockedBy(t *testing.T) {
 	db := openTestDB(t)
 	repo := NewTaskRepo(db)

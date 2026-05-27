@@ -129,6 +129,44 @@ func (r *IssueRepo) FindByProject(ctx context.Context, projectID string, filter 
 	return scanIssues(rows)
 }
 
+// FindAll returns every issue with the optional status / cursor /
+// limit from IssueFilter applied. Used by the Web Console "All
+// projects" filter (v2.5.15 #68); FindByStatus already covered a
+// cross-project read but required a concrete status, so it couldn't
+// service the "All status × All projects" combination.
+func (r *IssueRepo) FindAll(ctx context.Context, filter discussion.IssueFilter) ([]*discussion.Issue, error) {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	q := issueSelect
+	args := []any{}
+	where := []string{}
+	if filter.Status != nil {
+		where = append(where, `status = ?`)
+		args = append(args, string(*filter.Status))
+	}
+	if filter.Cursor != nil {
+		where = append(where, `id > ?`)
+		args = append(args, string(*filter.Cursor))
+	}
+	if len(where) > 0 {
+		q += ` WHERE ` + strings.Join(where, ` AND `)
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = discussion.DefaultIssueLimit
+	}
+	q += ` ORDER BY created_at DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanIssues(rows)
+}
+
 // FindByStatus returns issues across all projects matching status.
 func (r *IssueRepo) FindByStatus(ctx context.Context, status discussion.Status, filter discussion.IssueFilter) ([]*discussion.Issue, error) {
 	if !status.IsValid() {

@@ -1253,9 +1253,10 @@ func (s *Server) showProjectHandler(w http.ResponseWriter, r *http.Request) {
 // Read-only. Mutations (open / withdraw / conclude / link / bind /
 // comment) flow through the CLI / admin server per ADR-0029.
 
-// listIssuesHandler serves `GET /api/issues?project_id=<id>[&status=<s>]`.
-// project_id is REQUIRED — returns 400 if missing. Optional `status`
-// filters by Discussion BC's 6-state status enum.
+// listIssuesHandler serves `GET /api/issues[?project_id=<id>][&status=<s>]`.
+// v2.5.15 (#68): project_id is now OPTIONAL — when omitted the handler
+// returns issues across all projects (Discussion BC FindAll). Optional
+// `status` filters by Discussion BC's 6-state status enum.
 func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.IssueRepo == nil {
@@ -1263,16 +1264,20 @@ func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projectID := r.URL.Query().Get("project_id")
-	if projectID == "" {
-		writeError(w, http.StatusBadRequest, "missing_project_id", "project_id required")
-		return
-	}
 	filter := discussion.IssueFilter{}
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := discussion.Status(st)
 		filter.Status = &ss
 	}
-	list, err := d.IssueRepo.FindByProject(r.Context(), projectID, filter)
+	var (
+		list []*discussion.Issue
+		err  error
+	)
+	if projectID != "" {
+		list, err = d.IssueRepo.FindByProject(r.Context(), projectID, filter)
+	} else {
+		list, err = d.IssueRepo.FindAll(r.Context(), filter)
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
@@ -1314,8 +1319,10 @@ func (s *Server) showIssueHandler(w http.ResponseWriter, r *http.Request) {
 // wins on tie-break (ServeMux specificity rule). Verified by
 // TestAPI_TaskTrace + TestAPI_ShowTask_Happy in this package.
 
-// listTasksHandler serves `GET /api/tasks?project_id=<id>[&status=<s>]`.
-// project_id REQUIRED — returns 400 if missing.
+// listTasksHandler serves `GET /api/tasks[?project_id=<id>][&status=<s>]`.
+// v2.5.15 (#70): project_id is now OPTIONAL — when omitted the handler
+// returns tasks across all projects (TaskRuntime BC FindAll). Optional
+// `status` filters by Task.Status.
 func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.TaskRepo == nil {
@@ -1323,16 +1330,20 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projectID := r.URL.Query().Get("project_id")
-	if projectID == "" {
-		writeError(w, http.StatusBadRequest, "missing_project_id", "project_id required")
-		return
-	}
 	filter := task.Filter{}
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := task.Status(st)
 		filter.Status = &ss
 	}
-	list, err := d.TaskRepo.FindByProject(r.Context(), projectID, filter)
+	var (
+		list []*task.Task
+		err  error
+	)
+	if projectID != "" {
+		list, err = d.TaskRepo.FindByProject(r.Context(), projectID, filter)
+	} else {
+		list, err = d.TaskRepo.FindAll(r.Context(), filter)
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return

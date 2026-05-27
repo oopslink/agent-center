@@ -19,9 +19,29 @@ describe('tasks hooks', () => {
     expect(result.current.data?.[0].priority).toBe('medium');
   });
 
-  it('useTasksList stays idle when projectId is missing', () => {
+  // v2.5.15 (#70): projectId is now optional — the hook fetches the
+  // cross-project list rather than short-circuiting to idle.
+  it('useTasksList fetches the cross-project list when projectId is missing', async () => {
+    server.use(
+      http.get('/api/tasks', ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get('project_id')).toBeNull();
+        return HttpResponse.json([
+          {
+            id: 'TS-CROSS',
+            project_id: 'proj-x',
+            conversation_id: 'T-X',
+            title: 'cross-project task',
+            status: 'open',
+            priority: 'medium',
+            created_at: '2026-05-24T01:00:00Z',
+          },
+        ]);
+      }),
+    );
     const { result } = renderHook(() => useTasksList({}), { wrapper: makeWrapper() });
-    expect(result.current.fetchStatus).toBe('idle');
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0].id).toBe('TS-CROSS');
   });
 
   it('useTasksList forwards status filter as a query param', async () => {

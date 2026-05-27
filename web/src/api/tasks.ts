@@ -12,9 +12,9 @@ import type { Task, TaskStatus } from './types';
 // separate — both surfaces live on TaskRuntime BC but they answer
 // different questions (list/show vs execution trace).
 //
-// Backend requires `project_id` (returns 400 otherwise; see
-// internal/webconsole/api/handlers.go listTasksHandler). Hook
-// short-circuits via `enabled: !!projectId`.
+// v2.5.15 (#70): both `project_id` and `status` are optional. Omitting
+// `project_id` returns tasks across all projects (TaskRuntime BC
+// FindAll). The hook is always enabled.
 
 export function useTasksList(filter?: { projectId?: string; status?: TaskStatus }) {
   const projectId = filter?.projectId;
@@ -26,7 +26,6 @@ export function useTasksList(filter?: { projectId?: string; status?: TaskStatus 
   return useQuery({
     queryKey: qk.tasksList({ projectId, status }),
     queryFn: () => api.get<Task[]>(`/tasks${qs ? `?${qs}` : ''}`),
-    enabled: !!projectId,
   });
 }
 

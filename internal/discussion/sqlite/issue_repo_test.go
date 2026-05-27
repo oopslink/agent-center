@@ -310,6 +310,46 @@ func TestIssueRepo_FindByProject_StatusOpener(t *testing.T) {
 	}
 }
 
+// v2.5.15 (#68): FindAll returns every issue, optionally narrowed by
+// status / cursor. Backs the Web Console "All projects" filter.
+func TestIssueRepo_FindAll(t *testing.T) {
+	db := openDB(t)
+	r := NewIssueRepo(db)
+	seeds := []struct{ id, proj string }{{"A", "P-1"}, {"B", "P-2"}, {"C", "P-3"}}
+	for i, s := range seeds {
+		iss, err := discussion.NewIssue(discussion.NewIssueInput{
+			ID:                 discussion.IssueID(s.id),
+			ProjectID:          s.proj,
+			Title:              "t",
+			OpenedByIdentityID: "user:h",
+			Origin:             discussion.OriginCLI,
+			OpenedAt:           time.Date(2026, 5, 21, 12, i, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Save(context.Background(), iss); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// No filter → all 3 issues across all projects.
+	all, err := r.FindAll(context.Background(), discussion.IssueFilter{})
+	if err != nil || len(all) != 3 {
+		t.Fatalf("FindAll count: %d err=%v", len(all), err)
+	}
+	// Status filter applies cross-project (every seed is StatusOpen).
+	stat := discussion.StatusOpen
+	open, err := r.FindAll(context.Background(), discussion.IssueFilter{Status: &stat})
+	if err != nil || len(open) != 3 {
+		t.Fatalf("FindAll open count: %d err=%v", len(open), err)
+	}
+	// Limit caps the result set.
+	capped, err := r.FindAll(context.Background(), discussion.IssueFilter{Limit: 2})
+	if err != nil || len(capped) != 2 {
+		t.Fatalf("FindAll capped count: %d err=%v", len(capped), err)
+	}
+}
+
 func TestIssueRepo_DescriptionRoundTripWithBlob(t *testing.T) {
 	db := openDB(t)
 	r := NewIssueRepo(db)

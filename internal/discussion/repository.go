@@ -28,6 +28,11 @@ type IssueRepository interface {
 	FindByProject(ctx context.Context, projectID string, filter IssueFilter) ([]*Issue, error)
 	FindByStatus(ctx context.Context, status Status, filter IssueFilter) ([]*Issue, error)
 	FindByOpener(ctx context.Context, openerIdentityID string) ([]*Issue, error)
+	// FindAll returns every issue, with optional status / cursor / limit
+	// from IssueFilter applied. Added in v2.5.15 to back the Web Console
+	// "All projects" filter — previously the only cross-project read
+	// was FindByStatus, which required a concrete status.
+	FindAll(ctx context.Context, filter IssueFilter) ([]*Issue, error)
 	Save(ctx context.Context, i *Issue) error
 	UpdateStatus(ctx context.Context, id IssueID, from, to Status, version int, at time.Time) error
 	UpdateConversationID(ctx context.Context, id IssueID, conversationID conversation.ConversationID, version int, at time.Time) error

@@ -33,11 +33,15 @@ export default function Tasks(): React.ReactElement {
   const projectFilter = searchParams.get('project') ?? 'all';
   const projects = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
+  // v2.5.15 (#70): project_id is now optional server-side, so "All
+  // projects" returns the cross-project list instead of an empty
+  // "pick a project" nudge.
   const tasks = useTasksList({
     projectId: projectFilter === 'all' ? undefined : projectFilter,
     status: filter === 'all' ? undefined : filter,
   });
   const data = tasks.data ?? [];
+  const projectNameById = new Map((projects.data ?? []).map((p) => [p.id, p.name]));
 
   const setProject = (id: string) => {
     const next = new URLSearchParams(searchParams);
@@ -114,25 +118,18 @@ export default function Tasks(): React.ReactElement {
         ))}
       </div>
 
-      {projectFilter === 'all' && (
-        <EmptyState
-          testId="tasks-pick-project"
-          title="Pick a project"
-          body="Tasks live inside a project — choose one from the chip row above to see its tasks."
-        />
-      )}
-      {projectFilter !== 'all' && tasks.isLoading && (
+      {tasks.isLoading && (
         <div className="space-y-2" data-testid="tasks-loading">
           <Skeleton height="2.5rem" />
           <Skeleton height="2.5rem" />
         </div>
       )}
-      {projectFilter !== 'all' && tasks.isError && (
+      {tasks.isError && (
         <p className="text-sm text-danger" data-testid="tasks-error">
           {(tasks.error as Error).message}
         </p>
       )}
-      {projectFilter !== 'all' && tasks.isSuccess && data.length === 0 && (
+      {tasks.isSuccess && data.length === 0 && (
         <EmptyState
           testId="tasks-empty"
           title={filter === 'all' ? 'No tasks yet' : `No ${filter} tasks`}
@@ -143,7 +140,7 @@ export default function Tasks(): React.ReactElement {
           }
         />
       )}
-      {projectFilter !== 'all' && data.length > 0 && (
+      {data.length > 0 && (
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {data.map((tk) => (
             <li key={tk.id} data-testid="task-row" data-task-id={tk.id}>
@@ -159,6 +156,14 @@ export default function Tasks(): React.ReactElement {
                   <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {tk.priority}
                   </span>
+                  {projectFilter === 'all' && (
+                    <span
+                      className="rounded bg-bg-subtle px-2 py-0.5 text-xs text-text-muted"
+                      data-testid="task-row-project"
+                    >
+                      {projectNameById.get(tk.project_id) ?? tk.project_id}
+                    </span>
+                  )}
                 </span>
                 <span className="flex items-center gap-3 text-xs text-text-muted">
                   <span>{formatRelative(tk.created_at)}</span>

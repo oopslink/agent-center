@@ -21,20 +21,15 @@ function wrap(ui: React.ReactElement, initialEntries: string[] = ['/issues']) {
   );
 }
 
-// v2.3-5b cutover: page now reads from the BC-native /api/issues
-// endpoint with a REQUIRED project_id query param. The "all
-// projects" state shows a pick-a-project nudge instead of a list.
+// v2.3-5b cutover: page reads from the BC-native /api/issues endpoint
+// with an OPTIONAL project_id query param. v2.5.15 (#68) made
+// project_id optional server-side so the "All projects" filter shows
+// the cross-project list instead of a "pick a project" nudge.
 
 const issuesHandler = http.get('/api/issues', ({ request }) => {
   const url = new URL(request.url);
   const projectId = url.searchParams.get('project_id');
   const status = url.searchParams.get('status');
-  if (!projectId) {
-    return HttpResponse.json(
-      { error: 'missing_project_id', message: 'project_id required' },
-      { status: 400 },
-    );
-  }
   const all = [
     {
       id: 'IS-1',
@@ -66,7 +61,9 @@ const issuesHandler = http.get('/api/issues', ({ request }) => {
   ];
   return HttpResponse.json(
     all.filter(
-      (iss) => iss.project_id === projectId && (status === null || iss.status === status),
+      (iss) =>
+        (projectId === null || iss.project_id === projectId) &&
+        (status === null || iss.status === status),
     ),
   );
 });
@@ -93,11 +90,20 @@ const projectsHandler = http.get('/api/projects', () =>
 describe('Issues page', () => {
   afterEach(() => cleanup());
 
-  it('shows the pick-project nudge when no project is selected', async () => {
+  // v2.5.15 (#68): no-project-picked view shows issues across every
+  // project + a per-row project chip column, instead of the prior
+  // "Pick a project" empty-state nudge. PM #agent-center:16013eff bug
+  // B2.
+  it('shows issues from every project when no project is selected', async () => {
     server.use(projectsHandler, issuesHandler);
     wrap(<Issues />);
-    expect(await screen.findByTestId('issues-pick-project')).toBeInTheDocument();
-    expect(screen.queryAllByTestId('issue-row')).toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByTestId('issue-row')).toHaveLength(3));
+    expect(screen.getByText('login bug')).toBeInTheDocument();
+    expect(screen.getByText('other-project issue')).toBeInTheDocument();
+    const tags = screen.getAllByTestId('issue-row-project');
+    const labels = tags.map((el) => el.textContent);
+    expect(labels).toContain('Project Alpha');
+    expect(labels).toContain('Project Beta');
   });
 
   it('renders the project issues when the project chip is selected via URL', async () => {

@@ -11,6 +11,69 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.5.15] — 2026-05-27
+
+Web Console "All projects" filter actually works now (#68 + #70 —
+same root cause, bundled per PM ask). Both `/issues` and `/tasks`
+showed the "Pick a project" nudge whenever the project chip was on
+`All`, with no way to see issues / tasks across the whole workspace.
+The list endpoints required `project_id` (returned 400 otherwise),
+so the SPA short-circuited the fetch instead of issuing it.
+
+### Added
+
+- **Discussion BC** `IssueRepository.FindAll(ctx, filter)` returns
+  every issue with optional `Status` / `Cursor` / `Limit`. SQLite
+  impl mirrors the existing `FindByProject` shape minus the project
+  predicate.
+- **TaskRuntime BC** `task.Repository.FindAll(ctx, filter)` returns
+  every task with optional `Status` / `Limit`. SQLite impl mirrors
+  the existing `FindByProject` shape minus the project predicate.
+
+### Changed
+
+- **GET `/api/issues`** (`listIssuesHandler`) — `project_id` is now
+  OPTIONAL. When omitted the handler delegates to `FindAll(filter)`
+  so the SPA can render the cross-project list. `status` continues
+  to filter (now across projects when paired with the omitted
+  `project_id`).
+- **GET `/api/tasks`** (`listTasksHandler`) — symmetric change.
+- **`web/src/pages/Issues.tsx`** + **`Tasks.tsx`** — drop the
+  `projectFilter === 'all'` empty-state gating. When the chip is on
+  `All`, each row gains a project chip column (`issue-row-project`
+  / `task-row-project`) so operators can see which project each row
+  belongs to. The project chip-row + status tab row stay where they
+  were.
+- **`useIssues`** / **`useTasksList`** — removed the
+  `enabled: !!projectId` gate; both hooks fetch unconditionally now.
+
+### Verification
+
+- Backend: 2 new SQLite repo tests (`TestIssueRepo_FindAll`,
+  `TestTaskRepo_FindAll`) cover cross-project + status filter +
+  limit; 2 new API tests per endpoint (no `project_id` → 200 with
+  cross-project rows; `status` without `project_id` filters
+  cross-project). 2 prior tests that pinned the 400 contract were
+  rewritten — the 400 path no longer exists by design.
+- Frontend: `Tasks.test.tsx` + `Issues.test.tsx` `shows … from
+  every project when no project is selected` cover the new path
+  (3-row list + project chip column rendering). MSW handlers
+  updated to return the cross-project union when `project_id` is
+  omitted. The hook-level `useIssues / useTasksList` tests rewritten
+  to assert the now-enabled cross-project fetch. 311 vitest specs
+  green.
+- `make lint` + `go test ./...` + e2e clean.
+
+### Note (intentional UX shift)
+
+The old "Pick a project" nudge was a workaround for the
+`project_id`-required contract. v2.5.15 makes the cross-project
+list a first-class view; operators who want a single-project view
+keep the chip row + the new per-row project chip helps disambiguate
+when scanning `All`.
+
+---
+
 ## [v2.5.14] — 2026-05-27
 
 Web Console sidebar consistency fix (#67). The Workspace group's

@@ -20,9 +20,29 @@ describe('issues hooks', () => {
     expect(result.current.data?.[0].project_id).toBe('proj-a');
   });
 
-  it('useIssues stays idle when projectId is missing', () => {
+  // v2.5.15 (#68): projectId is now optional — the hook fetches the
+  // cross-project list rather than short-circuiting to idle.
+  it('useIssues fetches the cross-project list when projectId is missing', async () => {
+    server.use(
+      http.get('/api/issues', ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get('project_id')).toBeNull();
+        return HttpResponse.json([
+          {
+            id: 'IS-CROSS',
+            project_id: 'proj-x',
+            conversation_id: 'I-X',
+            title: 'cross-project issue',
+            status: 'open',
+            opened_at: '2026-05-24T01:00:00Z',
+            opener: 'user:hayang',
+          },
+        ]);
+      }),
+    );
     const { result } = renderHook(() => useIssues({}), { wrapper: makeWrapper() });
-    expect(result.current.fetchStatus).toBe('idle');
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0].id).toBe('IS-CROSS');
   });
 
   it('useIssues forwards status filter as a query param', async () => {

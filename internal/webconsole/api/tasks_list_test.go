@@ -100,18 +100,49 @@ func TestAPI_ListTasks_StatusFilter(t *testing.T) {
 	}
 }
 
-func TestAPI_ListTasks_MissingProjectID_400(t *testing.T) {
+// v2.5.15 (#70): project_id is now OPTIONAL. When omitted the handler
+// returns tasks across all projects via task.Repository.FindAll. The
+// previous behavior (400 missing_project_id) was the symmetric root
+// cause to #68 on the Issues page.
+func TestAPI_ListTasks_NoProjectID_ReturnsAllProjects(t *testing.T) {
 	deps, _ := setupAPI(t)
+	seedTask(t, deps, "T-1", "p-1", "first", task.StatusOpen, task.PriorityHigh)
+	seedTask(t, deps, "T-2", "p-2", "second", task.StatusDone, task.PriorityLow)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	resp, _ := http.Get(s.URL + "/api/tasks")
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("status=%d want 400", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d want 200", resp.StatusCode)
 	}
-	var body map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&body)
-	if body["error"] != "missing_project_id" {
-		t.Fatalf("err=%v", body["error"])
+	var arr []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&arr)
+	if len(arr) != 2 {
+		t.Fatalf("len=%d want 2 (tasks across p-1 + p-2)", len(arr))
+	}
+	for _, row := range arr {
+		if _, ok := row["project_id"]; !ok {
+			t.Fatalf("row missing project_id: %v", row)
+		}
+	}
+}
+
+func TestAPI_ListTasks_NoProjectID_StatusFilterApplies(t *testing.T) {
+	deps, _ := setupAPI(t)
+	seedTask(t, deps, "T-1", "p-1", "open", task.StatusOpen, task.PriorityHigh)
+	seedTask(t, deps, "T-2", "p-2", "done", task.StatusDone, task.PriorityHigh)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp, _ := http.Get(s.URL + "/api/tasks?status=done")
+	if resp.StatusCode != 200 {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	var arr []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&arr)
+	if len(arr) != 1 {
+		t.Fatalf("len=%d want 1 (status filter applies across projects)", len(arr))
+	}
+	if arr[0]["status"] != "done" {
+		t.Fatalf("wrong status: %v", arr[0])
 	}
 }
 

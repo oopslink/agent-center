@@ -44,12 +44,8 @@ const tasksHandler = http.get('/api/tasks', ({ request }) => {
   const url = new URL(request.url);
   const projectId = url.searchParams.get('project_id');
   const status = url.searchParams.get('status');
-  if (!projectId) {
-    return HttpResponse.json(
-      { error: 'missing_project_id', message: 'project_id required' },
-      { status: 400 },
-    );
-  }
+  // v2.5.15 (#70): project_id is optional — when omitted, return tasks
+  // across all projects so the SPA "All projects" filter works.
   const all = [
     {
       id: 'TS-1',
@@ -82,7 +78,9 @@ const tasksHandler = http.get('/api/tasks', ({ request }) => {
   ];
   return HttpResponse.json(
     all.filter(
-      (tk) => tk.project_id === projectId && (status === null || tk.status === status),
+      (tk) =>
+        (projectId === null || tk.project_id === projectId) &&
+        (status === null || tk.status === status),
     ),
   );
 });
@@ -90,11 +88,21 @@ const tasksHandler = http.get('/api/tasks', ({ request }) => {
 describe('Tasks page', () => {
   afterEach(() => cleanup());
 
-  it('shows the pick-project nudge when no project is selected', async () => {
+  // v2.5.15 (#70): with no project picked, the page now shows tasks
+  // from every project + a project name column instead of the prior
+  // "Pick a project" nudge. PM #agent-center:16013eff bug B4.
+  it('shows tasks from every project when no project is selected', async () => {
     server.use(projectsHandler, tasksHandler);
     wrap(<Tasks />);
-    expect(await screen.findByTestId('tasks-pick-project')).toBeInTheDocument();
-    expect(screen.queryAllByTestId('task-row')).toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByTestId('task-row')).toHaveLength(3));
+    expect(screen.getByText('rebuild docs')).toBeInTheDocument();
+    expect(screen.getByText('other-project task')).toBeInTheDocument();
+    // Project chip column shows the source project per row when
+    // viewing "All projects".
+    const tags = screen.getAllByTestId('task-row-project');
+    const labels = tags.map((el) => el.textContent);
+    expect(labels).toContain('Project Alpha');
+    expect(labels).toContain('Project Beta');
   });
 
   it('renders the project tasks when the project chip is selected via URL', async () => {
