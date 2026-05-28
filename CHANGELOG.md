@@ -11,6 +11,61 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.6.0] — 2026-05-28
+
+### Breaking changes
+
+- **Fresh install required.** v2.6 drops and recreates several database tables
+  (`identities`, `organizations`, `members`, `invitations`). Existing v2.5.x
+  data (channels, conversations, projects, tasks, issues, secrets, workers) is
+  preserved. v2.5 bookmark URLs change to `/organizations/{slug}/...`; browser
+  history links will redirect automatically.
+- **Signup required on first boot.** A fresh install (or post-wipe restart)
+  opens the browser to `/signup`. The old `identity.default_user` config key
+  is removed; all identity is now BC9-managed.
+- **Supervisor removed.** `supervisor` CLI subcommand and all supervisor
+  invocation / decision record concepts are gone. Tasks and issues use the
+  simplified dispatch path directly.
+
+### Added
+
+- **Identity BC (BE-1…BE-9):** Full multi-tenant identity layer — `Identity`,
+  `Organization`, `Member`, `Invitation` AR + SQLite repos + 15 domain events.
+- **Auth:** `POST /api/auth/signup`, `/signin`, `/signout`, `GET /api/auth/me`,
+  `PATCH /api/auth/me/passcode`. JWT HS256 session cookie (7-day TTL, master
+  key as signing key per ADR-0043).
+- **Org management:** `GET/POST /api/orgs`, `DELETE /api/orgs/{id}`.
+- **Member management:** `GET/POST /api/members`, role change, disable, re-enable.
+- **Frontend auth flow:** `/signup` and `/signin` pages with full inline
+  validation. 401 interceptor redirects to `/signin`.
+- **Organization-scoped routing:** all existing routes migrated to
+  `/organizations/{slug}/...`. `OrgGuard` validates slug; `OrgRedirect` sends
+  `/` to the first org.
+- **Sidebar update:** Members group (Humans / Agents / Org Settings), Org
+  Switcher in top bar, Sign Out footer button.
+- **`/me` page:** passcode change + sign out.
+- **Org settings page:** org info display + delete org with confirmation.
+- **Members Humans page:** list + Add User modal + role change + disable /
+  re-enable per-member actions.
+- **Members Agents page:** list agent members (read-only).
+- **`secretmgmt.MasterKey.Bytes()`:** exposes raw key material for JWT signing.
+
+### Changed
+
+- Migration 0036: drops `supervisor_invocations` + `decision_records` tables.
+- `targetSchemaVersion` constant bumped to 36.
+- `migrate v1-to-v2` carries fresh installs to schema 36.
+
+### Removed
+
+- `internal/cognition/scheduler/`, `internal/cognition/decision/`, supervisor
+  invocation AR, decision record AR, all supervisor CLI commands.
+- `internal/cli/supervisor/` package.
+- `internal/conversation/identity/` subdomain (replaced by Identity BC).
+- `identity.default_user` config key.
+
+---
+
 ## [v2.5.17] — 2026-05-27
 
 Uninstall now actually deregisters the launchd service from macOS
