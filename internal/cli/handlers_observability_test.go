@@ -262,8 +262,7 @@ func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 		{"issue", "I-1"},
 		{"project", "p"},
 		{"worktree", "E-1"},
-		{"supervisor", "S-1"}, // phase-6 stub
-		{"decision", "D-1"},   // phase-6 stub
+		// supervisor and decision removed in v2.6 (BE-9)
 	}
 	cmd := findCmd(app.ObservabilityCommands(), "inspect")
 	for _, tc := range cases {

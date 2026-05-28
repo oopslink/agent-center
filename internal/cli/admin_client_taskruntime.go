@@ -447,28 +447,6 @@ func (c *Client) Dispatch(ctx context.Context, req DispatchRequest) (DispatchRes
 	return res, err
 }
 
-// DispatchWithDecisionRequest bundles Dispatch + DecisionRecord. v2.3-2:
-// supervisor-driven CLI MUST use this when AGENT_CENTER_INVOCATION_ID
-// is set to satisfy ADR-0014 § 2 atomicity (state + audit in one tx).
-type DispatchWithDecisionRequest struct {
-	Dispatch DispatchRequest        `json:"dispatch"`
-	Decision DecisionRecordRequest  `json:"decision"`
-}
-
-// DispatchWithDecisionResponse mirrors the bundled success projection.
-type DispatchWithDecisionResponse struct {
-	ExecutionID string `json:"execution_id"`
-	DecisionID  string `json:"decision_id"`
-}
-
-// DispatchWithDecision POSTs /admin/taskruntime/dispatch/dispatch-with-decision.
-// Both side-effects commit or roll back as one unit.
-func (c *Client) DispatchWithDecision(ctx context.Context, req DispatchWithDecisionRequest) (DispatchWithDecisionResponse, error) {
-	var res DispatchWithDecisionResponse
-	err := c.postJSON(ctx, "/admin/taskruntime/dispatch/dispatch-with-decision", req, &res)
-	return res, err
-}
-
 // =============================================================================
 // Kill — RequestKill (kill-execution)
 // =============================================================================
@@ -477,26 +455,5 @@ func (c *Client) DispatchWithDecision(ctx context.Context, req DispatchWithDecis
 func (c *Client) KillRequest(ctx context.Context, req KillExecutionRequest) (KillExecutionResponse, error) {
 	var res KillExecutionResponse
 	err := c.postJSON(ctx, "/admin/taskruntime/kill/request", req, &res)
-	return res, err
-}
-
-// KillWithDecisionRequest bundles RequestKill + DecisionRecord (v2.3-2).
-type KillWithDecisionRequest struct {
-	Kill     KillExecutionRequest   `json:"kill"`
-	Decision DecisionRecordRequest  `json:"decision"`
-}
-
-// KillWithDecisionResponse mirrors the bundled success projection.
-type KillWithDecisionResponse struct {
-	ExecutionID string `json:"execution_id"`
-	Status      string `json:"status"`
-	DecisionID  string `json:"decision_id"`
-}
-
-// KillWithDecision POSTs /admin/taskruntime/kill/request-with-decision.
-// Both side-effects commit or roll back as one unit.
-func (c *Client) KillWithDecision(ctx context.Context, req KillWithDecisionRequest) (KillWithDecisionResponse, error) {
-	var res KillWithDecisionResponse
-	err := c.postJSON(ctx, "/admin/taskruntime/kill/request-with-decision", req, &res)
 	return res, err
 }

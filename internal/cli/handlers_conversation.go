@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 )
@@ -95,7 +94,6 @@ func (a *App) convAddMessageHandler(fs *flag.FlagSet) Handler {
 	dirStr := fs.String("direction", "internal", "direction (inbound|outbound|internal)")
 	sender := fs.String("actor", "", "sender identity (defaults to configured user)")
 	inputReq := fs.String("input-request-ref", "", "associated input_request id")
-	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -108,9 +106,6 @@ func (a *App) convAddMessageHandler(fs *flag.FlagSet) Handler {
 		dir := conversation.MessageDirection(*dirStr)
 		if !dir.IsValid() {
 			return PrintError(errw, *format, "usage_error", "invalid --direction", ExitUsage)
-		}
-		if err := requireSupervisorRationale(*rationale); err != nil {
-			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
 		}
 		senderID := *sender
 		if senderID == "" {
@@ -131,25 +126,15 @@ func (a *App) convAddMessageHandler(fs *flag.FlagSet) Handler {
 			}
 			msgID, eventID = res.MessageID, res.EventID
 		} else {
-			var res convservice.AddMessageResult
-			err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
-				r, aerr := a.MessageWriter.AddMessage(txCtx, convservice.AddMessageCommand{
-					ConversationID:   conversation.ConversationID(args[0]),
-					SenderIdentityID: conversation.IdentityRef(senderID),
-					ContentKind:      ck,
-					Content:          *content,
-					Direction:        dir,
-					InputRequestRef:  *inputReq,
-					Actor:            a.DefaultActor(),
-				})
-				if aerr != nil {
-					return aerr
-				}
-				res = r
-				return nil
-			}, cognition.DecisionConversationMessage,
-				fmt.Sprintf(`{"conversation_id":%q}`, args[0]),
-				*rationale)
+			res, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+				ConversationID:   conversation.ConversationID(args[0]),
+				SenderIdentityID: conversation.IdentityRef(senderID),
+				ContentKind:      ck,
+				Content:          *content,
+				Direction:        dir,
+				InputRequestRef:  *inputReq,
+				Actor:            a.DefaultActor(),
+			})
 			if err != nil {
 				return HandleDomainError(errw, *format, err)
 			}

@@ -220,10 +220,11 @@ func TestE2EP4_PeekTrace_ExecutionNotFound(t *testing.T) {
 
 func TestE2EP4_AllInspectKinds_SmokeNoCrash(t *testing.T) {
 	h := newHarness(t)
-	kinds := []string{"task", "execution", "worker", "issue", "supervisor", "conversation", "input_request", "project", "worktree", "decision"}
+	// v2.6: supervisor/decision kinds removed in BE-9 supervisor cut.
+	kinds := []string{"task", "execution", "worker", "issue", "conversation", "input_request", "project", "worktree"}
 	for _, k := range kinds {
 		_, _, code := h.run("inspect", k, "X")
-		// Either NotFound (17) for absent IDs, or OK (0) for stubs (supervisor / decision).
+		// NotFound (17) for absent IDs is the expected outcome.
 		if code != 17 && code != 0 {
 			t.Errorf("inspect %s exit=%d (expected 17 or 0)", k, code)
 		}

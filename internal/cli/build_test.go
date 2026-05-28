@@ -13,13 +13,13 @@ func TestBuildRouter_FullTreeBuilds(t *testing.T) {
 		t.Fatal("router nil")
 	}
 	// Top-level command count: we expect at least version + server +
-	// migrate + admin + bootstrap + supervisor + others.
+	// migrate + admin + bootstrap + others.
 	names := map[string]bool{}
 	for _, c := range router.Root.Subcommands {
 		names[c.Name] = true
 	}
 	for _, want := range []string{"version", "server", "migrate", "admin", "bootstrap",
-		"supervisor", "worker", "task", "issue", "identity",
+		"worker", "task", "issue",
 		"project", "conversation", "channel", "message", "agent",
 		"input-request", "secret",
 		"inspect", "query", "ps", "stats",

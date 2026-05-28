@@ -67,7 +67,6 @@
 ^internal/conversation/message\.go:.*vendor_msg_ref
 ^internal/conversation/message\.go:.*Bridge BC撤回
 ^internal/conversation/sqlite/message_repo\.go:.*vendor_msg_ref
-^internal/conversation/identity/types\.go:.*Bridge BC撤回
 ^tests/e2e/phase7_test\.go:.*Bridge BC
 ^tests/integration/integration_test\.go:.*vendor_msg_ref dropped
 

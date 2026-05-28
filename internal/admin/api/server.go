@@ -359,19 +359,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/taskruntime/exec/conclude", s.execConcludeHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch", s.dispatchHandler)
 	s.mux.HandleFunc("POST /admin/taskruntime/kill/request", s.killExecutionHandler)
-	// v2.3-2 (task #25): composite endpoints that bundle the action
-	// + DecisionRecord in one tx (ADR-0014 § 2 atomicity in client mode).
-	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch-with-decision", s.dispatchWithDecisionHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/kill/request-with-decision", s.killWithDecisionHandler)
-
-	// --- cognition -------------------------------------------------------
-	s.mux.HandleFunc("POST /admin/cognition/supervisor/spawn", s.supervisorSpawnHandler)
-	s.mux.HandleFunc("POST /admin/cognition/decision/record", s.decisionRecordHandler)
-	s.mux.HandleFunc("GET /admin/cognition/invocation/find-by-id", s.invocationFindByIDHandler)
-	s.mux.HandleFunc("POST /admin/cognition/invocation/save", s.invocationSaveHandler)
-	s.mux.HandleFunc("POST /admin/cognition/invocation/update-status-to-terminal", s.invocationUpdateStatusToTerminalHandler)
-	s.mux.HandleFunc("GET /admin/cognition/decision/find-by-invocation-id", s.decisionFindByInvocationIDHandler)
-
 	// --- discussion ------------------------------------------------------
 	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-id", s.issueFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-project", s.issueFindByProjectHandler)
@@ -392,10 +379,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/secret/user-secret/rotate", s.secretRotateHandler)
 	s.mux.HandleFunc("POST /admin/secret/user-secret/revoke", s.secretRevokeHandler)
 	s.mux.HandleFunc("POST /admin/secret/user-secret/resolve", s.secretResolveHandler)
-
-	// --- identity --------------------------------------------------------
-	s.mux.HandleFunc("GET /admin/identity/find", s.identityFindHandler)
-	s.mux.HandleFunc("POST /admin/identity/register", s.identityRegisterHandler)
 
 	// --- observability ---------------------------------------------------
 	s.mux.HandleFunc("GET /admin/observability/event/find-by-id", s.eventFindByIDHandler)

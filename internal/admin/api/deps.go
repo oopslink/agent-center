@@ -10,11 +10,7 @@ import (
 
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
-	"github.com/oopslink/agent-center/internal/cognition"
-	cogdec "github.com/oopslink/agent-center/internal/cognition/decision"
-	"github.com/oopslink/agent-center/internal/cognition/scheduler"
 	"github.com/oopslink/agent-center/internal/conversation"
-	convidentity "github.com/oopslink/agent-center/internal/conversation/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
@@ -98,22 +94,12 @@ type HandlerDeps struct {
 	// Revoke too (the Verifier interface only exposes verify/mark).
 	AdminTokenSvc *admintokensvc.Service
 
-	// Identity (subdomain of Conversation BC)
-	IdentityRepo         convidentity.IdentityRepository
-	IdentityRegistration *convidentity.RegistrationService
-
 	// Discussion BC
 	IssueRepo                discussion.IssueRepository
 	IssueLifecycleSvc        *disservice.IssueLifecycleService
 	IssueCommentSvc          *disservice.IssueCommentService
 	IssueBindConversationSvc *disservice.IssueBindConversationService
 	IssueLinkConversationSvc *disservice.IssueLinkConversationService
-
-	// Cognition BC
-	InvocationRepo    cognition.SupervisorInvocationRepository
-	DecisionRepo      cognition.DecisionRecordRepository
-	DecisionRecorder  *cogdec.Recorder
-	SupervisorSpawner *scheduler.Spawner
 
 	// Observability BC
 	EventRepo observability.EventRepository

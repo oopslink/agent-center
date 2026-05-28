@@ -35,10 +35,8 @@ func (a *App) ObservabilityCommands() []*Command {
 func (a *App) inspectCommand() *Command {
 	return &Command{
 		Name:    "inspect",
-		Summary: "Inspect a single resource (task / execution / worker / issue / supervisor / conversation / input_request / project / worktree / decision).",
-		LongHelp: "agent-center inspect <kind> <id> [--format=human|json]\n\n" +
-			"Per observability/00 § 7.1: 10 supported kinds. supervisor / decision are\n" +
-			"placeholders until Phase 6.",
+		Summary: "Inspect a single resource (task / execution / worker / issue / conversation / input_request / project / worktree).",
+		LongHelp: "agent-center inspect <kind> <id> [--format=human|json]\n",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
@@ -72,7 +70,7 @@ func (a *App) inspectCommand() *Command {
 func (a *App) queryCommand() *Command {
 	return &Command{
 		Name:    "query",
-		Summary: "List resources (tasks / executions / workers / issues / input_requests / proposals / events / decisions).",
+		Summary: "List resources (tasks / executions / workers / issues / input_requests / proposals / events).",
 		LongHelp: "agent-center query <resource> [--filter] [--since] [--until] [--limit] [--cursor] [--format=human|json]\n",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())

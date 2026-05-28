@@ -8,7 +8,6 @@ import (
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/conversation/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/discussion"
@@ -24,15 +23,14 @@ import (
 // CV1 channel + CV2b participants + CV3 carry-over + CV4 派生入口
 // + Discussion BC end-to-end.
 type p10Stack struct {
-	db          *sql.DB
-	clk         *clock.FakeClock
-	gen         idgen.Generator
-	sink        *observability.EventSink
-	er          *obsqlite.EventRepo
-	convRepo    conversation.ConversationRepository
-	msgRepo     conversation.MessageRepository
-	identityReg *identity.RegistrationService
-	writer      *convservice.MessageWriter
+	db       *sql.DB
+	clk      *clock.FakeClock
+	gen      idgen.Generator
+	sink     *observability.EventSink
+	er       *obsqlite.EventRepo
+	convRepo conversation.ConversationRepository
+	msgRepo  conversation.MessageRepository
+	writer   *convservice.MessageWriter
 	channelMgmt *convservice.ChannelManagementService
 	pmgmt       *convservice.ParticipantManagementService
 	carryOver   *convservice.CarryOverService
@@ -78,11 +76,6 @@ func setupP10Stack(t *testing.T) *p10Stack {
 	convRepo := convsqlite.NewConversationRepo(db)
 	msgRepo := convsqlite.NewMessageRepo(db)
 	refRepo := convsqlite.NewReferenceRepo(db)
-	idRepo := identity.NewSQLiteIdentityRepo(db)
-	idReg := identity.NewRegistrationService(db, idRepo, sink, gen, clk)
-	if err := idReg.EnsureSystemIdentity(ctx, observability.Actor("system")); err != nil {
-		t.Fatal(err)
-	}
 	writer := convservice.NewMessageWriter(db, convRepo, msgRepo, sink, gen, clk)
 	channelMgmt := convservice.NewChannelManagementService(db, convRepo, sink, gen, clk)
 	pmgmt := convservice.NewParticipantManagementService(db, convRepo, sink, clk)
@@ -94,7 +87,7 @@ func setupP10Stack(t *testing.T) *p10Stack {
 		&p10IssueOpener{svc: issueLife}, nil, sink, clk)
 	return &p10Stack{
 		db: db, clk: clk, gen: gen, sink: sink, er: er,
-		convRepo: convRepo, msgRepo: msgRepo, identityReg: idReg,
+		convRepo: convRepo, msgRepo: msgRepo,
 		writer: writer, channelMgmt: channelMgmt, pmgmt: pmgmt,
 		carryOver: carryOver, derivation: derivation,
 		issueRepo: issueRepo, issueLife: issueLife,
@@ -117,19 +110,7 @@ func TestP10_F3_FullCV4Story(t *testing.T) {
 	s := setupP10Stack(t)
 	ctx := context.Background()
 
-	// 1. Register identities.
-	if _, err := s.identityReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
-		ID: identity.IdentityID("user:hayang"), DisplayName: "Hayang", Actor: observability.Actor("system"),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.identityReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
-		ID: identity.IdentityID("agent:fixer"), DisplayName: "Fixer", Actor: observability.Actor("system"),
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	// 2. user creates a channel.
+	// 1. user creates a channel.
 	chRes, err := s.channelMgmt.CreateChannel(ctx, convservice.CreateChannelCommand{
 		Name: "platform", Description: "platform work",
 		CreatedBy: conversation.IdentityRef("user:hayang"),
@@ -236,7 +217,6 @@ func TestP10_F3_FullCV4Story(t *testing.T) {
 
 	// 9. Verify event ledger has the full chain.
 	expected := map[observability.EventType]bool{
-		"identity.registered":                        true,
 		"conversation.opened":                        true,
 		"conversation.participant_joined":            true,
 		"conversation.message_added":                 true,
@@ -263,9 +243,6 @@ func TestP10_F3_FullCV4Story(t *testing.T) {
 func TestP10_F3_DeriveBlocksWhenSourceArchived(t *testing.T) {
 	s := setupP10Stack(t)
 	ctx := context.Background()
-	_, _ = s.identityReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
-		ID: "user:hayang", DisplayName: "h", Actor: observability.Actor("system"),
-	})
 	chRes, _ := s.channelMgmt.CreateChannel(ctx, convservice.CreateChannelCommand{
 		Name: "deadch", CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
@@ -287,12 +264,6 @@ func TestP10_F3_DeriveBlocksWhenSourceArchived(t *testing.T) {
 func TestP10_F3_DeriveBlocksWhenCallerNotParticipant(t *testing.T) {
 	s := setupP10Stack(t)
 	ctx := context.Background()
-	_, _ = s.identityReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
-		ID: "user:hayang", DisplayName: "h", Actor: observability.Actor("system"),
-	})
-	_, _ = s.identityReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
-		ID: "user:stranger", DisplayName: "s", Actor: observability.Actor("system"),
-	})
 	chRes, _ := s.channelMgmt.CreateChannel(ctx, convservice.CreateChannelCommand{
 		Name: "exclusive", CreatedBy: "user:hayang", Actor: "user:hayang",
 	})

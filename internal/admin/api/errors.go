@@ -5,9 +5,7 @@ import (
 	"net/http"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
-	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
-	convidentity "github.com/oopslink/agent-center/internal/conversation/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
@@ -33,7 +31,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	// ---- not_found (404) -------------------------------------------------
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
-		errors.Is(err, convidentity.ErrIdentityNotFound),
 		errors.Is(err, workforce.ErrAgentInstanceNotFound),
 		errors.Is(err, workforce.ErrWorkerNotFound),
 		errors.Is(err, workforce.ErrProjectNotFound),
@@ -46,36 +43,29 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, inputrequest.ErrInputRequestNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
 		errors.Is(err, discussion.ErrIssueNotFound),
-		errors.Is(err, cognition.ErrInvocationNotFound),
-		errors.Is(err, cognition.ErrDecisionNotFound),
 		errors.Is(err, admintoken.ErrTokenNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 
 	// ---- already_exists (409) -------------------------------------------
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),
 		errors.Is(err, convservice.ErrParticipantAlreadyActive),
-		errors.Is(err, convidentity.ErrIdentityAlreadyExists),
 		errors.Is(err, workforce.ErrWorkerAlreadyExists),
 		errors.Is(err, workforce.ErrProjectAlreadyExists),
 		errors.Is(err, workforce.ErrAgentInstanceNameTaken),
 		errors.Is(err, workforce.ErrMappingAlreadyActive),
 		errors.Is(err, secretmgmt.ErrUserSecretAlreadyExists),
 		errors.Is(err, secretmgmt.ErrUserSecretNameTaken),
-		errors.Is(err, discussion.ErrIssueAlreadyExists),
-		errors.Is(err, cognition.ErrScopeKeyRunningExists),
-		errors.Is(err, cognition.ErrDecisionImmutable):
+		errors.Is(err, discussion.ErrIssueAlreadyExists):
 		writeError(w, http.StatusConflict, "already_exists", err.Error())
 
 	// ---- version_conflict (409) -----------------------------------------
 	case errors.Is(err, conversation.ErrConversationVersionConflict),
 		errors.Is(err, conversation.ErrReadStateVersionConflict),
-		errors.Is(err, convidentity.ErrIdentityVersionConflict),
 		errors.Is(err, workforce.ErrWorkerVersionConflict),
 		errors.Is(err, workforce.ErrProjectVersionConflict),
 		errors.Is(err, workforce.ErrAgentInstanceVersionConflict),
 		errors.Is(err, secretmgmt.ErrUserSecretVersionConflict),
-		errors.Is(err, discussion.ErrIssueVersionConflict),
-		errors.Is(err, cognition.ErrInvocationVersionConflict):
+		errors.Is(err, discussion.ErrIssueVersionConflict):
 		writeError(w, http.StatusConflict, "version_conflict", err.Error())
 
 	// ---- forbidden / terminal (403) -------------------------------------
@@ -92,8 +82,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, conversation.ErrConversationInvalidKind),
 		errors.Is(err, conversation.ErrMessageInvalidSender),
 		errors.Is(err, conversation.ErrReadStateMessageNotInConversation),
-		errors.Is(err, convidentity.ErrIdentityInvalidKind),
-		errors.Is(err, convidentity.ErrIdentityKindImmutable),
 		errors.Is(err, execution.ErrInvalidTransition),
 		errors.Is(err, execution.ErrSingleActiveViolation),
 		errors.Is(err, discussion.ErrIssueInvalidTransition),
@@ -102,8 +90,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, discussion.ErrResolutionInvalid),
 		errors.Is(err, workforce.ErrProposalAlreadyTerminated),
 		errors.Is(err, workforce.ErrProjectHasActiveDeps),
-		errors.Is(err, cognition.ErrInvalidStatusTransition),
-		errors.Is(err, cognition.ErrInvocationAlreadyTerminal),
 		errors.Is(err, convservice.ErrParticipantNotActive),
 		errors.Is(err, convservice.ErrParticipantNotOwner),
 		errors.Is(err, convservice.ErrDerivationSourceNotActive),
@@ -111,9 +97,7 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 
 	// ---- bad_request (400) ----------------------------------------------
-	case errors.Is(err, cognition.ErrRationaleRequired),
-		errors.Is(err, cognition.ErrInvocationIDRequired),
-		errors.Is(err, secretmgmt.ErrMasterKeyNotLoaded),
+	case errors.Is(err, secretmgmt.ErrMasterKeyNotLoaded),
 		errors.Is(err, trservice.ErrNoInputChannel),
 		errors.Is(err, trservice.ErrProjectNotFound),
 		errors.Is(err, disservice.ErrProjectNotFound):

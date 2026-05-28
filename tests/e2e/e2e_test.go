@@ -8,6 +8,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,14 +63,29 @@ func newHarness(t *testing.T) *harness {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "cfg.yaml")
 	dbPath := filepath.Join(dir, "test.db")
+	// v2.6: webconsole requires master_key for Identity BC auth (JWT signing).
+	mkPath := filepath.Join(dir, "master.key")
+	if err := writeE2ETestMasterKey(mkPath); err != nil {
+		t.Fatal(err)
+	}
 	cfg := fmt.Sprintf(
-		"server:\n  listen_addr: ':7000'\n  sqlite_path: '%s'\n  admin_socket_path: '%s/admin.sock'\nidentity:\n  default_user: hayang\n",
-		dbPath, dir,
+		"server:\n  listen_addr: ':7000'\n  sqlite_path: '%s'\n  admin_socket_path: '%s/admin.sock'\nidentity:\n  default_user: hayang\nsecret_management:\n  master_key_file: '%s'\n  skip_perms_check: true\n",
+		dbPath, dir, mkPath,
 	)
 	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return &harness{t: t, binary: bin, cfgPath: cfgPath, dbPath: dbPath}
+}
+
+// writeE2ETestMasterKey writes a deterministic base64-encoded 32-byte AES key.
+func writeE2ETestMasterKey(path string) error {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i + 1)
+	}
+	b64 := base64.StdEncoding.EncodeToString(key)
+	return os.WriteFile(path, []byte(b64+"\n"), 0600)
 }
 
 func (h *harness) run(args ...string) (stdout, stderr string, code int) {
@@ -342,20 +358,18 @@ func TestE2E8_ServerStartSIGTERM(t *testing.T) {
 }
 
 // =============================================================================
-// E2E-9: worker run stub exits 64; supervisor is no longer a stub (Phase 6).
+// E2E-9: supervisor command removed in v2.6 (BE-9 supervisor cut).
 // =============================================================================
 
-func TestE2E9_SupervisorNoLongerStub(t *testing.T) {
+// TestE2E9_SupervisorRemoved verifies the supervisor subcommand is gone in v2.6.
+// The CLI router shows help and exits 0 for unknown commands; the test checks
+// that "supervisor" is NOT listed as a command in the help output.
+func TestE2E9_SupervisorRemoved(t *testing.T) {
 	h := newHarness(t)
-	// `supervisor` is now a real subcommand; called without args it should
-	// fail with an explicit "scope required" / "invocation-id required"
-	// diagnostic rather than the Phase 1 not_implemented stub.
-	_, errOut, code := h.run("supervisor")
-	if code == 0 {
-		t.Fatalf("expected nonzero exit code from supervisor without flags")
-	}
-	if strings.Contains(errOut, "not_implemented_in_phase_1") {
-		t.Fatalf("supervisor should not be a placeholder in Phase 6; stderr: %s", errOut)
+	helpOut, _, _ := h.run("help")
+	// supervisor must not appear as a top-level command in the help tree.
+	if strings.Contains(helpOut, "  supervisor ") {
+		t.Fatalf("supervisor still listed as a command in help; output:\n%s", helpOut)
 	}
 }
 
