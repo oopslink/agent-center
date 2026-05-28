@@ -126,11 +126,13 @@ func (s *Server) routes() {
 	// v2.6-FE-3: Organization CRUD.
 	s.mux.HandleFunc("GET /api/orgs", s.listOrgsHandler)
 	s.mux.HandleFunc("POST /api/orgs", s.createOrgHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{id}", s.updateOrgHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{id}", s.deleteOrgHandler)
 
 	// v2.6-FE-4: Member management.
 	s.mux.HandleFunc("GET /api/members", s.listMembersHandler)
 	s.mux.HandleFunc("POST /api/members", s.addMemberHandler)
+	s.mux.HandleFunc("POST /api/members/agent", s.addAgentMemberHandler)
 	s.mux.HandleFunc("PATCH /api/members/{id}/role", s.changeMemberRoleHandler)
 	s.mux.HandleFunc("POST /api/members/{id}/disable", s.disableMemberHandler)
 	s.mux.HandleFunc("POST /api/members/{id}/reenable", s.reEnableMemberHandler)

@@ -26,8 +26,8 @@ func resolveCallerAndOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps) 
 		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
 		return nil, nil, ""
 	}
-	// Resolve org: prefer explicit ?org_id= param, otherwise first org.
-	orgID = r.URL.Query().Get("org_id")
+	// Resolve org: prefer ?org_id=, then ?org_slug=, then caller's first org.
+	orgID = resolveOrgIDFromRequest(r, d)
 	if orgID == "" {
 		orgs, err := d.OrgRepo.ListForIdentity(r.Context(), id.ID())
 		if err != nil || len(orgs) == 0 {
@@ -65,10 +65,13 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // addMemberHandler handles POST /api/members[?org_id=].
+// Creates a NEW user identity (with temp passcode) + member row, OR adds an
+// existing identity by display_name when ?reuse=true. Default behavior is
+// "create new user" per v2.6 acceptance plan §3.
 // Requires owner or admin role.
 func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.MemberAddSvc == nil {
+	if d.MemberCreateUserSvc == nil && d.MemberAddSvc == nil {
 		writeError(w, http.StatusNotImplemented, "not_configured", "member add not configured")
 		return
 	}
@@ -76,13 +79,85 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if orgID == "" {
 		return
 	}
-	// RBAC: owner or admin only.
 	if string(callerMember.Role()) == "member" {
 		writeError(w, http.StatusForbidden, "forbidden", "only owner or admin can add members")
 		return
 	}
 	var body struct {
 		DisplayName string `json:"display_name"`
+		Role        string `json:"role"`
+		Reuse       bool   `json:"reuse"` // when true, add existing identity instead of creating new
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	if body.DisplayName == "" {
+		writeError(w, http.StatusBadRequest, "display_name_required", "display_name is required")
+		return
+	}
+	if body.Role == "" {
+		body.Role = "member"
+	}
+	if string(callerMember.Role()) == "admin" && body.Role == "owner" {
+		writeError(w, http.StatusForbidden, "forbidden", "admin cannot add owner-role members")
+		return
+	}
+
+	// Path A: reuse existing identity (backwards-compat).
+	if body.Reuse {
+		if d.MemberAddSvc == nil {
+			writeError(w, http.StatusNotImplemented, "not_configured", "reuse path not configured")
+			return
+		}
+		member, err := d.MemberAddSvc.Add(r.Context(), orgID, body.DisplayName, body.Role, callerID.ID())
+		if err != nil {
+			if errors.Is(err, identity.ErrIdentityNotFound) {
+				writeError(w, http.StatusNotFound, "identity_not_found", "identity not found")
+				return
+			}
+			if errors.Is(err, identity.ErrMemberAlreadyExists) {
+				writeError(w, http.StatusConflict, "already_member", "identity is already a member")
+				return
+			}
+			writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, memberPublicMap(member))
+		return
+	}
+
+	// Path B (default v2.6 §3): create new user identity + member with temp passcode.
+	res, err := d.MemberCreateUserSvc.Create(r.Context(), orgID, body.DisplayName, body.Role, callerID.ID())
+	if err != nil {
+		writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+		return
+	}
+	result := memberPublicMap(res.Member)
+	result["temp_passcode"] = res.TempPasscode // returned ONCE; UI must show then never echo again
+	result["display_name"] = res.Identity.DisplayName()
+	writeJSON(w, http.StatusCreated, result)
+}
+
+// addAgentMemberHandler handles POST /api/members/agent[?org_id=].
+// Creates a new agent identity + member.
+func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.AgentProvisionSvc == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "agent provision not configured")
+		return
+	}
+	callerID, callerMember, orgID := resolveCallerAndOrg(w, r, d)
+	if orgID == "" {
+		return
+	}
+	if !callerMember.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "forbidden", "only owner or admin can add agents")
+		return
+	}
+	var body struct {
+		DisplayName string `json:"display_name"`
+		Description string `json:"description"`
 		Role        string `json:"role"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -96,25 +171,20 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if body.Role == "" {
 		body.Role = "member"
 	}
-	// Admin cannot add owners.
-	if string(callerMember.Role()) == "admin" && body.Role == "owner" {
-		writeError(w, http.StatusForbidden, "forbidden", "admin cannot add owner-role members")
-		return
-	}
-	member, err := d.MemberAddSvc.Add(r.Context(), orgID, body.DisplayName, body.Role, callerID.ID())
+	res, err := d.AgentProvisionSvc.Provision(r.Context(),
+		identity.AgentProvisionForm{
+			DisplayName: body.DisplayName,
+			Description: body.Description,
+			Role:        identity.MemberRole(body.Role),
+		},
+		orgID, callerID.ID())
 	if err != nil {
-		if errors.Is(err, identity.ErrIdentityNotFound) {
-			writeError(w, http.StatusNotFound, "identity_not_found", "identity not found")
-			return
-		}
-		if errors.Is(err, identity.ErrMemberAlreadyExists) {
-			writeError(w, http.StatusConflict, "already_member", "identity is already a member")
-			return
-		}
 		writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, memberPublicMap(member))
+	result := memberPublicMap(res.Member)
+	result["display_name"] = res.Identity.DisplayName()
+	writeJSON(w, http.StatusCreated, result)
 }
 
 // changeMemberRoleHandler handles PATCH /api/members/{id}/role[?org_id=].

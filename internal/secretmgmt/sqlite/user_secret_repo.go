@@ -103,6 +103,10 @@ func (r *UserSecretRepo) FindAll(ctx context.Context, filter secretmgmt.UserSecr
 		q += ` AND state = ?`
 		args = append(args, string(*filter.State))
 	}
+	if filter.OrganizationID != "" {
+		q += ` AND organization_id = ?`
+		args = append(args, filter.OrganizationID)
+	}
 	q += ` ORDER BY created_at ASC`
 	rows, err := exec.QueryContext(ctx, q, args...)
 	if err != nil {

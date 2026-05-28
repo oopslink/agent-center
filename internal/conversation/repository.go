@@ -11,6 +11,10 @@ type ConversationFilter struct {
 	Status *ConversationStatus
 	Cursor *ConversationID
 	Limit  int
+	// OrganizationID scopes results to a specific organization (v2.6).
+	// Empty string means "no org filter" — used by legacy callers and
+	// tests; production webconsole handlers should always set this.
+	OrganizationID string
 }
 
 // DefaultConversationLimit caps Find when Limit <= 0.

@@ -264,6 +264,7 @@ export const handlers = [
     const body = (await request.json()) as { name?: string; slug?: string };
     return ok({ id: 'org-new', slug: body.slug ?? 'new', name: body.name ?? 'New', created_at: '2026-01-01T00:00:00Z' }, 201);
   }),
+  http.patch('/api/orgs/:id', () => new HttpResponse(null, { status: 204 })),
   http.delete('/api/orgs/:id', () => new HttpResponse(null, { status: 204 })),
 
   // Members
@@ -276,10 +277,24 @@ export const handlers = [
     ]),
   ),
   http.post('/api/members', async ({ request }) => {
+    const body = (await request.json()) as { display_name?: string; role?: string; reuse?: boolean };
+    const resp: Record<string, unknown> = {
+      id: 'mem-new', organization_id: 'org-test',
+      identity_id: `user-${(body.display_name ?? 'new').slice(0, 8)}`,
+      kind: 'user',
+      role: body.role ?? 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+      display_name: body.display_name ?? 'new',
+    };
+    if (!body.reuse) resp.temp_passcode = '123456';
+    return ok(resp, 201);
+  }),
+  http.post('/api/members/agent', async ({ request }) => {
     const body = (await request.json()) as { display_name?: string; role?: string };
     return ok({
-      id: 'mem-new', organization_id: 'org-test', identity_id: `user:${body.display_name ?? 'new'}`,
-      role: body.role ?? 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+      id: 'mem-agent', organization_id: 'org-test',
+      identity_id: `agent-${(body.display_name ?? 'new').slice(0, 8)}`,
+      kind: 'agent', role: body.role ?? 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+      display_name: body.display_name ?? 'new',
     }, 201);
   }),
   http.patch('/api/members/:id/role', () => new HttpResponse(null, { status: 204 })),

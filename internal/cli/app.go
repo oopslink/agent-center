@@ -142,10 +142,13 @@ type App struct {
 	IdentityOrgRepo           identity.OrganizationRepository
 	IdentityOrgCreateSvc      *identity.OrganizationCreateService
 	IdentityOrgLifecycleSvc   *identity.OrganizationLifecycleService
-	IdentityMemberRepo        identity.MemberRepository
-	IdentityMemberAddSvc      *identity.MemberAddService
+	IdentityMemberRepo          identity.MemberRepository
+	IdentityMemberAddSvc        *identity.MemberAddService
+	IdentityMemberCreateUserSvc *identity.MemberCreateUserService
 	IdentityMemberRoleChangeSvc *identity.MemberRoleChangeService
 	IdentityMemberDisableSvc    *identity.MemberDisableService
+	IdentityAgentProvisionSvc   *identity.AgentIdentityProvisionService
+	IdentityOrgUpdateSvc        *identity.OrganizationUpdateService
 
 	// Observability Phase 4
 	ProjectionRepo  projection.Repository
@@ -283,8 +286,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	identityOrgLock := identity.NewOrganizationLockManager()
 	identityOrgLifecycleSvc := identity.NewOrganizationLifecycleServiceWithSink(db, idOrgRepo, idMemberRepo, identityOrgLock, sink)
 	identityMemberAddSvc := identity.NewMemberAddServiceWithSink(db, idIdentityRepo, idMemberRepo, sink)
+	identityMemberCreateUserSvc := identity.NewMemberCreateUserServiceWithSink(db, idIdentityRepo, idMemberRepo, sink)
 	identityMemberRoleChangeSvc := identity.NewMemberRoleChangeServiceWithSink(db, idMemberRepo, identityOrgLock, sink)
 	identityMemberDisableSvc := identity.NewMemberDisableServiceWithSink(db, idMemberRepo, identityOrgLock, sink)
+	identityAgentProvisionSvc := identity.NewAgentIdentityProvisionServiceWithSink(db, idIdentityRepo, idMemberRepo, sink)
+	identityOrgUpdateSvc := identity.NewOrganizationUpdateServiceWithSink(db, idOrgRepo, sink)
 	var (
 		identitySigninSvc *identity.SigninService
 		identityAuthSvc   *identity.AuthService
@@ -378,8 +384,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IdentityOrgLifecycleSvc:   identityOrgLifecycleSvc,
 		IdentityMemberRepo:          idMemberRepo,
 		IdentityMemberAddSvc:        identityMemberAddSvc,
+		IdentityMemberCreateUserSvc: identityMemberCreateUserSvc,
 		IdentityMemberRoleChangeSvc: identityMemberRoleChangeSvc,
 		IdentityMemberDisableSvc:    identityMemberDisableSvc,
+		IdentityAgentProvisionSvc:   identityAgentProvisionSvc,
+		IdentityOrgUpdateSvc:        identityOrgUpdateSvc,
 
 		AdminTokenRepo: adminTokenRepo,
 		AdminTokenSvc:  adminTokenSvc,

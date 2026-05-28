@@ -118,6 +118,10 @@ func (r *AgentInstanceRepo) FindAll(ctx context.Context, filter workforce.AgentI
 		q += ` AND is_builtin = ?`
 		args = append(args, v)
 	}
+	if filter.OrganizationID != "" {
+		q += ` AND organization_id = ?`
+		args = append(args, filter.OrganizationID)
+	}
 	q += ` ORDER BY created_at ASC`
 	rows, err := exec.QueryContext(ctx, q, args...)
 	if err != nil {

@@ -9,6 +9,8 @@ import (
 type UserSecretFilter struct {
 	Kind  *UserSecretKind
 	State *UserSecretState
+	// OrganizationID scopes to a specific organization (v2.6).
+	OrganizationID string
 }
 
 // UserSecretRepository defines persistence for UserSecret AR (ADR-0026 § 2).

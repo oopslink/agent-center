@@ -51,8 +51,11 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
 		MemberRepo:          a.IdentityMemberRepo,
 		MemberAddSvc:        a.IdentityMemberAddSvc,
+		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
 		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
 		MemberDisableSvc:    a.IdentityMemberDisableSvc,
+		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
+		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -131,8 +134,11 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
 		MemberRepo:          a.IdentityMemberRepo,
 		MemberAddSvc:        a.IdentityMemberAddSvc,
+		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
 		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
 		MemberDisableSvc:    a.IdentityMemberDisableSvc,
+		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
+		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
 	}
 	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler(), Version: ResolvedBuildVersion()})
 	// Wrap the inner mux with deps middleware; install it as the

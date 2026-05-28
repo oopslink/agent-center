@@ -66,6 +66,10 @@ export default function AppLayout(): React.ReactElement {
   useSSE();
   const me = useMe();
   const orgs = useOrgs();
+  const orgCtx = useOptionalOrgContext();
+  const currentOrg = orgCtx
+    ? (orgs.data ?? []).find((o) => o.slug === orgCtx.slug)
+    : orgs.data?.[0];
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -156,13 +160,14 @@ export default function AppLayout(): React.ReactElement {
             >
               <OrgIcon />
               <span className="max-w-[120px] truncate">
-                {orgs.data?.[0]?.name ?? me.data?.display_name ?? '…'}
+                {currentOrg?.name ?? me.data?.display_name ?? '…'}
               </span>
               <span aria-hidden="true">⌄</span>
             </button>
             {orgDropdownOpen && (
               <OrgDropdown
                 orgs={orgs.data ?? []}
+                currentSlug={orgCtx?.slug}
                 onClose={() => setOrgDropdownOpen(false)}
                 onCreateOrg={() => {
                   setOrgDropdownOpen(false);
@@ -543,11 +548,13 @@ function Sidebar({
 
 interface OrgDropdownProps {
   orgs: Array<{ id: string; slug: string; name: string }>;
+  currentSlug?: string;
   onClose: () => void;
   onCreateOrg: () => void;
 }
 
-function OrgDropdown({ orgs, onClose, onCreateOrg }: OrgDropdownProps): React.ReactElement {
+function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownProps): React.ReactElement {
+  const navigate = useNavigate();
   // Close on click-outside.
   React.useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -557,6 +564,13 @@ function OrgDropdown({ orgs, onClose, onCreateOrg }: OrgDropdownProps): React.Re
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
+
+  const handleSwitch = (slug: string) => {
+    if (slug !== currentSlug) {
+      navigate(`/organizations/${slug}`);
+    }
+    onClose();
+  };
 
   return (
     <div
@@ -569,8 +583,10 @@ function OrgDropdown({ orgs, onClose, onCreateOrg }: OrgDropdownProps): React.Re
           key={o.id}
           type="button"
           role="menuitem"
-          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
-          onClick={onClose}
+          className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-bg-subtle ${
+            o.slug === currentSlug ? 'bg-bg-subtle font-medium text-brand' : 'text-text-primary'
+          }`}
+          onClick={() => handleSwitch(o.slug)}
         >
           <OrgIcon />
           <span className="truncate">{o.name}</span>
@@ -600,6 +616,7 @@ function validateSlugLocal(v: string): string {
 
 function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElement {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [name, setName] = React.useState('');
   const [slug, setSlug] = React.useState('');
   const [error, setError] = React.useState('');
@@ -609,9 +626,11 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
 
   const create = useMutation({
     mutationFn: () => orgApi.create({ name: name.trim(), slug }),
-    onSuccess: () => {
+    onSuccess: (newOrg) => {
       qc.invalidateQueries({ queryKey: ['orgs'] });
       onClose();
+      // Redirect to the newly-created org (FE-3 acceptance: auto-redirect on create).
+      navigate(`/organizations/${newOrg.slug}`);
     },
     onError: (err: Error) => {
       setError(err.message);

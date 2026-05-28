@@ -145,16 +145,39 @@ type HandlerDeps struct {
 	OrgLifecycleSvc *identity.OrganizationLifecycleService
 
 	// v2.6-FE-4: Member management services.
-	MemberRepo          identity.MemberRepository
-	MemberAddSvc        *identity.MemberAddService
-	MemberRoleChangeSvc *identity.MemberRoleChangeService
-	MemberDisableSvc    *identity.MemberDisableService
+	MemberRepo            identity.MemberRepository
+	MemberAddSvc          *identity.MemberAddService
+	MemberCreateUserSvc   *identity.MemberCreateUserService
+	MemberRoleChangeSvc   *identity.MemberRoleChangeService
+	MemberDisableSvc      *identity.MemberDisableService
+	AgentProvisionSvc     *identity.AgentIdentityProvisionService
+	OrgUpdateSvc          *identity.OrganizationUpdateService
 }
 
 // hd retrieves the typed dep bag from the request context.
 func hd(r *http.Request) HandlerDeps {
 	v, _ := r.Context().Value(depsKey{}).(HandlerDeps)
 	return v
+}
+
+// resolveOrgIDFromRequest extracts the active organization ID for the request.
+// Resolution order (v2.6 multi-org isolation):
+//  1. ?org_id=<id> query param (explicit)
+//  2. ?org_slug=<slug> query param (frontend auto-injects from URL path)
+//  3. empty string (no org filter — legacy / cross-org callers)
+//
+// Returns the resolved org ID. When no resolver is available (OrgRepo nil),
+// returns the raw value of ?org_id= or empty string.
+func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
+	if v := r.URL.Query().Get("org_id"); v != "" {
+		return v
+	}
+	if slug := r.URL.Query().Get("org_slug"); slug != "" && d.OrgRepo != nil {
+		if org, err := d.OrgRepo.GetBySlug(r.Context(), slug); err == nil && org != nil {
+			return org.ID()
+		}
+	}
+	return ""
 }
 
 type depsKey struct{}
@@ -186,6 +209,10 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := conversation.ConversationStatus(st)
 		filter.Status = &ss
+	}
+	// v2.6: scope to current org via ?org_id= or ?org_slug= (org-scoped routes).
+	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
+		filter.OrganizationID = orgID
 	}
 	convs, err := d.ConvRepo.Find(r.Context(), filter)
 	if err != nil {
@@ -1239,7 +1266,11 @@ func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	list, err := d.AgentInstanceRepo.FindAll(r.Context(), workforce.AgentInstanceFilter{})
+	filter := workforce.AgentInstanceFilter{}
+	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
+		filter.OrganizationID = orgID
+	}
+	list, err := d.AgentInstanceRepo.FindAll(r.Context(), filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
@@ -1262,7 +1293,11 @@ func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
-	list, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{})
+	pfilter := workforce.ProjectFilter{}
+	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
+		pfilter.OrganizationID = orgID
+	}
+	list, err := d.ProjectRepo.FindAll(r.Context(), pfilter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
@@ -1450,7 +1485,11 @@ func (s *Server) listSecretsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "secret_not_wired", "")
 		return
 	}
-	list, err := d.UserSecretRepo.FindAll(r.Context(), secretmgmt.UserSecretFilter{})
+	sfilter := secretmgmt.UserSecretFilter{}
+	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
+		sfilter.OrganizationID = orgID
+	}
+	list, err := d.UserSecretRepo.FindAll(r.Context(), sfilter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return

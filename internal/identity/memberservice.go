@@ -2,8 +2,10 @@ package identity
 
 import (
 	"context"
+	cryptoRand "crypto/rand"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -447,6 +449,97 @@ func (s *IdentityAccountService) ReEnable(ctx context.Context, identityID, reEna
 		actor := observability.Actor("user:" + reEnabledByIdentityID)
 		return emitEvent(txCtx, s.sink, EvtIdentityAccountReEnabled, observability.EventRefs{IdentityID: identityID}, actor, nil)
 	})
+}
+
+// ============================================================
+// MemberCreateUserService — create a new user identity + add to org
+// ============================================================
+
+// MemberCreateUserResult holds the new identity, member, and temp passcode.
+type MemberCreateUserResult struct {
+	Identity      *Identity
+	Member        *Member
+	TempPasscode  string // 6-digit plaintext passcode (returned ONCE; user must change on first signin)
+}
+
+// MemberCreateUserService creates a new user Identity and adds it as a member
+// of the target organization in a single transaction. Returns a temporary
+// 6-digit passcode that the new user must use to sign in (and should change).
+type MemberCreateUserService struct {
+	db         *sql.DB
+	identities IdentityRepository
+	members    MemberRepository
+	sink       *observability.EventSink
+}
+
+func NewMemberCreateUserService(db *sql.DB, identities IdentityRepository, members MemberRepository) *MemberCreateUserService {
+	return &MemberCreateUserService{db: db, identities: identities, members: members}
+}
+
+func NewMemberCreateUserServiceWithSink(db *sql.DB, identities IdentityRepository, members MemberRepository, sink *observability.EventSink) *MemberCreateUserService {
+	return &MemberCreateUserService{db: db, identities: identities, members: members, sink: sink}
+}
+
+// Create generates a temp passcode, creates the Identity + Member, and emits
+// `identity.registered` + `member.added` events.
+func (s *MemberCreateUserService) Create(ctx context.Context, orgID, displayName, role, addedByIdentityID string) (*MemberCreateUserResult, error) {
+	if err := validateDisplayName(displayName); err != nil {
+		return nil, err
+	}
+	mRole := MemberRole(role)
+	if !mRole.IsValid() {
+		return nil, ErrForbidden
+	}
+	tempPlain, err := generateTempPasscode()
+	if err != nil {
+		return nil, err
+	}
+	hash, err := HashPasscode(tempPlain)
+	if err != nil {
+		return nil, err
+	}
+	var result MemberCreateUserResult
+	result.TempPasscode = tempPlain
+	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if existing, _ := s.identities.GetByDisplayName(txCtx, displayName); existing != nil {
+			return ErrIdentityDisplayNameTaken
+		}
+		ident, err := IdentityFactory{}.NewUser(displayName, hash)
+		if err != nil {
+			return err
+		}
+		if err := s.identities.Save(txCtx, ident); err != nil {
+			return err
+		}
+		invitedBy := addedByIdentityID
+		member, err := MemberFactory{}.New(orgID, ident.ID(), mRole, &invitedBy)
+		if err != nil {
+			return err
+		}
+		if err := s.members.Save(txCtx, member); err != nil {
+			return err
+		}
+		result.Identity = ident
+		result.Member = member
+		actor := observability.Actor("user:" + addedByIdentityID)
+		_ = emitEvent(txCtx, s.sink, EvtIdentityCreated, observability.EventRefs{IdentityID: ident.ID()}, actor, map[string]any{"kind": "user", "display_name": displayName})
+		return emitEvent(txCtx, s.sink, EvtMemberAdded, observability.EventRefs{IdentityID: ident.ID(), OrganizationID: orgID}, actor, map[string]any{"role": role})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// generateTempPasscode returns a random 6-digit numeric passcode.
+func generateTempPasscode() (string, error) {
+	b := make([]byte, 4)
+	if _, err := cryptoRand.Read(b); err != nil {
+		return "", err
+	}
+	// Combine 4 bytes into a uint32, then mod 1,000,000 and zero-pad to 6 digits.
+	n := uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
+	return fmt.Sprintf("%06d", n%1000000), nil
 }
 
 // ============================================================

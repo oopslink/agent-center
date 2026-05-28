@@ -11,10 +11,17 @@ export interface MemberResult {
   joined_at: string;
 }
 
+export interface AddUserResult extends MemberResult {
+  temp_passcode?: string;
+  display_name?: string;
+}
+
 export const membersApi = {
   list: () => api.get<MemberResult[]>('/members'),
-  add: (payload: { display_name: string; role?: string }) =>
-    api.post<MemberResult>('/members', payload),
+  add: (payload: { display_name: string; role?: string; reuse?: boolean }) =>
+    api.post<AddUserResult>('/members', payload),
+  addAgent: (payload: { display_name: string; description?: string; role?: string }) =>
+    api.post<AddUserResult>('/members/agent', payload),
   changeRole: (id: string, role: string) =>
     api.patch<void>(`/members/${id}/role`, { role }),
   disable: (id: string, reason?: string) =>
@@ -33,8 +40,17 @@ export function useMembers() {
 export function useAddMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { display_name: string; role?: string }) =>
+    mutationFn: (payload: { display_name: string; role?: string; reuse?: boolean }) =>
       membersApi.add(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+  });
+}
+
+export function useAddAgentMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { display_name: string; description?: string; role?: string }) =>
+      membersApi.addAgent(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
   });
 }

@@ -1,16 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOrgs, orgApi } from '@/api/auth';
 import { ApiError } from '@/api/client';
+import { useOptionalOrgContext } from '@/OrgContext';
 
 export default function OrgSettings(): React.ReactElement {
   const orgs = useOrgs();
+  const orgCtx = useOptionalOrgContext();
   const qc = useQueryClient();
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [nameDraft, setNameDraft] = useState('');
+  const [nameEditing, setNameEditing] = useState(false);
 
-  const org = orgs.data?.[0]; // current org (single-org view; multi-org routing in FE-6)
+  // v2.6 multi-org: use the org from URL slug (OrgGuard context), not "first org".
+  const org = orgCtx
+    ? (orgs.data ?? []).find((o) => o.slug === orgCtx.slug)
+    : orgs.data?.[0];
+
+  useEffect(() => {
+    if (org) setNameDraft(org.name);
+  }, [org]);
+
+  const updateName = useMutation({
+    mutationFn: () => orgApi.update(org!.id, { name: nameDraft.trim() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orgs'] });
+      setNameEditing(false);
+      setSuccess('组织名称已更新');
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) setError(err.message);
+      else setError('更新失败');
+    },
+  });
 
   const deleteOrg = useMutation({
     mutationFn: () => orgApi.delete(org!.id),
@@ -18,13 +43,11 @@ export default function OrgSettings(): React.ReactElement {
       qc.invalidateQueries({ queryKey: ['orgs'] });
       setDeleteConfirm(false);
       setSuccess('组织已删除');
+      setTimeout(() => { window.location.href = '/'; }, 1000);
     },
     onError: (err) => {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('删除失败，请稍后重试');
-      }
+      if (err instanceof ApiError) setError(err.message);
+      else setError('删除失败，请稍后重试');
     },
   });
 
@@ -42,30 +65,67 @@ export default function OrgSettings(): React.ReactElement {
 
       {org && (
         <>
-          <div className="bg-bg-elevated border border-border rounded-lg p-4 space-y-2">
+          <div className="bg-bg-elevated border border-border rounded-lg p-4 space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">组织信息</h3>
-            <dl className="space-y-1">
-              <div className="flex gap-2 text-sm">
-                <dt className="text-text-muted w-16 flex-shrink-0">名称</dt>
-                <dd className="text-text-primary">{org.name}</dd>
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <label className="text-xs text-text-muted">名称</label>
+                {!nameEditing ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-primary">{org.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setNameDraft(org.name); setNameEditing(true); setError(''); }}
+                      className="text-xs text-accent hover:underline"
+                    >
+                      编辑
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      maxLength={80}
+                      className="flex-1 rounded border border-border px-2 py-1 text-sm bg-bg-elevated text-text-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateName.mutate()}
+                      disabled={updateName.isPending || !nameDraft.trim() || nameDraft.trim() === org.name}
+                      className="rounded bg-brand px-3 py-1 text-xs text-white hover:bg-brand-hover disabled:opacity-50"
+                    >
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setNameEditing(false); setError(''); }}
+                      className="rounded px-3 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
+                    >
+                      取消
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-2 text-sm">
-                <dt className="text-text-muted w-16 flex-shrink-0">Slug</dt>
-                <dd className="text-text-secondary font-mono text-xs">{org.slug}</dd>
+              <div className="space-y-1">
+                <label className="text-xs text-text-muted">Slug</label>
+                <code className="block text-xs text-text-secondary font-mono">{org.slug}</code>
               </div>
-            </dl>
+            </div>
             <p className="text-xs text-text-muted pt-1">
-              组织名称 / Slug 编辑功能将在 FE-6 中启用。
+              Slug / description 编辑功能为后续 schema follow-up（领域字段未就绪）。
             </p>
           </div>
 
+          {error && (
+            <div role="alert" className="rounded-md bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
+              {error}
+            </div>
+          )}
+
           <div className="bg-bg-elevated border border-border rounded-lg p-4">
             <h3 className="text-sm font-semibold text-danger mb-2">危险操作</h3>
-            {error && (
-              <div role="alert" className="mb-2 rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
-                {error}
-              </div>
-            )}
             {!deleteConfirm ? (
               <button
                 type="button"
@@ -77,7 +137,7 @@ export default function OrgSettings(): React.ReactElement {
             ) : (
               <div className="space-y-2">
                 <p className="text-sm text-text-secondary">
-                  确认要删除 <strong>{org.name}</strong> 吗？此操作不可恢复。
+                  确认要删除 <strong>{org.name}</strong> 吗？此操作不可恢复，且您必须是 owner。
                 </p>
                 <div className="flex gap-2">
                   <button

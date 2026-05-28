@@ -77,6 +77,51 @@ func (s *Server) createOrgHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, orgPublicMap(org))
 }
 
+// updateOrgHandler handles PATCH /api/orgs/{id}.
+// Requires the caller to be an owner of the target organization.
+// Currently supports updating name; slug/description are schema follow-ups.
+func (s *Server) updateOrgHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.OrgUpdateSvc == nil || d.AuthSvc == nil || d.MemberRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "org update not configured")
+		return
+	}
+	cookie, err := r.Cookie(jwtCookieName)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
+		return
+	}
+	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		return
+	}
+	orgID := r.PathValue("id")
+	if orgID == "" {
+		writeError(w, http.StatusBadRequest, "id_required", "org id required")
+		return
+	}
+	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, id.ID())
+	if err != nil || member == nil || string(member.Role()) != "owner" {
+		writeError(w, http.StatusForbidden, "forbidden", "only org owners can update the organization")
+		return
+	}
+	var body struct {
+		Name *string `json:"name,omitempty"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	if body.Name != nil {
+		if err := d.OrgUpdateSvc.UpdateName(r.Context(), orgID, *body.Name, id.ID()); err != nil {
+			writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // deleteOrgHandler handles DELETE /api/orgs/{id}.
 // Requires the caller to be an owner member of the organization.
 func (s *Server) deleteOrgHandler(w http.ResponseWriter, r *http.Request) {

@@ -72,9 +72,16 @@ func (r *ProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*wo
 // v2.5.5 dropped the by-kind filter alongside ProjectKind; tag-based
 // filtering, when introduced, will read the JSON column at the
 // service layer or via a future projection table.
-func (r *ProjectRepo) FindAll(ctx context.Context, _ workforce.ProjectFilter) ([]*workforce.Project, error) {
+func (r *ProjectRepo) FindAll(ctx context.Context, filter workforce.ProjectFilter) ([]*workforce.Project, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	rows, err := exec.QueryContext(ctx, projectSelect+` ORDER BY created_at`)
+	q := projectSelect
+	var args []any
+	if filter.OrganizationID != "" {
+		q += ` WHERE organization_id = ?`
+		args = append(args, filter.OrganizationID)
+	}
+	q += ` ORDER BY created_at`
+	rows, err := exec.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

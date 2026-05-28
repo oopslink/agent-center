@@ -80,6 +80,7 @@ export interface CreateOrgPayload {
 export const orgApi = {
   list: () => api.get<OrgResult[]>('/orgs'),
   create: (payload: CreateOrgPayload) => api.post<OrgResult>('/orgs', payload),
+  update: (id: string, payload: { name?: string }) => api.patch<void>(`/orgs/${id}`, payload),
   delete: (id: string) => api.del<void>(`/orgs/${id}`),
 };
 

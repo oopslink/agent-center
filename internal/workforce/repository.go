@@ -49,6 +49,8 @@ type AgentInstanceFilter struct {
 	WorkerID  *WorkerID
 	State     *AgentInstanceState
 	IsBuiltin *bool
+	// OrganizationID scopes to a specific organization (v2.6).
+	OrganizationID string
 }
 
 // AgentInstanceRepository defines persistence for AgentInstance AR
@@ -128,7 +130,11 @@ type WorkerProjectProposalRepository interface {
 // path / Web Console, not at the DB level. Left as a struct for forward
 // compat — future filters (e.g. by tag, by recency) will add fields
 // here.
-type ProjectFilter struct{}
+type ProjectFilter struct {
+	// OrganizationID scopes results to a specific organization (v2.6).
+	// Empty string means "no org filter" — legacy callers only.
+	OrganizationID string
+}
 
 // ProjectRepository (workforce/00 § 5.4).
 type ProjectRepository interface {
