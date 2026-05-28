@@ -450,6 +450,62 @@ func (s *IdentityAccountService) ReEnable(ctx context.Context, identityID, reEna
 }
 
 // ============================================================
+// MemberAddService — add an existing identity to an organization
+// ============================================================
+
+// MemberAddService adds an existing Identity to an Organization as a member.
+type MemberAddService struct {
+	db         *sql.DB
+	identities IdentityRepository
+	members    MemberRepository
+	sink       *observability.EventSink
+}
+
+// NewMemberAddService constructs the service.
+func NewMemberAddService(db *sql.DB, identities IdentityRepository, members MemberRepository) *MemberAddService {
+	return &MemberAddService{db: db, identities: identities, members: members}
+}
+
+// NewMemberAddServiceWithSink constructs the service with an event sink.
+func NewMemberAddServiceWithSink(db *sql.DB, identities IdentityRepository, members MemberRepository, sink *observability.EventSink) *MemberAddService {
+	return &MemberAddService{db: db, identities: identities, members: members, sink: sink}
+}
+
+// Add finds the identity by display_name and creates a Member in the given org.
+// Returns the new Member. Idempotent: returns ErrMemberAlreadyExists if already joined.
+func (s *MemberAddService) Add(ctx context.Context, orgID, displayName, role, addedByIdentityID string) (*Member, error) {
+	mRole := MemberRole(role)
+	if !mRole.IsValid() {
+		return nil, ErrForbidden
+	}
+	var result *Member
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		identity, err := s.identities.GetByDisplayName(txCtx, displayName)
+		if err != nil || identity == nil {
+			return ErrIdentityNotFound
+		}
+		// Idempotency: check existing membership.
+		existing, _ := s.members.GetByOrganizationAndIdentity(txCtx, orgID, identity.ID())
+		if existing != nil {
+			return ErrMemberAlreadyExists
+		}
+		invitedBy := addedByIdentityID
+		member, err := MemberFactory{}.New(orgID, identity.ID(), mRole, &invitedBy)
+		if err != nil {
+			return err
+		}
+		if err := s.members.Save(txCtx, member); err != nil {
+			return err
+		}
+		result = member
+		refs := observability.EventRefs{IdentityID: identity.ID(), OrganizationID: orgID}
+		actor := observability.Actor("user:" + addedByIdentityID)
+		return emitEvent(txCtx, s.sink, EvtMemberAdded, refs, actor, map[string]any{"role": role})
+	})
+	return result, err
+}
+
+// ============================================================
 // PasscodeChangeService — change identity passcode
 // ============================================================
 

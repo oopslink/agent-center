@@ -12,6 +12,9 @@ import { CommandPalette } from '@/components/CommandPalette';
 import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
 import { useKeyShortcuts } from '@/useKeyShortcuts';
 import { readTheme, writeTheme, type Theme } from '@/theme';
+import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOptionalOrgContext } from './OrgContext';
 
 // AppLayout v3 — v2.3 P6 layered on P2's shell + P3's Home wire-in.
 //   - desktop sidebar can collapse to an icon-only strip (persisted)
@@ -61,6 +64,10 @@ function writeJSONMap(key: string, value: Record<string, boolean>): void {
 
 export default function AppLayout(): React.ReactElement {
   useSSE();
+  const me = useMe();
+  const orgs = useOrgs();
+  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
+  const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(readSidebarCollapsed);
   const [theme, setTheme] = useState<Theme>(readTheme);
@@ -137,6 +144,36 @@ export default function AppLayout(): React.ReactElement {
           <span className="font-heading text-base font-semibold tracking-tight text-text-primary">
             agent-center
           </span>
+          {/* v2.6 FE-3: Org Switcher dropdown. */}
+          <div className="relative hidden sm:block">
+            <button
+              type="button"
+              data-testid="org-switcher"
+              onClick={() => setOrgDropdownOpen((v) => !v)}
+              aria-expanded={orgDropdownOpen}
+              aria-haspopup="true"
+              className="flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle"
+            >
+              <OrgIcon />
+              <span className="max-w-[120px] truncate">
+                {orgs.data?.[0]?.name ?? me.data?.display_name ?? '…'}
+              </span>
+              <span aria-hidden="true">⌄</span>
+            </button>
+            {orgDropdownOpen && (
+              <OrgDropdown
+                orgs={orgs.data ?? []}
+                onClose={() => setOrgDropdownOpen(false)}
+                onCreateOrg={() => {
+                  setOrgDropdownOpen(false);
+                  setCreateOrgModalOpen(true);
+                }}
+              />
+            )}
+          </div>
+          {createOrgModalOpen && (
+            <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />
+          )}
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
           <button
@@ -170,6 +207,7 @@ export default function AppLayout(): React.ReactElement {
           drawerOpen={drawerOpen}
           collapsed={collapsed}
           onDismiss={() => setDrawerOpen(false)}
+          displayName={me.data?.display_name}
         />
         <main className="flex flex-1 overflow-hidden">
           <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-y-auto p-4 sm:p-6">
@@ -200,57 +238,72 @@ interface NavSection {
   items: ReadonlyArray<NavItem>;
 }
 
-const navSections: ReadonlyArray<NavSection> = [
-  {
-    label: 'Home',
-    items: [
-      { to: '/', label: 'Overview', Icon: HomeIcon, end: true },
-    ],
-  },
-  {
-    // v2.3-4: Workspace surface — Projects were not previously exposed
-    // in the SPA top-level nav (backend already supported the read
-    // endpoint via /api/projects since v2.1-A).
-    label: 'Workspace',
-    items: [
-      { to: '/projects', label: 'Projects', Icon: FolderIcon },
-    ],
-  },
-  {
-    label: 'Conversations',
-    items: [
-      { to: '/channels', label: 'Channels', Icon: HashIcon },
-      { to: '/dms', label: 'DMs', Icon: ChatIcon },
-    ],
-  },
-  {
-    label: 'Work',
-    items: [
-      { to: '/issues', label: 'Issues', Icon: IssuesIcon },
-      { to: '/tasks', label: 'Tasks', Icon: TasksIcon },
-      { to: '/inputrequests', label: 'Input Requests', badge: 'inputRequests', Icon: InboxIcon },
-    ],
-  },
-  {
-    label: 'System',
-    items: [
-      { to: '/fleet', label: 'Fleet', Icon: FleetIcon },
-      { to: '/agents', label: 'Agents', Icon: AgentsIcon },
-      { to: '/settings', label: 'Settings', Icon: SettingsIcon },
-    ],
-  },
-];
+// v2.6-FE-6: nav sections are org-slug-prefixed.
+function buildNavSections(base: string): ReadonlyArray<NavSection> {
+  const p = (path: string) => `${base}/${path}`;
+  return [
+    {
+      label: 'Home',
+      items: [
+        { to: base, label: 'Overview', Icon: HomeIcon, end: true },
+      ],
+    },
+    {
+      label: 'Workspace',
+      items: [
+        { to: p('projects'), label: 'Projects', Icon: FolderIcon },
+      ],
+    },
+    {
+      label: 'Conversations',
+      items: [
+        { to: p('channels'), label: 'Channels', Icon: HashIcon },
+        { to: p('dms'), label: 'DMs', Icon: ChatIcon },
+      ],
+    },
+    {
+      label: 'Work',
+      items: [
+        { to: p('issues'), label: 'Issues', Icon: IssuesIcon },
+        { to: p('tasks'), label: 'Tasks', Icon: TasksIcon },
+        { to: p('inputrequests'), label: 'Input Requests', badge: 'inputRequests' as NavBadgeKey, Icon: InboxIcon },
+      ],
+    },
+    {
+      label: 'Members',
+      items: [
+        { to: p('members/humans'), label: 'Humans', Icon: UsersIcon },
+        { to: p('members/agents'), label: 'Agents (org)', Icon: AgentsIcon },
+        { to: p('org/settings'), label: 'Org Settings', Icon: SettingsIcon },
+      ],
+    },
+    {
+      label: 'System',
+      items: [
+        { to: p('fleet'), label: 'Fleet', Icon: FleetIcon },
+        { to: p('agents'), label: 'Agents', Icon: AgentsIcon },
+        { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
+      ],
+    },
+  ];
+}
 
 function Sidebar({
   drawerOpen,
   collapsed,
   onDismiss,
+  displayName,
 }: {
   drawerOpen: boolean;
   collapsed: boolean;
   onDismiss: () => void;
+  displayName?: string;
 }): React.ReactElement {
   const irs = useInputRequests();
+  const signout = useSignout();
+  const orgCtx = useOptionalOrgContext();
+  const orgBase = orgCtx ? `/organizations/${orgCtx.slug}` : '';
+  const navSections = buildNavSections(orgBase);
   const inputRequestBadge = (irs.data ?? []).filter(
     (ir) => ir.status === 'pending',
   ).length;
@@ -287,19 +340,19 @@ function Sidebar({
   const me = useAppStore((s) => s.currentUserId);
   const channelChildren = (channels.data ?? [])
     .filter((c) => c.status !== 'archived')
-    .map((c) => ({ to: `/channels/${encodeURIComponent(c.name ?? '')}`, label: `# ${c.name}` }));
+    .map((c) => ({ to: `${orgBase}/channels/${encodeURIComponent(c.name ?? '')}`, label: `# ${c.name}` }));
   const dmChildren = (dms.data ?? []).map((d) => {
     const peers = (d.participants ?? [])
       .filter((p) => !p.left_at && p.identity_id !== me)
       .map((p) => p.identity_id);
     const peerLabel = d.name || peers.join(' · ') || d.id;
-    return { to: `/dms/${encodeURIComponent(d.id)}`, label: `@ ${peerLabel}` };
+    return { to: `${orgBase}/dms/${encodeURIComponent(d.id)}`, label: `@ ${peerLabel}` };
   });
   // v2.5.x #67 — Projects expand to the project list, mirroring the
   // Channels/DMs pattern so the Workspace group is consistent with
   // Conversations. Link target: /projects/<id>.
   const projectChildren = (projects.data ?? []).map((p) => ({
-    to: `/projects/${encodeURIComponent(p.id)}`,
+    to: `${orgBase}/projects/${encodeURIComponent(p.id)}`,
     label: p.name || p.id,
   }));
 
@@ -339,11 +392,11 @@ function Sidebar({
                     item.badge === 'inputRequests' ? inputRequestBadge : 0;
                   // Channels / DMs / Projects nav items expand into sub-lists.
                   const subChildren =
-                    item.to === '/channels'
+                    item.to.endsWith('/channels')
                       ? channelChildren
-                      : item.to === '/dms'
+                      : item.to.endsWith('/dms')
                         ? dmChildren
-                        : item.to === '/projects'
+                        : item.to.endsWith('/projects')
                           ? projectChildren
                           : null;
                   const subOpen = isSubItemOpen(item.to);
@@ -454,11 +507,12 @@ function Sidebar({
         aria-label="primary"
         data-collapsed={collapsed}
         className={[
-          'hidden flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:block',
+          'hidden flex-col flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:flex',
           collapsed ? 'w-14' : 'w-52',
         ].join(' ')}
       >
-        {navTree(collapsed)}
+        <div className="flex-1 overflow-y-auto">{navTree(collapsed)}</div>
+        <SidebarFooter collapsed={collapsed} displayName={displayName} orgBase={orgBase} onSignout={() => signout.mutate()} />
       </nav>
       {/* Mobile drawer — opens on hamburger toggle (always full-width labels). */}
       {drawerOpen && (
@@ -471,14 +525,164 @@ function Sidebar({
           />
           <nav
             aria-label="primary mobile"
-            className="w-64 max-w-[80%] flex-shrink-0 overflow-y-auto border-l border-border-base bg-bg-subtle p-3 shadow-3"
+            className="w-64 max-w-[80%] flex flex-col flex-shrink-0 border-l border-border-base bg-bg-subtle p-3 shadow-3"
             onClick={(e) => e.stopPropagation()}
           >
-            {navTree(false)}
+            <div className="flex-1 overflow-y-auto">{navTree(false)}</div>
+            <SidebarFooter collapsed={false} displayName={displayName} orgBase={orgBase} onSignout={() => signout.mutate()} />
           </nav>
         </div>
       )}
     </>
+  );
+}
+
+// ============================================================================
+// OrgDropdown + CreateOrgModal (v2.6 FE-3)
+// ============================================================================
+
+interface OrgDropdownProps {
+  orgs: Array<{ id: string; slug: string; name: string }>;
+  onClose: () => void;
+  onCreateOrg: () => void;
+}
+
+function OrgDropdown({ orgs, onClose, onCreateOrg }: OrgDropdownProps): React.ReactElement {
+  // Close on click-outside.
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-org-dropdown]')) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      data-org-dropdown
+      className="absolute left-0 top-full z-50 mt-1 w-48 rounded-md border border-border bg-bg-elevated shadow-[var(--shadow-2)]"
+      role="menu"
+    >
+      {orgs.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="menuitem"
+          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
+          onClick={onClose}
+        >
+          <OrgIcon />
+          <span className="truncate">{o.name}</span>
+        </button>
+      ))}
+      {orgs.length > 0 && <hr className="border-border" />}
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onCreateOrg}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-accent hover:bg-bg-subtle"
+      >
+        <span aria-hidden="true">+</span>
+        <span>创建新组织</span>
+      </button>
+    </div>
+  );
+}
+
+function validateSlugLocal(v: string): string {
+  if (v.length < 3) return 'Slug 至少 3 个字符';
+  if (v.length > 40) return 'Slug 最多 40 个字符';
+  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug 只能包含 [a-z0-9-]';
+  if (/^-|-$/.test(v)) return 'Slug 不能以连字符开头或结尾';
+  return '';
+}
+
+function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElement {
+  const qc = useQueryClient();
+  const [name, setName] = React.useState('');
+  const [slug, setSlug] = React.useState('');
+  const [error, setError] = React.useState('');
+
+  const autoSlug = (n: string) =>
+    n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+
+  const create = useMutation({
+    mutationFn: () => orgApi.create({ name: name.trim(), slug }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orgs'] });
+      onClose();
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    const slugErr = validateSlugLocal(slug);
+    if (slugErr) { setError(slugErr); return; }
+    if (!name.trim()) { setError('请输入组织名称'); return; }
+    create.mutate();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-org-title"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
+        <h2 id="create-org-title" className="text-base font-semibold text-text-primary mb-4">
+          创建新组织
+        </h2>
+        {error && (
+          <div role="alert" className="mb-3 rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
+            {error}
+          </div>
+        )}
+        <form onSubmit={handleSubmit} noValidate className="space-y-3">
+          <div className="space-y-1">
+            <label htmlFor="new-org-name" className="block text-sm text-text-primary">组织名称</label>
+            <input
+              id="new-org-name"
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (!slug || slug === autoSlug(name)) setSlug(autoSlug(e.target.value));
+              }}
+              className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
+              placeholder="My Org"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="new-org-slug" className="block text-sm text-text-primary">Slug</label>
+            <input
+              id="new-org-slug"
+              type="text"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              className="w-full rounded border border-border px-3 py-1.5 text-sm font-mono outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
+              placeholder="my-org"
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-1">
+            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">取消</button>
+            <button
+              type="submit"
+              disabled={create.isPending}
+              className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            >
+              {create.isPending ? '创建中…' : '创建'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -592,6 +796,80 @@ function SettingsIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <circle cx="10" cy="10" r="2.5" />
       <path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.4 1.4M13.55 13.55l1.4 1.4M5.05 14.95l1.4-1.4M13.55 6.45l1.4-1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function UsersIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="7.5" cy="7" r="2.5" />
+      <path d="M2 16c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" />
+      <path d="M13 8.5a2 2 0 1 0 0-4M18 16c0-2.5-2-4-4-4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function OrgIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="3" y="10" width="5" height="7" rx="1" />
+      <rect x="7.5" y="3" width="5" height="14" rx="1" />
+      <rect x="12" y="7" width="5" height="10" rx="1" />
+    </svg>
+  );
+}
+
+function SidebarFooter({
+  collapsed,
+  displayName,
+  orgBase,
+  onSignout,
+}: {
+  collapsed: boolean;
+  displayName?: string;
+  orgBase: string;
+  onSignout: () => void;
+}): React.ReactElement {
+  return (
+    <div className="mt-2 border-t border-border-base pt-2">
+      {!collapsed && displayName && (
+        <NavLink
+          to={`${orgBase}/me`}
+          className={({ isActive }) =>
+            [
+              'flex items-center gap-2 rounded px-2 py-1.5 text-sm',
+              isActive
+                ? 'bg-brand text-white'
+                : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
+            ].join(' ')
+          }
+          data-testid="nav-me"
+        >
+          <span aria-hidden="true" className="inline-flex h-4 w-4">
+            <SettingsIcon />
+          </span>
+          <span className="truncate">{displayName}</span>
+        </NavLink>
+      )}
+      <button
+        type="button"
+        onClick={onSignout}
+        title={collapsed ? 'Sign out' : undefined}
+        data-testid="btn-signout"
+        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle hover:text-danger motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-4 w-4">
+          <SignoutIcon />
+        </span>
+        {!collapsed && <span>Sign out</span>}
+      </button>
+    </div>
+  );
+}
+function SignoutIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M12.5 6.5V4.5A1.5 1.5 0 0 0 11 3H5A1.5 1.5 0 0 0 3.5 4.5v11A1.5 1.5 0 0 0 5 17h6a1.5 1.5 0 0 0 1.5-1.5v-2" strokeLinecap="round" />
+      <path d="M9 10h8M15 7.5l2.5 2.5-2.5 2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

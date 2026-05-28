@@ -13,12 +13,8 @@ import (
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
-	"github.com/oopslink/agent-center/internal/cognition"
-	"github.com/oopslink/agent-center/internal/cognition/decision"
-	"github.com/oopslink/agent-center/internal/cognition/scheduler"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/conversation/identity"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
@@ -30,7 +26,6 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
-	cognitiondb "github.com/oopslink/agent-center/internal/persistence/cognition"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
@@ -41,6 +36,7 @@ import (
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
@@ -137,6 +133,20 @@ type App struct {
 	IssueLinkConversationSvc        *disservice.IssueLinkConversationService
 	IssueConversationOpener         *disservice.IssueConversationOpener
 
+	// v2.6: Identity BC services.
+	IdentitySignupSvc         *identity.SignupService
+	IdentitySigninSvc         *identity.SigninService
+	IdentitySignoutSvc        *identity.SignoutService
+	IdentityAuthSvc           *identity.AuthService
+	IdentityPasscodeChangeSvc *identity.PasscodeChangeService
+	IdentityOrgRepo           identity.OrganizationRepository
+	IdentityOrgCreateSvc      *identity.OrganizationCreateService
+	IdentityOrgLifecycleSvc   *identity.OrganizationLifecycleService
+	IdentityMemberRepo        identity.MemberRepository
+	IdentityMemberAddSvc      *identity.MemberAddService
+	IdentityMemberRoleChangeSvc *identity.MemberRoleChangeService
+	IdentityMemberDisableSvc    *identity.MemberDisableService
+
 	// Observability Phase 4
 	ProjectionRepo  projection.Repository
 	ProjectionSvc   *projection.TaskExecutionProjectionService
@@ -145,16 +155,6 @@ type App struct {
 	StatsSvc        *query.StatsService
 	LogsSvc         *query.LogsService
 	BlobStore       blobstore.BlobStore
-
-	// Identity (Phase 5; ChannelBinding removed per ADR-0031/0033 in P10 § 3.9 + § 3.2)
-	IdentityRepo         identity.IdentityRepository
-	IdentityRegistration *identity.RegistrationService
-
-	// Cognition (Phase 6)
-	InvocationRepo    cognition.SupervisorInvocationRepository
-	DecisionRepo      cognition.DecisionRecordRepository
-	DecisionRecorder  *decision.Recorder
-	SupervisorSpawner *scheduler.Spawner
 
 	// v2.2-A3: in-process dispatch/kill queue. DispatchService +
 	// KillCoordinator push into it; worker daemon drains via admin
@@ -271,20 +271,28 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	}
 	logsSvc := query.NewLogsService(deps, bs)
 
-	// Phase 5: Identity (ChannelBinding removed per ADR-0031/0033).
-	identityRepo := identity.NewSQLiteIdentityRepo(db)
-	identityReg := identity.NewRegistrationService(db, identityRepo, sink, gen, clk)
-	// P10 § 3.8: auto-provision the `system` identity at center startup.
-	if err := identityReg.EnsureSystemIdentity(context.Background(), observability.Actor("system")); err != nil {
-		return nil, fmt.Errorf("ensure system identity: %w", err)
-	}
+	// v2.6: Identity BC repos. Always wired; signin/auth services need the
+	// master key so they are wired in the master key block below.
+	idIdentityRepo := identity.NewSQLiteIdentityRepo(db)
+	idOrgRepo := identity.NewSQLiteOrganizationRepo(db)
+	idMemberRepo := identity.NewSQLiteMemberRepo(db)
+	identitySignupSvc := identity.NewSignupServiceWithSink(db, idIdentityRepo, idOrgRepo, idMemberRepo, sink)
+	identitySignoutSvc := identity.NewSignoutService(sink)
+	identityPasscodeChangeSvc := identity.NewPasscodeChangeServiceWithSink(db, idIdentityRepo, sink)
+	identityOrgCreateSvc := identity.NewOrganizationCreateServiceWithSink(db, idOrgRepo, idMemberRepo, sink)
+	identityOrgLock := identity.NewOrganizationLockManager()
+	identityOrgLifecycleSvc := identity.NewOrganizationLifecycleServiceWithSink(db, idOrgRepo, idMemberRepo, identityOrgLock, sink)
+	identityMemberAddSvc := identity.NewMemberAddServiceWithSink(db, idIdentityRepo, idMemberRepo, sink)
+	identityMemberRoleChangeSvc := identity.NewMemberRoleChangeServiceWithSink(db, idMemberRepo, identityOrgLock, sink)
+	identityMemberDisableSvc := identity.NewMemberDisableServiceWithSink(db, idMemberRepo, identityOrgLock, sink)
+	var (
+		identitySigninSvc *identity.SigninService
+		identityAuthSvc   *identity.AuthService
+	)
 
-	// P10 F5: AgentInstance management — Create flow auto-registers
-	// Identity[kind=agent].id='agent:<id>' in the same tx via the
-	// IdentityRegistrar port (cross-aggregate invariant ADR-0033 § 4).
+	// Workforce — AgentInstance management.
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
-	agentMgmt := wfservice.NewAgentInstanceManagementService(db, aiRepo, gen, sink, clk).
-		WithIdentityRegistrar(identityReg)
+	agentMgmt := wfservice.NewAgentInstanceManagementService(db, aiRepo, gen, sink, clk)
 
 	// v2.2 Phase D (gap #3 from C report): wire the DB-backed AgentResolver
 	// so v2 envelopes carrying agent_instance_id resolve to (worker_id,
@@ -321,14 +329,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		// install-command flow. Without the master key the show endpoint
 		// returns a "not configured" hint instead of leaking nothing.
 		adminTokenSvc.WithMasterKey(mk)
-	}
-
-	// Phase 6: Cognition (Supervisor + DecisionRecord).
-	cognitiondbInv := cognitiondb.NewInvocationRepo(db)
-	cognitiondbDec := cognitiondb.NewDecisionRepo(db)
-	decisionRecorder, decErr := decision.NewRecorder(cognitiondbDec, clk, gen)
-	if decErr != nil {
-		return nil, fmt.Errorf("decision recorder: %w", decErr)
+		// v2.6: Identity signin + auth services use the master key as the
+		// JWT HS256 signing key (ADR-0043 § 6).
+		identitySigninSvc = identity.NewSigninServiceWithSink(idIdentityRepo, mk.Bytes(), sink)
+		identityAuthSvc = identity.NewAuthService(idIdentityRepo, mk.Bytes())
 	}
 
 	return &App{
@@ -364,6 +368,19 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		UserSecretSvc:        userSecretSvc,
 		UserSecretResolveSvc: userSecretResolveSvc,
 
+		IdentitySignupSvc:         identitySignupSvc,
+		IdentitySigninSvc:         identitySigninSvc,
+		IdentitySignoutSvc:        identitySignoutSvc,
+		IdentityAuthSvc:           identityAuthSvc,
+		IdentityPasscodeChangeSvc: identityPasscodeChangeSvc,
+		IdentityOrgRepo:           idOrgRepo,
+		IdentityOrgCreateSvc:      identityOrgCreateSvc,
+		IdentityOrgLifecycleSvc:   identityOrgLifecycleSvc,
+		IdentityMemberRepo:          idMemberRepo,
+		IdentityMemberAddSvc:        identityMemberAddSvc,
+		IdentityMemberRoleChangeSvc: identityMemberRoleChangeSvc,
+		IdentityMemberDisableSvc:    identityMemberDisableSvc,
+
 		AdminTokenRepo: adminTokenRepo,
 		AdminTokenSvc:  adminTokenSvc,
 		TaskRepo:        taskRepo,
@@ -393,17 +410,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		LogsSvc:        logsSvc,
 		BlobStore:      bs,
 
-		IdentityRepo:         identityRepo,
-		IdentityRegistration: identityReg,
-
-		InvocationRepo:   cognitiondbInv,
-		DecisionRepo:     cognitiondbDec,
-		DecisionRecorder: decisionRecorder,
-		// SupervisorSpawner is wired by `server` mode only (it requires
-		// the actual subprocess binary path + memory dir); CLI invocations
-		// of `supervisor retrigger` from a tester / one-shot context can
-		// inject one via SetSupervisorSpawner.
-
 		DispatchQueue: dispatchQ,
 	}, nil
 }
@@ -420,13 +426,6 @@ func NewClientApp(cfg config.Config, client *Client) *App {
 		Client: client,
 		Clock:  clock.SystemClock{},
 	}
-}
-
-// SetSupervisorSpawner installs (or replaces) the spawner. Tests + the
-// server boot path use this to avoid wiring a spawner for every short-
-// lived CLI invocation.
-func (a *App) SetSupervisorSpawner(sp *scheduler.Spawner) {
-	a.SupervisorSpawner = sp
 }
 
 // DefaultActor returns the configured single-user identity wrapped in the

@@ -58,7 +58,13 @@ export async function request<T>(path: string, init: RequestInitWithTimeout = {}
       ),
     ]);
   } catch (err) {
-    if (err instanceof ApiError) throw err;
+    if (err instanceof ApiError) {
+      // Redirect to /signin on 401 (except for /auth/* endpoints which handle auth themselves).
+      if (err.status === 401 && !path.startsWith('/auth/')) {
+        window.location.href = '/signin';
+      }
+      throw err;
+    }
     if (err instanceof Error) {
       throw new ApiError(0, 'network_error', err.message);
     }

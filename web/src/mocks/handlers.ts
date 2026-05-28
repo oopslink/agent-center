@@ -245,6 +245,47 @@ export const handlers = [
     }),
   ),
 
+  // Auth
+  http.get('/api/auth/me', () =>
+    ok({ identity_id: 'user-test', display_name: 'Test User', kind: 'user' }),
+  ),
+  http.post('/api/auth/signin', () => ok({ identity_id: 'user-test' })),
+  http.post('/api/auth/signup', () =>
+    ok({ identity_id: 'user-test', organization_id: 'org-test', display_name: 'Test User' }, 201),
+  ),
+  http.post('/api/auth/signout', () => new HttpResponse(null, { status: 204 })),
+  http.patch('/api/auth/me/passcode', () => new HttpResponse(null, { status: 204 })),
+
+  // Orgs
+  http.get('/api/orgs', () =>
+    ok([{ id: 'org-test', slug: 'test', name: 'Test Org', created_at: '2026-01-01T00:00:00Z' }]),
+  ),
+  http.post('/api/orgs', async ({ request }) => {
+    const body = (await request.json()) as { name?: string; slug?: string };
+    return ok({ id: 'org-new', slug: body.slug ?? 'new', name: body.name ?? 'New', created_at: '2026-01-01T00:00:00Z' }, 201);
+  }),
+  http.delete('/api/orgs/:id', () => new HttpResponse(null, { status: 204 })),
+
+  // Members
+  http.get('/api/members', () =>
+    ok([
+      {
+        id: 'mem-1', organization_id: 'org-test', identity_id: 'user:hayang',
+        role: 'owner', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+      },
+    ]),
+  ),
+  http.post('/api/members', async ({ request }) => {
+    const body = (await request.json()) as { display_name?: string; role?: string };
+    return ok({
+      id: 'mem-new', organization_id: 'org-test', identity_id: `user:${body.display_name ?? 'new'}`,
+      role: body.role ?? 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+    }, 201);
+  }),
+  http.patch('/api/members/:id/role', () => new HttpResponse(null, { status: 204 })),
+  http.post('/api/members/:id/disable', () => new HttpResponse(null, { status: 204 })),
+  http.post('/api/members/:id/reenable', () => new HttpResponse(null, { status: 204 })),
+
   // Fleet + trace
   http.get('/api/fleet', () =>
     ok({

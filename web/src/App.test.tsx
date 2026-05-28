@@ -13,6 +13,9 @@ beforeAll(() => {
     FakeEventSource;
 });
 
+// MSW mock for /api/orgs returns slug='test', so org base is /organizations/test.
+const ORG_BASE = '/organizations/test';
+
 async function renderAt(path: string): Promise<void> {
   window.history.pushState({}, '', path);
   render(
@@ -33,16 +36,15 @@ function renderAppAt(path: string) {
 }
 
 describe('App shell + route tree', () => {
-  it('renders Home / Overview at / (v2.3 P3 — previously redirected to /channels)', async () => {
-    await renderAt('/');
+  it('renders Home / Overview at /organizations/test (v2.6 org-scoped routing)', async () => {
+    await renderAt(`${ORG_BASE}`);
     await waitFor(() => {
       expect(screen.getByTestId('page-Home')).toBeInTheDocument();
     });
-    expect(window.location.pathname).toBe('/');
   });
 
-  it('renders ChannelDetail for /channels/:name', async () => {
-    await renderAt('/channels/alpha');
+  it('renders ChannelDetail for /organizations/test/channels/:name', async () => {
+    await renderAt(`${ORG_BASE}/channels/alpha`);
     await waitFor(() => {
       expect(screen.getByTestId('page-ChannelDetail')).toBeInTheDocument();
     });
@@ -50,21 +52,21 @@ describe('App shell + route tree', () => {
 
   it('renders DMs / Issues / IssueDetail / Tasks / TaskDetail / TaskTrace / Agents / AgentDetail / Projects / ProjectDetail / InputRequests / Secrets / Fleet / Settings', async () => {
     const cases: Array<[string, string]> = [
-      ['/dms', 'page-DMs'],
-      ['/dms/01HXXX', 'page-DMDetail'],
-      ['/issues', 'page-Issues'],
-      ['/issues/01HXXX', 'page-IssueDetail'],
-      ['/tasks', 'page-Tasks'],
-      ['/tasks/01HXXX', 'page-TaskDetail'],
-      ['/tasks/01HXXX/trace', 'page-TaskTrace'],
-      ['/agents', 'page-Agents'],
-      ['/agents/worker-1', 'page-AgentDetail'],
-      ['/projects', 'page-Projects'],
-      ['/projects/proj-a', 'page-ProjectDetail'],
-      ['/inputrequests', 'page-InputRequests'],
-      ['/secrets', 'page-Secrets'],
-      ['/fleet', 'page-Fleet'],
-      ['/settings', 'page-Settings'],
+      [`${ORG_BASE}/dms`, 'page-DMs'],
+      [`${ORG_BASE}/dms/01HXXX`, 'page-DMDetail'],
+      [`${ORG_BASE}/issues`, 'page-Issues'],
+      [`${ORG_BASE}/issues/01HXXX`, 'page-IssueDetail'],
+      [`${ORG_BASE}/tasks`, 'page-Tasks'],
+      [`${ORG_BASE}/tasks/01HXXX`, 'page-TaskDetail'],
+      [`${ORG_BASE}/tasks/01HXXX/trace`, 'page-TaskTrace'],
+      [`${ORG_BASE}/agents`, 'page-Agents'],
+      [`${ORG_BASE}/agents/worker-1`, 'page-AgentDetail'],
+      [`${ORG_BASE}/projects`, 'page-Projects'],
+      [`${ORG_BASE}/projects/proj-a`, 'page-ProjectDetail'],
+      [`${ORG_BASE}/inputrequests`, 'page-InputRequests'],
+      [`${ORG_BASE}/secrets`, 'page-Secrets'],
+      [`${ORG_BASE}/fleet`, 'page-Fleet'],
+      [`${ORG_BASE}/settings`, 'page-Settings'],
     ];
     for (const [path, testId] of cases) {
       const { unmount } = renderAppAt(path);
@@ -76,16 +78,16 @@ describe('App shell + route tree', () => {
   });
 
   it('falls back to the 404 page with a nav link home', async () => {
-    await renderAt('/definitely-not-a-route');
+    await renderAt(`${ORG_BASE}/definitely-not-a-route`);
     await waitFor(() => {
       expect(screen.getByTestId('page-NotFound')).toBeInTheDocument();
     });
     const home = screen.getByTestId('nav-home');
-    expect(home).toHaveAttribute('href', '/channels');
+    expect(home).toHaveAttribute('href', '/');
   });
 
   it('renders the sidebar nav with the 7 sections', async () => {
-    await renderAt('/channels');
+    await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => {
       expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
     });

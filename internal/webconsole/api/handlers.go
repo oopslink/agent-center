@@ -14,8 +14,8 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	"github.com/oopslink/agent-center/internal/conversation/identity"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -128,6 +128,27 @@ type HandlerDeps struct {
 	AdminTokenSvc      *admintokensvc.Service
 	EnrollBootstrapHost string
 	EnrollFingerprint   string
+
+	// v2.6-FE-1: Auth services for signup / signin / signout / me endpoints.
+	// All are optional; nil means auth is unconfigured (middleware passthrough).
+	SignupSvc  *identity.SignupService
+	SigninSvc  *identity.SigninService
+	SignoutSvc *identity.SignoutService
+	AuthSvc    *identity.AuthService
+
+	// v2.6-FE-5: Passcode change service for PATCH /api/auth/me/passcode.
+	PasscodeChangeSvc *identity.PasscodeChangeService
+
+	// v2.6-FE-3: Organization management services for org switcher + CRUD.
+	OrgRepo         identity.OrganizationRepository
+	OrgCreateSvc    *identity.OrganizationCreateService
+	OrgLifecycleSvc *identity.OrganizationLifecycleService
+
+	// v2.6-FE-4: Member management services.
+	MemberRepo          identity.MemberRepository
+	MemberAddSvc        *identity.MemberAddService
+	MemberRoleChangeSvc *identity.MemberRoleChangeService
+	MemberDisableSvc    *identity.MemberDisableService
 }
 
 // hd retrieves the typed dep bag from the request context.
@@ -138,13 +159,15 @@ func hd(r *http.Request) HandlerDeps {
 
 type depsKey struct{}
 
-// WithDeps installs the dep bag into the request context. Use as
-// middleware around all handlers.
+// WithDeps installs the dep bag into the request context and chains the
+// JWT auth middleware for /api/* routes (exempt: /api/health, /api/auth/*).
 func WithDeps(deps HandlerDeps) func(http.Handler) http.Handler {
+	auth := authMiddleware(deps)
 	return func(next http.Handler) http.Handler {
+		withAuth := auth(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), depsKey{}, deps)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			withAuth.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -1599,7 +1622,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
-		errors.Is(err, identity.ErrIdentityNotFound),
 		errors.Is(err, workforce.ErrAgentInstanceNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
 		errors.Is(err, inputrequest.ErrInputRequestNotFound):

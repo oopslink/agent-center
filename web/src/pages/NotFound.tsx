@@ -12,14 +12,11 @@ export default function NotFound(): React.ReactElement {
       </p>
       <div className="space-x-3">
         <Link
-          to="/channels"
+          to="/"
           className="text-accent hover:underline"
           data-testid="nav-home"
         >
-          Back to channels
-        </Link>
-        <Link to="/fleet" className="text-accent hover:underline">
-          Fleet overview
+          Back to home
         </Link>
       </div>
     </section>

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/conversation/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -869,7 +868,6 @@ func TestMapDomainError_Matrix(t *testing.T) {
 	}{
 		{conversation.ErrConversationNotFound, 404},
 		{conversation.ErrMessageNotFound, 404},
-		{identity.ErrIdentityNotFound, 404},
 		{workforce.ErrAgentInstanceNotFound, 404},
 		{secretmgmt.ErrUserSecretNotFound, 404},
 		{inputrequest.ErrInputRequestNotFound, 404},

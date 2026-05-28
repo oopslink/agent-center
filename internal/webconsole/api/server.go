@@ -115,6 +115,26 @@ func (s *Server) routes() {
 	// Health + version (utility endpoints, not in plan but useful).
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
 
+	// v2.6-FE-1: Auth endpoints — exempt from the JWT middleware.
+	s.mux.HandleFunc("POST /api/auth/signup", s.signupHandler)
+	s.mux.HandleFunc("POST /api/auth/signin", s.signinHandler)
+	s.mux.HandleFunc("POST /api/auth/signout", s.signoutHandler)
+	s.mux.HandleFunc("GET /api/auth/me", s.meHandler)
+	// v2.6-FE-5: Passcode change (requires auth cookie).
+	s.mux.HandleFunc("PATCH /api/auth/me/passcode", s.changePasscodeHandler)
+
+	// v2.6-FE-3: Organization CRUD.
+	s.mux.HandleFunc("GET /api/orgs", s.listOrgsHandler)
+	s.mux.HandleFunc("POST /api/orgs", s.createOrgHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{id}", s.deleteOrgHandler)
+
+	// v2.6-FE-4: Member management.
+	s.mux.HandleFunc("GET /api/members", s.listMembersHandler)
+	s.mux.HandleFunc("POST /api/members", s.addMemberHandler)
+	s.mux.HandleFunc("PATCH /api/members/{id}/role", s.changeMemberRoleHandler)
+	s.mux.HandleFunc("POST /api/members/{id}/disable", s.disableMemberHandler)
+	s.mux.HandleFunc("POST /api/members/{id}/reenable", s.reEnableMemberHandler)
+
 	// Conversations.
 	s.mux.HandleFunc("GET /api/conversations", s.listConversationsHandler)
 	s.mux.HandleFunc("POST /api/conversations", s.createConversationHandler)

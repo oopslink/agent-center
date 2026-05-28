@@ -12,7 +12,6 @@ import (
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/conversation/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
@@ -48,20 +47,12 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	convRepo := convsqlite.NewConversationRepo(db)
 	msgRepo := convsqlite.NewMessageRepo(db)
 	refRepo := convsqlite.NewReferenceRepo(db)
-	idRepo := identity.NewSQLiteIdentityRepo(db)
-	idReg := identity.NewRegistrationService(db, idRepo, sink, gen, clk)
-	if err := idReg.EnsureSystemIdentity(ctx, observability.Actor("system")); err != nil {
-		t.Fatal(err)
-	}
 	writer := convservice.NewMessageWriter(db, convRepo, msgRepo, sink, gen, clk)
 	chSvc := convservice.NewChannelManagementService(db, convRepo, sink, gen, clk)
 	pSvc := convservice.NewParticipantManagementService(db, convRepo, sink, clk)
 	coSvc := convservice.NewCarryOverService(db, convRepo, msgRepo, refRepo, sink, gen, clk)
 	rsRepo := convsqlite.NewReadStateRepo(db)
 	rsSvc := convservice.NewReadStateService(db, rsRepo, msgRepo, sink, clk)
-	_, _ = idReg.RegisterIdentity(ctx, identity.RegisterIdentityCommand{
-		ID: "user:hayang", DisplayName: "Hayang", Actor: observability.Actor("system"),
-	})
 	// Query svc with minimal deps; covers /api/tasks/{id}/trace endpoint.
 	querySvc := query.NewService(query.Deps{Events: er})
 	fleetSvc := query.NewFleetSnapshotService(query.Deps{Events: er})

@@ -2,6 +2,11 @@ import type React from 'react';
 import { lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './AppLayout';
+import { OrgGuard, OrgRedirect } from './OrgContext';
+
+// Auth pages render outside AppLayout (no nav/sidebar).
+const Signup = lazy(() => import('./pages/Signup'));
+const Signin = lazy(() => import('./pages/Signin'));
 
 // All pages are lazy-loaded so the initial bundle stays small and each
 // route ships as its own chunk (per F3 oversight #3). The Suspense
@@ -24,35 +29,59 @@ const InputRequests = lazy(() => import('./pages/InputRequests'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Fleet = lazy(() => import('./pages/Fleet'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Me = lazy(() => import('./pages/Me'));
+const OrgSettings = lazy(() => import('./pages/OrgSettings'));
+const MembersHumans = lazy(() => import('./pages/MembersHumans'));
+const MembersAgents = lazy(() => import('./pages/MembersAgents'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 export function App(): React.ReactElement {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<AppLayout />}>
-          {/* v2.3 P3: `/` is the Home / Overview dashboard. Previously
-              redirected straight to /channels. */}
+        {/* Auth routes — rendered outside AppLayout (no nav/sidebar). */}
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/signin" element={<Signin />} />
+
+        {/* Legacy root redirect → first org home (v2.6-FE-6) */}
+        <Route index element={<OrgRedirect />} />
+
+        {/* /organizations/:slug — all org-scoped routes */}
+        <Route
+          path="/organizations/:slug"
+          element={
+            <OrgGuard>
+              <AppLayout />
+            </OrgGuard>
+          }
+        >
           <Route index element={<Home />} />
-          <Route path="/channels" element={<Channels />} />
-          <Route path="/channels/:name" element={<ChannelDetail />} />
-          <Route path="/dms" element={<DMs />} />
-          <Route path="/dms/:id" element={<DMDetail />} />
-          <Route path="/issues" element={<Issues />} />
-          <Route path="/issues/:id" element={<IssueDetail />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/tasks/:id" element={<TaskDetail />} />
-          <Route path="/tasks/:id/trace" element={<TaskTrace />} />
-          <Route path="/agents" element={<Agents />} />
-          <Route path="/agents/:name" element={<AgentDetail />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/inputrequests" element={<InputRequests />} />
-          <Route path="/secrets" element={<Secrets />} />
-          <Route path="/fleet" element={<Fleet />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="channels" element={<Channels />} />
+          <Route path="channels/:name" element={<ChannelDetail />} />
+          <Route path="dms" element={<DMs />} />
+          <Route path="dms/:id" element={<DMDetail />} />
+          <Route path="issues" element={<Issues />} />
+          <Route path="issues/:id" element={<IssueDetail />} />
+          <Route path="tasks" element={<Tasks />} />
+          <Route path="tasks/:id" element={<TaskDetail />} />
+          <Route path="tasks/:id/trace" element={<TaskTrace />} />
+          <Route path="agents" element={<Agents />} />
+          <Route path="agents/:name" element={<AgentDetail />} />
+          <Route path="projects" element={<Projects />} />
+          <Route path="projects/:id" element={<ProjectDetail />} />
+          <Route path="inputrequests" element={<InputRequests />} />
+          <Route path="secrets" element={<Secrets />} />
+          <Route path="fleet" element={<Fleet />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="me" element={<Me />} />
+          <Route path="org/settings" element={<OrgSettings />} />
+          <Route path="members/humans" element={<MembersHumans />} />
+          <Route path="members/agents" element={<MembersAgents />} />
           <Route path="*" element={<NotFound />} />
         </Route>
+
+        {/* Legacy paths without org prefix — redirect to first org */}
+        <Route path="*" element={<OrgRedirect />} />
       </Routes>
     </BrowserRouter>
   );
