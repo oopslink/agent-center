@@ -101,6 +101,73 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	}
 }
 
+// TestPM_FlatProjectLifecycle covers the flat /api/projects surface that the
+// retired Workforce project routes were repointed to in B3-c: create → list →
+// get → update (rename/describe) → archive (DELETE = lifecycle, not hard
+// delete). This keeps the previously-removed ListProjects/ShowProject coverage
+// from going naked now that those routes serve the pm Service.
+func TestPM_FlatProjectLifecycle(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	// Create via HTTP (caller becomes owner member).
+	resp := orgScopedPost(t, s.URL+"/api/projects", `{"name":"Acme","description":"d1"}`, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("create status=%d body=%s", resp.StatusCode, b)
+	}
+	var created map[string]any
+	json.NewDecoder(resp.Body).Decode(&created)
+	pid, _ := created["id"].(string)
+	if pid == "" || created["status"] != "active" {
+		t.Fatalf("unexpected create body: %+v", created)
+	}
+
+	// List → contains the new project.
+	resp = orgScopedGet(t, s.URL+"/api/projects", sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("list status=%d", resp.StatusCode)
+	}
+	var listed struct {
+		Projects []map[string]any `json:"projects"`
+	}
+	json.NewDecoder(resp.Body).Decode(&listed)
+	if len(listed.Projects) != 1 || listed.Projects[0]["id"] != pid {
+		t.Fatalf("list did not return created project: %+v", listed.Projects)
+	}
+
+	// Get by id.
+	resp = orgScopedGet(t, s.URL+"/api/projects/"+pid, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("get status=%d", resp.StatusCode)
+	}
+
+	// Update (rename + describe).
+	resp = orgScopedPatch(t, s.URL+"/api/projects/"+pid, `{"name":"Acme2","description":"d2"}`, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("update status=%d body=%s", resp.StatusCode, b)
+	}
+	var updated map[string]any
+	json.NewDecoder(resp.Body).Decode(&updated)
+	if updated["name"] != "Acme2" || updated["description"] != "d2" {
+		t.Fatalf("update not applied: %+v", updated)
+	}
+
+	// Archive (DELETE = lifecycle active→archived).
+	resp = orgScopedDelete(t, s.URL+"/api/projects/"+pid, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("archive status=%d", resp.StatusCode)
+	}
+	resp = orgScopedGet(t, s.URL+"/api/projects/"+pid, sess)
+	json.NewDecoder(resp.Body).Decode(&created)
+	if created["status"] != "archived" {
+		t.Fatalf("project not archived: %+v", created)
+	}
+}
+
 // TestPM_Gating covers the org+project membership gate: an org member who is
 // NOT a project member is rejected (403), and an unknown/foreign project is 404.
 func TestPM_Gating(t *testing.T) {

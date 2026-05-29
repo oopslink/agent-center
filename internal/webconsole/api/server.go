@@ -152,55 +152,27 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/conversations/{id}/participants", s.inviteParticipantHandler)
 	s.mux.HandleFunc("DELETE /api/conversations/{id}/participants/{identity_id}", s.removeParticipantHandler)
 
-	// Derivation entry points (CV4) — POST /api/issues + POST /api/tasks
-	// also branch to open-from-scratch / create-from-scratch when
-	// source_conversation_id is empty (v2.5.x #61 + #62).
-	s.mux.HandleFunc("POST /api/issues", s.postIssueHandler)
-	s.mux.HandleFunc("POST /api/tasks", s.postTaskHandler)
-
-	// v2.5.x #61 — Issue mutation surface (Conclude).
-	s.mux.HandleFunc("POST /api/issues/{id}/conclude", s.concludeIssueHandler)
-
-	// v2.5.x #64 — Issue Edit + Reopen.
-	s.mux.HandleFunc("PATCH /api/issues/{id}", s.updateIssueHandler)
-	s.mux.HandleFunc("POST /api/issues/{id}/reopen", s.reopenIssueHandler)
-
-	// v2.5.x #62 — Task lifecycle mutation surface (Suspend / Resume /
-	// Abandon). v2.5.x #65 adds Edit (PATCH metadata) on top.
-	s.mux.HandleFunc("POST /api/tasks/{id}/suspend", s.suspendTaskHandler)
-	s.mux.HandleFunc("POST /api/tasks/{id}/resume", s.resumeTaskHandler)
-	s.mux.HandleFunc("POST /api/tasks/{id}/abandon", s.abandonTaskHandler)
-	s.mux.HandleFunc("PATCH /api/tasks/{id}", s.updateTaskHandler)
-	// v2.5.16 (#69) — late-bind a Conversation to a Task that was
-	// created without one. Wraps TaskService.BindConversation in auto
-	// mode (creates + binds in one tx).
-	s.mux.HandleFunc("POST /api/tasks/{id}/bind-conversation", s.bindTaskConversationHandler)
-
-	// BC-native list + detail reads (v2.3-5a). Issue projection lives
-	// in Discussion BC; Task projection lives in TaskRuntime BC. SPA
-	// #5b switches to these in place of `GET /api/conversations?kind=...`.
-	s.mux.HandleFunc("GET /api/issues", s.listIssuesHandler)
-	s.mux.HandleFunc("GET /api/issues/{id}", s.showIssueHandler)
-	s.mux.HandleFunc("GET /api/tasks", s.listTasksHandler)
-	s.mux.HandleFunc("GET /api/tasks/{id}", s.showTaskHandler)
+	// v2.7 B3-c: the legacy flat Issue/Task HTTP surface (Discussion +
+	// TaskRuntime BCs, derive-from-message per ADR-0036) is RETIRED. Issues and
+	// Tasks are now ProjectManager work items, exposed only under the nested
+	// /api/projects/{project_id}/{issues,tasks} routes below. (The old handler
+	// methods remain as dead code pending a follow-up BC removal; they are no
+	// longer routed.)
 
 	// Input requests.
 	s.mux.HandleFunc("GET /api/input_requests", s.listInputRequestsHandler)
 	s.mux.HandleFunc("POST /api/input_requests/{id}/respond", s.respondInputRequestHandler)
 	s.mux.HandleFunc("POST /api/input_requests/{id}/cancel", s.cancelInputRequestHandler)
 
-	// Projects (read-only; CRUD verbs go through CLI per ADR-0029).
-	// Powers DeriveModal project picker (v2.1-A) + /projects list +
-	// /projects/{id} detail surfaces (v2.3-4).
-	s.mux.HandleFunc("GET /api/projects", s.listProjectsHandler)
-	s.mux.HandleFunc("GET /api/projects/{id}", s.showProjectHandler)
-	// v2.5.3 (#58): Project CRUD UI.
-	s.mux.HandleFunc("POST /api/projects", s.createProjectHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{id}", s.updateProjectHandler)
-	s.mux.HandleFunc("DELETE /api/projects/{id}", s.deleteProjectHandler)
-	s.mux.HandleFunc("GET /api/projects/{id}/workers", s.listProjectMappingsHandler)
-	s.mux.HandleFunc("POST /api/projects/{id}/workers", s.createProjectMappingHandler)
-	s.mux.HandleFunc("DELETE /api/projects/{id}/workers/{mapping_id}", s.deleteProjectMappingHandler)
+	// Projects — v2.7 B3-c: repointed to the ProjectManager BC (ADR-0046).
+	// The legacy Workforce project routes + worker↔project mapping routes are
+	// retired (worker↔project is now transitive: Project→Task→AgentWorkItem→
+	// Worker). Project is the work-management truth; CRUD is org-scoped.
+	s.mux.HandleFunc("GET /api/projects", s.pmListProjectsHandler)
+	s.mux.HandleFunc("POST /api/projects", s.pmCreateProjectHandler)
+	s.mux.HandleFunc("GET /api/projects/{project_id}", s.pmGetProjectHandler)
+	s.mux.HandleFunc("PATCH /api/projects/{project_id}", s.pmUpdateProjectHandler)
+	s.mux.HandleFunc("DELETE /api/projects/{project_id}", s.pmArchiveProjectHandler)
 
 	// v2.7 B3 ProjectManager nested routes (ADR-0046). Project-owned resources
 	// nest under /api/projects/{project_id}/... so membership gating is uniform

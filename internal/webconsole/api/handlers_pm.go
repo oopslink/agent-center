@@ -171,6 +171,45 @@ func (s *Server) pmGetProjectHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pmProjectMap(p))
 }
 
+func (s *Server) pmUpdateProjectHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.UpdateProject(r.Context(), pmservice.UpdateProjectCommand{
+		ProjectID: p.ID(), Name: req.Name, Description: req.Description, Actor: caller,
+	}); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetProject(r.Context(), p.ID())
+	writeJSON(w, http.StatusOK, pmProjectMap(got))
+}
+
+// pmArchiveProjectHandler handles DELETE /api/projects/{project_id} as a
+// lifecycle archive (active→archived), NOT a hard delete.
+func (s *Server) pmArchiveProjectHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.ArchiveProject(r.Context(), p.ID(), caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "archived"})
+}
+
 // --- Members (nested) -------------------------------------------------------
 
 func (s *Server) pmListMembersHandler(w http.ResponseWriter, r *http.Request) {
