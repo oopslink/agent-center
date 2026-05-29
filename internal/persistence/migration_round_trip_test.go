@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 32 || v2 != 32 {
-		t.Fatalf("Version after Up: got (%d, %d) want (32, 32)", v1, v2)
+	if v1 != 36 || v2 != 36 {
+		t.Fatalf("Version after Up: got (%d, %d) want (36, 36)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
@@ -257,9 +257,12 @@ func TestMigration_0026_UserConvReadStateShape(t *testing.T) {
 // after seeding rows with v1 enum values, the relevant migration must
 // either delete them (identities.kind ∉ {user,agent,system} → 0021) or
 // rename them (conversations.kind='group_thread' → 'channel' via 0024).
-// We seed v1-shaped rows before the v2 migrations run, then verify the
-// post-Up state matches v2 invariants. This protects the future S12
-// v1→v2 migration tool's contract.
+//
+// Note: v2.6 migration 0033 drops and recreates identities with the BC9 schema
+// (no backward compat per v2.6-design § 9). Seeded v1 identity rows do NOT
+// survive — this is expected (fresh install required for v2.6). The test now
+// verifies conversations.kind cleanup only, plus that the v2.6 identities
+// schema has the expected columns (kind IN ('user','agent')).
 func TestMigrations_V1KindValuesAbsent(t *testing.T) {
 	db, err := Open(t.TempDir() + "/kinds.db")
 	if err != nil {
@@ -284,13 +287,10 @@ func TestMigrations_V1KindValuesAbsent(t *testing.T) {
 		t.Fatalf("seed precondition: Version=%d want 6", v)
 	}
 
-	// Seed v1-shaped rows. identities here still has the v1 kinds
-	// (supervisor/bot) and conversations still uses 'group_thread'.
+	// Seed v1-shaped rows. conversations still uses 'group_thread'.
+	// Note: we no longer seed identities rows because 0033 drops the table;
+	// the seeded data would be lost (expected by design, fresh install required).
 	seedRows := []string{
-		`INSERT INTO identities (id, kind, display_name, created_at, updated_at)
-		 VALUES ('user:alice', 'user', 'alice', '2026-05-24T00:00:00Z', '2026-05-24T00:00:00Z'),
-		        ('supervisor:s1', 'supervisor', 'sup', '2026-05-24T00:00:00Z', '2026-05-24T00:00:00Z'),
-		        ('bot:b1', 'bot', 'bot', '2026-05-24T00:00:00Z', '2026-05-24T00:00:00Z')`,
 		// conversations on v1 schema: title + primary_channel_hint + kind='group_thread'
 		`INSERT INTO conversations (id, kind, status, title, primary_channel_hint, primary_channel_thread_key, opened_at, created_at, updated_at, version)
 		 VALUES ('c1', 'group_thread', 'open', 'legacy', 'feishu', 'tk-1', '2026-05-24T00:00:00Z', '2026-05-24T00:00:00Z', '2026-05-24T00:00:00Z', 1)`,
@@ -301,20 +301,26 @@ func TestMigrations_V1KindValuesAbsent(t *testing.T) {
 		}
 	}
 
-	// Roll forward to v2.
+	// Roll forward to v2.6.
 	if err := mig.Up(ctx); err != nil {
-		t.Fatalf("Up to v2: %v", err)
+		t.Fatalf("Up to v2.6: %v", err)
 	}
 
-	// identities should have lost the v1 kinds.
-	got := scanStringSet(t, db, `SELECT kind FROM identities`)
-	for _, banned := range []string{"supervisor", "bot"} {
-		if got[banned] {
-			t.Fatalf("identities.kind=%q must be deleted by 0021 (got rows)", banned)
+	// v2.6: identities table is recreated by 0033 with BC9 schema.
+	// Verify the table exists with the correct kind CHECK constraint by
+	// inserting a valid row and checking it round-trips.
+	cols := scanStringSet(t, db, `SELECT name FROM pragma_table_info('identities')`)
+	for _, required := range []string{"id", "kind", "display_name", "account_status", "passcode_hash"} {
+		if !cols[required] {
+			t.Fatalf("identities table missing expected column %q (got %v)", required, cols)
 		}
 	}
-	if !got["user"] {
-		t.Fatalf("identities.kind='user' rows must survive (got %v)", got)
+	// No v1 banned kinds (supervisor/bot) should appear in the CHECK constraint.
+	// We verify by attempting to insert and expecting failure.
+	_, insertErr := db.ExecContext(ctx,
+		`INSERT INTO identities (id, kind, display_name, created_at, updated_at) VALUES ('x','supervisor','x','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`)
+	if insertErr == nil {
+		t.Fatal("expected error inserting kind='supervisor' into v2.6 identities (CHECK constraint should reject)")
 	}
 
 	// conversations.kind should have been renamed.

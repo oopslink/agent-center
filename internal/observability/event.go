@@ -83,6 +83,9 @@ func (a Actor) Validate() error {
 // Add fields here as Phase 2+ needs them. JSON marshaller is omitempty-
 // safe: empty struct serialises to `{}`.
 type EventRefs struct {
+	IdentityID       string `json:"identity_id,omitempty"`
+	OrganizationID   string `json:"organization_id,omitempty"`
+	MemberID         string `json:"member_id,omitempty"`
 	WorkerID         string `json:"worker_id,omitempty"`
 	ProjectID        string `json:"project_id,omitempty"`
 	ProposalID       string `json:"proposal_id,omitempty"`

@@ -24,6 +24,7 @@ type Project struct {
 	createdAt           time.Time
 	updatedAt           time.Time
 	version             int
+	organizationID      string
 }
 
 // NewProjectInput captures the constructor arguments.
@@ -34,6 +35,7 @@ type NewProjectInput struct {
 	Tags                []string
 	CreatedByIdentityID string
 	CreatedAt           time.Time
+	OrganizationID      string
 }
 
 // NewProject constructs a fresh Project with version=1.
@@ -59,6 +61,7 @@ func NewProject(in NewProjectInput) (*Project, error) {
 		createdAt:           in.CreatedAt.UTC(),
 		updatedAt:           in.CreatedAt.UTC(),
 		version:             1,
+		organizationID:      in.OrganizationID,
 	}, nil
 }
 
@@ -72,6 +75,7 @@ type RehydrateProjectInput struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	Version             int
+	OrganizationID      string
 }
 
 // RehydrateProject reconstructs without re-validating the id (so legacy
@@ -92,6 +96,7 @@ func RehydrateProject(in RehydrateProjectInput) (*Project, error) {
 		createdAt:           in.CreatedAt.UTC(),
 		updatedAt:           in.UpdatedAt.UTC(),
 		version:             in.Version,
+		organizationID:      in.OrganizationID,
 	}, nil
 }
 
@@ -105,6 +110,7 @@ func (p *Project) CreatedByIdentityID() string { return p.createdByIdentityID }
 func (p *Project) CreatedAt() time.Time        { return p.createdAt }
 func (p *Project) UpdatedAt() time.Time        { return p.updatedAt }
 func (p *Project) Version() int                { return p.version }
+func (p *Project) OrganizationID() string      { return p.organizationID }
 
 // ProjectUpdateFields aggregates the legal Update changes
 // (workforce/00 § 5.4). v2.5.5 dropped Kind / DefaultAgentCLI and

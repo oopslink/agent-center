@@ -331,21 +331,15 @@ func TestInspect_InputRequest(t *testing.T) {
 	}
 }
 
-func TestInspect_Supervisor_Decision_Phase6Stub(t *testing.T) {
+// TestInspect_Supervisor_Decision_Removed verifies that supervisor/decision
+// inspect kinds return an error in v2.6 (both were removed in BE-9).
+func TestInspect_Supervisor_Decision_Removed(t *testing.T) {
 	env := newQEnv(t)
-	r, err := env.svc.Inspect(context.Background(), "supervisor", "S-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r.Data.(map[string]any)["available_in_phase"] != 6 {
-		t.Fatal("supervisor stub missing phase tag")
-	}
-	r, err = env.svc.Inspect(context.Background(), "decision", "D-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r.Data.(map[string]any)["available_in_phase"] != 6 {
-		t.Fatal("decision stub missing phase tag")
+	for _, kind := range []string{"supervisor", "decision"} {
+		_, err := env.svc.Inspect(context.Background(), kind, "X-1")
+		if err == nil {
+			t.Fatalf("inspect %q: expected error for removed kind, got nil", kind)
+		}
 	}
 }
 
@@ -488,14 +482,12 @@ func TestQuery_Events_LimitTooLarge(t *testing.T) {
 	}
 }
 
-func TestQuery_Decisions_Phase6Empty(t *testing.T) {
+// TestQuery_Decisions_Removed verifies that "decisions" returns an error in v2.6.
+func TestQuery_Decisions_Removed(t *testing.T) {
 	env := newQEnv(t)
-	res, err := env.svc.Query(context.Background(), "decisions", query.QueryFilter{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Items) != 0 {
-		t.Fatalf("expected empty, got %d", len(res.Items))
+	_, err := env.svc.Query(context.Background(), "decisions", query.QueryFilter{})
+	if err == nil {
+		t.Fatal("expected error for removed 'decisions' resource, got nil")
 	}
 }
 

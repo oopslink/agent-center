@@ -40,8 +40,8 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 		participants, created_by,
 		status, opened_at, closed_at, closed_reason, closed_message,
 		archived_at, archived_by,
-		created_at, updated_at, version
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		created_at, updated_at, version, organization_id
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(c.ID()),
 		string(c.Kind()),
@@ -60,6 +60,7 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 		c.CreatedAt().Format(time.RFC3339Nano),
 		c.UpdatedAt().Format(time.RFC3339Nano),
 		c.Version(),
+		c.OrganizationID(),
 	)
 	if err != nil {
 		if isUniqueConstraint(err) {
@@ -95,6 +96,10 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 	if filter.Status != nil {
 		sb.WriteString(` AND status = ?`)
 		args = append(args, string(*filter.Status))
+	}
+	if filter.OrganizationID != "" {
+		sb.WriteString(` AND organization_id = ?`)
+		args = append(args, filter.OrganizationID)
 	}
 	if filter.Cursor != nil {
 		sb.WriteString(` AND id > ?`)
@@ -240,7 +245,7 @@ const convSelect = `SELECT id, kind, name, description, parent_conversation_id,
 	participants, created_by,
 	status, opened_at, closed_at, closed_reason, closed_message,
 	archived_at, archived_by,
-	created_at, updated_at, version
+	created_at, updated_at, version, organization_id
 	FROM conversations`
 
 func scanConversation(scan func(...any) error) (*conversation.Conversation, error) {
@@ -257,12 +262,13 @@ func scanConversation(scan func(...any) error) (*conversation.Conversation, erro
 		archivedBy                                    sql.NullString
 		createdAt, updatedAt                          string
 		version                                       int
+		organizationID                                string
 	)
 	if err := scan(&id, &kind, &name, &description, &parent,
 		&participantsJSON, &createdBy,
 		&status, &openedAt, &closedAt, &closedReason, &closedMessage,
 		&archivedAt, &archivedBy,
-		&createdAt, &updatedAt, &version); err != nil {
+		&createdAt, &updatedAt, &version, &organizationID); err != nil {
 		return nil, err
 	}
 	op, err := time.Parse(time.RFC3339Nano, openedAt)
@@ -307,6 +313,7 @@ func scanConversation(scan func(...any) error) (*conversation.Conversation, erro
 		CreatedAt:            cr,
 		UpdatedAt:            up,
 		Version:              version,
+		OrganizationID:       organizationID,
 	})
 }
 

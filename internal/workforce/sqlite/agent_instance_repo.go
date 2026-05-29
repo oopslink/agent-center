@@ -22,7 +22,7 @@ func NewAgentInstanceRepo(db *sql.DB) *AgentInstanceRepo {
 }
 
 const agentInstanceSelect = `SELECT id, name, agent_cli, worker_id, config, max_concurrent,
-	state, is_builtin, created_at, archived_at, archived_reason, archived_message, version
+	state, is_builtin, identity_id, organization_id, kind, created_at, archived_at, archived_reason, archived_message, version
 	FROM agent_instances`
 
 // Save inserts a fresh row.
@@ -37,8 +37,9 @@ func (r *AgentInstanceRepo) Save(ctx context.Context, a *workforce.AgentInstance
 	}
 	const stmt = `INSERT INTO agent_instances (
 		id, name, agent_cli, worker_id, config, max_concurrent,
-		state, is_builtin, created_at, archived_at, archived_reason, archived_message, version
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		state, is_builtin, identity_id, organization_id, kind,
+		created_at, archived_at, archived_reason, archived_message, version
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err := exec.ExecContext(ctx, stmt,
 		string(a.ID()),
 		a.Name(),
@@ -48,6 +49,9 @@ func (r *AgentInstanceRepo) Save(ctx context.Context, a *workforce.AgentInstance
 		nullInt(a.MaxConcurrent()),
 		string(a.State()),
 		isBuiltin,
+		a.IdentityID(),
+		a.OrganizationID(),
+		a.Kind(),
 		a.CreatedAt().Format(time.RFC3339Nano),
 		nullTimePtr(a.ArchivedAt()),
 		nullString(string(a.ArchivedReason())),
@@ -113,6 +117,10 @@ func (r *AgentInstanceRepo) FindAll(ctx context.Context, filter workforce.AgentI
 		}
 		q += ` AND is_builtin = ?`
 		args = append(args, v)
+	}
+	if filter.OrganizationID != "" {
+		q += ` AND organization_id = ?`
+		args = append(args, filter.OrganizationID)
 	}
 	q += ` ORDER BY created_at ASC`
 	rows, err := exec.QueryContext(ctx, q, args...)
@@ -282,6 +290,9 @@ func scanAgentInstance(scan func(...any) error) (*workforce.AgentInstance, error
 		maxConcurrent   sql.NullInt64
 		state           string
 		isBuiltin       int
+		identityID      string
+		organizationID  string
+		kind            string
 		createdAt       string
 		archivedAt      sql.NullString
 		archivedReason  sql.NullString
@@ -289,7 +300,8 @@ func scanAgentInstance(scan func(...any) error) (*workforce.AgentInstance, error
 		version         int
 	)
 	if err := scan(&id, &name, &agentCLI, &workerID, &config, &maxConcurrent,
-		&state, &isBuiltin, &createdAt, &archivedAt, &archivedReason, &archivedMessage, &version); err != nil {
+		&state, &isBuiltin, &identityID, &organizationID, &kind,
+		&createdAt, &archivedAt, &archivedReason, &archivedMessage, &version); err != nil {
 		return nil, err
 	}
 	created, err := time.Parse(time.RFC3339Nano, createdAt)
@@ -319,6 +331,9 @@ func scanAgentInstance(scan func(...any) error) (*workforce.AgentInstance, error
 		MaxConcurrent:   maxConcurrentPtr,
 		State:           workforce.AgentInstanceState(state),
 		IsBuiltin:       isBuiltin == 1,
+		IdentityID:      identityID,
+		OrganizationID:  organizationID,
+		Kind:            kind,
 		CreatedAt:       created,
 		ArchivedAt:      archived,
 		ArchivedReason:  workforce.AgentInstanceArchivedReason(archivedReason.String),

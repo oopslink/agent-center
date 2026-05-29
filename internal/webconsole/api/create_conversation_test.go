@@ -206,12 +206,13 @@ func TestAPI_CreateConversation_Channel_ChannelSvcNotWired(t *testing.T) {
 }
 
 func TestAPI_ListRefs_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
 	// Seed: source conv with one message, then materialise a carry-over
-	// into a new child conv.
+	// into a new child conv (both in the caller's org).
 	src, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "src-refs", CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: "src-refs", OrganizationID: sess.OrgID, CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
 	addMsg, _ := deps.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
 		ConversationID:   src.ConversationID,
@@ -223,7 +224,7 @@ func TestAPI_ListRefs_Happy(t *testing.T) {
 	})
 	child, _ := conversation.NewConversation(conversation.NewConversationInput{
 		ID: "CHILD-REFS", Kind: conversation.ConversationKindIssue,
-		Name: "x", CreatedBy: "user:hayang", OpenedAt: time.Now().UTC(),
+		Name: "x", OrganizationID: sess.OrgID, CreatedBy: "user:hayang", OpenedAt: time.Now().UTC(),
 	})
 	_ = deps.ConvRepo.Save(ctx, child)
 	_, _ = deps.CarryOverSvc.Materialise(ctx, convservice.MaterialiseCommand{
@@ -236,10 +237,7 @@ func TestAPI_ListRefs_Happy(t *testing.T) {
 
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, err := http.Get(s.URL + "/api/conversations/CHILD-REFS/refs")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, s.URL+"/api/conversations/CHILD-REFS/refs", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}

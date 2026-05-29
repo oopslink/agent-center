@@ -82,7 +82,7 @@ func MigrateV1ToV2Command() *Command {
 // this constant when any future migration lands so `migrate v1-to-v2`
 // always carries the install to the latest schema instead of leaving
 // it mid-version.
-const targetSchemaVersion = 32
+const targetSchemaVersion = 36
 
 func runMigrateV1ToV2(
 	ctx context.Context,

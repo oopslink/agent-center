@@ -36,6 +36,7 @@ type Conversation struct {
 	createdAt            time.Time
 	updatedAt            time.Time
 	version              int
+	organizationID       string
 }
 
 // NewConversationInput captures the constructor args.
@@ -48,6 +49,7 @@ type NewConversationInput struct {
 	CreatedBy            IdentityRef
 	OpenedAt             time.Time
 	Participants         []ParticipantElement
+	OrganizationID       string
 }
 
 // NewConversation constructs a fresh active Conversation. Per ADR-0032:
@@ -85,6 +87,7 @@ func NewConversation(in NewConversationInput) (*Conversation, error) {
 		createdAt:            at,
 		updatedAt:            at,
 		version:              1,
+		organizationID:       in.OrganizationID,
 	}, nil
 }
 
@@ -107,6 +110,7 @@ type RehydrateConversationInput struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	Version              int
+	OrganizationID       string
 }
 
 // RehydrateConversation reconstructs without invariant checks.
@@ -139,6 +143,7 @@ func RehydrateConversation(in RehydrateConversationInput) (*Conversation, error)
 		createdAt:            in.CreatedAt.UTC(),
 		updatedAt:            in.UpdatedAt.UTC(),
 		version:              in.Version,
+		organizationID:       in.OrganizationID,
 	}, nil
 }
 
@@ -160,6 +165,7 @@ func (c *Conversation) ArchivedBy() IdentityRef              { return c.archived
 func (c *Conversation) CreatedAt() time.Time                 { return c.createdAt }
 func (c *Conversation) UpdatedAt() time.Time                 { return c.updatedAt }
 func (c *Conversation) Version() int                         { return c.version }
+func (c *Conversation) OrganizationID() string               { return c.organizationID }
 
 // Participants returns a defensive copy of the participants slice.
 func (c *Conversation) Participants() []ParticipantElement {

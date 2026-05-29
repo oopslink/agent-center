@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +24,8 @@ import (
 // helper: spin up an App with a fresh on-disk DB and migration applied.
 func newTestApp(t *testing.T) *App {
 	t.Helper()
-	path := t.TempDir() + "/test.db"
+	dir := t.TempDir()
+	path := dir + "/test.db"
 	db, err := persistence.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -32,11 +35,30 @@ func newTestApp(t *testing.T) *App {
 		t.Fatal(err)
 	}
 	cfg := config.DefaultConfig()
+	// v2.6: master_key_file is required for Identity BC auth + UserSecret.
+	// Tests need a 32-byte key file so AuthSvc / SigninSvc get wired.
+	mkPath := dir + "/master.key"
+	if err := writeTestMasterKey(mkPath); err != nil {
+		t.Fatal(err)
+	}
+	cfg.SecretManagement.MasterKeyFile = mkPath
+	cfg.SecretManagement.SkipPermsCheck = true
 	app, err := NewApp(cfg, db, clock.NewFakeClock(time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return app
+}
+
+// writeTestMasterKey writes a deterministic base64-encoded 32-byte AES key
+// to path for tests. LoadMasterKey expects base64 (matches install flow).
+func writeTestMasterKey(path string) error {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i + 1)
+	}
+	b64 := base64.StdEncoding.EncodeToString(key)
+	return os.WriteFile(path, []byte(b64+"\n"), 0600)
 }
 
 // runHandler exercises a handler built by a *App.WorkerCommands /
@@ -643,17 +665,6 @@ func TestSystemCommands_VersionDevFallback(t *testing.T) {
 	}
 }
 
-func TestSupervisorPlaceholder_Stub(t *testing.T) {
-	cmd := SupervisorPlaceholder()
-	var buf bytes.Buffer
-	code := cmd.Run(context.Background(), nil, io.Discard, &buf)
-	if code != ExitNotImplemented {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(buf.String(), "not_implemented") {
-		t.Fatalf("err: %s", buf.String())
-	}
-}
 
 func TestWorkerRunPlaceholder_Stub(t *testing.T) {
 	cmd := WorkerRunPlaceholder()
@@ -682,7 +693,7 @@ func TestBuildRouter_AddsAllSubcommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"version", "server", "migrate", "supervisor", "admin", "worker", "project", "conversation"} {
+	for _, name := range []string{"version", "server", "migrate", "admin", "worker", "project", "conversation"} {
 		if findSubcommand(router.Root, name) == nil {
 			t.Fatalf("missing top-level command: %s", name)
 		}
@@ -908,7 +919,11 @@ func TestServerCommand_CtxCancelExitsCleanly(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
-	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n")
+	mkPath := dir + "/master.key"
+	if err := writeTestMasterKey(mkPath); err != nil {
+		t.Fatal(err)
+	}
+	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\nsecret_management:\n  master_key_file: '"+mkPath+"'\n  skip_perms_check: true\n")
 
 	// Build the handler directly so we can pass our own ctx.
 	fs := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)

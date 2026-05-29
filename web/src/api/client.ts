@@ -27,9 +27,48 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 type RequestInitWithTimeout = RequestInit & { timeoutMs?: number };
 
+// v2.6-FE-6: paths that must NOT receive auto-injected org_slug. /auth/* runs
+// before org context exists; /orgs is the cross-org meta endpoint.
+const ORG_INJECT_EXEMPT = ['/auth/', '/orgs', '/health'];
+
+function shouldInjectOrgSlug(path: string): boolean {
+  for (const p of ORG_INJECT_EXEMPT) {
+    if (path.startsWith(p)) return false;
+  }
+  return true;
+}
+
+// readCurrentOrgSlug extracts the org slug from /organizations/{slug}/... in
+// the browser URL. Returns null when not on an org-scoped route or in non-
+// browser environments (tests not using jsdom history).
+function readCurrentOrgSlug(): string | null {
+  try {
+    if (typeof window === 'undefined' || !window.location) return null;
+    const m = window.location.pathname.match(/^\/organizations\/([a-z0-9-]+)/);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+// withOrgSlug appends ?org_slug=<current> to a /api path. Exported so the few
+// raw-fetch call sites (AddWorkerModal, Fleet worker actions, InstallCommandModal)
+// that bypass the api client still carry the org scope. Pass an /api-relative
+// path (e.g. "/workers/x/name"); the helper applies the same exemptions as the
+// client's auto-injection.
+export function withOrgSlug(path: string): string {
+  if (!shouldInjectOrgSlug(path)) return path;
+  const slug = readCurrentOrgSlug();
+  if (!slug) return path;
+  // Don't override if caller already set the param.
+  if (path.includes('org_slug=') || path.includes('org_id=')) return path;
+  return path + (path.includes('?') ? '&' : '?') + 'org_slug=' + encodeURIComponent(slug);
+}
+
 export async function request<T>(path: string, init: RequestInitWithTimeout = {}): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, headers, ...rest } = init;
-  const fetchPromise = fetch(`/api${path}`, {
+  const finalPath = withOrgSlug(path);
+  const fetchPromise = fetch(`/api${finalPath}`, {
     ...rest,
     headers: { 'Content-Type': 'application/json', ...(headers ?? {}) },
   }).then(async (resp) => {
@@ -58,7 +97,13 @@ export async function request<T>(path: string, init: RequestInitWithTimeout = {}
       ),
     ]);
   } catch (err) {
-    if (err instanceof ApiError) throw err;
+    if (err instanceof ApiError) {
+      // Redirect to /signin on 401 (except for /auth/* endpoints which handle auth themselves).
+      if (err.status === 401 && !path.startsWith('/auth/')) {
+        window.location.href = '/signin';
+      }
+      throw err;
+    }
     if (err instanceof Error) {
       throw new ApiError(0, 'network_error', err.message);
     }

@@ -8,7 +8,7 @@
 >
 > 跟 [roadmap.md](roadmap.md) 区别：roadmap 是"v1 不做 / 推迟功能"的功能维度 plan；本文档是"DDD 设计深度"的方法论维度 plan。
 
-最后更新：**2026-05-24（v2.0 GA）** — 见 [§ 5 v2.0 GA Status](#-5-v20-ga-status)。早期更新摘要：2026-05-20 立 [ADR-0021](decisions/0039-conversation-business-model-v2-unified.md) Issue ↔ Conversation 1:1 + 推翻 ADR-0009/ADR-0020；P3-P8b 全部完成；v2 周期 P8-P12 把 BC 数从 7 (含 Bridge) 改为 6 + BC8 SecretManagement 新增。
+最后更新：**2026-05-27（v2.6 design phase）** — BC9 Identity carve-out + Organization / Member / Auth；详 [§ 6 v2.6 Design Status](#-6-v26-design-status)。早期摘要：v2.0 GA 2026-05-24 → 见 [§ 5 v2.0 GA Status](#-5-v20-ga-status)。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 概念 | 状态 | 位置 / 说明 |
 |---|---|---|
-| **Bounded Context** | ✅ | [03-bounded-contexts § 2](architecture/strategic/03-bounded-contexts.md#-2-限界上下文bounded-contexts)，7 个 BC（TaskRuntime / Discussion / Workforce / Cognition / Observability / Conversation / ~~Bridge~~（v2 删 per ADR-0031）；BC1 Scheduling + BC4 Execution 合并为 BC1 TaskRuntime，详 [ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)）|
+| **Bounded Context** | ✅ | [03-bounded-contexts § 2](architecture/strategic/03-bounded-contexts.md#-2-限界上下文bounded-contexts)，**8 个 active BC**（TaskRuntime / Discussion / Workforce / Cognition / Observability / Conversation / SecretManagement / **Identity (v2.6 carve-out from Conversation per [ADR-0040](decisions/0040-identity-bc-carve-out.md))**）；~~Bridge 已删 per ADR-0031~~；BC1 Scheduling + BC4 Execution 合并为 BC1 TaskRuntime per [ADR-0019](decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) |
 | **Ubiquitous Language** | ✅ | [03-bounded-contexts § 1](architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language)；conventions § 0 立"统一语言"为方法论根基 |
 | **Context Map** | ✅ | [03-bounded-contexts § 3](architecture/strategic/03-bounded-contexts.md#-3-上下文映射context-map)（图 + 上下游表） |
 | **Subdomain 标注**（Core / Supporting / Generic）| ✅ | [01-subdomain-classification](architecture/strategic/01-subdomain-classification.md)：Core 3 / Supporting-Essential 2 / Supporting-Peripheral 2 / Generic 0 |
@@ -213,18 +213,20 @@ P3 (按聚合骨架重组各 BC 战术文档 + 补 § X.1-X.6 wrap)
 | BC1 TaskRuntime | ✅ v2 (P9-P10 refactor; Conversation v2 1:1 with kind=task) |
 | BC2 Discussion | ✅ v2 (P10 IssueComment unified to Conversation Message per ADR-0039) |
 | BC3 Workforce | ✅ v2 (P8 Worker + AgentInstance + BootstrapToken AR) |
-| BC4 Cognition | ✅ v2 (P8/P9 supervisor as built-in AgentInstance per ADR-0029) |
+| BC4 Cognition | ✅ v2 (P8/P9 supervisor as built-in AgentInstance per ADR-0029) — **v2.6 Supervisor cut per [ADR-0044](decisions/0044-supervisor-cut.md)**，剩 Memory 单 AR |
 | BC5 Observability | ✅ v2 (carried from v1; events table contract unchanged) |
-| BC6 Conversation | ✅ v2 (P10 CV1-CV4: channel first-class + Identity 4→3 + Participants JSON + CarryOver + Derivation) |
+| BC6 Conversation | ✅ v2 (P10 CV1-CV4: channel first-class + Identity 4→3 + Participants JSON + CarryOver + Derivation) — **v2.6 Identity AR 迁出 per [ADR-0040](decisions/0040-identity-bc-carve-out.md)** |
 | ~~BC7 Bridge~~ | ❌ **deleted** in P10 § 3.9 per ADR-0031 |
 | **BC8 SecretManagement** | ✅ **new in v2** (P8 § 3.7-3.8 per ADR-0026; UserSecret AR + SecretRef VO) |
+| **BC9 Identity** | 🚧 **new in v2.6** (Identity + Organization + Member + Invitation AR; per [ADR-0040](decisions/0040-identity-bc-carve-out.md)) |
 
-Total: **6 BCs + BC8 SecretManagement = 7 active** (vs v1's 7 with BC7
-Bridge counted; net headcount same but composition rebalanced).
+Total v2.0 GA: **6 BCs + BC8 SecretManagement = 7 active** (vs v1's 7 with BC7 Bridge counted).
+
+Total v2.6 design: **7 BCs + BC8 + BC9 = 8 active** (BC9 Identity carve-out from Conversation BC).
 
 ### 5.2 ADR landscape (post-S4 promote)
 
-17 v2 ADRs landed Accepted in `decisions/`:
+17 v2.0 ADRs landed Accepted in `decisions/`; 6 v2.6 ADRs draft:
 
 | ADR | Subject | Status |
 |---|---|---|
@@ -233,6 +235,12 @@ Bridge counted; net headcount same but composition rebalanced).
 | 0032-0036 | Conversation v2 (CV1-CV4) | Accepted |
 | 0037-0038 | Web Console + CLI UX | Accepted |
 | 0039 | Conversation v2 unified model (supersedes 0017/0021/0022) | Accepted |
+| **0040** | **Identity BC carve-out (Supersedes 0033)** | **Draft (v2.6)** |
+| **0041** | **Organization concept + multi-tenant schema** | **Draft (v2.6)** |
+| **0042** | **Member AR (Identity↔Organization)** | **Draft (v2.6)** |
+| **0043** | **Auth v2.6 (passcode + JWT cookie, key reuses master_key)** | **Draft (v2.6)** |
+| **0044** | **Supervisor cut (Supersedes 0011/0013/0029)** | **Draft (v2.6)** |
+| **0045** | **Identity ID format (worker-style; Supersedes 0033 §1-2)** | **Draft (v2.6)** |
 
 See [decisions/README.md](decisions/README.md) for the full list. v1
 ADRs 0009 / 0017 / 0020 / 0021 / 0022 are deleted per ADR-0031 (one-
@@ -246,7 +254,57 @@ time exception to the "never delete ADRs" rule).
 
 ---
 
-## § 6. 引用文档
+## § 6. v2.6 Design Status
+
+> 2026-05-27 — v2.6 周期在 `v2.6` 分支推进，design phase 收口中。
+
+### 6.1 主题
+
+- **Identity BC 提升**：从 Conversation BC 抽出 Identity AR；新增 Organization / Member / Invitation 三 AR；详 [ADR-0040](decisions/0040-identity-bc-carve-out.md)
+- **多租户 schema**：所有顶级业务实体加 `organization_id` (A2 决策一次到位)；详 [ADR-0041](decisions/0041-organization-multi-tenant.md)
+- **Auth 引入**：passcode + JWT cookie + signup/signin/logout；密钥复用 master_key；详 [ADR-0043](decisions/0043-auth-passcode-jwt.md)
+- **Supervisor 砍**：BC4 Cognition 瘦身（SupervisorInvocation AR + 5 Domain Services 删）；详 [ADR-0044](decisions/0044-supervisor-cut.md)
+- **Members / Org / Agent / Project / Secret Management UI**：所有顶级实体可在 web 上管理
+
+### 6.2 主入口文档
+
+- [v2.6-design.md](../plans/v2.6-design.md) — v2.6 single-file living spec (~1500 行)
+- ADR-0040..0045 — 详 § 5.2
+
+### 6.3 Tactical BC docs（BC9 Identity）
+
+新增 `tactical/identity/`：
+
+- [00-overview.md](architecture/tactical/identity/00-overview.md) — BC entry + § X.1-X.6 wrap
+- [01-identity.md](architecture/tactical/identity/01-identity.md) — Identity AR
+- [02-organization.md](architecture/tactical/identity/02-organization.md) — Organization AR
+- [03-member.md](architecture/tactical/identity/03-member.md) — Member AR
+- [04-invitation.md](architecture/tactical/identity/04-invitation.md) — Invitation AR (schema only)
+
+### 6.4 影响的现有 BC
+
+| BC | 影响 |
+|---|---|
+| BC6 Conversation | Identity AR 迁出；`tactical/conversation/02-identity.md` 归档 historical |
+| BC3 Workforce | `agent_instances.identity_id` 显式 FK 关联 Identity；`worker / agent_instance / project` 加 `organization_id` |
+| BC4 Cognition | Supervisor 砍 (per [ADR-0044](decisions/0044-supervisor-cut.md))；剩 Memory 单 AR |
+| BC1 TaskRuntime | DispatchService 移除 supervisor branch；ADR-0011 amended |
+| BC5 Observability | event_type `supervisor.*` 退役；`identity.*` / `organization.*` / `member.*` / `auth.*` 新增 |
+| BC8 SecretManagement | `user_secrets.organization_id` 加 |
+
+### 6.5 v2.6 周期进度
+
+- ✅ Spec 主文档（[v2.6-design.md](../plans/v2.6-design.md)）：30 决策锁定 + invariants 三层 + UI 设计 + Migration + 延后项落 roadmap
+- ✅ ADR 0040-0045：6 个 draft（status promote 后 Accepted）
+- ✅ Tactical BC docs（BC9 Identity）：5 个 doc
+- ✅ DDD blueprint 更新（本节）
+- 🚧 v2.6 Acceptance Plan（PM 起草中）
+- 🚧 v2.6 Development Phase Plan（PM 起草中，再跟 oopslink review）
+- ⏳ Ratify → 开发 task umbrella → dev 接手实现
+
+---
+
+## § 7. 引用文档
 
 - 方法论：[conventions § 0](../rules/conventions.md#-0-设计方法论ddd--统一语言)
 - 架构层索引（含分层说明）：[architecture/README.md](architecture/README.md)

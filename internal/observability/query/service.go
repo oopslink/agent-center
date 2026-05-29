@@ -72,14 +72,6 @@ func (s *Service) Inspect(ctx context.Context, kind, id string) (InspectResult, 
 		return s.inspectWorker(ctx, id)
 	case InspectIssue:
 		return s.inspectIssue(ctx, id)
-	case InspectSupervisor:
-		// Phase 6 will provide SupervisorInvocation data. v1 returns
-		// a structured "not yet provisioned" reply so the CLI verb is
-		// fully wired (plan-4 § 0.4).
-		return InspectResult{Kind: InspectSupervisor, ID: id, Data: map[string]any{
-			"available_in_phase": 6,
-			"message":            "supervisor inspect data lands with Phase 6 (Cognition Supervisor)",
-		}}, nil
 	case InspectConversation:
 		return s.inspectConversation(ctx, id)
 	case InspectInputRequest:
@@ -88,11 +80,6 @@ func (s *Service) Inspect(ctx context.Context, kind, id string) (InspectResult, 
 		return s.inspectProject(ctx, id)
 	case InspectWorktree:
 		return s.inspectWorktree(ctx, id)
-	case InspectDecision:
-		return InspectResult{Kind: InspectDecision, ID: id, Data: map[string]any{
-			"available_in_phase": 6,
-			"message":            "decision inspect data lands with Phase 6",
-		}}, nil
 	default:
 		return InspectResult{}, fmt.Errorf("%w: %q", ErrInspectKindUnknown, kind)
 	}
@@ -118,9 +105,6 @@ func (s *Service) Query(ctx context.Context, resource string, filter QueryFilter
 		return s.queryProposals(ctx, filter)
 	case QueryEvents:
 		return s.queryEvents(ctx, filter)
-	case QueryDecisions:
-		// Phase 6.
-		return QueryResult{Resource: QueryDecisions, Items: []any{}}, nil
 	default:
 		return QueryResult{}, fmt.Errorf("%w: %q", ErrQueryResourceUnknown, resource)
 	}

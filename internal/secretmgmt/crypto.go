@@ -99,6 +99,14 @@ func (k *MasterKey) Base64() string {
 	return base64.StdEncoding.EncodeToString(k.bytes)
 }
 
+// Bytes returns a copy of the raw key material. Used by services that need
+// the signing key directly (e.g. JWT HS256 in the Identity BC auth services).
+func (k *MasterKey) Bytes() []byte {
+	cp := make([]byte, len(k.bytes))
+	copy(cp, k.bytes)
+	return cp
+}
+
 // Encrypt encrypts plaintext with AES-GCM. Returns (ciphertext, nonce).
 // Nonce is fresh per call (12-byte GCM standard).
 func (k *MasterKey) Encrypt(plaintext []byte) (ciphertext, nonce []byte, err error) {

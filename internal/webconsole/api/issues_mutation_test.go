@@ -14,7 +14,9 @@ import (
 )
 
 func TestAPI_OpenIssueFromScratch_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	// No project FK check on this path (lifecycle service's projectCheck
 	// is unwired in setupAPI — see WithProjectExistenceChecker hook), so
 	// any project_id is accepted.
@@ -22,10 +24,7 @@ func TestAPI_OpenIssueFromScratch_Happy(t *testing.T) {
 	defer s.Close()
 
 	body := `{"project_id":"p-1","title":"login bug","description":"users can't sign in"}`
-	resp, err := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedPost(t, s.URL+"/api/issues", body, sess)
 	if resp.StatusCode != 201 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -40,10 +39,7 @@ func TestAPI_OpenIssueFromScratch_Happy(t *testing.T) {
 	}
 	// Verify the issue is persisted by reading it back.
 	issueID := out["issue_id"].(string)
-	resp2, err := http.Get(s.URL + "/api/issues/" + issueID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp2 := orgScopedGet(t, s.URL + "/api/issues/" + issueID, sess)
 	if resp2.StatusCode != 200 {
 		t.Fatalf("show status=%d", resp2.StatusCode)
 	}
@@ -92,27 +88,22 @@ func TestAPI_OpenIssueFromScratch_NotWired(t *testing.T) {
 }
 
 func TestAPI_ConcludeIssue_NoAction(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
 
 	// Open an issue first.
 	openBody := `{"project_id":"p-1","title":"feature request"}`
-	resp, err := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(openBody))
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedPost(t, s.URL+"/api/issues", openBody, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	issueID := openOut["issue_id"].(string)
 
 	// Conclude with no_action.
 	conclBody := `{"kind":"closed_no_action","summary":"decided not to do this"}`
-	resp2, err := http.Post(s.URL+"/api/issues/"+issueID+"/conclude",
-		"application/json", strings.NewReader(conclBody))
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp2 := orgScopedPost(t, s.URL+"/api/issues/"+issueID+"/conclude", conclBody, sess)
 	if resp2.StatusCode != 200 {
 		t.Fatalf("conclude status=%d", resp2.StatusCode)
 	}
@@ -123,7 +114,7 @@ func TestAPI_ConcludeIssue_NoAction(t *testing.T) {
 	}
 
 	// Verify the issue is now closed_no_action.
-	resp3, _ := http.Get(s.URL + "/api/issues/" + issueID)
+	resp3 := orgScopedGet(t, s.URL + "/api/issues/" + issueID, sess)
 	var iss map[string]any
 	_ = json.NewDecoder(resp3.Body).Decode(&iss)
 	if iss["status"] != string(discussion.StatusClosedNoAction) {
@@ -132,24 +123,25 @@ func TestAPI_ConcludeIssue_NoAction(t *testing.T) {
 }
 
 func TestAPI_ConcludeIssue_Withdrawn(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
 
 	openBody := `{"project_id":"p-1","title":"oops"}`
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(openBody))
+	resp := orgScopedPost(t, s.URL+"/api/issues", openBody, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	issueID := openOut["issue_id"].(string)
 
 	conclBody := `{"kind":"withdrawn","summary":"never mind"}`
-	resp2, _ := http.Post(s.URL+"/api/issues/"+issueID+"/conclude",
-		"application/json", strings.NewReader(conclBody))
+	resp2 := orgScopedPost(t, s.URL+"/api/issues/"+issueID+"/conclude", conclBody, sess)
 	if resp2.StatusCode != 200 {
 		t.Fatalf("withdraw status=%d", resp2.StatusCode)
 	}
 
-	resp3, _ := http.Get(s.URL + "/api/issues/" + issueID)
+	resp3 := orgScopedGet(t, s.URL + "/api/issues/" + issueID, sess)
 	var iss map[string]any
 	_ = json.NewDecoder(resp3.Body).Decode(&iss)
 	if iss["status"] != string(discussion.StatusWithdrawn) {
@@ -183,25 +175,22 @@ func TestAPI_ConcludeIssue_NotWired(t *testing.T) {
 // v2.5.x #64 — Edit + Reopen tests.
 
 func TestAPI_UpdateIssue_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
 	openBody := `{"project_id":"p-1","title":"old title"}`
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(openBody))
+	resp := orgScopedPost(t, s.URL+"/api/issues", openBody, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	id := openOut["issue_id"].(string)
 	patch := `{"title":"new title","description":"new desc"}`
-	req, _ := http.NewRequest("PATCH", s.URL+"/api/issues/"+id, strings.NewReader(patch))
-	req.Header.Set("Content-Type", "application/json")
-	r2, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r2 := orgScopedPatch(t, s.URL+"/api/issues/"+id, patch, sess)
 	if r2.StatusCode != 200 {
 		t.Fatalf("status=%d", r2.StatusCode)
 	}
-	r3, _ := http.Get(s.URL + "/api/issues/" + id)
+	r3 := orgScopedGet(t, s.URL+"/api/issues/"+id, sess)
 	var iss map[string]any
 	_ = json.NewDecoder(r3.Body).Decode(&iss)
 	if iss["title"] != "new title" {
@@ -210,21 +199,19 @@ func TestAPI_UpdateIssue_Happy(t *testing.T) {
 }
 
 func TestAPI_UpdateIssue_TerminalRejected(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
-		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	resp := orgScopedPost(t, s.URL+"/api/issues", `{"project_id":"p-1","title":"x"}`, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	id := openOut["issue_id"].(string)
 	// Conclude first → terminal.
-	_, _ = http.Post(s.URL+"/api/issues/"+id+"/conclude", "application/json",
-		strings.NewReader(`{"kind":"closed_no_action","summary":"x"}`))
+	_ = orgScopedPost(t, s.URL+"/api/issues/"+id+"/conclude", `{"kind":"closed_no_action","summary":"x"}`, sess)
 	// Edit should reject.
-	req, _ := http.NewRequest("PATCH", s.URL+"/api/issues/"+id, strings.NewReader(`{"title":"new"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r2, _ := http.DefaultClient.Do(req)
+	r2 := orgScopedPatch(t, s.URL+"/api/issues/"+id, `{"title":"new"}`, sess)
 	if r2.StatusCode == 200 {
 		t.Fatalf("status=%d expected non-200", r2.StatusCode)
 	}
@@ -244,23 +231,23 @@ func TestAPI_UpdateIssue_NotWired(t *testing.T) {
 }
 
 func TestAPI_ReopenIssue_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
-		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	resp := orgScopedPost(t, s.URL+"/api/issues", `{"project_id":"p-1","title":"x"}`, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	id := openOut["issue_id"].(string)
 	// Conclude.
-	_, _ = http.Post(s.URL+"/api/issues/"+id+"/conclude", "application/json",
-		strings.NewReader(`{"kind":"closed_no_action","summary":"x"}`))
+	_ = orgScopedPost(t, s.URL+"/api/issues/"+id+"/conclude", `{"kind":"closed_no_action","summary":"x"}`, sess)
 	// Reopen.
-	r2, _ := http.Post(s.URL+"/api/issues/"+id+"/reopen", "application/json", strings.NewReader(`{}`))
+	r2 := orgScopedPost(t, s.URL+"/api/issues/"+id+"/reopen", `{}`, sess)
 	if r2.StatusCode != 200 {
 		t.Fatalf("status=%d", r2.StatusCode)
 	}
-	r3, _ := http.Get(s.URL + "/api/issues/" + id)
+	r3 := orgScopedGet(t, s.URL+"/api/issues/"+id, sess)
 	var iss map[string]any
 	_ = json.NewDecoder(r3.Body).Decode(&iss)
 	if iss["status"] != string(discussion.StatusOpen) {
@@ -269,16 +256,17 @@ func TestAPI_ReopenIssue_Happy(t *testing.T) {
 }
 
 func TestAPI_ReopenIssue_NonTerminalRejected(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
-		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	resp := orgScopedPost(t, s.URL+"/api/issues", `{"project_id":"p-1","title":"x"}`, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	id := openOut["issue_id"].(string)
 	// Already open — reopen should reject.
-	r2, _ := http.Post(s.URL+"/api/issues/"+id+"/reopen", "application/json", strings.NewReader(`{}`))
+	r2 := orgScopedPost(t, s.URL+"/api/issues/"+id+"/reopen", `{}`, sess)
 	if r2.StatusCode == 200 {
 		t.Fatalf("status=%d expected non-200 (already open)", r2.StatusCode)
 	}

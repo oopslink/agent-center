@@ -14,14 +14,12 @@ import (
 )
 
 func TestAPI_CreateTaskFromScratch_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	body := `{"project_id":"p-1","title":"fix login","description":"x"}`
-	resp, err := http.Post(s.URL+"/api/tasks", "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedPost(t, s.URL+"/api/tasks", `{"project_id":"p-1","title":"fix login","description":"x"}`, sess)
 	if resp.StatusCode != 201 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -72,18 +70,16 @@ func TestAPI_CreateTaskFromScratch_NotWired(t *testing.T) {
 // with_conversation=false). After binding, the projection's
 // conversation_id is populated.
 func TestAPI_BindTaskConversation_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	tk := seedTask(t, deps, "tk-bind", "p-1", "feat abc", task.StatusOpen, task.PriorityMedium)
 	if tk.ConversationID() != "" {
 		t.Fatalf("precondition: seed task should have no conversation, got %q", tk.ConversationID())
 	}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(
-		s.URL+"/api/tasks/"+string(tk.ID())+"/bind-conversation",
-		"application/json",
-		strings.NewReader(`{}`),
-	)
+	resp := orgScopedPost(t, s.URL+"/api/tasks/"+string(tk.ID())+"/bind-conversation", `{}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d want 200", resp.StatusCode)
 	}
@@ -104,24 +100,18 @@ func TestAPI_BindTaskConversation_Happy(t *testing.T) {
 }
 
 func TestAPI_BindTaskConversation_AlreadyBound_Rejected(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	tk := seedTask(t, deps, "tk-already", "p-1", "x", task.StatusOpen, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	// First bind: succeeds.
-	if resp, _ := http.Post(
-		s.URL+"/api/tasks/"+string(tk.ID())+"/bind-conversation",
-		"application/json",
-		strings.NewReader(`{}`),
-	); resp.StatusCode != 200 {
+	if resp := orgScopedPost(t, s.URL+"/api/tasks/"+string(tk.ID())+"/bind-conversation", `{}`, sess); resp.StatusCode != 200 {
 		t.Fatalf("first bind status=%d", resp.StatusCode)
 	}
 	// Second bind: AR rejects (no unbind in v1).
-	resp, _ := http.Post(
-		s.URL+"/api/tasks/"+string(tk.ID())+"/bind-conversation",
-		"application/json",
-		strings.NewReader(`{}`),
-	)
+	resp := orgScopedPost(t, s.URL+"/api/tasks/"+string(tk.ID())+"/bind-conversation", `{}`, sess)
 	if resp.StatusCode == 200 {
 		t.Fatalf("second bind unexpectedly succeeded; expected rejection")
 	}
@@ -143,12 +133,13 @@ func TestAPI_BindTaskConversation_NotWired(t *testing.T) {
 }
 
 func TestAPI_SuspendTask_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	tk := seedTask(t, deps, "tk-1", "p-1", "x", task.StatusOpen, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/tasks/"+string(tk.ID())+"/suspend",
-		"application/json", strings.NewReader(`{}`))
+	resp := orgScopedPost(t, s.URL+"/api/tasks/"+string(tk.ID())+"/suspend", `{}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -175,12 +166,13 @@ func TestAPI_SuspendTask_AlreadySuspended_Rejected(t *testing.T) {
 }
 
 func TestAPI_ResumeTask_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	tk := seedTask(t, deps, "tk-3", "p-1", "x", task.StatusSuspended, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/tasks/"+string(tk.ID())+"/resume",
-		"application/json", strings.NewReader(`{}`))
+	resp := orgScopedPost(t, s.URL+"/api/tasks/"+string(tk.ID())+"/resume", `{}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -191,13 +183,14 @@ func TestAPI_ResumeTask_Happy(t *testing.T) {
 }
 
 func TestAPI_AbandonTask_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	tk := seedTask(t, deps, "tk-4", "p-1", "x", task.StatusOpen, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"reason":"obsolete","message":"requirements changed"}`
-	resp, _ := http.Post(s.URL+"/api/tasks/"+string(tk.ID())+"/abandon",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/tasks/"+string(tk.ID())+"/abandon", body, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -221,17 +214,14 @@ func TestAPI_AbandonTask_MissingReason(t *testing.T) {
 }
 
 func TestAPI_UpdateTask_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	tk := seedTask(t, deps, "tk-edit", "p-1", "old title", task.StatusOpen, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"title":"new title","description":"new desc","priority":"high"}`
-	req, _ := http.NewRequest("PATCH", s.URL+"/api/tasks/"+string(tk.ID()), strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedPatch(t, s.URL+"/api/tasks/"+string(tk.ID()), body, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}

@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+
 import { useAgents } from '@/api/agents';
 import type { AgentInstance } from '@/api/types';
 import { EmptyState } from '@/components/EmptyState';
@@ -114,12 +115,12 @@ export default function Agents(): React.ReactElement {
                   {a.worker_id || '—'}
                 </td>
                 <td className="border-b border-border-base px-3 py-2 text-right">
-                  <Link
+                  <OrgLink
                     to={`/agents/${encodeURIComponent(a.name)}`}
                     className="text-xs text-accent hover:underline"
                   >
                     Open profile →
-                  </Link>
+                  </OrgLink>
                 </td>
               </tr>
             ))}

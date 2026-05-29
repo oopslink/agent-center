@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
+
 import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
@@ -60,7 +61,7 @@ export default function Projects(): React.ReactElement {
         >
           {projects.data.map((p) => (
             <li key={p.id} data-testid="project-row" data-project-id={p.id}>
-              <Link
+              <OrgLink
                 to={`/projects/${encodeURIComponent(p.id)}`}
                 className="flex flex-col gap-1 px-4 py-3 motion-safe:transition-colors hover:bg-bg-subtle"
               >
@@ -87,7 +88,7 @@ export default function Projects(): React.ReactElement {
                     {formatRelative(p.created_at)}
                   </span>
                 </div>
-              </Link>
+              </OrgLink>
             </li>
           ))}
         </ul>

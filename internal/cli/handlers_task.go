@@ -7,16 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
-	"github.com/oopslink/agent-center/internal/cognition"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 )
@@ -240,7 +236,6 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 	worker := fs.String("worker", "", "target worker id")
 	agentCLI := fs.String("agent-cli", "claude-code", "agent CLI (claude-code|codex|opencode)")
 	baseBranch := fs.String("base-branch", "main", "worktree base branch")
-	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -249,70 +244,22 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 		if *worker == "" {
 			return PrintError(errw, *format, "usage_error", "--worker required", ExitUsage)
 		}
-		if err := requireSupervisorRationale(*rationale); err != nil {
-			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
-		}
-		// ADR-0014 § 2: state UPDATE + event INSERT + DecisionRecord INSERT
-		// in one tx. DispatchSvc internally calls persistence.RunInTx which
-		// is tx-reentrant — it joins this outer tx.
-		//
-		// v2.3-2: Client mode now routes to the composite endpoint
-		// /admin/taskruntime/dispatch/dispatch-with-decision when invoked
-		// from a supervisor (env AGENT_CENTER_INVOCATION_ID set). That
-		// endpoint wraps Dispatch + DecisionRecord in one server-side tx,
-		// closing the atomicity gap the v2.2 split-endpoint design left
-		// open. User-driven dispatch (no supervisor env) keeps the simple
-		// endpoint since no DecisionRecord is required.
 		var execIDOut string
 		if a.Client != nil {
-			envInvocation := os.Getenv("AGENT_CENTER_INVOCATION_ID")
-			if envInvocation != "" {
-				refsJSON := fmt.Sprintf(`{"task_id":%q,"worker_id":%q}`, args[0], *worker)
-				res, derr := a.Client.DispatchWithDecision(ctx, DispatchWithDecisionRequest{
-					Dispatch: DispatchRequest{
-						TaskID:     args[0],
-						WorkerID:   *worker,
-						AgentCLI:   *agentCLI,
-						BaseBranch: *baseBranch,
-					},
-					Decision: DecisionRecordRequest{
-						InvocationID:   envInvocation,
-						Kind:           string(cognition.DecisionDispatch),
-						TargetRefsJSON: refsJSON,
-						Rationale:      *rationale,
-						Outcome:        string(cognition.OutcomeSucceeded),
-					},
-				})
-				if derr != nil {
-					return HandleClientError(errw, *format, derr)
-				}
-				execIDOut = res.ExecutionID
-			} else {
-				res, derr := a.Client.Dispatch(ctx, DispatchRequest{
-					TaskID:     args[0],
-					WorkerID:   *worker,
-					AgentCLI:   *agentCLI,
-					BaseBranch: *baseBranch,
-				})
-				if derr != nil {
-					return HandleClientError(errw, *format, derr)
-				}
-				execIDOut = res.ExecutionID
+			res, derr := a.Client.Dispatch(ctx, DispatchRequest{
+				TaskID:     args[0],
+				WorkerID:   *worker,
+				AgentCLI:   *agentCLI,
+				BaseBranch: *baseBranch,
+			})
+			if derr != nil {
+				return HandleClientError(errw, *format, derr)
 			}
+			execIDOut = res.ExecutionID
 		} else {
-			var res *dispatch.DispatchResult
-			err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
-				r, derr := a.DispatchSvc.Dispatch(txCtx, dispatchInputFromArgs(args[0], *worker, *agentCLI, *baseBranch, a.DefaultActor()))
-				if derr != nil {
-					return derr
-				}
-				res = r
-				return nil
-			}, cognition.DecisionDispatch,
-				fmt.Sprintf(`{"task_id":%q,"worker_id":%q}`, args[0], *worker),
-				*rationale)
-			if err != nil {
-				return HandleDomainError(errw, *format, err)
+			res, derr := a.DispatchSvc.Dispatch(ctx, dispatchInputFromArgs(args[0], *worker, *agentCLI, *baseBranch, a.DefaultActor()))
+			if derr != nil {
+				return HandleDomainError(errw, *format, derr)
 			}
 			execIDOut = string(res.ExecutionID)
 		}
@@ -333,7 +280,6 @@ func (a *App) dispatchHandler(fs *flag.FlagSet) Handler {
 func (a *App) killExecutionHandler(fs *flag.FlagSet) Handler {
 	reason := fs.String("reason", "", "killed reason (user_request|supervisor_request|abandon_precondition|suspend_precondition|reconcile_stale|reconcile_unknown|timeout_kill)")
 	message := fs.String("message", "", "human-readable message")
-	rationale := fs.String("rationale", "", "(supervisor only, required) decision rationale")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if len(args) < 1 {
@@ -345,62 +291,18 @@ func (a *App) killExecutionHandler(fs *flag.FlagSet) Handler {
 		if *message == "" {
 			return PrintError(errw, *format, "usage_error", "--message required (conventions § 16)", ExitUsage)
 		}
-		if err := requireSupervisorRationale(*rationale); err != nil {
-			return PrintError(errw, *format, "rationale_required", err.Error(), ExitUsage)
-		}
 		execID := taskruntime.TaskExecutionID(args[0])
 		killReason := killReasonFromString(*reason)
-		// Pick the right DecisionKind based on kill reason (cognition/01 § 4.4):
-		// abandon_precondition → abandon_task; suspend_precondition → suspend_task;
-		// everything else → kill_execution.
-		//
-		// v2.2-B mismatch: as with dispatch above, the Client path skips
-		// the local DecisionRecord write because /admin/taskruntime/kill/
-		// request doesn't accept rationale + record a decision in the
-		// same tx. v2.3 follow-up.
-		kind := cognition.DecisionKillExecution
-		switch killReason {
-		case execution.KilledAbandonPrecondition:
-			kind = cognition.DecisionAbandonTask
-		case execution.KilledSuspendPrecondition:
-			kind = cognition.DecisionSuspendTask
-		}
-		// v2.3-2: same composite-endpoint switch as dispatch above.
 		if a.Client != nil {
-			envInvocation := os.Getenv("AGENT_CENTER_INVOCATION_ID")
-			if envInvocation != "" {
-				refsJSON := fmt.Sprintf(`{"execution_id":%q,"reason":%q}`, execID, *reason)
-				if _, err := a.Client.KillWithDecision(ctx, KillWithDecisionRequest{
-					Kill: KillExecutionRequest{
-						ExecutionID: string(execID),
-						Reason:      string(killReason),
-						Message:     *message,
-					},
-					Decision: DecisionRecordRequest{
-						InvocationID:   envInvocation,
-						Kind:           string(kind),
-						TargetRefsJSON: refsJSON,
-						Rationale:      *rationale,
-						Outcome:        string(cognition.OutcomeSucceeded),
-					},
-				}); err != nil {
-					return HandleClientError(errw, *format, err)
-				}
-			} else {
-				if _, err := a.Client.KillRequest(ctx, KillExecutionRequest{
-					ExecutionID: string(execID),
-					Reason:      string(killReason),
-					Message:     *message,
-				}); err != nil {
-					return HandleClientError(errw, *format, err)
-				}
+			if _, err := a.Client.KillRequest(ctx, KillExecutionRequest{
+				ExecutionID: string(execID),
+				Reason:      string(killReason),
+				Message:     *message,
+			}); err != nil {
+				return HandleClientError(errw, *format, err)
 			}
 		} else {
-			refsJSON := fmt.Sprintf(`{"execution_id":%q,"reason":%q}`, execID, *reason)
-			err := runSupervisorActionTx(ctx, a, func(txCtx context.Context) error {
-				return a.KillCoordinator.RequestKill(txCtx, execID, killReason, *message, a.DefaultActor())
-			}, kind, refsJSON, *rationale)
-			if err != nil {
+			if err := a.KillCoordinator.RequestKill(ctx, execID, killReason, *message, a.DefaultActor()); err != nil {
 				return HandleDomainError(errw, *format, err)
 			}
 		}

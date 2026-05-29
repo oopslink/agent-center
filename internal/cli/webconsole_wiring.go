@@ -29,6 +29,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		CarryOverSvc:       a.CarryOverSvc,
 		DerivationSvc:      a.DerivationSvc,
 		IRRepo:             a.IRRepo,
+		ExecRepo:           a.ExecRepo,
 		IRSvc:              a.IRSvc,
 		AgentInstanceRepo:  a.AgentInstanceRepo,
 		UserSecretRepo:     a.UserSecretRepo,
@@ -41,6 +42,21 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		IssueLifecycleSvc:  a.IssueLifecycleSvc,
 		TaskSvc:            a.TaskSvc,
 		AdminTokenSvc:      a.AdminTokenSvc,
+		SignupSvc:          a.IdentitySignupSvc,
+		SigninSvc:          a.IdentitySigninSvc,
+		SignoutSvc:         a.IdentitySignoutSvc,
+		AuthSvc:            a.IdentityAuthSvc,
+		PasscodeChangeSvc:  a.IdentityPasscodeChangeSvc,
+		OrgRepo:             a.IdentityOrgRepo,
+		OrgCreateSvc:        a.IdentityOrgCreateSvc,
+		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
+		MemberRepo:          a.IdentityMemberRepo,
+		MemberAddSvc:        a.IdentityMemberAddSvc,
+		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
+		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
+		MemberDisableSvc:    a.IdentityMemberDisableSvc,
+		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
+		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -67,6 +83,16 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	if a == nil {
 		return func() error { return nil }, errors.New("webconsole: app nil")
 	}
+	// v2.6 production guarantee: webconsole requires Identity BC auth.
+	// AuthSvc is wired only when secret_management.master_key_file is set
+	// (master key doubles as the JWT HS256 signing key per ADR-0043 §6).
+	// Refuse to start the webconsole when auth is unconfigured rather than
+	// allowing the per-request middleware to fail-open.
+	if a.IdentityAuthSvc == nil {
+		return func() error { return nil }, errors.New(
+			"webconsole: auth not configured — set secret_management.master_key_file " +
+				"in the server config (the master key doubles as the JWT signing key)")
+	}
 	deps := api.HandlerDeps{
 		Actor:              a.DefaultActor(),
 		ConvRepo:           a.ConvRepo,
@@ -77,6 +103,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		CarryOverSvc:       a.CarryOverSvc,
 		DerivationSvc:      a.DerivationSvc,
 		IRRepo:             a.IRRepo,
+		ExecRepo:           a.ExecRepo,
 		IRSvc:              a.IRSvc,
 		AgentInstanceRepo:  a.AgentInstanceRepo,
 		UserSecretRepo:     a.UserSecretRepo,
@@ -99,6 +126,21 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		WorkerRepo:         a.WorkerRepo,
 		ProjectCRUDSvc:     a.ProjectSvc,
 		MappingRepo:        a.MappingRepo,
+		SignupSvc:          a.IdentitySignupSvc,
+		SigninSvc:          a.IdentitySigninSvc,
+		SignoutSvc:         a.IdentitySignoutSvc,
+		AuthSvc:            a.IdentityAuthSvc,
+		PasscodeChangeSvc:  a.IdentityPasscodeChangeSvc,
+		OrgRepo:             a.IdentityOrgRepo,
+		OrgCreateSvc:        a.IdentityOrgCreateSvc,
+		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
+		MemberRepo:          a.IdentityMemberRepo,
+		MemberAddSvc:        a.IdentityMemberAddSvc,
+		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
+		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
+		MemberDisableSvc:    a.IdentityMemberDisableSvc,
+		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
+		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
 	}
 	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler(), Version: ResolvedBuildVersion()})
 	// Wrap the inner mux with deps middleware; install it as the

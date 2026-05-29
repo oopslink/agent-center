@@ -39,10 +39,11 @@ func NewUserSecretService(db *sql.DB, repo secretmgmt.UserSecretRepository, gen 
 
 // CreateSecretCommand inputs.
 type CreateSecretCommand struct {
-	Name          string
-	Kind          secretmgmt.UserSecretKind
-	Plaintext     []byte // wiped from caller after Create returns
-	ActorIdentity observability.Actor
+	Name           string
+	Kind           secretmgmt.UserSecretKind
+	Plaintext      []byte // wiped from caller after Create returns
+	OrganizationID string // v2.6: scopes the secret to an org (multi-tenant isolation)
+	ActorIdentity  observability.Actor
 }
 
 // CreateSecretResult — only metadata; plaintext NOT echoed back.
@@ -71,13 +72,14 @@ func (s *UserSecretService) Create(ctx context.Context, cmd CreateSecretCommand)
 	now := s.clock.Now()
 	id := secretmgmt.UserSecretID(s.gen.NewULID())
 	sec, err := secretmgmt.NewUserSecret(secretmgmt.NewUserSecretInput{
-		ID:         id,
-		Name:       cmd.Name,
-		Kind:       cmd.Kind,
-		Ciphertext: ciphertext,
-		Nonce:      nonce,
-		CreatedAt:  now,
-		CreatedBy:  cmd.ActorIdentity.String(),
+		ID:             id,
+		Name:           cmd.Name,
+		Kind:           cmd.Kind,
+		Ciphertext:     ciphertext,
+		Nonce:          nonce,
+		OrganizationID: cmd.OrganizationID,
+		CreatedAt:      now,
+		CreatedBy:      cmd.ActorIdentity.String(),
 	})
 	if err != nil {
 		return CreateSecretResult{}, err

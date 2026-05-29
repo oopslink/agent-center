@@ -50,6 +50,108 @@ v2 周期（P8-P12）落地的核心能力，按 ADR landscape 归类：
 
 ---
 
+## v2.7+ Identity / Auth 进阶（post v2.6）
+
+> v2.6 周期引入 Identity BC + Organization + Member + 基础 passcode + JWT cookie auth（详 [v2.6 design](../plans/v2.6-design.md)）。下列条目在 v2.6 周期里被明确**近期不做**（2026-05-27 @oopslink 决策），等 v2.6 ratify 后再排具体周期。
+
+### Email 注册 + 验证
+
+`/signup` 表单加 email 字段；新 Identity 创建后投递验证邮件；未验证 Identity 限制权限。
+
+- **v2.6 不做的原因**：v2.6 仅 6 位 passcode + display_name；自用单机场景无 email 路由需求；引入 email = 引入 SMTP 配置 + 投递重试 + 邮件模板系统
+- **触发条件**：第二个真实用户入场；远程访问场景；need password reset 流（依赖 email）
+- **影响**：Identity AR 加 `email` + `email_verified_at` 字段；新增 EmailVerificationService + 邮件模板 + SMTP 配置；signup form schema 改
+
+### Password Reset / Recovery
+
+忘记 passcode 时通过 email 重置；账号 / 2FA 恢复路径。
+
+- **v2.6 不做的原因**：依赖 Email 注册先到位（无 email 无法发 reset link）；v2.6 文档说明清库重装
+- **触发条件**：Email 上线 + 多用户场景
+- **影响**：PasswordResetToken AR + reset flow service + UI 表单
+
+### 2FA（TOTP / Email Code）
+
+二次验证：TOTP authenticator 或 email 一次性码。
+
+- **v2.6 不做的原因**：单用户自用安全门槛低；2FA UX 复杂度（recovery codes、admin override 流程）超 v2.6 范围
+- **触发条件**：账号承载共享 Org 资源；远程访问被滥用风险
+- **影响**：Identity AR 加 `totp_secret` / `recovery_codes`；signin 流程加二次校验步骤
+
+### SSO（Google / GitHub / SAML）
+
+通过外部 IdP 一键登录，跳过 passcode 注册。
+
+- **v2.6 不做的原因**：v2.6 主要用户是单机自用，OAuth flow 配置成本高；SSO 是 v3+ 多团队场景的需求
+- **触发条件**：企业用户 / 团队场景；user 拒绝管理 passcode
+- **影响**：新增 SSOProviderConfig + OAuth callback handler + Identity AR 加 `external_subject` 映射
+
+### PAT / API Token（Personal Access Token）
+
+Identity 可创建多个 API token 用于程序化访问；带 scope / 限定 Organization / 限定资源；可 revoke。
+
+- **v2.6 不做的原因**：v2.6 agent 走 cert pinning + worker-token（v2.4 体系），人类 API 访问需求未浮现
+- **触发条件**：用户写脚本调 agent-center API；CI/CD 系统集成
+- **影响**：新 APIToken AR + token 表 + scope VO + auth middleware 支持 Bearer header
+
+### Account Switcher（多 Identity 同浏览器）
+
+一个浏览器同时登多个 Identity，UI 顶 bar 支持切换（Google 多账号模式）。
+
+- **v2.6 不做的原因**：v2.6 单 Identity per browser session，cookie-bound；切 Identity 需 logout + signin
+- **触发条件**：用户在同一台机器扮演多个角色（个人 + 工作 Identity）
+- **影响**：cookie 改 multi-Identity session 模型；UI 顶 bar 加 switcher dropdown；session 表新增
+
+### ABAC（Attribute-Based Fine-grained Permission）
+
+资源级权限：channel-level role / project-level grant / agent-level permission；超 owner/admin/member 三档 RBAC。
+
+- **v2.6 不做的原因**：v2.6 走基础 RBAC（owner/admin/member）已满足自用 + 小团队场景；ABAC 引入 policy engine + UI 复杂度 + audit 难度
+- **触发条件**：用户需要"某 channel 只给特定 Member 写权限"等细粒度需求
+- **影响**：新 PermissionGrant AR / policy engine / decision audit log；UI 资源级权限编辑界面
+
+### Refresh Token + Remote Logout
+
+JWT refresh 机制 + "其它设备登出" 功能；session 列表查看。
+
+- **v2.6 不做的原因**：v2.6 JWT 7 天 fixed exp + 过期跳 `/signin` 即可；remote logout 依赖 session 持久化
+- **触发条件**：用户 cross-device 使用；安全事件后需要全设备登出
+- **影响**：Session AR / refresh token 流 / signed_in 设备列表 UI
+
+### Failed-login Lockout / Suspicious Activity
+
+连续 failed signin 触发 lockout；IP / device fingerprint 异常检测。
+
+- **v2.6 不做的原因**：v2.6 不暴露公网；attack surface 低
+- **触发条件**：公网暴露后；失败登录尝试明显
+- **影响**：FailedLoginAttempt 跟踪 + lockout policy + 异常事件 alert
+
+### Events `organization_id` Denormalized 列
+
+`events` 表加 `organization_id` 直接列（非 JOIN 推导），加速跨 BC 跨 Org 审计查询。
+
+- **v2.6 不做的原因**：性能优化；v2.6 数据量小，JOIN 推导可接受
+- **触发条件**：事件表数据量增长，跨 Org 审计查询慢
+- **影响**：events schema 改 + 各 BC emit 时填充 organization_id
+
+### Organization 硬删除（Purge）
+
+`/organizations/{slug}/settings` 提供"永久删除 Organization 并清空所有数据"按钮。
+
+- **v2.6 不做的原因**：硬删除高破坏性；v2.6 软删 + CLI/DBA 兜底足够
+- **触发条件**：用户需在 UI 自助永久清理 Organization；合规要求"被遗忘权"
+- **影响**：cascade hard-delete 跨 BC 协调 + 二次确认 UI + 审计
+
+### Identity Self-Disable（`/me` 页 Delete Account）
+
+`/me` 页提供 "Delete my account" 按钮（per OQ-4 closed for v2.6）。
+
+- **v2.6 不做的原因**：[[organization-min-owner]] invariant 守门 + transfer ownership 流程 v2.6 不出
+- **触发条件**：用户主动注销账号需求；多 Organization 时的 transfer ownership 完整
+- **影响**：transfer ownership service + UI confirm 多 step
+
+---
+
 ## v3 推迟
 
 ### 外部 IM / 渠道接入（重新设计）

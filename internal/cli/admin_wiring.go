@@ -276,22 +276,12 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// AdminToken BC (v2.3-3a task #28)
 		AdminTokenSvc: a.AdminTokenSvc,
 
-		// Identity (Conversation subdomain)
-		IdentityRepo:         a.IdentityRepo,
-		IdentityRegistration: a.IdentityRegistration,
-
 		// Discussion BC
 		IssueRepo:                a.IssueRepo,
 		IssueLifecycleSvc:        a.IssueLifecycleSvc,
 		IssueCommentSvc:          a.IssueCommentSvc,
 		IssueBindConversationSvc: a.IssueBindConversationSvc,
 		IssueLinkConversationSvc: a.IssueLinkConversationSvc,
-
-		// Cognition BC
-		InvocationRepo:    a.InvocationRepo,
-		DecisionRepo:      a.DecisionRepo,
-		DecisionRecorder:  a.DecisionRecorder,
-		SupervisorSpawner: a.SupervisorSpawner,
 
 		// Observability BC
 		EventRepo: a.EventRepo,

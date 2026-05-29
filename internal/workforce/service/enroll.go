@@ -198,9 +198,10 @@ func buildCapabilitiesForClaim(names []string) []workforce.Capability {
 // last_heartbeat_at=null. The Worker becomes visible in Fleet
 // immediately; the daemon's later Enroll() claims this row.
 type AddWorkerCommand struct {
-	WorkerID      workforce.WorkerID
-	Name          string
-	ActorIdentity observability.Actor
+	WorkerID       workforce.WorkerID
+	Name           string
+	OrganizationID string // v2.6: scopes the worker to an org
+	ActorIdentity  observability.Actor
 }
 
 // AddWorkerResult mirrors EnrollResult for symmetry.
@@ -288,9 +289,10 @@ func (s *WorkerEnrollService) AddWorker(ctx context.Context, cmd AddWorkerComman
 		return AddWorkerResult{}, fmt.Errorf("add worker: %w", err)
 	}
 	w, err := workforce.NewWorker(workforce.NewWorkerInput{
-		ID:         cmd.WorkerID,
-		Name:       cmd.Name,
-		EnrolledAt: s.clock.Now(),
+		ID:             cmd.WorkerID,
+		Name:           cmd.Name,
+		OrganizationID: cmd.OrganizationID,
+		EnrolledAt:     s.clock.Now(),
 	})
 	if err != nil {
 		return AddWorkerResult{}, err

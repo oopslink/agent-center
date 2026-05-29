@@ -14,8 +14,8 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	"github.com/oopslink/agent-center/internal/conversation/identity"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -24,6 +24,7 @@ import (
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
+	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
@@ -44,6 +45,10 @@ type HandlerDeps struct {
 	DerivationSvc      *convservice.MessageDerivationService
 	IRRepo             inputrequest.Repository
 	IRSvc              *trservice.InputRequestService
+	// ExecRepo resolves InputRequest → execution → task → project for v2.6
+	// org-scoped input-request lists (X1 §3). Optional; when nil the IR list
+	// is not org-filtered (legacy/test deps).
+	ExecRepo           execution.Repository
 	AgentInstanceRepo  workforce.AgentInstanceRepository
 	UserSecretRepo     secretmgmt.UserSecretRepository
 	UserSecretSvc      *secretservice.UserSecretService
@@ -128,6 +133,30 @@ type HandlerDeps struct {
 	AdminTokenSvc      *admintokensvc.Service
 	EnrollBootstrapHost string
 	EnrollFingerprint   string
+
+	// v2.6-FE-1: Auth services for signup / signin / signout / me endpoints.
+	// All are optional; nil means auth is unconfigured (middleware passthrough).
+	SignupSvc  *identity.SignupService
+	SigninSvc  *identity.SigninService
+	SignoutSvc *identity.SignoutService
+	AuthSvc    *identity.AuthService
+
+	// v2.6-FE-5: Passcode change service for PATCH /api/auth/me/passcode.
+	PasscodeChangeSvc *identity.PasscodeChangeService
+
+	// v2.6-FE-3: Organization management services for org switcher + CRUD.
+	OrgRepo         identity.OrganizationRepository
+	OrgCreateSvc    *identity.OrganizationCreateService
+	OrgLifecycleSvc *identity.OrganizationLifecycleService
+
+	// v2.6-FE-4: Member management services.
+	MemberRepo            identity.MemberRepository
+	MemberAddSvc          *identity.MemberAddService
+	MemberCreateUserSvc   *identity.MemberCreateUserService
+	MemberRoleChangeSvc   *identity.MemberRoleChangeService
+	MemberDisableSvc      *identity.MemberDisableService
+	AgentProvisionSvc     *identity.AgentIdentityProvisionService
+	OrgUpdateSvc          *identity.OrganizationUpdateService
 }
 
 // hd retrieves the typed dep bag from the request context.
@@ -136,15 +165,324 @@ func hd(r *http.Request) HandlerDeps {
 	return v
 }
 
+// resolveOrgIDFromRequest extracts the active organization ID for the request.
+// Resolution order (v2.6 multi-org isolation):
+//  1. ?org_id=<id> query param (explicit)
+//  2. ?org_slug=<slug> query param (frontend auto-injects from URL path)
+//  3. empty string (no org filter — legacy / cross-org callers)
+//
+// Returns the resolved org ID. When no resolver is available (OrgRepo nil),
+// returns the raw value of ?org_id= or empty string.
+func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
+	if v := r.URL.Query().Get("org_id"); v != "" {
+		return v
+	}
+	if slug := r.URL.Query().Get("org_slug"); slug != "" && d.OrgRepo != nil {
+		if org, err := d.OrgRepo.GetBySlug(r.Context(), slug); err == nil && org != nil {
+			return org.ID()
+		}
+	}
+	return ""
+}
+
+// orgProjectIDSet returns the set of project IDs that belong to orgID. Used by
+// issue/task/input-request/fleet/trace handlers to scope BC-native reads that
+// don't carry organization_id directly but reference a project (which does).
+// v2.6 X1 §3: these surfaces must not leak cross-org rows.
+func orgProjectIDSet(r *http.Request, d HandlerDeps, orgID string) (map[string]bool, error) {
+	projects, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{OrganizationID: orgID})
+	if err != nil {
+		return nil, err
+	}
+	set := make(map[string]bool, len(projects))
+	for _, p := range projects {
+		set[string(p.ID())] = true
+	}
+	return set, nil
+}
+
+// requireOrgMember is the authoritative auth/scope helper for org-scoped APIs.
+// It:
+//  1. Verifies the request has a valid JWT cookie → returns 401 if not.
+//  2. Resolves the target org via ?org_id= / ?org_slug= → returns 400 if missing/unknown.
+//  3. Verifies the caller is a member of that org → returns 403 if not.
+//
+// On success: returns (callerIdentity, callerMember, orgID, true).
+// On failure: writes the error response and returns _, _, _, false; callers
+// MUST stop processing.
+//
+// This is the single source of truth for "is this request authorized to see
+// org X's data". Org-scoped list endpoints must call this — falling back to
+// "no filter" when org is missing leaks cross-org data and is a ship-blocker.
+func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*identity.Identity, *identity.Member, string, bool) {
+	if d.AuthSvc == nil || d.OrgRepo == nil || d.MemberRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "org-scoped endpoint requires auth + org + member deps")
+		return nil, nil, "", false
+	}
+	cookie, err := r.Cookie(jwtCookieName)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
+		return nil, nil, "", false
+	}
+	callerID, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		return nil, nil, "", false
+	}
+	orgID := resolveOrgIDFromRequest(r, d)
+	if orgID == "" {
+		writeError(w, http.StatusBadRequest, "org_required",
+			"missing or unknown organization scope (provide ?org_id= or ?org_slug=)")
+		return nil, nil, "", false
+	}
+	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, callerID.ID())
+	if err != nil || member == nil {
+		writeError(w, http.StatusForbidden, "forbidden", "not a member of this organization")
+		return nil, nil, "", false
+	}
+	return callerID, member, orgID, true
+}
+
+// ── v2.6 X1 §1/§3: belongs-to-org guards for detail/mutation endpoints ───────
+//
+// Each helper runs requireOrgMember first (401/400/403), then verifies the
+// target resource belongs to the caller's org. A resource in a different org
+// returns 404 (don't leak existence across orgs). On any failure the error
+// response is written and ok=false is returned; callers MUST stop.
+
+// requireConversationInOrg guards conversation detail/message/participant/
+// read-state endpoints. Conversations carry organization_id directly.
+func (s *Server) requireConversationInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, convID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.ConvRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "conversation repo not wired")
+		return "", false
+	}
+	conv, err := d.ConvRepo.FindByID(r.Context(), conversation.ConversationID(convID))
+	if err != nil || conv == nil {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
+		return "", false
+	}
+	if conv.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
+		return "", false
+	}
+	return orgID, true
+}
+
+// requireProjectInOrg guards project detail/CRUD/mapping endpoints. Projects
+// carry organization_id directly.
+func (s *Server) requireProjectInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, projectID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.ProjectRepo == nil {
+		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
+		return "", false
+	}
+	p, err := d.ProjectRepo.FindByID(r.Context(), workforce.ProjectID(projectID))
+	if err != nil || p == nil {
+		writeError(w, http.StatusNotFound, "not_found", "project not found")
+		return "", false
+	}
+	if p.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "project not found")
+		return "", false
+	}
+	return orgID, true
+}
+
+// requireAgentInOrg guards agent detail endpoints. AgentInstances carry
+// organization_id directly. Looks up by name.
+func (s *Server) requireAgentInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, name string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.AgentInstanceRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "agent repo not wired")
+		return "", false
+	}
+	ai, err := d.AgentInstanceRepo.FindByName(r.Context(), name)
+	if err != nil || ai == nil {
+		writeError(w, http.StatusNotFound, "not_found", "agent not found")
+		return "", false
+	}
+	if ai.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "agent not found")
+		return "", false
+	}
+	return orgID, true
+}
+
+// requireSecretInOrg guards secret mutation (revoke) endpoints.
+func (s *Server) requireSecretInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, secretID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.UserSecretRepo == nil {
+		writeError(w, http.StatusNotImplemented, "secret_not_wired", "")
+		return "", false
+	}
+	sec, err := d.UserSecretRepo.FindByID(r.Context(), secretmgmt.UserSecretID(secretID))
+	if err != nil || sec == nil {
+		writeError(w, http.StatusNotFound, "not_found", "secret not found")
+		return "", false
+	}
+	if sec.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "secret not found")
+		return "", false
+	}
+	return orgID, true
+}
+
+// requireProjectIDInOrg verifies a bare project id belongs to the caller's org
+// (used by issue/task create where the project_id comes from the request body).
+func (s *Server) requireProjectIDInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, orgID, projectID string) bool {
+	set, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return false
+	}
+	if !set[projectID] {
+		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
+		return false
+	}
+	return true
+}
+
+// requireTaskInOrg guards task mutation endpoints. Tasks reference a project
+// which carries organization_id.
+func (s *Server) requireTaskInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, taskID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.TaskRepo == nil {
+		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
+		return "", false
+	}
+	tk, err := d.TaskRepo.FindByID(r.Context(), taskruntime.TaskID(taskID))
+	if err != nil || tk == nil {
+		writeError(w, http.StatusNotFound, "not_found", "task not found")
+		return "", false
+	}
+	set, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return "", false
+	}
+	if !set[tk.ProjectID()] {
+		writeError(w, http.StatusNotFound, "not_found", "task not found")
+		return "", false
+	}
+	return orgID, true
+}
+
+// requireIssueInOrg guards issue mutation endpoints.
+func (s *Server) requireIssueInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, issueID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.IssueRepo == nil {
+		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
+		return "", false
+	}
+	is, err := d.IssueRepo.FindByID(r.Context(), discussion.IssueID(issueID))
+	if err != nil || is == nil {
+		writeError(w, http.StatusNotFound, "not_found", "issue not found")
+		return "", false
+	}
+	set, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return "", false
+	}
+	if !set[is.ProjectID()] {
+		writeError(w, http.StatusNotFound, "not_found", "issue not found")
+		return "", false
+	}
+	return orgID, true
+}
+
+// requireWorkerInOrg guards worker rename / show-install / re-mint / remove and
+// the project-mapping worker_id check. Workers carry organization_id directly.
+func (s *Server) requireWorkerInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, workerID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.WorkerRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "worker repo not wired")
+		return "", false
+	}
+	wk, err := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(workerID))
+	if err != nil || wk == nil {
+		writeError(w, http.StatusNotFound, "not_found", "worker not found")
+		return "", false
+	}
+	if wk.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "worker not found")
+		return "", false
+	}
+	return orgID, true
+}
+
+// requireInputRequestInOrg guards input-request mutation endpoints. Resolves
+// IR → execution → task → project → org.
+func (s *Server) requireInputRequestInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, irID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.IRRepo == nil || d.ExecRepo == nil || d.TaskRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "input-request scope deps not wired")
+		return "", false
+	}
+	ir, err := d.IRRepo.FindByID(r.Context(), taskruntime.InputRequestID(irID))
+	if err != nil || ir == nil {
+		writeError(w, http.StatusNotFound, "not_found", "input request not found")
+		return "", false
+	}
+	ex, err := d.ExecRepo.FindByID(r.Context(), ir.TaskExecutionID())
+	if err != nil || ex == nil {
+		writeError(w, http.StatusNotFound, "not_found", "input request not found")
+		return "", false
+	}
+	tk, err := d.TaskRepo.FindByID(r.Context(), ex.TaskID())
+	if err != nil || tk == nil {
+		writeError(w, http.StatusNotFound, "not_found", "input request not found")
+		return "", false
+	}
+	set, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return "", false
+	}
+	if !set[tk.ProjectID()] {
+		writeError(w, http.StatusNotFound, "not_found", "input request not found")
+		return "", false
+	}
+	return orgID, true
+}
+
 type depsKey struct{}
 
-// WithDeps installs the dep bag into the request context. Use as
-// middleware around all handlers.
+// WithDeps installs the dep bag into the request context and chains the
+// JWT auth middleware for /api/* routes (exempt: /api/health, /api/auth/*).
 func WithDeps(deps HandlerDeps) func(http.Handler) http.Handler {
+	auth := authMiddleware(deps)
 	return func(next http.Handler) http.Handler {
+		withAuth := auth(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), depsKey{}, deps)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			withAuth.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -155,7 +493,12 @@ func WithDeps(deps HandlerDeps) func(http.Handler) http.Handler {
 
 func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	filter := conversation.ConversationFilter{}
+	// v2.6 multi-org isolation: every list response is org-scoped + membership-checked.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	filter := conversation.ConversationFilter{OrganizationID: orgID}
 	if k := r.URL.Query().Get("kind"); k != "" {
 		kk := conversation.ConversationKind(k)
 		filter.Kind = &kk
@@ -217,11 +560,26 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, d Handler
 		writeError(w, http.StatusBadRequest, "invalid_input", "name required for kind=channel")
 		return
 	}
+	// v2.6: stamp the new channel with the caller's org (membership-checked).
+	// When auth is unconfigured (legacy/test deps without AuthSvc), fall back
+	// to resolveOrgIDFromRequest so existing tests that don't set up sessions
+	// still create channels (org_id empty).
+	orgID := ""
+	if d.AuthSvc != nil {
+		_, _, resolved, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		orgID = resolved
+	} else {
+		orgID = resolveOrgIDFromRequest(r, d)
+	}
 	res, err := d.ChannelMgmtSvc.CreateChannel(r.Context(), convservice.CreateChannelCommand{
-		Name:        req.Name,
-		Description: req.Description,
-		CreatedBy:   conversation.IdentityRef(d.Actor),
-		Actor:       d.Actor,
+		Name:           req.Name,
+		Description:    req.Description,
+		OrganizationID: orgID,
+		CreatedBy:      conversation.IdentityRef(d.Actor),
+		Actor:          d.Actor,
 	})
 	if err != nil {
 		mapDomainError(w, err)
@@ -243,6 +601,17 @@ func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps,
 		writeError(w, http.StatusBadRequest, "invalid_input",
 			"kind=dm requires at least one entry in members")
 		return
+	}
+	// v2.6 X1 §1: require org membership; stamp the DM with the caller's org.
+	orgID := ""
+	if d.AuthSvc != nil {
+		_, _, resolved, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		orgID = resolved
+	} else {
+		orgID = resolveOrgIDFromRequest(r, d)
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	owner := conversation.IdentityRef(d.Actor)
@@ -268,12 +637,13 @@ func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps,
 		})
 	}
 	res, err := d.MessageWriter.OpenConversation(r.Context(), convservice.OpenCommand{
-		Kind:         conversation.ConversationKindDM,
-		Name:         req.Name,
-		Description:  req.Description,
-		Participants: parts,
-		CreatedBy:    owner,
-		Actor:        d.Actor,
+		Kind:           conversation.ConversationKindDM,
+		Name:           req.Name,
+		Description:    req.Description,
+		OrganizationID: orgID,
+		Participants:   parts,
+		CreatedBy:      owner,
+		Actor:          d.Actor,
 	})
 	if err != nil {
 		mapDomainError(w, err)
@@ -296,6 +666,9 @@ func (s *Server) listRefsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	refs, err := d.CarryOverSvc.FindByChildConv(r.Context(), id)
 	if err != nil {
 		mapDomainError(w, err)
@@ -329,10 +702,8 @@ func (s *Server) unreadHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_user_id", err.Error())
 		return
 	}
-	// Resolve the conversation so a missing one returns 404 rather
-	// than a silent zero-count answer.
-	if _, err := d.ConvRepo.FindByID(r.Context(), convID); err != nil {
-		mapDomainError(w, err)
+	// v2.6 X1 §1: org guard (also yields 404 for a missing/cross-org conv).
+	if _, ok := s.requireConversationInOrg(w, r, d, string(convID)); !ok {
 		return
 	}
 	summary, err := d.ReadStateSvc.Unread(r.Context(), userID, convID)
@@ -380,6 +751,10 @@ func (s *Server) markSeenHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_user_id", err.Error())
 		return
 	}
+	// v2.6 X1 §1: org guard before the read-state mutation (after input parse).
+	if _, ok := s.requireConversationInOrg(w, r, d, string(convID)); !ok {
+		return
+	}
 	res, err := d.ReadStateSvc.MarkSeen(r.Context(), convservice.MarkSeenCommand{
 		UserID:            userID,
 		ConversationID:    convID,
@@ -410,6 +785,9 @@ func readStateUserID(r *http.Request, d HandlerDeps) conversation.IdentityRef {
 func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := r.PathValue("id")
+	if _, ok := s.requireConversationInOrg(w, r, d, id); !ok {
+		return
+	}
 	c, err := d.ConvRepo.FindByID(r.Context(), conversation.ConversationID(id))
 	if err != nil {
 		if errors.Is(err, conversation.ErrConversationNotFound) {
@@ -425,6 +803,9 @@ func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request)
 func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	filter := conversation.MessageFilter{Limit: 200}
 	msgs, err := d.MsgRepo.FindByConversationID(r.Context(), id, filter)
 	if err != nil {
@@ -449,6 +830,9 @@ type sendMessageReq struct {
 func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	var req sendMessageReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -493,6 +877,9 @@ type archiveReq struct {
 func (s *Server) archiveConversationHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	var req archiveReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -531,6 +918,9 @@ type inviteReq struct {
 func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	convID := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(convID)); !ok {
+		return
+	}
 	var req inviteReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -568,6 +958,9 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 func (s *Server) removeParticipantHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	convID := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(convID)); !ok {
+		return
+	}
 	identityID := r.PathValue("identity_id")
 	c, err := d.ConvRepo.FindByID(r.Context(), convID)
 	if err != nil {
@@ -625,6 +1018,20 @@ func (s *Server) postIssueHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "derivation_not_wired", "")
 		return
 	}
+	// v2.6 X1 §5: derive path — source conversation must be in org + target
+	// project (if given) must be in org.
+	if _, ok := s.requireConversationInOrg(w, r, d, req.SourceConversationID); !ok {
+		return
+	}
+	if req.ProjectID != "" {
+		_, _, orgID, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
+			return
+		}
+	}
 	msgIDs := make([]conversation.MessageID, 0, len(req.SourceMessageIDs))
 	for _, m := range req.SourceMessageIDs {
 		msgIDs = append(msgIDs, conversation.MessageID(m))
@@ -666,6 +1073,14 @@ func (s *Server) openIssueFromScratch(w http.ResponseWriter, r *http.Request, d 
 	}
 	if strings.TrimSpace(req.Title) == "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "title required")
+		return
+	}
+	// v2.6 X1 §5: require org membership + the target project must be in the org.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
 		return
 	}
 	res, err := d.IssueLifecycleSvc.Open(r.Context(), disservice.OpenIssueCommand{
@@ -724,6 +1139,11 @@ func (s *Server) concludeIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !kind.IsValid() {
 		writeError(w, http.StatusBadRequest, "invalid_input",
 			"kind must be one of closed_no_action / closed_with_tasks / withdrawn")
+		return
+	}
+	// v2.6 X1 §5: org guard before the mutation (after input validation so a
+	// malformed request is a 400 regardless of org).
+	if _, ok := s.requireIssueInOrg(w, r, d, string(id)); !ok {
 		return
 	}
 	resolution := discussion.Resolution{
@@ -802,6 +1222,20 @@ func (s *Server) postTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "derivation_not_wired", "")
 		return
 	}
+	// v2.6 X1 §5: derive path — require org membership + source conversation in
+	// org + target project in org.
+	if _, ok := s.requireConversationInOrg(w, r, d, req.SourceConversationID); !ok {
+		return
+	}
+	if req.ProjectID != "" {
+		_, _, orgID, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
+			return
+		}
+	}
 	msgIDs := make([]conversation.MessageID, 0, len(req.SourceMessageIDs))
 	for _, m := range req.SourceMessageIDs {
 		msgIDs = append(msgIDs, conversation.MessageID(m))
@@ -844,6 +1278,14 @@ func (s *Server) createTaskFromScratch(w http.ResponseWriter, r *http.Request, d
 		writeError(w, http.StatusBadRequest, "invalid_input", "title required")
 		return
 	}
+	// v2.6 X1 §5: require org membership + target project in org.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
+		return
+	}
 	in := trservice.TaskCreateInput{
 		ProjectID:        req.ProjectID,
 		Title:            req.Title,
@@ -880,6 +1322,9 @@ func (s *Server) suspendTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
 		return
 	}
+	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	evID, err := d.TaskSvc.Suspend(r.Context(), trservice.LifecycleCommand{
 		TaskID: id,
 		Actor:  d.Actor,
@@ -903,6 +1348,9 @@ func (s *Server) resumeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id := taskruntime.TaskID(r.PathValue("id"))
 	if strings.TrimSpace(string(id)) == "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
 		return
 	}
 	evID, err := d.TaskSvc.Resume(r.Context(), trservice.LifecycleCommand{
@@ -933,6 +1381,9 @@ func (s *Server) abandonTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id := taskruntime.TaskID(r.PathValue("id"))
 	if strings.TrimSpace(string(id)) == "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
 		return
 	}
 	var req abandonTaskReq
@@ -972,6 +1423,9 @@ func (s *Server) bindTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
 		return
 	}
+	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	convID, err := d.TaskSvc.BindConversation(r.Context(), trservice.BindConversationInput{
 		TaskID: id,
 		Mode:   "auto",
@@ -1004,6 +1458,9 @@ func (s *Server) updateIssueHandler(w http.ResponseWriter, r *http.Request) {
 	id := discussion.IssueID(r.PathValue("id"))
 	if strings.TrimSpace(string(id)) == "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
+		return
+	}
+	if _, ok := s.requireIssueInOrg(w, r, d, string(id)); !ok {
 		return
 	}
 	var req updateIssueReq
@@ -1041,6 +1498,9 @@ func (s *Server) reopenIssueHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
 		return
 	}
+	if _, ok := s.requireIssueInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	evID, err := d.IssueLifecycleSvc.Reopen(r.Context(), disservice.ReopenCommand{
 		IssueID: id,
 		Actor:   d.Actor,
@@ -1075,6 +1535,9 @@ func (s *Server) updateTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
 		return
 	}
+	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	var req updateTaskReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -1103,14 +1566,39 @@ func (s *Server) updateTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listInputRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
+	// v2.6 X1 §3: require org membership; scope IRs to the org's projects via
+	// execution → task → project resolution (requires ExecRepo + TaskRepo).
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
 	irs, err := d.IRRepo.FindPending(r.Context(), time.Now().UTC().Add(24*365*time.Hour))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	arr := make([]map[string]any, len(irs))
-	for i, ir := range irs {
-		arr[i] = irPublicMap(ir)
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
+	arr := make([]map[string]any, 0, len(irs))
+	for _, ir := range irs {
+		// When ExecRepo + TaskRepo are wired, resolve the IR's project and keep
+		// only org-owned ones. If repos are unavailable, fail closed (skip) to
+		// avoid leaking cross-org IRs.
+		if d.ExecRepo == nil || d.TaskRepo == nil {
+			continue
+		}
+		ex, exErr := d.ExecRepo.FindByID(r.Context(), ir.TaskExecutionID())
+		if exErr != nil || ex == nil {
+			continue
+		}
+		tk, tkErr := d.TaskRepo.FindByID(r.Context(), ex.TaskID())
+		if tkErr != nil || tk == nil || !orgProjects[tk.ProjectID()] {
+			continue
+		}
+		arr = append(arr, irPublicMap(ir))
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -1126,6 +1614,11 @@ func (s *Server) respondInputRequestHandler(w http.ResponseWriter, r *http.Reque
 	var req respondReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	// v2.6 X1 §5: org guard before the mutation (after body parse so a bad
+	// body is a 400 regardless of org).
+	if _, ok := s.requireInputRequestInOrg(w, r, d, string(id)); !ok {
 		return
 	}
 	who := req.DecidedBy
@@ -1149,6 +1642,10 @@ type cancelInputRequestReq struct {
 func (s *Server) cancelInputRequestHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := taskruntime.InputRequestID(r.PathValue("id"))
+	if d.IRSvc == nil {
+		writeError(w, http.StatusNotImplemented, "ir_svc_not_wired", "")
+		return
+	}
 	var req cancelInputRequestReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -1157,8 +1654,8 @@ func (s *Server) cancelInputRequestHandler(w http.ResponseWriter, r *http.Reques
 	if req.Reason == "" {
 		req.Reason = "user_cancel"
 	}
-	if d.IRSvc == nil {
-		writeError(w, http.StatusNotImplemented, "ir_svc_not_wired", "")
+	// v2.6 X1 §5: org guard before the mutation.
+	if _, ok := s.requireInputRequestInOrg(w, r, d, string(id)); !ok {
 		return
 	}
 	if err := d.IRSvc.Cancel(r.Context(), trservice.CancelInput{
@@ -1183,7 +1680,17 @@ func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "fleet_not_wired", "")
 		return
 	}
-	filter := query.SnapshotFilter{ProjectID: r.URL.Query().Get("project")}
+	// v2.6 X1 §3: fleet snapshot is org-scoped. require membership + pass the
+	// resolved org into the snapshot filter (workers by org_id;
+	// executions/IRs/issues by the org's projects).
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	filter := query.SnapshotFilter{
+		ProjectID:      r.URL.Query().Get("project"),
+		OrganizationID: orgID,
+	}
 	snap := d.FleetSvc.Snapshot(r.Context(), filter)
 	writeJSON(w, http.StatusOK, snap)
 }
@@ -1198,6 +1705,27 @@ func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
 	if taskID == "" {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return
+	}
+	// v2.6 X1 §3: require org membership + verify the task's project is in the org.
+	if d.TaskRepo != nil {
+		_, _, orgID, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		tk, terr := d.TaskRepo.FindByID(r.Context(), taskruntime.TaskID(taskID))
+		if terr != nil {
+			writeError(w, http.StatusNotFound, "not_found", "task not found")
+			return
+		}
+		orgProjects, perr := orgProjectIDSet(r, d, orgID)
+		if perr != nil {
+			writeError(w, http.StatusInternalServerError, "org_scope_failed", perr.Error())
+			return
+		}
+		if !orgProjects[tk.ProjectID()] {
+			writeError(w, http.StatusNotFound, "not_found", "task not found")
+			return
+		}
 	}
 	res, err := d.QuerySvc.Query(r.Context(), "events", query.QueryFilter{
 		TaskID: taskID,
@@ -1216,7 +1744,12 @@ func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	list, err := d.AgentInstanceRepo.FindAll(r.Context(), workforce.AgentInstanceFilter{})
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	filter := workforce.AgentInstanceFilter{OrganizationID: orgID}
+	list, err := d.AgentInstanceRepo.FindAll(r.Context(), filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
@@ -1239,7 +1772,12 @@ func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
-	list, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{})
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	pfilter := workforce.ProjectFilter{OrganizationID: orgID}
+	list, err := d.ProjectRepo.FindAll(r.Context(), pfilter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
@@ -1260,6 +1798,9 @@ func (s *Server) showProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := workforce.ProjectID(r.PathValue("id"))
+	if _, ok := s.requireProjectInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	p, err := d.ProjectRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, workforce.ErrProjectNotFound) {
@@ -1294,16 +1835,28 @@ func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
 		return
 	}
+	// v2.6 X1 §3: require org membership + scope issues to the org's projects.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
 	projectID := r.URL.Query().Get("project_id")
+	if projectID != "" && !orgProjects[projectID] {
+		// Caller asked for a project that isn't in their org.
+		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
+		return
+	}
 	filter := discussion.IssueFilter{}
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := discussion.Status(st)
 		filter.Status = &ss
 	}
-	var (
-		list []*discussion.Issue
-		err  error
-	)
+	var list []*discussion.Issue
 	if projectID != "" {
 		list, err = d.IssueRepo.FindByProject(r.Context(), projectID, filter)
 	} else {
@@ -1313,9 +1866,13 @@ func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	arr := make([]map[string]any, len(list))
-	for i, is := range list {
-		arr[i] = issuePublicMap(is)
+	arr := make([]map[string]any, 0, len(list))
+	for _, is := range list {
+		// Filter to the org's projects (covers the no-project_id FindAll case).
+		if !orgProjects[is.ProjectID()] {
+			continue
+		}
+		arr = append(arr, issuePublicMap(is))
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -1327,6 +1884,10 @@ func (s *Server) showIssueHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
 		return
 	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
 	id := discussion.IssueID(r.PathValue("id"))
 	is, err := d.IssueRepo.FindByID(r.Context(), id)
 	if err != nil {
@@ -1335,6 +1896,17 @@ func (s *Server) showIssueHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	// v2.6 X1 §3: 404 if the issue's project isn't in the caller's org (don't
+	// leak existence across orgs).
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
+	if !orgProjects[is.ProjectID()] {
+		writeError(w, http.StatusNotFound, "not_found", "issue not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, issuePublicMap(is))
@@ -1360,16 +1932,27 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
 		return
 	}
+	// v2.6 X1 §3: require org membership + scope tasks to the org's projects.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
 	projectID := r.URL.Query().Get("project_id")
+	if projectID != "" && !orgProjects[projectID] {
+		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
+		return
+	}
 	filter := task.Filter{}
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := task.Status(st)
 		filter.Status = &ss
 	}
-	var (
-		list []*task.Task
-		err  error
-	)
+	var list []*task.Task
 	if projectID != "" {
 		list, err = d.TaskRepo.FindByProject(r.Context(), projectID, filter)
 	} else {
@@ -1379,9 +1962,12 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	arr := make([]map[string]any, len(list))
-	for i, tk := range list {
-		arr[i] = taskPublicMap(tk)
+	arr := make([]map[string]any, 0, len(list))
+	for _, tk := range list {
+		if !orgProjects[tk.ProjectID()] {
+			continue
+		}
+		arr = append(arr, taskPublicMap(tk))
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -1391,6 +1977,10 @@ func (s *Server) showTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.TaskRepo == nil {
 		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
+		return
+	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
 		return
 	}
 	id := taskruntime.TaskID(r.PathValue("id"))
@@ -1403,12 +1993,25 @@ func (s *Server) showTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
+	// v2.6 X1 §3: 404 if the task's project isn't in the caller's org.
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
+	if !orgProjects[tk.ProjectID()] {
+		writeError(w, http.StatusNotFound, "not_found", "task not found")
+		return
+	}
 	writeJSON(w, http.StatusOK, taskPublicMap(tk))
 }
 
 func (s *Server) showAgentHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	name := r.PathValue("name")
+	if _, ok := s.requireAgentInOrg(w, r, d, name); !ok {
+		return
+	}
 	ai, err := d.AgentInstanceRepo.FindByName(r.Context(), name)
 	if err != nil {
 		mapDomainError(w, err)
@@ -1427,7 +2030,12 @@ func (s *Server) listSecretsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "secret_not_wired", "")
 		return
 	}
-	list, err := d.UserSecretRepo.FindAll(r.Context(), secretmgmt.UserSecretFilter{})
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	sfilter := secretmgmt.UserSecretFilter{OrganizationID: orgID}
+	list, err := d.UserSecretRepo.FindAll(r.Context(), sfilter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
@@ -1464,11 +2072,24 @@ func (s *Server) createSecretHandler(w http.ResponseWriter, r *http.Request) {
 	if kind == "" {
 		kind = secretmgmt.UserSecretKindOther
 	}
+	// v2.6: stamp the new secret with the caller's org (membership-checked when
+	// auth is configured; legacy/test deps without AuthSvc fall back).
+	orgID := ""
+	if d.AuthSvc != nil {
+		_, _, resolved, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		orgID = resolved
+	} else {
+		orgID = resolveOrgIDFromRequest(r, d)
+	}
 	res, err := d.UserSecretSvc.Create(r.Context(), secretservice.CreateSecretCommand{
-		Name:          req.Name,
-		Kind:          kind,
-		Plaintext:     []byte(req.Value),
-		ActorIdentity: d.Actor,
+		Name:           req.Name,
+		Kind:           kind,
+		Plaintext:      []byte(req.Value),
+		OrganizationID: orgID,
+		ActorIdentity:  d.Actor,
 	})
 	// Wipe plaintext from the request buffer.
 	for i := range req.Value {
@@ -1494,6 +2115,9 @@ func (s *Server) revokeSecretHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := secretmgmt.UserSecretID(r.PathValue("id"))
+	if _, ok := s.requireSecretInOrg(w, r, d, string(id)); !ok {
+		return
+	}
 	sec, err := d.UserSecretRepo.FindByID(r.Context(), id)
 	if err != nil {
 		mapDomainError(w, err)
@@ -1599,7 +2223,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
-		errors.Is(err, identity.ErrIdentityNotFound),
 		errors.Is(err, workforce.ErrAgentInstanceNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
 		errors.Is(err, inputrequest.ErrInputRequestNotFound):
@@ -1844,6 +2467,17 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 			"admin TCP listener not enabled — set server.admin_tcp_listen in config")
 		return
 	}
+	// v2.6 X1 §1: Add Worker is org-scoped; require membership + stamp the org.
+	mintOrgID := ""
+	if d.AuthSvc != nil {
+		_, _, resolved, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		mintOrgID = resolved
+	} else {
+		mintOrgID = resolveOrgIDFromRequest(r, d)
+	}
 	var req mintEnrollReq
 	// Body is optional — older clients don't send {name}. decodeJSON
 	// tolerates empty body, leaving req.Name = "".
@@ -1891,9 +2525,10 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	// so the user doesn't end up with an unbound install command.
 	if d.WorkerAddSvc != nil {
 		if _, addErr := d.WorkerAddSvc.AddWorker(r.Context(), wfservice.AddWorkerCommand{
-			WorkerID:      workforce.WorkerID(workerID),
-			Name:          workerName,
-			ActorIdentity: d.Actor,
+			WorkerID:       workforce.WorkerID(workerID),
+			Name:           workerName,
+			OrganizationID: mintOrgID,
+			ActorIdentity:  d.Actor,
 		}); addErr != nil {
 			_ = d.AdminTokenSvc.Revoke(r.Context(), admintokensvc.RevokeCommand{
 				ID:     res.ID,
@@ -1983,6 +2618,10 @@ func (s *Server) workerRenameHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_name", "name must be non-empty")
 		return
 	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
+		return
+	}
 	if err := d.WorkerRenameSvc.Rename(r.Context(), wfservice.RenameCommand{
 		WorkerID: workforce.WorkerID(id),
 		Name:     req.Name,
@@ -2037,6 +2676,10 @@ func (s *Server) showInstallCommandHandler(w http.ResponseWriter, r *http.Reques
 	id := r.PathValue("id")
 	if strings.TrimSpace(id) == "" {
 		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
 		return
 	}
 	res, err := d.AdminTokenSvc.ShowInstallToken(r.Context(), id)
@@ -2124,6 +2767,10 @@ func (s *Server) reMintInstallCommandHandler(w http.ResponseWriter, r *http.Requ
 	// Worker must exist + must not already be enrolled.
 	if d.WorkerRepo == nil {
 		writeError(w, http.StatusNotImplemented, "worker_repo_not_wired", "")
+		return
+	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
 		return
 	}
 	worker, werr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(id))
@@ -2215,6 +2862,10 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_id", "")
 		return
 	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
+		return
+	}
 	// Revoke first. Non-fatal: if the admin token side errors we
 	// keep going — the operator's explicit intent is "this worker is
 	// gone", and a dangling Worker row with revoke-failed tokens is
@@ -2269,6 +2920,11 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "project_crud_not_wired", "")
 		return
 	}
+	// v2.6 X1 §2: require org membership; stamp the new project with the org.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
 	var req createProjectReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -2280,10 +2936,11 @@ func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := d.ProjectCRUDSvc.Add(r.Context(), wfservice.AddCommand{
-		Name:        req.Name,
-		Description: req.Description,
-		Tags:        req.Tags,
-		Actor:       d.Actor,
+		Name:           req.Name,
+		Description:    req.Description,
+		Tags:           req.Tags,
+		OrganizationID: orgID,
+		Actor:          d.Actor,
 	})
 	if err != nil {
 		mapWorkforceError(w, err)
@@ -2311,6 +2968,9 @@ func (s *Server) updateProjectHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if strings.TrimSpace(id) == "" {
 		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	if _, ok := s.requireProjectInOrg(w, r, d, id); !ok {
 		return
 	}
 	var req updateProjectReq
@@ -2345,6 +3005,9 @@ func (s *Server) deleteProjectHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if strings.TrimSpace(id) == "" {
 		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	if _, ok := s.requireProjectInOrg(w, r, d, id); !ok {
 		return
 	}
 	force := r.URL.Query().Get("force") == "true"
@@ -2421,6 +3084,9 @@ func (s *Server) listProjectMappingsHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	id := r.PathValue("id")
+	if _, ok := s.requireProjectInOrg(w, r, d, id); !ok {
+		return
+	}
 	mappings, err := d.MappingRepo.FindByProjectID(r.Context(), workforce.ProjectID(id))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
@@ -2440,6 +3106,10 @@ func (s *Server) createProjectMappingHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	id := r.PathValue("id")
+	orgID, ok := s.requireProjectInOrg(w, r, d, id)
+	if !ok {
+		return
+	}
 	var req createMappingReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -2449,6 +3119,15 @@ func (s *Server) createProjectMappingHandler(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "missing_field",
 			"worker_id and path are required")
 		return
+	}
+	// v2.6 X1 §4: the worker being mapped must belong to the same org as the
+	// project (prevents mapping org A's project to org B's worker).
+	if d.WorkerRepo != nil {
+		wk, werr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(req.WorkerID))
+		if werr != nil || wk == nil || wk.OrganizationID() != orgID {
+			writeError(w, http.StatusForbidden, "forbidden", "worker is not in this organization")
+			return
+		}
 	}
 	mid := workforce.MappingID("M-" + generateShortID())
 	m, err := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
@@ -2474,6 +3153,11 @@ func (s *Server) deleteProjectMappingHandler(w http.ResponseWriter, r *http.Requ
 	if d.MappingRepo == nil {
 		writeError(w, http.StatusNotImplemented, "mapping_repo_not_wired", "")
 		return
+	}
+	if pid := r.PathValue("id"); pid != "" {
+		if _, ok := s.requireProjectInOrg(w, r, d, pid); !ok {
+			return
+		}
 	}
 	mid := workforce.MappingID(r.PathValue("mapping_id"))
 	if err := d.MappingRepo.Invalidate(r.Context(), mid,

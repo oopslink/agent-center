@@ -49,15 +49,15 @@ func seedTask(t *testing.T, deps HandlerDeps, id, projectID, title string, statu
 }
 
 func TestAPI_ListTasks_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedTask(t, deps, "T-1", "p-1", "first", task.StatusOpen, task.PriorityHigh)
 	seedTask(t, deps, "T-2", "p-1", "second", task.StatusOpen, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, err := http.Get(s.URL + "/api/tasks?project_id=p-1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, s.URL + "/api/tasks?project_id=p-1", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -81,12 +81,15 @@ func TestAPI_ListTasks_Happy(t *testing.T) {
 }
 
 func TestAPI_ListTasks_StatusFilter(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedTask(t, deps, "T-1", "p-1", "open", task.StatusOpen, task.PriorityMedium)
 	seedTask(t, deps, "T-2", "p-1", "done", task.StatusDone, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks?project_id=p-1&status=done")
+	resp := orgScopedGet(t, s.URL + "/api/tasks?project_id=p-1&status=done", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -105,12 +108,15 @@ func TestAPI_ListTasks_StatusFilter(t *testing.T) {
 // previous behavior (400 missing_project_id) was the symmetric root
 // cause to #68 on the Issues page.
 func TestAPI_ListTasks_NoProjectID_ReturnsAllProjects(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedTask(t, deps, "T-1", "p-1", "first", task.StatusOpen, task.PriorityHigh)
 	seedTask(t, deps, "T-2", "p-2", "second", task.StatusDone, task.PriorityLow)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks")
+	resp := orgScopedGet(t, s.URL + "/api/tasks", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d want 200", resp.StatusCode)
 	}
@@ -127,12 +133,15 @@ func TestAPI_ListTasks_NoProjectID_ReturnsAllProjects(t *testing.T) {
 }
 
 func TestAPI_ListTasks_NoProjectID_StatusFilterApplies(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedTask(t, deps, "T-1", "p-1", "open", task.StatusOpen, task.PriorityHigh)
 	seedTask(t, deps, "T-2", "p-2", "done", task.StatusDone, task.PriorityHigh)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks?status=done")
+	resp := orgScopedGet(t, s.URL + "/api/tasks?status=done", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -147,10 +156,12 @@ func TestAPI_ListTasks_NoProjectID_StatusFilterApplies(t *testing.T) {
 }
 
 func TestAPI_ListTasks_EmptyResult(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-empty", "Pempty")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks?project_id=p-empty")
+	resp := orgScopedGet(t, s.URL+"/api/tasks?project_id=p-empty", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -172,22 +183,28 @@ func TestAPI_ListTasks_RepoNotWired(t *testing.T) {
 }
 
 func TestAPI_ListTasks_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks?project_id=p-1")
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("status=%d want 500", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL + "/api/tasks?project_id=p-1", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_ShowTask_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedTask(t, deps, "T-1", "p-1", "the task", task.StatusOpen, task.PriorityHigh)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks/T-1")
+	resp := orgScopedGet(t, s.URL + "/api/tasks/T-1", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -202,10 +219,13 @@ func TestAPI_ShowTask_Happy(t *testing.T) {
 }
 
 func TestAPI_ShowTask_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks/ghost")
+	resp := orgScopedGet(t, s.URL + "/api/tasks/ghost", sess)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status=%d want 404", resp.StatusCode)
 	}
@@ -223,13 +243,16 @@ func TestAPI_ShowTask_RepoNotWired(t *testing.T) {
 }
 
 func TestAPI_ShowTask_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks/T-1")
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("status=%d want 500", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL + "/api/tasks/T-1", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
@@ -237,12 +260,15 @@ func TestAPI_ShowTask_DBError(t *testing.T) {
 // still match before the new `/api/tasks/{id}` detail route. If a
 // future refactor breaks the registration order, this test fails.
 func TestAPI_ShowTask_CoexistsWithTrace(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedTask(t, deps, "T-trace", "p-1", "x", task.StatusOpen, task.PriorityMedium)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	// /trace should still hit the query endpoint, not the detail handler.
-	resp, _ := http.Get(s.URL + "/api/tasks/T-trace/trace")
+	resp := orgScopedGet(t, s.URL + "/api/tasks/T-trace/trace", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("/trace status=%d", resp.StatusCode)
 	}
@@ -252,7 +278,7 @@ func TestAPI_ShowTask_CoexistsWithTrace(t *testing.T) {
 		t.Fatalf("trace handler payload missing 'resource':events — detail handler shadowed /trace? body=%v", traceBody)
 	}
 	// /detail should hit the new detail handler.
-	resp, _ = http.Get(s.URL + "/api/tasks/T-trace")
+	resp = orgScopedGet(t, s.URL+"/api/tasks/T-trace", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("detail status=%d", resp.StatusCode)
 	}

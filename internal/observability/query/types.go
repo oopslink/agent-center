@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// InspectKind enumerates the 10 inspect kinds (plan-4 § 3.5 list).
+// InspectKind enumerates the supported inspect kinds (v2.6: supervisor/decision removed).
 type InspectKind string
 
 const (
@@ -16,19 +16,17 @@ const (
 	InspectExecution    InspectKind = "execution"
 	InspectWorker       InspectKind = "worker"
 	InspectIssue        InspectKind = "issue"
-	InspectSupervisor   InspectKind = "supervisor"
 	InspectConversation InspectKind = "conversation"
 	InspectInputRequest InspectKind = "input_request"
 	InspectProject      InspectKind = "project"
 	InspectWorktree     InspectKind = "worktree"
-	InspectDecision     InspectKind = "decision"
 )
 
 // AllInspectKinds is the closed-enum list used by `--help` and validation.
 var AllInspectKinds = []InspectKind{
 	InspectTask, InspectExecution, InspectWorker, InspectIssue,
-	InspectSupervisor, InspectConversation, InspectInputRequest,
-	InspectProject, InspectWorktree, InspectDecision,
+	InspectConversation, InspectInputRequest,
+	InspectProject, InspectWorktree,
 }
 
 // ValidInspectKind reports whether kind is a recognised inspect kind.
@@ -41,7 +39,7 @@ func ValidInspectKind(kind string) bool {
 	return false
 }
 
-// QueryResource enumerates the 8 query resources (plan-4 § 3.5 list).
+// QueryResource enumerates supported query resources (v2.6: decisions removed).
 type QueryResource string
 
 const (
@@ -52,13 +50,12 @@ const (
 	QueryInputRequests QueryResource = "input_requests"
 	QueryProposals     QueryResource = "proposals"
 	QueryEvents        QueryResource = "events"
-	QueryDecisions     QueryResource = "decisions"
 )
 
 // AllQueryResources lists every supported `query <resource>` value.
 var AllQueryResources = []QueryResource{
 	QueryTasks, QueryExecutions, QueryWorkers, QueryIssues,
-	QueryInputRequests, QueryProposals, QueryEvents, QueryDecisions,
+	QueryInputRequests, QueryProposals, QueryEvents,
 }
 
 // ValidQueryResource reports whether the resource is recognised.

@@ -13,7 +13,7 @@ func groupOrder() []string {
 	return []string{
 		"Help & info",
 		"Resources",      // channel / agent / secret / input-request / message / conversation / project / issue / task / identity
-		"Runtime",        // server / worker / supervisor / bootstrap / dispatch / kill-execution / record-decision / escalate-input-request
+		"Runtime",        // server / worker / bootstrap / dispatch / kill-execution
 		"Observability",  // inspect / query / ps / stats / logs / peek-trace / open-issue
 		"Admin",          // admin / migrate
 	}
@@ -129,11 +129,9 @@ var topLevelMeta = map[string]struct{ Group, Summary string }{
 	"version":                {"Help & info", "Show version + build commit."},
 	"server":                 {"Runtime", "Run the center daemon (long-lived)."},
 	"worker":                 {"Runtime", "Worker daemon commands."},
-	"supervisor":             {"Runtime", "Supervisor invocation + retrigger."},
 	"bootstrap":              {"Runtime", "Install-time bootstrap checks."},
 	"dispatch":               {"Runtime", "Dispatch an envelope onto a worker."},
 	"kill-execution":         {"Runtime", "Terminate a running execution."},
-	"record-decision":        {"Runtime", "Persist a manual decision record."},
 	"escalate-input-request": {"Runtime", "Escalate a pending input request."},
 	"open-issue":             {"Runtime", "Open an issue from a message (alias)."},
 	"migrate":                {"Admin", "Run pending DB migrations."},

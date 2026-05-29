@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   useConversation,
   useConversationRefs,
@@ -69,9 +70,9 @@ export default function IssueDetail(): React.ReactElement {
         <p className="text-sm text-danger" data-testid="issue-not-found">
           {(issue.error as Error).message}
         </p>
-        <Link to="/issues" className="text-accent hover:underline">
+        <OrgLink to="/issues" className="text-accent hover:underline">
           Back to issues
-        </Link>
+        </OrgLink>
       </section>
     );
   }
@@ -108,13 +109,13 @@ export default function IssueDetail(): React.ReactElement {
               <span className="font-mono">{iss.opener}</span>
             </span>
             {iss.project_id && (
-              <Link
+              <OrgLink
                 to={`/projects/${encodeURIComponent(iss.project_id)}`}
                 className="text-accent hover:underline"
                 data-testid="issue-project-link"
               >
                 project · {iss.project_id}
-              </Link>
+              </OrgLink>
             )}
           </div>
         </div>

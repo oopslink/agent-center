@@ -1,5 +1,6 @@
 import type React from 'react';
-import { Link } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
+
 
 // NotFound — 404 with a navigation link back to the home so users don't
 // get stuck. Per x9527 #6 open question 5.
@@ -11,16 +12,13 @@ export default function NotFound(): React.ReactElement {
         The page you requested does not exist.
       </p>
       <div className="space-x-3">
-        <Link
-          to="/channels"
+        <OrgLink
+          to="/"
           className="text-accent hover:underline"
           data-testid="nav-home"
         >
-          Back to channels
-        </Link>
-        <Link to="/fleet" className="text-accent hover:underline">
-          Fleet overview
-        </Link>
+          Back to home
+        </OrgLink>
       </div>
     </section>
   );

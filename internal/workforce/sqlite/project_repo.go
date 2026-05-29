@@ -30,8 +30,8 @@ func (r *ProjectRepo) Save(ctx context.Context, p *workforce.Project) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	const stmt = `INSERT INTO projects (
 		id, name, description, tags,
-		created_by_identity_id, created_at, updated_at, version
-	) VALUES (?,?,?,?,?,?,?,?)`
+		created_by_identity_id, created_at, updated_at, version, organization_id
+	) VALUES (?,?,?,?,?,?,?,?,?)`
 	tagsJSON, err := marshalTags(p.Tags())
 	if err != nil {
 		return err
@@ -45,6 +45,7 @@ func (r *ProjectRepo) Save(ctx context.Context, p *workforce.Project) error {
 		p.CreatedAt().Format(time.RFC3339Nano),
 		p.UpdatedAt().Format(time.RFC3339Nano),
 		p.Version(),
+		p.OrganizationID(),
 	)
 	if err != nil {
 		if IsUniqueConstraint(err) {
@@ -71,9 +72,16 @@ func (r *ProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*wo
 // v2.5.5 dropped the by-kind filter alongside ProjectKind; tag-based
 // filtering, when introduced, will read the JSON column at the
 // service layer or via a future projection table.
-func (r *ProjectRepo) FindAll(ctx context.Context, _ workforce.ProjectFilter) ([]*workforce.Project, error) {
+func (r *ProjectRepo) FindAll(ctx context.Context, filter workforce.ProjectFilter) ([]*workforce.Project, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	rows, err := exec.QueryContext(ctx, projectSelect+` ORDER BY created_at`)
+	q := projectSelect
+	var args []any
+	if filter.OrganizationID != "" {
+		q += ` WHERE organization_id = ?`
+		args = append(args, filter.OrganizationID)
+	}
+	q += ` ORDER BY created_at`
+	rows, err := exec.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +156,7 @@ func (r *ProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error 
 }
 
 const projectSelect = `SELECT id, name, description, tags,
-	created_by_identity_id, created_at, updated_at, version
+	created_by_identity_id, created_at, updated_at, version, organization_id
 	FROM projects`
 
 func scanProject(scan func(...any) error) (*workforce.Project, error) {
@@ -158,9 +166,10 @@ func scanProject(scan func(...any) error) (*workforce.Project, error) {
 		createdByIdentityID   string
 		createdAt, updatedAt  string
 		version               int
+		organizationID        string
 	)
 	if err := scan(&id, &name, &description, &tagsJSON,
-		&createdByIdentityID, &createdAt, &updatedAt, &version); err != nil {
+		&createdByIdentityID, &createdAt, &updatedAt, &version, &organizationID); err != nil {
 		return nil, err
 	}
 	tags, err := unmarshalTags(tagsJSON)
@@ -184,6 +193,7 @@ func scanProject(scan func(...any) error) (*workforce.Project, error) {
 		CreatedAt:           created,
 		UpdatedAt:           updated,
 		Version:             version,
+		OrganizationID:      organizationID,
 	})
 }
 

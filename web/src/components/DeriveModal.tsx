@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
 import { useDeriveIssue, useDeriveTask } from '@/api/derive';
 import { useProjects } from '@/api/projects';
 import { useModalA11y } from './useModalA11y';
@@ -199,14 +199,14 @@ export function DeriveModal({
               >
                 Close
               </button>
-              <Link
+              <OrgLink
                 to={targetPath}
                 onClick={handleClose}
                 className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
                 data-testid="derive-success-link"
               >
                 View {label} →
-              </Link>
+              </OrgLink>
             </div>
           </div>
         )}

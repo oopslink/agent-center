@@ -182,7 +182,7 @@ describe('TaskDetail page', () => {
     expect(screen.getByText(/exec · E-7/)).toBeInTheDocument();
     expect(screen.getByText('low')).toBeInTheDocument();
     const toggle = screen.getByTestId('select-mode-toggle');
-    toggle.click();
+    fireEvent.click(toggle);
     await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
   });
 });

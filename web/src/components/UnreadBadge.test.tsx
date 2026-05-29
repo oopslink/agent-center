@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { makeWrapper } from '../test/renderWith';
 import { server } from '../test/mswServer';
@@ -24,8 +24,11 @@ describe('UnreadBadge', () => {
     renderBadge('C1');
     // Initially loading → null.
     expect(screen.queryByTestId('unread-badge')).toBeNull();
-    // After the query resolves with 0, still null.
-    await new Promise((r) => setTimeout(r, 30));
+    // After the query resolves with 0, still null. Flush the resolution
+    // inside act() so the state update is captured (no act warning).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
     expect(screen.queryByTestId('unread-badge')).toBeNull();
   });
 

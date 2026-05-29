@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   useConversation,
   useConversations,
@@ -59,9 +60,9 @@ export default function ChannelDetail(): React.ReactElement {
         <p data-testid="channel-not-found">
           Channel <span className="font-mono">{name}</span> not found.
         </p>
-        <Link to="/channels" className="text-accent hover:underline">
+        <OrgLink to="/channels" className="text-accent hover:underline">
           Back to channels
-        </Link>
+        </OrgLink>
       </section>
     );
   }

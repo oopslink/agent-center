@@ -81,7 +81,6 @@ func TestMigrator_UpCreatesV2Tables(t *testing.T) {
 		{"workers", "capabilities_json", true},
 		{"workers", "capabilities", false}, // dropped by 0007
 		{"task_executions", "agent_instance_id", true},
-		{"supervisor_invocations", "agent_instance_id", true},
 	} {
 		var found bool
 		rows, err := db.Query(`SELECT name FROM pragma_table_info(?)`, c.table)
@@ -181,8 +180,8 @@ func TestMigrator_VersionTracksApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 32 {
-		t.Fatalf("version after Up: got %d want 32", v)
+	if v != 36 {
+		t.Fatalf("version after Up: got %d want 36", v)
 	}
 	if err := m.Down(ctx, 0); err != nil {
 		t.Fatal(err)
