@@ -128,10 +128,10 @@ func NewRunner(cfg Config) (*Runner, error) {
 
 // RunResult captures one execution.
 type RunResult struct {
-	DestDir      string
-	DestFile     string
-	BytesCopied  int64
-	Pruned       []string
+	DestDir       string
+	DestFile      string
+	BytesCopied   int64
+	Pruned        []string
 	WALCheckpoint bool
 }
 
@@ -177,11 +177,11 @@ func (r *Runner) Run(ctx context.Context) (RunResult, error) {
 		EventType: "admin.backup_ok",
 		Actor:     r.actor,
 		Payload: map[string]any{
-			"dest_dir":    destDir,
-			"dest_file":   dst,
-			"bytes":       stat.Size(),
-			"retention":   r.retention.String(),
-			"pruned":      pruned,
+			"dest_dir":  destDir,
+			"dest_file": dst,
+			"bytes":     stat.Size(),
+			"retention": r.retention.String(),
+			"pruned":    pruned,
 		},
 	})
 	return RunResult{

@@ -256,6 +256,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		ProjectSvc:        a.ProjectSvc,
 		AgentMgmtSvc:      a.AgentMgmtSvc,
 
+		// Environment BC (v2.7 D1, ADR-0050, task #102)
+		EnvControlSvc: a.EnvControlSvc,
+
 		// TaskRuntime BC
 		TaskRepo:        a.TaskRepo,
 		ExecRepo:        a.ExecRepo,

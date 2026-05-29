@@ -192,12 +192,12 @@ func generateAndPersist(certPath, keyPath, hostname string) (*tls.Certificate, s
 
 	now := time.Now()
 	tmpl := x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "agent-center"},
-		NotBefore:    now.Add(-1 * time.Minute), // small backdate for clock skew
-		NotAfter:     now.Add(CertValidity),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: "agent-center"},
+		NotBefore:             now.Add(-1 * time.Minute), // small backdate for clock skew
+		NotAfter:              now.Add(CertValidity),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
 	tmpl.IPAddresses, tmpl.DNSNames = buildSANs(hostname)
@@ -274,4 +274,3 @@ func buildSANs(hostname string) (ips []net.IP, dnsNames []string) {
 	dnsNames = append(dnsNames, "localhost")
 	return ips, dnsNames
 }
-

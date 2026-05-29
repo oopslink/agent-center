@@ -303,6 +303,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/workforce/project/remove", s.projectRemoveHandler)
 	s.mux.HandleFunc("POST /admin/workforce/project/update", s.projectUpdateHandler)
 
+	// --- environment (v2.7 D1, ADR-0050, task #102) ----------------------
+	// Worker-initiated control channel. ADDITIVE — rides the same bearer
+	// auth + TLS as the workforce worker routes above; does NOT touch the
+	// legacy /admin/workforce/... dispatch surface.
+	s.mux.HandleFunc("POST /admin/environment/worker/connect", s.envWorkerConnectHandler)
+	s.mux.HandleFunc("GET /admin/environment/worker/commands", s.envWorkerCommandsHandler)
+	s.mux.HandleFunc("POST /admin/environment/worker/ack", s.envWorkerAckHandler)
+	s.mux.HandleFunc("POST /admin/environment/worker/heartbeat", s.envWorkerHeartbeatHandler)
+
 	// --- conversation ----------------------------------------------------
 	s.mux.HandleFunc("GET /admin/conversation/conv/find", s.convFindHandler)
 	s.mux.HandleFunc("GET /admin/conversation/conv/find-by-id", s.convFindByIDHandler)

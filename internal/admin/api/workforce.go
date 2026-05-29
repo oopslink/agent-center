@@ -18,11 +18,11 @@ import (
 // (rather than `*`) so a leaked worker token can't escalate to e.g.
 // admin:token operations.
 var workerLongTermTokenScopes = []admintoken.Scope{
-	"workforce:enroll",   // heartbeat / re-enroll
-	"dispatch:pull",      // /admin/dispatch/queue/pull
-	"task:*",             // exec/notify-working, report-success, etc.
-	"secret:resolve",     // /admin/secret/user-secret/resolve
-	"blob:put",           // /admin/blob/put
+	"workforce:enroll", // heartbeat / re-enroll
+	"dispatch:pull",    // /admin/dispatch/queue/pull
+	"task:*",           // exec/notify-working, report-success, etc.
+	"secret:resolve",   // /admin/secret/user-secret/resolve
+	"blob:put",         // /admin/blob/put
 }
 
 // =============================================================================

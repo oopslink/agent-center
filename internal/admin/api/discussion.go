@@ -136,11 +136,11 @@ func (s *Server) issueOpenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type issueConcludeReq struct {
-	IssueID     string                            `json:"issue_id"`
-	Kind        string                            `json:"kind"`
-	Summary     string                            `json:"summary"`
-	Tasks       []dispatch.IssueConcludeTaskSpec  `json:"tasks"`
-	ConcludedBy string                            `json:"concluded_by"`
+	IssueID     string                           `json:"issue_id"`
+	Kind        string                           `json:"kind"`
+	Summary     string                           `json:"summary"`
+	Tasks       []dispatch.IssueConcludeTaskSpec `json:"tasks"`
+	ConcludedBy string                           `json:"concluded_by"`
 }
 
 func (s *Server) issueConcludeHandler(w http.ResponseWriter, r *http.Request) {

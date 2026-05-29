@@ -30,10 +30,10 @@ import (
 // kill.KillSender.SendKill args; defined here so consumers don't
 // have to import the kill package.
 type KillRequest struct {
-	WorkerID    string                       `json:"worker_id"`
-	ExecutionID taskruntime.TaskExecutionID  `json:"execution_id"`
-	Reason      execution.KilledReason       `json:"reason"`
-	Message     string                       `json:"message"`
+	WorkerID    string                      `json:"worker_id"`
+	ExecutionID taskruntime.TaskExecutionID `json:"execution_id"`
+	Reason      execution.KilledReason      `json:"reason"`
+	Message     string                      `json:"message"`
 }
 
 // Queue is the per-worker in-process dispatch + kill backlog.

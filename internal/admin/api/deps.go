@@ -14,6 +14,7 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
+	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
@@ -45,16 +46,16 @@ type HandlerDeps struct {
 	DB *sql.DB
 
 	// Conversation BC
-	ConvRepo            conversation.ConversationRepository
-	MsgRepo             conversation.MessageRepository
-	ConvRefRepo         conversation.ConversationMessageReferenceRepository
-	ReadStateRepo       conversation.UserConversationReadStateRepository
-	MessageWriter       *convservice.MessageWriter
-	ChannelMgmtSvc      *convservice.ChannelManagementService
-	ParticipantMgmtSvc  *convservice.ParticipantManagementService
-	CarryOverSvc        *convservice.CarryOverService
-	DerivationSvc       *convservice.MessageDerivationService
-	ReadStateSvc        *convservice.ReadStateService
+	ConvRepo           conversation.ConversationRepository
+	MsgRepo            conversation.MessageRepository
+	ConvRefRepo        conversation.ConversationMessageReferenceRepository
+	ReadStateRepo      conversation.UserConversationReadStateRepository
+	MessageWriter      *convservice.MessageWriter
+	ChannelMgmtSvc     *convservice.ChannelManagementService
+	ParticipantMgmtSvc *convservice.ParticipantManagementService
+	CarryOverSvc       *convservice.CarryOverService
+	DerivationSvc      *convservice.MessageDerivationService
+	ReadStateSvc       *convservice.ReadStateService
 
 	// Workforce BC
 	WorkerRepo        workforce.WorkerRepository
@@ -67,6 +68,11 @@ type HandlerDeps struct {
 	AcceptanceSvc     *wfservice.ProposalAcceptanceService
 	ProjectSvc        *wfservice.ProjectCRUDService
 	AgentMgmtSvc      *wfservice.AgentInstanceManagementService
+
+	// Environment BC (v2.7 D1, ADR-0050, task #102) — worker-initiated
+	// control channel riding this same admin API + bearer auth. WorkerRepo
+	// (above) supplies org provenance on connect.
+	EnvControlSvc *envservice.EnvControl
 
 	// TaskRuntime BC
 	TaskRepo        task.Repository
@@ -81,8 +87,8 @@ type HandlerDeps struct {
 	KillCoordinator *kill.Coordinator
 
 	// SecretManagement BC
-	UserSecretRepo       secretmgmt.UserSecretRepository
-	UserSecretSvc        *secretservice.UserSecretService
+	UserSecretRepo secretmgmt.UserSecretRepository
+	UserSecretSvc  *secretservice.UserSecretService
 	// UserSecretResolveSvc returns plaintext for `secret:resolve`-scoped
 	// callers (worker daemon agent dispatch). v2.3-3b (task #29).
 	UserSecretResolveSvc *secretservice.SecretResolutionService

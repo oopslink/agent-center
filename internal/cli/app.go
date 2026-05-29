@@ -22,6 +22,8 @@ import (
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
+	envservice "github.com/oopslink/agent-center/internal/environment/service"
+	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -97,6 +99,11 @@ type App struct {
 
 	// AgentService is the v2.7 Agent BC AppService facade (C3).
 	AgentService *agentsvc.Service
+
+	// EnvControlSvc is the v2.7 Environment BC control-channel AppService
+	// (D1, ADR-0050, task #102) — backs the additive /admin/environment/...
+	// worker control endpoints.
+	EnvControlSvc *envservice.EnvControl
 
 	MessageWriter      *convservice.MessageWriter
 	ChannelMgmtSvc     *convservice.ChannelManagementService
@@ -382,6 +389,16 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:     clk,
 	})
 
+	// v2.7 D1 Environment BC (ADR-0050, task #102): control-channel
+	// AppService over the env sqlite repos (migration 0044).
+	envControlSvc := envservice.New(envservice.Deps{
+		DB:      db,
+		Workers: envsql.NewWorkerRepo(db),
+		Events:  envsql.NewControlEventRepo(db),
+		IDGen:   gen,
+		Clock:   clk,
+	})
+
 	return &App{
 		Config:             cfg,
 		DB:                 db,
@@ -389,6 +406,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:              gen,
 		PMService:          pmSvc,
 		AgentService:       agentSvc,
+		EnvControlSvc:      envControlSvc,
 		WorkerRepo:         wr,
 		MappingRepo:        mr,
 		ProposalRepo:       prRepo,

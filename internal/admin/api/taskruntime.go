@@ -630,12 +630,12 @@ func (s *Server) execReportFailureHandler(w http.ResponseWriter, r *http.Request
 // =============================================================================
 
 type dispatchReq struct {
-	TaskID                   string `json:"task_id"`
-	WorkerID                 string `json:"worker_id"`
-	AgentCLI                 string `json:"agent_cli"`
-	AgentInstanceID          string `json:"agent_instance_id"`
-	BaseBranch               string `json:"base_branch"`
-	ExecutionTimeoutSecs     *int64 `json:"execution_timeout_seconds"`
+	TaskID               string `json:"task_id"`
+	WorkerID             string `json:"worker_id"`
+	AgentCLI             string `json:"agent_cli"`
+	AgentInstanceID      string `json:"agent_instance_id"`
+	BaseBranch           string `json:"base_branch"`
+	ExecutionTimeoutSecs *int64 `json:"execution_timeout_seconds"`
 }
 
 func (s *Server) dispatchHandler(w http.ResponseWriter, r *http.Request) {
