@@ -97,8 +97,6 @@ type HandlerDeps struct {
 	// when rebuilding the install line.
 	WorkerRepo workforce.WorkerRepository
 
-	MappingRepo workforce.WorkerProjectMappingRepository
-
 	// v2.7 B3: the ProjectManager AppService facade backs the nested
 	// /api/projects/{project_id}/{members,issues,tasks,code-repos} routes
 	// (work-management truth; ADR-0046). Optional — nil means the v2.7 PM
@@ -1085,56 +1083,6 @@ func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 // wins on tie-break (ServeMux specificity rule). Verified by
 // TestAPI_TaskTrace + TestAPI_ShowTask_Happy in this package.
 
-// listTasksHandler serves `GET /api/tasks[?project_id=<id>][&status=<s>]`.
-// v2.5.15 (#70): project_id is now OPTIONAL — when omitted the handler
-// returns tasks across all projects (TaskRuntime BC FindAll). Optional
-// `status` filters by Task.Status.
-func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskRepo == nil {
-		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
-		return
-	}
-	// v2.6 X1 §3: require org membership + scope tasks to the org's projects.
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	orgProjects, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return
-	}
-	projectID := r.URL.Query().Get("project_id")
-	if projectID != "" && !orgProjects[projectID] {
-		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
-		return
-	}
-	filter := task.Filter{}
-	if st := r.URL.Query().Get("status"); st != "" {
-		ss := task.Status(st)
-		filter.Status = &ss
-	}
-	var list []*task.Task
-	if projectID != "" {
-		list, err = d.TaskRepo.FindByProject(r.Context(), projectID, filter)
-	} else {
-		list, err = d.TaskRepo.FindAll(r.Context(), filter)
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	arr := make([]map[string]any, 0, len(list))
-	for _, tk := range list {
-		if !orgProjects[tk.ProjectID()] {
-			continue
-		}
-		arr = append(arr, taskPublicMap(tk))
-	}
-	writeJSON(w, http.StatusOK, arr)
-}
-
 func (s *Server) showAgentHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	name := r.PathValue("name")
@@ -1461,36 +1409,6 @@ func agentPublicMap(ai *workforce.AgentInstance) map[string]any {
 		"max_concurrent": ai.MaxConcurrent(),
 		"identity_id":    "agent:" + string(ai.ID()),
 	}
-}
-
-// taskPublicMap is the wire-format projection for a TaskRuntime BC
-// Task AR — v2.3-5a `GET /api/tasks[/{id}]`. Mirrors the Issue
-// projection shape (id / project_id / conversation_id / title /
-// status / priority / created_at) plus task-only addenda
-// (current_execution_id when active, depends_on_task_ids when
-// non-empty).
-func taskPublicMap(t *task.Task) map[string]any {
-	m := map[string]any{
-		"id":              string(t.ID()),
-		"project_id":      t.ProjectID(),
-		"conversation_id": t.ConversationID(),
-		"title":           t.Title(),
-		"description":     t.Description(),
-		"status":          string(t.Status()),
-		"priority":        string(t.Priority()),
-		"created_at":      t.CreatedAt().Format(time.RFC3339Nano),
-	}
-	if execID := string(t.CurrentExecutionID()); execID != "" {
-		m["current_execution_id"] = execID
-	}
-	if deps := t.DependsOnTaskIDs(); len(deps) > 0 {
-		as := make([]string, len(deps))
-		for k, d := range deps {
-			as[k] = string(d)
-		}
-		m["depends_on_task_ids"] = as
-	}
-	return m
 }
 
 // =============================================================================

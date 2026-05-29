@@ -58,7 +58,11 @@ type projectorPayload struct {
 func (p *ParticipantProjector) Project(ctx context.Context, e outbox.Event) error {
 	var kind conversation.ConversationKind
 	switch e.EventType {
-	case EvtTaskCreated, EvtTaskSubsChanged, EvtTaskAssigned, EvtTaskReassigned:
+	case EvtTaskCreated, EvtTaskSubsChanged, EvtTaskAssigned, EvtTaskReassigned, EvtTaskStateChanged:
+		// EvtTaskStateChanged carries the recomputed effective set: unassign/
+		// reopen drop the assignee → the prior assignee must leave the task
+		// Conversation. Other state changes leave the set unchanged (idempotent
+		// rewrite), so handling them all keeps participants convergent.
 		kind = conversation.ConversationKindTask
 	case EvtIssueCreated, EvtIssueSubsChanged:
 		kind = conversation.ConversationKindIssue

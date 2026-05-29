@@ -8,6 +8,7 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/conversation"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -347,6 +348,100 @@ func TestReopenTask_ClearsAssignmentAndCompletion(t *testing.T) {
 	// Reopen from a non-completed/verified state is illegal.
 	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrIllegalTransition {
 		t.Fatalf("reopen from open should be ErrIllegalTransition, got %v", err)
+	}
+}
+
+// TestUnassignReopen_ResyncsParticipants is the #98 review fix: unassign/reopen
+// move the effective subscriber set (the assignee leaves), so the prior assignee
+// must be dropped from the task Conversation participants. The state_changed
+// event now carries effective_subscribers and the ParticipantProjector consumes
+// it.
+func TestUnassignReopen_ResyncsParticipants(t *testing.T) {
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
+	gen := idgen.NewGenerator(clk)
+	ob := outboxsql.NewOutboxRepo(db)
+	applied := outboxsql.NewAppliedRepo(db)
+	convRepo := convsql.NewConversationRepo(db)
+	svc := New(Deps{
+		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
+		Issues: pmsql.NewIssueRepo(db), Tasks: pmsql.NewTaskRepo(db),
+		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Outbox: ob, IDGen: gen, Clock: clk,
+	})
+	relay := outbox.NewRelay(ob, applied, clk,
+		NewParticipantProjector(db, convRepo, applied, gen, clk),
+		NewWorkItemProjector(db, agentsql.NewWorkItemRepo(db), applied, gen, clk))
+	ctx := context.Background()
+	drain := func() {
+		for i := 0; i < 8; i++ {
+			n, err := relay.RunOnce(ctx, 100)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n == 0 {
+				return
+			}
+		}
+	}
+	hasParticipant := func(tid pm.TaskID, who string) bool {
+		conv, err := convRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(string(tid)))
+		if err != nil {
+			t.Fatalf("task conversation not found: %v", err)
+		}
+		for _, p := range conv.Participants() {
+			if string(p.IdentityID) == who {
+				return true
+			}
+		}
+		return false
+	}
+
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+
+	// Assign agent:AG1 → it joins the task Conversation.
+	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
+	drain()
+	if !hasParticipant(tid, "agent:AG1") {
+		t.Fatal("after assign: AG1 should be a participant")
+	}
+
+	// Unassign → AG1 leaves; creator user:a stays.
+	if err := svc.UnassignTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	drain()
+	if hasParticipant(tid, "agent:AG1") {
+		t.Fatal("after unassign: AG1 should be dropped from participants")
+	}
+	if !hasParticipant(tid, "user:a") {
+		t.Fatal("after unassign: creator user:a should remain")
+	}
+
+	// Assign agent:AG2, run it, complete, then reopen → AG2 must leave.
+	_ = svc.AssignTask(ctx, tid, "agent:AG2", "user:a")
+	_ = svc.StartTask(ctx, tid, "user:a")
+	if err := svc.CompleteTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	drain()
+	if !hasParticipant(tid, "agent:AG2") {
+		t.Fatal("after reassign: AG2 should be a participant")
+	}
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	drain()
+	if hasParticipant(tid, "agent:AG2") {
+		t.Fatal("after reopen: AG2 should be dropped from participants")
 	}
 }
 

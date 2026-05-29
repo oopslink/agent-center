@@ -155,13 +155,23 @@ func (s *Service) emitTaskAssignEvent(ctx context.Context, t *pm.Task, evt, prev
 		})
 }
 
-// emitTaskStateChanged emits pm.task.state_changed (no participant change).
+// emitTaskStateChanged emits pm.task.state_changed carrying the recomputed
+// effective subscriber set. A state change can move the effective set — most
+// notably unassign/reopen, which clear the assignee so the prior assignee must
+// leave the task Conversation. The ParticipantProjector consumes this and
+// rewrites participants to the effective set (set semantics → idempotent for
+// state changes that don't move the set, e.g. start/block/complete).
 func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, reason string) error {
+	manual, err := s.taskSubs.ListByTask(ctx, t.ID())
+	if err != nil {
+		return err
+	}
 	return s.emit(ctx, EvtTaskStateChanged,
 		refsJSON(map[string]string{"task_id": string(t.ID()), "project_id": string(t.ProjectID())}),
 		taskEventPayload{
 			TaskID: string(t.ID()), ProjectID: string(t.ProjectID()),
 			OwnerRef: "pm://tasks/" + string(t.ID()), Assignee: string(t.Assignee()),
 			Status: string(t.Status()), Reason: reason,
+			EffectiveSubscribers: EffectiveTaskSubscribers(t, manual),
 		})
 }
