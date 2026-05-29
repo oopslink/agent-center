@@ -171,6 +171,11 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 	if body.Role == "" {
 		body.Role = "member"
 	}
+	// v2.6 ship-block fix (X1 §3): admin cannot create owner-role agent.
+	if string(callerMember.Role()) == "admin" && body.Role == "owner" {
+		writeError(w, http.StatusForbidden, "forbidden", "admin cannot add owner-role agents")
+		return
+	}
 	res, err := d.AgentProvisionSvc.Provision(r.Context(),
 		identity.AgentProvisionForm{
 			DisplayName: body.DisplayName,
@@ -187,6 +192,22 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 
+// requireTargetMemberInOrg validates that memberID exists and belongs to orgID.
+// Returns the target Member on success; on failure writes the error response.
+// Prevents cross-org member mutations (PM X1 §2 ship-block).
+func (s *Server) requireTargetMemberInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, memberID, orgID string) (*identity.Member, bool) {
+	target, err := d.MemberRepo.GetByID(r.Context(), memberID)
+	if err != nil || target == nil {
+		writeError(w, http.StatusNotFound, "member_not_found", "target member not found")
+		return nil, false
+	}
+	if target.OrganizationID() != orgID {
+		writeError(w, http.StatusForbidden, "forbidden", "target member is not in this organization")
+		return nil, false
+	}
+	return target, true
+}
+
 // changeMemberRoleHandler handles PATCH /api/members/{id}/role[?org_id=].
 // Requires owner role (only owners can change roles to prevent privilege escalation).
 func (s *Server) changeMemberRoleHandler(w http.ResponseWriter, r *http.Request) {
@@ -199,12 +220,15 @@ func (s *Server) changeMemberRoleHandler(w http.ResponseWriter, r *http.Request)
 	if orgID == "" {
 		return
 	}
-	_ = orgID
 	if string(callerMember.Role()) != "owner" {
 		writeError(w, http.StatusForbidden, "forbidden", "only owners can change member roles")
 		return
 	}
 	memberID := r.PathValue("id")
+	// v2.6 ship-block fix (X1 §2): verify target member is in the same org as the caller's resolved scope.
+	if _, ok := s.requireTargetMemberInOrg(w, r, d, memberID, orgID); !ok {
+		return
+	}
 	var body struct {
 		Role string `json:"role"`
 	}
@@ -236,6 +260,9 @@ func (s *Server) disableMemberHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	memberID := r.PathValue("id")
+	if _, ok := s.requireTargetMemberInOrg(w, r, d, memberID, orgID); !ok {
+		return
+	}
 	var body struct {
 		Reason string `json:"reason"`
 	}
@@ -264,6 +291,9 @@ func (s *Server) reEnableMemberHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	memberID := r.PathValue("id")
+	if _, ok := s.requireTargetMemberInOrg(w, r, d, memberID, orgID); !ok {
+		return
+	}
 	if err := d.MemberDisableSvc.ReEnable(r.Context(), memberID); err != nil {
 		writeError(w, http.StatusInternalServerError, "reenable_failed", err.Error())
 		return

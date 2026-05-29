@@ -16,6 +16,7 @@ import (
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
@@ -100,6 +101,106 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	return deps, db
 }
 
+// setupAPIWithAuth returns deps with identity (AuthSvc/OrgRepo/MemberRepo) wired
+// using the fixed test signing key. Tests that need to exercise the org-scoped
+// list endpoints (which now require requireOrgMember) should use this and pair
+// with setupTestSession to obtain a valid cookie + org slug.
+func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
+	t.Helper()
+	deps, db := setupAPI(t)
+	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
+	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
+	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
+	return deps, db
+}
+
+// testSession holds a signed-in identity + org + cookie for v2.6 org-scoped tests.
+type testSession struct {
+	IdentityID string
+	OrgID      string
+	OrgSlug    string
+	Cookie     *http.Cookie
+}
+
+// setupTestSession provisions a test user identity + organization + member
+// and returns a valid JWT cookie. Test requests can attach this cookie and
+// pass ?org_slug=<slug> to satisfy the v2.6 org-scoped + membership checks.
+func setupTestSession(t *testing.T, db *sql.DB, deps HandlerDeps) testSession {
+	t.Helper()
+	ctx := context.Background()
+	hash, _ := identity.HashPasscode("123456")
+	ident, err := identity.IdentityFactory{}.NewUser("testuser", hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idRepo := identity.NewSQLiteIdentityRepo(db)
+	orgRepo := identity.NewSQLiteOrganizationRepo(db)
+	memberRepo := identity.NewSQLiteMemberRepo(db)
+	if err := idRepo.Save(ctx, ident); err != nil {
+		t.Fatal(err)
+	}
+	org, err := identity.OrganizationFactory{}.New("testorg", "Test Org", ident.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := orgRepo.Save(ctx, org); err != nil {
+		t.Fatal(err)
+	}
+	member, err := identity.MemberFactory{}.New(org.ID(), ident.ID(), identity.RoleOwner, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memberRepo.Save(ctx, member); err != nil {
+		t.Fatal(err)
+	}
+	jwt, err := identity.MintJWT(ident.ID(), testSigningKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return testSession{
+		IdentityID: ident.ID(),
+		OrgID:      org.ID(),
+		OrgSlug:    org.Slug(),
+		Cookie: &http.Cookie{
+			Name:  "ac_session",
+			Value: jwt,
+		},
+	}
+}
+
+// testSigningKey is the fixed JWT signing key used by setupAPIWithAuth and
+// setupTestSession so cookies verify under test.
+var testSigningKey = func() []byte {
+	b := make([]byte, 32)
+	for i := range b {
+		b[i] = byte(i + 1)
+	}
+	return b
+}()
+
+// orgScopedGet executes a GET against url with the session cookie attached
+// and ?org_slug=<sess.OrgSlug> appended (merging with existing query params).
+// Used by list endpoint tests now that requireOrgMember enforces strict
+// org membership at the API boundary.
+func orgScopedGet(t *testing.T, url string, sess testSession) *http.Response {
+	t.Helper()
+	if !strings.Contains(url, "?") {
+		url += "?org_slug=" + sess.OrgSlug
+	} else {
+		url += "&org_slug=" + sess.OrgSlug
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
 func newTestServer(t *testing.T, deps HandlerDeps) *httptest.Server {
 	srv := NewServer("127.0.0.1:0", Deps{})
 	handler := WithDeps(deps)(srv.Handler())
@@ -120,11 +221,13 @@ func TestAPI_Health(t *testing.T) {
 }
 
 func TestAPI_ConversationsRoundTrip(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
 	// Seed a channel via service.
 	res, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "platform", CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: "platform", OrganizationID: sess.OrgID,
+		CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -133,10 +236,7 @@ func TestAPI_ConversationsRoundTrip(t *testing.T) {
 	defer s.Close()
 
 	// GET /api/conversations?kind=channel
-	resp, err := http.Get(s.URL + "/api/conversations?kind=channel")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, s.URL+"/api/conversations?kind=channel", sess)
 	var arr []map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&arr); err != nil {
 		t.Fatal(err)
@@ -146,10 +246,7 @@ func TestAPI_ConversationsRoundTrip(t *testing.T) {
 	}
 
 	// GET /api/conversations/{id}
-	resp, err = http.Get(s.URL + "/api/conversations/" + string(res.ConversationID))
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp = orgScopedGet(t, s.URL+"/api/conversations/"+string(res.ConversationID), sess)
 	var got map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatal(err)

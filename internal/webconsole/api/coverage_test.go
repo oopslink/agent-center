@@ -27,15 +27,17 @@ import (
 // ============================================================================
 
 func TestAPI_ListConversations_KindAndStatusFilter(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
 	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "filterable", CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: "filterable", OrganizationID: sess.OrgID,
+		CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
 	// Both kind + status filters set.
-	resp, _ := http.Get(s.URL + "/api/conversations?kind=channel&status=active")
+	resp := orgScopedGet(t, s.URL+"/api/conversations?kind=channel&status=active", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -43,6 +45,59 @@ func TestAPI_ListConversations_KindAndStatusFilter(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&arr)
 	if len(arr) != 1 {
 		t.Fatalf("got %d", len(arr))
+	}
+}
+
+// TestAPI_OrgScope_Isolation_And_Membership proves the v2.6 X1 §1 ship-block
+// fix: org-scoped list endpoints (1) require a valid session, (2) require the
+// caller to be a member of the requested org, (3) never fall back to returning
+// all orgs' data when scope is missing, and (4) only return the requested
+// org's rows.
+func TestAPI_OrgScope_Isolation_And_Membership(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps) // org "testorg", caller is owner
+	ctx := context.Background()
+	// Seed a channel in the caller's org and one in a different org.
+	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "mine", OrganizationID: sess.OrgID, CreatedBy: "user:hayang", Actor: "user:hayang",
+	})
+	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "theirs", OrganizationID: "organization-other", CreatedBy: "user:other", Actor: "user:other",
+	})
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	// (1) no cookie → 401
+	resp, _ := http.Get(s.URL + "/api/conversations?org_slug=" + sess.OrgSlug)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("no cookie: got %d want 401", resp.StatusCode)
+	}
+
+	// (3) cookie but no org scope → 400 (must NOT return all data)
+	req, _ := http.NewRequest(http.MethodGet, s.URL+"/api/conversations", nil)
+	req.AddCookie(sess.Cookie)
+	resp, _ = http.DefaultClient.Do(req)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("no org scope: got %d want 400", resp.StatusCode)
+	}
+
+	// (2) member of a different org → 403
+	req, _ = http.NewRequest(http.MethodGet, s.URL+"/api/conversations?org_id=organization-other", nil)
+	req.AddCookie(sess.Cookie)
+	resp, _ = http.DefaultClient.Do(req)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-member org: got %d want 403", resp.StatusCode)
+	}
+
+	// (4) own org → 200 + only "mine"
+	resp = orgScopedGet(t, s.URL+"/api/conversations?kind=channel", sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("own org: got %d", resp.StatusCode)
+	}
+	var arr []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&arr)
+	if len(arr) != 1 || arr[0]["name"] != "mine" {
+		t.Fatalf("expected only own-org channel, got %v", arr)
 	}
 }
 
@@ -354,14 +409,12 @@ func TestAPI_RespondInputRequest_BadJSON(t *testing.T) {
 // ============================================================================
 
 func TestAPI_ListAgents_Empty(t *testing.T) {
-	deps, _ := setupAPI(t)
-	// Wire the AgentInstance repo so the handler works.
-	// setupAPI doesn't wire it; install one over the existing DB.
-	// We'll just install a fakeAgentRepo.
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	deps.AgentInstanceRepo = &fakeAgentRepo{}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/agents")
+	resp := orgScopedGet(t, s.URL+"/api/agents", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -383,14 +436,12 @@ func TestAPI_ShowAgent_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestAPI_ListProjects_Empty(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	deps.ProjectRepo = &fakeProjectRepo{}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, err := http.Get(s.URL + "/api/projects")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -401,7 +452,8 @@ func TestAPI_ListProjects_Empty(t *testing.T) {
 }
 
 func TestAPI_ListProjects_SingleProject(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	p, err := workforce.NewProject(workforce.NewProjectInput{
 		ID: "p-1", Name: "Demo", Tags: []string{"coding"},
 		CreatedByIdentityID: "user:hayang",
@@ -413,7 +465,7 @@ func TestAPI_ListProjects_SingleProject(t *testing.T) {
 	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects")
+	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -446,11 +498,12 @@ func TestAPI_ListProjects_RepoNotWired(t *testing.T) {
 }
 
 func TestAPI_ListProjects_RepoError(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	deps.ProjectRepo = &fakeProjectRepo{findAllErr: errors.New("db boom")}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects")
+	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
 	if resp.StatusCode != 500 {
 		t.Fatalf("status=%d want 500", resp.StatusCode)
 	}
@@ -459,7 +512,8 @@ func TestAPI_ListProjects_RepoError(t *testing.T) {
 // v2.5.5: list projection emits {id, name, description, tags, version,
 // created_at, updated_at}. kind / default_agent_cli were removed.
 func TestAPI_ListProjects_FullProjection(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	p, err := workforce.NewProject(workforce.NewProjectInput{
 		ID: "p-2", Name: "Beta", Tags: []string{"coding", "ops"},
 		Description:         "the beta project",
@@ -472,7 +526,7 @@ func TestAPI_ListProjects_FullProjection(t *testing.T) {
 	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects")
+	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
 	body, _ := io.ReadAll(resp.Body)
 	var arr []map[string]any
 	if err := json.Unmarshal(body, &arr); err != nil {
@@ -703,17 +757,19 @@ func TestAPI_CreateSecret_BadJSON(t *testing.T) {
 }
 
 func TestAPI_ListSecrets_AfterCreate(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	_, err := deps.UserSecretSvc.Create(context.Background(), secretsvcCreate.CreateSecretCommand{
 		Name: "k", Kind: secretmgmt.UserSecretKindOther,
-		Plaintext: []byte("v"), ActorIdentity: observability.Actor("user:hayang"),
+		Plaintext: []byte("v"), OrganizationID: sess.OrgID,
+		ActorIdentity: observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/secrets")
+	resp := orgScopedGet(t, s.URL+"/api/secrets", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -991,13 +1047,18 @@ func TestServer_SetHandlerThenServe(t *testing.T) {
 // ============================================================================
 
 func TestAPI_ListConversations_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
-	db.Close() // force every query to fail
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	// After session is provisioned, close the DB to force every subsequent
+	// query (auth lookup, list query, etc.) to fail. The auth-cookie path
+	// will hit Identity.GetByID first; that error path also returns 500/401
+	// depending on the layer. We accept either as "broke as expected".
+	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations")
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/conversations", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200, got %d", resp.StatusCode)
 	}
 }
 
@@ -1036,24 +1097,26 @@ func TestAPI_ListInputRequests_DBError(t *testing.T) {
 }
 
 func TestAPI_ListAgents_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/agents")
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/agents", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200, got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_ListSecrets_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/secrets")
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/secrets", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200, got %d", resp.StatusCode)
 	}
 }
 

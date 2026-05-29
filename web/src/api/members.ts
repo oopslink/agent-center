@@ -1,5 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
+import { currentOrgScope } from './queryKeys';
+
+// membersKey is org-scoped so switching orgs / tabs doesn't reuse cached members.
+const membersKey = () => ['org', currentOrgScope(), 'members'] as const;
 
 export interface MemberResult {
   id: string;
@@ -31,7 +35,7 @@ export const membersApi = {
 
 export function useMembers() {
   return useQuery({
-    queryKey: ['members'],
+    queryKey: membersKey(),
     queryFn: () => membersApi.list(),
     staleTime: 30_000,
   });
@@ -42,7 +46,7 @@ export function useAddMember() {
   return useMutation({
     mutationFn: (payload: { display_name: string; role?: string; reuse?: boolean }) =>
       membersApi.add(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
   });
 }
 
@@ -51,7 +55,7 @@ export function useAddAgentMember() {
   return useMutation({
     mutationFn: (payload: { display_name: string; description?: string; role?: string }) =>
       membersApi.addAgent(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
   });
 }
 
@@ -60,7 +64,7 @@ export function useChangeMemberRole() {
   return useMutation({
     mutationFn: ({ id, role }: { id: string; role: string }) =>
       membersApi.changeRole(id, role),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
   });
 }
 
@@ -69,7 +73,7 @@ export function useDisableMember() {
   return useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       membersApi.disable(id, reason),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
   });
 }
 
@@ -77,6 +81,6 @@ export function useReEnableMember() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => membersApi.reEnable(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
   });
 }

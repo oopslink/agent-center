@@ -55,10 +55,11 @@ func NewChannelManagementService(
 
 // CreateChannelCommand wraps `agent-center channel create`.
 type CreateChannelCommand struct {
-	Name        string
-	Description string
-	CreatedBy   conversation.IdentityRef
-	Actor       observability.Actor
+	Name           string
+	Description    string
+	OrganizationID string // v2.6: scopes the channel to an org (multi-tenant isolation)
+	CreatedBy      conversation.IdentityRef
+	Actor          observability.Actor
 }
 
 // CreateChannelResult is what callers get.
@@ -84,12 +85,13 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 	}
 	now := s.clock.Now()
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:          conversation.ConversationID(s.idgen.NewULID()),
-		Kind:        conversation.ConversationKindChannel,
-		Name:        name,
-		Description: cmd.Description,
-		CreatedBy:   cmd.CreatedBy,
-		OpenedAt:    now,
+		ID:             conversation.ConversationID(s.idgen.NewULID()),
+		Kind:           conversation.ConversationKindChannel,
+		Name:           name,
+		Description:    cmd.Description,
+		OrganizationID: cmd.OrganizationID,
+		CreatedBy:      cmd.CreatedBy,
+		OpenedAt:       now,
 		Participants: []conversation.ParticipantElement{
 			{
 				IdentityID: cmd.CreatedBy,

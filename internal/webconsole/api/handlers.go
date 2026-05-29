@@ -180,6 +180,48 @@ func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
 	return ""
 }
 
+// requireOrgMember is the authoritative auth/scope helper for org-scoped APIs.
+// It:
+//  1. Verifies the request has a valid JWT cookie → returns 401 if not.
+//  2. Resolves the target org via ?org_id= / ?org_slug= → returns 400 if missing/unknown.
+//  3. Verifies the caller is a member of that org → returns 403 if not.
+//
+// On success: returns (callerIdentity, callerMember, orgID, true).
+// On failure: writes the error response and returns _, _, _, false; callers
+// MUST stop processing.
+//
+// This is the single source of truth for "is this request authorized to see
+// org X's data". Org-scoped list endpoints must call this — falling back to
+// "no filter" when org is missing leaks cross-org data and is a ship-blocker.
+func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*identity.Identity, *identity.Member, string, bool) {
+	if d.AuthSvc == nil || d.OrgRepo == nil || d.MemberRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "org-scoped endpoint requires auth + org + member deps")
+		return nil, nil, "", false
+	}
+	cookie, err := r.Cookie(jwtCookieName)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
+		return nil, nil, "", false
+	}
+	callerID, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		return nil, nil, "", false
+	}
+	orgID := resolveOrgIDFromRequest(r, d)
+	if orgID == "" {
+		writeError(w, http.StatusBadRequest, "org_required",
+			"missing or unknown organization scope (provide ?org_id= or ?org_slug=)")
+		return nil, nil, "", false
+	}
+	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, callerID.ID())
+	if err != nil || member == nil {
+		writeError(w, http.StatusForbidden, "forbidden", "not a member of this organization")
+		return nil, nil, "", false
+	}
+	return callerID, member, orgID, true
+}
+
 type depsKey struct{}
 
 // WithDeps installs the dep bag into the request context and chains the
@@ -201,7 +243,12 @@ func WithDeps(deps HandlerDeps) func(http.Handler) http.Handler {
 
 func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	filter := conversation.ConversationFilter{}
+	// v2.6 multi-org isolation: every list response is org-scoped + membership-checked.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	filter := conversation.ConversationFilter{OrganizationID: orgID}
 	if k := r.URL.Query().Get("kind"); k != "" {
 		kk := conversation.ConversationKind(k)
 		filter.Kind = &kk
@@ -209,10 +256,6 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := conversation.ConversationStatus(st)
 		filter.Status = &ss
-	}
-	// v2.6: scope to current org via ?org_id= or ?org_slug= (org-scoped routes).
-	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
-		filter.OrganizationID = orgID
 	}
 	convs, err := d.ConvRepo.Find(r.Context(), filter)
 	if err != nil {
@@ -267,11 +310,26 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, d Handler
 		writeError(w, http.StatusBadRequest, "invalid_input", "name required for kind=channel")
 		return
 	}
+	// v2.6: stamp the new channel with the caller's org (membership-checked).
+	// When auth is unconfigured (legacy/test deps without AuthSvc), fall back
+	// to resolveOrgIDFromRequest so existing tests that don't set up sessions
+	// still create channels (org_id empty).
+	orgID := ""
+	if d.AuthSvc != nil {
+		_, _, resolved, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		orgID = resolved
+	} else {
+		orgID = resolveOrgIDFromRequest(r, d)
+	}
 	res, err := d.ChannelMgmtSvc.CreateChannel(r.Context(), convservice.CreateChannelCommand{
-		Name:        req.Name,
-		Description: req.Description,
-		CreatedBy:   conversation.IdentityRef(d.Actor),
-		Actor:       d.Actor,
+		Name:           req.Name,
+		Description:    req.Description,
+		OrganizationID: orgID,
+		CreatedBy:      conversation.IdentityRef(d.Actor),
+		Actor:          d.Actor,
 	})
 	if err != nil {
 		mapDomainError(w, err)
@@ -1233,6 +1291,11 @@ func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "fleet_not_wired", "")
 		return
 	}
+	// NOTE (v2.6): fleet snapshot aggregates tasks/executions/workers. Only
+	// workers carry organization_id today; tasks/executions do not, so a true
+	// org-scoped fleet view is a schema follow-up. Left un-gated this round to
+	// avoid a misleading "scoped" appearance; tracked alongside issues/tasks
+	// org_id columns.
 	filter := query.SnapshotFilter{ProjectID: r.URL.Query().Get("project")}
 	snap := d.FleetSvc.Snapshot(r.Context(), filter)
 	writeJSON(w, http.StatusOK, snap)
@@ -1266,10 +1329,11 @@ func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	filter := workforce.AgentInstanceFilter{}
-	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
-		filter.OrganizationID = orgID
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
 	}
+	filter := workforce.AgentInstanceFilter{OrganizationID: orgID}
 	list, err := d.AgentInstanceRepo.FindAll(r.Context(), filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
@@ -1293,10 +1357,11 @@ func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
-	pfilter := workforce.ProjectFilter{}
-	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
-		pfilter.OrganizationID = orgID
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
 	}
+	pfilter := workforce.ProjectFilter{OrganizationID: orgID}
 	list, err := d.ProjectRepo.FindAll(r.Context(), pfilter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
@@ -1485,10 +1550,11 @@ func (s *Server) listSecretsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "secret_not_wired", "")
 		return
 	}
-	sfilter := secretmgmt.UserSecretFilter{}
-	if orgID := resolveOrgIDFromRequest(r, d); orgID != "" {
-		sfilter.OrganizationID = orgID
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
 	}
+	sfilter := secretmgmt.UserSecretFilter{OrganizationID: orgID}
 	list, err := d.UserSecretRepo.FindAll(r.Context(), sfilter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
@@ -1526,11 +1592,24 @@ func (s *Server) createSecretHandler(w http.ResponseWriter, r *http.Request) {
 	if kind == "" {
 		kind = secretmgmt.UserSecretKindOther
 	}
+	// v2.6: stamp the new secret with the caller's org (membership-checked when
+	// auth is configured; legacy/test deps without AuthSvc fall back).
+	orgID := ""
+	if d.AuthSvc != nil {
+		_, _, resolved, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		orgID = resolved
+	} else {
+		orgID = resolveOrgIDFromRequest(r, d)
+	}
 	res, err := d.UserSecretSvc.Create(r.Context(), secretservice.CreateSecretCommand{
-		Name:          req.Name,
-		Kind:          kind,
-		Plaintext:     []byte(req.Value),
-		ActorIdentity: d.Actor,
+		Name:           req.Name,
+		Kind:           kind,
+		Plaintext:      []byte(req.Value),
+		OrganizationID: orgID,
+		ActorIdentity:  d.Actor,
 	})
 	// Wipe plaintext from the request buffer.
 	for i := range req.Value {
