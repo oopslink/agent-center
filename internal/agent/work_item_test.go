@@ -55,18 +55,33 @@ func TestWorkItemWaitWakeLoop(t *testing.T) {
 	}
 }
 
-func TestWorkItemBlockedOnlyCancelOrSupersede(t *testing.T) {
+// TestWorkItemNoBlockedStatus verifies the §10 OQ11 simplification: there is no
+// `blocked` WorkItem status. An active WorkItem can only go to waiting_input,
+// done, failed, canceled, or superseded — "blocked" is a Task concept (a
+// blocked Task cancels its live WorkItem).
+func TestWorkItemNoBlockedStatus(t *testing.T) {
+	if WorkItemStatus("blocked").IsValid() {
+		t.Fatal("'blocked' must not be a valid WorkItem status")
+	}
 	w := newWI(t)
 	_ = w.Activate(t0)
-	if err := w.Block(t0); err != nil {
-		t.Fatal(err)
-	}
-	// per plan §2.4, blocked has no blocked→active edge
-	if err := w.Wake(t0); err != ErrWorkItemIllegalMove {
-		t.Fatalf("blocked→active should be illegal, got %v", err)
-	}
+	// active → canceled is how a blocked/canceled Task ends the attempt.
 	if err := w.Cancel(t0); err != nil {
-		t.Fatalf("blocked→canceled should be legal: %v", err)
+		t.Fatalf("active→canceled should be legal: %v", err)
+	}
+	if !w.Status().IsTerminal() {
+		t.Fatal("canceled is terminal")
+	}
+}
+
+func TestWorkItemActiveCanFail(t *testing.T) {
+	w := newWI(t)
+	_ = w.Activate(t0)
+	if err := w.Fail(t0); err != nil {
+		t.Fatalf("active→failed should be legal: %v", err)
+	}
+	if w.Status() != WorkItemFailed {
+		t.Fatalf("want failed, got %s", w.Status())
 	}
 }
 
@@ -76,7 +91,6 @@ func TestWorkItemSupersedeOnReassign(t *testing.T) {
 		func(w *AgentWorkItem) {},                                          // queued
 		func(w *AgentWorkItem) { _ = w.Activate(t0) },                      // active
 		func(w *AgentWorkItem) { _ = w.Activate(t0); _ = w.WaitInput(t0) }, // waiting_input
-		func(w *AgentWorkItem) { _ = w.Activate(t0); _ = w.Block(t0) },     // blocked
 	} {
 		w := newWI(t)
 		drive(w)

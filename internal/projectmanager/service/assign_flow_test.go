@@ -249,28 +249,66 @@ func TestCreateIssue_GatingAndUnsubscribe(t *testing.T) {
 	}
 }
 
-// TestUnblock_ResdispatchesViaSupersede: blocked→running (unblock) supersedes
-// the old WorkItem and creates a new one (locked口径).
-func TestUnblock_ResdispatchesViaSupersede(t *testing.T) {
+// TestBlockCancelsWorkItem_UnblockCreatesNew is the §10 OQ11 acceptance: a
+// blocked Task CANCELS its live WorkItem (no WorkItem `blocked`), and unblocking
+// creates a fresh WorkItem (nothing to supersede — the old one is canceled).
+func TestBlockCancelsWorkItem_UnblockCreatesNew(t *testing.T) {
 	svc, wiRepo, relay, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	taskRef := "pm://tasks/" + string(tid)
+	list := func() []*agentpkg.AgentWorkItem {
+		items, err := wiRepo.ListByTask(ctx, taskRef)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return items
+	}
 
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
 	_ = svc.StartTask(ctx, tid, "user:a")
 	_, _ = relay.RunOnce(ctx, 100)
+	if sc := statusCount(list()); sc[agentpkg.WorkItemSuperseded] != 0 || liveCount(list()) != 1 {
+		t.Fatalf("after assign: want 1 live WorkItem, got %v", sc)
+	}
+
+	// Block the Task → the live WorkItem is CANCELED (not blocked).
 	if err := svc.BlockTask(ctx, tid, "needs key", "user:a"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := relay.RunOnce(ctx, 100); err != nil {
+		t.Fatal(err)
+	}
+	if liveCount(list()) != 0 || statusCount(list())[agentpkg.WorkItemCanceled] != 1 {
+		t.Fatalf("after block: want 0 live + 1 canceled, got %v", statusCount(list()))
+	}
+
+	// Unblock → a brand-new WorkItem is created (no supersede).
 	if err := svc.UnblockTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := relay.RunOnce(ctx, 100); err != nil {
 		t.Fatal(err)
 	}
-	items, _ := wiRepo.ListByTask(ctx, taskRef)
-	if live, sup := liveAndSuperseded(items); live != 1 || sup != 1 {
-		t.Fatalf("after unblock: want 1 live + 1 superseded WorkItem, got live=%d sup=%d (total %d)", live, sup, len(items))
+	sc := statusCount(list())
+	if liveCount(list()) != 1 || sc[agentpkg.WorkItemCanceled] != 1 || sc[agentpkg.WorkItemSuperseded] != 0 {
+		t.Fatalf("after unblock: want 1 live + 1 canceled + 0 superseded, got %v", sc)
 	}
+}
+
+func statusCount(items []*agentpkg.AgentWorkItem) map[agentpkg.WorkItemStatus]int {
+	m := map[agentpkg.WorkItemStatus]int{}
+	for _, w := range items {
+		m[w.Status()]++
+	}
+	return m
+}
+
+func liveCount(items []*agentpkg.AgentWorkItem) (n int) {
+	for _, w := range items {
+		if !w.Status().IsTerminal() {
+			n++
+		}
+	}
+	return
 }

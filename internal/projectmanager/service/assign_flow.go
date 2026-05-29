@@ -61,9 +61,10 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Block(reason, now) }, reason)
 }
 
-// UnblockTask moves blocked→running. Per the locked口径, unblocking re-dispatches
-// the work: it emits pm.task.reassigned so the WorkItemProjector supersedes the
-// old WorkItem and creates a new one (AgentWorkItem.blocked has no return edge).
+// UnblockTask moves blocked→running. Per §10 OQ11, the prior WorkItem was
+// already CANCELED when the Task was blocked, so unblocking is a fresh dispatch:
+// it emits pm.task.assigned and the WorkItemProjector creates a NEW WorkItem
+// (nothing live to supersede). There is no WorkItem "blocked"/return edge.
 func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
@@ -80,7 +81,7 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskAssignEvent(txCtx, t, EvtTaskReassigned, string(t.Assignee()))
+		return s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, "")
 	})
 }
 

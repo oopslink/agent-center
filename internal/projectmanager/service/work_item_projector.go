@@ -11,6 +11,7 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
 // WorkItemProjector is the B2-c projector that turns Task assignment into Agent
@@ -43,18 +44,39 @@ func (p *WorkItemProjector) Name() string { return "pm-workitem-sync" }
 type workItemEvtPayload struct {
 	OwnerRef string `json:"owner_ref"` // pm://tasks/{id} — used as the WorkItem.TaskRef
 	Assignee string `json:"assignee"`
+	Status   string `json:"status"`
 }
 
-// Project handles assign/reassign events. Other events are a no-op.
+// Project turns Task events into AgentWorkItem effects (plan §10 OQ11):
+//   - assigned/reassigned → supersede prior live WorkItem + create a fresh
+//     queued one when the assignee is an Agent (a new dispatch attempt).
+//   - state_changed to blocked/canceled → CANCEL the live WorkItem (there is no
+//     WorkItem `blocked`; a blocked/canceled Task ends the current attempt, and
+//     the Agent goes idle → availability returns to available).
+//
+// Other events are a no-op.
 func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
+	var pl workItemEvtPayload
+	dispatch := false
+	cancelLive := false
 	switch e.EventType {
 	case EvtTaskAssigned, EvtTaskReassigned:
+		dispatch = true
+	case EvtTaskStateChanged:
+		// fall through to parse + decide on status
 	default:
 		return nil
 	}
-	var pl workItemEvtPayload
 	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
 		return err
+	}
+	if e.EventType == EvtTaskStateChanged {
+		switch pl.Status {
+		case string(pm.TaskBlocked), string(pm.TaskCanceled):
+			cancelLive = true
+		default:
+			return nil // other state changes don't affect WorkItems
+		}
 	}
 	taskRef := pl.OwnerRef
 	agentID, isAgent := agentIDFromRef(pl.Assignee)
@@ -66,8 +88,6 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 		} else if done {
 			return nil
 		}
-		// Supersede any prior live WorkItem for this Task (reassign / unblock /
-		// re-dispatch). Terminal items are left as-is.
 		existing, err := p.workItems.ListByTask(txCtx, taskRef)
 		if err != nil {
 			return err
@@ -76,16 +96,23 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 			if w.Status().IsTerminal() {
 				continue
 			}
-			if err := w.Supersede(now); err != nil {
-				return err
+			switch {
+			case dispatch:
+				if err := w.Supersede(now); err != nil { // reassignment ends the prior attempt
+					return err
+				}
+			case cancelLive:
+				if err := w.Cancel(now); err != nil { // Task blocked/canceled ends the attempt
+					return err
+				}
 			}
 			if err := p.workItems.Update(txCtx, w); err != nil {
 				return err
 			}
 		}
-		// Create a fresh queued WorkItem only when the assignee is an Agent
-		// (a Task may also be assigned to a human, which has no AgentWorkItem).
-		if isAgent {
+		// On dispatch, create a fresh queued WorkItem when the assignee is an
+		// Agent (a Task may be assigned to a human, which has no AgentWorkItem).
+		if dispatch && isAgent {
 			nw, nerr := agent.NewWorkItem(agent.NewWorkItemInput{
 				ID: p.idgen.NewULID(), AgentID: agentID, TaskRef: taskRef, CreatedAt: now,
 			})

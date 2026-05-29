@@ -18,21 +18,22 @@ import (
 // AssignTask→EnqueueWorkItem projector wiring is added once ProjectManager's
 // AssignTask producer (B2) lands.
 
-// WorkItemStatus enum + state machine (plan §2.4):
+// WorkItemStatus enum + state machine (plan §2.4, simplified per §10 OQ11 /
+// ADR-0049 — there is NO `blocked` status on the WorkItem: "blocked" is a Task
+// (business) concept only; when a Task is blocked the live WorkItem is
+// CANCELED, not blocked):
 //
 //	queued → active → waiting_input → active
-//	active → blocked
 //	active → done
 //	active → failed
-//	queued/active/waiting_input/blocked → canceled
-//	queued/active/waiting_input/blocked → superseded
+//	queued/active/waiting_input → canceled    (Task blocked / Task canceled / terminate)
+//	queued/active/waiting_input → superseded  (reassignment only)
 type WorkItemStatus string
 
 const (
 	WorkItemQueued       WorkItemStatus = "queued"
 	WorkItemActive       WorkItemStatus = "active"
 	WorkItemWaitingInput WorkItemStatus = "waiting_input"
-	WorkItemBlocked      WorkItemStatus = "blocked"
 	WorkItemDone         WorkItemStatus = "done"
 	WorkItemFailed       WorkItemStatus = "failed"
 	WorkItemCanceled     WorkItemStatus = "canceled"
@@ -42,19 +43,18 @@ const (
 // IsValid reports enum membership.
 func (s WorkItemStatus) IsValid() bool {
 	switch s {
-	case WorkItemQueued, WorkItemActive, WorkItemWaitingInput, WorkItemBlocked,
+	case WorkItemQueued, WorkItemActive, WorkItemWaitingInput,
 		WorkItemDone, WorkItemFailed, WorkItemCanceled, WorkItemSuperseded:
 		return true
 	}
 	return false
 }
 
-// workItemTransitions is the allowed-transition adjacency (plan §2.4).
+// workItemTransitions is the allowed-transition adjacency (plan §2.4 / §10 OQ11).
 var workItemTransitions = map[WorkItemStatus][]WorkItemStatus{
 	WorkItemQueued:       {WorkItemActive, WorkItemCanceled, WorkItemSuperseded},
-	WorkItemActive:       {WorkItemWaitingInput, WorkItemBlocked, WorkItemDone, WorkItemFailed, WorkItemCanceled, WorkItemSuperseded},
+	WorkItemActive:       {WorkItemWaitingInput, WorkItemDone, WorkItemFailed, WorkItemCanceled, WorkItemSuperseded},
 	WorkItemWaitingInput: {WorkItemActive, WorkItemCanceled, WorkItemSuperseded},
-	WorkItemBlocked:      {WorkItemCanceled, WorkItemSuperseded},
 	WorkItemDone:         {},
 	WorkItemFailed:       {},
 	WorkItemCanceled:     {},
@@ -189,10 +189,6 @@ func (w *AgentWorkItem) Wake(at time.Time) error {
 	w.interactions++
 	return nil
 }
-
-// Block moves active→blocked (the explicit business block requires a reason at
-// the Task level — ProjectManager.BlockTask; the WorkItem just reflects it).
-func (w *AgentWorkItem) Block(at time.Time) error { return w.move(WorkItemBlocked, at) }
 
 // Done / Fail terminate the WorkItem.
 func (w *AgentWorkItem) Done(at time.Time) error { return w.move(WorkItemDone, at) }
