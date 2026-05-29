@@ -17,8 +17,11 @@ export const handlers = [
   http.get('/api/conversations', ({ request }) => {
     const url = new URL(request.url);
     const kind = url.searchParams.get('kind') ?? 'channel';
+    // Distinct id per kind so a component merging channels + dms (e.g. Home,
+    // sidebar) never sees two rows with the same React key.
+    const id = kind === 'dm' ? 'D1' : 'C1';
     return ok([
-      { id: 'C1', kind, name: 'alpha', status: 'active', description: 'plan' },
+      { id, kind, name: 'alpha', status: 'active', description: 'plan' },
     ]);
   }),
   http.post('/api/conversations', async ({ request }) => {
@@ -244,6 +247,8 @@ export const handlers = [
       updated_at: '2026-05-20T01:00:00Z',
     }),
   ),
+  // Project ↔ worker mappings (ProjectDetail useProjectMappings). Empty by default.
+  http.get('/api/projects/:id/workers', () => ok([])),
 
   // Auth
   http.get('/api/auth/me', () =>

@@ -144,42 +144,46 @@ export default function Tasks(): React.ReactElement {
       {data.length > 0 && (
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {data.map((tk) => (
-            <li key={tk.id} data-testid="task-row" data-task-id={tk.id}>
+            // The row's primary link and the optional trace link are SIBLINGS
+            // (not nested) so the markup stays valid — <a> can't contain <a>.
+            <li
+              key={tk.id}
+              data-testid="task-row"
+              data-task-id={tk.id}
+              className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
+            >
               <OrgLink
                 to={`/tasks/${encodeURIComponent(tk.id)}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
+                className="flex flex-1 items-center gap-3 min-w-0"
               >
-                <span className="flex items-center gap-3">
-                  <span className="font-medium">{tk.title || tk.id}</span>
-                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
-                    {tk.status}
-                  </span>
-                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
-                    {tk.priority}
-                  </span>
-                  {projectFilter === 'all' && (
-                    <span
-                      className="rounded bg-bg-subtle px-2 py-0.5 text-xs text-text-muted"
-                      data-testid="task-row-project"
-                    >
-                      {projectNameById.get(tk.project_id) ?? tk.project_id}
-                    </span>
-                  )}
+                <span className="font-medium truncate">{tk.title || tk.id}</span>
+                <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
+                  {tk.status}
                 </span>
-                <span className="flex items-center gap-3 text-xs text-text-muted">
-                  <span>{formatRelative(tk.created_at)}</span>
-                  {tk.current_execution_id && (
-                    <OrgLink
-                      to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
-                      className="text-accent hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                      data-testid="task-row-trace-link"
-                    >
-                      view trace →
-                    </OrgLink>
-                  )}
+                <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
+                  {tk.priority}
                 </span>
+                {projectFilter === 'all' && (
+                  <span
+                    className="rounded bg-bg-subtle px-2 py-0.5 text-xs text-text-muted"
+                    data-testid="task-row-project"
+                  >
+                    {projectNameById.get(tk.project_id) ?? tk.project_id}
+                  </span>
+                )}
               </OrgLink>
+              <span className="flex items-center gap-3 text-xs text-text-muted pl-3">
+                <span>{formatRelative(tk.created_at)}</span>
+                {tk.current_execution_id && (
+                  <OrgLink
+                    to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
+                    className="text-accent hover:underline"
+                    data-testid="task-row-trace-link"
+                  >
+                    view trace →
+                  </OrgLink>
+                )}
+              </span>
             </li>
           ))}
         </ul>
