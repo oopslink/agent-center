@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/oopslink/agent-center/internal/identity"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // resolveCallerAndOrg is the strict org-scope resolver for member endpoints.
@@ -27,9 +28,27 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
 		return
 	}
+	// v2.6 X1 §4: enrich agent members with "running on {worker}". Build an
+	// identity_id → worker_id map from the org's AgentInstances (an agent
+	// member may not yet have a bound AgentInstance — then worker is empty).
+	agentWorker := map[string]string{}
+	if d.AgentInstanceRepo != nil {
+		instances, aerr := d.AgentInstanceRepo.FindAll(r.Context(), workforce.AgentInstanceFilter{OrganizationID: orgID})
+		if aerr == nil {
+			for _, ai := range instances {
+				if ai.IdentityID() != "" && ai.WorkerID() != nil {
+					agentWorker[ai.IdentityID()] = string(*ai.WorkerID())
+				}
+			}
+		}
+	}
 	arr := make([]map[string]any, 0, len(members))
 	for _, m := range members {
-		arr = append(arr, memberPublicMap(m))
+		row := memberPublicMap(m)
+		if wid, ok := agentWorker[m.IdentityID()]; ok {
+			row["worker_id"] = wid
+		}
+		arr = append(arr, row)
 	}
 	writeJSON(w, http.StatusOK, arr)
 }

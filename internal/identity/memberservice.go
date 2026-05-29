@@ -332,6 +332,54 @@ func (s *OrganizationUpdateService) UpdateName(ctx context.Context, orgID, name,
 	})
 }
 
+// UpdateSlug changes the organization slug after validating format + uniqueness.
+// Slug changes affect URL routing; the caller (UI) must redirect afterward.
+func (s *OrganizationUpdateService) UpdateSlug(ctx context.Context, orgID, slug, updatedByIdentityID string) error {
+	if err := ValidateSlug(slug); err != nil {
+		return err
+	}
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		org, err := s.orgs.GetByID(txCtx, orgID)
+		if err != nil {
+			return err
+		}
+		if org.IsDeleted() {
+			return ErrOrganizationDeleted
+		}
+		// Uniqueness: reject if another org already holds the slug.
+		if existing, _ := s.orgs.GetBySlug(txCtx, slug); existing != nil && existing.ID() != orgID {
+			return ErrOrganizationSlugTaken
+		}
+		if err := org.UpdateSlug(slug); err != nil {
+			return err
+		}
+		if err := s.orgs.Save(txCtx, org); err != nil {
+			return err
+		}
+		actor := observability.Actor("user:" + updatedByIdentityID)
+		return emitEvent(txCtx, s.sink, EvtOrganizationUpdated, observability.EventRefs{OrganizationID: orgID}, actor, map[string]any{"field": "slug"})
+	})
+}
+
+// UpdateDescription updates the organization description.
+func (s *OrganizationUpdateService) UpdateDescription(ctx context.Context, orgID, description, updatedByIdentityID string) error {
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		org, err := s.orgs.GetByID(txCtx, orgID)
+		if err != nil {
+			return err
+		}
+		if org.IsDeleted() {
+			return ErrOrganizationDeleted
+		}
+		org.UpdateDescription(description)
+		if err := s.orgs.Save(txCtx, org); err != nil {
+			return err
+		}
+		actor := observability.Actor("user:" + updatedByIdentityID)
+		return emitEvent(txCtx, s.sink, EvtOrganizationUpdated, observability.EventRefs{OrganizationID: orgID}, actor, map[string]any{"field": "description"})
+	})
+}
+
 // ============================================================
 // MemberRemoveService — hard-remove a member record
 // ============================================================

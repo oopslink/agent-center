@@ -33,6 +33,7 @@ const Me = lazy(() => import('./pages/Me'));
 const OrgSettings = lazy(() => import('./pages/OrgSettings'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
 const MembersAgents = lazy(() => import('./pages/MembersAgents'));
+const MemberNew = lazy(() => import('./pages/MemberNew'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 export function App(): React.ReactElement {
@@ -77,6 +78,7 @@ export function App(): React.ReactElement {
           <Route path="org/settings" element={<OrgSettings />} />
           <Route path="members/humans" element={<MembersHumans />} />
           <Route path="members/agents" element={<MembersAgents />} />
+          <Route path="members/new" element={<MemberNew />} />
           <Route path="*" element={<NotFound />} />
         </Route>
 

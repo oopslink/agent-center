@@ -13,6 +13,7 @@ export interface MemberResult {
   role: 'owner' | 'admin' | 'member';
   status: 'joined' | 'disabled';
   joined_at: string;
+  worker_id?: string; // present for agent members bound to an AgentInstance
 }
 
 export interface AddUserResult extends MemberResult {

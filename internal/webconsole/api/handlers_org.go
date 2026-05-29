@@ -107,7 +107,9 @@ func (s *Server) updateOrgHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Name *string `json:"name,omitempty"`
+		Name        *string `json:"name,omitempty"`
+		Slug        *string `json:"slug,omitempty"`
+		Description *string `json:"description,omitempty"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -115,6 +117,18 @@ func (s *Server) updateOrgHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Name != nil {
 		if err := d.OrgUpdateSvc.UpdateName(r.Context(), orgID, *body.Name, id.ID()); err != nil {
+			writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+			return
+		}
+	}
+	if body.Slug != nil {
+		if err := d.OrgUpdateSvc.UpdateSlug(r.Context(), orgID, *body.Slug, id.ID()); err != nil {
+			writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+			return
+		}
+	}
+	if body.Description != nil {
+		if err := d.OrgUpdateSvc.UpdateDescription(r.Context(), orgID, *body.Description, id.ID()); err != nil {
 			writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
 			return
 		}
@@ -167,6 +181,7 @@ func orgPublicMap(o *identity.Organization) map[string]any {
 		"id":          o.ID(),
 		"slug":        o.Slug(),
 		"name":        o.Name(),
+		"description": o.Description(),
 		"created_at":  o.CreatedAt().Format("2006-01-02T15:04:05Z"),
 	}
 }

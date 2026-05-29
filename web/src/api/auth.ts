@@ -69,6 +69,7 @@ export interface OrgResult {
   id: string;
   slug: string;
   name: string;
+  description?: string;
   created_at: string;
 }
 
@@ -80,7 +81,8 @@ export interface CreateOrgPayload {
 export const orgApi = {
   list: () => api.get<OrgResult[]>('/orgs'),
   create: (payload: CreateOrgPayload) => api.post<OrgResult>('/orgs', payload),
-  update: (id: string, payload: { name?: string }) => api.patch<void>(`/orgs/${id}`, payload),
+  update: (id: string, payload: { name?: string; slug?: string; description?: string }) =>
+    api.patch<void>(`/orgs/${id}`, payload),
   delete: (id: string) => api.del<void>(`/orgs/${id}`),
 };
 
