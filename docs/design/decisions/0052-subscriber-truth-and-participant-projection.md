@@ -19,7 +19,7 @@
 - Task/Issue 的订阅真值 = ProjectManager 的 TaskSubscriber / IssueSubscriber（[ADR-0046](0046-projectmanager-bc.md)）。
 - 有效订阅者 = creator + 当前 assignee + 手动订阅者。
 - creator、当前 assignee 始终是有效订阅者；手动订阅者叠加。
-- **重派 / unassign：出局 assignee 被保留**——自动转成 **manual 订阅者**（sticky），继续留在会话，**不**自动移除（修订 2026-05-29，见 plan §10 OQ13）。只有显式 Unsubscribe（踢出）才离开。
+- **重派 / unassign / reopen（任何时候 assignee 被清/换下）：出局 assignee 被保留**——自动转成 **manual 订阅者**（sticky），继续留在会话，**不**自动移除（修订 2026-05-29，见 plan §10 OQ13）。只有显式 Unsubscribe（踢出）才离开。会话成员单调保留（除非显式踢），即便 Task 状态重置。
 - creator 不可被移除；当前 assignee 在其角色未变时不可被移除（但一旦被 unassign 即降为 manual 订阅者，此后可被显式 Unsubscribe）。creator mute 留 roadmap。
 
 ### 2. ConversationParticipant = 投影（仅 issue/task）
