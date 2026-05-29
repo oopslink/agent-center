@@ -556,7 +556,7 @@ interface OrgDropdownProps {
 function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownProps): React.ReactElement {
   const navigate = useNavigate();
   // Close on click-outside.
-  React.useEffect(() => {
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('[data-org-dropdown]')) onClose();
@@ -617,9 +617,9 @@ function validateSlugLocal(v: string): string {
 function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElement {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [name, setName] = React.useState('');
-  const [slug, setSlug] = React.useState('');
-  const [error, setError] = React.useState('');
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [error, setError] = useState('');
 
   const autoSlug = (n: string) =>
     n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
