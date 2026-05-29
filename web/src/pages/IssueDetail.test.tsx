@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -17,152 +17,113 @@ function wrap(path: string) {
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/issues/:id" element={<IssueDetail />} />
+          <Route path="/projects/:projectId/issues/:id" element={<IssueDetail />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-// v2.3-5b: route param is now the ISSUE_ID (Discussion BC), not the
-// conversation_id. Detail page fetches the Issue projection first
-// then uses its conversation_id to fetch the message thread from
-// Conversation BC.
+// v2.7 ProjectManager BC: IssueDetail is nested under a project and is
+// driven entirely by the Issue projection. No conversation/message
+// thread; state changes go through the single transition endpoint.
 
 describe('IssueDetail page', () => {
   afterEach(() => cleanup());
 
-  it('renders header from the Issue projection + messages from the bound conversation', async () => {
+  it('renders header + description from the Issue projection', async () => {
     server.use(
-      http.get('/api/issues/:id', ({ params }) =>
+      http.get('/api/projects/proj-a/issues/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id),
           project_id: 'proj-a',
-          conversation_id: 'I-conv-1',
           title: 'login bug',
+          description: 'cannot sign in',
           status: 'open',
-          opened_at: '2026-05-24T01:00:00Z',
-          opener: 'user:hayang',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
         }),
       ),
-      http.get('/api/conversations/I-conv-1', () =>
-        HttpResponse.json({
-          id: 'I-conv-1',
-          kind: 'issue',
-          name: 'login bug',
-          status: 'active',
-          participants: [
-            {
-              identity_id: 'user:hayang',
-              role: 'owner',
-              joined_at: '2026-05-24T00:00:00Z',
-              joined_by: 'user:hayang',
-            },
-          ],
-        }),
-      ),
-      http.get('/api/conversations/I-conv-1/messages', () =>
-        HttpResponse.json([
-          {
-            id: 'M-own',
-            conversation_id: 'I-conv-1',
-            sender_identity_id: 'user:hayang',
-            content_kind: 'text',
-            content: 'native discussion',
-            direction: 'inbound',
-            posted_at: '2026-05-24T01:00:00Z',
-          },
-        ]),
-      ),
-      http.get('/api/conversations/I-conv-1/refs', () => HttpResponse.json([])),
     );
-    wrap('/issues/IS-1');
-    await waitFor(() => expect(screen.getByText('native discussion')).toBeInTheDocument());
-    expect(screen.getByText('login bug')).toBeInTheDocument();
-    expect(screen.getByText(/opened/i)).toBeInTheDocument();
+    wrap('/projects/proj-a/issues/IS-1');
+    await waitFor(() => expect(screen.getByText('login bug')).toBeInTheDocument());
+    expect(screen.getByTestId('issue-description')).toHaveTextContent('cannot sign in');
+    expect(screen.getByTestId('issue-status')).toHaveTextContent('open');
     expect(screen.getByTestId('issue-project-link')).toHaveAttribute(
       'href',
       '/projects/proj-a',
     );
-    expect(screen.getByTestId('message-composer')).toBeInTheDocument();
-    expect(screen.getByTestId('participants-panel')).toBeInTheDocument();
   });
 
-  it('renders the carry-over divider when refs + source messages are present', async () => {
+  it('exposes valid transitions for the current status', async () => {
     server.use(
-      http.get('/api/issues/:id', ({ params }) =>
+      http.get('/api/projects/proj-a/issues/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id),
           project_id: 'proj-a',
-          conversation_id: 'I-2',
-          title: 'follow up',
+          title: 'open issue',
+          description: '',
           status: 'open',
-          opened_at: '2026-05-24T01:00:00Z',
-          opener: 'user:hayang',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
         }),
-      ),
-      http.get('/api/conversations/:id', ({ params }) =>
-        HttpResponse.json({
-          id: params.id,
-          kind: 'issue',
-          name: 'follow up',
-          status: 'active',
-          participants: [],
-        }),
-      ),
-      http.get('/api/conversations/:id/messages', ({ params }) => {
-        if (params.id === 'I-2') {
-          return HttpResponse.json([
-            {
-              id: 'M-child',
-              conversation_id: 'I-2',
-              sender_identity_id: 'user:hayang',
-              content_kind: 'text',
-              content: 'continuing in child',
-              direction: 'inbound',
-              posted_at: '2026-05-24T01:01:00Z',
-            },
-          ]);
-        }
-        // Source conv (C-SRC).
-        return HttpResponse.json([
-          {
-            id: 'M-src',
-            conversation_id: 'C-SRC',
-            sender_identity_id: 'user:hayang',
-            content_kind: 'text',
-            content: 'carried snippet',
-            direction: 'inbound',
-            posted_at: '2026-05-24T00:30:00Z',
-          },
-        ]);
-      }),
-      http.get('/api/conversations/I-2/refs', () =>
-        HttpResponse.json([
-          {
-            id: 'R-1',
-            child_conversation_id: 'I-2',
-            source_conversation_id: 'C-SRC',
-            source_message_id: 'M-src',
-            created_by: 'user:hayang',
-            created_at: '2026-05-24T00:30:01Z',
-          },
-        ]),
       ),
     );
-    wrap('/issues/IS-2');
-    await waitFor(() => expect(screen.getByText('carried snippet')).toBeInTheDocument());
-    expect(screen.getByTestId('carry-over-divider')).toBeInTheDocument();
-    expect(screen.getByText('continuing in child')).toBeInTheDocument();
+    wrap('/projects/proj-a/issues/IS-1');
+    await waitFor(() => expect(screen.getByText('open issue')).toBeInTheDocument());
+    // open → {in_progress, withdrawn}
+    expect(screen.getByTestId('issue-transition-in_progress')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-transition-withdrawn')).toBeInTheDocument();
+  });
+
+  it('posts the transition when an action is clicked', async () => {
+    let received: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/proj-a/issues/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          project_id: 'proj-a',
+          title: 'open issue',
+          description: '',
+          status: 'open',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
+        }),
+      ),
+      http.post('/api/projects/proj-a/issues/IS-1/transition', async ({ request }) => {
+        received = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          id: 'IS-1',
+          project_id: 'proj-a',
+          title: 'open issue',
+          description: '',
+          status: 'in_progress',
+          created_by: 'user:hayang',
+          version: 2,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        });
+      }),
+    );
+    wrap('/projects/proj-a/issues/IS-1');
+    await waitFor(() => expect(screen.getByTestId('issue-transition-in_progress')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('issue-transition-in_progress'));
+    await waitFor(() => expect(received).toMatchObject({ status: 'in_progress' }));
   });
 
   it('surfaces issue lookup error', async () => {
     server.use(
-      http.get('/api/issues/:id', () =>
+      http.get('/api/projects/proj-a/issues/:id', () =>
         HttpResponse.json({ error: 'not_found', message: 'no such issue' }, { status: 404 }),
       ),
     );
-    wrap('/issues/missing');
+    wrap('/projects/proj-a/issues/missing');
     await waitFor(() =>
       expect(screen.getByTestId('issue-not-found')).toHaveTextContent(/no such issue/),
     );

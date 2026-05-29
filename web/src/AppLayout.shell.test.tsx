@@ -20,7 +20,7 @@ function renderShell(initial = '/channels') {
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/channels" element={<div data-testid="page-Channels">x</div>} />
-            <Route path="/tasks" element={<div data-testid="page-Tasks">x</div>} />
+            <Route path="/projects" element={<div data-testid="page-Projects">x</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -63,10 +63,13 @@ describe('AppLayout v2 shell (v2.3 P2)', () => {
   it('navigates between top-level pages via sidebar', () => {
     renderShell('/channels');
     expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
-    // Find the Tasks NavLink (there are two — desktop + drawer copies
-    // mount only when open, so a single match here).
-    const tasksLink = screen.getByRole('link', { name: /tasks/i });
-    fireEvent.click(tasksLink);
-    expect(screen.getByTestId('page-Tasks')).toBeInTheDocument();
+    // The Projects nav item links to /projects (sub-list children link
+    // to /projects/<id>, so target the exact top-level href).
+    const projectsLink = screen
+      .getAllByRole('link')
+      .find((a) => a.getAttribute('href') === '/projects');
+    expect(projectsLink).toBeDefined();
+    fireEvent.click(projectsLink!);
+    expect(screen.getByTestId('page-Projects')).toBeInTheDocument();
   });
 });

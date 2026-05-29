@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 
-import { useProjects } from '@/api/projects';
+import { useProjects, type Project } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { ProjectCreateModal } from '@/components/ProjectCreateModal';
@@ -20,7 +20,7 @@ export default function Projects(): React.ReactElement {
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">Projects</h1>
           <p className="text-xs text-text-muted">
-            Projects organize Issues, Tasks, and Workers. Tags help group them.
+            Projects organize Issues and Tasks.
           </p>
         </div>
         <button
@@ -51,7 +51,7 @@ export default function Projects(): React.ReactElement {
         <EmptyState
           testId="projects-empty"
           title="No projects yet"
-          body="Projects organize work — Issues + Tasks + Workers all link to a project. Click + Add Project to create one."
+          body="Projects organize work — Issues and Tasks live inside a project. Click + Add Project to create one."
         />
       )}
       {projects.isSuccess && projects.data.length > 0 && (
@@ -70,15 +70,7 @@ export default function Projects(): React.ReactElement {
                   <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
                     {p.id}
                   </span>
-                  {p.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded bg-brand/10 px-2 py-0.5 text-[0.6875rem] tracking-wide text-brand"
-                      data-testid={`project-tag-${t}`}
-                    >
-                      {t}
-                    </span>
-                  ))}
+                  <ProjectStatusBadge status={p.status} />
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="max-w-[60ch] truncate text-xs text-text-secondary">
@@ -94,6 +86,23 @@ export default function Projects(): React.ReactElement {
         </ul>
       )}
     </section>
+  );
+}
+
+// ProjectStatusBadge renders the active/archived status chip.
+function ProjectStatusBadge({ status }: { status: Project['status'] }): React.ReactElement {
+  return (
+    <span
+      className={[
+        'rounded px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide',
+        status === 'archived'
+          ? 'bg-bg-subtle text-text-muted'
+          : 'bg-success/10 text-success',
+      ].join(' ')}
+      data-testid={`project-status-${status}`}
+    >
+      {status}
+    </span>
   );
 }
 

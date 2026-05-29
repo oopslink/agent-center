@@ -135,72 +135,83 @@ export interface TraceEvent {
   payload?: Record<string, unknown>;
 }
 
-// Project mirrors the backend projection emitted by projectPublicMap.
-//
-// v2.5.5 simplified the shape: id is server-generated (proj-<8hex>),
-// kind and default_agent_cli are gone, tags is a free-text JSON array
-// (UI surfaces a builtin suggestion set but the server doesn't
-// validate it). tags is always emitted by the backend (possibly empty)
-// so a stable empty-state can render without a defensive default.
+// Project mirrors the v2.7 ProjectManager BC projection emitted by
+// projectPublicMap. `tags` was retired; the project now carries
+// organization_id, a status enum (active/archived), and created_by.
 export interface Project {
   id: string;
+  organization_id: string;
   name: string;
   description: string;
-  tags: string[];
-  // version is required for PATCH /api/projects/{id} CAS.
+  status: 'active' | 'archived';
+  created_by: string;
+  // version is required for the projection / CAS bookkeeping.
   version: number;
   created_at: string;
   updated_at: string;
 }
 
-// Issue mirrors the Discussion BC projection emitted by issuePublicMap
-// (v2.3-5a `GET /api/issues[/{id}]`). Field names match backend JSON
-// keys verbatim — these are what `internal/webconsole/api/handlers.go`
-// emits. Note: the Issue AR has NO `kind` or `priority` getter — those
-// fields exist on Task only. `closed_at` / `closed_reason` are present
-// only on terminal states (concluded / withdrawn respectively).
-//
-// Status is the 6-value Discussion BC enum (see
-// internal/discussion/status.go) — different from ConversationStatus.
+// Issue mirrors the v2.7 ProjectManager BC Issue projection. Issues are
+// project-scoped (nested under /projects/{pid}/issues). The status
+// machine: open→{in_progress,withdrawn}; in_progress→{resolved,withdrawn};
+// resolved→{closed,reopened}; closed→{reopened}; reopened→{open};
+// withdrawn=terminal.
 export type IssueStatus =
   | 'open'
-  | 'under_discussion'
-  | 'concluded'
-  | 'closed_no_action'
-  | 'closed_with_tasks'
-  | 'withdrawn';
+  | 'in_progress'
+  | 'resolved'
+  | 'closed'
+  | 'withdrawn'
+  | 'reopened';
 
 export interface Issue {
   id: string;
   project_id: string;
-  conversation_id: string;
   title: string;
   description: string;
   status: IssueStatus;
-  opened_at: string;
-  opener: string;
-  closed_at?: string;
-  closed_reason?: string;
+  created_by: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
 }
 
-// Task mirrors the TaskRuntime BC projection emitted by taskPublicMap
-// (v2.3-5a `GET /api/tasks[/{id}]`). 4-state Task status enum (see
-// internal/taskruntime/task/types.go) and 3-value priority. Task has
-// both `priority` and `current_execution_id` getters; Issue does not.
-export type TaskStatus = 'open' | 'suspended' | 'done' | 'abandoned';
-export type TaskPriority = 'high' | 'medium' | 'low';
+// Task mirrors the v2.7 ProjectManager BC Task projection. Tasks are
+// project-scoped (nested under /projects/{pid}/tasks). New 8-state
+// status machine driven by POST sub-route actions.
+export type TaskStatus =
+  | 'open'
+  | 'assigned'
+  | 'running'
+  | 'blocked'
+  | 'completed'
+  | 'verified'
+  | 'canceled'
+  | 'reopened';
 
 export interface Task {
   id: string;
   project_id: string;
-  conversation_id: string;
   title: string;
   description: string;
   status: TaskStatus;
-  priority: TaskPriority;
+  assignee?: string;
+  derived_from_issue?: string;
+  completed_by?: string;
+  blocked_reason?: string;
+  version: number;
   created_at: string;
-  current_execution_id?: string;
-  depends_on_task_ids?: string[];
+  updated_at: string;
+}
+
+// CodeRepoMap — read-only project code repo entry (v2.7).
+export interface CodeRepo {
+  id: string;
+  project_id: string;
+  url: string;
+  label: string;
+  added_by: string;
+  created_at: string;
 }
 
 export interface ConversationMessageReference {

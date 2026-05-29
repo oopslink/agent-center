@@ -78,9 +78,11 @@ describe('ChannelDetail — derive flow integration', () => {
     server.use(
       ...seedHandlers,
       http.get('/api/projects', () =>
-        HttpResponse.json([
-          { id: 'p-demo', name: 'Demo', kind: 'coding', created_at: '2026-05-24T00:00:00Z' },
-        ]),
+        HttpResponse.json({
+          projects: [
+            { id: 'p-demo', name: 'Demo', kind: 'coding', created_at: '2026-05-24T00:00:00Z' },
+          ],
+        }),
       ),
       http.post('/api/issues', () =>
         HttpResponse.json(

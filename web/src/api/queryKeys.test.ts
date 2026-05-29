@@ -20,18 +20,13 @@ describe('query key factory', () => {
     expect(qk.unread('C1')).toEqual([...P, 'unread', 'C1']);
     expect(qk.projects()).toEqual([...P, 'projects']);
     expect(qk.project('p-1')).toEqual([...P, 'project', 'p-1']);
-    // v2.3-5b BC-native Issue/Task keys
+    // v2.7 ProjectManager BC per-project Issue/Task keys
     expect(qk.issues()).toEqual([...P, 'issues']);
-    expect(qk.issues({})).toEqual([...P, 'issues']);
-    expect(qk.issues({ projectId: 'p-1' })).toEqual([...P, 'issues', { projectId: 'p-1' }]);
-    expect(qk.issues({ projectId: 'p-1', status: 'open' })).toEqual([
-      ...P,
-      'issues',
-      { projectId: 'p-1', status: 'open' },
-    ]);
+    expect(qk.issuesByProject('p-1')).toEqual([...P, 'issuesByProject', 'p-1']);
     expect(qk.issue('IS-1')).toEqual([...P, 'issue', 'IS-1']);
     expect(qk.tasksList()).toEqual([...P, 'tasksList']);
-    expect(qk.tasksList({ projectId: 'p-1' })).toEqual([...P, 'tasksList', { projectId: 'p-1' }]);
+    expect(qk.tasksByProject('p-1')).toEqual([...P, 'tasksByProject', 'p-1']);
     expect(qk.task('TS-1')).toEqual([...P, 'task', 'TS-1']);
+    expect(qk.codeReposByProject('p-1')).toEqual([...P, 'codeReposByProject', 'p-1']);
   });
 });

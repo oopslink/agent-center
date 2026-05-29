@@ -38,16 +38,15 @@ export const qk = {
   fleet: () => o('fleet'),
   taskTrace: (taskId: string) => o('taskTrace', taskId),
   unread: (convId: string) => o('unread', convId),
-  // v2.3-5b BC-native Issue/Task reads. Keyed by {projectId, status}
-  // so changing either filter slot invalidates / refetches cleanly.
-  issues: (filter?: { projectId?: string; status?: string }) =>
-    filter && (filter.projectId || filter.status)
-      ? o('issues', filter)
-      : o('issues'),
+  // v2.7 ProjectManager BC: Issues/Tasks are per-project. Lists are
+  // keyed by projectId; detail keys stay by id.
+  issuesByProject: (projectId: string) => o('issuesByProject', projectId),
   issue: (id: string) => o('issue', id),
-  tasksList: (filter?: { projectId?: string; status?: string }) =>
-    filter && (filter.projectId || filter.status)
-      ? o('tasksList', filter)
-      : o('tasksList'),
+  tasksByProject: (projectId: string) => o('tasksByProject', projectId),
   task: (id: string) => o('task', id),
+  codeReposByProject: (projectId: string) => o('codeReposByProject', projectId),
+  // Coarse no-arg list keys kept so derive.ts (deferred scope) keeps
+  // compiling — it invalidates these after a derive-from-message POST.
+  issues: () => o('issues'),
+  tasksList: () => o('tasksList'),
 };

@@ -50,14 +50,12 @@ describe('App shell + route tree', () => {
     });
   });
 
-  it('renders DMs / Issues / IssueDetail / Tasks / TaskDetail / TaskTrace / Agents / AgentDetail / Projects / ProjectDetail / InputRequests / Secrets / Fleet / Settings', async () => {
+  it('renders DMs / nested IssueDetail / nested TaskDetail / TaskTrace / Agents / AgentDetail / Projects / ProjectDetail / InputRequests / Secrets / Fleet / Settings', async () => {
     const cases: Array<[string, string]> = [
       [`${ORG_BASE}/dms`, 'page-DMs'],
       [`${ORG_BASE}/dms/01HXXX`, 'page-DMDetail'],
-      [`${ORG_BASE}/issues`, 'page-Issues'],
-      [`${ORG_BASE}/issues/01HXXX`, 'page-IssueDetail'],
-      [`${ORG_BASE}/tasks`, 'page-Tasks'],
-      [`${ORG_BASE}/tasks/01HXXX`, 'page-TaskDetail'],
+      [`${ORG_BASE}/projects/proj-a/issues/01HXXX`, 'page-IssueDetail'],
+      [`${ORG_BASE}/projects/proj-a/tasks/01HXXX`, 'page-TaskDetail'],
       [`${ORG_BASE}/tasks/01HXXX/trace`, 'page-TaskTrace'],
       [`${ORG_BASE}/agents`, 'page-Agents'],
       [`${ORG_BASE}/agents/worker-1`, 'page-AgentDetail'],
@@ -86,7 +84,7 @@ describe('App shell + route tree', () => {
     expect(home).toHaveAttribute('href', '/');
   });
 
-  it('renders the sidebar nav with the 7 sections', async () => {
+  it('renders the sidebar nav sections', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => {
       expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
@@ -95,14 +93,16 @@ describe('App shell + route tree', () => {
     for (const label of [
       'Channels',
       'DMs',
-      'Issues',
-      'Tasks',
+      'Projects',
       'Input Requests',
       'Agents',
       'Settings',
     ]) {
       expect(nav).toHaveTextContent(label);
     }
+    // Issues / Tasks no longer have global nav entries (v2.7).
+    expect(nav).not.toHaveTextContent('Issues');
+    expect(nav).not.toHaveTextContent('Tasks');
   });
 });
 

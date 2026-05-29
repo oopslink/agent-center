@@ -3,141 +3,87 @@ import { api } from './client';
 import { qk } from './queryKeys';
 import type { Issue, IssueStatus } from './types';
 
-// useIssues / useIssue — v2.3-5b Discussion BC list/show reads.
-//
-// Layer note (per § 0.6): these hooks reach the BC that OWNS the
-// Issue projection (Discussion BC), replacing the previous
-// `useConversations({kind:'issue'})` cross-BC reach. The Conversation
-// BC reads stay in place for message thread rendering only — that is
-// genuinely Conversation BC's responsibility (message ownership).
-//
-// v2.5.15 (#68): both `project_id` and `status` are optional. Omitting
-// `project_id` returns issues across all projects (Discussion BC
-// FindAll). The hook is always enabled — callers no longer have to
-// gate on a chosen project.
+// Issues (v2.7 ProjectManager BC). Project-scoped: every read/write is
+// nested under /projects/{project_id}/issues. Responses are wrapped
+// ({ issues: [...] }) for the list; single endpoints return IssueMap.
 
-export function useIssues(filter?: { projectId?: string; status?: IssueStatus }) {
-  const projectId = filter?.projectId;
-  const status = filter?.status;
-  const search = new URLSearchParams();
-  if (projectId) search.set('project_id', projectId);
-  if (status) search.set('status', status);
-  const qs = search.toString();
+export function useIssues(projectId: string | undefined) {
   return useQuery({
-    queryKey: qk.issues({ projectId, status }),
-    queryFn: () => api.get<Issue[]>(`/issues${qs ? `?${qs}` : ''}`),
+    queryKey: qk.issuesByProject(projectId ?? ''),
+    queryFn: async () => {
+      const resp = await api.get<{ issues: Issue[] }>(
+        `/projects/${projectId}/issues`,
+      );
+      return resp.issues;
+    },
+    enabled: !!projectId,
   });
 }
 
-export function useIssue(id: string | undefined) {
+export function useIssue(projectId: string | undefined, issueId: string | undefined) {
   return useQuery({
-    queryKey: qk.issue(id ?? ''),
-    queryFn: () => api.get<Issue>(`/issues/${id}`),
-    enabled: !!id,
+    queryKey: qk.issue(issueId ?? ''),
+    queryFn: () =>
+      api.get<Issue>(`/projects/${projectId}/issues/${issueId}`),
+    enabled: !!projectId && !!issueId,
   });
 }
 
-// v2.5.x #61 — Open Issue from scratch (no message source). The same
-// POST /api/issues endpoint also serves the CV4 derive flow when the
-// payload includes source_conversation_id; this mutation only fires
-// the open-from-scratch branch.
-
-export interface OpenIssueInput {
-  project_id: string;
+export interface CreateIssueInput {
   title: string;
   description?: string;
 }
 
-export interface OpenIssueResult {
-  issue_id: string;
-  conversation_id: string;
-  event_id: string;
-}
-
-export function useOpenIssue() {
+export function useCreateIssue(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: OpenIssueInput) =>
-      api.post<OpenIssueResult>('/issues', input),
-    onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({
-        queryKey: qk.issues({ projectId: vars.project_id }),
-      });
+    mutationFn: (input: CreateIssueInput) =>
+      api.post<Issue>(`/projects/${projectId}/issues`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.issuesByProject(projectId) });
     },
   });
 }
 
-// v2.5.x #61 — Conclude an Issue with one of 3 kinds.
-// closed_with_tasks requires at least one task spec (title required;
-// description + priority optional). closed_no_action / withdrawn only
-// need a summary.
-
-export type ConcludeKind = 'closed_no_action' | 'closed_with_tasks' | 'withdrawn';
-
-export interface ConcludeTaskSpec {
-  title: string;
-  description?: string;
-  priority?: string;
-  local_id?: string;
-}
-
-export interface ConcludeIssueInput {
-  kind: ConcludeKind;
-  summary: string;
-  tasks?: ConcludeTaskSpec[];
-}
-
-export interface ConcludeIssueResult {
-  issue_id: string;
-  task_ids: string[];
-  event_ids: string[];
-}
-
-// v2.5.x #64 — Edit issue metadata.
-
 export interface UpdateIssueInput {
-  title: string;
+  title?: string;
   description?: string;
 }
 
-interface LifecycleResult {
-  issue_id: string;
-  event_id: string;
-}
-
-export function useUpdateIssue(issueId: string) {
+export function useUpdateIssue(projectId: string, issueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: UpdateIssueInput) =>
-      api.patch<LifecycleResult>(`/issues/${issueId}`, input),
+      api.patch<Issue>(`/projects/${projectId}/issues/${issueId}`, input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
-      void qc.invalidateQueries({ queryKey: qk.issues() });
+      void qc.invalidateQueries({ queryKey: qk.issuesByProject(projectId) });
     },
   });
 }
 
-// v2.5.x #64 — Reopen issue (any concluded/withdrawn → open).
-
-export function useReopenIssue(issueId: string) {
+// useTransitionIssue — single transition endpoint driving the issue
+// state machine. The caller passes the target status.
+export function useTransitionIssue(projectId: string, issueId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<LifecycleResult>(`/issues/${issueId}/reopen`, {}),
+    mutationFn: (status: IssueStatus) =>
+      api.post<Issue>(`/projects/${projectId}/issues/${issueId}/transition`, {
+        status,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
-      void qc.invalidateQueries({ queryKey: qk.issues() });
+      void qc.invalidateQueries({ queryKey: qk.issuesByProject(projectId) });
     },
   });
 }
 
-export function useConcludeIssue(issueId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: ConcludeIssueInput) =>
-      api.post<ConcludeIssueResult>(`/issues/${issueId}/conclude`, input),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
-      void qc.invalidateQueries({ queryKey: qk.issues() });
-    },
-  });
-}
+// ISSUE_TRANSITIONS — valid target states keyed by current status.
+export const ISSUE_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
+  open: ['in_progress', 'withdrawn'],
+  in_progress: ['resolved', 'withdrawn'],
+  resolved: ['closed', 'reopened'],
+  closed: ['reopened'],
+  reopened: ['open'],
+  withdrawn: [],
+};

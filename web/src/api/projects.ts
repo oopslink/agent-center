@@ -1,46 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, withOrgSlug } from './client';
 import { qk } from './queryKeys';
-import type { Project } from './types';
+import type { CodeRepo, Project } from './types';
 
-// Projects (v2.1-A picker + v2.3-4 list/detail surface). v2.5.3 (#58)
-// adds the CRUD mutations + worker-mapping affordances so the Web
-// Console no longer needs the CLI for managing projects.
+// Projects (v2.7 ProjectManager BC). Flat, org-scoped. Responses are
+// now WRAPPED objects ({ projects: [...] }), not bare arrays.
 
 // Re-export the canonical Project type so existing call-sites that
 // previously imported it from `@/api/projects` keep working.
 export type { Project };
 
-// CreateProjectInput / UpdateProjectInput mirror the v2.5.5 backend
-// shape (handlers.go createProjectReq / updateProjectReq). id is
-// server-generated, tags is free-text (UI surfaces a small builtin
-// suggestion pool).
+// CreateProjectInput / UpdateProjectInput mirror the v2.7 backend shape.
+// `tags` is gone; PATCH carries no version field in the request body.
 export interface CreateProjectInput {
   name: string;
   description?: string;
-  tags?: string[];
 }
 
 export interface UpdateProjectInput {
-  version: number;
   name?: string;
   description?: string;
-  tags?: string[];
-}
-
-export interface WorkerMapping {
-  id: string;
-  worker_id: string;
-  project_id: string;
-  path: string;
-  status: string;
-  added_at: string;
 }
 
 export function useProjects() {
   return useQuery({
     queryKey: qk.projects(),
-    queryFn: () => api.get<Project[]>('/projects'),
+    queryFn: async () => {
+      const resp = await api.get<{ projects: Project[] }>('/projects');
+      return resp.projects;
+    },
     staleTime: 5_000,
   });
 }
@@ -76,30 +64,23 @@ export function useUpdateProject(id: string) {
   });
 }
 
-export interface DeleteProjectError {
-  error: string;
-  message: string;
-  mapping_count?: number;
-  task_count?: number;
-  issue_count?: number;
-}
-
-// useDeleteProject returns the same hook shape as the others. On
-// 409 the server response body carries mapping_count + task_count +
-// issue_count so the SPA can render a "really continue?" confirm.
-// Pass `force=true` to cascade-delete after the operator confirms.
+// useDeleteProject — v2.7 ARCHIVES the project (soft); there is no
+// force/cascade and no 409 mapping/count conflict body. Returns
+// { ok:true, status:"archived" }.
 export function useDeleteProject(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (opts?: { force?: boolean }) => {
-      const force = opts?.force ?? false;
+    mutationFn: async () => {
       const resp = await fetch(
-        withOrgSlug(`/api/projects/${encodeURIComponent(id)}${force ? '?force=true' : ''}`),
+        withOrgSlug(`/api/projects/${encodeURIComponent(id)}`),
         { method: 'DELETE' },
       );
-      if (resp.status === 204) return null;
-      const body = (await resp.json().catch(() => ({}))) as DeleteProjectError;
-      throw body;
+      if (!resp.ok && resp.status !== 204) {
+        const body = (await resp.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body?.message ?? `HTTP ${resp.status}`);
+      }
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.projects() });
@@ -107,39 +88,16 @@ export function useDeleteProject(id: string) {
   });
 }
 
-export function useProjectMappings(id: string | undefined) {
+// useProjectCodeRepos — read-only project code repos (v2.7).
+export function useProjectCodeRepos(id: string | undefined) {
   return useQuery({
-    queryKey: ['project-mappings', id ?? ''],
-    queryFn: () => api.get<WorkerMapping[]>(`/projects/${id}/workers`),
-    enabled: !!id,
-  });
-}
-
-export function useCreateProjectMapping(id: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { worker_id: string; path: string }) =>
-      api.post<WorkerMapping>(`/projects/${id}/workers`, input),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['project-mappings', id] });
-    },
-  });
-}
-
-export function useDeleteProjectMapping(projectID: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (mappingID: string) => {
-      const resp = await fetch(
-        withOrgSlug(`/api/projects/${encodeURIComponent(projectID)}/workers/${encodeURIComponent(mappingID)}`),
-        { method: 'DELETE' },
+    queryKey: qk.codeReposByProject(id ?? ''),
+    queryFn: async () => {
+      const resp = await api.get<{ code_repos: CodeRepo[] }>(
+        `/projects/${id}/code-repos`,
       );
-      if (!resp.ok && resp.status !== 204) {
-        throw new Error(`HTTP ${resp.status}`);
-      }
+      return resp.code_repos;
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['project-mappings', projectID] });
-    },
+    enabled: !!id,
   });
 }

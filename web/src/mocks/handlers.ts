@@ -9,6 +9,47 @@ const ok = (body: JsonBodyType, status = 200) => HttpResponse.json(body, { statu
 const err = (status: number, error: string, message: string) =>
   HttpResponse.json({ error, message }, { status });
 
+// taskActionHandlers — the v2.7 task lifecycle sub-routes. Each returns
+// the refreshed TaskMap with a status derived from the action.
+function taskActionHandlers() {
+  const baseTask = (pid: string, id: string, status: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    project_id: pid,
+    title: 'sample task',
+    description: '',
+    status,
+    version: 2,
+    created_at: '2026-05-24T01:00:00Z',
+    updated_at: '2026-05-24T02:00:00Z',
+    ...extra,
+  });
+  return [
+    http.post('/api/projects/:pid/tasks/:id/assign', async ({ params, request }) => {
+      const body = (await request.json()) as { assignee?: string };
+      return ok(baseTask(String(params.pid), String(params.id), 'assigned', { assignee: body.assignee }));
+    }),
+    http.post('/api/projects/:pid/tasks/:id/start', ({ params }) =>
+      ok(baseTask(String(params.pid), String(params.id), 'running')),
+    ),
+    http.post('/api/projects/:pid/tasks/:id/block', async ({ params, request }) => {
+      const body = (await request.json()) as { reason?: string };
+      return ok(baseTask(String(params.pid), String(params.id), 'blocked', { blocked_reason: body.reason }));
+    }),
+    http.post('/api/projects/:pid/tasks/:id/unblock', ({ params }) =>
+      ok(baseTask(String(params.pid), String(params.id), 'running')),
+    ),
+    http.post('/api/projects/:pid/tasks/:id/complete', ({ params }) =>
+      ok(baseTask(String(params.pid), String(params.id), 'completed', { completed_by: 'agent:builder' })),
+    ),
+    http.post('/api/projects/:pid/tasks/:id/verify', ({ params }) =>
+      ok(baseTask(String(params.pid), String(params.id), 'verified')),
+    ),
+    http.post('/api/projects/:pid/tasks/:id/cancel', ({ params }) =>
+      ok(baseTask(String(params.pid), String(params.id), 'canceled')),
+    ),
+  ];
+}
+
 export const handlers = [
   // Health
   http.get('/api/health', () => ok({ status: 'ok' })),
@@ -71,71 +112,148 @@ export const handlers = [
     ok({ last_seen_message_id: 'M1', version: 1, bumped: true, event_id: 'E-seen' }),
   ),
 
-  // BC-native Issue list/show (v2.3-5a). Discussion BC ownership; the
-  // /api/conversations?kind=issue path is retained for backwards-compat
-  // but the SPA cutover (v2.3-5b) reads from these.
-  http.get('/api/issues', ({ request }) => {
-    const url = new URL(request.url);
-    const projectId = url.searchParams.get('project_id');
-    if (!projectId) {
-      return err(400, 'missing_project_id', 'project_id required');
-    }
-    return ok([
-      {
-        id: 'IS-1',
-        project_id: projectId,
-        conversation_id: 'I-1',
-        title: 'sample issue',
-        status: 'open',
-        opened_at: '2026-05-24T01:00:00Z',
-        opener: 'user:hayang',
-      },
-    ]);
-  }),
-  http.get('/api/issues/:id', ({ params }) =>
+  // v2.7 ProjectManager BC — nested Issues under a project.
+  http.get('/api/projects/:pid/issues', ({ params }) =>
     ok({
-      id: String(params.id),
-      project_id: 'proj-a',
-      conversation_id: 'I-1',
-      title: 'sample issue',
-      status: 'open',
-      opened_at: '2026-05-24T01:00:00Z',
-      opener: 'user:hayang',
+      issues: [
+        {
+          id: 'IS-1',
+          project_id: String(params.pid),
+          title: 'sample issue',
+          description: '',
+          status: 'open',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
+        },
+      ],
     }),
   ),
-
-  // BC-native Task list/show (v2.3-5a). TaskRuntime BC ownership.
-  http.get('/api/tasks', ({ request }) => {
-    const url = new URL(request.url);
-    const projectId = url.searchParams.get('project_id');
-    if (!projectId) {
-      return err(400, 'missing_project_id', 'project_id required');
-    }
-    return ok([
+  http.post('/api/projects/:pid/issues', async ({ params, request }) => {
+    const body = (await request.json()) as { title?: string; description?: string };
+    return ok(
       {
-        id: 'TS-1',
-        project_id: projectId,
-        conversation_id: 'T-1',
-        title: 'sample task',
+        id: 'IS-NEW',
+        project_id: String(params.pid),
+        title: body.title ?? 'new issue',
+        description: body.description ?? '',
         status: 'open',
-        priority: 'medium',
+        created_by: 'user:hayang',
+        version: 1,
         created_at: '2026-05-24T01:00:00Z',
+        updated_at: '2026-05-24T01:00:00Z',
       },
-    ]);
+      201,
+    );
   }),
-  http.get('/api/tasks/:id', ({ params }) =>
+  http.get('/api/projects/:pid/issues/:id', ({ params }) =>
     ok({
       id: String(params.id),
-      project_id: 'proj-a',
-      conversation_id: 'T-1',
-      title: 'sample task',
+      project_id: String(params.pid),
+      title: 'sample issue',
+      description: '',
       status: 'open',
-      priority: 'medium',
+      created_by: 'user:hayang',
+      version: 1,
       created_at: '2026-05-24T01:00:00Z',
+      updated_at: '2026-05-24T01:00:00Z',
     }),
   ),
+  http.patch('/api/projects/:pid/issues/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { title?: string; description?: string };
+    return ok({
+      id: String(params.id),
+      project_id: String(params.pid),
+      title: body.title ?? 'sample issue',
+      description: body.description ?? '',
+      status: 'open',
+      created_by: 'user:hayang',
+      version: 2,
+      created_at: '2026-05-24T01:00:00Z',
+      updated_at: '2026-05-24T02:00:00Z',
+    });
+  }),
+  http.post('/api/projects/:pid/issues/:id/transition', async ({ params, request }) => {
+    const body = (await request.json()) as { status?: string };
+    return ok({
+      id: String(params.id),
+      project_id: String(params.pid),
+      title: 'sample issue',
+      description: '',
+      status: body.status ?? 'open',
+      created_by: 'user:hayang',
+      version: 2,
+      created_at: '2026-05-24T01:00:00Z',
+      updated_at: '2026-05-24T02:00:00Z',
+    });
+  }),
 
-  // Derivation
+  // v2.7 ProjectManager BC — nested Tasks under a project.
+  http.get('/api/projects/:pid/tasks', ({ params }) =>
+    ok({
+      tasks: [
+        {
+          id: 'TS-1',
+          project_id: String(params.pid),
+          title: 'sample task',
+          description: '',
+          status: 'open',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
+        },
+      ],
+    }),
+  ),
+  http.post('/api/projects/:pid/tasks', async ({ params, request }) => {
+    const body = (await request.json()) as { title?: string; description?: string };
+    return ok(
+      {
+        id: 'TS-NEW',
+        project_id: String(params.pid),
+        title: body.title ?? 'new task',
+        description: body.description ?? '',
+        status: 'open',
+        version: 1,
+        created_at: '2026-05-24T01:00:00Z',
+        updated_at: '2026-05-24T01:00:00Z',
+      },
+      201,
+    );
+  }),
+  http.get('/api/projects/:pid/tasks/:id', ({ params }) =>
+    ok({
+      id: String(params.id),
+      project_id: String(params.pid),
+      title: 'sample task',
+      description: '',
+      status: 'open',
+      version: 1,
+      created_at: '2026-05-24T01:00:00Z',
+      updated_at: '2026-05-24T01:00:00Z',
+    }),
+  ),
+  http.patch('/api/projects/:pid/tasks/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { title?: string; description?: string };
+    return ok({
+      id: String(params.id),
+      project_id: String(params.pid),
+      title: body.title ?? 'sample task',
+      description: body.description ?? '',
+      status: 'open',
+      version: 2,
+      created_at: '2026-05-24T01:00:00Z',
+      updated_at: '2026-05-24T02:00:00Z',
+    });
+  }),
+  ...taskActionHandlers(),
+
+  // Code repos (read-only).
+  http.get('/api/projects/:pid/code-repos', () => ok({ code_repos: [] })),
+
+  // Derivation (deferred scope — still posts to the retired flat routes;
+  // the SPA derive flow keeps these mocks for tests only).
   http.post('/api/issues', () =>
     ok(
       {
@@ -220,35 +338,70 @@ export const handlers = [
   http.post('/api/sse/subscribe', () => ok({ subscribed: true })),
   http.post('/api/sse/unsubscribe', () => ok({ unsubscribed: true })),
 
-  // Projects (v2.5.5 projection: id / name / description / tags /
-  // version / created_at / updated_at — kind + default_agent_cli
-  // retired alongside ProjectKind).
+  // Projects (v2.7 ProjectManager BC projection: wrapped list response;
+  // tags retired; status + organization_id + created_by added).
   http.get('/api/projects', () =>
-    ok([
+    ok({
+      projects: [
+        {
+          id: 'proj-a',
+          organization_id: 'org-test',
+          name: 'Project Alpha',
+          description: 'First sample project',
+          status: 'active',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-20T01:00:00Z',
+          updated_at: '2026-05-20T01:00:00Z',
+        },
+      ],
+    }),
+  ),
+  http.post('/api/projects', async ({ request }) => {
+    const body = (await request.json()) as { name?: string; description?: string };
+    return ok(
       {
-        id: 'proj-a',
-        name: 'Project Alpha',
-        description: 'First sample project',
-        tags: ['coding'],
+        id: 'proj-new',
+        organization_id: 'org-test',
+        name: body.name ?? 'New Project',
+        description: body.description ?? '',
+        status: 'active',
+        created_by: 'user:hayang',
         version: 1,
         created_at: '2026-05-20T01:00:00Z',
         updated_at: '2026-05-20T01:00:00Z',
       },
-    ]),
-  ),
+      201,
+    );
+  }),
   http.get('/api/projects/:id', ({ params }) =>
     ok({
       id: String(params.id),
+      organization_id: 'org-test',
       name: 'Project Alpha',
       description: 'First sample project',
-      tags: ['coding'],
+      status: 'active',
+      created_by: 'user:hayang',
       version: 1,
       created_at: '2026-05-20T01:00:00Z',
       updated_at: '2026-05-20T01:00:00Z',
     }),
   ),
-  // Project ↔ worker mappings (ProjectDetail useProjectMappings). Empty by default.
-  http.get('/api/projects/:id/workers', () => ok([])),
+  http.patch('/api/projects/:id', async ({ params, request }) => {
+    const body = (await request.json()) as { name?: string; description?: string };
+    return ok({
+      id: String(params.id),
+      organization_id: 'org-test',
+      name: body.name ?? 'Project Alpha',
+      description: body.description ?? '',
+      status: 'active',
+      created_by: 'user:hayang',
+      version: 2,
+      created_at: '2026-05-20T01:00:00Z',
+      updated_at: '2026-05-20T02:00:00Z',
+    });
+  }),
+  http.delete('/api/projects/:id', () => ok({ ok: true, status: 'archived' })),
 
   // Auth
   http.get('/api/auth/me', () =>

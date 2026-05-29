@@ -78,135 +78,50 @@ describe('Detail pages — loading + error branches', () => {
   });
 
   it('TaskDetail isLoading branch', async () => {
-    // v2.3-5b: TaskDetail's outer loading state now keys on the Task
-    // projection fetch (BC-native), not the bound conversation.
+    // v2.7: TaskDetail's loading state keys on the nested Task
+    // projection fetch.
     server.use(
-      http.get('/api/tasks/:id', async () => {
+      http.get('/api/projects/proj-a/tasks/:id', async () => {
         await delay(50);
         return HttpResponse.json({
           id: 'T-1',
           project_id: 'proj-a',
-          conversation_id: 'T-conv-1',
           title: 'x',
+          description: '',
           status: 'open',
-          priority: 'medium',
+          version: 1,
           created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
         });
       }),
-      http.get('/api/conversations/:id', () =>
-        HttpResponse.json({
-          id: 'T-conv-1',
-          kind: 'task',
-          name: 'x',
-          status: 'active',
-          participants: [],
-        }),
-      ),
-      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
     );
-    wrap('/tasks/T-1', '/tasks/:id', <TaskDetail />);
+    wrap('/projects/proj-a/tasks/T-1', '/projects/:projectId/tasks/:id', <TaskDetail />);
     expect(screen.getByText(/Loading task/)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText(/Loading task/)).not.toBeInTheDocument());
   });
 
-  it('TaskDetail messages-loading inner branch', async () => {
-    server.use(
-      http.get('/api/tasks/:id', () =>
-        HttpResponse.json({
-          id: 'T-1',
-          project_id: 'proj-a',
-          conversation_id: 'T-conv-1',
-          title: 'x',
-          status: 'open',
-          priority: 'medium',
-          created_at: '2026-05-24T01:00:00Z',
-        }),
-      ),
-      http.get('/api/conversations/:id', () =>
-        HttpResponse.json({
-          id: 'T-conv-1',
-          kind: 'task',
-          name: 'x',
-          status: 'active',
-          participants: [],
-        }),
-      ),
-      http.get('/api/conversations/:id/messages', async () => {
-        await delay(80);
-        return HttpResponse.json([]);
-      }),
-    );
-    wrap('/tasks/T-1', '/tasks/:id', <TaskDetail />);
-    await waitFor(() =>
-      expect(screen.getByTestId('task-messages-loading')).toBeInTheDocument(),
-    );
-  });
-
   it('IssueDetail isLoading branch', async () => {
-    // v2.3-5b: IssueDetail's outer loading state now keys on the
-    // Issue projection fetch (BC-native), not the bound conversation.
+    // v2.7: IssueDetail's loading state keys on the nested Issue
+    // projection fetch.
     server.use(
-      http.get('/api/issues/:id', async () => {
+      http.get('/api/projects/proj-a/issues/:id', async () => {
         await delay(50);
         return HttpResponse.json({
           id: 'I-1',
           project_id: 'proj-a',
-          conversation_id: 'I-conv-1',
           title: 'x',
+          description: '',
           status: 'open',
-          opened_at: '2026-05-24T01:00:00Z',
-          opener: 'user:hayang',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
         });
       }),
-      http.get('/api/conversations/:id', () =>
-        HttpResponse.json({
-          id: 'I-conv-1',
-          kind: 'issue',
-          name: 'x',
-          status: 'active',
-          participants: [],
-        }),
-      ),
-      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
-      http.get('/api/conversations/:id/refs', () => HttpResponse.json([])),
     );
-    wrap('/issues/I-1', '/issues/:id', <IssueDetail />);
+    wrap('/projects/proj-a/issues/I-1', '/projects/:projectId/issues/:id', <IssueDetail />);
     expect(screen.getByText(/Loading issue/)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText(/Loading issue/)).not.toBeInTheDocument());
-  });
-
-  it('IssueDetail messages-loading inner branch', async () => {
-    server.use(
-      http.get('/api/issues/:id', () =>
-        HttpResponse.json({
-          id: 'I-1',
-          project_id: 'proj-a',
-          conversation_id: 'I-conv-1',
-          title: 'x',
-          status: 'open',
-          opened_at: '2026-05-24T01:00:00Z',
-          opener: 'user:hayang',
-        }),
-      ),
-      http.get('/api/conversations/:id', () =>
-        HttpResponse.json({
-          id: 'I-conv-1',
-          kind: 'issue',
-          name: 'x',
-          status: 'active',
-          participants: [],
-        }),
-      ),
-      http.get('/api/conversations/:id/messages', async () => {
-        await delay(80);
-        return HttpResponse.json([]);
-      }),
-      http.get('/api/conversations/:id/refs', () => HttpResponse.json([])),
-    );
-    wrap('/issues/I-1', '/issues/:id', <IssueDetail />);
-    await waitFor(() =>
-      expect(screen.getByTestId('issue-messages-loading')).toBeInTheDocument(),
-    );
   });
 
   it('AgentDetail isLoading branch', async () => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -24,89 +24,87 @@ function wrap(path: string) {
   );
 }
 
+const projectAlpha = {
+  id: 'proj-a',
+  organization_id: 'org-test',
+  name: 'Project Alpha',
+  description: 'the alpha project',
+  status: 'active',
+  created_by: 'user:hayang',
+  version: 1,
+  created_at: '2026-05-20T01:00:00Z',
+  updated_at: '2026-05-20T01:00:00Z',
+};
+
 describe('ProjectDetail page', () => {
   afterEach(() => cleanup());
 
-  it('renders header + per-project Issues / Tasks / Fleet panels', async () => {
+  it('renders header + per-project Issues / Tasks tabs + Fleet link', async () => {
     server.use(
-      http.get('/api/projects/:id', () =>
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/issues', () =>
         HttpResponse.json({
-          id: 'proj-a',
-          name: 'Project Alpha',
-          tags: ['coding'],
-          description: 'the alpha project',
-          version: 1,
-          created_at: '2026-05-20T01:00:00Z',
-          updated_at: '2026-05-20T01:00:00Z',
+          issues: [
+            {
+              id: 'IS-1',
+              project_id: 'proj-a',
+              title: 'login bug',
+              description: '',
+              status: 'open',
+              created_by: 'user:hayang',
+              version: 1,
+              created_at: '2026-05-24T01:00:00Z',
+              updated_at: '2026-05-24T01:00:00Z',
+            },
+          ],
         }),
       ),
-      // v2.3-5b: panels now read from /api/issues and /api/tasks
-      // scoped by project_id. Assert the scope is forwarded so the
-      // wiring stays honest.
-      http.get('/api/issues', ({ request }) => {
-        const url = new URL(request.url);
-        expect(url.searchParams.get('project_id')).toBe('proj-a');
-        return HttpResponse.json([
-          {
-            id: 'IS-1',
-            project_id: 'proj-a',
-            conversation_id: 'I-1',
-            title: 'login bug',
-            status: 'open',
-            opened_at: '2026-05-24T01:00:00Z',
-            opener: 'user:hayang',
-          },
-        ]);
-      }),
-      http.get('/api/tasks', ({ request }) => {
-        const url = new URL(request.url);
-        expect(url.searchParams.get('project_id')).toBe('proj-a');
-        return HttpResponse.json([
-          {
-            id: 'TS-1',
-            project_id: 'proj-a',
-            conversation_id: 'T-1',
-            title: 'rebuild docs',
-            status: 'open',
-            priority: 'medium',
-            created_at: '2026-05-24T01:00:00Z',
-          },
-        ]);
-      }),
+      http.get('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            {
+              id: 'TS-1',
+              project_id: 'proj-a',
+              title: 'rebuild docs',
+              description: '',
+              status: 'open',
+              version: 1,
+              created_at: '2026-05-24T01:00:00Z',
+              updated_at: '2026-05-24T01:00:00Z',
+            },
+          ],
+        }),
+      ),
     );
     wrap('/projects/proj-a');
     await waitFor(() => expect(screen.getByText('Project Alpha')).toBeInTheDocument());
     expect(screen.getByTestId('project-description')).toHaveTextContent('the alpha project');
-    expect(screen.getByTestId('project-tag-coding')).toBeInTheDocument();
+    expect(screen.getByTestId('project-status-active')).toBeInTheDocument();
+    // Issues tab is the default; the issue row shows.
     await waitFor(() => expect(screen.getByText('login bug')).toBeInTheDocument());
-    expect(screen.getByText('rebuild docs')).toBeInTheDocument();
+    // Switch to the Tasks tab to see the task row.
+    fireEvent.click(screen.getByTestId('project-tab-tasks'));
+    await waitFor(() => expect(screen.getByText('rebuild docs')).toBeInTheDocument());
     expect(screen.getByTestId('project-fleet-link')).toBeInTheDocument();
-    // The pre-cutover "(cross-project view)" hint must be gone.
-    expect(screen.queryByText(/cross-project/i)).not.toBeInTheDocument();
   });
 
   it('shows the per-project empty hint when both panels return []', async () => {
     server.use(
       http.get('/api/projects/:id', () =>
-        HttpResponse.json({
-          id: 'proj-empty',
-          name: 'Empty Project',
-          tags: [],
-          description: '',
-          version: 1,
-          created_at: '2026-05-20T01:00:00Z',
-          updated_at: '2026-05-20T01:00:00Z',
-        }),
+        HttpResponse.json({ ...projectAlpha, id: 'proj-empty', name: 'Empty Project', description: '' }),
       ),
-      http.get('/api/issues', () => HttpResponse.json([])),
-      http.get('/api/tasks', () => HttpResponse.json([])),
+      http.get('/api/projects/proj-empty/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/proj-empty/tasks', () => HttpResponse.json({ tasks: [] })),
     );
     wrap('/projects/proj-empty');
     await waitFor(() => expect(screen.getByText('Empty Project')).toBeInTheDocument());
     await waitFor(() =>
       expect(screen.getByTestId('project-issues-panel')).toHaveTextContent(/No issues yet/),
     );
-    expect(screen.getByTestId('project-tasks-panel')).toHaveTextContent(/No tasks yet/);
+    fireEvent.click(screen.getByTestId('project-tab-tasks'));
+    await waitFor(() =>
+      expect(screen.getByTestId('project-tasks-panel')).toHaveTextContent(/No tasks yet/),
+    );
   });
 
   it('surfaces a 404 with a friendly error + back link', async () => {

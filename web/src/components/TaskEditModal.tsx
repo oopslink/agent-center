@@ -1,27 +1,19 @@
-// TaskEditModal — v2.5.x #65 edit title / description / priority on a
-// non-terminal task. Backend rejects edits on done / abandoned status,
-// but the host page also hides the trigger button in those states.
+// TaskEditModal — v2.7 metadata edit (title / description) on a task.
 import React, { useState } from 'react';
 import { useUpdateTask } from '@/api/tasks';
 import type { Task } from '@/api/types';
 
 interface Props {
-  task: Pick<Task, 'id' | 'title' | 'description' | 'priority'>;
+  projectId: string;
+  task: Pick<Task, 'id' | 'title' | 'description'>;
   onClose: () => void;
   onSaved?: () => void;
 }
 
-const PRIORITY_OPTIONS = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-];
-
-export function TaskEditModal({ task, onClose, onSaved }: Props): React.ReactElement {
+export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): React.ReactElement {
   const [title, setTitle] = useState(task.title ?? '');
   const [description, setDescription] = useState(task.description ?? '');
-  const [priority, setPriority] = useState<string>(task.priority ?? 'medium');
-  const update = useUpdateTask(task.id);
+  const update = useUpdateTask(projectId, task.id);
 
   const trimmedTitle = title.trim();
   const canSubmit = trimmedTitle.length > 0 && !update.isPending;
@@ -33,7 +25,6 @@ export function TaskEditModal({ task, onClose, onSaved }: Props): React.ReactEle
       await update.mutateAsync({
         title: trimmedTitle,
         description: description.trim() || undefined,
-        priority,
       });
       onSaved?.();
       onClose();
@@ -89,24 +80,6 @@ export function TaskEditModal({ task, onClose, onSaved }: Props): React.ReactEle
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
           />
-        </div>
-
-        <div className="mb-3">
-          <label className="mb-1 block text-xs font-medium text-text-primary">
-            Priority
-          </label>
-          <select
-            data-testid="task-edit-priority"
-            className={inputClass}
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-          >
-            {PRIORITY_OPTIONS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
         </div>
 
         {update.isError && (

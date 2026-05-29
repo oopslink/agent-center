@@ -111,10 +111,10 @@ export default function AppLayout(): React.ReactElement {
       'mod+1': () => navigate('/'),
       'mod+2': () => navigate('/channels'),
       'mod+3': () => navigate('/dms'),
-      'mod+4': () => navigate('/issues'),
-      'mod+5': () => navigate('/tasks'),
-      'mod+6': () => navigate('/inputrequests'),
-      'mod+7': () => navigate('/agents'),
+      'mod+4': () => navigate('/projects'),
+      'mod+5': () => navigate('/inputrequests'),
+      'mod+6': () => navigate('/agents'),
+      'mod+7': () => navigate('/fleet'),
     }),
     [navigate],
   );
@@ -269,8 +269,6 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
     {
       label: 'Work',
       items: [
-        { to: p('issues'), label: 'Issues', Icon: IssuesIcon },
-        { to: p('tasks'), label: 'Tasks', Icon: TasksIcon },
         { to: p('inputrequests'), label: 'Input Requests', badge: 'inputRequests' as NavBadgeKey, Icon: InboxIcon },
       ],
     },
@@ -767,22 +765,6 @@ function ChatIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M4 5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-5l-3 3v-3H4A1.5 1.5 0 0 1 2.5 12.5v-6A1.5 1.5 0 0 1 4 5z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IssuesIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <circle cx="10" cy="10" r="6.5" />
-      <path d="M10 7v3.5M10 13.25v.25" strokeLinecap="round" />
-    </svg>
-  );
-}
-function TasksIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <rect x="3.5" y="3.5" width="13" height="13" rx="2" />
-      <path d="M6.5 10.5l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

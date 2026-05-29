@@ -41,7 +41,7 @@ const projectFixture = [
 describe('DeriveModal', () => {
   beforeEach(() => {
     server.use(
-      http.get('/api/projects', () => HttpResponse.json(projectFixture)),
+      http.get('/api/projects', () => HttpResponse.json({ projects: projectFixture })),
       http.post('/api/issues', async ({ request }) => {
         const body = (await request.json()) as { project_id?: string };
         // v2.1-A — project_id is required; if absent, simulate the
@@ -220,7 +220,7 @@ describe('DeriveModal', () => {
   });
 
   it('shows the no-projects empty state + does not render the picker', async () => {
-    server.use(http.get('/api/projects', () => HttpResponse.json([])));
+    server.use(http.get('/api/projects', () => HttpResponse.json({ projects: [] })));
     wrap(
       <DeriveModal
         kind="issue"

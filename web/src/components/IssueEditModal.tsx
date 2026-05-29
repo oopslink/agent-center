@@ -6,15 +6,16 @@ import { useUpdateIssue } from '@/api/issues';
 import type { Issue } from '@/api/types';
 
 interface Props {
+  projectId: string;
   issue: Pick<Issue, 'id' | 'title' | 'description'>;
   onClose: () => void;
   onSaved?: () => void;
 }
 
-export function IssueEditModal({ issue, onClose, onSaved }: Props): React.ReactElement {
+export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): React.ReactElement {
   const [title, setTitle] = useState(issue.title ?? '');
   const [description, setDescription] = useState(issue.description ?? '');
-  const update = useUpdateIssue(issue.id);
+  const update = useUpdateIssue(projectId, issue.id);
 
   const trimmedTitle = title.trim();
   const canSubmit = trimmedTitle.length > 0 && !update.isPending;
