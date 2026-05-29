@@ -51,13 +51,13 @@
 | 0043 | [Auth passcode + JWT cookie](0043-auth-passcode-jwt.md) | Draft |
 | 0044 | [Supervisor cut](0044-supervisor-cut.md) | Draft |
 | 0045 | [Identity ID format](0045-identity-id-format.md) | Draft |
-| 0046 | [ProjectManager BC + Task/Issue ownership（v2.7）](0046-projectmanager-bc.md) | Draft (TODO) |
+| 0046 | [ProjectManager BC + Task/Issue ownership（v2.7）](0046-projectmanager-bc.md) | Draft |
 | 0047 | [Conversation owner_ref URI + Message context_refs（v2.7）](0047-conversation-owner-ref-and-context-refs.md) | Draft |
 | 0048 | [File URI + BlobStore + FileTransfer 边界（v2.7）](0048-file-uri-and-blobstore.md) | Draft |
-| 0049 | [Agent BC：long-running Agent, no AgentRun（v2.7）](0049-agent-bc-no-agentrun.md) | Draft (TODO) |
-| 0050 | [Environment BC：Worker + AgentController + worker-initiated control（v2.7）](0050-environment-bc.md) | Draft (TODO) |
-| 0051 | [ClaudeCode headless 集成契约（v2.7）](0051-claudecode-headless-contract.md) | Draft (TODO) |
-| 0052 | [Subscriber 真值 + Conversation participant 投影（v2.7）](0052-subscriber-truth-and-participant-projection.md) | Draft (TODO) |
+| 0049 | [Agent BC：long-running Agent, no AgentRun（v2.7）](0049-agent-bc-no-agentrun.md) | Draft |
+| 0050 | [Environment BC：Worker + AgentController + worker-initiated control（v2.7）](0050-environment-bc.md) | Draft |
+| 0051 | [ClaudeCode headless 集成契约（v2.7）](0051-claudecode-headless-contract.md) | Draft |
+| 0052 | [Subscriber 真值 + Conversation participant 投影（v2.7）](0052-subscriber-truth-and-participant-projection.md) | Draft |
 
 ## 规则提示
 
