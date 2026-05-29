@@ -140,11 +140,20 @@ smoke:
 # `npm test` (vitest) doesn't run tsc, and `npm run build` is only
 # triggered manually during release — which let v2.5.9 ship a type
 # break that surfaced only at PM smoke (#agent-center:700dde8d → #66).
-# Putting `tsc --noEmit` into the composite `lint` target catches the
-# class of issue (typed missing field, projection/SPA-type drift) in
-# the local + CI lint loop instead.
+# Putting tsc into the composite `lint` target catches the class of
+# issue (typed missing field, projection/SPA-type drift) in the local +
+# CI lint loop instead.
+#
+# Uses `tsc -b` (build mode) NOT `tsc --noEmit`: web/tsconfig.json is
+# `files: [] + references`, so a bare `tsc --noEmit` type-checks NOTHING
+# (it never follows project references). That gap let a v2.6 break ship
+# — `import type React` used as a value in AppLayout passed `tsc --noEmit`
+# but failed `make build`'s `tsc -b`. `-b --force` follows the references
+# and re-checks everything (skips the incremental cache). The referenced
+# tsconfigs set `noEmit: true`, so this emits no JS; `*.tsbuildinfo` is
+# gitignored.
 lint-spa-tsc:
-	cd web && npx tsc --noEmit
+	cd web && npx tsc -b --force
 
 # lint — composite target for all repo-level linters.
 lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc
