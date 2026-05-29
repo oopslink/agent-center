@@ -13,7 +13,17 @@ import {
   useInviteParticipant,
   useRemoveParticipant,
 } from './conversations';
-import { useAgents, useAgent } from './agents';
+import {
+  useAgents,
+  useAgent,
+  useCreateAgent,
+  useStartAgent,
+  useStopAgent,
+  useRestartAgent,
+  useResetAgent,
+  useAgentWorkItems,
+  useAgentActivity,
+} from './agents';
 import { useSecrets, useCreateSecret, useRevokeSecret } from './secrets';
 import { useInputRequests, useRespondInputRequest } from './inputRequests';
 import { useFleet, useTaskTrace } from './fleet';
@@ -120,20 +130,64 @@ describe('react-query hooks', () => {
     await waitFor(() => expect(remove.result.current.isSuccess).toBe(true));
   });
 
-  it('useAgents + useAgent', async () => {
+  it('useAgents unwraps .agents + useAgent fetches detail', async () => {
     const wrapper = makeWrapper();
     const list = renderHook(() => useAgents(), { wrapper });
     await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
     expect(list.result.current.data?.[0].name).toBe('aa');
+    expect(list.result.current.data?.[0].lifecycle).toBe('stopped');
 
-    const one = renderHook(() => useAgent('aa'), { wrapper });
+    const one = renderHook(() => useAgent('A-1'), { wrapper });
     await waitFor(() => expect(one.result.current.isSuccess).toBe(true));
-    expect(one.result.current.data?.name).toBe('aa');
+    expect(one.result.current.data?.id).toBe('A-1');
+    expect(one.result.current.data?.availability).toBe('available');
   });
 
-  it('useAgent skips when name is undefined', () => {
+  it('useAgent skips when id is undefined', () => {
     const { result } = renderHook(() => useAgent(undefined), { wrapper: makeWrapper() });
     expect(result.current.fetchStatus).toBe('idle');
+  });
+
+  it('useCreateAgent posts and returns the new AgentMap', async () => {
+    const { result } = renderHook(() => useCreateAgent(), { wrapper: makeWrapper() });
+    act(() => result.current.mutate({ name: 'newbot', worker_id: 'w-1' }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.name).toBe('newbot');
+  });
+
+  it('lifecycle hooks return the refreshed AgentMap', async () => {
+    const startH = renderHook(() => useStartAgent('A-1'), { wrapper: makeWrapper() });
+    act(() => startH.result.current.mutate());
+    await waitFor(() => expect(startH.result.current.isSuccess).toBe(true));
+    expect(startH.result.current.data?.lifecycle).toBe('running');
+
+    const stopH = renderHook(() => useStopAgent('A-1'), { wrapper: makeWrapper() });
+    act(() => stopH.result.current.mutate());
+    await waitFor(() => expect(stopH.result.current.isSuccess).toBe(true));
+    expect(stopH.result.current.data?.lifecycle).toBe('stopped');
+
+    const restartH = renderHook(() => useRestartAgent('A-1'), { wrapper: makeWrapper() });
+    act(() => restartH.result.current.mutate());
+    await waitFor(() => expect(restartH.result.current.isSuccess).toBe(true));
+    expect(restartH.result.current.data?.lifecycle).toBe('running');
+  });
+
+  it('useResetAgent posts scope + confirm', async () => {
+    const { result } = renderHook(() => useResetAgent('A-1'), { wrapper: makeWrapper() });
+    act(() => result.current.mutate({ scope: 'all', confirm: true }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.lifecycle).toBe('stopped');
+  });
+
+  it('useAgentWorkItems + useAgentActivity unwrap their lists', async () => {
+    const wrapper = makeWrapper();
+    const wi = renderHook(() => useAgentWorkItems('A-1'), { wrapper });
+    await waitFor(() => expect(wi.result.current.isSuccess).toBe(true));
+    expect(wi.result.current.data?.[0].task_ref).toBe('task:T-1');
+
+    const act2 = renderHook(() => useAgentActivity('A-1'), { wrapper });
+    await waitFor(() => expect(act2.result.current.isSuccess).toBe(true));
+    expect(act2.result.current.data?.[0].event_type).toBe('agent.started');
   });
 
   it('useSecrets + useCreateSecret + useRevokeSecret', async () => {

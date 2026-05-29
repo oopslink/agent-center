@@ -96,18 +96,21 @@ export function DMStartModal({
                 className="mt-1 flex flex-wrap gap-1"
                 data-testid="dm-agent-chips"
               >
-                {agents.data.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => addPeer(a.identity_id)}
-                    className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-border-base"
-                    data-testid="dm-agent-chip"
-                    data-identity={a.identity_id}
-                  >
-                    {a.name}
-                  </button>
-                ))}
+                {agents.data.map((a) => {
+                  const identity = `agent:${a.id}`;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => addPeer(identity)}
+                      className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs text-text-secondary hover:bg-border-base"
+                      data-testid="dm-agent-chip"
+                      data-identity={identity}
+                    >
+                      {a.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

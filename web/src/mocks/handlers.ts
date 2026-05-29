@@ -50,6 +50,81 @@ function taskActionHandlers() {
   ];
 }
 
+// agentHandlers — Agent BC (v2.7 #101) endpoints. The default agent 'aa'
+// (id A-1) is used by the shared hooks.test fixtures. Lifecycle sub-routes
+// echo back an AgentMap with a derived lifecycle.
+function agentHandlers() {
+  const baseAgent = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    organization_id: 'O-1',
+    name: 'aa',
+    description: '',
+    model: 'claude-opus',
+    cli: 'claudecode',
+    env_vars: {},
+    skills: [],
+    worker_id: 'w-1',
+    lifecycle: 'stopped',
+    availability: 'available',
+    created_by: 'user:hayang',
+    version: 1,
+    created_at: '2026-05-24T01:00:00Z',
+    updated_at: '2026-05-24T02:00:00Z',
+    ...extra,
+  });
+  return [
+    http.get('/api/agents', () => ok({ agents: [baseAgent('A-1')] })),
+    http.post('/api/agents', async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      return ok(baseAgent('A-NEW', { ...body }), 201);
+    }),
+    http.get('/api/agents/:id', ({ params }) =>
+      ok(baseAgent(String(params.id))),
+    ),
+    http.post('/api/agents/:id/start', ({ params }) =>
+      ok(baseAgent(String(params.id), { lifecycle: 'running' })),
+    ),
+    http.post('/api/agents/:id/stop', ({ params }) =>
+      ok(baseAgent(String(params.id), { lifecycle: 'stopped' })),
+    ),
+    http.post('/api/agents/:id/restart', ({ params }) =>
+      ok(baseAgent(String(params.id), { lifecycle: 'running' })),
+    ),
+    http.post('/api/agents/:id/reset', ({ params }) =>
+      ok(baseAgent(String(params.id), { lifecycle: 'stopped' })),
+    ),
+    http.get('/api/agents/:id/work-items', ({ params }) =>
+      ok({
+        work_items: [
+          {
+            id: 'WI-1',
+            agent_id: String(params.id),
+            task_ref: 'task:T-1',
+            status: 'queued',
+            interactions: 0,
+            version: 1,
+            created_at: '2026-05-24T01:00:00Z',
+            updated_at: '2026-05-24T01:00:00Z',
+          },
+        ],
+      }),
+    ),
+    http.get('/api/agents/:id/activity', ({ params }) =>
+      ok({
+        activity: [
+          {
+            id: 'AC-1',
+            agent_id: String(params.id),
+            event_type: 'agent.started',
+            payload: '{}',
+            occurred_at: '2026-05-24T01:00:00Z',
+          },
+        ],
+      }),
+    ),
+  ];
+}
+
 export const handlers = [
   // Health
   http.get('/api/health', () => ok({ status: 'ok' })),
@@ -295,21 +370,9 @@ export const handlers = [
   http.post('/api/input_requests/:id/respond', () => ok({ event_id: 'E-resp' })),
   http.post('/api/input_requests/:id/cancel', () => ok({ cancelled: true })),
 
-  // Agents
-  http.get('/api/agents', () =>
-    ok([
-      { id: 'A-1', identity_id: 'agent:A-1', name: 'aa', agent_cli: 'claudecode', state: 'idle' },
-    ]),
-  ),
-  http.get('/api/agents/:name', ({ params }) =>
-    ok({
-      id: 'A-1',
-      identity_id: 'agent:A-1',
-      name: params.name,
-      agent_cli: 'claudecode',
-      state: 'idle',
-    }),
-  ),
+  // Agents — Agent BC (v2.7 #101). Org-scoped, wrapped list shape, lifecycle
+  // sub-routes + work-items / activity.
+  ...agentHandlers(),
 
   // Secrets
   http.get('/api/secrets', () =>

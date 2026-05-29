@@ -38,15 +38,65 @@ export interface Message {
   input_request_ref?: string;
 }
 
-export interface AgentInstance {
+// Agent BC (v2.7 #101). Org-scoped agents with a lifecycle/availability
+// state machine, backed by /api/agents. Replaces the retired
+// workforce.AgentInstance surface. Mirrors agentMap from the backend.
+export type AgentLifecycle =
+  | 'stopped'
+  | 'running'
+  | 'stopping'
+  | 'resetting'
+  | 'error';
+
+export type Availability = 'available' | 'busy' | 'unavailable';
+
+export interface Agent {
   id: string;
-  identity_id: string;
+  organization_id: string;
   name: string;
-  agent_cli: string;
-  state: 'idle' | 'active' | 'sleeping' | 'archived';
-  worker_id?: string;
-  is_builtin?: boolean;
-  max_concurrent?: number;
+  description: string;
+  model: string;
+  cli: string;
+  env_vars: Record<string, string>;
+  skills: string[];
+  worker_id: string;
+  lifecycle: AgentLifecycle;
+  availability: Availability;
+  created_by: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  lifecycle_error?: string;
+}
+
+export type WorkItemStatus =
+  | 'queued'
+  | 'active'
+  | 'waiting_input'
+  | 'done'
+  | 'failed'
+  | 'canceled'
+  | 'superseded';
+
+export interface AgentWorkItem {
+  id: string;
+  agent_id: string;
+  task_ref: string;
+  status: WorkItemStatus;
+  interactions: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentActivityEvent {
+  id: string;
+  agent_id: string;
+  event_type: string;
+  payload: string;
+  occurred_at: string;
+  work_item_ref?: string;
+  interaction_ref?: string;
 }
 
 export type SecretKind = 'mcp' | 'cloud_credential' | 'repo_deploy_key' | 'other';

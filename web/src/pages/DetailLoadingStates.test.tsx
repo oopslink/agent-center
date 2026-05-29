@@ -126,44 +126,29 @@ describe('Detail pages — loading + error branches', () => {
 
   it('AgentDetail isLoading branch', async () => {
     server.use(
-      http.get('/api/agents/:name', async () => {
+      http.get('/api/agents/:id', async () => {
         await delay(50);
         return HttpResponse.json({
           id: 'A1',
-          identity_id: 'agent:A1',
+          organization_id: 'O-1',
           name: 'a',
-          agent_cli: 'claudecode',
-          state: 'idle',
+          description: '',
+          model: 'claude-opus',
+          cli: 'claudecode',
+          env_vars: {},
+          skills: [],
+          worker_id: 'w-1',
+          lifecycle: 'stopped',
+          availability: 'available',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
         });
       }),
-      http.get('/api/fleet', () =>
-        HttpResponse.json({ executions: [], workers: [], open_input_requests: [], pending_issues: [] }),
-      ),
     );
-    wrap('/agents/a', '/agents/:name', <AgentDetail />);
+    wrap('/agents/A1', '/agents/:id', <AgentDetail />);
     expect(screen.getByText(/Loading agent/)).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText(/Loading agent/)).not.toBeInTheDocument());
-  });
-
-  it('AgentDetail fleet-loading inner branch', async () => {
-    server.use(
-      http.get('/api/agents/:name', () =>
-        HttpResponse.json({
-          id: 'A1',
-          identity_id: 'agent:A1',
-          name: 'a',
-          agent_cli: 'claudecode',
-          state: 'idle',
-        }),
-      ),
-      http.get('/api/fleet', async () => {
-        await delay(80);
-        return HttpResponse.json({ executions: [], workers: [], open_input_requests: [], pending_issues: [] });
-      }),
-    );
-    wrap('/agents/a', '/agents/:name', <AgentDetail />);
-    await waitFor(() =>
-      expect(screen.getByTestId('agent-exec-loading')).toBeInTheDocument(),
-    );
   });
 });

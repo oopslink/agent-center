@@ -61,7 +61,7 @@ export function App(): React.ReactElement {
           <Route path="dms/:id" element={<DMDetail />} />
           <Route path="tasks/:id/trace" element={<TaskTrace />} />
           <Route path="agents" element={<Agents />} />
-          <Route path="agents/:name" element={<AgentDetail />} />
+          <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
           <Route path="projects/:projectId/issues/:id" element={<IssueDetail />} />
