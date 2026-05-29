@@ -143,7 +143,7 @@ func newUninstallPlan(layout installLayout, purge bool) *uninstallPlan {
 	p.installPaths = []string{
 		filepath.Join(layout.Prefix, "versions"),
 		layout.CurrentLink,
-		layout.ConfigDir, // etc/
+		layout.ConfigDir,                    // etc/
 		filepath.Join(layout.Prefix, "bin"), // legacy v2.4 layout
 	}
 	if purge {

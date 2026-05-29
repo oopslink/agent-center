@@ -21,23 +21,23 @@ import (
 // auto-managed cert + fingerprint files. At least one of SocketPath or
 // TCPListenAddr must be non-empty.
 type AdminTransportConfig struct {
-	SocketPath       string
-	TCPListenAddr    string
-	TLSCertPath      string
-	TLSKeyPath       string
-	FingerprintPath  string
-	Hostname         string
+	SocketPath      string
+	TCPListenAddr   string
+	TLSCertPath     string
+	TLSKeyPath      string
+	FingerprintPath string
+	Hostname        string
 }
 
 // AdminTransportInfo is what runAdminEndpoint returns to the caller
 // (boot banner code in handlers_system.go uses this to print the cert
 // fingerprint, expiry, etc.).
 type AdminTransportInfo struct {
-	TLSFingerprint     string
-	TLSCertNotAfter    time.Time
-	TLSCertGenerated   bool
-	TLSExpiryWarn      bool
-	TLSExpiryDays      int
+	TLSFingerprint   string
+	TLSCertNotAfter  time.Time
+	TLSCertGenerated bool
+	TLSExpiryWarn    bool
+	TLSExpiryDays    int
 }
 
 // runAdminEndpoint starts the v2.2 admin unix-socket server (and, since
@@ -233,16 +233,16 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		DB: a.DB,
 
 		// Conversation BC
-		ConvRepo:            a.ConvRepo,
-		MsgRepo:             a.MsgRepo,
-		ConvRefRepo:         a.ConvRefRepo,
-		ReadStateRepo:       a.ReadStateRepo,
-		MessageWriter:       a.MessageWriter,
-		ChannelMgmtSvc:      a.ChannelMgmtSvc,
-		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
-		CarryOverSvc:        a.CarryOverSvc,
-		DerivationSvc:       a.DerivationSvc,
-		ReadStateSvc:        a.ReadStateSvc,
+		ConvRepo:           a.ConvRepo,
+		MsgRepo:            a.MsgRepo,
+		ConvRefRepo:        a.ConvRefRepo,
+		ReadStateRepo:      a.ReadStateRepo,
+		MessageWriter:      a.MessageWriter,
+		ChannelMgmtSvc:     a.ChannelMgmtSvc,
+		ParticipantMgmtSvc: a.ParticipantMgmtSvc,
+		CarryOverSvc:       a.CarryOverSvc,
+		DerivationSvc:      a.DerivationSvc,
+		ReadStateSvc:       a.ReadStateSvc,
 
 		// Workforce BC
 		WorkerRepo:        a.WorkerRepo,

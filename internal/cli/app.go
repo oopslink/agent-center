@@ -9,23 +9,30 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 	"github.com/oopslink/agent-center/internal/admintoken"
-	admintokensqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
+	admintokensqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
-	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/discussion"
-	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
+	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
+	"github.com/oopslink/agent-center/internal/secretmgmt"
+	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
+	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
@@ -34,12 +41,8 @@ import (
 	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
-	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
-	"github.com/oopslink/agent-center/internal/identity"
-	"github.com/oopslink/agent-center/internal/secretmgmt"
-	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
-	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
+	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
 // App carries everything CLI handlers need.
@@ -84,6 +87,12 @@ type App struct {
 	DiscoverySvc  *wfservice.ProjectDiscoveryService
 	AcceptanceSvc *wfservice.ProposalAcceptanceService
 	ProjectSvc    *wfservice.ProjectCRUDService
+
+	// v2.7 ProjectManager BC AppService facade (ADR-0046) — backs the nested
+	// /api/projects/{project_id}/... routes + produces the outbox events the
+	// server-runtime relay projects into Conversation/Agent.
+	PMService *pmservice.Service
+
 	MessageWriter      *convservice.MessageWriter
 	ChannelMgmtSvc     *convservice.ChannelManagementService
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
@@ -113,35 +122,35 @@ type App struct {
 	AdminTokenSvc  *admintokensvc.Service
 
 	// TaskRuntime
-	TaskRepo         task.Repository
-	ExecRepo         execution.Repository
-	IRRepo           inputrequest.Repository
-	ArtifactRepo     execution.ArtifactRepository
-	TaskSvc          *trservice.TaskService
-	IRSvc            *trservice.InputRequestService
-	ArtifactSvc      *trservice.ArtifactService
-	ExecSvc          *trservice.ExecutionService
-	DispatchSvc      *dispatch.Service
-	KillCoordinator  *kill.Coordinator
-	IssueSpawn       *dispatch.IssueConcludeSpawn
+	TaskRepo        task.Repository
+	ExecRepo        execution.Repository
+	IRRepo          inputrequest.Repository
+	ArtifactRepo    execution.ArtifactRepository
+	TaskSvc         *trservice.TaskService
+	IRSvc           *trservice.InputRequestService
+	ArtifactSvc     *trservice.ArtifactService
+	ExecSvc         *trservice.ExecutionService
+	DispatchSvc     *dispatch.Service
+	KillCoordinator *kill.Coordinator
+	IssueSpawn      *dispatch.IssueConcludeSpawn
 
 	// Discussion
-	IssueRepo                       discussion.IssueRepository
-	IssueLifecycleSvc               *disservice.IssueLifecycleService
-	IssueCommentSvc                 *disservice.IssueCommentService
-	IssueBindConversationSvc        *disservice.IssueBindConversationService
-	IssueLinkConversationSvc        *disservice.IssueLinkConversationService
-	IssueConversationOpener         *disservice.IssueConversationOpener
+	IssueRepo                discussion.IssueRepository
+	IssueLifecycleSvc        *disservice.IssueLifecycleService
+	IssueCommentSvc          *disservice.IssueCommentService
+	IssueBindConversationSvc *disservice.IssueBindConversationService
+	IssueLinkConversationSvc *disservice.IssueLinkConversationService
+	IssueConversationOpener  *disservice.IssueConversationOpener
 
 	// v2.6: Identity BC services.
-	IdentitySignupSvc         *identity.SignupService
-	IdentitySigninSvc         *identity.SigninService
-	IdentitySignoutSvc        *identity.SignoutService
-	IdentityAuthSvc           *identity.AuthService
-	IdentityPasscodeChangeSvc *identity.PasscodeChangeService
-	IdentityOrgRepo           identity.OrganizationRepository
-	IdentityOrgCreateSvc      *identity.OrganizationCreateService
-	IdentityOrgLifecycleSvc   *identity.OrganizationLifecycleService
+	IdentitySignupSvc           *identity.SignupService
+	IdentitySigninSvc           *identity.SigninService
+	IdentitySignoutSvc          *identity.SignoutService
+	IdentityAuthSvc             *identity.AuthService
+	IdentityPasscodeChangeSvc   *identity.PasscodeChangeService
+	IdentityOrgRepo             identity.OrganizationRepository
+	IdentityOrgCreateSvc        *identity.OrganizationCreateService
+	IdentityOrgLifecycleSvc     *identity.OrganizationLifecycleService
 	IdentityMemberRepo          identity.MemberRepository
 	IdentityMemberAddSvc        *identity.MemberAddService
 	IdentityMemberCreateUserSvc *identity.MemberCreateUserService
@@ -151,13 +160,13 @@ type App struct {
 	IdentityOrgUpdateSvc        *identity.OrganizationUpdateService
 
 	// Observability Phase 4
-	ProjectionRepo  projection.Repository
-	ProjectionSvc   *projection.TaskExecutionProjectionService
-	QuerySvc        *query.Service
-	FleetSvc        *query.FleetSnapshotService
-	StatsSvc        *query.StatsService
-	LogsSvc         *query.LogsService
-	BlobStore       blobstore.BlobStore
+	ProjectionRepo projection.Repository
+	ProjectionSvc  *projection.TaskExecutionProjectionService
+	QuerySvc       *query.Service
+	FleetSvc       *query.FleetSnapshotService
+	StatsSvc       *query.StatsService
+	LogsSvc        *query.LogsService
+	BlobStore      blobstore.BlobStore
 
 	// v2.2-A3: in-process dispatch/kill queue. DispatchService +
 	// KillCoordinator push into it; worker daemon drains via admin
@@ -341,23 +350,40 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		identityAuthSvc = identity.NewAuthService(idIdentityRepo, mk.Bytes())
 	}
 
+	// v2.7 ProjectManager AppService facade (ADR-0046/0052). Produces outbox
+	// events drained by the server-runtime relay (wired in runWebConsole).
+	pmSvc := pmservice.New(pmservice.Deps{
+		DB:           db,
+		Projects:     pmsql.NewProjectRepo(db),
+		Members:      pmsql.NewProjectMemberRepo(db),
+		Issues:       pmsql.NewIssueRepo(db),
+		Tasks:        pmsql.NewTaskRepo(db),
+		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
+		Outbox:       outboxsql.NewOutboxRepo(db),
+		IDGen:        gen,
+		Clock:        clk,
+	})
+
 	return &App{
-		Config:        cfg,
-		DB:            db,
-		Clock:         clk,
-		IDGen:         gen,
-		WorkerRepo:    wr,
-		MappingRepo:   mr,
-		ProposalRepo:  prRepo,
-		ProjectRepo:   pjRepo,
-		ConvRepo:      cr,
-		MsgRepo:       mgRepo,
-		EventRepo:     er,
-		Sink:          sink,
-		EnrollSvc:       enroll,
-		DiscoverySvc:    disc,
-		AcceptanceSvc:   acc,
-		ProjectSvc:      pjSvc,
+		Config:             cfg,
+		DB:                 db,
+		Clock:              clk,
+		IDGen:              gen,
+		PMService:          pmSvc,
+		WorkerRepo:         wr,
+		MappingRepo:        mr,
+		ProposalRepo:       prRepo,
+		ProjectRepo:        pjRepo,
+		ConvRepo:           cr,
+		MsgRepo:            mgRepo,
+		EventRepo:          er,
+		Sink:               sink,
+		EnrollSvc:          enroll,
+		DiscoverySvc:       disc,
+		AcceptanceSvc:      acc,
+		ProjectSvc:         pjSvc,
 		MessageWriter:      writer,
 		ChannelMgmtSvc:     channelMgmt,
 		ParticipantMgmtSvc: participantMgmt,
@@ -374,14 +400,14 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		UserSecretSvc:        userSecretSvc,
 		UserSecretResolveSvc: userSecretResolveSvc,
 
-		IdentitySignupSvc:         identitySignupSvc,
-		IdentitySigninSvc:         identitySigninSvc,
-		IdentitySignoutSvc:        identitySignoutSvc,
-		IdentityAuthSvc:           identityAuthSvc,
-		IdentityPasscodeChangeSvc: identityPasscodeChangeSvc,
-		IdentityOrgRepo:           idOrgRepo,
-		IdentityOrgCreateSvc:      identityOrgCreateSvc,
-		IdentityOrgLifecycleSvc:   identityOrgLifecycleSvc,
+		IdentitySignupSvc:           identitySignupSvc,
+		IdentitySigninSvc:           identitySigninSvc,
+		IdentitySignoutSvc:          identitySignoutSvc,
+		IdentityAuthSvc:             identityAuthSvc,
+		IdentityPasscodeChangeSvc:   identityPasscodeChangeSvc,
+		IdentityOrgRepo:             idOrgRepo,
+		IdentityOrgCreateSvc:        identityOrgCreateSvc,
+		IdentityOrgLifecycleSvc:     identityOrgLifecycleSvc,
 		IdentityMemberRepo:          idMemberRepo,
 		IdentityMemberAddSvc:        identityMemberAddSvc,
 		IdentityMemberCreateUserSvc: identityMemberCreateUserSvc,
@@ -390,8 +416,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IdentityAgentProvisionSvc:   identityAgentProvisionSvc,
 		IdentityOrgUpdateSvc:        identityOrgUpdateSvc,
 
-		AdminTokenRepo: adminTokenRepo,
-		AdminTokenSvc:  adminTokenSvc,
+		AdminTokenRepo:  adminTokenRepo,
+		AdminTokenSvc:   adminTokenSvc,
 		TaskRepo:        taskRepo,
 		ExecRepo:        execRepo,
 		IRRepo:          irRepo,

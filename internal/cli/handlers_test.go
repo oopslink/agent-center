@@ -665,7 +665,6 @@ func TestSystemCommands_VersionDevFallback(t *testing.T) {
 	}
 }
 
-
 func TestWorkerRunPlaceholder_Stub(t *testing.T) {
 	cmd := WorkerRunPlaceholder()
 	var buf bytes.Buffer

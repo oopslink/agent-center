@@ -83,11 +83,11 @@ func (a *App) issueOpenHandler(fs *flag.FlagSet) Handler {
 			}
 			if *format == "json" {
 				b, _ := json.Marshal(map[string]any{
-					"issue_id":              res.IssueID,
-					"conversation_id":       string(res.ChildConversationID),
-					"reference_count":       res.ReferenceCount,
-					"issue_event_id":        string(res.IssueEventID),
-					"carry_over_event_id":   string(res.CarryOverEventID),
+					"issue_id":            res.IssueID,
+					"conversation_id":     string(res.ChildConversationID),
+					"reference_count":     res.ReferenceCount,
+					"issue_event_id":      string(res.IssueEventID),
+					"carry_over_event_id": string(res.CarryOverEventID),
 				})
 				writeOut(out, string(b))
 			} else {
@@ -357,9 +357,9 @@ func (a *App) issueConcludeHandler(fs *flag.FlagSet) Handler {
 		}
 		if *format == "json" {
 			b, _ := json.Marshal(map[string]any{
-				"issue_id":    issueID,
-				"task_ids":    taskIDs,
-				"resolution":  string(kind),
+				"issue_id":   issueID,
+				"task_ids":   taskIDs,
+				"resolution": string(kind),
 			})
 			writeOut(out, string(b))
 		} else {

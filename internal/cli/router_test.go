@@ -201,11 +201,11 @@ func TestPrintError_JSON(t *testing.T) {
 
 func TestParseFormat(t *testing.T) {
 	for in, want := range map[string]string{
-		"":       "human",
-		"human":  "human",
-		"json":   "json",
-		"yaml":   "yaml",
-		"JSON":   "json",
+		"":        "human",
+		"human":   "human",
+		"json":    "json",
+		"yaml":    "yaml",
+		"JSON":    "json",
 		"unknown": "unknown",
 	} {
 		if got := ParseFormat(in); got != want {
@@ -231,4 +231,3 @@ func TestQuoteJSON_Specials(t *testing.T) {
 		}
 	}
 }
-

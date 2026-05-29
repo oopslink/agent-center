@@ -136,14 +136,14 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath, logsDir st
 		}, logsDir)
 	case "systemd":
 		return renderSystemdUnit(systemdUnit{
-			Description:   "agent-center server",
-			ExecStart:     binaryPath + " server --config=" + configPath,
-			After:         "network-online.target",
-			Wants:         "network-online.target",
-			KillMode:      "", // server uses default (control-group); only worker needs KillMode=process
-			UserMode:      sp.UserMode,
-			WantedByUser:  "default.target",
-			WantedBySys:   "multi-user.target",
+			Description:  "agent-center server",
+			ExecStart:    binaryPath + " server --config=" + configPath,
+			After:        "network-online.target",
+			Wants:        "network-online.target",
+			KillMode:     "", // server uses default (control-group); only worker needs KillMode=process
+			UserMode:     sp.UserMode,
+			WantedByUser: "default.target",
+			WantedBySys:  "multi-user.target",
 		})
 	}
 	return ""

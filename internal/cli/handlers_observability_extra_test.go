@@ -43,8 +43,8 @@ func TestPrintStats_HumanContainsCountersAndTotals(t *testing.T) {
 	var out bytes.Buffer
 	res := query.StatsResult{
 		Scope: query.StatsScopeTasks, Since: "2026-05-20T00:00:00Z",
-		Counters: map[string]int{"open": 5, "done": 2},
-		Totals:   map[string]any{"total": 7},
+		Counters:  map[string]int{"open": 5, "done": 2},
+		Totals:    map[string]any{"total": 7},
 		Generated: "now",
 	}
 	if rc := printStats(&out, "human", res); rc != ExitOK {

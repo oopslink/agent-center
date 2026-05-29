@@ -4,14 +4,14 @@
 //
 // Pattern (per docs/plans/v2.2-audits/v22-B-cli-refactor-audit.md):
 //
-//   1. setupAdminServerForTests spins up an in-process admin endpoint
-//      on a unix socket + returns an App whose Client points at it.
-//   2. The test runs the worker enroll / list / status handlers through
-//      the router exactly as a real CLI invocation would — `a.Client`
-//      is non-nil so the handler routes through the admin endpoint,
-//      not the direct Service field.
-//   3. Assertions cover the exit code and the JSON-output projection
-//      so we know the DTO ↔ map projection helpers are correct.
+//  1. setupAdminServerForTests spins up an in-process admin endpoint
+//     on a unix socket + returns an App whose Client points at it.
+//  2. The test runs the worker enroll / list / status handlers through
+//     the router exactly as a real CLI invocation would — `a.Client`
+//     is non-nil so the handler routes through the admin endpoint,
+//     not the direct Service field.
+//  3. Assertions cover the exit code and the JSON-output projection
+//     so we know the DTO ↔ map projection helpers are correct.
 //
 // The other 17 handler files are migrated in follow-up commits using
 // this same shape (one test per BC at minimum).

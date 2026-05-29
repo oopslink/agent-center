@@ -12,10 +12,10 @@ package cli
 func groupOrder() []string {
 	return []string{
 		"Help & info",
-		"Resources",      // channel / agent / secret / input-request / message / conversation / project / issue / task / identity
-		"Runtime",        // server / worker / bootstrap / dispatch / kill-execution
-		"Observability",  // inspect / query / ps / stats / logs / peek-trace / open-issue
-		"Admin",          // admin / migrate
+		"Resources",     // channel / agent / secret / input-request / message / conversation / project / issue / task / identity
+		"Runtime",       // server / worker / bootstrap / dispatch / kill-execution
+		"Observability", // inspect / query / ps / stats / logs / peek-trace / open-issue
+		"Admin",         // admin / migrate
 	}
 }
 

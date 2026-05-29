@@ -9,8 +9,8 @@
 //
 // Behaviour difference from `install center`:
 //   - Fresh prefix     → `install` walks the fresh path.
-//                         `upgrade` rejects with "no existing install
-//                         at <prefix>; run `install center` first".
+//     `upgrade` rejects with "no existing install
+//     at <prefix>; run `install center` first".
 //   - Same version     → both walk the idempotent no-op path.
 //   - Different ver    → both walk the atomic-swap upgrade path.
 package cli

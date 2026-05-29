@@ -28,6 +28,7 @@ import (
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -122,6 +123,12 @@ type HandlerDeps struct {
 		Remove(ctx context.Context, cmd wfservice.RemoveCommand) (observability.EventID, error)
 	}
 	MappingRepo workforce.WorkerProjectMappingRepository
+
+	// v2.7 B3: the ProjectManager AppService facade backs the nested
+	// /api/projects/{project_id}/{members,issues,tasks,code-repos} routes
+	// (work-management truth; ADR-0046). Optional — nil means the v2.7 PM
+	// endpoints are not wired (legacy/test deps).
+	PM *pmservice.Service
 
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses

@@ -134,8 +134,8 @@ type ProjectAddRequest struct {
 // ProjectMutateResponse is the response shape for add/update (both return
 // the project + an event id).
 type ProjectMutateResponse struct {
-	Project  ProjectDTO `json:"project"`
-	EventID  string     `json:"event_id"`
+	Project ProjectDTO `json:"project"`
+	EventID string     `json:"event_id"`
 }
 
 // ProjectUpdateRequest mirrors api projectUpdateReq.

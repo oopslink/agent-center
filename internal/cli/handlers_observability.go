@@ -34,8 +34,8 @@ func (a *App) ObservabilityCommands() []*Command {
 
 func (a *App) inspectCommand() *Command {
 	return &Command{
-		Name:    "inspect",
-		Summary: "Inspect a single resource (task / execution / worker / issue / conversation / input_request / project / worktree).",
+		Name:     "inspect",
+		Summary:  "Inspect a single resource (task / execution / worker / issue / conversation / input_request / project / worktree).",
 		LongHelp: "agent-center inspect <kind> <id> [--format=human|json]\n",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())
@@ -69,8 +69,8 @@ func (a *App) inspectCommand() *Command {
 
 func (a *App) queryCommand() *Command {
 	return &Command{
-		Name:    "query",
-		Summary: "List resources (tasks / executions / workers / issues / input_requests / proposals / events).",
+		Name:     "query",
+		Summary:  "List resources (tasks / executions / workers / issues / input_requests / proposals / events).",
 		LongHelp: "agent-center query <resource> [--filter] [--since] [--until] [--limit] [--cursor] [--format=human|json]\n",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())
@@ -174,8 +174,8 @@ var PsWatchInterval = 2 * time.Second
 
 func (a *App) psCommand() *Command {
 	return &Command{
-		Name:    "ps",
-		Summary: "Fleet view (active executions + workers + open input requests + pending issues).",
+		Name:     "ps",
+		Summary:  "Fleet view (active executions + workers + open input requests + pending issues).",
 		LongHelp: "agent-center ps [--watch] [--project=<slug>] [--format=human|json]",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())

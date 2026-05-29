@@ -62,13 +62,13 @@ func TestUninstallCenter_PreservesData_NoPurge(t *testing.T) {
 	prefix := t.TempDir()
 	// Seed the layout the way `install center` lays it down.
 	seedFiles := map[string]string{
-		"versions/v2.5.0/VERSION":  "v2.5.0\n",
-		"versions/v2.5.0/bin/x":    "noop",
-		"etc/config.yaml":          "stub\n",
-		"var/agent-center.db":      "sqlite-stub",
-		"var/master.key":           "base64-secret",
-		"var/worker-token":         "acat_stub",
-		"logs/com.test.x.err.log":  "old logs",
+		"versions/v2.5.0/VERSION": "v2.5.0\n",
+		"versions/v2.5.0/bin/x":   "noop",
+		"etc/config.yaml":         "stub\n",
+		"var/agent-center.db":     "sqlite-stub",
+		"var/master.key":          "base64-secret",
+		"var/worker-token":        "acat_stub",
+		"logs/com.test.x.err.log": "old logs",
 	}
 	for rel, body := range seedFiles {
 		full := filepath.Join(prefix, rel)

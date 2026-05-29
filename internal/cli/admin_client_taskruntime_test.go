@@ -3,15 +3,15 @@
 //
 // Pattern (per docs/plans/v2.2-audits/v22-B-cli-refactor-audit.md):
 //
-//   1. setupAdminServerForTests spins up an in-process admin endpoint
-//      on a unix socket + returns an App whose Client points at it.
-//   2. Tests drive task create / bind-conversation / dispatch / IR
-//      create / report-progress / report-artifact / report-failure /
-//      kill-execution through the router exactly as a real CLI
-//      invocation would — `a.Client` is non-nil so every handler routes
-//      through the admin endpoint, not the direct Service field.
-//   3. Assertions cover the exit code and the JSON-output projection so
-//      we know the DTO ↔ map projection helpers are correct.
+//  1. setupAdminServerForTests spins up an in-process admin endpoint
+//     on a unix socket + returns an App whose Client points at it.
+//  2. Tests drive task create / bind-conversation / dispatch / IR
+//     create / report-progress / report-artifact / report-failure /
+//     kill-execution through the router exactly as a real CLI
+//     invocation would — `a.Client` is non-nil so every handler routes
+//     through the admin endpoint, not the direct Service field.
+//  3. Assertions cover the exit code and the JSON-output projection so
+//     we know the DTO ↔ map projection helpers are correct.
 package cli
 
 import (
