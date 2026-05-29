@@ -60,6 +60,7 @@ type Service struct {
 	blobs    blobstore.BlobStore
 	idgen    idgen.Generator
 	clock    clock.Clock
+	gcRepo   BlobGCRepo // optional; wired via SetGCRepo for the D3-c GC job
 }
 
 // New constructs the Service. Clock defaults to the system clock.

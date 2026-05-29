@@ -7,9 +7,13 @@ import (
 	"time"
 
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/environment"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
+	"github.com/oopslink/agent-center/internal/files"
+	filesservice "github.com/oopslink/agent-center/internal/files/service"
+	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -188,9 +192,41 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	pumpCtx, pumpCancel := context.WithCancel(ctx)
 	go pump.Run(pumpCtx)
 
+	// v2.7 D3-c: bring the file-blob refcount GC online. A single-goroutine
+	// loop (initial pass on boot, then ~1h ticker) expires stale upload sessions
+	// and reaps blobs whose live-reference count has been zero past the grace
+	// period (default 7d, ADR-0048 §5). Mirrors the Pump/fanout lifecycle
+	// (ctx-cancel + graceful shutdown); ADDITIVE — it does not touch the
+	// existing pump/fanout. The files transfer Service is constructed here from
+	// the App's DB + the configured blobstore root; the resolver yields
+	// blobstore-relative paths so the blobstore owns the physical root.
+	gcCtx, gcCancel := context.WithCancel(ctx)
+	if blobRoot := a.Config.BlobStore.Root; blobRoot != "" {
+		if store, berr := blobstore.NewLocalDir(blobRoot); berr != nil {
+			logger("webconsole files gc: blobstore init: " + berr.Error())
+		} else {
+			blobMeta := filessql.NewBlobMetadataRepo(a.DB)
+			filesSvc := filesservice.New(filesservice.Deps{
+				DB:         a.DB,
+				Sessions:   filessql.NewFileTransferSessionRepo(a.DB),
+				References: filessql.NewFileReferenceRepo(a.DB),
+				Resolver:   files.NewLocalResolver(""),
+				BlobStore:  store,
+				IDGen:      a.IDGen,
+				Clock:      a.Clock,
+			}).SetGCRepo(blobMeta)
+			gcLoop := filesservice.NewGCLoop(filesSvc, filesservice.DefaultGCGrace, time.Hour).
+				WithErrorHandler(func(err error) {
+					logger("webconsole files gc: " + err.Error())
+				})
+			go gcLoop.Run(gcCtx)
+		}
+	}
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
+		gcCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
