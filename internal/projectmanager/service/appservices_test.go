@@ -136,6 +136,57 @@ func mustSub(t *testing.T, taskID, id string) *pm.TaskSubscriber {
 	return s
 }
 
+// TestValidationAndGatingRejections exercises the early error-return branches
+// across the AppServices (invalid identity, empty fields, non-member actor).
+func TestValidationAndGatingRejections(t *testing.T) {
+	svc, _, ctx := setup(t)
+	// invalid creator identity
+	if _, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "o", Name: "P", CreatedBy: "bad"}); err == nil {
+		t.Fatal("invalid creator should fail")
+	}
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "o", Name: "P", CreatedBy: "user:a"})
+	// empty task title
+	if _, err := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "", CreatedBy: "user:a"}); err == nil {
+		t.Fatal("empty title should fail")
+	}
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
+	// assign with invalid assignee
+	if err := svc.AssignTask(ctx, tid, "bad-ref", "user:a"); err == nil {
+		t.Fatal("invalid assignee should fail")
+	}
+	// assign by non-member
+	if err := svc.AssignTask(ctx, tid, "user:b", "user:stranger"); err != ErrNotMember {
+		t.Fatalf("non-member assign want ErrNotMember, got %v", err)
+	}
+	// subscribe with invalid identity
+	if err := svc.SubscribeTask(ctx, tid, "bad", "user:a"); err == nil {
+		t.Fatal("invalid subscriber identity should fail")
+	}
+	// subscribe by non-member
+	if err := svc.SubscribeTask(ctx, tid, "user:w", "user:stranger"); err != ErrNotMember {
+		t.Fatalf("non-member subscribe want ErrNotMember, got %v", err)
+	}
+	// add member with invalid actor
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "bad"}); err == nil {
+		t.Fatal("invalid actor should fail")
+	}
+	// block a not-running task (illegal transition)
+	if err := svc.BlockTask(ctx, tid, "r", "user:a"); err != pm.ErrIllegalTransition {
+		t.Fatalf("block open task want ErrIllegalTransition, got %v", err)
+	}
+	// subscribe/unsubscribe issue by non-member
+	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "i", CreatedBy: "user:a"})
+	if err := svc.SubscribeIssue(ctx, iid, "user:w", "user:stranger"); err != ErrNotMember {
+		t.Fatalf("non-member issue subscribe want ErrNotMember, got %v", err)
+	}
+	if err := svc.UnsubscribeIssue(ctx, iid, "user:w", "user:stranger"); err != ErrNotMember {
+		t.Fatalf("non-member issue unsubscribe want ErrNotMember, got %v", err)
+	}
+	if err := svc.UnsubscribeTask(ctx, tid, "user:w", "user:stranger"); err != ErrNotMember {
+		t.Fatalf("non-member task unsubscribe want ErrNotMember, got %v", err)
+	}
+}
+
 func TestCreateIssueAndSubscribe(t *testing.T) {
 	svc, ob, ctx := setup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
