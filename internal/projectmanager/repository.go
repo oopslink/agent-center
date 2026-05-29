@@ -1,0 +1,66 @@
+package projectmanager
+
+import "context"
+
+// Repository interfaces for the ProjectManager ARs (B1, task #96). All
+// implementations live in the sqlite subpackage and honor
+// persistence.ExecutorFromCtx so the B2 AppServices can compose a write +
+// outbox event in one transaction (plan §10 OQ1).
+
+// ProjectRepository persists Project ARs.
+type ProjectRepository interface {
+	Save(ctx context.Context, p *Project) error
+	Update(ctx context.Context, p *Project) error
+	FindByID(ctx context.Context, id ProjectID) (*Project, error)
+	// ListByOrg returns active+archived projects in an Organization.
+	ListByOrg(ctx context.Context, orgID string) ([]*Project, error)
+}
+
+// ProjectMemberRepository persists ProjectMember ARs.
+type ProjectMemberRepository interface {
+	Save(ctx context.Context, m *ProjectMember) error
+	FindByID(ctx context.Context, id MemberID) (*ProjectMember, error)
+	// FindByProjectAndIdentity is the write-gate lookup (is X a member of P?).
+	FindByProjectAndIdentity(ctx context.Context, projectID ProjectID, identityID IdentityRef) (*ProjectMember, error)
+	ListByProject(ctx context.Context, projectID ProjectID) ([]*ProjectMember, error)
+	Delete(ctx context.Context, id MemberID) error
+}
+
+// IssueRepository persists Issue ARs.
+type IssueRepository interface {
+	Save(ctx context.Context, i *Issue) error
+	Update(ctx context.Context, i *Issue) error
+	FindByID(ctx context.Context, id IssueID) (*Issue, error)
+	ListByProject(ctx context.Context, projectID ProjectID) ([]*Issue, error)
+}
+
+// TaskRepository persists Task ARs.
+type TaskRepository interface {
+	Save(ctx context.Context, t *Task) error
+	Update(ctx context.Context, t *Task) error
+	FindByID(ctx context.Context, id TaskID) (*Task, error)
+	ListByProject(ctx context.Context, projectID ProjectID) ([]*Task, error)
+	ListByAssignee(ctx context.Context, assignee IdentityRef) ([]*Task, error)
+}
+
+// TaskSubscriberRepository persists manual Task subscriber records.
+type TaskSubscriberRepository interface {
+	Add(ctx context.Context, s *TaskSubscriber) error
+	Remove(ctx context.Context, taskID TaskID, identityID IdentityRef) error
+	ListByTask(ctx context.Context, taskID TaskID) ([]*TaskSubscriber, error)
+}
+
+// IssueSubscriberRepository persists manual Issue subscriber records.
+type IssueSubscriberRepository interface {
+	Add(ctx context.Context, s *IssueSubscriber) error
+	Remove(ctx context.Context, issueID IssueID, identityID IdentityRef) error
+	ListByIssue(ctx context.Context, issueID IssueID) ([]*IssueSubscriber, error)
+}
+
+// CodeRepoRefRepository persists CodeRepoRef records attached to a Project.
+type CodeRepoRefRepository interface {
+	Save(ctx context.Context, c *CodeRepoRef) error
+	FindByID(ctx context.Context, id string) (*CodeRepoRef, error)
+	ListByProject(ctx context.Context, projectID ProjectID) ([]*CodeRepoRef, error)
+	Delete(ctx context.Context, id string) error
+}
