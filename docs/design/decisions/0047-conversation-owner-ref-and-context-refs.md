@@ -72,6 +72,12 @@ agent_ref       // 发言 Agent
 - A0 最小字段：`uri: ac://files/{ulid}`、`filename`、`mime_type`、`size`。
 - 展示类型由元数据派生（详 [ADR-0048](0048-file-uri-and-blobstore.md)）。
 
+### 4b. `forwarded` 消息内容类型（v2.7 E 阶段，plan §10 OQ12）
+
+- 新增一种 MessageContentKind `forwarded`，用于"从消息建 Task/Issue"时把源消息转发进新会话。
+- 每张 `forwarded` 卡片携带：原作者、原时间、原文内容、附件（**按 URI 引用、零拷贝**——同 `ac://files/{ulid}` 在新会话 scope 加 FileReference，不复制 blob）、`context_ref` 回链源消息/会话。
+- A0 不需要实现卡片渲染；A0 只要保证 MessageContentKind 可扩展。落地在 E 阶段。
+
 ### 5. ConversationParticipant 降级为投影
 
 - 对 task/issue 会话，业务订阅真值在 ProjectManager（[ADR-0052](0052-subscriber-truth-and-participant-projection.md)）。
