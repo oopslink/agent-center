@@ -21,7 +21,10 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
@@ -116,6 +119,21 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
 	deps.ProjectRepo = wfsqlite.NewProjectRepo(db)
+	// v2.7 B3: wire the ProjectManager service for the nested /api/projects/...
+	// routes (the pm handlers in handlers_pm.go).
+	deps.PM = pmservice.New(pmservice.Deps{
+		DB:           db,
+		Projects:     pmsql.NewProjectRepo(db),
+		Members:      pmsql.NewProjectMemberRepo(db),
+		Issues:       pmsql.NewIssueRepo(db),
+		Tasks:        pmsql.NewTaskRepo(db),
+		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
+		Outbox:       outboxsql.NewOutboxRepo(db),
+		IDGen:        idgen.NewGenerator(clock.SystemClock{}),
+		Clock:        clock.SystemClock{},
+	})
 	return deps, db
 }
 

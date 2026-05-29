@@ -27,10 +27,10 @@ import (
 
 // Server is the Web Console HTTP server.
 type Server struct {
-	addr  string
-	mux   *http.ServeMux
-	srv   *http.Server
-	deps  Deps
+	addr string
+	mux  *http.ServeMux
+	srv  *http.Server
+	deps Deps
 }
 
 // Deps is the dependency bag for handlers.
@@ -201,6 +201,29 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/projects/{id}/workers", s.listProjectMappingsHandler)
 	s.mux.HandleFunc("POST /api/projects/{id}/workers", s.createProjectMappingHandler)
 	s.mux.HandleFunc("DELETE /api/projects/{id}/workers/{mapping_id}", s.deleteProjectMappingHandler)
+
+	// v2.7 B3 ProjectManager nested routes (ADR-0046). Project-owned resources
+	// nest under /api/projects/{project_id}/... so membership gating is uniform
+	// (requireProjectMember on the path project). NET-NEW paths — distinct from
+	// the legacy flat /api/issues|tasks (B3-c retires those + repoints flat
+	// /api/projects to the pm Service).
+	s.mux.HandleFunc("GET /api/projects/{project_id}/members", s.pmListMembersHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/members", s.pmAddMemberHandler)
+	s.mux.HandleFunc("GET /api/projects/{project_id}/code-repos", s.pmListCodeReposHandler)
+	s.mux.HandleFunc("GET /api/projects/{project_id}/issues", s.pmListIssuesHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/issues", s.pmCreateIssueHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/transition", s.pmTransitionIssueHandler)
+	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks", s.pmListTasksHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks", s.pmCreateTaskHandler)
+	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks/{task_id}", s.pmGetTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/assign", s.pmAssignTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/start", s.pmStartTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/block", s.pmBlockTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unblock", s.pmUnblockTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/complete", s.pmCompleteTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/verify", s.pmVerifyTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/cancel", s.pmCancelTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
 	s.mux.HandleFunc("GET /api/agents", s.listAgentsHandler)

@@ -39,7 +39,7 @@ func TestAPI_OpenIssueFromScratch_Happy(t *testing.T) {
 	}
 	// Verify the issue is persisted by reading it back.
 	issueID := out["issue_id"].(string)
-	resp2 := orgScopedGet(t, s.URL + "/api/issues/" + issueID, sess)
+	resp2 := orgScopedGet(t, s.URL+"/api/issues/"+issueID, sess)
 	if resp2.StatusCode != 200 {
 		t.Fatalf("show status=%d", resp2.StatusCode)
 	}
@@ -114,7 +114,7 @@ func TestAPI_ConcludeIssue_NoAction(t *testing.T) {
 	}
 
 	// Verify the issue is now closed_no_action.
-	resp3 := orgScopedGet(t, s.URL + "/api/issues/" + issueID, sess)
+	resp3 := orgScopedGet(t, s.URL+"/api/issues/"+issueID, sess)
 	var iss map[string]any
 	_ = json.NewDecoder(resp3.Body).Decode(&iss)
 	if iss["status"] != string(discussion.StatusClosedNoAction) {
@@ -141,7 +141,7 @@ func TestAPI_ConcludeIssue_Withdrawn(t *testing.T) {
 		t.Fatalf("withdraw status=%d", resp2.StatusCode)
 	}
 
-	resp3 := orgScopedGet(t, s.URL + "/api/issues/" + issueID, sess)
+	resp3 := orgScopedGet(t, s.URL+"/api/issues/"+issueID, sess)
 	var iss map[string]any
 	_ = json.NewDecoder(resp3.Body).Decode(&iss)
 	if iss["status"] != string(discussion.StatusWithdrawn) {
@@ -297,4 +297,3 @@ func TestAPI_PostIssues_DerivePath_StillRoutes(t *testing.T) {
 		t.Fatalf("status=%d want 501 (derive_not_wired)", resp.StatusCode)
 	}
 }
-

@@ -297,4 +297,3 @@ func TestAPI_TaskLifecycle_NotWired(t *testing.T) {
 		t.Fatalf("status=%d want 501", resp.StatusCode)
 	}
 }
-

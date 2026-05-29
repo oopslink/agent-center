@@ -93,7 +93,7 @@ func TestAPI_Unread_NotFoundConv(t *testing.T) {
 	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp := orgScopedGet(t, s.URL + "/api/conversations/nope/unread", sess)
+	resp := orgScopedGet(t, s.URL+"/api/conversations/nope/unread", sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
