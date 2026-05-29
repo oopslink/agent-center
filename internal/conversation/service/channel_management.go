@@ -86,7 +86,7 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 	now := s.clock.Now()
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
 		ID:             conversation.ConversationID(s.idgen.NewULID()),
-		Kind:           conversation.ConversationKindChannel,
+		Kind:           conversation.ConversationKindProjectChannel,
 		Name:           name,
 		Description:    cmd.Description,
 		OrganizationID: cmd.OrganizationID,
@@ -167,7 +167,7 @@ func (s *ChannelManagementService) ArchiveChannel(ctx context.Context, cmd Archi
 		if err != nil {
 			return err
 		}
-		if conv.Kind() != conversation.ConversationKindChannel {
+		if conv.Kind() != conversation.ConversationKindProjectChannel {
 			return fmt.Errorf("%w: target conversation kind=%s (want channel)",
 				conversation.ErrConversationInvalidKind, conv.Kind())
 		}

@@ -52,7 +52,7 @@ func TestOpenConversation_DMHappy(t *testing.T) {
 func TestOpenConversation_ChannelHappy(t *testing.T) {
 	w := setup(t)
 	_, err := w.OpenConversation(context.Background(), OpenCommand{
-		Kind:      conversation.ConversationKindChannel,
+		Kind:      conversation.ConversationKindProjectChannel,
 		Name:      "general",
 		CreatedBy: conversation.IdentityRef("user:hayang"),
 		Actor:     observability.Actor("user:hayang"),

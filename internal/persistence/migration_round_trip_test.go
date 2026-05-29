@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 36 || v2 != 36 {
-		t.Fatalf("Version after Up: got (%d, %d) want (36, 36)", v1, v2)
+	if v1 != 40 || v2 != 40 {
+		t.Fatalf("Version after Up: got (%d, %d) want (40, 40)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
@@ -191,8 +191,8 @@ func TestMigrations_V1TablesAbsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tbl := range []string{
-		"channel_bindings",          // dropped by 0021
-		"feishu_delivery_ledger",    // dropped by 0025
+		"channel_bindings",            // dropped by 0021
+		"feishu_delivery_ledger",      // dropped by 0025
 		"bridge_subscription_cursors", // dropped by 0025
 	} {
 		if tableExists(t, db, tbl) {
@@ -323,13 +323,17 @@ func TestMigrations_V1KindValuesAbsent(t *testing.T) {
 		t.Fatal("expected error inserting kind='supervisor' into v2.6 identities (CHECK constraint should reject)")
 	}
 
-	// conversations.kind should have been renamed.
+	// conversations.kind should have been renamed through the chain:
+	// v1 'group_thread' --0024--> 'channel' --0037 (v2.7 A0)--> 'project_channel'.
 	kinds := scanStringSet(t, db, `SELECT kind FROM conversations`)
 	if kinds["group_thread"] {
-		t.Fatalf("conversations.kind='group_thread' must be renamed to 'channel' by 0024")
+		t.Fatalf("conversations.kind='group_thread' must be renamed (0024 then 0037)")
 	}
-	if !kinds["channel"] {
-		t.Fatalf("expected at least one conversations.kind='channel' after rename (got %v)", kinds)
+	if kinds["channel"] {
+		t.Fatalf("conversations.kind='channel' must be renamed to 'project_channel' by 0037 (v2.7 A0)")
+	}
+	if !kinds["project_channel"] {
+		t.Fatalf("expected conversations.kind='project_channel' after the v2.7 A0 rename (got %v)", kinds)
 	}
 }
 

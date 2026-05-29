@@ -1046,7 +1046,7 @@ func TestAgentPublicMap_NilWorkerID(t *testing.T) {
 func TestConvPublicMap_ArchivedFields(t *testing.T) {
 	now := time.Now().UTC()
 	c, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID: "C-1", Kind: conversation.ConversationKindChannel,
+		ID: "C-1", Kind: conversation.ConversationKindProjectChannel,
 		Name: "alpha", CreatedBy: "user:hayang", OpenedAt: now,
 	})
 	if err != nil {

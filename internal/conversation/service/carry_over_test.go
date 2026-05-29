@@ -49,7 +49,7 @@ func seedConvAndMsgs(t *testing.T, w *MessageWriter, kind conversation.Conversat
 
 func TestCarryOver_Materialise_Happy(t *testing.T) {
 	w, co, _, _ := setupCarryOver(t)
-	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 3)
+	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 3)
 	childID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindIssue, 0)
 	res, err := co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID:  childID,
@@ -71,7 +71,7 @@ func TestCarryOver_Materialise_Happy(t *testing.T) {
 
 func TestCarryOver_FindByChildConv(t *testing.T) {
 	w, co, _, _ := setupCarryOver(t)
-	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 2)
+	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 2)
 	childID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindIssue, 0)
 	_, _ = co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID:  childID,
@@ -90,7 +90,7 @@ func TestCarryOver_FindByChildConv(t *testing.T) {
 
 func TestCarryOver_FindBySourceMsg(t *testing.T) {
 	w, co, _, _ := setupCarryOver(t)
-	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 1)
+	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 1)
 	childID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindIssue, 0)
 	_, _ = co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID: childID, SourceConversationID: sourceID,
@@ -107,7 +107,7 @@ func TestCarryOver_FindBySourceMsg(t *testing.T) {
 
 func TestCarryOver_EmptyMessages(t *testing.T) {
 	w, co, _, _ := setupCarryOver(t)
-	sourceID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 0)
+	sourceID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 0)
 	childID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindIssue, 0)
 	res, err := co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID: childID, SourceConversationID: sourceID,
@@ -123,8 +123,8 @@ func TestCarryOver_EmptyMessages(t *testing.T) {
 
 func TestCarryOver_MessageInWrongConv(t *testing.T) {
 	w, co, _, _ := setupCarryOver(t)
-	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 1)
-	otherID, otherMsgs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 1)
+	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 1)
+	otherID, otherMsgs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 1)
 	childID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindIssue, 0)
 	_, err := co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID:  childID,
@@ -140,7 +140,7 @@ func TestCarryOver_MessageInWrongConv(t *testing.T) {
 
 func TestCarryOver_ChildConvNotFound(t *testing.T) {
 	w, co, _, _ := setupCarryOver(t)
-	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 1)
+	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 1)
 	_, err := co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID:  "nope",
 		SourceConversationID: sourceID,
@@ -168,7 +168,7 @@ func TestCarryOver_SourceConvNotFound(t *testing.T) {
 
 func TestCarryOver_DuplicateRef(t *testing.T) {
 	w, co, _, _ := setupCarryOver(t)
-	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 1)
+	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 1)
 	childID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindIssue, 0)
 	_, _ = co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID: childID, SourceConversationID: sourceID,
@@ -186,7 +186,7 @@ func TestCarryOver_DuplicateRef(t *testing.T) {
 func TestCarryOver_MissingArgs(t *testing.T) {
 	_, co, _, _ := setupCarryOver(t)
 	cases := []MaterialiseCommand{
-		{}, // empty
+		{},                         // empty
 		{ChildConversationID: "x"}, // missing source
 		{ChildConversationID: "x", SourceConversationID: "y"}, // no msgs OK (early return) — skip
 	}
@@ -210,7 +210,7 @@ func TestNewCarryOverService_NilClock(t *testing.T) {
 
 func TestReferenceRepo_DeleteByChildConvID(t *testing.T) {
 	w, co, _, repo := setupCarryOver(t)
-	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindChannel, 1)
+	sourceID, msgIDs := seedConvAndMsgs(t, w, conversation.ConversationKindProjectChannel, 1)
 	childID, _ := seedConvAndMsgs(t, w, conversation.ConversationKindIssue, 0)
 	_, _ = co.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID: childID, SourceConversationID: sourceID,

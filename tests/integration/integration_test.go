@@ -18,15 +18,15 @@ import (
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
-	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
-	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
+	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
 type kit struct {
@@ -138,7 +138,7 @@ func TestINT2_MigrationIdempotent(t *testing.T) {
 		t.Fatalf("second Up: %v", err)
 	}
 	v, _ := m.Version(context.Background())
-	if v != 36 {
+	if v != 40 {
 		t.Fatalf("version: %d", v)
 	}
 	if err := m.Down(context.Background(), 0); err != nil {
@@ -265,7 +265,7 @@ func TestINT6_ProjectDelete_HasActiveMapping(t *testing.T) {
 	p := mkProject(t, k, "p")
 	_ = k.projectRepo.Save(context.Background(), p)
 	m, _ := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
-		ID: workforce.MappingID(k.idgen.NewULID()),
+		ID:       workforce.MappingID(k.idgen.NewULID()),
 		WorkerID: "W-1", ProjectID: "p",
 		BasePath: "/x", AddedAt: k.clock.Now(),
 	})
@@ -285,19 +285,19 @@ func TestINT7_ProposalDedupActivePending(t *testing.T) {
 	w := mkWorker(t, k, "W-1")
 	_ = k.workerRepo.Save(context.Background(), w)
 	p1, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID: workforce.ProposalID(k.idgen.NewULID()),
+		ID:       workforce.ProposalID(k.idgen.NewULID()),
 		WorkerID: "W-1", CandidatePath: "/same",
 		SuggestedProjectID: "p",
-		ProposedAt: k.clock.Now(),
+		ProposedAt:         k.clock.Now(),
 	})
 	if err := k.proposalRepo.Save(context.Background(), p1); err != nil {
 		t.Fatal(err)
 	}
 	p2, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID: workforce.ProposalID(k.idgen.NewULID()),
+		ID:       workforce.ProposalID(k.idgen.NewULID()),
 		WorkerID: "W-1", CandidatePath: "/same",
 		SuggestedProjectID: "p",
-		ProposedAt: k.clock.Now(),
+		ProposedAt:         k.clock.Now(),
 	})
 	if err := k.proposalRepo.Save(context.Background(), p2); !errors.Is(err, workforce.ErrProposalAlreadyExists) {
 		t.Fatalf("got %v", err)
@@ -308,10 +308,10 @@ func TestINT7_ProposalDedupActivePending(t *testing.T) {
 	// A second proposal on same path should now succeed (only "pending"
 	// uniqueness applies).
 	p3, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID: workforce.ProposalID(k.idgen.NewULID()),
+		ID:       workforce.ProposalID(k.idgen.NewULID()),
 		WorkerID: "W-1", CandidatePath: "/same",
 		SuggestedProjectID: "p",
-		ProposedAt: k.clock.Now(),
+		ProposedAt:         k.clock.Now(),
 	})
 	if err := k.proposalRepo.Save(context.Background(), p3); err != nil {
 		t.Fatalf("expected success after ignore, got %v", err)

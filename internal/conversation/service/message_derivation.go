@@ -28,11 +28,11 @@ type TaskCreator interface {
 // by an adapter shim in main wiring — discussion.IssueLifecycleService
 // would need a small wrapper.)
 type OpenFromConversationInput struct {
-	ProjectID  string
-	Title      string
+	ProjectID   string
+	Title       string
 	Description string
-	OpenedBy   conversation.IdentityRef
-	Actor      observability.Actor
+	OpenedBy    conversation.IdentityRef
+	Actor       observability.Actor
 }
 
 // OpenFromConversationResult is the IssueOpener port output.
@@ -63,12 +63,12 @@ type CreateFromConversationResult struct {
 // open --from-conversation` / `task new --from-conversation`.
 //
 // Validation chain (per plan § 3.6):
-//   1. source conversation exists + active (not closed/archived)
-//   2. caller (CreatedBy) is an active participant of the source conv
-//      (channel rule; other kinds permissive)
-//   3. all SourceMessageIDs belong to source conv
-//   4. delegates Issue/Task creation to the BC's own service (own tx)
-//   5. carry-over refs materialised via CarryOverService (own tx)
+//  1. source conversation exists + active (not closed/archived)
+//  2. caller (CreatedBy) is an active participant of the source conv
+//     (channel rule; other kinds permissive)
+//  3. all SourceMessageIDs belong to source conv
+//  4. delegates Issue/Task creation to the BC's own service (own tx)
+//  5. carry-over refs materialised via CarryOverService (own tx)
 //
 // Sequential-tx note: Issue/Task creation and carry-over write live in
 // separate transactions. If the carry-over write fails after the Issue/
@@ -116,10 +116,10 @@ func NewMessageDerivationService(
 
 // Sentinel errors specific to derivation.
 var (
-	ErrDerivationSourceNotActive   = errors.New("derivation: source conversation is not active")
+	ErrDerivationSourceNotActive      = errors.New("derivation: source conversation is not active")
 	ErrDerivationCallerNotParticipant = errors.New("derivation: caller is not an active participant of source conversation")
-	ErrDerivationOpenerNotWired   = errors.New("derivation: issue opener not wired")
-	ErrDerivationCreatorNotWired  = errors.New("derivation: task creator not wired")
+	ErrDerivationOpenerNotWired       = errors.New("derivation: issue opener not wired")
+	ErrDerivationCreatorNotWired      = errors.New("derivation: task creator not wired")
 )
 
 // DeriveIssueCommand wraps `issue open --from-conversation`.
@@ -135,11 +135,11 @@ type DeriveIssueCommand struct {
 
 // DeriveIssueResult bundles the Issue + carry-over outcomes.
 type DeriveIssueResult struct {
-	IssueID                string
-	ChildConversationID    conversation.ConversationID
-	IssueEventID           observability.EventID
-	CarryOverEventID       observability.EventID
-	ReferenceCount         int
+	IssueID             string
+	ChildConversationID conversation.ConversationID
+	IssueEventID        observability.EventID
+	CarryOverEventID    observability.EventID
+	ReferenceCount      int
 }
 
 // DeriveIssue runs the full validation + opens the Issue + materialises
@@ -201,11 +201,11 @@ type DeriveTaskCommand struct {
 
 // DeriveTaskResult bundles the Task + carry-over outcomes.
 type DeriveTaskResult struct {
-	TaskID                 string
-	ChildConversationID    conversation.ConversationID
-	TaskEventID            observability.EventID
-	CarryOverEventID       observability.EventID
-	ReferenceCount         int
+	TaskID              string
+	ChildConversationID conversation.ConversationID
+	TaskEventID         observability.EventID
+	CarryOverEventID    observability.EventID
+	ReferenceCount      int
 }
 
 // DeriveTask runs the full validation + creates the Task + materialises
@@ -275,7 +275,7 @@ func (s *MessageDerivationService) validateCommon(ctx context.Context, sourceID 
 	// Channel kind: enforce participant membership. Other kinds are
 	// permissive (eg. issue/task convs may be derived from without a
 	// strict participant check yet — refined per ADR-0036 follow-up).
-	if source.Kind() == conversation.ConversationKindChannel && !source.HasActiveParticipant(createdBy) {
+	if source.Kind() == conversation.ConversationKindProjectChannel && !source.HasActiveParticipant(createdBy) {
 		return ErrDerivationCallerNotParticipant
 	}
 	return validateMessagesInSourceConv(ctx, s.msgRepo, sourceID, msgIDs)

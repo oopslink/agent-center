@@ -14,10 +14,10 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
@@ -48,15 +48,15 @@ type HandlerDeps struct {
 	// ExecRepo resolves InputRequest → execution → task → project for v2.6
 	// org-scoped input-request lists (X1 §3). Optional; when nil the IR list
 	// is not org-filtered (legacy/test deps).
-	ExecRepo           execution.Repository
-	AgentInstanceRepo  workforce.AgentInstanceRepository
-	UserSecretRepo     secretmgmt.UserSecretRepository
-	UserSecretSvc      *secretservice.UserSecretService
-	ProjectRepo        workforce.ProjectRepository
-	QuerySvc           *query.Service
-	FleetSvc           *query.FleetSnapshotService
-	ReadStateRepo      conversation.UserConversationReadStateRepository
-	ReadStateSvc       *convservice.ReadStateService
+	ExecRepo          execution.Repository
+	AgentInstanceRepo workforce.AgentInstanceRepository
+	UserSecretRepo    secretmgmt.UserSecretRepository
+	UserSecretSvc     *secretservice.UserSecretService
+	ProjectRepo       workforce.ProjectRepository
+	QuerySvc          *query.Service
+	FleetSvc          *query.FleetSnapshotService
+	ReadStateRepo     conversation.UserConversationReadStateRepository
+	ReadStateSvc      *convservice.ReadStateService
 	// IssueRepo / TaskRepo back the BC-native list + detail
 	// endpoints (`GET /api/issues`, `GET /api/issues/{id}`,
 	// `GET /api/tasks`, `GET /api/tasks/{id}`). Restores BC ownership:
@@ -130,7 +130,7 @@ type HandlerDeps struct {
 	// values the Modal needs to render the worker install command;
 	// both are derived from the admin TCP listener config + cert at
 	// server boot.
-	AdminTokenSvc      *admintokensvc.Service
+	AdminTokenSvc       *admintokensvc.Service
 	EnrollBootstrapHost string
 	EnrollFingerprint   string
 
@@ -150,13 +150,13 @@ type HandlerDeps struct {
 	OrgLifecycleSvc *identity.OrganizationLifecycleService
 
 	// v2.6-FE-4: Member management services.
-	MemberRepo            identity.MemberRepository
-	MemberAddSvc          *identity.MemberAddService
-	MemberCreateUserSvc   *identity.MemberCreateUserService
-	MemberRoleChangeSvc   *identity.MemberRoleChangeService
-	MemberDisableSvc      *identity.MemberDisableService
-	AgentProvisionSvc     *identity.AgentIdentityProvisionService
-	OrgUpdateSvc          *identity.OrganizationUpdateService
+	MemberRepo          identity.MemberRepository
+	MemberAddSvc        *identity.MemberAddService
+	MemberCreateUserSvc *identity.MemberCreateUserService
+	MemberRoleChangeSvc *identity.MemberRoleChangeService
+	MemberDisableSvc    *identity.MemberDisableService
+	AgentProvisionSvc   *identity.AgentIdentityProvisionService
+	OrgUpdateSvc        *identity.OrganizationUpdateService
 }
 
 // hd retrieves the typed dep bag from the request context.
@@ -500,7 +500,7 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	}
 	filter := conversation.ConversationFilter{OrganizationID: orgID}
 	if k := r.URL.Query().Get("kind"); k != "" {
-		kk := conversation.ConversationKind(k)
+		kk := apiKindToDomain(k)
 		filter.Kind = &kk
 	}
 	if st := r.URL.Query().Get("status"); st != "" {
@@ -540,8 +540,8 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	switch conversation.ConversationKind(req.Kind) {
-	case conversation.ConversationKindChannel:
+	switch apiKindToDomain(req.Kind) {
+	case conversation.ConversationKindProjectChannel:
 		s.createChannel(w, r, d, req)
 	case conversation.ConversationKindDM:
 		s.createDM(w, r, d, req)
@@ -588,7 +588,7 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, d Handler
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"conversation_id": string(res.ConversationID),
 		"event_id":        string(res.EventID),
-		"kind":            string(conversation.ConversationKindChannel),
+		"kind":            domainKindToAPI(conversation.ConversationKindProjectChannel),
 	})
 }
 
@@ -937,7 +937,7 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 		mapDomainError(w, err)
 		return
 	}
-	if c.Kind() != conversation.ConversationKindChannel {
+	if c.Kind() != conversation.ConversationKindProjectChannel {
 		writeError(w, http.StatusBadRequest, "invalid_kind", "participant invite only allowed on kind=channel")
 		return
 	}
@@ -967,7 +967,7 @@ func (s *Server) removeParticipantHandler(w http.ResponseWriter, r *http.Request
 		mapDomainError(w, err)
 		return
 	}
-	if c.Kind() != conversation.ConversationKindChannel {
+	if c.Kind() != conversation.ConversationKindProjectChannel {
 		writeError(w, http.StatusBadRequest, "invalid_kind", "participant remove only allowed on kind=channel")
 		return
 	}
@@ -1105,9 +1105,9 @@ func (s *Server) openIssueFromScratch(w http.ResponseWriter, r *http.Request, d 
 // concludeIssueReq is the POST /api/issues/{id}/conclude body. Tasks is
 // only required when kind=closed_with_tasks; otherwise omitted.
 type concludeIssueReq struct {
-	Kind    string                  `json:"kind"`
-	Summary string                  `json:"summary"`
-	Tasks   []concludeIssueTaskReq  `json:"tasks,omitempty"`
+	Kind    string                 `json:"kind"`
+	Summary string                 `json:"summary"`
+	Tasks   []concludeIssueTaskReq `json:"tasks,omitempty"`
 }
 
 type concludeIssueTaskReq struct {
@@ -1287,15 +1287,15 @@ func (s *Server) createTaskFromScratch(w http.ResponseWriter, r *http.Request, d
 		return
 	}
 	in := trservice.TaskCreateInput{
-		ProjectID:        req.ProjectID,
-		Title:            req.Title,
-		Description:      req.Description,
-		ParentTaskID:     taskruntime.TaskID(req.ParentTaskID),
-		Priority:         task.Priority(req.Priority),
-		RequiresWorktree: req.RequiresWorktree,
-		WithConversation: req.WithConversation,
+		ProjectID:         req.ProjectID,
+		Title:             req.Title,
+		Description:       req.Description,
+		ParentTaskID:      taskruntime.TaskID(req.ParentTaskID),
+		Priority:          task.Priority(req.Priority),
+		RequiresWorktree:  req.RequiresWorktree,
+		WithConversation:  req.WithConversation,
 		ConversationTitle: req.Title,
-		Actor:            d.Actor,
+		Actor:             d.Actor,
 	}
 	res, err := d.TaskSvc.Create(r.Context(), in)
 	if err != nil {
@@ -2248,10 +2248,30 @@ func mapDomainError(w http.ResponseWriter, err error) {
 // Public projection helpers (kept here so handlers stay readable)
 // =============================================================================
 
+// apiKindToDomain / domainKindToAPI form the v2.7 A0 anti-corruption layer at
+// the HTTP boundary. v2.7 renames the domain/DB kind 'channel' -> 'project_channel'
+// (ADR-0047), but the SPA + its tests still speak "channel". The HTTP/UI
+// vocabulary migration to project_channel lands in B3 (task #98); until then
+// the wire keeps "channel" so the existing console works unchanged (A0
+// acceptance: old channel mechanism still works after the schema rebuild).
+func apiKindToDomain(s string) conversation.ConversationKind {
+	if s == "channel" {
+		return conversation.ConversationKindProjectChannel
+	}
+	return conversation.ConversationKind(s)
+}
+
+func domainKindToAPI(k conversation.ConversationKind) string {
+	if k == conversation.ConversationKindProjectChannel {
+		return "channel"
+	}
+	return string(k)
+}
+
 func convPublicMap(c *conversation.Conversation) map[string]any {
 	m := map[string]any{
 		"id":                     string(c.ID()),
-		"kind":                   string(c.Kind()),
+		"kind":                   domainKindToAPI(c.Kind()),
 		"name":                   c.Name(),
 		"description":            c.Description(),
 		"status":                 string(c.Status()),
@@ -3042,11 +3062,11 @@ func (s *Server) deleteProjectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !force && (mappingCount > 0 || taskCount > 0 || issueCount > 0) {
 		writeJSON(w, http.StatusConflict, map[string]any{
-			"error":          "project_has_active_work",
-			"message":        fmt.Sprintf("Project has %d active mappings, %d open tasks, %d open issues. Use ?force=true to cascade-delete.", mappingCount, taskCount, issueCount),
-			"mapping_count":  mappingCount,
-			"task_count":     taskCount,
-			"issue_count":    issueCount,
+			"error":         "project_has_active_work",
+			"message":       fmt.Sprintf("Project has %d active mappings, %d open tasks, %d open issues. Use ?force=true to cascade-delete.", mappingCount, taskCount, issueCount),
+			"mapping_count": mappingCount,
+			"task_count":    taskCount,
+			"issue_count":   issueCount,
 		})
 		return
 	}

@@ -36,15 +36,16 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 		return fmt.Errorf("conversation repo: marshal participants: %w", err)
 	}
 	const stmt = `INSERT INTO conversations (
-		id, kind, name, description, parent_conversation_id,
+		id, kind, owner_ref, name, description, parent_conversation_id,
 		participants, created_by,
 		status, opened_at, closed_at, closed_reason, closed_message,
 		archived_at, archived_by,
 		created_at, updated_at, version, organization_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(c.ID()),
 		string(c.Kind()),
+		nullString(string(c.OwnerRef())),
 		nullString(c.Name()),
 		nullString(c.Description()),
 		nullString(string(c.ParentConversationID())),
@@ -131,7 +132,7 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 // FindByName looks up a channel by its unique business name (ADR-0032 § 3).
 func (r *ConversationRepo) FindByName(ctx context.Context, name string) (*conversation.Conversation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	row := exec.QueryRowContext(ctx, convSelect+` WHERE name = ? AND kind = 'channel' LIMIT 1`, name)
+	row := exec.QueryRowContext(ctx, convSelect+` WHERE name = ? AND kind = 'project_channel' LIMIT 1`, name)
 	c, err := scanConversation(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, conversation.ErrConversationNotFound
@@ -241,7 +242,7 @@ func (r *ConversationRepo) casConflict(ctx context.Context, exec persistence.SQL
 	return conversation.ErrConversationVersionConflict
 }
 
-const convSelect = `SELECT id, kind, name, description, parent_conversation_id,
+const convSelect = `SELECT id, kind, owner_ref, name, description, parent_conversation_id,
 	participants, created_by,
 	status, opened_at, closed_at, closed_reason, closed_message,
 	archived_at, archived_by,
@@ -250,21 +251,22 @@ const convSelect = `SELECT id, kind, name, description, parent_conversation_id,
 
 func scanConversation(scan func(...any) error) (*conversation.Conversation, error) {
 	var (
-		id, kind                                      string
-		name, description, parent                     sql.NullString
-		participantsJSON                              string
-		createdBy                                     string
-		status                                        string
-		openedAt                                      string
-		closedAt                                      sql.NullString
-		closedReason, closedMessage                   sql.NullString
-		archivedAt                                    sql.NullString
-		archivedBy                                    sql.NullString
-		createdAt, updatedAt                          string
-		version                                       int
-		organizationID                                string
+		id, kind                    string
+		ownerRef                    sql.NullString
+		name, description, parent   sql.NullString
+		participantsJSON            string
+		createdBy                   string
+		status                      string
+		openedAt                    string
+		closedAt                    sql.NullString
+		closedReason, closedMessage sql.NullString
+		archivedAt                  sql.NullString
+		archivedBy                  sql.NullString
+		createdAt, updatedAt        string
+		version                     int
+		organizationID              string
 	)
-	if err := scan(&id, &kind, &name, &description, &parent,
+	if err := scan(&id, &kind, &ownerRef, &name, &description, &parent,
 		&participantsJSON, &createdBy,
 		&status, &openedAt, &closedAt, &closedReason, &closedMessage,
 		&archivedAt, &archivedBy,
@@ -298,6 +300,7 @@ func scanConversation(scan func(...any) error) (*conversation.Conversation, erro
 	return conversation.RehydrateConversation(conversation.RehydrateConversationInput{
 		ID:                   conversation.ConversationID(id),
 		Kind:                 conversation.ConversationKind(kind),
+		OwnerRef:             conversation.OwnerRef(ownerRef.String),
 		Name:                 name.String,
 		Description:          description.String,
 		ParentConversationID: conversation.ConversationID(parent.String),

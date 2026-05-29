@@ -9,7 +9,7 @@ func TestNewConversation_ChannelHappy(t *testing.T) {
 	now := time.Now().UTC()
 	c, err := NewConversation(NewConversationInput{
 		ID:        "conv-1",
-		Kind:      ConversationKindChannel,
+		Kind:      ConversationKindProjectChannel,
 		Name:      "general",
 		CreatedBy: IdentityRef("user:hayang"),
 		OpenedAt:  now,
@@ -17,7 +17,7 @@ func TestNewConversation_ChannelHappy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Kind() != ConversationKindChannel || c.Name() != "general" {
+	if c.Kind() != ConversationKindProjectChannel || c.Name() != "general" {
 		t.Fatalf("got kind=%s name=%s", c.Kind(), c.Name())
 	}
 	if c.Status() != ConversationActive || !c.IsActive() {
@@ -31,7 +31,7 @@ func TestNewConversation_ChannelHappy(t *testing.T) {
 func TestNewConversation_ChannelRequiresName(t *testing.T) {
 	_, err := NewConversation(NewConversationInput{
 		ID:        "conv-1",
-		Kind:      ConversationKindChannel,
+		Kind:      ConversationKindProjectChannel,
 		CreatedBy: IdentityRef("user:hayang"),
 		OpenedAt:  time.Now(),
 	})
@@ -81,7 +81,7 @@ func TestNewConversation_RejectsBadKind(t *testing.T) {
 func TestNewConversation_RejectsBadCreatedBy(t *testing.T) {
 	_, err := NewConversation(NewConversationInput{
 		ID:       "x",
-		Kind:     ConversationKindChannel,
+		Kind:     ConversationKindProjectChannel,
 		Name:     "n",
 		OpenedAt: time.Now(),
 	})
@@ -271,19 +271,23 @@ func TestRehydrate_RejectsInvalidKind(t *testing.T) {
 }
 
 func TestKindEnumValid(t *testing.T) {
-	for _, k := range []ConversationKind{ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc,
-		ConversationKindNotification, ConversationKindTask, ConversationKindIssue} {
+	// v2.7 four-value enum (ADR-0047): project_channel | issue | task | dm.
+	for _, k := range []ConversationKind{ConversationKindDM, ConversationKindProjectChannel,
+		ConversationKindTask, ConversationKindIssue} {
 		if !k.IsValid() {
 			t.Fatalf("%s should be valid", k)
 		}
 	}
-	if ConversationKind("nope").IsValid() {
-		t.Fatal()
+	// Legacy/removed kinds are no longer valid.
+	for _, k := range []ConversationKind{"channel", "adhoc", "notification", "nope"} {
+		if k.IsValid() {
+			t.Fatalf("%s should be invalid in v2.7", k)
+		}
 	}
 }
 
 func TestKindDirectOpenAllowed(t *testing.T) {
-	yes := []ConversationKind{ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc, ConversationKindNotification}
+	yes := []ConversationKind{ConversationKindDM, ConversationKindProjectChannel}
 	for _, k := range yes {
 		if !k.IsDirectOpenAllowed() {
 			t.Fatalf("%s should be direct-open-allowed", k)

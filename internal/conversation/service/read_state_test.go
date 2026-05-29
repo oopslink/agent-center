@@ -17,12 +17,12 @@ import (
 )
 
 type readStateFixture struct {
-	svc      *ReadStateService
-	rsRepo   *convsqlite.ReadStateRepo
-	msgRepo  *convsqlite.MessageRepo
-	convRepo *convsqlite.ConversationRepo
+	svc       *ReadStateService
+	rsRepo    *convsqlite.ReadStateRepo
+	msgRepo   *convsqlite.MessageRepo
+	convRepo  *convsqlite.ConversationRepo
 	eventRepo observability.EventRepository
-	clock    *clock.FakeClock
+	clock     *clock.FakeClock
 }
 
 func setupReadStateService(t *testing.T) *readStateFixture {
@@ -58,7 +58,7 @@ func seedConvWithMessages(t *testing.T, f *readStateFixture, convID conversation
 	t.Helper()
 	c, err := conversation.NewConversation(conversation.NewConversationInput{
 		ID:        convID,
-		Kind:      conversation.ConversationKindChannel,
+		Kind:      conversation.ConversationKindProjectChannel,
 		Name:      "rs-test-" + string(convID),
 		CreatedBy: conversation.IdentityRef("user:hayang"),
 		OpenedAt:  f.clock.Now(),
@@ -353,10 +353,10 @@ func TestUnread_InvalidUserID(t *testing.T) {
 // fakeReadStateRepo lets us inject failures on each repo method to
 // cover the service's defensive error branches.
 type fakeReadStateRepo struct {
-	findErr      error
-	batchErr     error
-	upsertErr    error
-	calls        int
+	findErr   error
+	batchErr  error
+	upsertErr error
+	calls     int
 }
 
 func (f *fakeReadStateRepo) FindByUserAndConv(ctx context.Context,

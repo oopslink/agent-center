@@ -45,36 +45,38 @@ func (r IdentityRef) Validate() error {
 	return errors.New("identity ref: must be 'system' or 'user:<id>' / 'agent:<id>' (ADR-0033)")
 }
 
-// ConversationKind is the 6-value enum (ADR-0032 § 1):
-// dm / channel / adhoc / notification / task / issue.
+// ConversationKind is the v2.7 four-value enum (ADR-0047 §1):
+// project_channel / issue / task / dm. The set is exhaustive — there is no
+// generic "channel" (the legacy 'channel' kind is renamed project_channel),
+// and vestigial 'adhoc'/'notification' are removed.
 type ConversationKind string
 
 const (
-	ConversationKindDM           ConversationKind = "dm"
-	ConversationKindChannel      ConversationKind = "channel"
-	ConversationKindAdhoc        ConversationKind = "adhoc"
-	ConversationKindNotification ConversationKind = "notification"
-	ConversationKindTask         ConversationKind = "task"
-	ConversationKindIssue        ConversationKind = "issue"
+	ConversationKindDM ConversationKind = "dm"
+	// ConversationKindProjectChannel replaces the legacy org-level 'channel'
+	// kind. owner_ref points at pm://projects/{id}; A0 leaves it NULL and
+	// phase B decides org-level-channel placement (plan §2.8).
+	ConversationKindProjectChannel ConversationKind = "project_channel"
+	ConversationKindTask           ConversationKind = "task"
+	ConversationKindIssue          ConversationKind = "issue"
 )
 
 // IsValid checks enum membership.
 func (k ConversationKind) IsValid() bool {
 	switch k {
-	case ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc,
-		ConversationKindNotification, ConversationKindTask, ConversationKindIssue:
+	case ConversationKindDM, ConversationKindProjectChannel,
+		ConversationKindTask, ConversationKindIssue:
 		return true
 	}
 	return false
 }
 
 // IsDirectOpenAllowed reports whether kind is allowed for direct
-// `conversation open` (dm / channel / adhoc / notification). task / issue
-// must come via TaskRuntime / Discussion sync-create paths.
+// `conversation open` (dm / project_channel). task / issue must come via the
+// ProjectManager sync-create paths (ADR-0047 §2, plan §4.1).
 func (k ConversationKind) IsDirectOpenAllowed() bool {
 	switch k {
-	case ConversationKindDM, ConversationKindChannel,
-		ConversationKindAdhoc, ConversationKindNotification:
+	case ConversationKindDM, ConversationKindProjectChannel:
 		return true
 	}
 	return false
@@ -163,8 +165,8 @@ func (d MessageDirection) String() string { return string(d) }
 // conversations.participants (ADR-0034 § 2).
 type ParticipantElement struct {
 	IdentityID IdentityRef `json:"identity_id"`
-	Role       string      `json:"role"`            // owner | member | observer
-	JoinedAt   string      `json:"joined_at"`       // RFC3339Nano
+	Role       string      `json:"role"`      // owner | member | observer
+	JoinedAt   string      `json:"joined_at"` // RFC3339Nano
 	JoinedBy   IdentityRef `json:"joined_by"`
 	LeftAt     string      `json:"left_at,omitempty"`
 	LeftReason string      `json:"left_reason,omitempty"`
@@ -176,12 +178,12 @@ func (p ParticipantElement) IsActive() bool { return p.LeftAt == "" }
 // Sentinel errors.
 var (
 	// Conversation
-	ErrConversationNotFound      = errors.New("conversation: conversation not found")
-	ErrConversationAlreadyExists = errors.New("conversation: id or channel name already exists")
-	ErrConversationClosed        = errors.New("conversation: conversation is closed, cannot accept new message")
-	ErrConversationArchived      = errors.New("conversation: conversation is archived, read-only (ADR-0032 § 5)")
-	ErrConversationInvalidKind   = errors.New("conversation: invalid kind for operation")
-	ErrConversationInvalidStatus = errors.New("conversation: invalid status")
+	ErrConversationNotFound        = errors.New("conversation: conversation not found")
+	ErrConversationAlreadyExists   = errors.New("conversation: id or channel name already exists")
+	ErrConversationClosed          = errors.New("conversation: conversation is closed, cannot accept new message")
+	ErrConversationArchived        = errors.New("conversation: conversation is archived, read-only (ADR-0032 § 5)")
+	ErrConversationInvalidKind     = errors.New("conversation: invalid kind for operation")
+	ErrConversationInvalidStatus   = errors.New("conversation: invalid status")
 	ErrConversationVersionConflict = errors.New("conversation: conversation version conflict (optimistic lock)")
 
 	// Message

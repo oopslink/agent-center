@@ -54,9 +54,9 @@ func setupFailing(t *testing.T) (*MessageWriter, *ChannelManagementService, *Par
 func TestMessageWriter_OpenConversation_EmitFailureRollsBack(t *testing.T) {
 	mw, _, _, _ := setupFailing(t)
 	_, err := mw.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM,
+		Kind:      conversation.ConversationKindDM,
 		CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor: observability.Actor("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
 	if err == nil {
 		t.Fatal("expected emit failure")
@@ -75,9 +75,9 @@ func TestMessageWriter_Close_EmitFailure(t *testing.T) {
 	// Set up: open via normal writer + close via failing-sink writer.
 	dbW, w := setupRaw(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM,
+		Kind:      conversation.ConversationKindDM,
 		CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor: observability.Actor("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
 	// Build a failing-sink writer on the same DB.
 	er, _ := obsqlite.NewEventRepo(context.Background(), dbW)
@@ -128,7 +128,7 @@ func TestCarryOver_Materialise_EmitFailure(t *testing.T) {
 	co := NewCarryOverService(dbW, w.convRepo, w.msgRepo, rr, w.sink, w.idgen, w.clock)
 	// Seed source conv + msg + child conv via normal writer.
 	src, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID: "src-1", Kind: conversation.ConversationKindChannel, Name: "src",
+		ID: "src-1", Kind: conversation.ConversationKindProjectChannel, Name: "src",
 		CreatedBy: "user:hayang", OpenedAt: w.clock.Now(),
 	})
 	_ = w.convRepo.Save(context.Background(), src)
@@ -150,7 +150,7 @@ func TestCarryOver_Materialise_EmitFailure(t *testing.T) {
 	_, err := failCo.Materialise(context.Background(), MaterialiseCommand{
 		ChildConversationID: "child-1", SourceConversationID: "src-1",
 		SourceMessageIDs: []conversation.MessageID{"m-1"},
-		CreatedBy: "user:hayang", Actor: "user:hayang",
+		CreatedBy:        "user:hayang", Actor: "user:hayang",
 	})
 	if err == nil {
 		t.Fatal()
@@ -164,9 +164,9 @@ func TestCarryOver_Materialise_EmitFailure(t *testing.T) {
 func TestAddMessage_EmitFailureRollsBack(t *testing.T) {
 	dbW, w := setupRaw(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM,
+		Kind:      conversation.ConversationKindDM,
 		CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor: observability.Actor("user:hayang"),
+		Actor:     observability.Actor("user:hayang"),
 	})
 	er, _ := obsqlite.NewEventRepo(context.Background(), dbW)
 	failSink := observability.NewEventSink(failingEventRepo{}, er, w.idgen, w.clock)
@@ -215,7 +215,7 @@ func TestDeriveTask_SourceNotActive(t *testing.T) {
 	})
 	_, err := d.DeriveTask(context.Background(), DeriveTaskCommand{
 		SourceConversationID: source.ID(),
-		ProjectID: "p", Title: "T", AgentInstanceID: "ai-1",
+		ProjectID:            "p", Title: "T", AgentInstanceID: "ai-1",
 		CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
 	if !errors.Is(err, ErrDerivationSourceNotActive) {

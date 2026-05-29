@@ -18,6 +18,8 @@ type Message struct {
 	content          string
 	direction        MessageDirection
 	inputRequestRef  string
+	contextRefs      ContextRefs
+	attachments      []MessageAttachment
 	postedAt         time.Time
 	createdAt        time.Time
 }
@@ -31,6 +33,8 @@ type NewMessageInput struct {
 	Content          string
 	Direction        MessageDirection
 	InputRequestRef  string
+	ContextRefs      ContextRefs
+	Attachments      []MessageAttachment
 	PostedAt         time.Time
 }
 
@@ -63,6 +67,8 @@ func NewMessage(in NewMessageInput) (*Message, error) {
 		content:          in.Content,
 		direction:        in.Direction,
 		inputRequestRef:  in.InputRequestRef,
+		contextRefs:      in.ContextRefs,
+		attachments:      append([]MessageAttachment(nil), in.Attachments...),
 		postedAt:         at,
 		createdAt:        at,
 	}, nil
@@ -77,6 +83,8 @@ type RehydrateMessageInput struct {
 	Content          string
 	Direction        MessageDirection
 	InputRequestRef  string
+	ContextRefs      ContextRefs
+	Attachments      []MessageAttachment
 	PostedAt         time.Time
 	CreatedAt        time.Time
 }
@@ -97,6 +105,8 @@ func RehydrateMessage(in RehydrateMessageInput) (*Message, error) {
 		content:          in.Content,
 		direction:        in.Direction,
 		inputRequestRef:  in.InputRequestRef,
+		contextRefs:      in.ContextRefs,
+		attachments:      append([]MessageAttachment(nil), in.Attachments...),
 		postedAt:         in.PostedAt.UTC(),
 		createdAt:        in.CreatedAt.UTC(),
 	}, nil
@@ -111,5 +121,16 @@ func (m *Message) ContentKind() MessageContentKind { return m.contentKind }
 func (m *Message) Content() string                 { return m.content }
 func (m *Message) Direction() MessageDirection     { return m.direction }
 func (m *Message) InputRequestRef() string         { return m.inputRequestRef }
+func (m *Message) ContextRefs() ContextRefs        { return m.contextRefs }
 func (m *Message) PostedAt() time.Time             { return m.postedAt }
 func (m *Message) CreatedAt() time.Time            { return m.createdAt }
+
+// Attachments returns a defensive copy of the message attachments.
+func (m *Message) Attachments() []MessageAttachment {
+	if len(m.attachments) == 0 {
+		return nil
+	}
+	out := make([]MessageAttachment, len(m.attachments))
+	copy(out, m.attachments)
+	return out
+}

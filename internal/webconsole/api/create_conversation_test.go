@@ -43,7 +43,7 @@ func TestAPI_CreateConversation_Channel_Happy(t *testing.T) {
 	if ferr != nil || conv == nil {
 		t.Fatalf("channel not persisted: %v", ferr)
 	}
-	if conv.Kind() != conversation.ConversationKindChannel {
+	if conv.Kind() != conversation.ConversationKindProjectChannel {
 		t.Fatalf("kind mismatch: %s", conv.Kind())
 	}
 	parts := conv.Participants()
