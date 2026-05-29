@@ -187,6 +187,36 @@ func TestValidationAndGatingRejections(t *testing.T) {
 	}
 }
 
+func TestUpdateAndArchiveProject(t *testing.T) {
+	svc, _, ctx := setup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "o", Name: "P", CreatedBy: "user:a"})
+
+	newName := "Renamed"
+	newDesc := "desc"
+	if err := svc.UpdateProject(ctx, UpdateProjectCommand{ProjectID: pid, Name: &newName, Description: &newDesc, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := svc.GetProject(ctx, pid)
+	if p.Name() != "Renamed" || p.Description() != "desc" {
+		t.Fatalf("update not applied: %+v", p)
+	}
+	// non-member rejected
+	if err := svc.UpdateProject(ctx, UpdateProjectCommand{ProjectID: pid, Name: &newName, Actor: "user:stranger"}); err != ErrNotMember {
+		t.Fatalf("non-member update want ErrNotMember, got %v", err)
+	}
+	// archive = lifecycle (active→archived), not data delete
+	if err := svc.ArchiveProject(ctx, pid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.GetProject(ctx, pid)
+	if err != nil {
+		t.Fatalf("archived project must still exist (lifecycle, not delete): %v", err)
+	}
+	if got.Status() != pm.ProjectArchived {
+		t.Fatalf("status = %s, want archived", got.Status())
+	}
+}
+
 func TestTransitionIssue(t *testing.T) {
 	svc, ob, ctx := setup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "o", Name: "P", CreatedBy: "user:a"})
