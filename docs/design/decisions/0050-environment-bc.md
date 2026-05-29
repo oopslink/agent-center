@@ -52,6 +52,8 @@ ControlLoop、AgentController、MCPHost、FileTransferClient、LocalStore。
 
 ### 6. FileTransfer
 
+> 代码归属澄清（2026-05-30 D3 实现决定）：FileTransferSession 与 BlobStore/FileReference 内聚，**代码落在 `internal/files` 横向文件模块**（ADR-0048 的横向模块），Environment BC **消费**它（将来 worker file bridge）。此处"FileTransfer 归 Environment"是**概念归属**，非代码包归属。
+
 - FileTransferSession：创建上传/下载会话、完成/取消/过期、本地文件系统后端。
 - 上传完成后 `ac://files/{ulid}` 可读；引用计数 GC（7 天宽限）归此 BC 落地（详 [ADR-0048](0048-file-uri-and-blobstore.md)）。
 - 大文件分块机制需单独细化（D 阶段）。
