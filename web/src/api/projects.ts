@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from './client';
+import { api, withOrgSlug } from './client';
 import { qk } from './queryKeys';
 import type { Project } from './types';
 
@@ -94,7 +94,7 @@ export function useDeleteProject(id: string) {
     mutationFn: async (opts?: { force?: boolean }) => {
       const force = opts?.force ?? false;
       const resp = await fetch(
-        `/api/projects/${encodeURIComponent(id)}${force ? '?force=true' : ''}`,
+        withOrgSlug(`/api/projects/${encodeURIComponent(id)}${force ? '?force=true' : ''}`),
         { method: 'DELETE' },
       );
       if (resp.status === 204) return null;
@@ -131,7 +131,7 @@ export function useDeleteProjectMapping(projectID: string) {
   return useMutation({
     mutationFn: async (mappingID: string) => {
       const resp = await fetch(
-        `/api/projects/${encodeURIComponent(projectID)}/workers/${encodeURIComponent(mappingID)}`,
+        withOrgSlug(`/api/projects/${encodeURIComponent(projectID)}/workers/${encodeURIComponent(mappingID)}`),
         { method: 'DELETE' },
       );
       if (!resp.ok && resp.status !== 204) {
