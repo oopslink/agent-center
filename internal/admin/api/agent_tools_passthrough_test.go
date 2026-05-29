@@ -18,7 +18,9 @@ import (
 // full pm → outbox → projector pipeline). The WRITE tools go through the pm
 // AppService whose own requireProjectMember is the write-gate (the agent is a
 // ProjectMember of its assigned task's project via #5a). The READ tools scope
-// per-agent: get_task = own-work (requireOwnTask), get_issue = project membership.
+// per-agent STRICTLY to own work (membership is the WRITE gate, not read):
+// get_task = own-work (requireOwnTask), get_issue = own-link (the agent holds a
+// WorkItem for a Task derived from the issue).
 // =============================================================================
 
 // getBearer GETs path with an Authorization: Bearer <plaintext> header.

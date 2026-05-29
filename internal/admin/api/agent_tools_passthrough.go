@@ -22,11 +22,14 @@ import (
 // for its own projects and gets ErrNotMember (→403) for foreign projects. No
 // extra membership check is layered on top.
 //
-// The READ tools scope per-agent (OQ4 — agents read within their own scope):
+// The READ tools scope per-agent STRICTLY to own work (OQ4) — #5a project
+// membership is the OQ6 WRITE gate and does NOT widen reads:
 //   - get_task  uses own-work scope (requireOwnTask: the agent must hold a
 //     WorkItem for pm://tasks/{taskID}, else 403 not_agents_task).
-//   - get_issue uses project-membership domain scope (the agent must be a member
-//     of the issue's project, else 403 not_in_issue_domain).
+//   - get_issue uses own-LINK scope: the agent must hold a WorkItem for a Task
+//     derived from the issue (task.DerivedFromIssue == issue_id), else 403
+//     not_in_issue_domain. (Membership alone does NOT grant reading arbitrary
+//     project issues.)
 // =============================================================================
 
 // --- create_task -------------------------------------------------------------
