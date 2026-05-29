@@ -25,6 +25,11 @@ type ConversationRepository interface {
 	FindByID(ctx context.Context, id ConversationID) (*Conversation, error)
 	Find(ctx context.Context, filter ConversationFilter) ([]*Conversation, error)
 	FindByName(ctx context.Context, name string) (*Conversation, error)
+	// FindByOwnerRef looks up a task/issue Conversation by its owner_ref URI
+	// (pm://tasks|issues/{id}); ErrConversationNotFound if absent. Used by the
+	// v2.7 ProjectManager→Conversation participant projector to create/sync the
+	// bound Conversation idempotently.
+	FindByOwnerRef(ctx context.Context, ownerRef OwnerRef) (*Conversation, error)
 	FindByParent(ctx context.Context, parentID ConversationID) ([]*Conversation, error)
 	Save(ctx context.Context, c *Conversation) error
 	UpdateStatus(ctx context.Context, id ConversationID, from, to ConversationStatus, version int, closedReason, closedMessage string, at time.Time) error

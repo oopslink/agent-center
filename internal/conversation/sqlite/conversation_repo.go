@@ -141,6 +141,19 @@ func (r *ConversationRepo) FindByName(ctx context.Context, name string) (*conver
 	return c, err
 }
 
+// FindByOwnerRef returns the conversation bound to a pm:// owner_ref, or
+// ErrConversationNotFound. The idx_conversations_owner_ref partial index backs
+// this lookup (v2.7 A0).
+func (r *ConversationRepo) FindByOwnerRef(ctx context.Context, ownerRef conversation.OwnerRef) (*conversation.Conversation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx, convSelect+` WHERE owner_ref = ? LIMIT 1`, string(ownerRef))
+	c, err := scanConversation(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, conversation.ErrConversationNotFound
+	}
+	return c, err
+}
+
 // FindByParent returns the children of a Conversation (CV3 carry-over /
 // CV4 派生入口 navigates the parent chain). Capped at
 // DefaultReferenceLimit to prevent unbounded scans.
