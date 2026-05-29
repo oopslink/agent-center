@@ -351,12 +351,12 @@ func TestReopenTask_ClearsAssignmentAndCompletion(t *testing.T) {
 	}
 }
 
-// TestUnassignReopen_ResyncsParticipants is the #98 review fix: unassign/reopen
-// move the effective subscriber set (the assignee leaves), so the prior assignee
-// must be dropped from the task Conversation participants. The state_changed
-// event now carries effective_subscribers and the ParticipantProjector consumes
-// it.
-func TestUnassignReopen_ResyncsParticipants(t *testing.T) {
+// TestOffboardedAssignee_RetainedAsSubscriber is the #98 OQ13 semantics: anyone
+// taken off a Task (unassign / reassign-away / reopen) is RETAINED as a sticky
+// manual subscriber — they stay in the task Conversation, downgraded to
+// subscriber, until an explicit Unsubscribe removes them. Conversation
+// membership is monotonic; task state reset does not evict.
+func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
 		t.Fatal(err)
@@ -414,34 +414,86 @@ func TestUnassignReopen_ResyncsParticipants(t *testing.T) {
 		t.Fatal("after assign: AG1 should be a participant")
 	}
 
-	// Unassign → AG1 leaves; creator user:a stays.
+	// Reassign AG1→AG2: AG1 is retained as a sticky subscriber; AG2 is the new
+	// assignee. BOTH stay in the Conversation.
+	_ = svc.AssignTask(ctx, tid, "agent:AG2", "user:a")
+	drain()
+	if !hasParticipant(tid, "agent:AG1") {
+		t.Fatal("after reassign: outgoing AG1 should be retained as subscriber")
+	}
+	if !hasParticipant(tid, "agent:AG2") {
+		t.Fatal("after reassign: new assignee AG2 should be a participant")
+	}
+
+	// Unassign AG2 → AG2 retained as subscriber; AG1 still there; creator stays.
 	if err := svc.UnassignTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	drain()
-	if hasParticipant(tid, "agent:AG1") {
-		t.Fatal("after unassign: AG1 should be dropped from participants")
+	if !hasParticipant(tid, "agent:AG2") {
+		t.Fatal("after unassign: ex-assignee AG2 should be retained as subscriber")
 	}
-	if !hasParticipant(tid, "user:a") {
-		t.Fatal("after unassign: creator user:a should remain")
+	if !hasParticipant(tid, "agent:AG1") {
+		t.Fatal("after unassign: AG1 should still be a subscriber")
 	}
 
-	// Assign agent:AG2, run it, complete, then reopen → AG2 must leave.
-	_ = svc.AssignTask(ctx, tid, "agent:AG2", "user:a")
-	_ = svc.StartTask(ctx, tid, "user:a")
-	if err := svc.CompleteTask(ctx, tid, "user:a"); err != nil {
+	// Explicit Unsubscribe is the ONLY way out: AG1 leaves, AG2 stays.
+	if err := svc.UnsubscribeTask(ctx, tid, "agent:AG1", "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	drain()
+	if hasParticipant(tid, "agent:AG1") {
+		t.Fatal("after unsubscribe: AG1 should be removed")
+	}
 	if !hasParticipant(tid, "agent:AG2") {
-		t.Fatal("after reassign: AG2 should be a participant")
+		t.Fatal("after unsubscribe: AG2 should remain a subscriber")
+	}
+
+	// Reopen path: assign AG3, run, complete via a NON-creator member, reopen →
+	// BOTH the prior assignee (AG3) and the completer (user:b) are retained.
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = svc.AssignTask(ctx, tid, "agent:AG3", "user:a")
+	_ = svc.StartTask(ctx, tid, "user:a")
+	if err := svc.CompleteTask(ctx, tid, "user:b"); err != nil {
+		t.Fatal(err)
 	}
 	if err := svc.ReopenTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	drain()
-	if hasParticipant(tid, "agent:AG2") {
-		t.Fatal("after reopen: AG2 should be dropped from participants")
+	if !hasParticipant(tid, "agent:AG3") {
+		t.Fatal("after reopen: prior assignee AG3 should be retained as subscriber")
+	}
+	if !hasParticipant(tid, "user:b") {
+		t.Fatal("after reopen: completer user:b should be retained as subscriber")
+	}
+}
+
+func TestUnassignReopen_Gating(t *testing.T) {
+	svc, _, _, ctx := flowSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
+
+	// non-member cannot unassign / reopen.
+	if err := svc.UnassignTask(ctx, tid, "user:stranger"); err != ErrNotMember {
+		t.Fatalf("unassign by non-member: want ErrNotMember, got %v", err)
+	}
+	if err := svc.ReopenTask(ctx, tid, "user:stranger"); err != ErrNotMember {
+		t.Fatalf("reopen by non-member: want ErrNotMember, got %v", err)
+	}
+	// unassign from a non-assigned state is an illegal transition.
+	if err := svc.UnassignTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.UnassignTask(ctx, tid, "user:a"); err != pm.ErrIllegalTransition {
+		t.Fatalf("unassign from open: want ErrIllegalTransition, got %v", err)
+	}
+	// unsubscribe by non-member is gated too.
+	if err := svc.UnsubscribeTask(ctx, tid, "agent:AG1", "user:stranger"); err != ErrNotMember {
+		t.Fatalf("unsubscribe by non-member: want ErrNotMember, got %v", err)
 	}
 }
 

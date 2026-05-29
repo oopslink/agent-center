@@ -112,6 +112,44 @@ func TestCreateTask_EmitsCreatedWithCreatorSubscriber(t *testing.T) {
 	}
 }
 
+func TestServiceReads_CoverReadThroughs(t *testing.T) {
+	svc, _, ctx := setup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "i", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
+
+	if ps, err := svc.ListProjects(ctx, "org-1"); err != nil || len(ps) != 1 {
+		t.Fatalf("ListProjects: %v len=%d", err, len(ps))
+	}
+	if _, err := svc.GetProject(ctx, pid); err != nil {
+		t.Fatalf("GetProject: %v", err)
+	}
+	if ms, err := svc.ListMembers(ctx, pid); err != nil || len(ms) == 0 {
+		t.Fatalf("ListMembers: %v len=%d", err, len(ms))
+	}
+	if is, err := svc.ListIssues(ctx, pid); err != nil || len(is) != 1 {
+		t.Fatalf("ListIssues: %v len=%d", err, len(is))
+	}
+	if _, err := svc.GetIssue(ctx, iid); err != nil {
+		t.Fatalf("GetIssue: %v", err)
+	}
+	if ts, err := svc.ListTasks(ctx, pid); err != nil || len(ts) != 1 {
+		t.Fatalf("ListTasks: %v len=%d", err, len(ts))
+	}
+	if _, err := svc.GetTask(ctx, tid); err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if _, err := svc.ListCodeRepos(ctx, pid); err != nil {
+		t.Fatalf("ListCodeRepos: %v", err)
+	}
+	if _, err := svc.ListTaskSubscribers(ctx, tid); err != nil {
+		t.Fatalf("ListTaskSubscribers: %v", err)
+	}
+}
+
 func TestUpdateTask_MetadataPatchGatedByMembership(t *testing.T) {
 	svc, _, ctx := setup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

@@ -201,6 +201,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unassign", s.pmUnassignTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/reopen", s.pmReopenTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
 	s.mux.HandleFunc("GET /api/agents", s.listAgentsHandler)

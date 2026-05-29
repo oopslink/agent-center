@@ -34,6 +34,15 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		if err := t.Assign(assignee, now); err != nil {
 			return err
 		}
+		// OQ13: reassigning away keeps the outgoing assignee in the Conversation
+		// as a sticky manual subscriber (not the new assignee, which is effective
+		// via the assignee role). Must persist before emit so the recomputed
+		// effective set includes them.
+		if prev != "" && prev != assignee {
+			if err := s.retainAsTaskSubscriber(txCtx, t, prev, now); err != nil {
+				return err
+			}
+		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
@@ -96,24 +105,87 @@ func (s *Service) VerifyTask(ctx context.Context, taskID pm.TaskID, by pm.Identi
 	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Verify(by, now) }, "")
 }
 
-// UnassignTask moves assigned→open and clears the assignee (the explicit
-// "drop the assignment" verb). The live AgentWorkItem (created on assign) is
-// canceled by the WorkItemProjector consuming the resulting state_changed→open.
+// retainAsTaskSubscriber persists `identity` as a sticky MANUAL subscriber so a
+// person taken off a Task (unassigned / reassigned away / reopened) stays in the
+// task Conversation as a subscriber until explicitly Unsubscribed (OQ13 — task
+// state resets but Conversation membership is monotonic). The creator and the
+// empty ref are skipped (creator is always effective); Add is INSERT OR IGNORE,
+// so re-retaining an existing manual row is a no-op. Must run inside the caller's
+// tx so the subsequent effective-set recompute sees the new row.
+func (s *Service) retainAsTaskSubscriber(ctx context.Context, t *pm.Task, identity pm.IdentityRef, now time.Time) error {
+	if identity == "" || identity == t.CreatedBy() {
+		return nil
+	}
+	sub, err := pm.NewTaskSubscriber(t.ID(), identity, "system", now)
+	if err != nil {
+		return err
+	}
+	return s.taskSubs.Add(ctx, sub)
+}
+
+// UnassignTask moves assigned→open and clears the assignee (the explicit "drop
+// the assignment" verb). Per OQ13 the outgoing assignee is RETAINED as a sticky
+// manual subscriber (stays in the Conversation, downgraded to subscriber; only
+// an explicit Unsubscribe removes them). The live AgentWorkItem is canceled by
+// the WorkItemProjector consuming the resulting state_changed→open (canceling
+// the work attempt is independent of keeping the subscription).
 func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Unassign(now) }, "")
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		prev := t.Assignee()
+		if err := t.Unassign(now); err != nil {
+			return err
+		}
+		if err := s.retainAsTaskSubscriber(txCtx, t, prev, now); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		return s.emitTaskStateChanged(txCtx, t, "")
+	})
 }
 
 // ReopenTask moves a completed/verified Task back to open in one step (internally
 // completed/verified→reopened→open), clearing assignment + completion truth so a
-// subsequent assign starts a fresh work segment. There is no live WorkItem to
-// cancel (the Task was done); the WorkItemProjector treats →open idempotently.
+// subsequent assign starts a fresh work segment. Per OQ13 the prior assignee +
+// completer are RETAINED as sticky manual subscribers (they did the work → stay
+// informed after reopen). No live WorkItem to cancel (the Task was done).
 func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		prevAssignee, prevCompleter := t.Assignee(), t.CompletedBy()
 		if err := t.Reopen(now); err != nil {
 			return err
 		}
-		return t.ToOpenFromReopened(now)
-	}, "")
+		if err := t.ToOpenFromReopened(now); err != nil {
+			return err
+		}
+		if err := s.retainAsTaskSubscriber(txCtx, t, prevAssignee, now); err != nil {
+			return err
+		}
+		if err := s.retainAsTaskSubscriber(txCtx, t, prevCompleter, now); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		return s.emitTaskStateChanged(txCtx, t, "")
+	})
 }
 
 // taskStateOp is the shared "load → gate → mutate → persist → emit

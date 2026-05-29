@@ -548,6 +548,25 @@ func (s *Server) pmSubscribeTaskHandler(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// pmUnsubscribeTaskHandler removes a MANUAL subscriber row — the only way to
+// evict someone retained on the task Conversation (OQ13: unassign/reassign/
+// reopen keep the offboarded assignee as a sticky subscriber; explicit
+// unsubscribe is the eviction path). Creator / current assignee are role-derived
+// so this is a no-op for them until the role is dropped.
+func (s *Server) pmUnsubscribeTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IdentityID string `json:"identity_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	d := hd(r)
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error {
+		return d.PM.UnsubscribeTask(r.Context(), id, pm.IdentityRef(req.IdentityID), c)
+	})
+}
+
 // --- Code repo refs (nested) ------------------------------------------------
 
 func (s *Server) pmListCodeReposHandler(w http.ResponseWriter, r *http.Request) {
