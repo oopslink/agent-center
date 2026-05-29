@@ -29,10 +29,10 @@ export function useOptionalOrgContext(): OrgContextValue | null {
 function OrgErrorScreen({ code, slug }: { code: 403 | 404; slug?: string }): React.ReactElement {
   const orgs = useOrgs();
   const firstOrg = orgs.data?.[0];
-  const title = code === 404 ? '组织不存在（404）' : '无权访问该组织（403）';
+  const title = code === 404 ? '组织不存在或无权访问' : '无权访问该组织（403）';
   const body =
     code === 404
-      ? `组织 "${slug ?? ''}" 不存在或已被删除。`
+      ? `组织 "${slug ?? ''}" 不存在、已被删除，或你不是该组织成员。`
       : `你不是组织 "${slug ?? ''}" 的成员，无权访问。`;
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-3 bg-bg-base px-4 text-center" data-testid="org-error">

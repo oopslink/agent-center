@@ -199,21 +199,19 @@ func TestAPI_UpdateIssue_Happy(t *testing.T) {
 }
 
 func TestAPI_UpdateIssue_TerminalRejected(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
-		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	resp := orgScopedPost(t, s.URL+"/api/issues", `{"project_id":"p-1","title":"x"}`, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	id := openOut["issue_id"].(string)
 	// Conclude first → terminal.
-	_, _ = http.Post(s.URL+"/api/issues/"+id+"/conclude", "application/json",
-		strings.NewReader(`{"kind":"closed_no_action","summary":"x"}`))
+	_ = orgScopedPost(t, s.URL+"/api/issues/"+id+"/conclude", `{"kind":"closed_no_action","summary":"x"}`, sess)
 	// Edit should reject.
-	req, _ := http.NewRequest("PATCH", s.URL+"/api/issues/"+id, strings.NewReader(`{"title":"new"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r2, _ := http.DefaultClient.Do(req)
+	r2 := orgScopedPatch(t, s.URL+"/api/issues/"+id, `{"title":"new"}`, sess)
 	if r2.StatusCode == 200 {
 		t.Fatalf("status=%d expected non-200", r2.StatusCode)
 	}
@@ -258,16 +256,17 @@ func TestAPI_ReopenIssue_Happy(t *testing.T) {
 }
 
 func TestAPI_ReopenIssue_NonTerminalRejected(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json",
-		strings.NewReader(`{"project_id":"p-1","title":"x"}`))
+	resp := orgScopedPost(t, s.URL+"/api/issues", `{"project_id":"p-1","title":"x"}`, sess)
 	var openOut map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&openOut)
 	id := openOut["issue_id"].(string)
 	// Already open — reopen should reject.
-	r2, _ := http.Post(s.URL+"/api/issues/"+id+"/reopen", "application/json", strings.NewReader(`{}`))
+	r2 := orgScopedPost(t, s.URL+"/api/issues/"+id+"/reopen", `{}`, sess)
 	if r2.StatusCode == 200 {
 		t.Fatalf("status=%d expected non-200 (already open)", r2.StatusCode)
 	}

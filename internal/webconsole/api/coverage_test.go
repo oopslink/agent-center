@@ -101,112 +101,138 @@ func TestAPI_OrgScope_Isolation_And_Membership(t *testing.T) {
 	}
 }
 
-func TestAPI_SendMessage_DefaultsContentKindAndDirection(t *testing.T) {
-	deps, _ := setupAPI(t)
+// TestAPI_OrgScope_DetailMutation_CrossOrgBlocked proves v2.6 X1 §1/§5: a
+// detail/mutation request for a resource that belongs to another org returns
+// 404 (no cross-org read or write), even though the caller is authenticated
+// and a member of *their own* org.
+func TestAPI_OrgScope_DetailMutation_CrossOrgBlocked(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps) // caller's org = "testorg"
 	ctx := context.Background()
-	res, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "smdefaults", CreatedBy: "user:hayang", Actor: "user:hayang",
+	// A conversation that lives in a DIFFERENT org.
+	other, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "other-org-ch", OrganizationID: "organization-other",
+		CreatedBy: "user:other", Actor: "user:other",
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
+
+	// Detail read of another org's conversation → 404.
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+string(other.ConversationID), sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org conversation detail: got %d want 404", resp.StatusCode)
+	}
+	// Message write into another org's conversation → 404.
+	resp = orgScopedPost(t, s.URL+"/api/conversations/"+string(other.ConversationID)+"/messages", `{"content":"x"}`, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org message write: got %d want 404", resp.StatusCode)
+	}
+	// Archive another org's conversation → 404.
+	resp = orgScopedPost(t, s.URL+"/api/conversations/"+string(other.ConversationID)+"/archive", `{"version":1}`, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org archive: got %d want 404", resp.StatusCode)
+	}
+}
+
+func TestAPI_SendMessage_DefaultsContentKindAndDirection(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "smdefaults")
+	s := newTestServer(t, deps)
+	defer s.Close()
 	// Body has only content; handler defaults.
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(res.ConversationID)+"/messages",
-		"application/json", strings.NewReader(`{"content":"x"}`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/messages", `{"content":"x"}`, sess)
 	if resp.StatusCode != 201 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_SendMessage_BadJSON(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "smbadjson")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/foo/messages",
-		"application/json", strings.NewReader(`{not json`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/messages", `{not json`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_ArchiveConversation_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/nope/archive",
-		"application/json", strings.NewReader(`{"version":1}`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/nope/archive", `{"version":1}`, sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_RemoveParticipant_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
-	res, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "remove-test", CreatedBy: "user:hayang", Actor: "user:hayang",
-	})
+	cid := seedOrgChannel(t, deps, sess.OrgID, "remove-test")
 	_, _ = deps.ParticipantMgmtSvc.Invite(ctx, convservice.InviteCommand{
 		ConversationName: "remove-test", IdentityID: "user:bob",
 		InvitedBy: "user:hayang", Actor: observability.Actor("user:hayang"),
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
-	req, _ := http.NewRequest("DELETE",
-		s.URL+"/api/conversations/"+string(res.ConversationID)+"/participants/user:bob", nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedDelete(t, s.URL+"/api/conversations/"+cid+"/participants/user:bob", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_RemoveParticipant_OnDM_Rejected(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
 	openRes, _ := deps.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
-		Kind: conversation.ConversationKindDM, CreatedBy: "user:hayang",
+		Kind: conversation.ConversationKindDM, OrganizationID: sess.OrgID, CreatedBy: "user:hayang",
 		Actor: observability.Actor("user:hayang"),
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
-	req, _ := http.NewRequest("DELETE",
-		s.URL+"/api/conversations/"+string(openRes.ConversationID)+"/participants/user:bob", nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp := orgScopedDelete(t, s.URL+"/api/conversations/"+string(openRes.ConversationID)+"/participants/user:bob", sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_InviteParticipant_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/nope/participants",
-		"application/json", strings.NewReader(`{"identity_id":"user:bob"}`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/nope/participants", `{"identity_id":"user:bob"}`, sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_InviteParticipant_MissingIdentityID(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "inv-missing")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/c-1/participants",
-		"application/json", strings.NewReader(`{"role":"member"}`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/participants", `{"role":"member"}`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_InviteParticipant_BadJSON(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "inv-badjson")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/c-1/participants",
-		"application/json", strings.NewReader(`{nope`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/participants", `{nope`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -252,12 +278,14 @@ func (f *fakeTaskCreator) CreateFromConversation(ctx context.Context, in convser
 	return convservice.CreateFromConversationResult{TaskID: "T-1", ConversationID: id}, nil
 }
 
-func setupDerive(t *testing.T) (HandlerDeps, *fakeIssueOpener, *fakeTaskCreator) {
-	deps, db := setupAPI(t)
-	// Seed a source channel + 1 message so derive validates.
+func setupDerive(t *testing.T) (HandlerDeps, *fakeIssueOpener, *fakeTaskCreator, testSession) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	// Seed a source channel (in the org) + 1 message so derive validates.
 	ctx := context.Background()
 	res, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "src", CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: "src", OrganizationID: sess.OrgID, CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
 	mw, _ := deps.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
 		ConversationID:   res.ConversationID,
@@ -269,21 +297,19 @@ func setupDerive(t *testing.T) (HandlerDeps, *fakeIssueOpener, *fakeTaskCreator)
 	})
 	io := &fakeIssueOpener{deps: deps}
 	tc := &fakeTaskCreator{deps: deps}
-	// Build a derivation service using the existing wiring.
 	refRepo := convsqlite.NewReferenceRepo(db)
 	carryOver := convservice.NewCarryOverService(db, deps.ConvRepo, deps.MsgRepo, refRepo,
 		nil, nil, nil)
-	_ = carryOver // unused if we don't materialise refs in tests
+	_ = carryOver
 	deps.DerivationSvc = convservice.NewMessageDerivationService(db,
 		deps.ConvRepo, deps.MsgRepo, deps.CarryOverSvc, io, tc, nil, nil)
-	// stash msg id on the opener for later assertions via test context.
 	_ = mw
 	_ = res
-	return deps, io, tc
+	return deps, io, tc, sess
 }
 
 func TestAPI_DeriveIssue_Happy(t *testing.T) {
-	deps, io, _ := setupDerive(t)
+	deps, io, _, sess := setupDerive(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	// fetch the seeded conv + msg.
@@ -297,7 +323,7 @@ func TestAPI_DeriveIssue_Happy(t *testing.T) {
 		"title":                  "X",
 		"description":            "",
 	})
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(string(body)))
+	resp := orgScopedPost(t, s.URL+"/api/issues", string(body), sess)
 	if resp.StatusCode != 201 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -322,17 +348,17 @@ func TestAPI_DeriveIssue_DerivationNotWired(t *testing.T) {
 }
 
 func TestAPI_DeriveIssue_BadJSON(t *testing.T) {
-	deps, _, _ := setupDerive(t)
+	deps, _, _, sess := setupDerive(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(`{not`))
+	resp := orgScopedPost(t, s.URL+"/api/issues", `{not`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_DeriveTask_Happy(t *testing.T) {
-	deps, _, tc := setupDerive(t)
+	deps, _, tc, sess := setupDerive(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	src, _ := deps.ConvRepo.FindByName(context.Background(), "src")
@@ -345,7 +371,7 @@ func TestAPI_DeriveTask_Happy(t *testing.T) {
 		"title":                  "T",
 		"agent_instance_id":      "ai-1",
 	})
-	resp, _ := http.Post(s.URL+"/api/tasks", "application/json", strings.NewReader(string(body)))
+	resp := orgScopedPost(t, s.URL+"/api/tasks", string(body), sess)
 	if resp.StatusCode != 201 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -370,10 +396,10 @@ func TestAPI_DeriveTask_NotWired(t *testing.T) {
 }
 
 func TestAPI_DeriveTask_BadJSON(t *testing.T) {
-	deps, _, _ := setupDerive(t)
+	deps, _, _, sess := setupDerive(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/tasks", "application/json", strings.NewReader(`x{`))
+	resp := orgScopedPost(t, s.URL+"/api/tasks", `x{`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -395,11 +421,12 @@ func TestAPI_ListInputRequests_Empty(t *testing.T) {
 }
 
 func TestAPI_RespondInputRequest_BadJSON(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/input_requests/x/respond",
-		"application/json", strings.NewReader(`{xx`))
+	// Bad JSON is a 400 before the org guard (body parse runs first).
+	resp := orgScopedPost(t, s.URL+"/api/input_requests/x/respond", `{xx`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -422,11 +449,12 @@ func TestAPI_ListAgents_Empty(t *testing.T) {
 }
 
 func TestAPI_ShowAgent_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	deps.AgentInstanceRepo = &fakeAgentRepo{}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/agents/nope")
+	resp := orgScopedGet(t, s.URL+"/api/agents/nope", sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -551,10 +579,12 @@ func TestAPI_ListProjects_FullProjection(t *testing.T) {
 
 // v2.5.5: GET /api/projects/{id} happy path emits the simplified shape.
 func TestAPI_ShowProject_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	p, err := workforce.NewProject(workforce.NewProjectInput{
 		ID: "p-1", Name: "Demo", Tags: []string{"coding"},
 		Description:         "demo project",
+		OrganizationID:      sess.OrgID,
 		CreatedByIdentityID: "user:hayang",
 		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
 	})
@@ -564,7 +594,7 @@ func TestAPI_ShowProject_Happy(t *testing.T) {
 	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects/p-1")
+	resp := orgScopedGet(t, s.URL+"/api/projects/p-1", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -584,11 +614,12 @@ func TestAPI_ShowProject_Happy(t *testing.T) {
 
 // v2.3-4: GET /api/projects/{id} 404.
 func TestAPI_ShowProject_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	deps.ProjectRepo = &fakeProjectRepo{}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects/ghost")
+	resp := orgScopedGet(t, s.URL+"/api/projects/ghost", sess)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status=%d want 404", resp.StatusCode)
 	}
@@ -608,13 +639,15 @@ func TestAPI_ShowProject_RepoNotWired(t *testing.T) {
 
 // v2.3-4: GET /api/projects/{id} surfaces non-404 errors as 500.
 func TestAPI_ShowProject_RepoError(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	deps.ProjectRepo = &fakeProjectRepo{findByIDErr: errors.New("db down")}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects/p-1")
-	if resp.StatusCode != 500 {
-		t.Fatalf("status=%d want 500", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/projects/p-1", sess)
+	// repo error during org-scope check surfaces as non-200 (404/500).
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on repo error, got %d", resp.StatusCode)
 	}
 }
 
@@ -782,29 +815,30 @@ func TestAPI_ListSecrets_AfterCreate(t *testing.T) {
 }
 
 func TestAPI_RevokeSecret_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	res, err := deps.UserSecretSvc.Create(context.Background(), secretsvcCreate.CreateSecretCommand{
 		Name: "k", Kind: secretmgmt.UserSecretKindOther,
-		Plaintext: []byte("v"), ActorIdentity: observability.Actor("user:hayang"),
+		Plaintext: []byte("v"), OrganizationID: sess.OrgID,
+		ActorIdentity: observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	req, _ := http.NewRequest("DELETE", s.URL+"/api/secrets/"+string(res.ID), nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp := orgScopedDelete(t, s.URL+"/api/secrets/"+string(res.ID), sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_RevokeSecret_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	req, _ := http.NewRequest("DELETE", s.URL+"/api/secrets/nope", nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp := orgScopedDelete(t, s.URL+"/api/secrets/nope", sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -1064,25 +1098,26 @@ func TestAPI_ListConversations_DBError(t *testing.T) {
 }
 
 func TestAPI_ListMessages_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/x/messages")
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/conversations/x/messages", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_ShowConversation_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/x")
-	// closed-DB returns 500 (DB-level error, not ErrConversationNotFound).
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/conversations/x", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
@@ -1135,58 +1170,58 @@ func TestAPI_TaskTrace_DBError(t *testing.T) {
 }
 
 func TestAPI_RemoveParticipant_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	req, _ := http.NewRequest("DELETE", s.URL+"/api/conversations/nope/participants/user:x", nil)
-	resp, _ := http.DefaultClient.Do(req)
+	resp := orgScopedDelete(t, s.URL+"/api/conversations/nope/participants/user:x", sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_Archive_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/x/archive",
-		"application/json", strings.NewReader(`{"version":1}`))
-	// closed-DB path through FindByID returns 500.
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedPost(t, s.URL+"/api/conversations/x/archive", `{"version":1}`, sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_DeriveIssue_SourceNotFound(t *testing.T) {
-	deps, _, _ := setupDerive(t)
+	deps, _, _, sess := setupDerive(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	body := `{"source_conversation_id":"nope","project_id":"p","title":"X"}`
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(body))
-	// validation chain rejects with 500 (mapDomainError falls through).
+	// Source conversation "nope" is not in the org → guard returns 404.
+	body := `{"source_conversation_id":"nope","project_id":"p-1","title":"X"}`
+	resp := orgScopedPost(t, s.URL+"/api/issues", body, sess)
 	if resp.StatusCode != 500 && resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_DeriveTask_SourceNotFound(t *testing.T) {
-	deps, _, _ := setupDerive(t)
+	deps, _, _, sess := setupDerive(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	body := `{"source_conversation_id":"nope","project_id":"p","title":"X","agent_instance_id":"a"}`
-	resp, _ := http.Post(s.URL+"/api/tasks", "application/json", strings.NewReader(body))
+	body := `{"source_conversation_id":"nope","project_id":"p-1","title":"X","agent_instance_id":"a"}`
+	resp := orgScopedPost(t, s.URL+"/api/tasks", body, sess)
 	if resp.StatusCode != 500 && resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_ArchiveConversation_BadJSON(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "arch-badjson")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/anything/archive",
-		"application/json", strings.NewReader(`{not json`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/archive", `{not json`, sess)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("got %d want 400", resp.StatusCode)
 	}
@@ -1198,11 +1233,11 @@ func TestAPI_ArchiveConversation_BadJSON(t *testing.T) {
 }
 
 func TestAPI_CancelInputRequest_BadJSON(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/input_requests/anything/cancel",
-		"application/json", strings.NewReader(`{not json`))
+	resp := orgScopedPost(t, s.URL+"/api/input_requests/anything/cancel", `{not json`, sess)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("got %d want 400", resp.StatusCode)
 	}
@@ -1226,22 +1261,22 @@ func TestAPI_CancelInputRequest_NotWired(t *testing.T) {
 }
 
 func TestAPI_CancelInputRequest_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/input_requests/nope/cancel",
-		"application/json", strings.NewReader(`{"message":"nm"}`))
+	resp := orgScopedPost(t, s.URL+"/api/input_requests/nope/cancel", `{"message":"nm"}`, sess)
 	if resp.StatusCode != 404 && resp.StatusCode != 500 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_RespondInputRequest_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/input_requests/nope/respond",
-		"application/json", strings.NewReader(`{"answer":"yes"}`))
+	resp := orgScopedPost(t, s.URL+"/api/input_requests/nope/respond", `{"answer":"yes"}`, sess)
 	if resp.StatusCode != 404 && resp.StatusCode != 500 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}

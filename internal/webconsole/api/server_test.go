@@ -89,6 +89,7 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		QuerySvc:           querySvc,
 		FleetSvc:           fleetSvc,
 		IRRepo:             irRepo,
+		ExecRepo:           execRepo,
 		IRSvc:              irSvc,
 		UserSecretRepo:     userSecretRepo,
 		UserSecretSvc:      userSecretSvc,
@@ -116,6 +117,20 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
 	deps.ProjectRepo = wfsqlite.NewProjectRepo(db)
 	return deps, db
+}
+
+// seedOrgChannel creates a channel conversation in orgID and returns its id.
+// Used by conversation detail/message/participant/read-state tests now that
+// those endpoints enforce requireConversationInOrg.
+func seedOrgChannel(t *testing.T, deps HandlerDeps, orgID, name string) string {
+	t.Helper()
+	res, err := deps.ChannelMgmtSvc.CreateChannel(context.Background(), convservice.CreateChannelCommand{
+		Name: name, OrganizationID: orgID, CreatedBy: "user:hayang", Actor: "user:hayang",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(res.ConversationID)
 }
 
 // seedOrgProject creates a project belonging to orgID with the given id so
@@ -245,6 +260,26 @@ func orgScopedPatch(t *testing.T, url, body string, sess testSession) *http.Resp
 	return resp
 }
 
+// orgScopedDelete executes a DELETE with the session cookie + ?org_slug attached.
+func orgScopedDelete(t *testing.T, url string, sess testSession) *http.Response {
+	t.Helper()
+	if !strings.Contains(url, "?") {
+		url += "?org_slug=" + sess.OrgSlug
+	} else {
+		url += "&org_slug=" + sess.OrgSlug
+	}
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
 // orgScopedGet executes a GET against url with the session cookie attached
 // and ?org_slug=<sess.OrgSlug> appended (merging with existing query params).
 // Used by list endpoint tests now that requireOrgMember enforces strict
@@ -328,20 +363,13 @@ func TestAPI_ConversationsRoundTrip(t *testing.T) {
 }
 
 func TestAPI_SendMessage(t *testing.T) {
-	deps, _ := setupAPI(t)
-	ctx := context.Background()
-	res, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "alpha", CreatedBy: "user:hayang", Actor: "user:hayang",
-	})
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "alpha")
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	body := `{"content":"hello world"}`
-	resp, err := http.Post(s.URL+"/api/conversations/"+string(res.ConversationID)+"/messages",
-		"application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/messages", `{"content":"hello world"}`, sess)
 	if resp.StatusCode != 201 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -351,7 +379,7 @@ func TestAPI_SendMessage(t *testing.T) {
 		t.Fatalf("missing message_id: %v", out)
 	}
 	// List messages.
-	resp, _ = http.Get(s.URL + "/api/conversations/" + string(res.ConversationID) + "/messages")
+	resp = orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages", sess)
 	var msgs []map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&msgs)
 	if len(msgs) != 1 || msgs[0]["content"] != "hello world" {
@@ -360,58 +388,51 @@ func TestAPI_SendMessage(t *testing.T) {
 }
 
 func TestAPI_ConversationNotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/nope")
+	resp := orgScopedGet(t, s.URL+"/api/conversations/nope", sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_InviteParticipant(t *testing.T) {
-	deps, _ := setupAPI(t)
-	ctx := context.Background()
-	res, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "beta", CreatedBy: "user:hayang", Actor: "user:hayang",
-	})
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "beta")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	body := `{"identity_id":"agent:fixer","role":"member"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(res.ConversationID)+"/participants",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/participants", `{"identity_id":"agent:fixer","role":"member"}`, sess)
 	if resp.StatusCode != 201 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_InvitePartOnDM_Rejected(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
 	openRes, _ := deps.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
-		Kind: conversation.ConversationKindDM, CreatedBy: "user:hayang",
+		Kind: conversation.ConversationKindDM, OrganizationID: sess.OrgID, CreatedBy: "user:hayang",
 		Actor: observability.Actor("user:hayang"),
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
-	body := `{"identity_id":"agent:x"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(openRes.ConversationID)+"/participants",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+string(openRes.ConversationID)+"/participants", `{"identity_id":"agent:x"}`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_ArchiveConversation(t *testing.T) {
-	deps, _ := setupAPI(t)
-	ctx := context.Background()
-	res, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "gamma", CreatedBy: "user:hayang", Actor: "user:hayang",
-	})
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "gamma")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(res.ConversationID)+"/archive",
-		"application/json", strings.NewReader(`{}`))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/archive", `{}`, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}

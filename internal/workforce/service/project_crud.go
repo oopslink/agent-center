@@ -66,11 +66,12 @@ func (s *ProjectCRUDService) WithIDGenerator(gen func() (workforce.ProjectID, er
 // proposal to a pre-named project id) and for tests with stable
 // fixture ids. Empty ID → generate via NewProjectID.
 type AddCommand struct {
-	ID          workforce.ProjectID
-	Name        string
-	Description string
-	Tags        []string
-	Actor       observability.Actor
+	ID             workforce.ProjectID
+	Name           string
+	Description    string
+	Tags           []string
+	OrganizationID string // v2.6: scopes the project to an org
+	Actor          observability.Actor
 }
 
 // AddResult returns the created project + emit event id.
@@ -97,6 +98,7 @@ func (s *ProjectCRUDService) Add(ctx context.Context, cmd AddCommand) (AddResult
 		Name:                cmd.Name,
 		Description:         cmd.Description,
 		Tags:                cmd.Tags,
+		OrganizationID:      cmd.OrganizationID,
 		CreatedByIdentityID: string(cmd.Actor),
 		CreatedAt:           s.clock.Now(),
 	})

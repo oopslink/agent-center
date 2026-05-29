@@ -53,6 +53,7 @@ type OpenCommand struct {
 	Kind                 conversation.ConversationKind
 	Name                 string
 	Description          string
+	OrganizationID       string // v2.6: scopes the conversation to an org
 	ParentConversationID conversation.ConversationID
 	Participants         []conversation.ParticipantElement
 	CreatedBy            conversation.IdentityRef
@@ -84,6 +85,7 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 		Kind:                 cmd.Kind,
 		Name:                 cmd.Name,
 		Description:          cmd.Description,
+		OrganizationID:       cmd.OrganizationID,
 		ParentConversationID: cmd.ParentConversationID,
 		Participants:         cmd.Participants,
 		CreatedBy:            cmd.CreatedBy,

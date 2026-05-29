@@ -12,13 +12,13 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 )
 
-// seedConvAndMessages opens a channel and posts n messages, returning
-// the conv id + message ids.
-func seedConvAndMessages(t *testing.T, deps HandlerDeps, name string, n int) (conversation.ConversationID, []conversation.MessageID) {
+// seedConvAndMessages opens a channel (in orgID) and posts n messages,
+// returning the conv id + message ids.
+func seedConvAndMessages(t *testing.T, deps HandlerDeps, orgID, name string, n int) (conversation.ConversationID, []conversation.MessageID) {
 	t.Helper()
 	ctx := context.Background()
 	res, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: name, CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: name, OrganizationID: orgID, CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -42,8 +42,9 @@ func seedConvAndMessages(t *testing.T, deps HandlerDeps, name string, n int) (co
 }
 
 func TestAPI_Unread_HappyPath(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convID, ids := seedConvAndMessages(t, deps, "unread-happy", 3)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	convID, ids := seedConvAndMessages(t, deps, sess.OrgID, "unread-happy", 3)
 	// Mark seen up to msg 0.
 	if _, err := deps.ReadStateSvc.MarkSeen(context.Background(), convservice.MarkSeenCommand{
 		UserID: "user:hayang", ConversationID: convID,
@@ -53,7 +54,7 @@ func TestAPI_Unread_HappyPath(t *testing.T) {
 	}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/" + string(convID) + "/unread")
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+string(convID)+"/unread", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -68,11 +69,12 @@ func TestAPI_Unread_HappyPath(t *testing.T) {
 }
 
 func TestAPI_Unread_AbsentRow(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convID, _ := seedConvAndMessages(t, deps, "unread-empty", 4)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	convID, _ := seedConvAndMessages(t, deps, sess.OrgID, "unread-empty", 4)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/" + string(convID) + "/unread")
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+string(convID)+"/unread", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -87,10 +89,11 @@ func TestAPI_Unread_AbsentRow(t *testing.T) {
 }
 
 func TestAPI_Unread_NotFoundConv(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/nope/unread")
+	resp := orgScopedGet(t, s.URL + "/api/conversations/nope/unread", sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -98,7 +101,7 @@ func TestAPI_Unread_NotFoundConv(t *testing.T) {
 
 func TestAPI_Unread_InvalidUserID(t *testing.T) {
 	deps, _ := setupAPI(t)
-	convID, _ := seedConvAndMessages(t, deps, "unread-bad", 1)
+	convID, _ := seedConvAndMessages(t, deps, "", "unread-bad", 1)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	resp, _ := http.Get(s.URL + "/api/conversations/" + string(convID) + "/unread?user_id=no-prefix")
@@ -119,11 +122,12 @@ func TestAPI_Unread_RepoUnwired_501(t *testing.T) {
 }
 
 func TestAPI_Unread_QueryStringUserID(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convID, _ := seedConvAndMessages(t, deps, "unread-qs", 2)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	convID, _ := seedConvAndMessages(t, deps, sess.OrgID, "unread-qs", 2)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/" + string(convID) + "/unread?user_id=user:other")
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+string(convID)+"/unread?user_id=user:other", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -135,13 +139,13 @@ func TestAPI_Unread_QueryStringUserID(t *testing.T) {
 }
 
 func TestAPI_Seen_HappyPath(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convID, ids := seedConvAndMessages(t, deps, "seen-happy", 2)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	convID, ids := seedConvAndMessages(t, deps, sess.OrgID, "seen-happy", 2)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"last_seen_message_id":"` + string(ids[1]) + `"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(convID)+"/seen",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+string(convID)+"/seen", body, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -159,8 +163,9 @@ func TestAPI_Seen_HappyPath(t *testing.T) {
 }
 
 func TestAPI_Seen_NoOpBackward(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convID, ids := seedConvAndMessages(t, deps, "seen-noop", 2)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	convID, ids := seedConvAndMessages(t, deps, sess.OrgID, "seen-noop", 2)
 	// Pre-seed cursor at msg[1].
 	if _, err := deps.ReadStateSvc.MarkSeen(context.Background(), convservice.MarkSeenCommand{
 		UserID: "user:hayang", ConversationID: convID,
@@ -171,8 +176,7 @@ func TestAPI_Seen_NoOpBackward(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"last_seen_message_id":"` + string(ids[0]) + `"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(convID)+"/seen",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+string(convID)+"/seen", body, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -210,7 +214,7 @@ func TestAPI_Seen_MissingMessageID(t *testing.T) {
 
 func TestAPI_Seen_InvalidUserID(t *testing.T) {
 	deps, _ := setupAPI(t)
-	convID, ids := seedConvAndMessages(t, deps, "seen-baduser", 1)
+	convID, ids := seedConvAndMessages(t, deps, "", "seen-baduser", 1)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"user_id":"no-prefix","last_seen_message_id":"` + string(ids[0]) + `"}`
@@ -222,17 +226,16 @@ func TestAPI_Seen_InvalidUserID(t *testing.T) {
 }
 
 func TestAPI_Seen_MessageInWrongConv(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convA, idsA := seedConvAndMessages(t, deps, "seen-wronga", 1)
-	_, _ = seedConvAndMessages(t, deps, "seen-wrongb", 1)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	_, idsA := seedConvAndMessages(t, deps, sess.OrgID, "seen-wronga", 1)
+	convB, _ := seedConvAndMessages(t, deps, sess.OrgID, "seen-wrongb", 1)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	// Use msg from convA but URL points at convB-ish (here we use a
-	// different conv).
-	convsBPath := strings.Replace(string(convA), string(convA), "differently-named-conv", 1)
+	// Post convA's message id against convB (both in the org) → the message
+	// is not in convB → 422 message_not_in_conversation.
 	body := `{"last_seen_message_id":"` + string(idsA[0]) + `"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+convsBPath+"/seen",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+string(convB)+"/seen", body, sess)
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("got %d want 422", resp.StatusCode)
 	}
@@ -244,13 +247,13 @@ func TestAPI_Seen_MessageInWrongConv(t *testing.T) {
 }
 
 func TestAPI_Seen_MessageNotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convID, _ := seedConvAndMessages(t, deps, "seen-msg404", 0)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	convID, _ := seedConvAndMessages(t, deps, sess.OrgID, "seen-msg404", 0)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"last_seen_message_id":"missing-msg"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(convID)+"/seen",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+string(convID)+"/seen", body, sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -269,13 +272,13 @@ func TestAPI_Seen_RepoUnwired_501(t *testing.T) {
 }
 
 func TestAPI_Seen_DefaultsUserIDToActor(t *testing.T) {
-	deps, _ := setupAPI(t)
-	convID, ids := seedConvAndMessages(t, deps, "seen-default-user", 1)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	convID, ids := seedConvAndMessages(t, deps, sess.OrgID, "seen-default-user", 1)
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"last_seen_message_id":"` + string(ids[0]) + `"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(convID)+"/seen",
-		"application/json", strings.NewReader(body))
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+string(convID)+"/seen", body, sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
