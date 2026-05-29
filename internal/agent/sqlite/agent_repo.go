@@ -26,6 +26,10 @@ func nullString(s string) any {
 	return s
 }
 
+func isUnique(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique")
+}
+
 func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	env, skills, err := marshalProfileJSON(a)

@@ -83,10 +83,10 @@ func MigrateV1ToV2Command() *Command {
 // convergence, Message context_refs + attachments, files seam
 // blob_metadata/file_references, outbox_events/outbox_applied); v2.7-B1
 // (task #96) added 0041 (ProjectManager pm_* tables); v2.7-C1 (task #99)
-// added 0042 (agents). Update this constant when any future migration lands so
+// added 0042 (agents); v2.7-C2 (task #100) added 0043 (agent_work_items, agent_activity_events). Update this constant when any future migration lands so
 // `migrate v1-to-v2` always carries the install to the latest schema instead
 // of leaving it mid-version.
-const targetSchemaVersion = 42
+const targetSchemaVersion = 43
 
 func runMigrateV1ToV2(
 	ctx context.Context,
