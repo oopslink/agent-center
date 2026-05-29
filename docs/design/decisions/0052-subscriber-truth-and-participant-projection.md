@@ -22,11 +22,12 @@
 - 重派：旧 assignee 从有效订阅者移除，除非他同时是 creator 或手动订阅者。
 - creator/当前 assignee 在其角色未变时不可被移除订阅；creator mute 留 roadmap。
 
-### 2. ConversationParticipant = 投影
+### 2. ConversationParticipant = 投影（仅 issue/task）
 
-- 对 task/issue 会话，ConversationParticipant 是从订阅真值**同步出来的消息层投影**，不是订阅真值本身（plan § 3.4）。
-- project_channel 会话的参与候选 = ProjectMember（[ADR-0046](0046-projectmanager-bc.md)）。
-- dm 会话参与者按现状。
+- **仅对 task/issue 会话**，ConversationParticipant 是从订阅真值**同步出来的消息层投影**，不是订阅真值本身（plan § 3.4）。
+- **channel** 会话（org 级通用群聊，plan §10 OQ10）成员是**显式**的，由 Conversation BC 直接维护，**不从 ProjectManager 投影**。
+- **dm** 会话参与者按现状，自管。
+- 即：投影方向 ProjectManager→Conversation **只作用于 issue/task**；channel/dm 不在投影范围内。
 
 ### 3. 同步经 outbox（plan § 10 OQ1）
 
@@ -50,7 +51,7 @@
 
 - participant 与订阅真值最终一致，存在极短不一致窗口。
 - 投影器必须幂等（按 event_id 去重），需测试覆盖重放/重复投递。
-- project_channel 的参与候选随 ProjectMember 变动，需同样经 outbox 同步。
+- channel（org 级）成员显式、自管，不在投影范围；投影只覆盖 issue/task，边界更清。
 
 ## Alternatives Considered
 

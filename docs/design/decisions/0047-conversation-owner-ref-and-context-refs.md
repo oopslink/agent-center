@@ -18,25 +18,40 @@ v2 GA 后 Conversation 作为独立 BC 承载消息时间线（[ADR-0032](0032-c
 2. **Task 重派的会话连续性**：一个 Task 跨多次 Agent 指派只保留**一个稳定会话**（plan § 2.4），同一会话里要能区分不同 WorkItem 的消息段。
 3. **附件模型割裂**：现状区分文件/图片，v2.7 要统一为 URI + 元数据（详 [ADR-0048](0048-file-uri-and-blobstore.md)）。
 
+> 修订 2026-05-29（plan §10 OQ10）：`channel` 是 **org 级通用群聊**，不绑 project，无 `project_channel` kind。下文相应更新。
+
 ## Decision
 
 ### 1. Conversation.kind 固定四类
 
 ```text
-project_channel | issue | task | dm
+channel | issue | task | dm
 ```
 
-### 2. Conversation.owner_ref 用 URI 指回业务对象
+- **channel**：通用群聊，归属且仅归属一个 **Organization**（无跨 org），**不**绑 Project。成员**显式**（creator + 被加入者，加入才收），channel 参与者由 Conversation BC 直接维护、**不**从 ProjectManager 投影。channel 可**可选**关联一个 Project（见 §3 的 `project_ref` 软标签，非归属）。
+- **issue / task**：会话归属各自 Issue/Task（它们必属于一个 Project，plan §2.1）。
+- **dm**：1:1。
+
+### 2. owner_ref + 可选 project_ref
+
+owner_ref 指回**拥有**该会话的实体：
 
 ```text
-pm://projects/{project_id}
-pm://issues/{issue_id}
-pm://tasks/{task_id}
+id://organizations/{org_id}      # channel（Identity BC 拥有 Organization）
+pm://issues/{issue_id}           # issue
+pm://tasks/{task_id}             # task
+（dm 无 owner_ref）
 ```
 
-- `dm` 无 owner_ref（或指向参与者，按现状）。
-- `pm://` scheme 表示归属 ProjectManager BC 的业务对象；Conversation **只持有引用，不反向推断业务状态**（plan § 2.8）。
-- owner_ref 是弱关联 ID 引用（跨 BC，软约束），与 [ADR-0040](0040-identity-bc-carve-out.md) 既有跨 BC 引用风格一致。
+channel 另有可选的**软关联**（非归属）：
+
+```text
+project_ref: pm://projects/{project_id}   # nullable，仅分组/导航用，v1 无约束
+```
+
+- `pm://` 指向 ProjectManager BC 对象，`id://` 指向 Identity BC 的 Organization；Conversation **只持有引用，不反向推断业务状态**（plan § 2.8）。
+- owner_ref / project_ref 均为弱关联 ID 引用（跨 BC，软约束），与 [ADR-0040](0040-identity-bc-carve-out.md) 既有跨 BC 引用风格一致。
+- `CreateProject` 不自动建 channel。
 
 ### 3. Message.context_refs 携带来源引用
 
