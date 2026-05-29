@@ -324,6 +324,20 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
+	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
+	// AppServices (writes use actor=agent; the AppService's requireProjectMember
+	// is the write-gate) + per-agent-scoped reads (get_task own-work, get_issue
+	// project-membership domain).
+	s.mux.HandleFunc("POST /admin/agent-tools/create_task", s.createTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/assign_task", s.assignTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/reassign_task", s.assignTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/subscribe", s.subscribeHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/unsubscribe", s.unsubscribeHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/verify_task", s.verifyTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_task", s.getTaskHandler)
+	s.mux.HandleFunc("GET /admin/agent-tools/get_task", s.getTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)
+	s.mux.HandleFunc("GET /admin/agent-tools/get_issue", s.getIssueHandler)
 
 	// --- conversation ----------------------------------------------------
 	s.mux.HandleFunc("GET /admin/conversation/conv/find", s.convFindHandler)
