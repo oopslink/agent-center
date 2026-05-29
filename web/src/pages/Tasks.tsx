@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useTasksList } from '@/api/tasks';
 import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
@@ -144,7 +145,7 @@ export default function Tasks(): React.ReactElement {
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {data.map((tk) => (
             <li key={tk.id} data-testid="task-row" data-task-id={tk.id}>
-              <Link
+              <OrgLink
                 to={`/tasks/${encodeURIComponent(tk.id)}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
@@ -168,17 +169,17 @@ export default function Tasks(): React.ReactElement {
                 <span className="flex items-center gap-3 text-xs text-text-muted">
                   <span>{formatRelative(tk.created_at)}</span>
                   {tk.current_execution_id && (
-                    <Link
+                    <OrgLink
                       to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
                       className="text-accent hover:underline"
                       onClick={(e) => e.stopPropagation()}
                       data-testid="task-row-trace-link"
                     >
                       view trace →
-                    </Link>
+                    </OrgLink>
                   )}
                 </span>
-              </Link>
+              </OrgLink>
             </li>
           ))}
         </ul>

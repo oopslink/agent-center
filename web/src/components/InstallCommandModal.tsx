@@ -9,6 +9,7 @@
 // Both endpoints share the response shape (B2/B3 keep this in sync),
 // so the renderer below is the same once we have the payload.
 import React, { useEffect, useState } from 'react';
+import { withOrgSlug } from '@/api/client';
 
 interface InstallCommandPayload {
   id: string;
@@ -44,7 +45,7 @@ async function fetchInstall(workerID: string, mode: Mode): Promise<LoadState> {
   }`;
   const init: RequestInit = mode === 'remint' ? { method: 'POST' } : { method: 'GET' };
   try {
-    const resp = await fetch(url, init);
+    const resp = await fetch(withOrgSlug(url), init);
     if (resp.ok) {
       const payload = (await resp.json()) as InstallCommandPayload;
       return { kind: 'ready', payload };

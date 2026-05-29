@@ -1,5 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
+
 import { useFleet } from '@/api/fleet';
 import { useInputRequests } from '@/api/inputRequests';
 import { useConversations } from '@/api/conversations';
@@ -62,13 +63,13 @@ export default function Home(): React.ReactElement {
             AgentCenter is running, but no workers are connected yet. Workers
             are where agents (claude-code, codex, opencode, …) actually run.
           </p>
-          <Link
+          <OrgLink
             to="/fleet"
             className="mt-3 inline-block rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
             data-testid="home-get-started-cta"
           >
             Add a worker →
-          </Link>
+          </OrgLink>
         </div>
       )}
 
@@ -109,12 +110,12 @@ export default function Home(): React.ReactElement {
         >
           {runningExecs.slice(0, 5).map((e) => (
             <li key={e.execution_id} className="flex items-center justify-between gap-3 py-1.5">
-              <Link
+              <OrgLink
                 to={`/tasks/${encodeURIComponent(e.task_id)}/trace`}
                 className="truncate font-mono text-xs text-accent hover:underline"
               >
                 {e.execution_id.slice(0, 12)}
-              </Link>
+              </OrgLink>
               <span className="text-xs text-text-secondary">{e.worker_id}</span>
               <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
                 {e.status}
@@ -134,9 +135,9 @@ export default function Home(): React.ReactElement {
             const href = c.kind === 'dm' ? `/dms/${encodeURIComponent(c.id)}` : `/channels/${encodeURIComponent(c.name)}`;
             return (
               <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
-                <Link to={href} className="truncate text-sm text-text-primary hover:text-accent">
+                <OrgLink to={href} className="truncate text-sm text-text-primary hover:text-accent">
                   <span className="text-text-muted">{c.kind === 'dm' ? '◐' : '#'}</span> {c.name || c.id}
-                </Link>
+                </OrgLink>
                 <span className="text-xs text-text-muted tabular-nums">
                   {c.opened_at ? formatRelative(c.opened_at) : ''}
                 </span>
@@ -176,7 +177,7 @@ function StatCard({
   loading: boolean;
 }): React.ReactElement {
   return (
-    <Link
+    <OrgLink
       to={href}
       className="block rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1 motion-safe:transition-shadow hover:shadow-2"
     >
@@ -191,7 +192,7 @@ function StatCard({
         )}
         {subValue && <span className="text-xs text-text-muted">{subValue}</span>}
       </div>
-    </Link>
+    </OrgLink>
   );
 }
 
@@ -214,9 +215,9 @@ function PanelCard({
     <div className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1" {...rest}>
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-heading text-sm font-semibold text-text-primary">{title}</h2>
-        <Link to={to} className="text-xs text-accent hover:underline">
+        <OrgLink to={to} className="text-xs text-accent hover:underline">
           View all →
-        </Link>
+        </OrgLink>
       </div>
       {loading ? (
         <div className="space-y-2 py-2">

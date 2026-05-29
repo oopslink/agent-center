@@ -411,6 +411,29 @@ func (s *Server) requireIssueInOrg(w http.ResponseWriter, r *http.Request, d Han
 	return orgID, true
 }
 
+// requireWorkerInOrg guards worker rename / show-install / re-mint / remove and
+// the project-mapping worker_id check. Workers carry organization_id directly.
+func (s *Server) requireWorkerInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, workerID string) (orgID string, ok bool) {
+	_, _, orgID, member := requireOrgMember(w, r, d)
+	if !member {
+		return "", false
+	}
+	if d.WorkerRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "worker repo not wired")
+		return "", false
+	}
+	wk, err := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(workerID))
+	if err != nil || wk == nil {
+		writeError(w, http.StatusNotFound, "not_found", "worker not found")
+		return "", false
+	}
+	if wk.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "worker not found")
+		return "", false
+	}
+	return orgID, true
+}
+
 // requireInputRequestInOrg guards input-request mutation endpoints. Resolves
 // IR → execution → task → project → org.
 func (s *Server) requireInputRequestInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, irID string) (orgID string, ok bool) {
@@ -2444,6 +2467,17 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 			"admin TCP listener not enabled — set server.admin_tcp_listen in config")
 		return
 	}
+	// v2.6 X1 §1: Add Worker is org-scoped; require membership + stamp the org.
+	mintOrgID := ""
+	if d.AuthSvc != nil {
+		_, _, resolved, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		mintOrgID = resolved
+	} else {
+		mintOrgID = resolveOrgIDFromRequest(r, d)
+	}
 	var req mintEnrollReq
 	// Body is optional — older clients don't send {name}. decodeJSON
 	// tolerates empty body, leaving req.Name = "".
@@ -2491,9 +2525,10 @@ func (s *Server) mintEnrollHandler(w http.ResponseWriter, r *http.Request) {
 	// so the user doesn't end up with an unbound install command.
 	if d.WorkerAddSvc != nil {
 		if _, addErr := d.WorkerAddSvc.AddWorker(r.Context(), wfservice.AddWorkerCommand{
-			WorkerID:      workforce.WorkerID(workerID),
-			Name:          workerName,
-			ActorIdentity: d.Actor,
+			WorkerID:       workforce.WorkerID(workerID),
+			Name:           workerName,
+			OrganizationID: mintOrgID,
+			ActorIdentity:  d.Actor,
 		}); addErr != nil {
 			_ = d.AdminTokenSvc.Revoke(r.Context(), admintokensvc.RevokeCommand{
 				ID:     res.ID,
@@ -2583,6 +2618,10 @@ func (s *Server) workerRenameHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_name", "name must be non-empty")
 		return
 	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
+		return
+	}
 	if err := d.WorkerRenameSvc.Rename(r.Context(), wfservice.RenameCommand{
 		WorkerID: workforce.WorkerID(id),
 		Name:     req.Name,
@@ -2637,6 +2676,10 @@ func (s *Server) showInstallCommandHandler(w http.ResponseWriter, r *http.Reques
 	id := r.PathValue("id")
 	if strings.TrimSpace(id) == "" {
 		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
 		return
 	}
 	res, err := d.AdminTokenSvc.ShowInstallToken(r.Context(), id)
@@ -2726,6 +2769,10 @@ func (s *Server) reMintInstallCommandHandler(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusNotImplemented, "worker_repo_not_wired", "")
 		return
 	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
+		return
+	}
 	worker, werr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(id))
 	if werr != nil {
 		if errors.Is(werr, workforce.ErrWorkerNotFound) {
@@ -2813,6 +2860,10 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if strings.TrimSpace(id) == "" {
 		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	// v2.6 X1 §2: worker must belong to the caller's org.
+	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
 		return
 	}
 	// Revoke first. Non-fatal: if the admin token side errors we
@@ -3055,7 +3106,8 @@ func (s *Server) createProjectMappingHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	id := r.PathValue("id")
-	if _, ok := s.requireProjectInOrg(w, r, d, id); !ok {
+	orgID, ok := s.requireProjectInOrg(w, r, d, id)
+	if !ok {
 		return
 	}
 	var req createMappingReq
@@ -3067,6 +3119,15 @@ func (s *Server) createProjectMappingHandler(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "missing_field",
 			"worker_id and path are required")
 		return
+	}
+	// v2.6 X1 §4: the worker being mapped must belong to the same org as the
+	// project (prevents mapping org A's project to org B's worker).
+	if d.WorkerRepo != nil {
+		wk, werr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(req.WorkerID))
+		if werr != nil || wk == nil || wk.OrganizationID() != orgID {
+			writeError(w, http.StatusForbidden, "forbidden", "worker is not in this organization")
+			return
+		}
 	}
 	mid := workforce.MappingID("M-" + generateShortID())
 	m, err := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{

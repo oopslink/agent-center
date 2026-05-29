@@ -23,6 +23,29 @@ export function useOptionalOrgContext(): OrgContextValue | null {
   return useContext(OrgContext);
 }
 
+// orgPath prefixes an app-absolute path (e.g. "/tasks/x") with the current
+// org base so navigation stays under /organizations/{slug}. Paths that are
+// already org-scoped, external, or non-absolute are returned unchanged.
+function orgPath(to: string, slug: string | undefined): string {
+  if (!slug) return to;
+  if (!to.startsWith('/')) return to; // relative / hash — leave as-is
+  if (to.startsWith('/organizations/')) return to;
+  if (to === '/') return to;
+  return `/organizations/${slug}${to}`;
+}
+
+// OrgLink is a drop-in for react-router's Link that rewrites app-absolute
+// resource paths to the current organization's scope (v2.6 X1 §5). Use it for
+// in-app navigation between org-scoped resources so links never escape
+// /organizations/{slug} and trigger a legacy redirect.
+export function OrgLink(
+  props: React.ComponentProps<typeof Link>,
+): React.ReactElement {
+  const ctx = useContext(OrgContext);
+  const to = typeof props.to === 'string' ? orgPath(props.to, ctx?.slug) : props.to;
+  return <Link {...props} to={to} />;
+}
+
 // OrgErrorScreen renders an explicit not-found / forbidden message instead of
 // silently redirecting. v2.6 X1 §2.7/§2.10/§7.2: a deleted slug must read as
 // 404 and a not-member slug as 403 so users can tell "no access" from "gone".

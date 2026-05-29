@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	atsqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
@@ -51,7 +53,7 @@ func newRealAdminTokenSvc(t *testing.T) *admintokensvc.Service {
 // newPreCreateFixture wires AdminTokenSvc + WorkerEnrollService on a
 // shared sqlite so v2.5-B1 tests can mint-enroll and then assert the
 // Worker row landed.
-func newPreCreateFixture(t *testing.T) (*admintokensvc.Service, *wfservice.WorkerEnrollService, *wfsqlite.WorkerRepo) {
+func newPreCreateFixture(t *testing.T) (*admintokensvc.Service, *wfservice.WorkerEnrollService, *wfsqlite.WorkerRepo, *sql.DB) {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := persistence.Open(dir + "/preCreate.db")
@@ -72,7 +74,82 @@ func newPreCreateFixture(t *testing.T) (*admintokensvc.Service, *wfservice.Worke
 	tokenSvc := admintokensvc.New(atsqlite.New(db), gen, fc)
 	workerRepo := wfsqlite.NewWorkerRepo(db)
 	enrollSvc := wfservice.NewWorkerEnrollService(db, workerRepo, sink, fc)
-	return tokenSvc, enrollSvc, workerRepo
+	return tokenSvc, enrollSvc, workerRepo, db
+}
+
+// wireWorkerAuth augments worker-fixture deps with Identity (AuthSvc/OrgRepo/
+// MemberRepo) using the fixed test signing key, and returns a session whose
+// org owns subsequently-minted workers. Worker show/remint/remove now require
+// requireWorkerInOrg, so these tests must authenticate + scope by org.
+func wireWorkerAuth(t *testing.T, db *sql.DB, deps *HandlerDeps) testSession {
+	t.Helper()
+	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
+	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
+	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
+	return setupTestSession(t, db, *deps)
+}
+
+// mintWorkerInOrg creates a worker row owned by the session's org via the
+// wired WorkerAddSvc, so requireWorkerInOrg passes for that worker id.
+func mintWorkerInOrg(t *testing.T, deps *HandlerDeps, sess testSession, workerID string) {
+	t.Helper()
+	if _, err := deps.WorkerAddSvc.AddWorker(context.Background(), wfservice.AddWorkerCommand{
+		WorkerID:       workforce.WorkerID(workerID),
+		Name:           workerID,
+		OrganizationID: sess.OrgID,
+		ActorIdentity:  observability.Actor("user:hayang"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestWorker_OrgScope_CrossOrgBlocked proves v2.6 X1 §2: worker
+// rename/show-install/remove for a worker in another org returns 404, and
+// Add Worker stamps the new worker with the caller's org.
+func TestWorker_OrgScope_CrossOrgBlocked(t *testing.T) {
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
+	withMasterKey(t, tokenSvc)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRemoveSvc:     enrollSvc,
+		WorkerRenameSvc:     enrollSvc,
+		WorkerRepo:          workerRepo,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	sess := wireWorkerAuth(t, db, &deps)
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	// A worker that belongs to a DIFFERENT org.
+	if _, err := enrollSvc.AddWorker(context.Background(), wfservice.AddWorkerCommand{
+		WorkerID: "worker-other", Name: "other", OrganizationID: "organization-other",
+		ActorIdentity: observability.Actor("user:other"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// rename → 404
+	resp := orgScopedPatch(t, srv.URL+"/api/workers/worker-other/name", `{"name":"x"}`, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org rename: got %d want 404", resp.StatusCode)
+	}
+	// remove → 404
+	resp = orgScopedDelete(t, srv.URL+"/api/workers/worker-other", sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org remove: got %d want 404", resp.StatusCode)
+	}
+	// Add Worker stamps the caller's org.
+	mintResp := orgScopedPost(t, srv.URL+"/api/admintoken/mint-enroll", `{"name":"mine"}`, sess)
+	var minted mintEnrollResp
+	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
+	wk, err := workerRepo.FindByID(context.Background(), workforce.WorkerID(minted.WorkerID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wk.OrganizationID() != sess.OrgID {
+		t.Fatalf("new worker org=%q want %q", wk.OrganizationID(), sess.OrgID)
+	}
 }
 
 // v2.5-B1: mint-enroll pre-creates the Worker AR so Fleet sees the
@@ -80,7 +157,7 @@ func newPreCreateFixture(t *testing.T) (*admintokensvc.Service, *wfservice.Worke
 // (a) the response includes the generated worker_id, and (b) the
 // Worker row is queryable with status=offline.
 func TestMintEnroll_PreCreatesWorker(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, _ := newPreCreateFixture(t)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
 		AdminTokenSvc:       tokenSvc,
@@ -125,7 +202,7 @@ func TestMintEnroll_PreCreatesWorker(t *testing.T) {
 // collision), the just-minted token is revoked so the operator can
 // retry cleanly.
 func TestMintEnroll_RevokesTokenOnAddFailure(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, _ := newPreCreateFixture(t)
 	// Pre-create a Worker with a fixed id then stub generateWorkerID to
 	// always return that same id — simulates the collision branch.
 	// Instead of stubbing (no hook), we use a WorkerAddSvc wrapper
@@ -192,7 +269,7 @@ func withMasterKey(t *testing.T, svc *admintokensvc.Service) *admintokensvc.Serv
 }
 
 func TestShowInstallCommand_HappyPath(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	withMasterKey(t, tokenSvc)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
@@ -202,24 +279,18 @@ func TestShowInstallCommand_HappyPath(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	// Mint a token (also pre-creates the worker via WorkerAddSvc).
-	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json",
-		strings.NewReader(`{"name":"alice-box"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Mint a token (also pre-creates the worker via WorkerAddSvc, stamped with the org).
+	mintResp := orgScopedPost(t, srv.URL+"/api/admintoken/mint-enroll", `{"name":"alice-box"}`, sess)
 	defer mintResp.Body.Close()
 	var minted mintEnrollResp
 	if err := json.NewDecoder(mintResp.Body).Decode(&minted); err != nil {
 		t.Fatal(err)
 	}
 	// Now re-display via the show endpoint.
-	resp, err := http.Get(srv.URL + "/api/workers/" + minted.WorkerID + "/install-command")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, srv.URL+"/api/workers/"+minted.WorkerID+"/install-command", sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
@@ -250,7 +321,7 @@ func TestShowInstallCommand_HappyPath(t *testing.T) {
 // running v2.5+ without secret_management need to know why
 // install-command re-display is unavailable.
 func TestShowInstallCommand_NoMasterKey_503(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	// NB: no WithMasterKey call → ShowInstallToken returns the
 	// sentinel error and the handler maps to 503.
 	deps := HandlerDeps{
@@ -261,12 +332,13 @@ func TestShowInstallCommand_NoMasterKey_503(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
+	// Seed the worker in the org so it passes requireWorkerInOrg and reaches
+	// the no-master-key 503 path (rather than 404).
+	mintWorkerInOrg(t, &deps, sess, "worker-unknown")
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	resp, err := http.Get(srv.URL + "/api/workers/worker-unknown/install-command")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, srv.URL+"/api/workers/worker-unknown/install-command", sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", resp.StatusCode)
@@ -287,7 +359,7 @@ func TestShowInstallCommand_NoMasterKey_503(t *testing.T) {
 // same worker_id, and the new install command should round-trip
 // through show-install-command.
 func TestReMintInstallCommand_HappyPath(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	withMasterKey(t, tokenSvc)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
@@ -297,14 +369,11 @@ func TestReMintInstallCommand_HappyPath(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
 	// Mint original.
-	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json",
-		strings.NewReader(`{"name":"alice-box"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	mintResp := orgScopedPost(t, srv.URL+"/api/admintoken/mint-enroll", `{"name":"alice-box"}`, sess)
 	defer mintResp.Body.Close()
 	var minted mintEnrollResp
 	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
@@ -313,11 +382,7 @@ func TestReMintInstallCommand_HappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Re-mint via the endpoint.
-	rmResp, err := http.Post(srv.URL+"/api/workers/"+minted.WorkerID+"/install-command/re-mint",
-		"application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	rmResp := orgScopedPost(t, srv.URL+"/api/workers/"+minted.WorkerID+"/install-command/re-mint", "", sess)
 	defer rmResp.Body.Close()
 	if rmResp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", rmResp.StatusCode)
@@ -339,10 +404,7 @@ func TestReMintInstallCommand_HappyPath(t *testing.T) {
 		t.Errorf("token id didn't rotate: %q", fresh.ID)
 	}
 	// And show-install-command should now return the NEW token.
-	showResp, err := http.Get(srv.URL + "/api/workers/" + minted.WorkerID + "/install-command")
-	if err != nil {
-		t.Fatal(err)
-	}
+	showResp := orgScopedGet(t, srv.URL+"/api/workers/"+minted.WorkerID+"/install-command", sess)
 	defer showResp.Body.Close()
 	if showResp.StatusCode != http.StatusOK {
 		t.Fatalf("show status = %d", showResp.StatusCode)
@@ -357,7 +419,7 @@ func TestReMintInstallCommand_HappyPath(t *testing.T) {
 // Re-mint should 404 when the worker doesn't exist yet (operator
 // clicked re-mint on a stale Fleet row that got removed elsewhere).
 func TestReMintInstallCommand_WorkerNotFound_404(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	withMasterKey(t, tokenSvc)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
@@ -367,13 +429,10 @@ func TestReMintInstallCommand_WorkerNotFound_404(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	resp, err := http.Post(srv.URL+"/api/workers/worker-ghost/install-command/re-mint",
-		"application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedPost(t, srv.URL+"/api/workers/worker-ghost/install-command/re-mint", "", sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", resp.StatusCode)
@@ -383,7 +442,7 @@ func TestReMintInstallCommand_WorkerNotFound_404(t *testing.T) {
 // Re-mint should 409 when the worker has already enrolled (long-term
 // token present); operator must remove + re-add.
 func TestReMintInstallCommand_AlreadyEnrolled_409(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	withMasterKey(t, tokenSvc)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
@@ -393,13 +452,11 @@ func TestReMintInstallCommand_AlreadyEnrolled_409(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
 	// Pre-create worker via mint-enroll.
-	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mintResp := orgScopedPost(t, srv.URL+"/api/admintoken/mint-enroll", "", sess)
 	defer mintResp.Body.Close()
 	var minted mintEnrollResp
 	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
@@ -411,11 +468,7 @@ func TestReMintInstallCommand_AlreadyEnrolled_409(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Re-mint must refuse.
-	resp, err := http.Post(srv.URL+"/api/workers/"+minted.WorkerID+"/install-command/re-mint",
-		"application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedPost(t, srv.URL+"/api/workers/"+minted.WorkerID+"/install-command/re-mint", "", sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", resp.StatusCode)
@@ -435,7 +488,7 @@ func TestReMintInstallCommand_AlreadyEnrolled_409(t *testing.T) {
 // Subsequent show-install-command returns 401 since the enroll token
 // is now revoked (the partial filter excludes revoked rows).
 func TestRemoveWorker_Endpoint(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	withMasterKey(t, tokenSvc)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
@@ -446,13 +499,11 @@ func TestRemoveWorker_Endpoint(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
 	// Pre-create a worker via mint-enroll.
-	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mintResp := orgScopedPost(t, srv.URL+"/api/admintoken/mint-enroll", "", sess)
 	defer mintResp.Body.Close()
 	var minted mintEnrollResp
 	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
@@ -464,11 +515,7 @@ func TestRemoveWorker_Endpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	// DELETE the worker.
-	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/workers/"+minted.WorkerID, nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedDelete(t, srv.URL+"/api/workers/"+minted.WorkerID, sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", resp.StatusCode)
@@ -496,7 +543,7 @@ func TestRemoveWorker_Endpoint(t *testing.T) {
 
 // DELETE on a missing worker returns 404.
 func TestRemoveWorker_NotFound_404(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
 		AdminTokenSvc:       tokenSvc,
@@ -506,13 +553,10 @@ func TestRemoveWorker_NotFound_404(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/workers/worker-ghost", nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedDelete(t, srv.URL+"/api/workers/worker-ghost", sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", resp.StatusCode)
@@ -523,7 +567,7 @@ func TestRemoveWorker_NotFound_404(t *testing.T) {
 // surfaces 401 + no_active_enroll_token so the UI knows to offer
 // re-mint instead.
 func TestShowInstallCommand_AfterConsume_401(t *testing.T) {
-	tokenSvc, enrollSvc, workerRepo := newPreCreateFixture(t)
+	tokenSvc, enrollSvc, workerRepo, db := newPreCreateFixture(t)
 	withMasterKey(t, tokenSvc)
 	deps := HandlerDeps{
 		Actor:               observability.Actor("user:hayang"),
@@ -533,12 +577,10 @@ func TestShowInstallCommand_AfterConsume_401(t *testing.T) {
 		EnrollFingerprint:   "sha256:AA",
 		EnrollBootstrapHost: "h:7300",
 	}
+	sess := wireWorkerAuth(t, db, &deps)
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mintResp := orgScopedPost(t, srv.URL+"/api/admintoken/mint-enroll", "", sess)
 	defer mintResp.Body.Close()
 	var minted mintEnrollResp
 	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
@@ -546,10 +588,7 @@ func TestShowInstallCommand_AfterConsume_401(t *testing.T) {
 	if err := tokenSvc.ConsumeEnrollToken(context.Background(), admintoken.TokenID(minted.ID)); err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.Get(srv.URL + "/api/workers/" + minted.WorkerID + "/install-command")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, srv.URL+"/api/workers/"+minted.WorkerID+"/install-command", sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", resp.StatusCode)

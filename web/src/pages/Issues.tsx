@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useIssues } from '@/api/issues';
 import { useProjects } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
@@ -146,7 +147,7 @@ export default function Issues(): React.ReactElement {
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {data.map((iss) => (
             <li key={iss.id} data-testid="issue-row" data-issue-id={iss.id}>
-              <Link
+              <OrgLink
                 to={`/issues/${encodeURIComponent(iss.id)}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
@@ -168,7 +169,7 @@ export default function Issues(): React.ReactElement {
                   <span className="font-mono">{iss.opener}</span>
                   <span>{formatRelative(iss.opened_at)}</span>
                 </span>
-              </Link>
+              </OrgLink>
             </li>
           ))}
         </ul>

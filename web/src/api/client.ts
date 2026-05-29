@@ -51,7 +51,12 @@ function readCurrentOrgSlug(): string | null {
   }
 }
 
-function withOrgSlug(path: string): string {
+// withOrgSlug appends ?org_slug=<current> to a /api path. Exported so the few
+// raw-fetch call sites (AddWorkerModal, Fleet worker actions, InstallCommandModal)
+// that bypass the api client still carry the org scope. Pass an /api-relative
+// path (e.g. "/workers/x/name"); the helper applies the same exemptions as the
+// client's auto-injection.
+export function withOrgSlug(path: string): string {
   if (!shouldInjectOrgSlug(path)) return path;
   const slug = readCurrentOrgSlug();
   if (!slug) return path;

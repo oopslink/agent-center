@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
 import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
@@ -49,9 +50,9 @@ export default function DMDetail(): React.ReactElement {
         <p className="text-danger" data-testid="dm-not-found">
           {(conv.error as Error).message}
         </p>
-        <Link to="/dms" className="text-accent hover:underline">
+        <OrgLink to="/dms" className="text-accent hover:underline">
           Back to DMs
-        </Link>
+        </OrgLink>
       </section>
     );
   }

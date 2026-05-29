@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+
 import { useConversations } from '@/api/conversations';
 import { ChannelCreateModal } from '@/components/ChannelCreateModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
@@ -54,7 +55,7 @@ export default function Channels(): React.ReactElement {
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {channels.data.map((c) => (
             <li key={c.id} data-testid="channel-row" data-channel-name={c.name}>
-              <Link
+              <OrgLink
                 to={`/channels/${encodeURIComponent(c.name)}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
@@ -68,7 +69,7 @@ export default function Channels(): React.ReactElement {
                 <span className="max-w-[40ch] truncate text-xs text-text-muted">
                   {c.description}
                 </span>
-              </Link>
+              </OrgLink>
             </li>
           ))}
         </ul>

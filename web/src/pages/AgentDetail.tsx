@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
+import { useParams } from 'react-router-dom';
 import { useAgent } from '@/api/agents';
 import { useFleet } from '@/api/fleet';
 
@@ -24,9 +25,9 @@ export default function AgentDetail(): React.ReactElement {
         <p className="text-sm text-danger" data-testid="agent-not-found">
           {(agent.error as Error).message}
         </p>
-        <Link to="/agents" className="text-accent hover:underline">
+        <OrgLink to="/agents" className="text-accent hover:underline">
           Back to agents
-        </Link>
+        </OrgLink>
       </section>
     );
   }
@@ -99,12 +100,12 @@ export default function AgentDetail(): React.ReactElement {
                 <span>
                   <span className="font-mono">{e.execution_id}</span>{' '}
                   <span className="text-text-muted">on task</span>{' '}
-                  <Link
+                  <OrgLink
                     to={`/tasks/${encodeURIComponent(e.task_id)}`}
                     className="font-mono text-accent hover:underline"
                   >
                     {e.task_id}
-                  </Link>
+                  </OrgLink>
                 </span>
                 <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
                   {e.status}

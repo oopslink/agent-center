@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
+import { useParams } from 'react-router-dom';
 import { useTaskTrace } from '@/api/fleet';
 import { TraceTimeline } from '@/components/TraceTimeline';
 
@@ -20,13 +21,13 @@ export default function TaskTrace(): React.ReactElement {
             task: <span className="font-mono">{id}</span>
           </p>
         </div>
-        <Link
+        <OrgLink
           to={`/tasks/${encodeURIComponent(id)}`}
           className="text-sm text-accent hover:underline"
           data-testid="trace-back"
         >
           ← Back to task
-        </Link>
+        </OrgLink>
       </header>
 
       {trace.isLoading && (

@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
 import {
   useBindTaskConversation,
@@ -50,9 +51,9 @@ export default function TaskDetail(): React.ReactElement {
         <p className="text-sm text-danger" data-testid="task-not-found">
           {(task.error as Error).message}
         </p>
-        <Link to="/tasks" className="text-accent hover:underline">
+        <OrgLink to="/tasks" className="text-accent hover:underline">
           Back to tasks
-        </Link>
+        </OrgLink>
       </section>
     );
   }
@@ -90,13 +91,13 @@ export default function TaskDetail(): React.ReactElement {
               created <span className="font-mono">{formatRelative(tk.created_at)}</span>
             </span>
             {tk.project_id && (
-              <Link
+              <OrgLink
                 to={`/projects/${encodeURIComponent(tk.project_id)}`}
                 className="text-accent hover:underline"
                 data-testid="task-project-link"
               >
                 project · {tk.project_id}
-              </Link>
+              </OrgLink>
             )}
             {tk.current_execution_id && (
               <span className="font-mono">exec · {tk.current_execution_id}</span>
@@ -160,13 +161,13 @@ export default function TaskDetail(): React.ReactElement {
           >
             {selection.selectMode ? 'Cancel select' : 'Select messages'}
           </button>
-          <Link
+          <OrgLink
             to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
             className="rounded bg-bg-subtle px-3 py-1.5 text-xs text-text-primary hover:bg-border-base"
             data-testid="task-view-trace"
           >
             View trace →
-          </Link>
+          </OrgLink>
         </div>
       </header>
       {abandonOpen && (

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFleet } from '@/api/fleet';
 import { qk } from '@/api/queryKeys';
+import { withOrgSlug } from '@/api/client';
+import { useOptionalOrgContext } from '@/OrgContext';
 import type { FleetWorkerRow } from '@/api/types';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
 import { InstallCommandModal } from '@/components/InstallCommandModal';
@@ -24,6 +26,10 @@ type InstallCommandModalState = { workerID: string; mode: 'show' | 'remint' } | 
 
 export default function Fleet(): React.ReactElement {
   const fleet = useFleet();
+  // v2.6 X1 §5: build org-relative links so navigation stays under
+  // /organizations/{slug} (legacy absolute paths trigger an OrgRedirect).
+  const orgCtx = useOptionalOrgContext();
+  const base = orgCtx ? `/organizations/${orgCtx.slug}` : '';
   // v2.4-D-F1 (task #41): "Add Worker" button + Modal launch.
   const [modalOpen, setModalOpen] = useState(false);
   // v2.5-F2 (#54): per-row install-command modal.
@@ -206,7 +212,7 @@ export default function Fleet(): React.ReactElement {
                   >
                     <span>
                       <Link
-                        to={`/tasks/${encodeURIComponent(e.task_id)}`}
+                        to={`${base}/tasks/${encodeURIComponent(e.task_id)}`}
                         className="font-mono text-accent hover:underline"
                       >
                         {e.task_id}
@@ -244,7 +250,7 @@ export default function Fleet(): React.ReactElement {
                   >
                     <span>{ir.question}</span>
                     <Link
-                      to="/inputrequests"
+                      to={`${base}/inputrequests`}
                       className="text-accent hover:underline"
                     >
                       respond →
@@ -267,7 +273,7 @@ export default function Fleet(): React.ReactElement {
                 {fleet.data.pending_issues.map((i) => (
                   <li key={i.issue_id} className="px-3 py-2 text-xs">
                     <Link
-                      to={`/issues/${encodeURIComponent(i.issue_id)}`}
+                      to={`${base}/issues/${encodeURIComponent(i.issue_id)}`}
                       className="text-accent hover:underline"
                     >
                       {i.title}
@@ -325,7 +331,7 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
     setBusy(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/workers/${encodeURIComponent(worker.worker_id)}/name`, {
+      const resp = await fetch(withOrgSlug(`/api/workers/${encodeURIComponent(worker.worker_id)}/name`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: next }),
@@ -471,7 +477,7 @@ function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.React
     setBusy(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/workers/${encodeURIComponent(worker.worker_id)}`, {
+      const resp = await fetch(withOrgSlug(`/api/workers/${encodeURIComponent(worker.worker_id)}`), {
         method: 'DELETE',
       });
       if (!resp.ok && resp.status !== 204) {

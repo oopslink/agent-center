@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   useCreateProjectMapping,
   useDeleteProject,
@@ -48,9 +49,9 @@ export default function ProjectDetail(): React.ReactElement {
         <p className="text-sm text-danger" data-testid="project-not-found">
           {(project.error as Error).message}
         </p>
-        <Link to="/projects" className="text-xs text-accent hover:underline">
+        <OrgLink to="/projects" className="text-xs text-accent hover:underline">
           ← Back to projects
-        </Link>
+        </OrgLink>
       </section>
     );
   }
@@ -513,9 +514,9 @@ function PanelCard({
     <div className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1" {...rest}>
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-heading text-sm font-semibold text-text-primary">{title}</h2>
-        <Link to={to} className="text-xs text-accent hover:underline">
+        <OrgLink to={to} className="text-xs text-accent hover:underline">
           View all →
-        </Link>
+        </OrgLink>
       </div>
       {loading ? (
         <div className="space-y-2 py-2">
@@ -544,12 +545,12 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
     >
       {recent.map((iss) => (
         <li key={iss.id} className="flex items-center justify-between gap-3 py-1.5">
-          <Link
+          <OrgLink
             to={`/issues/${encodeURIComponent(iss.id)}`}
             className="truncate text-sm text-text-primary hover:text-accent"
           >
             {iss.title || iss.id}
-          </Link>
+          </OrgLink>
           <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
             {iss.status.replace(/_/g, ' ')}
           </span>
@@ -572,12 +573,12 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
     >
       {recent.map((tk) => (
         <li key={tk.id} className="flex items-center justify-between gap-3 py-1.5">
-          <Link
+          <OrgLink
             to={`/tasks/${encodeURIComponent(tk.id)}`}
             className="truncate text-sm text-text-primary hover:text-accent"
           >
             {tk.title || tk.id}
-          </Link>
+          </OrgLink>
           <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
             {tk.status}
           </span>
@@ -597,12 +598,12 @@ function FleetLinkSection({ projectId }: { projectId: string }): React.ReactElem
       <p className="mt-1 text-xs text-text-secondary">
         Worker / execution rollups for this project live in the Fleet view.
       </p>
-      <Link
+      <OrgLink
         to={`/fleet?project=${encodeURIComponent(projectId)}`}
         className="mt-2 inline-block text-xs text-accent hover:underline"
       >
         View in Fleet →
-      </Link>
+      </OrgLink>
     </div>
   );
 }

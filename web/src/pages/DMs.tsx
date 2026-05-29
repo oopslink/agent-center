@@ -1,6 +1,7 @@
 import type React from 'react';
+import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { DMStartModal } from '@/components/DMStartModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
@@ -52,7 +53,7 @@ export default function DMs(): React.ReactElement {
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {dms.data.map((c) => (
             <li key={c.id} data-testid="dm-row" data-dm-id={c.id}>
-              <Link
+              <OrgLink
                 to={`/dms/${encodeURIComponent(c.id)}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
@@ -63,7 +64,7 @@ export default function DMs(): React.ReactElement {
                     {c.status}
                   </span>
                 </span>
-              </Link>
+              </OrgLink>
             </li>
           ))}
         </ul>

@@ -22,6 +22,7 @@
 // useSSE).
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '@/store/app';
+import { withOrgSlug } from '@/api/client';
 
 type ModalState =
   | { kind: 'name_prompt'; name: string }
@@ -43,7 +44,7 @@ interface MintResponse {
 }
 
 async function mintEnrollToken(name: string): Promise<MintResponse> {
-  const resp = await fetch('/api/admintoken/mint-enroll', {
+  const resp = await fetch(withOrgSlug('/api/admintoken/mint-enroll'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
