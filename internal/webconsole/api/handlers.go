@@ -500,7 +500,7 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	}
 	filter := conversation.ConversationFilter{OrganizationID: orgID}
 	if k := r.URL.Query().Get("kind"); k != "" {
-		kk := apiKindToDomain(k)
+		kk := conversation.ConversationKind(k)
 		filter.Kind = &kk
 	}
 	if st := r.URL.Query().Get("status"); st != "" {
@@ -540,8 +540,8 @@ func (s *Server) createConversationHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	switch apiKindToDomain(req.Kind) {
-	case conversation.ConversationKindProjectChannel:
+	switch conversation.ConversationKind(req.Kind) {
+	case conversation.ConversationKindChannel:
 		s.createChannel(w, r, d, req)
 	case conversation.ConversationKindDM:
 		s.createDM(w, r, d, req)
@@ -588,7 +588,7 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, d Handler
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"conversation_id": string(res.ConversationID),
 		"event_id":        string(res.EventID),
-		"kind":            domainKindToAPI(conversation.ConversationKindProjectChannel),
+		"kind":            string(conversation.ConversationKindChannel),
 	})
 }
 
@@ -937,7 +937,7 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 		mapDomainError(w, err)
 		return
 	}
-	if c.Kind() != conversation.ConversationKindProjectChannel {
+	if c.Kind() != conversation.ConversationKindChannel {
 		writeError(w, http.StatusBadRequest, "invalid_kind", "participant invite only allowed on kind=channel")
 		return
 	}
@@ -967,7 +967,7 @@ func (s *Server) removeParticipantHandler(w http.ResponseWriter, r *http.Request
 		mapDomainError(w, err)
 		return
 	}
-	if c.Kind() != conversation.ConversationKindProjectChannel {
+	if c.Kind() != conversation.ConversationKindChannel {
 		writeError(w, http.StatusBadRequest, "invalid_kind", "participant remove only allowed on kind=channel")
 		return
 	}
@@ -2248,30 +2248,10 @@ func mapDomainError(w http.ResponseWriter, err error) {
 // Public projection helpers (kept here so handlers stay readable)
 // =============================================================================
 
-// apiKindToDomain / domainKindToAPI form the v2.7 A0 anti-corruption layer at
-// the HTTP boundary. v2.7 renames the domain/DB kind 'channel' -> 'project_channel'
-// (ADR-0047), but the SPA + its tests still speak "channel". The HTTP/UI
-// vocabulary migration to project_channel lands in B3 (task #98); until then
-// the wire keeps "channel" so the existing console works unchanged (A0
-// acceptance: old channel mechanism still works after the schema rebuild).
-func apiKindToDomain(s string) conversation.ConversationKind {
-	if s == "channel" {
-		return conversation.ConversationKindProjectChannel
-	}
-	return conversation.ConversationKind(s)
-}
-
-func domainKindToAPI(k conversation.ConversationKind) string {
-	if k == conversation.ConversationKindProjectChannel {
-		return "channel"
-	}
-	return string(k)
-}
-
 func convPublicMap(c *conversation.Conversation) map[string]any {
 	m := map[string]any{
 		"id":                     string(c.ID()),
-		"kind":                   domainKindToAPI(c.Kind()),
+		"kind":                   string(c.Kind()),
 		"name":                   c.Name(),
 		"description":            c.Description(),
 		"status":                 string(c.Status()),

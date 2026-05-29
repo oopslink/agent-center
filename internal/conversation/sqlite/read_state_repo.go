@@ -115,7 +115,7 @@ func (r *ReadStateRepo) Upsert(ctx context.Context,
 func scanReadState(scan func(...any) error) (*conversation.UserConversationReadState, error) {
 	var (
 		userID, convID, lastSeen, updatedAt string
-		version                              int
+		version                             int
 	)
 	if err := scan(&userID, &convID, &lastSeen, &updatedAt, &version); err != nil {
 		return nil, err

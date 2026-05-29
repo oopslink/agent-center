@@ -107,8 +107,8 @@ func TestRehydrateMessage_BadDirection(t *testing.T) {
 
 func TestIdentityRefValidate(t *testing.T) {
 	cases := []struct {
-		in  IdentityRef
-		ok  bool
+		in IdentityRef
+		ok bool
 	}{
 		{"", false},
 		{"system", true},

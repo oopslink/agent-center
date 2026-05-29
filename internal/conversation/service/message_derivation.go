@@ -275,7 +275,7 @@ func (s *MessageDerivationService) validateCommon(ctx context.Context, sourceID 
 	// Channel kind: enforce participant membership. Other kinds are
 	// permissive (eg. issue/task convs may be derived from without a
 	// strict participant check yet — refined per ADR-0036 follow-up).
-	if source.Kind() == conversation.ConversationKindProjectChannel && !source.HasActiveParticipant(createdBy) {
+	if source.Kind() == conversation.ConversationKindChannel && !source.HasActiveParticipant(createdBy) {
 		return ErrDerivationCallerNotParticipant
 	}
 	return validateMessagesInSourceConv(ctx, s.msgRepo, sourceID, msgIDs)

@@ -39,13 +39,25 @@ func TestV27A0_OwnerRefRoundTrip(t *testing.T) {
 	}
 }
 
-// TestV27A0_ProjectChannelOwnerRefNull verifies a project_channel carries a
-// NULL owner_ref in A0 (placeholder until phase B), and that NULL round-trips
-// as empty (not the literal "null").
-func TestV27A0_ProjectChannelOwnerRefNull(t *testing.T) {
+// TestV27A0_ChannelOwnerRefAndProjectRef verifies a channel carries an Org
+// owner_ref (id://organizations/{org}) and an optional project_ref soft label,
+// and that both round-trip; a nil project_ref round-trips as empty
+// (plan §10 OQ10).
+func TestV27A0_ChannelOwnerRefAndProjectRef(t *testing.T) {
 	r := setupDB(t)
 	ctx := context.Background()
-	c := mkConv(t, "conv-ch-1", conversation.ConversationKindProjectChannel, "general")
+	c, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID:         "conv-ch-1",
+		Kind:       conversation.ConversationKindChannel,
+		OwnerRef:   conversation.NewOrgOwnerRef("org-9"),
+		ProjectRef: "pm://projects/proj-1",
+		Name:       "general",
+		CreatedBy:  conversation.IdentityRef("user:hayang"),
+		OpenedAt:   time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := r.Save(ctx, c); err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +65,19 @@ func TestV27A0_ProjectChannelOwnerRefNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.OwnerRef().IsEmpty() {
-		t.Fatalf("project_channel owner_ref should be empty in A0, got %q", got.OwnerRef())
+	if got.OwnerRef() != conversation.OwnerRef("id://organizations/org-9") || !got.OwnerRef().WellFormed() {
+		t.Fatalf("channel owner_ref = %q, want id://organizations/org-9", got.OwnerRef())
+	}
+	if got.ProjectRef() != "pm://projects/proj-1" {
+		t.Fatalf("project_ref = %q, want pm://projects/proj-1", got.ProjectRef())
+	}
+
+	// A channel without a project_ref round-trips as empty.
+	c2 := mkConv(t, "conv-ch-2", conversation.ConversationKindChannel, "noproj")
+	_ = r.Save(ctx, c2)
+	got2, _ := r.FindByID(ctx, "conv-ch-2")
+	if got2.ProjectRef() != "" {
+		t.Fatalf("absent project_ref should be empty, got %q", got2.ProjectRef())
 	}
 }
 
@@ -106,7 +129,7 @@ func TestV27A0_MessageContextRefsAndAttachments(t *testing.T) {
 func TestV27A0_EmptyContextRefsAndAttachmentsDefault(t *testing.T) {
 	convRepo, msgRepo := setupMsgDB(t)
 	ctx := context.Background()
-	c := mkConv(t, "conv-ch-2", conversation.ConversationKindProjectChannel, "plain")
+	c := mkConv(t, "conv-ch-2", conversation.ConversationKindChannel, "plain")
 	_ = convRepo.Save(ctx, c)
 	m := mkMsg(t, "msg-plain", "conv-ch-2")
 	if err := msgRepo.Append(ctx, m); err != nil {

@@ -58,7 +58,7 @@ func seedConvWithMessages(t *testing.T, f *readStateFixture, convID conversation
 	t.Helper()
 	c, err := conversation.NewConversation(conversation.NewConversationInput{
 		ID:        convID,
-		Kind:      conversation.ConversationKindProjectChannel,
+		Kind:      conversation.ConversationKindChannel,
 		Name:      "rs-test-" + string(convID),
 		CreatedBy: conversation.IdentityRef("user:hayang"),
 		OpenedAt:  f.clock.Now(),

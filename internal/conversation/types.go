@@ -45,26 +45,28 @@ func (r IdentityRef) Validate() error {
 	return errors.New("identity ref: must be 'system' or 'user:<id>' / 'agent:<id>' (ADR-0033)")
 }
 
-// ConversationKind is the v2.7 four-value enum (ADR-0047 §1):
-// project_channel / issue / task / dm. The set is exhaustive — there is no
-// generic "channel" (the legacy 'channel' kind is renamed project_channel),
-// and vestigial 'adhoc'/'notification' are removed.
+// ConversationKind is the v2.7 four-value enum (ADR-0047 §1, finalized in
+// plan §10 OQ10): channel / issue / task / dm. `channel` is retained as a
+// generic Org-level group chat (owner_ref id://organizations/{org_id}, NOT
+// project-bound; may carry an optional project_ref soft label). Vestigial
+// 'adhoc'/'notification' are removed.
 type ConversationKind string
 
 const (
 	ConversationKindDM ConversationKind = "dm"
-	// ConversationKindProjectChannel replaces the legacy org-level 'channel'
-	// kind. owner_ref points at pm://projects/{id}; A0 leaves it NULL and
-	// phase B decides org-level-channel placement (plan §2.8).
-	ConversationKindProjectChannel ConversationKind = "project_channel"
-	ConversationKindTask           ConversationKind = "task"
-	ConversationKindIssue          ConversationKind = "issue"
+	// ConversationKindChannel is a generic Org-level group chat. It belongs to
+	// exactly one Org (owner_ref id://organizations/{org_id}); it is NOT bound
+	// to a Project, but MAY carry an optional project_ref soft label for
+	// grouping/navigation only (no constraint) — plan §10 OQ10.
+	ConversationKindChannel ConversationKind = "channel"
+	ConversationKindTask    ConversationKind = "task"
+	ConversationKindIssue   ConversationKind = "issue"
 )
 
 // IsValid checks enum membership.
 func (k ConversationKind) IsValid() bool {
 	switch k {
-	case ConversationKindDM, ConversationKindProjectChannel,
+	case ConversationKindDM, ConversationKindChannel,
 		ConversationKindTask, ConversationKindIssue:
 		return true
 	}
@@ -72,11 +74,11 @@ func (k ConversationKind) IsValid() bool {
 }
 
 // IsDirectOpenAllowed reports whether kind is allowed for direct
-// `conversation open` (dm / project_channel). task / issue must come via the
+// `conversation open` (dm / channel). task / issue must come via the
 // ProjectManager sync-create paths (ADR-0047 §2, plan §4.1).
 func (k ConversationKind) IsDirectOpenAllowed() bool {
 	switch k {
-	case ConversationKindDM, ConversationKindProjectChannel:
+	case ConversationKindDM, ConversationKindChannel:
 		return true
 	}
 	return false

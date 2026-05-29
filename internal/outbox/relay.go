@@ -7,10 +7,18 @@ import (
 )
 
 // Projector applies one outbox Event's cross-BC effect (e.g. sync
-// ConversationParticipant from a ProjectManager subscriber change). A
-// projector should be idempotent on Event.ID; the Relay additionally guards
-// each projector with the AppliedStore so the body runs at most once per
-// event even if the projector itself is not strictly idempotent.
+// ConversationParticipant from a ProjectManager subscriber change).
+//
+// Delivery is AT-LEAST-ONCE. The Relay guards each projector with the
+// AppliedStore (IsApplied → Project → MarkApplied), but Project and MarkApplied
+// are two steps: if Project succeeds and MarkApplied then fails, the next pass
+// re-runs Project. Therefore the "at most once" guarantee holds ONLY when a
+// projector performs its side effect AND records MarkApplied in the SAME
+// transaction (the projector calls AppliedStore.MarkApplied inside its own tx;
+// the Relay's trailing MarkApplied is then a redundant no-op via the PK).
+// Projectors that cannot do this MUST be idempotent on Event.ID. The first
+// real projector (ADR-0052 subscriber→participant, phase B) uses the
+// same-transaction pattern.
 type Projector interface {
 	// Name is the stable projector identifier used as the AppliedStore key.
 	Name() string

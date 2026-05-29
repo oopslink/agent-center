@@ -22,6 +22,7 @@ type Conversation struct {
 	id                   ConversationID
 	kind                 ConversationKind
 	ownerRef             OwnerRef
+	projectRef           string // channel-only nullable soft label pm://projects/{id}
 	name                 string
 	description          string
 	parentConversationID ConversationID
@@ -45,6 +46,7 @@ type NewConversationInput struct {
 	ID                   ConversationID
 	Kind                 ConversationKind
 	OwnerRef             OwnerRef
+	ProjectRef           string
 	Name                 string
 	Description          string
 	ParentConversationID ConversationID
@@ -65,8 +67,8 @@ func NewConversation(in NewConversationInput) (*Conversation, error) {
 	if !in.Kind.IsValid() {
 		return nil, ErrConversationInvalidKind
 	}
-	if in.Kind == ConversationKindProjectChannel && strings.TrimSpace(in.Name) == "" {
-		return nil, errors.New("conversation: name required for kind=project_channel (ADR-0047 §1)")
+	if in.Kind == ConversationKindChannel && strings.TrimSpace(in.Name) == "" {
+		return nil, errors.New("conversation: name required for kind=channel (ADR-0047 §1)")
 	}
 	if err := in.CreatedBy.Validate(); err != nil {
 		return nil, fmt.Errorf("conversation: created_by: %w", err)
@@ -80,6 +82,7 @@ func NewConversation(in NewConversationInput) (*Conversation, error) {
 		id:                   in.ID,
 		kind:                 in.Kind,
 		ownerRef:             in.OwnerRef,
+		projectRef:           in.ProjectRef,
 		name:                 in.Name,
 		description:          in.Description,
 		parentConversationID: in.ParentConversationID,
@@ -99,6 +102,7 @@ type RehydrateConversationInput struct {
 	ID                   ConversationID
 	Kind                 ConversationKind
 	OwnerRef             OwnerRef
+	ProjectRef           string
 	Name                 string
 	Description          string
 	ParentConversationID ConversationID
@@ -133,6 +137,7 @@ func RehydrateConversation(in RehydrateConversationInput) (*Conversation, error)
 		id:                   in.ID,
 		kind:                 in.Kind,
 		ownerRef:             in.OwnerRef,
+		projectRef:           in.ProjectRef,
 		name:                 in.Name,
 		description:          in.Description,
 		parentConversationID: in.ParentConversationID,
@@ -157,6 +162,7 @@ func RehydrateConversation(in RehydrateConversationInput) (*Conversation, error)
 func (c *Conversation) ID() ConversationID                   { return c.id }
 func (c *Conversation) Kind() ConversationKind               { return c.kind }
 func (c *Conversation) OwnerRef() OwnerRef                   { return c.ownerRef }
+func (c *Conversation) ProjectRef() string                   { return c.projectRef }
 func (c *Conversation) Name() string                         { return c.name }
 func (c *Conversation) Description() string                  { return c.description }
 func (c *Conversation) ParentConversationID() ConversationID { return c.parentConversationID }

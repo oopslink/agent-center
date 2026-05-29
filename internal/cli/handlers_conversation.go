@@ -40,18 +40,11 @@ func (a *App) ConversationCommands() []*Command {
 }
 
 func (a *App) convOpenHandler(fs *flag.FlagSet) Handler {
-	kindStr := fs.String("kind", "", "kind (dm|project_channel)")
-	name := fs.String("name", "", "name (project_channel kind requires non-empty)")
+	kindStr := fs.String("kind", "", "kind (dm|channel)")
+	name := fs.String("name", "", "name (channel kind requires non-empty)")
 	description := fs.String("description", "", "description")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-		// v2.7 A0: accept the legacy 'channel' alias and map it to the new
-		// 'project_channel' kind (ADR-0047), mirroring the webconsole
-		// boundary so existing operator muscle-memory / scripts keep working
-		// until the CLI vocabulary migration in a later phase.
-		if *kindStr == "channel" {
-			*kindStr = string(conversation.ConversationKindProjectChannel)
-		}
 		kind := conversation.ConversationKind(*kindStr)
 		if !kind.IsValid() {
 			return PrintError(errw, *format, "usage_error", "invalid --kind", ExitUsage)
@@ -165,10 +158,6 @@ func (a *App) convListHandler(fs *flag.FlagSet) Handler {
 	statusStr := fs.String("status", "", "filter by status (open|closed)")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-		// v2.7 A0: accept the legacy 'channel' alias -> 'project_channel'.
-		if *kindStr == "channel" {
-			*kindStr = string(conversation.ConversationKindProjectChannel)
-		}
 		if *kindStr != "" {
 			k := conversation.ConversationKind(*kindStr)
 			if !k.IsValid() {

@@ -104,11 +104,11 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 			Refs:      observability.EventRefs{ConversationID: string(conv.ID())},
 			Actor:     cmd.Actor,
 			Payload: map[string]any{
-				"conversation_id":         string(conv.ID()),
-				"kind":                    string(conv.Kind()),
-				"name":                    conv.Name(),
-				"parent_conversation_id":  string(conv.ParentConversationID()),
-				"with_carry_over":         false,
+				"conversation_id":        string(conv.ID()),
+				"kind":                   string(conv.Kind()),
+				"name":                   conv.Name(),
+				"parent_conversation_id": string(conv.ParentConversationID()),
+				"with_carry_over":        false,
 			},
 		})
 		if err != nil {

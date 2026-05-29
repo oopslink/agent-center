@@ -116,13 +116,13 @@ func (a *App) channelListHandler(fs *flag.FlagSet) Handler {
 		}
 		var convs []ConversationDTO
 		if a.Client != nil {
-			cs, err := a.Client.ConversationFind(ctx, string(conversation.ConversationKindProjectChannel), *statusFlag)
+			cs, err := a.Client.ConversationFind(ctx, string(conversation.ConversationKindChannel), *statusFlag)
 			if err != nil {
 				return HandleClientError(errw, *format, err)
 			}
 			convs = cs
 		} else {
-			k := conversation.ConversationKindProjectChannel
+			k := conversation.ConversationKindChannel
 			filter := conversation.ConversationFilter{Kind: &k}
 			if *statusFlag != "" {
 				s := conversation.ConversationStatus(*statusFlag)

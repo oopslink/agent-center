@@ -13,7 +13,7 @@ func TestConversationGetters_AllFields(t *testing.T) {
 	closed := now.Add(time.Hour)
 	archived := closed.Add(time.Hour)
 	c, err := RehydrateConversation(RehydrateConversationInput{
-		ID: "C-1", Kind: ConversationKindProjectChannel,
+		ID: "C-1", Kind: ConversationKindChannel,
 		Name: "general", Description: "shared",
 		ParentConversationID: "P-1",
 		Participants:         []ParticipantElement{{IdentityID: "user:a", Role: "owner", JoinedAt: "t", JoinedBy: "system"}},
@@ -28,7 +28,7 @@ func TestConversationGetters_AllFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.ID() != "C-1" || c.Kind() != ConversationKindProjectChannel {
+	if c.ID() != "C-1" || c.Kind() != ConversationKindChannel {
 		t.Fatal()
 	}
 	if c.Name() != "general" || c.Description() != "shared" {
@@ -123,7 +123,7 @@ func TestIDStringers(t *testing.T) {
 	if IdentityRef("user:x").String() != "user:x" {
 		t.Fatal()
 	}
-	if ConversationKindProjectChannel.String() != "project_channel" {
+	if ConversationKindChannel.String() != "channel" {
 		t.Fatal()
 	}
 	if ConversationActive.String() != "active" {

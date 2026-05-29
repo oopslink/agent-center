@@ -9,23 +9,25 @@ import (
 // context_refs, and the unified MessageAttachment. Kept here to keep types.go
 // focused on the pre-existing enums.
 
-// OwnerRef is a Conversation's URI reference back to its owning business
-// object in the ProjectManager BC (ADR-0047 §2):
+// OwnerRef is a Conversation's URI reference back to its owning object
+// (ADR-0047 §2, finalized plan §10 OQ10):
 //
-//	pm://projects/{project_id}
-//	pm://issues/{issue_id}
-//	pm://tasks/{task_id}
+//	channel:      id://organizations/{org_id}   (generic Org-level group chat)
+//	issue:        pm://issues/{issue_id}
+//	task:         pm://tasks/{task_id}
+//	dm:           (empty — no owner_ref)
 //
-// It is a weak cross-BC reference (soft constraint). dm and (in A0)
-// project_channel carry an empty OwnerRef. A0 only STORES it — full validation
-// is deferred to phase B when ProjectManager exists (ADR-0047 §负面).
+// channel owner_ref pins it to exactly one Org (no cross-org); issue/task pin
+// to their ProjectManager object. It is a weak cross-BC reference (soft
+// constraint). A channel may additionally carry a nullable project_ref soft
+// label (see Conversation.ProjectRef) — that is grouping-only, NOT ownership.
 type OwnerRef string
 
 const (
-	ownerRefScheme   = "pm://"
 	ownerRefProjects = "pm://projects/"
 	ownerRefIssues   = "pm://issues/"
 	ownerRefTasks    = "pm://tasks/"
+	ownerRefOrgs     = "id://organizations/"
 )
 
 func (r OwnerRef) String() string { return string(r) }
@@ -33,20 +35,22 @@ func (r OwnerRef) String() string { return string(r) }
 // IsEmpty reports whether no owner is set (dm / placeholder project_channel).
 func (r OwnerRef) IsEmpty() bool { return strings.TrimSpace(string(r)) == "" }
 
-// NewProjectOwnerRef / NewIssueOwnerRef / NewTaskOwnerRef build the canonical
-// owner_ref URIs. Phase B uses these when wiring ProjectManager.
+// NewOrgOwnerRef builds a channel's owner_ref (id://organizations/{org_id}).
+// NewProjectOwnerRef / NewIssueOwnerRef / NewTaskOwnerRef build the pm:// URIs
+// used by issue/task conversations (phase B wiring).
+func NewOrgOwnerRef(orgID string) OwnerRef         { return OwnerRef(ownerRefOrgs + orgID) }
 func NewProjectOwnerRef(projectID string) OwnerRef { return OwnerRef(ownerRefProjects + projectID) }
 func NewIssueOwnerRef(issueID string) OwnerRef     { return OwnerRef(ownerRefIssues + issueID) }
 func NewTaskOwnerRef(taskID string) OwnerRef       { return OwnerRef(ownerRefTasks + taskID) }
 
-// WellFormed reports whether a non-empty owner_ref uses a known pm:// shape.
-// A0 does not enforce this (it is advisory); phase B validates on write.
+// WellFormed reports whether a non-empty owner_ref uses a known scheme
+// (id://organizations for channel, pm:// for issue/task). Advisory.
 func (r OwnerRef) WellFormed() bool {
 	s := string(r)
 	if s == "" {
-		return true // empty is allowed (dm / placeholder)
+		return true // empty is allowed (dm)
 	}
-	for _, p := range []string{ownerRefProjects, ownerRefIssues, ownerRefTasks} {
+	for _, p := range []string{ownerRefOrgs, ownerRefProjects, ownerRefIssues, ownerRefTasks} {
 		if strings.HasPrefix(s, p) && len(s) > len(p) {
 			return true
 		}

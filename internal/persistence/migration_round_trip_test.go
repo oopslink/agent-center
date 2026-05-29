@@ -323,17 +323,18 @@ func TestMigrations_V1KindValuesAbsent(t *testing.T) {
 		t.Fatal("expected error inserting kind='supervisor' into v2.6 identities (CHECK constraint should reject)")
 	}
 
-	// conversations.kind should have been renamed through the chain:
-	// v1 'group_thread' --0024--> 'channel' --0037 (v2.7 A0)--> 'project_channel'.
+	// conversations.kind: v1 'group_thread' --0024--> 'channel'. v2.7 RETAINS
+	// 'channel' (channel model finalized plan §10 OQ10 — no project_channel
+	// rename), so the final kind is 'channel'.
 	kinds := scanStringSet(t, db, `SELECT kind FROM conversations`)
 	if kinds["group_thread"] {
-		t.Fatalf("conversations.kind='group_thread' must be renamed (0024 then 0037)")
+		t.Fatalf("conversations.kind='group_thread' must be renamed to 'channel' by 0024")
 	}
-	if kinds["channel"] {
-		t.Fatalf("conversations.kind='channel' must be renamed to 'project_channel' by 0037 (v2.7 A0)")
+	if kinds["project_channel"] {
+		t.Fatalf("conversations.kind='project_channel' must not exist (v2.7 retains 'channel')")
 	}
-	if !kinds["project_channel"] {
-		t.Fatalf("expected conversations.kind='project_channel' after the v2.7 A0 rename (got %v)", kinds)
+	if !kinds["channel"] {
+		t.Fatalf("expected conversations.kind='channel' after the rename chain (got %v)", kinds)
 	}
 }
 

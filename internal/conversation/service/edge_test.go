@@ -128,7 +128,7 @@ func TestCarryOver_Materialise_EmitFailure(t *testing.T) {
 	co := NewCarryOverService(dbW, w.convRepo, w.msgRepo, rr, w.sink, w.idgen, w.clock)
 	// Seed source conv + msg + child conv via normal writer.
 	src, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID: "src-1", Kind: conversation.ConversationKindProjectChannel, Name: "src",
+		ID: "src-1", Kind: conversation.ConversationKindChannel, Name: "src",
 		CreatedBy: "user:hayang", OpenedAt: w.clock.Now(),
 	})
 	_ = w.convRepo.Save(context.Background(), src)

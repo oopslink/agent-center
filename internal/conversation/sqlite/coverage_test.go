@@ -77,7 +77,7 @@ func TestConversationRepo_UpdateArchive_NonConflictError(t *testing.T) {
 
 func TestConversationRepo_UpdateParticipants_NonConflictError(t *testing.T) {
 	r := setupDB(t)
-	c := mkConv(t, "c-1", conversation.ConversationKindProjectChannel, "n")
+	c := mkConv(t, "c-1", conversation.ConversationKindChannel, "n")
 	_ = r.Save(context.Background(), c)
 	_, err := r.db.Exec(`CREATE TEMP TRIGGER ban_conv_update3 BEFORE UPDATE ON conversations BEGIN
 		SELECT RAISE(ABORT, 'nope');

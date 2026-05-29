@@ -58,8 +58,12 @@ type CreateChannelCommand struct {
 	Name           string
 	Description    string
 	OrganizationID string // v2.6: scopes the channel to an org (multi-tenant isolation)
-	CreatedBy      conversation.IdentityRef
-	Actor          observability.Actor
+	// ProjectRef is an OPTIONAL constraint-free soft label (pm://projects/{id})
+	// for grouping/navigation only — channels are NOT project-bound (plan §10
+	// OQ10). Empty = no label.
+	ProjectRef string
+	CreatedBy  conversation.IdentityRef
+	Actor      observability.Actor
 }
 
 // CreateChannelResult is what callers get.
@@ -84,9 +88,16 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 		return CreateChannelResult{}, errors.New("channel: name required")
 	}
 	now := s.clock.Now()
+	// A channel is owned by exactly one Org (plan §10 OQ10).
+	var ownerRef conversation.OwnerRef
+	if strings.TrimSpace(cmd.OrganizationID) != "" {
+		ownerRef = conversation.NewOrgOwnerRef(cmd.OrganizationID)
+	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
 		ID:             conversation.ConversationID(s.idgen.NewULID()),
-		Kind:           conversation.ConversationKindProjectChannel,
+		Kind:           conversation.ConversationKindChannel,
+		OwnerRef:       ownerRef,
+		ProjectRef:     strings.TrimSpace(cmd.ProjectRef),
 		Name:           name,
 		Description:    cmd.Description,
 		OrganizationID: cmd.OrganizationID,
@@ -167,7 +178,7 @@ func (s *ChannelManagementService) ArchiveChannel(ctx context.Context, cmd Archi
 		if err != nil {
 			return err
 		}
-		if conv.Kind() != conversation.ConversationKindProjectChannel {
+		if conv.Kind() != conversation.ConversationKindChannel {
 			return fmt.Errorf("%w: target conversation kind=%s (want channel)",
 				conversation.ErrConversationInvalidKind, conv.Kind())
 		}
