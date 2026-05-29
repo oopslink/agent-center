@@ -42,18 +42,20 @@ var (
 
 // Deps bundles the Service dependencies.
 type Deps struct {
-	DB        *sql.DB
-	Sessions  files.FileTransferSessionRepository
-	Resolver  files.Resolver
-	BlobStore blobstore.BlobStore
-	IDGen     idgen.Generator
-	Clock     clock.Clock
+	DB         *sql.DB
+	Sessions   files.FileTransferSessionRepository
+	References files.FileReferenceRepository
+	Resolver   files.Resolver
+	BlobStore  blobstore.BlobStore
+	IDGen      idgen.Generator
+	Clock      clock.Clock
 }
 
 // Service is the files transfer AppService facade.
 type Service struct {
 	db       *sql.DB
 	sessions files.FileTransferSessionRepository
+	refs     files.FileReferenceRepository
 	resolver files.Resolver
 	blobs    blobstore.BlobStore
 	idgen    idgen.Generator
@@ -69,6 +71,7 @@ func New(d Deps) *Service {
 	return &Service{
 		db:       d.DB,
 		sessions: d.Sessions,
+		refs:     d.References,
 		resolver: d.Resolver,
 		blobs:    d.BlobStore,
 		idgen:    d.IDGen,
