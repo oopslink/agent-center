@@ -58,7 +58,7 @@ export default function ProjectDetail(): React.ReactElement {
     <section className="space-y-4" data-testid="page-ProjectDetail" data-project-id={p.id}>
       <ProjectHeader project={p} />
       <ProjectWorkTabs projectId={p.id} />
-      <FleetLinkSection projectId={p.id} />
+      <FleetLinkSection />
     </section>
   );
 }
@@ -437,7 +437,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   );
 }
 
-function FleetLinkSection({ projectId }: { projectId: string }): React.ReactElement {
+function FleetLinkSection(): React.ReactElement {
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -445,10 +445,10 @@ function FleetLinkSection({ projectId }: { projectId: string }): React.ReactElem
     >
       <h2 className="font-heading text-sm font-semibold text-text-primary">Workers</h2>
       <p className="mt-1 text-xs text-text-secondary">
-        Worker / execution rollups for this project live in the Fleet view.
+        Worker / execution rollups live in the Fleet view.
       </p>
       <OrgLink
-        to={`/fleet?project=${encodeURIComponent(projectId)}`}
+        to="/fleet"
         className="mt-2 inline-block text-xs text-accent hover:underline"
       >
         View in Fleet →

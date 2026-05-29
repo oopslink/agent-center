@@ -7,8 +7,10 @@ import {
   useBlockTask,
   useCancelTask,
   useCompleteTask,
+  useReopenTask,
   useStartTask,
   useTask,
+  useUnassignTask,
   useUnblockTask,
   useVerifyTask,
 } from '@/api/tasks';
@@ -32,6 +34,8 @@ export default function TaskDetail(): React.ReactElement {
   const complete = useCompleteTask(projectId, id);
   const verify = useVerifyTask(projectId, id);
   const cancel = useCancelTask(projectId, id);
+  const unassign = useUnassignTask(projectId, id);
+  const reopen = useReopenTask(projectId, id);
 
   if (task.isLoading) {
     return (
@@ -62,13 +66,15 @@ export default function TaskDetail(): React.ReactElement {
 
   const tk = task.data;
   const status = tk.status;
-  const isTerminal = status === 'verified' || status === 'canceled';
-  const canAssign = status === 'open' || status === 'reopened';
-  const canCancel = !isTerminal;
+  const isTerminal = status === 'canceled';
+  const canAssign = status === 'open';
+  const canReopen = status === 'completed' || status === 'verified';
+  const canCancel = status !== 'canceled' && status !== 'verified' && status !== 'completed';
 
   const actionError =
     (assign.error ?? start.error ?? block.error ?? unblock.error ??
-      complete.error ?? verify.error ?? cancel.error) as Error | null;
+      complete.error ?? verify.error ?? cancel.error ?? unassign.error ??
+      reopen.error) as Error | null;
 
   return (
     <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
@@ -127,6 +133,9 @@ export default function TaskDetail(): React.ReactElement {
           {status === 'assigned' && (
             <ActionButton testId="task-start-button" label="Start" onClick={() => start.mutate()} pending={start.isPending} />
           )}
+          {status === 'assigned' && (
+            <ActionButton testId="task-unassign-button" label="Unassign" onClick={() => unassign.mutate()} pending={unassign.isPending} />
+          )}
           {status === 'running' && (
             <ActionButton testId="task-block-button" label="Block" onClick={() => setBlockOpen(true)} />
           )}
@@ -138,6 +147,9 @@ export default function TaskDetail(): React.ReactElement {
           )}
           {status === 'completed' && (
             <ActionButton testId="task-verify-button" label="Verify" onClick={() => verify.mutate()} pending={verify.isPending} />
+          )}
+          {canReopen && (
+            <ActionButton testId="task-reopen-button" label="Reopen" onClick={() => reopen.mutate()} pending={reopen.isPending} />
           )}
           {canCancel && (
             <button

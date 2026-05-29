@@ -96,6 +96,26 @@ func (s *Service) VerifyTask(ctx context.Context, taskID pm.TaskID, by pm.Identi
 	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Verify(by, now) }, "")
 }
 
+// UnassignTask moves assigned→open and clears the assignee (the explicit
+// "drop the assignment" verb). The live AgentWorkItem (created on assign) is
+// canceled by the WorkItemProjector consuming the resulting state_changed→open.
+func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Unassign(now) }, "")
+}
+
+// ReopenTask moves a completed/verified Task back to open in one step (internally
+// completed/verified→reopened→open), clearing assignment + completion truth so a
+// subsequent assign starts a fresh work segment. There is no live WorkItem to
+// cancel (the Task was done); the WorkItemProjector treats →open idempotently.
+func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+		if err := t.Reopen(now); err != nil {
+			return err
+		}
+		return t.ToOpenFromReopened(now)
+	}, "")
+}
+
 // taskStateOp is the shared "load → gate → mutate → persist → emit
 // state_changed" path for status-only transitions.
 func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef, mutate func(*pm.Task, time.Time) error, reason string) error {

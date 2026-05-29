@@ -72,7 +72,10 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 	}
 	if e.EventType == EvtTaskStateChanged {
 		switch pl.Status {
-		case string(pm.TaskBlocked), string(pm.TaskCanceled):
+		case string(pm.TaskBlocked), string(pm.TaskCanceled), string(pm.TaskOpen):
+			// blocked/canceled end the attempt; →open is unassign (or reopen),
+			// which also drops any live attempt. Reopen has no live WorkItem so
+			// it is a no-op (terminal items are skipped below).
 			cancelLive = true
 		default:
 			return nil // other state changes don't affect WorkItems

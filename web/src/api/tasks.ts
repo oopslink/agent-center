@@ -123,3 +123,15 @@ export function useCancelTask(projectId: string, taskId: string) {
     api.post<Task>(`${taskPath(projectId, taskId)}/cancel`),
   );
 }
+
+export function useUnassignTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/unassign`),
+  );
+}
+
+export function useReopenTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/reopen`),
+  );
+}

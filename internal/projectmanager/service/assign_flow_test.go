@@ -296,6 +296,60 @@ func TestBlockCancelsWorkItem_UnblockCreatesNew(t *testing.T) {
 	}
 }
 
+func TestUnassignTask_CancelsLiveWorkItem(t *testing.T) {
+	svc, wiRepo, relay, ctx := flowSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+	taskRef := "pm://tasks/" + string(tid)
+
+	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
+	_, _ = relay.RunOnce(ctx, 100)
+	items, _ := wiRepo.ListByTask(ctx, taskRef)
+	if liveCount(items) != 1 {
+		t.Fatalf("after assign: want 1 live WorkItem, got %v", statusCount(items))
+	}
+
+	// Unassign (assigned→open) clears the assignee and cancels the live WorkItem.
+	if err := svc.UnassignTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := relay.RunOnce(ctx, 100); err != nil {
+		t.Fatal(err)
+	}
+	items, _ = wiRepo.ListByTask(ctx, taskRef)
+	if liveCount(items) != 0 || statusCount(items)[agentpkg.WorkItemCanceled] != 1 {
+		t.Fatalf("after unassign: want 0 live + 1 canceled, got %v", statusCount(items))
+	}
+	tk, _ := svc.tasks.FindByID(ctx, tid)
+	if tk.Status() != pm.TaskOpen || tk.Assignee() != "" {
+		t.Fatalf("after unassign: want open + no assignee, got %s / %q", tk.Status(), tk.Assignee())
+	}
+}
+
+func TestReopenTask_ClearsAssignmentAndCompletion(t *testing.T) {
+	svc, _, _, ctx := flowSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+	_ = svc.AssignTask(ctx, tid, "user:a", "user:a")
+	_ = svc.StartTask(ctx, tid, "user:a")
+	if err := svc.CompleteTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	// Reopen a completed Task → straight back to open, assignment + completion cleared.
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	tk, _ := svc.tasks.FindByID(ctx, tid)
+	if tk.Status() != pm.TaskOpen || tk.Assignee() != "" || tk.CompletedBy() != "" {
+		t.Fatalf("after reopen: want open + cleared assignee/completer, got %s / %q / %q",
+			tk.Status(), tk.Assignee(), tk.CompletedBy())
+	}
+	// Reopen from a non-completed/verified state is illegal.
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrIllegalTransition {
+		t.Fatalf("reopen from open should be ErrIllegalTransition, got %v", err)
+	}
+}
+
 func statusCount(items []*agentpkg.AgentWorkItem) map[agentpkg.WorkItemStatus]int {
 	m := map[agentpkg.WorkItemStatus]int{}
 	for _, w := range items {

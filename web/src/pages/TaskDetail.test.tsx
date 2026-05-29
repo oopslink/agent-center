@@ -117,14 +117,45 @@ describe('TaskDetail page', () => {
     await waitFor(() => expect(received).toMatchObject({ reason: 'waiting on infra' }));
   });
 
-  it('completed tasks expose Verify; terminal tasks hide actions', async () => {
+  it('completed tasks expose Verify + Reopen, not Cancel', async () => {
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('completed'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await waitFor(() => expect(screen.getByTestId('task-verify-button')).toBeInTheDocument());
-    // completed is non-terminal, so cancel still shows.
-    expect(screen.getByTestId('task-cancel-button')).toBeInTheDocument();
+    // completed → {verified, reopened}: no cancel edge.
+    expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+  });
+
+  it('verified tasks expose only Reopen', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('verified'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await waitFor(() => expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument());
+    expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+  });
+
+  it('assigned tasks expose Start + Unassign', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('assigned'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await waitFor(() => expect(screen.getByTestId('task-start-button')).toBeInTheDocument());
+    expect(screen.getByTestId('task-unassign-button')).toBeInTheDocument();
+  });
+
+  it('canceled tasks hide all lifecycle actions', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('canceled'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await waitFor(() => expect(screen.getByTestId('task-status')).toHaveTextContent('canceled'));
+    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-reopen-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
   });
 
   it('surfaces task lookup error', async () => {

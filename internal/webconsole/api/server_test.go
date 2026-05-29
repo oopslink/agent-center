@@ -14,7 +14,6 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
-	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -69,11 +68,6 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		sink, gen, clk, "")
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
 	issueRepo := disqlite.NewIssueRepo(db)
-	// v2.5.x #61 — IssueLifecycleSvc backs the Web Console "Open Issue"
-	// + "Conclude" handlers. Spawner is left nil here (covers no_action
-	// + withdrawn paths); tests that need closed_with_tasks must wire it.
-	convOpener := disservice.NewIssueConversationOpener(convRepo, sink, gen, clk)
-	issueLifecycle := disservice.NewIssueLifecycleService(db, issueRepo, convOpener, writer, sink, gen, clk)
 	// Wire UserSecret with a test master key.
 	userSecretRepo := secretsqlite.NewUserSecretRepo(db)
 	mk, err := secretmgmt.GenerateMasterKey()
@@ -101,8 +95,6 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		ReadStateSvc:       rsSvc,
 		IssueRepo:          issueRepo,
 		TaskRepo:           taskRepo,
-		IssueLifecycleSvc:  issueLifecycle,
-		TaskSvc:            trservice.NewTaskService(db, taskRepo, convRepo, execRepo, msgRepo, sink, gen, clk),
 	}
 	return deps, db
 }
