@@ -20,6 +20,7 @@
 | Plan | 主题 | 状态 |
 |---|---|---|
 | [v2.7 Domain Refactor Plan](v2.7-domain-refactor-plan.md) | ProjectManager + Agent + Environment + Conversation/File URI foundation | Draft |
+| [v2.7 Acceptance Plan](v2.7-acceptance-plan.md) | v2.7 验收单：分域 + 跨 BC 端到端 + OQ 不变量 + 旧栈退役 + ship checklist（PM-as-verifier, E2 执行） | Draft/Living |
 
 ### v1 phases（v2 删干净）
 
