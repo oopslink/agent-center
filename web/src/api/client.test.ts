@@ -76,11 +76,10 @@ describe('api client', () => {
   });
 
   it('wraps network errors as ApiError(network_error)', async () => {
-    server.use(
-      http.get('/api/blown', () => {
-        throw new Error('downstream blew up');
-      }),
-    );
+    // HttpResponse.error() makes fetch reject with a network-level failure
+    // (no stderr noise — unlike throwing inside the handler, which MSW logs
+    // as an unhandled exception).
+    server.use(http.get('/api/blown', () => HttpResponse.error()));
     try {
       await api.get('/blown');
       throw new Error('should have thrown');
