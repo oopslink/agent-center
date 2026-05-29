@@ -112,6 +112,60 @@ func TestCreateTask_EmitsCreatedWithCreatorSubscriber(t *testing.T) {
 	}
 }
 
+func TestUpdateTask_MetadataPatchGatedByMembership(t *testing.T) {
+	svc, _, ctx := setup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "old", Description: "d0", CreatedBy: "user:a"})
+
+	newTitle, newDesc := "new title", "new desc"
+	if err := svc.UpdateTask(ctx, UpdateTaskCommand{TaskID: tid, Title: &newTitle, Description: &newDesc, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	tk, _ := svc.tasks.FindByID(ctx, tid)
+	if tk.Title() != newTitle || tk.Description() != newDesc {
+		t.Fatalf("patch not applied: %q / %q", tk.Title(), tk.Description())
+	}
+	// nil pointers leave fields unchanged.
+	if err := svc.UpdateTask(ctx, UpdateTaskCommand{TaskID: tid, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	tk, _ = svc.tasks.FindByID(ctx, tid)
+	if tk.Title() != newTitle {
+		t.Fatal("nil patch should not change title")
+	}
+	// empty title rejected (domain invariant).
+	empty := "  "
+	if err := svc.UpdateTask(ctx, UpdateTaskCommand{TaskID: tid, Title: &empty, Actor: "user:a"}); err == nil {
+		t.Fatal("empty title should be rejected")
+	}
+	// non-member rejected.
+	if err := svc.UpdateTask(ctx, UpdateTaskCommand{TaskID: tid, Title: &newTitle, Actor: "user:stranger"}); err != ErrNotMember {
+		t.Fatalf("non-member update should be ErrNotMember, got %v", err)
+	}
+}
+
+func TestUpdateIssue_MetadataPatchGatedByMembership(t *testing.T) {
+	svc, _, ctx := setup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "old", Description: "d0", CreatedBy: "user:a"})
+
+	newTitle, newDesc := "new title", "new desc"
+	if err := svc.UpdateIssue(ctx, UpdateIssueCommand{IssueID: iid, Title: &newTitle, Description: &newDesc, Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	is, _ := svc.issues.FindByID(ctx, iid)
+	if is.Title() != newTitle || is.Description() != newDesc {
+		t.Fatalf("patch not applied: %q / %q", is.Title(), is.Description())
+	}
+	empty := ""
+	if err := svc.UpdateIssue(ctx, UpdateIssueCommand{IssueID: iid, Title: &empty, Actor: "user:a"}); err == nil {
+		t.Fatal("empty title should be rejected")
+	}
+	if err := svc.UpdateIssue(ctx, UpdateIssueCommand{IssueID: iid, Title: &newTitle, Actor: "user:stranger"}); err != ErrNotMember {
+		t.Fatalf("non-member update should be ErrNotMember, got %v", err)
+	}
+}
+
 func TestEffectiveSubscribers_DerivesCreatorAssigneeManual(t *testing.T) {
 	tk, _ := pm.NewTask(pm.NewTaskInput{ID: "T1", ProjectID: "P1", Title: "x", CreatedBy: "user:creator", CreatedAt: time.Unix(1, 0)})
 	// no assignee, no manual → {creator}

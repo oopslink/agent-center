@@ -318,6 +318,54 @@ func (s *Server) pmTransitionIssueHandler(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, pmIssueMap(got))
 }
 
+// pmRequireIssueInProject resolves {project_id}+{issue_id}, verifying both org
+// membership and that the issue belongs to the path project.
+func (s *Server) pmRequireIssueInProject(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*pm.Issue, pm.IdentityRef, bool) {
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return nil, "", false
+	}
+	i, err := d.PM.GetIssue(r.Context(), pm.IssueID(r.PathValue("issue_id")))
+	if err != nil || i.ProjectID() != p.ID() {
+		writeError(w, http.StatusNotFound, "not_found", "issue not found in this project")
+		return nil, "", false
+	}
+	return i, caller, true
+}
+
+func (s *Server) pmGetIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	i, _, ok := s.pmRequireIssueInProject(w, r, d)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, pmIssueMap(i))
+}
+
+func (s *Server) pmUpdateIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	i, caller, ok := s.pmRequireIssueInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Title       *string `json:"title"`
+		Description *string `json:"description"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.UpdateIssue(r.Context(), pmservice.UpdateIssueCommand{
+		IssueID: i.ID(), Title: req.Title, Description: req.Description, Actor: caller,
+	}); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetIssue(r.Context(), i.ID())
+	writeJSON(w, http.StatusOK, pmIssueMap(got))
+}
+
 // --- Tasks (nested) ---------------------------------------------------------
 
 func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
@@ -369,6 +417,30 @@ func (s *Server) pmGetTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, pmTaskMap(t))
+}
+
+func (s *Server) pmUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Title       *string `json:"title"`
+		Description *string `json:"description"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.UpdateTask(r.Context(), pmservice.UpdateTaskCommand{
+		TaskID: t.ID(), Title: req.Title, Description: req.Description, Actor: caller,
+	}); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetTask(r.Context(), t.ID())
+	writeJSON(w, http.StatusOK, pmTaskMap(got))
 }
 
 // pmRequireTaskInProject resolves {project_id}+{task_id}, verifying both org

@@ -168,6 +168,71 @@ func TestPM_FlatProjectLifecycle(t *testing.T) {
 	}
 }
 
+// TestPM_IssueGetAndMetadataEdit exercises the B3-b prerequisite endpoints:
+// GET single issue (the new symmetric route) + PATCH metadata edit on both
+// Issue and Task (title/description, not a state transition).
+func TestPM_IssueGetAndMetadataEdit(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+	pid, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "Acme", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := s.URL + "/api/projects/" + string(pid)
+
+	// Create an issue via HTTP, then GET it by id (new route).
+	resp := orgScopedPost(t, base+"/issues", `{"title":"bug","description":"d0"}`, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("create issue status=%d body=%s", resp.StatusCode, b)
+	}
+	var issue map[string]any
+	json.NewDecoder(resp.Body).Decode(&issue)
+	iid, _ := issue["id"].(string)
+	if iid == "" {
+		t.Fatal("no issue id")
+	}
+	resp = orgScopedGet(t, base+"/issues/"+iid, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("get issue status=%d", resp.StatusCode)
+	}
+	// PATCH issue metadata.
+	resp = orgScopedPatch(t, base+"/issues/"+iid, `{"title":"bug2","description":"d1"}`, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("patch issue status=%d body=%s", resp.StatusCode, b)
+	}
+	json.NewDecoder(resp.Body).Decode(&issue)
+	if issue["title"] != "bug2" || issue["description"] != "d1" {
+		t.Fatalf("issue patch not applied: %+v", issue)
+	}
+
+	// Create a task, PATCH its metadata.
+	resp = orgScopedPost(t, base+"/tasks", `{"title":"do","description":"t0"}`, sess)
+	var task map[string]any
+	json.NewDecoder(resp.Body).Decode(&task)
+	tid, _ := task["id"].(string)
+	resp = orgScopedPatch(t, base+"/tasks/"+tid, `{"title":"do2"}`, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("patch task status=%d body=%s", resp.StatusCode, b)
+	}
+	json.NewDecoder(resp.Body).Decode(&task)
+	if task["title"] != "do2" || task["description"] != "t0" {
+		t.Fatalf("task patch not applied: %+v", task)
+	}
+
+	// Unknown issue id in a real project → 404.
+	resp = orgScopedGet(t, base+"/issues/ghost", sess)
+	if resp.StatusCode != 404 {
+		t.Fatalf("unknown issue: status=%d, want 404", resp.StatusCode)
+	}
+}
+
 // TestPM_Gating covers the org+project membership gate: an org member who is
 // NOT a project member is rejected (403), and an unknown/foreign project is 404.
 func TestPM_Gating(t *testing.T) {

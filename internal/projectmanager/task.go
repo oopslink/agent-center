@@ -179,6 +179,22 @@ func (t *Task) CreatedAt() time.Time      { return t.createdAt }
 func (t *Task) UpdatedAt() time.Time      { return t.updatedAt }
 func (t *Task) Version() int              { return t.version }
 
+// Rename updates the display title (metadata edit, not a state transition).
+func (t *Task) Rename(title string, at time.Time) error {
+	if strings.TrimSpace(title) == "" {
+		return errors.New("projectmanager: task title required")
+	}
+	t.title = title
+	t.touch(at)
+	return nil
+}
+
+// SetDescription updates the description (metadata edit).
+func (t *Task) SetDescription(desc string, at time.Time) {
+	t.description = desc
+	t.touch(at)
+}
+
 // Assign sets the assignee and moves open→assigned (or re-targets an already
 // assigned task — the AppService orchestrates the AgentWorkItem supersede in
 // B2; here we update assignment truth).

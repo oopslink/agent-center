@@ -155,6 +155,22 @@ func (i *Issue) CreatedAt() time.Time   { return i.createdAt }
 func (i *Issue) UpdatedAt() time.Time   { return i.updatedAt }
 func (i *Issue) Version() int           { return i.version }
 
+// Rename updates the display title (metadata edit, not a state transition).
+func (i *Issue) Rename(title string, at time.Time) error {
+	if strings.TrimSpace(title) == "" {
+		return errors.New("projectmanager: issue title required")
+	}
+	i.title = title
+	i.touch(at)
+	return nil
+}
+
+// SetDescription updates the description (metadata edit).
+func (i *Issue) SetDescription(desc string, at time.Time) {
+	i.description = desc
+	i.touch(at)
+}
+
 // Transition moves the Issue to a new status, enforcing the state machine.
 func (i *Issue) Transition(to IssueStatus, at time.Time) error {
 	if !to.IsValid() {
