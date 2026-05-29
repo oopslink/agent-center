@@ -289,11 +289,11 @@ func (c *AdminClient) ReportArtifact(ctx context.Context, executionID string, bl
 		blobRef = relPath
 	}
 	body := map[string]any{
-		"execution_id":  executionID,
-		"kind":          kind,
-		"title":         kind, // default title = kind
-		"blob_ref":      blobRef,
-		"url":           "",
+		"execution_id": executionID,
+		"kind":         kind,
+		"title":        kind, // default title = kind
+		"blob_ref":     blobRef,
+		"url":          "",
 		// `inline_size` kept for backwards-compat with v2.2 tests that
 		// only checked the metadata payload existed.
 		"metadata_json": fmt.Sprintf(`{"inline_size":%d}`, len(blob)),
@@ -343,6 +343,92 @@ func (c *AdminClient) BlobPut(ctx context.Context, relPath string, content []byt
 		"content_base64": base64.StdEncoding.EncodeToString(content),
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/blob/put", body, nil)
+}
+
+// =============================================================================
+// Environment BC — worker-initiated control channel (v2.7 D1, ADR-0050,
+// task #102). ADDITIVE: these methods ride the SAME authed transport as the
+// legacy worker surface above — they reuse doJSON, which attaches
+// `Authorization: Bearer <token>` on every request. No new auth / enrollment
+// is introduced. The center-side endpoints live on the admin API under
+// /admin/environment/worker/... (bearer-authed, owner worker:<id>).
+//
+// These exercise the LOG layer: ordered + replayable command stream, cumulative
+// ack, per-command idempotency. Actually EXECUTING commands is D2's
+// AgentController; D1 wires a no-op handler (see control_loop.go).
+// =============================================================================
+
+// ControlCommand is one entry in the worker's ordered control-command log,
+// as returned by /admin/environment/worker/commands. Offset is the cumulative
+// cursor the worker acks against; IdempotencyKey lets D2 skip re-executing a
+// command it already applied after a reconnect.
+type ControlCommand struct {
+	ID             string `json:"id"`
+	Offset         int64  `json:"offset"`
+	IdempotencyKey string `json:"idempotency_key"`
+	CommandType    string `json:"command_type"`
+	Payload        string `json:"payload"`
+	CreatedAt      string `json:"created_at"`
+}
+
+// ConnectControl POSTs to /admin/environment/worker/connect and returns the
+// worker's last_acked_offset — the cursor the control loop resumes polling
+// from. Marks the worker online server-side. Reuses the authed transport.
+func (c *AdminClient) ConnectControl(ctx context.Context, workerID string) (int64, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return 0, errors.New("adminclient: worker_id required")
+	}
+	body := map[string]any{"worker_id": workerID}
+	var out struct {
+		WorkerID        string `json:"worker_id"`
+		LastAckedOffset int64  `json:"last_acked_offset"`
+		Status          string `json:"status"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/admin/environment/worker/connect", body, &out); err != nil {
+		return 0, err
+	}
+	return out.LastAckedOffset, nil
+}
+
+// PullCommands GETs /admin/environment/worker/commands?worker_id=X&after=N and
+// returns the commands with offset > after, ascending. Returns an empty slice
+// (not nil) when nothing is pending. Reuses the authed transport.
+func (c *AdminClient) PullCommands(ctx context.Context, workerID string, after int64) ([]ControlCommand, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return nil, errors.New("adminclient: worker_id required")
+	}
+	path := fmt.Sprintf("/admin/environment/worker/commands?worker_id=%s&after=%d", workerID, after)
+	var out struct {
+		Commands []ControlCommand `json:"commands"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Commands == nil {
+		out.Commands = []ControlCommand{}
+	}
+	return out.Commands, nil
+}
+
+// AckControl POSTs to /admin/environment/worker/ack to advance the worker's
+// cumulative last_acked_offset. Reuses the authed transport.
+func (c *AdminClient) AckControl(ctx context.Context, workerID string, offset int64) error {
+	if strings.TrimSpace(workerID) == "" {
+		return errors.New("adminclient: worker_id required")
+	}
+	body := map[string]any{"worker_id": workerID, "offset": offset}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/worker/ack", body, nil)
+}
+
+// HeartbeatControl POSTs to /admin/environment/worker/heartbeat to assert
+// liveness on the control channel. Reuses the authed transport. Optional —
+// the control loop can call it on a separate cadence if desired.
+func (c *AdminClient) HeartbeatControl(ctx context.Context, workerID string) error {
+	if strings.TrimSpace(workerID) == "" {
+		return errors.New("adminclient: worker_id required")
+	}
+	body := map[string]any{"worker_id": workerID}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/worker/heartbeat", body, nil)
 }
 
 // doJSON is the shared request helper. Returns a typed error on non-2xx

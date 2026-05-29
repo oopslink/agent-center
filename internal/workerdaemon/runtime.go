@@ -53,12 +53,12 @@ type AgentSpawnerFunc func(ctx context.Context, env dispatch.DispatchEnvelope, r
 
 // RuntimeConfig parameterises the daemon loop.
 type RuntimeConfig struct {
-	WorkerID      string
-	Capabilities  []string
-	PollInterval  time.Duration // default 1s
+	WorkerID       string
+	Capabilities   []string
+	PollInterval   time.Duration // default 1s
 	HeartbeatEvery time.Duration // default 30s
-	KillGrace     time.Duration // SIGTERM → SIGKILL gap; default 5s
-	ShutdownGrace time.Duration // wait for in-flight on shutdown; default 30s
+	KillGrace      time.Duration // SIGTERM → SIGKILL gap; default 5s
+	ShutdownGrace  time.Duration // wait for in-flight on shutdown; default 30s
 	// AgentCLIOverrides → AgentRunnerConfig (e.g. fakeagent path).
 	AgentCLIOverrides map[string]string
 	// ExecBaseDir is the per-execution working dir root. Empty disables
@@ -72,6 +72,22 @@ type RuntimeConfig struct {
 	// have ensured the AdminClient bearer is the long-term token
 	// before calling Run.
 	SkipInitialEnroll bool
+
+	// ControlClient enables the v2.7 D1 (ADR-0050, task #102) worker-
+	// initiated control-stream poll loop for the Environment BC. ADDITIVE:
+	// when non-nil, Run starts a SEPARATE ControlLoop goroutine alongside the
+	// legacy dispatch loop, sharing the same ctx/lifecycle. When nil the
+	// control loop is not started and the dispatch loop behaves exactly as
+	// before. Production wires the daemon's *AdminClient (its
+	// ConnectControl/PullCommands/AckControl satisfy ControlClient).
+	ControlClient ControlClient
+	// ControlPollInterval overrides the control loop's poll cadence. Default
+	// reuses PollInterval.
+	ControlPollInterval time.Duration
+	// ControlHandler is the pluggable command executor. Nil → D1
+	// NoopCommandHandler (logs, does nothing real). D2's AgentController
+	// plugs a real handler here.
+	ControlHandler CommandHandler
 }
 
 // RuntimeDeps bundles optional dependencies the daemon's defaultAgentSpawner
@@ -169,6 +185,32 @@ func (r *Runtime) Run(ctx context.Context) error {
 			return fmt.Errorf("runtime: initial enroll: %w", err)
 		}
 		r.log("enrolled as worker_id=%s", r.cfg.WorkerID)
+	}
+
+	// v2.7 D1 (ADR-0050, task #102): start the Environment-BC control-stream
+	// poll loop in its OWN goroutine, ADDITIVELY, sharing this ctx. This does
+	// not touch the dispatch loop below. Only started when a ControlClient is
+	// wired; the loop itself degrades gracefully (logs + keeps polling) if the
+	// control endpoints are unavailable, so it never crashes the daemon.
+	if r.cfg.ControlClient != nil {
+		interval := r.cfg.ControlPollInterval
+		if interval <= 0 {
+			interval = r.cfg.PollInterval
+		}
+		cl := NewControlLoop(ControlLoopConfig{
+			WorkerID:     r.cfg.WorkerID,
+			PollInterval: interval,
+			Handler:      r.cfg.ControlHandler, // nil → D1 NoopCommandHandler
+			Logger:       r.cfg.Logger,
+		}, r.cfg.ControlClient)
+		r.wg.Add(1)
+		go func() {
+			defer r.wg.Done()
+			if err := cl.Run(ctx); err != nil {
+				r.log("control loop: %v", err)
+			}
+		}()
+		r.log("control loop started worker_id=%s", r.cfg.WorkerID)
 	}
 
 	pollTick := time.NewTicker(r.cfg.PollInterval)
@@ -341,8 +383,8 @@ func (r *Runtime) log(format string, args ...any) {
 //  6. On exit: emit final done / failure event.
 func defaultAgentSpawner(ctx context.Context, env dispatch.DispatchEnvelope, rt *Runtime) error {
 	var (
-		prompt        string
-		args          []string
+		prompt         string
+		args           []string
 		mcpRuntimePath string
 		mcpCleanup     = func() {}
 	)
