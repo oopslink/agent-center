@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -32,6 +34,14 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		}
 		prev := t.Assignee()
 		if err := t.Assign(assignee, now); err != nil {
+			return err
+		}
+		// #5a (ADR-0049/0052/OQ6): when the assignee is an AGENT, grant it
+		// ProjectMember so it can pass the project write-gate for its MCP tools
+		// (OQ4 = agents have project-level write). Cross-org-guarded + idempotent,
+		// and in THIS tx so the assignment and membership commit atomically. Human
+		// (`user:`) assignees are untouched.
+		if err := s.grantAgentProjectMembership(txCtx, t, assignee, now); err != nil {
 			return err
 		}
 		// OQ13: reassigning away keeps the outgoing assignee in the Conversation
@@ -121,6 +131,68 @@ func (s *Service) retainAsTaskSubscriber(ctx context.Context, t *pm.Task, identi
 		return err
 	}
 	return s.taskSubs.Add(ctx, sub)
+}
+
+// grantAgentProjectMembership makes an AGENT assignee a ProjectMember of the
+// task's project so the agent passes the project write-gate (OQ6) for its MCP
+// tools (#5a, ADR-0049/0052; OQ4 = agents get project-level write). It is:
+//   - AGENT-ONLY: human (`user:`) assignees and `system` are skipped (the branch
+//     keys on the `agent:` prefix) — they are never granted membership here.
+//   - FAIL-CLOSED: for an AGENT assignee, a missing directory (s.agentDir == nil)
+//     is a hard error (pm.ErrAgentDirectoryUnavailable) — a missing dependency
+//     must NEVER silently skip the cross-org guard / membership grant. The nil
+//     case only preserves old behavior for human assignees (where no agent
+//     authorization is involved). Production always wires the directory.
+//   - CROSS-ORG GUARDED: it resolves the agent's org via the directory and the
+//     project's org via the project repo; a mismatch (or an unresolvable agent)
+//     is rejected with pm.ErrCrossOrgAssignee — an org member is the prerequisite
+//     for project membership.
+//   - IDEMPOTENT: if the agent is already a member it is a no-op (ErrMemberExists
+//     from the member repo is swallowed); no duplicate row, no error.
+//
+// It runs inside the AssignTask tx (after t.Assign succeeds), so the assignment
+// and the membership commit atomically. Membership is monotonic (OQ13-style):
+// Unassign/reassign never removes it — only explicit member management does.
+func (s *Service) grantAgentProjectMembership(ctx context.Context, t *pm.Task, assignee pm.IdentityRef, now time.Time) error {
+	if !strings.HasPrefix(string(assignee), "agent:") {
+		return nil // human / system assignees: no agent authorization to grant
+	}
+	if s.agentDir == nil {
+		// Fail-closed: an agent assignee requires the directory to verify its org
+		// (OQ6). Refuse rather than silently bypass the cross-org guard.
+		return pm.ErrAgentDirectoryUnavailable
+	}
+	agentID := strings.TrimPrefix(string(assignee), "agent:")
+
+	// Cross-org guard: agent's org must equal the project's org.
+	p, err := s.projects.FindByID(ctx, t.ProjectID())
+	if err != nil {
+		return err
+	}
+	agentOrg, err := s.agentDir.OrgOfAgent(ctx, agentID)
+	if err != nil {
+		// Can't verify org (e.g. agent not found) → treat as cross-org/reject.
+		return pm.ErrCrossOrgAssignee
+	}
+	if agentOrg != p.OrganizationID() {
+		return pm.ErrCrossOrgAssignee
+	}
+
+	// Idempotent add: reuse the same member-repo insert AddProjectMember uses.
+	m, err := pm.NewProjectMember(pm.NewProjectMemberInput{
+		ID: pm.MemberID(s.idgen.NewULID()), ProjectID: t.ProjectID(), IdentityID: assignee,
+		Role: pm.RoleMember, AddedBy: assignee, CreatedAt: now,
+	})
+	if err != nil {
+		return err
+	}
+	if err := s.members.Save(ctx, m); err != nil {
+		if errors.Is(err, pm.ErrMemberExists) {
+			return nil // already a member → no-op
+		}
+		return err
+	}
+	return nil
 }
 
 // UnassignTask moves assigned→open and clears the assignee (the explicit "drop

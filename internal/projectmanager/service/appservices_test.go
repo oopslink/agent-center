@@ -34,6 +34,7 @@ func setup(t *testing.T) (*Service, *outboxsql.OutboxRepo, context.Context) {
 		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
 		Outbox:       ob,
+		AgentDir:     allOrgDir("org-1"),
 		IDGen:        idgen.NewGenerator(clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())),
 		Clock:        clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC()),
 	})

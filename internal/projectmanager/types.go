@@ -88,4 +88,9 @@ var (
 	ErrSelfVerify          = errors.New("projectmanager: an identity cannot verify a task it completed (plan §2.2/OQ4)")
 	ErrVersionConflict     = errors.New("projectmanager: version conflict (optimistic lock)")
 	ErrEmptyProjectScope   = errors.New("projectmanager: project_id required (no global work items)")
+	ErrCrossOrgAssignee    = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
+	// ErrAgentDirectoryUnavailable is returned (fail-closed) when an agent is
+	// assigned but no AgentDirectory is wired to verify the agent's org — a
+	// missing dependency must not silently bypass the cross-org guard.
+	ErrAgentDirectoryUnavailable = errors.New("projectmanager: agent directory unavailable — cannot verify assignee agent's organization")
 )

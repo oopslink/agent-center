@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
@@ -127,6 +128,10 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 		Outbox:       outboxsql.NewOutboxRepo(db),
 		IDGen:        idgen.NewGenerator(clock.SystemClock{}),
 		Clock:        clock.SystemClock{},
+		// #5a: assigning a Task to an agent grants it project membership, which is
+		// cross-org-guarded via the AgentDirectory (and fail-closed when nil). Wire
+		// the real directory over the test agent repo so agent assignment works.
+		AgentDir: agentpkg.NewOrgDirectory(agentsql.NewAgentRepo(db)),
 	})
 	// v2.7 C3: wire the Agent BC AppService for the /api/agents... routes
 	// (handlers_agent.go). Mirrors deps.PM: sqlite repos over the test DB + the

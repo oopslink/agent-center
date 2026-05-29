@@ -35,6 +35,15 @@ const (
 	EvtTaskSubsChanged   = "pm.task.subscribers_changed"
 )
 
+// AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
+// ADR-0049/0052/OQ6). It is an OPTIONAL dependency of the pm Service: when wired
+// (non-nil) AssignTask grants an assignee agent project membership so it can pass
+// the project write-gate (OQ4 gives agents project-level write). The agentID is
+// the bare id (the `agent:` prefix already stripped by the caller).
+type AgentDirectory interface {
+	OrgOfAgent(ctx context.Context, agentID string) (orgID string, err error)
+}
+
 // Service is the ProjectManager AppService facade.
 type Service struct {
 	db           *sql.DB
@@ -48,6 +57,9 @@ type Service struct {
 	outbox       outbox.Repository
 	idgen        idgen.Generator
 	clock        clock.Clock
+	// agentDir is OPTIONAL (nil-safe). nil ⇒ AssignTask skips the
+	// agent-membership step entirely (preserves pre-#5a behavior).
+	agentDir AgentDirectory
 }
 
 // Deps bundles the Service dependencies.
@@ -63,6 +75,9 @@ type Deps struct {
 	Outbox       outbox.Repository
 	IDGen        idgen.Generator
 	Clock        clock.Clock
+	// AgentDir is OPTIONAL: when set, AssignTask grants an assignee agent
+	// project membership (cross-org-guarded). When nil, that step is skipped.
+	AgentDir AgentDirectory
 }
 
 // New constructs the Service.
@@ -75,6 +90,7 @@ func New(d Deps) *Service {
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
+		agentDir: d.AgentDir,
 	}
 }
 

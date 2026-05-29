@@ -11,6 +11,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	admintokensqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
@@ -364,6 +365,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 
 	// v2.7 ProjectManager AppService facade (ADR-0046/0052). Produces outbox
 	// events drained by the server-runtime relay (wired in runWebConsole).
+	// Shared agent repo: the Agent BC's AppService owns it, and the pm Service
+	// resolves an assignee agent's org through it (#5a, AssignTask→ProjectMember
+	// cross-org guard, ADR-0049/0052/OQ6).
+	agentRepo := agentsql.NewAgentRepo(db)
+
 	pmSvc := pmservice.New(pmservice.Deps{
 		DB:           db,
 		Projects:     pmsql.NewProjectRepo(db),
@@ -376,11 +382,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Outbox:       outboxsql.NewOutboxRepo(db),
 		IDGen:        gen,
 		Clock:        clk,
+		AgentDir:     agentpkg.NewOrgDirectory(agentRepo),
 	})
 
 	agentSvc := agentsvc.New(agentsvc.Deps{
 		DB:        db,
-		Agents:    agentsql.NewAgentRepo(db),
+		Agents:    agentRepo,
 		WorkItems: agentsql.NewWorkItemRepo(db),
 		Activity:  agentsql.NewActivityEventRepo(db),
 		Workers:   wr,

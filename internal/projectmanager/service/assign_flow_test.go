@@ -39,7 +39,7 @@ func flowSetup(t *testing.T) (*Service, *agentsql.WorkItemRepo, *outbox.Relay, c
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: pmsql.NewTaskRepo(db),
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Outbox: ob, IDGen: gen, Clock: clk,
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Outbox: ob, AgentDir: allOrgDir("org-1"), IDGen: gen, Clock: clk,
 	})
 	partProj := NewParticipantProjector(db, convsql.NewConversationRepo(db), applied, gen, clk)
 	wiProj := NewWorkItemProjector(db, wiRepo, applied, gen, clk)
@@ -374,7 +374,7 @@ func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: pmsql.NewTaskRepo(db),
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Outbox: ob, IDGen: gen, Clock: clk,
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Outbox: ob, AgentDir: allOrgDir("org-1"), IDGen: gen, Clock: clk,
 	})
 	relay := outbox.NewRelay(ob, applied, clk,
 		NewParticipantProjector(db, convRepo, applied, gen, clk),

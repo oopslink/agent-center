@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"testing"
+	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -48,6 +50,20 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	tid, _ := task["id"].(string)
 	if tid == "" {
 		t.Fatal("no task id returned")
+	}
+
+	// Seed agent AG1 in the session org so #5a's cross-org guard resolves its org
+	// (assigning a Task to an agent grants it project membership; the AgentDirectory
+	// verifies agent.Org == project.Org).
+	ag1, aerr := agentpkg.NewAgent(agentpkg.NewAgentInput{
+		ID: "AG1", OrganizationID: sess.OrgID, Profile: agentpkg.Profile{Name: "AG1"},
+		WorkerID: "W-test", CreatedBy: agentpkg.IdentityRef("user:" + sess.IdentityID), CreatedAt: time.Unix(1_700_000_000, 0),
+	})
+	if aerr != nil {
+		t.Fatal(aerr)
+	}
+	if serr := agentsql.NewAgentRepo(db).Save(ctx, ag1); serr != nil {
+		t.Fatal(serr)
 	}
 
 	// Assign the task to an Agent via HTTP.
