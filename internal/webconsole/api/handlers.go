@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
+	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
@@ -107,6 +108,13 @@ type HandlerDeps struct {
 	// v2.7 C3: the Agent BC AppService facade backs the org-scoped
 	// /api/agents + /api/agents/{id}/{start,stop,restart,reset} routes.
 	AgentSvc *agentsvc.Service
+
+	// v2.7 D3-d: the files transfer Service backs the human upload/download
+	// HTTP endpoints (/api/files...). Upload mints a session, streams bytes
+	// (write-once), then completes; download runs the reverse per-reference
+	// download-reachability check (fileReachableForHuman) before streaming.
+	// Optional — nil means the /api/files surface is not wired (legacy/test).
+	FilesSvc *filesservice.Service
 
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses

@@ -222,6 +222,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/secrets", s.createSecretHandler)
 	s.mux.HandleFunc("DELETE /api/secrets/{id}", s.revokeSecretHandler)
 
+	// v2.7 D3-d: files transport (human upload/download). Upload is a 3-call
+	// create→put→complete flow; download is reachability-gated (fail-closed).
+	// The literal `transfer` segment is more specific than `{ulid}`, so
+	// PUT/complete and GET-download never collide on the matcher.
+	s.mux.HandleFunc("POST /api/files", s.createUploadHandler)
+	s.mux.HandleFunc("PUT /api/files/transfer/{transfer_id}", s.putBlobHandler)
+	s.mux.HandleFunc("POST /api/files/transfer/{transfer_id}/complete", s.completeUploadHandler)
+	s.mux.HandleFunc("GET /api/files/{ulid}", s.downloadHandler)
+
 	// SSE — single user-level long connection per Q5=B.
 	s.mux.HandleFunc("GET /api/sse", s.sseHandler)
 	s.mux.HandleFunc("POST /api/sse/subscribe", s.sseSubscribeHandler)

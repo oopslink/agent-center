@@ -23,6 +23,34 @@ import (
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 )
 
+// buildFilesService constructs the files transfer Service from the App's DB +
+// the configured blobstore root (mirrors the GC-loop construction in
+// runWebConsole). Returns nil when the blobstore root is unset or the local
+// blobstore fails to initialize — callers leave FilesSvc nil in that case so
+// the /api/files surface degrades to 501 rather than panicking.
+func buildFilesService(a *App) *filesservice.Service {
+	if a == nil {
+		return nil
+	}
+	blobRoot := a.Config.BlobStore.Root
+	if blobRoot == "" {
+		return nil
+	}
+	store, err := blobstore.NewLocalDir(blobRoot)
+	if err != nil {
+		return nil
+	}
+	return filesservice.New(filesservice.Deps{
+		DB:         a.DB,
+		Sessions:   filessql.NewFileTransferSessionRepo(a.DB),
+		References: filessql.NewFileReferenceRepo(a.DB),
+		Resolver:   files.NewLocalResolver(""),
+		BlobStore:  store,
+		IDGen:      a.IDGen,
+		Clock:      a.Clock,
+	}).SetGCRepo(filessql.NewBlobMetadataRepo(a.DB))
+}
+
 // buildWebConsoleHandler stitches the App's wired services into the
 // HandlerDeps the api package expects + installs WithDeps middleware.
 // Returns nil http.Handler when Web Console is disabled.
@@ -47,6 +75,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		ProjectRepo:         a.ProjectRepo,
 		PM:                  a.PMService,
 		AgentSvc:            a.AgentService,
+		FilesSvc:            buildFilesService(a),
 		ReadStateRepo:       a.ReadStateRepo,
 		ReadStateSvc:        a.ReadStateSvc,
 		IssueRepo:           a.IssueRepo,
@@ -103,6 +132,10 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 			"webconsole: auth not configured — set secret_management.master_key_file " +
 				"in the server config (the master key doubles as the JWT signing key)")
 	}
+	// v2.7 D3-d/D3-c: a single files transfer Service instance backs BOTH the
+	// /api/files HTTP surface (FilesSvc) and the refcount GC loop below — built
+	// once from the configured blobstore root (nil when unconfigured).
+	filesSvc := buildFilesService(a)
 	deps := api.HandlerDeps{
 		Actor:               a.DefaultActor(),
 		ConvRepo:            a.ConvRepo,
@@ -120,6 +153,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		ProjectRepo:         a.ProjectRepo,
 		PM:                  a.PMService,
 		AgentSvc:            a.AgentService,
+		FilesSvc:            filesSvc,
 		QuerySvc:            a.QuerySvc,
 		FleetSvc:            a.FleetSvc,
 		ReadStateRepo:       a.ReadStateRepo,
@@ -197,30 +231,16 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// and reaps blobs whose live-reference count has been zero past the grace
 	// period (default 7d, ADR-0048 §5). Mirrors the Pump/fanout lifecycle
 	// (ctx-cancel + graceful shutdown); ADDITIVE — it does not touch the
-	// existing pump/fanout. The files transfer Service is constructed here from
-	// the App's DB + the configured blobstore root; the resolver yields
+	// existing pump/fanout. The files transfer Service was constructed above
+	// (shared with the /api/files HTTP surface); the resolver yields
 	// blobstore-relative paths so the blobstore owns the physical root.
 	gcCtx, gcCancel := context.WithCancel(ctx)
-	if blobRoot := a.Config.BlobStore.Root; blobRoot != "" {
-		if store, berr := blobstore.NewLocalDir(blobRoot); berr != nil {
-			logger("webconsole files gc: blobstore init: " + berr.Error())
-		} else {
-			blobMeta := filessql.NewBlobMetadataRepo(a.DB)
-			filesSvc := filesservice.New(filesservice.Deps{
-				DB:         a.DB,
-				Sessions:   filessql.NewFileTransferSessionRepo(a.DB),
-				References: filessql.NewFileReferenceRepo(a.DB),
-				Resolver:   files.NewLocalResolver(""),
-				BlobStore:  store,
-				IDGen:      a.IDGen,
-				Clock:      a.Clock,
-			}).SetGCRepo(blobMeta)
-			gcLoop := filesservice.NewGCLoop(filesSvc, filesservice.DefaultGCGrace, time.Hour).
-				WithErrorHandler(func(err error) {
-					logger("webconsole files gc: " + err.Error())
-				})
-			go gcLoop.Run(gcCtx)
-		}
+	if filesSvc != nil {
+		gcLoop := filesservice.NewGCLoop(filesSvc, filesservice.DefaultGCGrace, time.Hour).
+			WithErrorHandler(func(err error) {
+				logger("webconsole files gc: " + err.Error())
+			})
+		go gcLoop.Run(gcCtx)
 	}
 
 	cleanup = func() error {
