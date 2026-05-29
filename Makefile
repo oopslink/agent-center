@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-worker-daemon build-fakeagent test cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa smoke vet tidy clean clean-dist release e2e e2e-install
+.PHONY: help build build-frontend build-backend build-worker-daemon build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa smoke vet tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -9,6 +9,7 @@ help:
 	@echo "  build-worker-daemon / build-fakeagent"
 	@echo ""
 	@echo "  test                 — go test ./..."
+	@echo "  test-install         — offline shell tests for the source installer (task #92)"
 	@echo "  cover / cover-html   — go test with coverage report"
 	@echo "  vet                  — go vet ./..."
 	@echo "  tidy                 — go mod tidy"
@@ -17,6 +18,7 @@ help:
 	@echo ""
 	@echo "Release packaging:"
 	@echo "  release              — host-platform tarball at ./dist/agent-center-\$$VERSION-\$$os-\$$arch.tar.gz"
+	@echo "  release-dir          — stage release layout (no tarball) at \$$OUT (source installer, task #92)"
 	@echo ""
 	@echo "Lint (conventions § 0.4 enforce mechanisms):"
 	@echo "  lint                       — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa"
@@ -81,6 +83,12 @@ build-fakeagent:
 
 test:
 	go test ./...
+
+# test-install — offline shell-level tests for the source guided installer
+# (task #92, S6): --help, --dry-run no-mutation, token redaction, early
+# non-interactive failures, and preflight dependency checks.
+test-install:
+	./scripts/install/source-installer_test.sh
 
 cover:
 	go test -coverprofile=coverage.out -covermode=atomic ./...
@@ -205,15 +213,46 @@ RELEASE_ARCH  := $(shell go env GOARCH)
 RELEASE_DIR   := dist/agent-center-$(VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
 RELEASE_TAR   := dist/agent-center-$(VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH).tar.gz
 
+# STAGE_RELEASE_LAYOUT — shared recipe that lays out a release directory
+# at $(1). Both `release` (tarball) and `release-dir` (source installer
+# staging, task #92) call this via $(call ...) so the layout — bin/,
+# LICENSE, README, and the install/uninstall/upgrade entrypoints — has a
+# single definition. The source guided installer stages a release-like
+# dir then invokes the SAME staged ./install, so service layout, rollback,
+# config, and launchd/systemd behavior stay identical to tarball installs.
+define STAGE_RELEASE_LAYOUT
+	rm -rf $(1)
+	mkdir -p $(1)/bin
+	cp ./bin/agent-center $(1)/bin/
+	cp ./bin/agent-center-worker-daemon $(1)/bin/
+	cp LICENSE $(1)/
+	cp README.md $(1)/
+	printf '#!/bin/sh\n# v2.4 first-mile install entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" install "$$@"\n' > $(1)/install
+	printf '#!/bin/sh\n# v2.5.4 uninstall entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" uninstall "$$@"\n' > $(1)/uninstall
+	printf '#!/bin/sh\n# v2.5.4 upgrade entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" upgrade "$$@"\n' > $(1)/upgrade
+	chmod +x $(1)/install $(1)/uninstall $(1)/upgrade
+endef
+
+# release-dir — stage a release-like layout WITHOUT tarring or removing
+# it (task #92 source guided installer). The source installer calls
+#
+#     make release-dir VERSION=<resolved-ref> OUT=<staging-dir>
+#
+# then runs `<staging-dir>/install center|worker ...` so it reuses the
+# existing install/upgrade path verbatim. OUT defaults to the same
+# versioned dist path `release` uses, so `make release-dir` alone is a
+# useful "build + stage, no tarball" target.
+OUT ?= $(RELEASE_DIR)
+release-dir: build
+	@echo ""
+	@echo "==> staging release layout for $(VERSION) ($(RELEASE_OS)/$(RELEASE_ARCH)) at $(OUT)"
+	$(call STAGE_RELEASE_LAYOUT,$(OUT))
+	@echo "✓ staged $(OUT)"
+
 release: build
 	@echo ""
 	@echo "==> packaging $(VERSION) for $(RELEASE_OS)/$(RELEASE_ARCH)"
 	rm -rf $(RELEASE_DIR) $(RELEASE_TAR)
-	mkdir -p $(RELEASE_DIR)/bin
-	cp ./bin/agent-center $(RELEASE_DIR)/bin/
-	cp ./bin/agent-center-worker-daemon $(RELEASE_DIR)/bin/
-	cp LICENSE $(RELEASE_DIR)/
-	cp README.md $(RELEASE_DIR)/
 	# v2.4 first-mile install entrypoint — `./install center|worker`
 	# delegates to `bin/agent-center install <args>`. A symlink would
 	# lose the `install` subcommand prefix (argv[0] is consulted as
@@ -224,10 +263,7 @@ release: build
 	# whole install / upgrade / uninstall lifecycle is reachable
 	# from the extracted tarball without the operator having to
 	# remember the `bin/agent-center <verb>` form.
-	printf '#!/bin/sh\n# v2.4 first-mile install entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" install "$$@"\n' > $(RELEASE_DIR)/install
-	printf '#!/bin/sh\n# v2.5.4 uninstall entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" uninstall "$$@"\n' > $(RELEASE_DIR)/uninstall
-	printf '#!/bin/sh\n# v2.5.4 upgrade entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" upgrade "$$@"\n' > $(RELEASE_DIR)/upgrade
-	chmod +x $(RELEASE_DIR)/install $(RELEASE_DIR)/uninstall $(RELEASE_DIR)/upgrade
+	$(call STAGE_RELEASE_LAYOUT,$(RELEASE_DIR))
 	# Tar with -C so the archive starts at the versioned dir,
 	# matching what the first-mile guide assumes ("cd agent-center-
 	# vX.Y.Z-<os>-<arch>" after extract).

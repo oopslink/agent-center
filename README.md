@@ -47,6 +47,34 @@ cd agent-center-v2.4.0-<os>-<arch>/
 
 Supported on macOS (this cycle's acceptance target) and Linux (systemd unit installed automatically; full validation deferred). **Upgrades use the same command** — extract the new tarball, run `./install center`, and the installer atomically swaps the symlink with auto-rollback if the new version fails its health probe.
 
+### Install from source (guided)
+
+For a quick trial, a developer install, or onboarding a worker without a prebuilt tarball, a source installer clones, builds, and then **reuses the exact same `./install` path** as the tarball:
+
+```bash
+# Interactive wizard (asks for mode, version, prefix):
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh | bash
+
+# Pinned-tag Center install (recommended for anything stable):
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/v2.7.0/install.sh | bash -s -- center --version v2.7.0
+
+# Worker install — use the command the Web Console "Add Worker" generates:
+curl -fsSL .../install.sh | bash -s -- worker \
+  --version v2.7.0 --center tcp://HOST:7300 \
+  --server-fingerprint sha256:... --token enroll_... --worker-name my-box
+
+# Preview everything first — clones/builds/installs nothing:
+curl -fsSL .../install.sh | bash -s -- center --dry-run
+```
+
+The release tarball remains the **recommended stable production** path. Notes on the source installer:
+
+- **Pin a tag** with `--version vX.Y.Z` for stable installs. The `--channel main` (default when no version is given) is **development/unstable** and is labelled as such before it builds.
+- It prints the resolved **repo / ref / commit / prefix** before any build or install, and runs no hidden `sudo`.
+- The enrollment **token** and **server fingerprint** are sensitive — don't paste them into shared shell history or logs. The installer never echoes their values (`--dry-run` redacts them too).
+- Missing build dependencies (`git`, `go`, `node`, `pnpm`/`corepack`) fail preflight early with copy-pasteable hints; no system packages are installed automatically.
+- It needs a build toolchain on the host. Run `--help` for the full flag/env reference; flags also have `AGENT_CENTER_*` environment equivalents.
+
 | Command | What it does |
 |---|---|
 | `agent-center install center` | Install / upgrade the center (idempotent) |
@@ -217,6 +245,8 @@ make release        # → dist/agent-center-v<ver>-<os>-<arch>.tar.gz + sha256
 ```
 
 Cross-platform tarballs (Linux × amd64/arm64 from a Mac build host, etc.), signing, GitHub Releases publishing, and CI are all deferred to the v3 "Deployment as Product" theme. For now `make release` covers the local-platform case, which is what you need to test the install flow end-to-end before promoting a release.
+
+The **source guided installer** (top-level `install.sh` → `scripts/install/`) reuses this same layout via `make release-dir VERSION=<ref> OUT=<staging>` — it stages the release directory without tarring, then runs the staged `./install`. Its offline shell tests run with `make test-install`.
 
 ### Local docs site
 
