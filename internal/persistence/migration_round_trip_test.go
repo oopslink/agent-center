@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 44 || v2 != 44 {
-		t.Fatalf("Version after Up: got (%d, %d) want (44, 44)", v1, v2)
+	if v1 != 45 || v2 != 45 {
+		t.Fatalf("Version after Up: got (%d, %d) want (45, 45)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
@@ -381,6 +381,44 @@ func TestMigration_0044_EnvironmentWorkerShape(t *testing.T) {
 		`INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
 		 VALUES ('e3','w1',2,'k1','stop','{}',?)`, now); err == nil {
 		t.Fatal("duplicate (worker_id, idempotency_key) should have failed")
+	}
+}
+
+// TestMigration_0045_FileTransferSessionShape — v2.7 D3-a (ADR-0048) guard:
+// the file_transfer_sessions table lands after a full Up with its supporting
+// indexes and the UNIQUE(transfer_uri) constraint actually enforced.
+func TestMigration_0045_FileTransferSessionShape(t *testing.T) {
+	db, err := Open(t.TempDir() + "/m45.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if !tableExists(t, db, "file_transfer_sessions") {
+		t.Fatal("file_transfer_sessions must exist after Up")
+	}
+	for _, idx := range []string{"idx_fts_status_expires", "idx_fts_file_uri"} {
+		if !indexExists(t, db, idx) {
+			t.Fatalf("index %s must exist after Up", idx)
+		}
+	}
+
+	now := "2026-05-29T15:00:00Z"
+	exp := "2026-05-29T16:00:00Z"
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO file_transfer_sessions (id, file_uri, transfer_uri, direction, status, content_type, size, sha256, scope, scope_id, created_by, created_at, expires_at)
+		 VALUES ('s1','ac://files/u1','ac://transfers/s1','upload','open','text/plain',0,NULL,NULL,NULL,'user:x',?,?)`, now, exp); err != nil {
+		t.Fatalf("first session insert: %v", err)
+	}
+	// UNIQUE(transfer_uri): re-using a transfer URI must fail.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO file_transfer_sessions (id, file_uri, transfer_uri, direction, status, content_type, size, sha256, scope, scope_id, created_by, created_at, expires_at)
+		 VALUES ('s2','ac://files/u2','ac://transfers/s1','upload','open','text/plain',0,NULL,NULL,NULL,'user:x',?,?)`, now, exp); err == nil {
+		t.Fatal("duplicate transfer_uri should have failed")
 	}
 }
 
