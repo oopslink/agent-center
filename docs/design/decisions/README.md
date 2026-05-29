@@ -45,6 +45,19 @@
 | 0037 | [Web Console 升为 v2 用户主入口（v2 W1）](0037-web-console-as-main-user-ui.md) | Accepted |
 | 0038 | [CLI UX 增强（v2 W2）](0038-cli-ux-enhancement.md) | Accepted |
 | 0039 | [Conversation 业务模型 v2 统一（supersedes 0017/0021/0022）](0039-conversation-business-model-v2-unified.md) | Accepted |
+| 0040 | [Identity BC carve-out（v2.6）](0040-identity-bc-carve-out.md) | Draft |
+| 0041 | [Organization 多租户](0041-organization-multi-tenant.md) | Draft |
+| 0042 | [Member AR](0042-member-ar.md) | Draft |
+| 0043 | [Auth passcode + JWT cookie](0043-auth-passcode-jwt.md) | Draft |
+| 0044 | [Supervisor cut](0044-supervisor-cut.md) | Draft |
+| 0045 | [Identity ID format](0045-identity-id-format.md) | Draft |
+| 0046 | [ProjectManager BC + Task/Issue ownership（v2.7）](0046-projectmanager-bc.md) | Draft (TODO) |
+| 0047 | [Conversation owner_ref URI + Message context_refs（v2.7）](0047-conversation-owner-ref-and-context-refs.md) | Draft |
+| 0048 | [File URI + BlobStore + FileTransfer 边界（v2.7）](0048-file-uri-and-blobstore.md) | Draft |
+| 0049 | [Agent BC：long-running Agent, no AgentRun（v2.7）](0049-agent-bc-no-agentrun.md) | Draft (TODO) |
+| 0050 | [Environment BC：Worker + AgentController + worker-initiated control（v2.7）](0050-environment-bc.md) | Draft (TODO) |
+| 0051 | [ClaudeCode headless 集成契约（v2.7）](0051-claudecode-headless-contract.md) | Draft (TODO) |
+| 0052 | [Subscriber 真值 + Conversation participant 投影（v2.7）](0052-subscriber-truth-and-participant-projection.md) | Draft (TODO) |
 
 ## 规则提示
 
