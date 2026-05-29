@@ -199,6 +199,14 @@ func (s *Service) OpenBlob(ctx context.Context, fileURI files.FileURI) (io.ReadC
 	return rc, err
 }
 
+// FindSessionByTransferURI returns the transfer session for transferURI (or
+// ErrTransferSessionNotFound). It is a read-only passthrough used by the
+// transport layer to verify session ownership before writing/finalizing a blob
+// (the agent file tools check session.CreatedBy() == agent:<id>).
+func (s *Service) FindSessionByTransferURI(ctx context.Context, transferURI string) (*files.FileTransferSession, error) {
+	return s.sessions.FindByTransferURI(ctx, transferURI)
+}
+
 // CancelSession transitions an open session to canceled.
 func (s *Service) CancelSession(ctx context.Context, transferURI string) error {
 	return s.transition(ctx, transferURI, func(sess *files.FileTransferSession, at time.Time) error {

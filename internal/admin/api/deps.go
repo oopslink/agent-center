@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
+	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
@@ -88,6 +89,13 @@ type HandlerDeps struct {
 	// pair is atomic; the AppService only exposes a read-only ListWorkItems,
 	// and the scope checks (agent owns a WorkItem for the task) read from it.
 	AgentWorkItemRepo agent.WorkItemRepository
+
+	// Files module (v2.7 post-D3, task #104) — backs the agent file MCP tools
+	// (/admin/agent-tools/upload_file, attach_file + /admin/files/...). The same
+	// transfer Service the webconsole human transport uses; agent-domain
+	// reachability (own-domain scopes) is the authz layer in agent_tools_files.go.
+	// nil when the blobstore root is unset → the file endpoints degrade to 501.
+	FilesSvc *filesservice.Service
 
 	// ProjectManager BC (v2.7 D2-b2) — backs block_task / complete_task. The
 	// agent-tools surface calls BlockTask / CompleteTask with the operating

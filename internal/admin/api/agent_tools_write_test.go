@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,6 +46,7 @@ type writeToolsFixture struct {
 	deps     HandlerDeps
 	verifier *fakeVerifier
 
+	db        *sql.DB
 	pmSvc     *pmservice.Service
 	convRepo  conversation.ConversationRepository
 	msgRepo   conversation.MessageRepository
@@ -153,7 +155,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		PMService:         pmSvc,
 	}
 	return &writeToolsFixture{
-		deps: deps, verifier: verifier, pmSvc: pmSvc, convRepo: convRepo,
+		deps: deps, verifier: verifier, db: db, pmSvc: pmSvc, convRepo: convRepo,
 		msgRepo: msgRepo, workItems: workItems, relay: relay, clk: clk,
 	}
 }

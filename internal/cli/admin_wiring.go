@@ -266,6 +266,11 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
 		PMService: a.PMService,
 
+		// Files module (v2.7 post-D3, task #104) — agent file MCP tools. Reuses
+		// the shared buildFilesService helper (same as the webconsole FilesSvc +
+		// GC loop); nil when the blobstore root is unset → file endpoints 501.
+		FilesSvc: buildFilesService(a),
+
 		// TaskRuntime BC
 		TaskRepo:        a.TaskRepo,
 		ExecRepo:        a.ExecRepo,

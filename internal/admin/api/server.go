@@ -338,6 +338,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/agent-tools/get_task", s.getTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_issue", s.getIssueHandler)
+	// v2.7 post-D3 (task #104) — agent file MCP tools. Upload/download/attach with
+	// agent-domain reachability authz (the agent's OWN enumerable scopes). The
+	// byte mechanics mirror D3-d's human transport; only the authorization model
+	// differs. The literal `transfer` segment is more specific than `{ulid}`, so
+	// ServeMux routes PUT/complete to the transfer handlers and bare GET to
+	// download (same precedence trick as D3-d).
+	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/attach_file", s.attachFileHandler)
+	s.mux.HandleFunc("PUT /admin/files/transfer/{transfer_id}", s.putAgentBlobHandler)
+	s.mux.HandleFunc("POST /admin/files/transfer/{transfer_id}/complete", s.completeFileHandler)
+	s.mux.HandleFunc("GET /admin/files/{ulid}", s.downloadFileHandler)
 
 	// --- conversation ----------------------------------------------------
 	s.mux.HandleFunc("GET /admin/conversation/conv/find", s.convFindHandler)
