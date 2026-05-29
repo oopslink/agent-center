@@ -312,6 +312,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/environment/worker/ack", s.envWorkerAckHandler)
 	s.mux.HandleFunc("POST /admin/environment/worker/heartbeat", s.envWorkerHeartbeatHandler)
 
+	// --- agent tools (v2.7 D2-b1, ADR-0049) ------------------------------
+	// Per-agent MCP tool surface. ADDITIVE — rides the same bearer auth as
+	// the worker routes above. The per-agent auth gate takes the worker from
+	// the TOKEN OWNER and verifies the target agent is bound to it (guardrail)
+	// before any tool runs. b1 ships one representative read tool.
+	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
+
 	// --- conversation ----------------------------------------------------
 	s.mux.HandleFunc("GET /admin/conversation/conv/find", s.convFindHandler)
 	s.mux.HandleFunc("GET /admin/conversation/conv/find-by-id", s.convFindByIDHandler)

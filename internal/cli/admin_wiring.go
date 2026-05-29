@@ -259,6 +259,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// Environment BC (v2.7 D1, ADR-0050, task #102)
 		EnvControlSvc: a.EnvControlSvc,
 
+		// Agent BC (v2.7 C3 / D2-b1) — per-agent MCP tool surface.
+		AgentSvc: a.AgentService,
+
 		// TaskRuntime BC
 		TaskRepo:        a.TaskRepo,
 		ExecRepo:        a.ExecRepo,

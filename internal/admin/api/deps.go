@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
+	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -73,6 +74,12 @@ type HandlerDeps struct {
 	// control channel riding this same admin API + bearer auth. WorkerRepo
 	// (above) supplies org provenance on connect.
 	EnvControlSvc *envservice.EnvControl
+
+	// Agent BC (v2.7 C3 / D2-b1) — drives the per-agent MCP tool surface
+	// (/admin/agent-tools/...). The per-agent auth gate (requireAgentOnWorker)
+	// resolves + authorizes the operating agent via this AppService; the
+	// handler never touches the DB directly.
+	AgentSvc *agentservice.Service
 
 	// TaskRuntime BC
 	TaskRepo        task.Repository
