@@ -187,6 +187,32 @@ func TestValidationAndGatingRejections(t *testing.T) {
 	}
 }
 
+func TestTransitionIssue(t *testing.T) {
+	svc, ob, ctx := setup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "o", Name: "P", CreatedBy: "user:a"})
+	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
+
+	// illegal: open→resolved (skips in_progress)
+	if err := svc.TransitionIssue(ctx, iid, pm.IssueResolved, "user:a"); err != pm.ErrIllegalTransition {
+		t.Fatalf("open→resolved want ErrIllegalTransition, got %v", err)
+	}
+	// legal: open→in_progress
+	if err := svc.TransitionIssue(ctx, iid, pm.IssueInProgress, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := svc.issues.FindByID(ctx, iid)
+	if got.Status() != pm.IssueInProgress {
+		t.Fatalf("issue status = %s, want in_progress", got.Status())
+	}
+	// non-member rejected
+	if err := svc.TransitionIssue(ctx, iid, pm.IssueResolved, "user:stranger"); err != ErrNotMember {
+		t.Fatalf("non-member transition want ErrNotMember, got %v", err)
+	}
+	if !contains(unprocessedTypes(t, ob, ctx), EvtIssueStateChanged) {
+		t.Fatal("expected pm.issue.state_changed event")
+	}
+}
+
 func TestCreateIssueAndSubscribe(t *testing.T) {
 	svc, ob, ctx := setup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

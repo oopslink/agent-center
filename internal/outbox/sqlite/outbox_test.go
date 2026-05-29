@@ -154,3 +154,47 @@ func TestAppliedStore_DedupByEventID(t *testing.T) {
 		t.Fatal("other projector should be independent")
 	}
 }
+
+// TestPump_DrainsBacklogOnBoot verifies the Pump drains pre-existing backlog
+// immediately on Run (then keeps ticking), applying each event once.
+func TestPump_DrainsBacklogOnBoot(t *testing.T) {
+	repo, applied := newDB(t)
+	ctx := context.Background()
+	// seed a backlog
+	ids := []string{}
+	for i := 0; i < 3; i++ {
+		e := mkEvent(t)
+		ids = append(ids, e.ID)
+		if err := repo.Append(ctx, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	proj := &countingProjector{name: "p"}
+	relay := outbox.NewRelay(repo, applied, clock.SystemClock{}, proj)
+	pump := outbox.NewPump(relay, 5*time.Millisecond, 0)
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go pump.Run(runCtx)
+
+	// poll until the backlog is drained (bounded wait)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		un, err := repo.FetchUnprocessed(ctx, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(un) == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("pump did not drain backlog in time, %d remain", len(un))
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	for _, id := range ids {
+		if proj.calls[id] != 1 {
+			t.Fatalf("event %s applied %d times, want 1", id, proj.calls[id])
+		}
+	}
+}

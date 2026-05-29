@@ -6,7 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/outbox"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
 	"github.com/oopslink/agent-center/internal/webconsole/spa"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
@@ -20,33 +24,33 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		return nil
 	}
 	deps := api.HandlerDeps{
-		Actor:              a.DefaultActor(),
-		ConvRepo:           a.ConvRepo,
-		MsgRepo:            a.MsgRepo,
-		MessageWriter:      a.MessageWriter,
-		ChannelMgmtSvc:     a.ChannelMgmtSvc,
-		ParticipantMgmtSvc: a.ParticipantMgmtSvc,
-		CarryOverSvc:       a.CarryOverSvc,
-		DerivationSvc:      a.DerivationSvc,
-		IRRepo:             a.IRRepo,
-		ExecRepo:           a.ExecRepo,
-		IRSvc:              a.IRSvc,
-		AgentInstanceRepo:  a.AgentInstanceRepo,
-		UserSecretRepo:     a.UserSecretRepo,
-		UserSecretSvc:      a.UserSecretSvc,
-		ProjectRepo:        a.ProjectRepo,
-		ReadStateRepo:      a.ReadStateRepo,
-		ReadStateSvc:       a.ReadStateSvc,
-		IssueRepo:          a.IssueRepo,
-		TaskRepo:           a.TaskRepo,
-		IssueLifecycleSvc:  a.IssueLifecycleSvc,
-		TaskSvc:            a.TaskSvc,
-		AdminTokenSvc:      a.AdminTokenSvc,
-		SignupSvc:          a.IdentitySignupSvc,
-		SigninSvc:          a.IdentitySigninSvc,
-		SignoutSvc:         a.IdentitySignoutSvc,
-		AuthSvc:            a.IdentityAuthSvc,
-		PasscodeChangeSvc:  a.IdentityPasscodeChangeSvc,
+		Actor:               a.DefaultActor(),
+		ConvRepo:            a.ConvRepo,
+		MsgRepo:             a.MsgRepo,
+		MessageWriter:       a.MessageWriter,
+		ChannelMgmtSvc:      a.ChannelMgmtSvc,
+		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
+		CarryOverSvc:        a.CarryOverSvc,
+		DerivationSvc:       a.DerivationSvc,
+		IRRepo:              a.IRRepo,
+		ExecRepo:            a.ExecRepo,
+		IRSvc:               a.IRSvc,
+		AgentInstanceRepo:   a.AgentInstanceRepo,
+		UserSecretRepo:      a.UserSecretRepo,
+		UserSecretSvc:       a.UserSecretSvc,
+		ProjectRepo:         a.ProjectRepo,
+		ReadStateRepo:       a.ReadStateRepo,
+		ReadStateSvc:        a.ReadStateSvc,
+		IssueRepo:           a.IssueRepo,
+		TaskRepo:            a.TaskRepo,
+		IssueLifecycleSvc:   a.IssueLifecycleSvc,
+		TaskSvc:             a.TaskSvc,
+		AdminTokenSvc:       a.AdminTokenSvc,
+		SignupSvc:           a.IdentitySignupSvc,
+		SigninSvc:           a.IdentitySigninSvc,
+		SignoutSvc:          a.IdentitySignoutSvc,
+		AuthSvc:             a.IdentityAuthSvc,
+		PasscodeChangeSvc:   a.IdentityPasscodeChangeSvc,
 		OrgRepo:             a.IdentityOrgRepo,
 		OrgCreateSvc:        a.IdentityOrgCreateSvc,
 		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
@@ -94,43 +98,43 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 				"in the server config (the master key doubles as the JWT signing key)")
 	}
 	deps := api.HandlerDeps{
-		Actor:              a.DefaultActor(),
-		ConvRepo:           a.ConvRepo,
-		MsgRepo:            a.MsgRepo,
-		MessageWriter:      a.MessageWriter,
-		ChannelMgmtSvc:     a.ChannelMgmtSvc,
-		ParticipantMgmtSvc: a.ParticipantMgmtSvc,
-		CarryOverSvc:       a.CarryOverSvc,
-		DerivationSvc:      a.DerivationSvc,
-		IRRepo:             a.IRRepo,
-		ExecRepo:           a.ExecRepo,
-		IRSvc:              a.IRSvc,
-		AgentInstanceRepo:  a.AgentInstanceRepo,
-		UserSecretRepo:     a.UserSecretRepo,
-		UserSecretSvc:      a.UserSecretSvc,
-		ProjectRepo:        a.ProjectRepo,
-		QuerySvc:           a.QuerySvc,
-		FleetSvc:           a.FleetSvc,
-		ReadStateRepo:      a.ReadStateRepo,
-		ReadStateSvc:       a.ReadStateSvc,
-		IssueRepo:          a.IssueRepo,
-		TaskRepo:           a.TaskRepo,
-		IssueLifecycleSvc:  a.IssueLifecycleSvc,
-		TaskSvc:            a.TaskSvc,
-		AdminTokenSvc:      a.AdminTokenSvc,
+		Actor:               a.DefaultActor(),
+		ConvRepo:            a.ConvRepo,
+		MsgRepo:             a.MsgRepo,
+		MessageWriter:       a.MessageWriter,
+		ChannelMgmtSvc:      a.ChannelMgmtSvc,
+		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
+		CarryOverSvc:        a.CarryOverSvc,
+		DerivationSvc:       a.DerivationSvc,
+		IRRepo:              a.IRRepo,
+		ExecRepo:            a.ExecRepo,
+		IRSvc:               a.IRSvc,
+		AgentInstanceRepo:   a.AgentInstanceRepo,
+		UserSecretRepo:      a.UserSecretRepo,
+		UserSecretSvc:       a.UserSecretSvc,
+		ProjectRepo:         a.ProjectRepo,
+		QuerySvc:            a.QuerySvc,
+		FleetSvc:            a.FleetSvc,
+		ReadStateRepo:       a.ReadStateRepo,
+		ReadStateSvc:        a.ReadStateSvc,
+		IssueRepo:           a.IssueRepo,
+		TaskRepo:            a.TaskRepo,
+		IssueLifecycleSvc:   a.IssueLifecycleSvc,
+		TaskSvc:             a.TaskSvc,
+		AdminTokenSvc:       a.AdminTokenSvc,
 		EnrollBootstrapHost: enroll.BootstrapHost,
 		EnrollFingerprint:   enroll.Fingerprint,
-		WorkerRenameSvc:    a.EnrollSvc,
-		WorkerAddSvc:       a.EnrollSvc,
-		WorkerRemoveSvc:    a.EnrollSvc,
-		WorkerRepo:         a.WorkerRepo,
-		ProjectCRUDSvc:     a.ProjectSvc,
-		MappingRepo:        a.MappingRepo,
-		SignupSvc:          a.IdentitySignupSvc,
-		SigninSvc:          a.IdentitySigninSvc,
-		SignoutSvc:         a.IdentitySignoutSvc,
-		AuthSvc:            a.IdentityAuthSvc,
-		PasscodeChangeSvc:  a.IdentityPasscodeChangeSvc,
+		WorkerRenameSvc:     a.EnrollSvc,
+		WorkerAddSvc:        a.EnrollSvc,
+		WorkerRemoveSvc:     a.EnrollSvc,
+		WorkerRepo:          a.WorkerRepo,
+		ProjectCRUDSvc:      a.ProjectSvc,
+		MappingRepo:         a.MappingRepo,
+		SignupSvc:           a.IdentitySignupSvc,
+		SigninSvc:           a.IdentitySigninSvc,
+		SignoutSvc:          a.IdentitySignoutSvc,
+		AuthSvc:             a.IdentityAuthSvc,
+		PasscodeChangeSvc:   a.IdentityPasscodeChangeSvc,
 		OrgRepo:             a.IdentityOrgRepo,
 		OrgCreateSvc:        a.IdentityOrgCreateSvc,
 		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
@@ -161,8 +165,27 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		logger("webconsole fanout: " + err.Error())
 	})
 	go fanout.Run(fanoutCtx)
+
+	// v2.7 B3: bring the cross-BC outbox online. A single-goroutine Pump
+	// drains the outbox (backlog on boot, then ~1s ticker) and applies the
+	// ProjectManager→Conversation participant projection + the AssignTask→
+	// AgentWorkItem projection. Without this loop the projectors are static
+	// and no cross-BC effect ever happens (plan §10 OQ1). Mirrors the fanout
+	// lifecycle (ctx-cancel + graceful shutdown).
+	outboxRepo := outboxsql.NewOutboxRepo(a.DB)
+	appliedRepo := outboxsql.NewAppliedRepo(a.DB)
+	participantProj := pmservice.NewParticipantProjector(a.DB, a.ConvRepo, appliedRepo, a.IDGen, a.Clock)
+	workItemProj := pmservice.NewWorkItemProjector(a.DB, agentsql.NewWorkItemRepo(a.DB), appliedRepo, a.IDGen, a.Clock)
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj)
+	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
+		logger("webconsole outbox pump: " + err.Error())
+	})
+	pumpCtx, pumpCancel := context.WithCancel(ctx)
+	go pump.Run(pumpCtx)
+
 	cleanup = func() error {
 		fanoutCancel()
+		pumpCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
