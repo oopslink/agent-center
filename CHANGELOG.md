@@ -11,6 +11,27 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.6.1] — 2026-05-29
+
+Patch release. No functional or schema changes.
+
+### Fixed
+
+- **Web Console build break (shipped in v2.6.0).** `AppLayout.tsx` used
+  `React.useEffect` / `React.useState` as values while `React` was imported
+  type-only (`import type React`). Under `tsc -b` (the mode `make build` runs)
+  this failed the build; at runtime the erased import left `React` undefined,
+  crashing the org-switcher dropdown and the create-organization modal.
+  Switched to the file's existing named `useEffect` / `useState` imports.
+
+### Changed
+
+- **Lint gate now type-checks app sources.** `make lint`'s `lint-spa-tsc`
+  ran `tsc --noEmit`, which checks nothing because `web/tsconfig.json` is
+  `files: [] + references` (bare `tsc` never follows project references). It
+  now runs `tsc -b --force`, which follows the references and re-checks every
+  source — this is the gap that let the v2.6.0 build break ship.
+
 ## [v2.6.0] — 2026-05-28
 
 ### Breaking changes
