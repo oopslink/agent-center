@@ -38,7 +38,8 @@ v2.7 需要一个**运行环境** BC 承载：部署在机器上的常驻 Worker
 ### 4. 控制通道（plan § 10 OQ3）
 
 - **Worker 主动发起**；命令建模为**有序可重放命令日志**，stream 优先 + poll 兜底（**同一日志**）。
-- **v1 实现顺序（D1，决定 2026-05-30）**：先落 **poll-baseline**（worker 主动 poll，骑现有 admin API bearer/TLS：`connect` / `commands?after=ackOffset` / `ack`），它就是 ADR 的"兜底、同一命令日志"，完整满足 #102 验收核心（重连按 offset 续传 / ack 推进 / 破坏命令不重复）且端到端最好测；**SSE「stream 优先」低延迟推送列为后续优化**（slice ②b / D-later，跑同一日志、零返工）。控制流低频（生命周期命令 + ack/status；agent 高频输出走观测流），poll 间隔延迟可接受。
+- **实现顺序（决定 2026-05-30）**：先落 **poll-baseline**（worker 主动 poll，骑现有 admin API bearer/TLS：`connect` / `commands?after=ackOffset` / `ack`，= D1），它就是 ADR 的"兜底、同一命令日志"，完整满足 #102 验收核心（重连按 offset 续传 / ack 推进 / 破坏命令不重复）且端到端最好测。
+- **SSE「stream 优先」低延迟推送必须在 v2.7 完成**（@oopslink 要求，非 post-v2.7）= **task #108 / D5**，在 D2（真执行）之后落地：worker-initiated 长连 SSE 下推命令 + 上行 ack/status，daemon 切 stream-first + poll 兜底，**跑同一条命令日志、零返工**；重连/ack/破坏命令不重复的保证与 poll 路径一致。控制流虽低频（生命周期命令；agent 高频输出走观测流），但 v2.7 ship 包含 stream 的近实时控制。
 - ack = 按 offset 累积确认；每条命令带 **idempotency_key**。**两层去重**：日志层（已 ack 的重连不再下发，D1 保证）+ 执行层（worker 命令处理器按 idempotency_key 去重，防"执行后 ack 前崩溃→重拉→二次执行"，属 D2）。
 - AgentController（原 AgentLauncher 改名）负责：start/stop/restart/reset 进程、stream-json stdin/stdout 控制、状态/心跳映射。
 - StopAgent 操作态不自动 blocked（业务态需显式，详 [ADR-0049](0049-agent-bc-no-agentrun.md)）。
