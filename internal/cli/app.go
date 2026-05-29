@@ -101,6 +101,12 @@ type App struct {
 	// AgentService is the v2.7 Agent BC AppService facade (C3).
 	AgentService *agentsvc.Service
 
+	// AgentWorkItemRepo is the raw Agent WorkItem repository (C2). The admin
+	// agent-tools surface (v2.7 D2-b2 request_input) needs Update + WaitInput
+	// composed inside an outer tx — the AppService only exposes read-only
+	// ListWorkItems.
+	AgentWorkItemRepo agentpkg.WorkItemRepository
+
 	// EnvControlSvc is the v2.7 Environment BC control-channel AppService
 	// (D1, ADR-0050, task #102) — backs the additive /admin/environment/...
 	// worker control endpoints.
@@ -385,10 +391,16 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AgentDir:     agentpkg.NewOrgDirectory(agentRepo),
 	})
 
+	// Shared agent WorkItem repo: the Agent BC AppService owns it, and the
+	// admin agent-tools surface (v2.7 D2-b2) needs the raw repo to do
+	// Update + WaitInput inside an outer tx (the AppService only exposes a
+	// read-only ListWorkItems).
+	agentWorkItemRepo := agentsql.NewWorkItemRepo(db)
+
 	agentSvc := agentsvc.New(agentsvc.Deps{
 		DB:        db,
 		Agents:    agentRepo,
-		WorkItems: agentsql.NewWorkItemRepo(db),
+		WorkItems: agentWorkItemRepo,
 		Activity:  agentsql.NewActivityEventRepo(db),
 		Workers:   wr,
 		Outbox:    outboxsql.NewOutboxRepo(db),
@@ -413,6 +425,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:              gen,
 		PMService:          pmSvc,
 		AgentService:       agentSvc,
+		AgentWorkItemRepo:  agentWorkItemRepo,
 		EnvControlSvc:      envControlSvc,
 		WorkerRepo:         wr,
 		MappingRepo:        mr,

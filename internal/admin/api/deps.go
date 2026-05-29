@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
+	"github.com/oopslink/agent-center/internal/agent"
 	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -18,6 +19,7 @@ import (
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
@@ -80,6 +82,19 @@ type HandlerDeps struct {
 	// resolves + authorizes the operating agent via this AppService; the
 	// handler never touches the DB directly.
 	AgentSvc *agentservice.Service
+	// AgentWorkItemRepo is the raw Agent WorkItem repository (v2.7 D2-b2).
+	// The agent-tools write surface (request_input) needs Update + WaitInput
+	// composed inside the SAME outer tx as the conversation AddMessage so the
+	// pair is atomic; the AppService only exposes a read-only ListWorkItems,
+	// and the scope checks (agent owns a WorkItem for the task) read from it.
+	AgentWorkItemRepo agent.WorkItemRepository
+
+	// ProjectManager BC (v2.7 D2-b2) — backs block_task / complete_task. The
+	// agent-tools surface calls BlockTask / CompleteTask with the operating
+	// agent as the actor (#5a made the assigned agent a ProjectMember so the
+	// pm write-gate passes). These services runInTx internally, so they nest
+	// inside the agent-tools outer RunInTx for atomicity with AddMessage.
+	PMService *pmservice.Service
 
 	// TaskRuntime BC
 	TaskRepo        task.Repository

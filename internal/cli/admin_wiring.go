@@ -260,7 +260,11 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		EnvControlSvc: a.EnvControlSvc,
 
 		// Agent BC (v2.7 C3 / D2-b1) — per-agent MCP tool surface.
-		AgentSvc: a.AgentService,
+		AgentSvc:          a.AgentService,
+		AgentWorkItemRepo: a.AgentWorkItemRepo,
+
+		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
+		PMService: a.PMService,
 
 		// TaskRuntime BC
 		TaskRepo:        a.TaskRepo,

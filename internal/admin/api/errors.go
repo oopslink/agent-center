@@ -9,6 +9,8 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
@@ -43,6 +45,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, inputrequest.ErrInputRequestNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
 		errors.Is(err, discussion.ErrIssueNotFound),
+		errors.Is(err, pm.ErrTaskNotFound),
+		errors.Is(err, pm.ErrProjectNotFound),
+		errors.Is(err, pm.ErrIssueNotFound),
 		errors.Is(err, admintoken.ErrTokenNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 
@@ -65,7 +70,8 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, workforce.ErrProjectVersionConflict),
 		errors.Is(err, workforce.ErrAgentInstanceVersionConflict),
 		errors.Is(err, secretmgmt.ErrUserSecretVersionConflict),
-		errors.Is(err, discussion.ErrIssueVersionConflict):
+		errors.Is(err, discussion.ErrIssueVersionConflict),
+		errors.Is(err, pm.ErrVersionConflict):
 		writeError(w, http.StatusConflict, "version_conflict", err.Error())
 
 	// ---- forbidden / terminal (403) -------------------------------------
@@ -75,7 +81,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, discussion.ErrIssueWithdrawn),
 		errors.Is(err, discussion.ErrIssueAlreadyConcluded),
 		errors.Is(err, secretmgmt.ErrUserSecretRevoked),
-		errors.Is(err, execution.ErrTaskExecutionAlreadyTerminated):
+		errors.Is(err, execution.ErrTaskExecutionAlreadyTerminated),
+		errors.Is(err, pmservice.ErrNotMember),
+		errors.Is(err, pm.ErrCrossProject):
 		writeError(w, http.StatusForbidden, "terminal", err.Error())
 
 	// ---- invalid_transition (422) ---------------------------------------
@@ -93,14 +101,18 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, convservice.ErrParticipantNotActive),
 		errors.Is(err, convservice.ErrParticipantNotOwner),
 		errors.Is(err, convservice.ErrDerivationSourceNotActive),
-		errors.Is(err, convservice.ErrDerivationCallerNotParticipant):
+		errors.Is(err, convservice.ErrDerivationCallerNotParticipant),
+		errors.Is(err, pm.ErrIllegalTransition),
+		errors.Is(err, pm.ErrInvalidStatus),
+		errors.Is(err, pm.ErrSelfVerify):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 
 	// ---- bad_request (400) ----------------------------------------------
 	case errors.Is(err, secretmgmt.ErrMasterKeyNotLoaded),
 		errors.Is(err, trservice.ErrNoInputChannel),
 		errors.Is(err, trservice.ErrProjectNotFound),
-		errors.Is(err, disservice.ErrProjectNotFound):
+		errors.Is(err, disservice.ErrProjectNotFound),
+		errors.Is(err, pm.ErrBlockReasonRequired):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 
 	default:
