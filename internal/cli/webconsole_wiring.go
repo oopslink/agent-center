@@ -7,6 +7,9 @@ import (
 	"time"
 
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	"github.com/oopslink/agent-center/internal/environment"
+	envservice "github.com/oopslink/agent-center/internal/environment/service"
+	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -172,7 +175,13 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	appliedRepo := outboxsql.NewAppliedRepo(a.DB)
 	participantProj := pmservice.NewParticipantProjector(a.DB, a.ConvRepo, appliedRepo, a.IDGen, a.Clock)
 	workItemProj := pmservice.NewWorkItemProjector(a.DB, agentsql.NewWorkItemRepo(a.DB), appliedRepo, a.IDGen, a.Clock)
-	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj)
+	// v2.7 D2-a: ADDITIVE reconcile projector. Agent lifecycle intent changes
+	// (C3 agent.lifecycle_changed) become declarative agent.reconcile commands on
+	// the agent's Worker control stream (D1). D1's NoopHandler no-op-acks them →
+	// zero real effect yet (no execution cutover; old taskruntime path untouched).
+	controlLog := environment.NewControlLog(envsql.NewControlEventRepo(a.DB), a.IDGen, a.Clock)
+	agentControlProj := envservice.NewAgentControlProjector(a.DB, controlLog, appliedRepo, a.Clock)
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})

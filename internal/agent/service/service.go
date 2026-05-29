@@ -82,6 +82,7 @@ type agentEventPayload struct {
 	OrgID      string `json:"organization_id"`
 	WorkerID   string `json:"worker_id"`
 	Lifecycle  string `json:"lifecycle"`
+	Version    int    `json:"version"`
 	ResetScope string `json:"reset_scope,omitempty"`
 }
 
@@ -94,6 +95,7 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		OrgID:      a.OrganizationID(),
 		WorkerID:   a.WorkerID(),
 		Lifecycle:  string(a.Lifecycle()),
+		Version:    a.Version(),
 		ResetScope: resetScope,
 	})
 	if err != nil {

@@ -1,0 +1,203 @@
+package service
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"strconv"
+
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/environment"
+	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
+	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/outbox"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
+	"github.com/oopslink/agent-center/internal/persistence"
+)
+
+// projectorFixture wires a real in-memory DB + ControlLog + the projector over
+// one shared DB.
+type projectorFixture struct {
+	proj    *AgentControlProjector
+	control *environment.ControlLog
+	eventsR *envsql.ControlEventRepo
+	ctx     context.Context
+}
+
+func newProjectorFixture(t *testing.T) *projectorFixture {
+	t.Helper()
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
+	gen := idgen.NewGenerator(clk)
+	eventsR := envsql.NewControlEventRepo(db)
+	control := environment.NewControlLog(eventsR, gen, clk)
+	applied := outboxsql.NewAppliedRepo(db)
+	proj := NewAgentControlProjector(db, control, applied, clk)
+	return &projectorFixture{proj: proj, control: control, eventsR: eventsR, ctx: context.Background()}
+}
+
+// commandsFor returns the full control stream for a worker (offset 0 cursor).
+func (f *projectorFixture) commandsFor(t *testing.T, workerID string) []*environment.WorkerControlEvent {
+	t.Helper()
+	cmds, err := f.control.CommandsAfter(f.ctx, environment.WorkerID(workerID), 0)
+	if err != nil {
+		t.Fatalf("CommandsAfter: %v", err)
+	}
+	return cmds
+}
+
+func lifecycleEvent(id, agentID, workerID, lifecycle string, version int, resetScope string) outbox.Event {
+	scopeJSON := ""
+	if resetScope != "" {
+		scopeJSON = `,"reset_scope":"` + resetScope + `"`
+	}
+	payload := `{"agent_id":"` + agentID + `","worker_id":"` + workerID +
+		`","lifecycle":"` + lifecycle + `","version":` + strconv.Itoa(version) + scopeJSON + `}`
+	return outbox.Event{
+		ID:        id,
+		EventType: agentsvc.EvtAgentLifecycleChanged,
+		Payload:   payload,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+}
+
+func TestAgentControlProjector_EnqueuesReconcile(t *testing.T) {
+	f := newProjectorFixture(t)
+	e := lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 {
+		t.Fatalf("want 1 command, got %d", len(cmds))
+	}
+	c := cmds[0]
+	if c.CommandType() != "agent.reconcile" {
+		t.Fatalf("command_type = %q, want agent.reconcile", c.CommandType())
+	}
+	if c.IdempotencyKey() != "agent.lifecycle:AG1:2" {
+		t.Fatalf("idempotency_key = %q", c.IdempotencyKey())
+	}
+	if !strings.Contains(c.Payload(), `"desired_lifecycle":"running"`) {
+		t.Fatalf("payload missing desired_lifecycle: %s", c.Payload())
+	}
+	if !strings.Contains(c.Payload(), `"version":2`) {
+		t.Fatalf("payload missing version: %s", c.Payload())
+	}
+	if !strings.Contains(c.Payload(), `"agent_id":"AG1"`) {
+		t.Fatalf("payload missing agent_id: %s", c.Payload())
+	}
+}
+
+func TestAgentControlProjector_ResetScope(t *testing.T) {
+	f := newProjectorFixture(t)
+	e := lifecycleEvent("EV1", "AG1", "W1", "resetting", 5, "all")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 {
+		t.Fatalf("want 1 command, got %d", len(cmds))
+	}
+	if !strings.Contains(cmds[0].Payload(), `"reset_scope":"all"`) {
+		t.Fatalf("payload missing reset_scope: %s", cmds[0].Payload())
+	}
+	if !strings.Contains(cmds[0].Payload(), `"desired_lifecycle":"resetting"`) {
+		t.Fatalf("payload missing desired_lifecycle: %s", cmds[0].Payload())
+	}
+}
+
+// Restart (version bump) yields a NEW reconcile command.
+func TestAgentControlProjector_RestartBumpsVersion(t *testing.T) {
+	f := newProjectorFixture(t)
+	if err := f.proj.Project(f.ctx, lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")); err != nil {
+		t.Fatalf("Project v2: %v", err)
+	}
+	if err := f.proj.Project(f.ctx, lifecycleEvent("EV2", "AG1", "W1", "running", 3, "")); err != nil {
+		t.Fatalf("Project v3: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 2 {
+		t.Fatalf("want 2 commands, got %d", len(cmds))
+	}
+	if cmds[0].Offset() != 1 || cmds[1].Offset() != 2 {
+		t.Fatalf("offsets = %d,%d want 1,2", cmds[0].Offset(), cmds[1].Offset())
+	}
+	if cmds[0].IdempotencyKey() == cmds[1].IdempotencyKey() {
+		t.Fatalf("idempotency keys must differ by version: %q", cmds[0].IdempotencyKey())
+	}
+	if cmds[0].IdempotencyKey() != "agent.lifecycle:AG1:2" || cmds[1].IdempotencyKey() != "agent.lifecycle:AG1:3" {
+		t.Fatalf("unexpected keys: %q, %q", cmds[0].IdempotencyKey(), cmds[1].IdempotencyKey())
+	}
+}
+
+// Re-delivery of the SAME outbox event ID enqueues only one command.
+func TestAgentControlProjector_IdempotentRedelivery(t *testing.T) {
+	f := newProjectorFixture(t)
+	e := lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 1: %v", err)
+	}
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 2: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 {
+		t.Fatalf("re-delivery must not duplicate: want 1 command, got %d", len(cmds))
+	}
+}
+
+func TestAgentControlProjector_AgentCreatedSkipped(t *testing.T) {
+	f := newProjectorFixture(t)
+	e := outbox.Event{
+		ID:        "EV1",
+		EventType: agentsvc.EvtAgentCreated,
+		Payload:   `{"agent_id":"AG1","worker_id":"W1","lifecycle":"stopped","version":1}`,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 0 {
+		t.Fatalf("agent.created must enqueue nothing, got %d", len(cmds))
+	}
+}
+
+func TestAgentControlProjector_UnknownEventSkipped(t *testing.T) {
+	f := newProjectorFixture(t)
+	e := outbox.Event{ID: "EV1", EventType: "some.other.event", Payload: `{}`}
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 0 {
+		t.Fatalf("unknown event must enqueue nothing, got %d", len(cmds))
+	}
+}
+
+func TestAgentControlProjector_MalformedPayload(t *testing.T) {
+	f := newProjectorFixture(t)
+	e := outbox.Event{ID: "EV1", EventType: agentsvc.EvtAgentLifecycleChanged, Payload: `{not json`}
+	if err := f.proj.Project(f.ctx, e); err == nil {
+		t.Fatal("expected unmarshal error, got nil")
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 0 {
+		t.Fatalf("malformed payload must enqueue nothing, got %d", len(cmds))
+	}
+}
+
+func TestAgentControlProjector_Name(t *testing.T) {
+	f := newProjectorFixture(t)
+	if f.proj.Name() != "env-agent-control" {
+		t.Fatalf("Name = %q", f.proj.Name())
+	}
+}
