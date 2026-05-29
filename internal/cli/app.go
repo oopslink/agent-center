@@ -11,6 +11,8 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	admintokensqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
@@ -92,6 +94,9 @@ type App struct {
 	// /api/projects/{project_id}/... routes + produces the outbox events the
 	// server-runtime relay projects into Conversation/Agent.
 	PMService *pmservice.Service
+
+	// AgentService is the v2.7 Agent BC AppService facade (C3).
+	AgentService *agentsvc.Service
 
 	MessageWriter      *convservice.MessageWriter
 	ChannelMgmtSvc     *convservice.ChannelManagementService
@@ -366,12 +371,24 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:        clk,
 	})
 
+	agentSvc := agentsvc.New(agentsvc.Deps{
+		DB:        db,
+		Agents:    agentsql.NewAgentRepo(db),
+		WorkItems: agentsql.NewWorkItemRepo(db),
+		Activity:  agentsql.NewActivityEventRepo(db),
+		Workers:   wr,
+		Outbox:    outboxsql.NewOutboxRepo(db),
+		IDGen:     gen,
+		Clock:     clk,
+	})
+
 	return &App{
 		Config:             cfg,
 		DB:                 db,
 		Clock:              clk,
 		IDGen:              gen,
 		PMService:          pmSvc,
+		AgentService:       agentSvc,
 		WorkerRepo:         wr,
 		MappingRepo:        mr,
 		ProposalRepo:       prRepo,

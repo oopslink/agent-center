@@ -204,8 +204,18 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
-	s.mux.HandleFunc("GET /api/agents", s.listAgentsHandler)
-	s.mux.HandleFunc("GET /api/agents/{name}", s.showAgentHandler)
+	// v2.7 C3 Agent BC (ADR-0049). Org-scoped; replaces the legacy
+	// workforce.AgentInstance /api/agents routes (retired — old handlers are
+	// dead code, that backend retires with #107). {name}→{id} forces a repoint.
+	s.mux.HandleFunc("GET /api/agents", s.agentListHandler)
+	s.mux.HandleFunc("POST /api/agents", s.agentCreateHandler)
+	s.mux.HandleFunc("GET /api/agents/{id}", s.agentGetHandler)
+	s.mux.HandleFunc("POST /api/agents/{id}/start", s.agentStartHandler)
+	s.mux.HandleFunc("POST /api/agents/{id}/stop", s.agentStopHandler)
+	s.mux.HandleFunc("POST /api/agents/{id}/restart", s.agentRestartHandler)
+	s.mux.HandleFunc("POST /api/agents/{id}/reset", s.agentResetHandler)
+	s.mux.HandleFunc("GET /api/agents/{id}/work-items", s.agentWorkItemsHandler)
+	s.mux.HandleFunc("GET /api/agents/{id}/activity", s.agentActivityHandler)
 
 	// Secrets (metadata only — plaintext only at create time).
 	s.mux.HandleFunc("GET /api/secrets", s.listSecretsHandler)

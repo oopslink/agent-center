@@ -266,60 +266,11 @@ func TestAPI_RespondInputRequest_BadJSON(t *testing.T) {
 // ============================================================================
 // Agents
 // ============================================================================
-
-func TestAPI_ListAgents_Empty(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.AgentInstanceRepo = &fakeAgentRepo{}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/agents", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_ShowAgent_NotFound(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.AgentInstanceRepo = &fakeAgentRepo{}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/agents/nope", sess)
-	if resp.StatusCode != 404 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-type fakeAgentRepo struct{}
-
-func (fakeAgentRepo) FindByID(ctx context.Context, id workforce.AgentInstanceID) (*workforce.AgentInstance, error) {
-	return nil, workforce.ErrAgentInstanceNotFound
-}
-func (fakeAgentRepo) FindByName(ctx context.Context, name string) (*workforce.AgentInstance, error) {
-	return nil, workforce.ErrAgentInstanceNotFound
-}
-func (fakeAgentRepo) FindAll(ctx context.Context, filter workforce.AgentInstanceFilter) ([]*workforce.AgentInstance, error) {
-	return nil, nil
-}
-func (fakeAgentRepo) Save(ctx context.Context, a *workforce.AgentInstance) error {
-	return nil
-}
-func (fakeAgentRepo) UpdateState(ctx context.Context, id workforce.AgentInstanceID, from, to workforce.AgentInstanceState, version int) error {
-	return nil
-}
-func (fakeAgentRepo) UpdateConfig(ctx context.Context, id workforce.AgentInstanceID, config string, maxConcurrent *int, version int) error {
-	return nil
-}
-func (fakeAgentRepo) Archive(ctx context.Context, id workforce.AgentInstanceID, at time.Time, reason workforce.AgentInstanceArchivedReason, message string, version int) error {
-	return nil
-}
-func (fakeAgentRepo) CountActiveExecutions(ctx context.Context, id workforce.AgentInstanceID) (int, error) {
-	return 0, nil
-}
-func (fakeAgentRepo) BulkUpdateStateByWorker(ctx context.Context, workerID workforce.WorkerID, from, to workforce.AgentInstanceState) (int, error) {
-	return 0, nil
-}
+//
+// The legacy workforce.AgentInstance /api/agents tests (ListAgents_Empty,
+// ShowAgent_NotFound, ListAgents_DBError) + their fakeAgentRepo were removed
+// when v2.7 C3 replaced that surface with the new Agent BC. The new surface is
+// covered by handlers_agent_test.go (+ internal/agent/service tests).
 
 // ============================================================================
 // Secrets
@@ -741,18 +692,6 @@ func TestAPI_ListInputRequests_DBError(t *testing.T) {
 	resp := orgScopedGet(t, s.URL+"/api/input_requests", sess)
 	if resp.StatusCode == 200 {
 		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_ListAgents_DBError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	db.Close()
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/agents", sess)
-	if resp.StatusCode == 200 {
-		t.Fatalf("expected non-200, got %d", resp.StatusCode)
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
@@ -102,6 +103,10 @@ type HandlerDeps struct {
 	// (work-management truth; ADR-0046). Optional — nil means the v2.7 PM
 	// endpoints are not wired (legacy/test deps).
 	PM *pmservice.Service
+
+	// v2.7 C3: the Agent BC AppService facade backs the org-scoped
+	// /api/agents + /api/agents/{id}/{start,stop,restart,reset} routes.
+	AgentSvc *agentsvc.Service
 
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses

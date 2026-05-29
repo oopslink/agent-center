@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -125,6 +127,19 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 		Outbox:       outboxsql.NewOutboxRepo(db),
 		IDGen:        idgen.NewGenerator(clock.SystemClock{}),
 		Clock:        clock.SystemClock{},
+	})
+	// v2.7 C3: wire the Agent BC AppService for the /api/agents... routes
+	// (handlers_agent.go). Mirrors deps.PM: sqlite repos over the test DB + the
+	// workforce WorkerRepo for the worker-in-org check & availability derivation.
+	deps.AgentSvc = agentsvc.New(agentsvc.Deps{
+		DB:        db,
+		Agents:    agentsql.NewAgentRepo(db),
+		WorkItems: agentsql.NewWorkItemRepo(db),
+		Activity:  agentsql.NewActivityEventRepo(db),
+		Workers:   wfsqlite.NewWorkerRepo(db),
+		Outbox:    outboxsql.NewOutboxRepo(db),
+		IDGen:     idgen.NewGenerator(clock.SystemClock{}),
+		Clock:     clock.SystemClock{},
 	})
 	return deps, db
 }
