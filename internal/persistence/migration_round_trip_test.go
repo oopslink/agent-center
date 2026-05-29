@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 43 || v2 != 43 {
-		t.Fatalf("Version after Up: got (%d, %d) want (43, 43)", v1, v2)
+	if v1 != 44 || v2 != 44 {
+		t.Fatalf("Version after Up: got (%d, %d) want (44, 44)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
@@ -335,6 +335,52 @@ func TestMigrations_V1KindValuesAbsent(t *testing.T) {
 	}
 	if !kinds["channel"] {
 		t.Fatalf("expected conversations.kind='channel' after the rename chain (got %v)", kinds)
+	}
+}
+
+// TestMigration_0044_EnvironmentWorkerShape — v2.7 D1 (ADR-0050, task #102)
+// guard: the env_workers + worker_control_events tables land after a full Up,
+// with the supporting indexes and the two UNIQUE constraints on the control
+// stream (offset + idempotency_key) actually enforced.
+func TestMigration_0044_EnvironmentWorkerShape(t *testing.T) {
+	db, err := Open(t.TempDir() + "/m44.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tbl := range []string{"env_workers", "worker_control_events"} {
+		if !tableExists(t, db, tbl) {
+			t.Fatalf("%s must exist after Up", tbl)
+		}
+	}
+	for _, idx := range []string{"idx_env_workers_org", "idx_wce_worker_offset"} {
+		if !indexExists(t, db, idx) {
+			t.Fatalf("index %s must exist after Up", idx)
+		}
+	}
+
+	now := "2026-05-29T15:00:00Z"
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
+		 VALUES ('e1','w1',1,'k1','stop','{}',?)`, now); err != nil {
+		t.Fatalf("first event insert: %v", err)
+	}
+	// UNIQUE(worker_id, offset): re-using offset 1 for w1 must fail.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
+		 VALUES ('e2','w1',1,'k2','stop','{}',?)`, now); err == nil {
+		t.Fatal("duplicate (worker_id, offset) should have failed")
+	}
+	// UNIQUE(worker_id, idempotency_key): re-using key k1 for w1 must fail.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
+		 VALUES ('e3','w1',2,'k1','stop','{}',?)`, now); err == nil {
+		t.Fatal("duplicate (worker_id, idempotency_key) should have failed")
 	}
 }
 

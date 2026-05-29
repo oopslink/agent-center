@@ -2,6 +2,7 @@ package environment
 
 import (
 	"context"
+	"errors"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -73,6 +74,18 @@ func (l *ControlLog) AppendCommand(ctx context.Context, in AppendCommandInput) (
 		return nil, err
 	}
 	if err := l.events.Append(ctx, evt); err != nil {
+		// Lost a race on the same idempotency key (a concurrent AppendCommand
+		// inserted it between our pre-check and Append). The UNIQUE(worker_id,
+		// idempotency_key) constraint is the backstop; re-fetch and return the
+		// winning entry so idempotency still holds — the caller sees the existing
+		// command, not an error.
+		if errors.Is(err, ErrDuplicateIdempotencyKey) {
+			if existing, ferr := l.events.FindByIdempotencyKey(ctx, in.WorkerID, in.IdempotencyKey); ferr != nil {
+				return nil, ferr
+			} else if existing != nil {
+				return existing, nil
+			}
+		}
 		return nil, err
 	}
 	return evt, nil

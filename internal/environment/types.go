@@ -47,4 +47,8 @@ var (
 	ErrOffsetRegress       = errors.New("environment: offset must not move backwards")
 	ErrEmptyCommandType    = errors.New("environment: command type required")
 	ErrEmptyIdempotencyKey = errors.New("environment: idempotency key required")
+	// ErrDuplicateIdempotencyKey is returned by ControlEventRepository.Append when
+	// a command with the same (worker_id, idempotency_key) already exists (the
+	// sqlite UNIQUE(worker_id, idempotency_key) backstop fires on a lost race).
+	ErrDuplicateIdempotencyKey = errors.New("environment: duplicate idempotency key")
 )
