@@ -15,6 +15,12 @@
 
 ## § 1. Phase 索引
 
+### v2.7+ domain refactor
+
+| Plan | 主题 | 状态 |
+|---|---|---|
+| [v2.7 Domain Refactor Plan](v2.7-domain-refactor-plan.md) | ProjectManager + Agent + Environment + Conversation/File URI foundation | Draft |
+
 ### v1 phases（v2 删干净）
 
 v1 phase plans 全部 **v2 删除**（per 2026-05-23 用户「删干净」决定）。git history 仍可查 v1 实施细节。
