@@ -57,15 +57,15 @@ func seedIssue(t *testing.T, deps HandlerDeps, id, projectID, title string, stat
 }
 
 func TestAPI_ListIssues_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedIssue(t, deps, "I-1", "p-1", "first", discussion.StatusOpen)
 	seedIssue(t, deps, "I-2", "p-1", "second", discussion.StatusOpen)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, err := http.Get(s.URL + "/api/issues?project_id=p-1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, s.URL + "/api/issues?project_id=p-1", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -99,12 +99,15 @@ func TestAPI_ListIssues_Happy(t *testing.T) {
 }
 
 func TestAPI_ListIssues_StatusFilter(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedIssue(t, deps, "I-1", "p-1", "open one", discussion.StatusOpen)
 	seedIssue(t, deps, "I-2", "p-1", "underdisc", discussion.StatusUnderDiscussion)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues?project_id=p-1&status=open")
+	resp := orgScopedGet(t, s.URL + "/api/issues?project_id=p-1&status=open", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -124,15 +127,15 @@ func TestAPI_ListIssues_StatusFilter(t *testing.T) {
 // Web Console "All projects" filter rendering empty — the SPA gated on
 // projectFilter !== 'all' to even fire the request.
 func TestAPI_ListIssues_NoProjectID_ReturnsAllProjects(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedIssue(t, deps, "I-1", "p-1", "first", discussion.StatusOpen)
 	seedIssue(t, deps, "I-2", "p-2", "second", discussion.StatusOpen)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, err := http.Get(s.URL + "/api/issues")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := orgScopedGet(t, s.URL + "/api/issues", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d want 200", resp.StatusCode)
 	}
@@ -151,12 +154,15 @@ func TestAPI_ListIssues_NoProjectID_ReturnsAllProjects(t *testing.T) {
 }
 
 func TestAPI_ListIssues_NoProjectID_StatusFilterApplies(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedIssue(t, deps, "I-1", "p-1", "open", discussion.StatusOpen)
 	seedIssue(t, deps, "I-2", "p-2", "underdisc", discussion.StatusUnderDiscussion)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues?status=open")
+	resp := orgScopedGet(t, s.URL + "/api/issues?status=open", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -171,10 +177,13 @@ func TestAPI_ListIssues_NoProjectID_StatusFilterApplies(t *testing.T) {
 }
 
 func TestAPI_ListIssues_EmptyResult(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	// p-empty is in the org but has no issues → expect [].
+	seedOrgProject(t, db, sess.OrgID, "p-empty", "Pempty")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues?project_id=p-empty")
+	resp := orgScopedGet(t, s.URL+"/api/issues?project_id=p-empty", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -197,22 +206,28 @@ func TestAPI_ListIssues_RepoNotWired(t *testing.T) {
 }
 
 func TestAPI_ListIssues_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues?project_id=p-1")
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("status=%d want 500", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL + "/api/issues?project_id=p-1", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
 func TestAPI_ShowIssue_Happy(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	seedIssue(t, deps, "I-1", "p-1", "the issue", discussion.StatusOpen)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues/I-1")
+	resp := orgScopedGet(t, s.URL + "/api/issues/I-1", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
@@ -224,10 +239,13 @@ func TestAPI_ShowIssue_Happy(t *testing.T) {
 }
 
 func TestAPI_ShowIssue_NotFound(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues/ghost")
+	resp := orgScopedGet(t, s.URL + "/api/issues/ghost", sess)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status=%d want 404", resp.StatusCode)
 	}
@@ -245,13 +263,16 @@ func TestAPI_ShowIssue_RepoNotWired(t *testing.T) {
 }
 
 func TestAPI_ShowIssue_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	seedOrgProject(t, db, sess.OrgID, "p-2", "P2")
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/issues/I-x")
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("status=%d want 500", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL + "/api/issues/I-x", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 

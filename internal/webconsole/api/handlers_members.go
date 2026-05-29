@@ -7,50 +7,20 @@ import (
 	"github.com/oopslink/agent-center/internal/identity"
 )
 
-// resolveCallerAndOrg authenticates the request, resolves the target org
-// (from ?org_id= query param or the caller's first org), and returns the
-// caller's member record. Returns nil, nil, "" on success with empty orgID
-// when the user has no orgs.
-func resolveCallerAndOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps) (callerIdentity *identity.Identity, callerMember *identity.Member, orgID string) {
-	if d.AuthSvc == nil || d.OrgRepo == nil || d.MemberRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_configured", "member endpoints not configured")
-		return nil, nil, ""
-	}
-	cookie, err := r.Cookie(jwtCookieName)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
-		return nil, nil, ""
-	}
-	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
-		return nil, nil, ""
-	}
-	// Resolve org: prefer ?org_id=, then ?org_slug=, then caller's first org.
-	orgID = resolveOrgIDFromRequest(r, d)
-	if orgID == "" {
-		orgs, err := d.OrgRepo.ListForIdentity(r.Context(), id.ID())
-		if err != nil || len(orgs) == 0 {
-			writeJSON(w, http.StatusOK, []any{})
-			return nil, nil, ""
-		}
-		orgID = orgs[0].ID()
-	}
-	// Verify caller is a member of the org.
-	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, id.ID())
-	if err != nil || member == nil {
-		writeError(w, http.StatusForbidden, "forbidden", "not a member of this organization")
-		return nil, nil, ""
-	}
-	return id, member, orgID
+// resolveCallerAndOrg is the strict org-scope resolver for member endpoints.
+// It delegates to requireOrgMember (v2.6 X1 §1): NO first-org fallback. Missing
+// or unknown org scope → 400; non-member → 403; unauthenticated → 401. On
+// failure the error response is already written and ok=false is returned.
+func (s *Server) resolveCallerAndOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps) (callerIdentity *identity.Identity, callerMember *identity.Member, orgID string, ok bool) {
+	return requireOrgMember(w, r, d)
 }
 
-// listMembersHandler handles GET /api/members[?org_id=].
+// listMembersHandler handles GET /api/members?org_slug=|org_id=.
 func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, orgID := resolveCallerAndOrg(w, r, d)
-	if orgID == "" {
-		return // error already written
+	_, _, orgID, ok := s.resolveCallerAndOrg(w, r, d)
+	if !ok {
+		return
 	}
 	members, err := d.MemberRepo.ListByOrganization(r.Context(), orgID)
 	if err != nil {
@@ -75,8 +45,8 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "not_configured", "member add not configured")
 		return
 	}
-	callerID, callerMember, orgID := resolveCallerAndOrg(w, r, d)
-	if orgID == "" {
+	callerID, callerMember, orgID, ok := s.resolveCallerAndOrg(w, r, d)
+	if !ok {
 		return
 	}
 	if string(callerMember.Role()) == "member" {
@@ -147,8 +117,8 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "not_configured", "agent provision not configured")
 		return
 	}
-	callerID, callerMember, orgID := resolveCallerAndOrg(w, r, d)
-	if orgID == "" {
+	callerID, callerMember, orgID, ok := s.resolveCallerAndOrg(w, r, d)
+	if !ok {
 		return
 	}
 	if !callerMember.Role().AtLeast(identity.RoleAdmin) {
@@ -216,8 +186,8 @@ func (s *Server) changeMemberRoleHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotImplemented, "not_configured", "role change not configured")
 		return
 	}
-	callerID, callerMember, orgID := resolveCallerAndOrg(w, r, d)
-	if orgID == "" {
+	callerID, callerMember, orgID, ok := s.resolveCallerAndOrg(w, r, d)
+	if !ok {
 		return
 	}
 	if string(callerMember.Role()) != "owner" {
@@ -251,8 +221,8 @@ func (s *Server) disableMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "not_configured", "member disable not configured")
 		return
 	}
-	_, callerMember, orgID := resolveCallerAndOrg(w, r, d)
-	if orgID == "" {
+	_, callerMember, orgID, ok := s.resolveCallerAndOrg(w, r, d)
+	if !ok {
 		return
 	}
 	if string(callerMember.Role()) == "member" {
@@ -282,8 +252,8 @@ func (s *Server) reEnableMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "not_configured", "member reenable not configured")
 		return
 	}
-	_, callerMember, orgID := resolveCallerAndOrg(w, r, d)
-	if orgID == "" {
+	_, callerMember, orgID, ok := s.resolveCallerAndOrg(w, r, d)
+	if !ok {
 		return
 	}
 	if string(callerMember.Role()) == "member" {

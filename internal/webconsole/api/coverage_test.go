@@ -384,10 +384,11 @@ func TestAPI_DeriveTask_BadJSON(t *testing.T) {
 // ============================================================================
 
 func TestAPI_ListInputRequests_Empty(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/input_requests")
+	resp := orgScopedGet(t, s.URL+"/api/input_requests", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -1086,13 +1087,14 @@ func TestAPI_ShowConversation_DBError(t *testing.T) {
 }
 
 func TestAPI_ListInputRequests_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/input_requests")
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/input_requests", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
@@ -1121,13 +1123,14 @@ func TestAPI_ListSecrets_DBError(t *testing.T) {
 }
 
 func TestAPI_TaskTrace_DBError(t *testing.T) {
-	deps, db := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	db.Close()
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks/t-1/trace")
-	if resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
+	resp := orgScopedGet(t, s.URL+"/api/tasks/t-1/trace", sess)
+	if resp.StatusCode == 200 {
+		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 

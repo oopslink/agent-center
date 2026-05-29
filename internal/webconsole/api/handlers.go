@@ -24,6 +24,7 @@ import (
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
+	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
@@ -44,6 +45,10 @@ type HandlerDeps struct {
 	DerivationSvc      *convservice.MessageDerivationService
 	IRRepo             inputrequest.Repository
 	IRSvc              *trservice.InputRequestService
+	// ExecRepo resolves InputRequest → execution → task → project for v2.6
+	// org-scoped input-request lists (X1 §3). Optional; when nil the IR list
+	// is not org-filtered (legacy/test deps).
+	ExecRepo           execution.Repository
 	AgentInstanceRepo  workforce.AgentInstanceRepository
 	UserSecretRepo     secretmgmt.UserSecretRepository
 	UserSecretSvc      *secretservice.UserSecretService
@@ -178,6 +183,22 @@ func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
 		}
 	}
 	return ""
+}
+
+// orgProjectIDSet returns the set of project IDs that belong to orgID. Used by
+// issue/task/input-request/fleet/trace handlers to scope BC-native reads that
+// don't carry organization_id directly but reference a project (which does).
+// v2.6 X1 §3: these surfaces must not leak cross-org rows.
+func orgProjectIDSet(r *http.Request, d HandlerDeps, orgID string) (map[string]bool, error) {
+	projects, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{OrganizationID: orgID})
+	if err != nil {
+		return nil, err
+	}
+	set := make(map[string]bool, len(projects))
+	for _, p := range projects {
+		set[string(p.ID())] = true
+	}
+	return set, nil
 }
 
 // requireOrgMember is the authoritative auth/scope helper for org-scoped APIs.
@@ -1211,14 +1232,39 @@ func (s *Server) updateTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listInputRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
+	// v2.6 X1 §3: require org membership; scope IRs to the org's projects via
+	// execution → task → project resolution (requires ExecRepo + TaskRepo).
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
 	irs, err := d.IRRepo.FindPending(r.Context(), time.Now().UTC().Add(24*365*time.Hour))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	arr := make([]map[string]any, len(irs))
-	for i, ir := range irs {
-		arr[i] = irPublicMap(ir)
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
+	arr := make([]map[string]any, 0, len(irs))
+	for _, ir := range irs {
+		// When ExecRepo + TaskRepo are wired, resolve the IR's project and keep
+		// only org-owned ones. If repos are unavailable, fail closed (skip) to
+		// avoid leaking cross-org IRs.
+		if d.ExecRepo == nil || d.TaskRepo == nil {
+			continue
+		}
+		ex, exErr := d.ExecRepo.FindByID(r.Context(), ir.TaskExecutionID())
+		if exErr != nil || ex == nil {
+			continue
+		}
+		tk, tkErr := d.TaskRepo.FindByID(r.Context(), ex.TaskID())
+		if tkErr != nil || tk == nil || !orgProjects[tk.ProjectID()] {
+			continue
+		}
+		arr = append(arr, irPublicMap(ir))
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -1291,12 +1337,17 @@ func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "fleet_not_wired", "")
 		return
 	}
-	// NOTE (v2.6): fleet snapshot aggregates tasks/executions/workers. Only
-	// workers carry organization_id today; tasks/executions do not, so a true
-	// org-scoped fleet view is a schema follow-up. Left un-gated this round to
-	// avoid a misleading "scoped" appearance; tracked alongside issues/tasks
-	// org_id columns.
-	filter := query.SnapshotFilter{ProjectID: r.URL.Query().Get("project")}
+	// v2.6 X1 §3: fleet snapshot is org-scoped. require membership + pass the
+	// resolved org into the snapshot filter (workers by org_id;
+	// executions/IRs/issues by the org's projects).
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	filter := query.SnapshotFilter{
+		ProjectID:      r.URL.Query().Get("project"),
+		OrganizationID: orgID,
+	}
 	snap := d.FleetSvc.Snapshot(r.Context(), filter)
 	writeJSON(w, http.StatusOK, snap)
 }
@@ -1311,6 +1362,27 @@ func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
 	if taskID == "" {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return
+	}
+	// v2.6 X1 §3: require org membership + verify the task's project is in the org.
+	if d.TaskRepo != nil {
+		_, _, orgID, ok := requireOrgMember(w, r, d)
+		if !ok {
+			return
+		}
+		tk, terr := d.TaskRepo.FindByID(r.Context(), taskruntime.TaskID(taskID))
+		if terr != nil {
+			writeError(w, http.StatusNotFound, "not_found", "task not found")
+			return
+		}
+		orgProjects, perr := orgProjectIDSet(r, d, orgID)
+		if perr != nil {
+			writeError(w, http.StatusInternalServerError, "org_scope_failed", perr.Error())
+			return
+		}
+		if !orgProjects[tk.ProjectID()] {
+			writeError(w, http.StatusNotFound, "not_found", "task not found")
+			return
+		}
 	}
 	res, err := d.QuerySvc.Query(r.Context(), "events", query.QueryFilter{
 		TaskID: taskID,
@@ -1417,16 +1489,28 @@ func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
 		return
 	}
+	// v2.6 X1 §3: require org membership + scope issues to the org's projects.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
 	projectID := r.URL.Query().Get("project_id")
+	if projectID != "" && !orgProjects[projectID] {
+		// Caller asked for a project that isn't in their org.
+		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
+		return
+	}
 	filter := discussion.IssueFilter{}
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := discussion.Status(st)
 		filter.Status = &ss
 	}
-	var (
-		list []*discussion.Issue
-		err  error
-	)
+	var list []*discussion.Issue
 	if projectID != "" {
 		list, err = d.IssueRepo.FindByProject(r.Context(), projectID, filter)
 	} else {
@@ -1436,9 +1520,13 @@ func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	arr := make([]map[string]any, len(list))
-	for i, is := range list {
-		arr[i] = issuePublicMap(is)
+	arr := make([]map[string]any, 0, len(list))
+	for _, is := range list {
+		// Filter to the org's projects (covers the no-project_id FindAll case).
+		if !orgProjects[is.ProjectID()] {
+			continue
+		}
+		arr = append(arr, issuePublicMap(is))
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -1450,6 +1538,10 @@ func (s *Server) showIssueHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
 		return
 	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
 	id := discussion.IssueID(r.PathValue("id"))
 	is, err := d.IssueRepo.FindByID(r.Context(), id)
 	if err != nil {
@@ -1458,6 +1550,17 @@ func (s *Server) showIssueHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	// v2.6 X1 §3: 404 if the issue's project isn't in the caller's org (don't
+	// leak existence across orgs).
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
+	if !orgProjects[is.ProjectID()] {
+		writeError(w, http.StatusNotFound, "not_found", "issue not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, issuePublicMap(is))
@@ -1483,16 +1586,27 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
 		return
 	}
+	// v2.6 X1 §3: require org membership + scope tasks to the org's projects.
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
 	projectID := r.URL.Query().Get("project_id")
+	if projectID != "" && !orgProjects[projectID] {
+		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
+		return
+	}
 	filter := task.Filter{}
 	if st := r.URL.Query().Get("status"); st != "" {
 		ss := task.Status(st)
 		filter.Status = &ss
 	}
-	var (
-		list []*task.Task
-		err  error
-	)
+	var list []*task.Task
 	if projectID != "" {
 		list, err = d.TaskRepo.FindByProject(r.Context(), projectID, filter)
 	} else {
@@ -1502,9 +1616,12 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	arr := make([]map[string]any, len(list))
-	for i, tk := range list {
-		arr[i] = taskPublicMap(tk)
+	arr := make([]map[string]any, 0, len(list))
+	for _, tk := range list {
+		if !orgProjects[tk.ProjectID()] {
+			continue
+		}
+		arr = append(arr, taskPublicMap(tk))
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -1516,6 +1633,10 @@ func (s *Server) showTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
 		return
 	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
 	id := taskruntime.TaskID(r.PathValue("id"))
 	tk, err := d.TaskRepo.FindByID(r.Context(), id)
 	if err != nil {
@@ -1524,6 +1645,16 @@ func (s *Server) showTaskHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	// v2.6 X1 §3: 404 if the task's project isn't in the caller's org.
+	orgProjects, err := orgProjectIDSet(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
+		return
+	}
+	if !orgProjects[tk.ProjectID()] {
+		writeError(w, http.StatusNotFound, "not_found", "task not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, taskPublicMap(tk))

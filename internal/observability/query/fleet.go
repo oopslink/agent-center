@@ -12,6 +12,7 @@ import (
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // FleetExecutionRow is one row in FleetSnapshot.Executions.
@@ -87,6 +88,28 @@ func NewFleetSnapshotService(deps Deps) *FleetSnapshotService {
 // SnapshotFilter narrows the 4 segments.
 type SnapshotFilter struct {
 	ProjectID string
+	// OrganizationID scopes the entire snapshot to a single organization
+	// (v2.6 X1 §3). When set, executions/input-requests/issues are limited to
+	// the org's projects and workers to the org. Requires deps.Projects.
+	OrganizationID string
+}
+
+// orgProjectSet resolves the set of project IDs owned by filter.OrganizationID.
+// Returns (nil, false) when no org scoping is requested. Returns (set, true)
+// when org scoping applies (set may be empty → no rows pass).
+func (s *FleetSnapshotService) orgProjectSet(ctx context.Context, filter SnapshotFilter) (map[string]bool, bool) {
+	if filter.OrganizationID == "" || s.deps.Projects == nil {
+		return nil, false
+	}
+	projects, err := s.deps.Projects.FindAll(ctx, workforce.ProjectFilter{OrganizationID: filter.OrganizationID})
+	if err != nil {
+		return map[string]bool{}, true // scoping requested but lookup failed → empty (fail-closed)
+	}
+	set := make(map[string]bool, len(projects))
+	for _, p := range projects {
+		set[string(p.ID())] = true
+	}
+	return set, true
 }
 
 // Snapshot runs the 4 segments concurrently and returns the assembled VO.
@@ -165,6 +188,17 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 		}
 		items = filtered
 	}
+	// v2.6 X1 §3: org scope — keep only executions whose task's project is in the org.
+	if orgProjects, scoped := s.orgProjectSet(ctx, filter); scoped && s.deps.Tasks != nil {
+		filtered := items[:0]
+		for _, e := range items {
+			t, terr := s.deps.Tasks.FindByID(ctx, e.TaskID())
+			if terr == nil && orgProjects[t.ProjectID()] {
+				filtered = append(filtered, e)
+			}
+		}
+		items = filtered
+	}
 	// Multi-roundtrip projection lookup (PK 1:1; no SQL JOIN per § 9.z).
 	var projMap map[taskruntime.TaskExecutionID]*projection.TaskExecutionProjection
 	if s.deps.Projection != nil && len(items) > 0 {
@@ -210,6 +244,10 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 	}
 	out := make([]FleetWorkerRow, 0, len(all))
 	for _, w := range all {
+		// v2.6 X1 §3: org scope — workers carry organization_id directly.
+		if filter.OrganizationID != "" && w.OrganizationID() != filter.OrganizationID {
+			continue
+		}
 		row := FleetWorkerRow{
 			WorkerID:        string(w.ID()),
 			Name:            w.Name(),
@@ -252,6 +290,7 @@ func (s *FleetSnapshotService) fetchOpenInputRequests(ctx context.Context, filte
 	if err != nil {
 		return nil, err
 	}
+	orgProjects, orgScoped := s.orgProjectSet(ctx, filter)
 	out := make([]FleetInputRequestRow, 0, len(items))
 	for _, ir := range items {
 		if ir.Status() != inputrequest.StatusPending {
@@ -259,6 +298,10 @@ func (s *FleetSnapshotService) fetchOpenInputRequests(ctx context.Context, filte
 		}
 		// Optional project filter: walk through execution → task → project.
 		if filter.ProjectID != "" && !s.execMatchesProject(ctx, ir.TaskExecutionID(), filter.ProjectID) {
+			continue
+		}
+		// v2.6 X1 §3: org scope — walk execution → task → project, keep only org's.
+		if orgScoped && !s.execMatchesOrgProjects(ctx, ir.TaskExecutionID(), orgProjects) {
 			continue
 		}
 		out = append(out, FleetInputRequestRow{
@@ -287,8 +330,13 @@ func (s *FleetSnapshotService) fetchPendingIssues(ctx context.Context, filter Sn
 	if err != nil {
 		return nil, err
 	}
+	orgProjects, orgScoped := s.orgProjectSet(ctx, filter)
 	out := make([]FleetIssueRow, 0, len(items))
 	for _, i := range items {
+		// v2.6 X1 §3: org scope — issue's project must be in the org.
+		if orgScoped && !orgProjects[i.ProjectID()] {
+			continue
+		}
 		out = append(out, FleetIssueRow{
 			IssueID:   string(i.ID()),
 			ProjectID: i.ProjectID(),
@@ -299,6 +347,23 @@ func (s *FleetSnapshotService) fetchPendingIssues(ctx context.Context, filter Sn
 		})
 	}
 	return out, nil
+}
+
+// execMatchesOrgProjects resolves execID → task → project and reports whether
+// the project is in the org's project set.
+func (s *FleetSnapshotService) execMatchesOrgProjects(ctx context.Context, execID taskruntime.TaskExecutionID, orgProjects map[string]bool) bool {
+	if s.deps.Executions == nil || s.deps.Tasks == nil {
+		return false
+	}
+	e, err := s.deps.Executions.FindByID(ctx, execID)
+	if err != nil || e == nil {
+		return false
+	}
+	t, err := s.deps.Tasks.FindByID(ctx, e.TaskID())
+	if err != nil || t == nil {
+		return false
+	}
+	return orgProjects[t.ProjectID()]
 }
 
 func (s *FleetSnapshotService) execMatchesProject(ctx context.Context, execID taskruntime.TaskExecutionID, projectID string) bool {

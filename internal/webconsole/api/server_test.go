@@ -27,6 +27,8 @@ import (
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
+	"github.com/oopslink/agent-center/internal/taskruntime/task"
+	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
@@ -102,16 +104,37 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 }
 
 // setupAPIWithAuth returns deps with identity (AuthSvc/OrgRepo/MemberRepo) wired
-// using the fixed test signing key. Tests that need to exercise the org-scoped
-// list endpoints (which now require requireOrgMember) should use this and pair
-// with setupTestSession to obtain a valid cookie + org slug.
+// using the fixed test signing key, plus a real ProjectRepo so org-scoped
+// issue/task/IR/fleet endpoints can resolve the org's project set. Pair with
+// setupTestSession for a valid cookie + org, and seedOrgProject to put a
+// project in that org.
 func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	t.Helper()
 	deps, db := setupAPI(t)
 	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
+	deps.ProjectRepo = wfsqlite.NewProjectRepo(db)
 	return deps, db
+}
+
+// seedOrgProject creates a project belonging to orgID with the given id so
+// org-scoped issue/task/IR/fleet reads (which resolve via ProjectRepo) pass.
+func seedOrgProject(t *testing.T, db *sql.DB, orgID, projectID, name string) {
+	t.Helper()
+	p, err := workforce.NewProject(workforce.NewProjectInput{
+		ID:                  workforce.ProjectID(projectID),
+		Name:                name,
+		OrganizationID:      orgID,
+		CreatedByIdentityID: "user:hayang",
+		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wfsqlite.NewProjectRepo(db).Save(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // testSession holds a signed-in identity + org + cookie for v2.6 org-scoped tests.
@@ -177,6 +200,50 @@ var testSigningKey = func() []byte {
 	}
 	return b
 }()
+
+// orgScopedPost executes a POST with the session cookie + ?org_slug attached.
+// Needed because once AuthSvc is wired the global authMiddleware gates every
+// /api/* request (not just the org-scoped reads).
+func orgScopedPost(t *testing.T, url, body string, sess testSession) *http.Response {
+	t.Helper()
+	if !strings.Contains(url, "?") {
+		url += "?org_slug=" + sess.OrgSlug
+	} else {
+		url += "&org_slug=" + sess.OrgSlug
+	}
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+// orgScopedPatch executes a PATCH with the session cookie + ?org_slug attached.
+func orgScopedPatch(t *testing.T, url, body string, sess testSession) *http.Response {
+	t.Helper()
+	if !strings.Contains(url, "?") {
+		url += "?org_slug=" + sess.OrgSlug
+	} else {
+		url += "&org_slug=" + sess.OrgSlug
+	}
+	req, err := http.NewRequest(http.MethodPatch, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
 
 // orgScopedGet executes a GET against url with the session cookie attached
 // and ?org_slug=<sess.OrgSlug> appended (merging with existing query params).
@@ -374,10 +441,11 @@ func TestAPI_TaskTraceWithoutSvc(t *testing.T) {
 }
 
 func TestAPI_FleetSnapshot(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/fleet")
+	resp := orgScopedGet(t, s.URL+"/api/fleet", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -389,10 +457,17 @@ func TestAPI_FleetSnapshot(t *testing.T) {
 }
 
 func TestAPI_TaskTrace(t *testing.T) {
-	deps, _ := setupAPI(t)
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
+	// Seed task t-1 in the org's project so the trace gate (task→project→org) passes.
+	tk, _ := task.New(task.NewInput{ID: "t-1", ProjectID: "p-1", Title: "x", CreatedBy: "user:hayang", Now: time.Now()})
+	if err := deps.TaskRepo.Save(context.Background(), tk); err != nil {
+		t.Fatal(err)
+	}
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks/t-1/trace")
+	resp := orgScopedGet(t, s.URL+"/api/tasks/t-1/trace", sess)
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
