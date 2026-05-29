@@ -1,0 +1,216 @@
+package sqlite
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+)
+
+var t0 = time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
+
+func setup(t *testing.T) (context.Context, *ProjectRepo, *ProjectMemberRepo, *IssueRepo, *TaskRepo, *TaskSubscriberRepo, *IssueSubscriberRepo, *CodeRepoRefRepo) {
+	t.Helper()
+	d, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(d).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	return context.Background(),
+		NewProjectRepo(d), NewProjectMemberRepo(d), NewIssueRepo(d), NewTaskRepo(d),
+		NewTaskSubscriberRepo(d), NewIssueSubscriberRepo(d), NewCodeRepoRefRepo(d)
+}
+
+func TestProjectRepo_RoundTrip(t *testing.T) {
+	ctx, pr, _, _, _, _, _, _ := setup(t)
+	p, _ := pm.NewProject(pm.NewProjectInput{ID: "P1", OrganizationID: "org-1", Name: "Acme", Description: "d", CreatedBy: "user:a", CreatedAt: t0})
+	if err := pr.Save(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	// duplicate
+	if err := pr.Save(ctx, p); err != pm.ErrProjectExists {
+		t.Fatalf("dup save want ErrProjectExists, got %v", err)
+	}
+	got, err := pr.FindByID(ctx, "P1")
+	if err != nil || got.Name() != "Acme" || got.OrganizationID() != "org-1" {
+		t.Fatalf("FindByID = %+v, %v", got, err)
+	}
+	if _, err := pr.FindByID(ctx, "nope"); err != pm.ErrProjectNotFound {
+		t.Fatalf("want ErrProjectNotFound, got %v", err)
+	}
+	// update (rename + archive)
+	_ = got.Rename("Acme Corp", t0)
+	got.Archive(t0)
+	if err := pr.Update(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	re, _ := pr.FindByID(ctx, "P1")
+	if re.Name() != "Acme Corp" || re.Status() != pm.ProjectArchived {
+		t.Fatalf("update not persisted: %+v", re)
+	}
+	// list by org (second project in another org should not show)
+	p2, _ := pm.NewProject(pm.NewProjectInput{ID: "P2", OrganizationID: "org-2", Name: "Other", CreatedBy: "user:a", CreatedAt: t0})
+	_ = pr.Save(ctx, p2)
+	list, _ := pr.ListByOrg(ctx, "org-1")
+	if len(list) != 1 || list[0].ID() != "P1" {
+		t.Fatalf("ListByOrg org-1 = %+v", list)
+	}
+	// update missing
+	pmissing, _ := pm.NewProject(pm.NewProjectInput{ID: "PX", OrganizationID: "o", Name: "x", CreatedBy: "user:a", CreatedAt: t0})
+	if err := pr.Update(ctx, pmissing); err != pm.ErrProjectNotFound {
+		t.Fatalf("update missing want ErrProjectNotFound, got %v", err)
+	}
+}
+
+func TestProjectMemberRepo_RoundTrip(t *testing.T) {
+	ctx, _, mr, _, _, _, _, _ := setup(t)
+	m, _ := pm.NewProjectMember(pm.NewProjectMemberInput{ID: "M1", ProjectID: "P1", IdentityID: "user:a", AddedBy: "user:owner", CreatedAt: t0})
+	if err := mr.Save(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	// dup (same project+identity) rejected by unique index
+	dup, _ := pm.NewProjectMember(pm.NewProjectMemberInput{ID: "M2", ProjectID: "P1", IdentityID: "user:a", CreatedAt: t0})
+	if err := mr.Save(ctx, dup); err != pm.ErrMemberExists {
+		t.Fatalf("dup member want ErrMemberExists, got %v", err)
+	}
+	got, err := mr.FindByProjectAndIdentity(ctx, "P1", "user:a")
+	if err != nil || got.ID() != "M1" {
+		t.Fatalf("FindByProjectAndIdentity = %+v, %v", got, err)
+	}
+	if _, err := mr.FindByProjectAndIdentity(ctx, "P1", "user:none"); err != pm.ErrMemberNotFound {
+		t.Fatalf("want ErrMemberNotFound, got %v", err)
+	}
+	list, _ := mr.ListByProject(ctx, "P1")
+	if len(list) != 1 {
+		t.Fatalf("ListByProject = %d", len(list))
+	}
+	if err := mr.Delete(ctx, "M1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := mr.Delete(ctx, "M1"); err != pm.ErrMemberNotFound {
+		t.Fatalf("delete missing want ErrMemberNotFound, got %v", err)
+	}
+}
+
+func TestIssueRepo_RoundTrip(t *testing.T) {
+	ctx, _, _, ir, _, _, _, _ := setup(t)
+	i, _ := pm.NewIssue(pm.NewIssueInput{ID: "I1", ProjectID: "P1", Title: "bug", CreatedBy: "user:a", CreatedAt: t0})
+	if err := ir.Save(ctx, i); err != nil {
+		t.Fatal(err)
+	}
+	_ = i.Transition(pm.IssueInProgress, t0)
+	if err := ir.Update(ctx, i); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := ir.FindByID(ctx, "I1")
+	if got.Status() != pm.IssueInProgress {
+		t.Fatalf("issue status not persisted: %s", got.Status())
+	}
+	if _, err := ir.FindByID(ctx, "nope"); err != pm.ErrIssueNotFound {
+		t.Fatalf("want ErrIssueNotFound, got %v", err)
+	}
+	list, _ := ir.ListByProject(ctx, "P1")
+	if len(list) != 1 {
+		t.Fatalf("ListByProject = %d", len(list))
+	}
+}
+
+func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
+	ctx, _, _, _, tr, _, _, _ := setup(t)
+	tk, _ := pm.NewTask(pm.NewTaskInput{ID: "T1", ProjectID: "P1", Title: "do", DerivedFromIssue: "I1", CreatedBy: "user:a", CreatedAt: t0})
+	if err := tr.Save(ctx, tk); err != nil {
+		t.Fatal(err)
+	}
+	// drive through assignment + block + complete and persist each
+	_ = tk.Assign("agent:c", t0)
+	_ = tk.Start(t0)
+	_ = tk.Block("waiting", t0)
+	if err := tr.Update(ctx, tk); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := tr.FindByID(ctx, "T1")
+	if got.Status() != pm.TaskBlocked || got.Assignee() != "agent:c" || got.BlockedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
+		t.Fatalf("task round-trip lost fields: %+v", got)
+	}
+	_ = got.Unblock(t0)
+	_ = got.Complete("agent:c", t0)
+	_ = tr.Update(ctx, got)
+	re, _ := tr.FindByID(ctx, "T1")
+	if re.Status() != pm.TaskCompleted || re.CompletedBy() != "agent:c" || re.BlockedReason() != "" {
+		t.Fatalf("completed round-trip wrong: %+v", re)
+	}
+	// list by project + assignee
+	if l, _ := tr.ListByProject(ctx, "P1"); len(l) != 1 {
+		t.Fatalf("ListByProject = %d", len(l))
+	}
+	if l, _ := tr.ListByAssignee(ctx, "agent:c"); len(l) != 1 {
+		t.Fatalf("ListByAssignee = %d", len(l))
+	}
+	if _, err := tr.FindByID(ctx, "nope"); err != pm.ErrTaskNotFound {
+		t.Fatalf("want ErrTaskNotFound, got %v", err)
+	}
+}
+
+func TestTaskSubscriberRepo(t *testing.T) {
+	ctx, _, _, _, _, ts, _, _ := setup(t)
+	s, _ := pm.NewTaskSubscriber("T1", "user:a", "user:owner", t0)
+	if err := ts.Add(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	// idempotent re-add
+	if err := ts.Add(ctx, s); err != nil {
+		t.Fatalf("re-add should be no-op, got %v", err)
+	}
+	list, _ := ts.ListByTask(ctx, "T1")
+	if len(list) != 1 || list[0].IdentityID() != "user:a" {
+		t.Fatalf("ListByTask = %+v", list)
+	}
+	if err := ts.Remove(ctx, "T1", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if l, _ := ts.ListByTask(ctx, "T1"); len(l) != 0 {
+		t.Fatalf("after remove = %d", len(l))
+	}
+}
+
+func TestIssueSubscriberRepo(t *testing.T) {
+	ctx, _, _, _, _, _, is, _ := setup(t)
+	s, _ := pm.NewIssueSubscriber("I1", "user:a", "user:owner", t0)
+	if err := is.Add(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := is.ListByIssue(ctx, "I1")
+	if len(list) != 1 {
+		t.Fatalf("ListByIssue = %d", len(list))
+	}
+	_ = is.Remove(ctx, "I1", "user:a")
+	if l, _ := is.ListByIssue(ctx, "I1"); len(l) != 0 {
+		t.Fatalf("after remove = %d", len(l))
+	}
+}
+
+func TestCodeRepoRefRepo(t *testing.T) {
+	ctx, _, _, _, _, _, _, cr := setup(t)
+	c, _ := pm.NewCodeRepoRef(pm.NewCodeRepoRefInput{ID: "R1", ProjectID: "P1", URL: "https://x/y.git", Label: "main", AddedBy: "user:a", CreatedAt: t0})
+	if err := cr.Save(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := cr.FindByID(ctx, "R1")
+	if err != nil || got.URL() != "https://x/y.git" || got.Label() != "main" {
+		t.Fatalf("FindByID = %+v, %v", got, err)
+	}
+	if l, _ := cr.ListByProject(ctx, "P1"); len(l) != 1 {
+		t.Fatalf("ListByProject = %d", len(l))
+	}
+	if err := cr.Delete(ctx, "R1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cr.Delete(ctx, "R1"); err != pm.ErrCodeRepoRefNotFound {
+		t.Fatalf("delete missing want ErrCodeRepoRefNotFound, got %v", err)
+	}
+}
