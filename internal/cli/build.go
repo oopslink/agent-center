@@ -110,6 +110,11 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"worker"}, MCPHostCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.7 D2-f s1: persistent per-agent supervisor (system; survives the
+	// daemon). Additive — NOT yet wired into the daemon launch path.
+	if err := router.Add([]string{"worker"}, AgentSupervisorCommand()); err != nil {
+		return nil, "", err
+	}
 
 	// project group
 	for _, c := range provider.projectCommands() {

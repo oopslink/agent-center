@@ -68,6 +68,57 @@ func agentSessionUUID(agentID string) string {
 // than a write-to-closed-pipe panic.
 var ErrSessionClosed = errors.New("claude_session: session closed")
 
+// AgentSessionUUID exposes the deterministic v5-UUID derivation (agent id →
+// claude --session-id) for callers OUTSIDE this package (v2.7 D2-f: the
+// agent-supervisor subcommand assembles the claude argv itself). It is a thin
+// exported wrapper over the internal agentSessionUUID so the derivation has a
+// single source of truth.
+func AgentSessionUUID(agentID string) string { return agentSessionUUID(agentID) }
+
+// BuildClaudeStreamingArgv assembles the VALIDATED long-lived streaming-input
+// claude argv for an agent, reusing the SAME pipeline as execLauncher.Launch:
+//
+//	claudecode.New(binary).BuildCommand(SpawnRequest{ExecutionID: AgentSessionUUID(agentID), ...})
+//	→ rewriteForStreamingInput(...)            (--print/--input-format/--output-format/--verbose)
+//	→ + BuildMCPConfigArg(mcpConfigPath)       (--mcp-config <path>), when non-empty
+//
+// It returns the FULL argv ([binary, args...]) ready for exec.Command. This is
+// the single source of truth for the streaming claude invocation; the v2.7
+// agent-supervisor subcommand (a separate package) calls it instead of
+// duplicating the flag rewrite. binary empty → adapter default ("claude" on
+// PATH). The supervisor receives only the mcp-config FILE PATH — never the
+// worker token (the daemon generates the config; minimal key surface).
+func BuildClaudeStreamingArgv(agentID, binary, mcpConfigPath string, env map[string]string) ([]string, error) {
+	if agentID == "" {
+		return nil, errors.New("claude_session: agent_id required")
+	}
+	adapter := claudecode.New(binary)
+	req := agentadapter.SpawnRequest{
+		ExecutionID: agentSessionUUID(agentID),
+		Prompt:      longLivedSentinelPrompt,
+		Env:         env,
+	}
+	cmdSpec, err := adapter.BuildCommand(req)
+	if err != nil {
+		return nil, fmt.Errorf("claude_session: build command: %w", err)
+	}
+	args := rewriteForStreamingInput(cmdSpec.Args)
+	if mcpConfigPath != "" {
+		mcp, err := adapter.BuildMCPConfigArg(mcpConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("claude_session: mcp-config arg: %w", err)
+		}
+		args = append(args, mcp.Args...)
+	}
+	return append([]string{cmdSpec.Binary}, args...), nil
+}
+
+// ParseClaudeStreamLine exposes the validated claude 2.1.156 stream-json line
+// parser to callers outside this package (v2.7 D2-f: the agent-supervisor
+// drain loop tolerantly parses each drained stdout line). It is a thin
+// exported wrapper over ParseStreamLine, kept so the parser has one home.
+func ParseClaudeStreamLine(line []byte) ([]StreamEvent, error) { return ParseStreamLine(line) }
+
 // sessionProc is one running claude process. The real impl (execSessionProc)
 // wraps os/exec; tests inject a fake that records stdin + emits canned stdout
 // lines. The session owns the stdout scanner goroutine, so the seam exposes
