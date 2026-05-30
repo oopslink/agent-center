@@ -89,6 +89,11 @@ type HandlerDeps struct {
 	// pair is atomic; the AppService only exposes a read-only ListWorkItems,
 	// and the scope checks (agent owns a WorkItem for the task) read from it.
 	AgentWorkItemRepo agent.WorkItemRepository
+	// AgentActivityRepo is the append-only AgentActivityEvent repository (v2.7
+	// D2-c-i). The controller→center feedback /admin/environment/agent/activity
+	// endpoint asserts via repo in tests; the handler appends through the
+	// AgentSvc AppService.
+	AgentActivityRepo agent.ActivityEventRepository
 
 	// Files module (v2.7 post-D3, task #104) — backs the agent file MCP tools
 	// (/admin/agent-tools/upload_file, attach_file + /admin/files/...). The same

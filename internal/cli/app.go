@@ -107,6 +107,11 @@ type App struct {
 	// ListWorkItems.
 	AgentWorkItemRepo agentpkg.WorkItemRepository
 
+	// AgentActivityRepo is the append-only Agent activity-event repository (C2).
+	// The admin controller→center feedback surface (v2.7 D2-c-i activity sink)
+	// reads it back in tests; writes go through AgentService.AppendActivity.
+	AgentActivityRepo agentpkg.ActivityEventRepository
+
 	// EnvControlSvc is the v2.7 Environment BC control-channel AppService
 	// (D1, ADR-0050, task #102) — backs the additive /admin/environment/...
 	// worker control endpoints.
@@ -396,12 +401,13 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// Update + WaitInput inside an outer tx (the AppService only exposes a
 	// read-only ListWorkItems).
 	agentWorkItemRepo := agentsql.NewWorkItemRepo(db)
+	agentActivityRepo := agentsql.NewActivityEventRepo(db)
 
 	agentSvc := agentsvc.New(agentsvc.Deps{
 		DB:        db,
 		Agents:    agentRepo,
 		WorkItems: agentWorkItemRepo,
-		Activity:  agentsql.NewActivityEventRepo(db),
+		Activity:  agentActivityRepo,
 		Workers:   wr,
 		Outbox:    outboxsql.NewOutboxRepo(db),
 		IDGen:     gen,
@@ -426,6 +432,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		PMService:          pmSvc,
 		AgentService:       agentSvc,
 		AgentWorkItemRepo:  agentWorkItemRepo,
+		AgentActivityRepo:  agentActivityRepo,
 		EnvControlSvc:      envControlSvc,
 		WorkerRepo:         wr,
 		MappingRepo:        mr,

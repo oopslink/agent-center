@@ -312,6 +312,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/environment/worker/ack", s.envWorkerAckHandler)
 	s.mux.HandleFunc("POST /admin/environment/worker/heartbeat", s.envWorkerHeartbeatHandler)
 
+	// --- environment agent feedback (v2.7 D2-c-i, ADR-0049/0050) ---------
+	// Controller→center feedback. ADDITIVE — worker/daemon-facing, same bearer
+	// auth as the worker control routes; each is gated by requireAgentOnWorker
+	// (worker from token owner + target agent must be bound to it). lifecycle-
+	// feedback is PERSIST-ONLY (never emits agent.lifecycle_changed → no
+	// reconcile loop). Nothing is activated; the legacy path is untouched.
+	s.mux.HandleFunc("POST /admin/environment/agent/activity", s.envAgentActivityHandler)
+	s.mux.HandleFunc("POST /admin/environment/agent/lifecycle-feedback", s.envAgentLifecycleFeedbackHandler)
+	s.mux.HandleFunc("POST /admin/environment/agent/work-item-state", s.envAgentWorkItemStateHandler)
+
 	// --- agent tools (v2.7 D2-b1, ADR-0049) ------------------------------
 	// Per-agent MCP tool surface. ADDITIVE — rides the same bearer auth as
 	// the worker routes above. The per-agent auth gate takes the worker from

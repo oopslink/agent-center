@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -100,6 +101,112 @@ func (s *Service) ResetAgent(ctx context.Context, id agent.AgentID, scope agent.
 	}
 	now := s.clock.Now()
 	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Reset(scope, now) }, string(scope))
+}
+
+// --- D2-c-i controller→center lifecycle feedback (persist-only) -------------
+//
+// These are RESULT feedback from the (future) daemon AgentController reporting
+// that a process settled to stopped or errored. They are NOT intent changes, so
+// they MUST NOT emit agent.lifecycle_changed — that event is consumed by the
+// Environment AgentControlProjector, which would enqueue a NEW reconcile command
+// and create a feedback loop. We therefore PERSIST the AR state ONLY (no outbox
+// emit). The lifecycle gating still lives in the AR (MarkStopped rejects an
+// illegal precondition), so ErrIllegalLifecycle surfaces to the caller (→ 409).
+
+// MarkAgentStopped records that a stopping/resetting Agent has settled to
+// stopped (Environment feedback). Persist-only: NO outbox emit (loop-avoidance).
+// Returns agent.ErrIllegalLifecycle if the Agent is not stopping/resetting.
+func (s *Service) MarkAgentStopped(ctx context.Context, id agent.AgentID, at time.Time) error {
+	return s.feedbackPersist(ctx, id, func(a *agent.Agent) error { return a.MarkStopped(at) })
+}
+
+// MarkAgentError records an Environment-reported error state for the Agent.
+// Persist-only: NO outbox emit (loop-avoidance). MarkError has no precondition.
+func (s *Service) MarkAgentError(ctx context.Context, id agent.AgentID, msg string, at time.Time) error {
+	return s.feedbackPersist(ctx, id, func(a *agent.Agent) error { a.MarkError(msg, at); return nil })
+}
+
+// feedbackPersist is the shared load → AR-transition → persist path for the
+// controller feedback verbs. CRITICAL: unlike lifecycleOp it does NOT emit any
+// outbox event — these are result feedback, not intent changes, and emitting
+// agent.lifecycle_changed would re-trigger the reconcile projector.
+func (s *Service) feedbackPersist(ctx context.Context, id agent.AgentID, mutate func(*agent.Agent) error) error {
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		a, err := s.agents.FindByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := mutate(a); err != nil {
+			return err
+		}
+		return s.agents.Update(txCtx, a)
+	})
+}
+
+// WorkItemFeedbackState is the controller-reported terminal/active state for a
+// WorkItem (D2-c-i work-item-state feedback).
+type WorkItemFeedbackState string
+
+const (
+	WorkItemFeedbackActive WorkItemFeedbackState = "active"
+	WorkItemFeedbackDone   WorkItemFeedbackState = "done"
+	WorkItemFeedbackFailed WorkItemFeedbackState = "failed"
+)
+
+// ErrWorkItemNotForAgent is returned when a feedback call targets a WorkItem
+// that does not belong to the asserted agent (ownership guardrail).
+var ErrWorkItemNotForAgent = agent.ErrWorkItemNotFound
+
+// MarkWorkItemState applies a controller-reported WorkItem transition
+// (active/done/failed) and persists it (D2-c-i). The WorkItem must belong to
+// agentID (ownership guardrail) — otherwise agent.ErrWorkItemNotFound. The
+// transition is gated by the AR state machine (Activate/Done/Fail), so an
+// illegal move surfaces agent.ErrWorkItemIllegalMove (→ 409). Persist-only: the
+// WorkItem AR emits no outbox event.
+func (s *Service) MarkWorkItemState(ctx context.Context, agentID agent.AgentID, workItemID string, state WorkItemFeedbackState, at time.Time) error {
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		switch state {
+		case WorkItemFeedbackActive:
+			err = wi.Activate(at)
+		case WorkItemFeedbackDone:
+			err = wi.Done(at)
+		case WorkItemFeedbackFailed:
+			err = wi.Fail(at)
+		default:
+			return agent.ErrWorkItemBadStatus
+		}
+		if err != nil {
+			return err
+		}
+		return s.workItems.Update(txCtx, wi)
+	})
+}
+
+// AppendActivity appends an observation event to the Agent's append-only
+// activity stream (D2-c-i stdout→activity sink). It records an observation only
+// — it does NOT post to any Conversation. Returns the new event id.
+func (s *Service) AppendActivity(ctx context.Context, in agent.NewActivityEventInput) (string, error) {
+	if in.ID == "" {
+		in.ID = s.idgen.NewULID()
+	}
+	if in.OccurredAt.IsZero() {
+		in.OccurredAt = s.clock.Now()
+	}
+	e, err := agent.NewActivityEvent(in)
+	if err != nil {
+		return "", err
+	}
+	if err := s.activity.Append(ctx, e); err != nil {
+		return "", err
+	}
+	return e.ID(), nil
 }
 
 // --- reads ------------------------------------------------------------------

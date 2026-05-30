@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
@@ -48,8 +49,19 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrTaskNotFound),
 		errors.Is(err, pm.ErrProjectNotFound),
 		errors.Is(err, pm.ErrIssueNotFound),
+		errors.Is(err, agent.ErrAgentNotFound),
+		errors.Is(err, agent.ErrWorkItemNotFound),
 		errors.Is(err, admintoken.ErrTokenNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+
+	// ---- illegal_transition (409) — agent-BC lifecycle/work-item feedback ---
+	// D2-c-i controller→center feedback: a rejected AR transition (MarkStopped
+	// precondition, WorkItem Activate/Done/Fail move) is a conflict with the
+	// current state, surfaced as 409 so the daemon can re-read + retry.
+	case errors.Is(err, agent.ErrIllegalLifecycle),
+		errors.Is(err, agent.ErrWorkItemIllegalMove),
+		errors.Is(err, agent.ErrWorkItemBadStatus):
+		writeError(w, http.StatusConflict, "illegal_transition", err.Error())
 
 	// ---- already_exists (409) -------------------------------------------
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),

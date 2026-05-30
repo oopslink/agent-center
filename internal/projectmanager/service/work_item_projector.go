@@ -4,15 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
+
+// commandTypeAgentWork is the D2-c-i work-delivery command the projector
+// enqueues onto the assignee Agent's Worker control stream when a queued
+// AgentWorkItem is created. The (future, D2-c-ii) daemon AgentController
+// interprets it; D1's NoopHandler acks it today — fully additive, zero real
+// effect yet.
+const commandTypeAgentWork = "agent.work"
 
 // WorkItemProjector is the B2-c projector that turns Task assignment into Agent
 // work (ADR-0049 §3, plan §4.2). It consumes pm.task.assigned / pm.task.reassigned
@@ -22,20 +31,59 @@ import (
 // one stable Conversation. This completes the outbox wiring C2 (#100) deferred.
 //
 // Side effect + AppliedStore.MarkApplied run in the SAME transaction (finding 2).
+//
+// D2-c-i (work delivery): when this projector creates a `queued` AgentWorkItem
+// it ALSO enqueues an `agent.work` command onto the assignee Agent's Worker
+// control stream, in the SAME projection tx (mirroring AgentControlProjector's
+// reconcile+MarkApplied same-tx pattern). The agents Repository resolves the
+// assignee Agent → its WorkerID(); the tasks repo supplies the brief
+// (title+description). Both extra deps are OPTIONAL (nil) so test fixtures that
+// don't exercise work delivery keep working — a nil controlLog/agents/tasks
+// simply skips the enqueue.
 type WorkItemProjector struct {
-	db        *sql.DB
-	workItems agent.WorkItemRepository
-	applied   outbox.AppliedStore
-	idgen     idgen.Generator
-	clock     clock.Clock
+	db         *sql.DB
+	workItems  agent.WorkItemRepository
+	applied    outbox.AppliedStore
+	idgen      idgen.Generator
+	clock      clock.Clock
+	controlLog *environment.ControlLog // optional; nil → skip agent.work enqueue
+	agents     agent.Repository        // optional; resolves assignee → worker
+	tasks      pm.TaskRepository       // optional; supplies the work brief
 }
 
-// NewWorkItemProjector constructs the projector.
+// WorkItemProjectorDeps bundles the projector's dependencies. controlLog/agents/
+// tasks are OPTIONAL (D2-c-i work delivery); leaving them nil keeps the legacy
+// supersede/create behavior with no agent.work enqueue.
+type WorkItemProjectorDeps struct {
+	DB         *sql.DB
+	WorkItems  agent.WorkItemRepository
+	Applied    outbox.AppliedStore
+	IDGen      idgen.Generator
+	Clock      clock.Clock
+	ControlLog *environment.ControlLog
+	Agents     agent.Repository
+	Tasks      pm.TaskRepository
+}
+
+// NewWorkItemProjector constructs the projector. controlLog/agents/tasks are
+// optional (pass nil to skip the D2-c-i agent.work enqueue).
 func NewWorkItemProjector(db *sql.DB, workItems agent.WorkItemRepository, applied outbox.AppliedStore, gen idgen.Generator, clk clock.Clock) *WorkItemProjector {
+	return NewWorkItemProjectorWithDeps(WorkItemProjectorDeps{
+		DB: db, WorkItems: workItems, Applied: applied, IDGen: gen, Clock: clk,
+	})
+}
+
+// NewWorkItemProjectorWithDeps constructs the projector with the full dep bag,
+// including the optional D2-c-i work-delivery deps (controlLog/agents/tasks).
+func NewWorkItemProjectorWithDeps(d WorkItemProjectorDeps) *WorkItemProjector {
+	clk := d.Clock
 	if clk == nil {
 		clk = clock.SystemClock{}
 	}
-	return &WorkItemProjector{db: db, workItems: workItems, applied: applied, idgen: gen, clock: clk}
+	return &WorkItemProjector{
+		db: d.DB, workItems: d.WorkItems, applied: d.Applied, idgen: d.IDGen, clock: clk,
+		controlLog: d.ControlLog, agents: d.Agents, tasks: d.Tasks,
+	}
 }
 
 // Name is the AppliedStore key.
@@ -125,9 +173,105 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 			if serr := p.workItems.Save(txCtx, nw); serr != nil {
 				return serr
 			}
+			// D2-c-i work delivery: enqueue an agent.work command on the assignee
+			// Agent's Worker control stream IN THIS SAME TX. Idempotent on
+			// (worker, "agent.work:<workItemID>") so re-projection never double-
+			// enqueues. A nil controlLog (test fixtures) or an Agent with no worker
+			// binding skips the enqueue without failing the projection.
+			if ferr := p.enqueueWork(txCtx, nw, agentID, taskRef); ferr != nil {
+				return ferr
+			}
 		}
 		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
 	})
+}
+
+// workCommandPayload is the agent.work command payload the (future) daemon
+// AgentController consumes to learn it has work + a brief. Mirrors
+// reconcileCommandPayload in agent_control_projector.go.
+type workCommandPayload struct {
+	AgentID    string `json:"agent_id"`
+	WorkItemID string `json:"work_item_id"`
+	TaskRef    string `json:"task_ref"`
+	Brief      string `json:"brief"`
+}
+
+// enqueueWork appends the agent.work command for a freshly-queued WorkItem onto
+// the assignee Agent's Worker control stream (same tx as the caller). It is a
+// best-effort SIGNAL: if work delivery is not wired (nil controlLog/agents), or
+// the agent has no worker binding, it logs and skips rather than failing the
+// projection. The brief (title+description) is captured at enqueue time so the
+// command is replayable-deterministic.
+func (p *WorkItemProjector) enqueueWork(ctx context.Context, wi *agent.AgentWorkItem, agentID agent.AgentID, taskRef string) error {
+	if p.controlLog == nil || p.agents == nil {
+		return nil // work delivery not wired (e.g. test fixtures)
+	}
+	a, err := p.agents.FindByID(ctx, agentID)
+	if err != nil {
+		// The assignee Agent could not be resolved — skip the signal rather than
+		// stall the WorkItem projection (the WorkItem itself is already created).
+		slog.Warn("workitem projector: agent.work enqueue skipped (agent lookup failed)",
+			"agent_id", string(agentID), "work_item_id", wi.ID(), "err", err)
+		return nil
+	}
+	workerID := a.WorkerID()
+	if strings.TrimSpace(workerID) == "" {
+		slog.Info("workitem projector: agent.work enqueue skipped (agent has no worker binding)",
+			"agent_id", string(agentID), "work_item_id", wi.ID())
+		return nil
+	}
+	payload, err := json.Marshal(workCommandPayload{
+		AgentID:    string(agentID),
+		WorkItemID: wi.ID(),
+		TaskRef:    taskRef,
+		Brief:      p.brief(ctx, taskRef),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(workerID),
+		CommandType:    commandTypeAgentWork,
+		Payload:        string(payload),
+		IdempotencyKey: "agent.work:" + wi.ID(),
+	})
+	return err
+}
+
+// brief assembles the work brief — the task's title + description — captured at
+// enqueue time so the agent.work command is replayable-deterministic. Format:
+// "title\n\ndescription" (description omitted when empty). When the tasks repo
+// is unwired or the task can't be loaded, the brief degrades to an empty string
+// (the WorkItem's task_ref still lets the controller resolve detail later).
+func (p *WorkItemProjector) brief(ctx context.Context, taskRef string) string {
+	if p.tasks == nil {
+		return ""
+	}
+	id, ok := taskIDFromRef(taskRef)
+	if !ok {
+		return ""
+	}
+	t, err := p.tasks.FindByID(ctx, pm.TaskID(id))
+	if err != nil || t == nil {
+		slog.Info("workitem projector: brief unavailable (task lookup failed)",
+			"task_ref", taskRef, "err", err)
+		return ""
+	}
+	title := strings.TrimSpace(t.Title())
+	desc := strings.TrimSpace(t.Description())
+	if desc == "" {
+		return title
+	}
+	return title + "\n\n" + desc
+}
+
+// taskIDFromRef extracts the Task id from a "pm://tasks/{id}" owner ref.
+func taskIDFromRef(ref string) (string, bool) {
+	const p = "pm://tasks/"
+	if strings.HasPrefix(ref, p) && len(ref) > len(p) {
+		return strings.TrimPrefix(ref, p), true
+	}
+	return "", false
 }
 
 // agentIDFromRef extracts the Agent id from an "agent:<id>" identity ref.

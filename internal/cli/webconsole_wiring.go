@@ -18,6 +18,7 @@ import (
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
 	"github.com/oopslink/agent-center/internal/webconsole/spa"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
@@ -212,12 +213,26 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	outboxRepo := outboxsql.NewOutboxRepo(a.DB)
 	appliedRepo := outboxsql.NewAppliedRepo(a.DB)
 	participantProj := pmservice.NewParticipantProjector(a.DB, a.ConvRepo, appliedRepo, a.IDGen, a.Clock)
-	workItemProj := pmservice.NewWorkItemProjector(a.DB, agentsql.NewWorkItemRepo(a.DB), appliedRepo, a.IDGen, a.Clock)
 	// v2.7 D2-a: ADDITIVE reconcile projector. Agent lifecycle intent changes
 	// (C3 agent.lifecycle_changed) become declarative agent.reconcile commands on
 	// the agent's Worker control stream (D1). D1's NoopHandler no-op-acks them →
 	// zero real effect yet (no execution cutover; old taskruntime path untouched).
 	controlLog := environment.NewControlLog(envsql.NewControlEventRepo(a.DB), a.IDGen, a.Clock)
+	// v2.7 D2-c-i: ADDITIVE work delivery. When the projector creates a queued
+	// AgentWorkItem it ALSO enqueues an agent.work command (with a brief) onto the
+	// assignee Agent's Worker control stream, same tx. The agents repo resolves
+	// the assignee → worker; the pm tasks repo supplies the brief. Like D2-a this
+	// only enqueues — the daemon controller (D2-c-ii) is not active yet.
+	workItemProj := pmservice.NewWorkItemProjectorWithDeps(pmservice.WorkItemProjectorDeps{
+		DB:         a.DB,
+		WorkItems:  agentsql.NewWorkItemRepo(a.DB),
+		Applied:    appliedRepo,
+		IDGen:      a.IDGen,
+		Clock:      a.Clock,
+		ControlLog: controlLog,
+		Agents:     agentsql.NewAgentRepo(a.DB),
+		Tasks:      pmsql.NewTaskRepo(a.DB),
+	})
 	agentControlProj := envservice.NewAgentControlProjector(a.DB, controlLog, appliedRepo, a.Clock)
 	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
