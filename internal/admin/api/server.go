@@ -321,6 +321,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/environment/agent/activity", s.envAgentActivityHandler)
 	s.mux.HandleFunc("POST /admin/environment/agent/lifecycle-feedback", s.envAgentLifecycleFeedbackHandler)
 	s.mux.HandleFunc("POST /admin/environment/agent/work-item-state", s.envAgentWorkItemStateHandler)
+	// v2.7 D2-e-ii (OQ5): controller→center mark-seen. Monotonically advances the
+	// agent participant's read-state cursor after a wake inject so the next batch
+	// flush won't re-deliver. Same requireAgentOnWorker guardrail; only-forward.
+	s.mux.HandleFunc("POST /admin/environment/agent/mark-seen", s.envAgentMarkSeenHandler)
 
 	// --- agent tools (v2.7 D2-b1, ADR-0049) ------------------------------
 	// Per-agent MCP tool surface. ADDITIVE — rides the same bearer auth as

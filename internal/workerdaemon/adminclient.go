@@ -524,6 +524,11 @@ type feedbackReporter interface {
 	ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error
 	// ReportWorkItemState posts a WorkItem transition (state "active" | "done" | "failed").
 	ReportWorkItemState(ctx context.Context, agentID, workItemID, state string, at time.Time) error
+	// ReportMarkSeen advances the agent participant's read-state cursor in a task
+	// conversation to messageID (monotonic, server-side). v2.7 D2-e-ii (OQ5): after
+	// a wake inject the controller marks the delivered batch seen so the next batch
+	// flush won't re-deliver it.
+	ReportMarkSeen(ctx context.Context, agentID, conversationID, messageID string, at time.Time) error
 }
 
 // var _ feedbackReporter asserts *AdminClient satisfies the controller seam.
@@ -590,6 +595,31 @@ func (c *AdminClient) ReportWorkItemState(ctx context.Context, agentID, workItem
 		body["at"] = at.UTC().Format(time.RFC3339Nano)
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/work-item-state", body, nil)
+}
+
+// ReportMarkSeen POSTs to /admin/environment/agent/mark-seen. Monotonically
+// advances the agent participant's read-state cursor in conversationID to
+// messageID (v2.7 D2-e-ii). The server (requireAgentOnWorker-gated) never
+// regresses the cursor — an older/equal id is a no-op.
+func (c *AdminClient) ReportMarkSeen(ctx context.Context, agentID, conversationID, messageID string, at time.Time) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	if strings.TrimSpace(conversationID) == "" {
+		return errors.New("adminclient: conversation_id required")
+	}
+	if strings.TrimSpace(messageID) == "" {
+		return errors.New("adminclient: message_id required")
+	}
+	body := map[string]any{
+		"agent_id":        agentID,
+		"conversation_id": conversationID,
+		"message_id":      messageID,
+	}
+	if !at.IsZero() {
+		body["at"] = at.UTC().Format(time.RFC3339Nano)
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/mark-seen", body, nil)
 }
 
 // doJSON is the shared request helper. Returns a typed error on non-2xx

@@ -21,6 +21,7 @@ type recordingReporter struct {
 	activities []activityCall
 	lifecycles []lifecycleCall
 	workItems  []workItemCall
+	markSeens  []markSeenCall
 }
 
 type activityCall struct {
@@ -31,6 +32,9 @@ type lifecycleCall struct {
 }
 type workItemCall struct {
 	agentID, workItemID, state string
+}
+type markSeenCall struct {
+	agentID, conversationID, messageID string
 }
 
 func (r *recordingReporter) ReportAgentActivity(_ context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, _ time.Time) error {
@@ -52,6 +56,21 @@ func (r *recordingReporter) ReportWorkItemState(_ context.Context, agentID, work
 	defer r.mu.Unlock()
 	r.workItems = append(r.workItems, workItemCall{agentID, workItemID, state})
 	return nil
+}
+
+func (r *recordingReporter) ReportMarkSeen(_ context.Context, agentID, conversationID, messageID string, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.markSeens = append(r.markSeens, markSeenCall{agentID, conversationID, messageID})
+	return nil
+}
+
+func (r *recordingReporter) markSeenCalls() []markSeenCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]markSeenCall, len(r.markSeens))
+	copy(out, r.markSeens)
+	return out
 }
 
 func (r *recordingReporter) lifecycleCalls() []lifecycleCall {
@@ -165,7 +184,17 @@ func workCmd(t *testing.T, agentID, workItemID, brief string, offset int64) Cont
 
 func wakeCmd(t *testing.T, agentID, workItemID, messageID, messageText string, offset int64) ControlCommand {
 	t.Helper()
-	pl := wakePayload{AgentID: agentID, WorkItemID: workItemID, MessageID: messageID, MessageText: messageText}
+	return wakeCmdConv(t, agentID, workItemID, "", messageID, messageText, offset)
+}
+
+// wakeCmdConv builds an agent.wake command carrying a conversation_id (D2-e-ii:
+// the controller advances the read-state cursor via ReportMarkSeen after inject).
+func wakeCmdConv(t *testing.T, agentID, workItemID, conversationID, messageID, messageText string, offset int64) ControlCommand {
+	t.Helper()
+	pl := wakePayload{
+		AgentID: agentID, WorkItemID: workItemID, ConversationID: conversationID,
+		MessageID: messageID, MessageText: messageText,
+	}
 	return ControlCommand{
 		ID:          "cmd-wake",
 		Offset:      offset,
@@ -568,5 +597,71 @@ func TestAgentController_Wake_NoSessionRetries(t *testing.T) {
 	// policy as work().
 	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "reply", 1)); err == nil {
 		t.Fatal("want error for wake with no running session (retry signal)")
+	}
+}
+
+// D2-e-ii: a wake carrying conversation_id advances the read-state cursor
+// (ReportMarkSeen) after a successful inject — for BOTH the immediate (e-i) and
+// batch (e-ii) paths (identical command shape; just merged text + batch id).
+func TestAgentController_Wake_ImmediateReportsMarkSeen(t *testing.T) {
+	c, rep, _ := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := c.Handle(context.Background(), wakeCmdConv(t, "agent-1", "wi-1", "conv-9", "msg-1", "human replied", 2)); err != nil {
+		t.Fatalf("wake: %v", err)
+	}
+
+	ms := rep.markSeenCalls()
+	if len(ms) != 1 || ms[0].conversationID != "conv-9" || ms[0].messageID != "msg-1" || ms[0].agentID != "agent-1" {
+		t.Fatalf("mark-seen calls: %+v", ms)
+	}
+}
+
+func TestAgentController_Wake_BatchReportsMarkSeenWithLastID(t *testing.T) {
+	c, rep, lp := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	// e-ii batch: merged text, message_id = NEWEST delivered (msg-5).
+	merged := "[user:alice] one\n[user:alice] two"
+	if err := c.Handle(context.Background(), wakeCmdConv(t, "agent-1", "wi-1", "conv-9", "msg-5", merged, 2)); err != nil {
+		t.Fatalf("wake batch: %v", err)
+	}
+
+	in := lp.lastProc().stdinBytes()
+	if !strings.Contains(in, "one") || !strings.Contains(in, "two") {
+		t.Fatalf("merged batch not injected: %q", in)
+	}
+	ms := rep.markSeenCalls()
+	if len(ms) != 1 || ms[0].messageID != "msg-5" || ms[0].conversationID != "conv-9" {
+		t.Fatalf("batch mark-seen calls: %+v", ms)
+	}
+}
+
+// Mark-seen does not fire when no conversation_id is carried (defensive) and the
+// FIFO dedup still works alongside the cursor.
+func TestAgentController_Wake_NoConvID_NoMarkSeen_DedupStillWorks(t *testing.T) {
+	c, rep, lp := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "reply text", 2)); err != nil {
+		t.Fatalf("wake 1: %v", err)
+	}
+	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "reply text", 3)); err != nil {
+		t.Fatalf("wake 2 (replay): %v", err)
+	}
+	if in := lp.lastProc().stdinBytes(); strings.Count(in, "reply text") != 1 {
+		t.Fatalf("dedup failed alongside no-mark-seen path")
+	}
+	if ms := rep.markSeenCalls(); len(ms) != 0 {
+		t.Fatalf("no conversation_id must skip mark-seen, got %+v", ms)
 	}
 }

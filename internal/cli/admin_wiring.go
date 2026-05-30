@@ -263,6 +263,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		AgentSvc:          a.AgentService,
 		AgentWorkItemRepo: a.AgentWorkItemRepo,
 		AgentActivityRepo: a.AgentActivityRepo,
+		// v2.7 D2-e-ii (OQ5): outbox emitter for request_input's agent.awaiting_input.
+		OutboxRepo: a.OutboxRepo,
 
 		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
 		PMService: a.PMService,

@@ -83,12 +83,19 @@ type workPayload struct {
 
 // wakePayload decodes an "agent.wake" command payload. Matches
 // internal/environment/service/wake_projector.go wakeCommandPayload.
+//
+// D2-e-ii: ConversationID is carried so the controller can advance the agent's
+// read-state cursor (ReportMarkSeen) after a successful inject — both for the
+// e-i immediate wake (single message) and the e-ii batch flush. MessageID is
+// the NEWEST delivered message id (the cursor target); MessageText is the merged
+// batch text in the e-ii path (single message in the e-i path).
 type wakePayload struct {
-	AgentID     string `json:"agent_id"`
-	WorkItemID  string `json:"work_item_id"`
-	TaskRef     string `json:"task_ref"`
-	MessageID   string `json:"message_id"`
-	MessageText string `json:"message_text"`
+	AgentID        string `json:"agent_id"`
+	WorkItemID     string `json:"work_item_id"`
+	TaskRef        string `json:"task_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	MessageText    string `json:"message_text"`
 }
 
 // AgentControllerConfig parameterises the controller.
@@ -415,6 +422,19 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 
 	// Record the message_id as injected (dedup) only after a successful inject.
 	c.recordWake(pl.AgentID, pl.MessageID)
+
+	// D2-e-ii (OQ5 method 甲): advance the agent participant's read-state cursor
+	// to the newest delivered message so the NEXT batch flush (request_input →
+	// agent.awaiting_input) does not re-deliver what was already injected here.
+	// This applies to BOTH the e-i immediate wake (single message) and the e-ii
+	// batch flush. Best-effort: a mark-seen failure is logged, not fatal (the
+	// FIFO dedup set already guards crash-replay; the cursor is the batch boundary
+	// and a stale cursor at worst re-delivers a duplicate the model can ignore).
+	if pl.ConversationID != "" && pl.MessageID != "" {
+		if err := c.cfg.Reporter.ReportMarkSeen(ctx, pl.AgentID, pl.ConversationID, pl.MessageID, time.Now()); err != nil {
+			c.log("wake agent=%s mark-seen conv=%s msg=%s: %v", pl.AgentID, pl.ConversationID, pl.MessageID, err)
+		}
+	}
 
 	if pl.WorkItemID != "" {
 		// waiting_input→active via the existing feedback endpoint (MarkWorkItemState

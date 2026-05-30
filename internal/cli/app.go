@@ -31,6 +31,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
+	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
@@ -125,6 +126,11 @@ type App struct {
 	DerivationSvc      *convservice.MessageDerivationService
 	ReadStateRepo      conversation.UserConversationReadStateRepository
 	ReadStateSvc       *convservice.ReadStateService
+
+	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). The admin
+	// request_input handler uses it to emit `agent.awaiting_input` in the same tx
+	// as the WorkItem entering waiting_input (the batch-flush trigger).
+	OutboxRepo outbox.Repository
 
 	// Workforce — AgentInstance (P10 § 3.8 + F5)
 	AgentInstanceRepo workforce.AgentInstanceRepository
@@ -227,7 +233,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// v2.7 D2-e-i (OQ5): attach the cross-BC outbox emitter so AddMessage emits a
 	// conversation.message_added wake-trigger event (same tx) for task-owned
 	// conversations. The WakeProjector (webconsole_wiring) consumes it.
-	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, clk).WithOutbox(outboxsql.NewOutboxRepo(db))
+	outboxRepo := outboxsql.NewOutboxRepo(db)
+	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, clk).WithOutbox(outboxRepo)
 	channelMgmt := convservice.NewChannelManagementService(db, cr, sink, gen, clk)
 	participantMgmt := convservice.NewParticipantManagementService(db, cr, sink, clk)
 	convRefRepo := convsqlite.NewReferenceRepo(db)
@@ -457,6 +464,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		DerivationSvc:      derivationSvc,
 		ReadStateRepo:      readStateRepo,
 		ReadStateSvc:       readStateSvc,
+		OutboxRepo:         outboxRepo,
 
 		AgentInstanceRepo: aiRepo,
 		AgentMgmtSvc:      agentMgmt,

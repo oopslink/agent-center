@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -11,7 +12,10 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	envservice "github.com/oopslink/agent-center/internal/environment/service"
+	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -242,6 +246,16 @@ func (s *Server) requestInputHandler(w http.ResponseWriter, r *http.Request) {
 		if err := d.AgentWorkItemRepo.Update(txCtx, target); err != nil {
 			return err
 		}
+		// (c) v2.7 D2-e-ii (OQ5 method 甲): emit `agent.awaiting_input` IN THIS
+		// SAME outer tx (the outbox repo joins via ExecutorFromCtx). request_input
+		// is the ONLY active→waiting_input path, so this is the batch-flush trigger:
+		// the WakeProjector consumes it to deliver all the agent's UNREAD messages
+		// in the task conversation as ONE merged stdin injection. Atomic with the
+		// message + WaitInput — the trigger commits iff the WorkItem is parked. A nil
+		// outbox dep (test fixtures not exercising wake) skips silently.
+		if err := s.emitAwaitingInput(txCtx, d, a, req.TaskID, target); err != nil {
+			return err
+		}
 		parked = target
 		return nil
 	})
@@ -263,6 +277,54 @@ func (s *Server) requestInputHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"work_item_id": parked.ID(),
 		"status":       string(parked.Status()),
+	})
+}
+
+// awaitingInputOutboxPayload mirrors the JSON the WakeProjector's
+// awaitingInputPayload decodes (env service). Kept local so the admin handler
+// does not import the env payload type.
+type awaitingInputOutboxPayload struct {
+	AgentID        string `json:"agent_id"`
+	WorkItemID     string `json:"work_item_id"`
+	TaskRef        string `json:"task_ref"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// emitAwaitingInput appends the `agent.awaiting_input` batch-flush trigger to the
+// cross-BC outbox INSIDE the caller's tx (request_input's outer RunInTx), so it
+// commits atomically with the message + WaitInput. Resolves the task's
+// conversation by owner_ref (pm://tasks/{taskID}). A nil OutboxRepo skips the
+// emit (nil-tolerant, mirrors MessageWriter.WithOutbox).
+func (s *Server) emitAwaitingInput(ctx context.Context, d HandlerDeps, a *agent.Agent, taskID string, wi *agent.AgentWorkItem) error {
+	if d.OutboxRepo == nil {
+		return nil
+	}
+	conv, err := d.ConvRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID))
+	if err != nil {
+		return err
+	}
+	taskRef := taskRefFor(taskID)
+	pb, err := json.Marshal(awaitingInputOutboxPayload{
+		AgentID:        string(a.ID()),
+		WorkItemID:     wi.ID(),
+		TaskRef:        taskRef,
+		ConversationID: string(conv.ID()),
+	})
+	if err != nil {
+		return err
+	}
+	refs, _ := json.Marshal(map[string]string{
+		"agent_id":        string(a.ID()),
+		"work_item_id":    wi.ID(),
+		"task_ref":        taskRef,
+		"conversation_id": string(conv.ID()),
+	})
+	return d.OutboxRepo.Append(ctx, outbox.Event{
+		ID:        idgen.MustNewULID(),
+		EventType: envservice.EvtAgentAwaitingInput,
+		Refs:      string(refs),
+		Payload:   string(pb),
+		CreatedAt: time.Now().UTC(),
 	})
 }
 

@@ -46,13 +46,14 @@ type writeToolsFixture struct {
 	deps     HandlerDeps
 	verifier *fakeVerifier
 
-	db        *sql.DB
-	pmSvc     *pmservice.Service
-	convRepo  conversation.ConversationRepository
-	msgRepo   conversation.MessageRepository
-	workItems *agentsql.WorkItemRepo
-	relay     *outbox.Relay
-	clk       *clock.FakeClock
+	db         *sql.DB
+	pmSvc      *pmservice.Service
+	convRepo   conversation.ConversationRepository
+	msgRepo    conversation.MessageRepository
+	workItems  *agentsql.WorkItemRepo
+	outboxRepo *outboxsql.OutboxRepo
+	relay      *outbox.Relay
+	clk        *clock.FakeClock
 }
 
 func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
@@ -103,6 +104,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		AgentDir:     agent.NewOrgDirectory(agents),
 	})
 
+	outboxRepo := outboxsql.NewOutboxRepo(db)
 	applied := outboxsql.NewAppliedRepo(db)
 	relay := outbox.NewRelay(outboxsql.NewOutboxRepo(db), applied, clk,
 		pmservice.NewParticipantProjector(db, convRepo, applied, gen, clk),
@@ -153,11 +155,35 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		MsgRepo:           msgRepo,
 		MessageWriter:     writer,
 		PMService:         pmSvc,
+		OutboxRepo:        outboxRepo,
 	}
 	return &writeToolsFixture{
 		deps: deps, verifier: verifier, db: db, pmSvc: pmSvc, convRepo: convRepo,
-		msgRepo: msgRepo, workItems: workItems, relay: relay, clk: clk,
+		msgRepo: msgRepo, workItems: workItems, outboxRepo: outboxRepo, relay: relay, clk: clk,
 	}
+}
+
+// awaitingInputEvents returns the agent.awaiting_input outbox events currently in
+// the table (queried directly so the assertion is independent of the test relay,
+// which has no batch projector). Used to assert request_input's same-tx emit.
+func (f *writeToolsFixture) awaitingInputEvents(t *testing.T) []outbox.Event {
+	t.Helper()
+	rows, err := f.db.QueryContext(context.Background(),
+		`SELECT id, event_type, payload FROM outbox_events WHERE event_type = ? ORDER BY id ASC`,
+		"agent.awaiting_input")
+	if err != nil {
+		t.Fatalf("query outbox: %v", err)
+	}
+	defer rows.Close()
+	var out []outbox.Event
+	for rows.Next() {
+		var e outbox.Event
+		if err := rows.Scan(&e.ID, &e.EventType, &e.Payload); err != nil {
+			t.Fatalf("scan outbox: %v", err)
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func (f *writeToolsFixture) addWorkerToken(t *testing.T, plaintext, workerID string) {
@@ -394,6 +420,54 @@ func TestRequestInput_OK(t *testing.T) {
 	// The WorkItem is parked waiting_input.
 	if got := f.workItemStatus(t, tid); got != agent.WorkItemWaitingInput {
 		t.Fatalf("work item status = %s, want waiting_input", got)
+	}
+
+	// D2-e-ii: request_input emitted agent.awaiting_input in the SAME tx as the
+	// message + WaitInput (the batch-flush trigger). Payload carries the task conv.
+	evs := f.awaitingInputEvents(t)
+	if len(evs) != 1 {
+		t.Fatalf("want 1 agent.awaiting_input event, got %d", len(evs))
+	}
+	conv, err := f.convRepo.FindByOwnerRef(context.Background(), conversation.NewTaskOwnerRef(tid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pay := evs[0].Payload
+	for _, want := range []string{
+		`"agent_id":"` + atAgent1 + `"`,
+		`"task_ref":"pm://tasks/` + tid + `"`,
+		`"conversation_id":"` + string(conv.ID()) + `"`,
+		`"work_item_id":"`,
+	} {
+		if !contains(pay, want) {
+			t.Fatalf("awaiting_input payload missing %q: %s", want, pay)
+		}
+	}
+}
+
+// TestRequestInput_AwaitingInput_AtomicWithRollback proves the agent.awaiting_input
+// emit shares the request_input tx: when WaitInput fails (terminal WorkItem) the
+// whole tx rolls back, so NEITHER the message NOR the awaiting_input event persist.
+func TestRequestInput_AwaitingInput_AtomicWithRollback(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	ctx := context.Background()
+	items, _ := f.workItems.ListByTask(ctx, "pm://tasks/"+tid)
+	wi := items[0]
+	_ = wi.Activate(time.Now())
+	_ = wi.Done(time.Now())
+	if err := f.workItems.Update(ctx, wi); err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/request_input", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "question": "nope"})
+	if status != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", status)
+	}
+	if evs := f.awaitingInputEvents(t); len(evs) != 0 {
+		t.Fatalf("ROLLBACK FAILED: awaiting_input event leaked (%d) despite WaitInput failing", len(evs))
 	}
 }
 

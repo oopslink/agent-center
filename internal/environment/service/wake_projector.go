@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"sort"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -23,8 +26,22 @@ import (
 // fully additive, the control loop stays DORMANT (ControlClient nil).
 const commandTypeAgentWake = "agent.wake"
 
+// EvtAgentAwaitingInput is the D2-e-ii (OQ5 method 甲) outbox event emitted by
+// the request_input admin handler IN THE SAME TX as the agent's WorkItem moving
+// active→waiting_input. The WakeProjector consumes it to flush ALL of the
+// agent's UNREAD messages (since its read-state cursor) in the task conversation
+// as ONE merged stdin injection — "deliver all unread whenever an agent ENTERS
+// waiting_input". Combined with the e-i immediate wake (a message arriving WHILE
+// already waiting_input), this gives buffer-when-active + merge-simultaneous.
+const EvtAgentAwaitingInput = "agent.awaiting_input"
+
 // ownerRefTasksPrefix is the task-owned conversation owner_ref scheme.
 const ownerRefTasksPrefix = "pm://tasks/"
+
+// agentParticipantPrefix is the IdentityRef scheme for an agent participant's
+// read-state cursor (the read_state repo is keyed by IdentityRef, so "agent:<id>"
+// resolves the agent's own cursor in the task conversation).
+const agentParticipantPrefix = "agent:"
 
 // WakeProjector turns a `conversation.message_added` outbox event for a TASK
 // conversation into `agent.wake` control commands for every agent whose
@@ -48,6 +65,15 @@ type WakeProjector struct {
 	controlLog *environment.ControlLog
 	applied    outbox.AppliedStore
 	clock      clock.Clock
+
+	// D2-e-ii batch-flush deps (nil → the agent.awaiting_input branch degrades
+	// to a no-op, like the e-i nil-ControlLog guard; the immediate path is
+	// unaffected). convRepo resolves the task conversation, msgRepo reads its
+	// messages + the cursor message's posted_at, readState reads the agent's
+	// read-state cursor.
+	convRepo  conversation.ConversationRepository
+	msgRepo   conversation.MessageRepository
+	readState conversation.UserConversationReadStateRepository
 }
 
 // WakeProjectorDeps bundles the projector's dependencies.
@@ -58,6 +84,11 @@ type WakeProjectorDeps struct {
 	ControlLog *environment.ControlLog
 	Applied    outbox.AppliedStore
 	Clock      clock.Clock
+
+	// D2-e-ii batch-flush deps (optional; nil → awaiting_input branch no-op).
+	ConvRepo  conversation.ConversationRepository
+	MsgRepo   conversation.MessageRepository
+	ReadState conversation.UserConversationReadStateRepository
 }
 
 // NewWakeProjector constructs the projector.
@@ -73,6 +104,9 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		controlLog: d.ControlLog,
 		applied:    d.Applied,
 		clock:      clk,
+		convRepo:   d.ConvRepo,
+		msgRepo:    d.MsgRepo,
+		readState:  d.ReadState,
 	}
 }
 
@@ -92,12 +126,27 @@ type messageAddedPayload struct {
 
 // wakeCommandPayload is the agent.wake command payload the daemon AgentController
 // consumes to inject the message into the agent's running session.
+//
+// D2-e-ii: ConversationID is carried so the controller can advance the agent's
+// read-state cursor after inject (mark-seen). MessageID is the NEWEST delivered
+// message id (the cursor target); MessageText is a single message in the e-i
+// immediate path, or the merged sender-labeled batch in the e-ii flush path.
 type wakeCommandPayload struct {
-	AgentID     string `json:"agent_id"`
-	WorkItemID  string `json:"work_item_id"`
-	TaskRef     string `json:"task_ref"`
-	MessageID   string `json:"message_id"`
-	MessageText string `json:"message_text"`
+	AgentID        string `json:"agent_id"`
+	WorkItemID     string `json:"work_item_id"`
+	TaskRef        string `json:"task_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	MessageText    string `json:"message_text"`
+}
+
+// awaitingInputPayload mirrors the JSON keys the request_input admin handler
+// writes for the EvtAgentAwaitingInput outbox event (the batch-flush trigger).
+type awaitingInputPayload struct {
+	AgentID        string `json:"agent_id"`
+	WorkItemID     string `json:"work_item_id"`
+	TaskRef        string `json:"task_ref"`
+	ConversationID string `json:"conversation_id"`
 }
 
 // Project enqueues an agent.wake command for each waiting_input WorkItem on the
@@ -111,9 +160,19 @@ type wakeCommandPayload struct {
 //     log when unresolved / no worker binding), and enqueue agent.wake keyed by
 //     "agent.wake:<workItemID>:<messageID>" so re-projection never double-enqueues.
 func (p *WakeProjector) Project(ctx context.Context, e outbox.Event) error {
-	if e.EventType != convservice.EvtConversationMessageAdded {
+	switch e.EventType {
+	case convservice.EvtConversationMessageAdded:
+		return p.projectMessageAdded(ctx, e)
+	case EvtAgentAwaitingInput:
+		return p.projectAwaitingInput(ctx, e)
+	default:
 		return nil
 	}
+}
+
+// projectMessageAdded is the e-i immediate-wake path: a message posted into a
+// task conversation wakes every waiting_input WorkItem (self-excluded).
+func (p *WakeProjector) projectMessageAdded(ctx context.Context, e outbox.Event) error {
 	var pl messageAddedPayload
 	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
 		return err
@@ -182,11 +241,12 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 		return nil
 	}
 	payload, err := json.Marshal(wakeCommandPayload{
-		AgentID:     string(agentID),
-		WorkItemID:  wi.ID(),
-		TaskRef:     taskRef,
-		MessageID:   pl.MessageID,
-		MessageText: pl.Text,
+		AgentID:        string(agentID),
+		WorkItemID:     wi.ID(),
+		TaskRef:        taskRef,
+		ConversationID: pl.ConversationID, // D2-e-ii backfill: cursor advance after inject.
+		MessageID:      pl.MessageID,
+		MessageText:    pl.Text,
 	})
 	if err != nil {
 		return err
@@ -198,6 +258,195 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 		IdempotencyKey: "agent.wake:" + wi.ID() + ":" + pl.MessageID,
 	})
 	return err
+}
+
+// projectAwaitingInput is the D2-e-ii batch-flush path: when an agent ENTERS
+// waiting_input (request_input emitted agent.awaiting_input in the same tx as the
+// WaitInput), deliver ALL of the agent's UNREAD messages in the task conversation
+// (since its read-state cursor) as ONE merged, sender-labeled stdin injection.
+//
+// Same-tx idempotent (IsApplied/MarkApplied in one tx), mirroring the e-i path.
+// Steps:
+//   - compute the agent's cursor (read-state LastSeenMessageID; empty if absent);
+//   - read the conversation messages with posted_at >= cursor's posted_at, then
+//     filter to ULID strictly > cursor (same-millisecond tie-safe) + self-exclude
+//     the agent's own messages;
+//   - no unread → MarkApplied + no wake;
+//   - re-check the WorkItem is STILL waiting_input (it may have been woken by an
+//     interleaved e-i message); merge unread → one agent.wake keyed
+//     "agent.wake:{wi}:batch:{lastMessageID}".
+func (p *WakeProjector) projectAwaitingInput(ctx context.Context, e outbox.Event) error {
+	var pl awaitingInputPayload
+	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+		return err
+	}
+	now := p.clock.Now()
+	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+		if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
+			return err
+		} else if done {
+			return nil
+		}
+		if err := p.flushAwaitingInput(txCtx, pl); err != nil {
+			return err
+		}
+		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+	})
+}
+
+// flushAwaitingInput does the body of the batch flush inside the caller's tx.
+// Returns nil (no-op, still MarkApplied) on any "nothing to do" condition:
+// deps not wired, no conversation id, no unread, WorkItem no longer waiting_input,
+// agent unresolved / no worker.
+func (p *WakeProjector) flushAwaitingInput(ctx context.Context, pl awaitingInputPayload) error {
+	if p.controlLog == nil || p.agents == nil || p.msgRepo == nil || p.readState == nil {
+		return nil // batch delivery not wired (e.g. test fixtures / e-i-only build)
+	}
+	agentID := strings.TrimSpace(pl.AgentID)
+	convID := strings.TrimSpace(pl.ConversationID)
+	if agentID == "" || convID == "" || strings.TrimSpace(pl.WorkItemID) == "" {
+		return nil
+	}
+	conversationID := conversation.ConversationID(convID)
+	participant := conversation.IdentityRef(agentParticipantPrefix + agentID)
+
+	// (a) resolve the agent's read-state cursor (empty = never seen → all unread).
+	var cursorID conversation.MessageID
+	rs, err := p.readState.FindByUserAndConv(ctx, participant, conversationID)
+	if err != nil && !errors.Is(err, conversation.ErrReadStateNotFound) {
+		return err
+	}
+	if rs != nil {
+		cursorID = rs.LastSeenMessageID
+	}
+
+	// (b) resolve the cursor message's posted_at to bound the Since scan. A cursor
+	// pointing at a since-deleted/absent message degrades to Since=nil (full scan);
+	// the strictly-after-ULID filter below still excludes already-seen ids.
+	filter := conversation.MessageFilter{}
+	if cursorID != "" {
+		cm, ferr := p.msgRepo.FindByID(ctx, cursorID)
+		if ferr != nil && !errors.Is(ferr, conversation.ErrMessageNotFound) {
+			return ferr
+		}
+		if cm != nil {
+			since := cm.PostedAt()
+			filter.Since = &since
+		}
+	}
+
+	msgs, err := p.msgRepo.FindByConversationID(ctx, conversationID, filter)
+	if err != nil {
+		return err
+	}
+
+	// (c) filter to UNREAD (ULID strictly > cursor; all when cursor empty) and
+	// self-exclude the agent's own messages. Sort by posted_at ASC for a stable
+	// merge order (the repo already returns ASC, but be defensive on ties).
+	selfSender := agentParticipantPrefix + agentID
+	var unread []*conversation.Message
+	for _, m := range msgs {
+		if cursorID != "" && string(m.ID()) <= string(cursorID) {
+			continue
+		}
+		if string(m.SenderIdentityID()) == selfSender {
+			continue
+		}
+		unread = append(unread, m)
+	}
+	if len(unread) == 0 {
+		return nil // nothing unread → no wake (still MarkApplied by the caller).
+	}
+	sort.SliceStable(unread, func(i, j int) bool {
+		if unread[i].PostedAt().Equal(unread[j].PostedAt()) {
+			return string(unread[i].ID()) < string(unread[j].ID())
+		}
+		return unread[i].PostedAt().Before(unread[j].PostedAt())
+	})
+
+	// (d) re-check the WorkItem is STILL waiting_input (an interleaved e-i message
+	// may have already woken it). Skip if not found / not waiting_input.
+	wi, err := p.resolveWaitingWorkItem(ctx, pl)
+	if err != nil {
+		return err
+	}
+	if wi == nil {
+		return nil
+	}
+
+	// (e) resolve the agent → worker (skip + log if unresolved / no binding).
+	a, err := p.agents.FindByID(ctx, agent.AgentID(agentID))
+	if err != nil {
+		slog.Warn("wake projector: batch flush skipped (agent lookup failed)",
+			"agent_id", agentID, "work_item_id", pl.WorkItemID, "err", err)
+		return nil
+	}
+	workerID := a.WorkerID()
+	if strings.TrimSpace(workerID) == "" {
+		slog.Info("wake projector: batch flush skipped (agent has no worker binding)",
+			"agent_id", agentID, "work_item_id", pl.WorkItemID)
+		return nil
+	}
+
+	// (f) merge into ONE sender-labeled text; the newest id is the cursor target.
+	mergedText := mergeMessages(unread)
+	lastID := string(unread[len(unread)-1].ID())
+
+	payload, err := json.Marshal(wakeCommandPayload{
+		AgentID:        agentID,
+		WorkItemID:     pl.WorkItemID,
+		TaskRef:        pl.TaskRef,
+		ConversationID: convID,
+		MessageID:      lastID,
+		MessageText:    mergedText,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(workerID),
+		CommandType:    commandTypeAgentWake,
+		Payload:        string(payload),
+		IdempotencyKey: "agent.wake:" + pl.WorkItemID + ":batch:" + lastID,
+	})
+	return err
+}
+
+// resolveWaitingWorkItem returns the agent's WorkItem named by the payload IFF it
+// is still waiting_input; nil otherwise (already woken / superseded / not found).
+func (p *WakeProjector) resolveWaitingWorkItem(ctx context.Context, pl awaitingInputPayload) (*agent.AgentWorkItem, error) {
+	items, err := p.workItems.ListByTask(ctx, pl.TaskRef)
+	if err != nil {
+		return nil, err
+	}
+	for _, wi := range items {
+		if wi.ID() != pl.WorkItemID {
+			continue
+		}
+		if wi.Status() != agent.WorkItemWaitingInput {
+			return nil, nil
+		}
+		return wi, nil
+	}
+	return nil, nil
+}
+
+// mergeMessages renders the unread batch as ONE plain-text injection, each
+// message sender-labeled on its own line(s): "[<sender>] <content>". Plain text
+// (NOT structured JSON) — claude reads it as the human/peer turn. Order is the
+// caller's (posted_at ASC).
+func mergeMessages(msgs []*conversation.Message) string {
+	var b strings.Builder
+	for i, m := range msgs {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteByte('[')
+		b.WriteString(string(m.SenderIdentityID()))
+		b.WriteString("] ")
+		b.WriteString(m.Content())
+	}
+	return b.String()
 }
 
 var _ outbox.Projector = (*WakeProjector)(nil)

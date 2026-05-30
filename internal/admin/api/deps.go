@@ -20,6 +20,7 @@ import (
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
+	"github.com/oopslink/agent-center/internal/outbox"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
@@ -94,6 +95,13 @@ type HandlerDeps struct {
 	// endpoint asserts via repo in tests; the handler appends through the
 	// AgentSvc AppService.
 	AgentActivityRepo agent.ActivityEventRepository
+
+	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). request_input
+	// uses it to emit `agent.awaiting_input` IN THE SAME outer tx as the
+	// AddMessage + WaitInput, so the batch-flush trigger commits atomically with
+	// the agent entering waiting_input. nil-tolerant (like MessageWriter's
+	// optional outbox): a nil repo skips the emit, keeping existing tests green.
+	OutboxRepo outbox.Repository
 
 	// Files module (v2.7 post-D3, task #104) — backs the agent file MCP tools
 	// (/admin/agent-tools/upload_file, attach_file + /admin/files/...). The same

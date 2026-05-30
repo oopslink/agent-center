@@ -246,6 +246,13 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		ControlLog: controlLog,
 		Applied:    appliedRepo,
 		Clock:      a.Clock,
+		// v2.7 D2-e-ii (OQ5 method 甲): batch-flush deps. When an agent ENTERS
+		// waiting_input (request_input → agent.awaiting_input) the projector reads
+		// its read-state cursor + the task conversation messages and enqueues ONE
+		// merged agent.wake with all unread. Still DORMANT (control loop off).
+		ConvRepo:  a.ConvRepo,
+		MsgRepo:   a.MsgRepo,
+		ReadState: a.ReadStateRepo,
 	})
 	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {

@@ -7,6 +7,9 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agent"
 	agentservice "github.com/oopslink/agent-center/internal/agent/service"
+	"github.com/oopslink/agent-center/internal/conversation"
+	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	"github.com/oopslink/agent-center/internal/observability"
 )
 
 // =============================================================================
@@ -173,6 +176,57 @@ func (s *Server) envAgentWorkItemStateHandler(w http.ResponseWriter, r *http.Req
 	}
 	if err := d.AgentSvc.MarkWorkItemState(r.Context(), a.ID(), req.WorkItemID, state, at); err != nil {
 		mapDomainError(w, err) // illegal move / not-owned → 409 / 404
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// agentMarkSeenReq is the body for POST /admin/environment/agent/mark-seen.
+type agentMarkSeenReq struct {
+	AgentID        string `json:"agent_id"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	At             string `json:"at,omitempty"`
+}
+
+// envAgentMarkSeenHandler MONOTONICALLY advances the agent participant's
+// read-state cursor in a task conversation to message_id (v2.7 D2-e-ii / OQ5).
+// The controller calls this after a wake inject so the next batch flush won't
+// re-deliver the messages it already injected. Reuses the Conversation
+// ReadStateService.MarkSeen (only-forward: an older/equal id is a no-op; absent
+// row → insert). Same per-agent guardrail as the other feedback endpoints
+// (requireAgentOnWorker — worker from the token owner, target agent bound to it).
+func (s *Server) envAgentMarkSeenHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req agentMarkSeenReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.ReadStateSvc == nil {
+		writeError(w, http.StatusNotImplemented, "read_state_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ConversationID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_conversation_id", "")
+		return
+	}
+	if strings.TrimSpace(req.MessageID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_message_id", "")
+		return
+	}
+	participant := conversation.IdentityRef("agent:" + string(a.ID()))
+	if _, err := d.ReadStateSvc.MarkSeen(r.Context(), convservice.MarkSeenCommand{
+		UserID:            participant,
+		ConversationID:    conversation.ConversationID(req.ConversationID),
+		LastSeenMessageID: conversation.MessageID(req.MessageID),
+		Actor:             observability.Actor(participant),
+	}); err != nil {
+		mapDomainError(w, err) // message-not-in-conv → 422; not found → 404
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

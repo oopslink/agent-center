@@ -11,7 +11,12 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/conversation"
+	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/observability"
+	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -29,13 +34,18 @@ import (
 // =============================================================================
 
 type fbFixture struct {
-	deps     HandlerDeps
-	verifier *fakeVerifier
-	agents   *agentsql.AgentRepo
-	work     *agentsql.WorkItemRepo
-	activity *agentsql.ActivityEventRepo
-	outbox   *outboxsql.OutboxRepo
-	ctx      context.Context
+	deps      HandlerDeps
+	verifier  *fakeVerifier
+	agents    *agentsql.AgentRepo
+	work      *agentsql.WorkItemRepo
+	activity  *agentsql.ActivityEventRepo
+	outbox    *outboxsql.OutboxRepo
+	convs     *convsql.ConversationRepo
+	msgs      *convsql.MessageRepo
+	readState *convsql.ReadStateRepo
+	gen       idgen.Generator
+	clk       *clock.FakeClock
+	ctx       context.Context
 }
 
 // newFBFixture seeds two workers (W1, W2) and builds HandlerDeps wired with the
@@ -65,6 +75,17 @@ func newFBFixture(t *testing.T) *fbFixture {
 		Workers: workers, Outbox: ob, IDGen: gen, Clock: clk,
 	})
 
+	// Conversation read-state plumbing for the mark-seen endpoint (D2-e-ii).
+	er, err := obsqlite.NewEventRepo(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := observability.NewEventSink(er, er, gen, clk)
+	convs := convsql.NewConversationRepo(db)
+	msgs := convsql.NewMessageRepo(db)
+	readState := convsql.NewReadStateRepo(db)
+	readStateSvc := convservice.NewReadStateService(db, readState, msgs, sink, clk)
+
 	for _, id := range []string{atWorker1, atWorker2} {
 		w, werr := workforce.NewWorker(workforce.NewWorkerInput{
 			ID: workforce.WorkerID(id), Capabilities: []string{"claude-code"},
@@ -83,9 +104,66 @@ func newFBFixture(t *testing.T) *fbFixture {
 		deps: HandlerDeps{
 			DB: db, AgentSvc: svc, WorkerRepo: workers,
 			AgentWorkItemRepo: work, AgentActivityRepo: activity,
+			ReadStateSvc: readStateSvc,
 		},
-		verifier: verifier, agents: agents, work: work, activity: activity, outbox: ob, ctx: ctx,
+		verifier: verifier, agents: agents, work: work, activity: activity, outbox: ob,
+		convs: convs, msgs: msgs, readState: readState, gen: gen, clk: clk, ctx: ctx,
 	}
+}
+
+// seedTaskConvWithMessage creates a task-owned conversation and appends one
+// message, returning (convID, messageID). Used by the mark-seen endpoint tests
+// (the message must be in the conversation for ReadStateService.MarkSeen).
+func (f *fbFixture) seedTaskConvWithMessage(t *testing.T, convID, taskID, sender, content string) (string, string) {
+	t.Helper()
+	c, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID:             conversation.ConversationID(convID),
+		Kind:           conversation.ConversationKindTask,
+		OwnerRef:       conversation.NewTaskOwnerRef(taskID),
+		Name:           "task " + taskID,
+		OrganizationID: atTestOrg,
+		CreatedBy:      conversation.IdentityRef("user:alice"),
+		OpenedAt:       f.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.convs.Save(f.ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	return convID, f.appendMsg(t, convID, sender, content)
+}
+
+func (f *fbFixture) appendMsg(t *testing.T, convID, sender, content string) string {
+	t.Helper()
+	f.clk.Advance(1)
+	id := f.gen.NewULID()
+	m, err := conversation.NewMessage(conversation.NewMessageInput{
+		ID:               conversation.MessageID(id),
+		ConversationID:   conversation.ConversationID(convID),
+		SenderIdentityID: conversation.IdentityRef(sender),
+		ContentKind:      conversation.MessageContentText,
+		Content:          content,
+		Direction:        conversation.DirectionInbound,
+		PostedAt:         f.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.msgs.Append(f.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func (f *fbFixture) cursor(t *testing.T, agentID, convID string) string {
+	t.Helper()
+	rs, err := f.readState.FindByUserAndConv(f.ctx,
+		conversation.IdentityRef("agent:"+agentID), conversation.ConversationID(convID))
+	if err != nil {
+		return "" // absent → never seen
+	}
+	return string(rs.LastSeenMessageID)
 }
 
 func (f *fbFixture) addWorkerToken(t *testing.T, plaintext, workerID string) {
@@ -351,5 +429,84 @@ func TestEnvAgentWorkItemState_CrossWorker_403(t *testing.T) {
 	})
 	if status != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403 (cross-worker)", status)
+	}
+}
+
+// --- mark-seen (D2-e-ii read-state cursor) ----------------------------------
+
+func TestEnvAgentMarkSeen_InsertsWhenAbsent(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
+	convID, msgID := f.seedTaskConvWithMessage(t, "conv-1", "T1", "user:bob", "hello")
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/mark-seen", "acat_fb_w1", map[string]any{
+		"agent_id": atAgent1, "conversation_id": convID, "message_id": msgID,
+	})
+	if status != http.StatusOK || body["ok"] != true {
+		t.Fatalf("status = %d body = %v, want 200 ok", status, body)
+	}
+	if got := f.cursor(t, atAgent1, convID); got != msgID {
+		t.Fatalf("cursor = %q, want %q (inserted when absent)", got, msgID)
+	}
+}
+
+func TestEnvAgentMarkSeen_AdvancesWhenNewer(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
+	convID, m1 := f.seedTaskConvWithMessage(t, "conv-1", "T1", "user:bob", "first")
+	m2 := f.appendMsg(t, convID, "user:bob", "second")
+	srv := f.server(t)
+
+	for _, mid := range []string{m1, m2} {
+		status, _ := postBearer(t, srv.URL, "/admin/environment/agent/mark-seen", "acat_fb_w1", map[string]any{
+			"agent_id": atAgent1, "conversation_id": convID, "message_id": mid,
+		})
+		if status != http.StatusOK {
+			t.Fatalf("mark-seen %s: status %d", mid, status)
+		}
+	}
+	if got := f.cursor(t, atAgent1, convID); got != m2 {
+		t.Fatalf("cursor = %q, want %q (advanced to newer)", got, m2)
+	}
+}
+
+func TestEnvAgentMarkSeen_NoOpWhenOlderOrEqual(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
+	convID, m1 := f.seedTaskConvWithMessage(t, "conv-1", "T1", "user:bob", "first")
+	m2 := f.appendMsg(t, convID, "user:bob", "second")
+	srv := f.server(t)
+
+	// Advance to m2, then try to regress to m1 (older) → must stay at m2 (monotonic).
+	for _, mid := range []string{m2, m1, m2} {
+		status, _ := postBearer(t, srv.URL, "/admin/environment/agent/mark-seen", "acat_fb_w1", map[string]any{
+			"agent_id": atAgent1, "conversation_id": convID, "message_id": mid,
+		})
+		if status != http.StatusOK {
+			t.Fatalf("mark-seen %s: status %d", mid, status)
+		}
+	}
+	if got := f.cursor(t, atAgent1, convID); got != m2 {
+		t.Fatalf("cursor = %q, want %q (never regress to older/equal)", got, m2)
+	}
+}
+
+func TestEnvAgentMarkSeen_CrossWorker_403(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	// Agent bound to W2, but the token owner is W1 → requireAgentOnWorker rejects.
+	f.seedAgentLifecycle(t, atAgent2, atWorker2, agent.LifecycleRunning)
+	convID, msgID := f.seedTaskConvWithMessage(t, "conv-1", "T1", "user:bob", "hi")
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/mark-seen", "acat_fb_w1", map[string]any{
+		"agent_id": atAgent2, "conversation_id": convID, "message_id": msgID,
+	})
+	if status != http.StatusForbidden || body["error"] != "agent_not_bound_to_worker" {
+		t.Fatalf("want 403 agent_not_bound_to_worker, got %d %v", status, body)
 	}
 }
