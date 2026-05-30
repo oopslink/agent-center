@@ -193,6 +193,20 @@ func (r *Runtime) Run(ctx context.Context) error {
 	// wired; the loop itself degrades gracefully (logs + keeps polling) if the
 	// control endpoints are unavailable, so it never crashes the daemon.
 	if r.cfg.ControlClient != nil {
+		// v2.7 D2-f s4b: BOOT RECONCILE — before the poll loop starts, reconcile
+		// this worker's agents (re-attach survivors / relaunch the dead / stop the
+		// unwanted) by joining center resume-state with local supervisor probes. Run
+		// SYNCHRONOUSLY: the attach/start paths are only safe for the single-threaded
+		// ControlLoop caller, which has not started yet. Best-effort — a failure is
+		// logged, never crashes the daemon (the poll loop still starts; the center
+		// re-reconciles via commands). Skipped when the handler is not a
+		// bootReconciler (e.g. D1's NoopCommandHandler) → additive.
+		if br, ok := r.cfg.ControlHandler.(bootReconciler); ok {
+			if err := br.ReconcileOnBoot(ctx); err != nil {
+				r.log("boot reconcile: %v (continuing — poll loop will reconcile)", err)
+			}
+		}
+
 		interval := r.cfg.ControlPollInterval
 		if interval <= 0 {
 			interval = r.cfg.PollInterval

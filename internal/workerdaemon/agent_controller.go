@@ -183,6 +183,17 @@ type AgentControllerConfig struct {
 	// (Stop → StopSupervisor SIGTERM grace).
 	StopGrace time.Duration
 
+	// Resumer queries the center for this worker's boot-resume state (s4b boot
+	// reconcile). Nil → ReconcileOnBoot is a no-op (additive/dormant). The daemon's
+	// *AdminClient satisfies resumeStateQuerier.
+	Resumer resumeStateQuerier
+	// ResumeNudge is injected into a RELAUNCHED agent's session that has an ACTIVE
+	// WorkItem, so the interrupted task continues (claude --session-id resumes the
+	// conversation, but whether it auto-continues the interrupted turn or needs a
+	// push is GATE-7 real-claude territory). Empty → DefaultResumeNudge. NEVER
+	// injected on re-attach (claude is alive and mid-turn — a nudge would corrupt it).
+	ResumeNudge string
+
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
 	// set it, so NewAgentController always defaults it to the real supervisor-spawn

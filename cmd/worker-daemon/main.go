@@ -223,7 +223,11 @@ func main() {
 	// but never invoked — daemon startup behaviour is unchanged.
 	binPath, _ := os.Executable()
 	if controller, cerr := workerdaemon.NewAgentController(workerdaemon.AgentControllerConfig{
-		Reporter:          client,
+		Reporter: client,
+		// v2.7 D2-f s4b: the same *AdminClient satisfies resumeStateQuerier, so
+		// ReconcileOnBoot can query the center's boot-resume state. Dormant until
+		// --use-control-loop sets ControlClient (which is what invokes it).
+		Resumer:           client,
 		WorkerID:          *workerID,
 		AdminURL:          targetSpec,
 		WorkerToken:       token,
