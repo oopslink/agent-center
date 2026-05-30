@@ -60,8 +60,11 @@ func SessionUUID(agentID string, epoch int) string {
 // argv for an agent, reusing the SAME pipeline as the daemon's execLauncher:
 //
 //	claudecode.New(binary).BuildCommand(SpawnRequest{ExecutionID: SessionUUID(agentID), ...})
-//	→ rewriteForStreamingInput(...)            (--print/--input-format/--output-format/--verbose)
-//	→ + BuildMCPConfigArg(mcpConfigPath)       (--mcp-config <path>), when non-empty
+//	→ rewriteForStreamingInput(...)            (--print/--input-format/--output-format/--verbose
+//	                                            + v2.7 security flags: --setting-sources ""
+//	                                            and the non-interactive permission group)
+//	→ + BuildMCPConfigArg(mcpConfigPath)       (--mcp-config <path> + --strict-mcp-config),
+//	                                            when non-empty
 //
 // It returns the FULL argv ([binary, args...]) ready for exec.Command. This is
 // the single source of truth for the streaming claude invocation; the v2.7
@@ -94,6 +97,14 @@ func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch int, env ma
 			return nil, fmt.Errorf("claudestream: mcp-config arg: %w", err)
 		}
 		args = append(args, mcp.Args...)
+		// v2.7 security: lock MCP discovery to ONLY this --mcp-config document — claude
+		// must NOT also load operator/workspace MCP sources (.mcp.json, ~/.claude.json
+		// mcpServers). Under bypassPermissions this is LOAD-BEARING (PD ruling 4c405a91):
+		// without it, bypass would auto-allow un-vetted operator MCP tools, collapsing
+		// the "MCP surface = our OQ4 config only" boundary. It is the MCP-source analogue
+		// of `--setting-sources ""` (which covers settings/hooks). Added ONLY alongside
+		// --mcp-config (strict with no servers = zero MCP tools).
+		args = append(args, "--strict-mcp-config")
 	}
 	return append([]string{cmdSpec.Binary}, args...), nil
 }
@@ -108,6 +119,11 @@ const longLivedSentinelPrompt = "__ac_streaming_input__"
 //
 //	--print --input-format stream-json --output-format stream-json --verbose
 //	--session-id <agentID>   (+ --mcp-config <path>, appended by the caller)
+//
+// It also ensures (once) the v2.7 security/launch flags: `--setting-sources ""`
+// (A isolation) and the non-interactive permission group
+// (`--allow-dangerously-skip-permissions --dangerously-skip-permissions
+// --permission-mode bypassPermissions`). See the ensure-once tail for rationale.
 //
 // It KEEPS `--print`/`-p` as a FLAG (rewriting `-p` → the canonical `--print`)
 // but DROPS the positional prompt value (the sentinel), then ENSURES
@@ -169,7 +185,46 @@ func rewriteForStreamingInput(in []string) []string {
 	if !hasVerbose {
 		out = append(out, "--verbose")
 	}
+	// v2.7 security/launch flags (ensure-once; appended if the adapter did not
+	// already supply them):
+	//   --setting-sources ""   A ISOLATION — claude loads NO settings sources, so the
+	//                          operator's ~/.claude hooks/settings/SessionStart do NOT
+	//                          run in the agent (@oopslink ruling). Done IN-PLACE here
+	//                          instead of relocating HOME/CLAUDE_CONFIG_DIR, which both
+	//                          break keychain /login (Tester-verified). The value is the
+	//                          EMPTY STRING (a legal flag value = "no sources"), so it is
+	//                          emitted as TWO argv elements ["--setting-sources", ""].
+	//   --allow-dangerously-skip-permissions / --dangerously-skip-permissions /
+	//   --permission-mode bypassPermissions
+	//                          DETERMINISTIC non-interactive tool permission (PD ruling
+	//                          09394dbd): claude's permission prompt cannot be shown
+	//                          headless and is NOT our security boundary — the real
+	//                          boundaries are the restricted worker OS user + workspace
+	//                          cwd (local tools), per-call AppService MCP authz, and the
+	//                          layer-1 env allowlist. This is the slock-verified group.
+	if !hasArg(out, "--setting-sources") {
+		out = append(out, "--setting-sources", "")
+	}
+	if !hasArg(out, "--allow-dangerously-skip-permissions") {
+		out = append(out, "--allow-dangerously-skip-permissions")
+	}
+	if !hasArg(out, "--dangerously-skip-permissions") {
+		out = append(out, "--dangerously-skip-permissions")
+	}
+	if !hasArg(out, "--permission-mode") {
+		out = append(out, "--permission-mode", "bypassPermissions")
+	}
 	return out
+}
+
+// hasArg reports whether args contains the exact token x.
+func hasArg(args []string, x string) bool {
+	for _, a := range args {
+		if a == x {
+			return true
+		}
+	}
+	return false
 }
 
 // EncodeUserMessage encodes a plain user message as one newline-terminated

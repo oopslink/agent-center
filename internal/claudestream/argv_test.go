@@ -149,6 +149,79 @@ func TestBuildStreamingArgv(t *testing.T) {
 	}
 }
 
+// countArg counts exact-token occurrences in argv (drift-guard helper).
+func countArg(argv []string, x string) int {
+	n := 0
+	for _, a := range argv {
+		if a == x {
+			n++
+		}
+	}
+	return n
+}
+
+// TestBuildStreamingArgv_SecurityFlags pins the v2.7 ① security/launch flags into
+// the streaming argv and is the DEV-side drift guard (the unit half of the
+// "isolation hangs on a single flag" invariant — PM patch 1 / Tester §2.6): if a
+// refactor drops or duplicates `--setting-sources ""`, this goes red. The runtime
+// "operator config does not pollute the agent" half is Tester's standing contract.
+func TestBuildStreamingArgv_SecurityFlags(t *testing.T) {
+	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, nil)
+	if err != nil {
+		t.Fatalf("BuildStreamingArgv: %v", err)
+	}
+
+	// A isolation: --setting-sources present EXACTLY once with the empty-string
+	// value (load NO settings sources → operator hooks/settings do not run).
+	if c := countArg(argv, "--setting-sources"); c != 1 {
+		t.Fatalf("--setting-sources count = %d, want exactly 1 (drift guard): %v", c, argv)
+	}
+	sawEmptyValue := false
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] == "--setting-sources" {
+			if argv[i+1] != "" {
+				t.Fatalf("--setting-sources value = %q, want the empty string: %v", argv[i+1], argv)
+			}
+			sawEmptyValue = true
+		}
+	}
+	if !sawEmptyValue {
+		t.Fatalf("--setting-sources has no following value element: %v", argv)
+	}
+
+	// Deterministic non-interactive permission group (PD ruling 09394dbd).
+	for _, f := range []string{"--allow-dangerously-skip-permissions", "--dangerously-skip-permissions"} {
+		if !hasArg(argv, f) {
+			t.Fatalf("missing %s: %v", f, argv)
+		}
+	}
+	permOK := false
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] == "--permission-mode" && argv[i+1] == "bypassPermissions" {
+			permOK = true
+		}
+	}
+	if !permOK {
+		t.Fatalf("missing --permission-mode bypassPermissions: %v", argv)
+	}
+
+	// MCP locked to our config: --strict-mcp-config present WHEN --mcp-config is
+	// (load-bearing under bypassPermissions — PD 4c405a91).
+	if !hasArg(argv, "--strict-mcp-config") {
+		t.Fatalf("missing --strict-mcp-config when --mcp-config supplied: %v", argv)
+	}
+
+	// Negative: with NO --mcp-config, --strict-mcp-config must be ABSENT (strict with
+	// zero servers = zero MCP tools — the wrong outcome).
+	noMCP, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "", 0, nil)
+	if err != nil {
+		t.Fatalf("BuildStreamingArgv (no mcp): %v", err)
+	}
+	if hasArg(noMCP, "--strict-mcp-config") {
+		t.Fatalf("--strict-mcp-config present without --mcp-config (would zero out MCP tools): %v", noMCP)
+	}
+}
+
 func TestEncodeUserMessage(t *testing.T) {
 	b, err := EncodeUserMessage("do the thing")
 	if err != nil {
