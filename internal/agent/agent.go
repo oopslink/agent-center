@@ -54,12 +54,19 @@ const (
 	LifecycleStopping  AgentLifecycle = "stopping"
 	LifecycleResetting AgentLifecycle = "resetting"
 	LifecycleError     AgentLifecycle = "error"
+	// LifecycleFailed is the TERMINAL crash-loop circuit-breaker state (v2.7 GATE-7
+	// Mode-B): the worker's self-heal exhausted its bounded relaunch attempts, so it
+	// stopped auto-relaunching to avoid thrashing. UNLIKE "error" (transient — the
+	// worker is still auto-retrying), "failed" is terminal and requires a MANUAL
+	// recovery (Start/Reset) to leave. (Distinct aggregate from AgentWorkItem's
+	// "failed" status — that is a unit of WORK; this is the AGENT runtime lifecycle.)
+	LifecycleFailed AgentLifecycle = "failed"
 )
 
 // IsValid reports enum membership.
 func (l AgentLifecycle) IsValid() bool {
 	switch l {
-	case LifecycleStopped, LifecycleRunning, LifecycleStopping, LifecycleResetting, LifecycleError:
+	case LifecycleStopped, LifecycleRunning, LifecycleStopping, LifecycleResetting, LifecycleError, LifecycleFailed:
 		return true
 	}
 	return false
@@ -245,9 +252,10 @@ func (a *Agent) DefaultWorkspaceRel() string {
 
 // --- lifecycle intent transitions (ADR-0049 §5) ----------------------------
 
-// Start moves stopped/error → running.
+// Start moves stopped/error/failed → running. Starting a terminal-FAILED agent is
+// the operator's MANUAL recovery out of the crash-loop circuit-breaker.
 func (a *Agent) Start(at time.Time) error {
-	if a.lifecycle != LifecycleStopped && a.lifecycle != LifecycleError {
+	if a.lifecycle != LifecycleStopped && a.lifecycle != LifecycleError && a.lifecycle != LifecycleFailed {
 		return ErrIllegalLifecycle
 	}
 	a.lifecycle = LifecycleRunning
@@ -308,6 +316,20 @@ func (a *Agent) MarkError(msg string, at time.Time) {
 	a.lifecycle = LifecycleError
 	a.lifecycleError = msg
 	a.touch(at)
+}
+
+// MarkFailed records the TERMINAL crash-loop circuit-breaker state (v2.7 GATE-7
+// Mode-B): the worker's self-heal exhausted its bounded relaunch attempts. Valid
+// only from running/error (the agent was up / transiently crashing). The only way
+// OUT is a manual Start/Reset. msg is the last crash cause (surfaced to the operator).
+func (a *Agent) MarkFailed(msg string, at time.Time) error {
+	if a.lifecycle != LifecycleRunning && a.lifecycle != LifecycleError {
+		return ErrIllegalLifecycle
+	}
+	a.lifecycle = LifecycleFailed
+	a.lifecycleError = msg
+	a.touch(at)
+	return nil
 }
 
 // UpdateProfile replaces the editable profile. Per ADR-0049 §5 this does NOT

@@ -126,6 +126,14 @@ func (s *Service) MarkAgentError(ctx context.Context, id agent.AgentID, msg stri
 	return s.feedbackPersist(ctx, id, func(a *agent.Agent) error { a.MarkError(msg, at); return nil })
 }
 
+// MarkAgentFailed records the TERMINAL crash-loop circuit-breaker state (v2.7
+// GATE-7 Mode-B self-heal cap exhausted). Persist-only: NO outbox emit (result
+// feedback, not an intent change). Returns agent.ErrIllegalLifecycle (→ 409) if the
+// Agent is not running/error.
+func (s *Service) MarkAgentFailed(ctx context.Context, id agent.AgentID, msg string, at time.Time) error {
+	return s.feedbackPersist(ctx, id, func(a *agent.Agent) error { return a.MarkFailed(msg, at) })
+}
+
 // feedbackPersist is the shared load → AR-transition → persist path for the
 // controller feedback verbs. CRITICAL: unlike lifecycleOp it does NOT emit any
 // outbox event — these are result feedback, not intent changes, and emitting

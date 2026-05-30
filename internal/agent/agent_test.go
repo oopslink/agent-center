@@ -108,6 +108,53 @@ func TestAgentError(t *testing.T) {
 	}
 }
 
+// TestAgentFailed pins the v2.7 terminal crash-loop state (GATE-7 Mode-B): MarkFailed
+// from running/error → failed (with cause), illegal from stopped, and the manual
+// recovery paths (Start/Reset) out of terminal-failed.
+func TestAgentFailed(t *testing.T) {
+	if !LifecycleFailed.IsValid() {
+		t.Fatal("LifecycleFailed must be a valid lifecycle")
+	}
+
+	// running → failed.
+	a := newAgent(t)
+	if err := a.Start(t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.MarkFailed("crash-loop", t0); err != nil {
+		t.Fatalf("running→failed: %v", err)
+	}
+	if a.Lifecycle() != LifecycleFailed || a.LifecycleError() != "crash-loop" {
+		t.Fatalf("want failed+cause, got %s / %q", a.Lifecycle(), a.LifecycleError())
+	}
+	// Manual recovery: Start clears terminal-failed → running (cause cleared).
+	if err := a.Start(t0); err != nil {
+		t.Fatalf("manual Start out of failed: %v", err)
+	}
+	if a.Lifecycle() != LifecycleRunning || a.LifecycleError() != "" {
+		t.Fatal("Start from failed must clear to running")
+	}
+
+	// error → failed, then Reset out of failed.
+	b := newAgent(t)
+	b.MarkError("boom", t0)
+	if err := b.MarkFailed("gave up", t0); err != nil {
+		t.Fatalf("error→failed: %v", err)
+	}
+	if err := b.Reset(ResetAll, t0); err != nil {
+		t.Fatalf("Reset out of failed must be allowed: %v", err)
+	}
+	if b.Lifecycle() != LifecycleResetting {
+		t.Fatal("Reset from failed → resetting")
+	}
+
+	// illegal: MarkFailed from a stopped agent (not running/error).
+	c := newAgent(t) // fresh = stopped
+	if err := c.MarkFailed("x", t0); err != ErrIllegalLifecycle {
+		t.Fatalf("MarkFailed from stopped want ErrIllegalLifecycle, got %v", err)
+	}
+}
+
 func TestAgentUpdateProfileAndSkills(t *testing.T) {
 	a := newAgent(t)
 	v := a.Version()

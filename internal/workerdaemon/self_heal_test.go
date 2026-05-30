@@ -130,9 +130,17 @@ func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 	c.cfg.starter = rs.start
 
 	// 6 consecutive crashes (no relaunch between → lastRelaunchAt stays zero → no
-	// reset → counts 1..6); the 6th circuit-breaks to terminal failed.
+	// reset → counts 1..6): crashes 1-5 report transient "error", the 6th circuit-
+	// breaks and reports terminal "failed".
 	for i := 0; i < 6; i++ {
-		c.recordCrashAndSchedule("ag-1", 1, false, "boom")
+		state := c.recordCrashAndSchedule("ag-1", 1, false, "boom")
+		want := "error"
+		if i == 5 {
+			want = "failed"
+		}
+		if state != want {
+			t.Fatalf("crash #%d: report state = %q, want %q", i+1, state, want)
+		}
 	}
 	c.mu.Lock()
 	e := c.selfHeal["ag-1"]

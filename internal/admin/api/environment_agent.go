@@ -116,9 +116,12 @@ func (s *Server) envAgentLifecycleFeedbackHandler(w http.ResponseWriter, r *http
 		err = d.AgentSvc.MarkAgentStopped(r.Context(), a.ID(), at)
 	case "error":
 		err = d.AgentSvc.MarkAgentError(r.Context(), a.ID(), req.Error, at)
+	case "failed":
+		// Terminal crash-loop circuit-breaker (v2.7 GATE-7 Mode-B self-heal cap).
+		err = d.AgentSvc.MarkAgentFailed(r.Context(), a.ID(), req.Error, at)
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_state",
-			"state must be 'stopped' or 'error'")
+			"state must be 'stopped', 'error' or 'failed'")
 		return
 	}
 	if err != nil {

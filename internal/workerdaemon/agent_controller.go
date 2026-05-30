@@ -865,15 +865,19 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 		msg = "process exited unexpectedly"
 	}
 	c.log("agent=%s crashed: %s", agentID, msg)
-	ma.lifecycleOnce.Do(func() {
-		if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "error", msg, time.Now()); err != nil {
-			c.log("agent=%s report error: %v", agentID, err)
-		}
-	})
 	// Mid-run crash self-heal (GATE-7 Mode-B, slice B): record the crash + schedule a
 	// backed-off relaunch (or circuit-break to terminal after the cap). This NEVER
-	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine.
-	c.recordCrashAndSchedule(agentID, version, hadWork, msg)
+	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
+	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
+	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
+	state := c.recordCrashAndSchedule(agentID, version, hadWork, msg)
+	if state != "" {
+		ma.lifecycleOnce.Do(func() {
+			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {
+				c.log("agent=%s report %s: %v", agentID, state, err)
+			}
+		})
+	}
 }
 
 // reportLifecycleOnce emits a lifecycle RESULT exactly once per managed instance

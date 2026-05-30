@@ -117,7 +117,11 @@ func (c *AgentController) selfHealParams() selfHealParams {
 // crash of a desired-running agent. It updates the self-heal state and either
 // schedules a backed-off relaunch (OnTick performs it) or circuit-breaks to terminal.
 // It NEVER starts a session (single-thread invariant). hadWork → nudge on relaunch.
-func (c *AgentController) recordCrashAndSchedule(agentID string, version int, hadWork bool, msg string) {
+//
+// Returns the lifecycle STATE the caller should report (outside the lock): "error"
+// (transient — a relaunch is scheduled), "failed" (terminal — the cap is reached), or
+// "" (no report — a defensive crash after the agent is already terminal-failed).
+func (c *AgentController) recordCrashAndSchedule(agentID string, version int, hadWork bool, msg string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.selfHeal[agentID]
@@ -128,7 +132,7 @@ func (c *AgentController) recordCrashAndSchedule(agentID string, version int, ha
 	if e.failed {
 		// Already circuit-broken — auto side never touches a failed agent again.
 		c.log("agent=%s self-heal: crash after terminal-failed — ignored (manual reset required). cause: %s", agentID, msg)
-		return
+		return ""
 	}
 	dec := decideSelfHeal(e.crashCount, e.lastRelaunchAt, c.now(), c.selfHealParams())
 	e.crashCount = dec.crashCount
@@ -138,15 +142,14 @@ func (c *AgentController) recordCrashAndSchedule(agentID string, version int, ha
 	if dec.failed {
 		e.failed = true
 		e.nextRelaunchAt = time.Time{}
-		// B1: log the terminal transition (observability). B2 reports lifecycle
-		// "failed" (terminal, Fleet-visible) here.
 		c.log("agent=%s self-heal TERMINAL: %d consecutive crashes reached the cap — circuit-broken, NO further auto relaunch (manual reset required). last cause: %s",
 			agentID, dec.crashCount, msg)
-		return
+		return "failed" // terminal lifecycle (Fleet-visible), reported by the caller
 	}
 	e.nextRelaunchAt = c.now().Add(dec.backoff)
 	c.log("agent=%s self-heal: crash #%d → relaunch scheduled in %s (cause: %s)",
 		agentID, dec.crashCount, dec.backoff, msg)
+	return "error" // transient — the worker is still auto-retrying
 }
 
 // OnTick is invoked by the ControlLoop each tick (single-threaded — the only safe
