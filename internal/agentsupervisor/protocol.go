@@ -22,50 +22,34 @@ import (
 	"io"
 )
 
-// ProtocolVersion is the supervisor RPC wire version this build SPEAKS (the
-// newest it understands). MinSupportedProtocol is the OLDEST supervisor version
-// this build can still talk to.
+// ProtocolVersion is the supervisor RPC wire version this build speaks. It is
+// retained for the Hello handshake + diagnostics, but it NO LONGER GATES
+// re-attach: per the v2.7 decision (@oopslink — drop the cross-version range),
+// the protocol is ASSUMED BACKWARD-COMPATIBLE, so a returning daemon ALWAYS
+// re-attaches to a live supervisor regardless of its advertised version. There is
+// no MinSupportedProtocol / range check / "incompatible" degrade anymore.
 //
-// 🔴 COMPATIBILITY POLICY (v2.7 D2-f 4a) — this is the whole point of process
-// SURVIVAL across deploys, so it must NOT be exact-match. Deploy == daemon
-// restart, but the supervisor OUTLIVES the daemon, so an upgraded daemon will
-// re-attach to a supervisor speaking an OLDER version. If every version drift
-// were "incompatible", every deploy would force ALL agents to mode-B relaunch
-// and "survive across deploys" would never actually happen. So:
-//   - ADDITIVE / backward-compatible change (new optional field, new op the old
-//     side ignores): bump ProtocolVersion ONLY (leave MinSupportedProtocol). The
-//     new daemon still speaks the old supervisor's version → re-attach SURVIVES.
-//   - BREAKING change (reframing, removed/repurposed field, changed semantics):
-//     bump MinSupportedProtocol to drop the old versions → those supervisors are
-//     incompatible → s3 takes the controlled mode-B degrade.
+// 🕒 DEFERRED-WITH-TRIGGER (v2.7, @oopslink decided; PM + Tester aligned). Backward
+// -compat is a CONVENTION, not a runtime guarantee — protocol evolution MUST be
+// ADDITIVE ONLY: add OPTIONAL fields; NEVER remove/repurpose a field or change a
+// message's semantics. (An old supervisor must keep parsing a new daemon's wire by
+// ignoring unknown optional fields, and vice-versa.)
 //
-// IsCompatible is therefore a RANGE check, not an equality.
-const (
-	ProtocolVersion      = 1
-	MinSupportedProtocol = 1
-)
-
-// IsCompatible reports whether THIS build can talk to a supervisor advertising
-// `remote`: compatible iff `remote` is within [MinSupportedProtocol, ProtocolVersion].
-// An additive bump of ProtocolVersion keeps older `remote`s compatible (survival
-// preserved); only crossing the MinSupportedProtocol breaking boundary makes a
-// `remote` incompatible.
+// THE TRIGGER: if a future change is genuinely BREAKING (reframing / removed /
+// repurposed field / changed semantics), you MUST AT THAT TIME either
+//   (a) re-introduce a mixed-version guard — a returning daemon detects the
+//       incompatible old supervisor and FORCES A RELAUNCH instead of a silent
+//       mis-parse (re-add the version check in supervisormanager.ProbeAgent, where
+//       a comment marks the spot), OR
+//   (b) force-relaunch ALL existing agents on that deploy,
+// PLUS its real-claude e2e (Tester's Mode A-x GATE, removed now, comes back then).
+// Without that, an old supervisor would fail to parse the new wire and re-attach
+// would SILENTLY break. This note (+ Tester's §A registration) is the single place
+// recording the trigger so the convention never becomes a silent trap (§-1).
 //
-// This is the (4a) PRIMITIVE that s3 builds its mode-B degrade on: when a
-// returning daemon attaches and finds an INCOMPATIBLE supervisor (outside the
-// range), s3 must NOT silent-fail — it stops the old supervisor and relaunches a
-// fresh one it can speak to. A COMPATIBLE supervisor (additive drift) is
-// re-attached and SURVIVES. Here we only provide the clean boolean; the ACTION
-// is s3.
-func IsCompatible(remote int) bool {
-	return compatibleInRange(remote, MinSupportedProtocol, ProtocolVersion)
-}
-
-// compatibleInRange is the pure range predicate IsCompatible delegates to; kept
-// separate so tests can exercise additive-compatible vs breaking-incompatible
-// semantics over a SYNTHETIC range (today the real range is the single point
-// [1,1], so range behavior can only be tested via this helper).
-func compatibleInRange(remote, min, max int) bool { return remote >= min && remote <= max }
+// (Repo has no CHANGELOG file; this comment is the canonical record, matching how
+// the epoch deferred-center note lives in supervisormanager/epoch.go.)
+const ProtocolVersion = 1
 
 // maxFrameSize caps a single length-framed message payload (anti-abuse: a
 // bogus/hostile length prefix must not make us allocate gigabytes). 16 MiB is

@@ -278,18 +278,10 @@ func TestServer_AckTruncateOffsetStability(t *testing.T) {
 	}
 }
 
-// TestVersionCompat is the 4a primitive.
-func TestVersionCompat(t *testing.T) {
-	if !agentsupervisor.IsCompatible(agentsupervisor.ProtocolVersion) {
-		t.Fatalf("ProtocolVersion must be self-compatible")
-	}
-	if agentsupervisor.IsCompatible(agentsupervisor.ProtocolVersion + 1) {
-		t.Fatalf("ProtocolVersion+1 must be incompatible")
-	}
-	if agentsupervisor.IsCompatible(0) {
-		t.Fatalf("version 0 must be incompatible")
-	}
-}
+// (TestVersionCompat removed in v2.7: the cross-version gate / IsCompatible was
+// dropped — the protocol is assumed backward-compatible. The version-removal
+// regression is covered by supervisormanager's
+// TestProbeAgent_DifferentVersionStillReattachable.)
 
 // TestServer_Concurrency: concurrent Inject + ReadFrom + drain appends → no
 // race (run under -race), offsets monotonic, events readable.

@@ -2,9 +2,9 @@ package agentsupervisor
 
 // AttachClient is the client side of the supervisor RPC (slice D2-f s2): it
 // connects to a running supervisor's unix socket and drives the four ops. This
-// is what s3's daemon-side re-attach will use; s3 also uses the free function
-// IsCompatible (protocol.go) to decide, after Hello, whether the supervisor is
-// speakable or must be replaced (mode B). s2 only ships the primitive + client.
+// is what the daemon-side re-attach uses. (v2.7: there is no version gate anymore
+// — a live supervisor is always re-attachable; the protocol is assumed backward
+// -compatible. See protocol.go's ProtocolVersion deferred-with-trigger note.)
 
 import (
 	"context"
@@ -78,7 +78,8 @@ func (c *AttachClient) roundTrip(req Request) (Response, error) {
 }
 
 // Hello performs the handshake and returns the supervisor's identity + offsets.
-// s3 compares resp.ProtocolVersion via IsCompatible to decide attach-vs-replace.
+// resp.ProtocolVersion is informational (diagnostics + the deferred breaking-change
+// trigger); it no longer gates re-attach (v2.7 — backward-compat assumed).
 func (c *AttachClient) Hello(ctx context.Context) (HelloResp, error) {
 	resp, err := c.roundTrip(Request{Op: OpHello})
 	if err != nil {

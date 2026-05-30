@@ -257,20 +257,22 @@ func TestProbeAgent_Missing(t *testing.T) {
 	}
 }
 
-// TestProbeAgent_Incompatible stands up a tiny socket server that speaks the s2
-// frame protocol and answers hello with protocol_version: 999 (out of the
-// [Min,Max] range) while a matching supervisor.instance file makes the identity
-// check pass. ProbeAgent must return Unavailable{incompatible} — proving the
-// compat→mode-B decision.
-func TestProbeAgent_Incompatible(t *testing.T) {
+// TestProbeAgent_DifferentVersionStillReattachable is the regression guard for the
+// v2.7 version-gate REMOVAL (@oopslink — drop the cross-version range). It stands
+// up a tiny socket server answering hello with protocol_version: 999 (a version
+// this build has never heard of) while a matching supervisor.instance makes the
+// identity check pass. With the gate gone, ProbeAgent must return REATTACHABLE
+// (not Unavailable{incompatible}): the protocol is assumed backward-compatible, so
+// a live supervisor is always re-attachable regardless of its advertised version.
+func TestProbeAgent_DifferentVersionStillReattachable(t *testing.T) {
 	home := t.TempDir()
-	instanceID := "01INCOMPAT999INSTANCE"
+	instanceID := "01DIFFVER999INSTANCE"
 	startedAt := time.Now().Format(time.RFC3339Nano)
 
 	// Write a supervisor.instance the running fake "matches".
 	rec := instRec{
 		InstanceID:    instanceID,
-		AgentID:       "agent-incompat",
+		AgentID:       "agent-diffver",
 		SupervisorPID: os.Getpid(),
 		ChildPID:      os.Getpid(),
 		StartedAt:     startedAt,
@@ -283,9 +285,9 @@ func TestProbeAgent_Incompatible(t *testing.T) {
 	sockPath := filepath.Join(home, agentsupervisor.DefaultSocketName)
 	stop := serveFakeHello(t, sockPath, helloFrame{
 		Ok:              true,
-		ProtocolVersion: 999,
+		ProtocolVersion: 999, // a version this build has never seen
 		InstanceID:      instanceID,
-		AgentID:         "agent-incompat",
+		AgentID:         "agent-diffver",
 		ChildPID:        os.Getpid(),
 		StartedAt:       startedAt,
 	})
@@ -298,8 +300,10 @@ func TestProbeAgent_Incompatible(t *testing.T) {
 	if pr.Client != nil {
 		_ = pr.Client.Close()
 	}
-	if pr.State != supervisormanager.Unavailable || pr.Reason != supervisormanager.ReasonIncompatible {
-		t.Fatalf("state=%v reason=%s want Unavailable{incompatible}", pr.State, pr.Reason)
+	// No version gate → a live, identity-matched supervisor is Reattachable even at
+	// an unknown protocol version (backward-compat assumed).
+	if pr.State != supervisormanager.Reattachable {
+		t.Fatalf("state=%v reason=%s want Reattachable (version gate removed)", pr.State, pr.Reason)
 	}
 }
 

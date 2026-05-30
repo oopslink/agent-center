@@ -8,8 +8,8 @@
 // already imports internal/workerdaemon (it reuses the claude stream parser +
 // argv builder), so a supervisor manager living IN workerdaemon and importing
 // agentsupervisor would form an import cycle. This package sits one layer up: it
-// imports agentsupervisor (for AttachClient / Hello / IsCompatible / the artifact
-// names) and is itself imported by the daemon wiring in s3b. It is purely
+// imports agentsupervisor (for AttachClient / Hello / the artifact names) and is
+// itself imported by the daemon wiring in s3b. It is purely
 // additive and NOT wired into the AgentController yet (that is s3b).
 //
 // THE FOUR PM FOCI this package gets right:
@@ -22,9 +22,10 @@
 //     agent.
 //   - home lockfile (AcquireHomeLock): flock(LOCK_EX|LOCK_NB) so two daemons
 //     cannot both relaunch the same agent (which would double the claude).
-//   - compat → mode-B decision (ProbeAgent): an incompatible supervisor (Hello
-//     protocol version outside [MinSupportedProtocol, ProtocolVersion]) yields
-//     Unavailable{incompatible} — the controlled degrade, never silent.
+//   - no version gate (v2.7): a live, identity-matched supervisor is ALWAYS
+//     Reattachable regardless of its advertised protocol version — the protocol is
+//     assumed backward-compatible. (See ProbeAgent + protocol.go for the deferred
+//     breaking-change trigger that would reinstate a guard.)
 package supervisormanager
 
 import (
@@ -274,11 +275,13 @@ const (
 	Unavailable
 )
 
-// Relaunch reasons (Unavailable.Reason).
+// Relaunch reasons (Unavailable.Reason). NOTE: there is no "incompatible" reason
+// anymore (v2.7 — the cross-version gate was dropped; a live supervisor is always
+// Reattachable). If the deferred breaking-change trigger ever fires, re-add an
+// "incompatible" reason here + the guard in ProbeAgent (see ProbeAgent's note).
 const (
-	ReasonMissing      = "missing"      // no supervisor.instance file
-	ReasonDead         = "dead"         // connect/hello failed, or identity mismatch (stale/reused)
-	ReasonIncompatible = "incompatible" // alive but Hello protocol version out of range
+	ReasonMissing = "missing" // no supervisor.instance file
+	ReasonDead    = "dead"    // connect/hello failed, or identity mismatch (stale/reused)
 )
 
 // ProbeResult is the outcome of ProbeAgent. On Reattachable, Client + Hello are
@@ -330,9 +333,9 @@ func readInstance(home string) (rec instanceRecord, ok bool) {
 //     socket; a reused pid answering on a stale socket would NOT match). We also
 //     compare StartedAt as a secondary guard. Mismatch → Unavailable{dead}
 //     (stale file, different process).
-//  4. COMPATIBILITY (PM focus #1): IsCompatible(hello.ProtocolVersion). Out of
-//     range → Unavailable{incompatible} (s3b stops the old + relaunches —
-//     the controlled mode-B, never silent). In range + alive → Reattachable.
+//  4. NO version gate (v2.7): once the process is live + identity-matched it is
+//     Reattachable regardless of hello.ProtocolVersion (backward-compat assumed).
+//     The deferred breaking-change trigger would reinstate a guard here.
 //
 // On Reattachable the caller owns ProbeResult.Client; on any Unavailable the
 // probe connection (if opened) is closed before returning.
@@ -363,13 +366,18 @@ func ProbeAgent(ctx context.Context, home string) (ProbeResult, error) {
 		return ProbeResult{State: Unavailable, Reason: ReasonDead}, nil
 	}
 
-	// Compatibility (PM focus #1): range check, not equality. Out of range → the
-	// controlled mode-B degrade.
-	if !agentsupervisor.IsCompatible(hello.ProtocolVersion) {
-		_ = client.Close()
-		return ProbeResult{State: Unavailable, Reason: ReasonIncompatible}, nil
-	}
-
+	// NO version gate (v2.7, @oopslink — drop the cross-version range): a live
+	// supervisor with a matching identity is ALWAYS Reattachable, regardless of its
+	// advertised hello.ProtocolVersion. The protocol is assumed backward-compatible
+	// (additive-only evolution); a daemon that was once "incompatible" now simply
+	// re-attaches — the expected behavior under that convention.
+	//
+	// 🕒 DEFERRED-WITH-TRIGGER re-entry point: this is WHERE the mixed-version guard
+	// goes back if a future BREAKING protocol change is ever made — re-introduce a
+	// version check that closes the client and returns Unavailable with an
+	// "incompatible" reason, so a returning daemon force-relaunches the incompatible
+	// old supervisor instead of silently mis-parsing its wire. See
+	// agentsupervisor/protocol.go's ProtocolVersion note for the full trigger contract.
 	return ProbeResult{
 		State:             Reattachable,
 		Client:            client,
