@@ -95,3 +95,15 @@ dev proposed HOME-override (variant H) as the isolation fix. Tested + REJECTED, 
 - Rejected: `--bare` (auth FAIL + didn't isolate hooks).
 
 **Implication for ①**: change A-isolation from CONFIG_DIR/HOME relocation → **`--setting-sources ""` in argv (in-place)**, keep default HOME/config (keychain /login intact). Layer-1 secret filter + marker strip + carve-out withdrawal unchanged. `PrepareIsolatedClaudeConfig` (auth-copy) becomes obsolete (keychain, no files). ⚠️ dev to confirm `--setting-sources ""` coexists with `--mcp-config` (MCP via flag, not setting source) + agent needs no settings-source. Tester re-verifies whole new ① after dev's change.
+
+## ✅ ① INTEGRATED RE-VERIFY — 6/6 behavior gates PASS (commit 3ab158b, 2026-05-30)
+dev re-implemented ① (3ab158b): A-isolation = `--setting-sources ""` (in-place), bypassPermissions group, `--strict-mcp-config`, env drops CLAUDE_CONFIG_DIR + auth-copy. Tester rebuilt 3ab158b, ran the 6-point gate via the real ① path (direct `agent-center worker agent-supervisor`, env/argv truly built by BuildClaudeEnv/BuildStreamingArgv) + faithful direct claude runs for turn-based gates:
+- **gate-1 keychain authed-turn ✅**: final argv set + default HOME + pipe a turn → PONG ×3, is_error:false. keychain /login auths non-interactive (no extra credential).
+- **gate-2 isolation reverse-marker (2 classes) ✅**: (settings/hooks) operator superpowers/slock SessionStart = 0; (MCP sources) operator ~/.claude.json has 33 mcpServers, agent system-init mcp_servers=[] under --strict-mcp-config → all 33 excluded.
+- **gate-3 layer-1 secret filter ✅**: injected AGENT_CENTER_ADMIN_TOKEN → child claude env 0 AGENT_CENTER_*.
+- **gate-4 CLAUDE_CODE_OAUTH_TOKEN deny ✅** (carve-out withdrawn): injected → child env 0; all CLAUDE_CODE_* = 0.
+- **gate-5 real path / env ✅**: child argv carries full final set; env has NO CLAUDE_CONFIG_DIR, HOME=/Users/oopslink passthrough. argv contract: GATE-5 guard + dev TestBuildStreamingArgv_SecurityFlags green.
+- **gate-6 MCP tool execution ✅**: with mcp-config command = unified `agent-center` binary → agent-center MCP server status="connected", claude invoked `mcp__agent-center__get_my_work`, tool_result is_error:false (executed, not permission-denied). So bypass+strict+--setting-sources "" do NOT break MCP tool execution.
+  - ⚠️ **CAVEAT (not a ① defect; = the spawn-bug)**: the daemon-generated mcp-config's server command is `agent-center-worker-daemon worker mcp-host` → that standalone binary can't route the subcommand (same spawn-bug as supervisor; mcp-host also affected) → MCP server "failed" + claude falls back to built-in tools. Proven by pointing the command at the unified `agent-center` binary (→ "connected"). Production mcp-host loading is gated on the spawn-bug fix (@oopslink daemon-model decision; same fix covers supervisor + mcp-host).
+- F27 skills: via --skill-path flag, orthogonal to --setting-sources (and not yet wired into streaming argv = forward).
+→ **① behavior layer 6/6 PASS → ready for unconditional GO** (PD flips doc §5.2). Production tail = mcp-host binary routing fixed with the spawn-bug.
