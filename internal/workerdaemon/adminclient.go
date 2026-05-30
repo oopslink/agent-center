@@ -488,6 +488,66 @@ func (c *AdminClient) AckControl(ctx context.Context, workerID string, offset in
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/worker/ack", body, nil)
 }
 
+// =============================================================================
+// Environment BC — worker boot-resume (v2.7 D2-f s4 client side, ADR-0049/0050).
+// On (re)start with the control-stream path active, the daemon asks the center
+// which of THIS worker's agents should be running + their in-flight WorkItems,
+// then reconciles those claude sessions (the AgentController.ReconcileOnBoot
+// path, s4b). Rides the SAME authed transport (worker bearer); the center derives
+// the worker from the token owner and requires body.worker_id == it (only-ask
+// -self → 403).
+// =============================================================================
+
+// ResumeState is the parsed /admin/environment/worker/resume-state response: the
+// resumable agents on this worker (running OR with ≥1 in-flight WorkItem).
+type ResumeState struct {
+	Agents []ResumeAgent `json:"agents"`
+}
+
+// ResumeAgent is one resumable agent: its desired lifecycle + version (+
+// reset_scope reserved for f-3) and its in-flight WorkItems.
+type ResumeAgent struct {
+	AgentID          string           `json:"agent_id"`
+	DesiredLifecycle string           `json:"desired_lifecycle"`
+	Version          int              `json:"version"`
+	ResetScope       string           `json:"reset_scope"`
+	WorkItems        []ResumeWorkItem `json:"work_items"`
+}
+
+// ResumeWorkItem is one in-flight WorkItem (status ∈ {active, waiting_input}).
+type ResumeWorkItem struct {
+	WorkItemID string `json:"work_item_id"`
+	TaskRef    string `json:"task_ref"`
+	Status     string `json:"status"`
+}
+
+// resumeStateQuerier is the seam the AgentController depends on for the boot-
+// resume query (s4b). *AdminClient satisfies it; the controller's ReconcileOnBoot
+// test injects a fake. Defined here so the controller depends on the interface,
+// not the concrete transport.
+type resumeStateQuerier interface {
+	ResumeState(ctx context.Context, workerID string) (ResumeState, error)
+}
+
+// var _ resumeStateQuerier asserts *AdminClient satisfies the controller seam.
+var _ resumeStateQuerier = (*AdminClient)(nil)
+
+// ResumeState POSTs to /admin/environment/worker/resume-state with this worker's
+// id and returns the resumable agents. The body worker_id MUST equal the
+// authenticated worker (the server enforces only-ask-self → 403). Reuses the
+// authed transport.
+func (c *AdminClient) ResumeState(ctx context.Context, workerID string) (ResumeState, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return ResumeState{}, errors.New("adminclient: worker_id required")
+	}
+	body := map[string]any{"worker_id": workerID}
+	var out ResumeState
+	if err := c.doJSON(ctx, http.MethodPost, "/admin/environment/worker/resume-state", body, &out); err != nil {
+		return ResumeState{}, err
+	}
+	return out, nil
+}
+
 // HeartbeatControl POSTs to /admin/environment/worker/heartbeat to assert
 // liveness on the control channel. Reuses the authed transport. Optional —
 // the control loop can call it on a separate cadence if desired.

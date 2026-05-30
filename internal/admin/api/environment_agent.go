@@ -240,3 +240,109 @@ func parseOptionalTime(s string) (time.Time, error) {
 	}
 	return time.Parse(time.RFC3339Nano, s)
 }
+
+// =============================================================================
+// Worker boot-resume state (v2.7 D2-f s4, ADR-0049/0050). The boot half of the
+// execution cutover: when a worker daemon (re)starts with the control-stream
+// path active, it asks the center "which agents on THIS worker should be running
+// + their in-flight WorkItems" and reconciles their claude sessions (re-attach a
+// survivor / relaunch a dead one / stop an unwanted one). This preserves
+// worker/agent lifecycle independence — a worker restart does NOT lose running
+// agents.
+//
+// 🔴 AUTHZ (worker-level, NOT per-agent): the worker is taken from the
+// AUTHENTICATED token owner (worker:<id>), and the body worker_id MUST equal it,
+// else 403 — a worker may only ask about ITSELF (no cross-worker leak). Same
+// security spine as requireAgentOnWorker, but worker-scoped: resolve the worker
+// from the token, never trust the body beyond an equality check.
+//
+// ADDITIVE + DORMANT: the daemon only calls this when the control loop is active
+// (the D2-f cutover flag, default off). Nothing is activated by default.
+// =============================================================================
+
+// resumeStateReq is the body for POST /admin/environment/worker/resume-state.
+type resumeStateReq struct {
+	WorkerID string `json:"worker_id"`
+}
+
+// envWorkerResumeStateHandler returns this worker's resumable agents + their
+// in-flight WorkItems so the daemon can reconcile their claude sessions on boot.
+//
+// AUTHZ: worker = token owner (strip `worker:` prefix; non-worker owner → 403);
+// body.worker_id MUST == that worker, else 403 (worker_mismatch).
+//
+// Computed set: AgentRepo.ListByWorker(worker) → for each agent, include it iff
+// it SHOULD be running (lifecycle == running) OR it has ≥1 in-flight WorkItem
+// (status ∈ {active, waiting_input}); a stopped/stopping/resetting/error agent
+// with no in-flight work is SKIPPED (nothing to resume). Each included agent
+// carries desired_lifecycle + version (+ reset_scope reserved for f-3) and its
+// in-flight WorkItems only.
+func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.AgentRepo == nil || d.AgentWorkItemRepo == nil {
+		writeError(w, http.StatusNotImplemented, "agent_repo_not_wired", "")
+		return
+	}
+	auth, ok := AuthFromContext(r.Context())
+	if !ok || !strings.HasPrefix(string(auth.Owner), "worker:") {
+		writeError(w, http.StatusForbidden, "not_a_worker_token",
+			"resume-state requires a worker:<id> bearer")
+		return
+	}
+	worker := strings.TrimPrefix(string(auth.Owner), "worker:")
+	if worker == "" {
+		writeError(w, http.StatusForbidden, "not_a_worker_token",
+			"worker token has empty worker id")
+		return
+	}
+	var req resumeStateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	// 🔴 Only-ask-self: the body worker_id must equal the authenticated worker.
+	if strings.TrimSpace(req.WorkerID) != worker {
+		writeError(w, http.StatusForbidden, "worker_mismatch",
+			"a worker may only query its own resume-state")
+		return
+	}
+
+	agents, err := d.AgentRepo.ListByWorker(r.Context(), worker)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+
+	out := make([]map[string]any, 0, len(agents))
+	for _, a := range agents {
+		items, err := d.AgentWorkItemRepo.ListByAgent(r.Context(), a.ID())
+		if err != nil {
+			mapDomainError(w, err)
+			return
+		}
+		inflight := make([]map[string]any, 0, len(items))
+		for _, it := range items {
+			switch it.Status() {
+			case agent.WorkItemActive, agent.WorkItemWaitingInput:
+				inflight = append(inflight, map[string]any{
+					"work_item_id": it.ID(),
+					"task_ref":     it.TaskRef(),
+					"status":       string(it.Status()),
+				})
+			}
+		}
+		// Include the agent only if it SHOULD be running OR it has in-flight work.
+		// A stopped agent with no in-flight WorkItem has nothing to resume → skip.
+		if a.Lifecycle() != agent.LifecycleRunning && len(inflight) == 0 {
+			continue
+		}
+		out = append(out, map[string]any{
+			"agent_id":          string(a.ID()),
+			"desired_lifecycle": string(a.Lifecycle()),
+			"version":           a.Version(),
+			"reset_scope":       "", // reserved for f-3 (rollback/reset semantics)
+			"work_items":        inflight,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
+}

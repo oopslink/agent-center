@@ -260,7 +260,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		EnvControlSvc: a.EnvControlSvc,
 
 		// Agent BC (v2.7 C3 / D2-b1) — per-agent MCP tool surface.
-		AgentSvc:          a.AgentService,
+		AgentSvc: a.AgentService,
+		// v2.7 D2-f s4 — worker boot-resume endpoint reads the worker's agents.
+		AgentRepo:         a.AgentRepo,
 		AgentWorkItemRepo: a.AgentWorkItemRepo,
 		AgentActivityRepo: a.AgentActivityRepo,
 		// v2.7 D2-e-ii (OQ5): outbox emitter for request_input's agent.awaiting_input.

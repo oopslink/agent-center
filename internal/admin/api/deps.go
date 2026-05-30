@@ -84,6 +84,12 @@ type HandlerDeps struct {
 	// resolves + authorizes the operating agent via this AppService; the
 	// handler never touches the DB directly.
 	AgentSvc *agentservice.Service
+	// AgentRepo is the raw Agent repository (v2.7 D2-f s4). The worker boot-resume
+	// endpoint (/admin/environment/worker/resume-state) enumerates this worker's
+	// agents via ListByWorker to compute the resumable set; resume-state is a
+	// worker-level read (one worker → many agents), so it reads the repo directly
+	// (no AppService method fits the one-to-many shape).
+	AgentRepo agent.Repository
 	// AgentWorkItemRepo is the raw Agent WorkItem repository (v2.7 D2-b2).
 	// The agent-tools write surface (request_input) needs Update + WaitInput
 	// composed inside the SAME outer tx as the conversation AddMessage so the

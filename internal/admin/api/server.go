@@ -311,6 +311,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/environment/worker/commands", s.envWorkerCommandsHandler)
 	s.mux.HandleFunc("POST /admin/environment/worker/ack", s.envWorkerAckHandler)
 	s.mux.HandleFunc("POST /admin/environment/worker/heartbeat", s.envWorkerHeartbeatHandler)
+	// v2.7 D2-f s4 (ADR-0049/0050): worker boot-resume. On (re)start with the
+	// control-stream path active the daemon asks "which of MY agents should be
+	// running + their in-flight WorkItems" so it can re-attach/relaunch their
+	// claude sessions. Worker-level authz: worker from the token owner, body
+	// worker_id MUST == it (only-ask-self), else 403. ADDITIVE — same bearer auth;
+	// default-off path (the daemon only calls it when the control loop is active).
+	s.mux.HandleFunc("POST /admin/environment/worker/resume-state", s.envWorkerResumeStateHandler)
 
 	// --- environment agent feedback (v2.7 D2-c-i, ADR-0049/0050) ---------
 	// Controller→center feedback. ADDITIVE — worker/daemon-facing, same bearer

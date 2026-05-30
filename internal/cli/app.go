@@ -102,6 +102,11 @@ type App struct {
 	// AgentService is the v2.7 Agent BC AppService facade (C3).
 	AgentService *agentsvc.Service
 
+	// AgentRepo is the raw Agent repository (v2.7 D2-f s4). The worker boot-resume
+	// admin endpoint enumerates a worker's agents (ListByWorker) — a worker-level
+	// read with no fitting AppService method, so the repo is exposed directly.
+	AgentRepo agentpkg.Repository
+
 	// AgentWorkItemRepo is the raw Agent WorkItem repository (C2). The admin
 	// agent-tools surface (v2.7 D2-b2 request_input) needs Update + WaitInput
 	// composed inside an outer tx — the AppService only exposes read-only
@@ -441,6 +446,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:              gen,
 		PMService:          pmSvc,
 		AgentService:       agentSvc,
+		AgentRepo:          agentRepo,
 		AgentWorkItemRepo:  agentWorkItemRepo,
 		AgentActivityRepo:  agentActivityRepo,
 		EnvControlSvc:      envControlSvc,
