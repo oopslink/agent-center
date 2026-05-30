@@ -41,7 +41,8 @@ func MCPHostCommand() *Command {
 			"agent-tool endpoints. Bound to ONE agent via AC_MCP_AGENT_ID; that agent_id " +
 			"is injected into every admin call and is never taken from tool args. " +
 			"Reads AC_MCP_AGENT_ID, AC_MCP_ADMIN_URL, AC_MCP_WORKER_TOKEN " +
-			"(+ AC_MCP_SERVER_FINGERPRINT for tcp://) from the environment.",
+			"(+ AC_MCP_SERVER_FINGERPRINT for tcp://, + AC_MCP_AGENT_ROOT for the " +
+			"file tools' workspace containment) from the environment.",
 		Flags: func(fs *flag.FlagSet) Handler {
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				return runMCPHost(ctx, errw)
@@ -67,6 +68,10 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 	}
 	token := strings.TrimSpace(os.Getenv("AC_MCP_WORKER_TOKEN"))
 	fingerprint := strings.TrimSpace(os.Getenv("AC_MCP_SERVER_FINGERPRINT"))
+	// AC_MCP_AGENT_ROOT is the agent's workspace root used by the file tools
+	// for path containment. Optional: when empty the file tools fail
+	// containment with a clear error (they are not hard-required to start).
+	agentRoot := strings.TrimSpace(os.Getenv("AC_MCP_AGENT_ROOT"))
 
 	target, err := clienttransport.ParseTarget(adminURL)
 	if err != nil {
@@ -80,9 +85,15 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 	}
 	adminClient.WithToken(token)
 
+	// The file tools move bytes through the FileTransferClient, which borrows
+	// the SAME authenticated transport as adminClient.
+	fileClient := workerdaemon.NewFileTransferClient(adminClient)
+
 	srv := mcphost.NewServer(mcphost.Config{
-		AgentID: agentID,
-		Admin:   adminClient,
+		AgentID:   agentID,
+		Admin:     adminClient,
+		AgentRoot: agentRoot,
+		Files:     fileClient,
 	})
 
 	// SIGINT/SIGTERM cancels the run ctx so Server.Run closes the stdio

@@ -74,8 +74,26 @@ func textContent(t *testing.T, res *mcp.CallToolResult) string {
 	return tc.Text
 }
 
+// wantTools is the FULL b3-ii tool set: the 2 locked b3-i tools + the
+// remaining OQ4 JSON tools + the 3 file tools. Each MCP tool name equals its
+// admin /admin/agent-tools/<tool> route segment (download_file is the only
+// one whose admin route differs — GET /admin/files/{ulid} — because it moves
+// bytes through the FileMover, not callAdmin).
+var wantTools = []string{
+	// b3-i (locked)
+	"get_my_work", "post_task_message",
+	// reads
+	"get_task", "get_issue",
+	// pm writes / passthrough
+	"create_task", "assign_task", "reassign_task",
+	"subscribe", "unsubscribe", "request_input",
+	"block_task", "complete_task", "verify_task",
+	// files
+	"upload_file", "download_file", "attach_file",
+}
+
 func TestInitializeAndListTools(t *testing.T) {
-	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}})
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}})
 
 	res, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
@@ -85,10 +103,10 @@ func TestInitializeAndListTools(t *testing.T) {
 	for _, tool := range res.Tools {
 		byName[tool.Name] = tool
 	}
-	if len(byName) != 2 {
-		t.Fatalf("want exactly 2 tools, got %d: %v", len(byName), keys(byName))
+	if len(byName) != len(wantTools) {
+		t.Fatalf("want exactly %d tools, got %d: %v", len(wantTools), len(byName), keys(byName))
 	}
-	for _, want := range []string{"get_my_work", "post_task_message"} {
+	for _, want := range wantTools {
 		tool, ok := byName[want]
 		if !ok {
 			t.Fatalf("missing tool %q (have %v)", want, keys(byName))
@@ -155,8 +173,12 @@ func TestCallPostTaskMessage(t *testing.T) {
 	if got := fake.gotBody["task_id"]; got != "task-9" {
 		t.Errorf("forwarded task_id = %v, want task-9", got)
 	}
-	if got := fake.gotBody["text"]; got != "hello" {
-		t.Errorf("forwarded text = %v, want hello", got)
+	// The model-facing arg is "text" but the admin endpoint reads "content".
+	if got := fake.gotBody["content"]; got != "hello" {
+		t.Errorf("forwarded content = %v, want hello", got)
+	}
+	if _, ok := fake.gotBody["text"]; ok {
+		t.Errorf("forwarded body must not carry raw \"text\" key (admin reads \"content\")")
 	}
 	if got := textContent(t, res); got != `{"posted":true}` {
 		t.Errorf("text content = %q, want canned JSON", got)

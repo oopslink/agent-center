@@ -40,7 +40,13 @@ import (
 	"syscall"
 
 	"github.com/oopslink/agent-center/internal/files"
+	"github.com/oopslink/agent-center/internal/mcphost"
 )
+
+// Compile-time assertion: *FileTransferClient is the real byte-mover behind
+// the per-agent MCP host's FileMover seam (v2.7 b3-ii), the analog of the
+// AdminCaller assertion in adminclient.go.
+var _ mcphost.FileMover = (*FileTransferClient)(nil)
 
 // ErrPathEscapesWorkspace is the sentinel returned when a user-supplied path
 // resolves outside the agent's allowed workspace root (".." traversal, an
