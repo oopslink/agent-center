@@ -64,3 +64,12 @@ deferred-with-trigger registration MOOT (mid-run now in-scope). GATE-7 Mode-B ac
 5. no dup/loss: repeated relaunch doesn't duplicate state/side-effects (activity stream at-least-once excluded per §3.3口径).
 6. post-terminal-failed manual recovery works (reset/re-start → clean restart).
 dev impl (i) + self-heal state machine → reports切口 (backoff curve / cap value / terminal-failed state field + Fleet visibility path); exact cap/backoff expectations per product manual/PD design. Then Tester runs A(6) + B(6) + closes GATE-1. Non-silent invariant satisfied by design (terminal-failed user-visible).
+
+## Self-heal PARAMS (PD c 277e962, authoritative = design doc/manual; adjustable defaults) — B-segment precise criteria
+- **backoff**: exponential 1→2→4→8→16s, cap 30s → assert relaunch-interval curve ≈ exponential (not tight-loop).
+- **cap**: 5 consecutive crashes → terminal "failed" (~31s) → assert 6th does NOT relaunch (no infinite).
+- **count reset**: healthy ≥60s since last relaunch → consecutive-crash count resets → assert later crash starts from 1, not pulled into early circuit-break.
+- **terminal "failed"**: distinct lifecycle (vs idle/active/sleeping) + Fleet-visible (failed + last crash cause) + auto never touches it again.
+- **failed recovery = manual only**: reset/restart → clear failed + clean restart.
+- **resume**: each within-cap relaunch resumes session (persistent epoch → context); + single-instance across relaunches; + no dup/loss (exactly-once side-effects across the ≤5 relaunches; activity at-least-once excluded).
+**⚠️ Slice-B 切口 OBSERVABILITY REQUIREMENT (Tester, same discipline as Mode-A observation points)**: expose observable (1) each relaunch-attempt timestamp, (2) current consecutive-crash count, (3) terminal-"failed" transition + last crash cause (daemon log / lifecycle report / Fleet). Else backoff-curve / cap=5 / 60s-reset are unverifiable (only the endpoint "failed" would be). Test method: controlled `kill claude.pid` to induce mid-run crashes on a schedule (cap ~31s / reset 60s = real wall-clock, acceptable). Verify ACTUAL configured values vs manual (don't hardcode-assume); re-anchor if切口 surfaces impl constraints.
