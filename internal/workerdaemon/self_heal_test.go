@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/claudestream"
 )
 
 // fakeClock is a deterministic clock seam for asserting the self-heal backoff curve /
@@ -99,6 +101,15 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	}
 	if msgs := rs.last().injectedMsgs(); len(msgs) != 1 || msgs[0] != DefaultResumeNudge {
 		t.Fatalf("self-heal relaunch with active work must nudge once, got %v", msgs)
+	}
+	// GATE-7 Mode-B FORK: the crash-relaunch must fork into a FRESH generation (gen
+	// bumped 0→1, persisted) and --resume from the killed session's id (gen 0), so it
+	// never re-collides with the held session-id lock. (Initial epoch 0 / gen 0.)
+	if got := rs.last().cfg.Generation; got != 1 {
+		t.Fatalf("self-heal relaunch must fork to generation 1, got %d", got)
+	}
+	if got, want := rs.last().cfg.ResumeFromSessionID, claudestream.SessionUUIDGen("ag-1", 0, 0); got != want {
+		t.Fatalf("fork must --resume the prior (gen-0) session-id %q, got %q", want, got)
 	}
 
 	// Idempotent: a further OnTick with no new crash does NOT re-relaunch.

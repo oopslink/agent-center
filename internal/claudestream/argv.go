@@ -56,6 +56,40 @@ func SessionUUID(agentID string, epoch int) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", u[0:4], u[4:6], u[6:8], u[8:10], u[10:16])
 }
 
+// SessionUUIDGen derives the session-id for an agent at a given crash-relaunch
+// fork GENERATION (v2.7 GATE-7 Mode-B fix). A hard-killed claude never releases
+// its session-id lock, so a relaunch that re-used the same id hits "Session ID
+// already in use" and fails to boot; each Mode-B relaunch instead forks the prior
+// session into a NEW id derived at the next generation.
+//
+// BY CONSTRUCTION, generation 0 returns the EXACT pre-fix SessionUUID(agentID,
+// epoch) — it literally delegates, with zero recomputation — so every existing /
+// initial agent's session-id is byte-for-byte unchanged (no silent session
+// migration). The generation is mixed in ONLY for generation > 0, after a second
+// 0x00 separator so generation bytes cannot alias with the epoch bytes.
+func SessionUUIDGen(agentID string, epoch, generation int) string {
+	if generation == 0 {
+		return SessionUUID(agentID, epoch) // delegate: gen 0 ≡ pre-fix id, byte-identical
+	}
+	h := sha1.New()
+	h.Write(sessionNamespace[:])
+	h.Write([]byte(agentID))
+	var ep [9]byte
+	ep[0] = 0x00
+	binary.BigEndian.PutUint64(ep[1:], uint64(epoch))
+	h.Write(ep[:])
+	var gen [9]byte
+	gen[0] = 0x00
+	binary.BigEndian.PutUint64(gen[1:], uint64(generation))
+	h.Write(gen[:])
+	sum := h.Sum(nil)
+	var u [16]byte
+	copy(u[:], sum[:16])
+	u[6] = (u[6] & 0x0f) | 0x50 // version 5
+	u[8] = (u[8] & 0x3f) | 0x80 // RFC 4122 variant
+	return fmt.Sprintf("%x-%x-%x-%x-%x", u[0:4], u[4:6], u[6:8], u[8:10], u[10:16])
+}
+
 // BuildStreamingArgv assembles the VALIDATED long-lived streaming-input claude
 // argv for an agent, reusing the SAME pipeline as the daemon's execLauncher:
 //
@@ -73,16 +107,24 @@ func SessionUUID(agentID string, epoch int) string {
 // the mcp-config FILE PATH — never the worker token (the daemon generates the
 // config; minimal key surface).
 //
-// epoch derives the --session-id via SessionUUID(agentID, epoch): the supervisor
-// subcommand forwards its --reset-epoch flag here so a clean-slate reset spawns a
-// fresh claude session while a crash-relaunch (same epoch) resumes the same one.
-func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch int, env map[string]string) ([]string, error) {
+// epoch + generation derive the --session-id via SessionUUIDGen(agentID, epoch,
+// generation): the supervisor subcommand forwards its --reset-epoch / --generation
+// flags here so a clean-slate reset spawns a fresh claude session while a
+// crash-relaunch resumes/forks. generation 0 == the pre-fix SessionUUID(agentID,
+// epoch) (byte-identical), so initial/normal starts are unchanged.
+//
+// resumeFromSessionID is the v2.7 GATE-7 Mode-B FORK input: when non-empty, the
+// argv adds `--resume <resumeFromSessionID> --fork-session`, so claude forks that
+// (possibly still-locked) prior session's conversation into the NEW --session-id —
+// the lock-sidestepping relaunch. Empty ⇒ a plain start/resume of the --session-id
+// (no fork), the unchanged initial/normal-start path.
+func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation int, resumeFromSessionID string, env map[string]string) ([]string, error) {
 	if agentID == "" {
 		return nil, errors.New("claudestream: agent_id required")
 	}
 	adapter := claudecode.New(binary)
 	req := agentadapter.SpawnRequest{
-		ExecutionID: SessionUUID(agentID, epoch),
+		ExecutionID: SessionUUIDGen(agentID, epoch, generation),
 		Prompt:      longLivedSentinelPrompt,
 		Env:         env,
 	}
@@ -105,6 +147,13 @@ func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch int, env ma
 		// of `--setting-sources ""` (which covers settings/hooks). Added ONLY alongside
 		// --mcp-config (strict with no servers = zero MCP tools).
 		args = append(args, "--strict-mcp-config")
+	}
+	// Mode-B fork: resume the prior (possibly lock-held) session's conversation into
+	// the fresh --session-id above. claude honors `--session-id NEW --resume OLD
+	// --fork-session` by adopting NEW exactly while seeding it from OLD's history
+	// (validated against real claude 2.1.156).
+	if resumeFromSessionID != "" {
+		args = append(args, "--resume", resumeFromSessionID, "--fork-session")
 	}
 	return append([]string{cmdSpec.Binary}, args...), nil
 }

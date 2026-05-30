@@ -61,6 +61,24 @@ ADR / phase plan landscape, see
   correlation (a turn-seq/token claude echoes back). Canonical record: the
   `currentWorkItemID` comment in `internal/workerdaemon/agent_controller.go`; also
   registered on the acceptance side (§A).
+- **GATE-7 Mode-B orphan fork-generation sessions (deferred-with-trigger).** The
+  Mode-B crash-relaunch fix forks the killed session into a new generation id each
+  relaunch (see Fixed below). The prior generations' claude session jsonl files
+  (`~/.claude/projects/<path>/<old-id>.jsonl`) are left behind — harmless but
+  accumulating across repeated crashes. **Trigger:** if fork-generation orphans
+  become a disk/clutter concern at scale → add a housekeeping sweep that prunes
+  superseded-generation session files for an agent on reset / terminal-fail.
+  Canonical record: the `Generation` comment in
+  `internal/supervisormanager/epoch.go`; also registered on the acceptance side (§A).
+- **Detached-supervisor claude stderr is not captured (deferred-with-trigger,
+  observability).** The agent-supervisor runs `claude` with `Stderr = os.Stderr` and
+  is itself spawned detached (`exec.Command` + `Release` + setsid), so claude's
+  stderr follows the daemon's stderr fd and is NOT persisted per-agent. This made a
+  real-path "Session ID already in use" error invisible in the worker log during the
+  GATE-7 Mode-B diagnosis (the mechanism was confirmed via isolated repro instead).
+  **Trigger:** when agent-claude failure diagnosis needs the child's own stderr →
+  redirect the supervisor's claude stderr to a per-agent home file. Non-blocking;
+  registered on the acceptance side (§A).
 
 ### Fixed
 
@@ -76,6 +94,22 @@ ADR / phase plan landscape, see
   (`active→failed` via the normal feedback edge — distinct from the GATE-7 Mode-B
   agent-death cascade, which handles a crashed/result-less claude), so a failed turn
   surfaces as a failed task instead of a task stuck "running".
+- **GATE-7 Mode-B crash recovery failed to relaunch (session-id lock; A-seg
+  ship-blocker).** A hard-killed claude (kill -9 / OOM / killpg) does NOT release its
+  session-id lock, so the self-heal / boot-reconcile relaunch — which re-used the
+  same durable-epoch session-id — was refused by claude (`Session ID … already in
+  use`), exited before producing any output, took the supervisor down with it, and
+  crash-looped to the terminal circuit-breaker (work lost). It manifested as a timing
+  race (idle agents whose lock released in time recovered; work-in-flight agents,
+  exactly what Mode-B protects, consistently failed). The relaunch now FORKS the
+  killed session into a fresh, never-locked id: a per-agent **generation** counter is
+  bumped+persisted (atomically, under the home lock, before spawn) per relaunch
+  attempt, and the supervisor spawns claude with `--session-id
+  SessionUUIDGen(agent,epoch,gen) --resume <prior-id> --fork-session` — preserving
+  the conversation while sidestepping the lock, deterministically (independent of
+  lock-hold timing). Generation 0 derives byte-identically to the pre-fix
+  `SessionUUID(agent,epoch)`, so initial/normal/clean-restart sessions are unchanged;
+  only the crash-recovery paths fork. A reset zeroes the generation (clean slate).
 
 ## [v2.6.0] — 2026-05-28
 

@@ -419,8 +419,13 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 		c.log("boot-reconcile agent=%s reap before relaunch: %v", agentID, rerr)
 	}
 	// startSession reads the durable epoch + spawns the supervisor. We already hold
-	// the home lock (boot reconcile), so no double-lock.
-	if err := c.startSession(ctx, agentID, version); err != nil {
+	// the home lock (boot reconcile / self-heal), so no double-lock — and the lock is
+	// REQUIRED here because forkResume=true bumps+persists the generation.
+	// forkResume=true: this is a crash recovery (the prior claude died, possibly via
+	// kill -9 / OOM, leaving its session-id locked). Fork into a fresh next-generation
+	// id (`--resume <prev> --fork-session`) so the relaunch never collides with the
+	// held lock — the v2.7 GATE-7 Mode-B fix.
+	if err := c.startSession(ctx, agentID, version, true /*forkResume*/); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
 		return
 	}

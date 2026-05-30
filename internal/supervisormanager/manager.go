@@ -66,12 +66,23 @@ type SpawnSupervisorCfg struct {
 	// points at a stand-in so no real claude is required.
 	ClaudeBin string
 	// Epoch is the agent's durable reset epoch (--reset-epoch). It derives claude's
-	// --session-id (SessionUUID(agentID, epoch)). The DAEMON resolves it before
-	// spawning: ReadEpoch(home) for a normal spawn / crash-relaunch (so a relaunch
-	// resumes the SAME session, never silently resetting to 0), and the post-bump
-	// value for a clean-slate reset. 0 = the initial epoch. Only emitted in the
-	// argv when > 0 (0 == the subcommand default).
+	// --session-id (SessionUUIDGen(agentID, epoch, generation)). The DAEMON resolves
+	// it before spawning: ReadEpoch(home) for a normal spawn / crash-relaunch (so a
+	// relaunch resumes the SAME session, never silently resetting to 0), and the
+	// post-bump value for a clean-slate reset. 0 = the initial epoch. Only emitted in
+	// the argv when > 0 (0 == the subcommand default).
 	Epoch int
+	// Generation is the agent's crash-relaunch fork generation (--generation, v2.7
+	// GATE-7 Mode-B). It derives claude's --session-id together with Epoch. The DAEMON
+	// bumps it per Mode-B relaunch (BumpGenerationForRelaunch) so a relaunch forks a
+	// fresh, never-locked session-id instead of re-using the killed one. 0 = the
+	// pre-fix id (initial/normal start). Only emitted in the argv when > 0.
+	Generation int
+	// ResumeFromSessionID is the Mode-B fork source (--resume-from, v2.7 GATE-7): the
+	// prior (killed, possibly lock-held) session-id to `--resume … --fork-session`
+	// from, so the relaunched claude inherits the conversation under the NEW
+	// --session-id. Empty = a plain start with no fork (initial/normal start).
+	ResumeFromSessionID string
 	// ComeUpTimeout bounds how long SpawnSupervisor waits for the supervisor to
 	// listen on its socket and answer Hello. Zero → defaultComeUpTimeout.
 	ComeUpTimeout time.Duration
@@ -208,6 +219,15 @@ func buildSupervisorArgs(cfg SpawnSupervisorCfg) []string {
 	// subcommand default so omitting it keeps the common-case argv clean.
 	if cfg.Epoch > 0 {
 		args = append(args, "--reset-epoch", strconv.Itoa(cfg.Epoch))
+	}
+	// Mode-B crash-relaunch fork (v2.7 GATE-7): --generation > 0 forks a fresh
+	// session-id and --resume-from carries the killed session to fork from. Both
+	// omitted on the common-case initial/normal start (generation 0, no fork).
+	if cfg.Generation > 0 {
+		args = append(args, "--generation", strconv.Itoa(cfg.Generation))
+	}
+	if cfg.ResumeFromSessionID != "" {
+		args = append(args, "--resume-from", cfg.ResumeFromSessionID)
 	}
 	return args
 }

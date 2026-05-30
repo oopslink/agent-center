@@ -67,6 +67,15 @@ type SupervisorSessionConfig struct {
 	// crash-relaunch, or the post-BumpEpochForReset value for a clean-slate reset.
 	// 0 = initial epoch.
 	Epoch int
+	// Generation is the agent's crash-relaunch fork generation (v2.7 GATE-7 Mode-B),
+	// forwarded as --generation. Together with Epoch it derives claude's --session-id
+	// via SessionUUIDGen. 0 = the pre-fix id (initial/normal start); the controller
+	// bumps it per Mode-B relaunch so a fork lands on a fresh, never-locked id.
+	Generation int
+	// ResumeFromSessionID is the Mode-B fork source, forwarded as --resume-from: the
+	// killed (lock-held) prior session-id to `--resume … --fork-session` from. Empty
+	// = a plain start, no fork (initial/normal start).
+	ResumeFromSessionID string
 	// OnEvent is invoked for every parsed stdout StreamEvent drained from the
 	// supervisor, in order, from the event-pump goroutine. The AgentController maps
 	// this to ReportAgentActivity (s3b-2). Must not block indefinitely.
@@ -144,11 +153,13 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		HomeDir:       cfg.HomeDir,
 		MCPConfigPath: cfg.MCPConfigPath,
 		WorkspaceDir:  cfg.WorkspaceDir,
-		BinaryPath:    cfg.BinaryPath,
-		Model:         cfg.Model,
-		ClaudeBin:     cfg.ClaudeBin,
-		Epoch:         cfg.Epoch,
-		ComeUpTimeout: cfg.ComeUpTimeout,
+		BinaryPath:          cfg.BinaryPath,
+		Model:               cfg.Model,
+		ClaudeBin:           cfg.ClaudeBin,
+		Epoch:               cfg.Epoch,
+		Generation:          cfg.Generation,
+		ResumeFromSessionID: cfg.ResumeFromSessionID,
+		ComeUpTimeout:       cfg.ComeUpTimeout,
 	})
 	if err != nil {
 		return nil, err

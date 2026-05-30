@@ -36,6 +36,91 @@ func TestBuildSupervisorArgs_ResetEpoch(t *testing.T) {
 	}
 }
 
+// TestBuildSupervisorArgs_GenerationAndResumeFrom proves the spawn argv carries the
+// v2.7 GATE-7 Mode-B fork flags only when set: --generation for generation > 0 (0 =
+// the subcommand default, omitted) and --resume-from when a fork source is given.
+func TestBuildSupervisorArgs_GenerationAndResumeFrom(t *testing.T) {
+	base := SpawnSupervisorCfg{AgentID: "agent-1", HomeDir: "/home/agent-1"}
+
+	// Initial/normal start: neither flag.
+	got0 := strings.Join(buildSupervisorArgs(base), " ")
+	if strings.Contains(got0, "--generation") || strings.Contains(got0, "--resume-from") {
+		t.Fatalf("generation 0 / no fork must omit both flags, got %q", got0)
+	}
+
+	// Mode-B fork relaunch: both present.
+	cfg := base
+	cfg.Generation = 2
+	cfg.ResumeFromSessionID = "prev-session-uuid"
+	got := strings.Join(buildSupervisorArgs(cfg), " ")
+	if !strings.Contains(got, "--generation 2") {
+		t.Fatalf("generation 2 must emit --generation 2, got %q", got)
+	}
+	if !strings.Contains(got, "--resume-from prev-session-uuid") {
+		t.Fatalf("fork source must emit --resume-from, got %q", got)
+	}
+}
+
+// TestBumpGenerationForRelaunch_PerAttemptMonotonic pins the key correctness
+// property (PM's catch): generation increments by exactly ONE PER CALL and
+// persists, so each Mode-B relaunch attempt derives a FRESH never-locked id. (If a
+// single gen+1 were reused across the backoff loop, attempt #2 would re-collide
+// with attempt #1's now-locked id → the crash-loop would self-recur.) Epoch and
+// LastResetVersion are preserved across bumps.
+func TestBumpGenerationForRelaunch_PerAttemptMonotonic(t *testing.T) {
+	home := t.TempDir()
+	// Seed a reset so epoch + last_reset_version are non-zero (must be preserved).
+	if _, err := BumpEpochForReset(home, 4); err != nil {
+		t.Fatalf("seed reset: %v", err)
+	}
+
+	for want := 1; want <= 3; want++ {
+		st, err := BumpGenerationForRelaunch(home)
+		if err != nil {
+			t.Fatalf("bump generation #%d: %v", want, err)
+		}
+		if st.Generation != want {
+			t.Fatalf("attempt #%d must yield generation %d, got %d (per-attempt monotonic)", want, want, st.Generation)
+		}
+		if st.Epoch != 1 || st.LastResetVersion != 4 {
+			t.Fatalf("generation bump must preserve epoch/last_reset_version, got %+v", st)
+		}
+		// Durable: a fresh read (as the next spawn / a boot-reconcile would do) sees it.
+		got, err := ReadEpoch(home)
+		if err != nil {
+			t.Fatalf("re-read: %v", err)
+		}
+		if got != st {
+			t.Fatalf("persisted %+v != bumped %+v", got, st)
+		}
+	}
+}
+
+// TestBumpEpochForReset_ZeroesGeneration proves a reset is a clean slate on BOTH
+// axes: it advances Epoch AND resets Generation to 0, so a post-reset agent starts
+// at the pre-fix base id (gen 0), not carrying a stale fork generation.
+func TestBumpEpochForReset_ZeroesGeneration(t *testing.T) {
+	home := t.TempDir()
+	// Accrue some fork generations (as crash relaunches would).
+	for i := 0; i < 3; i++ {
+		if _, err := BumpGenerationForRelaunch(home); err != nil {
+			t.Fatalf("bump generation: %v", err)
+		}
+	}
+	pre, _ := ReadEpoch(home)
+	if pre.Generation != 3 {
+		t.Fatalf("setup: want generation 3, got %d", pre.Generation)
+	}
+
+	st, err := BumpEpochForReset(home, 1)
+	if err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if st.Epoch != 1 || st.Generation != 0 {
+		t.Fatalf("reset must advance epoch AND zero generation, got %+v", st)
+	}
+}
+
 // TestReadEpoch_MissingIsInitial proves a fresh agent (no session.epoch file) reads
 // as the initial {0,0} WITHOUT error — a never-reset agent spawns at epoch 0.
 func TestReadEpoch_MissingIsInitial(t *testing.T) {

@@ -133,10 +133,10 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 	if err != nil {
 		return nil, fmt.Errorf("claude_session: build command: %w", err)
 	}
-	// epoch 0: the legacy direct-claude path has no reset-epoch concept (consistent
-	// with the SessionUUID(spec.AgentID, 0) above; the supervisor path threads the
-	// durable epoch).
-	argv, err := claudestream.BuildStreamingArgv(spec.AgentID, spec.Binary, spec.MCPConfigPath, 0, spec.Env)
+	// epoch 0 / generation 0 / no fork: the legacy direct-claude path has no
+	// reset-epoch or Mode-B fork concept (consistent with the SessionUUID(spec.AgentID,
+	// 0) above; the supervisor path threads the durable epoch + crash-relaunch fork).
+	argv, err := claudestream.BuildStreamingArgv(spec.AgentID, spec.Binary, spec.MCPConfigPath, 0, 0, "", spec.Env)
 	if err != nil {
 		return nil, fmt.Errorf("claude_session: build streaming argv: %w", err)
 	}

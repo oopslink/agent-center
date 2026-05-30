@@ -42,13 +42,24 @@ const EpochFileName = "session.epoch"
 
 // EpochState is the persisted reset epoch for one agent.
 //
-//   - Epoch is the clean-slate counter fed to SessionUUID(agentID, Epoch). 0 = a
-//     never-reset agent.
+//   - Epoch is the clean-slate counter fed to SessionUUIDGen(agentID, Epoch, Generation).
+//     0 = a never-reset agent.
+//   - Generation is the crash-RELAUNCH fork counter (v2.7 GATE-7 Mode-B fix). A
+//     hard-killed claude does NOT release its session-id lock, so a relaunch that
+//     re-derived the SAME session-id would hit "Session ID already in use" and fail
+//     to boot (the A-seg ship-blocker). Each Mode-B relaunch instead FORKS the prior
+//     session into a fresh, never-locked id: Generation++ → a new
+//     SessionUUIDGen(agentID, Epoch, Generation) → spawn with
+//     `--session-id <new> --resume <prev> --fork-session` (preserves the conversation,
+//     sidesteps the lock). Generation 0 derives the SAME id as the pre-fix
+//     SessionUUID(agentID, Epoch), so existing/initial sessions are unchanged. A
+//     RESET zeroes Generation along with bumping Epoch (clean slate).
 //   - LastResetVersion is the reconcile version that last advanced the epoch. It
 //     makes BumpEpochForReset IDEMPOTENT: reconcile delivery is at-least-once, so a
 //     replayed reset (version <= LastResetVersion) must NOT double-bump.
 type EpochState struct {
 	Epoch            int `json:"epoch"`
+	Generation       int `json:"generation"`
 	LastResetVersion int `json:"last_reset_version"`
 }
 
@@ -77,6 +88,9 @@ func ReadEpoch(home string) (EpochState, error) {
 	}
 	if st.Epoch < 0 {
 		return EpochState{}, fmt.Errorf("supervisormanager: invalid negative epoch %d in %s", st.Epoch, epochFilePath(home))
+	}
+	if st.Generation < 0 {
+		return EpochState{}, fmt.Errorf("supervisormanager: invalid negative generation %d in %s", st.Generation, epochFilePath(home))
 	}
 	return st, nil
 }
@@ -107,7 +121,40 @@ func BumpEpochForReset(home string, reconcileVersion int) (EpochState, error) {
 	}
 	next := EpochState{
 		Epoch:            cur.Epoch + 1,
+		Generation:       0, // reset = clean slate: a fresh epoch starts at generation 0
 		LastResetVersion: reconcileVersion,
+	}
+	if err := writeEpochAtomic(home, next); err != nil {
+		return EpochState{}, err
+	}
+	return next, nil
+}
+
+// BumpGenerationForRelaunch advances the agent's crash-relaunch fork generation
+// (v2.7 GATE-7 Mode-B fix) and persists it, returning the new state. The caller
+// derives the PREVIOUS session-id from the pre-bump generation (to --resume +
+// --fork-session from it) and the NEW session-id from the returned generation.
+//
+// MUST be called UNDER the agent's home lock (like BumpEpochForReset) AND BEFORE
+// spawning the relaunched supervisor: persisting the higher generation first means
+// that if the daemon dies between the bump and the spawn, a later boot-reconcile
+// reads the NEW generation and never re-derives (and re-collides with) the locked
+// id of the attempt that just failed. Per-attempt monotonic increment is REQUIRED
+// — computing one gen+1 and reusing it across a whole backoff loop would re-lock
+// the same id on the second attempt (the crash-loop would self-recur). The write
+// is temp-file + rename for atomicity; LastResetVersion/Epoch are preserved.
+func BumpGenerationForRelaunch(home string) (EpochState, error) {
+	if home == "" {
+		return EpochState{}, errors.New("supervisormanager: BumpGenerationForRelaunch requires home")
+	}
+	cur, err := ReadEpoch(home)
+	if err != nil {
+		return EpochState{}, err
+	}
+	next := EpochState{
+		Epoch:            cur.Epoch,
+		Generation:       cur.Generation + 1,
+		LastResetVersion: cur.LastResetVersion,
 	}
 	if err := writeEpochAtomic(home, next); err != nil {
 		return EpochState{}, err

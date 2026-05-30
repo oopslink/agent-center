@@ -419,7 +419,12 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 		c.stopSession(ctx, pl.AgentID, false /*reportLifecycle*/)
 	}
 
-	if err := c.startSession(ctx, pl.AgentID, pl.Version); err != nil {
+	// forkResume=false: an intent-driven start/restart is NOT a crash recovery. A
+	// fresh start has no prior session; a restart stop-SIGTERMed the old claude
+	// (lock released), so a plain resume of the same session-id is correct. Only the
+	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
+	// is still held).
+	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -676,7 +681,7 @@ func (c *AgentController) recordWake(agentID, messageID string) {
 // OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int) error {
+func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume bool) error {
 	home, workspace, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
@@ -715,6 +720,27 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		return fmt.Errorf("agent_controller: read epoch agent=%s: %w", agentID, err)
 	}
 
+	// Mode-B crash-relaunch FORK (v2.7 GATE-7): a hard-killed claude never releases
+	// its session-id lock, so re-deriving the SAME id would hit "Session ID already
+	// in use" and fail to boot (the A-seg ship-blocker). On a fork relaunch we derive
+	// the PRIOR session-id from the current generation, then bump+persist the
+	// generation BEFORE spawn (per-attempt monotonic; persist-first so a daemon death
+	// between bump and spawn never re-collides on the next boot-reconcile), and spawn
+	// the fresh next-gen id with `--resume <prev> --fork-session` to carry the
+	// conversation forward. A NORMAL start (forkResume=false) keeps the current
+	// generation and does NOT fork — a clean stop released the lock, so a plain
+	// resume of the same id is correct (and the initial start is generation 0).
+	generation := epochState.Generation
+	resumeFrom := ""
+	if forkResume {
+		resumeFrom = claudestream.SessionUUIDGen(agentID, epochState.Epoch, epochState.Generation)
+		bumped, berr := supervisormanager.BumpGenerationForRelaunch(home)
+		if berr != nil {
+			return fmt.Errorf("agent_controller: bump generation agent=%s: %w", agentID, berr)
+		}
+		generation = bumped.Generation
+	}
+
 	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit (which fire on the
 	// event-pump goroutine the instant the process speaks) find their entry. The
 	// session field is filled in after the starter returns.
@@ -724,15 +750,17 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	c.mu.Unlock()
 
 	sess, err := c.cfg.starter(ctx, SupervisorSessionConfig{
-		AgentID:       agentID,
-		HomeDir:       home,
-		MCPConfigPath: mcpPath,
-		WorkspaceDir:  workspace,
-		BinaryPath:    c.cfg.BinaryPath,
-		ClaudeBin:     c.cfg.ClaudeBinary,
-		Epoch:         epochState.Epoch,
-		StopGrace:     c.cfg.StopGrace,
-		Logger:        c.cfg.Logger,
+		AgentID:             agentID,
+		HomeDir:             home,
+		MCPConfigPath:       mcpPath,
+		WorkspaceDir:        workspace,
+		BinaryPath:          c.cfg.BinaryPath,
+		ClaudeBin:           c.cfg.ClaudeBinary,
+		Epoch:               epochState.Epoch,
+		Generation:          generation,
+		ResumeFromSessionID: resumeFrom,
+		StopGrace:           c.cfg.StopGrace,
+		Logger:              c.cfg.Logger,
 		OnEvent: func(ev claudestream.StreamEvent) {
 			c.onEvent(agentID, ev)
 		},
@@ -753,7 +781,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	c.mu.Lock()
 	ma.session = sess
 	c.mu.Unlock()
-	c.log("started agent=%s version=%d epoch=%d home=%s", agentID, version, epochState.Epoch, home)
+	c.log("started agent=%s version=%d epoch=%d generation=%d fork=%v home=%s", agentID, version, epochState.Epoch, generation, forkResume, home)
 	return nil
 }
 

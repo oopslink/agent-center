@@ -115,11 +115,11 @@ func TestSessionUUID(t *testing.T) {
 // long-lived streaming flag set with the derived session-id + mcp-config, and
 // rejects an empty agent id.
 func TestBuildStreamingArgv(t *testing.T) {
-	if _, err := BuildStreamingArgv("", "", "", 0, nil); err == nil {
+	if _, err := BuildStreamingArgv("", "", "", 0, 0, "", nil); err == nil {
 		t.Fatal("empty agent id must error")
 	}
 
-	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "/usr/local/bin/claude", "/home/agent/mcp.json", 0, nil)
+	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "/usr/local/bin/claude", "/home/agent/mcp.json", 0, 0, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
@@ -149,6 +149,85 @@ func TestBuildStreamingArgv(t *testing.T) {
 	}
 }
 
+// TestSessionUUIDGen_Gen0ByteIdenticalToLegacy is PM's GATE-7 review checkpoint #3:
+// SessionUUIDGen(id, epoch, 0) MUST be byte-for-byte identical to the pre-fix
+// SessionUUID(id, epoch). A single-byte drift would silently re-derive EVERY
+// existing agent's initial session-id → next interaction can't resume its own
+// session (or unexpectedly forks) = a hidden migration trap. The equivalence is
+// by-construction (gen==0 delegates to SessionUUID), and this test pins it so any
+// future change that breaks the delegation goes red.
+func TestSessionUUIDGen_Gen0ByteIdenticalToLegacy(t *testing.T) {
+	cases := []struct {
+		agentID string
+		epoch   int
+	}{
+		{"01J9ZK7QW8X2YB3C4D5E6F7G8H", 0},
+		{"01J9ZK7QW8X2YB3C4D5E6F7G8H", 1},
+		{"01J9ZK7QW8X2YB3C4D5E6F7G8H", 42},
+		{"another-agent-id", 0},
+		{"another-agent-id", 7},
+		{"", 0}, // derivation is total; gen0 must still match legacy
+	}
+	for _, c := range cases {
+		legacy := SessionUUID(c.agentID, c.epoch)
+		gen0 := SessionUUIDGen(c.agentID, c.epoch, 0)
+		if gen0 != legacy {
+			t.Fatalf("SessionUUIDGen(%q,%d,0)=%q != SessionUUID(%q,%d)=%q (gen0 must be byte-identical)",
+				c.agentID, c.epoch, gen0, c.agentID, c.epoch, legacy)
+		}
+	}
+}
+
+// TestSessionUUIDGen_GenDistinctAndValid pins that generation > 0 yields a
+// DIFFERENT (and still valid v5) uuid from generation 0 and from other generations
+// — the property the Mode-B fork relies on (each relaunch lands on a fresh,
+// never-colliding session-id).
+func TestSessionUUIDGen_GenDistinctAndValid(t *testing.T) {
+	const id, ep = "01J9ZK7QW8X2YB3C4D5E6F7G8H", 3
+	seen := map[string]int{}
+	for gen := 0; gen <= 4; gen++ {
+		u := SessionUUIDGen(id, ep, gen)
+		if len(u) != 36 || strings.Count(u, "-") != 4 {
+			t.Fatalf("generation %d → %q is not a UUID", gen, u)
+		}
+		if prev, dup := seen[u]; dup {
+			t.Fatalf("generation %d collided with generation %d (%q)", gen, prev, u)
+		}
+		seen[u] = gen
+	}
+}
+
+// TestBuildStreamingArgv_ModeBFork pins the v2.7 GATE-7 Mode-B fork argv: a
+// non-empty resumeFromSessionID adds `--resume <prev> --fork-session` and the
+// --session-id is the next-generation id; an empty one adds neither (plain start).
+func TestBuildStreamingArgv_ModeBFork(t *testing.T) {
+	const id = "01J9ZK7QW8X2YB3C4D5E6F7G8H"
+	prev := SessionUUIDGen(id, 0, 0)
+
+	// Fork relaunch: generation 1, resume from the gen-0 id.
+	forked, err := BuildStreamingArgv(id, "claude", "", 0, 1, prev, nil)
+	if err != nil {
+		t.Fatalf("fork argv: %v", err)
+	}
+	joined := strings.Join(forked, " ")
+	if !strings.Contains(joined, "--session-id "+SessionUUIDGen(id, 0, 1)) {
+		t.Fatalf("fork argv must use the gen-1 session-id: %v", forked)
+	}
+	if !strings.Contains(joined, "--resume "+prev) || !strings.Contains(joined, "--fork-session") {
+		t.Fatalf("fork argv must `--resume <prev> --fork-session`: %v", forked)
+	}
+
+	// Plain start (no fork): no --resume / --fork-session.
+	plain, err := BuildStreamingArgv(id, "claude", "", 0, 0, "", nil)
+	if err != nil {
+		t.Fatalf("plain argv: %v", err)
+	}
+	pj := strings.Join(plain, " ")
+	if strings.Contains(pj, "--fork-session") || strings.Contains(pj, "--resume") {
+		t.Fatalf("plain start must NOT fork/resume: %v", plain)
+	}
+}
+
 // countArg counts exact-token occurrences in argv (drift-guard helper).
 func countArg(argv []string, x string) int {
 	n := 0
@@ -166,7 +245,7 @@ func countArg(argv []string, x string) int {
 // refactor drops or duplicates `--setting-sources ""`, this goes red. The runtime
 // "operator config does not pollute the agent" half is Tester's standing contract.
 func TestBuildStreamingArgv_SecurityFlags(t *testing.T) {
-	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, nil)
+	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, 0, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
@@ -213,7 +292,7 @@ func TestBuildStreamingArgv_SecurityFlags(t *testing.T) {
 
 	// Negative: with NO --mcp-config, --strict-mcp-config must be ABSENT (strict with
 	// zero servers = zero MCP tools — the wrong outcome).
-	noMCP, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "", 0, nil)
+	noMCP, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "", 0, 0, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv (no mcp): %v", err)
 	}
