@@ -76,6 +76,13 @@ func main() {
 			"sha256:HH:HH:... pinned server cert fingerprint (required with --admin-target=tcp://...); falls back to AGENT_CENTER_SERVER_FINGERPRINT env")
 		skillsDir = flag.String("skills-dir", "",
 			"directory containing worker-agent.md + extra skills (real-agent dispatch)")
+		// v2.7 D2-f cutover flag (default false = legacy taskruntime dispatch
+		// path). When true, the daemon runs the NEW control-stream execution path
+		// (AgentController) and the legacy dispatch poll is gated OFF — the two are
+		// mutually exclusive (XOR on ControlClient). Activation requires the
+		// Tester's GATE-0~7 real-claude go; default false keeps current behavior.
+		useControlLoop = flag.Bool("use-control-loop", false,
+			"v2.7 D2-f: run the new control-stream execution path (disables the legacy dispatch loop)")
 	)
 	flag.Parse()
 
@@ -228,7 +235,16 @@ func main() {
 		logger("warning: agent controller not wired: " + cerr.Error())
 	} else {
 		rtCfg.ControlHandler = controller
-		// NOTE: rtCfg.ControlClient stays nil → control loop dormant until D2-f.
+		// v2.7 D2-f cutover (the activation line): only when --use-control-loop is
+		// set does ControlClient go live — which (a) starts the control loop
+		// (AgentController execution) and (b) gates the legacy dispatch poll OFF
+		// (runtime.legacyDispatchEnabled). Default false → ControlClient stays nil
+		// → legacy path, unchanged behavior. Cutover = restart the daemon with the
+		// flag; flipping it is gated on the Tester's GATE-0~7 real-claude go.
+		if *useControlLoop {
+			rtCfg.ControlClient = client
+			logger("v2.7 D2-f: control-stream execution path ENABLED (legacy dispatch disabled)")
+		}
 	}
 
 	rt := workerdaemon.NewRuntimeWithDeps(rtCfg, client, nil, workerdaemon.RuntimeDeps{

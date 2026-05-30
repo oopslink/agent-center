@@ -223,13 +223,35 @@ func (r *Runtime) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return r.shutdown()
 		case <-pollTick.C:
-			r.pollOnce(ctx)
+			// v2.7 D2-f cutover (XOR switch): the LEGACY taskruntime dispatch poll
+			// runs ONLY when the new control-stream path is OFF
+			// (ControlClient==nil). When the control loop is active
+			// (ControlClient!=nil) the two are MUTUALLY EXCLUSIVE — exactly one
+			// execution path drains, so an agent is never double-run. Both loops
+			// key off the SAME ControlClient (fixed at construction), so there is
+			// no "both/neither" window. Heartbeat below runs in BOTH modes (worker
+			// liveness is path-independent).
+			if r.legacyDispatchEnabled() {
+				r.pollOnce(ctx)
+			}
 		case <-hbTick.C:
 			if err := r.client.Heartbeat(ctx, r.cfg.WorkerID, r.cfg.Capabilities); err != nil {
 				r.log("heartbeat: %v", err)
 			}
 		}
 	}
+}
+
+// legacyDispatchEnabled reports whether the LEGACY taskruntime dispatch poll
+// should run. It is the daemon side of the v2.7 D2-f cutover XOR switch: the
+// legacy path runs iff the new control-stream path is OFF (ControlClient==nil).
+// The control loop (above) starts iff ControlClient!=nil — the SAME condition
+// inverted — so the two execution paths are mutually exclusive on one value
+// fixed at construction (no "both/neither" window, no double-run). Default
+// wiring leaves ControlClient nil → legacy runs → unchanged behavior until D2-f
+// is flipped (--use-control-loop).
+func (r *Runtime) legacyDispatchEnabled() bool {
+	return r.cfg.ControlClient == nil
 }
 
 // pollOnce drains both queues. Errors are logged, not returned —
