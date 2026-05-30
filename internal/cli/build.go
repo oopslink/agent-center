@@ -106,6 +106,10 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"worker"}, WorkerRunPlaceholder()); err != nil {
 		return nil, "", err
 	}
+	// v2.7 b3-i: per-agent stdio MCP server (system; spawned by the daemon).
+	if err := router.Add([]string{"worker"}, MCPHostCommand()); err != nil {
+		return nil, "", err
+	}
 
 	// project group
 	for _, c := range provider.projectCommands() {

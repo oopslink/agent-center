@@ -29,8 +29,13 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/admin/dispatchq"
+	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 )
+
+// Compile-time assertion: *AdminClient is the real transport behind the
+// per-agent MCP host's AdminCaller seam (v2.7 b3-i).
+var _ mcphost.AdminCaller = (*AdminClient)(nil)
 
 // AdminClient wraps an *http.Client whose Transport dials either the
 // unix admin socket (v2.2 default) or a TCP+TLS admin endpoint with
@@ -343,6 +348,69 @@ func (c *AdminClient) BlobPut(ctx context.Context, relPath string, content []byt
 		"content_base64": base64.StdEncoding.EncodeToString(content),
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/blob/put", body, nil)
+}
+
+// CallAgentTool POSTs `body` to /admin/agent-tools/<tool> and writes the raw
+// admin JSON response into *out. It is the transport seam the per-agent
+// `mcp-host` server (v2.7 b3-i, internal/mcphost) calls: the MCP tool
+// handlers build a body carrying the process-fixed agent_id and forward it
+// here. Rides the same authed transport as the rest of this client (bearer
+// owner worker:<id>) — the center re-checks requireAgentOnWorker.
+//
+// On non-2xx it returns a *mcphost.AdminToolError (status + body verbatim)
+// so the MCP handler can surface the failure to the model as an IsError
+// result instead of a silent protocol error. This makes *AdminClient
+// satisfy mcphost.AdminCaller.
+func (c *AdminClient) CallAgentTool(ctx context.Context, tool string, body any, out *json.RawMessage) error {
+	raw, status, err := c.doRaw(ctx, http.MethodPost, "/admin/agent-tools/"+tool, body)
+	if err != nil {
+		return err
+	}
+	if status < 200 || status >= 300 {
+		return &mcphost.AdminToolError{Status: status, Body: string(raw)}
+	}
+	if out != nil {
+		*out = append((*out)[:0], raw...)
+	}
+	return nil
+}
+
+// doRaw is the sibling of doJSON that surfaces the raw response body +
+// status instead of decoding into a typed struct / mapping non-2xx to
+// *AdminError. CallAgentTool needs both the raw JSON (to hand to the model)
+// and the status (to build the typed mcphost error). Same transport +
+// bearer wiring as doJSON.
+func (c *AdminClient) doRaw(ctx context.Context, method, path string, body any) ([]byte, int, error) {
+	var reader io.Reader
+	if body != nil {
+		buf, err := json.Marshal(body)
+		if err != nil {
+			return nil, 0, fmt.Errorf("adminclient: marshal %s %s: %w", method, path, err)
+		}
+		reader = bytes.NewReader(buf)
+	}
+	base := c.baseURL
+	if base == "" {
+		base = "http://unix"
+	}
+	req, err := http.NewRequestWithContext(ctx, method, base+path, reader)
+	if err != nil {
+		return nil, 0, fmt.Errorf("adminclient: build %s %s: %w", method, path, err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.httpc.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("adminclient: do %s %s: %w", method, path, err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	return respBody, resp.StatusCode, nil
 }
 
 // =============================================================================
