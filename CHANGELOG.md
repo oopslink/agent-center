@@ -11,6 +11,26 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased]
+
+### Notes / Compatibility
+
+- **Agent-supervisor RPC protocol — backward-compatibility contract
+  (deferred-with-trigger).** The v2.7 agent-execution cutover drops the
+  cross-version range gate on the persistent agent-supervisor's RPC: a returning
+  worker daemon always re-attaches to a live supervisor regardless of its
+  advertised protocol version. The protocol is therefore assumed
+  **backward-compatible**, which is a CONVENTION, not a runtime guarantee:
+  protocol evolution MUST be **additive only** (add optional fields; never
+  remove/repurpose a field or change a message's semantics). **Trigger:** if a
+  future change is genuinely breaking, it MUST at that time re-introduce a
+  mixed-version guard (force-relaunch incompatible old supervisors) or
+  force-relaunch all existing agents on deploy, plus its real-claude e2e —
+  otherwise an old supervisor mis-parses the new wire and re-attach silently
+  breaks. Canonical record: the `ProtocolVersion` note in
+  `internal/agentsupervisor/protocol.go` (+ the re-entry comment in
+  `supervisormanager.ProbeAgent`); also registered on the acceptance side (§A).
+
 ## [v2.6.0] — 2026-05-28
 
 ### Breaking changes

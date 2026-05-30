@@ -47,8 +47,10 @@ import (
 // would SILENTLY break. This note (+ Tester's §A registration) is the single place
 // recording the trigger so the convention never becomes a silent trap (§-1).
 //
-// (Repo has no CHANGELOG file; this comment is the canonical record, matching how
-// the epoch deferred-center note lives in supervisormanager/epoch.go.)
+// (This comment is the canonical engineering record; the contract is also noted
+// in CHANGELOG.md "[Unreleased] Notes / Compatibility" and registered on the
+// acceptance side (§A) — triple safety so the convention never becomes a silent
+// trap.)
 const ProtocolVersion = 1
 
 // maxFrameSize caps a single length-framed message payload (anti-abuse: a
