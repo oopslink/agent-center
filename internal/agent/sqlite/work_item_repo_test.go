@@ -65,6 +65,56 @@ func TestWorkItemRepo_RoundTripAndActive(t *testing.T) {
 	}
 }
 
+func TestWorkItemRepo_ListByStatus(t *testing.T) {
+	wr, _ := newWIDB(t)
+	ctx := context.Background()
+
+	mk := func(id, agentID string, advance func(*agent.AgentWorkItem)) {
+		w, err := agent.NewWorkItem(agent.NewWorkItemInput{ID: id, AgentID: agent.AgentID(agentID), TaskRef: "pm://tasks/" + id, CreatedAt: t0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if advance != nil {
+			advance(w)
+		}
+		if err := wr.Save(ctx, w); err != nil {
+			t.Fatal(err)
+		}
+	}
+	toWaiting := func(w *agent.AgentWorkItem) { _ = w.Activate(t0); _ = w.WaitInput(t0) }
+	toActive := func(w *agent.AgentWorkItem) { _ = w.Activate(t0) }
+
+	mk("WI-w1", "A1", toWaiting)
+	mk("WI-w2", "A2", toWaiting)
+	mk("WI-a1", "A3", toActive)
+	mk("WI-q1", "A4", nil) // queued
+
+	waiting, err := wr.ListByStatus(ctx, agent.WorkItemWaitingInput)
+	if err != nil {
+		t.Fatalf("ListByStatus: %v", err)
+	}
+	if len(waiting) != 2 {
+		t.Fatalf("ListByStatus(waiting_input) = %d, want 2", len(waiting))
+	}
+	// stable order by created_at, id → WI-w1 before WI-w2.
+	if waiting[0].ID() != "WI-w1" || waiting[1].ID() != "WI-w2" {
+		t.Fatalf("unstable order: %s, %s", waiting[0].ID(), waiting[1].ID())
+	}
+	for _, w := range waiting {
+		if w.Status() != agent.WorkItemWaitingInput {
+			t.Fatalf("ListByStatus returned non-matching status %q", w.Status())
+		}
+	}
+
+	active, _ := wr.ListByStatus(ctx, agent.WorkItemActive)
+	if len(active) != 1 || active[0].ID() != "WI-a1" {
+		t.Fatalf("ListByStatus(active) = %v", active)
+	}
+	if done, _ := wr.ListByStatus(ctx, agent.WorkItemDone); len(done) != 0 {
+		t.Fatalf("ListByStatus(done) = %d, want 0", len(done))
+	}
+}
+
 func TestActivityEventRepo_AppendAndList(t *testing.T) {
 	_, ar := newWIDB(t)
 	ctx := context.Background()

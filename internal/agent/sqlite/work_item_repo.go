@@ -60,6 +60,13 @@ func (r *WorkItemRepo) ListByTask(ctx context.Context, taskRef string) ([]*agent
 	return r.list(ctx, workItemSelect+` WHERE task_ref = ? ORDER BY created_at, id`, taskRef)
 }
 
+// ListByStatus returns all work items in the given status, stable-ordered by
+// created_at, id (a status index exists from migration 0043; plain WHERE is fine
+// at v2.7 scale regardless). Backs the D2-e-iii poll-fallback sweep.
+func (r *WorkItemRepo) ListByStatus(ctx context.Context, status agent.WorkItemStatus) ([]*agent.AgentWorkItem, error) {
+	return r.list(ctx, workItemSelect+` WHERE status = ? ORDER BY created_at, id`, string(status))
+}
+
 func (r *WorkItemRepo) HasActiveWorkItem(ctx context.Context, agentID agent.AgentID) (bool, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx,

@@ -27,6 +27,10 @@ type WorkItemRepository interface {
 	// ListByTask returns the work items for a Task across reassignments
 	// (the superseded chain).
 	ListByTask(ctx context.Context, taskRef string) ([]*AgentWorkItem, error)
+	// ListByStatus returns all work items in the given status, stable-ordered
+	// (created_at, id). The D2-e-iii poll-fallback sweep uses it to enumerate
+	// every waiting_input item independent of any wake event.
+	ListByStatus(ctx context.Context, status WorkItemStatus) ([]*AgentWorkItem, error)
 	// HasActiveWorkItem reports whether the agent has an active/waiting_input
 	// item — the input to availability derivation (OQ2).
 	HasActiveWorkItem(ctx context.Context, agentID AgentID) (bool, error)

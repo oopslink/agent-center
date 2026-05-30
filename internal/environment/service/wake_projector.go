@@ -295,16 +295,38 @@ func (p *WakeProjector) projectAwaitingInput(ctx context.Context, e outbox.Event
 }
 
 // flushAwaitingInput does the body of the batch flush inside the caller's tx.
-// Returns nil (no-op, still MarkApplied) on any "nothing to do" condition:
-// deps not wired, no conversation id, no unread, WorkItem no longer waiting_input,
-// agent unresolved / no worker.
+// It resolves the conversation id from the event payload and delegates the
+// recompute+enqueue core to the shared flushUnread (so the push e-ii path and
+// the D2-e-iii poll-fallback loop produce the SAME enqueue + the SAME batch key).
+// Returns nil (no-op, still MarkApplied) on any "nothing to do" condition.
 func (p *WakeProjector) flushAwaitingInput(ctx context.Context, pl awaitingInputPayload) error {
+	return p.flushUnread(ctx, pl.AgentID, pl.WorkItemID, pl.TaskRef, pl.ConversationID)
+}
+
+// flushUnread recomputes the agent's UNREAD qualifying messages in its task
+// conversation from the read-state cursor and enqueues ONE merged agent.wake.
+//
+// tx-agnostic: it uses ExecutorFromCtx (via the repos) for the read-state read,
+// message scan, and ControlLog enqueue — the CALLER provides the tx (the
+// projector wraps it with IsApplied/MarkApplied; the loop wraps each WorkItem in
+// its own RunInTx).
+//
+// IDENTICAL semantics + IDENTICAL batch key as the e-ii push path (so push/poll
+// converge: a push-delivered batch advanced the cursor → no unread here; a
+// push-enqueued-but-unconsumed batch → same key → ControlLog dedups → never
+// double).
+//
+// Returns nil (no-op) on any "nothing to do" condition: deps not wired, no
+// conversation id, no unread, WorkItem no longer waiting_input, agent
+// unresolved / no worker.
+func (p *WakeProjector) flushUnread(ctx context.Context, agentID, workItemID, taskRef, convID string) error {
 	if p.controlLog == nil || p.agents == nil || p.msgRepo == nil || p.readState == nil {
 		return nil // batch delivery not wired (e.g. test fixtures / e-i-only build)
 	}
-	agentID := strings.TrimSpace(pl.AgentID)
-	convID := strings.TrimSpace(pl.ConversationID)
-	if agentID == "" || convID == "" || strings.TrimSpace(pl.WorkItemID) == "" {
+	agentID = strings.TrimSpace(agentID)
+	convID = strings.TrimSpace(convID)
+	workItemID = strings.TrimSpace(workItemID)
+	if agentID == "" || convID == "" || workItemID == "" {
 		return nil
 	}
 	conversationID := conversation.ConversationID(convID)
@@ -366,7 +388,7 @@ func (p *WakeProjector) flushAwaitingInput(ctx context.Context, pl awaitingInput
 
 	// (d) re-check the WorkItem is STILL waiting_input (an interleaved e-i message
 	// may have already woken it). Skip if not found / not waiting_input.
-	wi, err := p.resolveWaitingWorkItem(ctx, pl)
+	wi, err := p.resolveWaitingWorkItem(ctx, taskRef, workItemID)
 	if err != nil {
 		return err
 	}
@@ -378,13 +400,13 @@ func (p *WakeProjector) flushAwaitingInput(ctx context.Context, pl awaitingInput
 	a, err := p.agents.FindByID(ctx, agent.AgentID(agentID))
 	if err != nil {
 		slog.Warn("wake projector: batch flush skipped (agent lookup failed)",
-			"agent_id", agentID, "work_item_id", pl.WorkItemID, "err", err)
+			"agent_id", agentID, "work_item_id", workItemID, "err", err)
 		return nil
 	}
 	workerID := a.WorkerID()
 	if strings.TrimSpace(workerID) == "" {
 		slog.Info("wake projector: batch flush skipped (agent has no worker binding)",
-			"agent_id", agentID, "work_item_id", pl.WorkItemID)
+			"agent_id", agentID, "work_item_id", workItemID)
 		return nil
 	}
 
@@ -394,8 +416,8 @@ func (p *WakeProjector) flushAwaitingInput(ctx context.Context, pl awaitingInput
 
 	payload, err := json.Marshal(wakeCommandPayload{
 		AgentID:        agentID,
-		WorkItemID:     pl.WorkItemID,
-		TaskRef:        pl.TaskRef,
+		WorkItemID:     workItemID,
+		TaskRef:        taskRef,
 		ConversationID: convID,
 		MessageID:      lastID,
 		MessageText:    mergedText,
@@ -407,20 +429,21 @@ func (p *WakeProjector) flushAwaitingInput(ctx context.Context, pl awaitingInput
 		WorkerID:       environment.WorkerID(workerID),
 		CommandType:    commandTypeAgentWake,
 		Payload:        string(payload),
-		IdempotencyKey: "agent.wake:" + pl.WorkItemID + ":batch:" + lastID,
+		IdempotencyKey: "agent.wake:" + workItemID + ":batch:" + lastID,
 	})
 	return err
 }
 
-// resolveWaitingWorkItem returns the agent's WorkItem named by the payload IFF it
-// is still waiting_input; nil otherwise (already woken / superseded / not found).
-func (p *WakeProjector) resolveWaitingWorkItem(ctx context.Context, pl awaitingInputPayload) (*agent.AgentWorkItem, error) {
-	items, err := p.workItems.ListByTask(ctx, pl.TaskRef)
+// resolveWaitingWorkItem returns the WorkItem named by workItemID on taskRef IFF
+// it is still waiting_input; nil otherwise (already woken / superseded / not
+// found).
+func (p *WakeProjector) resolveWaitingWorkItem(ctx context.Context, taskRef, workItemID string) (*agent.AgentWorkItem, error) {
+	items, err := p.workItems.ListByTask(ctx, taskRef)
 	if err != nil {
 		return nil, err
 	}
 	for _, wi := range items {
-		if wi.ID() != pl.WorkItemID {
+		if wi.ID() != workItemID {
 			continue
 		}
 		if wi.Status() != agent.WorkItemWaitingInput {
@@ -447,6 +470,57 @@ func mergeMessages(msgs []*conversation.Message) string {
 		b.WriteString(m.Content())
 	}
 	return b.String()
+}
+
+// ReconcileOnce is the poll-fallback sweep (D2-e-iii): for every waiting_input
+// AgentWorkItem, recompute unread from the cursor and enqueue any pending batch —
+// independent of whether an awaiting_input/message_added event ever fired
+// (self-heals a never-enqueued silent bug). Each WorkItem runs in its OWN
+// RunInTx; a per-item error is logged and the sweep continues (one bad item never
+// stalls the rest).
+//
+// No AppliedStore here (the loop is not outbox-driven; idempotency comes from the
+// batch key + cursor — same key as the push path → ControlLog dedups). If the
+// batch-flush deps (convRepo/msgRepo/readState/controlLog/agents) are nil (test
+// fixtures / e-i-only build) it no-ops gracefully.
+func (p *WakeProjector) ReconcileOnce(ctx context.Context) error {
+	if p.workItems == nil || p.convRepo == nil || p.msgRepo == nil ||
+		p.readState == nil || p.controlLog == nil || p.agents == nil {
+		return nil // poll fallback not wired
+	}
+	items, err := p.workItems.ListByStatus(ctx, agent.WorkItemWaitingInput)
+	if err != nil {
+		return err
+	}
+	for _, wi := range items {
+		taskID := strings.TrimPrefix(wi.TaskRef(), ownerRefTasksPrefix)
+		if taskID == wi.TaskRef() || strings.TrimSpace(taskID) == "" {
+			// Not a pm://tasks/{id} ref (or empty id) — skip + log, continue.
+			slog.Info("wake reconcile: skip WorkItem (task_ref not a task ref)",
+				"work_item_id", wi.ID(), "task_ref", wi.TaskRef())
+			continue
+		}
+		conv, err := p.convRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID))
+		if err != nil {
+			// No conversation for this task (or lookup failed) — skip + log, the
+			// sweep continues (one unresolvable item never stalls the rest).
+			slog.Info("wake reconcile: skip WorkItem (conversation unresolved)",
+				"work_item_id", wi.ID(), "task_ref", wi.TaskRef(), "err", err)
+			continue
+		}
+		convID := string(conv.ID())
+		agentID := string(wi.AgentID())
+		workItemID := wi.ID()
+		taskRef := wi.TaskRef()
+		if err := persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+			return p.flushUnread(txCtx, agentID, workItemID, taskRef, convID)
+		}); err != nil {
+			slog.Warn("wake reconcile: flushUnread failed (sweep continues)",
+				"work_item_id", workItemID, "agent_id", agentID, "err", err)
+			continue
+		}
+	}
+	return nil
 }
 
 var _ outbox.Projector = (*WakeProjector)(nil)

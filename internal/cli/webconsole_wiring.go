@@ -278,10 +278,27 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		go gcLoop.Run(gcCtx)
 	}
 
+	// v2.7 D2-e-iii (OQ5 poll-fallback "push优先 + poll兜底"): a slow-cadence
+	// (60s) sweep recomputes every waiting_input agent's UNREAD messages from its
+	// read-state cursor and enqueues any pending agent.wake batch — INDEPENDENT of
+	// whether a push wake signal ever fired (self-heals a never-enqueued silent
+	// bug). It SHARES the same wakeProj instance as the relay (push), so push/poll
+	// produce the same enqueue + the SAME batch key → ControlLog dedups, never
+	// double-delivers. DORMANT until D2-f: the enqueued commands sit in the control
+	// log until ControlClient is flipped (nobody pulls → zero real effect); it is
+	// NOT gated on ControlClient. Mirrors the Pump/GC lifecycle (ctx-cancel +
+	// graceful shutdown).
+	wakeLoopCtx, wakeLoopCancel := context.WithCancel(ctx)
+	wakeLoop := envservice.NewWakeReconcileLoop(wakeProj, 60*time.Second, func(msg string) {
+		logger("webconsole wake reconcile: " + msg)
+	})
+	go wakeLoop.Run(wakeLoopCtx)
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
 		gcCancel()
+		wakeLoopCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
