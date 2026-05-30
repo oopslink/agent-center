@@ -22,8 +22,6 @@ package workerdaemon
 import (
 	"bufio"
 	"context"
-	"crypto/sha1"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -36,88 +34,20 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agentadapter"
 	"github.com/oopslink/agent-center/internal/agentadapter/claudecode"
+	"github.com/oopslink/agent-center/internal/claudestream"
 )
 
-// agentSessionNamespace is a fixed namespace for deriving claude --session-id
-// UUIDs from agent ids (v2.7 D2-c). Arbitrary but stable 16 bytes ("agentcenter-v2.7").
-var agentSessionNamespace = [16]byte{
-	0x61, 0x67, 0x65, 0x6e, 0x74, 0x63, 0x65, 0x6e,
-	0x74, 0x65, 0x72, 0x2d, 0x76, 0x32, 0x2e, 0x37,
-}
-
-// agentSessionUUID derives a DETERMINISTIC RFC 4122 v5 UUID from an agent id, for
-// use as claude's --session-id. claude rejects a non-UUID session-id (validated
-// against real claude 2.1.156: a raw ULID → "Invalid session ID. Must be a valid
-// UUID."). Deterministic so the same agent always maps to the same claude session
-// (the persistent-session intent); distinct agent ids → distinct UUIDs (no
-// "already in use" collisions). Uses crypto/sha1 (stdlib, no new dep).
-func agentSessionUUID(agentID string) string {
-	h := sha1.New()
-	h.Write(agentSessionNamespace[:])
-	h.Write([]byte(agentID))
-	sum := h.Sum(nil)
-	var u [16]byte
-	copy(u[:], sum[:16])
-	u[6] = (u[6] & 0x0f) | 0x50 // version 5
-	u[8] = (u[8] & 0x3f) | 0x80 // RFC 4122 variant
-	return fmt.Sprintf("%x-%x-%x-%x-%x", u[0:4], u[4:6], u[6:8], u[8:10], u[10:16])
-}
+// StreamEvent is the normalised view of one thing claude said on stdout. The
+// type + its parser were extracted into internal/claudestream (v2.7 D2-f s3b-1)
+// to break the workerdaemon ↔ agentsupervisor import cycle; this alias keeps the
+// workerdaemon-internal call sites (agent_controller.go, ClaudeSession) source
+// compatible.
+type StreamEvent = claudestream.StreamEvent
 
 // ErrSessionClosed is returned by Inject when the session has stopped (or its
 // process has exited), so callers (c-ii-B) get a clear, typed signal rather
 // than a write-to-closed-pipe panic.
 var ErrSessionClosed = errors.New("claude_session: session closed")
-
-// AgentSessionUUID exposes the deterministic v5-UUID derivation (agent id →
-// claude --session-id) for callers OUTSIDE this package (v2.7 D2-f: the
-// agent-supervisor subcommand assembles the claude argv itself). It is a thin
-// exported wrapper over the internal agentSessionUUID so the derivation has a
-// single source of truth.
-func AgentSessionUUID(agentID string) string { return agentSessionUUID(agentID) }
-
-// BuildClaudeStreamingArgv assembles the VALIDATED long-lived streaming-input
-// claude argv for an agent, reusing the SAME pipeline as execLauncher.Launch:
-//
-//	claudecode.New(binary).BuildCommand(SpawnRequest{ExecutionID: AgentSessionUUID(agentID), ...})
-//	→ rewriteForStreamingInput(...)            (--print/--input-format/--output-format/--verbose)
-//	→ + BuildMCPConfigArg(mcpConfigPath)       (--mcp-config <path>), when non-empty
-//
-// It returns the FULL argv ([binary, args...]) ready for exec.Command. This is
-// the single source of truth for the streaming claude invocation; the v2.7
-// agent-supervisor subcommand (a separate package) calls it instead of
-// duplicating the flag rewrite. binary empty → adapter default ("claude" on
-// PATH). The supervisor receives only the mcp-config FILE PATH — never the
-// worker token (the daemon generates the config; minimal key surface).
-func BuildClaudeStreamingArgv(agentID, binary, mcpConfigPath string, env map[string]string) ([]string, error) {
-	if agentID == "" {
-		return nil, errors.New("claude_session: agent_id required")
-	}
-	adapter := claudecode.New(binary)
-	req := agentadapter.SpawnRequest{
-		ExecutionID: agentSessionUUID(agentID),
-		Prompt:      longLivedSentinelPrompt,
-		Env:         env,
-	}
-	cmdSpec, err := adapter.BuildCommand(req)
-	if err != nil {
-		return nil, fmt.Errorf("claude_session: build command: %w", err)
-	}
-	args := rewriteForStreamingInput(cmdSpec.Args)
-	if mcpConfigPath != "" {
-		mcp, err := adapter.BuildMCPConfigArg(mcpConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("claude_session: mcp-config arg: %w", err)
-		}
-		args = append(args, mcp.Args...)
-	}
-	return append([]string{cmdSpec.Binary}, args...), nil
-}
-
-// ParseClaudeStreamLine exposes the validated claude 2.1.156 stream-json line
-// parser to callers outside this package (v2.7 D2-f: the agent-supervisor
-// drain loop tolerantly parses each drained stdout line). It is a thin
-// exported wrapper over ParseStreamLine, kept so the parser has one home.
-func ParseClaudeStreamLine(line []byte) ([]StreamEvent, error) { return ParseStreamLine(line) }
 
 // sessionProc is one running claude process. The real impl (execSessionProc)
 // wraps os/exec; tests inject a fake that records stdin + emits canned stdout
@@ -187,25 +117,25 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 		// DETERMINISTIC v5 UUID from the agent id — valid for claude AND stable per
 		// agent (same agent → same claude session, the "persistent session-id"
 		// intent), distinct across agents (no "already in use" collisions).
-		ExecutionID: agentSessionUUID(spec.AgentID),
-		Prompt:      longLivedSentinelPrompt,
+		ExecutionID: claudestream.SessionUUID(spec.AgentID),
+		Prompt:      claudeStreamSentinelPrompt,
 		WorkingDir:  spec.WorkspaceDir,
 		Env:         spec.Env,
 	}
+	// The adapter is the single source of truth for the child ENV (skills,
+	// session-id wiring). The validated streaming ARGV is built by
+	// claudestream.BuildStreamingArgv (same SessionUUID + sentinel + rewrite),
+	// so the two stay consistent while the argv-rewrite logic lives in one home.
 	cmdSpec, err := adapter.BuildCommand(req)
 	if err != nil {
 		return nil, fmt.Errorf("claude_session: build command: %w", err)
 	}
-	args := rewriteForStreamingInput(cmdSpec.Args)
-	if spec.MCPConfigPath != "" {
-		mcp, err := adapter.BuildMCPConfigArg(spec.MCPConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("claude_session: mcp-config arg: %w", err)
-		}
-		args = append(args, mcp.Args...)
+	argv, err := claudestream.BuildStreamingArgv(spec.AgentID, spec.Binary, spec.MCPConfigPath, spec.Env)
+	if err != nil {
+		return nil, fmt.Errorf("claude_session: build streaming argv: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, cmdSpec.Binary, args...)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	if spec.WorkspaceDir != "" {
 		cmd.Dir = spec.WorkspaceDir
 	}
@@ -224,84 +154,15 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 		return nil, fmt.Errorf("claude_session: stdout pipe: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("claude_session: start %s: %w", cmdSpec.Binary, err)
+		return nil, fmt.Errorf("claude_session: start %s: %w", argv[0], err)
 	}
 	return &execSessionProc{cmd: cmd, stdin: stdin, stdout: stdout}, nil
 }
 
-// longLivedSentinelPrompt satisfies BuildCommand's non-empty-prompt validation;
-// rewriteForStreamingInput strips the resulting `-p <sentinel>` pair.
-const longLivedSentinelPrompt = "__ac_streaming_input__"
-
-// rewriteForStreamingInput converts the one-shot argv produced by
-// adapter.BuildCommand (`... -p <prompt>`) into the long-lived streaming-input
-// argv VALIDATED against real claude 2.1.156:
-//
-//	--print --input-format stream-json --output-format stream-json --verbose
-//	--session-id <agentID>   (+ --mcp-config <path>, appended by the caller)
-//
-// It KEEPS `--print`/`-p` as a FLAG (rewriting `-p` → the canonical `--print`)
-// but DROPS the positional prompt value (the sentinel), then ENSURES
-// `--input-format stream-json`, `--output-format stream-json`, and `--verbose`
-// are all present exactly once (adding any that are missing; never
-// duplicating). `--session-id <id>` and other flags pass through unchanged.
-func rewriteForStreamingInput(in []string) []string {
-	out := make([]string, 0, len(in)+4)
-	hasPrint := false
-	hasInputFormat := false
-	hasOutputFormat := false
-	hasVerbose := false
-
-	for i := 0; i < len(in); i++ {
-		switch in[i] {
-		case "-p", "--print":
-			// Keep the flag (canonicalised to --print) but DROP the positional
-			// prompt value that follows `-p`.
-			if in[i] == "-p" && i+1 < len(in) {
-				i++ // skip the sentinel prompt value
-			}
-			if !hasPrint {
-				out = append(out, "--print")
-				hasPrint = true
-			}
-		case "--input-format":
-			out = append(out, in[i])
-			if i+1 < len(in) {
-				i++
-				out = append(out, in[i])
-			}
-			hasInputFormat = true
-		case "--output-format":
-			out = append(out, in[i])
-			if i+1 < len(in) {
-				i++
-				out = append(out, in[i])
-			}
-			hasOutputFormat = true
-		case "--verbose":
-			if !hasVerbose {
-				out = append(out, in[i])
-				hasVerbose = true
-			}
-		default:
-			out = append(out, in[i])
-		}
-	}
-
-	if !hasPrint {
-		out = append(out, "--print")
-	}
-	if !hasInputFormat {
-		out = append(out, "--input-format", "stream-json")
-	}
-	if !hasOutputFormat {
-		out = append(out, "--output-format", "stream-json")
-	}
-	if !hasVerbose {
-		out = append(out, "--verbose")
-	}
-	return out
-}
+// claudeStreamSentinelPrompt satisfies BuildCommand's non-empty-prompt
+// validation when we only want the adapter's ENV assembly (the argv comes from
+// claudestream.BuildStreamingArgv, which strips its own sentinel from the argv).
+const claudeStreamSentinelPrompt = "__ac_streaming_input__"
 
 // execSessionProc wraps a real *exec.Cmd as a sessionProc.
 type execSessionProc struct {
@@ -337,41 +198,11 @@ func (p *execSessionProc) Kill() error {
 // ---------------------------------------------------------------------------
 
 // encodeUserMessage encodes a plain user message as one newline-terminated
-// stream-json line for claude's `--input-format stream-json`.
-//
-// FLAG (D2-g): this schema is a documented BEST GUESS — no stream-json INPUT
-// encoding exists in-repo (the adapter only encodes OUTPUT). It mirrors the
-// Anthropic Messages content-block shape:
-//
-//	{"type":"user","message":{"role":"user","content":[{"type":"text","text":"<msg>"}]}}\n
-//
-// It is deliberately isolated in this one function so D2-g can correct it
-// against the real claude binary without touching the session lifecycle.
+// stream-json line for claude's `--input-format stream-json`. It delegates to
+// claudestream.EncodeUserMessage so the INPUT schema (a documented best guess
+// per D2-g) has a single home shared with the supervisor path.
 func encodeUserMessage(msg string) ([]byte, error) {
-	type textBlock struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
-	type innerMessage struct {
-		Role    string      `json:"role"`
-		Content []textBlock `json:"content"`
-	}
-	type userEnvelope struct {
-		Type    string       `json:"type"`
-		Message innerMessage `json:"message"`
-	}
-	env := userEnvelope{
-		Type: "user",
-		Message: innerMessage{
-			Role:    "user",
-			Content: []textBlock{{Type: "text", Text: msg}},
-		},
-	}
-	b, err := json.Marshal(env)
-	if err != nil {
-		return nil, fmt.Errorf("claude_session: encode user message: %w", err)
-	}
-	return append(b, '\n'), nil
+	return claudestream.EncodeUserMessage(msg)
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +339,7 @@ func (s *ClaudeSession) readLoop() {
 		if len(raw) == 0 {
 			continue
 		}
-		events, err := ParseStreamLine(raw)
+		events, err := claudestream.ParseStreamLine(raw)
 		if err != nil {
 			// Don't drop the stream on a single malformed line; log + skip.
 			s.cfg.Logger(fmt.Sprintf("[worker] claude_session: parse stream line: %v", err))

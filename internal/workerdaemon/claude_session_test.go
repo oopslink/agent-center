@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -378,91 +377,7 @@ func TestClaudeSession_WritesMCPConfig(t *testing.T) {
 	}
 }
 
-func TestClaudeSession_RewriteForStreamingInput(t *testing.T) {
-	// Mirror what claudecode.Adapter.BuildCommand emits for a long-lived spawn:
-	// --output-format stream-json --session-id <id> -p <sentinel-prompt>.
-	in := []string{"--output-format", "stream-json", "--session-id", "agent-1", "-p", longLivedSentinelPrompt}
-	out := rewriteForStreamingInput(in)
-	joined := strings.Join(out, " ")
-
-	// --print PRESENT as a flag (the -p was canonicalised to --print).
-	if !contains(out, "--print") {
-		t.Fatalf("--print not present: %v", out)
-	}
-	// The sentinel/positional prompt must be gone, and no bare -p left.
-	for _, a := range out {
-		if a == "-p" || a == longLivedSentinelPrompt {
-			t.Fatalf("sentinel prompt / -p not stripped: %v", out)
-		}
-	}
-	// The three validated stream flags all present.
-	if !strings.Contains(joined, "--input-format stream-json") {
-		t.Fatalf("missing --input-format stream-json: %v", out)
-	}
-	if !strings.Contains(joined, "--output-format stream-json") {
-		t.Fatalf("missing --output-format stream-json: %v", out)
-	}
-	if !contains(out, "--verbose") {
-		t.Fatalf("missing --verbose: %v", out)
-	}
-	// session-id preserved.
-	if !strings.Contains(joined, "--session-id agent-1") {
-		t.Fatalf("session-id dropped: %v", out)
-	}
-	// No duplicate flags introduced.
-	if n := count(out, "--print"); n != 1 {
-		t.Fatalf("--print appears %d times: %v", n, out)
-	}
-	if n := count(out, "--input-format"); n != 1 {
-		t.Fatalf("--input-format appears %d times: %v", n, out)
-	}
-	if n := count(out, "--output-format"); n != 1 {
-		t.Fatalf("--output-format appears %d times: %v", n, out)
-	}
-	if n := count(out, "--verbose"); n != 1 {
-		t.Fatalf("--verbose appears %d times: %v", n, out)
-	}
-}
-
-func contains(ss []string, want string) bool {
-	for _, s := range ss {
-		if s == want {
-			return true
-		}
-	}
-	return false
-}
-
-func count(ss []string, want string) int {
-	n := 0
-	for _, s := range ss {
-		if s == want {
-			n++
-		}
-	}
-	return n
-}
-
-// TestAgentSessionUUID validates the agent-id → claude --session-id derivation.
-// claude REQUIRES a valid UUID (real claude 2.1.156 rejects a raw ULID), and
-// AgentCenter mints agent ids as ULIDs, so the launcher must derive one.
-func TestAgentSessionUUID(t *testing.T) {
-	// A realistic ULID agent id (what s.idgen.NewULID() produces).
-	const ulid = "01J9ZK7QW8X2YB3C4D5E6F7G8H"
-	got := agentSessionUUID(ulid)
-
-	// Must be a syntactically valid RFC 4122 UUID: 8-4-4-4-12 lowercase hex,
-	// version nibble 5, variant high bits 10.
-	re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
-	if !re.MatchString(got) {
-		t.Fatalf("agentSessionUUID(%q) = %q — not a valid v5 UUID", ulid, got)
-	}
-	// Deterministic: same agent → same session id (persistent-session intent).
-	if again := agentSessionUUID(ulid); again != got {
-		t.Fatalf("not deterministic: %q != %q", got, again)
-	}
-	// Distinct agents → distinct session ids (no "already in use" collisions).
-	if other := agentSessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8J"); other == got {
-		t.Fatalf("distinct agent ids collided on session id %q", got)
-	}
-}
+// NOTE: the argv-rewrite / session-uuid / encoder tests moved to
+// internal/claudestream (v2.7 D2-f s3b-1) alongside the symbols they exercise.
+// The ClaudeSession lifecycle tests (event-streaming / inject / stop / mcp-config)
+// remain here.

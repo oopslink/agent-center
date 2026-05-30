@@ -1,4 +1,4 @@
-package workerdaemon
+package claudestream
 
 import (
 	"bufio"

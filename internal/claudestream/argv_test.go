@@ -1,0 +1,154 @@
+package claudestream
+
+import (
+	"regexp"
+	"strings"
+	"testing"
+)
+
+func TestRewriteForStreamingInput(t *testing.T) {
+	// Mirror what claudecode.Adapter.BuildCommand emits for a long-lived spawn:
+	// --output-format stream-json --session-id <id> -p <sentinel-prompt>.
+	in := []string{"--output-format", "stream-json", "--session-id", "agent-1", "-p", longLivedSentinelPrompt}
+	out := rewriteForStreamingInput(in)
+	joined := strings.Join(out, " ")
+
+	// --print PRESENT as a flag (the -p was canonicalised to --print).
+	if !contains(out, "--print") {
+		t.Fatalf("--print not present: %v", out)
+	}
+	// The sentinel/positional prompt must be gone, and no bare -p left.
+	for _, a := range out {
+		if a == "-p" || a == longLivedSentinelPrompt {
+			t.Fatalf("sentinel prompt / -p not stripped: %v", out)
+		}
+	}
+	// The three validated stream flags all present.
+	if !strings.Contains(joined, "--input-format stream-json") {
+		t.Fatalf("missing --input-format stream-json: %v", out)
+	}
+	if !strings.Contains(joined, "--output-format stream-json") {
+		t.Fatalf("missing --output-format stream-json: %v", out)
+	}
+	if !contains(out, "--verbose") {
+		t.Fatalf("missing --verbose: %v", out)
+	}
+	// session-id preserved.
+	if !strings.Contains(joined, "--session-id agent-1") {
+		t.Fatalf("session-id dropped: %v", out)
+	}
+	// No duplicate flags introduced.
+	if n := count(out, "--print"); n != 1 {
+		t.Fatalf("--print appears %d times: %v", n, out)
+	}
+	if n := count(out, "--input-format"); n != 1 {
+		t.Fatalf("--input-format appears %d times: %v", n, out)
+	}
+	if n := count(out, "--output-format"); n != 1 {
+		t.Fatalf("--output-format appears %d times: %v", n, out)
+	}
+	if n := count(out, "--verbose"); n != 1 {
+		t.Fatalf("--verbose appears %d times: %v", n, out)
+	}
+}
+
+func contains(ss []string, want string) bool {
+	for _, s := range ss {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}
+
+func count(ss []string, want string) int {
+	n := 0
+	for _, s := range ss {
+		if s == want {
+			n++
+		}
+	}
+	return n
+}
+
+// TestSessionUUID validates the agent-id → claude --session-id derivation.
+// claude REQUIRES a valid UUID (real claude 2.1.156 rejects a raw ULID), and
+// AgentCenter mints agent ids as ULIDs, so the launcher must derive one.
+func TestSessionUUID(t *testing.T) {
+	// A realistic ULID agent id (what s.idgen.NewULID() produces).
+	const ulid = "01J9ZK7QW8X2YB3C4D5E6F7G8H"
+	got := SessionUUID(ulid)
+
+	// Must be a syntactically valid RFC 4122 UUID: 8-4-4-4-12 lowercase hex,
+	// version nibble 5, variant high bits 10.
+	re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	if !re.MatchString(got) {
+		t.Fatalf("SessionUUID(%q) = %q — not a valid v5 UUID", ulid, got)
+	}
+	// Deterministic: same agent → same session id (persistent-session intent).
+	if again := SessionUUID(ulid); again != got {
+		t.Fatalf("not deterministic: %q != %q", got, again)
+	}
+	// Distinct agents → distinct session ids (no "already in use" collisions).
+	if other := SessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8J"); other == got {
+		t.Fatalf("distinct agent ids collided on session id %q", got)
+	}
+}
+
+// TestBuildStreamingArgv proves the full argv pipeline produces the validated
+// long-lived streaming flag set with the derived session-id + mcp-config, and
+// rejects an empty agent id.
+func TestBuildStreamingArgv(t *testing.T) {
+	if _, err := BuildStreamingArgv("", "", "", nil); err == nil {
+		t.Fatal("empty agent id must error")
+	}
+
+	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "/usr/local/bin/claude", "/home/agent/mcp.json", nil)
+	if err != nil {
+		t.Fatalf("BuildStreamingArgv: %v", err)
+	}
+	if len(argv) == 0 {
+		t.Fatal("empty argv")
+	}
+	if argv[0] != "/usr/local/bin/claude" {
+		t.Fatalf("argv[0] = %q, want claude binary", argv[0])
+	}
+	joined := strings.Join(argv, " ")
+	want := []string{
+		"--print",
+		"--input-format stream-json",
+		"--output-format stream-json",
+		"--verbose",
+		"--session-id " + SessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8H"),
+		"--mcp-config /home/agent/mcp.json",
+	}
+	for _, w := range want {
+		if !strings.Contains(joined, w) {
+			t.Fatalf("argv missing %q: %v", w, argv)
+		}
+	}
+	// The sentinel prompt must NOT survive into the argv.
+	if strings.Contains(joined, longLivedSentinelPrompt) {
+		t.Fatalf("sentinel prompt leaked into argv: %v", argv)
+	}
+}
+
+func TestEncodeUserMessage(t *testing.T) {
+	b, err := EncodeUserMessage("do the thing")
+	if err != nil {
+		t.Fatalf("EncodeUserMessage: %v", err)
+	}
+	s := string(b)
+	if !strings.HasSuffix(s, "\n") {
+		t.Fatalf("not newline-terminated: %q", s)
+	}
+	if !strings.Contains(s, `"type":"user"`) {
+		t.Fatalf("missing user envelope: %q", s)
+	}
+	if !strings.Contains(s, `"role":"user"`) {
+		t.Fatalf("missing role: %q", s)
+	}
+	if !strings.Contains(s, "do the thing") {
+		t.Fatalf("missing message text: %q", s)
+	}
+}

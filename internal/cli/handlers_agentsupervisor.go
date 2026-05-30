@@ -12,7 +12,7 @@ import (
 	"syscall"
 
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
-	"github.com/oopslink/agent-center/internal/workerdaemon"
+	"github.com/oopslink/agent-center/internal/claudestream"
 )
 
 // AgentSupervisorCommand is the v2.7 (D2-f s1) persistent per-agent SUPERVISOR
@@ -70,11 +70,11 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		return ExitUsage
 	}
 
-	// Build the validated claude streaming argv via the workerdaemon pipeline
-	// (BuildCommand + rewriteForStreamingInput + AgentSessionUUID + --mcp-config
+	// Build the validated claude streaming argv via the claudestream pipeline
+	// (BuildCommand + rewriteForStreamingInput + SessionUUID + --mcp-config
 	// <path>). The supervisor holds only the mcp-config PATH; no token here.
 	// --model (if any) is appended as an argv flag below.
-	childCmd, err := workerdaemon.BuildClaudeStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), nil)
+	childCmd, err := claudestream.BuildStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), nil)
 	if err != nil {
 		fmt.Fprintf(errw, "Error: agent_supervisor: build claude argv: %v\n", err)
 		return ExitBusinessError

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/idgen"
-	"github.com/oopslink/agent-center/internal/workerdaemon"
 )
 
 // mintInstanceID mints a fresh ULID identifying this supervisor incarnation.
@@ -72,39 +72,18 @@ func writeFileAtomic(path string, b []byte, perm os.FileMode) error {
 }
 
 // parseStreamLine is the tolerant validation hook for drained stdout lines. It
-// delegates to the validated claude 2.1.156 parser in workerdaemon so the
-// stream schema has ONE home (reused, not reinvented).
-func parseStreamLine(line []byte) ([]workerdaemon.StreamEvent, error) {
-	return workerdaemon.ParseClaudeStreamLine(line)
+// delegates to the validated claude 2.1.156 parser in claudestream so the stream
+// schema has ONE home (reused, not reinvented). claudestream is the leaf package
+// these primitives were extracted into (v2.7 D2-f s3b-1) so agentsupervisor no
+// longer imports workerdaemon (breaking the import cycle).
+func parseStreamLine(line []byte) ([]claudestream.StreamEvent, error) {
+	return claudestream.ParseStreamLine(line)
 }
 
 // encodeUserMessage encodes a plain user message as one newline-terminated
-// stream-json user line for claude's --input-format stream-json, mirroring the
-// shape used by the long-lived ClaudeSession path (workerdaemon). Isolated here
-// so D2-g can correct the schema in one place.
+// stream-json user line for claude's --input-format stream-json. It delegates to
+// claudestream.EncodeUserMessage so the INPUT schema (a documented best guess per
+// D2-g) is shared with the long-lived ClaudeSession path in one home.
 func encodeUserMessage(msg string) ([]byte, error) {
-	type textBlock struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
-	type innerMessage struct {
-		Role    string      `json:"role"`
-		Content []textBlock `json:"content"`
-	}
-	type userEnvelope struct {
-		Type    string       `json:"type"`
-		Message innerMessage `json:"message"`
-	}
-	env := userEnvelope{
-		Type: "user",
-		Message: innerMessage{
-			Role:    "user",
-			Content: []textBlock{{Type: "text", Text: msg}},
-		},
-	}
-	b, err := json.Marshal(env)
-	if err != nil {
-		return nil, fmt.Errorf("agentsupervisor: encode user message: %w", err)
-	}
-	return append(b, '\n'), nil
+	return claudestream.EncodeUserMessage(msg)
 }

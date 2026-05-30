@@ -71,7 +71,7 @@ type Config struct {
 
 	// ChildCmd is the FULL argv of the child to launch: [binary, args...]. In
 	// production this is the claude streaming argv assembled via
-	// workerdaemon.BuildClaudeStreamingArgv (binary + flags + --session-id +
+	// claudestream.BuildStreamingArgv (binary + flags + --session-id +
 	// --mcp-config <path>). Tests inject a stand-in argv (a reader/echoer) — no
 	// real claude required.
 	ChildCmd []string

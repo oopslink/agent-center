@@ -1,21 +1,28 @@
-// Package workerdaemon: claude_stream.go is the D2-c-ii-D stream-json OUTPUT
-// parser for the long-lived ClaudeSession path (claude_session.go). It is the
-// CORRECT, validated successor to claudecode.Adapter.ParseEvent for the
-// streaming path: ParseEvent switches on FLAT top-level types
-// (thinking/tool_use/tool_result/usage/end_turn) which real claude 2.1.156
-// NEVER emits at the top level — those are CONTENT BLOCKS nested inside
-// `assistant.message.content[]` / `user.message.content[]`.
+// Package claudestream is the LOWER-LEVEL, dependency-free home for the
+// behavior-validated claude 2.1.156 stream-json primitives: the stdout OUTPUT
+// parser (StreamEvent + ParseStreamLine), the agent-id → --session-id UUID
+// derivation (SessionUUID), the long-lived streaming argv builder
+// (BuildStreamingArgv + rewriteForStreamingInput), and the stdin INPUT encoder
+// (EncodeUserMessage).
 //
-// VALIDATED against a genuine claude 2.1.156 round-trip (the testdata fixture
-// internal/workerdaemon/testdata/claude_2.1.156_stream.jsonl). The real
-// top-level event types are: "system" (with a subtype, e.g. "init"),
-// "assistant", "user", "result", "rate_limit_event". Text / thinking / tool_use
-// live in assistant.message.content[]; tool_result lives in
-// user.message.content[].
+// WHY THIS PACKAGE EXISTS (v2.7 D2-f s3b-1). These symbols used to live in
+// internal/workerdaemon. internal/agentsupervisor imports them (its drain loop
+// parses each stdout line; the supervisor subcommand assembles the claude argv),
+// and the next slice needs internal/workerdaemon to import
+// internal/supervisormanager (which imports agentsupervisor). That would form a
+// cycle: workerdaemon → supervisormanager → agentsupervisor → workerdaemon.
+// Extracting these shared, leaf-level primitives into claudestream — which
+// agentsupervisor imports INSTEAD of workerdaemon — breaks the cycle. claudestream
+// depends only on the claudecode adapter (for the argv assembly), never on
+// workerdaemon/agentsupervisor/supervisormanager.
 //
-// This parser does NOT touch claudecode.adapter — the legacy one-shot path
-// still uses ParseEvent and retires with #107.
-package workerdaemon
+// BEHAVIOR PRESERVATION. The parser/argv/encoder logic here is moved VERBATIM
+// from the workerdaemon originals; it was validated against a genuine claude
+// 2.1.156 round-trip (the testdata fixtures). The real top-level event types are:
+// "system" (with a subtype, e.g. "init"), "assistant", "user", "result",
+// "rate_limit_event". Text / thinking / tool_use live in
+// assistant.message.content[]; tool_result lives in user.message.content[].
+package claudestream
 
 import (
 	"encoding/json"
@@ -101,7 +108,7 @@ type messageEnvelope struct {
 // fields degrade gracefully (empty strings / unknown), never panic.
 func ParseStreamLine(line []byte) ([]StreamEvent, error) {
 	if len(line) == 0 {
-		return nil, fmt.Errorf("claude_stream: empty line")
+		return nil, fmt.Errorf("claudestream: empty line")
 	}
 	var head struct {
 		Type    string          `json:"type"`
@@ -114,7 +121,7 @@ func ParseStreamLine(line []byte) ([]StreamEvent, error) {
 		Usage        *usage  `json:"usage"`
 	}
 	if err := json.Unmarshal(line, &head); err != nil {
-		return nil, fmt.Errorf("claude_stream: decode line: %w", err)
+		return nil, fmt.Errorf("claudestream: decode line: %w", err)
 	}
 
 	switch head.Type {
