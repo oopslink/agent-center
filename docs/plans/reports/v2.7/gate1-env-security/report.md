@@ -45,3 +45,11 @@ dev 称"`CLAUDE_CODE_SESSION_ID` 泄漏经 ① 修自动消"——**不准**。`
 
 ## 结论 / go-no-go 建议
 ① 安全修在 **(a) worker-secret 过滤 + ⑤(单测) + A 配置隔离（含正反 marker）** 三面 **PASS**、**不引入 auth 回归**。唯一未在本机正向演示的是"隔离下 claude 完成 authed turn"（受测试机 keychain 非交互限制、与隔离无关）——建议 PD 据此判：要么接受"无回归 + 单测 + 隔离 dir 真用 + 反向 marker 干净"为 ① 充分证据，要么把正向 authed-turn 放到 keychain-capable（launchd/CI/API-key）环境补一次。运行时 ⑤ + (b) 随 spawn-bug 修 / ② 管道落补。
+
+## (a) CLAUDE_CODE_ deny-prefix 重验 — PASS ✅ (commit 3c2c55c, 2026-05-30)
+dev 折进 ① 的 deny-prefix（`envAllowed`: `name=="CLAUDE_CONFIG_DIR" || HasPrefix(name,"CLAUDE_CODE_") → deny`）。Tester rebuild 3c2c55c + 直跑 supervisor 重抓 child claude env（`ps eww`）：
+- source(supervisor) env 有 **4 个 `CLAUDE_CODE_*`** → child claude env **0 个** ✅（整段前缀 deny 生效，覆盖 SESSION_ID/ENTRYPOINT/EXECPATH/TMPDIR…）
+- `AGENT_CENTER_*` 注入 `AGENT_CENTER_ADMIN_TOKEN=LEAK_REGRESS_111` → child env **0 个** ✅（(a) regression 守住）
+- 注入 `CLAUDE_FOO`/`ANTHROPIC_TESTVAR` → child env **均在** ✅（其余 `CLAUDE_*` + claude auth 命名空间保留）
+- `CLAUDE_CONFIG_DIR`=隔离 dir ✅
+→ (a) 含 CLAUDE_CODE_ deny 全过。**① 仅剩 authed-turn 正向演示**（ship 前 authed/`ANTHROPIC_API_KEY` 环境，§A.5 红线）；runtime ⑤ + (b) 随 spawn-fix / ② 补。
