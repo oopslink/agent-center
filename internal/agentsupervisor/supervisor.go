@@ -124,10 +124,20 @@ type Supervisor struct {
 	stdout     io.ReadCloser
 	eventsFile *os.File
 
-	// offset is the current byte length of events.jsonl (the persistent offset
-	// cursor). Advanced by the drain goroutine; read under offMu.
-	offMu  sync.Mutex
-	offset int64
+	// offset/baseOffset are ABSOLUTE byte cursors over the agent's whole life.
+	//   offset     == total bytes ever drained from claude's stdout (the
+	//                 "current" absolute cursor; advanced by the drain).
+	//   baseOffset == total bytes truncated off the FRONT by ack (s2). Starts 0.
+	// INVARIANT: the on-disk events.jsonl holds exactly the absolute range
+	// [baseOffset, offset); so a read for absolute O reads file[O-baseOffset:].
+	// offMu guards offset, baseOffset, AND the drain's append + ack's file
+	// rewrite (they share s.eventsFile): the drain appends to the tail while ack
+	// rewrites the prefix, so both must be serialized through this one lock to
+	// never corrupt the file or skew the cursors. See appendEvents / Ack / ReadAt.
+	offMu        sync.Mutex
+	offset       int64
+	baseOffset   int64
+	eventsClosed bool // set under offMu once the events fd is closed (child exit)
 
 	stdinMu sync.Mutex // guards stdin writes + closed
 	closed  bool       // set once Stop begins / child exited; blocks Inject
@@ -282,15 +292,11 @@ func (s *Supervisor) drainLoop() {
 		}
 
 		out := append(raw, '\n')
-		n, werr := s.eventsFile.Write(out)
-		if werr != nil {
+		if werr := s.appendEvents(out); werr != nil {
 			s.cfg.Logger(fmt.Sprintf("agentsupervisor: append events: %v", werr))
 			s.drainErr = werr
 			break
 		}
-		s.offMu.Lock()
-		s.offset += int64(n)
-		s.offMu.Unlock()
 	}
 	if err := scanner.Err(); err != nil && s.drainErr == nil {
 		s.drainErr = err
@@ -308,10 +314,16 @@ func (s *Supervisor) fireExit(err error) {
 		s.closed = true
 		s.waitErr = err
 		s.stdinMu.Unlock()
+		// Close the events file under offMu so an in-flight Ack (which swaps the
+		// fd) can never race the close, and mark it closed so a post-exit Ack is
+		// rejected cleanly instead of writing to a dead fd.
+		s.offMu.Lock()
 		if s.eventsFile != nil {
 			_ = s.eventsFile.Sync()
 			_ = s.eventsFile.Close()
 		}
+		s.eventsClosed = true
+		s.offMu.Unlock()
 		close(s.done)
 	})
 }
@@ -407,6 +419,158 @@ func (s *Supervisor) Offset() int64 {
 	defer s.offMu.Unlock()
 	return s.offset
 }
+
+// BaseOffset returns the absolute offset of the FIRST byte still on disk
+// (== total bytes ack-truncated off the front). The on-disk events.jsonl holds
+// the absolute range [BaseOffset, Offset).
+func (s *Supervisor) BaseOffset() int64 {
+	s.offMu.Lock()
+	defer s.offMu.Unlock()
+	return s.baseOffset
+}
+
+// appendEvents writes out to the tail of events.jsonl and advances the absolute
+// offset, serialized with Ack's prefix-rewrite through offMu. The drain calls
+// this for every line; holding offMu across the write (not just the offset
+// bump) is what keeps the append and an interleaving Ack rewrite from
+// corrupting the file or skewing the cursors.
+func (s *Supervisor) appendEvents(out []byte) error {
+	s.offMu.Lock()
+	defer s.offMu.Unlock()
+	if s.eventsClosed {
+		return ErrSupervisorClosed
+	}
+	n, err := s.eventsFile.Write(out)
+	s.offset += int64(n)
+	return err
+}
+
+// ReadAt returns up to max bytes of events.jsonl starting at the ABSOLUTE
+// offset `from`, plus the next absolute offset and whether the reader is now
+// caught up (eof). It maps the absolute offset to a disk position via
+// baseOffset: disk pos == from - baseOffset.
+//
+//   - from < baseOffset → ErrOffsetTruncated (already acked + truncated; the
+//     daemon must re-attach from its last-acked offset, which == baseOffset).
+//   - from > offset     → clamped to offset (returns nothing, eof=true).
+//
+// It reads from the held-open events fd's underlying file via a fresh handle so
+// it never disturbs the append fd's position; the whole op holds offMu so an
+// Ack cannot rewrite the file mid-read.
+func (s *Supervisor) ReadAt(from int64, max int) (data []byte, next int64, eof bool, err error) {
+	s.offMu.Lock()
+	defer s.offMu.Unlock()
+
+	if from < s.baseOffset {
+		return nil, from, false, ErrOffsetTruncated
+	}
+	if from > s.offset {
+		from = s.offset
+	}
+	if max <= 0 {
+		max = maxFrameSize
+	}
+
+	avail := s.offset - from
+	if avail <= 0 {
+		return nil, from, true, nil
+	}
+	want := avail
+	if int64(max) < want {
+		want = int64(max)
+	}
+
+	diskPos := from - s.baseOffset
+	f, err := os.Open(filepath.Join(s.cfg.HomeDir, EventsFileName))
+	if err != nil {
+		return nil, from, false, fmt.Errorf("agentsupervisor: open events for read: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.Seek(diskPos, io.SeekStart); err != nil {
+		return nil, from, false, fmt.Errorf("agentsupervisor: seek events: %w", err)
+	}
+	buf := make([]byte, want)
+	rn, rerr := io.ReadFull(f, buf)
+	if rerr != nil && rerr != io.ErrUnexpectedEOF {
+		return nil, from, false, fmt.Errorf("agentsupervisor: read events: %w", rerr)
+	}
+	next = from + int64(rn)
+	eof = next >= s.offset
+	return buf[:rn], next, eof, nil
+}
+
+// Ack truncates the events the daemon has consumed up to the ABSOLUTE offset
+// `to`, keeping absolute offsets STABLE across the truncation and bounding
+// events.jsonl growth. It returns the new baseOffset.
+//
+// Scheme (4b): `to` is clamped to [baseOffset, offset]. We rewrite events.jsonl
+// to hold only the tail file[to-baseOffset:] via a temp file + atomic rename,
+// then close the old append fd and re-open a fresh O_APPEND fd on the rewritten
+// file, and set baseOffset = to. Absolute offsets do NOT shift: a later read for
+// absolute O still maps to disk pos O-baseOffset on the smaller file. The whole
+// op holds offMu, so the drain's appendEvents (which shares s.eventsFile) is
+// serialized against the rewrite + fd swap and never writes to a stale inode.
+func (s *Supervisor) Ack(to int64) (int64, error) {
+	s.offMu.Lock()
+	defer s.offMu.Unlock()
+
+	if s.eventsClosed {
+		return s.baseOffset, ErrSupervisorClosed
+	}
+	if to < s.baseOffset {
+		to = s.baseOffset
+	}
+	if to > s.offset {
+		to = s.offset
+	}
+	if to == s.baseOffset {
+		return s.baseOffset, nil // nothing to truncate
+	}
+
+	path := filepath.Join(s.cfg.HomeDir, EventsFileName)
+
+	// Read the surviving tail file[to-baseOffset:] from a fresh read handle.
+	src, err := os.Open(path)
+	if err != nil {
+		return s.baseOffset, fmt.Errorf("agentsupervisor: ack open events: %w", err)
+	}
+	if _, err := src.Seek(to-s.baseOffset, io.SeekStart); err != nil {
+		src.Close()
+		return s.baseOffset, fmt.Errorf("agentsupervisor: ack seek: %w", err)
+	}
+	tail, rerr := io.ReadAll(src)
+	src.Close()
+	if rerr != nil {
+		return s.baseOffset, fmt.Errorf("agentsupervisor: ack read tail: %w", rerr)
+	}
+
+	// Write the tail to a temp file and atomically rename it over events.jsonl.
+	tmp := path + ".ack.tmp"
+	if err := os.WriteFile(tmp, tail, 0o600); err != nil {
+		return s.baseOffset, fmt.Errorf("agentsupervisor: ack write temp: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return s.baseOffset, fmt.Errorf("agentsupervisor: ack rename: %w", err)
+	}
+
+	// Swap the append fd to the rewritten file so subsequent appends target the
+	// truncated inode (the old fd referenced the now-unlinked original).
+	newFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return s.baseOffset, fmt.Errorf("agentsupervisor: ack reopen append: %w", err)
+	}
+	if s.eventsFile != nil {
+		_ = s.eventsFile.Close()
+	}
+	s.eventsFile = newFile
+	s.baseOffset = to
+	return s.baseOffset, nil
+}
+
+// ErrOffsetTruncated is returned by ReadAt when the requested absolute offset is
+// below baseOffset (already acked + truncated off the front).
+var ErrOffsetTruncated = errors.New("agentsupervisor: " + ErrCodeOffsetTruncated)
 
 // ChildPID returns the child (claude) pid, or 0 before Start / after a failed
 // start.

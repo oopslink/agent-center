@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -111,6 +112,20 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	fmt.Fprintf(errw, "[agent-supervisor] agent=%s instance=%s child_pid=%d home=%s\n",
 		agentID, sup.InstanceID(), sup.ChildPID(), homeDir)
 
+	// SERVE the reconnectable unix-socket RPC (s2) so a returning daemon can
+	// re-attach (hello/inject/read/ack). It runs alongside the drain; on
+	// serveCtx cancel (signal/child-exit) Serve closes the listener and removes
+	// the socket. Serving is best-effort: a listen failure is logged but does
+	// NOT bring down the survival core (s1 behavior stays intact).
+	serveCtx, cancelServe := context.WithCancel(ctx)
+	defer cancelServe()
+	sockPath := filepath.Join(homeDir, agentsupervisor.DefaultSocketName)
+	go func() {
+		if err := sup.Serve(serveCtx, sockPath); err != nil {
+			fmt.Fprintf(errw, "[agent-supervisor] serve: %v\n", err)
+		}
+	}()
+
 	// SIGINT/SIGTERM → graceful Stop (clean teardown). NOTE: this is the
 	// operator-initiated shutdown path. A DAEMON death does NOT signal the
 	// supervisor (it escaped the group), which is exactly how it survives.
@@ -119,10 +134,13 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	select {
 	case <-sigCh:
 		fmt.Fprintln(errw, "[agent-supervisor] signal received, stopping child")
+		cancelServe()
 		_ = sup.Stop(true /*graceful*/)
 	case <-sup.Done():
-		// Child exited on its own.
+		// Child exited on its own; stop serving the socket.
+		cancelServe()
 	case <-ctx.Done():
+		cancelServe()
 		_ = sup.Stop(true)
 	}
 
