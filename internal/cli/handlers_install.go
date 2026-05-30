@@ -422,7 +422,11 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err := os.MkdirAll(layout.LogsDir, 0o755); err != nil {
 		return PrintError(errw, FormatText, "install_mkdir_logs_failed", err.Error(), ExitBusinessError)
 	}
-	currentBin := filepath.Join(layout.CurrentBinDir, "agent-center-worker-daemon")
+	// v2.7 (b) cutover: the worker runs as the UNIFIED `agent-center` binary
+	// (`agent-center worker run ...`), not the retired standalone
+	// agent-center-worker-daemon — so its os.Executable() can route the
+	// worker agent-supervisor / mcp-host subcommands it spawns.
+	currentBin := filepath.Join(layout.CurrentBinDir, "agent-center")
 	// A2: bootstrap URL is passed straight through; fingerprint is
 	// embedded in the URL (tcp://<fp>@host:port). A3 (#37) will burn
 	// the token on first enroll. Until then the worker daemon will

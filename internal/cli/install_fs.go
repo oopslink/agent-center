@@ -169,7 +169,10 @@ func copyBinaries(layout installLayout) (centerBin, workerBin string, err error)
 	if err := os.MkdirAll(layout.BinDir, 0o755); err != nil {
 		return "", "", fmt.Errorf("mkdir %s: %w", layout.BinDir, err)
 	}
-	for _, name := range []string{"agent-center", "agent-center-worker-daemon", "fakeagent"} {
+	// v2.7 (b) cutover: the worker is now the unified `agent-center` binary
+	// (`agent-center worker run`); the standalone agent-center-worker-daemon is
+	// retired and no longer copied/deployed.
+	for _, name := range []string{"agent-center", "fakeagent"} {
 		src := filepath.Join(srcDir, name)
 		if _, err := os.Stat(src); err != nil {
 			if os.IsNotExist(err) {
@@ -186,9 +189,9 @@ func copyBinaries(layout installLayout) (centerBin, workerBin string, err error)
 			return "", "", fmt.Errorf("copy %s → %s: %w", src, dst, err)
 		}
 	}
-	return filepath.Join(layout.BinDir, "agent-center"),
-		filepath.Join(layout.BinDir, "agent-center-worker-daemon"),
-		nil
+	// workerBin is the same unified binary (worker runs as `agent-center worker run`).
+	agentCenterBin := filepath.Join(layout.BinDir, "agent-center")
+	return agentCenterBin, agentCenterBin, nil
 }
 
 // selfBinDir returns the directory containing the running binary.

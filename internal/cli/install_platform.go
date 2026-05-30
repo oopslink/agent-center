@@ -151,15 +151,18 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath, logsDir st
 
 // renderWorkerServiceUnit ditto for worker.
 //
-// v2.4-D-F4 X1 fix: the binary is the standalone
-// `agent-center-worker-daemon` (cmd/worker-daemon/main.go), not the
-// `agent-center` multi-tool binary. Its arg parser is flag.Parse()
-// over flags only — no positional sub-commands. Earlier versions
-// here prepended ["worker", "run", ...] which flag.Parse() treated
-// as a non-flag terminator, causing every flag after to be ignored
-// and the daemon to exit with `--worker-id is required`.
+// v2.7 (b) cutover: the worker now runs as `agent-center worker run` (the unified
+// binary — so the daemon's os.Executable() can route the worker agent-supervisor /
+// mcp-host subcommands it spawns). binaryPath is therefore `agent-center` and the
+// args are PREFIXED with the `worker run` sub-command path. This REVERSES the
+// v2.4-D-F4 X1 fix (which dropped the prefix because the OLD standalone
+// `agent-center-worker-daemon` used flag.Parse() and treated `worker run` as a
+// non-flag terminator): the unified CLI router consumes the sub-command path
+// first, then `worker run` flag-parses the remainder — so the prefix is correct
+// and required.
 func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, caps, logsDir string) string {
 	args := []string{
+		"worker", "run",
 		"--config=" + configPath,
 		"--worker-id=" + workerID,
 		"--admin-target=" + bootstrap,

@@ -276,27 +276,28 @@ func TestSplitSpaces(t *testing.T) {
 	}
 }
 
-// v2.4-D-F4 X1 fix: the worker service unit's binary IS the
-// worker-daemon, whose flag.Parse() only knows flags — no positional
-// `worker run` prefix, which previously caused launchd-launched
-// daemons to crash with `--worker-id is required`.
-func TestRenderWorkerServiceUnit_NoPositionalPrefix(t *testing.T) {
+// v2.7 (b) cutover: the worker service unit now runs the UNIFIED `agent-center`
+// binary as `agent-center worker run ...`, so the `worker run` sub-command prefix
+// IS present (reversing the v2.4-D-F4 X1 expectation — the unified CLI router
+// consumes the sub-command path before flag parsing, so the prefix is correct).
+func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 	sp := servicePaths{
 		ServiceManager:  "launchd",
 		WorkerServiceID: "com.agent-center.worker",
 		WorkerUnitPath:  "/tmp/test.plist",
 		UserMode:        true,
 	}
-	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center-worker-daemon",
+	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center",
 		"/opt/agent-center/config.yaml",
 		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode", "/opt/agent-center/logs")
-	if strings.Contains(body, "<string>worker</string>") {
-		t.Errorf("plist still has positional 'worker' prefix:\n%s", body)
+	// The `worker run` sub-command path must be present (as ordered plist args).
+	if !strings.Contains(body, "<string>worker</string>") {
+		t.Errorf("plist missing 'worker' sub-command prefix:\n%s", body)
 	}
-	if strings.Contains(body, "<string>run</string>") {
-		t.Errorf("plist still has positional 'run' prefix:\n%s", body)
+	if !strings.Contains(body, "<string>run</string>") {
+		t.Errorf("plist missing 'run' sub-command prefix:\n%s", body)
 	}
-	// All four required flags present.
+	// All required flags present.
 	for _, want := range []string{
 		"--worker-id=my-worker",
 		"--admin-target=tcp://host:7300",
