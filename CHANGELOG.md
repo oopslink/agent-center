@@ -79,6 +79,19 @@ ADR / phase plan landscape, see
   **Trigger:** when agent-claude failure diagnosis needs the child's own stderr →
   redirect the supervisor's claude stderr to a per-agent home file. Non-blocking;
   registered on the acceptance side (§A).
+- **Mode-B WorkItem-id rebind placement (deferred-with-trigger, defensive).** The
+  L2×Mode-B fix rebinds the in-flight WorkItem id onto the relaunched managedAgent's
+  `currentWorkItemID` AFTER `startSession` returns (in `bootReapRelaunch`), rather
+  than inside `startSession` at managedAgent creation. There is a theoretical window
+  between those two steps where a resume-phase result could read an empty id, but it
+  is UNREACHABLE today: under stream-json `--input-format`, claude does not turn on
+  `--resume`/`--fork-session` until it receives stdin input (the resume-nudge,
+  injected AFTER the bind), so no result can land before the bind. **Trigger:** a
+  future bind-point / nudge-timing refactor, OR observing any resume-phase (pre-nudge)
+  result → move the bind INTO `startSession` (set `currentWorkItemID` at managedAgent
+  creation = structurally window-free). Canonical record: the bind comment in
+  `internal/workerdaemon/boot_reconcile.go` (`bootReapRelaunch`); also registered on
+  the acceptance side (§A).
 
 ### Fixed
 

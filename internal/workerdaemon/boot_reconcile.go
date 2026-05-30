@@ -443,6 +443,15 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	// would silently remain active. Binding it here (to the SAME field
 	// surfaceTurnFailure reads) closes that no-silent-failure hole. Empty = idle
 	// relaunch (no in-flight work) → nothing to bind.
+	//
+	// 🕒 DEFERRED-WITH-TRIGGER (PM): binding AFTER startSession (vs inside it, at
+	// managedAgent creation) leaves a theoretical window where a resume-phase result
+	// could read an empty currentWorkItemID. It is UNREACHABLE today: under stream-json
+	// --input-format claude does NOT turn on --resume/--fork-session until it receives
+	// stdin input (the nudge, injected below — AFTER this bind), so no result can land
+	// before the bind. TRIGGER: a future bind-point/nudge-timing refactor, OR observing
+	// any resume-phase (pre-nudge) result → move the bind INTO startSession (set it at
+	// managedAgent creation, structurally window-free). (CHANGELOG + §A.)
 	if workItemID != "" {
 		c.mu.Lock()
 		if ma := c.agents[agentID]; ma != nil {
