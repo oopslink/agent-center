@@ -32,9 +32,19 @@ import (
 
 // envAllowExact: inherited env var names passed verbatim — the minimal system
 // vars the CLI needs to run (≈ the legacy AgentRunner allowlist).
+//
+// The HTTP-proxy vars are REQUIRED, not optional: in a proxied deployment claude
+// reaches the Anthropic API only through the proxy, so stripping them makes the API
+// reject the request ("403 Request not allowed" / authentication_failed) — exactly
+// the GATE-1 ship-blocker. They are standard routing config that every HTTP-client
+// child legitimately inherits, NOT worker secrets (those are AGENT_CENTER_*); no-op
+// when unset. Both cases (Go and Node honour either).
 var envAllowExact = map[string]bool{
 	"PATH": true, "HOME": true, "USER": true, "LOGNAME": true,
 	"LANG": true, "TZ": true, "TMPDIR": true, "SHELL": true,
+	// HTTP proxy (routing config — claude needs it to reach the Anthropic API).
+	"HTTP_PROXY": true, "HTTPS_PROXY": true, "NO_PROXY": true, "ALL_PROXY": true,
+	"http_proxy": true, "https_proxy": true, "no_proxy": true, "all_proxy": true,
 }
 
 // envAllowPrefix: pass any inherited var whose name starts with one of these —

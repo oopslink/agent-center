@@ -92,6 +92,27 @@ func TestBuildClaudeEnv_AgentEnvOverlaidAsIs(t *testing.T) {
 	}
 }
 
+// TestBuildClaudeEnv_KeepsProxyVars pins the GATE-1 fix: the standard HTTP-proxy
+// routing vars MUST pass through (claude reaches the Anthropic API only through the
+// proxy in a proxied deployment; stripping them → 403 authentication_failed). They
+// are routing config, NOT worker secrets — the AGENT_CENTER_* drop is unaffected.
+func TestBuildClaudeEnv_KeepsProxyVars(t *testing.T) {
+	source := []string{
+		"HTTP_PROXY=http://p:8080", "HTTPS_PROXY=http://p:8080", "NO_PROXY=localhost",
+		"http_proxy=http://p:8080", "https_proxy=http://p:8080", "no_proxy=localhost",
+		"AGENT_CENTER_ADMIN_TOKEN=acat_secret", // a worker secret — MUST still drop
+	}
+	got := envMap(BuildClaudeEnv(source, nil))
+	for _, k := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"} {
+		if _, ok := got[k]; !ok {
+			t.Fatalf("proxy var %q must pass through (claude needs it to reach the API through a proxy)", k)
+		}
+	}
+	if _, ok := got["AGENT_CENTER_ADMIN_TOKEN"]; ok {
+		t.Fatal("worker secret leaked — proxy allowlist must not weaken the secret drop")
+	}
+}
+
 // TestBuildSupervisorEnv_StripsWorkerSecrets pins the defense-in-depth ⑤: the
 // supervisor's OWN env also drops worker secrets.
 func TestBuildSupervisorEnv_StripsWorkerSecrets(t *testing.T) {
