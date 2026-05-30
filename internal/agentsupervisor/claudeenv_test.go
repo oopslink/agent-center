@@ -28,15 +28,17 @@ func TestBuildClaudeEnv_AllowlistDropsWorkerSecretsKeepsClaudeAuth(t *testing.T)
 	source := []string{
 		"PATH=/usr/bin", "HOME=/home/op", "LANG=en_US.UTF-8", "LC_ALL=C", "TZ=UTC",
 		"ANTHROPIC_API_KEY=sk-ant-xxx", // claude's own auth — MUST keep
-		"CLAUDE_CODE_SOMETHING=1",      // claude's own namespace — keep
-		"AGENT_CENTER_ADMIN_TOKEN=acat_secret", // worker secret — MUST drop
-		"SOME_UNKNOWN_SECRET=leak",             // unknown var — default-deny drop
-		"CLAUDE_CONFIG_DIR=/home/op/.claude",   // inherited — must NOT leak through
+		"CLAUDE_FOO=keep",              // claude's own (non-CODE) namespace — keep
+		"AGENT_CENTER_ADMIN_TOKEN=acat_secret",   // worker secret — MUST drop
+		"SOME_UNKNOWN_SECRET=leak",               // unknown var — default-deny drop
+		"CLAUDE_CONFIG_DIR=/home/op/.claude",     // inherited — must NOT leak through
+		"CLAUDE_CODE_SESSION_ID=parent-sess",     // parent SDK-runtime marker — MUST drop
+		"CLAUDE_CODE_ENTRYPOINT=cli",             // parent SDK-runtime marker — MUST drop
 	}
 	got := envMap(BuildClaudeEnv(source, "/agent/home/claude-config", nil))
 
-	// Kept: safe system + claude auth.
-	for _, k := range []string{"PATH", "HOME", "LANG", "LC_ALL", "TZ", "ANTHROPIC_API_KEY", "CLAUDE_CODE_SOMETHING"} {
+	// Kept: safe system + claude's own auth/config namespace.
+	for _, k := range []string{"PATH", "HOME", "LANG", "LC_ALL", "TZ", "ANTHROPIC_API_KEY", "CLAUDE_FOO"} {
 		if _, ok := got[k]; !ok {
 			t.Fatalf("allowlisted var %q was dropped", k)
 		}
@@ -47,6 +49,13 @@ func TestBuildClaudeEnv_AllowlistDropsWorkerSecretsKeepsClaudeAuth(t *testing.T)
 	}
 	if _, ok := got["SOME_UNKNOWN_SECRET"]; ok {
 		t.Fatal("unknown var leaked — default-deny allowlist failed")
+	}
+	// Dropped: the parent's CLAUDE_CODE_* SDK-runtime namespace (prevents nested
+	// -session confusion) — even though it matches the CLAUDE_ allow-prefix.
+	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_ENTRYPOINT"} {
+		if _, ok := got[k]; ok {
+			t.Fatalf("parent SDK-runtime var %q leaked into child claude env (CLAUDE_CODE_ deny failed)", k)
+		}
 	}
 	// Isolation: our CLAUDE_CONFIG_DIR wins, the operator's does not leak.
 	if got["CLAUDE_CONFIG_DIR"] != "/agent/home/claude-config" {

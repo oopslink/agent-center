@@ -52,11 +52,20 @@ var envAllowExact = map[string]bool{
 // secret. Worker secrets live under AGENT_CENTER_* (NOT allowlisted → dropped).
 var envAllowPrefix = []string{"LC_", "ANTHROPIC_", "CLAUDE_"}
 
-// envAllowed reports whether an inherited env var name is allowlisted. CLAUDE_CONFIG_DIR
-// is excluded here even though it matches CLAUDE_* — the supervisor SETS it to the
-// isolated dir, so an inherited value must never leak through.
+// envAllowed reports whether an inherited env var name is allowlisted.
+//
+// Two CLAUDE_* exclusions are applied even though they match the CLAUDE_ allow
+// -prefix below:
+//   - CLAUDE_CONFIG_DIR: the supervisor SETS it to the isolated dir, so an
+//     inherited value must never leak through.
+//   - CLAUDE_CODE_* (whole prefix): the PARENT claude-code's SDK-runtime markers
+//     (SESSION_ID / ENTRYPOINT / EXECPATH / TMPDIR / SSE_PORT / ...), NOT the
+//     child's auth/config — passing them through would confuse the child into a
+//     nested session. They are orthogonal to claude's own auth (ANTHROPIC_* / the
+//     remaining CLAUDE_*), so dropping the whole namespace is safe + future-proof
+//     (new CLAUDE_CODE_* are covered automatically); the child sets its own.
 func envAllowed(name string) bool {
-	if name == "CLAUDE_CONFIG_DIR" {
+	if name == "CLAUDE_CONFIG_DIR" || strings.HasPrefix(name, "CLAUDE_CODE_") {
 		return false
 	}
 	if envAllowExact[name] {
