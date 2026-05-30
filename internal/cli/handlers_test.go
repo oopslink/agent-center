@@ -665,12 +665,41 @@ func TestSystemCommands_VersionDevFallback(t *testing.T) {
 	}
 }
 
-func TestWorkerRunPlaceholder_Stub(t *testing.T) {
-	cmd := WorkerRunPlaceholder()
-	var buf bytes.Buffer
-	code := cmd.Run(context.Background(), nil, io.Discard, &buf)
-	if code != ExitNotImplemented {
-		t.Fatalf("code: %d", code)
+// TestWorkerRunCommand_RequiresWorkerID pins the usage guard: `worker run` with no
+// --worker-id returns ExitUsage BEFORE attempting any daemon bootstrap (so the test
+// is hermetic — no config/network).
+func TestWorkerRunCommand_RequiresWorkerID(t *testing.T) {
+	_, errOut, code := runHandler(t, WorkerRunCommand(), nil)
+	if code != ExitUsage {
+		t.Fatalf("missing --worker-id: code=%d want ExitUsage", code)
+	}
+	if !strings.Contains(errOut, "--worker-id is required") {
+		t.Fatalf("stderr=%q, want the --worker-id required message", errOut)
+	}
+}
+
+// TestWorkerRunCommand_FlagParity guards the `worker run` flag set against the
+// (retiring) standalone daemon — no silent drop / rename / default change (the
+// PM+Tester parity watch, v2.7 (b) cutover). Complements Tester's --help diff.
+func TestWorkerRunCommand_FlagParity(t *testing.T) {
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	_ = WorkerRunCommand().Flags(fs)
+	want := []string{
+		"config", "worker-id", "worker-name", "fake-agent", "poll-interval",
+		"capabilities", "admin-token", "admin-target", "server-fingerprint",
+		"skills-dir", "use-control-loop",
+	}
+	for _, name := range want {
+		if fs.Lookup(name) == nil {
+			t.Errorf("worker run missing flag --%s (parity with standalone daemon)", name)
+		}
+	}
+	// Behavior-critical default parity.
+	if f := fs.Lookup("poll-interval"); f != nil && f.DefValue != "1s" {
+		t.Errorf("--poll-interval default = %q, want 1s", f.DefValue)
+	}
+	if f := fs.Lookup("use-control-loop"); f != nil && f.DefValue != "false" {
+		t.Errorf("--use-control-loop default = %q, want false", f.DefValue)
 	}
 }
 

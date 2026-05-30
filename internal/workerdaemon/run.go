@@ -1,0 +1,272 @@
+package workerdaemon
+
+// run.go — the SINGLE-SOURCE worker-daemon bootstrap (v2.7 (b) cutover). Both
+// `agent-center worker run` (the unified-CLI entry) and cmd/worker-daemon (the
+// thin standalone wrapper, retiring) parse their flags into RunOptions and call
+// RunDaemon. Extracting the bootstrap here is what lets the daemon run under the
+// UNIFIED `agent-center` binary: RunDaemon sets AgentControllerConfig.BinaryPath
+// = os.Executable(), so when the process is `agent-center` it can route the
+// `worker agent-supervisor` and `worker mcp-host` subcommands (the spawn-bug fix —
+// the standalone `agent-center-worker-daemon` is flag-only and cannot).
+//
+// Per conventions § 0.4 the daemon never opens the SQLite file directly; all state
+// goes through the center AppService via the admin endpoint (AdminClient). cfg is
+// read only for paths (admin socket, token-file / agent-home location).
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/oopslink/agent-center/internal/admin/clienttransport"
+	"github.com/oopslink/agent-center/internal/config"
+)
+
+// RunOptions carries the resolved worker-daemon launch parameters. The caller
+// (CLI handler or standalone main) owns flag parsing and maps the values here.
+type RunOptions struct {
+	ConfigPath        string
+	WorkerID          string
+	WorkerName        string
+	FakeAgent         string
+	PollInterval      time.Duration
+	CapabilitiesCSV   string
+	AdminToken        string
+	AdminTarget       string
+	ServerFingerprint string
+	SkillsDir         string
+	UseControlLoop    bool
+}
+
+// RunDaemon boots and runs the worker daemon until ctx is cancelled or a SIGINT/
+// SIGTERM arrives, then drains in-flight executions (graceful shutdown). It is the
+// single source of truth for the daemon bootstrap (config → AdminClient → token
+// enroll-or-load → Runtime + AgentController → run). Returns nil on clean
+// shutdown; IsShutdownError reports the benign "shutdown grace exceeded" flavor.
+//
+// logf may be nil (defaults to a no-op).
+func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
+	if logf == nil {
+		logf = func(string) {}
+	}
+	if strings.TrimSpace(opts.WorkerID) == "" {
+		return fmt.Errorf("worker daemon: worker-id is required")
+	}
+
+	cfg, err := config.Load(config.LoadOptions{Path: opts.ConfigPath})
+	if err != nil {
+		var b strings.Builder
+		for _, r := range config.AsErrorList(err) {
+			fmt.Fprintf(&b, "%s; ", r)
+		}
+		return fmt.Errorf("worker daemon: config: %s", strings.TrimSpace(b.String()))
+	}
+
+	// Resolve admin target: --admin-target overrides cfg.Server.AdminSocketPath.
+	targetSpec := strings.TrimSpace(opts.AdminTarget)
+	if targetSpec == "" {
+		sock := strings.TrimSpace(cfg.Server.AdminSocketPath)
+		if sock == "" {
+			return fmt.Errorf("worker daemon: either --admin-target (e.g. unix:/path or tcp://host:port) or server.admin_socket_path is required")
+		}
+		targetSpec = "unix:" + sock
+	}
+	parsedTarget, err := clienttransport.ParseTarget(targetSpec)
+	if err != nil {
+		return fmt.Errorf("worker daemon: %w", err)
+	}
+	fingerprint := strings.TrimSpace(opts.ServerFingerprint)
+	if fingerprint == "" {
+		fingerprint = strings.TrimSpace(os.Getenv("AGENT_CENTER_SERVER_FINGERPRINT"))
+	}
+	token := strings.TrimSpace(opts.AdminToken)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("AGENT_CENTER_ADMIN_TOKEN"))
+	}
+	client, err := NewAdminClientFromTarget(parsedTarget, fingerprint, 30*time.Second)
+	if err != nil {
+		return fmt.Errorf("worker daemon: admin client: %w", err)
+	}
+	client = client.WithToken(token)
+
+	// Long-term worker token persistence (v2.4-D-X1): load an existing token and
+	// skip enroll, else enroll-with-exchange and persist the minted long-term token.
+	tokenPath := workerTokenFilePath(cfg)
+	enrollNeeded := true
+	if existing, rerr := readWorkerTokenFile(tokenPath); rerr == nil && existing != "" {
+		client = client.WithToken(existing)
+		token = existing
+		enrollNeeded = false
+		logf("loaded long-term token from " + tokenPath)
+	} else if rerr != nil && !os.IsNotExist(rerr) {
+		logf(fmt.Sprintf("warning: read %s: %v — will try enroll", tokenPath, rerr))
+	}
+	if enrollNeeded {
+		ctxEnroll, cancelEnroll := context.WithTimeout(ctx, 30*time.Second)
+		enrollResp, eerr := client.EnrollWithExchange(ctxEnroll, opts.WorkerID, opts.WorkerName, parseCaps(opts.CapabilitiesCSV))
+		cancelEnroll()
+		if eerr != nil {
+			return fmt.Errorf("worker daemon: enroll failed: %w", eerr)
+		}
+		if enrollResp.AdminTokenError != "" {
+			return fmt.Errorf("worker daemon: enroll succeeded but server failed to mint long-term token: %s", enrollResp.AdminTokenError)
+		}
+		if enrollResp.AdminToken == "" {
+			return fmt.Errorf("worker daemon: enroll succeeded but server returned no admin_token (older center? check version)")
+		}
+		if werr := writeWorkerTokenFile(tokenPath, enrollResp.AdminToken); werr != nil {
+			return fmt.Errorf("worker daemon: failed to persist long-term token to %s: %w", tokenPath, werr)
+		}
+		client = client.WithToken(enrollResp.AdminToken)
+		token = enrollResp.AdminToken
+		logf("enrolled + persisted long-term token to " + tokenPath)
+	}
+
+	// Build Runtime config.
+	overrides := map[string]string{}
+	if strings.TrimSpace(opts.FakeAgent) != "" {
+		overrides["fakeagent"] = opts.FakeAgent
+	}
+	pollInterval := opts.PollInterval
+	if pollInterval <= 0 {
+		pollInterval = time.Second
+	}
+	caps := parseCaps(opts.CapabilitiesCSV)
+	rtCfg := RuntimeConfig{
+		WorkerID:          opts.WorkerID,
+		Capabilities:      caps,
+		PollInterval:      pollInterval,
+		AgentCLIOverrides: overrides,
+		Logger:            logf,
+		// main already ran enroll-or-load above → the runtime loop must not re-enroll.
+		SkipInitialEnroll: true,
+	}
+	var skillLoader SkillLoader
+	if strings.TrimSpace(opts.SkillsDir) != "" {
+		skillLoader = FSSkillLoader{FS: os.DirFS(opts.SkillsDir)}
+	}
+	injector := NewMCPInjector(NewAdminClientSecretResolver(client))
+
+	// v2.7 (b) cutover: BinaryPath = os.Executable(). When the daemon runs as the
+	// unified `agent-center` binary this routes `worker agent-supervisor` +
+	// `worker mcp-host` (the spawn-bug fix). The AgentController stays DORMANT
+	// unless --use-control-loop wires ControlClient (see below).
+	binPath, _ := os.Executable()
+	if controller, cerr := NewAgentController(AgentControllerConfig{
+		Reporter:          client,
+		Resumer:           client,
+		WorkerID:          opts.WorkerID,
+		AdminURL:          targetSpec,
+		WorkerToken:       token,
+		ServerFingerprint: fingerprint,
+		BinaryPath:        binPath,
+		AgentHomeBase:     agentHomeBase(cfg),
+		Logger:            logf,
+	}); cerr != nil {
+		logf("warning: agent controller not wired: " + cerr.Error())
+	} else {
+		rtCfg.ControlHandler = controller
+		// The activation line: only --use-control-loop makes ControlClient live →
+		// (a) starts the control-stream execution loop, (b) gates the legacy dispatch
+		// poll OFF. Default false → legacy path, unchanged behavior.
+		if opts.UseControlLoop {
+			rtCfg.ControlClient = client
+			logf("v2.7 D2-f: control-stream execution path ENABLED (legacy dispatch disabled)")
+		}
+	}
+
+	rt := NewRuntimeWithDeps(rtCfg, client, nil, RuntimeDeps{
+		SkillLoader: skillLoader,
+		MCPInjector: injector,
+	})
+
+	// Signal-aware context (SIGINT/SIGTERM → cancel → graceful drain).
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+	go func() {
+		select {
+		case s := <-sigCh:
+			logf(fmt.Sprintf("signal %s received; cancelling", s))
+			cancel()
+		case <-runCtx.Done():
+		}
+	}()
+
+	logf(fmt.Sprintf("starting: worker_id=%s target=%s poll=%s overrides=%d",
+		opts.WorkerID, targetSpec, pollInterval, len(overrides)))
+	return rt.Run(runCtx)
+}
+
+// IsShutdownError reports whether err is the benign "shutdown grace exceeded"
+// flavor (a clean enough shutdown → exit 0) versus a fatal transport/config error.
+func IsShutdownError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "shutdown grace exceeded")
+}
+
+// parseCaps splits the comma-separated capabilities list into a trimmed slice.
+// Empty input yields nil (the enroll handler tolerates nil but not [""]).
+func parseCaps(csv string) []string {
+	csv = strings.TrimSpace(csv)
+	if csv == "" {
+		return nil
+	}
+	var out []string
+	for _, c := range strings.Split(csv, ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// workerTokenFilePath returns the path the daemon persists its long-term admin
+// token to (next to the worker's SQLite DB so backup boundaries match).
+func workerTokenFilePath(cfg config.Config) string {
+	sqlitePath := strings.TrimSpace(cfg.Server.SqlitePath)
+	if sqlitePath == "" {
+		return "worker-token"
+	}
+	return filepath.Join(filepath.Dir(sqlitePath), "worker-token")
+}
+
+// agentHomeBase returns the runtime home root for the per-agent layout
+// (workers/{worker_id}/agents/{agent_id}/); next to the worker SQLite DB, else
+// "agent-homes" in the cwd.
+func agentHomeBase(cfg config.Config) string {
+	sqlitePath := strings.TrimSpace(cfg.Server.SqlitePath)
+	if sqlitePath == "" {
+		return "agent-homes"
+	}
+	return filepath.Join(filepath.Dir(sqlitePath), "agent-homes")
+}
+
+// readWorkerTokenFile reads a previously-persisted long-term token (trimmed).
+// Callers use os.IsNotExist on the error to distinguish first-boot from IO failure.
+func readWorkerTokenFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// writeWorkerTokenFile atomically writes the token (mode 0600, tmp-then-rename so
+// a crash mid-write never leaves half a token).
+func writeWorkerTokenFile(path, token string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(token+"\n"), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}

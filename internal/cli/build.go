@@ -103,7 +103,7 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 			return nil, "", err
 		}
 	}
-	if err := router.Add([]string{"worker"}, WorkerRunPlaceholder()); err != nil {
+	if err := router.Add([]string{"worker"}, WorkerRunCommand()); err != nil {
 		return nil, "", err
 	}
 	// v2.7 b3-i: per-agent stdio MCP server (system; spawned by the daemon).

@@ -311,24 +311,6 @@ func MigrateUpCommand() *Command {
 	}
 }
 
-// WorkerRunPlaceholder returns the `worker run` daemon stub. The real
-// daemon ships as a separate binary (`cmd/worker-daemon`) so the
-// daemon process never accidentally inherits the CLI's open DB handle
-// (conventions § 0.4: worker daemon must talk to the center via the
-// admin endpoint, not by re-opening sqlite). This placeholder points
-// users at the correct binary.
-func WorkerRunPlaceholder() *Command {
-	return placeholderCommand("run",
-		"Run the worker daemon (see cmd/worker-daemon)",
-		"The worker daemon ships as a separate binary so it cannot accidentally "+
-			"open the SQLite file directly (conventions § 0.4). Build + run it with:\n\n"+
-			"  go build -o ./bin/agent-center-worker-daemon ./cmd/worker-daemon\n"+
-			"  ./bin/agent-center-worker-daemon --config=<path> --worker-id=<id>\n\n"+
-			"It talks to the running agent-center server over the admin unix socket "+
-			"configured in server.admin_socket_path.",
-	)
-}
-
 // WorkerShimPlaceholder is the `worker shim` entry point. v1 builds the
 // shim runtime as a library (internal/shim) and offers a thin CLI hook
 // that delegates to it. Daemon spawns shim via this entry; users do not

@@ -373,13 +373,17 @@ func TestE2E9_SupervisorRemoved(t *testing.T) {
 	}
 }
 
-func TestE2E9_WorkerRunStub(t *testing.T) {
+// TestE2E9_WorkerRunRequiresWorkerID verifies `worker run` now routes to the real
+// daemon handler (v2.7 (b) unified binary) and requires --worker-id, replacing the
+// old not-implemented stub. Assertion owned by Tester (msg 2ce24698): no
+// --worker-id → exit 2 (ExitUsage) + stderr "--worker-id is required".
+func TestE2E9_WorkerRunRequiresWorkerID(t *testing.T) {
 	h := newHarness(t)
 	_, errOut, code := h.run("worker", "run")
-	if code != 64 {
-		t.Fatalf("expected exit 64, got %d", code)
+	if code != 2 {
+		t.Fatalf("expected exit 2 (ExitUsage), got %d", code)
 	}
-	if !strings.Contains(errOut, "not_implemented_in_phase_1") {
+	if !strings.Contains(errOut, "--worker-id is required") {
 		t.Fatalf("stderr: %s", errOut)
 	}
 }

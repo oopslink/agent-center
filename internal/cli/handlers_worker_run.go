@@ -1,0 +1,86 @@
+package cli
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+
+	"github.com/oopslink/agent-center/internal/workerdaemon"
+)
+
+// WorkerRunCommand is the `worker run` daemon entry (v2.7 (b) cutover). The worker
+// daemon now ships INSIDE the unified `agent-center` binary so its os.Executable()
+// can route the `worker agent-supervisor` and `worker mcp-host` subcommands the
+// daemon spawns (the spawn-bug fix; the retired standalone `agent-center-worker-
+// daemon` was flag-only and could not route them).
+//
+// § 0.4 is honored by construction: the daemon talks to the center ONLY via the
+// admin endpoint (AdminClient) and never opens the SQLite file — so this CLI
+// subcommand holds no DB handle. The flag set is kept STRICTLY in parity with the
+// (retiring) standalone binary so operator behavior and Tester runbooks are
+// unchanged; the real bootstrap lives in workerdaemon.RunDaemon (single source,
+// shared with the thin standalone wrapper).
+func WorkerRunCommand() *Command {
+	return &Command{
+		Name:    "run",
+		Summary: "Run the worker daemon (control-stream executor; v2.7 (b) unified binary)",
+		LongHelp: "Runs the worker daemon in THIS unified agent-center binary so the daemon's " +
+			"os.Executable() can route the worker agent-supervisor / mcp-host subcommands it " +
+			"spawns. Talks to the center only over the admin endpoint (never opens SQLite, " +
+			"§ 0.4). Enrolls (or loads the persisted long-term token), then runs the legacy " +
+			"dispatch loop — or, with --use-control-loop, the v2.7 control-stream execution " +
+			"path (which disables the legacy loop). Graceful drain on SIGINT/SIGTERM.",
+		Flags: func(fs *flag.FlagSet) Handler {
+			cfgPath := fs.String("config", "", "path to agent-center.yaml")
+			workerID := fs.String("worker-id", "", "worker identity (required)")
+			workerName := fs.String("worker-name", "",
+				"operator-facing friendly label set at enroll time (v2.4-D-X1); blank defaults to worker-id server-side")
+			fakeAgent := fs.String("fake-agent", "", "override path for the 'fakeagent' agent_cli (e2e tests)")
+			pollInterval := fs.Duration("poll-interval", 1*time.Second, "queue poll interval")
+			capsFlag := fs.String("capabilities", "", "comma-separated capability list")
+			adminToken := fs.String("admin-token", "",
+				"admin bearer token (required by v2.3-3a auth); falls back to AGENT_CENTER_ADMIN_TOKEN env")
+			adminTarget := fs.String("admin-target", "",
+				"admin endpoint, e.g. unix:/run/admin.sock or tcp://host:7300 (default: cfg.server.admin_socket_path)")
+			serverFingerprint := fs.String("server-fingerprint", "",
+				"sha256:HH:HH:... pinned server cert fingerprint (required with --admin-target=tcp://...); falls back to AGENT_CENTER_SERVER_FINGERPRINT env")
+			skillsDir := fs.String("skills-dir", "",
+				"directory containing worker-agent.md + extra skills (real-agent dispatch)")
+			useControlLoop := fs.Bool("use-control-loop", false,
+				"v2.7 D2-f: run the new control-stream execution path (disables the legacy dispatch loop)")
+			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+				if strings.TrimSpace(*workerID) == "" {
+					fmt.Fprintln(errw, "Error: worker run: --worker-id is required")
+					return ExitUsage
+				}
+				logf := func(msg string) { fmt.Fprintf(errw, "[worker] %s\n", msg) }
+				err := workerdaemon.RunDaemon(ctx, workerdaemon.RunOptions{
+					ConfigPath:        *cfgPath,
+					WorkerID:          *workerID,
+					WorkerName:        *workerName,
+					FakeAgent:         *fakeAgent,
+					PollInterval:      *pollInterval,
+					CapabilitiesCSV:   *capsFlag,
+					AdminToken:        *adminToken,
+					AdminTarget:       *adminTarget,
+					ServerFingerprint: *serverFingerprint,
+					SkillsDir:         *skillsDir,
+					UseControlLoop:    *useControlLoop,
+				}, logf)
+				if err != nil {
+					if workerdaemon.IsShutdownError(err) {
+						logf(err.Error())
+						return ExitOK
+					}
+					fmt.Fprintf(errw, "Error: worker run: %v\n", err)
+					return ExitBusinessError
+				}
+				logf("shutdown complete")
+				return ExitOK
+			}
+		},
+	}
+}
