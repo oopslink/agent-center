@@ -118,6 +118,63 @@ func TestWorkItem_FailAndCancel(t *testing.T) {
 	}
 }
 
+// TestWorkItem_FailFromAgentDeath pins the v2.7 GATE-7 Mode-B cascade edge + its
+// STRUCTURAL guard: FailFromAgentDeath is the ONLY path that may move
+// waiting_input→failed; the general Fail()/transition map stays restricted, so the
+// terminal edge is reachable only via the agent-death cascade by construction.
+func TestWorkItem_FailFromAgentDeath(t *testing.T) {
+	// active → failed.
+	a := newWI(t)
+	_ = a.Activate(t0)
+	if err := a.FailFromAgentDeath(t0); err != nil {
+		t.Fatalf("active→FailFromAgentDeath: %v", err)
+	}
+	if a.Status() != WorkItemFailed {
+		t.Fatalf("want failed, got %s", a.Status())
+	}
+
+	// waiting_input: the GENERAL path must STILL reject →failed (structural guard).
+	b := newWI(t)
+	_ = b.Activate(t0)
+	_ = b.WaitInput(t0)
+	if b.Status() != WorkItemWaitingInput {
+		t.Fatal("setup: want waiting_input")
+	}
+	if WorkItemWaitingInput.CanTransitionTo(WorkItemFailed) {
+		t.Fatal("transition map must NOT globally allow waiting_input→failed")
+	}
+	if err := b.Fail(t0); err != ErrWorkItemIllegalMove {
+		t.Fatalf("general Fail() from waiting_input must stay illegal, got %v", err)
+	}
+	if b.Status() != WorkItemWaitingInput {
+		t.Fatal("rejected Fail() must not mutate status")
+	}
+	// ...but FailFromAgentDeath DOES move waiting_input→failed (the dedicated edge).
+	if err := b.FailFromAgentDeath(t0); err != nil {
+		t.Fatalf("waiting_input→FailFromAgentDeath: %v", err)
+	}
+	if b.Status() != WorkItemFailed {
+		t.Fatalf("want failed, got %s", b.Status())
+	}
+
+	// queued (not in flight) → illegal.
+	c := newWI(t)
+	if err := c.FailFromAgentDeath(t0); err != ErrWorkItemIllegalMove {
+		t.Fatalf("queued FailFromAgentDeath want illegal, got %v", err)
+	}
+
+	// already terminal → no-op (idempotent), status unchanged.
+	d := newWI(t)
+	_ = d.Activate(t0)
+	_ = d.Done(t0)
+	if err := d.FailFromAgentDeath(t0); err != nil {
+		t.Fatalf("terminal FailFromAgentDeath must be a no-op, got %v", err)
+	}
+	if d.Status() != WorkItemDone {
+		t.Fatal("terminal status must be unchanged")
+	}
+}
+
 func TestRehydrateWorkItem_BadStatus(t *testing.T) {
 	if _, err := RehydrateWorkItem(RehydrateWorkItemInput{Status: "bad", Version: 1}); err != ErrWorkItemBadStatus {
 		t.Fatalf("want ErrWorkItemBadStatus, got %v", err)

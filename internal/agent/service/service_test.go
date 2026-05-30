@@ -347,6 +347,67 @@ func TestAvailability(t *testing.T) {
 	}
 }
 
+// TestMarkAgentFailed_CascadesInflightWorkItems pins the v2.7 GATE-7 Mode-B B3
+// cascade: agent terminal-failed → its in-flight WorkItems (active + waiting_input)
+// → failed atomically, terminal ones untouched. Also asserts the STRUCTURAL guard:
+// the general feedback path (MarkWorkItemState "failed") on a waiting_input WI is
+// STILL rejected — only the agent-death cascade may move waiting_input→failed.
+func TestMarkAgentFailed_CascadesInflightWorkItems(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	if err := f.svc.StartAgent(ctx, id); err != nil { // → running (MarkFailed needs running/error)
+		t.Fatal(err)
+	}
+
+	mkWI := func(wiID string, prep func(*agent.AgentWorkItem)) {
+		wi, err := agent.NewWorkItem(agent.NewWorkItemInput{ID: wiID, AgentID: id, TaskRef: "task:" + wiID, CreatedAt: tNow})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.workItems.Save(ctx, wi); err != nil {
+			t.Fatal(err)
+		}
+		prep(wi)
+		if err := f.workItems.Update(ctx, wi); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkWI("wi-active", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow) })
+	mkWI("wi-wait", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow); _ = w.WaitInput(tNow) })
+	mkWI("wi-done", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow); _ = w.Done(tNow) })
+
+	// Structural guard: the GENERAL feedback path must STILL reject
+	// waiting_input→failed (the edge is not globally open).
+	if err := f.svc.MarkWorkItemState(ctx, id, "wi-wait", WorkItemFeedbackFailed, tNow); err != agent.ErrWorkItemIllegalMove {
+		t.Fatalf("general MarkWorkItemState(failed) on waiting_input must stay illegal, got %v", err)
+	}
+
+	// Terminal: agent → failed cascades ALL in-flight WIs → failed.
+	if err := f.svc.MarkAgentFailed(ctx, id, "crash-loop", tNow); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := f.svc.GetAgent(ctx, id)
+	if a.Lifecycle() != agent.LifecycleFailed || a.LifecycleError() != "crash-loop" {
+		t.Fatalf("agent want failed+cause, got %s / %q", a.Lifecycle(), a.LifecycleError())
+	}
+	items, _ := f.svc.ListWorkItems(ctx, id)
+	got := map[string]agent.WorkItemStatus{}
+	for _, wi := range items {
+		got[wi.ID()] = wi.Status()
+	}
+	if got["wi-active"] != agent.WorkItemFailed {
+		t.Fatalf("active WI must cascade → failed, got %s", got["wi-active"])
+	}
+	if got["wi-wait"] != agent.WorkItemFailed {
+		t.Fatalf("waiting_input WI must cascade → failed, got %s", got["wi-wait"])
+	}
+	if got["wi-done"] != agent.WorkItemDone {
+		t.Fatalf("terminal (done) WI must be untouched, got %s", got["wi-done"])
+	}
+}
+
 func TestReads(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

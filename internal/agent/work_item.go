@@ -194,6 +194,35 @@ func (w *AgentWorkItem) Wake(at time.Time) error {
 func (w *AgentWorkItem) Done(at time.Time) error { return w.move(WorkItemDone, at) }
 func (w *AgentWorkItem) Fail(at time.Time) error { return w.move(WorkItemFailed, at) }
 
+// FailFromAgentDeath terminates an IN-FLIGHT WorkItem (active or waiting_input)
+// because its owning agent hit the terminal crash-loop circuit-breaker (v2.7 GATE-7
+// Mode-B: self-heal relaunch cap exhausted → the agent is not auto-relaunched, so
+// the work cannot continue).
+//
+// This is the SOLE path that may move waiting_input→failed. The general transition
+// map (workItemTransitions, used by Fail()/move()) deliberately does NOT allow
+// waiting_input→failed, so the normal worker feedback (MarkWorkItemState "failed")
+// on a waiting_input WI still returns ErrWorkItemIllegalMove. The terminal edge is
+// therefore reachable ONLY via the agent-death cascade (MarkAgentFailed) — a
+// structural guard, by construction, not a behavioral coincidence. Idempotent: a
+// no-op (nil) if the WorkItem is already terminal; illegal from queued (not in
+// flight). Failure cause is traceable via the owning agent's lifecycleError.
+func (w *AgentWorkItem) FailFromAgentDeath(at time.Time) error {
+	if w.status.IsTerminal() {
+		return nil // already done/failed/canceled/superseded — nothing to cascade
+	}
+	if w.status != WorkItemActive && w.status != WorkItemWaitingInput {
+		return ErrWorkItemIllegalMove // not in flight (e.g. queued)
+	}
+	w.status = WorkItemFailed
+	if at.IsZero() {
+		at = time.Now()
+	}
+	w.updatedAt = at.UTC()
+	w.version++
+	return nil
+}
+
 // Cancel terminates a non-terminal WorkItem.
 func (w *AgentWorkItem) Cancel(at time.Time) error { return w.move(WorkItemCanceled, at) }
 

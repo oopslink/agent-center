@@ -127,11 +127,48 @@ func (s *Service) MarkAgentError(ctx context.Context, id agent.AgentID, msg stri
 }
 
 // MarkAgentFailed records the TERMINAL crash-loop circuit-breaker state (v2.7
-// GATE-7 Mode-B self-heal cap exhausted). Persist-only: NO outbox emit (result
-// feedback, not an intent change). Returns agent.ErrIllegalLifecycle (→ 409) if the
-// Agent is not running/error.
+// GATE-7 Mode-B self-heal cap exhausted) AND cascades: the agent's IN-FLIGHT
+// WorkItems (active / waiting_input) can never continue (no auto-relaunch), so they
+// are failed in the SAME transaction — so no observer ever reads the misleading
+// intermediate state "agent failed but its WorkItem still active" (the user's task
+// would look like it is still running). Atomic: agent→failed + in-flight WIs→failed
+// commit together or not at all.
+//
+// Persist-only: NO outbox emit (result feedback, not an intent change). Returns
+// agent.ErrIllegalLifecycle (→ 409) if the Agent is not running/error. Uses the
+// dedicated AgentWorkItem.FailFromAgentDeath edge (the ONLY path that may move
+// waiting_input→failed); the normal feedback path stays restricted. The WI failure
+// cause is traceable via the agent's lifecycleError (msg).
 func (s *Service) MarkAgentFailed(ctx context.Context, id agent.AgentID, msg string, at time.Time) error {
-	return s.feedbackPersist(ctx, id, func(a *agent.Agent) error { return a.MarkFailed(msg, at) })
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		a, err := s.agents.FindByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := a.MarkFailed(msg, at); err != nil {
+			return err
+		}
+		if err := s.agents.Update(txCtx, a); err != nil {
+			return err
+		}
+		// Cascade the agent-death to its in-flight WorkItems (active + waiting_input).
+		wis, err := s.workItems.ListByAgent(txCtx, id)
+		if err != nil {
+			return err
+		}
+		for _, wi := range wis {
+			if st := wi.Status(); st != agent.WorkItemActive && st != agent.WorkItemWaitingInput {
+				continue // only in-flight WorkItems cascade
+			}
+			if err := wi.FailFromAgentDeath(at); err != nil {
+				return err
+			}
+			if err := s.workItems.Update(txCtx, wi); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // feedbackPersist is the shared load → AR-transition → persist path for the
