@@ -224,6 +224,14 @@ func (s *recordingStarter) last() *fakeSession {
 	return s.sessions[len(s.sessions)-1]
 }
 
+// all returns a snapshot of every started session (for asserting per-agent
+// relaunch when boot reconcile starts more than one).
+func (s *recordingStarter) all() []*fakeSession {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]*fakeSession(nil), s.sessions...)
+}
+
 // newTestController builds a controller with the recording reporter + the
 // TEST-ONLY fake session starter (no real supervisor spawn), rooted at a temp
 // AgentHomeBase.

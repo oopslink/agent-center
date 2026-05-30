@@ -63,7 +63,7 @@ func TestReconcileOnBoot_SourceUnionAndRouting(t *testing.T) {
 		// running + ACTIVE in-flight → reapRelaunch + nudge.
 		{AgentID: "ag-relaunch", DesiredLifecycle: "running", Version: 7,
 			WorkItems: []ResumeWorkItem{{WorkItemID: "wi-1", Status: "active"}}},
-		// running + NO in-flight → NOOP (idle, don't relaunch).
+		// running + NO in-flight → reap+relaunch (Mode-B self-heal at boot), NO nudge.
 		{AgentID: "ag-idle", DesiredLifecycle: "running", Version: 3},
 		// stopped → reapOnly.
 		{AgentID: "ag-stopped", DesiredLifecycle: "stopped", Version: 2},
@@ -89,18 +89,31 @@ func TestReconcileOnBoot_SourceUnionAndRouting(t *testing.T) {
 		t.Fatalf("ReconcileOnBoot: %v", err)
 	}
 
-	// Exactly ONE session started — only ag-relaunch relaunches (idle/stopped/orphan
-	// must NOT start a session).
-	if rs.count() != 1 {
-		t.Fatalf("want exactly 1 relaunch session, got %d", rs.count())
+	// TWO sessions started: ag-relaunch (ACTIVE in-flight → relaunch + nudge) AND
+	// ag-idle (desired-running but idle → Mode-B self-heal relaunch at boot, NO
+	// nudge). ag-stopped / ag-orphan must NOT start a session.
+	if rs.count() != 2 {
+		t.Fatalf("want exactly 2 relaunch sessions (ag-relaunch + ag-idle), got %d", rs.count())
 	}
-	sess := rs.last()
-	if sess.cfg.AgentID != "ag-relaunch" {
-		t.Fatalf("relaunched the wrong agent: %s", sess.cfg.AgentID)
+	byAgent := map[string]*fakeSession{}
+	for _, s := range rs.all() {
+		byAgent[s.cfg.AgentID] = s
 	}
-	// The relaunched session got the resume nudge exactly once (ACTIVE WorkItem).
-	if msgs := sess.injectedMsgs(); len(msgs) != 1 || msgs[0] != DefaultResumeNudge {
-		t.Fatalf("relaunch must inject the resume nudge once, got %v", msgs)
+	if byAgent["ag-relaunch"] == nil {
+		t.Fatal("ag-relaunch (active in-flight) must relaunch")
+	}
+	if byAgent["ag-idle"] == nil {
+		t.Fatal("ag-idle (idle desired-running) must relaunch — Mode-B self-heal at boot")
+	}
+	if byAgent["ag-stopped"] != nil || byAgent["ag-orphan"] != nil {
+		t.Fatal("stopped / orphan must NOT start a session")
+	}
+	// ag-relaunch got the resume nudge exactly once (ACTIVE WorkItem); ag-idle did NOT.
+	if msgs := byAgent["ag-relaunch"].injectedMsgs(); len(msgs) != 1 || msgs[0] != DefaultResumeNudge {
+		t.Fatalf("ag-relaunch must inject the resume nudge once, got %v", msgs)
+	}
+	if msgs := byAgent["ag-idle"].injectedMsgs(); len(msgs) != 0 {
+		t.Fatalf("ag-idle (idle relaunch) must NOT nudge, got %v", msgs)
 	}
 
 	// The orphan was DISCOVERED via local enumeration (not in the center set) and
@@ -241,10 +254,14 @@ func TestDecideBootAction_FullCartesianProduct(t *testing.T) {
 			wantNudge: false,
 		},
 		{
-			name:     "unavailable + running+IDLE (no in-flight WI) → NOOP (do not relaunch idle)",
+			name:     "unavailable + running+IDLE (no in-flight WI) → reap+relaunch (Mode-B self-heal at boot; resume, no nudge)",
 			probe:    supervisormanager.Unavailable,
 			rec:      run("running", false, false),
-			wantKind: bootNoop,
+			wantKind: bootReapRelaunch,
+			// Relaunch the dead session even when idle (else a later agent.work dead-
+			// locks on no-session). No nudge: HasActive=false → nothing to re-drive;
+			// an arriving agent.work injects its own brief.
+			wantNudge: false,
 		},
 		{
 			name:     "unavailable + stopped → reap-only (dead + should-stop)",

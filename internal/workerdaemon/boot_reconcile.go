@@ -19,9 +19,9 @@ package workerdaemon
 //
 // = 8 cells, each with an EXPLICIT action (no implicit fallthrough). The matrix:
 //
-//	                | running+inflight | running+idle | stopped/stopping | no-record (orphan)
-//	  Reattachable  | reattach         | reattach     | stop+reap        | stop+reap (orphan)
-//	  Unavailable   | reap+relaunch    | NOOP         | reap-only        | reap-only (dead orphan)
+//	                | running+inflight | running+idle  | stopped/stopping | no-record (orphan)
+//	  Reattachable  | reattach         | reattach      | stop+reap        | stop+reap (orphan)
+//	  Unavailable   | reap+relaunch    | reap+relaunch | reap-only        | reap-only (dead orphan)
 //
 // Key calls (PM-confirmed):
 //   - reattach NEVER injects a nudge (claude is alive and mid-task; a nudge would
@@ -32,12 +32,16 @@ package workerdaemon
 //   - source set = center resume-set ∪ LOCAL home enumeration: a locally-alive
 //     supervisor the center has NO record of is an orphan that must be stopped —
 //     only the local enumeration surfaces it (the center never lists it).
-//   - Unavailable + running + NO in-flight WI → NOOP: an idle desired-running agent
-//     is NOT relaunched (it comes up on the next agent.work); relaunch fires ONLY
-//     when there is in-flight work to drive. (For v2.7 the only realistic boot-time
-//     Unavailable reasons are dead/missing, for which there is nothing to reap; the
-//     theoretical incompatible-idle survivor cannot occur until a protocol bump and
-//     is then handled by the reap-before-relaunch on the next work command.)
+//   - Unavailable + desired-running → reap+relaunch REGARDLESS of in-flight (v2.7
+//     Mode-B self-heal at boot). A desired-running agent whose supervisor is dead
+//     MUST have its session relaunched (resume via the durable epoch): if we noop'd
+//     an idle one, an agent.work arriving later would dead-lock forever ("no running
+//     session, retry after reconcile") because the original reconcile is already
+//     acked and won't replay, and work never starts a session (start is a lifecycle
+//     action). Nudge iff an ACTIVE WorkItem is in flight (re-drive an interrupted
+//     turn); a freshly-arriving agent.work injects its own brief on delivery. (The
+//     mid-run crash case — supervisor dies while the daemon stays UP — is handled by
+//     the onExit self-heal state machine, not this boot path.)
 
 import (
 	"context"
@@ -76,9 +80,11 @@ var _ bootReconciler = (*AgentController)(nil)
 type bootActionKind int
 
 const (
-	// bootNoop: do nothing. An idle desired-running agent whose supervisor is gone
-	// (comes up on the next agent.work) — we never relaunch an agent with no
-	// in-flight work to drive.
+	// bootNoop: do nothing — used ONLY for an UNKNOWN/uncategorised probe state (be
+	// conservative; never relaunch on a state we can't classify). A desired-running
+	// agent with a dead supervisor is NOT noop'd — it is reap+relaunched (Mode-B
+	// self-heal at boot, even when idle), so a later agent.work can't dead-lock on a
+	// missing session.
 	bootNoop bootActionKind = iota
 	// bootReattach: a live, compatible supervisor for a desired-running agent —
 	// re-attach to it (resume event-pump from its durable offset). NEVER nudges.
@@ -184,14 +190,17 @@ func decideBootAction(probe supervisormanager.ProbeState, rec *centerRecord) boo
 			// Dead orphan: no center record + nothing live → reap any residual.
 			return bootAction{Kind: bootReapOnly}
 		case rec.wantsRunning():
-			if rec.HasInflight {
-				// Desired-running with in-flight work → reap residual + relaunch;
-				// nudge iff an ACTIVE WorkItem is in flight.
-				return bootAction{Kind: bootReapRelaunch, Nudge: rec.HasActive}
-			}
-			// Desired-running but IDLE (no in-flight work) → NOOP: do not relaunch;
-			// it comes up on the next agent.work.
-			return bootAction{Kind: bootNoop}
+			// Desired-running but the local supervisor is dead → reap residual +
+			// relaunch (Mode-B self-heal at boot). startSession resumes via the
+			// DURABLE session.epoch → same session-id → continues context (not clean-
+			// slate). Relaunch even when NO in-flight WI is reported: a desired-running
+			// agent must have a live session, else an agent.work arriving later dead-
+			// locks ("no running session, retry after reconcile") — the original
+			// reconcile is already acked + won't replay, and work never starts a
+			// session (start is a lifecycle action). Nudge iff an ACTIVE WorkItem is in
+			// flight (re-drive an interrupted turn); a freshly-arriving agent.work
+			// injects its own brief on delivery.
+			return bootAction{Kind: bootReapRelaunch, Nudge: rec.HasActive}
 		default:
 			// Desired-stopped/stopping + already gone → reap any residual.
 			return bootAction{Kind: bootReapOnly}
