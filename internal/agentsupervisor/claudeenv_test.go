@@ -27,20 +27,19 @@ func envMap(entries []string) map[string]string {
 func TestBuildClaudeEnv_AllowlistDropsWorkerSecretsKeepsClaudeAuth(t *testing.T) {
 	source := []string{
 		"PATH=/usr/bin", "HOME=/home/op", "LANG=en_US.UTF-8", "LC_ALL=C", "TZ=UTC",
-		"ANTHROPIC_API_KEY=sk-ant-xxx",         // claude's own auth — MUST keep
-		"CLAUDE_FOO=keep",                      // claude's own (non-CODE) namespace — keep
-		"CLAUDE_CODE_OAUTH_TOKEN=sub-oauth-xxx", // subscription auth token — MUST keep (carve-out)
+		"ANTHROPIC_API_KEY=sk-ant-xxx",          // claude's own auth — MUST keep
+		"CLAUDE_FOO=keep",                       // claude's own (non-CODE) namespace — keep
 		"AGENT_CENTER_ADMIN_TOKEN=acat_secret",  // worker secret — MUST drop
 		"SOME_UNKNOWN_SECRET=leak",              // unknown var — default-deny drop
 		"CLAUDE_CONFIG_DIR=/home/op/.claude",    // inherited — must NOT leak through
 		"CLAUDE_CODE_SESSION_ID=parent-sess",    // parent SDK-runtime marker — MUST drop
 		"CLAUDE_CODE_ENTRYPOINT=cli",            // parent SDK-runtime marker — MUST drop
+		"CLAUDE_CODE_OAUTH_TOKEN=sub-oauth-xxx", // parent token (v2.7 /login-only, no carve-out) — MUST drop
 	}
 	got := envMap(BuildClaudeEnv(source, "/agent/home/claude-config", nil))
 
-	// Kept: safe system + claude's own auth/config namespace (incl. the subscription
-	// OAuth token carved out of the CLAUDE_CODE_ deny).
-	for _, k := range []string{"PATH", "HOME", "LANG", "LC_ALL", "TZ", "ANTHROPIC_API_KEY", "CLAUDE_FOO", "CLAUDE_CODE_OAUTH_TOKEN"} {
+	// Kept: safe system + claude's own (non-CODE) auth/config namespace.
+	for _, k := range []string{"PATH", "HOME", "LANG", "LC_ALL", "TZ", "ANTHROPIC_API_KEY", "CLAUDE_FOO"} {
 		if _, ok := got[k]; !ok {
 			t.Fatalf("allowlisted var %q was dropped", k)
 		}
@@ -52,11 +51,13 @@ func TestBuildClaudeEnv_AllowlistDropsWorkerSecretsKeepsClaudeAuth(t *testing.T)
 	if _, ok := got["SOME_UNKNOWN_SECRET"]; ok {
 		t.Fatal("unknown var leaked — default-deny allowlist failed")
 	}
-	// Dropped: the parent's CLAUDE_CODE_* SDK-runtime namespace (prevents nested
-	// -session confusion) — even though it matches the CLAUDE_ allow-prefix.
-	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_ENTRYPOINT"} {
+	// Dropped: the WHOLE parent CLAUDE_CODE_* namespace (NO exception) — SDK-runtime
+	// markers (prevent nested-session confusion) AND the inherited OAUTH_TOKEN
+	// (v2.7 /login-only: must not override the child's keychain auth) — even though
+	// they match the CLAUDE_ allow-prefix.
+	for _, k := range []string{"CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_OAUTH_TOKEN"} {
 		if _, ok := got[k]; ok {
-			t.Fatalf("parent SDK-runtime var %q leaked into child claude env (CLAUDE_CODE_ deny failed)", k)
+			t.Fatalf("parent CLAUDE_CODE_* var %q leaked into child claude env (CLAUDE_CODE_ deny failed)", k)
 		}
 	}
 	// Isolation: our CLAUDE_CONFIG_DIR wins, the operator's does not leak.

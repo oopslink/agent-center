@@ -58,23 +58,22 @@ var envAllowPrefix = []string{"LC_", "ANTHROPIC_", "CLAUDE_"}
 // -prefix below:
 //   - CLAUDE_CONFIG_DIR: the supervisor SETS it to the isolated dir, so an
 //     inherited value must never leak through.
-//   - CLAUDE_CODE_* (whole prefix): the PARENT claude-code's SDK-runtime markers
-//     (SESSION_ID / ENTRYPOINT / EXECPATH / TMPDIR / SSE_PORT / ...), NOT the
-//     child's auth/config — passing them through would confuse the child into a
-//     nested session. They are orthogonal to claude's own auth (ANTHROPIC_* / the
-//     remaining CLAUDE_*), so dropping the whole namespace is safe + future-proof
-//     (new CLAUDE_CODE_* are covered automatically); the child sets its own.
+//   - CLAUDE_CODE_* (whole prefix, NO exception): the PARENT claude-code's runtime
+//     namespace — the SDK-session markers (SESSION_ID / ENTRYPOINT / EXECPATH /
+//     TMPDIR / SSE_PORT / ...) AND the non-interactive subscription auth token
+//     CLAUDE_CODE_OAUTH_TOKEN. None are the child's own config; passing the markers
+//     would confuse the child into a nested session, and passing an inherited
+//     OAUTH_TOKEN would silently OVERRIDE the child's intended keychain /login auth
+//     with a non-deterministic, unnecessary inherited credential. They are
+//     orthogonal to claude's own auth (ANTHROPIC_* / the remaining CLAUDE_*).
+//     Dropping the WHOLE namespace (no exception) is the least-privilege choice and
+//     future-proof (new CLAUDE_CODE_* covered automatically); the child auths via
+//     its own keychain /login and sets its own runtime markers.
 //
-// EXCEPTION carved OUT of the CLAUDE_CODE_ deny: CLAUDE_CODE_OAUTH_TOKEN is claude's
-// non-interactive SUBSCRIPTION auth token (from `claude setup-token`) — it is AUTH,
-// like ANTHROPIC_API_KEY, and MUST pass through (it is the only non-interactive
-// path that preserves subscription billing). Denying it (it matches CLAUDE_CODE_)
-// would break subscription auth + block testing that path. Only the session
-// -runtime markers are dropped; the auth token is kept.
+// (v2.7 = /login keychain auth ONLY. The token auth path — CLAUDE_CODE_OAUTH_TOKEN
+// via `claude setup-token` — is DEFERRED; when it lands, re-introduce a carve-out
+// for CLAUDE_CODE_OAUTH_TOKEN TOGETHER WITH its authed-run e2e test, not before.)
 func envAllowed(name string) bool {
-	if name == "CLAUDE_CODE_OAUTH_TOKEN" {
-		return true // subscription auth token — keep (carved out of the deny below)
-	}
 	if name == "CLAUDE_CONFIG_DIR" || strings.HasPrefix(name, "CLAUDE_CODE_") {
 		return false
 	}
