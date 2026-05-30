@@ -22,6 +22,7 @@ package workerdaemon
 import (
 	"bufio"
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +37,31 @@ import (
 	"github.com/oopslink/agent-center/internal/agentadapter"
 	"github.com/oopslink/agent-center/internal/agentadapter/claudecode"
 )
+
+// agentSessionNamespace is a fixed namespace for deriving claude --session-id
+// UUIDs from agent ids (v2.7 D2-c). Arbitrary but stable 16 bytes ("agentcenter-v2.7").
+var agentSessionNamespace = [16]byte{
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x63, 0x65, 0x6e,
+	0x74, 0x65, 0x72, 0x2d, 0x76, 0x32, 0x2e, 0x37,
+}
+
+// agentSessionUUID derives a DETERMINISTIC RFC 4122 v5 UUID from an agent id, for
+// use as claude's --session-id. claude rejects a non-UUID session-id (validated
+// against real claude 2.1.156: a raw ULID → "Invalid session ID. Must be a valid
+// UUID."). Deterministic so the same agent always maps to the same claude session
+// (the persistent-session intent); distinct agent ids → distinct UUIDs (no
+// "already in use" collisions). Uses crypto/sha1 (stdlib, no new dep).
+func agentSessionUUID(agentID string) string {
+	h := sha1.New()
+	h.Write(agentSessionNamespace[:])
+	h.Write([]byte(agentID))
+	sum := h.Sum(nil)
+	var u [16]byte
+	copy(u[:], sum[:16])
+	u[6] = (u[6] & 0x0f) | 0x50 // version 5
+	u[8] = (u[8] & 0x3f) | 0x80 // RFC 4122 variant
+	return fmt.Sprintf("%x-%x-%x-%x-%x", u[0:4], u[4:6], u[6:8], u[8:10], u[10:16])
+}
 
 // ErrSessionClosed is returned by Inject when the session has stopped (or its
 // process has exited), so callers (c-ii-B) get a clear, typed signal rather
@@ -104,7 +130,13 @@ type execLauncher struct{}
 func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionProc, error) {
 	adapter := claudecode.New(spec.Binary)
 	req := agentadapter.SpawnRequest{
-		ExecutionID: spec.AgentID, // persistent agent id, NOT per-execution
+		// claude REQUIRES --session-id to be a valid UUID (validated against real
+		// claude 2.1.156: a raw ULID agent id is rejected "Invalid session ID. Must
+		// be a valid UUID."). AgentCenter mints agent ids as ULIDs, so we derive a
+		// DETERMINISTIC v5 UUID from the agent id — valid for claude AND stable per
+		// agent (same agent → same claude session, the "persistent session-id"
+		// intent), distinct across agents (no "already in use" collisions).
+		ExecutionID: agentSessionUUID(spec.AgentID),
 		Prompt:      longLivedSentinelPrompt,
 		WorkingDir:  spec.WorkspaceDir,
 		Env:         spec.Env,

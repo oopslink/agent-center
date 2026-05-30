@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -440,4 +441,28 @@ func count(ss []string, want string) int {
 		}
 	}
 	return n
+}
+
+// TestAgentSessionUUID validates the agent-id → claude --session-id derivation.
+// claude REQUIRES a valid UUID (real claude 2.1.156 rejects a raw ULID), and
+// AgentCenter mints agent ids as ULIDs, so the launcher must derive one.
+func TestAgentSessionUUID(t *testing.T) {
+	// A realistic ULID agent id (what s.idgen.NewULID() produces).
+	const ulid = "01J9ZK7QW8X2YB3C4D5E6F7G8H"
+	got := agentSessionUUID(ulid)
+
+	// Must be a syntactically valid RFC 4122 UUID: 8-4-4-4-12 lowercase hex,
+	// version nibble 5, variant high bits 10.
+	re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	if !re.MatchString(got) {
+		t.Fatalf("agentSessionUUID(%q) = %q — not a valid v5 UUID", ulid, got)
+	}
+	// Deterministic: same agent → same session id (persistent-session intent).
+	if again := agentSessionUUID(ulid); again != got {
+		t.Fatalf("not deterministic: %q != %q", got, again)
+	}
+	// Distinct agents → distinct session ids (no "already in use" collisions).
+	if other := agentSessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8J"); other == got {
+		t.Fatalf("distinct agent ids collided on session id %q", got)
+	}
 }
