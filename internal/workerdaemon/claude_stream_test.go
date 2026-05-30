@@ -12,8 +12,14 @@ import (
 // fixtureLines reads the genuine claude 2.1.156 stream fixture, returning its
 // non-empty lines (system / assistant / result).
 func fixtureLines(t *testing.T) [][]byte {
+	return readFixtureLines(t, "claude_2.1.156_stream.jsonl")
+}
+
+// readFixtureLines reads a genuine-claude-bytes JSONL fixture from testdata/,
+// returning its non-empty lines.
+func readFixtureLines(t *testing.T, name string) [][]byte {
 	t.Helper()
-	path := filepath.Join("testdata", "claude_2.1.156_stream.jsonl")
+	path := filepath.Join("testdata", name)
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
@@ -217,5 +223,56 @@ func TestParseStreamLine_MissingFieldsDegrade(t *testing.T) {
 	}
 	if len(evs) != 1 || evs[0].Type != "result" || evs[0].Subtype != "error_max_turns" {
 		t.Fatalf("sparse result → %+v", evs)
+	}
+}
+
+// TestParseStreamLine_RealToolCallFixture replays a GENUINE claude 2.1.156 round
+// that actually invoked the Bash tool (recorded with the corrected long-lived
+// argv). It proves the parser maps tool_use / tool_result from the REAL nested
+// content blocks — not the hand-crafted shapes above — with ZERO unknown. This
+// is the §A.3 C2-tooluse / C2-toolresult / C2-zero-unknown coverage over real
+// bytes (testdata/claude_2.1.156_stream_toolcall.jsonl).
+func TestParseStreamLine_RealToolCallFixture(t *testing.T) {
+	lines := readFixtureLines(t, "claude_2.1.156_stream_toolcall.jsonl")
+	if len(lines) < 5 {
+		t.Fatalf("want >=5 fixture lines (system/tool_use/tool_result/text/result), got %d", len(lines))
+	}
+	var sawToolUse, sawToolResult, sawResult, sawSystem bool
+	var unknown int
+	for _, l := range lines {
+		evs, err := ParseStreamLine(l)
+		if err != nil {
+			t.Fatalf("parse real tool-call line: %v", err)
+		}
+		for _, e := range evs {
+			switch e.Type {
+			case "tool_use":
+				if e.ToolName != "Bash" {
+					t.Errorf("tool_use name = %q, want Bash", e.ToolName)
+				}
+				if e.ToolUseID == "" || !strings.Contains(string(e.ToolInput), "echo hello-from-fixture") {
+					t.Errorf("tool_use missing id/input: id=%q input=%s", e.ToolUseID, e.ToolInput)
+				}
+				sawToolUse = true
+			case "tool_result":
+				if e.ToolUseID == "" {
+					t.Error("tool_result missing tool_use_id")
+				}
+				sawToolResult = true
+			case "result":
+				sawResult = true
+			case "system":
+				sawSystem = true
+			case "unknown":
+				unknown++
+			}
+		}
+	}
+	if !sawToolUse || !sawToolResult || !sawResult || !sawSystem {
+		t.Errorf("missing event(s): toolUse=%v toolResult=%v result=%v system=%v",
+			sawToolUse, sawToolResult, sawResult, sawSystem)
+	}
+	if unknown != 0 {
+		t.Errorf("got %d UNKNOWN events parsing a real tool-call round (parser misaligned with real claude)", unknown)
 	}
 }
