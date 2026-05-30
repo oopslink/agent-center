@@ -79,8 +79,11 @@ type Config struct {
 	// WorkspaceDir is the child process cwd (empty = inherit the supervisor's).
 	WorkspaceDir string
 
-	// Env is merged into the child environment (appended to os.Environ()).
-	Env map[string]string
+	// AgentEnv is the center-injected per-agent env (Profile.EnvVars, slice ②),
+	// overlaid AS-IS on top of the allowlisted system env when building claude's
+	// environment (it is intentional, trusted env — NOT allowlist-filtered). Empty
+	// for slice ① (the security fix); it is the ② SEAM.
+	AgentEnv map[string]string
 
 	// Logger receives one-line diagnostic messages (to stderr in the
 	// subcommand). nil = discard.
@@ -228,10 +231,16 @@ func (s *Supervisor) Start() error {
 	if s.cfg.WorkspaceDir != "" {
 		s.cmd.Dir = s.cfg.WorkspaceDir
 	}
-	s.cmd.Env = os.Environ()
-	for k, v := range s.cfg.Env {
-		s.cmd.Env = append(s.cmd.Env, k+"="+v)
+	// v2.7 security (C+A): build a CONTROLLED env for claude — allowlisted system
+	// env (NO worker secrets) + an ISOLATED CLAUDE_CONFIG_DIR (no operator
+	// ~/.claude hook/settings pollution; auth copied in) + the AgentEnv overlay
+	// (② seam, empty here). NOT raw os.Environ() (which would leak worker secrets).
+	configDir, cerr := PrepareIsolatedClaudeConfig(s.cfg.HomeDir, os.Environ())
+	if cerr != nil {
+		_ = f.Close()
+		return fmt.Errorf("agentsupervisor: prepare isolated claude config: %w", cerr)
 	}
+	s.cmd.Env = BuildClaudeEnv(os.Environ(), configDir, s.cfg.AgentEnv)
 	// Child in its OWN process group (pgid == child pid) under the supervisor's
 	// session: Stop can killpg the whole claude tree, and a child-group signal
 	// never reaches the supervisor. We deliberately do NOT Setsid the child and

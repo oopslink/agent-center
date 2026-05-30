@@ -103,7 +103,10 @@ func roleSupervisor() int {
 		AgentID:  "agent-test",
 		HomeDir:  home,
 		ChildCmd: []string{self, "-test.run=TestMain"},
-		Env:      map[string]string{roleEnv: "child"},
+		// roleEnv rides the AgentEnv overlay (applied AS-IS) so the re-exec'd child
+		// takes the "child" role even though BuildClaudeEnv allowlist-filters the
+		// inherited env. (roleEnv is the ② seam's stand-in here.)
+		AgentEnv: map[string]string{roleEnv: "child"},
 		Logger:   func(msg string) { fmt.Fprintln(os.Stderr, "supervisor:", msg) },
 	})
 	if err != nil {

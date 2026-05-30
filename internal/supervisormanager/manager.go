@@ -151,7 +151,12 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 	// supervisor. The supervisor reparents to init after its own setsid; we are not
 	// its long-term parent.
 	cmd := exec.Command(bin, args...)
-	cmd.Env = os.Environ()
+	// v2.7 security (defense-in-depth ⑤): the supervisor process itself gets only
+	// the allowlisted system env — no worker-daemon secrets. The supervisor is
+	// trusted code but never needs them (the mcp-config token reaches the mcp-host
+	// via a file path, not env), so we strip them at this hop too — not raw
+	// os.Environ().
+	cmd.Env = agentsupervisor.BuildSupervisorEnv(os.Environ())
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("supervisormanager: start supervisor: %w", err)
 	}
