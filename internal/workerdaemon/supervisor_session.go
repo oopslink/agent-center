@@ -49,6 +49,9 @@ type SupervisorSessionConfig struct {
 	// MCPConfigPath is the daemon-generated mcp-config file path (no token). The
 	// supervisor points claude at it; the session never holds the token.
 	MCPConfigPath string
+	// WorkspaceDir is claude's working directory (the agent workspace). Empty →
+	// inherit the supervisor's cwd. The AgentController resolves it to <home>/workspace.
+	WorkspaceDir string
 	// BinaryPath is the agent-center executable to exec as the supervisor (empty
 	// → the running daemon binary). The supervisor — NOT this session — execs
 	// claude.
@@ -140,6 +143,7 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		AgentID:       cfg.AgentID,
 		HomeDir:       cfg.HomeDir,
 		MCPConfigPath: cfg.MCPConfigPath,
+		WorkspaceDir:  cfg.WorkspaceDir,
 		BinaryPath:    cfg.BinaryPath,
 		Model:         cfg.Model,
 		ClaudeBin:     cfg.ClaudeBin,

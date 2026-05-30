@@ -39,16 +39,17 @@ func AgentSupervisorCommand() *Command {
 			"killpg of the daemon group), holding claude's stdin open, and continuously " +
 			"draining claude's stdout to <home>/events.jsonl. Receives only the " +
 			"daemon-generated mcp-config FILE PATH (--mcp-config-path) — never the worker " +
-			"token. Flags: --agent-id, --home-dir, --mcp-config-path, [--claude-bin], [--model], [--reset-epoch].",
+			"token. Flags: --agent-id, --home-dir, --mcp-config-path, [--workspace-dir], [--claude-bin], [--model], [--reset-epoch].",
 		Flags: func(fs *flag.FlagSet) Handler {
 			agentID := fs.String("agent-id", "", "agent id this supervisor owns (required)")
 			homeDir := fs.String("home-dir", "", "per-agent home directory for artifacts (required)")
 			mcpConfigPath := fs.String("mcp-config-path", "", "path to the daemon-generated mcp-config (no token; optional)")
+			workspaceDir := fs.String("workspace-dir", "", "claude's working directory (the agent workspace; default: inherit)")
 			claudeBin := fs.String("claude-bin", "", "override the claude binary path (default: claude on PATH)")
 			model := fs.String("model", "", "optional claude --model override")
 			resetEpoch := fs.Int("reset-epoch", 0, "per-agent reset epoch; derives claude --session-id via SessionUUID(agent-id, epoch). 0 = initial; the daemon bumps it on a clean-slate reset and re-passes the durable value on a crash-relaunch (system; v2.7 D2-f)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *claudeBin, *model, *resetEpoch)
+				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *workspaceDir, *claudeBin, *model, *resetEpoch)
 			}
 		},
 	}
@@ -59,7 +60,7 @@ func AgentSupervisorCommand() *Command {
 // process, launches the child, and runs until SIGTERM/SIGINT. Diagnostics go to
 // errw; the child's stdout is drained to events.jsonl and is NOT echoed to the
 // supervisor's stdout.
-func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, claudeBin, model string, resetEpoch int) ExitCode {
+func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, workspaceDir, claudeBin, model string, resetEpoch int) ExitCode {
 	agentID = strings.TrimSpace(agentID)
 	homeDir = strings.TrimSpace(homeDir)
 	if agentID == "" {
@@ -85,9 +86,10 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	}
 
 	sup, err := agentsupervisor.New(agentsupervisor.Config{
-		AgentID:  agentID,
-		HomeDir:  homeDir,
-		ChildCmd: childCmd,
+		AgentID:      agentID,
+		HomeDir:      homeDir,
+		ChildCmd:     childCmd,
+		WorkspaceDir: strings.TrimSpace(workspaceDir),
 		Logger: func(msg string) {
 			fmt.Fprintf(errw, "[agent-supervisor] %s\n", msg)
 		},

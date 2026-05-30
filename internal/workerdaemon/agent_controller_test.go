@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/claudestream"
 )
 
 // recordingReporter is a fake feedbackReporter that records every call so
@@ -99,54 +101,138 @@ func (r *recordingReporter) workItemCalls() []workItemCall {
 
 var _ feedbackReporter = (*recordingReporter)(nil)
 
-// recordingLauncher hands out a fresh fakeProc per Launch and records how many
-// launches happened (so restart vs replay assertions work).
-type recordingLauncher struct {
-	mu     sync.Mutex
-	procs  []*fakeProc
-	specs  []ClaudeLaunchSpec
-	nextFn func() *fakeProc
+// fakeSession is the TEST-ONLY agentSession (PM s3b-2b test seam). It records
+// Inject/Stop/Detach and lets the test drive the OnEvent/OnExit callbacks the real
+// SupervisorSession's event-pump would fire — WITHOUT spawning a supervisor or
+// claude. It exists ONLY in _test.go and is NEVER wired in a production path (the
+// production starter is startSupervisorSessionAdapter → real supervisor spawn);
+// it is a test artifact, not a session, so it does not weaken grep-clean ownership.
+type fakeSession struct {
+	cfg SupervisorSessionConfig
+
+	mu       sync.Mutex
+	injected []string
+	stopped  bool
+	detached bool
+	exited   bool // OnExit fired (once)
 }
 
-func (l *recordingLauncher) Launch(_ context.Context, spec ClaudeLaunchSpec) (sessionProc, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	fp := newFakeProc()
-	l.procs = append(l.procs, fp)
-	l.specs = append(l.specs, spec)
-	return fp, nil
+// Inject records the RAW message (the controller passes the brief/merged text;
+// the stream-json wire encoding is the supervisor's job, not the controller's).
+func (f *fakeSession) Inject(_ context.Context, msg string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.stopped || f.detached {
+		return ErrSessionClosed
+	}
+	f.injected = append(f.injected, msg)
+	return nil
 }
 
-func (l *recordingLauncher) count() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return len(l.procs)
+// Stop is the explicit-terminate path: mark stopped + fire OnExit(nil) ONCE
+// (mirrors the real Stop, which SIGTERMs the supervisor then joins the pump →
+// OnExit). The controller's stopSession blocks on this, so firing synchronously
+// keeps tests deterministic.
+func (f *fakeSession) Stop(_ context.Context) error {
+	f.fireExit(true /*viaStop*/, nil)
+	return nil
 }
 
-func (l *recordingLauncher) lastProc() *fakeProc {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if len(l.procs) == 0 {
+// Detach is the survival path: mark detached + fire OnExit(nil) ONCE (mirrors the
+// real Detach, which closes the socket without signalling, then joins the pump).
+func (f *fakeSession) Detach() { f.fireExit(false /*viaStop*/, nil) }
+
+func (f *fakeSession) fireExit(viaStop bool, err error) {
+	f.mu.Lock()
+	if f.exited {
+		f.mu.Unlock()
+		return
+	}
+	f.exited = true
+	if viaStop {
+		f.stopped = true
+	} else {
+		f.detached = true
+	}
+	cb := f.cfg.OnExit
+	f.mu.Unlock()
+	if cb != nil {
+		cb(err)
+	}
+}
+
+// emit drives a parsed StreamEvent through OnEvent (the controller maps it to a
+// ReportAgentActivity call). The raw claude-line → StreamEvent parsing is covered
+// in the claudestream + supervisor_session tests (and Tester's real-claude GATE),
+// so the controller test asserts only the onEvent→activity mapping.
+func (f *fakeSession) emit(ev claudestream.StreamEvent) {
+	f.mu.Lock()
+	cb := f.cfg.OnEvent
+	f.mu.Unlock()
+	if cb != nil {
+		cb(ev)
+	}
+}
+
+// crash drives an UNEXPECTED OnExit(err) (the supervisor/claude died while
+// desired=running) — without Stop/Detach, so onExit takes the crash branch.
+func (f *fakeSession) crash(err error) { f.fireExit(false /*viaStop*/, err) }
+
+func (f *fakeSession) injectedMsgs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, len(f.injected))
+	copy(out, f.injected)
+	return out
+}
+
+// recordingStarter is the TEST-ONLY sessionStarter: it hands out a fresh
+// fakeSession per start (recording the config so epoch/workspace plumbing can be
+// asserted) and counts starts so restart-vs-replay assertions work. nextErr makes
+// the next start fail (spawn-failure path).
+type recordingStarter struct {
+	mu       sync.Mutex
+	sessions []*fakeSession
+	nextErr  error
+}
+
+func (s *recordingStarter) start(_ context.Context, cfg SupervisorSessionConfig) (agentSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.nextErr != nil {
+		err := s.nextErr
+		s.nextErr = nil
+		return nil, err
+	}
+	fs := &fakeSession{cfg: cfg}
+	s.sessions = append(s.sessions, fs)
+	return fs, nil
+}
+
+func (s *recordingStarter) count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.sessions)
+}
+
+func (s *recordingStarter) last() *fakeSession {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.sessions) == 0 {
 		return nil
 	}
-	return l.procs[len(l.procs)-1]
+	return s.sessions[len(s.sessions)-1]
 }
 
-func (l *recordingLauncher) lastSpec() ClaudeLaunchSpec {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.specs[len(l.specs)-1]
-}
-
-// newTestController builds a controller with the recording reporter + launcher
-// rooted at a temp AgentHomeBase.
-func newTestController(t *testing.T, base string) (*AgentController, *recordingReporter, *recordingLauncher) {
+// newTestController builds a controller with the recording reporter + the
+// TEST-ONLY fake session starter (no real supervisor spawn), rooted at a temp
+// AgentHomeBase.
+func newTestController(t *testing.T, base string) (*AgentController, *recordingReporter, *recordingStarter) {
 	t.Helper()
 	rep := &recordingReporter{}
-	lp := &recordingLauncher{}
+	rs := &recordingStarter{}
 	c, err := NewAgentController(AgentControllerConfig{
 		Reporter:      rep,
-		Launcher:      lp,
 		WorkerID:      "w-1",
 		AdminURL:      "unix:/tmp/admin.sock",
 		WorkerToken:   "tok",
@@ -157,7 +243,9 @@ func newTestController(t *testing.T, base string) (*AgentController, *recordingR
 	if err != nil {
 		t.Fatal(err)
 	}
-	return c, rep, lp
+	// Inject the fake starter via the unexported seam (same-package test only).
+	c.cfg.starter = rs.start
+	return c, rep, rs
 }
 
 func reconcileCmd(t *testing.T, agentID, desired string, version int, scope string, offset int64) ControlCommand {
@@ -213,38 +301,41 @@ func mustJSON(t *testing.T, v any) string {
 }
 
 func TestAgentController_ReconcileRunning_StartsAndStreamsActivity(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("reconcile running: %v", err)
 	}
-	if lp.count() != 1 {
-		t.Fatalf("want 1 launch, got %d", lp.count())
+	if rs.count() != 1 {
+		t.Fatalf("want 1 session start, got %d", rs.count())
 	}
 
-	// Feed REAL-shaped claude 2.1.156 stdout: the genuine fixture (system /
-	// assistant{thinking,text} / result) plus a faithful tool_use line. Each
-	// parsed StreamEvent must map to a ReportAgentActivity call with event_type
-	// = StreamEvent.Type.
-	fp := lp.lastProc()
-	for _, line := range fixtureLines(t) {
-		fp.feed(string(line))
-	}
-	fp.feed(toolUseLine)
-	fp.feed(assistantTextLine)
-
-	// system(1) + thinking(1) + result(1) + tool_use(1) + assistant_text(1) = 5.
-	waitFor(t, func() bool { return len(rep.activityCalls()) >= 5 })
+	// Drive PARSED StreamEvents (what the supervisor's event-pump delivers to
+	// OnEvent) and assert each maps to a ReportAgentActivity with event_type =
+	// StreamEvent.Type and a meaningful payload. The raw claude-line → StreamEvent
+	// parsing is covered by the claudestream + supervisor_session tests (and
+	// Tester's real-claude GATE); here we test only onEvent→activity (stdout→
+	// activity, NEVER Conversation).
+	fs := rs.last()
+	fs.emit(claudestream.StreamEvent{Type: "system", Subtype: "init"})
+	fs.emit(claudestream.StreamEvent{Type: "thinking", Text: "PONG thinking"})
+	fs.emit(claudestream.StreamEvent{Type: "assistant_text", Text: "PONG"})
+	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-1"})
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", Result: "ok"})
 
 	acts := rep.activityCalls()
+	if len(acts) != 5 {
+		t.Fatalf("want 5 activity calls (one per emitted event), got %d: %+v", len(acts), acts)
+	}
 	byType := map[string]activityCall{}
 	for _, a := range acts {
 		if a.agentID != "agent-1" {
 			t.Fatalf("activity for wrong agent: %+v", a)
 		}
-		if a.eventType == "unknown" {
-			t.Fatalf("real-shaped line mapped to unknown activity: %+v", a)
+		// stdout→activity must carry NO conversation/interaction ref (not a Conversation post).
+		if a.interactionRef != "" {
+			t.Fatalf("activity must not carry an interaction ref (stdout is activity, not Conversation): %+v", a)
 		}
 		byType[a.eventType] = a
 	}
@@ -275,7 +366,7 @@ func TestAgentController_ReconcileRunning_StartsAndStreamsActivity(t *testing.T)
 }
 
 func TestAgentController_Work_InjectsBriefAndReportsActive(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -285,12 +376,11 @@ func TestAgentController_Work_InjectsBriefAndReportsActive(t *testing.T) {
 		t.Fatalf("work: %v", err)
 	}
 
-	in := lp.lastProc().stdinBytes()
-	if !strings.Contains(in, "do the task") {
-		t.Fatalf("stdin missing brief: %q", in)
-	}
-	if !strings.Contains(in, `"type":"user"`) {
-		t.Fatalf("stdin not stream-json user line: %q", in)
+	// The controller Injects the RAW brief; the stream-json wire encoding is the
+	// supervisor's job (covered by claudestream/supervisor + Tester's GATE).
+	in := rs.last().injectedMsgs()
+	if len(in) != 1 || in[0] != "do the task" {
+		t.Fatalf("want the brief injected once verbatim, got %+v", in)
 	}
 
 	wis := rep.workItemCalls()
@@ -308,21 +398,23 @@ func TestAgentController_Work_NoSessionRetries(t *testing.T) {
 }
 
 func TestAgentController_ReconcileStop_ReportsStoppedOnce(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("reconcile running: %v", err)
 	}
-	fp := lp.lastProc()
-	// Make the fake honour SIGTERM by exiting when it arrives.
-	go honourSIGTERM(fp)
+	fs := rs.last()
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "stopped", 2, "", 2)); err != nil {
 		t.Fatalf("reconcile stop: %v", err)
 	}
 
-	if !fp.gotSIGTERM && !fp.gotKill {
-		t.Fatal("expected the fake proc to receive SIGTERM or kill")
+	// The stop flow SIGTERMed the supervisor via the session Stop (fake records it).
+	fs.mu.Lock()
+	stoppedSess := fs.stopped
+	fs.mu.Unlock()
+	if !stoppedSess {
+		t.Fatal("expected the session to be Stopped (supervisor SIGTERM)")
 	}
 
 	lc := rep.lifecycleCalls()
@@ -339,13 +431,16 @@ func TestAgentController_ReconcileStop_ReportsStoppedOnce(t *testing.T) {
 
 func TestAgentController_ReconcileReset_WipesWorkspaceWithContainment(t *testing.T) {
 	base := t.TempDir()
-	c, rep, lp := newTestController(t, base)
+	c, rep, rs := newTestController(t, base)
 
 	// Start so the home dirs exist.
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("reconcile running: %v", err)
 	}
-	go honourSIGTERM(lp.lastProc())
+	// First start reads the initial epoch 0.
+	if got := rs.last().cfg.Epoch; got != 0 {
+		t.Fatalf("first start must use epoch 0, got %d", got)
+	}
 
 	home := filepath.Join(base, "workers", "w-1", "agents", "agent-1")
 	workspace := filepath.Join(home, "workspace")
@@ -390,6 +485,17 @@ func TestAgentController_ReconcileReset_WipesWorkspaceWithContainment(t *testing
 	if stopped != 1 {
 		t.Fatalf("want 1 stopped lifecycle, got %d", stopped)
 	}
+
+	// CLEAN-SLATE chain: the reset bumped the durable epoch, and the NEXT
+	// reconcile(running) must spawn with the bumped epoch (→ a fresh claude
+	// session-id). This proves reset→BumpEpochForReset→next-start-reads-epoch
+	// end-to-end at the controller layer.
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 3, "", 3)); err != nil {
+		t.Fatalf("reconcile running after reset: %v", err)
+	}
+	if got := rs.last().cfg.Epoch; got != 1 {
+		t.Fatalf("post-reset start must use bumped epoch 1 (clean slate), got %d", got)
+	}
 }
 
 func TestAgentController_ResetContainmentRefusesEscape(t *testing.T) {
@@ -416,14 +522,15 @@ func TestAgentController_ResetContainmentRefusesEscape(t *testing.T) {
 }
 
 func TestAgentController_UnexpectedCrash_ReportsErrorOnceAndClears(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("reconcile running: %v", err)
 	}
-	fp := lp.lastProc()
-	// Crash the process (desired is still running → OnExit reports error).
-	fp.exit(errors.New("boom"))
+	fs := rs.last()
+	// Crash the session (supervisor/claude died while desired=running → OnExit
+	// takes the crash branch and reports error).
+	fs.crash(errors.New("boom"))
 
 	waitFor(t, func() bool {
 		for _, l := range rep.lifecycleCalls() {
@@ -457,14 +564,14 @@ func TestAgentController_UnexpectedCrash_ReportsErrorOnceAndClears(t *testing.T)
 }
 
 func TestAgentController_VersionIdempotency_ReplayNoRestart(t *testing.T) {
-	c, _, lp := newTestController(t, t.TempDir())
+	c, _, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 5, "", 1)); err != nil {
 		t.Fatalf("first reconcile: %v", err)
 	}
-	if lp.count() != 1 {
-		t.Fatalf("want 1 launch, got %d", lp.count())
+	if rs.count() != 1 {
+		t.Fatalf("want 1 session start, got %d", rs.count())
 	}
 
 	// Replay the SAME version (and an older one) → no restart.
@@ -474,26 +581,25 @@ func TestAgentController_VersionIdempotency_ReplayNoRestart(t *testing.T) {
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 3, "", 3)); err != nil {
 		t.Fatalf("older reconcile: %v", err)
 	}
-	if lp.count() != 1 {
-		t.Fatalf("replay caused a restart: launches=%d want 1", lp.count())
+	if rs.count() != 1 {
+		t.Fatalf("replay caused a restart: starts=%d want 1", rs.count())
 	}
 }
 
 func TestAgentController_RestartOnVersionBump(t *testing.T) {
-	c, _, lp := newTestController(t, t.TempDir())
+	c, _, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("first reconcile: %v", err)
 	}
-	go honourSIGTERM(lp.lastProc())
 
 	// A version bump with desired=running → restart (stop old + start new).
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 2, "", 2)); err != nil {
 		t.Fatalf("restart reconcile: %v", err)
 	}
-	if lp.count() != 2 {
-		t.Fatalf("want 2 launches after restart, got %d", lp.count())
+	if rs.count() != 2 {
+		t.Fatalf("want 2 session starts after restart, got %d", rs.count())
 	}
 }
 
@@ -513,21 +619,6 @@ func TestAgentController_MalformedPayload_ReturnsNil(t *testing.T) {
 	}
 }
 
-// honourSIGTERM makes a fakeProc exit cleanly once it receives SIGTERM (or is
-// killed), mirroring the c-ii-A graceful-stop test helper.
-func honourSIGTERM(fp *fakeProc) {
-	for {
-		fp.mu.Lock()
-		term := fp.gotSIGTERM || fp.gotKill
-		fp.mu.Unlock()
-		if term {
-			fp.exit(nil)
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-}
-
 // waitFor polls cond up to ~2s, failing the test on timeout.
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
@@ -542,7 +633,7 @@ func waitFor(t *testing.T, cond func() bool) {
 }
 
 func TestAgentController_Wake_InjectsMessageAndReportsActive(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -552,12 +643,9 @@ func TestAgentController_Wake_InjectsMessageAndReportsActive(t *testing.T) {
 		t.Fatalf("wake: %v", err)
 	}
 
-	in := lp.lastProc().stdinBytes()
-	if !strings.Contains(in, "human replied here") {
-		t.Fatalf("stdin missing wake message: %q", in)
-	}
-	if !strings.Contains(in, `"type":"user"`) {
-		t.Fatalf("stdin not stream-json user line: %q", in)
+	in := rs.last().injectedMsgs()
+	if len(in) != 1 || in[0] != "human replied here" {
+		t.Fatalf("want the wake message injected once verbatim, got %+v", in)
 	}
 
 	wis := rep.workItemCalls()
@@ -567,7 +655,7 @@ func TestAgentController_Wake_InjectsMessageAndReportsActive(t *testing.T) {
 }
 
 func TestAgentController_Wake_DedupByMessageID(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -581,9 +669,9 @@ func TestAgentController_Wake_DedupByMessageID(t *testing.T) {
 		t.Fatalf("wake 2 (replay): %v", err)
 	}
 
-	in := lp.lastProc().stdinBytes()
-	if n := strings.Count(in, "reply text"); n != 1 {
-		t.Fatalf("dedup failed: want exactly 1 injection of message, got %d (stdin=%q)", n, in)
+	in := rs.last().injectedMsgs()
+	if len(in) != 1 || in[0] != "reply text" {
+		t.Fatalf("dedup failed: want exactly 1 injection, got %+v", in)
 	}
 	// Only the first wake reports active.
 	if wis := rep.workItemCalls(); len(wis) != 1 {
@@ -621,7 +709,7 @@ func TestAgentController_Wake_ImmediateReportsMarkSeen(t *testing.T) {
 }
 
 func TestAgentController_Wake_BatchReportsMarkSeenWithLastID(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -633,9 +721,9 @@ func TestAgentController_Wake_BatchReportsMarkSeenWithLastID(t *testing.T) {
 		t.Fatalf("wake batch: %v", err)
 	}
 
-	in := lp.lastProc().stdinBytes()
-	if !strings.Contains(in, "one") || !strings.Contains(in, "two") {
-		t.Fatalf("merged batch not injected: %q", in)
+	in := rs.last().injectedMsgs()
+	if len(in) != 1 || !strings.Contains(in[0], "one") || !strings.Contains(in[0], "two") {
+		t.Fatalf("merged batch not injected as one verbatim message: %+v", in)
 	}
 	ms := rep.markSeenCalls()
 	if len(ms) != 1 || ms[0].messageID != "msg-5" || ms[0].conversationID != "conv-9" {
@@ -646,7 +734,7 @@ func TestAgentController_Wake_BatchReportsMarkSeenWithLastID(t *testing.T) {
 // Mark-seen does not fire when no conversation_id is carried (defensive) and the
 // FIFO dedup still works alongside the cursor.
 func TestAgentController_Wake_NoConvID_NoMarkSeen_DedupStillWorks(t *testing.T) {
-	c, rep, lp := newTestController(t, t.TempDir())
+	c, rep, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -658,8 +746,8 @@ func TestAgentController_Wake_NoConvID_NoMarkSeen_DedupStillWorks(t *testing.T) 
 	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "reply text", 3)); err != nil {
 		t.Fatalf("wake 2 (replay): %v", err)
 	}
-	if in := lp.lastProc().stdinBytes(); strings.Count(in, "reply text") != 1 {
-		t.Fatalf("dedup failed alongside no-mark-seen path")
+	if in := rs.last().injectedMsgs(); len(in) != 1 {
+		t.Fatalf("dedup failed alongside no-mark-seen path: %+v", in)
 	}
 	if ms := rep.markSeenCalls(); len(ms) != 0 {
 		t.Fatalf("no conversation_id must skip mark-seen, got %+v", ms)

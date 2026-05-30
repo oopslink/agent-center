@@ -52,6 +52,10 @@ type SpawnSupervisorCfg struct {
 	// MCPConfigPath is the daemon-generated mcp-config file path (--mcp-config-path,
 	// optional). The supervisor never holds the token; it just points claude at it.
 	MCPConfigPath string
+	// WorkspaceDir is claude's working directory (--workspace-dir, the agent
+	// workspace). Empty → claude inherits the supervisor's cwd. The daemon resolves
+	// it to <home>/workspace.
+	WorkspaceDir string
 	// BinaryPath is the agent-center executable to exec as the supervisor. Empty
 	// → os.Executable() (the running daemon binary, which carries the subcommand).
 	BinaryPath string
@@ -184,6 +188,9 @@ func buildSupervisorArgs(cfg SpawnSupervisorCfg) []string {
 	}
 	if cfg.MCPConfigPath != "" {
 		args = append(args, "--mcp-config-path", cfg.MCPConfigPath)
+	}
+	if cfg.WorkspaceDir != "" {
+		args = append(args, "--workspace-dir", cfg.WorkspaceDir)
 	}
 	if cfg.Model != "" {
 		args = append(args, "--model", cfg.Model)

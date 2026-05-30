@@ -1,20 +1,20 @@
-// Package workerdaemon: AgentController is the v2.7 D2-c-ii-B control-command
-// executor. It drives the long-lived ClaudeSession primitive (claude_session.go,
-// D2-c-ii-A) in response to declarative control commands pulled by the
-// ControlLoop, and reports RESULT feedback to the center via the D2-c-i
+// Package workerdaemon: AgentController is the v2.7 control-command executor. It
+// drives a per-agent SupervisorSession (D2-f s3b-1) — the persistent supervisor
+// that SOLELY owns claude — in response to declarative control commands pulled by
+// the ControlLoop, and reports RESULT feedback to the center via the D2-c-i
 // /admin/environment/agent/* endpoints (the feedbackReporter seam).
 //
-// It implements CommandHandler (control_loop.go). It is PURELY ADDITIVE and
-// stays DORMANT until D2-f: the control loop only runs when
-// RuntimeConfig.ControlClient != nil, which D2-f sets. D2-c-ii-B wires this as
-// RuntimeConfig.ControlHandler but leaves ControlClient nil — so the daemon's
-// observable behaviour is unchanged.
+// It implements CommandHandler (control_loop.go). It is PURELY ADDITIVE and stays
+// DORMANT until the D2-f cutover: the control loop only runs when
+// RuntimeConfig.ControlClient != nil (set by --use-control-loop). Until activated,
+// the daemon's observable behaviour is unchanged.
 //
 // Command dispatch (see Handle):
 //   - "agent.reconcile" → reconcile the real process to the desired lifecycle
 //     (start / stop / reset), keyed by a monotonic version for replay safety.
 //   - "agent.work"      → inject the work brief into the running session +
 //     report the WorkItem active.
+//   - "agent.wake"      → inject a posted task message + report the WorkItem active.
 //   - unknown           → log + return nil (never wedge the ack cursor).
 //
 // Idempotency: returning nil from Handle advances the cumulative ack cursor;
@@ -22,9 +22,12 @@
 // next tick. The controller therefore returns nil for "already applied" replays
 // (no-op) and reserves errors for genuinely transient failures it WANTS retried.
 //
-// Testability: the controller never touches a real claude binary — it accepts an
-// injectable procLauncher (default execLauncher) handed straight to
-// StartClaudeSession, so tests inject the c-ii-A fakeProc/fakeLauncher.
+// OWNERSHIP (s3b-2b, PM-pinned): the controller NEVER execs claude. Every session
+// is started via the injected sessionStarter, which in PRODUCTION is the real
+// supervisor-spawn adapter (claude's parent is the supervisor, never the daemon).
+// The agentSession interface is a TEST SEAM only: controller LOGIC is unit-tested
+// with a lightweight fake that lives ONLY in _test.go and never appears in a
+// production path. grep-clean = no direct claude exec on any production path.
 package workerdaemon
 
 import (
@@ -38,8 +41,61 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/mcphost"
+	"github.com/oopslink/agent-center/internal/supervisormanager"
 )
+
+// agentSession is the NARROW control surface the AgentController needs from one
+// agent's session (v2.7 D2-f s3b-2b). The whole point of the supervisor model is
+// that the SUPERVISOR solely owns claude, so this interface exposes only socket-
+// mediated control — Inject (→ claude stdin), Stop (terminate the supervisor),
+// Detach (daemon-shutdown SURVIVAL: drop the socket, keep claude alive) — never a
+// process handle the controller could exec/kill directly.
+//
+// 🔴 OWNERSHIP INVARIANT (PM s3b-2b condition): PRODUCTION code wires ONLY the real
+// *SupervisorSession (via startSupervisorSessionAdapter → StartSupervisorSession →
+// supervisormanager.SpawnSupervisor; claude's parent is the supervisor, never the
+// daemon). The interface exists so controller LOGIC (reconcile/work/wake/onExit
+// three-state) is unit-testable with a lightweight fake — but that fake lives ONLY
+// in _test.go and MUST NEVER appear in a production path. The interface is NOT a
+// backdoor to direct-exec claude: grep-clean ownership = no direct claude exec on
+// any production path; the test fake is a test artifact, not a session.
+type agentSession interface {
+	// Inject writes msg to claude's held-open stdin over the supervisor socket.
+	// Returns ErrSessionClosed once Stop/Detach has begun.
+	Inject(ctx context.Context, msg string) error
+	// Stop is the EXPLICIT-terminate path: SIGTERM the supervisor (which stops
+	// claude + exits), then join the event-pump. Fires OnExit exactly once.
+	Stop(ctx context.Context) error
+	// Detach is the daemon-shutdown SURVIVAL path: close the socket WITHOUT
+	// signalling, so the supervisor + claude keep running for a future re-attach.
+	// Fires OnExit(nil) exactly once.
+	Detach()
+}
+
+// compile-time: the real *SupervisorSession is an agentSession (the ONLY
+// production impl). A test fake also satisfies it but lives in _test.go.
+var _ agentSession = (*SupervisorSession)(nil)
+
+// sessionStarter is the factory the controller uses to start a session. Production
+// = startSupervisorSessionAdapter (real supervisor spawn). Tests inject a fake
+// starter that returns a fake agentSession (controller-logic unit tests, no real
+// spawn). Injected via the unexported AgentControllerConfig.starter field, which
+// only same-package _test.go can set — so production ALWAYS gets the real adapter.
+type sessionStarter func(ctx context.Context, cfg SupervisorSessionConfig) (agentSession, error)
+
+// startSupervisorSessionAdapter is the PRODUCTION session starter: it spawns the
+// real persistent supervisor (which solely owns claude). The explicit nil-on-error
+// return avoids the typed-nil-interface gotcha (a nil *SupervisorSession wrapped in
+// a non-nil agentSession).
+func startSupervisorSessionAdapter(ctx context.Context, cfg SupervisorSessionConfig) (agentSession, error) {
+	s, err := StartSupervisorSession(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
 
 // Command types (mirror the projector constants — kept local so the controller
 // does not import the Environment/PM service packages).
@@ -102,8 +158,6 @@ type wakePayload struct {
 type AgentControllerConfig struct {
 	// Reporter posts RESULT feedback to the center. Required.
 	Reporter feedbackReporter
-	// Launcher starts the claude process. Nil → execLauncher (production).
-	Launcher procLauncher
 	// WorkerID is this daemon's worker id (for the agent home layout + mcp env).
 	WorkerID string
 	// AdminURL is the admin endpoint the per-agent mcp-host dials (AC_MCP_ADMIN_URL).
@@ -125,14 +179,24 @@ type AgentControllerConfig struct {
 	AgentHomeBase string
 	// Logger receives one-line ops messages. Nil → silent.
 	Logger func(msg string)
-	// StopGrace is the graceful-stop window forwarded to each ClaudeSession.
+	// StopGrace is the graceful-stop window forwarded to each SupervisorSession
+	// (Stop → StopSupervisor SIGTERM grace).
 	StopGrace time.Duration
+
+	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
+	// same-package _test.go can override it with a fake — production callers cannot
+	// set it, so NewAgentController always defaults it to the real supervisor-spawn
+	// adapter. This is the test seam that keeps the controller LOGIC unit-testable
+	// without a real spawn while guaranteeing production wires only the real
+	// *SupervisorSession (grep-clean ownership).
+	starter sessionStarter
 }
 
-// managedAgent tracks one live (or recently-live) agent process.
+// managedAgent tracks one live (or recently-live) agent session (backed by a
+// persistent supervisor in s3b-2b).
 type managedAgent struct {
 	agentID string
-	session *ClaudeSession
+	session agentSession
 
 	// appliedVersion is the highest reconcile version applied. A reconcile with
 	// version <= appliedVersion is a replay → no-op (no restart).
@@ -142,6 +206,17 @@ type managedAgent struct {
 	// is in progress, so the session's OnExit does NOT also report a crash. The
 	// reconcile/reset flow is then the sole lifecycle reporter.
 	expectedStop bool
+
+	// detaching records that a daemon-shutdown SURVIVAL detach is in progress
+	// (s3b-2b). Detach closes the socket WITHOUT killing claude and fires
+	// OnExit(nil); without this flag onExit would mis-report that nil exit as a
+	// CRASH ("error") on every clean shutdown. detaching → onExit only logs and
+	// reports NOTHING (the agent stays desired-running; its supervisor + claude
+	// survive for the next daemon's s4 re-attach). SAFETY (PM): this transient
+	// signal cannot mask a REAL crash — if claude actually died during shutdown,
+	// the next daemon-boot s4 probe (pidfile kill-0) detects the dead process and
+	// drives the mode-B relaunch. Truth is recomputed by boot-probe, not this flag.
+	detaching bool
 
 	// lifecycleOnce guards the lifecycle RESULT report for this process instance
 	// so it fires EXACTLY ONCE per stop, whether the reporter is the reconcile
@@ -170,14 +245,15 @@ type AgentController struct {
 // compile-time: AgentController is a CommandHandler.
 var _ CommandHandler = (*AgentController)(nil)
 
-// NewAgentController constructs the controller. Reporter is required; a nil
-// Launcher defaults to the production execLauncher.
+// NewAgentController constructs the controller. Reporter is required; the session
+// starter defaults to the production real-supervisor-spawn adapter (only
+// same-package tests can override it with a fake).
 func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 	if cfg.Reporter == nil {
 		return nil, errors.New("agent_controller: reporter required")
 	}
-	if cfg.Launcher == nil {
-		cfg.Launcher = execLauncher{}
+	if cfg.starter == nil {
+		cfg.starter = startSupervisorSessionAdapter
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = func(string) {}
@@ -286,7 +362,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 		// Restart: stop the old instance (expected stop, but we are about to
 		// replace it so we suppress the lifecycle report — a restart should NOT
 		// emit a "stopped" feedback that would settle the agent's lifecycle).
-		c.stopSession(ctx, pl.AgentID, true /*graceful*/, false /*reportLifecycle*/)
+		c.stopSession(ctx, pl.AgentID, false /*reportLifecycle*/)
 	}
 
 	if err := c.startSession(ctx, pl.AgentID, pl.Version); err != nil {
@@ -300,27 +376,66 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 // reconcileStop stops the session and reports lifecycle "stopped" exactly once.
 func (c *AgentController) reconcileStop(ctx context.Context, pl reconcilePayload) error {
 	c.recordVersion(pl.AgentID, pl.Version)
-	c.stopSession(ctx, pl.AgentID, true /*graceful*/, true /*reportLifecycle*/)
+	c.stopSession(ctx, pl.AgentID, true /*reportLifecycle*/)
 	return nil
 }
 
-// reconcileReset stops the session, wipes the per-scope dirs under the agent
-// home (STRICTLY contained), then reports lifecycle "stopped". Does NOT auto-
-// restart (the next intent change drives a fresh start).
+// reconcileReset runs the clean-slate RESET chain (s3b-2b), the WHOLE sequence
+// under the agent's home lock so it cannot interleave with a probe/spawn from
+// another daemon (cross-daemon coherence; PM): SIGTERM the old supervisor →ⓦipe
+// the per-scope dirs (STRICTLY contained) → BUMP the durable epoch (idempotent on
+// reconcile version) → settle lifecycle "stopped". It does NOT auto-restart; the
+// next reconcile(running) reads the BUMPED epoch and spawns a fresh claude
+// session-id = the clean slate.
+//
+// The home lock is LOCK_NB: if another holder (a concurrent daemon op) has it, we
+// return an error so the ControlLoop re-pulls the reset next tick rather than
+// interleaving a half reset. The epoch bump is idempotent on pl.Version, so a
+// re-pulled reset is safe.
 func (c *AgentController) reconcileReset(ctx context.Context, pl reconcilePayload) error {
 	c.recordVersion(pl.AgentID, pl.Version)
-	// Stop first (expected) — but defer the lifecycle report until AFTER the
-	// cleanup so a clean is not reported as stopped before the wipe runs.
-	c.stopSession(ctx, pl.AgentID, true /*graceful*/, false /*reportLifecycle*/)
 
+	home, _, err := c.agentPaths(pl.AgentID)
+	if err != nil {
+		// Cannot resolve the home (missing config) — settle the lifecycle so the
+		// agent does not hang in "resetting"; nothing to wipe/bump without a home.
+		c.log("reset agent=%s resolve home: %v", pl.AgentID, err)
+		c.reportLifecycleOnce(ctx, pl.AgentID, "stopped", "")
+		return nil
+	}
+
+	// Acquire the home lock for the WHOLE reset chain (no interleave with a
+	// concurrent daemon's probe/relaunch on this agent).
+	release, err := supervisormanager.AcquireHomeLock(home)
+	if err != nil {
+		// Another holder — retry next tick (the bump is version-idempotent).
+		return fmt.Errorf("agent_controller: reset agent=%s acquire home lock: %w", pl.AgentID, err)
+	}
+	defer release()
+
+	// 1. SIGTERM the old supervisor (expected stop) — suppress the lifecycle
+	//    report until AFTER the wipe+bump so we never settle "stopped" early.
+	c.stopSession(ctx, pl.AgentID, false /*reportLifecycle*/)
+
+	// 2. Wipe the per-scope dirs under the agent home (contained).
 	if err := c.cleanReset(pl.AgentID, pl.ResetScope); err != nil {
-		// A containment violation / FS error: log it but still settle the
-		// lifecycle (the process IS stopped). Returning an error here would just
-		// retry the (now process-less) reset forever; the cleanup is best-effort.
+		// A containment violation / FS error: log it but still continue to the
+		// epoch bump + settle (the process IS stopped). Returning an error would
+		// just retry the (now process-less) reset forever; cleanup is best-effort.
 		c.log("reset agent=%s scope=%q cleanup: %v", pl.AgentID, pl.ResetScope, err)
 	}
 
-	// Settle resetting → stopped via the lifecycle feedback (MarkAgentStopped).
+	// 3. Bump the durable epoch (idempotent on pl.Version) → the next start derives
+	//    a NEW claude session-id = a clean slate. Best-effort: a bump failure is
+	//    logged, not fatal to the settle (a failed bump leaves the old epoch, which
+	//    a later reconcile re-attempts; the wipe already cleared state).
+	if st, berr := supervisormanager.BumpEpochForReset(home, pl.Version); berr != nil {
+		c.log("reset agent=%s bump epoch: %v", pl.AgentID, berr)
+	} else {
+		c.log("reset agent=%s scope=%q epoch→%d (clean slate on next start)", pl.AgentID, pl.ResetScope, st.Epoch)
+	}
+
+	// 4. Settle resetting → stopped via the lifecycle feedback (MarkAgentStopped).
 	c.reportLifecycleOnce(ctx, pl.AgentID, "stopped", "")
 	return nil
 }
@@ -341,7 +456,7 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
-	var sess *ClaudeSession
+	var sess agentSession
 	if ma != nil {
 		sess = ma.session
 	}
@@ -393,7 +508,7 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
-	var sess *ClaudeSession
+	var sess agentSession
 	if ma != nil {
 		sess = ma.session
 		// Dedup check under the lock: a replay of an already-injected message_id
@@ -478,9 +593,15 @@ func (c *AgentController) recordWake(agentID, messageID string) {
 	}
 }
 
-// startSession generates the per-agent mcp-config, resolves the agent home +
-// workspace, and starts a ClaudeSession wiring OnEvent→activity and
-// OnExit→crash/clean coordination. Records the applied version on success.
+// startSession generates the per-agent mcp-config (written to a FILE the
+// supervisor reads by path — minimal key surface), resolves the agent home +
+// workspace + DURABLE reset epoch, and starts a SupervisorSession (via the
+// injected starter — production = real supervisor spawn) wiring OnEvent→activity
+// and OnExit→three-state coordination. Records the applied version on success.
+//
+// OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
+// starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
+// claude. grep-clean: no exec.Command(claude…) on this path.
 func (c *AgentController) startSession(ctx context.Context, agentID string, version int) error {
 	home, workspace, err := c.agentPaths(agentID)
 	if err != nil {
@@ -503,25 +624,42 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	if err != nil {
 		return fmt.Errorf("agent_controller: generate mcp-config: %w", err)
 	}
+	// Write the mcp-config to a file under the agent home; the supervisor receives
+	// only the PATH (--mcp-config-path), never the token-bearing bytes.
+	mcpPath, err := writeMCPConfig(home, mcpBytes)
+	if err != nil {
+		return fmt.Errorf("agent_controller: write mcp-config: %w", err)
+	}
+
+	// Resolve the DURABLE reset epoch. A normal start / crash-relaunch reads the
+	// CURRENT epoch (NOT 0) so it re-derives the SAME claude session-id and resumes
+	// the conversation; only a reset (BumpEpochForReset) advances it. A CORRUPT
+	// epoch file is surfaced as an error — we must NOT spawn at epoch 0 and
+	// silently start a fresh session (the context-loss trap).
+	epochState, err := supervisormanager.ReadEpoch(home)
+	if err != nil {
+		return fmt.Errorf("agent_controller: read epoch agent=%s: %w", agentID, err)
+	}
 
 	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit (which fire on the
-	// reader goroutine the instant the process speaks) find their entry. The
-	// session field is filled in after StartClaudeSession returns.
+	// event-pump goroutine the instant the process speaks) find their entry. The
+	// session field is filled in after the starter returns.
 	ma := &managedAgent{agentID: agentID, appliedVersion: version}
 	c.mu.Lock()
 	c.agents[agentID] = ma
 	c.mu.Unlock()
 
-	sess, err := StartClaudeSession(ctx, ClaudeSessionConfig{
-		AgentID:        agentID,
-		HomeDir:        home,
-		WorkspaceDir:   workspace,
-		Launcher:       c.cfg.Launcher,
-		MCPConfigBytes: mcpBytes,
-		Binary:         c.cfg.ClaudeBinary,
-		StopGrace:      c.cfg.StopGrace,
-		Logger:         c.cfg.Logger,
-		OnEvent: func(ev StreamEvent) {
+	sess, err := c.cfg.starter(ctx, SupervisorSessionConfig{
+		AgentID:       agentID,
+		HomeDir:       home,
+		MCPConfigPath: mcpPath,
+		WorkspaceDir:  workspace,
+		BinaryPath:    c.cfg.BinaryPath,
+		ClaudeBin:     c.cfg.ClaudeBinary,
+		Epoch:         epochState.Epoch,
+		StopGrace:     c.cfg.StopGrace,
+		Logger:        c.cfg.Logger,
+		OnEvent: func(ev claudestream.StreamEvent) {
 			c.onEvent(agentID, ev)
 		},
 		OnExit: func(exitErr error) {
@@ -529,7 +667,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		},
 	})
 	if err != nil {
-		// Launch failed: roll back the reservation so a retry starts clean.
+		// Spawn failed: roll back the reservation so a retry starts clean.
 		c.mu.Lock()
 		if c.agents[agentID] == ma {
 			delete(c.agents, agentID)
@@ -541,15 +679,16 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	c.mu.Lock()
 	ma.session = sess
 	c.mu.Unlock()
-	c.log("started agent=%s version=%d home=%s", agentID, version, home)
+	c.log("started agent=%s version=%d epoch=%d home=%s", agentID, version, epochState.Epoch, home)
 	return nil
 }
 
-// stopSession stops the live session for agentID (if any). When reportLifecycle
+// stopSession stops the live session for agentID (if any) — the EXPLICIT-terminate
+// path: SIGTERM the supervisor (which stops claude + exits). When reportLifecycle
 // is true the stop flow is the SOLE lifecycle reporter and emits "stopped" once
 // (guarded by the per-instance sync.Once). expectedStop is always set so the
 // session's OnExit does NOT report a crash for this intentional stop.
-func (c *AgentController) stopSession(ctx context.Context, agentID string, graceful, reportLifecycle bool) {
+func (c *AgentController) stopSession(ctx context.Context, agentID string, reportLifecycle bool) {
 	c.mu.Lock()
 	ma := c.agents[agentID]
 	if ma == nil || ma.session == nil {
@@ -564,8 +703,8 @@ func (c *AgentController) stopSession(ctx context.Context, agentID string, grace
 	sess := ma.session
 	c.mu.Unlock()
 
-	// Stop blocks until the reader goroutine joins + OnExit fired (no leak).
-	if err := sess.Stop(ctx, graceful); err != nil {
+	// Stop blocks until the event-pump joins + OnExit fired (no leak).
+	if err := sess.Stop(ctx); err != nil {
 		c.log("stop agent=%s: %v", agentID, err)
 	}
 
@@ -629,12 +768,18 @@ func streamActivityPayload(ev StreamEvent) map[string]any {
 	return p
 }
 
-// onExit coordinates the EXACTLY-ONE lifecycle report on process exit:
+// onExit coordinates the EXACTLY-ONE lifecycle report on session exit, across the
+// THREE exit kinds (s3b-2b):
+//   - detaching (daemon-shutdown SURVIVAL) → Detach fired OnExit(nil) but claude
+//     is STILL ALIVE under the supervisor for a future re-attach. Report NOTHING
+//     (the agent stays desired-running); just log. SAFETY (PM): this cannot mask a
+//     real crash — if claude actually died, the next daemon-boot s4 probe detects
+//     it and drives mode-B relaunch. Truth is recomputed by boot-probe.
 //   - expected stop (set by stopSession/reset) → the reconcile/reset flow is the
 //     sole reporter; OnExit does NOT report (the sync.Once may already be spent,
-//     and even if not, an expected stop's lifecycle is owned by the stop flow).
-//   - unexpected (process crashed while desired=running) → OnExit reports
-//     "error" with the exit err, exactly once.
+//     and an expected stop's lifecycle is owned by the stop flow).
+//   - unexpected (the supervisor/claude died while desired=running) → OnExit
+//     reports "error" with the exit err, exactly once.
 //
 // The managedAgent entry is cleared on exit so a fresh start re-creates it.
 func (c *AgentController) onExit(agentID string, exitErr error) {
@@ -644,10 +789,18 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 		c.mu.Unlock()
 		return
 	}
+	detaching := ma.detaching
 	expected := ma.expectedStop
-	// Clear the entry: the process is gone.
+	// Clear the entry: this daemon no longer tracks the session (on detach the
+	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
 	c.mu.Unlock()
+
+	if detaching {
+		// Daemon-shutdown survival: claude lives on; report nothing.
+		c.log("agent=%s detached (supervisor + claude survive for re-attach)", agentID)
+		return
+	}
 
 	if expected {
 		// The stop/reset flow owns the lifecycle report for this instance.
@@ -808,25 +961,28 @@ func (c *AgentController) wipeContained(home, target string) error {
 // Shutdown.
 // ---------------------------------------------------------------------------
 
-// Shutdown stops all live sessions for a clean daemon shutdown. It does NOT
-// report lifecycle feedback (a daemon shutdown is not an agent-intent stop — the
-// agents remain desired-running and will be reconciled on the next daemon boot).
-// No goroutine leaks: each session's Stop joins its reader goroutine.
+// Shutdown is the daemon-shutdown SURVIVAL path (s3b-2b, the @oopslink red-line):
+// a worker-daemon stop/restart must NOT kill the agents' claude processes. It
+// DETACHES every live session — closes the supervisor socket WITHOUT signalling —
+// so the supervisor + claude keep running, owned by init, ready for the next
+// daemon to re-attach. It reports NO lifecycle feedback (the agents remain
+// desired-running). Each session is marked `detaching` first so its OnExit(nil)
+// is recognised as a survival detach, NOT a crash. No goroutine leaks: each
+// Detach joins the session's event-pump.
 func (c *AgentController) Shutdown(ctx context.Context) {
 	c.mu.Lock()
-	sessions := make([]*ClaudeSession, 0, len(c.agents))
+	sessions := make([]agentSession, 0, len(c.agents))
 	for _, ma := range c.agents {
 		if ma.session != nil {
-			ma.expectedStop = true
+			ma.detaching = true
 			sessions = append(sessions, ma.session)
 		}
 	}
 	c.mu.Unlock()
 
 	for _, s := range sessions {
-		if err := s.Stop(ctx, true); err != nil {
-			c.log("shutdown stop: %v", err)
-		}
+		// Detach is no-signal + joins the pump; claude survives.
+		s.Detach()
 	}
 }
 
