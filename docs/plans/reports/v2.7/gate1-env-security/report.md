@@ -53,3 +53,11 @@ dev 折进 ① 的 deny-prefix（`envAllowed`: `name=="CLAUDE_CONFIG_DIR" || Has
 - 注入 `CLAUDE_FOO`/`ANTHROPIC_TESTVAR` → child env **均在** ✅（其余 `CLAUDE_*` + claude auth 命名空间保留）
 - `CLAUDE_CONFIG_DIR`=隔离 dir ✅
 → (a) 含 CLAUDE_CODE_ deny 全过。**① 仅剩 authed-turn 正向演示**（ship 前 authed/`ANTHROPIC_API_KEY` 环境，§A.5 红线）；runtime ⑤ + (b) 随 spawn-fix / ② 补。
+
+## (a) CLAUDE_CODE_OAUTH_TOKEN carve-out 重验 — PASS ✅ (commit 5b07a22, 2026-05-30)
+dev 为支持订阅-token 非交互路 (b) 在 `CLAUDE_CODE_` deny 前加专项放行（`envAllowed`: `if name=="CLAUDE_CODE_OAUTH_TOKEN" {return true}`）。Tester rebuild 5b07a22 + 直跑 supervisor + `ps eww` child claude env：
+- `CLAUDE_CODE_OAUTH_TOKEN` → child env **在（1）** ✅（carve-out 生效、订阅 token 路可透）
+- `CLAUDE_CODE_SESSION_ID` → **剔（0）** ✅；其余 `CLAUDE_CODE_*` → **0 泄漏** ✅（session 标记 deny 仍守）
+- `AGENT_CENTER_*` → **剔（0）** ✅（worker secret regression 守住）
+- `CLAUDE_FOO`/`ANTHROPIC_TESTVAR` → **均在（2）** ✅
+→ **① env 构造三条 auth 路径全 code-ready**：env `ANTHROPIC_API_KEY` / 文件凭据(`claudeAuthFiles`) / 订阅 `CLAUDE_CODE_OAUTH_TOKEN`(carve-out)。**① 代码侧 (a)+⑤+A+CLAUDE_CODE_ deny+OAUTH carve-out 全 PASS**；仅剩 **authed-turn 正向演示**（🔴 需 @oopslink 给凭据：API key 或铸订阅 token；本机无 key、订阅 keychain 非交互不可读、setup-token 交互式我铸不了）。
