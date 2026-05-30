@@ -52,3 +52,15 @@ Mode A (reattach live survivor, no-nudge) already PASS; this fix completes GATE-
 ### Mode-B PASS口径 (false-FAIL guards, PD 4d3a898b — from survive product spec):
 - **§4 brief recovery interruption is EXPECTED → PASS**: Mode-B bar = resumes-to-completion + no-loss + no-dup; do NOT fail on "briefly interrupted / the relaunch moment" (zero-interruption is Mode-A's bar, already PASS). Only judge resumed/lost/duplicated.
 - **§3.3 activity event stream = at-least-once → PASS**: legal re-report of an activity event on relaunch/reconnect is by-design; NOT a point-6 violation. Point-6 exactly-once is STRICTLY state/side-effects (post_task_message, admin-tool side-effects, claude proc count) — activity stream excluded. (Consistent with the locked §A activity at-least-once semantic.)
+
+## SCOPE DECISION (@oopslink b9468930): mid-run self-heal IN this round (backoff+cap+terminal-failed) — NOT (i)-only
+deferred-with-trigger registration MOOT (mid-run now in-scope). GATE-7 Mode-B acceptance = TWO segments:
+**A. daemon-restart Mode-B (fix (i) boot-reconcile)** — the original 6-pt: relaunch + resume(persistent epoch, not clean-slate) + nudge(iff active WI) + single-instance(reap) + work delivered&completed + no dup/loss.
+**B. mid-run self-heal (NEW: backoff + cap + terminal-failed)** — Tester verifies:
+1. transient crash (within cap) → auto-relaunch (with backoff) → resume context → work completes (self-heal works).
+2. backoff actually applied (increasing intervals; no busy-loop/CPU/log spam).
+3. persistent crash (exceeds cap) → terminal "failed" state, user-visible in Fleet, prompts manual intervention → NO further relaunch (no infinite loop).
+4. single-instance held across each relaunch (reap residual each time; ≤1 claude/agent any moment).
+5. no dup/loss: repeated relaunch doesn't duplicate state/side-effects (activity stream at-least-once excluded per §3.3口径).
+6. post-terminal-failed manual recovery works (reset/re-start → clean restart).
+dev impl (i) + self-heal state machine → reports切口 (backoff curve / cap value / terminal-failed state field + Fleet visibility path); exact cap/backoff expectations per product manual/PD design. Then Tester runs A(6) + B(6) + closes GATE-1. Non-silent invariant satisfied by design (terminal-failed user-visible).
