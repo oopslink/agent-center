@@ -31,3 +31,20 @@
 
 ## 结论
 GATE-7 Mode A（survive+reattach）全断言过：killpg daemon→同 pid 存活→重启 reattach 同 pid 续、不丢、无双跑、无误 nudge。头号 cutover 风险（worker 重启 agent 不中断）在真 (b) 路径坐实。Mode B（真死→relaunch+resume）+ GATE-6 接缝 + GATE-1/2/3/4 待续。
+
+## GATE-7 Mode B — GAP FOUND (ship-must-fix; reported #110 ef446984, PD intent-ruled cec519b0)
+While driving GATE-1 (dispatch→inject) I hit the Mode-B gap: out-of-band kill of the supervisor+claude (= Mode-B crash; agent truly dead, desired=running, resumable session.epoch present) → daemon restart →
+- boot-reconcile: `probe=unavailable desired=running → noop (idle desired-running / leave for next work)` (did NOT detect in-flight WI / didn't relaunch), AND
+- `agent.work` (offset=2): `work for agent=… but no running session (retry after reconcile)` looping.
+→ **DEADLOCK: neither side starts the session → no relaunch → work stuck.** `resume_offset=1` (original reconcile-start already acked) so no replay restarts it.
+PD intent ruling (cec519b0): F30/survive Mode-B promises system relaunch+resume → session-dead + desired=running + resumable MUST relaunch; current noop = spec gap + the noop⇄no-session deadlock is itself a bug. **ship-must-fix.** dev fix: (i) boot-reconcile reapRelaunch on Unavailable+desired=running+resumable (eager), or (ii) agent.work handler triggers relaunch on no-session (lazy). impl = dev.
+Repro: project 01KSWVNHGJG6ZRD4PS4KVZ93AZ / task 01KSWVNHGYFQYD1V4S06XWPQW2 (assigned agent:01KSWB6… → running) + daemon worker run cutover + session previously killed.
+
+### My Mode-B re-verify criteria (after dev fix; full Mode B, not just unstick):
+1. session **relaunch** (dead+desired=running+resumable → new supervisor+claude).
+2. **RESUME not clean-slate**: persistent session.epoch → same session-id → claude continues context (not reset; in-flight WI not lost).
+3. **active WI → ResumeNudge** (Mode B nudges to resume; contrast Mode A reattach = no-nudge).
+4. **single-instance**: reap residual (pidfile + instance-id/start-ts / home lock) before relaunch → ≤1 claude/agent.
+5. **work delivered + completed**: post-relaunch agent.work injects + claude processes the task (closes GATE-1 too).
+6. **no dup/loss**: state/side-effects exactly-once across relaunch.
+Mode A (reattach live survivor, no-nudge) already PASS; this fix completes GATE-7 (both halves).
