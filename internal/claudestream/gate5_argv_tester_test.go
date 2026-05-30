@@ -86,6 +86,7 @@ func TestGATE5_ArgvStaticAssertion(t *testing.T) {
 	valueFlag := map[string]bool{
 		"--input-format": true, "--output-format": true, "--session-id": true,
 		"--mcp-config": true, "--model": true, "--setting-sources": true,
+		"--permission-mode": true, // bypassPermissions (PD 09394dbd; value follows)
 	}
 	for i, a := range args {
 		if i > 0 && valueFlag[args[i-1]] {
