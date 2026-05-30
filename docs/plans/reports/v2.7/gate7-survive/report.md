@@ -48,3 +48,7 @@ Repro: project 01KSWVNHGJG6ZRD4PS4KVZ93AZ / task 01KSWVNHGYFQYD1V4S06XWPQW2 (ass
 5. **work delivered + completed**: post-relaunch agent.work injects + claude processes the task (closes GATE-1 too).
 6. **no dup/loss**: state/side-effects exactly-once across relaunch.
 Mode A (reattach live survivor, no-nudge) already PASS; this fix completes GATE-7 (both halves).
+
+### Mode-B PASS口径 (false-FAIL guards, PD 4d3a898b — from survive product spec):
+- **§4 brief recovery interruption is EXPECTED → PASS**: Mode-B bar = resumes-to-completion + no-loss + no-dup; do NOT fail on "briefly interrupted / the relaunch moment" (zero-interruption is Mode-A's bar, already PASS). Only judge resumed/lost/duplicated.
+- **§3.3 activity event stream = at-least-once → PASS**: legal re-report of an activity event on relaunch/reconnect is by-design; NOT a point-6 violation. Point-6 exactly-once is STRICTLY state/side-effects (post_task_message, admin-tool side-effects, claude proc count) — activity stream excluded. (Consistent with the locked §A activity at-least-once semantic.)
