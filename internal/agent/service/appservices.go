@@ -158,7 +158,16 @@ func (s *Service) MarkAgentFailed(ctx context.Context, id agent.AgentID, msg str
 		}
 		for _, wi := range wis {
 			if st := wi.Status(); st != agent.WorkItemActive && st != agent.WorkItemWaitingInput {
-				continue // only in-flight WorkItems cascade
+				// Only IN-FLIGHT WorkItems cascade. A QUEUED WorkItem is deliberately
+				// LEFT queued (DEFERRED-WITH-TRIGGER, PM): it is unstarted + not
+				// session-bound, so its work is recoverable — failing it would wrongly
+				// kill work that could still run, and the owning agent is itself visibly
+				// `failed` (queryable), so the residual is non-silent and loses no done
+				// work. Long-term a queued WI on a dead agent should be REASSIGNED to a
+				// healthy agent (via Supersede + recreate — a cross-BC dispatch change
+				// beyond Mode-B). Trigger: queued WIs stuck on dead agents become a
+				// fleet-scale pain → wire agent-death→reassign then. (CHANGELOG + §A.)
+				continue
 			}
 			if err := wi.FailFromAgentDeath(at); err != nil {
 				return err

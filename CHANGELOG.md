@@ -30,6 +30,23 @@ ADR / phase plan landscape, see
   breaks. Canonical record: the `ProtocolVersion` note in
   `internal/agentsupervisor/protocol.go` (+ the re-entry comment in
   `supervisormanager.ProbeAgent`); also registered on the acceptance side (§A).
+- **Agent terminal-fail → queued WorkItem reassignment (deferred-with-trigger).**
+  The v2.7 GATE-7 Mode-B self-heal circuit-breaker (an agent that crash-loops past
+  its relaunch cap → terminal `LifecycleFailed`) cascades only its IN-FLIGHT
+  WorkItems (active + waiting_input) → failed, atomically (so the user's task never
+  silently looks "still running"). A **queued** WorkItem (not yet started, not
+  session-bound) is deliberately LEFT `queued`: its work is unstarted/recoverable, so
+  failing it would wrongly kill work that could still run, and the owning agent is
+  itself visibly `failed` (queryable) — so the residual is non-silent and loses no
+  done work. Long-term, a queued WorkItem on a terminally-failed agent should be
+  **reassigned to a healthy agent** (work is not session-bound; the reassignment
+  mechanism `AgentWorkItem.Supersede` + recreate already exists), but wiring
+  agent-death → workforce/dispatch reassignment is a cross-BC change beyond
+  Mode-B/B3. **Trigger:** queued WorkItems stuck on dead agents become a practical /
+  fleet-scale pain point → wire the agent-death→reassign path + its e2e then.
+  Canonical record: the cascade comment in
+  `internal/agent/service/appservices.go` (`MarkAgentFailed`); also registered on the
+  acceptance side (§A).
 
 ## [v2.6.0] — 2026-05-28
 
