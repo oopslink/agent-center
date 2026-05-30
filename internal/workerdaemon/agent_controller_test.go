@@ -183,23 +183,54 @@ func TestAgentController_ReconcileRunning_StartsAndStreamsActivity(t *testing.T)
 		t.Fatalf("want 1 launch, got %d", lp.count())
 	}
 
-	// Feed canned stdout events and ensure they map to ReportAgentActivity.
+	// Feed REAL-shaped claude 2.1.156 stdout: the genuine fixture (system /
+	// assistant{thinking,text} / result) plus a faithful tool_use line. Each
+	// parsed StreamEvent must map to a ReportAgentActivity call with event_type
+	// = StreamEvent.Type.
 	fp := lp.lastProc()
-	fp.feed(`{"type":"thinking","text":"hmm"}`)
-	fp.feed(`{"type":"tool_use","name":"Bash","input":{"cmd":"ls"}}`)
+	for _, line := range fixtureLines(t) {
+		fp.feed(string(line))
+	}
+	fp.feed(toolUseLine)
+	fp.feed(assistantTextLine)
 
-	// Wait for the activity calls to land (reader goroutine is async).
-	waitFor(t, func() bool { return len(rep.activityCalls()) >= 2 })
+	// system(1) + thinking(1) + result(1) + tool_use(1) + assistant_text(1) = 5.
+	waitFor(t, func() bool { return len(rep.activityCalls()) >= 5 })
 
 	acts := rep.activityCalls()
-	if acts[0].agentID != "agent-1" || acts[0].eventType != "thinking" {
-		t.Fatalf("activity[0]: %+v", acts[0])
+	byType := map[string]activityCall{}
+	for _, a := range acts {
+		if a.agentID != "agent-1" {
+			t.Fatalf("activity for wrong agent: %+v", a)
+		}
+		if a.eventType == "unknown" {
+			t.Fatalf("real-shaped line mapped to unknown activity: %+v", a)
+		}
+		byType[a.eventType] = a
 	}
-	if acts[1].eventType != "tool_call" {
-		t.Fatalf("activity[1] eventType: %q want tool_call", acts[1].eventType)
+
+	if a, ok := byType["thinking"]; !ok {
+		t.Fatalf("no thinking activity: %+v", acts)
+	} else if !strings.Contains(a.payload, "PONG") {
+		t.Fatalf("thinking payload missing text: %s", a.payload)
 	}
-	if !strings.Contains(acts[1].payload, "\"tool_name\":\"Bash\"") && !strings.Contains(acts[1].payload, "Bash") {
-		t.Fatalf("activity[1] payload missing tool name: %s", acts[1].payload)
+	if a, ok := byType["assistant_text"]; !ok {
+		t.Fatalf("no assistant_text activity: %+v", acts)
+	} else if !strings.Contains(a.payload, "PONG") {
+		t.Fatalf("assistant_text payload missing PONG: %s", a.payload)
+	}
+	if a, ok := byType["result"]; !ok {
+		t.Fatalf("no result activity: %+v", acts)
+	} else if !strings.Contains(a.payload, "success") {
+		t.Fatalf("result payload missing subtype: %s", a.payload)
+	}
+	if _, ok := byType["system"]; !ok {
+		t.Fatalf("no system activity: %+v", acts)
+	}
+	if a, ok := byType["tool_use"]; !ok {
+		t.Fatalf("no tool_use activity: %+v", acts)
+	} else if !strings.Contains(a.payload, "Bash") {
+		t.Fatalf("tool_use payload missing tool name: %s", a.payload)
 	}
 }
 

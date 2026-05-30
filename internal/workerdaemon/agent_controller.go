@@ -38,7 +38,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/agentadapter"
 	"github.com/oopslink/agent-center/internal/mcphost"
 )
 
@@ -374,7 +373,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		Binary:         c.cfg.ClaudeBinary,
 		StopGrace:      c.cfg.StopGrace,
 		Logger:         c.cfg.Logger,
-		OnEvent: func(ev agentadapter.AgentTraceEvent) {
+		OnEvent: func(ev StreamEvent) {
 			c.onEvent(agentID, ev)
 		},
 		OnExit: func(exitErr error) {
@@ -427,22 +426,59 @@ func (c *AgentController) stopSession(ctx context.Context, agentID string, grace
 	}
 }
 
-// onEvent is the stdout→activity sink: it maps a parsed AgentTraceEvent to a
-// ReportAgentActivity call. eventType = the normalised event kind; payload = the
-// event marshaled to JSON. It NEVER posts to a Conversation (only the activity
-// endpoint). Best-effort: a feedback failure is logged, not fatal.
-func (c *AgentController) onEvent(agentID string, ev agentadapter.AgentTraceEvent) {
-	payload, err := json.Marshal(ev)
+// onEvent is the stdout→activity sink: it maps a parsed StreamEvent (the D2
+// claude 2.1.156 stream-json event) to a ReportAgentActivity call. event_type =
+// StreamEvent.Type ("assistant_text" | "thinking" | "tool_use" | "tool_result"
+// | "system" | "result" | "rate_limit" | "unknown"); payload = the StreamEvent
+// marshaled to a JSON object. It NEVER posts to a Conversation (only the
+// activity endpoint). Best-effort: a feedback failure is logged, not fatal.
+func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
+	payload, err := json.Marshal(streamActivityPayload(ev))
 	if err != nil {
 		c.log("activity agent=%s marshal event: %v", agentID, err)
 		return
 	}
 	if err := c.cfg.Reporter.ReportAgentActivity(
-		context.Background(), agentID, string(ev.Type), string(payload),
-		"" /*workItemRef*/, "" /*interactionRef*/, ev.OccurredAt,
+		context.Background(), agentID, ev.Type, string(payload),
+		"" /*workItemRef*/, "" /*interactionRef*/, time.Now(),
 	); err != nil {
 		c.log("activity agent=%s report: %v", agentID, err)
 	}
+}
+
+// streamActivityPayload builds the JSON activity payload for a StreamEvent,
+// emitting only the fields relevant to its Type so the activity record is a
+// meaningful, compact object (omitempty drops the rest).
+func streamActivityPayload(ev StreamEvent) map[string]any {
+	p := map[string]any{"type": ev.Type}
+	switch ev.Type {
+	case "assistant_text", "thinking":
+		p["text"] = ev.Text
+	case "tool_use":
+		p["tool_name"] = ev.ToolName
+		p["tool_use_id"] = ev.ToolUseID
+		if len(ev.ToolInput) > 0 {
+			p["tool_input"] = ev.ToolInput
+		}
+	case "tool_result":
+		p["tool_use_id"] = ev.ToolUseID
+		if len(ev.ToolResult) > 0 {
+			p["tool_result"] = ev.ToolResult
+		}
+	case "system":
+		p["subtype"] = ev.Subtype
+	case "result":
+		p["subtype"] = ev.Subtype
+		p["result"] = ev.Result
+		p["stop_reason"] = ev.StopReason
+		p["cost_usd"] = ev.CostUSD
+		p["tokens_in"] = ev.TokensIn
+		p["tokens_out"] = ev.TokensOut
+	}
+	if len(ev.Raw) > 0 {
+		p["raw"] = ev.Raw
+	}
+	return p
 }
 
 // onExit coordinates the EXACTLY-ONE lifecycle report on process exit:

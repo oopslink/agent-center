@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/agentadapter"
 	"github.com/oopslink/agent-center/internal/mcphost"
 )
 
@@ -125,11 +124,11 @@ func TestClaudeSession_EventStreaming(t *testing.T) {
 	lp := &fakeLauncher{proc: fp}
 
 	var mu sync.Mutex
-	var got []agentadapter.AgentTraceEvent
+	var got []StreamEvent
 	s, err := StartClaudeSession(context.Background(), ClaudeSessionConfig{
 		AgentID:  "agent-1",
 		Launcher: lp,
-		OnEvent: func(ev agentadapter.AgentTraceEvent) {
+		OnEvent: func(ev StreamEvent) {
 			mu.Lock()
 			got = append(got, ev)
 			mu.Unlock()
@@ -139,25 +138,40 @@ func TestClaudeSession_EventStreaming(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fp.feed(`{"type":"thinking","text":"hmm"}`)
-	fp.feed(`{"type":"tool_use","name":"Bash","input":{"cmd":"ls"}}`)
-	fp.feed(`{"type":"end_turn"}`)
+	// Feed the GENUINE claude 2.1.156 stream fixture: system/init, an assistant
+	// message (a single thinking block — the PONG run emitted no text block),
+	// then a result. Append a faithful text-block assistant line so the
+	// assistant_text path is also exercised. The reader fires OnEvent ONCE PER
+	// parsed StreamEvent.
+	for _, line := range fixtureLines(t) {
+		fp.feed(string(line))
+	}
+	fp.feed(assistantTextLine)
 	fp.exit(nil)
 	s.Wait()
 
 	mu.Lock()
 	defer mu.Unlock()
-	if len(got) != 3 {
-		t.Fatalf("want 3 events, got %d: %+v", len(got), got)
+	// system(1) + thinking(1) + result(1) + assistant_text(1) = 4.
+	if len(got) != 4 {
+		t.Fatalf("want 4 events, got %d: %+v", len(got), got)
 	}
-	if got[0].Type != agentadapter.EventThinking || got[0].Thinking != "hmm" {
+	if got[0].Type != "system" || got[0].Subtype != "init" {
 		t.Fatalf("event[0]: %+v", got[0])
 	}
-	if got[1].Type != agentadapter.EventToolCall || got[1].ToolName != "Bash" {
+	if got[1].Type != "thinking" || !strings.Contains(got[1].Text, "PONG") {
 		t.Fatalf("event[1]: %+v", got[1])
 	}
-	if got[2].Type != agentadapter.EventTurnEnd {
+	if got[2].Type != "result" || got[2].Subtype != "success" || got[2].Result != "PONG" {
 		t.Fatalf("event[2]: %+v", got[2])
+	}
+	if got[3].Type != "assistant_text" || got[3].Text != "PONG" {
+		t.Fatalf("event[3]: %+v", got[3])
+	}
+	for _, ev := range got {
+		if ev.Type == "unknown" {
+			t.Fatalf("fixture produced an unknown event: %+v", ev)
+		}
 	}
 }
 
@@ -364,18 +378,66 @@ func TestClaudeSession_WritesMCPConfig(t *testing.T) {
 }
 
 func TestClaudeSession_RewriteForStreamingInput(t *testing.T) {
-	in := []string{"--output-format", "stream-json", "--session-id", "agent-1", "-p", "the-prompt"}
+	// Mirror what claudecode.Adapter.BuildCommand emits for a long-lived spawn:
+	// --output-format stream-json --session-id <id> -p <sentinel-prompt>.
+	in := []string{"--output-format", "stream-json", "--session-id", "agent-1", "-p", longLivedSentinelPrompt}
 	out := rewriteForStreamingInput(in)
 	joined := strings.Join(out, " ")
-	if !strings.Contains(joined, "--input-format stream-json") {
-		t.Fatalf("missing input-format: %v", out)
+
+	// --print PRESENT as a flag (the -p was canonicalised to --print).
+	if !contains(out, "--print") {
+		t.Fatalf("--print not present: %v", out)
 	}
+	// The sentinel/positional prompt must be gone, and no bare -p left.
 	for _, a := range out {
-		if a == "-p" || a == "the-prompt" {
-			t.Fatalf("prompt not stripped: %v", out)
+		if a == "-p" || a == longLivedSentinelPrompt {
+			t.Fatalf("sentinel prompt / -p not stripped: %v", out)
 		}
 	}
+	// The three validated stream flags all present.
+	if !strings.Contains(joined, "--input-format stream-json") {
+		t.Fatalf("missing --input-format stream-json: %v", out)
+	}
+	if !strings.Contains(joined, "--output-format stream-json") {
+		t.Fatalf("missing --output-format stream-json: %v", out)
+	}
+	if !contains(out, "--verbose") {
+		t.Fatalf("missing --verbose: %v", out)
+	}
+	// session-id preserved.
 	if !strings.Contains(joined, "--session-id agent-1") {
 		t.Fatalf("session-id dropped: %v", out)
 	}
+	// No duplicate flags introduced.
+	if n := count(out, "--print"); n != 1 {
+		t.Fatalf("--print appears %d times: %v", n, out)
+	}
+	if n := count(out, "--input-format"); n != 1 {
+		t.Fatalf("--input-format appears %d times: %v", n, out)
+	}
+	if n := count(out, "--output-format"); n != 1 {
+		t.Fatalf("--output-format appears %d times: %v", n, out)
+	}
+	if n := count(out, "--verbose"); n != 1 {
+		t.Fatalf("--verbose appears %d times: %v", n, out)
+	}
+}
+
+func contains(ss []string, want string) bool {
+	for _, s := range ss {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}
+
+func count(ss []string, want string) int {
+	n := 0
+	for _, s := range ss {
+		if s == want {
+			n++
+		}
+	}
+	return n
 }

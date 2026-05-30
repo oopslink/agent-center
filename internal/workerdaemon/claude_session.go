@@ -84,17 +84,21 @@ type ClaudeLaunchSpec struct {
 //
 // NOTE: adapter.BuildCommand (as of D2-c-ii-A) appends `-p <prompt>` and
 // `--output-format stream-json --session-id <id>` but does NOT add
-// `--input-format stream-json`, and it REQUIRES a non-empty Prompt. For a
-// long-lived session we want the opposite: NO `-p` (messages arrive on stdin)
-// and `--input-format stream-json`. We therefore call BuildCommand with a
-// sentinel prompt to satisfy its validation + reuse its env/skill/session-id
-// assembly, then rewrite the args to drop `-p <prompt>` and add the input
-// flags. This keeps the adapter as the single source of truth for the env +
-// session-id wiring while adapting the argv for streaming input.
+// `--input-format stream-json` / `--verbose`, and it REQUIRES a non-empty
+// Prompt. For a long-lived session we want: KEEP `--print`/`-p` as a FLAG (it
+// is required for stream-json input/output) but DROP the positional prompt
+// (messages arrive on stdin), and ADD `--input-format stream-json` +
+// `--verbose`. We therefore call BuildCommand with a sentinel prompt to satisfy
+// its validation + reuse its env/skill/session-id assembly, then rewrite the
+// args via rewriteForStreamingInput. This keeps the adapter as the single
+// source of truth for the env + session-id wiring while adapting the argv for
+// streaming input.
 //
-// FLAG (D2-g): the exact long-lived claude flag set (`--input-format
-// stream-json`, whether `-p` must be absent, whether `--mcp-config` is
-// accepted alongside) must be validated against the real claude binary.
+// VALIDATED (D2-c-ii-D, real claude 2.1.156): the long-lived flag set is
+// `--print --input-format stream-json --output-format stream-json --verbose
+// --session-id <agentID> --mcp-config <path>`. `--input-format` /
+// `--output-format stream-json` only work WITH `--print`, and full event output
+// needs `--verbose`. This is no longer a guess — it is a captured round-trip.
 type execLauncher struct{}
 
 func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionProc, error) {
@@ -147,20 +151,71 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 const longLivedSentinelPrompt = "__ac_streaming_input__"
 
 // rewriteForStreamingInput converts the one-shot argv produced by
-// adapter.BuildCommand into a long-lived streaming-input argv: it drops the
-// `-p <prompt>` pair and prepends `--input-format stream-json`.
+// adapter.BuildCommand (`... -p <prompt>`) into the long-lived streaming-input
+// argv VALIDATED against real claude 2.1.156:
 //
-// FLAG (D2-g): verify against real claude — the adapter currently hard-codes a
-// `-p` based invocation; the long-lived contract here is a best-guess.
+//	--print --input-format stream-json --output-format stream-json --verbose
+//	--session-id <agentID>   (+ --mcp-config <path>, appended by the caller)
+//
+// It KEEPS `--print`/`-p` as a FLAG (rewriting `-p` → the canonical `--print`)
+// but DROPS the positional prompt value (the sentinel), then ENSURES
+// `--input-format stream-json`, `--output-format stream-json`, and `--verbose`
+// are all present exactly once (adding any that are missing; never
+// duplicating). `--session-id <id>` and other flags pass through unchanged.
 func rewriteForStreamingInput(in []string) []string {
-	out := make([]string, 0, len(in)+2)
-	out = append(out, "--input-format", "stream-json")
+	out := make([]string, 0, len(in)+4)
+	hasPrint := false
+	hasInputFormat := false
+	hasOutputFormat := false
+	hasVerbose := false
+
 	for i := 0; i < len(in); i++ {
-		if in[i] == "-p" {
-			i++ // skip the prompt value too
-			continue
+		switch in[i] {
+		case "-p", "--print":
+			// Keep the flag (canonicalised to --print) but DROP the positional
+			// prompt value that follows `-p`.
+			if in[i] == "-p" && i+1 < len(in) {
+				i++ // skip the sentinel prompt value
+			}
+			if !hasPrint {
+				out = append(out, "--print")
+				hasPrint = true
+			}
+		case "--input-format":
+			out = append(out, in[i])
+			if i+1 < len(in) {
+				i++
+				out = append(out, in[i])
+			}
+			hasInputFormat = true
+		case "--output-format":
+			out = append(out, in[i])
+			if i+1 < len(in) {
+				i++
+				out = append(out, in[i])
+			}
+			hasOutputFormat = true
+		case "--verbose":
+			if !hasVerbose {
+				out = append(out, in[i])
+				hasVerbose = true
+			}
+		default:
+			out = append(out, in[i])
 		}
-		out = append(out, in[i])
+	}
+
+	if !hasPrint {
+		out = append(out, "--print")
+	}
+	if !hasInputFormat {
+		out = append(out, "--input-format", "stream-json")
+	}
+	if !hasOutputFormat {
+		out = append(out, "--output-format", "stream-json")
+	}
+	if !hasVerbose {
+		out = append(out, "--verbose")
 	}
 	return out
 }
@@ -258,9 +313,11 @@ type ClaudeSessionConfig struct {
 	Env map[string]string
 	// Binary overrides the claude binary path (empty = "claude" on PATH).
 	Binary string
-	// OnEvent is invoked for every parsed stdout event, in order, from the
-	// reader goroutine. Must not block indefinitely.
-	OnEvent func(ev agentadapter.AgentTraceEvent)
+	// OnEvent is invoked for every parsed stdout StreamEvent, in order, from the
+	// reader goroutine. One stream-json line can yield MULTIPLE StreamEvents (an
+	// assistant message with N content blocks), and OnEvent fires once per
+	// StreamEvent. Must not block indefinitely.
+	OnEvent func(ev StreamEvent)
 	// OnExit is invoked EXACTLY ONCE when the process exits / stdout closes /
 	// Stop completes. err is the process exit error (nil on clean exit).
 	OnExit func(err error)
@@ -324,8 +381,7 @@ func StartClaudeSession(ctx context.Context, cfg ClaudeSessionConfig) (*ClaudeSe
 		proc: proc,
 		done: make(chan struct{}),
 	}
-	adapter := claudecode.New(cfg.Binary)
-	go s.readLoop(adapter)
+	go s.readLoop()
 	return s, nil
 }
 
@@ -352,11 +408,13 @@ func writeMCPConfig(homeDir string, b []byte) (string, error) {
 	return path, nil
 }
 
-// readLoop scans stdout line-by-line, parses each line via the adapter, and
-// dispatches to OnEvent. It always terminates when stdout closes or the
-// process exits, then fires OnExit exactly once. This is the sole goroutine
-// the session spawns; joining it = OnExit fired.
-func (s *ClaudeSession) readLoop(adapter *claudecode.Adapter) {
+// readLoop scans stdout line-by-line, parses each line via ParseStreamLine
+// (the D2 claude 2.1.156 stream-json parser), and dispatches to OnEvent ONCE
+// PER parsed StreamEvent (one line can carry multiple content-block events). It
+// always terminates when stdout closes or the process exits, then fires OnExit
+// exactly once. This is the sole goroutine the session spawns; joining it =
+// OnExit fired.
+func (s *ClaudeSession) readLoop() {
 	scanner := bufio.NewScanner(s.proc.Stdout())
 	// Match AgentRunner's larger line cap; agent JSON can be long.
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
@@ -367,14 +425,16 @@ func (s *ClaudeSession) readLoop(adapter *claudecode.Adapter) {
 		if len(raw) == 0 {
 			continue
 		}
-		ev, err := adapter.ParseEvent(raw)
+		events, err := ParseStreamLine(raw)
 		if err != nil {
 			// Don't drop the stream on a single malformed line; log + skip.
-			s.cfg.Logger(fmt.Sprintf("[worker] claude_session: parse event: %v", err))
+			s.cfg.Logger(fmt.Sprintf("[worker] claude_session: parse stream line: %v", err))
 			continue
 		}
 		if s.cfg.OnEvent != nil {
-			s.cfg.OnEvent(ev)
+			for _, ev := range events {
+				s.cfg.OnEvent(ev)
+			}
 		}
 	}
 	scanErr := scanner.Err()
