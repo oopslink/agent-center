@@ -62,6 +62,14 @@ type StreamEvent struct {
 	TokensIn   int
 	TokensOut  int
 
+	// IsError is the result line's `is_error` flag (v2.7 L2 no-silent-failure):
+	// true means the turn ENDED in failure (e.g. an API/auth error, max_turns).
+	// Only meaningful for a "result" event. The AgentController surfaces a true
+	// value by failing the in-flight WorkItem so a failed turn never sits silently
+	// "active". (A successful turn — is_error=false — does NOT mean the WorkItem is
+	// done; a WorkItem can span multiple turns.)
+	IsError bool
+
 	// Raw is the originating bytes for the activity payload: the whole line for
 	// top-level events (system/result/rate_limit/unknown), or the marshaled
 	// content block for per-block events (assistant_text/thinking/tool_use/
@@ -117,6 +125,7 @@ func ParseStreamLine(line []byte) ([]StreamEvent, error) {
 		// result-line fields
 		Result       string  `json:"result"`
 		StopReason   string  `json:"stop_reason"`
+		IsError      bool    `json:"is_error"`
 		TotalCostUSD float64 `json:"total_cost_usd"`
 		Usage        *usage  `json:"usage"`
 	}
@@ -144,6 +153,7 @@ func ParseStreamLine(line []byte) ([]StreamEvent, error) {
 			Subtype:    head.Subtype,
 			Result:     head.Result,
 			StopReason: head.StopReason,
+			IsError:    head.IsError,
 			CostUSD:    head.TotalCostUSD,
 			Raw:        cloneRaw(line),
 		}

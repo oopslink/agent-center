@@ -112,6 +112,9 @@ func TestParseStreamLine_RealFixture(t *testing.T) {
 	if r.Type != "result" || r.Subtype != "success" || r.Result != "PONG" || r.StopReason != "end_turn" {
 		t.Fatalf("result event → %+v", r)
 	}
+	if r.IsError {
+		t.Fatal("success result must have IsError=false")
+	}
 	if r.CostUSD == 0 {
 		t.Fatal("result event missing total_cost_usd")
 	}
@@ -223,6 +226,36 @@ func TestParseStreamLine_MissingFieldsDegrade(t *testing.T) {
 	}
 	if len(evs) != 1 || evs[0].Type != "result" || evs[0].Subtype != "error_max_turns" {
 		t.Fatalf("sparse result → %+v", evs)
+	}
+}
+
+// TestParseStreamLine_ResultIsError pins the v2.7 L2 no-silent-failure decode:
+// a `result` line's is_error flag is surfaced on StreamEvent.IsError so the
+// AgentController can fail the in-flight WorkItem on a failed turn. Modeled on a
+// real auth-failure result (the GATE-1 403 shape).
+func TestParseStreamLine_ResultIsError(t *testing.T) {
+	errLine := `{"type":"result","subtype":"error_during_execution","is_error":true,"result":"API Error: 403 Request not allowed","stop_reason":null}`
+	evs, err := ParseStreamLine([]byte(errLine))
+	if err != nil {
+		t.Fatalf("is_error result: %v", err)
+	}
+	if len(evs) != 1 || evs[0].Type != "result" {
+		t.Fatalf("is_error result → %+v", evs)
+	}
+	if !evs[0].IsError {
+		t.Fatal("is_error:true must decode to StreamEvent.IsError=true")
+	}
+	if evs[0].Subtype != "error_during_execution" {
+		t.Fatalf("subtype = %q, want error_during_execution", evs[0].Subtype)
+	}
+
+	// A result line with NO is_error field defaults to false (success-shaped).
+	okEvs, err := ParseStreamLine([]byte(`{"type":"result","subtype":"success","result":"done"}`))
+	if err != nil {
+		t.Fatalf("ok result: %v", err)
+	}
+	if okEvs[0].IsError {
+		t.Fatal("a result line without is_error must default IsError=false")
 	}
 }
 

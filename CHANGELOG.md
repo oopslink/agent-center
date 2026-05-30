@@ -47,6 +47,35 @@ ADR / phase plan landscape, see
   Canonical record: the cascade comment in
   `internal/agent/service/appservices.go` (`MarkAgentFailed`); also registered on the
   acceptance side (§A).
+- **L2 no-silent-failure turn↔WorkItem correlation (deferred-with-trigger).** When a
+  claude turn ends with `is_error=true`, the AgentController fails the agent's
+  in-flight WorkItem so a failed turn never sits silently `active`. The correlation
+  uses the **last** WorkItem injected into the session (`managedAgent.currentWorkItemID`),
+  NOT a precise per-turn id — claude's `result` line carries no WorkItem id, and the
+  result event is delivered asynchronously by the session pump (~50ms). If a second
+  `work()` injects before the first turn's result is pumped, the result is
+  mis-attributed, and the race is two-sided: charging result(A) to B both wrongly
+  fails B AND leaves A silently active (A's failure never surfaces). v2.7 injects
+  sequentially with low/=1 `max_concurrent`, so the window is effectively unreachable.
+  **Trigger:** `max_concurrent > 1` OR an observed mis-attribution → add precise
+  correlation (a turn-seq/token claude echoes back). Canonical record: the
+  `currentWorkItemID` comment in `internal/workerdaemon/agent_controller.go`; also
+  registered on the acceptance side (§A).
+
+### Fixed
+
+- **Agent-claude could not reach the Anthropic API behind an HTTP proxy (GATE-1
+  ship-blocker).** The supervisor's default-deny env allowlist (`BuildClaudeEnv`)
+  stripped `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`/`ALL_PROXY` (+ lowercase), so in a
+  proxied deployment claude's API request was rejected with a 403 (misleadingly
+  surfaced as `authentication_failed`) — agent work was consumed but no turn was
+  produced. The proxy routing vars are now allowlisted (routing config, not worker
+  secrets; the `AGENT_CENTER_*` secret drop and `CLAUDE_CODE_*` deny are unchanged).
+- **A failed claude turn no longer sits silently active (L2 no-silent-failure).** A
+  `result` event with `is_error=true` now fails the in-flight WorkItem
+  (`active→failed` via the normal feedback edge — distinct from the GATE-7 Mode-B
+  agent-death cascade, which handles a crashed/result-less claude), so a failed turn
+  surfaces as a failed task instead of a task stuck "running".
 
 ## [v2.6.0] — 2026-05-28
 

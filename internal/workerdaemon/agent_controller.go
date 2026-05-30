@@ -257,6 +257,23 @@ type managedAgent struct {
 	// drive the interrupted turn); an idle agent that crashes relaunches without a
 	// nudge. Guarded by AgentController.mu.
 	hadWork bool
+
+	// currentWorkItemID is the LAST WorkItem injected into this session (work/wake),
+	// used by the L2 no-silent-failure surface: when claude emits a `result` event
+	// with is_error=true, onEvent fails THIS WorkItem (active→failed) so a failed
+	// turn never sits silently "active". Guarded by AgentController.mu; cleared
+	// (empty) on session restart with the managedAgent.
+	//
+	// 🕒 DEFERRED-WITH-TRIGGER (PM): this is the "last injected" WI, NOT a precise
+	// per-turn correlation. The result event is delivered async by the session pump
+	// (~50ms lag); if a SECOND work() injects before the first turn's result is
+	// pumped, the result is mis-attributed — and the race is two-sided: result(A)
+	// charged to B both wrongly fails B AND leaves A silently active (A's failure
+	// never surfaces). v2.7 injects sequentially with low/﹦1 max_concurrent, so the
+	// window is effectively unreachable. TRIGGER: max_concurrent>1 OR an observed
+	// mis-attribution → add precise correlation (a turn-seq/token claude echoes back,
+	// since the result line carries no WorkItem id). (CHANGELOG + Tester §A.)
+	currentWorkItemID string
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -515,10 +532,14 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 	}
 
 	// Work was injected (a WorkItem is now active) — mark it so an unexpected crash
-	// self-heal relaunches WITH a resume nudge (re-drive the interrupted turn).
+	// self-heal relaunches WITH a resume nudge (re-drive the interrupted turn), and
+	// record it as the in-flight WorkItem so an is_error turn surfaces against it (L2).
 	c.mu.Lock()
 	if cur := c.agents[pl.AgentID]; cur != nil {
 		cur.hadWork = true
+		if pl.WorkItemID != "" {
+			cur.currentWorkItemID = pl.WorkItemID
+		}
 	}
 	c.mu.Unlock()
 
@@ -599,6 +620,12 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 	}
 
 	if pl.WorkItemID != "" {
+		// Record as the in-flight WorkItem so an is_error turn surfaces against it (L2).
+		c.mu.Lock()
+		if cur := c.agents[pl.AgentID]; cur != nil {
+			cur.currentWorkItemID = pl.WorkItemID
+		}
+		c.mu.Unlock()
 		// waiting_input→active via the existing feedback endpoint (MarkWorkItemState
 		// active drives the WorkItem AR's move to active, the Wake transition). A
 		// report failure is transient: the message is already injected, so re-running
@@ -770,14 +797,62 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	payload, err := json.Marshal(streamActivityPayload(ev))
 	if err != nil {
 		c.log("activity agent=%s marshal event: %v", agentID, err)
-		return
-	}
-	if err := c.cfg.Reporter.ReportAgentActivity(
+		// Still attempt the L2 failure surface below — the activity record is
+		// best-effort, but a failed turn must not be swallowed by a marshal error.
+	} else if err := c.cfg.Reporter.ReportAgentActivity(
 		context.Background(), agentID, ev.Type, string(payload),
 		"" /*workItemRef*/, "" /*interactionRef*/, time.Now(),
 	); err != nil {
 		c.log("activity agent=%s report: %v", agentID, err)
 	}
+
+	// L2 no-silent-failure: a `result` event with is_error=true means the turn
+	// ENDED in failure (API/auth error, max_turns, …). The in-flight WorkItem was
+	// reported "active" at inject and would otherwise sit silently active forever
+	// (task stuck "running"). Surface it by failing the WorkItem (active→failed via
+	// the NORMAL feedback edge — the agent is still alive, only its turn failed; NOT
+	// the B3 agent-death cascade, which is for a crashed/result-less claude). The
+	// failure detail is preserved in the result activity above (is_error/subtype/result).
+	if ev.Type == "result" && ev.IsError {
+		c.surfaceTurnFailure(agentID, ev)
+	}
+}
+
+// surfaceTurnFailure fails the agent's in-flight WorkItem after an is_error turn
+// (L2). It reads currentWorkItemID under the lock, then reports the failure
+// outside the lock (the reporter is a network call). With no in-flight WorkItem
+// (an is_error turn on an idle agent — e.g. an unsolicited error) it logs a
+// VISIBLE warning rather than silently dropping it. On success it clears the
+// in-flight pointer so a stray second result cannot re-fail an already-failed WI.
+func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
+	c.mu.Lock()
+	var wiID string
+	if ma := c.agents[agentID]; ma != nil {
+		wiID = ma.currentWorkItemID
+	}
+	c.mu.Unlock()
+
+	if wiID == "" {
+		c.log("L2 agent=%s is_error turn with NO in-flight WorkItem (subtype=%q) — surfaced as warning, not silently dropped", agentID, ev.Subtype)
+		return
+	}
+
+	if err := c.cfg.Reporter.ReportWorkItemState(
+		context.Background(), agentID, wiID, "failed", time.Now(),
+	); err != nil {
+		// Non-silent: a report failure is logged loudly. The next activity/feedback
+		// reconcile (D2-g) can still observe the failed turn in the activity stream.
+		c.log("L2 agent=%s work_item=%s report failed: %v", agentID, wiID, err)
+		return
+	}
+	c.log("L2 agent=%s work_item=%s failed (is_error turn, subtype=%q)", agentID, wiID, ev.Subtype)
+
+	// Clear the in-flight pointer: this WorkItem is no longer active.
+	c.mu.Lock()
+	if ma := c.agents[agentID]; ma != nil && ma.currentWorkItemID == wiID {
+		ma.currentWorkItemID = ""
+	}
+	c.mu.Unlock()
 }
 
 // streamActivityPayload builds the JSON activity payload for a StreamEvent,
@@ -805,6 +880,7 @@ func streamActivityPayload(ev StreamEvent) map[string]any {
 		p["subtype"] = ev.Subtype
 		p["result"] = ev.Result
 		p["stop_reason"] = ev.StopReason
+		p["is_error"] = ev.IsError
 		p["cost_usd"] = ev.CostUSD
 		p["tokens_in"] = ev.TokensIn
 		p["tokens_out"] = ev.TokensOut

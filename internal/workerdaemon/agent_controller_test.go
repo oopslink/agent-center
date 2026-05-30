@@ -397,6 +397,54 @@ func TestAgentController_Work_InjectsBriefAndReportsActive(t *testing.T) {
 	}
 }
 
+// TestAgentController_Work_IsErrorTurnFailsWorkItem is the L2 no-silent-failure
+// assertion: after work injects a brief (WorkItem→active), a `result` event with
+// is_error=true must surface as a WorkItem "failed" feedback — the failed turn
+// must NOT sit silently active. A success result must NOT fail the WorkItem (a
+// WorkItem can span multiple turns).
+func TestAgentController_Work_IsErrorTurnFailsWorkItem(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := c.Handle(context.Background(), workCmd(t, "agent-1", "wi-1", "do the task", 2)); err != nil {
+		t.Fatalf("work: %v", err)
+	}
+	fs := rs.last()
+
+	// A successful turn must NOT fail the WorkItem (multi-turn WorkItems stay active).
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", Result: "partial", IsError: false})
+	if got := failedCount(rep.workItemCalls(), "wi-1"); got != 0 {
+		t.Fatalf("success result must not fail the WorkItem, got %d failed calls", got)
+	}
+
+	// An is_error turn MUST surface as a WorkItem "failed".
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
+	if got := failedCount(rep.workItemCalls(), "wi-1"); got != 1 {
+		t.Fatalf("is_error result must fail the in-flight WorkItem exactly once, got %d: %+v", got, rep.workItemCalls())
+	}
+
+	// After surfacing, the in-flight pointer is cleared — a stray second is_error
+	// result must NOT re-fail the (already failed) WorkItem.
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
+	if got := failedCount(rep.workItemCalls(), "wi-1"); got != 1 {
+		t.Fatalf("a second is_error result must not re-fail the WorkItem, got %d", got)
+	}
+}
+
+// failedCount counts WorkItem feedback calls that failed the given workItemID.
+func failedCount(calls []workItemCall, wiID string) int {
+	n := 0
+	for _, c := range calls {
+		if c.workItemID == wiID && c.state == "failed" {
+			n++
+		}
+	}
+	return n
+}
+
 func TestAgentController_Work_NoSessionRetries(t *testing.T) {
 	c, _, _ := newTestController(t, t.TempDir())
 	// No reconcile(running) yet → work should return an error (retry).
