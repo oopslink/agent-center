@@ -77,21 +77,37 @@ func count(ss []string, want string) int {
 func TestSessionUUID(t *testing.T) {
 	// A realistic ULID agent id (what s.idgen.NewULID() produces).
 	const ulid = "01J9ZK7QW8X2YB3C4D5E6F7G8H"
-	got := SessionUUID(ulid)
+	got := SessionUUID(ulid, 0)
 
 	// Must be a syntactically valid RFC 4122 UUID: 8-4-4-4-12 lowercase hex,
 	// version nibble 5, variant high bits 10.
 	re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 	if !re.MatchString(got) {
-		t.Fatalf("SessionUUID(%q) = %q — not a valid v5 UUID", ulid, got)
+		t.Fatalf("SessionUUID(%q, 0) = %q — not a valid v5 UUID", ulid, got)
 	}
-	// Deterministic: same agent → same session id (persistent-session intent).
-	if again := SessionUUID(ulid); again != got {
+	// Deterministic in (agentID, epoch): same agent + same epoch → same session id.
+	// This is what lets re-attach AND mode-B crash-relaunch (same durable epoch)
+	// resume the SAME claude session.
+	if again := SessionUUID(ulid, 0); again != got {
 		t.Fatalf("not deterministic: %q != %q", got, again)
 	}
 	// Distinct agents → distinct session ids (no "already in use" collisions).
-	if other := SessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8J"); other == got {
+	if other := SessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8J", 0); other == got {
 		t.Fatalf("distinct agent ids collided on session id %q", got)
+	}
+	// epoch++ → a NEW session id (a clean-slate RESET): same agent, next epoch must
+	// derive a DIFFERENT uuid, and it must still be a valid v5 UUID.
+	reset := SessionUUID(ulid, 1)
+	if reset == got {
+		t.Fatalf("epoch bump did not change session id (reset would not get a clean slate): still %q", got)
+	}
+	if !re.MatchString(reset) {
+		t.Fatalf("SessionUUID(%q, 1) = %q — not a valid v5 UUID", ulid, reset)
+	}
+	// And the bumped epoch is itself deterministic (relaunch at the same epoch
+	// resumes the same reset session).
+	if again := SessionUUID(ulid, 1); again != reset {
+		t.Fatalf("epoch-1 not deterministic: %q != %q", reset, again)
 	}
 }
 
@@ -99,11 +115,11 @@ func TestSessionUUID(t *testing.T) {
 // long-lived streaming flag set with the derived session-id + mcp-config, and
 // rejects an empty agent id.
 func TestBuildStreamingArgv(t *testing.T) {
-	if _, err := BuildStreamingArgv("", "", "", nil); err == nil {
+	if _, err := BuildStreamingArgv("", "", "", 0, nil); err == nil {
 		t.Fatal("empty agent id must error")
 	}
 
-	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "/usr/local/bin/claude", "/home/agent/mcp.json", nil)
+	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "/usr/local/bin/claude", "/home/agent/mcp.json", 0, nil)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
@@ -119,7 +135,7 @@ func TestBuildStreamingArgv(t *testing.T) {
 		"--input-format stream-json",
 		"--output-format stream-json",
 		"--verbose",
-		"--session-id " + SessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8H"),
+		"--session-id " + SessionUUID("01J9ZK7QW8X2YB3C4D5E6F7G8H", 0),
 		"--mcp-config /home/agent/mcp.json",
 	}
 	for _, w := range want {

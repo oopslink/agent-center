@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
@@ -59,6 +60,13 @@ type SpawnSupervisorCfg struct {
 	// ClaudeBin overrides the claude binary path (--claude-bin). In tests this
 	// points at a stand-in so no real claude is required.
 	ClaudeBin string
+	// Epoch is the agent's durable reset epoch (--reset-epoch). It derives claude's
+	// --session-id (SessionUUID(agentID, epoch)). The DAEMON resolves it before
+	// spawning: ReadEpoch(home) for a normal spawn / crash-relaunch (so a relaunch
+	// resumes the SAME session, never silently resetting to 0), and the post-bump
+	// value for a clean-slate reset. 0 = the initial epoch. Only emitted in the
+	// argv when > 0 (0 == the subcommand default).
+	Epoch int
 	// ComeUpTimeout bounds how long SpawnSupervisor waits for the supervisor to
 	// listen on its socket and answer Hello. Zero → defaultComeUpTimeout.
 	ComeUpTimeout time.Duration
@@ -132,20 +140,7 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 		return nil, fmt.Errorf("supervisormanager: mkdir home: %w", err)
 	}
 
-	args := []string{
-		"worker", "agent-supervisor",
-		"--agent-id", cfg.AgentID,
-		"--home-dir", cfg.HomeDir,
-	}
-	if cfg.MCPConfigPath != "" {
-		args = append(args, "--mcp-config-path", cfg.MCPConfigPath)
-	}
-	if cfg.Model != "" {
-		args = append(args, "--model", cfg.Model)
-	}
-	if cfg.ClaudeBin != "" {
-		args = append(args, "--claude-bin", cfg.ClaudeBin)
-	}
+	args := buildSupervisorArgs(cfg)
 
 	// PLAIN exec.Command (not CommandContext): ctx must NOT be able to kill the
 	// supervisor. The supervisor reparents to init after its own setsid; we are not
@@ -174,6 +169,34 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 		return nil, err
 	}
 	return ref, nil
+}
+
+// buildSupervisorArgs assembles the `worker agent-supervisor` subcommand argv
+// from cfg (the single source of truth for the spawn flags). Pure + side-effect
+// free so the flag mapping — notably the --reset-epoch emission — is unit-testable
+// without spawning a process. Optional flags are omitted when empty/zero so the
+// common-case argv stays minimal and matches the subcommand defaults.
+func buildSupervisorArgs(cfg SpawnSupervisorCfg) []string {
+	args := []string{
+		"worker", "agent-supervisor",
+		"--agent-id", cfg.AgentID,
+		"--home-dir", cfg.HomeDir,
+	}
+	if cfg.MCPConfigPath != "" {
+		args = append(args, "--mcp-config-path", cfg.MCPConfigPath)
+	}
+	if cfg.Model != "" {
+		args = append(args, "--model", cfg.Model)
+	}
+	if cfg.ClaudeBin != "" {
+		args = append(args, "--claude-bin", cfg.ClaudeBin)
+	}
+	// Only pass --reset-epoch for a post-reset spawn (epoch > 0); 0 is the
+	// subcommand default so omitting it keeps the common-case argv clean.
+	if cfg.Epoch > 0 {
+		args = append(args, "--reset-epoch", strconv.Itoa(cfg.Epoch))
+	}
+	return args
 }
 
 // waitComeUp polls for the socket + a successful Hello until the timeout, ctx

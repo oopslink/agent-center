@@ -58,6 +58,12 @@ type SupervisorSessionConfig struct {
 	// ClaudeBin overrides the claude binary path the SUPERVISOR uses to exec
 	// claude (tests point it at a stand-in). The session itself never execs it.
 	ClaudeBin string
+	// Epoch is the agent's durable reset epoch, forwarded to the supervisor as
+	// --reset-epoch (derives claude's --session-id). The AgentController (s3b-2b)
+	// resolves it via supervisormanager.ReadEpoch(home) for a normal spawn /
+	// crash-relaunch, or the post-BumpEpochForReset value for a clean-slate reset.
+	// 0 = initial epoch.
+	Epoch int
 	// OnEvent is invoked for every parsed stdout StreamEvent drained from the
 	// supervisor, in order, from the event-pump goroutine. The AgentController maps
 	// this to ReportAgentActivity (s3b-2). Must not block indefinitely.
@@ -137,6 +143,7 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		BinaryPath:    cfg.BinaryPath,
 		Model:         cfg.Model,
 		ClaudeBin:     cfg.ClaudeBin,
+		Epoch:         cfg.Epoch,
 		ComeUpTimeout: cfg.ComeUpTimeout,
 	})
 	if err != nil {

@@ -117,7 +117,10 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 		// DETERMINISTIC v5 UUID from the agent id — valid for claude AND stable per
 		// agent (same agent → same claude session, the "persistent session-id"
 		// intent), distinct across agents (no "already in use" collisions).
-		ExecutionID: claudestream.SessionUUID(spec.AgentID),
+		// epoch 0: the legacy direct-claude path has no reset-epoch concept (it is
+		// the pre-supervisor stack being retired). The supervisor path (s3b-2)
+		// threads the durable epoch instead.
+		ExecutionID: claudestream.SessionUUID(spec.AgentID, 0),
 		Prompt:      claudeStreamSentinelPrompt,
 		WorkingDir:  spec.WorkspaceDir,
 		Env:         spec.Env,
@@ -130,7 +133,10 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 	if err != nil {
 		return nil, fmt.Errorf("claude_session: build command: %w", err)
 	}
-	argv, err := claudestream.BuildStreamingArgv(spec.AgentID, spec.Binary, spec.MCPConfigPath, spec.Env)
+	// epoch 0: the legacy direct-claude path has no reset-epoch concept (consistent
+	// with the SessionUUID(spec.AgentID, 0) above; the supervisor path threads the
+	// durable epoch).
+	argv, err := claudestream.BuildStreamingArgv(spec.AgentID, spec.Binary, spec.MCPConfigPath, 0, spec.Env)
 	if err != nil {
 		return nil, fmt.Errorf("claude_session: build streaming argv: %w", err)
 	}
