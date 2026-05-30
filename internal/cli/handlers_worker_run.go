@@ -58,7 +58,7 @@ func WorkerRunCommand() *Command {
 				}
 				logf := func(msg string) { fmt.Fprintf(errw, "[worker] %s\n", msg) }
 				err := workerdaemon.RunDaemon(ctx, workerdaemon.RunOptions{
-					ConfigPath:        *cfgPath,
+					ConfigPath:        resolveWorkerConfigPath(*cfgPath),
 					WorkerID:          *workerID,
 					WorkerName:        *workerName,
 					FakeAgent:         *fakeAgent,
@@ -83,4 +83,23 @@ func WorkerRunCommand() *Command {
 			}
 		},
 	}
+}
+
+// resolveWorkerConfigPath mirrors the system-command config resolution (see
+// loadConfigForCLI): prefer the subcommand --config, else fall back to the GLOBAL
+// --config / AGENT_CENTER_CONFIG that BuildRouter captured in globalConfigPath.
+//
+// This is REQUIRED, not cosmetic: the unified CLI's global layer (extractConfigFlag
+// + StripGlobalFlags) consumes/strips --config (the ONLY global-layer flag) BEFORE
+// the subcommand FlagSet parses, so the subcommand's own --config is always empty in
+// real routing. Without this fallback `worker run` ignores the operator config and
+// silently uses the default install config (/var/lib) — diverging from the standalone
+// daemon across the WHOLE config surface (sqlite/admin-socket/token path/...). Caught
+// by Tester's runtime parity check (msg 601b01a3); flag-parity unit tests + the
+// "both entrypoints call RunDaemon" structural argument did not cover this seam.
+func resolveWorkerConfigPath(flagVal string) string {
+	if v := strings.TrimSpace(flagVal); v != "" {
+		return v
+	}
+	return GlobalConfigPath()
 }

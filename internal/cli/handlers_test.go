@@ -678,6 +678,29 @@ func TestWorkerRunCommand_RequiresWorkerID(t *testing.T) {
 	}
 }
 
+// TestResolveWorkerConfigPath_GlobalFallback regression-guards the slice-1 parity
+// break (Tester msg 601b01a3): the unified router strips the global --config before
+// the `worker run` FlagSet, so the subcommand --config is empty in real routing and
+// the handler MUST fall back to the global config path (else worker run ignores the
+// operator config and uses /var/lib defaults).
+func TestResolveWorkerConfigPath_GlobalFallback(t *testing.T) {
+	prev := GlobalConfigPath()
+	defer SetGlobalConfigPath(prev)
+
+	SetGlobalConfigPath("/tmp/operator-config.yaml")
+	if got := resolveWorkerConfigPath(""); got != "/tmp/operator-config.yaml" {
+		t.Fatalf("empty subcommand --config must fall back to the global config, got %q", got)
+	}
+	// An explicit subcommand --config (e.g. via runHandler / direct invocation) wins.
+	if got := resolveWorkerConfigPath("/sub/explicit.yaml"); got != "/sub/explicit.yaml" {
+		t.Fatalf("explicit subcommand --config must win, got %q", got)
+	}
+	SetGlobalConfigPath("")
+	if got := resolveWorkerConfigPath(""); got != "" {
+		t.Fatalf("both empty → empty, got %q", got)
+	}
+}
+
 // TestWorkerRunCommand_FlagParity guards the `worker run` flag set against the
 // (retiring) standalone daemon — no silent drop / rename / default change (the
 // PM+Tester parity watch, v2.7 (b) cutover). Complements Tester's --help diff.
