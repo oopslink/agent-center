@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-worker-daemon build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa smoke vet tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa smoke vet tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -6,7 +6,7 @@ help:
 	@echo "agent-center make targets:"
 	@echo ""
 	@echo "  build / build-frontend / build-backend"
-	@echo "  build-worker-daemon / build-fakeagent"
+	@echo "  build-fakeagent"
 	@echo ""
 	@echo "  test                 — go test ./..."
 	@echo "  test-install         — offline shell tests for the source installer (task #92)"
@@ -56,7 +56,7 @@ WEB := web
 VERSION ?= v2.5.5
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-build: build-frontend build-backend build-worker-daemon build-fakeagent
+build: build-frontend build-backend build-fakeagent
 
 build-frontend:
 	cd $(WEB) && pnpm install --frozen-lockfile
@@ -69,12 +69,6 @@ build-frontend:
 build-backend:
 	go build -ldflags "-X main.buildVersion=$(VERSION) -X main.buildCommit=$(COMMIT)" \
 	    -o ./bin/$(BIN) ./cmd/agent-center
-
-# v2.2-C worker daemon binary — the missing v2.0 GA consumer of the
-# dispatchq queue (conventions § 0.4: worker talks to center via the
-# admin endpoint, not by re-opening sqlite).
-build-worker-daemon:
-	go build -o ./bin/agent-center-worker-daemon ./cmd/worker-daemon
 
 # v2.2-D fakeagent — LLM-free agent stub used by e2e tests. Without
 # this in bin/ the Phase D deploy-binary e2e cannot run.
@@ -196,8 +190,7 @@ clean-dist:
 #
 #   agent-center-vX.Y.Z-<os>-<arch>/
 #   ├── bin/
-#   │   ├── agent-center
-#   │   └── agent-center-worker-daemon
+#   │   └── agent-center        (worker runs as `agent-center worker run`)
 #   ├── LICENSE
 #   ├── README.md
 #   └── install              -> bin/agent-center  (symlink)
@@ -224,7 +217,6 @@ define STAGE_RELEASE_LAYOUT
 	rm -rf $(1)
 	mkdir -p $(1)/bin
 	cp ./bin/agent-center $(1)/bin/
-	cp ./bin/agent-center-worker-daemon $(1)/bin/
 	cp LICENSE $(1)/
 	cp README.md $(1)/
 	printf '#!/bin/sh\n# v2.4 first-mile install entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" install "$$@"\n' > $(1)/install

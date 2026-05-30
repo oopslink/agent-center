@@ -32,7 +32,11 @@ import { pickFreePort } from "../helpers/ports.js";
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(__filename, "../../../../..");
 const SERVER_BIN = resolve(REPO_ROOT, "bin/agent-center");
-const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center-worker-daemon");
+// v2.7 (b) cutover: the worker runs as the unified `agent-center` binary
+// (`agent-center worker run ...`); the standalone agent-center-worker-daemon is
+// retired. os.Executable()=agent-center so the daemon routes the worker
+// agent-supervisor / mcp-host subcommands it spawns.
+const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center");
 const FAKEAGENT_BIN = resolve(REPO_ROOT, "bin/fakeagent");
 
 type AdminResp = { status: number; body: string };
@@ -361,6 +365,8 @@ identity:
       worker = spawn(
         WORKER_BIN,
         [
+          "worker",
+          "run",
           "--config",
           configPath,
           "--worker-id",

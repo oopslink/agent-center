@@ -2,13 +2,14 @@
 # deploy-smoke.sh — deployed-binary smoke gate (conventions § 0.4
 # enforce mechanism #4).
 #
-# Builds fresh binaries (agent-center + worker-daemon + fakeagent),
-# then drives the full task-dispatch pipeline against the REAL binaries
-# (no in-process shortcuts):
+# Builds fresh binaries (agent-center + fakeagent), then drives the full
+# task-dispatch pipeline against the REAL binaries (no in-process shortcuts).
+# v2.7 (b): the worker is the unified `agent-center worker run` (the standalone
+# agent-center-worker-daemon is retired):
 #
 #   bin/agent-center server                ──┐  unix socket
 #                                            admin endpoint
-#   bin/agent-center-worker-daemon       ──┘
+#   bin/agent-center worker run          ──┘
 #         │
 #         └── spawns bin/fakeagent --script=...
 #
@@ -82,11 +83,11 @@ fi
 
 # --- build fresh binaries -------------------------------------------
 # `make build` already chains build-frontend + build-backend +
-# build-worker-daemon + build-fakeagent (Makefile § build target).
+# build-fakeagent (Makefile § build target).
 step "build"
 make build
 
-for b in bin/agent-center bin/agent-center-worker-daemon bin/fakeagent; do
+for b in bin/agent-center bin/fakeagent; do
   if [[ ! -x "$b" ]]; then
     echo "expected binary not built: $b" >&2
     CURRENT_STEP="build:missing-${b##*/}"
