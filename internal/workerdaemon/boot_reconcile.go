@@ -148,6 +148,11 @@ type centerRecord struct {
 	// HasActive is true iff the agent has ≥1 ACTIVE WorkItem — drives the relaunch
 	// nudge.
 	HasActive bool
+	// ActiveWorkItemID is the id of an ACTIVE in-flight WorkItem (first one, if
+	// several) — rebound onto the relaunched managedAgent's currentWorkItemID so a
+	// FAILED re-drive turn surfaces via L2 (no-silent-failure across a boot-reconcile
+	// Mode-B relaunch). Empty when there is no active WorkItem.
+	ActiveWorkItemID string
 }
 
 // wantsRunning reports whether the center desires this agent running. Anything
@@ -287,6 +292,7 @@ func toCenterRecord(ra ResumeAgent) *centerRecord {
 	for _, wi := range ra.WorkItems {
 		if wi.Status == string(workItemStatusActive) {
 			rec.HasActive = true
+			rec.ActiveWorkItemID = wi.WorkItemID // rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
 			break
 		}
 	}
@@ -357,7 +363,7 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 		c.bootReattach(ctx, agentID, home, pr, version)
 	case bootReapRelaunch:
 		closeProbeClient(pr) // Unavailable carries no client; defensive
-		c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge)
+		c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveWorkItemID)
 	case bootStopReap:
 		c.bootStopReap(agentID, home, pr)
 	case bootReapOnly:
@@ -414,7 +420,7 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 // bootReapRelaunch reaps any residual then starts a fresh supervisor (which reads
 // the DURABLE epoch via ReadEpoch — resuming the SAME claude session-id, never 0).
 // Injects the resume nudge ONLY when an ACTIVE WorkItem is in flight.
-func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool) {
+func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, workItemID string) {
 	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
 		c.log("boot-reconcile agent=%s reap before relaunch: %v", agentID, rerr)
 	}
@@ -430,6 +436,20 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 		return
 	}
 	c.log("boot-reconcile agent=%s RELAUNCHED version=%d (nudge=%v)", agentID, version, nudge)
+	// L2×Mode-B: rebind the in-flight WorkItem id onto the FRESH managedAgent (the
+	// crash deleted the prior one). currentWorkItemID is otherwise lost across the
+	// relaunch — so if the re-driven turn FAILS (is_error) while the agent stays
+	// alive, L2's surfaceTurnFailure would have no WI to fail and the original WI
+	// would silently remain active. Binding it here (to the SAME field
+	// surfaceTurnFailure reads) closes that no-silent-failure hole. Empty = idle
+	// relaunch (no in-flight work) → nothing to bind.
+	if workItemID != "" {
+		c.mu.Lock()
+		if ma := c.agents[agentID]; ma != nil {
+			ma.currentWorkItemID = workItemID
+		}
+		c.mu.Unlock()
+	}
 	if !nudge {
 		return
 	}

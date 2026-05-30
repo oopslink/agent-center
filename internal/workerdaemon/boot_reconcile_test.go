@@ -320,3 +320,27 @@ func TestDecideBootAction_NudgeOnlyOnRelaunch(t *testing.T) {
 		t.Fatalf("relaunch without active WI must not nudge: %+v", noActive)
 	}
 }
+
+// TestToCenterRecord_CapturesActiveWorkItemID pins the boot-reconcile half of the
+// L2×Mode-B WI-id-restore: an ACTIVE in-flight WorkItem's id is captured into the
+// centerRecord so bootReapRelaunch can rebind it onto the relaunched
+// managedAgent.currentWorkItemID (a failed re-drive then surfaces via L2). A
+// waiting_input-only agent yields no active id.
+func TestToCenterRecord_CapturesActiveWorkItemID(t *testing.T) {
+	active := toCenterRecord(ResumeAgent{
+		DesiredLifecycle: "running",
+		WorkItems:        []ResumeWorkItem{{WorkItemID: "wi-w", Status: "waiting_input"}, {WorkItemID: "wi-a", Status: "active"}},
+	})
+	if !active.HasActive || active.ActiveWorkItemID != "wi-a" {
+		t.Fatalf("active WI id must be captured, got HasActive=%v id=%q", active.HasActive, active.ActiveWorkItemID)
+	}
+
+	// waiting_input only → no active id (nothing to rebind).
+	wOnly := toCenterRecord(ResumeAgent{
+		DesiredLifecycle: "running",
+		WorkItems:        []ResumeWorkItem{{WorkItemID: "wi-w", Status: "waiting_input"}},
+	})
+	if wOnly.HasActive || wOnly.ActiveWorkItemID != "" {
+		t.Fatalf("waiting_input-only must yield no active id, got HasActive=%v id=%q", wOnly.HasActive, wOnly.ActiveWorkItemID)
+	}
+}

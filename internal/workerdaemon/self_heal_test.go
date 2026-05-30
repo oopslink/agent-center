@@ -82,7 +82,7 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	c.cfg.starter = rs.start
 
 	// Crash with active work → schedules a relaunch at now+1s (crashCount 1).
-	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "boom")
+	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "wi-7" /*workItemID*/, "boom")
 
 	// Before the 1s backoff elapses → OnTick must NOT relaunch.
 	c.OnTick(context.Background())
@@ -110,6 +110,19 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	}
 	if got, want := rs.last().cfg.ResumeFromSessionID, claudestream.SessionUUIDGen("ag-1", 0, 0); got != want {
 		t.Fatalf("fork must --resume the prior (gen-0) session-id %q, got %q", want, got)
+	}
+	// L2×Mode-B: the in-flight WorkItem id (captured at crash) must be REBOUND onto
+	// the relaunched managedAgent's currentWorkItemID — the SAME field
+	// surfaceTurnFailure reads — so a failed re-drive turn can fail the original WI
+	// instead of leaving it silently active.
+	c.mu.Lock()
+	reboundWI := ""
+	if ma := c.agents["ag-1"]; ma != nil {
+		reboundWI = ma.currentWorkItemID
+	}
+	c.mu.Unlock()
+	if reboundWI != "wi-7" {
+		t.Fatalf("relaunch must rebind currentWorkItemID to the in-flight WI %q (L2×Mode-B), got %q", "wi-7", reboundWI)
 	}
 
 	// Idempotent: a further OnTick with no new crash does NOT re-relaunch.
@@ -144,7 +157,7 @@ func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 	// reset → counts 1..6): crashes 1-5 report transient "error", the 6th circuit-
 	// breaks and reports terminal "failed".
 	for i := 0; i < 6; i++ {
-		state := c.recordCrashAndSchedule("ag-1", 1, false, "boom")
+		state := c.recordCrashAndSchedule("ag-1", 1, false, "" /*workItemID*/, "boom")
 		want := "error"
 		if i == 5 {
 			want = "failed"

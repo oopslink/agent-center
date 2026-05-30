@@ -110,6 +110,19 @@ ADR / phase plan landscape, see
   lock-hold timing). Generation 0 derives byte-identically to the pre-fix
   `SessionUUID(agent,epoch)`, so initial/normal/clean-restart sessions are unchanged;
   only the crash-recovery paths fork. A reset zeroes the generation (clean slate).
+- **A failed re-drive turn after a Mode-B relaunch no longer silently leaves its
+  WorkItem active (L2×Mode-B no-silent-failure).** On a crash the `managedAgent`
+  (which holds `currentWorkItemID`) is deleted, and the relaunch's resume-nudge does
+  not flow through `work()`, so the in-flight WorkItem id was lost across the
+  relaunch — if the re-driven turn then ended with `is_error` while the agent stayed
+  alive, L2 had no WorkItem to fail (it surfaced only a warning) and B3 (the
+  agent-death cascade) did not apply, leaving the original WorkItem silently
+  `active`. The in-flight WorkItem id is now carried across the crash: captured
+  before the managedAgent is deleted, stored on the crash-surviving `selfHealEntry`
+  (self-heal path) or taken from resume-state's active WorkItem (boot-reconcile
+  path), and rebound onto the relaunched managedAgent's `currentWorkItemID` — the
+  same field L2's `surfaceTurnFailure` reads — so a failed re-drive fails the
+  WorkItem (`active→failed`) instead of going silent.
 
 ## [v2.6.0] — 2026-05-28
 

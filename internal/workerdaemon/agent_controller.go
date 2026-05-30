@@ -942,8 +942,9 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	}
 	detaching := ma.detaching
 	expected := ma.expectedStop
-	version := ma.appliedVersion // captured for a possible self-heal relaunch
-	hadWork := ma.hadWork        // injected work → nudge on self-heal relaunch
+	version := ma.appliedVersion          // captured for a possible self-heal relaunch
+	hadWork := ma.hadWork                 // injected work → nudge on self-heal relaunch
+	workItemID := ma.currentWorkItemID    // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
@@ -974,7 +975,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
 	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
 	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
-	state := c.recordCrashAndSchedule(agentID, version, hadWork, msg)
+	state := c.recordCrashAndSchedule(agentID, version, hadWork, workItemID, msg)
 	if state != "" {
 		ma.lifecycleOnce.Do(func() {
 			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {
