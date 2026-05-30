@@ -108,6 +108,14 @@ func NewControlLoop(cfg ControlLoopConfig, client ControlClient) *ControlLoop {
 // Cursor returns the current cumulative cursor (for tests / observability).
 func (l *ControlLoop) Cursor() int64 { return l.cursor }
 
+// tickHandler is the OPTIONAL per-tick hook the ControlLoop invokes after each poll
+// (on the single ControlLoop goroutine). AgentController implements it to drain due
+// mid-run self-heal relaunches; a handler that does not implement it is never ticked
+// (additive — D1's NoopCommandHandler is unaffected).
+type tickHandler interface {
+	OnTick(ctx context.Context)
+}
+
 // Run blocks until ctx is cancelled. It first ConnectControls to seed the
 // cursor, then polls on the configured interval. Transient pull/ack errors are
 // logged, not fatal — the daemon keeps polling (graceful degradation when the
@@ -139,6 +147,14 @@ func (l *ControlLoop) Run(ctx context.Context) error {
 				}
 			}
 			l.pollOnce(ctx)
+			// Per-tick hook (single-threaded, AFTER command handling): the handler
+			// drains due mid-run self-heal relaunches (GATE-7 Mode-B slice B). Optional
+			// — a handler without OnTick is simply never ticked (additive). Runs on the
+			// connected tick (the relaunch is local but shares this single goroutine,
+			// the only safe caller of startSession).
+			if th, ok := l.cfg.Handler.(tickHandler); ok {
+				th.OnTick(ctx)
+			}
 		}
 	}
 }

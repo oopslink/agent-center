@@ -194,6 +194,17 @@ type AgentControllerConfig struct {
 	// injected on re-attach (claude is alive and mid-turn — a nudge would corrupt it).
 	ResumeNudge string
 
+	// Now is the clock seam (unit tests inject a deterministic clock to assert the
+	// self-heal backoff curve / cap / reset). Nil → time.Now.
+	Now func() time.Time
+	// Self-heal (mid-run crash recovery) tuning; 0 → defaults (backoff 1→2→4→8→16s,
+	// cap 30s, maxAttempts 5, healthy-reset window 60s). @oopslink/PM + the product
+	// manual are authoritative for the production values.
+	SelfHealMaxAttempts int
+	SelfHealBackoffBase time.Duration
+	SelfHealBackoffCap  time.Duration
+	SelfHealResetWindow time.Duration
+
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
 	// set it, so NewAgentController always defaults it to the real supervisor-spawn
@@ -240,6 +251,12 @@ type managedAgent struct {
 	// (empty) on session restart along with the managedAgent.
 	wakeSeen  map[string]struct{}
 	wakeOrder []string
+
+	// hadWork records that work was INJECTED into this session (a WorkItem went
+	// active). On an unexpected crash it drives the self-heal relaunch nudge (re-
+	// drive the interrupted turn); an idle agent that crashes relaunches without a
+	// nudge. Guarded by AgentController.mu.
+	hadWork bool
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -251,6 +268,9 @@ type AgentController struct {
 
 	mu     sync.Mutex
 	agents map[string]*managedAgent
+	// selfHeal tracks mid-run crash recovery per agent (backoff/cap/terminal). It
+	// SURVIVES the managedAgent delete on crash. Guarded by mu. See self_heal.go.
+	selfHeal map[string]*selfHealEntry
 }
 
 // compile-time: AgentController is a CommandHandler.
@@ -273,8 +293,9 @@ func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 		cfg.BinaryPath = "agent-center"
 	}
 	return &AgentController{
-		cfg:    cfg,
-		agents: map[string]*managedAgent{},
+		cfg:      cfg,
+		agents:   map[string]*managedAgent{},
+		selfHeal: map[string]*selfHealEntry{},
 	}, nil
 }
 
@@ -363,6 +384,11 @@ func (c *AgentController) reconcile(ctx context.Context, pl reconcilePayload) er
 // already rejected pure replays, so reaching here with a live session means a
 // real restart intent.
 func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayload) error {
+	// A command-driven (re)start is the intentional/manual path — clear any self-heal
+	// crash accounting and UN-LATCH a circuit-broken (terminal-failed) agent (operator
+	// restart is the way out of terminal-failed).
+	c.clearSelfHeal(pl.AgentID)
+
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
 	hasLive := ma != nil && ma.session != nil
@@ -386,6 +412,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 
 // reconcileStop stops the session and reports lifecycle "stopped" exactly once.
 func (c *AgentController) reconcileStop(ctx context.Context, pl reconcilePayload) error {
+	c.clearSelfHeal(pl.AgentID) // desired-stopped → no self-heal relaunch
 	c.recordVersion(pl.AgentID, pl.Version)
 	c.stopSession(ctx, pl.AgentID, true /*reportLifecycle*/)
 	return nil
@@ -404,6 +431,7 @@ func (c *AgentController) reconcileStop(ctx context.Context, pl reconcilePayload
 // interleaving a half reset. The epoch bump is idempotent on pl.Version, so a
 // re-pulled reset is safe.
 func (c *AgentController) reconcileReset(ctx context.Context, pl reconcilePayload) error {
+	c.clearSelfHeal(pl.AgentID) // reset = manual clean-slate → un-latch any terminal-failed
 	c.recordVersion(pl.AgentID, pl.Version)
 
 	home, _, err := c.agentPaths(pl.AgentID)
@@ -485,6 +513,14 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 		}
 		return fmt.Errorf("agent_controller: inject agent=%s: %w", pl.AgentID, err)
 	}
+
+	// Work was injected (a WorkItem is now active) — mark it so an unexpected crash
+	// self-heal relaunches WITH a resume nudge (re-drive the interrupted turn).
+	c.mu.Lock()
+	if cur := c.agents[pl.AgentID]; cur != nil {
+		cur.hadWork = true
+	}
+	c.mu.Unlock()
 
 	if pl.WorkItemID != "" {
 		if err := c.cfg.Reporter.ReportWorkItemState(ctx, pl.AgentID, pl.WorkItemID, "active", time.Now()); err != nil {
@@ -802,6 +838,8 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	}
 	detaching := ma.detaching
 	expected := ma.expectedStop
+	version := ma.appliedVersion // captured for a possible self-heal relaunch
+	hadWork := ma.hadWork        // injected work → nudge on self-heal relaunch
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
@@ -832,6 +870,10 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 			c.log("agent=%s report error: %v", agentID, err)
 		}
 	})
+	// Mid-run crash self-heal (GATE-7 Mode-B, slice B): record the crash + schedule a
+	// backed-off relaunch (or circuit-break to terminal after the cap). This NEVER
+	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine.
+	c.recordCrashAndSchedule(agentID, version, hadWork, msg)
 }
 
 // reportLifecycleOnce emits a lifecycle RESULT exactly once per managed instance
