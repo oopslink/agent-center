@@ -499,6 +499,99 @@ func (c *AdminClient) HeartbeatControl(ctx context.Context, workerID string) err
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/worker/heartbeat", body, nil)
 }
 
+// =============================================================================
+// Environment BC — controller→center RESULT feedback (v2.7 D2-c-i client side,
+// ADR-0049/0050). The daemon AgentController (D2-c-ii) has NO DB; it reports
+// agent activity / lifecycle / work-item transitions back to the center via
+// these ADDITIVE endpoints under /admin/environment/agent/*. They ride the SAME
+// authed transport (doJSON attaches the worker bearer). The center re-checks
+// requireAgentOnWorker (worker derived from the token owner, not the body).
+//
+// Field names below MUST match the request structs in
+// internal/admin/api/environment_agent.go EXACTLY (recording-fake unit tests in
+// D2-c-ii won't catch a drift — D2-g will; verified by reading the handlers).
+// =============================================================================
+
+// feedbackReporter is the seam the AgentController depends on for posting RESULT
+// feedback to the center. *AdminClient satisfies it; D2-c-ii tests inject a
+// recording fake. Defined here so the controller depends on the interface, not
+// the concrete transport.
+type feedbackReporter interface {
+	// ReportAgentActivity posts a single AgentActivityEvent (the stdout→activity
+	// sink — observation only; it does NOT post to any Conversation).
+	ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, at time.Time) error
+	// ReportAgentLifecycle posts a lifecycle RESULT (state "stopped" | "error").
+	ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error
+	// ReportWorkItemState posts a WorkItem transition (state "active" | "done" | "failed").
+	ReportWorkItemState(ctx context.Context, agentID, workItemID, state string, at time.Time) error
+}
+
+// var _ feedbackReporter asserts *AdminClient satisfies the controller seam.
+var _ feedbackReporter = (*AdminClient)(nil)
+
+// ReportAgentActivity POSTs to /admin/environment/agent/activity. Empty
+// workItemRef/interactionRef/at are omitted server-side (omitempty). A zero
+// `at` lets the AppService stamp its own clock.
+func (c *AdminClient) ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, at time.Time) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	body := map[string]any{
+		"agent_id":   agentID,
+		"event_type": eventType,
+		"payload":    payloadJSON,
+	}
+	if workItemRef != "" {
+		body["work_item_ref"] = workItemRef
+	}
+	if interactionRef != "" {
+		body["interaction_ref"] = interactionRef
+	}
+	if !at.IsZero() {
+		body["occurred_at"] = at.UTC().Format(time.RFC3339Nano)
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/activity", body, nil)
+}
+
+// ReportAgentLifecycle POSTs to /admin/environment/agent/lifecycle-feedback.
+// state is "stopped" or "error"; errMsg is only meaningful for "error".
+func (c *AdminClient) ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	body := map[string]any{
+		"agent_id": agentID,
+		"state":    state,
+	}
+	if errMsg != "" {
+		body["error"] = errMsg
+	}
+	if !at.IsZero() {
+		body["at"] = at.UTC().Format(time.RFC3339Nano)
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/lifecycle-feedback", body, nil)
+}
+
+// ReportWorkItemState POSTs to /admin/environment/agent/work-item-state.
+// state is "active", "done" or "failed".
+func (c *AdminClient) ReportWorkItemState(ctx context.Context, agentID, workItemID, state string, at time.Time) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	if strings.TrimSpace(workItemID) == "" {
+		return errors.New("adminclient: work_item_id required")
+	}
+	body := map[string]any{
+		"agent_id":     agentID,
+		"work_item_id": workItemID,
+		"state":        state,
+	}
+	if !at.IsZero() {
+		body["at"] = at.UTC().Format(time.RFC3339Nano)
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/work-item-state", body, nil)
+}
+
 // doJSON is the shared request helper. Returns a typed error on non-2xx
 // so the caller can decide whether to retry / log / abort.
 func (c *AdminClient) doJSON(ctx context.Context, method, path string, body any, out any) error {

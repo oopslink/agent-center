@@ -56,9 +56,9 @@ import (
 
 func main() {
 	var (
-		cfgPath      = flag.String("config", "", "path to agent-center.yaml")
-		workerID     = flag.String("worker-id", "", "worker identity (required)")
-		workerName   = flag.String("worker-name", "",
+		cfgPath    = flag.String("config", "", "path to agent-center.yaml")
+		workerID   = flag.String("worker-id", "", "worker identity (required)")
+		workerName = flag.String("worker-name", "",
 			"operator-facing friendly label set at enroll time (v2.4-D-X1); blank defaults to worker-id server-side")
 		fakeAgent    = flag.String("fake-agent", "", "override path for the 'fakeagent' agent_cli (e2e tests)")
 		pollInterval = flag.Duration("poll-interval", 1*time.Second, "queue poll interval")
@@ -146,6 +146,7 @@ func main() {
 	enrollNeeded := true
 	if existing, rerr := readWorkerTokenFile(tokenPath); rerr == nil && existing != "" {
 		client = client.WithToken(existing)
+		token = existing
 		enrollNeeded = false
 		logger("loaded long-term token from " + tokenPath)
 	} else if !os.IsNotExist(rerr) && rerr != nil {
@@ -173,6 +174,7 @@ func main() {
 			os.Exit(1)
 		}
 		client = client.WithToken(enrollResp.AdminToken)
+		token = enrollResp.AdminToken
 		logger("enrolled + persisted long-term token to " + tokenPath)
 	}
 
@@ -203,6 +205,32 @@ func main() {
 		skillLoader = workerdaemon.FSSkillLoader{FS: os.DirFS(*skillsDir)}
 	}
 	injector := workerdaemon.NewMCPInjector(workerdaemon.NewAdminClientSecretResolver(client))
+
+	// v2.7 D2-c-ii-B: construct the AgentController (the long-lived claude-
+	// session control handler) and wire it as the control HANDLER. It stays
+	// DORMANT: we deliberately leave rtCfg.ControlClient nil, so the control
+	// loop does NOT start (see runtime.go: the loop only runs when
+	// ControlClient != nil). D2-f activates execution by setting
+	// rtCfg.ControlClient = client (its ConnectControl/PullCommands/AckControl
+	// satisfy workerdaemon.ControlClient). Until then the controller is wired
+	// but never invoked — daemon startup behaviour is unchanged.
+	binPath, _ := os.Executable()
+	if controller, cerr := workerdaemon.NewAgentController(workerdaemon.AgentControllerConfig{
+		Reporter:          client,
+		WorkerID:          *workerID,
+		AdminURL:          targetSpec,
+		WorkerToken:       token,
+		ServerFingerprint: fingerprint,
+		BinaryPath:        binPath,
+		AgentHomeBase:     agentHomeBase(cfg),
+		Logger:            logger,
+	}); cerr != nil {
+		logger("warning: agent controller not wired: " + cerr.Error())
+	} else {
+		rtCfg.ControlHandler = controller
+		// NOTE: rtCfg.ControlClient stays nil → control loop dormant until D2-f.
+	}
+
 	rt := workerdaemon.NewRuntimeWithDeps(rtCfg, client, nil, workerdaemon.RuntimeDeps{
 		SkillLoader: skillLoader,
 		MCPInjector: injector,
@@ -270,6 +298,19 @@ func workerTokenFilePath(cfg config.Config) string {
 		return "worker-token"
 	}
 	return filepath.Join(filepath.Dir(sqlitePath), "worker-token")
+}
+
+// agentHomeBase returns the runtime home root the D2-c-ii AgentController uses
+// for the C1 OQ7 per-agent layout (workers/{worker_id}/agents/{agent_id}/).
+// Lives next to the worker's SQLite DB (same backup boundary as the token
+// file); falls back to "agent-homes" in the cwd when no sqlite path is set.
+// Used only to construct the DORMANT controller (D2-f activates it).
+func agentHomeBase(cfg config.Config) string {
+	sqlitePath := strings.TrimSpace(cfg.Server.SqlitePath)
+	if sqlitePath == "" {
+		return "agent-homes"
+	}
+	return filepath.Join(filepath.Dir(sqlitePath), "agent-homes")
 }
 
 // readWorkerTokenFile reads a previously-persisted long-term token.
