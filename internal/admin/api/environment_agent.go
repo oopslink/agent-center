@@ -342,6 +342,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 		out = append(out, map[string]any{
 			"agent_id":          string(a.ID()),
 			"desired_lifecycle": string(a.Lifecycle()),
+			"model":             a.Profile().Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
 			"version":           a.Version(),
 			"reset_scope":       "", // reserved for f-3 (rollback/reset semantics)
 			"work_items":        inflight,

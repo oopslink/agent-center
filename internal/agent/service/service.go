@@ -84,6 +84,12 @@ type agentEventPayload struct {
 	Lifecycle  string `json:"lifecycle"`
 	Version    int    `json:"version"`
 	ResetScope string `json:"reset_scope,omitempty"`
+	// Model is the agent's configured claude --model (Profile.Model), carried so the
+	// Environment projector can pass it into the reconcile command and the daemon can
+	// spawn claude with it (v2.7 control-loop Model plumbing). ADDITIVE: empty/absent →
+	// the daemon omits --model → claude default. Snapshotted at the (re)start that
+	// emitted this lifecycle event ("change model → restart to apply" semantics).
+	Model string `json:"model,omitempty"`
 }
 
 // emit appends an outbox event inside the current transaction. Mutating
@@ -97,6 +103,7 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		Lifecycle:  string(a.Lifecycle()),
 		Version:    a.Version(),
 		ResetScope: resetScope,
+		Model:      a.Profile().Model,
 	})
 	if err != nil {
 		return err

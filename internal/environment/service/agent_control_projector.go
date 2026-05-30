@@ -67,6 +67,7 @@ type agentLifecycleEvtPayload struct {
 	Lifecycle  string `json:"lifecycle"`
 	Version    int    `json:"version"`
 	ResetScope string `json:"reset_scope,omitempty"`
+	Model      string `json:"model,omitempty"`
 }
 
 // reconcileCommandPayload is the declarative command payload the AgentController
@@ -74,6 +75,7 @@ type agentLifecycleEvtPayload struct {
 type reconcileCommandPayload struct {
 	AgentID          string `json:"agent_id"`
 	DesiredLifecycle string `json:"desired_lifecycle"`
+	Model            string `json:"model,omitempty"`
 	Version          int    `json:"version"`
 	ResetScope       string `json:"reset_scope,omitempty"`
 }
@@ -101,6 +103,7 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 	cmdPayload, err := json.Marshal(reconcileCommandPayload{
 		AgentID:          pl.AgentID,
 		DesiredLifecycle: pl.Lifecycle,
+		Model:            pl.Model, // passthrough (pure event-driven; no Agent-repo read)
 		Version:          pl.Version,
 		ResetScope:       pl.ResetScope,
 	})

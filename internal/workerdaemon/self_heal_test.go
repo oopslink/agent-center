@@ -82,7 +82,7 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	c.cfg.starter = rs.start
 
 	// Crash with active work → schedules a relaunch at now+1s (crashCount 1).
-	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "wi-7" /*workItemID*/, "boom")
+	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "wi-7" /*workItemID*/, "bad-model-x" /*model*/, "boom")
 
 	// Before the 1s backoff elapses → OnTick must NOT relaunch.
 	c.OnTick(context.Background())
@@ -124,6 +124,13 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	if reboundWI != "wi-7" {
 		t.Fatalf("relaunch must rebind currentWorkItemID to the in-flight WI %q (L2×Mode-B), got %q", "wi-7", reboundWI)
 	}
+	// Model-crash-survival: the self-heal relaunch must spawn with the SAME model
+	// (carried across the crash via selfHealEntry.model), not fall back to claude's
+	// default — otherwise a mid-run crash would silently change the agent's model AND
+	// the bad-model re-drive (Tester's rebind induction) couldn't produce is_error.
+	if got := rs.last().cfg.Model; got != "bad-model-x" {
+		t.Fatalf("self-heal relaunch must carry the agent model across the crash, got %q want %q", got, "bad-model-x")
+	}
 
 	// Idempotent: a further OnTick with no new crash does NOT re-relaunch.
 	clock.advance(2 * time.Second)
@@ -157,7 +164,7 @@ func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 	// reset → counts 1..6): crashes 1-5 report transient "error", the 6th circuit-
 	// breaks and reports terminal "failed".
 	for i := 0; i < 6; i++ {
-		state := c.recordCrashAndSchedule("ag-1", 1, false, "" /*workItemID*/, "boom")
+		state := c.recordCrashAndSchedule("ag-1", 1, false, "" /*workItemID*/, "" /*model*/, "boom")
 		want := "error"
 		if i == 5 {
 			want = "failed"

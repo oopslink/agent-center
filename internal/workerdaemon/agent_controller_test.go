@@ -373,6 +373,36 @@ func TestAgentController_ReconcileRunning_StartsAndStreamsActivity(t *testing.T)
 	}
 }
 
+// TestAgentController_ReconcileRunning_PassesModel pins the v2.7 Model-plumbing
+// PRIMARY path (the gate1k fresh-start failure): a reconcile command carrying the
+// agent's configured model spawns the session with that --model; an empty model
+// passes none (backward-compat → claude default).
+func TestAgentController_ReconcileRunning_PassesModel(t *testing.T) {
+	c, _, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	pl := reconcilePayload{AgentID: "agent-1", DesiredLifecycle: "running", Model: "claude-test-model-x", Version: 1}
+	cmd := ControlCommand{ID: "cmd-rm", Offset: 1, CommandType: cmdTypeAgentReconcile, Payload: mustJSON(t, pl)}
+	if err := c.Handle(context.Background(), cmd); err != nil {
+		t.Fatalf("reconcile running w/ model: %v", err)
+	}
+	if got := rs.last().cfg.Model; got != "claude-test-model-x" {
+		t.Fatalf("session must spawn with the agent's configured model, got %q", got)
+	}
+
+	// Backward-compat: no model → none passed (daemon omits --model → claude default).
+	c2, _, rs2 := newTestController(t, t.TempDir())
+	defer c2.Shutdown(context.Background())
+	pl2 := reconcilePayload{AgentID: "agent-2", DesiredLifecycle: "running", Version: 1}
+	cmd2 := ControlCommand{ID: "cmd-rn", Offset: 1, CommandType: cmdTypeAgentReconcile, Payload: mustJSON(t, pl2)}
+	if err := c2.Handle(context.Background(), cmd2); err != nil {
+		t.Fatalf("reconcile running w/o model: %v", err)
+	}
+	if got := rs2.last().cfg.Model; got != "" {
+		t.Fatalf("no configured model must pass empty (claude default), got %q", got)
+	}
+}
+
 func TestAgentController_Work_InjectsBriefAndReportsActive(t *testing.T) {
 	c, rep, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())

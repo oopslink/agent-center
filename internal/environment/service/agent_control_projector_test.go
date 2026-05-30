@@ -99,6 +99,36 @@ func TestAgentControlProjector_EnqueuesReconcile(t *testing.T) {
 	}
 }
 
+// TestAgentControlProjector_PassesModel pins the v2.7 Model-plumbing slice-A
+// passthrough: a lifecycle event carrying the agent's model is forwarded into the
+// reconcile command (pure event-driven — no Agent-repo read). A model-less event
+// omits it (additive/backward-compatible → daemon → claude default).
+func TestAgentControlProjector_PassesModel(t *testing.T) {
+	f := newProjectorFixture(t)
+	withModel := outbox.Event{
+		ID:        "EVM",
+		EventType: agentsvc.EvtAgentLifecycleChanged,
+		Payload:   `{"agent_id":"AG1","worker_id":"W1","lifecycle":"running","version":2,"model":"claude-proj-model"}`,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+	if err := f.proj.Project(f.ctx, withModel); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 || !strings.Contains(cmds[0].Payload(), `"model":"claude-proj-model"`) {
+		t.Fatalf("reconcile command must carry the model, got: %s", cmds[0].Payload())
+	}
+
+	// Model-less event → no model key in the command (omitempty, backward-compat).
+	f2 := newProjectorFixture(t)
+	if err := f2.proj.Project(f2.ctx, lifecycleEvent("EV1", "AG2", "W2", "running", 1, "")); err != nil {
+		t.Fatalf("Project no-model: %v", err)
+	}
+	if c := f2.commandsFor(t, "W2"); len(c) != 1 || strings.Contains(c[0].Payload(), `"model"`) {
+		t.Fatalf("model-less event must omit model, got: %s", c[0].Payload())
+	}
+}
+
 func TestAgentControlProjector_ResetScope(t *testing.T) {
 	f := newProjectorFixture(t)
 	e := lifecycleEvent("EV1", "AG1", "W1", "resetting", 5, "all")

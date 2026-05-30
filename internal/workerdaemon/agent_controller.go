@@ -124,6 +124,7 @@ const mcpServerName = "agent-center"
 type reconcilePayload struct {
 	AgentID          string `json:"agent_id"`
 	DesiredLifecycle string `json:"desired_lifecycle"`
+	Model            string `json:"model,omitempty"`
 	Version          int    `json:"version"`
 	ResetScope       string `json:"reset_scope,omitempty"`
 }
@@ -274,6 +275,13 @@ type managedAgent struct {
 	// mis-attribution → add precise correlation (a turn-seq/token claude echoes back,
 	// since the result line carries no WorkItem id). (CHANGELOG + Tester §A.)
 	currentWorkItemID string
+
+	// model is the agent's configured claude --model (Profile.Model, threaded from the
+	// reconcile command). Held here so a mid-run self-heal relaunch — which gets NO
+	// fresh reconcile and deletes this managedAgent on crash — can carry it across the
+	// crash via selfHealEntry.model and spawn the re-driven claude with the SAME model
+	// (else self-heal would silently fall back to claude's default). Guarded by mu.
+	model string
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -424,7 +432,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// (lock released), so a plain resume of the same session-id is correct. Only the
 	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
 	// is still held).
-	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/); err != nil {
+	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, pl.Model); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -681,7 +689,7 @@ func (c *AgentController) recordWake(agentID, messageID string) {
 // OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume bool) error {
+func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume bool, model string) error {
 	home, workspace, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
@@ -744,7 +752,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit (which fire on the
 	// event-pump goroutine the instant the process speaks) find their entry. The
 	// session field is filled in after the starter returns.
-	ma := &managedAgent{agentID: agentID, appliedVersion: version}
+	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model}
 	c.mu.Lock()
 	c.agents[agentID] = ma
 	c.mu.Unlock()
@@ -756,6 +764,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		WorkspaceDir:        workspace,
 		BinaryPath:          c.cfg.BinaryPath,
 		ClaudeBin:           c.cfg.ClaudeBinary,
+		Model:               model,
 		Epoch:               epochState.Epoch,
 		Generation:          generation,
 		ResumeFromSessionID: resumeFrom,
@@ -945,6 +954,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	version := ma.appliedVersion          // captured for a possible self-heal relaunch
 	hadWork := ma.hadWork                 // injected work → nudge on self-heal relaunch
 	workItemID := ma.currentWorkItemID    // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
+	model := ma.model                     // agent's --model → carry across crash so self-heal re-drive uses the SAME model
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
@@ -975,7 +985,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
 	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
 	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
-	state := c.recordCrashAndSchedule(agentID, version, hadWork, workItemID, msg)
+	state := c.recordCrashAndSchedule(agentID, version, hadWork, workItemID, model, msg)
 	if state != "" {
 		ma.lifecycleOnce.Do(func() {
 			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {

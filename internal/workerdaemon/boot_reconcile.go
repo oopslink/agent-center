@@ -153,6 +153,9 @@ type centerRecord struct {
 	// FAILED re-drive turn surfaces via L2 (no-silent-failure across a boot-reconcile
 	// Mode-B relaunch). Empty when there is no active WorkItem.
 	ActiveWorkItemID string
+	// Model is the agent's configured claude --model (from resume-state), passed to
+	// the boot-reconcile relaunch so the spawned claude uses it. Empty → claude default.
+	Model string
 }
 
 // wantsRunning reports whether the center desires this agent running. Anything
@@ -287,6 +290,7 @@ func (c *AgentController) ReconcileOnBoot(ctx context.Context) error {
 func toCenterRecord(ra ResumeAgent) *centerRecord {
 	rec := &centerRecord{
 		DesiredLifecycle: ra.DesiredLifecycle,
+		Model:            ra.Model,
 		HasInflight:      len(ra.WorkItems) > 0,
 	}
 	for _, wi := range ra.WorkItems {
@@ -363,7 +367,7 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 		c.bootReattach(ctx, agentID, home, pr, version)
 	case bootReapRelaunch:
 		closeProbeClient(pr) // Unavailable carries no client; defensive
-		c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveWorkItemID)
+		c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveWorkItemID, rec.Model)
 	case bootStopReap:
 		c.bootStopReap(agentID, home, pr)
 	case bootReapOnly:
@@ -420,7 +424,7 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 // bootReapRelaunch reaps any residual then starts a fresh supervisor (which reads
 // the DURABLE epoch via ReadEpoch — resuming the SAME claude session-id, never 0).
 // Injects the resume nudge ONLY when an ACTIVE WorkItem is in flight.
-func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, workItemID string) {
+func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, workItemID, model string) {
 	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
 		c.log("boot-reconcile agent=%s reap before relaunch: %v", agentID, rerr)
 	}
@@ -431,7 +435,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	// kill -9 / OOM, leaving its session-id locked). Fork into a fresh next-generation
 	// id (`--resume <prev> --fork-session`) so the relaunch never collides with the
 	// held lock — the v2.7 GATE-7 Mode-B fix.
-	if err := c.startSession(ctx, agentID, version, true /*forkResume*/); err != nil {
+	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, model); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
 		return
 	}

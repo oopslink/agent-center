@@ -51,6 +51,10 @@ type selfHealEntry struct {
 	workItemID     string    // in-flight WorkItem id captured at crash (survives the
 	// managedAgent delete) → the relaunch rebinds currentWorkItemID to it so a FAILED
 	// re-drive turn surfaces via L2 (no-silent-failure across Mode-B). Empty = idle crash.
+	model string // agent's claude --model captured at crash (survives the managedAgent
+	// delete) → the self-heal relaunch spawns the re-driven claude with the SAME model.
+	// self-heal gets NO fresh reconcile, so without this the re-drive would fall back to
+	// claude's default model (a real product regression, not just a test gap). Empty = none.
 }
 
 type selfHealParams struct {
@@ -124,7 +128,7 @@ func (c *AgentController) selfHealParams() selfHealParams {
 // Returns the lifecycle STATE the caller should report (outside the lock): "error"
 // (transient — a relaunch is scheduled), "failed" (terminal — the cap is reached), or
 // "" (no report — a defensive crash after the agent is already terminal-failed).
-func (c *AgentController) recordCrashAndSchedule(agentID string, version int, hadWork bool, workItemID, msg string) string {
+func (c *AgentController) recordCrashAndSchedule(agentID string, version int, hadWork bool, workItemID, model, msg string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.selfHeal[agentID]
@@ -143,6 +147,7 @@ func (c *AgentController) recordCrashAndSchedule(agentID string, version int, ha
 	e.version = version
 	e.nudge = hadWork
 	e.workItemID = workItemID // rebound to currentWorkItemID on the relaunch (L2×Mode-B)
+	e.model = model           // re-driven claude spawns with the SAME model (self-heal gets no fresh reconcile)
 	if dec.failed {
 		e.failed = true
 		e.nextRelaunchAt = time.Time{}
@@ -167,6 +172,7 @@ func (c *AgentController) OnTick(ctx context.Context) {
 		version    int
 		nudge      bool
 		workItemID string
+		model      string
 		attempt    int
 	}
 	var dues []due
@@ -181,14 +187,14 @@ func (c *AgentController) OnTick(ctx context.Context) {
 			e.nextRelaunchAt = time.Time{}
 			continue
 		}
-		dues = append(dues, due{agentID: id, version: e.version, nudge: e.nudge, workItemID: e.workItemID, attempt: e.crashCount})
+		dues = append(dues, due{agentID: id, version: e.version, nudge: e.nudge, workItemID: e.workItemID, model: e.model, attempt: e.crashCount})
 		e.nextRelaunchAt = time.Time{} // consume the schedule (no re-fire)
 		e.lastRelaunchAt = now         // healthy-run reset window is measured from here
 	}
 	c.mu.Unlock()
 
 	for _, d := range dues {
-		c.selfHealRelaunch(ctx, d.agentID, d.version, d.nudge, d.workItemID, d.attempt)
+		c.selfHealRelaunch(ctx, d.agentID, d.version, d.nudge, d.workItemID, d.model, d.attempt)
 	}
 }
 
@@ -196,7 +202,7 @@ func (c *AgentController) OnTick(ctx context.Context) {
 // the agent home lock (single-instance, cross-daemon), then reap residual + start a
 // fresh supervisor (resumes the durable epoch) + nudge iff the crash interrupted
 // active work. Reuses bootReapRelaunch (same reap+resume+nudge sequence).
-func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, version int, nudge bool, workItemID string, attempt int) {
+func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, version int, nudge bool, workItemID, model string, attempt int) {
 	home, _, err := c.agentPaths(agentID)
 	if err != nil {
 		c.log("agent=%s self-heal relaunch resolve home: %v — skip", agentID, err)
@@ -215,7 +221,7 @@ func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, 
 	}
 	defer release()
 	c.log("agent=%s self-heal RELAUNCH attempt=%d at=%s (nudge=%v)", agentID, attempt, c.now().Format(time.RFC3339), nudge)
-	c.bootReapRelaunch(ctx, agentID, home, version, nudge, workItemID)
+	c.bootReapRelaunch(ctx, agentID, home, version, nudge, workItemID, model)
 }
 
 // clearSelfHeal drops an agent's self-heal state (incl the terminal failed flag). A

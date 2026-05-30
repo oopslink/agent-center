@@ -136,6 +136,25 @@ ADR / phase plan landscape, see
   path), and rebound onto the relaunched managedAgent's `currentWorkItemID` — the
   same field L2's `surfaceTurnFailure` reads — so a failed re-drive fails the
   WorkItem (`active→failed`) instead of going silent.
+- **Agent `Profile.Model` was ignored by the v2.7 control-loop spawn (all agents
+  used claude's default model).** The supervisor's `--model` plumbing existed
+  downstream, but no control-loop path fed the agent's configured model into it: the
+  reconcile command, resume-state, and the `agent.lifecycle_changed` event all
+  lacked it, and the daemon (AdminClient-only, no DB) cannot self-source it. The
+  model is now carried end-to-end: the Agent BC emits it in the lifecycle event
+  (ADDITIVE field), the Environment projector passes it through into the reconcile
+  command (pure event-driven, no Agent-repo read), and resume-state carries it; the
+  daemon threads it on all three spawn paths — initial reconcile, **the mid-run
+  self-heal relaunch (carried across the crash on `selfHealEntry.model`, since
+  self-heal gets no fresh reconcile — otherwise a crash would silently revert the
+  agent to claude's default model)**, and boot-reconcile (`centerRecord.Model` from
+  resume-state) — into the supervisor's `--model`. **Semantics:** the model is
+  snapshotted at the (re)start that emits the lifecycle event, i.e. a model change
+  takes effect on the next (re)start/relaunch, not live mid-session. Backward-compat:
+  an empty `Profile.Model` passes no `--model` (claude default), so existing
+  unconfigured agents are unchanged. (`Profile.EnvVars` remains deferred to slice ②
+  — its layer-2 agent-env injection is a worker-secret-leak boundary needing
+  dedicated security acceptance, a separate track from this low-risk model name.)
 
 ## [v2.6.0] — 2026-05-28
 

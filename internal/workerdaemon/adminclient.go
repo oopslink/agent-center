@@ -509,6 +509,7 @@ type ResumeState struct {
 type ResumeAgent struct {
 	AgentID          string           `json:"agent_id"`
 	DesiredLifecycle string           `json:"desired_lifecycle"`
+	Model            string           `json:"model"`
 	Version          int              `json:"version"`
 	ResetScope       string           `json:"reset_scope"`
 	WorkItems        []ResumeWorkItem `json:"work_items"`

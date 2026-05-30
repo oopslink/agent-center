@@ -329,10 +329,15 @@ func TestDecideBootAction_NudgeOnlyOnRelaunch(t *testing.T) {
 func TestToCenterRecord_CapturesActiveWorkItemID(t *testing.T) {
 	active := toCenterRecord(ResumeAgent{
 		DesiredLifecycle: "running",
+		Model:            "claude-boot-model",
 		WorkItems:        []ResumeWorkItem{{WorkItemID: "wi-w", Status: "waiting_input"}, {WorkItemID: "wi-a", Status: "active"}},
 	})
 	if !active.HasActive || active.ActiveWorkItemID != "wi-a" {
 		t.Fatalf("active WI id must be captured, got HasActive=%v id=%q", active.HasActive, active.ActiveWorkItemID)
+	}
+	// Model carries through to the boot-reconcile relaunch (v2.7 Model plumbing).
+	if active.Model != "claude-boot-model" {
+		t.Fatalf("model must be captured into centerRecord, got %q", active.Model)
 	}
 
 	// waiting_input only → no active id (nothing to rebind).
