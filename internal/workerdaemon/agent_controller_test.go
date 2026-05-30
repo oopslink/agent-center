@@ -163,6 +163,17 @@ func workCmd(t *testing.T, agentID, workItemID, brief string, offset int64) Cont
 	}
 }
 
+func wakeCmd(t *testing.T, agentID, workItemID, messageID, messageText string, offset int64) ControlCommand {
+	t.Helper()
+	pl := wakePayload{AgentID: agentID, WorkItemID: workItemID, MessageID: messageID, MessageText: messageText}
+	return ControlCommand{
+		ID:          "cmd-wake",
+		Offset:      offset,
+		CommandType: cmdTypeAgentWake,
+		Payload:     mustJSON(t, pl),
+	}
+}
+
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
 	b, err := json.Marshal(v)
@@ -499,4 +510,63 @@ func waitFor(t *testing.T, cond func() bool) {
 		time.Sleep(2 * time.Millisecond)
 	}
 	t.Fatal("timed out waiting for condition")
+}
+
+func TestAgentController_Wake_InjectsMessageAndReportsActive(t *testing.T) {
+	c, rep, lp := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "human replied here", 2)); err != nil {
+		t.Fatalf("wake: %v", err)
+	}
+
+	in := lp.lastProc().stdinBytes()
+	if !strings.Contains(in, "human replied here") {
+		t.Fatalf("stdin missing wake message: %q", in)
+	}
+	if !strings.Contains(in, `"type":"user"`) {
+		t.Fatalf("stdin not stream-json user line: %q", in)
+	}
+
+	wis := rep.workItemCalls()
+	if len(wis) != 1 || wis[0].workItemID != "wi-1" || wis[0].state != "active" {
+		t.Fatalf("work-item calls: %+v", wis)
+	}
+}
+
+func TestAgentController_Wake_DedupByMessageID(t *testing.T) {
+	c, rep, lp := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	// Two wakes with the SAME message_id (e.g. reconnect replay) → inject once.
+	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "reply text", 2)); err != nil {
+		t.Fatalf("wake 1: %v", err)
+	}
+	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "reply text", 3)); err != nil {
+		t.Fatalf("wake 2 (replay): %v", err)
+	}
+
+	in := lp.lastProc().stdinBytes()
+	if n := strings.Count(in, "reply text"); n != 1 {
+		t.Fatalf("dedup failed: want exactly 1 injection of message, got %d (stdin=%q)", n, in)
+	}
+	// Only the first wake reports active.
+	if wis := rep.workItemCalls(); len(wis) != 1 {
+		t.Fatalf("dedup should report active once, got %d: %+v", len(wis), wis)
+	}
+}
+
+func TestAgentController_Wake_NoSessionRetries(t *testing.T) {
+	c, _, _ := newTestController(t, t.TempDir())
+	// No reconcile(running) yet → wake should return an error (retry), same
+	// policy as work().
+	if err := c.Handle(context.Background(), wakeCmd(t, "agent-1", "wi-1", "msg-1", "reply", 1)); err == nil {
+		t.Fatal("want error for wake with no running session (retry signal)")
+	}
 }

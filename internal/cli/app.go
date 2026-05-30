@@ -224,7 +224,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	acc := wfservice.NewProposalAcceptanceService(db, prRepo, mr, pjRepo, disc, sink, gen, clk)
 	pjSvc := wfservice.NewProjectCRUDService(db, pjRepo, mr, sink, clk)
 	enroll := wfservice.NewWorkerEnrollService(db, wr, sink, clk)
-	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, clk)
+	// v2.7 D2-e-i (OQ5): attach the cross-BC outbox emitter so AddMessage emits a
+	// conversation.message_added wake-trigger event (same tx) for task-owned
+	// conversations. The WakeProjector (webconsole_wiring) consumes it.
+	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, clk).WithOutbox(outboxsql.NewOutboxRepo(db))
 	channelMgmt := convservice.NewChannelManagementService(db, cr, sink, gen, clk)
 	participantMgmt := convservice.NewParticipantManagementService(db, cr, sink, clk)
 	convRefRepo := convsqlite.NewReferenceRepo(db)

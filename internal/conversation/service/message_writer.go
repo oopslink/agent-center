@@ -5,15 +5,31 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
+
+// EvtConversationMessageAdded is the cross-BC OUTBOX event type emitted by
+// AddMessage when a message is posted into a TASK-owned conversation (owner_ref
+// has the `pm://tasks/` prefix). It is the wake trigger consumed by the
+// Environment-BC WakeProjector (v2.7 D2-e-i / OQ5). NOTE: this reuses the same
+// type string the observability EventSink already emits for the events table —
+// the two live in SEPARATE tables (events vs outbox_events) with separate
+// consumers, so there is no collision.
+const EvtConversationMessageAdded = "conversation.message_added"
+
+// ownerRefTasksPrefix is the task-owned conversation owner_ref scheme. A message
+// posted into such a conversation is the OQ5 wake trigger.
+const ownerRefTasksPrefix = "pm://tasks/"
 
 // MessageWriter combines Conversation lifecycle (Open / Close / Archive)
 // and AddMessage (v2 per ADR-0014 same-tx double-write).
@@ -24,6 +40,22 @@ type MessageWriter struct {
 	sink     *observability.EventSink
 	idgen    idgen.Generator
 	clock    clock.Clock
+
+	// outbox is the OPTIONAL cross-BC outbox emitter (v2.7 D2-e-i wake trigger).
+	// nil → AddMessage emits no outbox event (the legacy double-write to the
+	// observability sink is unchanged). Set via WithOutbox at the production
+	// wiring site; test fixtures that don't exercise wake leave it nil.
+	outbox outbox.Repository
+}
+
+// WithOutbox attaches the cross-BC outbox emitter used by AddMessage to emit the
+// `conversation.message_added` wake-trigger event (same tx) for task-owned
+// conversations. Returns the receiver for chaining. Passing nil disables the
+// emission (the default). Mirrors the optional-dep style used by the
+// WorkItemProjector's work-delivery deps.
+func (w *MessageWriter) WithOutbox(o outbox.Repository) *MessageWriter {
+	w.outbox = o
+	return w
 }
 
 // NewMessageWriter constructs the service.
@@ -195,10 +227,70 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 		if err != nil {
 			return err
 		}
+		// v2.7 D2-e-i (OQ5): when the message lands in a TASK-owned conversation,
+		// ALSO append a `conversation.message_added` event to the cross-BC outbox
+		// IN THIS SAME TX (the outbox repo joins via ExecutorFromCtx). The
+		// Environment-BC WakeProjector consumes it to wake any agent whose
+		// AgentWorkItem for the task is waiting_input. Only task conversations
+		// (owner_ref `pm://tasks/`) carry waiting_input WorkItems, so non-task
+		// conversations (channel/dm/issue/project/org) emit NOTHING. A nil outbox
+		// dep (test fixtures not exercising wake) also skips silently.
+		//
+		// This runs INSIDE the same tx as msgRepo.Append + sink.Emit, so the
+		// request_input atomic flow (AddMessage + WaitInput in one outer RunInTx)
+		// stays atomic: the wake event commits iff the message commits. The
+		// agent's own question carries sender=agent:<id>, which the WakeProjector
+		// self-excludes — so request_input never wakes the asking agent.
+		if w.outbox != nil {
+			ownerRef := string(conv.OwnerRef())
+			if strings.HasPrefix(ownerRef, ownerRefTasksPrefix) {
+				if emitErr := w.emitMessageAddedOutbox(txCtx, conv, m); emitErr != nil {
+					return emitErr
+				}
+			}
+		}
 		res = AddMessageResult{MessageID: m.ID(), EventID: id}
 		return nil
 	})
 	return res, err
+}
+
+// messageAddedOutboxPayload is the JSON payload of the EvtConversationMessageAdded
+// outbox event the WakeProjector consumes. text is the message content; sender is
+// the IdentityRef string (agent:<id> / user:<id>) used for wake self-exclusion.
+type messageAddedOutboxPayload struct {
+	ConversationID string `json:"conversation_id"`
+	OwnerRef       string `json:"owner_ref"`
+	MessageID      string `json:"message_id"`
+	Sender         string `json:"sender"`
+	Text           string `json:"text"`
+}
+
+// emitMessageAddedOutbox appends the wake-trigger event to the outbox inside the
+// caller's tx. Called only for task-owned conversations (owner_ref `pm://tasks/`).
+func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conversation.Conversation, m *conversation.Message) error {
+	pb, err := json.Marshal(messageAddedOutboxPayload{
+		ConversationID: string(m.ConversationID()),
+		OwnerRef:       string(conv.OwnerRef()),
+		MessageID:      string(m.ID()),
+		Sender:         string(m.SenderIdentityID()),
+		Text:           m.Content(),
+	})
+	if err != nil {
+		return err
+	}
+	refs, _ := json.Marshal(map[string]string{
+		"conversation_id": string(m.ConversationID()),
+		"message_id":      string(m.ID()),
+		"owner_ref":       string(conv.OwnerRef()),
+	})
+	return w.outbox.Append(ctx, outbox.Event{
+		ID:        w.idgen.NewULID(),
+		EventType: EvtConversationMessageAdded,
+		Refs:      string(refs),
+		Payload:   string(pb),
+		CreatedAt: w.clock.Now(),
+	})
 }
 
 // CloseCommand wraps the close call.

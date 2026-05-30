@@ -234,7 +234,20 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		Tasks:      pmsql.NewTaskRepo(a.DB),
 	})
 	agentControlProj := envservice.NewAgentControlProjector(a.DB, controlLog, appliedRepo, a.Clock)
-	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj)
+	// v2.7 D2-e-i (OQ5): ADDITIVE wakeup. A message posted into a TASK conversation
+	// (MessageWriter emits conversation.message_added) becomes an agent.wake command
+	// for every agent whose AgentWorkItem on that task is waiting_input (sender
+	// self-excluded), same tx. Like D2-a/c-i this only enqueues — the daemon
+	// controller (D2-c-ii) is wired DORMANT (ControlClient nil), so no real effect.
+	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
+		DB:         a.DB,
+		WorkItems:  agentsql.NewWorkItemRepo(a.DB),
+		Agents:     agentsql.NewAgentRepo(a.DB),
+		ControlLog: controlLog,
+		Applied:    appliedRepo,
+		Clock:      a.Clock,
+	})
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})

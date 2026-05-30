@@ -46,7 +46,18 @@ import (
 const (
 	cmdTypeAgentReconcile = "agent.reconcile"
 	cmdTypeAgentWork      = "agent.work"
+	cmdTypeAgentWake      = "agent.wake"
 )
+
+// wakeDedupCap bounds the per-agent set of already-injected wake message IDs
+// (D2-e-i Q3 dedup). At-least-once delivery + reconnect replay can re-deliver the
+// same agent.wake command; the cap keeps a recent window so a replay within it is
+// recognised and NOT re-injected. The window only needs to outlast a reconnect
+// burst — older IDs evicting is acceptable (a very stale replay would at worst
+// re-inject once). The set is also dropped entirely on session restart (the
+// managedAgent is recreated), which is fine: a fresh session has no prior context
+// to duplicate against.
+const wakeDedupCap = 256
 
 // mcpServerName is the `mcpServers` map key for the per-agent worker mcp-host
 // server in the generated --mcp-config document.
@@ -68,6 +79,16 @@ type workPayload struct {
 	WorkItemID string `json:"work_item_id"`
 	TaskRef    string `json:"task_ref"`
 	Brief      string `json:"brief"`
+}
+
+// wakePayload decodes an "agent.wake" command payload. Matches
+// internal/environment/service/wake_projector.go wakeCommandPayload.
+type wakePayload struct {
+	AgentID     string `json:"agent_id"`
+	WorkItemID  string `json:"work_item_id"`
+	TaskRef     string `json:"task_ref"`
+	MessageID   string `json:"message_id"`
+	MessageText string `json:"message_text"`
 }
 
 // AgentControllerConfig parameterises the controller.
@@ -119,6 +140,13 @@ type managedAgent struct {
 	// so it fires EXACTLY ONCE per stop, whether the reporter is the reconcile
 	// flow (expected stop) or OnExit (crash).
 	lifecycleOnce sync.Once
+
+	// wakeSeen is the bounded per-agent set of wake message IDs already injected
+	// (D2-e-i Q3 dedup). wakeOrder is the insertion order used for FIFO eviction
+	// when the set exceeds wakeDedupCap. Guarded by AgentController.mu. Recreated
+	// (empty) on session restart along with the managedAgent.
+	wakeSeen  map[string]struct{}
+	wakeOrder []string
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -180,6 +208,13 @@ func (c *AgentController) Handle(ctx context.Context, cmd ControlCommand) error 
 			return nil
 		}
 		return c.work(ctx, pl)
+	case cmdTypeAgentWake:
+		var pl wakePayload
+		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
+			c.log("wake decode (offset=%d): %v — skipping", cmd.Offset, err)
+			return nil
+		}
+		return c.wake(ctx, pl)
 	default:
 		// Unknown command type: log + ack (don't wedge the cursor on a command
 		// this controller version doesn't understand).
@@ -328,6 +363,99 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 		}
 	}
 	return nil
+}
+
+// wake injects a message posted into the agent's TASK conversation into the
+// agent's long-lived claude session and reports the WorkItem active (the OQ5
+// immediate-wakeup path, waiting_input→active). It mirrors work()'s session
+// lookup + no-session policy for consistency: if there is NO running session, it
+// returns an ERROR so the ControlLoop re-pulls the wake next tick (the reconcile
+// that starts the session bumped its version first). We never silently drop a
+// wake, and we never start an un-reconciled session.
+//
+// Dedup (Q3): a per-agent bounded set of already-injected message IDs absorbs
+// at-least-once redelivery + reconnect replay — a wake whose message_id was
+// already injected for this agent is a no-op (return nil). The id is recorded
+// ONLY after a successful inject (at-least-once: a failed inject retries; we
+// prefer a rare duplicate over a dropped wake).
+func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
+	if strings.TrimSpace(pl.AgentID) == "" {
+		c.log("wake missing agent_id — skipping")
+		return nil
+	}
+
+	c.mu.Lock()
+	ma := c.agents[pl.AgentID]
+	var sess *ClaudeSession
+	if ma != nil {
+		sess = ma.session
+		// Dedup check under the lock: a replay of an already-injected message_id
+		// is a no-op.
+		if pl.MessageID != "" && ma.wakeSeen != nil {
+			if _, seen := ma.wakeSeen[pl.MessageID]; seen {
+				c.mu.Unlock()
+				c.log("wake agent=%s message=%s already injected — dedup no-op", pl.AgentID, pl.MessageID)
+				return nil
+			}
+		}
+	}
+	c.mu.Unlock()
+
+	if sess == nil {
+		// No running session yet — retry after the reconcile(running) lands
+		// (same policy as work()).
+		return fmt.Errorf("agent_controller: wake for agent=%s but no running session (retry after reconcile)", pl.AgentID)
+	}
+
+	if err := sess.Inject(ctx, pl.MessageText); err != nil {
+		// Session closed between lookup and inject (or write failed) — retry so the
+		// wake is not lost (do NOT record dedup, since nothing was injected).
+		return fmt.Errorf("agent_controller: wake inject agent=%s: %w", pl.AgentID, err)
+	}
+
+	// Record the message_id as injected (dedup) only after a successful inject.
+	c.recordWake(pl.AgentID, pl.MessageID)
+
+	if pl.WorkItemID != "" {
+		// waiting_input→active via the existing feedback endpoint (MarkWorkItemState
+		// active drives the WorkItem AR's move to active, the Wake transition). A
+		// report failure is transient: the message is already injected, so re-running
+		// would double-inject — log + ack instead (mirrors work()'s policy).
+		if err := c.cfg.Reporter.ReportWorkItemState(ctx, pl.AgentID, pl.WorkItemID, "active", time.Now()); err != nil {
+			c.log("wake agent=%s report active: %v", pl.AgentID, err)
+		}
+	}
+	return nil
+}
+
+// recordWake records messageID in the agent's bounded wake-dedup set, evicting
+// the oldest entry FIFO when the set exceeds wakeDedupCap. Creates a stub
+// managedAgent if none exists (defensive; wake() only reaches here with a live
+// session, so an entry normally exists).
+func (c *AgentController) recordWake(agentID, messageID string) {
+	if messageID == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ma := c.agents[agentID]
+	if ma == nil {
+		ma = &managedAgent{agentID: agentID}
+		c.agents[agentID] = ma
+	}
+	if ma.wakeSeen == nil {
+		ma.wakeSeen = make(map[string]struct{}, wakeDedupCap)
+	}
+	if _, ok := ma.wakeSeen[messageID]; ok {
+		return
+	}
+	ma.wakeSeen[messageID] = struct{}{}
+	ma.wakeOrder = append(ma.wakeOrder, messageID)
+	for len(ma.wakeOrder) > wakeDedupCap {
+		oldest := ma.wakeOrder[0]
+		ma.wakeOrder = ma.wakeOrder[1:]
+		delete(ma.wakeSeen, oldest)
+	}
 }
 
 // startSession generates the per-agent mcp-config, resolves the agent home +
