@@ -64,7 +64,17 @@ var envAllowPrefix = []string{"LC_", "ANTHROPIC_", "CLAUDE_"}
 //     nested session. They are orthogonal to claude's own auth (ANTHROPIC_* / the
 //     remaining CLAUDE_*), so dropping the whole namespace is safe + future-proof
 //     (new CLAUDE_CODE_* are covered automatically); the child sets its own.
+//
+// EXCEPTION carved OUT of the CLAUDE_CODE_ deny: CLAUDE_CODE_OAUTH_TOKEN is claude's
+// non-interactive SUBSCRIPTION auth token (from `claude setup-token`) — it is AUTH,
+// like ANTHROPIC_API_KEY, and MUST pass through (it is the only non-interactive
+// path that preserves subscription billing). Denying it (it matches CLAUDE_CODE_)
+// would break subscription auth + block testing that path. Only the session
+// -runtime markers are dropped; the auth token is kept.
 func envAllowed(name string) bool {
+	if name == "CLAUDE_CODE_OAUTH_TOKEN" {
+		return true // subscription auth token — keep (carved out of the deny below)
+	}
 	if name == "CLAUDE_CONFIG_DIR" || strings.HasPrefix(name, "CLAUDE_CODE_") {
 		return false
 	}
