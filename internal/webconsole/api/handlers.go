@@ -18,6 +18,7 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/environment"
+	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -105,6 +106,11 @@ type HandlerDeps struct {
 	// (environment.Worker, distinct from the legacy workforce.Worker above).
 	// Optional — nil means the environment worker reads are not wired (501).
 	EnvWorkerRepo environment.WorkerRepository
+
+	// v2.7 E1 #139: FileTransferRepo backs the Environment-page in-flight
+	// transfer-session view (GET /api/files/transfers). Org is resolved per
+	// session via its scope (fail-closed). Optional — nil → 501.
+	FileTransferRepo files.FileTransferSessionRepository
 
 	// v2.7 B3: the ProjectManager AppService facade backs the nested
 	// /api/projects/{project_id}/{members,issues,tasks,code-repos} routes

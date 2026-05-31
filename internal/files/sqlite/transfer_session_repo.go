@@ -116,6 +116,31 @@ func (r *FileTransferSessionRepo) ListExpired(ctx context.Context, before time.T
 	return out, rows.Err()
 }
 
+// ListOpen returns LIVE in-flight sessions: status=open AND expires_at > now.
+// NO LIMIT — the Environment-page transfer view (#139) must see ALL of an org's
+// in-flight sessions after org-resolution (no global cap that truncates one org —
+// #126). Expired-but-not-reaped open sessions are excluded (dead, not in-flight).
+// Uses idx_fts_status_expires (status, expires_at).
+func (r *FileTransferSessionRepo) ListOpen(ctx context.Context, now time.Time) ([]*files.FileTransferSession, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		transferSessionSelect+` WHERE status = ? AND expires_at > ? ORDER BY created_at, id`,
+		string(files.StatusOpen), now.Format(time.RFC3339Nano))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*files.FileTransferSession
+	for rows.Next() {
+		s, err := scanTransferSession(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 func scanTransferSession(scan func(dest ...any) error) (*files.FileTransferSession, error) {
 	var (
 		id, fileURI, transferURI, direction, status string

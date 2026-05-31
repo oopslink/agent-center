@@ -172,6 +172,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		WorkerRemoveSvc:     a.EnrollSvc,
 		WorkerRepo:          a.WorkerRepo,
 		EnvWorkerRepo:       envsql.NewWorkerRepo(a.DB),
+		FileTransferRepo:    filessql.NewFileTransferSessionRepo(a.DB),
 		SignupSvc:           a.IdentitySignupSvc,
 		SigninSvc:           a.IdentitySigninSvc,
 		SignoutSvc:          a.IdentitySignoutSvc,
