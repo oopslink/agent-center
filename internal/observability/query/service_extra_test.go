@@ -7,6 +7,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -55,15 +56,26 @@ func TestQuery_Workers_HasMappingTrueFalse(t *testing.T) {
 	}
 }
 
+// TestQuery_Issues_ByOpener pins the v2.7 #125 --opener repoint: opener filters
+// on pm issue created_by (the successor of discussion OpenedByIdentityID), in
+// memory. seedPMIssue uses created_by "user:test".
 func TestQuery_Issues_ByOpener(t *testing.T) {
 	env := newQEnv(t)
-	env.seedIssue(t, "I-1", "p", "x")
+	env.seedPMIssue(t, "I-1", "p", "x", pm.IssueOpen)
+	env.seedPMIssue(t, "I-2", "p", "y", pm.IssueOpen)
 	res, err := env.svc.Query(context.Background(), "issues", query.QueryFilter{Opener: "user:test"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Items) != 1 {
-		t.Fatalf("expected 1, got %d", len(res.Items))
+	if len(res.Items) != 2 {
+		t.Fatalf("opener=user:test: want 2, got %d", len(res.Items))
+	}
+	res, err = env.svc.Query(context.Background(), "issues", query.QueryFilter{Opener: "user:nobody"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 0 {
+		t.Fatalf("opener=user:nobody: want 0, got %d", len(res.Items))
 	}
 }
 

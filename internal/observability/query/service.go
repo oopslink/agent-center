@@ -261,33 +261,33 @@ func (s *Service) inspectWorker(ctx context.Context, id string) (InspectResult, 
 }
 
 func (s *Service) inspectIssue(ctx context.Context, id string) (InspectResult, error) {
-	if s.deps.Issues == nil {
-		return InspectResult{}, errors.New("query: issues repo not wired")
+	// v2.7 #125: inspect-issue reads pm_issues (the retired discussion model is
+	// gone from this read path). pm.Issue has no origin/conversation_id — so
+	// opened_by←created_by, opened_at←created_at, +description/updated_at; the
+	// origin field + messages-via-conversation section are dropped (E2-doc).
+	if s.deps.PMIssues == nil {
+		return InspectResult{}, errors.New("query: pm issues repo not wired")
 	}
-	i, err := s.deps.Issues.FindByID(ctx, discussion.IssueID(id))
+	i, err := s.deps.PMIssues.FindByID(ctx, pm.IssueID(id))
 	if err != nil {
 		return InspectResult{}, mapNotFound(err)
 	}
 	out := map[string]any{
-		"id":              string(i.ID()),
-		"project_id":      i.ProjectID(),
-		"title":           i.Title(),
-		"status":          string(i.Status()),
-		"opened_by":       i.OpenedByIdentityID(),
-		"origin":          string(i.Origin()),
-		"opened_at":       i.OpenedAt().UTC().Format(time.RFC3339Nano),
-		"conversation_id": stringOrNil(string(i.ConversationID())),
-		"version":         i.Version(),
+		"id":          string(i.ID()),
+		"project_id":  string(i.ProjectID()),
+		"title":       i.Title(),
+		"description": i.Description(),
+		"status":      string(i.Status()),
+		"opened_by":   string(i.CreatedBy()),
+		"opened_at":   i.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"updated_at":  i.UpdatedAt().UTC().Format(time.RFC3339Nano),
+		"version":     i.Version(),
 	}
 	if s.deps.Events != nil {
 		evs, _ := s.deps.Events.Find(ctx, observability.EventQueryFilter{
 			Refs: observability.EventRefsFilter{IssueID: id}, Limit: 50,
 		})
 		out["recent_events"] = projectEventSummaryList(evs)
-	}
-	if s.deps.Conversations != nil && i.ConversationID() != "" && s.deps.Messages != nil {
-		msgs, _ := s.deps.Messages.FindByConversationID(ctx, i.ConversationID(), conversation.MessageFilter{Limit: 50})
-		out["messages"] = projectMessageList(msgs)
 	}
 	return InspectResult{Kind: InspectIssue, ID: id, Data: out}, nil
 }
@@ -524,32 +524,38 @@ func (s *Service) queryWorkers(ctx context.Context, f QueryFilter) (QueryResult,
 }
 
 func (s *Service) queryIssues(ctx context.Context, f QueryFilter) (QueryResult, error) {
-	if s.deps.Issues == nil {
-		return QueryResult{}, errors.New("query: issues repo not wired")
+	// v2.7 #125: query-issues reads pm_issues. by-project → ListByProject (+ in-mem
+	// status filter); by-status → FindByStatuses([status]); default → the
+	// non-terminal set {open,in_progress,reopened} (was discussion StatusOpen).
+	// --opener is a faithful repoint to created_by (in-memory filter), NOT a drop:
+	// created_by is the successor of OpenedByIdentityID (the field exists).
+	if s.deps.PMIssues == nil {
+		return QueryResult{}, errors.New("query: pm issues repo not wired")
 	}
 	limit := applyDefaultLimit(f.Limit)
-	var items []*discussion.Issue
+	var items []*pm.Issue
 	var err error
 	switch {
 	case f.ProjectID != "":
-		filter := discussion.IssueFilter{Limit: limit}
-		if f.Status != "" {
-			st := discussion.Status(f.Status)
-			filter.Status = &st
-		}
-		items, err = s.deps.Issues.FindByProject(ctx, f.ProjectID, filter)
-	case f.Opener != "":
-		items, err = s.deps.Issues.FindByOpener(ctx, f.Opener)
+		items, err = s.deps.PMIssues.ListByProject(ctx, pm.ProjectID(f.ProjectID))
 	case f.Status != "":
-		items, err = s.deps.Issues.FindByStatus(ctx, discussion.Status(f.Status), discussion.IssueFilter{Limit: limit})
+		items, err = s.deps.PMIssues.FindByStatuses(ctx, []pm.IssueStatus{pm.IssueStatus(f.Status)}, limit)
 	default:
-		items, err = s.deps.Issues.FindByStatus(ctx, discussion.StatusOpen, discussion.IssueFilter{Limit: limit})
+		items, err = s.deps.PMIssues.FindByStatuses(ctx, fleetPendingIssueStatuses, limit)
 	}
 	if err != nil {
 		return QueryResult{}, err
 	}
 	out := make([]any, 0, len(items))
 	for _, i := range items {
+		// ListByProject returns all statuses → honor an explicit --status filter.
+		if f.ProjectID != "" && f.Status != "" && string(i.Status()) != f.Status {
+			continue
+		}
+		// --opener → created_by (faithful repoint, in-memory filter).
+		if f.Opener != "" && string(i.CreatedBy()) != f.Opener {
+			continue
+		}
 		out = append(out, projectIssueRow(i))
 	}
 	return QueryResult{Resource: QueryIssues, Items: out}, nil

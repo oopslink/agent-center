@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
 // Covers queryTasks branch where filter has both ProjectID and Status — the
@@ -40,11 +40,11 @@ func TestQuery_Tasks_ByProject_WithStatus(t *testing.T) {
 // inner `if f.Status != ""` block (service.go:493-496).
 func TestQuery_Issues_ByProject_WithStatus(t *testing.T) {
 	env := newQEnv(t)
-	env.seedIssue(t, "I-1", "proj", "a")
-	env.seedIssue(t, "I-2", "proj", "b")
+	env.seedPMIssue(t, "I-1", "proj", "a", pm.IssueOpen)
+	env.seedPMIssue(t, "I-2", "proj", "b", pm.IssueOpen)
 	res, err := env.svc.Query(context.Background(), "issues", query.QueryFilter{
 		ProjectID: "proj",
-		Status:    string(discussion.StatusOpen),
+		Status:    string(pm.IssueOpen),
 		Limit:     50,
 	})
 	if err != nil {

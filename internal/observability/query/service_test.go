@@ -265,13 +265,46 @@ func TestInspect_Worker(t *testing.T) {
 
 func TestInspect_Issue(t *testing.T) {
 	env := newQEnv(t)
-	env.seedIssue(t, "I-1", "proj", "discuss")
+	env.seedPMIssue(t, "I-1", "proj", "discuss", pm.IssueOpen)
 	res, err := env.svc.Inspect(context.Background(), "issue", "I-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Data.(map[string]any)["id"] != "I-1" {
-		t.Fatal("issue id mismatch")
+	data := res.Data.(map[string]any)
+	// v2.7 #125: inspect-issue reads pm_issues. opened_by←created_by,
+	// opened_at←created_at, +description/updated_at; origin/conversation_id/
+	// messages dropped (pm.Issue has no such concepts).
+	if data["id"] != "I-1" || data["status"] != "open" || data["opened_by"] != "user:test" {
+		t.Fatalf("pm issue inspect fields: %+v", data)
+	}
+	if _, ok := data["origin"]; ok {
+		t.Fatal("origin must be dropped (pm.Issue has no origin)")
+	}
+	if _, ok := data["messages"]; ok {
+		t.Fatal("messages section must be dropped (pm.Issue has no conversation link)")
+	}
+}
+
+func TestQuery_Issues_DefaultNonTerminalAndStatus(t *testing.T) {
+	env := newQEnv(t)
+	env.seedPMIssue(t, "I-open", "proj", "o", pm.IssueOpen)
+	env.seedPMIssue(t, "I-inprog", "proj", "p", pm.IssueInProgress)
+	env.seedPMIssue(t, "I-resolved", "proj", "r", pm.IssueResolved) // terminal
+	// default (no filter) = non-terminal set → excludes resolved.
+	res, err := env.svc.Query(context.Background(), "issues", query.QueryFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 2 {
+		t.Fatalf("default non-terminal: want 2 (open+in_progress), got %d", len(res.Items))
+	}
+	// explicit status filter surfaces the requested status (incl terminal).
+	res, err = env.svc.Query(context.Background(), "issues", query.QueryFilter{Status: "resolved"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("status=resolved: want 1, got %d", len(res.Items))
 	}
 }
 
@@ -409,7 +442,7 @@ func TestQuery_Workers_FilterByStatus(t *testing.T) {
 
 func TestQuery_Issues_ByProject(t *testing.T) {
 	env := newQEnv(t)
-	env.seedIssue(t, "I-1", "proj", "x")
+	env.seedPMIssue(t, "I-1", "proj", "x", pm.IssueOpen)
 	res, err := env.svc.Query(context.Background(), "issues", query.QueryFilter{ProjectID: "proj"})
 	if err != nil {
 		t.Fatal(err)

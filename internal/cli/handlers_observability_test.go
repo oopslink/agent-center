@@ -9,8 +9,9 @@ import (
 	"time"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
@@ -242,11 +243,11 @@ func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 	})
 	_ = app.ExecRepo.Save(context.Background(), exec)
 	_ = app.WorkerRepo.Save(context.Background(), mustWorker(t, "W-1"))
-	issue, _ := discussion.NewIssue(discussion.NewIssueInput{
-		ID: "I-1", ProjectID: "p", Title: "x",
-		OpenedByIdentityID: "user:t", Origin: discussion.OriginCLI, OpenedAt: time.Now(),
+	// v2.7 #125: inspect-issue reads pm_issues now → seed a pm issue.
+	pmIssue, _ := pm.NewIssue(pm.NewIssueInput{
+		ID: "I-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", CreatedAt: time.Now(),
 	})
-	_ = app.IssueRepo.Save(context.Background(), issue)
+	_ = pmsql.NewIssueRepo(app.DB).Save(context.Background(), pmIssue)
 	proj, _ := workforce.NewProject(workforce.NewProjectInput{
 		ID: "p", Name: "P", CreatedByIdentityID: "user:t", CreatedAt: time.Now(),
 	})
