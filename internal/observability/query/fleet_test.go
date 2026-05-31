@@ -237,6 +237,32 @@ func TestFleetSnapshot_ActiveCount_OrgMismatch_FailClosed(t *testing.T) {
 	}
 }
 
+// TestFleetSnapshot_ActiveCount_OrgUnresolvable_FailClosed pins the count==list
+// rule for the THIRD state (#131 §-1, PD catch): a work item whose org can't be
+// resolved (missing pm task/project). The work-item LIST fail-closes (excludes)
+// such items under org scope (fetchExecutions), so ActiveCount must too — else
+// count>list. Unresolvable is missing data, NOT an invariant violation, so it
+// must NOT emit an "invariant broken" warning (only positive divergence does).
+func TestFleetSnapshot_ActiveCount_OrgUnresolvable_FailClosed(t *testing.T) {
+	env := newQEnv(t)
+	env.seedWorkerOrg(t, "W-1", "org-A")
+	env.seedAgent(t, "AG-1", "W-1")
+	// Work item referencing a pm task that was never seeded → org unresolvable.
+	env.seedWorkItem(t, "WI-u", "AG-1", "T-missing")
+	svc := query.NewFleetSnapshotService(env.deps)
+
+	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{OrganizationID: "org-A"})
+	row := fleetWorkerRow(t, snap, "W-1")
+	if row.ActiveCount != 0 {
+		t.Fatalf("unresolvable work item must NOT be counted (match list fail-closed), got ActiveCount=%d", row.ActiveCount)
+	}
+	for _, w := range snap.Warnings {
+		if strings.Contains(w, "invariant broken") {
+			t.Fatalf("unresolvable is missing-data, not a violation — no invariant-broken warning expected, got %q", w)
+		}
+	}
+}
+
 func fleetWorkerRow(t *testing.T, snap query.FleetSnapshot, workerID string) query.FleetWorkerRow {
 	t.Helper()
 	for _, w := range snap.Workers {
