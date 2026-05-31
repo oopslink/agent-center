@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	agentbc "github.com/oopslink/agent-center/internal/agent"
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/files"
 	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -131,5 +133,100 @@ func TestAPI_Transfers_NotWired(t *testing.T) {
 	resp := orgScopedGet(t, s.URL+"/api/files/transfers", sess)
 	if resp.StatusCode != http.StatusNotImplemented {
 		t.Fatalf("not-wired: got %d, want 501", resp.StatusCode)
+	}
+}
+
+// saveAgentInOrg seeds an agent.Agent in orgID directly via the sqlite repo so the
+// agent-scope transfer-session resolution (AgentSvc.GetAgent→OrganizationID) has a
+// target. Bypasses CreateAgent's worker-in-org check (not under test here).
+func saveAgentInOrg(t *testing.T, db *sql.DB, orgID, agentID string) {
+	t.Helper()
+	a, err := agentbc.NewAgent(agentbc.NewAgentInput{
+		ID:             agentbc.AgentID(agentID),
+		OrganizationID: orgID,
+		Profile:        agentbc.Profile{Name: agentID, Model: "claude", CLI: "claudecode"},
+		WorkerID:       "w-x",
+		CreatedBy:      agentbc.IdentityRef("user:hayang"),
+		CreatedAt:      time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := agentsql.NewAgentRepo(db).Save(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAPI_Transfers_AgentTaskIssueScope_OrgScoped gives EXECUTED fail-closed
+// assertions for the agent / task / issue scopes (PD REQUIRED follow-up — the
+// agent scope is the security boundary). For each, an own-org session is INCLUDED
+// and a cross-org (or unknown) one is EXCLUDED, exercising transferSessionOrg's
+// agent→org, task→project→org, issue→project→org paths.
+func TestAPI_Transfers_AgentTaskIssueScope_OrgScoped(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.FileTransferRepo = filessql.NewFileTransferSessionRepo(db)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	now := time.Now().UTC()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:hayang")
+
+	// agent scope: own-org agent (include), other-org agent (exclude), unknown (exclude).
+	saveAgentInOrg(t, db, sess.OrgID, "agent-mine")
+	saveAgentInOrg(t, db, "org-other", "agent-other")
+	mineAgent := saveTransferSession(t, db, files.ScopeAgent, "agent-mine", now, time.Hour)
+	saveTransferSession(t, db, files.ScopeAgent, "agent-other", now, time.Hour)
+	saveTransferSession(t, db, files.ScopeAgent, "agent-unknown", now, time.Hour)
+
+	// task scope: task in my-org project (include) vs other-org project (exclude).
+	pidMine := seedPMProject(t, deps, sess.OrgID, "mine-proj")
+	pidOther := seedPMProject(t, deps, "org-other", "other-proj")
+	taskMine, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pidMine, Title: "tm", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskOther, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pidOther, Title: "to", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mineTask := saveTransferSession(t, db, files.ScopeTask, string(taskMine), now, time.Hour)
+	saveTransferSession(t, db, files.ScopeTask, string(taskOther), now, time.Hour)
+
+	// issue scope: issue in my-org project (include) vs other-org project (exclude).
+	issueMine, err := deps.PM.CreateIssue(ctx, pmservice.CreateIssueCommand{ProjectID: pidMine, Title: "im", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	issueOther, err := deps.PM.CreateIssue(ctx, pmservice.CreateIssueCommand{ProjectID: pidOther, Title: "io", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mineIssue := saveTransferSession(t, db, files.ScopeIssue, string(issueMine), now, time.Hour)
+	saveTransferSession(t, db, files.ScopeIssue, string(issueOther), now, time.Hour)
+
+	resp := orgScopedGet(t, s.URL+"/api/files/transfers", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list: got %d", resp.StatusCode)
+	}
+	var out struct {
+		TransferSessions []map[string]any `json:"transfer_sessions"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+
+	got := map[string]bool{}
+	for _, ts := range out.TransferSessions {
+		got[ts["id"].(string)] = true
+	}
+	// Own-org agent/task/issue sessions INCLUDED.
+	for _, want := range []string{mineAgent, mineTask, mineIssue} {
+		if !got[want] {
+			t.Fatalf("expected own-org session %s included; got %+v", want, out.TransferSessions)
+		}
+	}
+	// Exactly 3 — every cross-org and unknown session excluded (fail-closed).
+	if len(out.TransferSessions) != 3 {
+		t.Fatalf("got %d sessions, want exactly 3 own-org (agent/task/issue cross-org+unknown must be excluded): %+v", len(out.TransferSessions), out.TransferSessions)
 	}
 }
