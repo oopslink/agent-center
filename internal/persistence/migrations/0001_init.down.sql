@@ -12,20 +12,11 @@ DROP INDEX IF EXISTS idx_conversations_status;
 DROP INDEX IF EXISTS idx_conversations_kind;
 DROP TABLE IF EXISTS conversations;
 
-DROP INDEX IF EXISTS uniq_proposals_active_path;
-DROP INDEX IF EXISTS idx_proposals_status;
-DROP INDEX IF EXISTS idx_proposals_worker;
-DROP TABLE IF EXISTS worker_project_proposals;
-
-DROP INDEX IF EXISTS uniq_mappings_active;
-DROP INDEX IF EXISTS idx_mappings_project;
-DROP INDEX IF EXISTS idx_mappings_worker;
-DROP TABLE IF EXISTS worker_project_mappings;
+-- v2.7 #131: worker_project_proposals / worker_project_mappings / projects
+-- tables retired (no longer created in up) — nothing to drop.
 
 DROP INDEX IF EXISTS idx_workers_status;
 DROP TABLE IF EXISTS workers;
-
-DROP TABLE IF EXISTS projects;
 
 DROP INDEX IF EXISTS uniq_events_seq;
 DROP INDEX IF EXISTS idx_events_decision;

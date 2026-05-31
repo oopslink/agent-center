@@ -151,17 +151,6 @@ func TestNewAgentInstanceLifecycleService_NilClock(t *testing.T) {
 	}
 }
 
-func TestAILifecycle_OnExecutionEnded_WhenIdle(t *testing.T) {
-	s := setupAISuite(t)
-	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
-		Name: "c", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
-	})
-	// Already idle (no active execution); OnExecutionEnded is a no-op.
-	if err := s.life.OnExecutionEnded(context.Background(), created.ID, "system"); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestAILifecycle_OnWorkerOffline_NoAgents(t *testing.T) {
 	s := setupAISuite(t)
 	// No agents on W-NONE; bulk update returns 0 affected.
@@ -259,25 +248,6 @@ func TestAILifecycle_OnWorkerOnline_TxFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := s.life.OnWorkerOnline(context.Background(), "W-1", "system")
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-// AILifecycle: OnExecutionEnded tx failure when transitioning idle.
-func TestAILifecycle_OnExecutionEnded_TxFailure(t *testing.T) {
-	s := setupAISuite(t)
-	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
-		Name: "c3", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
-	})
-	_ = s.life.OnExecutionStarted(context.Background(), created.ID, "system")
-	if _, err := s.db.ExecContext(context.Background(),
-		`CREATE TEMP TRIGGER block_ai_end BEFORE UPDATE ON agent_instances BEGIN
-		   SELECT RAISE(ABORT, 'blocked');
-		 END`); err != nil {
-		t.Fatal(err)
-	}
-	err := s.life.OnExecutionEnded(context.Background(), created.ID, "system")
 	if err == nil {
 		t.Fatal()
 	}

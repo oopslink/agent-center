@@ -37,21 +37,12 @@ CREATE INDEX idx_events_decision    ON events (decision_id)    WHERE decision_id
 CREATE UNIQUE INDEX uniq_events_seq ON events (seq);
 
 -- =========================================================================
--- Workforce — projects, workers, worker_project_mappings, worker_project_proposals
+-- Workforce — workers
+-- v2.7 #131: the legacy `projects` / `worker_project_mappings` /
+-- `worker_project_proposals` tables are RETIRED (project mgmt → pm_projects;
+-- worker↔project mapping/dispatch removed). Fresh install is new-model only —
+-- these tables are never created (no drop-migration; nothing to drop).
 -- =========================================================================
-
--- projects: slug PK（workforce/02-project § 2）
-CREATE TABLE projects (
-    id                          TEXT PRIMARY KEY,           -- slug
-    name                        TEXT NOT NULL,
-    kind                        TEXT,                       -- coding | writing | investing | NULL
-    default_agent_cli           TEXT,
-    description                 TEXT,
-    created_at                  TEXT NOT NULL,
-    updated_at                  TEXT NOT NULL,
-    created_by_identity_id      TEXT NOT NULL,
-    version                     INTEGER NOT NULL DEFAULT 1
-);
 
 -- workers
 CREATE TABLE workers (
@@ -70,55 +61,6 @@ CREATE TABLE workers (
     version               INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX idx_workers_status ON workers (status);
-
--- worker_project_mappings: Worker 子从属 entity（workforce/01 § 4）
--- 引用完整性由应用层 Repository / Domain Service 负责（conventions § 9.w）
-CREATE TABLE worker_project_mappings (
-    id                    TEXT PRIMARY KEY,
-    worker_id             TEXT NOT NULL,                    -- references workers(id), enforced at app layer
-    project_id            TEXT NOT NULL,                    -- references projects(id), enforced at app layer
-    base_path             TEXT NOT NULL,
-    source_proposal_id    TEXT,
-    status                TEXT NOT NULL,                    -- active | invalidated
-    invalidate_reason     TEXT,                             -- path_missing | not_git_repo | manual_remove
-    invalidate_message    TEXT,
-    added_at              TEXT NOT NULL,
-    invalidated_at        TEXT,
-    created_at            TEXT NOT NULL,
-    updated_at            TEXT NOT NULL,
-    version               INTEGER NOT NULL DEFAULT 1
-);
-CREATE INDEX idx_mappings_worker  ON worker_project_mappings (worker_id);
-CREATE INDEX idx_mappings_project ON worker_project_mappings (project_id);
--- 单对 (worker_id, project_id) 至多 1 条 active（workforce/01 § 4.5）
-CREATE UNIQUE INDEX uniq_mappings_active
-    ON worker_project_mappings (worker_id, project_id)
-    WHERE status = 'active';
-
--- worker_project_proposals: 独立 AR（workforce/03 § 2）
--- 引用完整性由应用层 Repository / Domain Service 负责（conventions § 9.w）
-CREATE TABLE worker_project_proposals (
-    id                          TEXT PRIMARY KEY,
-    worker_id                   TEXT NOT NULL,              -- references workers(id), enforced at app layer
-    candidate_path              TEXT NOT NULL,
-    suggested_project_id        TEXT NOT NULL,
-    suggested_kind              TEXT,
-    candidate_metadata          TEXT NOT NULL DEFAULT '{}', -- JSON
-    status                      TEXT NOT NULL,              -- pending | accepted | ignored | superseded
-    proposed_at                 TEXT NOT NULL,
-    reviewed_at                 TEXT,
-    reviewed_by_identity_id     TEXT,
-    resulting_mapping_id        TEXT,
-    created_at                  TEXT NOT NULL,
-    updated_at                  TEXT NOT NULL,
-    version                     INTEGER NOT NULL DEFAULT 1
-);
-CREATE INDEX idx_proposals_worker        ON worker_project_proposals (worker_id);
-CREATE INDEX idx_proposals_status        ON worker_project_proposals (status);
--- 同 (worker_id, candidate_path) 至多 1 条非终态 proposal（workforce/03 § 6.1）
-CREATE UNIQUE INDEX uniq_proposals_active_path
-    ON worker_project_proposals (worker_id, candidate_path)
-    WHERE status IN ('pending');
 
 -- =========================================================================
 -- Conversation — conversations, messages

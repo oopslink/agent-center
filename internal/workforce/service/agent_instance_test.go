@@ -237,21 +237,6 @@ func TestAILifecycle_OnExecutionStarted_IdleToActive(t *testing.T) {
 	}
 }
 
-func TestAILifecycle_OnExecutionEnded_ActiveToIdle(t *testing.T) {
-	s := setupAISuite(t)
-	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
-		Name: "coder", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:hayang",
-	})
-	_ = s.life.OnExecutionStarted(context.Background(), created.ID, "system")
-	if err := s.life.OnExecutionEnded(context.Background(), created.ID, "system"); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := s.aiRepo.FindByID(context.Background(), created.ID)
-	if got.State() != workforce.AgentInstanceIdle {
-		t.Fatalf("state: %s", got.State())
-	}
-}
-
 func TestAILifecycle_OnWorkerOffline_BulkToSleeping(t *testing.T) {
 	s := setupAISuite(t)
 	for _, name := range []string{"a1", "a2"} {

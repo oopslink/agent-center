@@ -208,9 +208,6 @@ func TestAgentInstanceRepo_ExecutorFromCtx_ClosedDB(t *testing.T) {
 		workforce.AgentInstanceArchivedReasonManual, "msg", 1); err == nil {
 		t.Fatal()
 	}
-	if _, err := repo.CountActiveExecutions(context.Background(), "01HA"); err == nil {
-		t.Fatal()
-	}
 	if _, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1",
 		workforce.AgentInstanceIdle, workforce.AgentInstanceSleeping); err == nil {
 		t.Fatal()
@@ -664,32 +661,6 @@ func TestAgentInstanceRepo_Save_PKConflict(t *testing.T) {
 	err := repo.Save(context.Background(), newAI(t, "01HA", "second", "W-2"))
 	if !errors.Is(err, workforce.ErrAgentInstanceAlreadyExists) {
 		t.Fatalf("expected already exists, got %v", err)
-	}
-}
-
-// CountActiveExecutions error: closed DB exercised; also test the SQL returns
-// a count for the right WHERE clause (covered indirectly; ensure non-zero
-// branch works by inserting a task_executions row).
-func TestAgentInstanceRepo_CountActiveExecutions_NonZero(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewAgentInstanceRepo(db)
-	_ = repo.Save(context.Background(), newAI(t, "01HA", "ai", "W-1"))
-	// Insert a task_executions row referencing this agent_instance_id.
-	_, err := db.ExecContext(context.Background(), `INSERT INTO task_executions
-		(id, task_id, worker_id, agent_cli, workspace_mode, priority, status,
-		 dispatch_state, started_at, created_at, updated_at, agent_instance_id)
-		VALUES ('01HE-1', 'T-1', 'W-1', 'claude-code', 'worktree', 'medium',
-		        'working', 'acked', '2026-05-22T00:00:00Z',
-		        '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', '01HA')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := repo.CountActiveExecutions(context.Background(), "01HA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c != 1 {
-		t.Fatalf("count: %d", c)
 	}
 }
 
