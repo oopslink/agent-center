@@ -1,6 +1,9 @@
 package projectmanager
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Repository interfaces for the ProjectManager ARs (B1, task #96). All
 // implementations live in the sqlite subpackage and honor
@@ -41,6 +44,11 @@ type TaskRepository interface {
 	FindByID(ctx context.Context, id TaskID) (*Task, error)
 	ListByProject(ctx context.Context, projectID ProjectID) ([]*Task, error)
 	ListByAssignee(ctx context.Context, assignee IdentityRef) ([]*Task, error)
+	// CountByStatus returns a grouped count of tasks per status across ALL
+	// projects/orgs (global), mirroring the old taskruntime FindByStatus full
+	// scan that stats used. since, if non-nil, restricts to tasks created
+	// at/after it. v2.7 #107 Phase-2 stats repoint.
+	CountByStatus(ctx context.Context, since *time.Time) (map[TaskStatus]int, error)
 }
 
 // TaskSubscriberRepository persists manual Task subscriber records.

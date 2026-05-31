@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -164,6 +165,38 @@ func (r *TaskRepo) list(ctx context.Context, q string, arg string) ([]*pm.Task, 
 			return nil, err
 		}
 		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// CountByStatus returns a grouped count of pm_tasks per status across ALL
+// projects (global), mirroring the old taskruntime FindByStatus full scan that
+// stats used. since, if non-nil, restricts to tasks created at/after it.
+// v2.7 #107 Phase-2 stats repoint.
+func (r *TaskRepo) CountByStatus(ctx context.Context, since *time.Time) (map[pm.TaskStatus]int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if since != nil {
+		rows, err = exec.QueryContext(ctx,
+			`SELECT status, COUNT(*) FROM pm_tasks WHERE created_at >= ? GROUP BY status`, ts(since.UTC()))
+	} else {
+		rows, err = exec.QueryContext(ctx, `SELECT status, COUNT(*) FROM pm_tasks GROUP BY status`)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[pm.TaskStatus]int)
+	for rows.Next() {
+		var status string
+		var n int
+		if err := rows.Scan(&status, &n); err != nil {
+			return nil, err
+		}
+		out[pm.TaskStatus(status)] = n
 	}
 	return out, rows.Err()
 }
