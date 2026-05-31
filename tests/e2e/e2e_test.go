@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -326,34 +327,62 @@ func TestE2E7_ConversationEvents(t *testing.T) {
 // E2E-8: server start → SIGTERM → clean exit
 // =============================================================================
 
+// TestE2E8_ServerStartSIGTERM exercises GRACEFUL shutdown: the server must
+// react to a real SIGTERM by running its shutdown path (it logs "shutting
+// down"), NOT be hard-killed. #129: the prior version used exec.CommandContext
+// with no cmd.Cancel, so ctx-cancel sent SIGKILL (despite the name/comment) →
+// Shutdown never ran and the assertion merely hoped the startup banner had
+// flushed before the hard kill (flaky). The fix: (1) cmd.Cancel sends a real
+// SIGTERM (cmd.WaitDelay force-kills if graceful hangs); (2) readiness is a
+// race-free poll of the admin socket file (created when the server is up),
+// not a fixed sleep + concurrent read of the stdout buffer; (3) assert the
+// graceful "shutting down" log — which is what the name claims and what
+// exercises the #128 listener-shutdown path.
 func TestE2E8_ServerStartSIGTERM(t *testing.T) {
 	h := newHarness(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, h.binary, "--config="+h.cfgPath, "server")
-	var out, err strings.Builder
+	// Real SIGTERM on cancel (default ctx-cancel = SIGKILL, which skips
+	// graceful shutdown). WaitDelay force-kills if graceful teardown hangs.
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.WaitDelay = 5 * time.Second
+	var out, errb strings.Builder
 	cmd.Stdout = &out
-	cmd.Stderr = &err
+	cmd.Stderr = &errb
 	if startErr := cmd.Start(); startErr != nil {
 		t.Fatal(startErr)
 	}
-	// Give it a moment to start + flush the banner before we kill it.
-	time.Sleep(1500 * time.Millisecond)
-	// Send SIGTERM via context cancel.
+	// Race-free readiness: the admin unix socket is created when the server's
+	// admin listener is up. Poll the file (NOT the stdout buffer, which the
+	// os/exec copy goroutine writes concurrently).
+	sock := filepath.Join(filepath.Dir(h.cfgPath), "admin.sock")
+	readyDeadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, statErr := os.Stat(sock); statErr == nil {
+			break
+		}
+		if time.Now().After(readyDeadline) {
+			cancel()
+			_ = cmd.Wait()
+			t.Fatalf("server never became ready (admin socket %s absent)\nstderr: %s", sock, errb.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	// Graceful SIGTERM.
 	cancel()
-	// Wait for exit.
 	waitErr := cmd.Wait()
 	if waitErr != nil {
 		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) {
-			t.Fatalf("wait: %v stderr: %s", waitErr, err.String())
+		// context.Canceled is expected: os/exec returns it when the process is
+		// interrupted via cmd.Cancel (our SIGTERM), even on a graceful exit.
+		if !errors.As(waitErr, &exitErr) && !errors.Is(waitErr, context.Canceled) {
+			t.Fatalf("wait: %v stderr: %s", waitErr, errb.String())
 		}
 	}
-	// stdout should mention shutting down OR contain the phase / running banner.
-	if !strings.Contains(out.String(), "shutting down") &&
-		!strings.Contains(out.String(), "Phase") &&
-		!strings.Contains(out.String(), "agent-center server:") {
-		t.Fatalf("server output unexpected: %s\nstderr: %s", out.String(), err.String())
+	// out is read only after Wait() (copy goroutine done) → no race.
+	if !strings.Contains(out.String(), "shutting down") {
+		t.Fatalf("expected graceful 'shutting down' on SIGTERM, got stdout: %q\nstderr: %q", out.String(), errb.String())
 	}
 }
 
