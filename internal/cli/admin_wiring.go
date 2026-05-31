@@ -241,7 +241,6 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		ChannelMgmtSvc:     a.ChannelMgmtSvc,
 		ParticipantMgmtSvc: a.ParticipantMgmtSvc,
 		CarryOverSvc:       a.CarryOverSvc,
-		DerivationSvc:      a.DerivationSvc,
 		ReadStateSvc:       a.ReadStateSvc,
 
 		// Workforce BC

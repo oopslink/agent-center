@@ -59,7 +59,6 @@ type HandlerDeps struct {
 	ChannelMgmtSvc     *convservice.ChannelManagementService
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
 	CarryOverSvc       *convservice.CarryOverService
-	DerivationSvc      *convservice.MessageDerivationService
 	ReadStateSvc       *convservice.ReadStateService
 
 	// Workforce BC
