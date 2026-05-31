@@ -18,21 +18,9 @@ import (
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
-// FleetWorkItemRow is one row in FleetSnapshot.WorkItems (v2.7 #107: the new
-// work-item model replaced the retired task-execution model — execution→work-item).
-type FleetWorkItemRow struct {
-	WorkItemID        string `json:"work_item_id"`
-	AgentID           string `json:"agent_id"`
-	TaskID            string `json:"task_id,omitempty"`
-	Status            string `json:"status"`
-	CurrentActivity   string `json:"current_activity,omitempty"`
-	TotalToolCalls    int64  `json:"total_tool_calls"`
-	TotalTokensInput  int64  `json:"total_tokens_input"`
-	TotalTokensOutput int64  `json:"total_tokens_output"`
-	// WorkingSeconds is 0 in v2.7 (no per-turn duration source; Opt2 deferred v2.8).
-	WorkingSeconds int64  `json:"working_seconds"`
-	LastActivityAt string `json:"last_activity_at,omitempty"`
-}
+// FleetWorkItemRow rows live in FleetSnapshot.WorkItems. The row VO + its
+// formatter moved to work_item_row.go (WorkItemRow / workItemRowFromProjection)
+// as the single source shared with the inspect/query verbs (#107 Phase-2).
 
 // FleetWorkerRow is one row in FleetSnapshot.Workers.
 type FleetWorkerRow struct {
@@ -69,7 +57,7 @@ type FleetIssueRow struct {
 // FleetSnapshot is the VO returned by FleetSnapshotService.Snapshot.
 // Per observability/00 § 7.2 + plan-4 § 1.3.
 type FleetSnapshot struct {
-	WorkItems         []FleetWorkItemRow     `json:"work_items"`
+	WorkItems         []WorkItemRow          `json:"work_items"`
 	Workers           []FleetWorkerRow       `json:"workers"`
 	OpenInputRequests []FleetInputRequestRow `json:"open_input_requests"`
 	PendingIssues     []FleetIssueRow        `json:"pending_issues"`
@@ -127,7 +115,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	now := time.Now().UTC()
 	snap := FleetSnapshot{GeneratedAt: now.Format(time.RFC3339Nano)}
 	var (
-		execs        []FleetWorkItemRow
+		execs        []WorkItemRow
 		execsErr     error
 		workers      []FleetWorkerRow
 		workersErr   error
@@ -179,7 +167,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 // scoping is preserved by resolving each work item's task_ref → pm task → project
 // (equivalent to the old Tasks.FindByID(org) path); fail-closed so a work item
 // whose project can't be resolved is excluded under org scope (no cross-org leak).
-func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]FleetWorkItemRow, error) {
+func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]WorkItemRow, error) {
 	if s.deps.WorkItemProjections == nil {
 		return nil, errors.New("work item projections repo not wired")
 	}
@@ -194,7 +182,7 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 		return nil, err
 	}
 	orgScoped := filter.OrganizationID != ""
-	out := make([]FleetWorkItemRow, 0, len(projs))
+	out := make([]WorkItemRow, 0, len(projs))
 	for _, p := range projs {
 		taskID, projectID, orgID := s.workItemTaskProjectOrg(ctx, p.WorkItemID)
 		if filter.ProjectID != "" && projectID != filter.ProjectID {
@@ -203,18 +191,7 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 		if orgScoped && orgID != filter.OrganizationID {
 			continue // fail-closed: never leak a work item whose org can't be confirmed
 		}
-		out = append(out, FleetWorkItemRow{
-			WorkItemID:        p.WorkItemID,
-			AgentID:           p.AgentID,
-			TaskID:            taskID,
-			Status:            p.Status,
-			CurrentActivity:   p.CurrentActivity,
-			TotalToolCalls:    p.TotalToolCalls,
-			TotalTokensInput:  p.TotalTokensInput,
-			TotalTokensOutput: p.TotalTokensOutput,
-			WorkingSeconds:    p.WorkingSecondsAccumulated,
-			LastActivityAt:    p.LastActivityAt.UTC().Format(time.RFC3339Nano),
-		})
+		out = append(out, workItemRowFromProjection(p, taskID))
 	}
 	return out, nil
 }

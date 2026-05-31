@@ -18,7 +18,7 @@ import (
 func TestPrintFleet_HumanIncludesAllSegments(t *testing.T) {
 	var out, errw bytes.Buffer
 	snap := query.FleetSnapshot{
-		WorkItems:         []query.FleetWorkItemRow{{WorkItemID: "WI-1", TaskID: "T-1", AgentID: "AG-1", Status: "active"}},
+		WorkItems:         []query.WorkItemRow{{WorkItemID: "WI-1", TaskID: "T-1", AgentID: "AG-1", Status: "active"}},
 		Workers:           []query.FleetWorkerRow{{WorkerID: "W-1", Status: "online", ActiveCount: 1}},
 		OpenInputRequests: []query.FleetInputRequestRow{{InputRequestID: "IR-1", TaskExecutionID: "E-1", Question: "?"}},
 		PendingIssues:     []query.FleetIssueRow{{IssueID: "I-1", ProjectID: "p", Title: "discuss"}},
