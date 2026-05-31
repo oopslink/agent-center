@@ -3,6 +3,7 @@ package query_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -178,5 +179,30 @@ func TestFleetSnapshot_PendingIssues_OrgScopingAndPendingSet(t *testing.T) {
 	}
 	if got["IO-orphan"] {
 		t.Fatal("fail-closed violated: orphan (unresolvable-org) issue leaked under org scope")
+	}
+}
+
+// TestFleetSnapshot_PendingIssues_OrgScopeNoGlobalTruncation is the #126
+// completeness fix: under org scope, an org's pending issues must NOT be dropped
+// because they fall outside a global oldest-N window. The org-scoped path
+// queries per the org's own projects (PMProjects.ListByOrg → ListByProject), so
+// it is org-bounded — not global-limit(100)-then-filter.
+func TestFleetSnapshot_PendingIssues_OrgScopeNoGlobalTruncation(t *testing.T) {
+	env := newQEnv(t)
+	env.seedOrgProject(t, "proj-a", "org-A")
+	env.seedOrgProject(t, "proj-b", "org-B")
+	// 100 org-A open issues whose ids sort BEFORE org-B's → under the fake clock
+	// (equal created_at → id tiebreak) they fill the global oldest-100 window.
+	for i := 0; i < 100; i++ {
+		env.seedPMIssue(t, fmt.Sprintf("IA-%03d", i), "proj-a", "a", pm.IssueOpen)
+	}
+	env.seedPMIssue(t, "IB-zzz", "proj-b", "b", pm.IssueOpen)
+	svc := query.NewFleetSnapshotService(env.deps)
+	// Pre-#126 (global FindByStatuses(100) → org-filter) returned the 100 org-A
+	// issues then dropped them all for org-B → IB-zzz silently lost. Per-org fix
+	// returns exactly IB-zzz.
+	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{OrganizationID: "org-B"})
+	if len(snap.PendingIssues) != 1 || snap.PendingIssues[0].IssueID != "IB-zzz" {
+		t.Fatalf("org-B pending truncated by global window (want [IB-zzz]): got %+v", snap.PendingIssues)
 	}
 }

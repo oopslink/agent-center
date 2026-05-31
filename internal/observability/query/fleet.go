@@ -332,17 +332,26 @@ func (s *FleetSnapshotService) fetchPendingIssues(ctx context.Context, filter Sn
 	if s.deps.PMIssues == nil {
 		return nil, errors.New("pm issues repo not wired")
 	}
+	orgScoped := filter.OrganizationID != ""
 	var items []*pm.Issue
 	var err error
-	if filter.ProjectID != "" {
+	switch {
+	case filter.ProjectID != "":
 		items, err = s.deps.PMIssues.ListByProject(ctx, pm.ProjectID(filter.ProjectID))
-	} else {
+	case orgScoped:
+		// v2.7 #126: org-scoped → query per the org's OWN pm projects
+		// (org-bounded), NOT a global oldest-N scan then in-memory org-filter —
+		// the latter silently drops an org's issues that fall outside the global
+		// window at scale (>100 global pending). Completeness, no silent cap.
+		items, err = s.pendingIssuesForOrg(ctx, filter.OrganizationID)
+	default:
+		// Global admin overview (no project/org filter): capped scan. The 100
+		// cap is an explicit overview limit, not a per-org correctness gap.
 		items, err = s.deps.PMIssues.FindByStatuses(ctx, fleetPendingIssueStatuses, 100)
 	}
 	if err != nil {
 		return nil, err
 	}
-	orgScoped := filter.OrganizationID != ""
 	out := make([]FleetIssueRow, 0, len(items))
 	for _, i := range items {
 		// ListByProject returns all statuses → apply the pending-set filter here
@@ -380,6 +389,29 @@ func (s *FleetSnapshotService) issueOrg(ctx context.Context, projectID string) s
 		return ""
 	}
 	return pr.OrganizationID()
+}
+
+// pendingIssuesForOrg returns issues across ALL of the org's pm projects
+// (org-bounded), so org-scoped fleet sees its complete pending set — avoiding
+// the global oldest-N truncation that a single capped FindByStatuses-then-filter
+// would impose at scale (v2.7 #126). Status filtering stays in the caller.
+func (s *FleetSnapshotService) pendingIssuesForOrg(ctx context.Context, orgID string) ([]*pm.Issue, error) {
+	if s.deps.PMProjects == nil {
+		return nil, errors.New("pm projects repo not wired")
+	}
+	projects, err := s.deps.PMProjects.ListByOrg(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	var out []*pm.Issue
+	for _, p := range projects {
+		issues, lerr := s.deps.PMIssues.ListByProject(ctx, p.ID())
+		if lerr != nil {
+			return nil, lerr
+		}
+		out = append(out, issues...)
+	}
+	return out, nil
 }
 
 func isFleetPendingIssue(st pm.IssueStatus) bool {
