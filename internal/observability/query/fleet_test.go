@@ -39,7 +39,7 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	// v2.7 #107: the fleet "executions" segment now reads live work-item projections.
-	env.seedLiveWorkItem(t, "WI-1", "AG-1", "T-1", "proj", "", "active")
+	env.seedLiveWorkItem(t, "WI-1", "AG-1", "T-1", "proj", "org-1", "active")
 	svc := query.NewFleetSnapshotService(env.deps)
 	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{})
 	if len(snap.Warnings) != 0 {
@@ -67,8 +67,8 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 
 func TestFleetSnapshot_ProjectFilter(t *testing.T) {
 	env := newQEnv(t)
-	env.seedLiveWorkItem(t, "WI-A", "AG-A", "T-1", "proj-a", "", "active")
-	env.seedLiveWorkItem(t, "WI-B", "AG-B", "T-2", "proj-b", "", "active")
+	env.seedLiveWorkItem(t, "WI-A", "AG-A", "T-1", "proj-a", "org-1", "active")
+	env.seedLiveWorkItem(t, "WI-B", "AG-B", "T-2", "proj-b", "org-1", "active")
 	env.seedIssue(t, "I-A", "proj-a", "x")
 	env.seedIssue(t, "I-B", "proj-b", "y")
 	svc := query.NewFleetSnapshotService(env.deps)

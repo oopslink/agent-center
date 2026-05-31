@@ -74,6 +74,7 @@ func newQEnv(t *testing.T) *qenv {
 		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
 		WorkItems:           agentsqlite.NewWorkItemRepo(db),
 		PMTasks:             pmsqlite.NewTaskRepo(db),
+		PMProjects:          pmsqlite.NewProjectRepo(db),
 	}
 	return &qenv{db: db, deps: deps, svc: query.NewService(deps), sink: sink, er: er, clk: clk, gen: gen}
 }
@@ -577,16 +578,21 @@ func TestQuery_Events_Cursor_Pagination(t *testing.T) {
 
 // --- v2.7 #107 fleet repoint seed helpers (new work-item model) ---
 
+// seedOrgProject seeds the org-owning project in the PM model (pm_projects) —
+// the SAME source fleet resolves a work item's org from at runtime (WI → pm task
+// → pm project → org). v2.7 #107: it must NOT seed the retired workforce
+// `projects` table; doing so masked the cross-model org-scope bug (workforce
+// projects are empty at runtime, so org-scope failed closed on every WI).
 func (e *qenv) seedOrgProject(t *testing.T, projectID, orgID string) {
 	t.Helper()
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: workforce.ProjectID(projectID), Name: projectID, CreatedByIdentityID: "user:test",
-		CreatedAt: e.clk.Now(), OrganizationID: orgID,
+	p, err := pm.NewProject(pm.NewProjectInput{
+		ID: pm.ProjectID(projectID), Name: projectID, OrganizationID: orgID,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := wfsqlite.NewProjectRepo(e.db).Save(context.Background(), p); err != nil {
+	if err := pmsqlite.NewProjectRepo(e.db).Save(context.Background(), p); err != nil {
 		t.Fatal(err)
 	}
 }

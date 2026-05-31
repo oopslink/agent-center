@@ -30,10 +30,14 @@ type Deps struct {
 	Executions   execution.Repository
 	// v2.7 #107 Phase-2 (fleet repoint): new-model read deps. WorkItemProjections
 	// is the fleet data source (agent_work_item_projections); WorkItems resolves
-	// a work item's task_ref; PMTasks resolves task_ref→project for org-scoping.
+	// a work item's task_ref; PMTasks resolves task_ref→project; PMProjects
+	// resolves project→org for the work-items segment's org-scoping (same pm
+	// source as PMTasks, so org-scope no longer mixes the retired workforce
+	// project model with the pm project model).
 	WorkItemProjections projection.AgentWorkItemProjectionRepository
 	WorkItems           agentpkg.WorkItemRepository
 	PMTasks             pm.TaskRepository
+	PMProjects          pm.ProjectRepository
 	Artifacts    execution.ArtifactRepository
 	InputReqs    inputrequest.Repository
 	Issues       discussion.IssueRepository
