@@ -1,7 +1,7 @@
 import type React from 'react';
 
 import { useAgents } from '@/api/agents';
-import { useWorkers } from '@/api/workers';
+import { useWorkers, useTransferSessions } from '@/api/workers';
 import { OrgLink } from '@/OrgContext';
 import { LifecycleBadge } from '@/components/AgentBadges';
 import { EmptyState } from '@/components/EmptyState';
@@ -20,6 +20,7 @@ import type { Agent } from '@/api/types';
 export default function Environment(): React.ReactElement {
   const workers = useWorkers();
   const agents = useAgents();
+  const transfers = useTransferSessions();
 
   const agentsByWorker = (workerID: string): Agent[] =>
     (agents.data ?? []).filter((a) => a.worker_id === workerID);
@@ -112,6 +113,65 @@ export default function Environment(): React.ReactElement {
           })}
         </ul>
       )}
+
+      <div data-testid="environment-transfers-section" className="pt-2">
+        <h3 className="text-sm font-semibold">In-flight file transfers</h3>
+        <p className="text-xs text-text-muted">
+          Open file-transfer sessions in this organization (resolved by scope).
+        </p>
+        {transfers.isLoading && (
+          <div className="mt-2" data-testid="transfers-loading">
+            <Skeleton height="2rem" />
+          </div>
+        )}
+        {transfers.isError && (
+          <p className="mt-2 text-sm text-danger" data-testid="transfers-error">
+            {(transfers.error as Error).message}
+          </p>
+        )}
+        {transfers.isSuccess && transfers.data.length === 0 && (
+          <p className="mt-2 text-xs text-text-muted" data-testid="transfers-empty">
+            No in-flight transfers.
+          </p>
+        )}
+        {transfers.isSuccess && transfers.data.length > 0 && (
+          <table
+            className="mt-2 w-full table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary"
+            data-testid="transfers-table"
+          >
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
+                <th className="w-1/5 border-b border-border-base px-3 py-2">Direction</th>
+                <th className="w-1/5 border-b border-border-base px-3 py-2">Scope</th>
+                <th className="w-2/5 border-b border-border-base px-3 py-2">Content</th>
+                <th className="border-b border-border-base px-3 py-2 text-right">Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transfers.data.map((tr) => (
+                <tr
+                  key={tr.id}
+                  className="text-sm"
+                  data-testid="transfer-row"
+                  data-transfer-id={tr.id}
+                  data-scope={tr.scope}
+                >
+                  <td className="border-b border-border-base px-3 py-2">{tr.direction}</td>
+                  <td className="border-b border-border-base px-3 py-2 font-mono text-xs">
+                    {tr.scope}/{tr.scope_id}
+                  </td>
+                  <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
+                    {tr.content_type}
+                  </td>
+                  <td className="border-b border-border-base px-3 py-2 text-right font-mono text-xs">
+                    {tr.size}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </section>
   );
 }
