@@ -76,6 +76,7 @@ func newQEnv(t *testing.T) *qenv {
 		PMTasks:             pmsqlite.NewTaskRepo(db),
 		PMProjects:          pmsqlite.NewProjectRepo(db),
 		PMIssues:            pmsqlite.NewIssueRepo(db),
+		Agents:              agentsqlite.NewAgentRepo(db),
 	}
 	return &qenv{db: db, deps: deps, svc: query.NewService(deps), sink: sink, er: er, clk: clk, gen: gen}
 }
@@ -210,9 +211,8 @@ func TestInspect_Task_HappyPath(t *testing.T) {
 	if data["id"] != "T-1" || data["title"] != "hello" {
 		t.Fatalf("inspect task: %+v", data)
 	}
-	if _, ok := data["executions"]; !ok {
-		t.Fatal("expected executions key")
-	}
+	// v2.7 #107 Phase-2 (proj-A): inspectTask's old executions sub-section is
+	// dropped (re-added as work-items when inspectTask repoints to pm in proj-B).
 }
 
 func TestInspect_Task_NotFound(t *testing.T) {
@@ -233,22 +233,19 @@ func TestInspect_UnknownKind(t *testing.T) {
 
 func TestInspect_Execution_WithProjection(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "proj", "h")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	now := env.clk.Now()
-	if _, _, err := env.deps.Projection.UpsertIfFresh(context.Background(), "E-1", projection.ProjectionUpdate{LastPushAt: now, CurrentActivity: "edit"}); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Inspect(context.Background(), "execution", "E-1")
+	env.seedPMTask(t, "T-1", "proj", "h")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active") // sets CurrentActivity:"edit"
+	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	proj, ok := data["projection"].(map[string]any)
+	proj, ok := data["projection"].(query.WorkItemRow)
 	if !ok {
-		t.Fatalf("projection key missing: %+v", data)
+		t.Fatalf("projection key missing/wrong type: %+v", data)
 	}
-	if proj["current_activity"] != "edit" {
+	if proj.CurrentActivity != "edit" || proj.WorkItemID != "WI-1" {
 		t.Fatalf("projection: %+v", proj)
 	}
 }
@@ -303,18 +300,9 @@ func TestInspect_Project(t *testing.T) {
 	}
 }
 
-func TestInspect_Worktree(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	res, err := env.svc.Inspect(context.Background(), "worktree", "E-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Data.(map[string]any)["execution_id"] != "E-1" {
-		t.Fatal("worktree exec id")
-	}
-}
+// TestInspect_Worktree removed — inspect "worktree" verb dropped in v2.7 #107
+// Phase-2 (proj-A): worktree detail is execution-keyed with no work-item model
+// equivalent (worktree state lives in supervisormanager runtime).
 
 func TestInspect_InputRequest(t *testing.T) {
 	env := newQEnv(t)
@@ -381,34 +369,30 @@ func TestQuery_Tasks_ByProject(t *testing.T) {
 	}
 }
 
+// v2.7 #107 Phase-2 (proj-A): query executions by-worker = worker→its agents→
+// their work items (Q3 MAP).
 func TestQuery_Executions_ByWorker(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	env.seedExecution(t, "E-2", "T-1", "W-2", execution.StatusWorking)
+	env.seedPMTask(t, "T-1", "p", "x")
+	env.seedAgent(t, "AG-1", "W-1")
+	env.seedAgent(t, "AG-2", "W-2")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
+	env.seedWorkItem(t, "WI-2", "AG-2", "T-1")
+	env.seedWorkItemProjection(t, "WI-2", "AG-2", "active")
 	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{WorkerID: "W-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(res.Items) != 1 {
-		t.Fatalf("expected 1, got %d", len(res.Items))
+		t.Fatalf("expected 1 (W-1's agent's work item), got %d", len(res.Items))
 	}
 }
 
-func TestQuery_Executions_FailedReasonFilter(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusFailed)
-	env.seedExecution(t, "E-2", "T-1", "W-2", execution.StatusWorking)
-	// Note: FindActive doesn't return failed; passing worker filter works.
-	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{WorkerID: "W-1", Status: "failed", FailedReason: "agent_crashed"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Items) != 1 {
-		t.Fatalf("expected 1, got %d", len(res.Items))
-	}
-}
+// TestQuery_Executions_FailedReasonFilter removed — the exec-specific
+// FailedReason query filter is dropped in v2.7 #107 Phase-2 (proj-A, P3):
+// "why failed" is now observable via `inspect execution <work_item_id>`
+// recent_events (the failed transition's Cause), not a query filter.
 
 func TestQuery_Workers_FilterByStatus(t *testing.T) {
 	env := newQEnv(t)
@@ -625,6 +609,21 @@ func (e *qenv) seedPMIssue(t *testing.T, issueID, projectID, title string, statu
 		t.Fatal(err)
 	}
 	if err := pmsqlite.NewIssueRepo(e.db).Save(context.Background(), i); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e *qenv) seedAgent(t *testing.T, agentID, workerID string) {
+	t.Helper()
+	a, err := agentpkg.NewAgent(agentpkg.NewAgentInput{
+		ID: agentpkg.AgentID(agentID), OrganizationID: "org-test",
+		Profile: agentpkg.Profile{Name: agentID}, WorkerID: workerID,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := agentsqlite.NewAgentRepo(e.db).Save(context.Background(), a); err != nil {
 		t.Fatal(err)
 	}
 }

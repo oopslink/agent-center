@@ -35,7 +35,7 @@ func (a *App) ObservabilityCommands() []*Command {
 func (a *App) inspectCommand() *Command {
 	return &Command{
 		Name:     "inspect",
-		Summary:  "Inspect a single resource (task / execution / worker / issue / conversation / input_request / project / worktree).",
+		Summary:  "Inspect a single resource (task / execution / worker / issue / conversation / input_request / project).",
 		LongHelp: "agent-center inspect <kind> <id> [--format=human|json]\n",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())

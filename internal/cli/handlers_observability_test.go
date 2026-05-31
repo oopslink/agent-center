@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/taskruntime"
@@ -250,6 +251,9 @@ func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 		ID: "p", Name: "P", CreatedByIdentityID: "user:t", CreatedAt: time.Now(),
 	})
 	_ = app.ProjectRepo.Save(context.Background(), proj)
+	// v2.7 #107 Phase-2 (proj-A): inspect "execution" now inspects a work item.
+	wi, _ := agentpkg.NewWorkItem(agentpkg.NewWorkItemInput{ID: "WI-1", AgentID: "AG-1", TaskRef: "pm://tasks/T-1", CreatedAt: time.Now()})
+	_ = app.AgentWorkItemRepo.Save(context.Background(), wi)
 
 	// Inspect each kind
 	cases := []struct {
@@ -257,12 +261,11 @@ func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 		id   string
 	}{
 		{"task", "T-1"},
-		{"execution", "E-1"},
+		{"execution", "WI-1"}, // execution kind now resolves a work item
 		{"worker", "W-1"},
 		{"issue", "I-1"},
 		{"project", "p"},
-		{"worktree", "E-1"},
-		// supervisor and decision removed in v2.6 (BE-9)
+		// worktree kind removed (v2.7 #107 Phase-2 proj-A); supervisor/decision removed v2.6
 	}
 	cmd := findCmd(app.ObservabilityCommands(), "inspect")
 	for _, tc := range cases {

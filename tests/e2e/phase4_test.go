@@ -221,7 +221,8 @@ func TestE2EP4_PeekTrace_ExecutionNotFound(t *testing.T) {
 func TestE2EP4_AllInspectKinds_SmokeNoCrash(t *testing.T) {
 	h := newHarness(t)
 	// v2.6: supervisor/decision kinds removed in BE-9 supervisor cut.
-	kinds := []string{"task", "execution", "worker", "issue", "conversation", "input_request", "project", "worktree"}
+	// v2.7 #107 Phase-2 (proj-A): worktree kind removed (no work-item equivalent).
+	kinds := []string{"task", "execution", "worker", "issue", "conversation", "input_request", "project"}
 	for _, k := range kinds {
 		_, _, code := h.run("inspect", k, "X")
 		// NotFound (17) for absent IDs is the expected outcome.
