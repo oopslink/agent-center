@@ -116,6 +116,25 @@ func (e *qenv) seedWorker(t *testing.T, id string, status workforce.WorkerStatus
 	return w
 }
 
+// seedWorkerOrg seeds an online worker assigned to a specific organization —
+// for the #131 §-1 #4 ActiveCount org-scope tests (worker.org is the gate the
+// ActiveCount path scopes by). Workers carry organization_id directly (v2.6 X1).
+func (e *qenv) seedWorkerOrg(t *testing.T, id, orgID string) *workforce.Worker {
+	t.Helper()
+	w, err := workforce.NewWorker(workforce.NewWorkerInput{
+		ID: workforce.WorkerID(id), Capabilities: []string{"claude-code"},
+		OrganizationID: orgID, EnrolledAt: e.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.deps.Workers.Save(context.Background(), w); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.deps.Workers.UpdateStatus(context.Background(), w.ID(), workforce.WorkerOffline, workforce.WorkerOnline, w.Version())
+	return w
+}
+
 func (e *qenv) seedConversation(t *testing.T, id string, kind conversation.ConversationKind) *conversation.Conversation {
 	t.Helper()
 	c, err := conversation.NewConversation(conversation.NewConversationInput{

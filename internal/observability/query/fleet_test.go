@@ -178,3 +178,61 @@ func TestFleetSnapshot_PendingIssues_OrgScopeNoGlobalTruncation(t *testing.T) {
 		t.Fatalf("org-B pending truncated by global window (want [IB-zzz]): got %+v", snap.PendingIssues)
 	}
 }
+
+// TestFleetSnapshot_ActiveCount_OrgMatch_Counted pins the normal state of the
+// #131 §-1 #4 invariant: when a worker's agent runs a work item whose task's
+// pm-project belongs to the SAME org as the worker (org-scoped dispatch holds),
+// the work item IS counted in ActiveCount and no warning is surfaced.
+func TestFleetSnapshot_ActiveCount_OrgMatch_Counted(t *testing.T) {
+	env := newQEnv(t)
+	env.seedWorkerOrg(t, "W-1", "org-A")
+	env.seedAgent(t, "AG-1", "W-1")
+	env.seedLiveWorkItem(t, "WI-1", "AG-1", "TA", "proj-a", "org-A", "active")
+	svc := query.NewFleetSnapshotService(env.deps)
+
+	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{OrganizationID: "org-A"})
+	row := fleetWorkerRow(t, snap, "W-1")
+	if row.ActiveCount != 1 {
+		t.Fatalf("org-match work item must be counted: ActiveCount=%d", row.ActiveCount)
+	}
+	if len(snap.Warnings) != 0 {
+		t.Fatalf("no warning expected on org-match: %v", snap.Warnings)
+	}
+}
+
+// TestFleetSnapshot_ActiveCount_OrgMismatch_FailClosed is the #131 §-1 #4
+// defensive gate. ActiveCount org-scopes via worker.org; the work-item list
+// org-scopes via task→pm-project.org — two independent resolution chains. If
+// the org-scoped-dispatch invariant breaks (a worker's agent runs a work item
+// whose task's pm-project belongs to a DIFFERENT org), the work item must NOT
+// be counted (fail-closed — no cross-org count mixing) and a visible warning is
+// surfaced instead of a silent count≠list drift.
+func TestFleetSnapshot_ActiveCount_OrgMismatch_FailClosed(t *testing.T) {
+	env := newQEnv(t)
+	env.seedWorkerOrg(t, "W-1", "org-A")
+	env.seedAgent(t, "AG-1", "W-1")
+	// AG-1 (on org-A worker) runs a live work item whose task's pm-project is
+	// org-B — the invariant is broken.
+	env.seedLiveWorkItem(t, "WI-x", "AG-1", "TB", "proj-b", "org-B", "active")
+	svc := query.NewFleetSnapshotService(env.deps)
+
+	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{OrganizationID: "org-A"})
+	row := fleetWorkerRow(t, snap, "W-1")
+	if row.ActiveCount != 0 {
+		t.Fatalf("fail-closed: org-mismatched work item must NOT be counted, got ActiveCount=%d", row.ActiveCount)
+	}
+	if len(snap.Warnings) == 0 {
+		t.Fatalf("expected a visible org-mismatch warning, got none")
+	}
+}
+
+func fleetWorkerRow(t *testing.T, snap query.FleetSnapshot, workerID string) query.FleetWorkerRow {
+	t.Helper()
+	for _, w := range snap.Workers {
+		if w.WorkerID == workerID {
+			return w
+		}
+	}
+	t.Fatalf("worker row %q not found in snapshot: %+v", workerID, snap.Workers)
+	return query.FleetWorkerRow{}
+}
