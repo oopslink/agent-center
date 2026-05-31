@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -139,6 +140,165 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 		t.Fatalf("OnTick re-fired a consumed relaunch: got %d", rs.count())
 	}
 }
+
+// TestSelfHeal_IdleRelaunchFreshNoResume proves FINDING-3 (#117 part B) at the
+// startSession arg-assembly level: a self-heal relaunch of an IDLE agent (hadWork ==
+// nudge == false) STILL bumps the generation to a fresh never-locked id (lock-
+// avoidance, unchanged) but spawns it WITHOUT --resume (ResumeFromSessionID empty) so
+// claude starts fresh — no `--resume`-of-a-no-completed-turn-session
+// error_during_execution crash-loop. Contrast: TestSelfHeal_OnTickRelaunchesAfterBackoff
+// pins the hadWork==true path (gen 1 + ResumeFromSessionID = the gen-0 id), which must
+// remain byte-identical.
+func TestSelfHeal_IdleRelaunchFreshNoResume(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "workers", "w-1", "agents", "ag-1")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	rs := &recordingStarter{}
+	c, err := NewAgentController(AgentControllerConfig{
+		Reporter: &recordingReporter{}, WorkerID: "w-1", AdminURL: "unix:/tmp/a.sock",
+		WorkerToken: "t", BinaryPath: "agent-center", AgentHomeBase: base, Now: clock.now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.cfg.starter = rs.start
+
+	// Crash of an IDLE agent (hadWork=false, no in-flight WorkItem) → schedules a
+	// relaunch at now+1s.
+	c.recordCrashAndSchedule("ag-1", 3 /*version*/, false /*hadWork*/, "" /*workItemID*/, "" /*model*/, "idle-crash")
+
+	clock.advance(2 * time.Second)
+	c.OnTick(context.Background())
+	if rs.count() != 1 {
+		t.Fatalf("want exactly 1 idle relaunch after backoff, got %d", rs.count())
+	}
+
+	// Lock-avoidance UNCHANGED: the generation is still bumped 0→1 (fresh never-locked id).
+	if got := rs.last().cfg.Generation; got != 1 {
+		t.Fatalf("idle relaunch must STILL fork to generation 1 (lock-avoidance), got %d", got)
+	}
+	// FINDING-3: but the fresh id starts FRESH — NO --resume (empty ResumeFromSessionID).
+	if got := rs.last().cfg.ResumeFromSessionID; got != "" {
+		t.Fatalf("idle relaunch must NOT resume (fresh session, no error_during_execution); ResumeFromSessionID=%q want empty", got)
+	}
+	// And an idle relaunch injects no nudge (nothing to re-drive).
+	if msgs := rs.last().injectedMsgs(); len(msgs) != 0 {
+		t.Fatalf("idle relaunch must NOT nudge, got %v", msgs)
+	}
+}
+
+// TestSelfHeal_RelaunchFailCircuitBreaks proves FINDING-3 (#117 part A): a relaunch
+// that FAILS to come up is no longer silent-limbo. selfHealRelaunch captures
+// bootReapRelaunch's error, LOUD-logs it, and feeds it through the SAME state machine
+// as a crash — so repeated relaunch-fails count toward the cap and eventually circuit-
+// break to terminal (failed=true, Fleet-visible), instead of stalling forever after
+// nextRelaunchAt was consumed.
+func TestSelfHeal_RelaunchFailCircuitBreaks(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "workers", "w-1", "agents", "ag-1")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
+	rs := &recordingStarter{}
+	rep := &recordingReporter{}
+	var logMu sync.Mutex
+	var logs []string
+	c, err := NewAgentController(AgentControllerConfig{
+		Reporter: rep, WorkerID: "w-1", AdminURL: "unix:/tmp/a.sock",
+		WorkerToken: "t", BinaryPath: "agent-center", AgentHomeBase: base, Now: clock.now,
+		Logger: func(m string) { logMu.Lock(); defer logMu.Unlock(); logs = append(logs, m) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.cfg.starter = rs.start
+
+	// One real crash arms the first relaunch (crashCount 1).
+	c.recordCrashAndSchedule("ag-1", 9 /*version*/, false /*hadWork*/, "", "", "boom")
+
+	// Each relaunch attempt FAILS to come up (startSession returns an error). The cap
+	// is the default 5: relaunch-fails advance crashCount 2..5 (transient "error"),
+	// the 6th decision (crashCount 6) circuit-breaks to terminal "failed". We drive
+	// ticks until the entry latches failed (bounded — must terminate, not limbo).
+	prevCount := 0
+	for i := 0; i < 20; i++ {
+		c.mu.Lock()
+		e := c.selfHeal["ag-1"]
+		if e != nil && e.failed {
+			c.mu.Unlock()
+			break
+		}
+		prevCount = 0
+		if e != nil {
+			prevCount = e.crashCount
+		}
+		c.mu.Unlock()
+
+		rs.mu.Lock()
+		rs.nextErr = errSelfHealRelaunchTest // the relaunch fails to come up
+		rs.mu.Unlock()
+
+		clock.advance(time.Minute) // past any backoff
+		c.OnTick(context.Background())
+
+		// Each failed relaunch must advance the count (no silent-limbo / no stall).
+		c.mu.Lock()
+		e = c.selfHeal["ag-1"]
+		newCount := 0
+		if e != nil {
+			newCount = e.crashCount
+		}
+		c.mu.Unlock()
+		if !(e != nil && e.failed) && newCount <= prevCount {
+			t.Fatalf("relaunch-fail must advance the crash count toward the cap (was %d, now %d) — not silent-limbo", prevCount, newCount)
+		}
+	}
+
+	c.mu.Lock()
+	e := c.selfHeal["ag-1"]
+	failed := e != nil && e.failed
+	c.mu.Unlock()
+	if !failed {
+		t.Fatal("repeated relaunch-fails must circuit-break to terminal failed (bounded, not limbo)")
+	}
+
+	// LOUD-surface: the distinct relaunch-fail log line must have fired.
+	logMu.Lock()
+	sawFailLog := false
+	for _, m := range logs {
+		if strings.Contains(m, "FAILED to come up") {
+			sawFailLog = true
+			break
+		}
+	}
+	logMu.Unlock()
+	if !sawFailLog {
+		t.Fatal("relaunch-fail must LOUD-log a distinct 'FAILED to come up' line")
+	}
+
+	// Terminal "failed" lifecycle must have been reported (Fleet-visible).
+	sawFailed := false
+	for _, l := range rep.lifecycleCalls() {
+		if l.agentID == "ag-1" && l.state == "failed" {
+			sawFailed = true
+			break
+		}
+	}
+	if !sawFailed {
+		t.Fatal("terminal circuit-break must report lifecycle 'failed' (Fleet-visible)")
+	}
+}
+
+var errSelfHealRelaunchTest = errSentinel("supervisor did not come up within 15s")
+
+// errSentinel is a tiny error type for the relaunch-fail test (no fmt import churn).
+type errSentinel string
+
+func (e errSentinel) Error() string { return string(e) }
 
 // TestSelfHeal_CircuitBreaksAndClearUnlatches proves the cap → terminal failed (no
 // more auto relaunch) and that a command-driven clearSelfHeal un-latches it (manual

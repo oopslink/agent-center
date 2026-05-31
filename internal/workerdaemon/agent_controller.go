@@ -432,7 +432,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// (lock released), so a plain resume of the same session-id is correct. Only the
 	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
 	// is still held).
-	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, pl.Model); err != nil {
+	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -689,7 +689,7 @@ func (c *AgentController) recordWake(agentID, messageID string) {
 // OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume bool, model string) error {
+func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model string) error {
 	home, workspace, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
@@ -730,18 +730,34 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 
 	// Mode-B crash-relaunch FORK (v2.7 GATE-7): a hard-killed claude never releases
 	// its session-id lock, so re-deriving the SAME id would hit "Session ID already
-	// in use" and fail to boot (the A-seg ship-blocker). On a fork relaunch we derive
-	// the PRIOR session-id from the current generation, then bump+persist the
-	// generation BEFORE spawn (per-attempt monotonic; persist-first so a daemon death
-	// between bump and spawn never re-collides on the next boot-reconcile), and spawn
-	// the fresh next-gen id with `--resume <prev> --fork-session` to carry the
-	// conversation forward. A NORMAL start (forkResume=false) keeps the current
-	// generation and does NOT fork — a clean stop released the lock, so a plain
-	// resume of the same id is correct (and the initial start is generation 0).
+	// in use" and fail to boot (the A-seg ship-blocker). On a fork relaunch we ALWAYS
+	// bump+persist the generation BEFORE spawn (per-attempt monotonic; persist-first
+	// so a daemon death between bump and spawn never re-collides on the next boot-
+	// reconcile) and spawn a FRESH never-locked next-gen id — this lock-avoidance is
+	// unconditional for every relaunch (idle OR with-work).
+	//
+	// FINDING-3 (#117 part B): whether that fresh session RESUMES the prior session's
+	// conversation is now decoupled from the gen-bump and gated on `resume` (==hadWork
+	// — there is in-flight active work to recover):
+	//   - resume==true  (hadWork): emit `--resume <prevGenId> --fork-session` so claude
+	//     forks the prior conversation into the new id — the A-seg verified mid-turn
+	//     resume, BYTE-IDENTICAL to before.
+	//   - resume==false (idle/no-work): leave resumeFrom EMPTY → the new id starts a
+	//     FRESH claude session (no --resume/--fork-session). This avoids the crash-loop
+	//     where `--resume` of a no-completed-turn session makes claude immediately emit
+	//     is_error subtype=error_during_execution (the IDLE-agent self-heal terminal
+	//     trap). Continuity note: idle→fresh intentionally drops prior session history,
+	//     which is acceptable for a session with no in-flight turn to recover.
+	//
+	// A NORMAL start (forkResume=false) keeps the current generation and does NOT fork —
+	// a clean stop released the lock, so a plain resume of the same id is correct (and
+	// the initial start is generation 0). The gen=0 byte-equivalence is untouched.
 	generation := epochState.Generation
 	resumeFrom := ""
 	if forkResume {
-		resumeFrom = claudestream.SessionUUIDGen(agentID, epochState.Epoch, epochState.Generation)
+		if resume {
+			resumeFrom = claudestream.SessionUUIDGen(agentID, epochState.Epoch, epochState.Generation)
+		}
 		bumped, berr := supervisormanager.BumpGenerationForRelaunch(home)
 		if berr != nil {
 			return fmt.Errorf("agent_controller: bump generation agent=%s: %w", agentID, berr)
@@ -790,7 +806,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	c.mu.Lock()
 	ma.session = sess
 	c.mu.Unlock()
-	c.log("started agent=%s version=%d epoch=%d generation=%d fork=%v home=%s", agentID, version, epochState.Epoch, generation, forkResume, home)
+	c.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, version, epochState.Epoch, generation, forkResume, resume, home)
 	return nil
 }
 

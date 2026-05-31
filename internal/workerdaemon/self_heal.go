@@ -221,7 +221,67 @@ func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, 
 	}
 	defer release()
 	c.log("agent=%s self-heal RELAUNCH attempt=%d at=%s (nudge=%v)", agentID, attempt, c.now().Format(time.RFC3339), nudge)
-	c.bootReapRelaunch(ctx, agentID, home, version, nudge, workItemID, model)
+	if rerr := c.bootReapRelaunch(ctx, agentID, home, version, nudge, workItemID, model); rerr != nil {
+		// The relaunch FAILED to come up (e.g. "supervisor did not come up within 15s"
+		// — gate3b/c). nextRelaunchAt was already consumed in OnTick, so without this the
+		// agent would SILENT-LIMBO: no retry, no circuit-break, no surface (FINDING-3
+		// #117 part A). LOUD-surface it (distinct from the success log) and treat the
+		// fail like a crash toward the circuit-break: increment the crash/attempt
+		// accounting and reschedule with backoff, OR go terminal at the cap — so a
+		// relaunch that keeps failing to come up cannot loop forever, it eventually
+		// circuit-breaks to terminal (Fleet-visible).
+		c.log("agent=%s self-heal RELAUNCH attempt=%d FAILED to come up: %v", agentID, attempt, rerr)
+		state := c.recordRelaunchFailAndSchedule(agentID, version, nudge, workItemID, model, rerr.Error())
+		if state == "failed" {
+			// Terminal circuit-break — surface the Fleet-visible lifecycle once.
+			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, rerr.Error(), c.now()); err != nil {
+				c.log("agent=%s report %s: %v", agentID, state, err)
+			}
+		}
+	}
+}
+
+// recordRelaunchFailAndSchedule advances the self-heal state when a RELAUNCH itself
+// fails to come up (FINDING-3 #117 part A) — the bounded-not-limbo mechanism. It is
+// the relaunch-fail analogue of recordCrashAndSchedule: it reuses the SAME state
+// machine (decideSelfHeal curve/cap/reset over crashCount) so a relaunch that keeps
+// failing counts toward the cap exactly like a crash and eventually circuit-breaks to
+// terminal, instead of silent-limbo. Called on the ControlLoop goroutine (OnTick →
+// selfHealRelaunch), so it takes c.mu like recordCrashAndSchedule.
+//
+// Returns "failed" when the cap is reached (terminal — the caller surfaces the
+// Fleet-visible lifecycle), or "error" when another backed-off retry was scheduled.
+func (c *AgentController) recordRelaunchFailAndSchedule(agentID string, version int, nudge bool, workItemID, model, msg string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e := c.selfHeal[agentID]
+	if e == nil {
+		// Defensive: a relaunch implies an entry exists; recreate if somehow cleared.
+		e = &selfHealEntry{}
+		c.selfHeal[agentID] = e
+	}
+	if e.failed {
+		c.log("agent=%s self-heal: relaunch-fail after terminal-failed — ignored (manual reset required). cause: %s", agentID, msg)
+		return ""
+	}
+	dec := decideSelfHeal(e.crashCount, e.lastRelaunchAt, c.now(), c.selfHealParams())
+	e.crashCount = dec.crashCount
+	e.lastCrashMsg = msg
+	e.version = version
+	e.nudge = nudge
+	e.workItemID = workItemID
+	e.model = model
+	if dec.failed {
+		e.failed = true
+		e.nextRelaunchAt = time.Time{}
+		c.log("agent=%s self-heal TERMINAL: relaunch failed to come up %d time(s), reached the cap — circuit-broken, NO further auto relaunch (manual reset required). last cause: %s",
+			agentID, dec.crashCount, msg)
+		return "failed"
+	}
+	e.nextRelaunchAt = c.now().Add(dec.backoff)
+	c.log("agent=%s self-heal: relaunch-fail #%d → retry scheduled in %s (cause: %s)",
+		agentID, dec.crashCount, dec.backoff, msg)
+	return "error"
 }
 
 // clearSelfHeal drops an agent's self-heal state (incl the terminal failed flag). A

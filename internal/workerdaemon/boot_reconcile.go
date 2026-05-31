@@ -367,7 +367,10 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 		c.bootReattach(ctx, agentID, home, pr, version)
 	case bootReapRelaunch:
 		closeProbeClient(pr) // Unavailable carries no client; defensive
-		c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveWorkItemID, rec.Model)
+		// Boot-reconcile treats a per-agent relaunch failure as logged-and-skip (one
+		// bad agent never stalls boot; bootReapRelaunch already logged). The error is
+		// consumed only by the SELF-HEAL caller for circuit-breaking (part A).
+		_ = c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveWorkItemID, rec.Model)
 	case bootStopReap:
 		c.bootStopReap(agentID, home, pr)
 	case bootReapOnly:
@@ -422,22 +425,35 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 }
 
 // bootReapRelaunch reaps any residual then starts a fresh supervisor (which reads
-// the DURABLE epoch via ReadEpoch — resuming the SAME claude session-id, never 0).
-// Injects the resume nudge ONLY when an ACTIVE WorkItem is in flight.
-func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, workItemID, model string) {
+// the DURABLE epoch via ReadEpoch — never 0). The relaunch ALWAYS forks to a fresh
+// never-locked next-generation session-id (lock-avoidance); whether that fresh
+// session RESUMES the prior conversation is gated on `nudge` (==hadWork). Injects
+// the resume nudge ONLY when an ACTIVE WorkItem is in flight.
+//
+// Returns the startSession error (nil on success) so the SELF-HEAL caller can
+// circuit-break a relaunch that fails to come up (FINDING-3 #117 part A); the
+// boot-reconcile caller treats a per-agent failure as logged-and-skip.
+func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, workItemID, model string) error {
 	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
 		c.log("boot-reconcile agent=%s reap before relaunch: %v", agentID, rerr)
 	}
 	// startSession reads the durable epoch + spawns the supervisor. We already hold
 	// the home lock (boot reconcile / self-heal), so no double-lock — and the lock is
 	// REQUIRED here because forkResume=true bumps+persists the generation.
+	//
 	// forkResume=true: this is a crash recovery (the prior claude died, possibly via
-	// kill -9 / OOM, leaving its session-id locked). Fork into a fresh next-generation
-	// id (`--resume <prev> --fork-session`) so the relaunch never collides with the
-	// held lock — the v2.7 GATE-7 Mode-B fix.
-	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, model); err != nil {
+	// kill -9 / OOM, leaving its session-id locked). The generation is ALWAYS bumped so
+	// the relaunch spawns a fresh never-locked id and never collides with the held lock
+	// — the v2.7 GATE-7 Mode-B fix (unchanged for idle AND with-work).
+	//
+	// resume=nudge (==hadWork, FINDING-3 #117 part B): only when there is in-flight
+	// active work to recover does the fresh id `--resume <prev> --fork-session` the
+	// prior conversation. An IDLE relaunch (nudge==false) starts FRESH on the new id
+	// (no --resume), avoiding the no-completed-turn `--resume` →
+	// error_during_execution crash-loop.
+	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, nudge /*resume*/, model); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
-		return
+		return err
 	}
 	c.log("boot-reconcile agent=%s RELAUNCHED version=%d (nudge=%v)", agentID, version, nudge)
 	// L2×Mode-B: rebind the in-flight WorkItem id onto the FRESH managedAgent (the
@@ -464,7 +480,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 		c.mu.Unlock()
 	}
 	if !nudge {
-		return
+		return nil
 	}
 	msg := c.cfg.ResumeNudge
 	if strings.TrimSpace(msg) == "" {
@@ -482,6 +498,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 			c.log("boot-reconcile agent=%s resume-nudge inject: %v", agentID, err)
 		}
 	}
+	return nil
 }
 
 // bootStopReap stops a LIVE supervisor (desired-stopped, or a local orphan the

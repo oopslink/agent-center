@@ -228,6 +228,52 @@ func TestBuildStreamingArgv_ModeBFork(t *testing.T) {
 	}
 }
 
+// TestBuildStreamingArgv_FINDING3_IdleRelaunchFresh pins the FINDING-3 (#117 part B)
+// argv contract for the Mode-B relaunch: the generation is ALWAYS bumped (fresh
+// never-locked id, lock-avoidance), but `--resume <prev> --fork-session` is emitted
+// ONLY when there is in-flight work (hadWork) — which BuildStreamingArgv expresses as
+// a non-empty resumeFromSessionID.
+//
+//   - hadWork==true  → caller passes resumeFromSessionID=<prevGenId> → fresh gen-id
+//     id + `--resume <prevGenId> --fork-session` (BYTE-IDENTICAL to the A-seg verified
+//     mid-turn-resume).
+//   - hadWork==false → caller passes resumeFromSessionID="" → ONLY `--session-id
+//     <newGenId>` on the fresh gen-id, NO --resume / --fork-session → claude starts
+//     fresh (no error_during_execution on a no-completed-turn session).
+//
+// Both cases use the SAME bumped generation; only the resume pair differs.
+func TestBuildStreamingArgv_FINDING3_IdleRelaunchFresh(t *testing.T) {
+	const id = "01J9ZK7QW8X2YB3C4D5E6F7G8H"
+	prevGen := SessionUUIDGen(id, 0, 0) // the killed (gen-0) session-id
+	newGen := SessionUUIDGen(id, 0, 1)  // the fresh bumped (gen-1) session-id
+
+	// hadWork==true relaunch: fresh gen-1 id + --resume <prevGen> --fork-session.
+	work, err := BuildStreamingArgv(id, "claude", "", 0, 1, prevGen, nil)
+	if err != nil {
+		t.Fatalf("with-work relaunch argv: %v", err)
+	}
+	wj := strings.Join(work, " ")
+	if !strings.Contains(wj, "--session-id "+newGen) {
+		t.Fatalf("with-work relaunch must spawn the fresh gen-1 id %q: %v", newGen, work)
+	}
+	if !strings.Contains(wj, "--resume "+prevGen) || !strings.Contains(wj, "--fork-session") {
+		t.Fatalf("with-work relaunch MUST `--resume %s --fork-session` (A-seg unchanged): %v", prevGen, work)
+	}
+
+	// hadWork==false (idle) relaunch: fresh gen-1 id, NO --resume / --fork-session.
+	idle, err := BuildStreamingArgv(id, "claude", "", 0, 1, "" /*resumeFromSessionID empty = idle*/, nil)
+	if err != nil {
+		t.Fatalf("idle relaunch argv: %v", err)
+	}
+	ij := strings.Join(idle, " ")
+	if !strings.Contains(ij, "--session-id "+newGen) {
+		t.Fatalf("idle relaunch must STILL spawn the fresh gen-1 id %q (lock-avoidance unchanged): %v", newGen, idle)
+	}
+	if strings.Contains(ij, "--resume") || strings.Contains(ij, "--fork-session") {
+		t.Fatalf("idle relaunch must NOT --resume/--fork-session (avoids error_during_execution): %v", idle)
+	}
+}
+
 // countArg counts exact-token occurrences in argv (drift-guard helper).
 func countArg(argv []string, x string) int {
 	n := 0
