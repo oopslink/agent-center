@@ -107,6 +107,7 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 	var pl workItemEvtPayload
 	dispatch := false
 	cancelLive := false
+	finishLive := false
 	switch e.EventType {
 	case EvtTaskAssigned, EvtTaskReassigned:
 		dispatch = true
@@ -125,6 +126,12 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 			// which also drops any live attempt. Reopen has no live WorkItem so
 			// it is a no-op (terminal items are skipped below).
 			cancelLive = true
+		case string(pm.TaskCompleted):
+			// v2.7 #111 ④ (Q1): the Task is done → FINISH the live WorkItem so it
+			// does not linger `active` (the #1 projection would otherwise show a
+			// completed task's WI as stale-active). active → done; a waiting_input
+			// (or queued) WI → canceled, since waiting_input/queued → done is illegal.
+			finishLive = true
 		default:
 			return nil // other state changes don't affect WorkItems
 		}
@@ -154,6 +161,16 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 				}
 			case cancelLive:
 				if err := w.Cancel(now); err != nil { // Task blocked/canceled ends the attempt
+					return err
+				}
+			case finishLive:
+				// Task completed → the work is done. active → done; otherwise
+				// (waiting_input / queued, which cannot legally → done) → canceled.
+				if w.Status() == agent.WorkItemActive {
+					if err := w.Done(now); err != nil {
+						return err
+					}
+				} else if err := w.Cancel(now); err != nil {
 					return err
 				}
 			}
