@@ -128,6 +128,15 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 		}
 		return conv.HasActiveParticipant(conversation.IdentityRef(callerRef)), nil
 
+	case files.ScopeUploader:
+		// v2.7 #142: an uploader-scope reference grants reachability to EXACTLY the
+		// identity that uploaded the blob (ScopeID = the uploader's identity ref),
+		// and only that identity — per-USER, not per-org (a same-org different user
+		// does NOT reach it). This is how a user reaches a blob they just uploaded
+		// (before any conversation reference exists), so the attach flow can verify
+		// caller-owns-the-blob before creating a conversation reference.
+		return ref.ScopeID == callerRef, nil
+
 	case files.ScopeAgent, files.ScopeTmp:
 		// Not human-accessible: an agent-domain or tmp placement never grants a
 		// human download.
