@@ -131,3 +131,33 @@ func TestWorkItem_IllegalMoveRecordsNothing(t *testing.T) {
 		t.Fatalf("illegal move must record no transition, got %d", len(got))
 	}
 }
+
+// v2.7 #111 ②: FailFromAgentDeath (B3 circuit-break) records a distinguishable
+// cause on its transition so #2 can tell a B3 agent-death failure apart from an
+// L2 single-turn failure (both are active→failed, otherwise indistinguishable).
+func TestWorkItem_FailFromAgentDeathRecordsAgentDeathCause(t *testing.T) {
+	w := newWI(t)
+	_ = w.Activate(t0)
+	_ = w.DrainTransitions()
+	if err := w.FailFromAgentDeath(t0); err != nil {
+		t.Fatal(err)
+	}
+	ts := w.DrainTransitions()
+	if len(ts) != 1 {
+		t.Fatalf("want 1 transition, got %d", len(ts))
+	}
+	if ts[0].Cause != WorkItemCauseAgentDeath {
+		t.Fatalf("FailFromAgentDeath must record cause=%q, got %q", WorkItemCauseAgentDeath, ts[0].Cause)
+	}
+}
+
+func TestWorkItem_NormalTransitionsHaveNoCause(t *testing.T) {
+	w := newWI(t)
+	_ = w.Activate(t0) // queued→active (move)
+	_ = w.Fail(t0)     // active→failed (move; L2-style normal feedback)
+	for _, tr := range w.DrainTransitions() {
+		if tr.Cause != "" {
+			t.Fatalf("normal transition %s→%s must have empty cause, got %q", tr.PrevStatus, tr.Status, tr.Cause)
+		}
+	}
+}

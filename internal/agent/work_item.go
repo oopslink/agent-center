@@ -106,7 +106,19 @@ type WorkItemTransition struct {
 	Status     WorkItemStatus
 	Version    int
 	OccurredAt time.Time
+	// Cause distinguishes WHY a transition happened when the status alone is
+	// ambiguous. v2.7 #111 ②: FailFromAgentDeath (B3 circuit-break) sets
+	// WorkItemCauseAgentDeath so a consumer can tell a B3 agent-death failure
+	// apart from an L2 single-turn failure — both are active→failed and otherwise
+	// indistinguishable. Empty for ordinary transitions.
+	Cause string
 }
+
+// WorkItemCauseAgentDeath marks a transition caused by the B3 agent-death
+// circuit-break cascade (FailFromAgentDeath). Consumed by the pm-task-status
+// sync to drive task→blocked only on agent-death, never on an L2 single-turn
+// failure.
+const WorkItemCauseAgentDeath = "agent_death"
 
 // WorkItemTransitionSink receives transitions drained by the WorkItem repository
 // after a successful row write, for same-tx emission. Defined here (domain) so
@@ -134,7 +146,7 @@ type AgentWorkItem struct {
 
 // recordTransition appends a transition VO capturing the AR's current identity +
 // post-transition status/version/timestamp. prev is the status before the move.
-func (w *AgentWorkItem) recordTransition(prev WorkItemStatus) {
+func (w *AgentWorkItem) recordTransition(prev WorkItemStatus, cause string) {
 	w.pending = append(w.pending, WorkItemTransition{
 		WorkItemID: w.id,
 		AgentID:    w.agentID,
@@ -143,6 +155,7 @@ func (w *AgentWorkItem) recordTransition(prev WorkItemStatus) {
 		Status:     w.status,
 		Version:    w.version,
 		OccurredAt: w.updatedAt,
+		Cause:      cause,
 	})
 }
 
@@ -187,7 +200,7 @@ func NewWorkItem(in NewWorkItemInput) (*AgentWorkItem, error) {
 	}
 	// Creation is a transition too (""→queued) so a freshly-enqueued work item is
 	// visible in fleet/projections before its first activation (#111 口径).
-	w.recordTransition("")
+	w.recordTransition("", "")
 	return w, nil
 }
 
@@ -281,7 +294,7 @@ func (w *AgentWorkItem) FailFromAgentDeath(at time.Time) error {
 	}
 	w.updatedAt = at.UTC()
 	w.version++
-	w.recordTransition(prev)
+	w.recordTransition(prev, WorkItemCauseAgentDeath)
 	return nil
 }
 
@@ -306,6 +319,6 @@ func (w *AgentWorkItem) move(to WorkItemStatus, at time.Time) error {
 	}
 	w.updatedAt = at.UTC()
 	w.version++
-	w.recordTransition(prev)
+	w.recordTransition(prev, "")
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,5 +97,28 @@ func TestOutboxWorkItemTransitionSink_EmptyNoop(t *testing.T) {
 	}
 	if len(co.events) != 0 {
 		t.Fatalf("empty transitions must append nothing, got %d", len(co.events))
+	}
+}
+
+func TestOutboxWorkItemTransitionSink_CarriesCause(t *testing.T) {
+	co := &capOutbox{}
+	sink := NewOutboxWorkItemTransitionSink(co, &seqGen{})
+	ts := []agent.WorkItemTransition{
+		{WorkItemID: "WI1", AgentID: "A1", TaskRef: "pm://tasks/T1", PrevStatus: agent.WorkItemActive, Status: agent.WorkItemFailed, Version: 3, OccurredAt: tNow, Cause: agent.WorkItemCauseAgentDeath},
+		{WorkItemID: "WI1", AgentID: "A1", TaskRef: "pm://tasks/T1", PrevStatus: agent.WorkItemActive, Status: agent.WorkItemFailed, Version: 3, OccurredAt: tNow}, // L2, no cause
+	}
+	if err := sink.AppendTransitions(context.Background(), ts); err != nil {
+		t.Fatal(err)
+	}
+	var b3 WorkItemTransitionPayload
+	if err := json.Unmarshal([]byte(co.events[0].Payload), &b3); err != nil {
+		t.Fatal(err)
+	}
+	if b3.Cause != agent.WorkItemCauseAgentDeath {
+		t.Fatalf("B3 transition payload must carry cause=agent_death, got %q", b3.Cause)
+	}
+	// L2 (no cause) must omit the field from JSON (omitempty).
+	if strings.Contains(co.events[1].Payload, "cause") {
+		t.Fatalf("L2 transition (no cause) must omit cause from payload, got %s", co.events[1].Payload)
 	}
 }

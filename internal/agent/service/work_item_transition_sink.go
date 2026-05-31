@@ -23,6 +23,10 @@ type WorkItemTransitionPayload struct {
 	Status     string    `json:"status"`
 	Version    int       `json:"version"`
 	OccurredAt time.Time `json:"occurred_at"`
+	// Cause distinguishes the failure source when status alone is ambiguous
+	// (#111 ②): "agent_death" for the B3 circuit-break cascade, empty otherwise.
+	// Consumed by pm-task-status sync to drive task→blocked only on agent-death.
+	Cause string `json:"cause,omitempty"`
 }
 
 // OutboxWorkItemTransitionSink implements agent.WorkItemTransitionSink by
@@ -56,6 +60,7 @@ func (s *OutboxWorkItemTransitionSink) AppendTransitions(ctx context.Context, tr
 			Status:     string(tr.Status),
 			Version:    tr.Version,
 			OccurredAt: tr.OccurredAt,
+			Cause:      tr.Cause,
 		})
 		if err != nil {
 			return err
