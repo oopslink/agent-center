@@ -76,6 +76,11 @@ type EventRefsFilter struct {
 	ExecutionID    string
 	InputRequestID string
 	IssueID        string
+	// WorkItemID filters events by the agent work-item join key (v2.7 #107
+	// proj-A): the faithful successor to ExecutionID-filtering now that the
+	// task-execution model is retired. Matches the work_item_id ref the #111
+	// #3b observability fan-out records on work-item transition events.
+	WorkItemID string
 }
 
 // IsEmpty reports whether all fields are zero.
