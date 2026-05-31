@@ -9,9 +9,7 @@ import (
 	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	"github.com/oopslink/agent-center/internal/observability/query"
-	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wforce "github.com/oopslink/agent-center/internal/workforce"
 )
@@ -25,17 +23,6 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 	env.seedIssue(t, "I-1", "proj", "discuss")
 	// projection
 	if _, _, err := env.deps.Projection.UpsertIfFresh(context.Background(), "E-1", projection.ProjectionUpdate{LastPushAt: env.clk.Now(), CurrentActivity: "edit"}); err != nil {
-		t.Fatal(err)
-	}
-	// pending IR
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: taskruntime.InputRequestID("IR-1"), TaskExecutionID: "E-1",
-		Question: "?", Urgency: inputrequest.UrgencyNormal, Now: env.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := env.deps.InputReqs.Save(context.Background(), ir); err != nil {
 		t.Fatal(err)
 	}
 	// v2.7 #107: the fleet "executions" segment now reads live work-item projections.
@@ -56,9 +43,6 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 	}
 	if snap.Workers[0].ActiveCount != 1 {
 		t.Fatalf("active_count: %d", snap.Workers[0].ActiveCount)
-	}
-	if len(snap.OpenInputRequests) != 1 {
-		t.Fatalf("open_input_requests: %d", len(snap.OpenInputRequests))
 	}
 	if len(snap.PendingIssues) != 1 {
 		t.Fatalf("pending_issues: %d", len(snap.PendingIssues))
@@ -83,10 +67,11 @@ func TestFleetSnapshot_ProjectFilter(t *testing.T) {
 
 func TestFleetSnapshot_PartialFailure_EmitsWarnings(t *testing.T) {
 	env := newQEnv(t)
-	// Drop the Tasks repo to simulate one segment failing.
+	// Drop two segments' repos to simulate partial failure (executions +
+	// workers — both stable across the #119 pending-issues repoint).
 	deps := env.deps
-	deps.Issues = nil
-	deps.InputReqs = nil
+	deps.WorkItemProjections = nil
+	deps.Workers = nil
 	svc := query.NewFleetSnapshotService(deps)
 	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{})
 	if len(snap.Warnings) != 2 {
