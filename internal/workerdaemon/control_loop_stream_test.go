@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -455,6 +456,104 @@ func TestStream_HOLPreservedUnderStream(t *testing.T) {
 	}
 	if loop.stuckFails != 0 {
 		t.Fatalf("stuckFails = %d, want 0 after recovery", loop.stuckFails)
+	}
+}
+
+// tickRecordingHandler is a CommandHandler that ALSO implements tickHandler, counting
+// OnTick invocations (atomic) so a test can assert the self-heal drain keeps firing.
+type tickRecordingHandler struct {
+	recordingHandler
+	ticks atomic.Int64
+}
+
+func (h *tickRecordingHandler) OnTick(_ context.Context) { h.ticks.Add(1) }
+
+// TestStream_SilentStream_OnTickStaysPrompt is the regression test for the OnTick
+// latency item (FINDING-3 interaction): a SILENT stream (holds open, no frames) must
+// NOT block the self-heal relaunch drain. With the old per-tick design streamOnce
+// blocked the Run goroutine up to the idle timeout, so OnTick (which drains due
+// self-heal relaunches on their backoff cadence) was delayed up to ~idle. With the
+// reader-goroutine design the blocking read is off the executor goroutine, so OnTick
+// fires every PollInterval regardless of stream idleness. The idle timeout here is set
+// LONGER than the observation window, so an OnTick that fired many times PROVES it is
+// not gated on the stream — under the old code it would have fired ~0–1 times.
+func TestStream_SilentStream_OnTickStaysPrompt(t *testing.T) {
+	fs := newControlFakeServer()
+	pollClient := newControlTestClient(t, fs)
+	// Silent SSE server: holds the connection open for a long time emitting nothing.
+	silent := &sseFakeServer{hold: true, holdFor: 5 * time.Second}
+	streamClient := newStreamTestClient(t, silent)
+
+	rec := &tickRecordingHandler{}
+	loop := NewControlLoop(ControlLoopConfig{
+		WorkerID:     "w-1",
+		PollInterval: 5 * time.Millisecond,
+		Handler:      rec,
+		StreamClient: streamClient,
+		// Idle timeout MUCH longer than the observation window: if OnTick were gated
+		// on the stream read it would be starved for ~2s; the new design fires it on
+		// the 5ms poll cadence instead.
+		StreamIdleTimeout: 2 * time.Second,
+	}, pollClient)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- loop.Run(ctx) }()
+
+	// Within ~250ms the 5ms tick should have driven OnTick many times despite the
+	// silent 2s-idle stream. Require a healthy margin (>=10) to rule out the old
+	// blocked behaviour (which would yield ~0–1 in this window).
+	deadline := time.Now().Add(2 * time.Second)
+	for rec.ticks.Load() < 10 {
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatalf("OnTick fired only %d times in the window — a silent stream is blocking the self-heal drain (regression)", rec.ticks.Load())
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after ctx cancel")
+	}
+}
+
+// TestStream_HOL_DoesNotSkipStuckHead: a handler error on the head-of-line command
+// over the STREAM must NOT let a LATER command be handled — the stream delivers one
+// command at a time, and handling cmd-2 after a stuck cmd-1 would cumulative-ack
+// cmd-2's offset and SILENTLY SKIP+LOSE cmd-1. The stream must stop on the stuck head
+// and let the poll safety net re-pull the contiguous batch (where the in-batch break
+// enforces HOL). This is the §-1 "stream and poll must not fork the delivery contract"
+// invariant at the head-of-line boundary (the existing HOL test only seeded the stuck
+// head alone, so it could not expose the skip).
+func TestStream_HOL_DoesNotSkipStuckHead(t *testing.T) {
+	fs := newControlFakeServer()
+	st := &fakeStreamClient{}
+	seedShared(fs, st, "agent.work", "{}", "k1") // cmd-1: the stuck head (fails)
+	seedShared(fs, st, "noop", "{}", "k2")        // cmd-2: must NOT be handled while cmd-1 stuck
+
+	rec := &recordingHandler{failOn: "cmd-1", failErr: errors.New("no running session (retry)")}
+	loop := newStreamLoop(t, fs, st, rec, nil)
+	ctx := context.Background()
+	if !loop.connect(ctx) {
+		t.Fatal("connect failed")
+	}
+
+	// ONE stream pass: cmd-1 fails → the stream must stop, NOT proceed to cmd-2.
+	_ = loop.streamOnce(ctx)
+
+	if loop.Cursor() != 0 {
+		t.Fatalf("cursor=%d, want 0 (HOL: must never advance/skip past the stuck head)", loop.Cursor())
+	}
+	for _, id := range rec.ids() {
+		if id == "cmd-2" {
+			t.Fatalf("cmd-2 handled over stream while cmd-1 stuck — HOL violated, cmd-1 skipped+lost (handled=%v)", rec.ids())
+		}
 	}
 }
 
