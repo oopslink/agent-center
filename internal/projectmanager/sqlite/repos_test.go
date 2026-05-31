@@ -67,6 +67,42 @@ func TestProjectRepo_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestProjectRepo_ListAll covers the operator-global project list (v2.7 #131
+// PR-3): ListAll returns ALL projects across ALL organizations (no org
+// filter), stable-ordered (created_at, id), while ListByOrg stays org-scoped.
+func TestProjectRepo_ListAll(t *testing.T) {
+	ctx, pr, _, _, _, _, _, _ := setup(t)
+	// empty DB → empty result, no error.
+	if all, err := pr.ListAll(ctx); err != nil || len(all) != 0 {
+		t.Fatalf("ListAll(empty) = %+v, %v", all, err)
+	}
+	// Two orgs, three projects, ascending created_at to pin stable order.
+	p1, _ := pm.NewProject(pm.NewProjectInput{ID: "P1", OrganizationID: "org-1", Name: "Alpha", CreatedBy: "user:a", CreatedAt: t0})
+	p2, _ := pm.NewProject(pm.NewProjectInput{ID: "P2", OrganizationID: "org-2", Name: "Beta", CreatedBy: "user:a", CreatedAt: t0.Add(time.Minute)})
+	p3, _ := pm.NewProject(pm.NewProjectInput{ID: "P3", OrganizationID: "org-1", Name: "Gamma", CreatedBy: "user:a", CreatedAt: t0.Add(2 * time.Minute)})
+	for _, p := range []*pm.Project{p1, p2, p3} {
+		if err := pr.Save(ctx, p); err != nil {
+			t.Fatalf("Save %s: %v", p.ID(), err)
+		}
+	}
+	all, err := pr.ListAll(ctx)
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("ListAll len = %d, want 3 (cross-org global)", len(all))
+	}
+	for i, want := range []pm.ProjectID{"P1", "P2", "P3"} {
+		if all[i].ID() != want {
+			t.Errorf("ListAll[%d].ID = %s, want %s (stable created_at,id order)", i, all[i].ID(), want)
+		}
+	}
+	// ListByOrg stays org-scoped: org-1 has only P1 + P3.
+	if l, _ := pr.ListByOrg(ctx, "org-1"); len(l) != 2 {
+		t.Fatalf("ListByOrg(org-1) = %d, want 2", len(l))
+	}
+}
+
 func TestProjectMemberRepo_RoundTrip(t *testing.T) {
 	ctx, _, mr, _, _, _, _, _ := setup(t)
 	m, _ := pm.NewProjectMember(pm.NewProjectMemberInput{ID: "M1", ProjectID: "P1", IdentityID: "user:a", AddedBy: "user:owner", CreatedAt: t0})

@@ -17,6 +17,14 @@ type ProjectRepository interface {
 	FindByID(ctx context.Context, id ProjectID) (*Project, error)
 	// ListByOrg returns active+archived projects in an Organization.
 	ListByOrg(ctx context.Context, orgID string) ([]*Project, error)
+	// ListAll returns ALL projects across ALL organizations
+	// (operator-global, no org filter), stable-ordered (created_at, id).
+	// It is the operator-scoped successor to the retired workforce
+	// ProjectRepository.FindAll full scan, used ONLY by operator-scoped
+	// readers (CLI `project list`, admin project find-all). It MUST NOT be
+	// called from org-scoped / webconsole paths — those use ListByOrg.
+	// v2.7 #131 PR-3 (A9-consistent operator scope).
+	ListAll(ctx context.Context) ([]*Project, error)
 }
 
 // ProjectMemberRepository persists ProjectMember ARs.

@@ -97,6 +97,28 @@ func (r *ProjectRepo) ListByOrg(ctx context.Context, orgID string) ([]*pm.Projec
 	return out, rows.Err()
 }
 
+// ListAll returns ALL projects across ALL organizations (operator-global,
+// no org filter), stable-ordered (created_at, id). Mirrors ListByOrg without
+// the WHERE clause. Operator-scoped: callers must be operator-only (CLI
+// project list / admin project find-all). v2.7 #131 PR-3.
+func (r *ProjectRepo) ListAll(ctx context.Context) ([]*pm.Project, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, projectSelect+` ORDER BY created_at, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*pm.Project
+	for rows.Next() {
+		p, err := scanProject(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 const projectSelect = `SELECT id, organization_id, name, description, status, created_by, created_at, updated_at, version FROM pm_projects`
 
 func scanProject(scan func(...any) error) (*pm.Project, error) {

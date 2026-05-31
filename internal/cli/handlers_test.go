@@ -18,21 +18,29 @@ import (
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
-	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
 
-// seedProject creates a workforce Project directly via the still-wired
-// ProjectService (the `project add` CLI command was removed in #132). Used by
-// tests whose real assertion is on the read-only project commands (list/show).
+// seedProject creates a pm.Project directly via the pm project repo. The CLI
+// project READ commands (list/show) were repointed off the retired
+// workforce.Project model to the new pm.Project model in #131 PR-3, so the
+// list/show tests must seed pm projects. Used by tests whose real assertion is
+// on the read-only project commands (list/show).
 func seedProject(t *testing.T, app *App, id, name string) {
 	t.Helper()
-	if _, err := app.ProjectSvc.Add(context.Background(), wfservice.AddCommand{
-		ID:    workforce.ProjectID(id),
-		Name:  name,
-		Actor: app.DefaultActor(),
-	}); err != nil {
-		t.Fatalf("seed project: %v", err)
+	p, err := pm.NewProject(pm.NewProjectInput{
+		ID:             pm.ProjectID(id),
+		OrganizationID: "org-test",
+		Name:           name,
+		CreatedBy:      pm.IdentityRef("user:tester"),
+		CreatedAt:      time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("seed project (pm.NewProject): %v", err)
+	}
+	if err := app.PMProjectRepo.Save(context.Background(), p); err != nil {
+		t.Fatalf("seed project (Save): %v", err)
 	}
 }
 

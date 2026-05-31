@@ -7,6 +7,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/observability"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -492,30 +493,31 @@ func (s *Server) proposalFindPendingHandler(w http.ResponseWriter, r *http.Reque
 // ProjectRepo — FindAll / FindByID
 // =============================================================================
 
+// projectFindAllHandler is the operator/admin-token project list. v2.7 #131
+// PR-3: repointed from the retired workforce.Project model to the new
+// pm.Project model via the operator-global ListAll (no org filter — these
+// admin find-* endpoints are operator-scoped, A9-consistent global-visible).
 func (s *Server) projectFindAllHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.ProjectRepo == nil {
+	if d.PMProjectRepo == nil {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
-	// v2.5.5: filter has no fields yet (ProjectKind dropped). The query
-	// is read tolerantly so existing clients passing ?kind=... don't
-	// 400 on unknown params.
-	list, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{})
+	list, err := d.PMProjectRepo.ListAll(r.Context())
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
 	out := make([]map[string]any, len(list))
 	for i, p := range list {
-		out[i] = projectMap(p)
+		out[i] = pmProjectMap(p)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) projectFindByIDHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.ProjectRepo == nil {
+	if d.PMProjectRepo == nil {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
@@ -524,12 +526,12 @@ func (s *Server) projectFindByIDHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "missing_id", "")
 		return
 	}
-	p, err := d.ProjectRepo.FindByID(r.Context(), workforce.ProjectID(id))
+	p, err := d.PMProjectRepo.FindByID(r.Context(), pm.ProjectID(id))
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, projectMap(p))
+	writeJSON(w, http.StatusOK, pmProjectMap(p))
 }
 
 // =============================================================================
@@ -745,6 +747,21 @@ func projectMap(p *workforce.Project) map[string]any {
 		"tags":        tags,
 		"version":     p.Version(),
 		"created_at":  p.CreatedAt().Format(time.RFC3339Nano),
+	}
+}
+
+// pmProjectMap projects the new pm.Project model for the operator/admin-token
+// project find-* responses (v2.7 #131 PR-3). The CLI Client's ProjectDTO is
+// the live consumer: keys mirror that DTO. Tags dropped (pm.Project has none);
+// organization_id surfaced.
+func pmProjectMap(p *pm.Project) map[string]any {
+	return map[string]any{
+		"id":              string(p.ID()),
+		"name":            p.Name(),
+		"description":     p.Description(),
+		"organization_id": p.OrganizationID(),
+		"version":         p.Version(),
+		"created_at":      p.CreatedAt().Format(time.RFC3339Nano),
 	}
 }
 

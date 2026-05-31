@@ -7,6 +7,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/discussion"
 	disservice "github.com/oopslink/agent-center/internal/discussion/service"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
@@ -48,6 +49,11 @@ func MapDomainError(err error) (reason string, code ExitCode, ok bool) {
 		return "proposal_already_exists", ExitBusinessError, true
 	case errors.Is(err, workforce.ErrProposalVersionConflict):
 		return "proposal_version_conflict", ExitVersionConflict, true
+
+	// ProjectManager — Project (v2.7 #131 PR-3: CLI project READ handlers
+	// read the pm model, so the pm not-found sentinel must map too).
+	case errors.Is(err, pm.ErrProjectNotFound):
+		return "project_not_found", ExitNotFound, true
 
 	// Workforce — Project
 	case errors.Is(err, workforce.ErrProjectNotFound):

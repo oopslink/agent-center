@@ -21,6 +21,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/outbox"
+	projectmanager "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
@@ -121,6 +122,11 @@ type HandlerDeps struct {
 	// pm write-gate passes). These services runInTx internally, so they nest
 	// inside the agent-tools outer RunInTx for atomicity with AddMessage.
 	PMService *pmservice.Service
+	// PMProjectRepo is the new-model (pm) project repo backing the
+	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:
+	// repointed off the retired workforce.Project model. Operator-scoped —
+	// projectFindAllHandler uses its operator-global ListAll.
+	PMProjectRepo projectmanager.ProjectRepository
 
 	// TaskRuntime BC
 	TaskRepo        task.Repository

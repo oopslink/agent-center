@@ -185,7 +185,15 @@ func TestE2E2_ProposeAccept(t *testing.T) {
 	if acc["project_id"] == "" {
 		t.Fatalf("accept: %v", acc)
 	}
-	// Project should exist now.
+	// The CLI `project show` read surface reads the new pm.Project model
+	// (#131 PR-3), while the proposal-accept flow creates a workforce
+	// project. Seed the corresponding pm project so the read-back is a real
+	// pm read assertion (the accept itself already verified the workforce
+	// project_id above).
+	app, done := inProcessApp(t, h)
+	seedPMProjectE2E(t, app, "ac", "ac")
+	done()
+	// Project should be visible via the pm-backed read now.
 	pj, code := h.runJSON("project", "show", "ac")
 	if code != 0 {
 		t.Fatalf("project show: %d", code)

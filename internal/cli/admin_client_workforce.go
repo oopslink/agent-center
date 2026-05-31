@@ -37,14 +37,16 @@ type ProposalDTO struct {
 	Version            int    `json:"version"`
 }
 
-// ProjectDTO mirrors admin api projectMap (v2.5.5 shape).
+// ProjectDTO mirrors admin api projectMap. v2.7 #131 PR-3: repointed to the
+// pm.Project model — tags dropped (pm.Project has none), organization_id
+// surfaced.
 type ProjectDTO struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-	Version     int      `json:"version"`
-	CreatedAt   string   `json:"created_at"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	OrganizationID string `json:"organization_id"`
+	Version        int    `json:"version"`
+	CreatedAt      string `json:"created_at"`
 }
 
 // AgentInstanceDTO mirrors admin api agentInstanceMap.
