@@ -132,3 +132,61 @@ func TestTransferSessionRepo_ListExpired(t *testing.T) {
 		t.Fatalf("ListExpired = %d sessions %+v; want only s1", len(got), got)
 	}
 }
+
+// TestTransferSessionRepo_ListOpen: ListOpen returns ONLY live in-flight sessions
+// (status=open AND expires_at > now). Expired-open, completed, and canceled are
+// all excluded. No LIMIT — all live ones come back (the #126 no-truncation rule).
+func TestTransferSessionRepo_ListOpen(t *testing.T) {
+	repo := newSessRepo(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	mk := func(scopeID string, createdAt time.Time, ttl time.Duration) *files.FileTransferSession {
+		s, err := files.NewUploadSession(files.NewUploadInput{
+			FileULID: idgen.MustNewULID(), SessionULID: idgen.MustNewULID(),
+			ContentType: "text/plain", Size: 1, Scope: files.ScopeProject, ScopeID: scopeID,
+			CreatedBy: "user:x", CreatedAt: createdAt, TTL: ttl,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Save(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+
+	live1 := mk("p-live-1", now, time.Hour)        // open + future expiry → included
+	live2 := mk("p-live-2", now, 24*time.Hour)     // open + future expiry → included
+	mk("p-expired", now.Add(-2*time.Hour), time.Hour) // open but expired → excluded
+
+	completed := mk("p-completed", now, time.Hour)
+	if err := completed.Complete("sha", 1, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Update(ctx, completed); err != nil {
+		t.Fatal(err)
+	}
+	canceled := mk("p-canceled", now, time.Hour)
+	if err := canceled.Cancel(now); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Update(ctx, canceled); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := repo.ListOpen(ctx, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, s := range got {
+		ids[s.ID()] = true
+		if s.Status() != files.StatusOpen {
+			t.Fatalf("ListOpen returned non-open session: %v", s.Status())
+		}
+	}
+	if len(got) != 2 || !ids[live1.ID()] || !ids[live2.ID()] {
+		t.Fatalf("ListOpen = %d sessions, want exactly the 2 live ones (expired/completed/canceled excluded)", len(got))
+	}
+}

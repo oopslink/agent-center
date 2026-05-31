@@ -249,6 +249,9 @@ func (s *Server) routes() {
 	// source (ListByOrg); detail is fetch-then-check-org (cross-org id → 404).
 	s.mux.HandleFunc("GET /api/workers", s.listWorkersHandler)
 	s.mux.HandleFunc("GET /api/workers/{id}", s.getWorkerHandler)
+	// v2.7 E1 #139: in-flight file-transfer sessions, org-scoped via scope→org
+	// fail-closed resolution (ListOpen = open + unexpired, no global cap).
+	s.mux.HandleFunc("GET /api/files/transfers", s.listTransfersHandler)
 
 	// v2.4-D-X1 (@oopslink ask): rename worker friendly name.
 	s.mux.HandleFunc("PATCH /api/workers/{id}/name", s.workerRenameHandler)

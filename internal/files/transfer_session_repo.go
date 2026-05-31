@@ -23,4 +23,11 @@ type FileTransferSessionRepository interface {
 	// ListExpired returns open sessions whose expiresAt is strictly before the
 	// given instant (the D3-c GC reaps these + their partial blobs).
 	ListExpired(ctx context.Context, before time.Time) ([]*FileTransferSession, error)
+	// ListOpen returns the LIVE in-flight sessions: status=open AND not yet
+	// expired (expires_at > now). NO limit — the caller (the Environment-page
+	// transfer view, #139) org-scopes by resolving each session's scope→org
+	// fail-closed and must see ALL of an org's in-flight sessions (no global cap
+	// that could truncate one org's rows — the #126 lesson). Expired-but-not-yet-
+	// reaped sessions are excluded (semantically dead, not in-flight).
+	ListOpen(ctx context.Context, now time.Time) ([]*FileTransferSession, error)
 }
