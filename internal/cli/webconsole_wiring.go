@@ -16,6 +16,8 @@ import (
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
+	obsprojection "github.com/oopslink/agent-center/internal/observability/projection"
+	obssql "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
@@ -260,7 +262,20 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		MsgRepo:   a.MsgRepo,
 		ReadState: a.ReadStateRepo,
 	})
-	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj)
+	// v2.7 #111 Phase-1: the agent-work-item PROJECTOR (transition-driven /
+	// "Opt1"). It consumes agent.work_item_transitioned and fills the
+	// agent_work_item_projections read model: status/agent_id from the event +
+	// re-aggregated metrics (tool calls, token totals, current activity) from the
+	// work item's agent_activity_events stream. Owned by Observability — it is the
+	// only writer of that table on the outbox path.
+	agentWorkItemProj := obsprojection.NewAgentWorkItemProjector(
+		a.DB,
+		obssql.NewAgentWorkItemProjectionRepo(a.DB),
+		agentsql.NewActivityEventRepo(a.DB),
+		appliedRepo,
+		a.Clock,
+	)
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})
