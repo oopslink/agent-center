@@ -204,16 +204,3 @@ func TestAgentInstanceRepo_BulkUpdateStateByWorker(t *testing.T) {
 	}
 }
 
-func TestAgentInstanceRepo_CountActiveExecutions(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewAgentInstanceRepo(db)
-	_ = repo.Save(context.Background(), newAI(t, "01HA", "a1", "W-1"))
-	// No task_executions rows referencing it yet.
-	c, err := repo.CountActiveExecutions(context.Background(), "01HA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c != 0 {
-		t.Fatalf("expected 0, got %d", c)
-	}
-}

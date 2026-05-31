@@ -68,10 +68,7 @@ type AgentInstanceRepository interface {
 	// Archive transitions idle → archived in one DB write atomically (records
 	// archived_at / archived_reason / archived_message). CAS on version.
 	Archive(ctx context.Context, id AgentInstanceID, at time.Time, reason AgentInstanceArchivedReason, message string, version int) error
-	// CountActiveExecutions queries task_executions for this agent_instance_id
-	// in non-terminal states (ADR-0024 § 2 computed field). Returns 0 if no
-	// task_executions row exists yet (e.g. agent freshly created).
-	CountActiveExecutions(ctx context.Context, id AgentInstanceID) (int, error)
+	// v2.7 #131 (PR-6): CountActiveExecutions removed (read retired task_executions; dead path).
 	// BulkUpdateStateByWorker transitions every agent on `workerID` from
 	// `from` → `to`. Used for worker.offline → all agents sleeping (and
 	// worker.online → awakened) bulk path.

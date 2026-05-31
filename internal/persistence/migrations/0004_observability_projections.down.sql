@@ -1,4 +1,5 @@
--- 0004_observability_projections.down.sql — Phase 4 rollback
-
-DROP INDEX IF EXISTS idx_proj_last_push;
-DROP TABLE IF EXISTS task_execution_projections;
+-- 0004_observability_projections.down.sql
+-- v2.7 #131: task_execution_projections RETIRED — no-op down
+-- Fresh install is new-model only — these legacy tables are never created
+-- (no drop-migration; nothing to drop). This migration is intentionally a
+-- no-op, kept for version-number continuity (schema Version stays 46).

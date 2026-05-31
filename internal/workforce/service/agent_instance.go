@@ -328,36 +328,9 @@ func (s *AgentInstanceLifecycleService) OnExecutionStarted(ctx context.Context, 
 	})
 }
 
-// OnExecutionEnded: last execution ends → active → idle (only if no other
-// active executions remain).
-func (s *AgentInstanceLifecycleService) OnExecutionEnded(ctx context.Context, id workforce.AgentInstanceID, actor observability.Actor) error {
-	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		a, err := s.repo.FindByID(txCtx, id)
-		if err != nil {
-			return err
-		}
-		if a.State() != workforce.AgentInstanceActive {
-			return nil
-		}
-		count, err := s.repo.CountActiveExecutions(txCtx, id)
-		if err != nil {
-			return err
-		}
-		if count > 0 {
-			return nil // still busy with other executions
-		}
-		if err := s.repo.UpdateState(txCtx, id, workforce.AgentInstanceActive, workforce.AgentInstanceIdle, a.Version()); err != nil {
-			return err
-		}
-		_, err = s.sink.Emit(txCtx, observability.EmitCommand{
-			EventType: "workforce.agent_instance.idle",
-			Refs:      observability.EventRefs{},
-			Actor:     actor,
-			Payload:   map[string]any{"id": string(id)},
-		})
-		return err
-	})
-}
+// v2.7 #131 (PR-6): OnExecutionEnded removed — it counted the retired
+// task_executions table (CountActiveExecutions) to drive active→idle, was dead
+// (zero production caller; the new control loop drives agent availability).
 
 // OnWorkerOffline: bulk transition all agents on the worker idle/active → sleeping.
 func (s *AgentInstanceLifecycleService) OnWorkerOffline(ctx context.Context, workerID workforce.WorkerID, actor observability.Actor) (int, error) {

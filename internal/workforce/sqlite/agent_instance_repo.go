@@ -245,18 +245,10 @@ func (r *AgentInstanceRepo) Archive(ctx context.Context, id workforce.AgentInsta
 	return nil
 }
 
-// CountActiveExecutions counts non-terminal task_executions for this agent.
-// Returns 0 if the column is NULL (e.g. P8 transitional state).
-func (r *AgentInstanceRepo) CountActiveExecutions(ctx context.Context, id workforce.AgentInstanceID) (int, error) {
-	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	const stmt = `SELECT COUNT(*) FROM task_executions
-		WHERE agent_instance_id = ? AND status IN ('submitted', 'working', 'input_required')`
-	var c int
-	if err := exec.QueryRowContext(ctx, stmt, string(id)).Scan(&c); err != nil {
-		return 0, err
-	}
-	return c, nil
-}
+// v2.7 #131 (PR-6): CountActiveExecutions removed — it read the retired
+// task_executions table for the dead execution-driven agent_instance
+// active↔idle path (OnExecutionEnded, zero production caller). The new control
+// loop drives agent availability natively.
 
 // BulkUpdateStateByWorker transitions all agents on workerID from `from` → `to`.
 // Returns the affected row count. version field is not used; bumps version+1

@@ -8,8 +8,7 @@ ALTER TABLE user_secrets DROP COLUMN organization_id;
 DROP INDEX IF EXISTS idx_workers_org;
 ALTER TABLE workers DROP COLUMN organization_id;
 
-DROP INDEX IF EXISTS idx_projects_org;
-ALTER TABLE projects DROP COLUMN organization_id;
+-- v2.7 #131: projects table retired (org-scope column never added in up).
 
 DROP INDEX IF EXISTS idx_conversations_org;
 ALTER TABLE conversations DROP COLUMN organization_id;

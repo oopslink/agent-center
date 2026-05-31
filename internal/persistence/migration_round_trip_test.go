@@ -194,9 +194,22 @@ func TestMigrations_V1TablesAbsent(t *testing.T) {
 		"channel_bindings",            // dropped by 0021
 		"feishu_delivery_ledger",      // dropped by 0025
 		"bridge_subscription_cursors", // dropped by 0025
+		// v2.7 #131 carve-out (PR-6): retired-domain tables are NEVER created on
+		// a fresh install (no drop-migration). Positive assertion that a fresh
+		// schema is new-model ONLY — taskruntime / discussion / old-projection /
+		// workforce-project tables must be absent.
+		"tasks",                     // taskruntime (retired → pm_tasks)
+		"task_executions",           // taskruntime execution (retired → agent work-items)
+		"input_requests",            // taskruntime IR (retired → waiting_input WI + conversation)
+		"artifacts",                 // taskruntime artifacts (retired)
+		"issues",                    // discussion (retired → pm_issues)
+		"task_execution_projections", // old observability projection (retired → agent_work_item_projections)
+		"projects",                  // workforce projects (retired → pm_projects)
+		"worker_project_mappings",   // workforce mapping (retired)
+		"worker_project_proposals",  // workforce proposal (retired)
 	} {
 		if tableExists(t, db, tbl) {
-			t.Fatalf("v1 table %s must be absent after Up (regression)", tbl)
+			t.Fatalf("retired table %s must be absent after fresh Up (v2.7 carve-out: new-model only)", tbl)
 		}
 	}
 }
