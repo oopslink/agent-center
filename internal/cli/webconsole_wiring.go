@@ -285,7 +285,12 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// active → Task.Start (assigned→running), the keystone that makes the
 	// agent-declared complete_task/block_task reachable (both require running).
 	taskStatusSyncProj := pmservice.NewTaskStatusSyncProjector(a.DB, a.PMService, appliedRepo, a.Clock)
-	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj, taskStatusSyncProj)
+	// v2.7 #111 #3b: fan work-item transitions out to the observability Event
+	// store (one agent.work_item.transitioned Event each) so the append-only
+	// stats stream sees the work-item lifecycle. Producer-only — the stats query
+	// repoint is Phase-2.
+	workItemEventProj := obsprojection.NewWorkItemEventProjector(a.DB, a.Sink, appliedRepo, a.Clock)
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj, taskStatusSyncProj, workItemEventProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})
