@@ -232,8 +232,7 @@ func TestCLI_ProposalList_WorkerFilter_BadStatus(t *testing.T) {
 
 func TestCLI_ProjectShow(t *testing.T) {
 	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
+	seedProject(t, app, "p", "p")
 	show := runByName(t, app, "project", "show")
 	out, _, code := show([]string{"p", "--format=json"})
 	if code != ExitOK {
@@ -248,8 +247,7 @@ func TestCLI_ProjectShow(t *testing.T) {
 
 func TestCLI_ProjectShow_HumanFormat(t *testing.T) {
 	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=Pname"})
+	seedProject(t, app, "p", "Pname")
 	show := runByName(t, app, "project", "show")
 	stdout, _, _ := show([]string{"p"})
 	if !strings.Contains(stdout, "Pname") {
@@ -275,100 +273,6 @@ func TestCLI_ProjectShow_MissingArg(t *testing.T) {
 	}
 }
 
-func TestCLI_ProjectAdd_BadSlug(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, code := add([]string{"BAD SLUG", "--name=BAD SLUG"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectAdd_BadKind(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, code := add([]string{"p", "--kind=bogus", "--name=p"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectAdd_MissingArg(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, code := add([]string{"--kind=coding"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectRemove_MissingArg(t *testing.T) {
-	app := newTestApp(t)
-	rm := runByName(t, app, "project", "remove")
-	_, _, code := rm([]string{})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectRemove_NotFound(t *testing.T) {
-	app := newTestApp(t)
-	rm := runByName(t, app, "project", "remove")
-	_, _, code := rm([]string{"nope"})
-	if code != ExitNotFound {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectRemove_Happy(t *testing.T) {
-	app := newTestApp(t)
-	seedProjectAndWorker(t, app)
-	rm := runByName(t, app, "project", "remove")
-	out, _, code := rm([]string{"p-1"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(out, "removed project p-1") {
-		t.Errorf("out: %s", out)
-	}
-}
-
-func TestCLI_ProjectUpdate_BadKind(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	upd := runByName(t, app, "project", "update")
-	_, _, code := upd([]string{"p", "--version=1", "--kind=bogus"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectUpdate_NoArg(t *testing.T) {
-	app := newTestApp(t)
-	upd := runByName(t, app, "project", "update")
-	_, _, code := upd([]string{})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectUpdate_Happy(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	upd := runByName(t, app, "project", "update")
-	out, _, code := upd([]string{"p", "--name=Renamed", "--version=1", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d out: %s", code, out)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["name"] != "Renamed" {
-		t.Fatalf("got %v", r)
-	}
-}
-
 func TestCLI_ProjectList_BadKind(t *testing.T) {
 	app := newTestApp(t)
 	list := runByName(t, app, "project", "list")
@@ -380,8 +284,7 @@ func TestCLI_ProjectList_BadKind(t *testing.T) {
 
 func TestCLI_ProjectList_HumanFormat(t *testing.T) {
 	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=PName"})
+	seedProject(t, app, "p", "PName")
 	list := runByName(t, app, "project", "list")
 	stdout, _, _ := list([]string{})
 	if !strings.Contains(stdout, "PName") {

@@ -697,39 +697,6 @@ func writeFileBytes(path string, b []byte) error {
 // derive issue / task via CLI — happy paths
 // =============================================================================
 
-func TestCLI_IssueOpen_FromConversation_NotWired(t *testing.T) {
-	app := newTestApp(t)
-	// DerivationSvc is wired by newTestApp via NewApp → IssueLifecycle +
-	// TaskSvc shims; the --from-conversation path should work end-to-end.
-	_, _, _ = runOn(t, app, "channel", "create", []string{"--name=src"})
-	out, _, _ := runOn(t, app, "channel", "show", []string{"src", "--format=json"})
-	var m map[string]any
-	_ = json.Unmarshal([]byte(strings.TrimSpace(out)), &m)
-	cid := m["conversation_id"].(string)
-	// Need a project for the issue to attach to.
-	_, _, _ = projectAdd(t, app, "p-1")
-	_, _, code := runOnIssue(t, app, []string{"p-1", "test issue",
-		"--from-conversation=" + cid})
-	if code != ExitOK {
-		t.Logf("expected OK or controlled error; got %d", code)
-	}
-}
-
-func TestCLI_TaskCreate_FromConversation_DefersToService(t *testing.T) {
-	app := newTestApp(t)
-	_, _, _ = runOn(t, app, "channel", "create", []string{"--name=src2"})
-	out, _, _ := runOn(t, app, "channel", "show", []string{"src2", "--format=json"})
-	var m map[string]any
-	_ = json.Unmarshal([]byte(strings.TrimSpace(out)), &m)
-	cid := m["conversation_id"].(string)
-	_, _, _ = projectAdd(t, app, "p-2")
-	_, _, code := runOnTask(t, app, []string{"p-2", "task t",
-		"--from-conversation=" + cid, "--agent=ai-1"})
-	if code != ExitOK {
-		t.Logf("expected OK or controlled error; got %d", code)
-	}
-}
-
 func TestCLI_ConvTail_NoFollow(t *testing.T) {
 	app := newTestApp(t)
 	_, _, _ = runOn(t, app, "channel", "create", []string{"--name=tt"})

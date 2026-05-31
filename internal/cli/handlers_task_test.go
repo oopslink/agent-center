@@ -10,9 +10,30 @@ import (
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/taskruntime"
+	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
+
+// seedTaskRuntimeTask creates a taskruntime Task directly via the still-wired
+// TaskService (the `task create` CLI command was removed in #132). It returns
+// the new task_id and — when withConversation is true — the conversation_id of
+// the kind=task Conversation created alongside it. This replaces the old
+// `task create` setup so the KEPT execution/observability commands (dispatch /
+// kill / report-* / bind-conversation / request-input) can still be exercised.
+func seedTaskRuntimeTask(t *testing.T, app *App, projectID, title string, withConversation bool) (taskID, convID string) {
+	t.Helper()
+	res, err := app.TaskSvc.Create(context.Background(), trservice.TaskCreateInput{
+		ProjectID:        projectID,
+		Title:            title,
+		WithConversation: withConversation,
+		Actor:            app.DefaultActor(),
+	})
+	if err != nil {
+		t.Fatalf("seed task: %v", err)
+	}
+	return string(res.TaskID), string(res.ConversationID)
+}
 
 // advanceToWorking forces the execution into working state for tests
 // that need request-input. Bypasses ACK/spawn handshake.
@@ -72,56 +93,6 @@ func runTaskHandler(t *testing.T, cmd *Command, args []string) (int, string, str
 	return int(code), out.String(), errw.String()
 }
 
-func TestCLI_TaskCreate_Happy(t *testing.T) {
-	app := newTestApp(t)
-	seedProjectAndWorker(t, app)
-	cmd := findCmd(app.TaskCommands(), "create")
-	code, out, errw := runTaskHandler(t, cmd, []string{"p-1", "do thing", "--no-conversation=true", "--format=json"})
-	if code != int(ExitOK) {
-		t.Fatalf("code: %d / err: %s", code, errw)
-	}
-	var got struct {
-		TaskID         string `json:"task_id"`
-		ConversationID string `json:"conversation_id"`
-	}
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.TaskID == "" {
-		t.Fatal("expected task_id")
-	}
-	if got.ConversationID != "" {
-		t.Fatalf("expected no conv (--no-conversation): %s", got.ConversationID)
-	}
-}
-
-func TestCLI_TaskCreate_WithConversation(t *testing.T) {
-	app := newTestApp(t)
-	seedProjectAndWorker(t, app)
-	cmd := findCmd(app.TaskCommands(), "create")
-	code, out, _ := runTaskHandler(t, cmd, []string{"p-1", "do thing", "--format=json"})
-	if code != int(ExitOK) {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(out, "conversation_id") {
-		t.Fatalf("expected conv id in output: %s", out)
-	}
-}
-
-func TestCLI_TaskCreate_UsageErrors(t *testing.T) {
-	app := newTestApp(t)
-	seedProjectAndWorker(t, app)
-	cmd := findCmd(app.TaskCommands(), "create")
-	code, _, _ := runTaskHandler(t, cmd, []string{})
-	if code != int(ExitUsage) {
-		t.Fatalf("expected usage err: %d", code)
-	}
-	code, _, _ = runTaskHandler(t, cmd, []string{"p-1", "title", "--priority=garbage"})
-	if code != int(ExitUsage) {
-		t.Fatalf("expected priority err: %d", code)
-	}
-}
-
 func TestCLI_TaskUnbindConversation_NotImplemented(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
@@ -138,15 +109,10 @@ func TestCLI_TaskUnbindConversation_NotImplemented(t *testing.T) {
 func TestCLI_TaskBindConversation_Auto(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
-	// First create a task
-	createCmd := findCmd(app.TaskCommands(), "create")
-	_, out, _ := runTaskHandler(t, createCmd, []string{"p-1", "x", "--no-conversation=true", "--format=json"})
-	var created struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	// Seed a task without a conversation directly via the service.
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "x", false)
 	cmd := findCmd(app.TaskCommands(), "bind-conversation")
-	code, out2, errw := runTaskHandler(t, cmd, []string{created.TaskID, "--auto=true", "--format=json"})
+	code, out2, errw := runTaskHandler(t, cmd, []string{taskID, "--auto=true", "--format=json"})
 	if code != int(ExitOK) {
 		t.Fatalf("code: %d / err: %s", code, errw)
 	}
@@ -172,14 +138,9 @@ func TestCLI_TaskBindConversation_UsageErrors(t *testing.T) {
 func TestCLI_Dispatch_Happy(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
-	createCmd := findCmd(app.TaskCommands(), "create")
-	_, out, _ := runTaskHandler(t, createCmd, []string{"p-1", "x", "--format=json"})
-	var created struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "x", true)
 	dispatch := app.DispatchCommand()
-	code, out2, errw := runTaskHandler(t, dispatch, []string{created.TaskID, "--worker=W-1", "--format=json"})
+	code, out2, errw := runTaskHandler(t, dispatch, []string{taskID, "--worker=W-1", "--format=json"})
 	if code != int(ExitOK) {
 		t.Fatalf("code: %d / err: %s", code, errw)
 	}
@@ -223,16 +184,11 @@ func TestCLI_KillExecution_UsageErrors(t *testing.T) {
 func TestCLI_RequestInput_NoInputChannel(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
-	// Create task without conversation
-	createCmd := findCmd(app.TaskCommands(), "create")
-	_, out, _ := runTaskHandler(t, createCmd, []string{"p-1", "x", "--no-conversation=true", "--format=json"})
-	var created struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	// Seed a task without a conversation directly via the service.
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "x", false)
 	// Dispatch
 	dispatch := app.DispatchCommand()
-	_, dispOut, _ := runTaskHandler(t, dispatch, []string{created.TaskID, "--worker=W-1", "--format=json"})
+	_, dispOut, _ := runTaskHandler(t, dispatch, []string{taskID, "--worker=W-1", "--format=json"})
 	var execOut struct {
 		ExecutionID string `json:"execution_id"`
 	}
@@ -252,17 +208,11 @@ func TestCLI_RequestInput_NoInputChannel(t *testing.T) {
 func TestCLI_AgentReportPaths(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
-	// Create task with conversation
-	createCmd := findCmd(app.TaskCommands(), "create")
-	_, out, _ := runTaskHandler(t, createCmd, []string{"p-1", "x", "--format=json"})
-	var created struct {
-		TaskID         string `json:"task_id"`
-		ConversationID string `json:"conversation_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	// Seed a task with a conversation directly via the service.
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "x", true)
 	// Dispatch
 	dispatch := app.DispatchCommand()
-	_, dispOut, _ := runTaskHandler(t, dispatch, []string{created.TaskID, "--worker=W-1", "--format=json"})
+	_, dispOut, _ := runTaskHandler(t, dispatch, []string{taskID, "--worker=W-1", "--format=json"})
 	var execOut struct {
 		ExecutionID string `json:"execution_id"`
 	}
@@ -301,7 +251,7 @@ func TestCLI_AgentReportPaths(t *testing.T) {
 	}
 
 	rt := findCmd(app.AgentRuntimeCommands(), "read-task-context")
-	code, ctxOut, _ := runTaskHandler(t, rt, []string{created.TaskID})
+	code, ctxOut, _ := runTaskHandler(t, rt, []string{taskID})
 	if code != int(ExitOK) {
 		t.Fatalf("read-task-context: %d", code)
 	}
@@ -317,14 +267,9 @@ func TestCLI_AgentReportPaths(t *testing.T) {
 func TestCLI_KillExecution_Happy(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
-	createCmd := findCmd(app.TaskCommands(), "create")
-	_, out, _ := runTaskHandler(t, createCmd, []string{"p-1", "x", "--format=json"})
-	var created struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "x", true)
 	dispatch := app.DispatchCommand()
-	_, dispOut, _ := runTaskHandler(t, dispatch, []string{created.TaskID, "--worker=W-1", "--format=json"})
+	_, dispOut, _ := runTaskHandler(t, dispatch, []string{taskID, "--worker=W-1", "--format=json"})
 	var execOut struct {
 		ExecutionID string `json:"execution_id"`
 	}
@@ -352,19 +297,12 @@ func TestCLI_KillExecution_NotFound(t *testing.T) {
 func TestCLI_TaskBindConversation_ToExistingConv(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
-	createCmd := findCmd(app.TaskCommands(), "create")
-	_, out1, _ := runTaskHandler(t, createCmd, []string{"p-1", "first", "--format=json"})
-	var created1 struct {
-		ConversationID string `json:"conversation_id"`
-	}
-	_ = json.Unmarshal([]byte(out1), &created1)
-	_, out2, _ := runTaskHandler(t, createCmd, []string{"p-1", "second", "--no-conversation=true", "--format=json"})
-	var created2 struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out2), &created2)
+	// Seed one task with a conversation (to grab its conv id) and a second
+	// task without one (the bind target).
+	_, convID := seedTaskRuntimeTask(t, app, "p-1", "first", true)
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "second", false)
 	bind := findCmd(app.TaskCommands(), "bind-conversation")
-	code, _, _ := runTaskHandler(t, bind, []string{created2.TaskID, "--to=" + created1.ConversationID, "--format=json"})
+	code, _, _ := runTaskHandler(t, bind, []string{taskID, "--to=" + convID, "--format=json"})
 	if code != int(ExitOK) {
 		t.Fatalf("bind: %d", code)
 	}
@@ -413,14 +351,9 @@ func TestCLI_AgentReports_UnknownExecution(t *testing.T) {
 func TestCLI_RequestInput_WithConversation(t *testing.T) {
 	app := newTestApp(t)
 	seedProjectAndWorker(t, app)
-	createCmd := findCmd(app.TaskCommands(), "create")
-	_, out, _ := runTaskHandler(t, createCmd, []string{"p-1", "x", "--format=json"})
-	var created struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "x", true)
 	dispatch := app.DispatchCommand()
-	_, dispOut, _ := runTaskHandler(t, dispatch, []string{created.TaskID, "--worker=W-1", "--format=json"})
+	_, dispOut, _ := runTaskHandler(t, dispatch, []string{taskID, "--worker=W-1", "--format=json"})
 	var execOut struct {
 		ExecutionID string `json:"execution_id"`
 	}

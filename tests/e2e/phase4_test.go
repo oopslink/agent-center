@@ -106,9 +106,14 @@ func TestE2EP4_Inspect_UnknownKind_ExitUsage(t *testing.T) {
 
 func TestE2EP4_Query_Events_PrefixMatch(t *testing.T) {
 	h := newHarness(t)
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("project", "add", "--name=proj", "proj")
-	_, _, _ = h.run("task", "create", "proj", "title 1")
+	// Seed via the in-process services (project add / task create CLI removed in
+	// #132). TaskService.Create emits task.created, which the query-events prefix
+	// filter below asserts on.
+	app, done := inProcessApp(t, h)
+	seedProjectE2E(t, app, "proj", "proj")
+	seedWorkerE2E(t, app, "W-1")
+	_, _ = seedTaskRuntimeE2E(t, app, "proj", "title 1", true)
+	done()
 	// Pull events
 	out, _, code := h.run("query", "events", "--type=task.", "--format=json")
 	if code != 0 {
