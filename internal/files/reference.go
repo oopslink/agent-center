@@ -30,16 +30,24 @@ const (
 	ScopeUploader FileScope = "uploader"
 )
 
-// IsValid reports whether s is one of the six CLIENT-settable scopes. Note
-// ScopeUploader is intentionally absent: it is server-internal (see its doc) and
-// must never be accepted from a client-supplied upload scope.
+// IsValid reports whether s is a known, persistable reference scope (incl. the
+// server-internal ScopeUploader). NOTE: ScopeUploader is server-internal — it is
+// a valid scope for a server-created reference, but the webconsole upload handler
+// rejects a CLIENT-supplied scope=uploader (see createUploadHandler) so uploader
+// reachability can never be claimed by a client; it is always server-derived.
 func (s FileScope) IsValid() bool {
 	switch s {
-	case ScopeTask, ScopeIssue, ScopeProject, ScopeConversation, ScopeAgent, ScopeTmp:
+	case ScopeTask, ScopeIssue, ScopeProject, ScopeConversation, ScopeAgent, ScopeTmp, ScopeUploader:
 		return true
 	default:
 		return false
 	}
+}
+
+// IsClientSettable reports whether a client may set this scope on an upload
+// request. ScopeUploader is excluded (server-internal — see IsValid).
+func (s FileScope) IsClientSettable() bool {
+	return s.IsValid() && s != ScopeUploader
 }
 
 // Sentinel errors.

@@ -7,34 +7,32 @@ import (
 	"github.com/oopslink/agent-center/internal/files"
 )
 
-// TestRefReachable_UploaderScope (#142): an uploader-scope reference grants
-// reachability to EXACTLY the uploader identity (per-user), and to nobody else —
-// not a different user (even same org), not an empty caller.
-func TestRefReachable_UploaderScope(t *testing.T) {
+// TestRefReachable_UploaderScope_NotDownloadable (#142): an uploader-scope
+// reference must NOT grant a human DOWNLOAD — even to the uploader. Download authz
+// is current-scope-membership, not "I once uploaded this" (else an uploader removed
+// from a conversation would keep download = access-leak backdoor). Uploader
+// reachability is ATTACH-ONLY (see callerUploaded).
+func TestRefReachable_UploaderScope_NotDownloadable(t *testing.T) {
 	s := &Server{}
 	ref := files.FileReference{Scope: files.ScopeUploader, ScopeID: "user:alice"}
-
-	// The uploader reaches their own blob.
+	// Even the uploader does not get download via the uploader ref.
 	ok, err := s.refReachableForHuman(context.Background(), HandlerDeps{}, "user:alice", "org-1", ref)
-	if err != nil || !ok {
-		t.Fatalf("uploader should reach own blob: ok=%v err=%v", ok, err)
-	}
-	// A different identity does NOT (per-user, not per-org).
-	ok, _ = s.refReachableForHuman(context.Background(), HandlerDeps{}, "user:bob", "org-1", ref)
-	if ok {
-		t.Fatal("a non-uploader identity must NOT reach the blob (per-user)")
-	}
-	// Empty caller does not.
-	ok, _ = s.refReachableForHuman(context.Background(), HandlerDeps{}, "", "org-1", ref)
-	if ok {
-		t.Fatal("empty caller must not reach an uploader-scope ref")
+	if err != nil || ok {
+		t.Fatalf("uploader-scope must NOT grant download (attach-only): ok=%v err=%v", ok, err)
 	}
 }
 
-// TestScopeUploader_NotClientValid (#142): uploader is server-internal — IsValid
-// must reject it so a client can never set scope=uploader on an upload.
-func TestScopeUploader_NotClientValid(t *testing.T) {
-	if files.ScopeUploader.IsValid() {
-		t.Fatal("ScopeUploader must NOT be client-valid (server-internal reachability scope)")
+// TestScopeUploader_ServerInternal (#142): uploader is a valid (persistable)
+// reference scope but server-internal — a client must NOT be able to set it on an
+// upload (IsClientSettable false), so uploader reachability is never a client claim.
+func TestScopeUploader_ServerInternal(t *testing.T) {
+	if !files.ScopeUploader.IsValid() {
+		t.Fatal("ScopeUploader must be a valid (persistable) reference scope")
+	}
+	if files.ScopeUploader.IsClientSettable() {
+		t.Fatal("ScopeUploader must NOT be client-settable (server-internal)")
+	}
+	if !files.ScopeConversation.IsClientSettable() {
+		t.Fatal("conversation scope should be client-settable")
 	}
 }
