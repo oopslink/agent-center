@@ -155,6 +155,19 @@ ADR / phase plan landscape, see
   unconfigured agents are unchanged. (`Profile.EnvVars` remains deferred to slice ②
   — its layer-2 agent-env injection is a worker-secret-leak boundary needing
   dedicated security acceptance, a separate track from this low-risk model name.)
+- **Task/Issue conversations were created without an organization_id → humans could
+  not reply to them (and could not wake a waiting_input agent).** The participant
+  projector created the bound task/issue Conversation without stamping its org, so
+  every org-scoped conversation endpoint — including `POST
+  /api/conversations/{id}/messages` (the web UI's human-reply route) — hit
+  `requireConversationInOrg`'s `conv.org == actor.org` check with an empty conv org
+  and returned 404 to **everyone**, including a legitimate same-org participant. This
+  broke the core interaction: a human could not reply to an agent waiting on input,
+  so the agent never woke (GATE-4 ship-blocker). The project's org now rides the
+  `agent.*.created` event payload (sourced from the project at emit) and the projector
+  stamps it onto the Conversation at creation; the create branch refuses an empty org
+  (defensive, no silent broken conversation). v2.7 is a fresh install (drop+recreate)
+  so no backfill of pre-existing org-less conversations is needed.
 
 ## [v2.6.0] — 2026-05-28
 

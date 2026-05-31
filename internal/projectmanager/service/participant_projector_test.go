@@ -80,6 +80,12 @@ func TestParticipantProjector_CreatesConvAndSyncsParticipants(t *testing.T) {
 	if conv.Kind() != conversation.ConversationKindTask {
 		t.Fatalf("conv kind = %s, want task", conv.Kind())
 	}
+	// v2.7 GATE-4 fix: the task Conversation MUST be stamped with the project's org,
+	// else org-scoped endpoints (incl. a human replying to a waiting_input agent → wake)
+	// 404 for everyone (conv.org "" != actor.org). Regression guard for the ship-blocker.
+	if conv.OrganizationID() != "org-1" {
+		t.Fatalf("task Conversation org = %q, want %q (unstamped org → org-scoped reply 404s → agent never wakes)", conv.OrganizationID(), "org-1")
+	}
 	if got := participantIDs(conv); len(got) != 1 || got[0] != "user:a" {
 		t.Fatalf("participants should be {creator}, got %v", got)
 	}

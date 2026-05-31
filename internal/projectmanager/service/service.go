@@ -101,7 +101,8 @@ func New(d Deps) *Service {
 type taskEventPayload struct {
 	TaskID               string   `json:"task_id"`
 	ProjectID            string   `json:"project_id"`
-	OwnerRef             string   `json:"owner_ref"` // pm://tasks/{id}
+	OrganizationID       string   `json:"organization_id"` // the project's org — the participant projector stamps it onto the task Conversation so org-scoped endpoints (incl. human reply → agent wake) resolve it (v2.7 GATE-4 fix)
+	OwnerRef             string   `json:"owner_ref"`       // pm://tasks/{id}
 	EffectiveSubscribers []string `json:"effective_subscribers"`
 	Assignee             string   `json:"assignee,omitempty"`
 	PreviousAssignee     string   `json:"previous_assignee,omitempty"`
@@ -112,7 +113,8 @@ type taskEventPayload struct {
 type issueEventPayload struct {
 	IssueID              string   `json:"issue_id"`
 	ProjectID            string   `json:"project_id"`
-	OwnerRef             string   `json:"owner_ref"` // pm://issues/{id}
+	OrganizationID       string   `json:"organization_id"` // the project's org — stamped onto the issue Conversation (same org-scoping fix as tasks)
+	OwnerRef             string   `json:"owner_ref"`       // pm://issues/{id}
 	EffectiveSubscribers []string `json:"effective_subscribers"`
 	Status               string   `json:"status,omitempty"`
 }

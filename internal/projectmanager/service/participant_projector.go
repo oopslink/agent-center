@@ -50,6 +50,7 @@ func (p *ParticipantProjector) Name() string { return "pm-participant-sync" }
 // projector reads.
 type projectorPayload struct {
 	OwnerRef             string   `json:"owner_ref"`
+	OrganizationID       string   `json:"organization_id"`
 	EffectiveSubscribers []string `json:"effective_subscribers"`
 }
 
@@ -92,13 +93,26 @@ func (p *ParticipantProjector) Project(ctx context.Context, e outbox.Event) erro
 		switch {
 		case errors.Is(err, conversation.ErrConversationNotFound):
 			// Create the bound Conversation with the effective participants.
+			// Stamp the project's org onto the Conversation: org-scoped endpoints
+			// (requireConversationInOrg — incl. a human replying to a waiting_input agent
+			// → wake) reject a conversation whose org != actor org, so an unstamped (empty)
+			// org would 404 for EVERYONE (the GATE-4 ship-blocker). The org rides the
+			// Created event payload (sourced from the project at emit). EvtTaskCreated/
+			// EvtIssueCreated is always the FIRST event for an owner_ref (outbox order;
+			// you can't subscribe/assign before create), so the create branch always has it.
+			if strings.TrimSpace(pl.OrganizationID) == "" {
+				// Defensive (§-1 no-silent): a create with no org would be unusable. This
+				// should be unreachable (Created carries org); surface loudly if it ever isn't.
+				return errors.New("participant projector: cannot create conversation with empty organization_id for " + string(ownerRef))
+			}
 			nc, nerr := conversation.NewConversation(conversation.NewConversationInput{
-				ID:           conversation.ConversationID(p.idgen.NewULID()),
-				Kind:         kind,
-				OwnerRef:     ownerRef,
-				CreatedBy:    conversation.IdentityRef("system"),
-				OpenedAt:     now,
-				Participants: parts,
+				ID:             conversation.ConversationID(p.idgen.NewULID()),
+				Kind:           kind,
+				OwnerRef:       ownerRef,
+				OrganizationID: pl.OrganizationID,
+				CreatedBy:      conversation.IdentityRef("system"),
+				OpenedAt:       now,
+				Participants:   parts,
 			})
 			if nerr != nil {
 				return nerr

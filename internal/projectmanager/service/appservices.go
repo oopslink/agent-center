@@ -117,6 +117,10 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
 			return err
 		}
+		proj, perr := s.projects.FindByID(txCtx, cmd.ProjectID)
+		if perr != nil {
+			return perr
+		}
 		if err := s.issues.Save(txCtx, i); err != nil {
 			return err
 		}
@@ -124,7 +128,8 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 			refsJSON(map[string]string{"issue_id": string(i.ID()), "project_id": string(cmd.ProjectID)}),
 			issueEventPayload{
 				IssueID: string(i.ID()), ProjectID: string(cmd.ProjectID),
-				OwnerRef: "pm://issues/" + string(i.ID()), Status: string(i.Status()),
+				OrganizationID: proj.OrganizationID(),
+				OwnerRef:       "pm://issues/" + string(i.ID()), Status: string(i.Status()),
 				EffectiveSubscribers: EffectiveIssueSubscribers(i, nil),
 			})
 	})
@@ -162,6 +167,12 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
 			return err
 		}
+		// The task Conversation must be stamped with the project's org so org-scoped
+		// endpoints (incl. a human replying to a waiting_input agent → wake) resolve it.
+		proj, perr := s.projects.FindByID(txCtx, cmd.ProjectID)
+		if perr != nil {
+			return perr
+		}
 		if err := s.tasks.Save(txCtx, t); err != nil {
 			return err
 		}
@@ -169,7 +180,8 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 			refsJSON(map[string]string{"task_id": string(t.ID()), "project_id": string(cmd.ProjectID)}),
 			taskEventPayload{
 				TaskID: string(t.ID()), ProjectID: string(cmd.ProjectID),
-				OwnerRef: "pm://tasks/" + string(t.ID()), Status: string(t.Status()),
+				OrganizationID: proj.OrganizationID(),
+				OwnerRef:       "pm://tasks/" + string(t.ID()), Status: string(t.Status()),
 				EffectiveSubscribers: EffectiveTaskSubscribers(t, nil),
 			})
 	})
