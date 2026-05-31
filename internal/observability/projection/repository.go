@@ -25,3 +25,24 @@ type Repository interface {
 	// On a fresh write, returns (update.LastPushAt, true, nil).
 	UpsertIfFresh(ctx context.Context, id taskruntime.TaskExecutionID, update ProjectionUpdate) (existing TaskExecutionProjection, fresh bool, err error)
 }
+
+// AgentWorkItemProjectionRepository is the Observability BC read-model
+// repository over agent_work_item_projections (mig 0046) — the new-model
+// equivalent of Repository. Owned by Observability; the agent BC must NOT
+// import / write this table directly.
+type AgentWorkItemProjectionRepository interface {
+	// FindByID returns the projection row for the given work item.
+	// Returns ErrProjectionNotFound if absent.
+	FindByID(ctx context.Context, workItemID string) (*AgentWorkItemProjection, error)
+
+	// FindByIDs returns projections for the given work items in any order.
+	// IDs without a row are simply absent from the result map.
+	FindByIDs(ctx context.Context, workItemIDs []string) (map[string]*AgentWorkItemProjection, error)
+
+	// UpsertIfFresh tries to INSERT-or-UPDATE a row.
+	// staleness rule: if a row already exists with a stored
+	// last_activity_at >= update.LastActivityAt, the row is NOT modified and
+	// the method returns (existing, false, ErrProjectionStale).
+	// On a fresh write, returns (fresh, true, nil).
+	UpsertIfFresh(ctx context.Context, workItemID string, update AgentWorkItemProjectionUpdate) (existing AgentWorkItemProjection, fresh bool, err error)
+}
