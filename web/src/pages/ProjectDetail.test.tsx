@@ -133,4 +133,41 @@ describe('ProjectDetail page', () => {
     wrap('/projects/proj-a');
     expect(screen.getByTestId('page-ProjectDetail')).toBeInTheDocument();
   });
+
+  it('renders Members + Code repos tabs reading the pm model (#135)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/projects/:pid/members', () =>
+        HttpResponse.json({
+          members: [
+            { id: 'M-1', project_id: 'proj-a', identity_id: 'user:hayang', role: 'owner', added_by: 'user:hayang', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        }),
+      ),
+      http.get('/api/projects/:pid/code-repos', () =>
+        HttpResponse.json({
+          code_repos: [
+            { id: 'R-1', project_id: 'proj-a', url: 'https://example.com/repo.git', label: 'main repo', added_by: 'user:hayang', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        }),
+      ),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('project-tab-members'));
+    await waitFor(() => expect(screen.getByTestId('member-row')).toBeInTheDocument());
+    const memberRow = screen.getByTestId('member-row');
+    expect(memberRow).toHaveAttribute('data-member-id', 'M-1');
+    expect(memberRow).toHaveTextContent('user:hayang');
+    expect(memberRow).toHaveTextContent('owner');
+
+    fireEvent.click(screen.getByTestId('project-tab-repos'));
+    await waitFor(() => expect(screen.getByTestId('repo-row')).toBeInTheDocument());
+    const repoRow = screen.getByTestId('repo-row');
+    expect(repoRow).toHaveAttribute('data-repo-id', 'R-1');
+    expect(repoRow).toHaveTextContent('main repo');
+  });
 });

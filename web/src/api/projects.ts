@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, withOrgSlug } from './client';
 import { qk } from './queryKeys';
-import type { CodeRepo, Project } from './types';
+import type { CodeRepo, Project, ProjectMember } from './types';
 
 // Projects (v2.7 ProjectManager BC). Flat, org-scoped. Responses are
 // now WRAPPED objects ({ projects: [...] }), not bare arrays.
@@ -97,6 +97,20 @@ export function useProjectCodeRepos(id: string | undefined) {
         `/projects/${id}/code-repos`,
       );
       return resp.code_repos;
+    },
+    enabled: !!id,
+  });
+}
+
+// useProjectMembers — read-only project membership (v2.7 ProjectManager BC).
+export function useProjectMembers(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.membersByProject(id ?? ''),
+    queryFn: async () => {
+      const resp = await api.get<{ members: ProjectMember[] }>(
+        `/projects/${id}/members`,
+      );
+      return resp.members;
     },
     enabled: !!id,
   });

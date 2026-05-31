@@ -47,6 +47,7 @@ export const qk = {
   tasksByProject: (projectId: string) => o('tasksByProject', projectId),
   task: (id: string) => o('task', id),
   codeReposByProject: (projectId: string) => o('codeReposByProject', projectId),
+  membersByProject: (projectId: string) => o('membersByProject', projectId),
   // Coarse no-arg list keys kept so derive.ts (deferred scope) keeps
   // compiling — it invalidates these after a derive-from-message POST.
   issues: () => o('issues'),
