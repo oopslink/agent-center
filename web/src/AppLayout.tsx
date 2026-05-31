@@ -284,6 +284,7 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
       label: 'System',
       items: [
         { to: p('fleet'), label: 'Fleet', Icon: FleetIcon },
+        { to: p('environment'), label: 'Environment', Icon: FleetIcon },
         { to: p('agents'), label: 'Agents', Icon: AgentsIcon },
         { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
       ],

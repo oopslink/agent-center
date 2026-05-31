@@ -145,6 +145,22 @@ export interface WorkItemRow {
   last_activity_at?: string;
 }
 
+// EnvWorker (v2.7 E1 #138): the Environment-page worker — the CONTROL-CONNECTED
+// view (environment.Worker), distinct from FleetWorkerRow (legacy workforce
+// enrolled set). status is the control-connection state (online|offline);
+// last_acked_offset is the control-stream cursor.
+export interface EnvWorker {
+  worker_id: string;
+  organization_id: string;
+  name: string;
+  status: string; // 'online' | 'offline' (control-connection state)
+  last_acked_offset: number;
+  last_heartbeat_at?: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
 export interface FleetWorkerRow {
   worker_id: string;
   // Friendly operator-facing label (v2.4-D-X1). Falls back to
