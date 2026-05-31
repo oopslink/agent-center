@@ -24,20 +24,22 @@ function wrap(ui: React.ReactElement) {
 describe('Fleet page', () => {
   afterEach(() => cleanup());
 
-  it('renders all four segments when populated', async () => {
+  it('renders all segments when populated (v2.7: work_items, no input-requests segment)', async () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          executions: [
+          work_items: [
             {
-              execution_id: 'E-1',
+              work_item_id: 'WI-1',
+              agent_id: 'AG-1',
               task_id: 'T-1',
-              worker_id: 'w-1',
-              agent_cli: 'claudecode',
-              workspace_mode: 'worktree',
-              status: 'working',
-              working_seconds: 10,
-              started_at: '2026-05-24T01:00:00Z',
+              status: 'active',
+              current_activity: 'edit',
+              total_tool_calls: 2,
+              total_tokens_input: 100,
+              total_tokens_output: 50,
+              working_seconds: 0,
+              last_activity_at: '2026-05-24T01:00:00Z',
             },
           ],
           workers: [
@@ -49,21 +51,12 @@ describe('Fleet page', () => {
               last_heartbeat_at: '2026-05-24T01:00:01Z',
             },
           ],
-          open_input_requests: [
-            {
-              input_request_id: 'IR-1',
-              task_execution_id: 'E-1',
-              question: 'proceed?',
-              urgency: 'normal',
-              requested_at: '2026-05-24T01:00:02Z',
-            },
-          ],
           pending_issues: [
             {
               issue_id: 'I-1',
               project_id: 'P-1',
               title: 'fix login',
-              status: 'active',
+              status: 'open',
               opened_at: '2026-05-24T00:00:00Z',
               opener: 'user:hayang',
             },
@@ -75,8 +68,7 @@ describe('Fleet page', () => {
     wrap(<Fleet />);
     await waitFor(() => expect(screen.getByTestId('fleet-workers-table')).toBeInTheDocument());
     expect(screen.getByTestId('fleet-worker-row')).toHaveAttribute('data-worker-id', 'w-1');
-    expect(screen.getByTestId('fleet-exec-row')).toHaveAttribute('data-execution-id', 'E-1');
-    expect(screen.getByText('proceed?')).toBeInTheDocument();
+    expect(screen.getByTestId('fleet-workitem-row')).toHaveAttribute('data-work-item-id', 'WI-1');
     expect(screen.getByText('fix login')).toBeInTheDocument();
     expect(screen.getByTestId('fleet-generated-at')).toHaveTextContent('2026-05-24T01:00:03Z');
   });
@@ -85,9 +77,8 @@ describe('Fleet page', () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          executions: [],
+          work_items: [],
           workers: [],
-          open_input_requests: [],
           pending_issues: [],
         }),
       ),
@@ -95,16 +86,15 @@ describe('Fleet page', () => {
     wrap(<Fleet />);
     await waitFor(() => expect(screen.getByTestId('fleet-workers-empty')).toHaveTextContent(/No workers connected yet/));
     expect(screen.getByTestId('fleet-workers-empty-cta')).toHaveTextContent(/Add your first worker/);
-    expect(screen.getByTestId('fleet-exec-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('fleet-workitem-empty')).toBeInTheDocument();
   });
 
   it('shows warnings banner when backend returns partial snapshot', async () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          executions: [],
+          work_items: [],
           workers: [],
-          open_input_requests: [],
           pending_issues: [],
           warnings: ['workers segment errored: db down'],
         }),
@@ -132,7 +122,7 @@ describe('Fleet page', () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          executions: [],
+          work_items: [],
           workers: [
             {
               worker_id: 'w-1',
@@ -142,7 +132,6 @@ describe('Fleet page', () => {
               last_heartbeat_at: '2026-05-24T01:00:01Z',
             },
           ],
-          open_input_requests: [],
           pending_issues: [],
         }),
       ),

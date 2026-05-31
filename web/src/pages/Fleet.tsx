@@ -200,67 +200,47 @@ export default function Fleet(): React.ReactElement {
             )}
           </Section>
 
-          <Section title="Active executions" empty="No active executions.">
-            {fleet.data.executions.length > 0 && (
-              <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary" data-testid="fleet-exec-list">
-                {fleet.data.executions.map((e) => (
+          <Section title="Work items" empty="No active work items.">
+            {fleet.data.work_items.length > 0 && (
+              <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary" data-testid="fleet-workitem-list">
+                {fleet.data.work_items.map((wi) => (
                   <li
-                    key={e.execution_id}
+                    key={wi.work_item_id}
                     className="flex items-center justify-between px-3 py-2 text-xs"
-                    data-testid="fleet-exec-row"
-                    data-execution-id={e.execution_id}
+                    data-testid="fleet-workitem-row"
+                    data-work-item-id={wi.work_item_id}
                   >
                     <span>
-                      <Link
-                        to={`${base}/tasks/${encodeURIComponent(e.task_id)}`}
-                        className="font-mono text-accent hover:underline"
-                      >
-                        {e.task_id}
-                      </Link>{' '}
-                      <span className="text-text-muted">on worker</span>{' '}
-                      <span className="font-mono">{e.worker_id}</span>
+                      {wi.task_id ? (
+                        <Link
+                          to={`${base}/tasks/${encodeURIComponent(wi.task_id)}`}
+                          className="font-mono text-accent hover:underline"
+                        >
+                          {wi.task_id}
+                        </Link>
+                      ) : (
+                        <span className="font-mono text-text-muted">{wi.work_item_id}</span>
+                      )}{' '}
+                      <span className="text-text-muted">agent</span>{' '}
+                      <span className="font-mono">{wi.agent_id}</span>
+                      {wi.current_activity ? (
+                        <span className="text-text-muted"> · {wi.current_activity}</span>
+                      ) : null}
                     </span>
                     <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
-                      {e.status}
+                      {wi.status}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-            {fleet.data.executions.length === 0 && (
+            {fleet.data.work_items.length === 0 && (
               <p
                 className="text-xs text-text-muted"
-                data-testid="fleet-exec-empty"
+                data-testid="fleet-workitem-empty"
               >
                 Nothing running right now.
               </p>
-            )}
-          </Section>
-
-          <Section title="Open input requests" empty="No open input requests.">
-            {fleet.data.open_input_requests.length > 0 && (
-              <ul
-                className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
-                data-testid="fleet-ir-list"
-              >
-                {fleet.data.open_input_requests.map((ir) => (
-                  <li
-                    key={ir.input_request_id}
-                    className="flex items-center justify-between px-3 py-2 text-xs"
-                  >
-                    <span>{ir.question}</span>
-                    <Link
-                      to={`${base}/inputrequests`}
-                      className="text-accent hover:underline"
-                    >
-                      respond →
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {fleet.data.open_input_requests.length === 0 && (
-              <p className="text-xs text-text-muted">No open input requests.</p>
             )}
           </Section>
 
