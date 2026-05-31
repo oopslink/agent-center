@@ -214,3 +214,55 @@ func TestCodeRepoRefRepo(t *testing.T) {
 		t.Fatalf("delete missing want ErrCodeRepoRefNotFound, got %v", err)
 	}
 }
+
+// TestTaskRepo_CountByStatus covers the v2.7 #107 Phase-2 stats repoint: a
+// global grouped count across ALL projects, optional since filter, and — the
+// §-1 gate — no silently dropped status class.
+func TestTaskRepo_CountByStatus(t *testing.T) {
+	ctx, _, _, _, tr, _, _, _ := setup(t)
+	save := func(id, project string, status pm.TaskStatus, created time.Time) {
+		tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+			ID: pm.TaskID(id), ProjectID: pm.ProjectID(project), Title: id,
+			Status: status, CreatedBy: "user:a", CreatedAt: created, UpdatedAt: created, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.Save(ctx, tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	late := t0.Add(48 * time.Hour)
+	// Tasks span MULTIPLE projects + statuses — the global count must aggregate
+	// across all projects and must not drop a status class.
+	save("T1", "PA", pm.TaskRunning, t0)
+	save("T2", "PB", pm.TaskRunning, late)
+	save("T3", "PA", pm.TaskCompleted, late)
+	save("T4", "PC", pm.TaskBlocked, t0)
+
+	got, err := tr.CountByStatus(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[pm.TaskStatus]int{pm.TaskRunning: 2, pm.TaskCompleted: 1, pm.TaskBlocked: 1}
+	if len(got) != len(want) {
+		t.Fatalf("status classes mismatch: got %v want %v", got, want)
+	}
+	for st, n := range want {
+		if got[st] != n {
+			t.Fatalf("status %s: got %d want %d (full=%v)", st, got[st], n, got)
+		}
+	}
+
+	sinceLate := late
+	got2, err := tr.CountByStatus(ctx, &sinceLate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got2[pm.TaskRunning] != 1 || got2[pm.TaskCompleted] != 1 {
+		t.Fatalf("since-filtered counts wrong: got %v", got2)
+	}
+	if got2[pm.TaskBlocked] != 0 {
+		t.Fatalf("since must exclude the early blocked task: got %v", got2)
+	}
+}
