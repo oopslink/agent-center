@@ -241,7 +241,13 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		Agents:     agentsql.NewAgentRepo(a.DB),
 		Tasks:      pmsql.NewTaskRepo(a.DB),
 	})
-	agentControlProj := envservice.NewAgentControlProjector(a.DB, controlLog, appliedRepo, a.Clock)
+	// v2.7 #111 FINDING-1: on lifecycle→running this projector ALSO re-emits
+	// agent.work for the agent's in-flight ACTIVE work items (the deliver-on-start
+	// companion to the enqueueWork lifecycle guard), emitting reconcile→work in the
+	// same tx so the session is up before work arrives (no HOL deadlock). It needs a
+	// READ-ONLY WorkItemRepository to find active WIs (no transition sink — it does
+	// not transition, only reads + delivers).
+	agentControlProj := envservice.NewAgentControlProjectorWithWork(a.DB, controlLog, appliedRepo, a.Clock, agentsql.NewWorkItemRepo(a.DB))
 	// v2.7 D2-e-i (OQ5): ADDITIVE wakeup. A message posted into a TASK conversation
 	// (MessageWriter emits conversation.message_added) becomes an agent.wake command
 	// for every agent whose AgentWorkItem on that task is waiting_input (sender

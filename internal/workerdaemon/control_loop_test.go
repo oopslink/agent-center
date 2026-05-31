@@ -341,6 +341,105 @@ func TestControlLoop_ConnectFailureDegradesGracefully(t *testing.T) {
 	}
 }
 
+// TestControlLoop_HOLBlockEscalation is FINDING-1 PART ③: when the SAME head-of-
+// line command keeps failing, the loop emits the DISTINCT "HOL-BLOCKED" alarm once
+// the consecutive-failure count crosses holBlockThreshold, de-spammed thereafter
+// (only at the crossing + every holBlockReescalateEvery), and the counter RESETS
+// when the cursor advances. The per-poll "(will retry)" line is unaffected.
+func TestControlLoop_HOLBlockEscalation(t *testing.T) {
+	fs := newControlFakeServer()
+	fs.seed("agent.work", "{}", "k1") // cmd-1 is the stuck head-of-line command
+
+	client := newControlTestClient(t, fs)
+	rec := &recordingHandler{failOn: "cmd-1", failErr: errors.New("no running session (retry after reconcile)")}
+
+	var mu sync.Mutex
+	var holLines []string
+	loop := NewControlLoop(ControlLoopConfig{
+		WorkerID:     "w-1",
+		PollInterval: time.Millisecond,
+		Handler:      rec,
+		Logger: func(m string) {
+			if len(m) >= len("control: HOL-BLOCKED") && m[:len("control: HOL-BLOCKED")] == "control: HOL-BLOCKED" {
+				mu.Lock()
+				holLines = append(holLines, m)
+				mu.Unlock()
+			}
+		},
+	}, client)
+
+	ctx := context.Background()
+	if !loop.connect(ctx) {
+		t.Fatal("connect failed")
+	}
+
+	// Poll up to just before the threshold — NO alarm yet.
+	for i := 0; i < holBlockThreshold-1; i++ {
+		loop.pollOnce(ctx)
+	}
+	mu.Lock()
+	if len(holLines) != 0 {
+		mu.Unlock()
+		t.Fatalf("alarm fired before threshold: %v", holLines)
+	}
+	mu.Unlock()
+
+	// One more poll crosses the threshold → exactly one alarm.
+	loop.pollOnce(ctx)
+	mu.Lock()
+	if len(holLines) != 1 {
+		mu.Unlock()
+		t.Fatalf("want 1 HOL-BLOCKED alarm at threshold crossing, got %d: %v", len(holLines), holLines)
+	}
+	first := holLines[0]
+	mu.Unlock()
+	for _, want := range []string{"offset=1", "type=agent.work", "starved", "no running session"} {
+		if !containsStr(first, want) {
+			t.Fatalf("alarm missing %q: %s", want, first)
+		}
+	}
+
+	// De-spam: further failures below the next re-escalation point add no alarms.
+	for i := 0; i < holBlockReescalateEvery-1; i++ {
+		loop.pollOnce(ctx)
+	}
+	mu.Lock()
+	if len(holLines) != 1 {
+		mu.Unlock()
+		t.Fatalf("alarm spammed before re-escalation: got %d", len(holLines))
+	}
+	mu.Unlock()
+
+	// One more crosses the re-escalation cadence → a second alarm.
+	loop.pollOnce(ctx)
+	mu.Lock()
+	if len(holLines) != 2 {
+		mu.Unlock()
+		t.Fatalf("want 2nd alarm at re-escalation, got %d", len(holLines))
+	}
+	mu.Unlock()
+
+	// Clear the failure → cursor advances → counter resets. Re-failing a fresh
+	// command starts the count from zero (no immediate alarm).
+	rec.failOn = ""
+	loop.pollOnce(ctx) // cmd-1 finally handled, cursor advances → clearStuck
+	if loop.Cursor() != 1 {
+		t.Fatalf("cursor = %d, want 1 after recovery", loop.Cursor())
+	}
+	if loop.stuckFails != 0 {
+		t.Fatalf("stuckFails = %d, want 0 after cursor advance", loop.stuckFails)
+	}
+}
+
+func containsStr(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
 // TestNoopCommandHandler_NeverFails covers the D1 synthetic handler.
 func TestNoopCommandHandler_NeverFails(t *testing.T) {
 	var logged string

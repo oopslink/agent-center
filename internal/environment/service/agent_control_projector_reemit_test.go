@@ -1,0 +1,207 @@
+package service
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/environment"
+	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
+	"github.com/oopslink/agent-center/internal/idgen"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
+	"github.com/oopslink/agent-center/internal/persistence"
+)
+
+// reemitFixture wires the projector WITH the read-only workItems dep (PART ②) over
+// one shared DB, so a test can seed work-items and assert the re-emit.
+type reemitFixture struct {
+	proj    *AgentControlProjector
+	control *environment.ControlLog
+	wiRepo  *agentsql.WorkItemRepo
+	ctx     context.Context
+}
+
+func newReemitFixture(t *testing.T) *reemitFixture {
+	t.Helper()
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
+	gen := idgen.NewGenerator(clk)
+	control := environment.NewControlLog(envsql.NewControlEventRepo(db), gen, clk)
+	applied := outboxsql.NewAppliedRepo(db)
+	wiRepo := agentsql.NewWorkItemRepo(db)
+	proj := NewAgentControlProjectorWithWork(db, control, applied, clk, wiRepo)
+	return &reemitFixture{proj: proj, control: control, wiRepo: wiRepo, ctx: context.Background()}
+}
+
+func (f *reemitFixture) commandsFor(t *testing.T, workerID string) []*environment.WorkerControlEvent {
+	t.Helper()
+	cmds, err := f.control.CommandsAfter(f.ctx, environment.WorkerID(workerID), 0)
+	if err != nil {
+		t.Fatalf("CommandsAfter: %v", err)
+	}
+	return cmds
+}
+
+// seedWorkItem inserts a work item for agentID in the given status (queued unless
+// activated/parked). Active = create+Activate; waiting_input = active+WaitInput.
+func (f *reemitFixture) seedWorkItem(t *testing.T, id, agentID, taskRef string, status agentpkg.WorkItemStatus) {
+	t.Helper()
+	at := time.Unix(1_700_000_000, 0).UTC()
+	w, err := agentpkg.NewWorkItem(agentpkg.NewWorkItemInput{ID: id, AgentID: agentpkg.AgentID(agentID), TaskRef: taskRef, CreatedAt: at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch status {
+	case agentpkg.WorkItemQueued:
+		// leave queued
+	case agentpkg.WorkItemActive:
+		if err := w.Activate(at); err != nil {
+			t.Fatal(err)
+		}
+	case agentpkg.WorkItemWaitingInput:
+		if err := w.Activate(at); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.WaitInput(at); err != nil {
+			t.Fatal(err)
+		}
+	default:
+		t.Fatalf("seedWorkItem: unsupported status %q", status)
+	}
+	if err := f.wiRepo.Save(f.ctx, w); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestReemit_RunningEmitsReconcileThenWorkForActive is PART ②'s core acceptance:
+// on lifecycle→running the projector appends the reconcile command FIRST, then an
+// agent.work command for the ACTIVE WorkItem — in control-log order (session before
+// work → no deadlock). NOT for queued / waiting_input items (CAVEAT 3 active-only).
+func TestReemit_RunningEmitsReconcileThenWorkForActive(t *testing.T) {
+	f := newReemitFixture(t)
+	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
+	f.seedWorkItem(t, "wi-queued", "AG1", "pm://tasks/t2", agentpkg.WorkItemQueued)
+	f.seedWorkItem(t, "wi-waiting", "AG1", "pm://tasks/t3", agentpkg.WorkItemWaitingInput)
+
+	e := lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 2 {
+		t.Fatalf("want 2 commands (reconcile + 1 work), got %d: %+v", len(cmds), cmds)
+	}
+	// Order: reconcile FIRST (session), then work.
+	if cmds[0].CommandType() != "agent.reconcile" {
+		t.Fatalf("cmds[0] type = %q, want agent.reconcile (must precede work)", cmds[0].CommandType())
+	}
+	if cmds[1].CommandType() != "agent.work" {
+		t.Fatalf("cmds[1] type = %q, want agent.work", cmds[1].CommandType())
+	}
+	if cmds[0].Offset() >= cmds[1].Offset() {
+		t.Fatalf("reconcile offset %d must be < work offset %d", cmds[0].Offset(), cmds[1].Offset())
+	}
+	// The work command targets ONLY the active WI, with the shared key shape.
+	if cmds[1].IdempotencyKey() != "agent.work:wi-active" {
+		t.Fatalf("work idempotency_key = %q, want agent.work:wi-active", cmds[1].IdempotencyKey())
+	}
+}
+
+// TestReemit_NonRunningDoesNotEmitWork: a →stopped/→resetting/etc transition emits
+// only the reconcile, never re-emits work.
+func TestReemit_NonRunningDoesNotEmitWork(t *testing.T) {
+	f := newReemitFixture(t)
+	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
+
+	e := lifecycleEvent("EV1", "AG1", "W1", "stopping", 2, "")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 || cmds[0].CommandType() != "agent.reconcile" {
+		t.Fatalf("non-running transition must emit only reconcile, got %+v", cmds)
+	}
+}
+
+// TestReemit_IdempotentOnReplay: re-delivering the SAME →running event ID is a
+// no-op (AppliedStore dedups the source event) — no duplicate reconcile or work.
+func TestReemit_IdempotentOnReplay(t *testing.T) {
+	f := newReemitFixture(t)
+	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
+
+	e := lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 1: %v", err)
+	}
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 2 (replay): %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 2 {
+		t.Fatalf("replay of same event must not duplicate, got %d commands", len(cmds))
+	}
+}
+
+// TestReemit_FlapDoesNotDoubleDeliverWork is CAVEAT 1: a lifecycle FLAP
+// (running v2 → stopped v3 → running v4) yields DISTINCT →running outbox events
+// the AppliedStore does NOT dedup. The re-emit must still NOT create a second
+// agent.work for the same WI — the stable idempotency key "agent.work:<wi>"
+// collapses the second append into the existing stream entry (same offset), so the
+// daemon never re-pulls and never double-injects. We assert exactly ONE agent.work
+// remains across the flap (the reconcile commands DO multiply — version bumps —
+// which is correct; only work must not duplicate).
+func TestReemit_FlapDoesNotDoubleDeliverWork(t *testing.T) {
+	f := newReemitFixture(t)
+	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
+
+	// First →running (v2): reconcile + work.
+	if err := f.proj.Project(f.ctx, lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")); err != nil {
+		t.Fatalf("Project running v2: %v", err)
+	}
+	// Stop (v3): reconcile only.
+	if err := f.proj.Project(f.ctx, lifecycleEvent("EV2", "AG1", "W1", "stopping", 3, "")); err != nil {
+		t.Fatalf("Project stopping v3: %v", err)
+	}
+	// Flap back to →running (v4): reconcile (new version) + work re-emit.
+	if err := f.proj.Project(f.ctx, lifecycleEvent("EV3", "AG1", "W1", "running", 4, "")); err != nil {
+		t.Fatalf("Project running v4: %v", err)
+	}
+
+	cmds := f.commandsFor(t, "W1")
+	workCount := 0
+	for _, c := range cmds {
+		if c.CommandType() == "agent.work" {
+			workCount++
+			if c.IdempotencyKey() != "agent.work:wi-active" {
+				t.Fatalf("unexpected work key %q", c.IdempotencyKey())
+			}
+		}
+	}
+	if workCount != 1 {
+		t.Fatalf("flap must NOT double-deliver work: got %d agent.work commands, want 1", workCount)
+	}
+}
+
+// TestReemit_NilWorkItemsDepSkips: the legacy constructor (nil workItems) keeps
+// reconcile-only behavior — no re-emit, no panic.
+func TestReemit_NilWorkItemsDepSkips(t *testing.T) {
+	f := newProjectorFixture(t)
+	e := lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 1 {
+		t.Fatalf("nil workItems dep must emit only reconcile, got %d", len(cmds))
+	}
+}

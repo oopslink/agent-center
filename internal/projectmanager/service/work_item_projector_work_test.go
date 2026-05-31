@@ -58,16 +58,30 @@ func workDeliverySetup(t *testing.T) (svc *Service, agents *agentsql.AgentRepo, 
 	return svc, agents, wiRepo, controlLog, relay, context.Background()
 }
 
-// seedAgentWithWorker inserts an Agent bound to workerID directly via the repo.
+// seedAgentWithWorker inserts a RUNNING Agent bound to workerID directly via the
+// repo. Running is the dispatch-relevant state: FINDING-1 PART ①'s lifecycle guard
+// only enqueues agent.work for a running agent, so the work-delivery positive
+// tests need the assignee running.
 func seedAgentWithWorker(t *testing.T, agents *agentsql.AgentRepo, ctx context.Context, id, workerID string) {
 	t.Helper()
-	a, err := agentpkg.NewAgent(agentpkg.NewAgentInput{
+	seedAgentWithWorkerLifecycle(t, agents, ctx, id, workerID, agentpkg.LifecycleRunning)
+}
+
+// seedAgentWithWorkerLifecycle inserts an Agent bound to workerID in the given
+// lifecycle (rehydrated directly so any state is reachable for guard tests).
+func seedAgentWithWorkerLifecycle(t *testing.T, agents *agentsql.AgentRepo, ctx context.Context, id, workerID string, lc agentpkg.AgentLifecycle) {
+	t.Helper()
+	at := time.Unix(1_700_000_000, 0).UTC()
+	a, err := agentpkg.RehydrateAgent(agentpkg.RehydrateAgentInput{
 		ID:             agentpkg.AgentID(id),
 		OrganizationID: "org-1",
 		Profile:        agentpkg.Profile{Name: id},
 		WorkerID:       workerID,
+		Lifecycle:      lc,
 		CreatedBy:      "system",
-		CreatedAt:      time.Unix(1_700_000_000, 0).UTC(),
+		CreatedAt:      at,
+		UpdatedAt:      at,
+		Version:        1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -150,6 +164,43 @@ func TestWorkDelivery_EnqueuesAgentWork(t *testing.T) {
 	cmds2, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
 	if len(cmds2) != 1 {
 		t.Fatalf("replay double-enqueued agent.work: %d commands", len(cmds2))
+	}
+}
+
+// TestWorkDelivery_AgentNotRunning_NoEnqueue is FINDING-1 PART ① (task #115): a
+// session-less (non-running) assignee Agent still gets a queued WorkItem created,
+// but NO agent.work command is enqueued (the lifecycle guard graceful-skips —
+// delivery is deferred to AgentControlProjector's re-emit on →running). This is
+// what prevents the daemon work() "no running session" infinite-retry HOL deadlock.
+func TestWorkDelivery_AgentNotRunning_NoEnqueue(t *testing.T) {
+	svc, agents, wiRepo, controlLog, relay, ctx := workDeliverySetup(t)
+	// Seed the agent STOPPED (the default NewAgent state) — has a worker binding but
+	// no running session.
+	seedAgentWithWorkerLifecycle(t, agents, ctx, "AG1", "W1", agentpkg.LifecycleStopped)
+
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "T", CreatedBy: "user:a"})
+	taskRef := "pm://tasks/" + string(tid)
+
+	if err := svc.AssignTask(ctx, tid, "agent:AG1", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := relay.RunOnce(ctx, 100); err != nil {
+		t.Fatalf("projection must not fail on non-running agent: %v", err)
+	}
+
+	// The WorkItem is still created/active (delivery deferred, not dropped).
+	items, _ := wiRepo.ListByTask(ctx, taskRef)
+	if len(items) != 1 || items[0].Status() != agentpkg.WorkItemQueued {
+		t.Fatalf("want 1 queued work item for non-running agent, got %+v", items)
+	}
+	// But NO agent.work command was enqueued on W1.
+	cmds, err := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cmds) != 0 {
+		t.Fatalf("non-running agent must NOT enqueue agent.work, got %d commands", len(cmds))
 	}
 }
 

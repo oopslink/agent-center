@@ -79,6 +79,19 @@ type ControlLoopConfig struct {
 	Logger func(msg string)
 }
 
+// holBlockThreshold is the number of CONSECUTIVE failed handle attempts of the
+// SAME stuck offset after which the ControlLoop emits the distinct HOL-BLOCKED
+// alarm. With the default 1s PollInterval this fires after ~30s of a starved
+// control stream — long enough to rule out a transient inject/session race, short
+// enough to alarm before the worker's whole control stream is silently wedged.
+const holBlockThreshold = 30
+
+// holBlockReescalateEvery de-spams the alarm: after the first crossing the alarm
+// repeats only every Nth additional consecutive failure (so ~every 30s at the 1s
+// poll interval), instead of every poll. The transient per-poll "(will retry)"
+// line still logs each tick; this is the persistent-block escalation on top.
+const holBlockReescalateEvery = 30
+
 // ControlLoop polls the center's control-command stream and dispatches each
 // command to its handler. It is independent of the dispatch loop.
 type ControlLoop struct {
@@ -88,6 +101,13 @@ type ControlLoop struct {
 	// cursor is the cumulative last-acked offset; the loop pulls everything
 	// after it. Seeded from ConnectControl on Run.
 	cursor int64
+
+	// stuckOffset / stuckFails track consecutive Handle failures of the SAME
+	// head-of-line command offset (HOL escalation). stuckFails resets to 0 whenever
+	// the cursor advances past the offset (the block cleared) or a DIFFERENT offset
+	// becomes the head, so the counter measures one continuous block.
+	stuckOffset int64
+	stuckFails  int
 }
 
 // NewControlLoop constructs the loop. A nil Handler defaults to the D1
@@ -194,6 +214,7 @@ func (l *ControlLoop) pollOnce(ctx context.Context) {
 			// and retried. Ack whatever prefix succeeded below.
 			l.log("control: handle command offset=%d type=%s: %v (will retry)",
 				cmd.Offset, cmd.CommandType, err)
+			l.noteStuck(cmd.Offset, cmd.CommandType, err)
 			break
 		}
 		highestHandled = cmd.Offset
@@ -201,7 +222,8 @@ func (l *ControlLoop) pollOnce(ctx context.Context) {
 	}
 
 	if !advanced {
-		// First command failed; nothing new to ack.
+		// First command failed; nothing new to ack. The stuck counter was already
+		// bumped above (this is the HOL-block case — the head command keeps failing).
 		return
 	}
 	if err := l.client.AckControl(ctx, l.cfg.WorkerID, highestHandled); err != nil {
@@ -210,7 +232,35 @@ func (l *ControlLoop) pollOnce(ctx context.Context) {
 		l.log("control: ack offset=%d: %v (cursor not advanced)", highestHandled, err)
 		return
 	}
+	// The cursor advanced (a prefix succeeded) → the prior head-of-line block, if
+	// any, has cleared. Reset the HOL escalation counter.
+	l.clearStuck()
 	l.cursor = highestHandled
+}
+
+// noteStuck records one consecutive Handle failure of the head-of-line command at
+// offset off and emits the DISTINCT HOL-BLOCKED alarm once the same offset has
+// failed holBlockThreshold times, then again every holBlockReescalateEvery further
+// failures (de-spammed — not every poll). A different stuck offset resets the count.
+func (l *ControlLoop) noteStuck(off int64, cmdType string, cause error) {
+	if l.stuckFails == 0 || l.stuckOffset != off {
+		l.stuckOffset = off
+		l.stuckFails = 0
+	}
+	l.stuckFails++
+	if l.stuckFails == holBlockThreshold ||
+		(l.stuckFails > holBlockThreshold && (l.stuckFails-holBlockThreshold)%holBlockReescalateEvery == 0) {
+		l.log("control: HOL-BLOCKED — command at offset=%d type=%s has failed %d times, "+
+			"ALL subsequent commands for this worker are starved: %v",
+			off, cmdType, l.stuckFails, cause)
+	}
+}
+
+// clearStuck resets the HOL escalation counter (the head command finally handled,
+// so the cursor advanced past the previously-stuck offset).
+func (l *ControlLoop) clearStuck() {
+	l.stuckOffset = 0
+	l.stuckFails = 0
 }
 
 func (l *ControlLoop) log(format string, args ...any) {

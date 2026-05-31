@@ -237,6 +237,17 @@ func (p *WorkItemProjector) enqueueWork(ctx context.Context, wi *agent.AgentWork
 			"agent_id", string(agentID), "work_item_id", wi.ID())
 		return nil
 	}
+	// FINDING-1 lifecycle guard (task #115): only deliver work to a RUNNING agent.
+	// A session-less (stopped/stopping/resetting/error/failed) agent has no running
+	// session, so the daemon's work() returns "no running session (retry after
+	// reconcile)" forever, head-of-line-blocking the worker's whole control stream.
+	// Graceful-skip here (no command, no error): the WorkItem stays created/active
+	// and delivery is DEFERRED to AgentControlProjector's re-emit on lifecycle→running.
+	if a.Lifecycle() != agent.LifecycleRunning {
+		slog.Info("workitem projector: agent.work enqueue skipped (agent not running)",
+			"agent_id", string(agentID), "work_item_id", wi.ID(), "lifecycle", string(a.Lifecycle()))
+		return nil
+	}
 	payload, err := json.Marshal(workCommandPayload{
 		AgentID:    string(agentID),
 		WorkItemID: wi.ID(),
