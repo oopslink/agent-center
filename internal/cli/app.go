@@ -314,6 +314,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
 		WorkItems:           agentsql.NewWorkItemRepo(db),
 		PMTasks:             pmsql.NewTaskRepo(db),
+		PMProjects:          pmsql.NewProjectRepo(db),
 	}
 	querySvc := query.NewService(deps)
 	fleetSvc := query.NewFleetSnapshotService(deps)

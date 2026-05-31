@@ -193,14 +193,14 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 	if err != nil {
 		return nil, err
 	}
-	orgProjects, orgScoped := s.orgProjectSet(ctx, filter)
+	orgScoped := filter.OrganizationID != ""
 	out := make([]FleetWorkItemRow, 0, len(projs))
 	for _, p := range projs {
-		taskID, projectID := s.workItemTaskAndProject(ctx, p.WorkItemID)
+		taskID, projectID, orgID := s.workItemTaskProjectOrg(ctx, p.WorkItemID)
 		if filter.ProjectID != "" && projectID != filter.ProjectID {
 			continue
 		}
-		if orgScoped && (projectID == "" || !orgProjects[projectID]) {
+		if orgScoped && orgID != filter.OrganizationID {
 			continue // fail-closed: never leak a work item whose org can't be confirmed
 		}
 		out = append(out, FleetWorkItemRow{
@@ -219,28 +219,42 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 	return out, nil
 }
 
-// workItemTaskAndProject resolves a work item's task id + owning project id via
-// work_item.task_ref ("pm://tasks/{id}") → pm task. Returns ("","") when
-// unresolvable (missing repos / work item / task); callers fail-closed on org scope.
-func (s *FleetSnapshotService) workItemTaskAndProject(ctx context.Context, workItemID string) (taskID, projectID string) {
+// workItemTaskProjectOrg resolves a work item's task id + owning project id +
+// owning org id, all from the pm model: work_item.task_ref ("pm://tasks/{id}")
+// → pm task → pm project → organization. Returns "" for any hop that can't be
+// resolved (missing repos / work item / task / project); callers fail-closed on
+// org scope so a work item whose org can't be confirmed is never leaked.
+//
+// v2.7 #107: org is resolved from the pm project (same source as project), NOT
+// the retired workforce `projects` table — mixing the two made org-scope fail
+// closed on every work item at runtime (workforce projects are empty).
+func (s *FleetSnapshotService) workItemTaskProjectOrg(ctx context.Context, workItemID string) (taskID, projectID, orgID string) {
 	if s.deps.WorkItems == nil {
-		return "", ""
+		return "", "", ""
 	}
 	wi, err := s.deps.WorkItems.FindByID(ctx, workItemID)
 	if err != nil || wi == nil {
-		return "", ""
+		return "", "", ""
 	}
 	id, ok := fleetTaskIDFromRef(wi.TaskRef())
 	if !ok {
-		return "", ""
+		return "", "", ""
 	}
 	taskID = id
-	if s.deps.PMTasks != nil {
-		if tk, terr := s.deps.PMTasks.FindByID(ctx, pm.TaskID(id)); terr == nil && tk != nil {
-			projectID = string(tk.ProjectID())
+	if s.deps.PMTasks == nil {
+		return taskID, "", ""
+	}
+	tk, terr := s.deps.PMTasks.FindByID(ctx, pm.TaskID(id))
+	if terr != nil || tk == nil {
+		return taskID, "", ""
+	}
+	projectID = string(tk.ProjectID())
+	if s.deps.PMProjects != nil && projectID != "" {
+		if pr, perr := s.deps.PMProjects.FindByID(ctx, pm.ProjectID(projectID)); perr == nil && pr != nil {
+			orgID = pr.OrganizationID()
 		}
 	}
-	return taskID, projectID
+	return taskID, projectID, orgID
 }
 
 // fleetTaskIDFromRef extracts {id} from a "pm://tasks/{id}" work-item task ref.
