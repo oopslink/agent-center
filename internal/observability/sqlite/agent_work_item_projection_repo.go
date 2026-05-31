@@ -193,6 +193,52 @@ func (r *AgentWorkItemProjectionRepo) UpsertIfFresh(ctx context.Context, workIte
 	return fresh, true, nil
 }
 
+// List returns projection rows matching filter, ORDER BY last_activity_at DESC
+// (index-backed by idx_awip_last_active). Status/agent filters are index-backed
+// (idx_awip_status / idx_awip_agent). Empty filter returns all rows.
+func (r *AgentWorkItemProjectionRepo) List(ctx context.Context, filter projection.AgentWorkItemProjectionFilter) ([]*projection.AgentWorkItemProjection, error) {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	var where []string
+	var args []any
+	if len(filter.Statuses) > 0 {
+		ph := make([]string, len(filter.Statuses))
+		for i, s := range filter.Statuses {
+			ph[i] = "?"
+			args = append(args, s)
+		}
+		where = append(where, "status IN ("+strings.Join(ph, ",")+")")
+	}
+	if filter.AgentID != "" {
+		where = append(where, "agent_id = ?")
+		args = append(args, filter.AgentID)
+	}
+	stmt := `SELECT work_item_id, agent_id, status, current_activity, current_activity_at,
+        total_tool_calls, total_tokens_input, total_tokens_output,
+        working_seconds_accumulated, last_activity_at
+        FROM agent_work_item_projections`
+	if len(where) > 0 {
+		stmt += " WHERE " + strings.Join(where, " AND ")
+	}
+	stmt += " ORDER BY last_activity_at DESC"
+	rows, err := exec.QueryContext(ctx, stmt, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*projection.AgentWorkItemProjection
+	for rows.Next() {
+		p, err := scanAgentWorkItemProjection(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func scanAgentWorkItemProjection(scan scanFn) (*projection.AgentWorkItemProjection, error) {
 	var (
 		workItemID string

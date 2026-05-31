@@ -159,3 +159,53 @@ func TestAgentWorkItemProjectionRepo_Upsert_ValidationFails(t *testing.T) {
 		t.Fatal("expected validation error on zero LastActivityAt")
 	}
 }
+
+func TestAgentWorkItemProjectionRepo_List(t *testing.T) {
+	repo := mustNewAgentWorkItemProjectionRepo(t)
+	ctx := context.Background()
+	t0 := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
+	seed := func(id, agentID, status string, lastAct time.Time) {
+		if _, _, err := repo.UpsertIfFresh(ctx, id, projection.AgentWorkItemProjectionUpdate{
+			AgentID: agentID, Status: status, TotalToolCalls: 1, LastActivityAt: lastAct,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("WI-1", "A1", "active", t0.Add(2*time.Minute))
+	seed("WI-2", "A1", "waiting_input", t0.Add(3*time.Minute))
+	seed("WI-3", "A2", "done", t0.Add(1*time.Minute)) // terminal → excluded by live filter
+	seed("WI-4", "A2", "active", t0.Add(1*time.Minute))
+
+	// live status set, ORDER BY last_activity_at DESC → WI-2(3m), WI-1(2m), WI-4(1m); WI-3(done) excluded.
+	live, err := repo.List(ctx, projection.AgentWorkItemProjectionFilter{Statuses: []string{"queued", "active", "waiting_input"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(live) != 3 {
+		t.Fatalf("live filter want 3, got %d", len(live))
+	}
+	if live[0].WorkItemID != "WI-2" || live[1].WorkItemID != "WI-1" || live[2].WorkItemID != "WI-4" {
+		t.Fatalf("order want WI-2,WI-1,WI-4 (last_activity_at DESC), got %s,%s,%s", live[0].WorkItemID, live[1].WorkItemID, live[2].WorkItemID)
+	}
+	if live[0].Status != "waiting_input" || live[0].TotalToolCalls != 1 {
+		t.Fatalf("row fields not hydrated: %+v", live[0])
+	}
+
+	// agent filter
+	a1, err := repo.List(ctx, projection.AgentWorkItemProjectionFilter{AgentID: "A1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a1) != 2 {
+		t.Fatalf("agent filter A1 want 2, got %d", len(a1))
+	}
+
+	// no filter → all 4
+	all, err := repo.List(ctx, projection.AgentWorkItemProjectionFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 4 {
+		t.Fatalf("no filter want 4, got %d", len(all))
+	}
+}
