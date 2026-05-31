@@ -32,6 +32,23 @@ export function useConversation(id: string | undefined) {
   });
 }
 
+// useConversationByOwnerRef fetches the single task/issue conversation pinned
+// to an owner_ref (pm://tasks|issues/{id}). The list endpoint is org-scoped by
+// construction, so a cross-org owner_ref returns no rows (fail-closed, no
+// leak). Returns the matching conversation or null. v2.7 #137.
+export function useConversationByOwnerRef(ownerRef: string | undefined) {
+  return useQuery({
+    queryKey: qk.conversationByOwner(ownerRef ?? ''),
+    queryFn: async () => {
+      const list = await api.get<Conversation[]>(
+        `/conversations?owner_ref=${encodeURIComponent(ownerRef as string)}`,
+      );
+      return list[0] ?? null;
+    },
+    enabled: !!ownerRef,
+  });
+}
+
 export function useMessages(conversationId: string | undefined) {
   return useQuery({
     queryKey: qk.messages(conversationId ?? ''),

@@ -414,6 +414,14 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		ss := conversation.ConversationStatus(st)
 		filter.Status = &ss
 	}
+	// v2.7 #137: fetch a task/issue conversation by owner_ref (pm://tasks|
+	// issues/{id}). org-scoped by construction — filter.OrganizationID is
+	// already set above, so a cross-org owner_ref returns no rows (fail-closed,
+	// no leak); never bypasses org isolation.
+	if or := r.URL.Query().Get("owner_ref"); or != "" {
+		o := conversation.OwnerRef(or)
+		filter.OwnerRef = &o
+	}
 	convs, err := d.ConvRepo.Find(r.Context(), filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
@@ -1353,10 +1361,14 @@ func convPublicMap(c *conversation.Conversation) map[string]any {
 		"description":            c.Description(),
 		"status":                 string(c.Status()),
 		"parent_conversation_id": string(c.ParentConversationID()),
-		"created_by":             string(c.CreatedBy()),
-		"created_at":             c.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at":             c.UpdatedAt().Format(time.RFC3339Nano),
-		"version":                c.Version(),
+		// owner_ref pins task/issue conversations to their pm object
+		// (pm://tasks|issues/{id}); empty for channels/DMs. v2.7 #137: the UI
+		// embeds a task/issue conversation by resolving this ref.
+		"owner_ref":  string(c.OwnerRef()),
+		"created_by": string(c.CreatedBy()),
+		"created_at": c.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at": c.UpdatedAt().Format(time.RFC3339Nano),
+		"version":    c.Version(),
 	}
 	if a := c.ArchivedAt(); a != nil {
 		m["archived_at"] = a.Format(time.RFC3339Nano)
@@ -1384,7 +1396,7 @@ func convPublicMapWithParticipants(c *conversation.Conversation) map[string]any 
 }
 
 func msgPublicMap(m *conversation.Message) map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"id":                 string(m.ID()),
 		"conversation_id":    string(m.ConversationID()),
 		"sender_identity_id": string(m.SenderIdentityID()),
@@ -1394,6 +1406,18 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 		"input_request_ref":  m.InputRequestRef(),
 		"posted_at":          m.PostedAt().Format(time.RFC3339Nano),
 	}
+	// context_refs lets the UI segment a task conversation's messages by
+	// AgentWorkItem across re-dispatches (v2.7 #137). Emitted only when set
+	// (daemon writes work_item_ref/task_ref/agent_ref; empty for plain chat).
+	cr := m.ContextRefs()
+	if cr.WorkItemRef != "" || cr.TaskRef != "" || cr.AgentRef != "" {
+		out["context_refs"] = map[string]any{
+			"work_item_ref": cr.WorkItemRef,
+			"task_ref":      cr.TaskRef,
+			"agent_ref":     cr.AgentRef,
+		}
+	}
+	return out
 }
 
 func irPublicMap(ir *inputrequest.InputRequest) map[string]any {

@@ -8,6 +8,7 @@ import {
   useTransitionIssue,
 } from '@/api/issues';
 import { IssueEditModal } from '@/components/IssueEditModal';
+import { WorkItemConversation } from '@/components/WorkItemConversation';
 import type { IssueStatus } from '@/api/types';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
@@ -116,6 +117,8 @@ export default function IssueDetail(): React.ReactElement {
       ) : (
         <p className="mt-4 text-sm italic text-text-muted">No description.</p>
       )}
+
+      <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
 
       {editOpen && (
         <IssueEditModal projectId={projectId} issue={iss} onClose={() => setEditOpen(false)} />

@@ -15,6 +15,7 @@ import {
   useVerifyTask,
 } from '@/api/tasks';
 import { TaskEditModal } from '@/components/TaskEditModal';
+import { WorkItemConversation } from '@/components/WorkItemConversation';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
 // the task is project-scoped and driven entirely by its projection.
@@ -185,6 +186,8 @@ export default function TaskDetail(): React.ReactElement {
       ) : (
         <p className="mt-4 text-sm italic text-text-muted">No description.</p>
       )}
+
+      <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
 
       {editOpen && (
         <TaskEditModal projectId={projectId} task={tk} onClose={() => setEditOpen(false)} />

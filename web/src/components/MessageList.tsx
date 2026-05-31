@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
+import { groupMessagesByWorkItem } from './messageSegments';
 
 interface Props {
   messages: Message[];
@@ -9,6 +10,10 @@ interface Props {
   selectable?: boolean;
   isSelected?: (id: string) => boolean;
   onToggle?: (id: string) => void;
+  // v2.7 #137: when true (task/issue conversations) the list is split into
+  // labeled segments by work_item_ref. Off for channels/DMs, which carry no
+  // work-item provenance and render as a flat list.
+  segmentByWorkItem?: boolean;
 }
 
 // MessageList — render messages chronologically. Sender id + posted_at
@@ -23,6 +28,7 @@ export function MessageList({
   selectable = false,
   isSelected,
   onToggle,
+  segmentByWorkItem = false,
 }: Props): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
@@ -82,6 +88,44 @@ export function MessageList({
       </div>
     );
   }
+  const renderRow = (m: Message): React.ReactElement => {
+    const checked = selectable && !!isSelected?.(m.id);
+    return (
+      <article
+        key={m.id}
+        className={[
+          'flex gap-3 rounded border bg-bg-elevated p-3 text-sm shadow-sm',
+          checked ? 'border-accent ring-1 ring-accent/40' : 'border-border-base',
+        ].join(' ')}
+        data-testid="message-row"
+        data-message-id={m.id}
+        data-selected={checked}
+      >
+        {selectable && (
+          <label className="flex items-start pt-0.5">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle?.(m.id)}
+              className="h-4 w-4 cursor-pointer"
+              data-testid="message-select"
+              aria-label={`select message ${m.id}`}
+            />
+          </label>
+        )}
+        <div className="flex-1">
+          <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
+            <span className="font-mono">{m.sender_identity_id}</span>
+            <time>{m.posted_at}</time>
+          </header>
+          <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
+        </div>
+      </article>
+    );
+  };
+
+  const segments = segmentByWorkItem ? groupMessagesByWorkItem(messages) : null;
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
@@ -90,41 +134,24 @@ export function MessageList({
         className="flex-1 space-y-3 overflow-y-auto p-4"
         data-testid="message-list"
       >
-        {messages.map((m) => {
-          const checked = selectable && !!isSelected?.(m.id);
-          return (
-            <article
-              key={m.id}
-              className={[
-                'flex gap-3 rounded border bg-bg-elevated p-3 text-sm shadow-sm',
-                checked ? 'border-accent ring-1 ring-accent/40' : 'border-border-base',
-              ].join(' ')}
-              data-testid="message-row"
-              data-message-id={m.id}
-              data-selected={checked}
-            >
-              {selectable && (
-                <label className="flex items-start pt-0.5">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onToggle?.(m.id)}
-                    className="h-4 w-4 cursor-pointer"
-                    data-testid="message-select"
-                    aria-label={`select message ${m.id}`}
-                  />
-                </label>
-              )}
-              <div className="flex-1">
-                <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
-                  <span className="font-mono">{m.sender_identity_id}</span>
-                  <time>{m.posted_at}</time>
-                </header>
-                <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
-              </div>
-            </article>
-          );
-        })}
+        {segments
+          ? segments.map((seg) => (
+              <section
+                key={seg.key}
+                className="space-y-3"
+                data-testid="message-segment"
+                data-work-item-ref={seg.workItemRef}
+              >
+                <h3
+                  className="sticky top-0 z-10 bg-bg-base/95 py-1 text-xs font-semibold uppercase tracking-wide text-text-muted"
+                  data-testid="message-segment-header"
+                >
+                  {seg.label}
+                </h3>
+                {seg.messages.map(renderRow)}
+              </section>
+            ))
+          : messages.map(renderRow)}
       </div>
       {hasNewBelow && (
         <button

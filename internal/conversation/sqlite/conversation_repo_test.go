@@ -244,3 +244,51 @@ func TestConversationRepo_Find_KindAndStatus(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+// TestConversationRepo_Find_ByOwnerRef_OrgScoped is the v2.7 #137 §-1 gate: the
+// owner_ref conversation filter is org-scoped by construction — a cross-org
+// owner_ref returns no rows (fail-closed, no leak), so the UI can't fetch
+// another org's task/issue conversation by guessing its owner_ref.
+func TestConversationRepo_Find_ByOwnerRef_OrgScoped(t *testing.T) {
+	r := setupDB(t)
+	taskRef := conversation.NewTaskOwnerRef("T-1")
+	cA, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID: "conv-a", Kind: conversation.ConversationKindTask, OwnerRef: taskRef,
+		Name: "ta", CreatedBy: conversation.IdentityRef("user:a"), OpenedAt: time.Now().UTC(),
+		OrganizationID: "org-A",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Save(context.Background(), cA); err != nil {
+		t.Fatal(err)
+	}
+	cB, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID: "conv-b", Kind: conversation.ConversationKindTask, OwnerRef: conversation.NewTaskOwnerRef("T-2"),
+		Name: "tb", CreatedBy: conversation.IdentityRef("user:b"), OpenedAt: time.Now().UTC(),
+		OrganizationID: "org-B",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Save(context.Background(), cB); err != nil {
+		t.Fatal(err)
+	}
+
+	// org-A filtered by T-1's owner_ref → its conversation.
+	got, err := r.Find(context.Background(), conversation.ConversationFilter{OrganizationID: "org-A", OwnerRef: &taskRef})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID() != "conv-a" {
+		t.Fatalf("owner_ref filter: want [conv-a], got %+v", got)
+	}
+	// §-1: org-B querying org-A's owner_ref → empty (org-scoped fail-closed, no leak).
+	got, err = r.Find(context.Background(), conversation.ConversationFilter{OrganizationID: "org-B", OwnerRef: &taskRef})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("cross-org owner_ref must be empty (no leak), got %+v", got)
+	}
+}

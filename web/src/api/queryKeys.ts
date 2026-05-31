@@ -27,6 +27,7 @@ export const qk = {
   conversations: (kind?: string) =>
     kind ? (o('conversations', { kind })) : (o('conversations')),
   conversation: (id: string) => o('conversation', id),
+  conversationByOwner: (ownerRef: string) => o('conversationByOwner', ownerRef),
   messages: (convId: string) => o('messages', convId),
   refs: (convId: string) => o('refs', convId),
   agents: () => o('agents'),
