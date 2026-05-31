@@ -36,18 +36,12 @@ type kit struct {
 	eventRepo *obsqlite.EventRepo
 	sink      *observability.EventSink
 
-	workerRepo   *wfsqlite.WorkerRepo
-	mappingRepo  *wfsqlite.MappingRepo
-	proposalRepo *wfsqlite.ProposalRepo
-	projectRepo  *wfsqlite.ProjectRepo
-	convRepo     *convsqlite.ConversationRepo
-	msgRepo      *convsqlite.MessageRepo
+	workerRepo *wfsqlite.WorkerRepo
+	convRepo   *convsqlite.ConversationRepo
+	msgRepo    *convsqlite.MessageRepo
 
-	enroll     *wfservice.WorkerEnrollService
-	discovery  *wfservice.ProjectDiscoveryService
-	acceptance *wfservice.ProposalAcceptanceService
-	crud       *wfservice.ProjectCRUDService
-	writer     *convservice.MessageWriter
+	enroll *wfservice.WorkerEnrollService
+	writer *convservice.MessageWriter
 }
 
 func newKit(t *testing.T) *kit {
@@ -69,21 +63,15 @@ func newKit(t *testing.T) *kit {
 	}
 	sink := observability.NewEventSink(er, er, gen, fc)
 	wr := wfsqlite.NewWorkerRepo(db)
-	mr := wfsqlite.NewMappingRepo(db)
-	prRepo := wfsqlite.NewProposalRepo(db)
-	pjRepo := wfsqlite.NewProjectRepo(db)
 	cr := convsqlite.NewConversationRepo(db)
 	mgRepo := convsqlite.NewMessageRepo(db)
-	disc := wfservice.NewProjectDiscoveryService(pjRepo, sink, fc)
-	acc := wfservice.NewProposalAcceptanceService(db, prRepo, mr, pjRepo, disc, sink, gen, fc)
-	crud := wfservice.NewProjectCRUDService(db, pjRepo, mr, sink, fc)
 	enroll := wfservice.NewWorkerEnrollService(db, wr, sink, fc)
 	writer := convservice.NewMessageWriter(db, cr, mgRepo, sink, gen, fc)
 	return &kit{
 		db: db, clock: fc, idgen: gen, eventRepo: er, sink: sink,
-		workerRepo: wr, mappingRepo: mr, proposalRepo: prRepo, projectRepo: pjRepo,
-		convRepo: cr, msgRepo: mgRepo,
-		enroll: enroll, discovery: disc, acceptance: acc, crud: crud, writer: writer,
+		workerRepo: wr,
+		convRepo:   cr, msgRepo: mgRepo,
+		enroll: enroll, writer: writer,
 	}
 }
 
@@ -257,67 +245,6 @@ func TestINT5_WorkerCASRace(t *testing.T) {
 	}
 }
 
-// INT-6: ProjectRepo.Delete + active mapping cross-repo enforcement.
-func TestINT6_ProjectDelete_HasActiveMapping(t *testing.T) {
-	k := newKit(t)
-	w := mkWorker(t, k, "W-1")
-	_ = k.workerRepo.Save(context.Background(), w)
-	p := mkProject(t, k, "p")
-	_ = k.projectRepo.Save(context.Background(), p)
-	m, _ := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
-		ID:       workforce.MappingID(k.idgen.NewULID()),
-		WorkerID: "W-1", ProjectID: "p",
-		BasePath: "/x", AddedAt: k.clock.Now(),
-	})
-	_ = k.mappingRepo.Save(context.Background(), m)
-	// CRUD service Delete should fail with ErrProjectHasActiveDeps.
-	_, err := k.crud.Remove(context.Background(), wfservice.RemoveCommand{
-		ID: "p", Actor: "user:hayang",
-	})
-	if !errors.Is(err, workforce.ErrProjectHasActiveDeps) {
-		t.Fatalf("got %v", err)
-	}
-}
-
-// INT-7: ProposalRepo dedupe by (worker_id, candidate_path) unique on pending.
-func TestINT7_ProposalDedupActivePending(t *testing.T) {
-	k := newKit(t)
-	w := mkWorker(t, k, "W-1")
-	_ = k.workerRepo.Save(context.Background(), w)
-	p1, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID:       workforce.ProposalID(k.idgen.NewULID()),
-		WorkerID: "W-1", CandidatePath: "/same",
-		SuggestedProjectID: "p",
-		ProposedAt:         k.clock.Now(),
-	})
-	if err := k.proposalRepo.Save(context.Background(), p1); err != nil {
-		t.Fatal(err)
-	}
-	p2, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID:       workforce.ProposalID(k.idgen.NewULID()),
-		WorkerID: "W-1", CandidatePath: "/same",
-		SuggestedProjectID: "p",
-		ProposedAt:         k.clock.Now(),
-	})
-	if err := k.proposalRepo.Save(context.Background(), p2); !errors.Is(err, workforce.ErrProposalAlreadyExists) {
-		t.Fatalf("got %v", err)
-	}
-	// Ignore the first proposal; now /same is no longer pending.
-	_ = p1.Ignore(k.clock.Now(), "user:x")
-	_ = k.proposalRepo.Update(context.Background(), p1)
-	// A second proposal on same path should now succeed (only "pending"
-	// uniqueness applies).
-	p3, _ := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID:       workforce.ProposalID(k.idgen.NewULID()),
-		WorkerID: "W-1", CandidatePath: "/same",
-		SuggestedProjectID: "p",
-		ProposedAt:         k.clock.Now(),
-	})
-	if err := k.proposalRepo.Save(context.Background(), p3); err != nil {
-		t.Fatalf("expected success after ignore, got %v", err)
-	}
-}
-
 // INT-8: WorkerEnrollService end-to-end — Worker + Event after enroll.
 func TestINT8_EnrollEndToEnd(t *testing.T) {
 	k := newKit(t)
@@ -341,34 +268,6 @@ func TestINT8_EnrollEndToEnd(t *testing.T) {
 	}
 	if events[0].Type() != "workforce.worker.enrolled" {
 		t.Fatal()
-	}
-}
-
-// INT-9: ProposalAcceptanceService.Accept cross-aggregate end-to-end.
-func TestINT9_AcceptCrossAggregate(t *testing.T) {
-	k := newKit(t)
-	w := mkWorker(t, k, "W-1")
-	_ = k.workerRepo.Save(context.Background(), w)
-	prRes, err := k.acceptance.Propose(context.Background(), wfservice.ProposeCommand{
-		WorkerID: "W-1", CandidatePath: "/x", SuggestedProjectID: "ac", Actor: "worker:W-1",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	accRes, err := k.acceptance.Accept(context.Background(), wfservice.AcceptCommand{
-		ProposalID: prRes.ProposalID,
-		Actor:      "user:hayang",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !accRes.ProjectCreated {
-		t.Fatal("expected project created")
-	}
-	// Verify all 4 events landed.
-	events, _ := k.eventRepo.Find(context.Background(), observability.EventQueryFilter{})
-	if len(events) != 4 {
-		t.Fatalf("expected 4 events, got %d", len(events))
 	}
 }
 
@@ -456,16 +355,4 @@ func mkWorker(t *testing.T, k *kit, id workforce.WorkerID) *workforce.Worker {
 		t.Fatal(err)
 	}
 	return w
-}
-
-func mkProject(t *testing.T, k *kit, slug workforce.ProjectID) *workforce.Project {
-	t.Helper()
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: slug, Name: string(slug),
-		CreatedByIdentityID: "user:hayang", CreatedAt: k.clock.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
 }

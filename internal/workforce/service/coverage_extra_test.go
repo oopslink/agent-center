@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -246,185 +245,6 @@ func TestScanExpired_BadActor(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// ProposalAcceptanceService — v1 baseline coverage push
-// =============================================================================
-
-func TestProposalAcceptance_Propose_FindError(t *testing.T) {
-	s := setupSuite(t)
-	// Use bad proposal-related candidate path → constructor rejects;
-	// the bad candidate path triggers NewWorkerProjectProposal error
-	// AFTER FindByCandidatePath returns NotFound. Either way exercises
-	// the early branches.
-	svc := acceptanceService(s)
-	_ = s.workerRepo.Save(context.Background(), newW(t, "W-X"))
-	_, err := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-X", CandidatePath: "/x", SuggestedProjectID: "p",
-		Actor:         "user:hayang",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestProposalAcceptance_Accept_NotFound(t *testing.T) {
-	s := setupSuite(t)
-	svc := acceptanceService(s)
-	_, err := svc.Accept(context.Background(), AcceptCommand{
-		ProposalID: "PR-MISSING", Actor: "user:x",
-	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-func TestProposalAcceptance_Ignore_NotFound(t *testing.T) {
-	s := setupSuite(t)
-	svc := acceptanceService(s)
-	_, err := svc.Ignore(context.Background(), IgnoreCommand{
-		ProposalID: "PR-MISSING", Actor: "user:x",
-	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-func TestProposalAcceptance_Unignore_NotFound(t *testing.T) {
-	s := setupSuite(t)
-	svc := acceptanceService(s)
-	_, err := svc.Unignore(context.Background(), IgnoreCommand{
-		ProposalID: "PR-MISSING", Actor: "user:x",
-	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-// Accept happy path covers Propose + Accept + project creation paths.
-func TestProposalAcceptance_Accept_HappyPath(t *testing.T) {
-	s := setupSuite(t)
-	_ = s.workerRepo.Save(context.Background(), newW(t, "W-AC"))
-	svc := acceptanceService(s)
-	pr, err := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-AC", CandidatePath: "/home/dev/foo",
-		SuggestedProjectID: "p-acc",
-		Actor: "user:hayang",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := svc.Accept(context.Background(), AcceptCommand{
-		ProposalID: pr.ProposalID, Actor: "user:hayang",
-	})
-	if err != nil {
-		t.Fatalf("Accept: %v", err)
-	}
-	if !res.ProjectCreated {
-		t.Fatal("expected project created")
-	}
-}
-
-func TestProposalAcceptance_Ignore_HappyPath(t *testing.T) {
-	s := setupSuite(t)
-	_ = s.workerRepo.Save(context.Background(), newW(t, "W-IG"))
-	svc := acceptanceService(s)
-	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-IG", CandidatePath: "/x", SuggestedProjectID: "p", Actor: "user:hayang",
-	})
-	evID, err := svc.Ignore(context.Background(), IgnoreCommand{
-		ProposalID: pr.ProposalID, Actor: "user:hayang",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if evID == "" {
-		t.Fatal()
-	}
-	// Unignore: brings it back to pending.
-	if _, err := svc.Unignore(context.Background(), IgnoreCommand{
-		ProposalID: pr.ProposalID, Actor: "user:hayang",
-	}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// guard() with nil deps
-func TestProposalAcceptanceService_Guard_AllNil(t *testing.T) {
-	s := &ProposalAcceptanceService{}
-	if err := s.guard(); err == nil {
-		t.Fatal()
-	}
-}
-
-// guard() with all deps set should pass
-func TestProposalAcceptanceService_Guard_AllSet(t *testing.T) {
-	s := setupSuite(t)
-	svc := acceptanceService(s)
-	if err := svc.guard(); err != nil {
-		t.Fatalf("guard with all set: %v", err)
-	}
-}
-
-// EnsureProject: requires a tx context — bare ctx rejects.
-func TestEnsureProject_NoTxRejected(t *testing.T) {
-	s := setupSuite(t)
-	disc := NewProjectDiscoveryService(s.projectRepo, s.sink, s.clock)
-	_, err := disc.EnsureProject(context.Background(), EnsureProjectInput{
-		ID: "p", Name: "P",
-		CreatedBy: "user:x",
-	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-// EnsureProject: bad actor (renamed to avoid duplicate)
-func TestEnsureProject_BadActorInTx(t *testing.T) {
-	s := setupSuite(t)
-	disc := NewProjectDiscoveryService(s.projectRepo, s.sink, s.clock)
-	persistence.RunInTx(context.Background(), s.db, func(txCtx context.Context) error {
-		_, err := disc.EnsureProject(txCtx, EnsureProjectInput{
-			ID: "p", Name: "P",
-			CreatedBy: "bogus:x",
-		})
-		if err == nil {
-			t.Fatal()
-		}
-		return nil
-	})
-}
-
-// ProjectCRUD Update: bad-id-shape input
-func TestProjectCRUD_Add_HappyPath(t *testing.T) {
-	s := setupSuite(t)
-	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
-	_, err := svc.Add(context.Background(), AddCommand{
-		ID: "p-new", Name: "P",
-		Actor: "user:hayang",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-// ProjectCRUD Remove with no-deps happy path.
-func TestProjectCRUD_Remove_Happy(t *testing.T) {
-	s := setupSuite(t)
-	svc := NewProjectCRUDService(s.db, s.projectRepo, s.mappingRepo, s.sink, s.clock)
-	_, err := svc.Add(context.Background(), AddCommand{
-		ID: "p-rem", Name: "PR",
-		Actor: "user:hayang",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Remove(context.Background(), RemoveCommand{
-		ID: "p-rem", Actor: "user:hayang",
-	}); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // AILifecycle: OnWorkerOnline tx failure via trigger.
 func TestAILifecycle_OnWorkerOnline_TxFailure(t *testing.T) {
 	s := setupAISuite(t)
@@ -661,47 +481,6 @@ func TestAIMgmt_UpdateConfig_TxFailure(t *testing.T) {
 	}
 }
 
-// Propose tx failure: block proposals INSERT.
-func TestPropose_SaveFailure(t *testing.T) {
-	s := setupSuite(t)
-	_ = s.workerRepo.Save(context.Background(), newW(t, "W-PF"))
-	if _, err := s.db.ExecContext(context.Background(),
-		`CREATE TEMP TRIGGER block_proposals BEFORE INSERT ON worker_project_proposals BEGIN
-		   SELECT RAISE(ABORT, 'blocked');
-		 END`); err != nil {
-		t.Fatal(err)
-	}
-	svc := acceptanceService(s)
-	_, err := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-PF", CandidatePath: "/x", SuggestedProjectID: "p", Actor: "user:x",
-	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-// Accept tx failure: block proposals UPDATE.
-func TestAccept_UpdateFailure(t *testing.T) {
-	s := setupSuite(t)
-	_ = s.workerRepo.Save(context.Background(), newW(t, "W-AC2"))
-	svc := acceptanceService(s)
-	pr, _ := svc.Propose(context.Background(), ProposeCommand{
-		WorkerID: "W-AC2", CandidatePath: "/x", SuggestedProjectID: "p-acc2", Actor: "user:x",
-	})
-	if _, err := s.db.ExecContext(context.Background(),
-		`CREATE TEMP TRIGGER block_proposals_upd BEFORE UPDATE ON worker_project_proposals BEGIN
-		   SELECT RAISE(ABORT, 'blocked');
-		 END`); err != nil {
-		t.Fatal(err)
-	}
-	_, err := svc.Accept(context.Background(), AcceptCommand{
-		ProposalID: pr.ProposalID, Actor: "user:x",
-	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
 // Exchange events table failure.
 func TestExchange_EventEmitFailure(t *testing.T) {
 	s := setupExSuite(t)
@@ -800,7 +579,9 @@ func (s bootstrapTokenRepoStub) FindByWorkerID(ctx context.Context, wid workforc
 func (s bootstrapTokenRepoStub) FindActiveByWorkerForUpdate(ctx context.Context, wid workforce.WorkerID) (*workforce.BootstrapToken, error) {
 	return nil, nil
 }
-func (s bootstrapTokenRepoStub) Save(ctx context.Context, t *workforce.BootstrapToken) error { return nil }
+func (s bootstrapTokenRepoStub) Save(ctx context.Context, t *workforce.BootstrapToken) error {
+	return nil
+}
 func (s bootstrapTokenRepoStub) UpdateStatus(ctx context.Context, t *workforce.BootstrapToken, from workforce.BootstrapTokenStatus) error {
 	return nil
 }

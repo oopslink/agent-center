@@ -16,11 +16,9 @@ import (
 
 // mapDomainError translates BC sentinel errors into HTTP status + envelope
 // codes. Parallel to webconsole/api.mapDomainError but covers every BC the
-// CLI surface touches (workforce, conversation, discussion, taskruntime,
-// secretmgmt, cognition, identity).
+// CLI surface touches (workforce, conversation, projectmanager, agent,
+// secretmgmt, identity).
 //
-// The switch lists sentinels in BC order (Conversation → Identity →
-// Workforce → TaskRuntime → SecretManagement → Discussion → Cognition).
 // Anything that doesn't match falls through to 500 internal — callers can
 // still see the underlying error text in the message field.
 func mapDomainError(w http.ResponseWriter, err error) {

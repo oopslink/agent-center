@@ -5,12 +5,7 @@ import (
 	"io"
 
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/discussion"
-	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -30,42 +25,10 @@ func MapDomainError(err error) (reason string, code ExitCode, ok bool) {
 	case errors.Is(err, workforce.ErrWorkerInvalidStatus):
 		return "worker_invalid_status", ExitUsage, true
 
-	// Workforce — Mapping
-	case errors.Is(err, workforce.ErrMappingNotFound):
-		return "mapping_not_found", ExitNotFound, true
-	case errors.Is(err, workforce.ErrMappingAlreadyActive):
-		return "mapping_already_active", ExitInvariantViolation, true
-	case errors.Is(err, workforce.ErrMappingNotActive):
-		return "mapping_not_active", ExitInvalidTransition, true
-
-	// Workforce — Proposal
-	case errors.Is(err, workforce.ErrProposalNotFound):
-		return "proposal_not_found", ExitNotFound, true
-	case errors.Is(err, workforce.ErrProposalAlreadyTerminated):
-		return "proposal_already_terminated", ExitInvalidTransition, true
-	case errors.Is(err, workforce.ErrProposalInvalidTransition):
-		return "proposal_invalid_transition", ExitInvalidTransition, true
-	case errors.Is(err, workforce.ErrProposalAlreadyExists):
-		return "proposal_already_exists", ExitBusinessError, true
-	case errors.Is(err, workforce.ErrProposalVersionConflict):
-		return "proposal_version_conflict", ExitVersionConflict, true
-
 	// ProjectManager — Project (v2.7 #131 PR-3: CLI project READ handlers
 	// read the pm model, so the pm not-found sentinel must map too).
 	case errors.Is(err, pm.ErrProjectNotFound):
 		return "project_not_found", ExitNotFound, true
-
-	// Workforce — Project
-	case errors.Is(err, workforce.ErrProjectNotFound):
-		return "project_not_found", ExitNotFound, true
-	case errors.Is(err, workforce.ErrProjectAlreadyExists):
-		return "project_already_exists", ExitBusinessError, true
-	case errors.Is(err, workforce.ErrProjectVersionConflict):
-		return "project_version_conflict", ExitVersionConflict, true
-	case errors.Is(err, workforce.ErrProjectHasActiveDeps):
-		return "project_has_active_deps", ExitInvariantViolation, true
-	case errors.Is(err, workforce.ErrProjectInvalidID):
-		return "project_invalid_id", ExitUsage, true
 
 	// Conversation
 	case errors.Is(err, conversation.ErrConversationNotFound):
@@ -90,80 +53,6 @@ func MapDomainError(err error) (reason string, code ExitCode, ok bool) {
 		return "message_invalid_sender", ExitUsage, true
 	case errors.Is(err, conversation.ErrConversationArchived):
 		return "conversation_archived", ExitInvalidTransition, true
-
-	// TaskRuntime — Task
-	case errors.Is(err, task.ErrTaskNotFound):
-		return "task_not_found", ExitNotFound, true
-	case errors.Is(err, task.ErrTaskAlreadyExists):
-		return "task_already_exists", ExitBusinessError, true
-	case errors.Is(err, task.ErrTaskInvalidTransition):
-		return "task_invalid_transition", ExitInvalidTransition, true
-	case errors.Is(err, task.ErrTaskVersionConflict):
-		return "task_version_conflict", ExitVersionConflict, true
-	case errors.Is(err, task.ErrTaskInvariantViolation):
-		return "task_invariant_violation", ExitInvariantViolation, true
-	case errors.Is(err, task.ErrCannotUnbindConversation):
-		return "task_cannot_unbind_conversation", ExitInvalidTransition, true
-	case errors.Is(err, task.ErrInvalidPriority):
-		return "task_invalid_priority", ExitUsage, true
-	case errors.Is(err, task.ErrInvalidStatus):
-		return "task_invalid_status", ExitUsage, true
-
-	// TaskRuntime — TaskExecution
-	case errors.Is(err, execution.ErrTaskExecutionNotFound):
-		return "execution_not_found", ExitNotFound, true
-	case errors.Is(err, execution.ErrTaskExecutionAlreadyTerminated):
-		return "execution_already_terminated", ExitInvalidTransition, true
-	case errors.Is(err, execution.ErrTaskExecutionVersionConflict):
-		return "execution_version_conflict", ExitVersionConflict, true
-	case errors.Is(err, execution.ErrSingleActiveViolation):
-		return "single_active_violation", ExitInvariantViolation, true
-	case errors.Is(err, execution.ErrInvalidTransition):
-		return "execution_invalid_transition", ExitInvalidTransition, true
-	case errors.Is(err, execution.ErrUnknownReason):
-		return "unknown_reason", ExitUsage, true
-	case errors.Is(err, execution.ErrUnknownWorkspaceMode):
-		return "unknown_workspace_mode", ExitUsage, true
-	case errors.Is(err, execution.ErrArtifactNotFound):
-		return "artifact_not_found", ExitNotFound, true
-	case errors.Is(err, execution.ErrArtifactImmutable):
-		return "artifact_immutable", ExitInvalidTransition, true
-
-	// TaskRuntime — InputRequest
-	case errors.Is(err, inputrequest.ErrInputRequestNotFound):
-		return "input_request_not_found", ExitNotFound, true
-	case errors.Is(err, inputrequest.ErrInputRequestAlreadyResolved):
-		return "input_request_already_resolved", ExitInvalidTransition, true
-	case errors.Is(err, inputrequest.ErrInputRequestVersionConflict):
-		return "input_request_version_conflict", ExitVersionConflict, true
-	case errors.Is(err, inputrequest.ErrInvalidTransition):
-		return "input_request_invalid_transition", ExitInvalidTransition, true
-	case errors.Is(err, inputrequest.ErrInvalidStatus):
-		return "input_request_invalid_status", ExitUsage, true
-	case errors.Is(err, inputrequest.ErrInvalidUrgency):
-		return "input_request_invalid_urgency", ExitUsage, true
-
-	// Discussion — Issue
-	case errors.Is(err, discussion.ErrIssueNotFound):
-		return "issue_not_found", ExitNotFound, true
-	case errors.Is(err, discussion.ErrIssueAlreadyExists):
-		return "issue_already_exists", ExitBusinessError, true
-	case errors.Is(err, discussion.ErrIssueInvalidTransition):
-		return "issue_invalid_transition", ExitInvalidTransition, true
-	case errors.Is(err, discussion.ErrIssueVersionConflict):
-		return "issue_version_conflict", ExitVersionConflict, true
-	case errors.Is(err, discussion.ErrIssueAlreadyConcluded):
-		return "issue_already_concluded", ExitInvalidTransition, true
-	case errors.Is(err, discussion.ErrIssueWithdrawn):
-		return "issue_withdrawn", ExitInvalidTransition, true
-	case errors.Is(err, discussion.ErrIssueNoConversationBound):
-		return "issue_no_conversation_bound", ExitInvariantViolation, true
-	case errors.Is(err, discussion.ErrInvalidOrigin):
-		return "issue_invalid_origin", ExitUsage, true
-	case errors.Is(err, discussion.ErrResolutionInvalid):
-		return "issue_invalid_resolution", ExitUsage, true
-	case errors.Is(err, disservice.ErrProjectNotFound):
-		return "project_not_found", ExitNotFound, true
 	}
 	return "", 0, false
 }
