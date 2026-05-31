@@ -69,10 +69,6 @@ type AgentInstanceRepository interface {
 	// archived_at / archived_reason / archived_message). CAS on version.
 	Archive(ctx context.Context, id AgentInstanceID, at time.Time, reason AgentInstanceArchivedReason, message string, version int) error
 	// v2.7 #131 (PR-6): CountActiveExecutions removed (read retired task_executions; dead path).
-	// BulkUpdateStateByWorker transitions every agent on `workerID` from
-	// `from` → `to`. Used for worker.offline → all agents sleeping (and
-	// worker.online → awakened) bulk path.
-	BulkUpdateStateByWorker(ctx context.Context, workerID WorkerID, from, to AgentInstanceState) (int, error)
 }
 
 // BootstrapTokenRepository defines persistence for BootstrapToken Entity

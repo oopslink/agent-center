@@ -208,10 +208,6 @@ func TestAgentInstanceRepo_ExecutorFromCtx_ClosedDB(t *testing.T) {
 		workforce.AgentInstanceArchivedReasonManual, "msg", 1); err == nil {
 		t.Fatal()
 	}
-	if _, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1",
-		workforce.AgentInstanceIdle, workforce.AgentInstanceSleeping); err == nil {
-		t.Fatal()
-	}
 }
 
 // =============================================================================
@@ -605,19 +601,6 @@ func TestAgentInstanceRepo_UpdateState_InvalidStateEnum(t *testing.T) {
 		workforce.AgentInstanceState("bogus"), 1)
 	if err == nil {
 		t.Fatal("expected invalid state error")
-	}
-}
-
-func TestAgentInstanceRepo_BulkUpdate_InvalidStateEnum(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewAgentInstanceRepo(db)
-	if _, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1",
-		workforce.AgentInstanceState("bogus"), workforce.AgentInstanceSleeping); err == nil {
-		t.Fatal()
-	}
-	if _, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1",
-		workforce.AgentInstanceIdle, workforce.AgentInstanceState("bogus")); err == nil {
-		t.Fatal()
 	}
 }
 
