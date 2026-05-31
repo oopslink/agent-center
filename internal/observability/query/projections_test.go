@@ -76,9 +76,12 @@ func TestInspect_Worker_NoMappings(t *testing.T) {
 	}
 }
 
-func TestInspect_Project_WithMappingsAndTasks(t *testing.T) {
+// v2.7 #131: inspect-project reads pm_projects; the mappings segment + tags
+// output are dropped (workforce model retired). The tasks segment (pm_tasks)
+// survives — pin it via the new pm project source.
+func TestInspect_Project_WithTasks(t *testing.T) {
 	env := newQEnv(t)
-	env.seedProject(t, "p", "P")
+	env.seedOrgProject(t, "p", "org-1")
 	env.seedTask(t, "T-1", "p", "a")
 	env.seedTask(t, "T-2", "p", "b")
 	res, err := env.svc.Inspect(context.Background(), "project", "p")
@@ -89,6 +92,12 @@ func TestInspect_Project_WithMappingsAndTasks(t *testing.T) {
 	tasks := data["tasks"].([]any)
 	if len(tasks) != 2 {
 		t.Fatalf("expected 2 tasks, got %d", len(tasks))
+	}
+	if _, ok := data["mappings"]; ok {
+		t.Fatal("mappings segment must be dropped (workforce model retired)")
+	}
+	if _, ok := data["tags"]; ok {
+		t.Fatal("tags must be dropped (pm.Project has no Tags)")
 	}
 }
 

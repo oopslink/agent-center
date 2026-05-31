@@ -2,33 +2,24 @@ package query_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/discussion"
-	"github.com/oopslink/agent-center/internal/observability/projection"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/workforce"
-	wforce "github.com/oopslink/agent-center/internal/workforce"
 )
 
 func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 	env := newQEnv(t)
 	// Seed: 1 worker online + 1 issue + 1 live work item (which seeds its pm
-	// task T-1). The legacy execution is kept only as inert data the fleet no
-	// longer reads (proj-A: fleet reads work-item projections).
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusInputRequired)
+	// task T-1).
 	env.seedWorker(t, "W-1", workforce.WorkerOnline)
 	env.seedPMIssue(t, "I-1", "proj", "discuss", pm.IssueOpen)
-	// projection
-	if _, _, err := env.deps.Projection.UpsertIfFresh(context.Background(), "E-1", projection.ProjectionUpdate{LastPushAt: env.clk.Now(), CurrentActivity: "edit"}); err != nil {
-		t.Fatal(err)
-	}
 	// v2.7 #107: the fleet "executions" segment now reads live work-item projections.
+	// v2.7 #131: the worker ActiveCount segment now reads worker→agents→work-items.
+	// Link AG-1 to W-1 so its live work item WI-1 counts toward W-1's ActiveCount.
+	env.seedAgent(t, "AG-1", "W-1")
 	env.seedLiveWorkItem(t, "WI-1", "AG-1", "T-1", "proj", "org-1", "active")
 	svc := query.NewFleetSnapshotService(env.deps)
 	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{})
@@ -90,11 +81,6 @@ func TestFleetSnapshot_Empty_NoCrash(t *testing.T) {
 	if len(snap.WorkItems) != 0 || len(snap.Workers) != 0 {
 		t.Fatalf("expected empty snapshot, got %+v", snap)
 	}
-	// Suppress unused warnings about untyped use of imports under build tags.
-	_ = errors.New
-	_ = discussion.StatusOpen
-	_ = conversation.ConversationKindTask
-	_ = wforce.WorkerOnline
 }
 
 // TestFleetSnapshot_OrgScoping_NoCrossOrgLeak is the v2.7 #107 hard §-1 gate:

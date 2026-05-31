@@ -69,7 +69,7 @@ func TestLogsCmd_HappyPath_BlobConfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.BlobStore = bs
-	deps := query.Deps{PMTasks: pmsql.NewTaskRepo(app.DB), Executions: app.ExecRepo}
+	deps := query.Deps{PMTasks: pmsql.NewTaskRepo(app.DB)}
 	app.LogsSvc = query.NewLogsService(deps, bs)
 	// Seed a pm task so the logsTask path can find it.
 	tk, err := pm.NewTask(pm.NewTaskInput{

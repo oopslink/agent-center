@@ -8,7 +8,6 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // v2.7 #107 Phase-2 (proj-A): query executions repointed to the work-item model.
@@ -40,21 +39,9 @@ func TestQuery_Executions_DefaultActive(t *testing.T) {
 	}
 }
 
-func TestQuery_Workers_HasMappingTrueFalse(t *testing.T) {
-	env := newQEnv(t)
-	env.seedWorker(t, "W-1", workforce.WorkerOnline)
-	env.seedWorker(t, "W-2", workforce.WorkerOnline)
-	tr := true
-	res, _ := env.svc.Query(context.Background(), "workers", query.QueryFilter{HasMapping: &tr})
-	if len(res.Items) != 0 {
-		t.Fatalf("expected 0 with mappings, got %d", len(res.Items))
-	}
-	fa := false
-	res, _ = env.svc.Query(context.Background(), "workers", query.QueryFilter{HasMapping: &fa})
-	if len(res.Items) != 2 {
-		t.Fatalf("expected 2 w/o mappings, got %d", len(res.Items))
-	}
-}
+// TestQuery_Workers_HasMappingTrueFalse removed — the --has-mapping filter is
+// deleted in v2.7 #131 (workforce WorkerProjectMapping model retired; workers
+// are no longer project-scoped via mappings).
 
 // TestQuery_Issues_ByOpener pins the v2.7 #125 --opener repoint: opener filters
 // on pm issue created_by (the successor of discussion OpenedByIdentityID), in

@@ -41,18 +41,17 @@ func ValidInspectKind(kind string) bool {
 type QueryResource string
 
 const (
-	QueryTasks         QueryResource = "tasks"
-	QueryExecutions    QueryResource = "executions"
-	QueryWorkers       QueryResource = "workers"
-	QueryIssues        QueryResource = "issues"
-	QueryProposals     QueryResource = "proposals"
-	QueryEvents        QueryResource = "events"
+	QueryTasks      QueryResource = "tasks"
+	QueryExecutions QueryResource = "executions"
+	QueryWorkers    QueryResource = "workers"
+	QueryIssues     QueryResource = "issues"
+	QueryEvents     QueryResource = "events"
 )
 
 // AllQueryResources lists every supported `query <resource>` value.
 var AllQueryResources = []QueryResource{
 	QueryTasks, QueryExecutions, QueryWorkers, QueryIssues,
-	QueryProposals, QueryEvents,
+	QueryEvents,
 }
 
 // ValidQueryResource reports whether the resource is recognised.
@@ -75,7 +74,6 @@ type QueryFilter struct {
 	IssueID       string
 	Opener        string
 	FailedReason  string
-	HasMapping    *bool
 	NotDispatch   *bool
 	InvocationID  string
 	Kind          string

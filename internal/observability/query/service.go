@@ -9,11 +9,9 @@ import (
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -21,9 +19,7 @@ import (
 // interface, so tests can inject fakes; production wires SQLite impls via
 // NewService.
 type Deps struct {
-	Events       observability.EventRepository
-	Projection   projection.Repository
-	Executions   execution.Repository
+	Events observability.EventRepository
 	// v2.7 #107 Phase-2 (fleet repoint): new-model read deps. WorkItemProjections
 	// is the fleet data source (agent_work_item_projections); WorkItems resolves
 	// a work item's task_ref; PMTasks resolves task_ref→project; PMProjects
@@ -42,15 +38,10 @@ type Deps struct {
 	// inspectWorker repoint (v2.7 #107 Phase-2 proj-A): one worker controls many
 	// agents; work items are agent-keyed, so "what's this worker running" =
 	// ListByWorker → ListByAgent. Same pm·agent source (no retired task_executions).
-	Agents agentpkg.Repository
-	Artifacts    execution.ArtifactRepository
-	Issues       discussion.IssueRepository
+	Agents        agentpkg.Repository
 	Conversations conversation.ConversationRepository
-	Messages     conversation.MessageRepository
-	Workers      workforce.WorkerRepository
-	Mappings     workforce.WorkerProjectMappingRepository
-	Proposals    workforce.WorkerProjectProposalRepository
-	Projects     workforce.ProjectRepository
+	Messages      conversation.MessageRepository
+	Workers       workforce.WorkerRepository
 }
 
 // Service implements the 2 core verbs (Inspect / Query). FleetSnapshot is
@@ -111,8 +102,6 @@ func (s *Service) Query(ctx context.Context, resource string, filter QueryFilter
 		return s.queryWorkers(ctx, filter)
 	case QueryIssues:
 		return s.queryIssues(ctx, filter)
-	case QueryProposals:
-		return s.queryProposals(ctx, filter)
 	case QueryEvents:
 		return s.queryEvents(ctx, filter)
 	default:
@@ -237,10 +226,6 @@ func (s *Service) inspectWorker(ctx context.Context, id string) (InspectResult, 
 		"working_seconds":   w.WorkingSeconds(),
 		"version":           w.Version(),
 	}
-	if s.deps.Mappings != nil {
-		ms, _ := s.deps.Mappings.FindByWorkerID(ctx, w.ID())
-		out["mappings"] = projectMappingList(ms)
-	}
 	// v2.7 #107 Phase-2 (proj-A): "what's this worker running" = worker→its agents
 	// →their live work items (Q3 MAP; same pm·agent source, no retired
 	// task_executions). fail-loud if the deps aren't wired (should-be-wired:
@@ -320,28 +305,24 @@ func (s *Service) inspectConversation(ctx context.Context, id string) (InspectRe
 }
 
 func (s *Service) inspectProject(ctx context.Context, id string) (InspectResult, error) {
-	if s.deps.Projects == nil {
-		return InspectResult{}, errors.New("query: projects repo not wired")
+	// v2.7 #131: inspect-project reads pm_projects (the retired workforce project
+	// model is gone from this read path). pm.Project has NO Tags() → the tags
+	// output field is dropped; the mappings segment is dropped (workforce
+	// WorkerProjectMapping retired). The tasks segment already reads pm_tasks.
+	if s.deps.PMProjects == nil {
+		return InspectResult{}, errors.New("query: pm projects repo not wired")
 	}
-	p, err := s.deps.Projects.FindByID(ctx, workforce.ProjectID(id))
+	p, err := s.deps.PMProjects.FindByID(ctx, pm.ProjectID(id))
 	if err != nil {
 		return InspectResult{}, mapNotFound(err)
 	}
-	tags := p.Tags()
-	if tags == nil {
-		tags = []string{}
-	}
 	out := map[string]any{
-		"id":          string(p.ID()),
-		"name":        p.Name(),
-		"tags":        tags,
-		"description": p.Description(),
-		"version":     p.Version(),
-		"created_at":  p.CreatedAt().UTC().Format(time.RFC3339Nano),
-	}
-	if s.deps.Mappings != nil {
-		ms, _ := s.deps.Mappings.FindByProjectID(ctx, p.ID())
-		out["mappings"] = projectMappingList(ms)
+		"id":              string(p.ID()),
+		"organization_id": p.OrganizationID(),
+		"name":            p.Name(),
+		"description":     p.Description(),
+		"version":         p.Version(),
+		"created_at":      p.CreatedAt().UTC().Format(time.RFC3339Nano),
 	}
 	if s.deps.PMTasks != nil {
 		ts, _ := s.deps.PMTasks.ListByProject(ctx, pm.ProjectID(string(p.ID())))
@@ -495,17 +476,6 @@ func (s *Service) queryWorkers(ctx context.Context, f QueryFilter) (QueryResult,
 	if err != nil {
 		return QueryResult{}, err
 	}
-	if f.HasMapping != nil && s.deps.Mappings != nil {
-		var pruned []*workforce.Worker
-		for _, w := range items {
-			ms, _ := s.deps.Mappings.FindByWorkerID(ctx, w.ID())
-			has := len(ms) > 0
-			if has == *f.HasMapping {
-				pruned = append(pruned, w)
-			}
-		}
-		items = pruned
-	}
 	out := make([]any, 0, len(items))
 	for _, w := range items {
 		out = append(out, projectWorker(w))
@@ -549,34 +519,6 @@ func (s *Service) queryIssues(ctx context.Context, f QueryFilter) (QueryResult, 
 		out = append(out, projectIssueRow(i))
 	}
 	return QueryResult{Resource: QueryIssues, Items: out}, nil
-}
-
-func (s *Service) queryProposals(ctx context.Context, f QueryFilter) (QueryResult, error) {
-	if s.deps.Proposals == nil {
-		return QueryResult{}, errors.New("query: proposals repo not wired")
-	}
-	var items []*workforce.WorkerProjectProposal
-	var err error
-	if f.WorkerID != "" {
-		if f.Status != "" {
-			items, err = s.deps.Proposals.FindByWorkerID(ctx, workforce.WorkerID(f.WorkerID), workforce.ProposalStatus(f.Status))
-		} else {
-			items, err = s.deps.Proposals.FindByWorkerID(ctx, workforce.WorkerID(f.WorkerID))
-		}
-	} else {
-		items, err = s.deps.Proposals.FindPending(ctx)
-		if f.Status != "" && f.Status != "pending" {
-			items = nil
-		}
-	}
-	if err != nil {
-		return QueryResult{}, err
-	}
-	out := make([]any, 0, len(items))
-	for _, p := range items {
-		out = append(out, projectProposal(p))
-	}
-	return QueryResult{Resource: QueryProposals, Items: out}, nil
 }
 
 func (s *Service) queryEvents(ctx context.Context, f QueryFilter) (QueryResult, error) {

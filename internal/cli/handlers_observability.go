@@ -70,7 +70,7 @@ func (a *App) inspectCommand() *Command {
 func (a *App) queryCommand() *Command {
 	return &Command{
 		Name:     "query",
-		Summary:  "List resources (tasks / executions / workers / issues / input_requests / proposals / events).",
+		Summary:  "List resources (tasks / executions / workers / issues / events).",
 		LongHelp: "agent-center query <resource> [--filter] [--since] [--until] [--limit] [--cursor] [--format=human|json]\n",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())
@@ -255,7 +255,7 @@ func (a *App) statsCommand() *Command {
 func (a *App) logsCommand() *Command {
 	return &Command{
 		Name:    "logs",
-		Summary: "Tail / dump archived task or execution logs (BlobStore).",
+		Summary: "Tail / dump archived task logs (BlobStore).",
 		Flags: func(fs *flag.FlagSet) Handler {
 			format := fs.String("format", FormatTable, formatFlagHelp())
 			follow := fs.Bool("follow", false, "Stream — not supported on archived blobs")
@@ -536,8 +536,8 @@ func printFleet(out, errw io.Writer, format string, snap query.FleetSnapshot) Ex
 	}
 	fmt.Fprintf(out, "\nWORKERS (%d)\n", len(snap.Workers))
 	for _, w := range snap.Workers {
-		fmt.Fprintf(out, "  %s status=%s active=%d mappings=%d\n",
-			w.WorkerID, w.Status, w.ActiveCount, w.MappingsCount)
+		fmt.Fprintf(out, "  %s status=%s active=%d\n",
+			w.WorkerID, w.Status, w.ActiveCount)
 	}
 	fmt.Fprintf(out, "\nPENDING ISSUES (%d)\n", len(snap.PendingIssues))
 	for _, i := range snap.PendingIssues {

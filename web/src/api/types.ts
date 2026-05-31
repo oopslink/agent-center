@@ -199,7 +199,6 @@ export interface FleetWorkerRow {
   name: string;
   status: string;
   active_count: number;
-  mappings_count: number;
   last_heartbeat_at?: string;
 }
 
