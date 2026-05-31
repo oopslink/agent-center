@@ -38,6 +38,10 @@ type Deps struct {
 	WorkItems           agentpkg.WorkItemRepository
 	PMTasks             pm.TaskRepository
 	PMProjects          pm.ProjectRepository
+	// PMIssues is the fleet pending-issues source (v2.7 #107 #119): the
+	// pending-issues segment reads pm_issues (not the retired discussion model)
+	// and org-scopes via PMProjects (issue→pm-project→org, same pm source).
+	PMIssues pm.IssueRepository
 	Artifacts    execution.ArtifactRepository
 	InputReqs    inputrequest.Repository
 	Issues       discussion.IssueRepository

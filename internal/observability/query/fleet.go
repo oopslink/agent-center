@@ -9,7 +9,6 @@ import (
 	"time"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/taskruntime"
@@ -324,38 +323,72 @@ func (s *FleetSnapshotService) fetchOpenInputRequests(ctx context.Context, filte
 	return out, nil
 }
 
+// fleetPendingIssueStatuses is the fleet "pending" issue set (v2.7 #107 #119,
+// PD-pinned口径): all NON-terminal pm issue statuses. Terminal {resolved,
+// closed, withdrawn} are excluded — they are no longer awaiting attention.
+var fleetPendingIssueStatuses = []pm.IssueStatus{pm.IssueOpen, pm.IssueInProgress, pm.IssueReopened}
+
 func (s *FleetSnapshotService) fetchPendingIssues(ctx context.Context, filter SnapshotFilter) ([]FleetIssueRow, error) {
-	if s.deps.Issues == nil {
-		return nil, errors.New("issues repo not wired")
+	if s.deps.PMIssues == nil {
+		return nil, errors.New("pm issues repo not wired")
 	}
-	var items []*discussion.Issue
+	var items []*pm.Issue
 	var err error
-	openStatus := discussion.StatusOpen
 	if filter.ProjectID != "" {
-		items, err = s.deps.Issues.FindByProject(ctx, filter.ProjectID, discussion.IssueFilter{Status: &openStatus, Limit: 100})
+		items, err = s.deps.PMIssues.ListByProject(ctx, pm.ProjectID(filter.ProjectID))
 	} else {
-		items, err = s.deps.Issues.FindByStatus(ctx, discussion.StatusOpen, discussion.IssueFilter{Limit: 100})
+		items, err = s.deps.PMIssues.FindByStatuses(ctx, fleetPendingIssueStatuses, 100)
 	}
 	if err != nil {
 		return nil, err
 	}
-	orgProjects, orgScoped := s.orgProjectSet(ctx, filter)
+	orgScoped := filter.OrganizationID != ""
 	out := make([]FleetIssueRow, 0, len(items))
 	for _, i := range items {
-		// v2.6 X1 §3: org scope — issue's project must be in the org.
-		if orgScoped && !orgProjects[i.ProjectID()] {
+		// ListByProject returns all statuses → apply the pending-set filter here
+		// (the global FindByStatuses path is already status-filtered; harmless).
+		if !isFleetPendingIssue(i.Status()) {
+			continue
+		}
+		projectID := string(i.ProjectID())
+		// v2.7 #107 #119: org scope resolved from the pm source
+		// (issue→pm-project→org), fail-closed — NOT the retired workforce
+		// orgProjectSet (which is empty at runtime → would exclude everything).
+		if orgScoped && s.issueOrg(ctx, projectID) != filter.OrganizationID {
 			continue
 		}
 		out = append(out, FleetIssueRow{
 			IssueID:   string(i.ID()),
-			ProjectID: i.ProjectID(),
+			ProjectID: projectID,
 			Title:     i.Title(),
 			Status:    string(i.Status()),
-			OpenedAt:  i.OpenedAt().UTC().Format(time.RFC3339Nano),
-			Opener:    i.OpenedByIdentityID(),
+			OpenedAt:  i.CreatedAt().UTC().Format(time.RFC3339Nano),
+			Opener:    string(i.CreatedBy()),
 		})
 	}
 	return out, nil
+}
+
+// issueOrg resolves a pm project's owning org (same pm source as the fleet
+// work-item org-scope). Returns "" when unresolvable → caller fail-closes.
+func (s *FleetSnapshotService) issueOrg(ctx context.Context, projectID string) string {
+	if s.deps.PMProjects == nil || projectID == "" {
+		return ""
+	}
+	pr, err := s.deps.PMProjects.FindByID(ctx, pm.ProjectID(projectID))
+	if err != nil || pr == nil {
+		return ""
+	}
+	return pr.OrganizationID()
+}
+
+func isFleetPendingIssue(st pm.IssueStatus) bool {
+	for _, p := range fleetPendingIssueStatuses {
+		if st == p {
+			return true
+		}
+	}
+	return false
 }
 
 // execMatchesOrgProjects resolves execID → task → project and reports whether

@@ -75,6 +75,7 @@ func newQEnv(t *testing.T) *qenv {
 		WorkItems:           agentsqlite.NewWorkItemRepo(db),
 		PMTasks:             pmsqlite.NewTaskRepo(db),
 		PMProjects:          pmsqlite.NewProjectRepo(db),
+		PMIssues:            pmsqlite.NewIssueRepo(db),
 	}
 	return &qenv{db: db, deps: deps, svc: query.NewService(deps), sink: sink, er: er, clk: clk, gen: gen}
 }
@@ -607,6 +608,23 @@ func (e *qenv) seedPMTask(t *testing.T, taskID, projectID, title string) {
 		t.Fatal(err)
 	}
 	if err := pmsqlite.NewTaskRepo(e.db).Save(context.Background(), tk); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// seedPMIssue seeds a pm issue (pm_issues) in a project with a given status —
+// the fleet pending-issues source after the #119 repoint. Use a real pm project
+// (seedOrgProject) for org-scoped tests so org resolves via the pm source.
+func (e *qenv) seedPMIssue(t *testing.T, issueID, projectID, title string, status pm.IssueStatus) {
+	t.Helper()
+	i, err := pm.RehydrateIssue(pm.RehydrateIssueInput{
+		ID: pm.IssueID(issueID), ProjectID: pm.ProjectID(projectID), Title: title, Status: status,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(), UpdatedAt: e.clk.Now(), Version: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pmsqlite.NewIssueRepo(e.db).Save(context.Background(), i); err != nil {
 		t.Fatal(err)
 	}
 }
