@@ -12,7 +12,7 @@ import (
 
 // =============================================================================
 // Fail-injection mocks for AgentInstanceRepository (only methods exercised
-// by EnsureBuiltinSupervisor / OnExecutionStarted / OnExecutionEnded paths).
+// by EnsureBuiltinSupervisor paths).
 // Each method can be programmed to return a specific error.
 // =============================================================================
 
@@ -110,17 +110,6 @@ func TestEnsureBuiltinSupervisor_SaveOtherErr(t *testing.T) {
 	_, err := mgmt.EnsureBuiltinSupervisor(context.Background())
 	if err == nil || err.Error() != "save blew up" {
 		t.Fatalf("expected save error, got %v", err)
-	}
-}
-
-// =============================================================================
-// OnExecutionStarted paths
-// =============================================================================
-
-func TestOnExecutionStarted_NotFound(t *testing.T) {
-	s := setupAISuite(t)
-	if err := s.life.OnExecutionStarted(context.Background(), "01H-MISSING", "system"); err == nil {
-		t.Fatal()
 	}
 }
 
