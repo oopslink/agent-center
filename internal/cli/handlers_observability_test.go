@@ -14,7 +14,6 @@ import (
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -47,15 +46,15 @@ func TestInspectCmd_TaskNotFound_ExitNotFound(t *testing.T) {
 
 func TestInspectCmd_Task_HumanOutput(t *testing.T) {
 	app := newTestApp(t)
-	// Seed a task.
-	tk, err := task.New(task.NewInput{
+	// Seed a pm task (v2.7 #107 proj-B: inspect task reads the pm model).
+	tk, err := pm.NewTask(pm.NewTaskInput{
 		ID: "T-1", ProjectID: "p", Title: "hello",
-		CreatedBy: "user:test", Now: time.Now(),
+		CreatedBy: "user:test", CreatedAt: time.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := app.TaskRepo.Save(context.Background(), tk); err != nil {
+	if err := pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk); err != nil {
 		t.Fatal(err)
 	}
 	cmd := findCmd(app.ObservabilityCommands(), "inspect")
@@ -70,8 +69,8 @@ func TestInspectCmd_Task_HumanOutput(t *testing.T) {
 
 func TestInspectCmd_Task_JSONOutput(t *testing.T) {
 	app := newTestApp(t)
-	tk, _ := task.New(task.NewInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", Now: time.Now()})
-	_ = app.TaskRepo.Save(context.Background(), tk)
+	tk, _ := pm.NewTask(pm.NewTaskInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", CreatedAt: time.Now()})
+	_ = pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk)
 	cmd := findCmd(app.ObservabilityCommands(), "inspect")
 	out, _, code := runHandler(t, cmd, []string{"task", "T-1", "--format=json"})
 	if code != ExitOK {
@@ -106,8 +105,8 @@ func TestQueryCmd_LimitTooLarge(t *testing.T) {
 
 func TestQueryCmd_Tasks_JSON(t *testing.T) {
 	app := newTestApp(t)
-	tk, _ := task.New(task.NewInput{ID: "T-1", ProjectID: "proj", Title: "x", CreatedBy: "user:t", Now: time.Now()})
-	_ = app.TaskRepo.Save(context.Background(), tk)
+	tk, _ := pm.NewTask(pm.NewTaskInput{ID: "T-1", ProjectID: "proj", Title: "x", CreatedBy: "user:t", CreatedAt: time.Now()})
+	_ = pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk)
 	cmd := findCmd(app.ObservabilityCommands(), "query")
 	out, _, code := runHandler(t, cmd, []string{"tasks", "--project=proj", "--format=json"})
 	if code != ExitOK {
@@ -165,8 +164,8 @@ func TestStatsCmd_UnknownScope(t *testing.T) {
 
 func TestStatsCmd_Tasks_Counters(t *testing.T) {
 	app := newTestApp(t)
-	tk, _ := task.New(task.NewInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", Now: time.Now()})
-	_ = app.TaskRepo.Save(context.Background(), tk)
+	tk, _ := pm.NewTask(pm.NewTaskInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", CreatedAt: time.Now()})
+	_ = pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk)
 	cmd := findCmd(app.ObservabilityCommands(), "stats")
 	out, _, code := runHandler(t, cmd, []string{"--scope=tasks", "--format=json"})
 	if code != ExitOK {
@@ -235,8 +234,8 @@ func TestPeekTraceCmd_WorkerOffline(t *testing.T) {
 func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 	app := newTestApp(t)
 	// Seed one of each.
-	tk, _ := task.New(task.NewInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", Now: time.Now()})
-	_ = app.TaskRepo.Save(context.Background(), tk)
+	tk, _ := pm.NewTask(pm.NewTaskInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", CreatedAt: time.Now()})
+	_ = pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk)
 	exec, _ := execution.New(execution.NewInput{
 		ID: taskruntime.TaskExecutionID("E-1"), TaskID: "T-1", WorkerID: "W-1",
 		AgentCLI: "claude-code", WorkspaceMode: execution.WorkspaceWorktree, Now: time.Now(),

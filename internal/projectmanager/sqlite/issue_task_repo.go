@@ -238,6 +238,37 @@ func (r *TaskRepo) CountByStatus(ctx context.Context, since *time.Time) (map[pm.
 	return out, rows.Err()
 }
 
+// ListByStatuses returns tasks whose status is in any of the given statuses,
+// across ALL projects (global), stable-ordered (created_at, id). Empty input →
+// empty result. v2.7 #107 Phase-2 (proj-B) observability task-query repoint.
+func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus) ([]*pm.Task, error) {
+	if len(statuses) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	ph := make([]string, len(statuses))
+	args := make([]any, len(statuses))
+	for i, s := range statuses {
+		ph[i] = "?"
+		args[i] = string(s)
+	}
+	q := taskSelect + ` WHERE status IN (` + strings.Join(ph, ",") + `) ORDER BY created_at, id`
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*pm.Task
+	for rows.Next() {
+		t, err := scanTask(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
 	completed_by, blocked_reason, created_by, created_at, updated_at, version FROM pm_tasks`
 

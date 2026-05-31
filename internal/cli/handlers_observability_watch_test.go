@@ -16,8 +16,8 @@ import (
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/observability/peek"
 	"github.com/oopslink/agent-center/internal/observability/query"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 // runHandlerCtx is like runHandler but uses a caller-supplied context so
@@ -69,17 +69,17 @@ func TestLogsCmd_HappyPath_BlobConfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.BlobStore = bs
-	deps := query.Deps{Tasks: app.TaskRepo, Executions: app.ExecRepo}
+	deps := query.Deps{PMTasks: pmsql.NewTaskRepo(app.DB), Executions: app.ExecRepo}
 	app.LogsSvc = query.NewLogsService(deps, bs)
-	// Seed task so logsTask path can find it.
-	tk, err := task.New(task.NewInput{
-		ID: taskruntime.TaskID("T-1"), ProjectID: "p", Title: "x",
-		CreatedBy: "user:t", Now: time.Now(),
+	// Seed a pm task so the logsTask path can find it.
+	tk, err := pm.NewTask(pm.NewTaskInput{
+		ID: pm.TaskID("T-1"), ProjectID: "p", Title: "x",
+		CreatedBy: "user:t", CreatedAt: time.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := app.TaskRepo.Save(context.Background(), tk); err != nil {
+	if err := pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk); err != nil {
 		t.Fatal(err)
 	}
 	body := []byte("log body\n")

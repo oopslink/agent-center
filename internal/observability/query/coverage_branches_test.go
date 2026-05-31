@@ -168,9 +168,9 @@ func TestQuery_Events_CorrelationAndDecisionIDFilter(t *testing.T) {
 func TestStats_Tasks_SinceFilter(t *testing.T) {
 	env := newQEnv(t)
 	now := env.clk.Now()
-	env.seedPMTask(t, "T-1", "p", "old")
+	env.seedTask(t, "T-1", "p", "old")
 	env.clk.Set(now.Add(time.Hour))
-	env.seedPMTask(t, "T-2", "p", "new")
+	env.seedTask(t, "T-2", "p", "new")
 	since := now.Add(30 * time.Minute)
 	svc := query.NewStatsService(env.deps)
 	res, err := svc.Aggregate(context.Background(), "tasks", &since)

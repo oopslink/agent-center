@@ -156,6 +156,37 @@ func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
 	}
 }
 
+func TestTaskRepo_ListByStatuses(t *testing.T) {
+	ctx, _, _, _, tr, _, _, _ := setup(t)
+	open, _ := pm.NewTask(pm.NewTaskInput{ID: "T-open", ProjectID: "P1", Title: "o", CreatedBy: "user:a", CreatedAt: t0})
+	if err := tr.Save(ctx, open); err != nil {
+		t.Fatal(err)
+	}
+	done, _ := pm.NewTask(pm.NewTaskInput{ID: "T-done", ProjectID: "P1", Title: "d", CreatedBy: "user:a", CreatedAt: t0})
+	if err := tr.Save(ctx, done); err != nil {
+		t.Fatal(err)
+	}
+	_ = done.Assign("agent:c", t0)
+	_ = done.Start(t0)
+	_ = done.Complete("agent:c", t0)
+	if err := tr.Update(ctx, done); err != nil {
+		t.Fatal(err)
+	}
+	// single status
+	if l, _ := tr.ListByStatuses(ctx, []pm.TaskStatus{pm.TaskCompleted}); len(l) != 1 || l[0].ID() != "T-done" {
+		t.Fatalf("ListByStatuses(completed) = %+v", l)
+	}
+	// multi status (the non-terminal active set excludes the completed task)
+	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskAssigned, pm.TaskRunning, pm.TaskBlocked, pm.TaskReopened}
+	if l, _ := tr.ListByStatuses(ctx, active); len(l) != 1 || l[0].ID() != "T-open" {
+		t.Fatalf("ListByStatuses(active) = %+v", l)
+	}
+	// empty input → empty result (no all-rows scan)
+	if l, _ := tr.ListByStatuses(ctx, nil); len(l) != 0 {
+		t.Fatalf("ListByStatuses(nil) should be empty, got %+v", l)
+	}
+}
+
 func TestTaskSubscriberRepo(t *testing.T) {
 	ctx, _, _, _, _, ts, _, _ := setup(t)
 	s, _ := pm.NewTaskSubscriber("T1", "user:a", "user:owner", t0)

@@ -10,7 +10,6 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -28,21 +27,22 @@ func projectWorkItemSummary(wi *agentpkg.AgentWorkItem) map[string]any {
 	}
 }
 
-// projectTaskRow builds the row used by `query tasks` / inspect (short form).
-func projectTaskRow(t *task.Task) map[string]any {
+// projectTaskRow builds the short row used by `query tasks` and the project
+// inspect tasks-sublist. v2.7 #107 Phase-2 (proj-B): reads pm.Task. priority /
+// conversation_id dropped (no pm.Task field); assignee added (pm has it).
+func projectTaskRow(t *pm.Task) map[string]any {
 	return map[string]any{
-		"id":              string(t.ID()),
-		"project_id":      t.ProjectID(),
-		"title":           t.Title(),
-		"status":          string(t.Status()),
-		"priority":        string(t.Priority()),
-		"conversation_id": stringOrNil(t.ConversationID()),
-		"created_at":      t.CreatedAt().UTC().Format(time.RFC3339Nano),
-		"version":         t.Version(),
+		"id":         string(t.ID()),
+		"project_id": string(t.ProjectID()),
+		"title":      t.Title(),
+		"status":     string(t.Status()),
+		"assignee":   stringOrNil(string(t.Assignee())),
+		"created_at": t.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"version":    t.Version(),
 	}
 }
 
-func projectTaskList(items []*task.Task) []any {
+func projectTaskList(items []*pm.Task) []any {
 	out := make([]any, 0, len(items))
 	for _, t := range items {
 		out = append(out, projectTaskRow(t))

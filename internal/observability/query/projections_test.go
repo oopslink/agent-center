@@ -3,11 +3,8 @@ package query_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -16,7 +13,7 @@ import (
 // the artifacts segment is dropped (execution-keyed, no work-item equivalent).
 func TestInspectExecution_WorkItem(t *testing.T) {
 	env := newQEnv(t)
-	env.seedPMTask(t, "T-1", "p", "x")
+	env.seedTask(t, "T-1", "p", "x")
 	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
 	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
 	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
@@ -95,7 +92,3 @@ func TestInspect_Project_WithMappingsAndTasks(t *testing.T) {
 	}
 }
 
-// silence unused
-var _ = taskruntime.TaskExecutionID("")
-var _ = task.PriorityHigh
-var _ = time.Time{}

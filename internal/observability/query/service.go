@@ -13,9 +13,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -25,7 +23,6 @@ import (
 type Deps struct {
 	Events       observability.EventRepository
 	Projection   projection.Repository
-	Tasks        task.Repository
 	Executions   execution.Repository
 	// v2.7 #107 Phase-2 (fleet repoint): new-model read deps. WorkItemProjections
 	// is the fleet data source (agent_work_item_projections); WorkItems resolves
@@ -138,30 +135,42 @@ func applyDefaultLimit(limit int) int { //nolint:unused // referenced via dispat
 // ---- Inspect assemblers --------------------------------------------------
 
 func (s *Service) inspectTask(ctx context.Context, id string) (InspectResult, error) {
-	if s.deps.Tasks == nil {
-		return InspectResult{}, errors.New("query: tasks repo not wired")
+	if s.deps.PMTasks == nil {
+		return InspectResult{}, errors.New("query: pm tasks repo not wired")
 	}
-	t, err := s.deps.Tasks.FindByID(ctx, taskruntime.TaskID(id))
+	t, err := s.deps.PMTasks.FindByID(ctx, pm.TaskID(id))
 	if err != nil {
 		return InspectResult{}, mapNotFound(err)
 	}
+	// v2.7 #107 Phase-2 (proj-B): read pm.Task. priority/conversation_id dropped
+	// (no pm.Task field); assignee/created_by/completed_by/blocked_reason added
+	// (pm has them); from_issue_id → derived_from_issue.
 	out := map[string]any{
-		"id":              string(t.ID()),
-		"project_id":      t.ProjectID(),
-		"title":           t.Title(),
-		"description":     t.Description(),
-		"status":          string(t.Status()),
-		"priority":        string(t.Priority()),
-		"conversation_id": stringOrNil(string(t.ConversationID())),
-		"from_issue_id":   stringOrNil(string(t.FromIssueID())),
-		"created_at":      t.CreatedAt().UTC().Format(time.RFC3339Nano),
-		"updated_at":      t.UpdatedAt().UTC().Format(time.RFC3339Nano),
-		"version":         t.Version(),
+		"id":                 string(t.ID()),
+		"project_id":         string(t.ProjectID()),
+		"title":              t.Title(),
+		"description":        t.Description(),
+		"status":             string(t.Status()),
+		"assignee":           stringOrNil(string(t.Assignee())),
+		"created_by":         string(t.CreatedBy()),
+		"completed_by":       stringOrNil(string(t.CompletedBy())),
+		"blocked_reason":     stringOrNil(t.BlockedReason()),
+		"derived_from_issue": stringOrNil(string(t.DerivedFromIssue())),
+		"created_at":         t.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"updated_at":         t.UpdatedAt().UTC().Format(time.RFC3339Nano),
+		"version":            t.Version(),
 	}
-	// v2.7 #107 Phase-2 (proj-A): old execution reads retired. The task's
-	// work-items sub-section is re-added when inspectTask repoints to pm
-	// (proj-B: old taskruntime task id ≠ pm task id, so work-items can't be
-	// resolved here until then).
+	// work-items sub-section: the agent work items for this pm task (across
+	// reassignments), resolved by task_ref "pm://tasks/{id}". Fulfills the
+	// section proj-A deferred until inspectTask read the pm model.
+	if s.deps.WorkItems != nil {
+		wis, _ := s.deps.WorkItems.ListByTask(ctx, "pm://tasks/"+string(t.ID()))
+		items := make([]any, 0, len(wis))
+		for _, wi := range wis {
+			items = append(items, projectWorkItemSummary(wi))
+		}
+		out["work_items"] = items
+	}
 	// Recent events (limit small).
 	if s.deps.Events != nil {
 		evs, _ := s.deps.Events.Find(ctx, observability.EventQueryFilter{
@@ -334,8 +343,8 @@ func (s *Service) inspectProject(ctx context.Context, id string) (InspectResult,
 		ms, _ := s.deps.Mappings.FindByProjectID(ctx, p.ID())
 		out["mappings"] = projectMappingList(ms)
 	}
-	if s.deps.Tasks != nil {
-		ts, _ := s.deps.Tasks.FindByProject(ctx, string(p.ID()), task.Filter{Limit: 100})
+	if s.deps.PMTasks != nil {
+		ts, _ := s.deps.PMTasks.ListByProject(ctx, pm.ProjectID(string(p.ID())))
 		out["tasks"] = projectTaskList(ts)
 	}
 	return InspectResult{Kind: InspectProject, ID: id, Data: out}, nil
@@ -343,40 +352,53 @@ func (s *Service) inspectProject(ctx context.Context, id string) (InspectResult,
 
 // ---- Query assemblers ---------------------------------------------------
 
+// activeTaskStatuses is the non-terminal task set — exactly pm.TaskStatus where
+// !IsTerminal() — used as the default `query tasks` view (the new-model "active
+// work" equivalent of the old open-only default). Pinned to IsTerminal() by a
+// partition test (TestActiveTaskStatuses_MatchesIsTerminal). v2.7 #107 proj-B.
+var activeTaskStatuses = []pm.TaskStatus{
+	pm.TaskOpen, pm.TaskAssigned, pm.TaskRunning, pm.TaskBlocked, pm.TaskReopened,
+}
+
+func filterTasksByStatus(items []*pm.Task, st pm.TaskStatus) []*pm.Task {
+	var out []*pm.Task
+	for _, t := range items {
+		if t.Status() == st {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 func (s *Service) queryTasks(ctx context.Context, f QueryFilter) (QueryResult, error) {
-	if s.deps.Tasks == nil {
-		return QueryResult{}, errors.New("query: tasks repo not wired")
+	if s.deps.PMTasks == nil {
+		return QueryResult{}, errors.New("query: pm tasks repo not wired")
 	}
 	limit := applyDefaultLimit(f.Limit)
-	var items []*task.Task
+	var items []*pm.Task
 	var err error
 	switch {
 	case f.ProjectID != "":
-		filter := task.Filter{Limit: limit}
-		if f.Status != "" {
-			st := task.Status(f.Status)
-			filter.Status = &st
+		items, err = s.deps.PMTasks.ListByProject(ctx, pm.ProjectID(f.ProjectID))
+		if err == nil && f.Status != "" {
+			items = filterTasksByStatus(items, pm.TaskStatus(f.Status))
 		}
-		items, err = s.deps.Tasks.FindByProject(ctx, f.ProjectID, filter)
 	case f.Status != "":
-		items, err = s.deps.Tasks.FindByStatus(ctx, task.Status(f.Status), task.Filter{Limit: limit})
-	case f.BlockedBy != "":
-		items, err = s.deps.Tasks.FindBlockedBy(ctx, taskruntime.TaskID(f.BlockedBy))
+		items, err = s.deps.PMTasks.ListByStatuses(ctx, []pm.TaskStatus{pm.TaskStatus(f.Status)})
 	default:
-		items, err = s.deps.Tasks.FindByStatus(ctx, task.StatusOpen, task.Filter{Limit: limit})
+		// default = the non-terminal active set {open,assigned,running,blocked,
+		// reopened} (== !IsTerminal()).
+		items, err = s.deps.PMTasks.ListByStatuses(ctx, activeTaskStatuses)
 	}
 	if err != nil {
 		return QueryResult{}, err
 	}
-	// Optional priority post-filter
-	if f.Priority != "" {
-		var pruned []*task.Task
-		for _, t := range items {
-			if string(t.Priority()) == f.Priority {
-				pruned = append(pruned, t)
-			}
-		}
-		items = pruned
+	// v2.7 #107 Phase-2 (proj-B): the --blocked-by and --priority filters are
+	// dropped — pm.Task has no dependency graph (only a blocked_reason string)
+	// and no priority, so neither has a new-model equivalent (direct-delete,
+	// same class as the retired input_request verb in #127).
+	if len(items) > limit {
+		items = items[:limit]
 	}
 	out := make([]any, 0, len(items))
 	for _, t := range items {
