@@ -1,3 +1,5 @@
+> 🗑️ **TaskRuntime BC 已退役（v2.7 #131 carve-out）。** 下文对 TaskRuntime 的引用（per-execution 运行时归属、TimeoutScanner 标 `failed(worker_lost)`、DispatchService 单活校验、reconcile worker 端等）为**历史记录、非当前架构**：worker offline / active-work 语义已由 agent-work-item + ADR-0050 on-read 派生承接。链接指向 `docs/design/retired/`。当前架构见 sites/designs/v2.7/；按新模型重写见 task #144-b。
+
 # Worker 聚合（+ BootstrapToken + WorkerProjectMapping 子从属）
 
 > **DDD 战术层** · BC: Workforce
@@ -5,7 +7,7 @@
 
 Worker 是用户开发机上的常驻守护进程，注册到 center 后维持长连接、上报心跳、扫候选项目；每个 worker 在自己机器上能跑哪些 project = 哪些 WorkerProjectMapping。
 
-> **本聚合不管"怎么干活"** —— per-execution 运行时 / shim / workspace 物理 / Agent CLI 子进程 / JSONL 解析 / Artifact / kill 进程级 / reconcile 端响应都归 [TaskRuntime BC](../task-runtime/02-task-execution.md)（[ADR-0019](../../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) carve）。
+> **RETIRED / historical：本聚合不管"怎么干活"** —— per-execution 运行时 / shim / workspace 物理 / Agent CLI 子进程 / JSONL 解析 / Artifact / kill 进程级 / reconcile 端响应都归 [TaskRuntime BC](../../../retired/task-runtime/02-task-execution.md)（[ADR-0019](../../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) carve）。
 
 ---
 
@@ -20,13 +22,13 @@ stateDiagram-v2
         非终态；可反复迁移
     end note
     note right of offline
-        offline 期间该 worker 上的<br/>active execution → failed(worker_lost)
+        RETIRED historical: offline 期间该 worker 上的<br/>active execution → failed(worker_lost)
     end note
 ```
 
-- 初始：worker 进程启动 → 凭本机 credential 中的 `session_token` 建立长连接 → reconcile（[task-runtime § 3.2](../task-runtime/00-overview.md)）第一步拉 `WorkerConfig` → `worker.online`
+- 初始：worker 进程启动 → 凭本机 credential 中的 `session_token` 建立长连接 → RETIRED / historical reconcile（[task-runtime § 3.2](../../../retired/task-runtime/00-overview.md)）第一步拉 `WorkerConfig` → `worker.online`
 - `online ↔ offline` 反复迁移，**非终态**
-- offline 期间该 worker 上 active executions → TimeoutScanner 标 `failed(worker_lost)`（[task-runtime § 3.3](../task-runtime/00-overview.md)）
+- RETIRED / historical：offline 期间该 worker 上 active executions → TimeoutScanner 标 `failed(worker_lost)`（[task-runtime § 3.3](../../../retired/task-runtime/00-overview.md)）
 
 ---
 
@@ -48,7 +50,7 @@ agent-center join https://center.example.com:7000 \
 # → center 校验：active 且未过期 → 兑换 session_token + emit worker.bootstrap_token.used + worker.enrolled
 # → daemon 自动写出 worker.yaml + ~/.agent-center/credentials (mode 0600)
 # → 建立 WebSocket 长连接到 center
-# → 调 reconcile 服务（第一步拉 WorkerConfig，详见 task-runtime/00-overview § 3.2）
+# → RETIRED historical：调 reconcile 服务（第一步拉 WorkerConfig，详见 task-runtime/00-overview § 3.2）
 # → 每次 online 探测本机已装的 agent CLI → emit worker.capability.detected
 # → emit worker.online
 ```
@@ -205,7 +207,7 @@ worker_project_mapping (
 )
 ```
 
-**worktree_root 不存** —— 按约定 = `base_path + ".wt"`（详见 [task-runtime/02-task-execution § 8 workspace](../task-runtime/02-task-execution.md)）。
+**worktree_root 不存** —— 按约定 = `base_path + ".wt"`（详见 [task-runtime/02-task-execution § 8 workspace](../../../retired/task-runtime/02-task-execution.md)）。
 
 ### 5.2 创建路径
 
@@ -260,8 +262,8 @@ Worker home-server 也发现 agent-center 项目:
 
 - Worker 长连接建立后周期 emit `worker.heartbeat`（含 `working_seconds_accumulated` 增量等容量信号）
 - Center 端 `worker_heartbeat_timeout`（默认 60s）：心跳静默超时 → worker → offline
-- offline 后 worker 上所有 active execution → `failed(worker_lost)`（详见 [task-runtime/02-task-execution § timeout](../task-runtime/02-task-execution.md)）
-- Worker 重连流程（含 reconcile worker 端 active/stale/unknown 处理 + 重拉 WorkerConfig）归 [task-runtime/00-overview § 3.2](../task-runtime/00-overview.md)
+- RETIRED / historical：offline 后 worker 上所有 active execution → `failed(worker_lost)`（详见 [task-runtime/02-task-execution § timeout](../../../retired/task-runtime/02-task-execution.md)）
+- RETIRED / historical：Worker 重连流程（含 reconcile worker 端 active/stale/unknown 处理 + 重拉 WorkerConfig）归 [task-runtime/00-overview § 3.2](../../../retired/task-runtime/00-overview.md)
 
 ---
 
@@ -294,8 +296,8 @@ Worker home-server 也发现 agent-center 项目:
 2. **enroll token used 是终态；同 worker 同时至多 1 个 active token**（详 § 3.4）
 3. **session token 跟 worker_id 1:1**：重新 enroll（remove → 重发 token → join）触发新 session_token + 旧 token 立即失效
 4. **online / offline 反复迁移**：非终态；可重连
-5. **offline 时该 worker 不接新派单**：DispatchService 单活校验阶段会拒绝（[task-runtime/00-overview § 3.1](../task-runtime/00-overview.md)）
-6. **heartbeat 静默 > 60s → 自动 offline**：TimeoutScanner 触发（[task-runtime/00-overview § 3.3](../task-runtime/00-overview.md)）
+5. **RETIRED / historical：offline 时该 worker 不接新派单**：DispatchService 单活校验阶段会拒绝（[task-runtime/00-overview § 3.1](../../../retired/task-runtime/00-overview.md)）
+6. **RETIRED / historical：heartbeat 静默 > 60s → 自动 offline**：TimeoutScanner 触发（[task-runtime/00-overview § 3.3](../../../retired/task-runtime/00-overview.md)）
 7. **behavior config 主权在 center**：worker 端 in-memory 缓存只覆写、不主动持久化；reconcile / config_updated 长连事件是唯一来源
 
 ---
@@ -308,5 +310,5 @@ Worker home-server 也发现 agent-center 项目:
 - [00-overview.md](00-overview.md) — BC 入口（含 Domain Services / 跨 BC）
 - [03-worker-project-proposal.md](03-worker-project-proposal.md) — Proposal 状态机 + 发现流程
 - [02-project.md](02-project.md) — Project AR
-- [task-runtime/02-task-execution.md § 9-12](../task-runtime/02-task-execution.md) — worker 端 per-execution 运行时（已 carve）
+- [task-runtime/02-task-execution.md § 9-12](../../../retired/task-runtime/02-task-execution.md) — worker 端 per-execution 运行时（已 carve）
 - [conventions § 13 安全](../../../../rules/conventions.md)（bootstrap / session token）

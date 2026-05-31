@@ -1,3 +1,5 @@
+> ⚠️ **RETIRED (v2.7 #131 carve-out).** This bounded context (taskruntime/discussion) has been deleted from the codebase (code + tables removed; fresh DB is new-model-only). This document is retained as a HISTORICAL design record only — it does NOT describe current architecture. For the current v2.7 design see sites/designs/v2.7/.
+
 > 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per ADR-0031)；ADR-0017/0021/0022 superseded by ADR-0039. v1 strikethrough-vendor 行块已在本次 sweep 中删除 / 改写；剩余 vendor / Bridge / 飞书 引用作 historical context 保留。当前 active 设计以 ADR + decisions/README 为准。
 
 # InputRequest 聚合

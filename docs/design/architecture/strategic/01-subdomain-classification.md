@@ -36,8 +36,8 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 | BC | 主分类 | Sub-label | 判别理由（锚 Vision） |
 |---|---|---|---|
 | Cognition（认知 / 监督者）| **Core** | — | Thesis 直接载体——失去 LLM 决策，[thesis (A)](00-domain-vision.md#-1-核心价值thesis) 失败。对应 [S1 调度逻辑 prompt 化](00-domain-vision.md#s1-调度逻辑-prompt-化) |
-| TaskRuntime（任务运行时）| **Core** | — | 多 agent 协同的中央——失去任务调度仲裁 + 运行时实施，thesis 中"看着 N 个 agent"失去具体形态。对应 [S4 Center 单一权威](00-domain-vision.md#s4-center-单一权威)。注：本 BC 合并自原 Scheduling + Execution，详 [ADR-0019](../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md) |
-| Discussion（讨论）| **Core** | — | Supervisor ↔ user 高阶决策协商的主战场——失去 Issue 决策审计，supervisor 决策成黑盒。对应 [S3 对话即决策审计](00-domain-vision.md#s3-对话即决策审计) |
+| ~~TaskRuntime（任务运行时）~~ **RETIRED (v2.7 #131 — replaced by ProjectManager pm.Task + Agent work-items)** | ~~**Core**~~ | — | (历史) 多 agent 协同的中央——失去任务调度仲裁 + 运行时实施，thesis 中"看着 N 个 agent"失去具体形态。对应 [S4 Center 单一权威](00-domain-vision.md#s4-center-单一权威)。注：本 BC 合并自原 Scheduling + Execution，详 [ADR-0019](../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)。**v2.7 #131 起本 BC 已删除（code + tables removed）；职责迁移至 ProjectManager BC（pm.Task）+ Agent work-items；战术设计见 [retired/task-runtime/](../../retired/task-runtime/00-overview.md）** |
+| ~~Discussion（讨论）~~ **RETIRED (v2.7 #131 — replaced by ProjectManager pm.Issue + Agent work-items)** | ~~**Core**~~ | — | (历史) Supervisor ↔ user 高阶决策协商的主战场——失去 Issue 决策审计，supervisor 决策成黑盒。对应 [S3 对话即决策审计](00-domain-vision.md#s3-对话即决策审计)。**v2.7 #131 起本 BC 已删除（code + tables removed）；职责迁移至 ProjectManager BC（pm.Issue）+ Agent work-items；战术设计见 [retired/discussion/](../../retired/discussion/00-overview.md）** |
 | Workforce（工作池）| Supporting | **Essential** | 系统骨架——失去 worker 注册 / project mapping，supervisor 不知有谁可派单。Thesis 角度：thesis 还在（用户手填 worker 列表理论可行）；系统角度：直接不 work |
 | Conversation（会话）| Supporting | **Essential** | 系统骨架——失去 conversation 抽象，task 进度无承载、IM 消息无锚。Thesis 角度：thesis 还在；系统角度：用户层无法运作 |
 | Observability（观测）| Supporting | Peripheral | 降级可运行——失去 fleet view / trace 投影，可 grep events 表 / 看 DB 兜底。可观测性能力降级但 Core 三件套（认知 / TaskRuntime / 讨论）依然成立 |
@@ -45,10 +45,11 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 
 **汇总**：
 
-- **Core**: 3 个 —— Cognition / TaskRuntime / Discussion
+- **Core**: 1 个 live —— Cognition（~~TaskRuntime~~ / ~~Discussion~~ 已 RETIRED v2.7 #131，职责迁移至 ProjectManager pm.Task / pm.Issue + Agent work-items）
 - **Supporting – Essential**: 2 个 —— Workforce / Conversation
 - **Supporting – Peripheral**: 1 个 —— Observability（~~Bridge~~ v2 撤回 per ADR-0031）
 - **Generic**: 0 个
+- **Retired (v2.7 #131)**: 2 个 —— TaskRuntime / Discussion（code + tables removed；战术设计移至 retired/）
 
 **总计 ~~7~~ 6 BC**（原 8 BC，BC1 Scheduling + BC4 Execution 合并为 BC1 TaskRuntime；[ADR-0019](../../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)；v2 删 Bridge BC per ADR-0031）。
 

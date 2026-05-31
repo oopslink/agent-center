@@ -1,3 +1,5 @@
+> 🗑️ **TaskRuntime BC 已退役（v2.7 #131 carve-out）。** 下文对 TaskRuntime 的引用（per-execution 运行时归属、DispatchService 派单校验、`TaskExecution.agent_instance_id` + DispatchEnvelope 等）为**历史记录、非当前架构**：派单 / 执行语义已由 pm.Task + agent-work-item 模型承接。链接指向 `docs/design/retired/`。AgentInstance 实体 / 枚举 / ManagementService 本身在 v2.7 保留。当前架构见 sites/designs/v2.7/；按新模型重写见 task #144-b。
+
 # AgentInstance 聚合（独立 AR）
 
 > **DDD 战术层** · BC: Workforce · 聚合: AgentInstance（独立 AR）
@@ -6,7 +8,7 @@
 
 AgentInstance 把「agent」从 v1 的隐式概念（仅 `TaskExecution.agent_kind` 类型枚举）升级为**持久身份 + 配置 + 状态机**的一等公民。
 
-> **本聚合不管「怎么干活」** —— per-execution 运行时 / shim / workspace 物理 / Agent CLI 子进程 / JSONL 解析 / Artifact / kill 进程级机制都归 [TaskRuntime BC](../task-runtime/02-task-execution.md)。AgentInstance 是逻辑身份层，**不是进程**。
+> **RETIRED / historical：本聚合不管「怎么干活」** —— per-execution 运行时 / shim / workspace 物理 / Agent CLI 子进程 / JSONL 解析 / Artifact / kill 进程级机制都归 [TaskRuntime BC](../../../retired/task-runtime/02-task-execution.md)。AgentInstance 是逻辑身份层，**不是进程**。
 
 ---
 
@@ -132,7 +134,7 @@ Built-in supervisor AgentInstance（center 机，[ADR-0029](../../../decisions/0
 
 ### 3.3 跟 worktree 的关系
 
-worktree（[task-runtime/02-task-execution § 8](../task-runtime/02-task-execution.md)）是 per-execution 临时沙箱；home_dir 是持久。worker daemon 在 prompt-assembly 阶段把 `home_dir/instructions.md` 内容**叠加进 prompt 层次**（详见 [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md)），而不是把 home 文件挂到 worktree 内。两个目录互不污染。
+worktree（[task-runtime/02-task-execution § 8](../../../retired/task-runtime/02-task-execution.md)）是 per-execution 临时沙箱；home_dir 是持久。worker daemon 在 prompt-assembly 阶段把 `home_dir/instructions.md` 内容**叠加进 prompt 层次**（详见 [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md)），而不是把 home 文件挂到 worktree 内。两个目录互不污染。
 
 ---
 
@@ -147,7 +149,7 @@ worktree（[task-runtime/02-task-execution § 8](../task-runtime/02-task-executi
 
 ### 4.2 派单校验链
 
-DispatchService（[task-runtime/00-overview § 3.1](../task-runtime/00-overview.md)）派单时按顺序校验：
+RETIRED / historical：DispatchService（[task-runtime/00-overview § 3.1](../../../retired/task-runtime/00-overview.md)）派单时按顺序校验：
 
 ```
 dispatch (task → agent_instance_id) {
@@ -260,7 +262,7 @@ dispatch (task → agent_instance_id) {
 - [ADR-0027 MCP per-agent 注入](../../../decisions/0027-mcp-per-agent-injection.md)（config.mcp_config schema）
 - [00-overview.md](00-overview.md) — BC 入口（含 AgentInstanceRepository / Domain Services）
 - [01-worker.md](01-worker.md) — Worker AR（capabilities 字段 + agent 状态联动）
-- [task-runtime/02-task-execution.md § 5](../task-runtime/02-task-execution.md) — TaskExecution.agent_instance_id 字段 + DispatchEnvelope v2 schema
+- [task-runtime/02-task-execution.md § 5](../../../retired/task-runtime/02-task-execution.md) — TaskExecution.agent_instance_id 字段 + DispatchEnvelope v2 schema
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — prompt 层加 agent-level instructions + MCP 注入流程
 - [secret-management/00-overview.md](../secret-management/00-overview.md) — SecretManagement BC
 - [竞品报告 § 3.7](../../../../research/competitive-analysis-2026-05-21.md) — Slock Computer + Agent 模型对照

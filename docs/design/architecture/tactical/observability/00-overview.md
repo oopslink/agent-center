@@ -1,5 +1,7 @@
 > 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per ADR-0031)；ADR-0017/0021/0022 superseded by ADR-0039. v1 strikethrough-vendor 行块已在本次 sweep 中删除 / 改写；剩余 vendor / Bridge / 飞书 引用作 historical context 保留。当前 active 设计以 ADR + decisions/README 为准。
 
+> 🗑️ **TaskRuntime BC 已退役（v2.7 #131 carve-out）。** 下文对 TaskRuntime 的引用（独占物理表 `task_execution_projections` 与 TaskRuntime `task_executions` 1:1、worker daemon push `UpdateProjection`、Task / Execution / InputRequest 事件 emit 等）为**历史记录、非当前架构**：v2.7 起本 BC 读 `agent_work_item_projections`（mig 0046），旧 `task_executions` / `task_execution_projections` 表已删（#131 PR-6）。链接指向 `docs/design/retired/`。当前架构见 sites/designs/v2.7/；按新模型重写见 task #144-b。
+
 # Observability BC — DDD 战术设计 Overview
 
 > **DDD 战术层** · BC: Observability
@@ -222,7 +224,7 @@ var (
 )
 ```
 
-> **BC 物理隔离**（[conventions § 9.z](../../../../rules/conventions.md)）：本 Repository 独占物理表 `task_execution_projections`（PK = task_execution_id，与 [TaskRuntime](../task-runtime/00-overview.md) 的 `task_executions` 1:1 关联但**不共享**该表）。worker daemon push 路径走 `UpdateProjection` → UPSERT 到本 BC 独有的 projection 表，**完全不触碰** TaskRuntime 的 task_executions 表。`inspect execution` 等读路径用 PK JOIN 拉到一起。
+> **BC 物理隔离**（[conventions § 9.z](../../../../rules/conventions.md)）：本 Repository 独占物理表 `task_execution_projections`（PK = task_execution_id，与 [TaskRuntime](../../../retired/task-runtime/00-overview.md) 的 `task_executions` 1:1 关联但**不共享**该表）。worker daemon push 路径走 `UpdateProjection` → UPSERT 到本 BC 独有的 projection 表，**完全不触碰** TaskRuntime 的 task_executions 表。`inspect execution` 等读路径用 PK JOIN 拉到一起。
 
 > **历史包袱清理（2026-05-20）**：原设计曾把 projection 列拼到 task_executions 表跨 BC 共写，已按 conventions § 9.z 拆分。
 
@@ -382,8 +384,8 @@ I-12             agent-center  user:hayang     2h
 
 ### 跨 BC 协作文档
 
-- [task-runtime/00-overview.md](../task-runtime/00-overview.md) — Task / Execution / InputRequest 事件 emit
-- [discussion/00-overview.md](../discussion/00-overview.md) — Issue 事件 emit
+- [task-runtime/00-overview.md](../../../retired/task-runtime/00-overview.md) — Task / Execution / InputRequest 事件 emit
+- [discussion/00-overview.md](../../../retired/discussion/00-overview.md) — Issue 事件 emit
 - [workforce/00-overview.md](../workforce/00-overview.md) — Worker / Proposal / Mapping / Project 事件 emit
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 事件 emit
 - [cognition/01-supervisor-invocation.md § 4](../cognition/01-supervisor-invocation.md) — DecisionRecord + events.decision_id 关联

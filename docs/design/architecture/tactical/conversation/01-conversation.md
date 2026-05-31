@@ -1,3 +1,5 @@
+> 🗑️ **TaskRuntime / Discussion BC 已退役（v2.7 #131 carve-out）。** 下文对它们的引用（`input_request_ref` 跨 BC 关联 TaskRuntime InputRequest、`kind=task` / `kind=issue` 走 TaskRuntime / Discussion 同步建 / 懒创建路径等）为**历史记录、非当前架构**：Task / Issue 现属 pm BC，InputRequest 语义随 agent-work-item 收口。链接指向 `docs/design/retired/`。当前架构见 sites/designs/v2.7/；按新模型重写见 task #144-b。
+
 # Conversation 聚合（+ Message 子从属）
 
 > **DDD 战术层** · BC: Conversation · 聚合: Conversation（AR）+ Message（Entity，子从属）
@@ -42,7 +44,7 @@ stateDiagram-v2
 
 - **创建**: 同步建 conversation 走 Task spawn 路径（CLI `task new` / supervisor dispatch 等）；同事务双写 Task + Conversation
 - **写入 actor**: supervisor / worker daemon (via agent) / 用户都可写；走 `conversation send` API
-- **InputRequest 集成**: agent 调 `request-input` 时同事务写 InputRequest 行 + 一条 `content_kind=agent_finding, input_request_ref=<id>` 的 Message 到 task.conversation_id
+- **RETIRED / historical InputRequest 集成**: agent 调 `request-input` 时同事务写 InputRequest 行 + 一条 `content_kind=agent_finding, input_request_ref=<id>` 的 Message 到 task.conversation_id
 - **关闭后**: status=closed 的 task conversation 不再写入；保留 message 历史
 
 ### 2.2 kind=issue 生命周期补充
@@ -124,7 +126,7 @@ message (
   content_kind            text | system | agent_finding | supervisor_summary | conclusion_draft | task_proposal
   content                 TEXT  -- markdown / JSON 视 kind 而定
   direction               inbound | outbound | internal  -- v2 vendor 撤回后 direction 主要表达 "user→system" vs "system→user"
-  input_request_ref       ULID/UUID, nullable  -- 跨 BC 关联到 TaskRuntime InputRequest.id（per ADR-0039）
+  input_request_ref       ULID/UUID, nullable  -- RETIRED / historical：跨 BC 关联到 TaskRuntime InputRequest.id（per ADR-0039）
   carry_over_ref          ULID/UUID, nullable  -- 跨 conversation 弱引用（per ADR-0035）
   posted_at               ISO8601 TEXT  -- 服务器时间
 )
@@ -178,7 +180,7 @@ message (
 2. **terminal 状态 closed 不可逆**
 3. **closed 后不再接受 add-message**：应用层校验
 4. **kind=task / kind=issue 必有上游强引用**：`task.conversation_id` / `issue.conversation_id` 跟 conversation 互为镜像（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）
-5. **kind=task / kind=issue 必走 TaskRuntime / Discussion 的同步建 / 懒创建路径**
+5. **RETIRED / historical：kind=task / kind=issue 必走 TaskRuntime / Discussion 的同步建 / 懒创建路径**
 
 ### Message 不变量
 
@@ -186,7 +188,7 @@ message (
 2. **conversation_id / sender_identity_id 不可变**：创建时填，永不改
 3. **direction 不可变**：创建时定
 4. **closed Conversation 不接 add-message**：跟 § 6.3 配合
-5. **input_request_ref 跟 InputRequest 同事务双写**（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) + [ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md)）
+5. **RETIRED / historical：input_request_ref 跟 InputRequest 同事务双写**（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) + [ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md)）
 
 ---
 
@@ -226,4 +228,4 @@ message (
 - [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md)（supersedes 0017/0021/0022，已删）
 - [00-overview.md](00-overview.md) — BC 入口（Domain Services / Factory / 跨 BC 交互）
 - [02-identity.md](02-identity.md) — Identity AR
-- [task-runtime/03-input-request.md](../task-runtime/03-input-request.md) — InputRequest + Message 集成
+- [task-runtime/03-input-request.md](../../../retired/task-runtime/03-input-request.md) — InputRequest + Message 集成

@@ -1,3 +1,5 @@
+> 🗑️ **TaskRuntime / Discussion BC 已退役（v2.7 #131 carve-out）。** 下文「Task → Project（TaskRuntime BC）」「Issue → Project（Discussion BC）」引用为**历史记录、非当前架构**：Task / Issue 现属 pm BC（pm.Task / pm.Issue 引用 `project_id`）。链接指向 `docs/design/retired/`。当前架构见 sites/designs/v2.7/；按新模型重写见 task #144-b。
+
 # Project 聚合
 
 > **DDD 战术层** · BC: Workforce · 聚合: Project（独立 AR）
@@ -22,7 +24,7 @@ project (
   name                TEXT  -- 显示名
   kind                TEXT  -- 'coding' | 'writing' | 'investing' | null
   default_agent_cli   TEXT  -- 'claude-code' | 'codex' | 'opencode' | null（v1 默认 claude-code）
-  default_workspace_mode TEXT  -- 'worktree' | 'direct'（v1 默认 worktree；详见 task-runtime/02-task-execution § 8）
+  default_workspace_mode TEXT  -- RETIRED / historical：'worktree' | 'direct'（v1 默认 worktree；详见 task-runtime/02-task-execution § 8）
   description         TEXT, nullable
   created_at          ISO8601 TEXT
   created_by_identity_id TEXT  -- 'user:hayang' 或 supervisor 自动创建时填 'system'
@@ -87,8 +89,8 @@ agent-center project add <project_id> --name=... [--kind=...] [--default-agent-c
 | 引用方 → 本聚合 | 强弱 | ADR |
 |---|---|---|
 | **WorkerProjectMapping → Project**（`mapping.project_id`）| 强 / 不可变 | - |
-| **Task → Project**（`task.project_id`，TaskRuntime BC）| 强 / 不可变 | - |
-| **Issue → Project**（`issue.project_id`，Discussion BC）| 强 / 不可变 | - |
+| **Task → Project**（RETIRED / historical：`task.project_id`，TaskRuntime BC）| 强 / 不可变 | - |
+| **Issue → Project**（RETIRED / historical：`issue.project_id`，Discussion BC）| 强 / 不可变 | - |
 | **WorkerProjectProposal → Project**（间接，via `suggested_project_id` / accept 后 `resulting_mapping.project_id`）| 弱 | - |
 
 ---
@@ -108,6 +110,6 @@ agent-center project add <project_id> --name=... [--kind=...] [--default-agent-c
 - [00-overview.md § 3.3 ProposalReviewService](00-overview.md)（accept 时自动建 Project 路径）
 - [01-worker.md § 4 WorkerProjectMapping](01-worker.md)
 - [03-worker-project-proposal.md](03-worker-project-proposal.md)
-- [task-runtime/01-task.md](../task-runtime/01-task.md) — Task 引用 project_id
-- [discussion/00-overview.md](../discussion/00-overview.md) — Issue 引用 project_id
+- [task-runtime/01-task.md](../../../retired/task-runtime/01-task.md) — Task 引用 project_id
+- [discussion/00-overview.md](../../../retired/discussion/00-overview.md) — Issue 引用 project_id
 - [ADR-0008](../../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)

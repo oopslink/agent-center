@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED (v2.7 #131 carve-out).** The "derive Issue/Task from conversation messages" feature (CV4: MessageDerivationService + derive CLI/UI) decided here has been RETIRED in v2.7 — deleted in #131 (the feature routed to the now-removed discussion/taskruntime write paths; re-building on the pm model would be a new feature). See sites/designs/v2.7/. Retained as historical record; does not reflect current architecture. (CV3 carry-over — ADR-0035 — remains live.)
+
 # 0036. 从 Conversation Messages 派生 Issue / Task（v2 CV4）
 
 | Field | Value |

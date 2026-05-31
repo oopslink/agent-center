@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED (v2.7 #131 carve-out).** The bounded context / feature this ADR decided has been RETIRED in v2.7 (taskruntime/discussion deleted; see sites/designs/v2.7/). Retained as historical record; does not reflect current architecture.
+
 # 0019. BC1 Scheduling + BC4 Execution 合并为 TaskRuntime
 
 > ⚠ **v1-era ADR** — vendor / Bridge / deleted-ADR refs are v1 residue. v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](drafts/0031-v2-drop-bridge-vendor-integration.md))；ADR-0017/0021/0022 已被 [ADR-0039](drafts/0039-conversation-business-model-v2-unified.md) supersede + 删除。本 ADR 仍 Accepted（核心结论延续）；只是 vendor 附属内容失效。
