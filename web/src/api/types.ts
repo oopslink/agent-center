@@ -39,6 +39,16 @@ export interface ContextRefs {
   agent_ref: string;
 }
 
+// MessageAttachment (v2.7 #133) — a file attached to a message: a reference to an
+// uploaded blob (ac://files/{ulid}) + display metadata. Present only when the
+// message carries attachments. The UI derives the display type from mime_type.
+export interface MessageAttachment {
+  uri: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
@@ -49,6 +59,7 @@ export interface Message {
   posted_at: string;
   input_request_ref?: string;
   context_refs?: ContextRefs;
+  attachments?: MessageAttachment[];
 }
 
 // Agent BC (v2.7 #101). Org-scoped agents with a lifecycle/availability

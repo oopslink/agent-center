@@ -3,6 +3,32 @@ import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { groupMessagesByWorkItem } from './messageSegments';
 
+// v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
+// no-emoji-icons rule). Derived from the mime category for the metadata chip.
+export function attachmentKind(mime: string): string {
+  const slash = mime.indexOf('/');
+  const top = slash > 0 ? mime.slice(0, slash) : mime;
+  switch (top) {
+    case 'image':
+      return 'IMG';
+    case 'video':
+      return 'VID';
+    case 'audio':
+      return 'AUD';
+    case 'text':
+      return 'TXT';
+    default:
+      return 'FILE';
+  }
+}
+
+// formatBytes renders a human-readable size for an attachment chip.
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 interface Props {
   messages: Message[];
   // Optional selection mode (per F9 derive UI). When `selectable` is
@@ -119,6 +145,33 @@ export function MessageList({
             <time>{m.posted_at}</time>
           </header>
           <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
+          {/* v2.7 #133: render message attachments as METADATA chips only
+              (filename / type / size). No download affordance here — download +
+              attach-time authz land in #142; until then a download link would 404
+              (gated, leak-safe) and read as a false affordance. Only when present,
+              so the #137 work_item segmentation below is unaffected. */}
+          {m.attachments && m.attachments.length > 0 && (
+            <ul className="mt-1 flex flex-wrap gap-2" data-testid="message-attachments">
+              {m.attachments.map((att) => (
+                <li
+                  key={att.uri}
+                  className="flex items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
+                  data-testid="message-attachment"
+                  data-mime={att.mime_type}
+                  title="Download coming soon (#142)"
+                >
+                  <span
+                    className="rounded bg-bg-elevated px-1 font-mono uppercase text-text-muted"
+                    data-testid="attachment-type"
+                  >
+                    {attachmentKind(att.mime_type)}
+                  </span>
+                  <span className="text-text-primary">{att.filename}</span>
+                  <span className="text-text-muted">{formatBytes(att.size)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </article>
     );

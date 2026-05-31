@@ -92,3 +92,41 @@ describe('MessageList', () => {
     expect(screen.queryByTestId('message-list-new-pill')).not.toBeInTheDocument();
   });
 });
+
+describe('MessageList attachments (#133)', () => {
+  afterEach(() => cleanup());
+
+  const withAtts = (id: string, atts: Message['attachments']): Message => ({
+    ...sample(id, 'see attached'),
+    attachments: atts,
+  });
+
+  it('renders attachments as metadata chips (type/filename/size) with NO download affordance', () => {
+    const { container } = render(
+      <MessageList
+        messages={[
+          withAtts('m1', [
+            { uri: 'ac://files/IMG', filename: 'design.png', mime_type: 'image/png', size: 2048 },
+            { uri: 'ac://files/DOC', filename: 'spec.pdf', mime_type: 'application/pdf', size: 1048576 },
+          ]),
+        ]}
+      />,
+    );
+    const atts = screen.getAllByTestId('message-attachment');
+    expect(atts).toHaveLength(2);
+    // metadata: type label + filename + human size.
+    const kinds = screen.getAllByTestId('attachment-type').map((e) => e.textContent);
+    expect(kinds).toEqual(['IMG', 'FILE']);
+    expect(atts[0]).toHaveTextContent('design.png');
+    expect(atts[1]).toHaveTextContent('spec.pdf');
+    expect(atts[1]).toHaveTextContent('1.0 MB');
+    // #133 is display-only — NO download link/affordance (those land in #142).
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.querySelector('img')).toBeNull();
+  });
+
+  it('renders nothing extra for a plain message (no attachments)', () => {
+    render(<MessageList messages={[sample('m2', 'plain')]} />);
+    expect(screen.queryByTestId('message-attachments')).not.toBeInTheDocument();
+  });
+});
