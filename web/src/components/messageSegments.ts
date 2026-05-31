@@ -20,8 +20,10 @@ const UNASSOCIATED_LABEL = '未关联工作项';
 //   - consecutive same-WI messages group together;
 //   - a re-dispatched work item (its ref reappearing after an interruption)
 //     becomes a NEW segment rather than merging back (no mis-merge);
-//   - messages with no work item land in a labeled "未关联工作项" segment in
-//     chronological position (no silent drop).
+//   - messages with no work item land in a labeled "未关联工作项" segment kept
+//     in chronological position — never hoisted (a conversation is a
+//     time-ordered stream); a leading no-ref run naturally sits before the
+//     first WI segment, a sandwiched one stays between WI segments. No drop.
 export function groupMessagesByWorkItem(messages: Message[]): MessageSegment[] {
   const segments: MessageSegment[] = [];
   let current: MessageSegment | null = null;
