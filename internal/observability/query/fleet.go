@@ -253,16 +253,30 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 						continue
 					}
 					if filter.OrganizationID != "" {
-						if _, _, wiOrg := s.workItemTaskProjectOrg(ctx, wi.ID()); wiOrg != "" && wiOrg != w.OrganizationID() {
-							// §-1 no-leak: do NOT name the foreign org (wiOrg) — this
-							// warning surfaces in the org-scoped snapshot of an org
-							// member, so naming the other org would leak its existence
-							// (same red line as #119/#137/#138). The worker + work-item
-							// ids (both in-org) keep it actionable; the specific foreign
-							// org is recoverable via the non-org-scoped admin tools.
-							warnings = append(warnings, fmt.Sprintf(
-								"worker %s active_count: work item %s skipped — its task's pm-project belongs to a different organization (org-scoped-dispatch invariant broken)",
-								w.ID(), wi.ID()))
+						// Count==list across all three states: the work-item LIST
+						// (fetchExecutions) only includes items whose task→pm-project
+						// org equals the scope org, fail-closed — so unresolvable
+						// (wiOrg=="") AND divergent (wiOrg!=worker.org) are BOTH
+						// excluded there. Mirror that here: only count when the org
+						// resolves to this worker's org. (A bare wiOrg!=worker.org skip
+						// would still count the unresolvable case → count>list.)
+						_, _, wiOrg := s.workItemTaskProjectOrg(ctx, wi.ID())
+						if wiOrg != w.OrganizationID() {
+							if wiOrg != "" {
+								// Positive divergence (resolved to a DIFFERENT org) = the
+								// org-scoped-dispatch invariant is actually broken → surface
+								// a visible warning. §-1 no-leak: do NOT name the foreign
+								// org (wiOrg) — naming it in an org member's snapshot leaks
+								// its existence (red line, #119/#137/#138); the worker +
+								// work-item ids (in-org) keep it actionable, the specific
+								// foreign org is recoverable via non-org-scoped admin tools.
+								warnings = append(warnings, fmt.Sprintf(
+									"worker %s active_count: work item %s skipped — its task's pm-project belongs to a different organization (org-scoped-dispatch invariant broken)",
+									w.ID(), wi.ID()))
+							}
+							// wiOrg=="" is unresolvable (missing pm task/project) = missing
+							// data, NOT a violation → skip silently (no warning), still
+							// fail-closed to keep count==list.
 							continue
 						}
 					}
