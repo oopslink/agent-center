@@ -4,29 +4,34 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability/projection"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
-// FleetExecutionRow is one row in FleetSnapshot.Executions.
-type FleetExecutionRow struct {
-	ExecutionID          string `json:"execution_id"`
-	TaskID               string `json:"task_id"`
-	WorkerID             string `json:"worker_id"`
-	AgentCLI             string `json:"agent_cli"`
-	WorkspaceMode        string `json:"workspace_mode"`
-	Status               string `json:"status"`
-	CurrentActivity      string `json:"current_activity,omitempty"`
-	WorkingSeconds       int64  `json:"working_seconds"`
-	StartedAt            string `json:"started_at"`
-	ProjectionLastPushAt string `json:"projection_last_push_at,omitempty"`
+// FleetWorkItemRow is one row in FleetSnapshot.WorkItems (v2.7 #107: the new
+// work-item model replaced the retired task-execution model — execution→work-item).
+type FleetWorkItemRow struct {
+	WorkItemID        string `json:"work_item_id"`
+	AgentID           string `json:"agent_id"`
+	TaskID            string `json:"task_id,omitempty"`
+	Status            string `json:"status"`
+	CurrentActivity   string `json:"current_activity,omitempty"`
+	TotalToolCalls    int64  `json:"total_tool_calls"`
+	TotalTokensInput  int64  `json:"total_tokens_input"`
+	TotalTokensOutput int64  `json:"total_tokens_output"`
+	// WorkingSeconds is 0 in v2.7 (no per-turn duration source; Opt2 deferred v2.8).
+	WorkingSeconds int64  `json:"working_seconds"`
+	LastActivityAt string `json:"last_activity_at,omitempty"`
 }
 
 // FleetWorkerRow is one row in FleetSnapshot.Workers.
@@ -64,7 +69,7 @@ type FleetIssueRow struct {
 // FleetSnapshot is the VO returned by FleetSnapshotService.Snapshot.
 // Per observability/00 § 7.2 + plan-4 § 1.3.
 type FleetSnapshot struct {
-	Executions        []FleetExecutionRow    `json:"executions"`
+	WorkItems         []FleetWorkItemRow     `json:"work_items"`
 	Workers           []FleetWorkerRow       `json:"workers"`
 	OpenInputRequests []FleetInputRequestRow `json:"open_input_requests"`
 	PendingIssues     []FleetIssueRow        `json:"pending_issues"`
@@ -122,7 +127,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	now := time.Now().UTC()
 	snap := FleetSnapshot{GeneratedAt: now.Format(time.RFC3339Nano)}
 	var (
-		execs        []FleetExecutionRow
+		execs        []FleetWorkItemRow
 		execsErr     error
 		workers      []FleetWorkerRow
 		workersErr   error
@@ -150,7 +155,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 		issues, issuesErr = s.fetchPendingIssues(ctx, filter)
 	}()
 	wg.Wait()
-	snap.Executions = execs
+	snap.WorkItems = execs
 	snap.Workers = workers
 	snap.OpenInputRequests = inputReqs
 	snap.PendingIssues = issues
@@ -169,69 +174,82 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	return snap
 }
 
-func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]FleetExecutionRow, error) {
-	if s.deps.Executions == nil {
-		return nil, errors.New("executions repo not wired")
+// fetchExecutions reads the LIVE work-item projections (v2.7 #107: repointed off
+// the retired task-execution model to agent_work_item_projections). Project/org
+// scoping is preserved by resolving each work item's task_ref → pm task → project
+// (equivalent to the old Tasks.FindByID(org) path); fail-closed so a work item
+// whose project can't be resolved is excluded under org scope (no cross-org leak).
+func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]FleetWorkItemRow, error) {
+	if s.deps.WorkItemProjections == nil {
+		return nil, errors.New("work item projections repo not wired")
 	}
-	items, err := s.deps.Executions.FindActive(ctx)
+	projs, err := s.deps.WorkItemProjections.List(ctx, projection.AgentWorkItemProjectionFilter{
+		Statuses: []string{
+			string(agentpkg.WorkItemQueued),
+			string(agentpkg.WorkItemActive),
+			string(agentpkg.WorkItemWaitingInput),
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
-	// Optional project filter via Tasks lookup (multi-roundtrip).
-	if filter.ProjectID != "" && s.deps.Tasks != nil {
-		filtered := items[:0]
-		for _, e := range items {
-			t, terr := s.deps.Tasks.FindByID(ctx, e.TaskID())
-			if terr == nil && t.ProjectID() == filter.ProjectID {
-				filtered = append(filtered, e)
-			}
+	orgProjects, orgScoped := s.orgProjectSet(ctx, filter)
+	out := make([]FleetWorkItemRow, 0, len(projs))
+	for _, p := range projs {
+		taskID, projectID := s.workItemTaskAndProject(ctx, p.WorkItemID)
+		if filter.ProjectID != "" && projectID != filter.ProjectID {
+			continue
 		}
-		items = filtered
-	}
-	// v2.6 X1 §3: org scope — keep only executions whose task's project is in the org.
-	if orgProjects, scoped := s.orgProjectSet(ctx, filter); scoped && s.deps.Tasks != nil {
-		filtered := items[:0]
-		for _, e := range items {
-			t, terr := s.deps.Tasks.FindByID(ctx, e.TaskID())
-			if terr == nil && orgProjects[t.ProjectID()] {
-				filtered = append(filtered, e)
-			}
+		if orgScoped && (projectID == "" || !orgProjects[projectID]) {
+			continue // fail-closed: never leak a work item whose org can't be confirmed
 		}
-		items = filtered
-	}
-	// Multi-roundtrip projection lookup (PK 1:1; no SQL JOIN per § 9.z).
-	var projMap map[taskruntime.TaskExecutionID]*projection.TaskExecutionProjection
-	if s.deps.Projection != nil && len(items) > 0 {
-		ids := make([]taskruntime.TaskExecutionID, 0, len(items))
-		for _, e := range items {
-			ids = append(ids, e.ID())
-		}
-		ps, perr := s.deps.Projection.FindByIDs(ctx, ids)
-		if perr == nil {
-			projMap = ps
-		}
-	}
-	out := make([]FleetExecutionRow, 0, len(items))
-	for _, e := range items {
-		row := FleetExecutionRow{
-			ExecutionID:    string(e.ID()),
-			TaskID:         string(e.TaskID()),
-			WorkerID:       e.WorkerID(),
-			AgentCLI:       e.AgentCLI(),
-			WorkspaceMode:  string(e.WorkspaceMode()),
-			Status:         string(e.Status()),
-			WorkingSeconds: e.WorkingSecondsAccumulated(),
-			StartedAt:      e.StartedAt().UTC().Format(time.RFC3339Nano),
-		}
-		if projMap != nil {
-			if p := projMap[e.ID()]; p != nil {
-				row.CurrentActivity = p.CurrentActivity
-				row.ProjectionLastPushAt = p.LastPushAt.UTC().Format(time.RFC3339Nano)
-			}
-		}
-		out = append(out, row)
+		out = append(out, FleetWorkItemRow{
+			WorkItemID:        p.WorkItemID,
+			AgentID:           p.AgentID,
+			TaskID:            taskID,
+			Status:            p.Status,
+			CurrentActivity:   p.CurrentActivity,
+			TotalToolCalls:    p.TotalToolCalls,
+			TotalTokensInput:  p.TotalTokensInput,
+			TotalTokensOutput: p.TotalTokensOutput,
+			WorkingSeconds:    p.WorkingSecondsAccumulated,
+			LastActivityAt:    p.LastActivityAt.UTC().Format(time.RFC3339Nano),
+		})
 	}
 	return out, nil
+}
+
+// workItemTaskAndProject resolves a work item's task id + owning project id via
+// work_item.task_ref ("pm://tasks/{id}") → pm task. Returns ("","") when
+// unresolvable (missing repos / work item / task); callers fail-closed on org scope.
+func (s *FleetSnapshotService) workItemTaskAndProject(ctx context.Context, workItemID string) (taskID, projectID string) {
+	if s.deps.WorkItems == nil {
+		return "", ""
+	}
+	wi, err := s.deps.WorkItems.FindByID(ctx, workItemID)
+	if err != nil || wi == nil {
+		return "", ""
+	}
+	id, ok := fleetTaskIDFromRef(wi.TaskRef())
+	if !ok {
+		return "", ""
+	}
+	taskID = id
+	if s.deps.PMTasks != nil {
+		if tk, terr := s.deps.PMTasks.FindByID(ctx, pm.TaskID(id)); terr == nil && tk != nil {
+			projectID = string(tk.ProjectID())
+		}
+	}
+	return taskID, projectID
+}
+
+// fleetTaskIDFromRef extracts {id} from a "pm://tasks/{id}" work-item task ref.
+func fleetTaskIDFromRef(ref string) (string, bool) {
+	const p = "pm://tasks/"
+	if strings.HasPrefix(ref, p) && len(ref) > len(p) {
+		return strings.TrimPrefix(ref, p), true
+	}
+	return "", false
 }
 
 func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter SnapshotFilter) ([]FleetWorkerRow, error) {

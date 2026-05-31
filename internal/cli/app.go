@@ -310,6 +310,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Mappings:      mr,
 		Proposals:     prRepo,
 		Projects:      pjRepo,
+		// v2.7 #107 Phase-2 fleet repoint: new-model read deps.
+		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
+		WorkItems:           agentsql.NewWorkItemRepo(db),
+		PMTasks:             pmsql.NewTaskRepo(db),
 	}
 	querySvc := query.NewService(deps)
 	fleetSvc := query.NewFleetSnapshotService(deps)

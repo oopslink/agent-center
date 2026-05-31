@@ -147,7 +147,7 @@ func TestPsCmd_HumanAndJSON(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("ps json: code=%d", code)
 	}
-	if !strings.Contains(out, "executions") {
+	if !strings.Contains(out, "work_items") {
 		t.Fatalf("json output: %s", out)
 	}
 }

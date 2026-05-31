@@ -533,10 +533,10 @@ func printFleet(out, errw io.Writer, format string, snap query.FleetSnapshot) Ex
 	}
 	fmt.Fprintf(out, "FLEET SNAPSHOT (generated %s)\n", snap.GeneratedAt)
 	fmt.Fprintln(out, "")
-	fmt.Fprintf(out, "EXECUTIONS (%d)\n", len(snap.Executions))
-	for _, e := range snap.Executions {
-		fmt.Fprintf(out, "  %s task=%s worker=%s status=%s activity=%q\n",
-			e.ExecutionID, e.TaskID, e.WorkerID, e.Status, e.CurrentActivity)
+	fmt.Fprintf(out, "WORK ITEMS (%d)\n", len(snap.WorkItems))
+	for _, wi := range snap.WorkItems {
+		fmt.Fprintf(out, "  %s task=%s agent=%s status=%s activity=%q\n",
+			wi.WorkItemID, wi.TaskID, wi.AgentID, wi.Status, wi.CurrentActivity)
 	}
 	fmt.Fprintf(out, "\nWORKERS (%d)\n", len(snap.Workers))
 	for _, w := range snap.Workers {
