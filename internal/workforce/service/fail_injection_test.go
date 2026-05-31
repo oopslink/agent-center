@@ -21,7 +21,6 @@ type fakeAIRepo struct {
 	saveErr       error
 	updateErr     error
 	countErr      error
-	bulkErr       error
 	countActive   int
 }
 
@@ -51,9 +50,6 @@ func (f *fakeAIRepo) Archive(ctx context.Context, id workforce.AgentInstanceID, 
 }
 func (f *fakeAIRepo) CountActiveExecutions(ctx context.Context, id workforce.AgentInstanceID) (int, error) {
 	return f.countActive, f.countErr
-}
-func (f *fakeAIRepo) BulkUpdateStateByWorker(ctx context.Context, workerID workforce.WorkerID, from, to workforce.AgentInstanceState) (int, error) {
-	return 0, f.bulkErr
 }
 
 // =============================================================================

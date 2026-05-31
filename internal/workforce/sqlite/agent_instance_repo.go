@@ -250,28 +250,6 @@ func (r *AgentInstanceRepo) Archive(ctx context.Context, id workforce.AgentInsta
 // active↔idle path (OnExecutionEnded, zero production caller). The new control
 // loop drives agent availability natively.
 
-// BulkUpdateStateByWorker transitions all agents on workerID from `from` → `to`.
-// Returns the affected row count. version field is not used; bumps version+1
-// for each affected row.
-func (r *AgentInstanceRepo) BulkUpdateStateByWorker(ctx context.Context, workerID workforce.WorkerID, from, to workforce.AgentInstanceState) (int, error) {
-	if !from.IsValid() || !to.IsValid() {
-		return 0, fmt.Errorf("agent instance repo: invalid bulk state from=%s to=%s", from, to)
-	}
-	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	const stmt = `UPDATE agent_instances
-		SET state = ?, version = version + 1
-		WHERE worker_id = ? AND state = ?`
-	res, err := exec.ExecContext(ctx, stmt, string(to), string(workerID), string(from))
-	if err != nil {
-		return 0, err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return int(n), nil
-}
-
 func scanAgentInstance(scan func(...any) error) (*workforce.AgentInstance, error) {
 	var (
 		id              string
