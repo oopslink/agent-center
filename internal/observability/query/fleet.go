@@ -19,7 +19,7 @@ import (
 
 // FleetWorkerRow is one row in FleetSnapshot.Workers.
 type FleetWorkerRow struct {
-	WorkerID        string `json:"worker_id"`
+	WorkerID string `json:"worker_id"`
 	// Name is the operator-facing friendly label (v2.4-D-X1).
 	// Defaults to WorkerID when unset so the Fleet view never shows
 	// an empty cell.
@@ -82,12 +82,13 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	now := time.Now().UTC()
 	snap := FleetSnapshot{GeneratedAt: now.Format(time.RFC3339Nano)}
 	var (
-		execs      []WorkItemRow
-		execsErr   error
-		workers    []FleetWorkerRow
-		workersErr error
-		issues     []FleetIssueRow
-		issuesErr  error
+		execs       []WorkItemRow
+		execsErr    error
+		workers     []FleetWorkerRow
+		workerWarns []string
+		workersErr  error
+		issues      []FleetIssueRow
+		issuesErr   error
 	)
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -97,7 +98,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	}()
 	go func() {
 		defer wg.Done()
-		workers, workersErr = s.fetchWorkers(ctx, filter)
+		workers, workerWarns, workersErr = s.fetchWorkers(ctx, filter)
 	}()
 	go func() {
 		defer wg.Done()
@@ -113,6 +114,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	if workersErr != nil {
 		snap.Warnings = append(snap.Warnings, fmt.Sprintf("workers: %v", workersErr))
 	}
+	snap.Warnings = append(snap.Warnings, workerWarns...)
 	if issuesErr != nil {
 		snap.Warnings = append(snap.Warnings, fmt.Sprintf("pending_issues: %v", issuesErr))
 	}
@@ -200,14 +202,15 @@ func fleetTaskIDFromRef(ref string) (string, bool) {
 	return "", false
 }
 
-func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter SnapshotFilter) ([]FleetWorkerRow, error) {
+func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter SnapshotFilter) ([]FleetWorkerRow, []string, error) {
 	if s.deps.Workers == nil {
-		return nil, errors.New("workers repo not wired")
+		return nil, nil, errors.New("workers repo not wired")
 	}
 	all, err := s.deps.Workers.FindAll(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	var warnings []string
 	out := make([]FleetWorkerRow, 0, len(all))
 	for _, w := range all {
 		// v2.6 X1 §3: org scope — workers carry organization_id directly.
@@ -227,10 +230,19 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 		// the agent work-item model, mirroring inspectWorker (service.go): a worker
 		// controls many agents, work items are agent-keyed, so "what's this worker
 		// actively running" = ListByWorker → ListByAgent, counting non-terminal
-		// (queued/active/waiting_input). Org-scope is preserved fail-closed: the
-		// loop already skips any worker whose OrganizationID() != filter.OrganizationID
-		// (above), and an agent's work items belong to that org-scoped worker — so
-		// org-A never counts org-B's work items (same source/scope as inspectWorker).
+		// (queued/active/waiting_input).
+		//
+		// v2.7 #131 §-1 #4 (multi-path-resolution-same-source): this ActiveCount
+		// org-scope (the worker-loop skip above, by worker.OrganizationID) and the
+		// work-item LIST org-scope (fetchExecutions, by task→pm-project.org) are two
+		// INDEPENDENT resolution chains. They agree only insofar as the
+		// org-scoped-dispatch invariant holds — i.e. a worker's agents run only work
+		// items whose task's pm-project shares the worker's org. This is a DEPENDENCY
+		// on that invariant, NOT a guarantee local to this code. To keep count and
+		// list consistent fail-closed (and never silently drift), when org-scoped we
+		// verify each counted work item's task→pm-project org equals the worker's
+		// org; on mismatch we DON'T count it (no cross-org count mixing) and surface
+		// a visible warning instead of a silent count≠list discrepancy.
 		if s.deps.Agents != nil && s.deps.WorkItems != nil {
 			agents, _ := s.deps.Agents.ListByWorker(ctx, string(w.ID()))
 			active := 0
@@ -240,6 +252,14 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 					if wi.Status().IsTerminal() {
 						continue
 					}
+					if filter.OrganizationID != "" {
+						if _, _, wiOrg := s.workItemTaskProjectOrg(ctx, wi.ID()); wiOrg != "" && wiOrg != w.OrganizationID() {
+							warnings = append(warnings, fmt.Sprintf(
+								"worker %s active_count: work item %s skipped — its task→pm-project org %q != worker org %q (org-scoped-dispatch invariant broken)",
+								w.ID(), wi.ID(), wiOrg, w.OrganizationID()))
+							continue
+						}
+					}
 					active++
 				}
 			}
@@ -247,7 +267,7 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 		}
 		out = append(out, row)
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
 // fleetPendingIssueStatuses is the fleet "pending" issue set (v2.7 #107 #119,
