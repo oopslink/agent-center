@@ -12,8 +12,6 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -236,11 +234,6 @@ func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 	// Seed one of each.
 	tk, _ := pm.NewTask(pm.NewTaskInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", CreatedAt: time.Now()})
 	_ = pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk)
-	exec, _ := execution.New(execution.NewInput{
-		ID: taskruntime.TaskExecutionID("E-1"), TaskID: "T-1", WorkerID: "W-1",
-		AgentCLI: "claude-code", WorkspaceMode: execution.WorkspaceWorktree, Now: time.Now(),
-	})
-	_ = app.ExecRepo.Save(context.Background(), exec)
 	_ = app.WorkerRepo.Save(context.Background(), mustWorker(t, "W-1"))
 	// v2.7 #125: inspect-issue reads pm_issues now → seed a pm issue.
 	pmIssue, _ := pm.NewIssue(pm.NewIssueInput{

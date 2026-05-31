@@ -1,14 +1,10 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import Home from './Home';
-
-beforeAll(() => {
-  server.use(http.get('/api/input_requests', () => HttpResponse.json([])));
-});
 
 function renderHome() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -24,7 +20,7 @@ function renderHome() {
 describe('Home / Overview (v2.3 P3)', () => {
   afterEach(() => cleanup());
 
-  it('renders the three stat cards', async () => {
+  it('renders the stat cards', async () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
@@ -38,7 +34,6 @@ describe('Home / Overview (v2.3 P3)', () => {
     );
     renderHome();
     await waitFor(() => {
-      expect(screen.getByText('Pending input requests')).toBeInTheDocument();
       expect(screen.getByText('Active work items')).toBeInTheDocument();
       expect(screen.getByText('Workers online')).toBeInTheDocument();
     });

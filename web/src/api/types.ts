@@ -233,13 +233,6 @@ export interface FleetSnapshot {
   warnings?: string[];
 }
 
-export interface TraceEvent {
-  id: string;
-  event_type: string;
-  occurred_at: string;
-  payload?: Record<string, unknown>;
-}
-
 // Project mirrors the v2.7 ProjectManager BC projection emitted by
 // projectPublicMap. `tags` was retired; the project now carries
 // organization_id, a status enum (active/archived), and created_by.

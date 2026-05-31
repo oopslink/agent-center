@@ -50,18 +50,16 @@ describe('App shell + route tree', () => {
     });
   });
 
-  it('renders DMs / nested IssueDetail / nested TaskDetail / TaskTrace / Agents / AgentDetail / Projects / ProjectDetail / InputRequests / Secrets / Fleet / Settings', async () => {
+  it('renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Secrets / Fleet / Settings', async () => {
     const cases: Array<[string, string]> = [
       [`${ORG_BASE}/dms`, 'page-DMs'],
       [`${ORG_BASE}/dms/01HXXX`, 'page-DMDetail'],
       [`${ORG_BASE}/projects/proj-a/issues/01HXXX`, 'page-IssueDetail'],
       [`${ORG_BASE}/projects/proj-a/tasks/01HXXX`, 'page-TaskDetail'],
-      [`${ORG_BASE}/tasks/01HXXX/trace`, 'page-TaskTrace'],
       [`${ORG_BASE}/agents`, 'page-Agents'],
       [`${ORG_BASE}/agents/worker-1`, 'page-AgentDetail'],
       [`${ORG_BASE}/projects`, 'page-Projects'],
       [`${ORG_BASE}/projects/proj-a`, 'page-ProjectDetail'],
-      [`${ORG_BASE}/inputrequests`, 'page-InputRequests'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
       [`${ORG_BASE}/fleet`, 'page-Fleet'],
       [`${ORG_BASE}/settings`, 'page-Settings'],
@@ -94,12 +92,13 @@ describe('App shell + route tree', () => {
       'Channels',
       'DMs',
       'Projects',
-      'Input Requests',
       'Agents',
       'Settings',
     ]) {
       expect(nav).toHaveTextContent(label);
     }
+    // Input Requests nav entry removed (#131 PR-4).
+    expect(nav).not.toHaveTextContent('Input Requests');
     // Issues / Tasks no longer have global nav entries (v2.7).
     expect(nav).not.toHaveTextContent('Issues');
     expect(nav).not.toHaveTextContent('Tasks');

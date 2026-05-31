@@ -37,12 +37,10 @@ export const qk = {
   secrets: () => o('secrets'),
   projects: () => o('projects'),
   project: (id: string) => o('project', id),
-  inputRequests: () => o('inputRequests'),
   fleet: () => o('fleet'),
   workers: () => o('workers'),
   worker: (id: string) => o('worker', id),
   transferSessions: () => o('transferSessions'),
-  taskTrace: (taskId: string) => o('taskTrace', taskId),
   unread: (convId: string) => o('unread', convId),
   // v2.7 ProjectManager BC: Issues/Tasks are per-project. Lists are
   // keyed by projectId; detail keys stay by id.

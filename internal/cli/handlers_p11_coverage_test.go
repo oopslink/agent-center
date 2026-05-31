@@ -19,8 +19,6 @@ func runOn(t *testing.T, app *App, group, name string, args []string) (string, s
 		cmds = app.ChannelCommands()
 	case "agent":
 		cmds = app.AgentCommands()
-	case "input-request":
-		cmds = app.InputRequestCommands()
 	case "secret":
 		cmds = app.SecretCommands()
 	case "message":
@@ -350,86 +348,6 @@ func TestCLI_AgentArchive_MissingArgs(t *testing.T) {
 	}
 	_, _, code = runOn(t, app, "agent", "archive", []string{"x", "--message=m"})
 	if code != ExitUsage {
-		t.Fatal()
-	}
-}
-
-// =============================================================================
-// input-request
-// =============================================================================
-
-func TestCLI_IRList_Empty(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "list", []string{})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestCLI_IRList_JSON(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "list", []string{"--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestCLI_IRList_ExecutionFilter(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "list", []string{"--execution=nope"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestCLI_IRShow_MissingArgs(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "show", []string{})
-	if code != ExitUsage {
-		t.Fatal()
-	}
-}
-
-func TestCLI_IRShow_NotFound(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "show", []string{"nope"})
-	if code == ExitOK {
-		t.Fatal()
-	}
-}
-
-func TestCLI_IRRespond_MissingArgs(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "respond", []string{})
-	if code != ExitUsage {
-		t.Fatal()
-	}
-}
-
-func TestCLI_IRRespond_NotFound(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "respond", []string{"nope", "--answer=yes"})
-	if code == ExitOK {
-		t.Fatal()
-	}
-}
-
-func TestCLI_IRCancel_MissingArgs(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "cancel", []string{})
-	if code != ExitUsage {
-		t.Fatal()
-	}
-	_, _, code = runOn(t, app, "input-request", "cancel", []string{"x"})
-	if code != ExitUsage {
-		t.Fatal()
-	}
-}
-
-func TestCLI_IRCancel_NotFound(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "cancel", []string{"nope", "--message=cancel"})
-	if code == ExitOK {
 		t.Fatal()
 	}
 }

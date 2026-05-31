@@ -2,17 +2,13 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/peek"
 	"github.com/oopslink/agent-center/internal/observability/query"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 )
 
 func TestPrintFleet_HumanIncludesAllSegments(t *testing.T) {
@@ -137,11 +133,6 @@ func TestQueryHandler_BadUntil(t *testing.T) {
 
 func TestStatsCmd_AllScopes_NoCrash(t *testing.T) {
 	app := newTestApp(t)
-	// Seed minimal data so each scope hits live paths.
-	tk, _ := task.New(task.NewInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", Now: time.Now()})
-	_ = app.TaskRepo.Save(context.Background(), tk)
-	ex, _ := execution.New(execution.NewInput{ID: "E-1", TaskID: "T-1", WorkerID: "W-1", AgentCLI: "claude-code", WorkspaceMode: execution.WorkspaceWorktree, Now: time.Now()})
-	_ = app.ExecRepo.Save(context.Background(), ex)
 	cmd := findCmd(app.ObservabilityCommands(), "stats")
 	for _, scope := range []string{"tasks", "executions", "workers", "events", "issues"} {
 		_, _, code := runHandler(t, cmd, []string{"--scope=" + scope})
@@ -153,8 +144,6 @@ func TestStatsCmd_AllScopes_NoCrash(t *testing.T) {
 
 func TestQueryCmd_AllResources_NoCrash(t *testing.T) {
 	app := newTestApp(t)
-	tk, _ := task.New(task.NewInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", Now: time.Now()})
-	_ = app.TaskRepo.Save(context.Background(), tk)
 	cmd := findCmd(app.ObservabilityCommands(), "query")
 	for _, r := range []string{"tasks", "executions", "workers", "issues", "events"} {
 		_, _, code := runHandler(t, cmd, []string{r, "--format=json"})

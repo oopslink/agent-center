@@ -32,7 +32,6 @@ beforeAll(() => {
 
 beforeEach(() => {
   localStorage.clear();
-  server.use(http.get('/api/input_requests', () => HttpResponse.json([])));
   // Three channels + two DMs to seed the sub-lists.
   server.use(
     http.get('/api/conversations', ({ request }) => {
@@ -125,7 +124,6 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
   it('renders each group as a collapsible button + items expanded by default', () => {
     renderShell();
     expect(screen.getByTestId('sidebar-group-toggle-Conversations')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-group-toggle-Work')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-group-toggle-System')).toBeInTheDocument();
     // Conversations expanded by default → Channels + DMs links visible.
     expect(screen.getByRole('link', { name: /channels/i })).toBeInTheDocument();

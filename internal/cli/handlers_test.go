@@ -228,114 +228,6 @@ func TestCLI_WorkerList_InvalidStatus(t *testing.T) {
 }
 
 // =============================================================================
-// proposal flow
-// =============================================================================
-
-func enrollAndPropose(t *testing.T, app *App) string {
-	t.Helper()
-	run := runByName(t, app, "worker", "enroll")
-	if _, _, c := run([]string{"--worker-id=W-1"}); c != ExitOK {
-		t.Fatal("enroll failed")
-	}
-	propose := runByName(t, app, "worker", "proposal", "propose")
-	out, _, c := propose([]string{"--worker-id=W-1", "--candidate-path=/x/y", "--format=json"})
-	if c != ExitOK {
-		t.Fatalf("propose failed: %s", out)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	return r["proposal_id"].(string)
-}
-
-func TestCLI_ProposalAccept_Happy(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	out, _, code := accept([]string{id, "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d out: %s", code, out)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["project_id"] == "" || r["mapping_id"] == "" {
-		t.Fatalf("missing fields: %v", r)
-	}
-}
-
-func TestCLI_ProposalAccept_AlreadyAccepted(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	_, _, _ = accept([]string{id})
-	_, errOut, code := accept([]string{id, "--format=json"})
-	if code != ExitInvalidTransition {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "proposal_already_terminated") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProposalIgnore_NotPending(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	_, _, _ = accept([]string{id})
-	ign := runByName(t, app, "worker", "proposal", "ignore")
-	_, errOut, code := ign([]string{id})
-	if code != ExitInvalidTransition {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "proposal_already_terminated") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProposalUnignore_Happy(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	ign := runByName(t, app, "worker", "proposal", "ignore")
-	_, _, _ = ign([]string{id})
-	un := runByName(t, app, "worker", "proposal", "unignore")
-	_, _, code := un([]string{id})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProposalList_Pending(t *testing.T) {
-	app := newTestApp(t)
-	enrollAndPropose(t, app)
-	list := runByName(t, app, "worker", "proposal", "list")
-	out, _, code := list([]string{"--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	var arr []map[string]any
-	if err := json.Unmarshal([]byte(out), &arr); err != nil {
-		t.Fatal(err)
-	}
-	if len(arr) != 1 {
-		t.Fatalf("got %d", len(arr))
-	}
-}
-
-func TestCLI_ProposalShow_Happy(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	show := runByName(t, app, "worker", "proposal", "show")
-	out, _, code := show([]string{id, "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["proposal_id"] != id {
-		t.Fatalf("got %v", r)
-	}
-}
-
-// =============================================================================
 // project CRUD
 // =============================================================================
 
@@ -733,18 +625,6 @@ func TestExtractConfigFlag(t *testing.T) {
 		if got := extractConfigFlag(c.in); got != c.want {
 			t.Fatalf("case %d: got %q want %q", i, got, c.want)
 		}
-	}
-}
-
-func TestPathBasename(t *testing.T) {
-	if pathBasename("/a/b/c") != "c" {
-		t.Fatal()
-	}
-	if pathBasename("c") != "c" {
-		t.Fatal()
-	}
-	if pathBasename(`a\b\c`) != "c" {
-		t.Fatal()
 	}
 }
 

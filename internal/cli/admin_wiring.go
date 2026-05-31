@@ -82,9 +82,7 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 	}
 
 	deps := adminDepsFromApp(app)
-	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{
-		Queue: app.DispatchQueue,
-	})
+	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{})
 	// Wrap the inner mux with deps middleware (parallel to
 	// webconsole_wiring.go pattern), then rate-limit (v2.3-7c task #27),
 	// then auth on top so every non-public request must carry a valid
@@ -245,14 +243,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// Workforce BC
 		WorkerRepo:        a.WorkerRepo,
-		MappingRepo:       a.MappingRepo,
-		ProposalRepo:      a.ProposalRepo,
-		ProjectRepo:       a.ProjectRepo,
 		AgentInstanceRepo: a.AgentInstanceRepo,
 		EnrollSvc:         a.EnrollSvc,
-		DiscoverySvc:      a.DiscoverySvc,
-		AcceptanceSvc:     a.AcceptanceSvc,
-		ProjectSvc:        a.ProjectSvc,
 		AgentMgmtSvc:      a.AgentMgmtSvc,
 
 		// Environment BC (v2.7 D1, ADR-0050, task #102)
@@ -278,18 +270,6 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// GC loop); nil when the blobstore root is unset → file endpoints 501.
 		FilesSvc: buildFilesService(a),
 
-		// TaskRuntime BC
-		TaskRepo:        a.TaskRepo,
-		ExecRepo:        a.ExecRepo,
-		IRRepo:          a.IRRepo,
-		ArtifactRepo:    a.ArtifactRepo,
-		TaskSvc:         a.TaskSvc,
-		IRSvc:           a.IRSvc,
-		ArtifactSvc:     a.ArtifactSvc,
-		ExecSvc:         a.ExecSvc,
-		DispatchSvc:     a.DispatchSvc,
-		KillCoordinator: a.KillCoordinator,
-
 		// SecretManagement BC
 		UserSecretRepo:       a.UserSecretRepo,
 		UserSecretSvc:        a.UserSecretSvc,
@@ -297,13 +277,6 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// AdminToken BC (v2.3-3a task #28)
 		AdminTokenSvc: a.AdminTokenSvc,
-
-		// Discussion BC
-		IssueRepo:                a.IssueRepo,
-		IssueLifecycleSvc:        a.IssueLifecycleSvc,
-		IssueCommentSvc:          a.IssueCommentSvc,
-		IssueBindConversationSvc: a.IssueBindConversationSvc,
-		IssueLinkConversationSvc: a.IssueLinkConversationSvc,
 
 		// Observability BC
 		EventRepo: a.EventRepo,

@@ -25,8 +25,7 @@ import {
   useAgentActivity,
 } from './agents';
 import { useSecrets, useCreateSecret, useRevokeSecret } from './secrets';
-import { useInputRequests, useRespondInputRequest } from './inputRequests';
-import { useFleet, useTaskTrace } from './fleet';
+import { useFleet } from './fleet';
 import { useProjects, useProject } from './projects';
 
 // Mutation tests use the sync `mutate(args)` API + waitFor on isSuccess
@@ -209,31 +208,10 @@ describe('react-query hooks', () => {
     await waitFor(() => expect(revoke.result.current.isSuccess).toBe(true));
   });
 
-  it('useInputRequests + useRespondInputRequest', async () => {
-    const wrapper = makeWrapper();
-    const list = renderHook(() => useInputRequests(), { wrapper });
-    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
-    expect(list.result.current.data?.[0].id).toBe('IR-1');
-
-    const respond = renderHook(() => useRespondInputRequest(), { wrapper });
-    act(() => {
-      respond.result.current.mutate({ id: 'IR-1', answer: 'yes' });
-    });
-    await waitFor(() => expect(respond.result.current.isSuccess).toBe(true));
-  });
-
-  it('useFleet + useTaskTrace', async () => {
+  it('useFleet', async () => {
     const wrapper = makeWrapper();
     const fleet = renderHook(() => useFleet(), { wrapper });
     await waitFor(() => expect(fleet.result.current.isSuccess).toBe(true));
-
-    const trace = renderHook(() => useTaskTrace('T-1'), { wrapper });
-    await waitFor(() => expect(trace.result.current.isSuccess).toBe(true));
-  });
-
-  it('useTaskTrace skips when taskId is undefined', () => {
-    const { result } = renderHook(() => useTaskTrace(undefined), { wrapper: makeWrapper() });
-    expect(result.current.fetchStatus).toBe('idle');
   });
 
   it('useProjects + useProject round-trip through MSW', async () => {

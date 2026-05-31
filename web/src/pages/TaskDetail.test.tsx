@@ -43,7 +43,7 @@ const taskAt = (status: string, extra: Record<string, unknown> = {}) => ({
 describe('TaskDetail page', () => {
   afterEach(() => cleanup());
 
-  it('renders header + description from the Task projection + trace link', async () => {
+  it('renders header + description from the Task projection', async () => {
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
     );
@@ -55,7 +55,6 @@ describe('TaskDetail page', () => {
     );
     expect(screen.getByTestId('task-description')).toHaveTextContent('regenerate the site');
     expect(screen.getByTestId('task-status')).toHaveTextContent('open');
-    expect(screen.getByTestId('task-view-trace')).toHaveAttribute('href', '/tasks/TS-1/trace');
     expect(screen.getByTestId('task-project-link')).toHaveAttribute('href', '/projects/proj-a');
     // open → Assign available.
     expect(screen.getByTestId('task-assign-button')).toBeInTheDocument();

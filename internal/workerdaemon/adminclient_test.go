@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -206,98 +205,6 @@ func TestAdminClient_Heartbeat_EmptyWorkerIDFails(t *testing.T) {
 	defer cleanup()
 	if err := client.Heartbeat(context.Background(), "  ", nil); err == nil {
 		t.Fatal("expected error for empty worker_id")
-	}
-}
-
-func TestAdminClient_ReportProgress(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	if err := client.ReportProgress(context.Background(), "E-3", "step_1", "running"); err != nil {
-		t.Fatalf("ReportProgress: %v", err)
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/exec/report-progress" {
-		t.Fatalf("bad request: %+v", reqs)
-	}
-	var body map[string]string
-	if err := json.Unmarshal(reqs[0].Body, &body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body["execution_id"] != "E-3" || body["kind"] != "step_1" || body["content"] != "running" {
-		t.Fatalf("body=%v", body)
-	}
-}
-
-func TestAdminClient_ReportFailure(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	if err := client.ReportFailure(context.Background(), "E-4", "test_reason", "test_msg"); err != nil {
-		t.Fatalf("ReportFailure: %v", err)
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/exec/report-failure" {
-		t.Fatalf("bad path: %+v", reqs)
-	}
-	var body map[string]string
-	_ = json.Unmarshal(reqs[0].Body, &body)
-	if body["reason"] != "test_reason" || body["message"] != "test_msg" {
-		t.Fatalf("body=%v", body)
-	}
-}
-
-func TestAdminClient_ReportArtifact(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	if err := client.ReportArtifact(context.Background(), "E-5", []byte("blobby"), "log"); err != nil {
-		t.Fatalf("ReportArtifact: %v", err)
-	}
-	reqs := fs.reqs()
-	// v2.3-3b: non-empty blob now triggers BlobPut first, then the
-	// artifact/append carries the resulting blob_ref.
-	if len(reqs) != 2 {
-		t.Fatalf("want 2 requests (blob_put + artifact append), got %d: %+v", len(reqs), reqs)
-	}
-	if reqs[0].Path != "/admin/blob/put" {
-		t.Fatalf("first request should be blob_put; got %+v", reqs[0])
-	}
-	if reqs[1].Path != "/admin/taskruntime/artifact/append" {
-		t.Fatalf("second request should be artifact append; got %+v", reqs[1])
-	}
-	var put map[string]string
-	_ = json.Unmarshal(reqs[0].Body, &put)
-	if put["rel_path"] == "" || put["content_base64"] == "" {
-		t.Fatalf("blob_put body missing fields: %v", put)
-	}
-	if !strings.HasPrefix(put["rel_path"], "artifacts/E-5/log-") {
-		t.Fatalf("rel_path shape unexpected: %v", put["rel_path"])
-	}
-	var append map[string]string
-	_ = json.Unmarshal(reqs[1].Body, &append)
-	if append["kind"] != "log" || append["execution_id"] != "E-5" {
-		t.Fatalf("artifact body=%v", append)
-	}
-	if append["blob_ref"] == "" || append["blob_ref"] != put["rel_path"] {
-		t.Fatalf("blob_ref mismatch: append=%v put=%v", append["blob_ref"], put["rel_path"])
-	}
-}
-
-func TestAdminClient_ReportArtifact_EmptyBlobSkipsBlobPut(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-	if err := client.ReportArtifact(context.Background(), "E-6", nil, "log"); err != nil {
-		t.Fatalf("ReportArtifact: %v", err)
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/artifact/append" {
-		t.Fatalf("expected single artifact append; got %+v", reqs)
-	}
-	var append map[string]string
-	_ = json.Unmarshal(reqs[0].Body, &append)
-	if append["blob_ref"] != "" {
-		t.Fatalf("blob_ref should be empty for empty blob; got %v", append["blob_ref"])
 	}
 }
 

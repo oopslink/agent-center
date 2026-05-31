@@ -7,7 +7,6 @@ describe('useAppStore', () => {
       currentUserId: 'user:hayang',
       sseStatus: 'idle',
       sseLastEventId: null,
-      navBadges: { inputRequests: 0 },
     });
   });
 
@@ -27,11 +26,4 @@ describe('useAppStore', () => {
     expect(useAppStore.getState().sseLastEventId).toBe('ev-42');
   });
 
-  it('input request badge increments + resets', () => {
-    useAppStore.getState().incInputRequestBadge();
-    useAppStore.getState().incInputRequestBadge();
-    expect(useAppStore.getState().navBadges.inputRequests).toBe(2);
-    useAppStore.getState().resetInputRequestBadge();
-    expect(useAppStore.getState().navBadges.inputRequests).toBe(0);
-  });
 });

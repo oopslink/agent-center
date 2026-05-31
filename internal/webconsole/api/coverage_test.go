@@ -15,7 +15,6 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretsvcCreate "github.com/oopslink/agent-center/internal/secretmgmt/service"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -231,33 +230,6 @@ func TestAPI_InviteParticipant_BadJSON(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/participants", `{nope`, sess)
-	if resp.StatusCode != 400 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-// ============================================================================
-// Input Requests
-// ============================================================================
-
-func TestAPI_ListInputRequests_Empty(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/input_requests", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_RespondInputRequest_BadJSON(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	// Bad JSON is a 400 before the org guard (body parse runs first).
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/x/respond", `{xx`, sess)
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -523,7 +495,6 @@ func TestMapDomainError_Matrix(t *testing.T) {
 		{conversation.ErrMessageNotFound, 404},
 		{workforce.ErrAgentInstanceNotFound, 404},
 		{secretmgmt.ErrUserSecretNotFound, 404},
-		{inputrequest.ErrInputRequestNotFound, 404},
 		{conversation.ErrConversationVersionConflict, 409},
 		{secretmgmt.ErrUserSecretVersionConflict, 409},
 		{conversation.ErrConversationArchived, 403},
@@ -565,25 +536,6 @@ func TestSecretPublicMap_RevokedFieldsPresent(t *testing.T) {
 	}
 	if m["revoked_by"] != "user:hayang" {
 		t.Fatalf("revoked_by: %v", m["revoked_by"])
-	}
-}
-
-func TestIRPublicMap_Responded(t *testing.T) {
-	now := time.Now().UTC()
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-1", TaskExecutionID: "E-1",
-		Question: "q?", Options: []string{"yes", "no"},
-		Urgency: inputrequest.UrgencyNormal, Now: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = ir.Respond(inputrequest.InputResponse{
-		Answer: "yes", DecidedBy: "user:hayang", DecidedAt: now,
-	})
-	m := irPublicMap(ir)
-	if m["answer"] != "yes" {
-		t.Fatalf("answer: %v", m["answer"])
 	}
 }
 
@@ -683,18 +635,6 @@ func TestAPI_ShowConversation_DBError(t *testing.T) {
 	}
 }
 
-func TestAPI_ListInputRequests_DBError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	db.Close()
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/input_requests", sess)
-	if resp.StatusCode == 200 {
-		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
-	}
-}
-
 func TestAPI_ListSecrets_DBError(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -704,18 +644,6 @@ func TestAPI_ListSecrets_DBError(t *testing.T) {
 	resp := orgScopedGet(t, s.URL+"/api/secrets", sess)
 	if resp.StatusCode == 200 {
 		t.Fatalf("expected non-200, got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_TaskTrace_DBError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	db.Close()
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/tasks/t-1/trace", sess)
-	if resp.StatusCode == 200 {
-		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
@@ -759,52 +687,3 @@ func TestAPI_ArchiveConversation_BadJSON(t *testing.T) {
 	}
 }
 
-func TestAPI_CancelInputRequest_BadJSON(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/anything/cancel", `{not json`, sess)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("got %d want 400", resp.StatusCode)
-	}
-	var body map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&body)
-	if body["error"] != "invalid_json" {
-		t.Fatalf("error=%v want invalid_json", body["error"])
-	}
-}
-
-func TestAPI_CancelInputRequest_NotWired(t *testing.T) {
-	deps, _ := setupAPI(t)
-	deps.IRSvc = nil
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/input_requests/anything/cancel",
-		"application/json", strings.NewReader(`{"message":"nm"}`))
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_CancelInputRequest_NotFound(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/nope/cancel", `{"message":"nm"}`, sess)
-	if resp.StatusCode != 404 && resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_RespondInputRequest_NotFound(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/nope/respond", `{"answer":"yes"}`, sess)
-	if resp.StatusCode != 404 && resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}

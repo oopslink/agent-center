@@ -9,7 +9,6 @@ describe('SSEIndicator', () => {
       currentUserId: 'user:test',
       sseStatus: 'idle',
       sseLastEventId: null,
-      navBadges: { inputRequests: 0 },
     });
   });
   afterEach(() => cleanup());

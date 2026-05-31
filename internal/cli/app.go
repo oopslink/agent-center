@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	admintokensqlite "github.com/oopslink/agent-center/internal/admintoken/sqlite"
@@ -20,9 +19,6 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
-	"github.com/oopslink/agent-center/internal/discussion"
-	disservice "github.com/oopslink/agent-center/internal/discussion/service"
-	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
@@ -40,13 +36,6 @@ import (
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	"github.com/oopslink/agent-center/internal/taskruntime/kill"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
@@ -81,23 +70,17 @@ type App struct {
 	Clock clock.Clock
 	IDGen idgen.Generator
 
-	WorkerRepo   workforce.WorkerRepository
-	MappingRepo  workforce.WorkerProjectMappingRepository
-	ProposalRepo workforce.WorkerProjectProposalRepository
-	ProjectRepo  workforce.ProjectRepository
+	WorkerRepo workforce.WorkerRepository
 	// PMProjectRepo is the new-model (pm) project repo used by the
 	// operator-scoped CLI project READ handlers (list/show). v2.7 #131
 	// PR-3 — the LOCAL list path uses its operator-global ListAll.
 	PMProjectRepo pm.ProjectRepository
-	ConvRepo     conversation.ConversationRepository
-	MsgRepo      conversation.MessageRepository
-	EventRepo    *obsqlite.EventRepo
-	Sink         *observability.EventSink
+	ConvRepo      conversation.ConversationRepository
+	MsgRepo       conversation.MessageRepository
+	EventRepo     *obsqlite.EventRepo
+	Sink          *observability.EventSink
 
-	EnrollSvc     *wfservice.WorkerEnrollService
-	DiscoverySvc  *wfservice.ProjectDiscoveryService
-	AcceptanceSvc *wfservice.ProposalAcceptanceService
-	ProjectSvc    *wfservice.ProjectCRUDService
+	EnrollSvc *wfservice.WorkerEnrollService
 
 	// v2.7 ProjectManager BC AppService facade (ADR-0046) — backs the nested
 	// /api/projects/{project_id}/... routes + produces the outbox events the
@@ -160,27 +143,6 @@ type App struct {
 	AdminTokenRepo admintoken.Repository
 	AdminTokenSvc  *admintokensvc.Service
 
-	// TaskRuntime
-	TaskRepo        task.Repository
-	ExecRepo        execution.Repository
-	IRRepo          inputrequest.Repository
-	ArtifactRepo    execution.ArtifactRepository
-	TaskSvc         *trservice.TaskService
-	IRSvc           *trservice.InputRequestService
-	ArtifactSvc     *trservice.ArtifactService
-	ExecSvc         *trservice.ExecutionService
-	DispatchSvc     *dispatch.Service
-	KillCoordinator *kill.Coordinator
-	IssueSpawn      *dispatch.IssueConcludeSpawn
-
-	// Discussion
-	IssueRepo                discussion.IssueRepository
-	IssueLifecycleSvc        *disservice.IssueLifecycleService
-	IssueCommentSvc          *disservice.IssueCommentService
-	IssueBindConversationSvc *disservice.IssueBindConversationService
-	IssueLinkConversationSvc *disservice.IssueLinkConversationService
-	IssueConversationOpener  *disservice.IssueConversationOpener
-
 	// v2.6: Identity BC services.
 	IdentitySignupSvc           *identity.SignupService
 	IdentitySigninSvc           *identity.SigninService
@@ -206,11 +168,6 @@ type App struct {
 	StatsSvc       *query.StatsService
 	LogsSvc        *query.LogsService
 	BlobStore      blobstore.BlobStore
-
-	// v2.2-A3: in-process dispatch/kill queue. DispatchService +
-	// KillCoordinator push into it; worker daemon drains via admin
-	// endpoint. Replaces v2.0 GA NoopSender/NoopKillSender.
-	DispatchQueue *dispatchq.Queue
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -229,18 +186,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	}
 	sink := observability.NewEventSink(er, er, gen, clk)
 	wr := wfsqlite.NewWorkerRepo(db)
-	mr := wfsqlite.NewMappingRepo(db)
-	prRepo := wfsqlite.NewProposalRepo(db)
-	pjRepo := wfsqlite.NewProjectRepo(db)
 	// pm (new-model) project repo for the operator-scoped CLI project READ
 	// handlers (list/show). v2.7 #131 PR-3.
 	pmProjRepo := pmsql.NewProjectRepo(db)
 	cr := convsqlite.NewConversationRepo(db)
 	mgRepo := convsqlite.NewMessageRepo(db)
 
-	disc := wfservice.NewProjectDiscoveryService(pjRepo, sink, clk)
-	acc := wfservice.NewProposalAcceptanceService(db, prRepo, mr, pjRepo, disc, sink, gen, clk)
-	pjSvc := wfservice.NewProjectCRUDService(db, pjRepo, mr, sink, clk)
 	enroll := wfservice.NewWorkerEnrollService(db, wr, sink, clk)
 	// v2.7 D2-e-i (OQ5): attach the cross-BC outbox emitter so AddMessage emits a
 	// conversation.message_added wake-trigger event (same tx) for task-owned
@@ -253,43 +204,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	carryOver := convservice.NewCarryOverService(db, cr, mgRepo, convRefRepo, sink, gen, clk)
 	readStateRepo := convsqlite.NewReadStateRepo(db)
 	readStateSvc := convservice.NewReadStateService(db, readStateRepo, mgRepo, sink, clk)
-
-	// TaskRuntime
-	taskRepo := trsqlite.NewTaskRepo(db)
-	execRepo := trsqlite.NewTaskExecutionRepo(db)
-	irRepo := trsqlite.NewInputRequestRepo(db)
-	artifactRepo := trsqlite.NewArtifactRepo(db)
-	taskSvc := trservice.NewTaskService(db, taskRepo, cr, execRepo, mgRepo, sink, gen, clk).
-		WithProjectExistenceChecker(projectCheckerAdapter{repo: pjRepo})
-	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, cr, mgRepo, sink, gen, clk, cfg.Notification.DefaultChannel)
-	artifactSvc := trservice.NewArtifactService(db, artifactRepo, execRepo, sink, gen, clk)
-	execSvc := trservice.NewExecutionService(db, execRepo, taskRepo, cr, mgRepo, sink, gen, clk)
-	// v2.2-A3: real EnvelopeSender + KillSender backed by the in-process
-	// dispatchq queue. Replaces v2.0 GA's dispatch.NoopSender{} /
-	// kill.NoopKillSender{} stubs (per conventions § 0.4 mock-as-default
-	// cleanup). Worker daemon (Phase C) drains the queue via the admin
-	// endpoint.
-	dispatchQ := dispatchq.New()
-	dispatchSvc := dispatch.NewService(db, taskRepo, execRepo, sink,
-		dispatchq.DispatchSender{Q: dispatchQ}, clk, gen, dispatch.DispatchConfig{
-			MaxExecutionsPerTask: cfg.Execution.MaxExecutionsPerTask,
-			DispatchAckTimeout:   cfg.Execution.DispatchAckTimeout(),
-		})
-	// (AgentResolver wiring: deferred below after aiRepo is constructed —
-	// it lives in the AgentInstance management block.)
-	killCoord := kill.NewCoordinator(db, execRepo, taskRepo, irRepo, sink,
-		dispatchq.KillSender{Q: dispatchQ}, clk)
-	issueSpawn := dispatch.NewIssueConcludeSpawn(db, taskRepo, sink, gen, clk)
-
-	// Discussion BC
-	issueRepo := disqlite.NewIssueRepo(db)
-	convOpener := disservice.NewIssueConversationOpener(cr, sink, gen, clk)
-	issueLifecycle := disservice.NewIssueLifecycleService(db, issueRepo, convOpener, writer, sink, gen, clk).
-		WithProjectExistenceChecker(projectCheckerAdapter{repo: pjRepo}).
-		WithSpawnerAndCommenter(issueSpawn, writer)
-	issueComment := disservice.NewIssueCommentService(issueRepo, cr, mgRepo, writer, issueLifecycle, clk)
-	issueBind := disservice.NewIssueBindConversationService(db, issueRepo, cr, convOpener, sink, clk)
-	issueLink := disservice.NewIssueLinkConversationService(db, issueRepo, cr, clk)
 
 	// Observability Phase 4
 	projRepo := obsqlite.NewProjectionRepo(db)
@@ -344,12 +258,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// Workforce — AgentInstance management.
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
 	agentMgmt := wfservice.NewAgentInstanceManagementService(db, aiRepo, gen, sink, clk)
-
-	// v2.2 Phase D (gap #3 from C report): wire the DB-backed AgentResolver
-	// so v2 envelopes carrying agent_instance_id resolve to (worker_id,
-	// agent_cli) at dispatch time. Without this, any v2 dispatch returns
-	// dispatch.ErrAgentResolverNotConfigured (500 to the caller).
-	dispatchSvc.WithAgentResolver(wfservice.NewAgentResolver(aiRepo, wr))
 
 	// P11 § 3.7b: UserSecret management — wired iff master key file is
 	// configured. Without master key the CLI handlers refuse with
@@ -453,18 +361,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AgentActivityRepo:  agentActivityRepo,
 		EnvControlSvc:      envControlSvc,
 		WorkerRepo:         wr,
-		MappingRepo:        mr,
-		ProposalRepo:       prRepo,
-		ProjectRepo:        pjRepo,
 		PMProjectRepo:      pmProjRepo,
 		ConvRepo:           cr,
 		MsgRepo:            mgRepo,
 		EventRepo:          er,
 		Sink:               sink,
 		EnrollSvc:          enroll,
-		DiscoverySvc:       disc,
-		AcceptanceSvc:      acc,
-		ProjectSvc:         pjSvc,
 		MessageWriter:      writer,
 		ChannelMgmtSvc:     channelMgmt,
 		ParticipantMgmtSvc: participantMgmt,
@@ -497,26 +399,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IdentityAgentProvisionSvc:   identityAgentProvisionSvc,
 		IdentityOrgUpdateSvc:        identityOrgUpdateSvc,
 
-		AdminTokenRepo:  adminTokenRepo,
-		AdminTokenSvc:   adminTokenSvc,
-		TaskRepo:        taskRepo,
-		ExecRepo:        execRepo,
-		IRRepo:          irRepo,
-		ArtifactRepo:    artifactRepo,
-		TaskSvc:         taskSvc,
-		IRSvc:           irSvc,
-		ArtifactSvc:     artifactSvc,
-		ExecSvc:         execSvc,
-		DispatchSvc:     dispatchSvc,
-		KillCoordinator: killCoord,
-		IssueSpawn:      issueSpawn,
-
-		IssueRepo:                issueRepo,
-		IssueLifecycleSvc:        issueLifecycle,
-		IssueCommentSvc:          issueComment,
-		IssueBindConversationSvc: issueBind,
-		IssueLinkConversationSvc: issueLink,
-		IssueConversationOpener:  convOpener,
+		AdminTokenRepo: adminTokenRepo,
+		AdminTokenSvc:  adminTokenSvc,
 
 		ProjectionRepo: projRepo,
 		ProjectionSvc:  projSvc,
@@ -525,8 +409,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		StatsSvc:       statsSvc,
 		LogsSvc:        logsSvc,
 		BlobStore:      bs,
-
-		DispatchQueue: dispatchQ,
 	}, nil
 }
 
@@ -570,21 +452,3 @@ func writeOut(w io.Writer, s string) {
 	fmt.Fprintln(w, s)
 }
 
-// projectCheckerAdapter adapts workforce.ProjectRepository to the
-// taskruntime/service.ProjectExistenceChecker port. Used to enforce
-// task.project_id referential integrity at the application layer per
-// conventions § 9.w.
-type projectCheckerAdapter struct {
-	repo workforce.ProjectRepository
-}
-
-// ProjectExists reports whether a project with the given id is present.
-func (a projectCheckerAdapter) ProjectExists(ctx context.Context, projectID string) (bool, error) {
-	if _, err := a.repo.FindByID(ctx, workforce.ProjectID(projectID)); err != nil {
-		if errors.Is(err, workforce.ErrProjectNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}

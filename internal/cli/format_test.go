@@ -152,19 +152,6 @@ func TestCLI_SecretList_TextFormat(t *testing.T) {
 	}
 }
 
-func TestCLI_IRList_TextFormat(t *testing.T) {
-	app := newTestApp(t)
-	now := app.Clock.Now()
-	_ = seedExecAndIR(t, app, "E-TF1", "IR-TF1", now)
-	out, _, code := runOn(t, app, "input-request", "list", []string{"--format=text"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-	if !strings.Contains(out, "IR-TF1") {
-		t.Fatalf("expected IR-TF1 line; got %q", out)
-	}
-}
-
 // =============================================================================
 // End-to-end: --format=human still works (backwards compat alias).
 // =============================================================================
