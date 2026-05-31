@@ -147,7 +147,7 @@ export function MessageList({
           <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
           {/* v2.7 #133: render message attachments as METADATA chips only
               (filename / type / size). No download affordance here — download +
-              attach-time authz land in #142; until then a download link would 404
+              attach-time authz land in #142; until then a download link would 403
               (gated, leak-safe) and read as a false affordance. Only when present,
               so the #137 work_item segmentation below is unaffected. */}
           {m.attachments && m.attachments.length > 0 && (

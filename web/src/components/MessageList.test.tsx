@@ -120,9 +120,12 @@ describe('MessageList attachments (#133)', () => {
     expect(atts[0]).toHaveTextContent('design.png');
     expect(atts[1]).toHaveTextContent('spec.pdf');
     expect(atts[1]).toHaveTextContent('1.0 MB');
-    // #133 is display-only — NO download link/affordance (those land in #142).
+    // #133 is display-only — NO download/fetch affordance of any kind (those land
+    // in #142): no link, no image/video/audio element that would hit the gated blob.
     expect(container.querySelector('a')).toBeNull();
     expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('audio')).toBeNull();
   });
 
   it('renders nothing extra for a plain message (no attachments)', () => {
