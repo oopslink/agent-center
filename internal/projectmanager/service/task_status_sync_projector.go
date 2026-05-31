@@ -55,12 +55,22 @@ func (p *TaskStatusSyncProjector) Project(ctx context.Context, e outbox.Event) e
 	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
 		return err
 	}
-	// Only the active transition drives a task-status change in v2.7 (→Start).
-	if pl.Status != string(agentpkg.WorkItemActive) {
-		return nil
-	}
 	taskID, ok := taskIDFromRef(pl.TaskRef)
 	if !ok {
+		return nil
+	}
+	// Map the work-item transition to its task-status effect (v2.7 scope):
+	//   - active                          → Task.Start (assigned→running)
+	//   - failed & cause=agent_death (B3) → Task.Block (running→blocked)
+	// Everything else is a no-op: L2 single-turn failed (no cause), done (owned
+	// by complete_task), canceled/superseded/waiting_input, and creation.
+	var apply func(context.Context, pm.TaskID) error
+	switch {
+	case pl.Status == string(agentpkg.WorkItemActive):
+		apply = p.svc.startTaskIfAssigned
+	case pl.Status == string(agentpkg.WorkItemFailed) && pl.Cause == agentpkg.WorkItemCauseAgentDeath:
+		apply = p.svc.blockTaskOnAgentDeath
+	default:
 		return nil
 	}
 	now := p.clock.Now()
@@ -70,7 +80,7 @@ func (p *TaskStatusSyncProjector) Project(ctx context.Context, e outbox.Event) e
 		} else if done {
 			return nil
 		}
-		if err := p.svc.startTaskIfAssigned(txCtx, pm.TaskID(taskID)); err != nil {
+		if err := apply(txCtx, pm.TaskID(taskID)); err != nil {
 			return err
 		}
 		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
@@ -100,4 +110,30 @@ func (s *Service) startTaskIfAssigned(ctx context.Context, taskID pm.TaskID) err
 		return err
 	}
 	return s.emitTaskStateChanged(ctx, t, "")
+}
+
+// taskBlockedAgentDeathReason is the block reason stamped when a Task is blocked
+// because its agent hit the B3 crash circuit-break.
+const taskBlockedAgentDeathReason = "agent execution failed (circuit-break)"
+
+// blockTaskOnAgentDeath moves a running Task to blocked when its agent hit the B3
+// crash circuit-break (system path; no project-member check). A no-op when the
+// Task is not running: assigned (the WorkItem never activated → agent died before
+// pickup) is left assigned per the 口径 edge (agent-level failed already surfaces,
+// the user reassigns); already-blocked is idempotent; terminal is skipped.
+func (s *Service) blockTaskOnAgentDeath(ctx context.Context, taskID pm.TaskID) error {
+	t, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if t.Status() != pm.TaskRunning {
+		return nil
+	}
+	if err := t.Block(taskBlockedAgentDeathReason, s.clock.Now()); err != nil {
+		return err
+	}
+	if err := s.tasks.Update(ctx, t); err != nil {
+		return err
+	}
+	return s.emitTaskStateChanged(ctx, t, taskBlockedAgentDeathReason)
 }

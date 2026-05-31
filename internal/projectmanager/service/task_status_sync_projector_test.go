@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -145,5 +146,54 @@ func TestTaskStatusSync_NonMatchingEventIgnored(t *testing.T) {
 	}
 	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskAssigned {
 		t.Fatalf("unrelated event must be ignored, got %s", got)
+	}
+}
+
+func transitionEventCause(t *testing.T, eventID string, tid pm.TaskID, status, cause string) outbox.Event {
+	t.Helper()
+	pl, _ := json.Marshal(agentsvc.WorkItemTransitionPayload{
+		WorkItemID: "WI-1", AgentID: "AG1", TaskRef: "pm://tasks/" + string(tid),
+		PrevStatus: "active", Status: status, Version: 3, OccurredAt: time.Unix(1_700_000_000, 0).UTC(), Cause: cause,
+	})
+	return outbox.Event{ID: eventID, EventType: agentsvc.EvtAgentWorkItemTransitioned, Payload: string(pl)}
+}
+
+func TestTaskStatusSync_B3AgentDeathBlocksRunningTask(t *testing.T) {
+	svc, proj, _, ctx := taskSyncSetup(t)
+	tid := assignedTask(t, svc, ctx)
+	if err := proj.Project(ctx, transitionEvent(t, "E-1", tid, "active")); err != nil { // assigned→running
+		t.Fatal(err)
+	}
+	if err := proj.Project(ctx, transitionEventCause(t, "E-2", tid, "failed", agentpkg.WorkItemCauseAgentDeath)); err != nil {
+		t.Fatal(err)
+	}
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskBlocked {
+		t.Fatalf("B3 agent-death failure must block the running task, got %s", got)
+	}
+}
+
+func TestTaskStatusSync_L2FailedDoesNotBlock(t *testing.T) {
+	svc, proj, _, ctx := taskSyncSetup(t)
+	tid := assignedTask(t, svc, ctx)
+	_ = proj.Project(ctx, transitionEvent(t, "E-1", tid, "active")) // →running
+	// L2 single-turn failure = failed WITHOUT cause → task must NOT flip.
+	if err := proj.Project(ctx, transitionEventCause(t, "E-2", tid, "failed", "")); err != nil {
+		t.Fatal(err)
+	}
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskRunning {
+		t.Fatalf("L2 single-turn failure must NOT block (stays running), got %s", got)
+	}
+}
+
+func TestTaskStatusSync_B3OnAssignedTaskLeavesAssigned(t *testing.T) {
+	svc, proj, _, ctx := taskSyncSetup(t)
+	tid := assignedTask(t, svc, ctx) // never activated → task still assigned
+	// Agent dies before activation: assigned→blocked is illegal → leave assigned
+	// (edge per 口径; agent-level failed already surfaces, user reassigns).
+	if err := proj.Project(ctx, transitionEventCause(t, "E-1", tid, "failed", agentpkg.WorkItemCauseAgentDeath)); err != nil {
+		t.Fatal(err)
+	}
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskAssigned {
+		t.Fatalf("B3 on a not-yet-running task must leave it assigned (no illegal block), got %s", got)
 	}
 }
