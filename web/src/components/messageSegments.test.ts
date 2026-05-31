@@ -57,4 +57,14 @@ describe('groupMessagesByWorkItem (#137 work-item segments)', () => {
     const flattened = segs.flatMap((s) => s.messages.map((m) => m.id));
     expect(flattened).toEqual(['1', '2', '3', '4', '5']);
   });
+
+  it('keeps a no-ref message in its chronological position (does NOT hoist it before WI segments)', () => {
+    // PD §-1 ruling: a conversation is a time-ordered stream. An unassociated
+    // message sandwiched between two work-item runs stays in time order — its
+    // "未关联工作项" segment sits BETWEEN the WI segments, not pulled to the top.
+    const segs = groupMessagesByWorkItem([msg('1', 'wi-A'), msg('2'), msg('3', 'wi-B')]);
+    expect(segs.map((s) => s.workItemRef)).toEqual(['wi-A', '', 'wi-B']);
+    expect(segs[1].label).toBe('未关联工作项');
+    expect(segs[1].messages.map((m) => m.id)).toEqual(['2']);
+  });
 });
