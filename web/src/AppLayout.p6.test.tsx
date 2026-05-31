@@ -20,7 +20,6 @@ beforeAll(() => {
     },
     configurable: true,
   });
-  server.use(http.get('/api/input_requests', () => HttpResponse.json([])));
   server.use(http.get('/api/conversations', () => HttpResponse.json([])));
 });
 

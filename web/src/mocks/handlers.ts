@@ -330,22 +330,6 @@ export const handlers = [
   // Project members (read-only).
   http.get('/api/projects/:pid/members', () => ok({ members: [] })),
 
-  // Input requests
-  http.get('/api/input_requests', () =>
-    ok([
-      {
-        id: 'IR-1',
-        status: 'pending',
-        execution_id: 'E-1',
-        question: 'go?',
-        urgency: 'normal',
-        created_at: '2026-05-24T01:00:00Z',
-      },
-    ]),
-  ),
-  http.post('/api/input_requests/:id/respond', () => ok({ event_id: 'E-resp' })),
-  http.post('/api/input_requests/:id/cancel', () => ok({ cancelled: true })),
-
   // Agents — Agent BC (v2.7 #101). Org-scoped, wrapped list shape, lifecycle
   // sub-routes + work-items / activity.
   ...agentHandlers(),
@@ -498,7 +482,7 @@ export const handlers = [
   http.post('/api/members/:id/disable', () => new HttpResponse(null, { status: 204 })),
   http.post('/api/members/:id/reenable', () => new HttpResponse(null, { status: 204 })),
 
-  // Fleet + trace
+  // Fleet
   http.get('/api/fleet', () =>
     ok({
       work_items: [],
@@ -507,5 +491,4 @@ export const handlers = [
       generated_at: '2026-05-24T01:00:00Z',
     }),
   ),
-  http.get('/api/tasks/:id/trace', () => ok([])),
 ];

@@ -1,15 +1,12 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
 import AppLayout from './AppLayout';
 
 beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
-  server.use(http.get('/api/input_requests', () => HttpResponse.json([])));
 });
 
 function renderShell(initial = '/channels') {
@@ -35,7 +32,6 @@ describe('AppLayout v2 shell (v2.3 P2)', () => {
     renderShell();
     // Section headings live in the always-mounted desktop sidebar.
     expect(screen.getByText('Conversations')).toBeInTheDocument();
-    expect(screen.getByText('Work')).toBeInTheDocument();
     expect(screen.getByText('System')).toBeInTheDocument();
   });
 

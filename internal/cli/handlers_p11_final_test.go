@@ -8,48 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 )
-
-// seedExecAndIR persists an execution in InputRequired state with an IR
-// associated, so respond/cancel can land cleanly.
-func seedExecAndIR(t *testing.T, app *App, execID, irID string, now time.Time) *execution.TaskExecution {
-	t.Helper()
-	exec, err := execution.New(execution.NewInput{
-		ID: taskruntime.TaskExecutionID(execID), TaskID: "T-X",
-		WorkerID: "W-X", AgentCLI: "claudecode",
-		WorkspaceMode: execution.WorkspaceWorktree, Now: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := exec.StartWorking("/tmp/wt", now); err != nil {
-		t.Fatal(err)
-	}
-	if err := app.ExecRepo.Save(context.Background(), exec); err != nil {
-		t.Fatal(err)
-	}
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: taskruntime.InputRequestID(irID), TaskExecutionID: taskruntime.TaskExecutionID(execID),
-		Question: "q?", Urgency: inputrequest.UrgencyNormal, Now: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := app.IRRepo.Save(context.Background(), ir); err != nil {
-		t.Fatal(err)
-	}
-	if err := exec.EnterInputRequired(ir.ID(), now); err != nil {
-		t.Fatal(err)
-	}
-	if err := app.ExecRepo.Update(context.Background(), exec); err != nil {
-		t.Fatal(err)
-	}
-	return exec
-}
 
 // ============================================================================
 // runWebConsole — starts the web console, hits /healthz, then shuts down.
@@ -152,98 +112,6 @@ func TestResolveSecretInput_PipedStdin(t *testing.T) {
 			t.Fatalf("got %q", got)
 		}
 	})
-}
-
-// ============================================================================
-// resolveAnswerInput — stdin "-" + piped stdin branches
-// ============================================================================
-
-func TestResolveAnswerInput_StdinDash(t *testing.T) {
-	withStdin(t, "yep\n", func() {
-		got, err := resolveAnswerInput("", "-")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != "yep" {
-			t.Fatalf("got %q", got)
-		}
-	})
-}
-
-func TestResolveAnswerInput_StdinDashEmpty(t *testing.T) {
-	withStdin(t, "", func() {
-		_, err := resolveAnswerInput("", "-")
-		if err == nil {
-			t.Fatal()
-		}
-	})
-}
-
-func TestResolveAnswerInput_PipedStdin(t *testing.T) {
-	withStdin(t, "from pipe\n", func() {
-		got, err := resolveAnswerInput("", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != "from pipe" {
-			t.Fatalf("got %q", got)
-		}
-	})
-}
-
-// ============================================================================
-// irRespond / irCancel — happy path via seeded execution + IR.
-// ============================================================================
-
-func TestCLI_IRRespond_HappyJSON(t *testing.T) {
-	app := newTestApp(t)
-	now := app.Clock.Now()
-	exec := seedExecAndIR(t, app, "E-RH1", "IR-RH1", now)
-	_ = exec
-	_, _, code := runOn(t, app, "input-request", "respond", []string{
-		"IR-RH1", "--answer=yes", "--format=json",
-	})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestCLI_IRRespond_NotWired(t *testing.T) {
-	app := newTestApp(t)
-	app.IRSvc = nil
-	_, _, code := runOn(t, app, "input-request", "respond", []string{"IR-XYZ", "--answer=yes"})
-	if code != ExitNotImplemented {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestCLI_IRCancel_Happy(t *testing.T) {
-	app := newTestApp(t)
-	now := app.Clock.Now()
-	_ = seedExecAndIR(t, app, "E-CH1", "IR-CH1", now)
-	_, _, code := runOn(t, app, "input-request", "cancel", []string{
-		"IR-CH1", "--message=nevermind",
-	})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestCLI_IRCancel_MissingMessage(t *testing.T) {
-	app := newTestApp(t)
-	_, _, code := runOn(t, app, "input-request", "cancel", []string{"IR-X"})
-	if code != ExitUsage {
-		t.Fatalf("code %d", code)
-	}
-}
-
-func TestCLI_IRCancel_NotWired(t *testing.T) {
-	app := newTestApp(t)
-	app.IRSvc = nil
-	_, _, code := runOn(t, app, "input-request", "cancel", []string{"IR-X", "--message=m"})
-	if code != ExitNotImplemented {
-		t.Fatalf("code %d", code)
-	}
 }
 
 // ============================================================================

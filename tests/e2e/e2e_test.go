@@ -165,67 +165,6 @@ func TestE2E1_WorkerEnrollListStatus(t *testing.T) {
 }
 
 // =============================================================================
-// E2E-2: propose → accept → check project
-// =============================================================================
-
-func TestE2E2_ProposeAccept(t *testing.T) {
-	h := newHarness(t)
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac")
-	list, _ := h.runJSONArray("worker", "proposal", "list")
-	if len(list) != 1 {
-		t.Fatalf("expected 1 proposal, got %d", len(list))
-	}
-	pid := list[0]["proposal_id"].(string)
-	acc, code := h.runJSON("worker", "proposal", "accept", pid)
-	if code != 0 {
-		t.Fatalf("accept: %d", code)
-	}
-	if acc["project_id"] == "" {
-		t.Fatalf("accept: %v", acc)
-	}
-	// The CLI `project show` read surface reads the new pm.Project model
-	// (#131 PR-3), while the proposal-accept flow creates a workforce
-	// project. Seed the corresponding pm project so the read-back is a real
-	// pm read assertion (the accept itself already verified the workforce
-	// project_id above).
-	app, done := inProcessApp(t, h)
-	seedPMProjectE2E(t, app, "ac", "ac")
-	done()
-	// Project should be visible via the pm-backed read now.
-	pj, code := h.runJSON("project", "show", "ac")
-	if code != 0 {
-		t.Fatalf("project show: %d", code)
-	}
-	if pj["project_id"] != "ac" {
-		t.Fatalf("project: %v", pj)
-	}
-}
-
-// =============================================================================
-// E2E-3: proposal ignore → unignore → accept
-// =============================================================================
-
-func TestE2E3_IgnoreUnignoreAccept(t *testing.T) {
-	h := newHarness(t)
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac")
-	list, _ := h.runJSONArray("worker", "proposal", "list")
-	pid := list[0]["proposal_id"].(string)
-	if _, _, c := h.run("worker", "proposal", "ignore", pid); c != 0 {
-		t.Fatal("ignore failed")
-	}
-	if _, _, c := h.run("worker", "proposal", "unignore", pid); c != 0 {
-		t.Fatal("unignore failed")
-	}
-	if _, _, c := h.run("worker", "proposal", "accept", pid); c != 0 {
-		t.Fatal("accept failed")
-	}
-}
-
-// =============================================================================
 // E2E-4: conversation open → add → read
 // =============================================================================
 
@@ -268,42 +207,6 @@ func TestE2E5_EnrollEmitsEvent(t *testing.T) {
 	}
 	if !strings.Contains(rows[0]["actor"], "user:hayang") {
 		t.Fatalf("actor: %s", rows[0]["actor"])
-	}
-}
-
-// =============================================================================
-// E2E-6: proposal accept emits 3 (existing project) or 4 (new project) events
-// =============================================================================
-
-func TestE2E6_ProposalAcceptEmitsEvents_NewProject(t *testing.T) {
-	h := newHarness(t)
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac")
-	list, _ := h.runJSONArray("worker", "proposal", "list")
-	pid := list[0]["proposal_id"].(string)
-	if _, _, c := h.run("worker", "proposal", "accept", pid); c != 0 {
-		t.Fatal()
-	}
-	rows := h.queryEvents(t, `SELECT event_type FROM events WHERE event_type LIKE 'workforce.%' ORDER BY seq`)
-	types := []string{}
-	for _, r := range rows {
-		types = append(types, r["event_type"])
-	}
-	expected := []string{
-		"workforce.worker.enrolled",
-		"workforce.worker_project_proposal.proposed",
-		"workforce.project.created",
-		"workforce.worker_project_mapping.added",
-		"workforce.worker_project_proposal.accepted",
-	}
-	if len(types) != len(expected) {
-		t.Fatalf("event types: got %v want %v", types, expected)
-	}
-	for i, want := range expected {
-		if types[i] != want {
-			t.Fatalf("event[%d]: got %s want %s", i, types[i], want)
-		}
 	}
 }
 

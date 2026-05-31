@@ -2,7 +2,6 @@ import React from 'react';
 import { OrgLink } from '@/OrgContext';
 
 import { useFleet } from '@/api/fleet';
-import { useInputRequests } from '@/api/inputRequests';
 import { useConversations } from '@/api/conversations';
 import type { Conversation } from '@/api/types';
 import { Skeleton } from '@/components/Skeleton';
@@ -15,11 +14,9 @@ import { Skeleton } from '@/components/Skeleton';
 // doesn't blank the whole page.
 export default function Home(): React.ReactElement {
   const fleet = useFleet();
-  const irs = useInputRequests();
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
 
-  const pendingIRCount = (irs.data ?? []).filter((ir) => ir.status === 'pending').length;
   const onlineWorkers = (fleet.data?.workers ?? []).filter((w) => w.status === 'online').length;
   // v2.7 #107/#118: fleet now returns only non-terminal work items
   // {queued,active,waiting_input}; terminal (incl failed) is not surfaced here.
@@ -73,14 +70,7 @@ export default function Home(): React.ReactElement {
       )}
 
       {/* Row 1 — at-a-glance stat cards. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Pending input requests"
-          value={pendingIRCount}
-          tone={pendingIRCount > 0 ? 'warning' : 'neutral'}
-          href="/inputrequests"
-          loading={irs.isLoading}
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
           label="Active work items"
           value={workItems.length}
@@ -110,12 +100,9 @@ export default function Home(): React.ReactElement {
           {workItems.slice(0, 5).map((wi) => (
             <li key={wi.work_item_id} className="flex items-center justify-between gap-3 py-1.5">
               {wi.task_id ? (
-                <OrgLink
-                  to={`/tasks/${encodeURIComponent(wi.task_id)}/trace`}
-                  className="truncate font-mono text-xs text-accent hover:underline"
-                >
+                <span className="truncate font-mono text-xs text-text-secondary">
                   {wi.task_id}
-                </OrgLink>
+                </span>
               ) : (
                 <span className="truncate font-mono text-xs text-text-muted">
                   {wi.work_item_id.slice(0, 12)}

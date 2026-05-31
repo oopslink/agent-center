@@ -1,57 +1,17 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 )
 
 // ============================================================================
-// projection helpers — irToMap / secretToMap / valid kind / trim
+// projection helpers — secretToMap / valid kind / trim
 // ============================================================================
-
-func TestIRToMap_Responded(t *testing.T) {
-	now := time.Now().UTC()
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-1", TaskExecutionID: "E-1",
-		Question: "q?", Options: []string{"yes", "no"},
-		Urgency: inputrequest.UrgencyNormal, Now: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = ir.Respond(inputrequest.InputResponse{
-		Answer: "yes", DecidedBy: "user:hayang", DecidedAt: now,
-	})
-	m := irToMap(ir)
-	if m["answer"] != "yes" {
-		t.Fatalf("answer: %v", m["answer"])
-	}
-	if m["decided_by"] != "user:hayang" {
-		t.Fatalf("decided_by: %v", m["decided_by"])
-	}
-}
-
-func TestIRToMap_Pending(t *testing.T) {
-	now := time.Now().UTC()
-	ir, _ := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-2", TaskExecutionID: "E-2",
-		Question: "q?", Urgency: inputrequest.UrgencyNormal, Now: now,
-	})
-	m := irToMap(ir)
-	if _, ok := m["answer"]; ok {
-		t.Fatal("pending IR should not carry answer in projection")
-	}
-}
 
 func TestSecretToMap_AllFields(t *testing.T) {
 	now := time.Now().UTC()
@@ -112,7 +72,7 @@ func TestTrimTrailingNewline(t *testing.T) {
 }
 
 // ============================================================================
-// resolveSecretInput / resolveAnswerInput — file paths
+// resolveSecretInput — file paths
 // ============================================================================
 
 func TestResolveSecretInput_FromFile(t *testing.T) {
@@ -136,42 +96,6 @@ func TestResolveSecretInput_EmptyFile(t *testing.T) {
 
 func TestResolveSecretInput_FileNotFound(t *testing.T) {
 	_, err := resolveSecretInput("/no/such/file/asdf")
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-func TestResolveAnswerInput_FromFile(t *testing.T) {
-	tmp := writeTempFile(t, "yes\n")
-	got, err := resolveAnswerInput("", tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "yes" {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestResolveAnswerInput_FromFlag(t *testing.T) {
-	got, err := resolveAnswerInput("the answer", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "the answer" {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestResolveAnswerInput_FileNotFound(t *testing.T) {
-	_, err := resolveAnswerInput("", "/no/such/file/qwer")
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-func TestResolveAnswerInput_EmptyFile(t *testing.T) {
-	tmp := writeTempFile(t, "")
-	_, err := resolveAnswerInput("", tmp)
 	if err == nil {
 		t.Fatal()
 	}
@@ -209,67 +133,6 @@ func TestCLI_ConvShow_JSON(t *testing.T) {
 	_ = json.Unmarshal([]byte(strings.TrimSpace(out2)), &m2)
 	if m2["name"] != "showmejson" {
 		t.Fatalf("got %v", m2)
-	}
-}
-
-// ============================================================================
-// irShow — happy path via seeded IR
-// ============================================================================
-
-func TestCLI_IRShow_Happy(t *testing.T) {
-	app := newTestApp(t)
-	now := app.Clock.Now()
-	exec, _ := execution.New(execution.NewInput{
-		ID: taskruntime.TaskExecutionID("E-IR1"), TaskID: "T-1",
-		WorkerID: "W-1", AgentCLI: "claudecode",
-		WorkspaceMode: execution.WorkspaceWorktree, Now: now,
-	})
-	_ = app.ExecRepo.Save(context.Background(), exec)
-	ir, _ := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-S1", TaskExecutionID: "E-IR1",
-		Question: "go?", Options: []string{"yes", "no"},
-		Urgency: inputrequest.UrgencyNormal, Now: now,
-	})
-	_ = app.IRRepo.Save(context.Background(), ir)
-	out, _, code := runOn(t, app, "input-request", "show", []string{"IR-S1"})
-	if code != ExitOK {
-		t.Fatalf("code %d out=%s", code, out)
-	}
-	if !strings.Contains(out, "go?") {
-		t.Fatalf("got %s", out)
-	}
-}
-
-func TestCLI_IRShow_JSON_Responded(t *testing.T) {
-	app := newTestApp(t)
-	now := app.Clock.Now()
-	exec, _ := execution.New(execution.NewInput{
-		ID: "E-IR2", TaskID: "T-1", WorkerID: "W-1", AgentCLI: "claudecode",
-		WorkspaceMode: execution.WorkspaceWorktree, Now: now,
-	})
-	_ = exec.StartWorking("/tmp/wt", now)
-	_ = app.ExecRepo.Save(context.Background(), exec)
-	ir, _ := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-S2", TaskExecutionID: "E-IR2",
-		Question: "q?", Urgency: inputrequest.UrgencyNormal, Now: now,
-	})
-	_ = app.IRRepo.Save(context.Background(), ir)
-	_ = exec.EnterInputRequired(ir.ID(), now)
-	_ = app.ExecRepo.Update(context.Background(), exec)
-	_ = app.IRSvc.Respond(context.Background(), trservice.RespondInput{
-		InputRequestID: "IR-S2",
-		Answer:         "yes",
-		DecidedBy:      "user:hayang",
-		Actor:          observability.Actor("user:hayang"),
-	})
-	out, _, code := runOn(t, app, "input-request", "show", []string{"IR-S2", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code %d out=%s", code, out)
-	}
-	var m map[string]any
-	_ = json.Unmarshal([]byte(strings.TrimSpace(out)), &m)
-	if m["answer"] != "yes" {
-		t.Fatalf("got %v", m)
 	}
 }
 

@@ -144,12 +144,6 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 		}
 	}
 
-	// input-request group (P11 § 3.7 — user replies to pending IRs).
-	for _, c := range provider.inputRequestCommands() {
-		if err := router.Add([]string{"input-request"}, c); err != nil {
-			return nil, "", err
-		}
-	}
 
 	// secret group (P11 § 3.7b — user-owned UserSecret CRUD).
 	for _, c := range provider.secretCommands() {
@@ -165,31 +159,6 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 		}
 	}
 
-	// task group
-	for _, c := range provider.taskCommands() {
-		if err := router.Add([]string{"task"}, c); err != nil {
-			return nil, "", err
-		}
-	}
-	// dispatch / kill-execution (top-level)
-	if err := router.Add(nil, provider.dispatchCommand()); err != nil {
-		return nil, "", err
-	}
-	if err := router.Add(nil, provider.killExecutionCommand()); err != nil {
-		return nil, "", err
-	}
-	// agent CLI commands (request-input / report-* / read-task-context)
-	for _, c := range provider.agentRuntimeCommands() {
-		if err := router.Add(nil, c); err != nil {
-			return nil, "", err
-		}
-	}
-	// issue group (read/bind only; create/manage moved to webconsole/admin/MCP — #132)
-	for _, c := range provider.issueCommands() {
-		if err := router.Add([]string{"issue"}, c); err != nil {
-			return nil, "", err
-		}
-	}
 	// worker shim placeholder (system audience)
 	if err := router.Add([]string{"worker"}, WorkerShimPlaceholder()); err != nil {
 		return nil, "", err
@@ -466,19 +435,6 @@ func (l *lazyApp) workerCommands() []*Command {
 			return findCmd(c, "status")
 		}),
 	)
-	// proposal subtree
-	proposalGroup := &Command{Name: "proposal", Summary: "Manage proposals"}
-	for _, sub := range []string{"list", "show", "propose", "accept", "ignore", "unignore"} {
-		s := sub
-		proposalGroup.Subcommands = append(proposalGroup.Subcommands,
-			l.withApp(func(a *App) *Command {
-				c := a.WorkerCommands()
-				prop := findCmd(c, "proposal")
-				return findCmd(prop.Subcommands, s)
-			}),
-		)
-	}
-	out = append(out, proposalGroup)
 	return out
 }
 
@@ -530,18 +486,6 @@ func (l *lazyApp) agentCommands() []*Command {
 	return out
 }
 
-func (l *lazyApp) inputRequestCommands() []*Command {
-	names := []string{"list", "show", "respond", "cancel"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.InputRequestCommands(), n)
-		}))
-	}
-	return out
-}
-
 func (l *lazyApp) secretCommands() []*Command {
 	names := []string{"list", "show", "create", "revoke"}
 	out := make([]*Command, 0, len(names))
@@ -561,50 +505,6 @@ func (l *lazyApp) channelCommands() []*Command {
 		n := n
 		out = append(out, l.withApp(func(a *App) *Command {
 			return findCmd(a.ChannelCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) taskCommands() []*Command {
-	names := []string{"bind-conversation", "unbind-conversation"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.TaskCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) dispatchCommand() *Command {
-	return l.withApp(func(a *App) *Command { return a.DispatchCommand() })
-}
-
-func (l *lazyApp) killExecutionCommand() *Command {
-	return l.withApp(func(a *App) *Command { return a.KillExecutionCommand() })
-}
-
-func (l *lazyApp) agentRuntimeCommands() []*Command {
-	names := []string{"request-input", "report-progress", "report-artifact", "report-failure", "read-task-context"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.AgentRuntimeCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) issueCommands() []*Command {
-	names := []string{"bind-conversation", "link-conversation"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.IssueCommands(), n)
 		}))
 	}
 	return out

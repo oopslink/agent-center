@@ -214,15 +214,6 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       }
       return;
 
-    // Input request lifecycle.
-    case 'input_request.requested':
-    case 'input_request.responded':
-    case 'input_request.canceled':
-    case 'input_request.timed_out':
-    case 'input_request.escalated':
-      invalidate(qk.inputRequests());
-      return;
-
     // Agent instance lifecycle. Backend emits BC-prefixed names.
     case 'workforce.agent_instance.created':
     case 'workforce.agent_instance.archived':
@@ -289,7 +280,6 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       return;
     case 'task_execution.input_required':
       invalidate(qk.fleet());
-      invalidate(qk.inputRequests());
       return;
 
     // Issue lifecycle — BC-native Issue list/show refresh on any

@@ -163,13 +163,6 @@ export default function TaskDetail(): React.ReactElement {
               {cancel.isPending ? 'Canceling…' : 'Cancel'}
             </button>
           )}
-          <OrgLink
-            to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
-            className="rounded bg-bg-subtle px-3 py-1.5 text-xs text-text-primary hover:bg-border-base"
-            data-testid="task-view-trace"
-          >
-            View trace →
-          </OrgLink>
         </div>
       </header>
 

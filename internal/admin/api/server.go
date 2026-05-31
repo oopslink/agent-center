@@ -312,13 +312,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-all", s.workerFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-id", s.workerFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-status", s.workerFindByStatusHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/propose", s.proposalProposeHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/accept", s.proposalAcceptHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/ignore", s.proposalIgnoreHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/unignore", s.proposalUnignoreHandler)
-	s.mux.HandleFunc("GET /admin/workforce/proposal/find-by-id", s.proposalFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/workforce/proposal/find-by-worker-id", s.proposalFindByWorkerIDHandler)
-	s.mux.HandleFunc("GET /admin/workforce/proposal/find-pending", s.proposalFindPendingHandler)
 	s.mux.HandleFunc("POST /admin/workforce/agent-instance/create", s.agentCreateHandler)
 	s.mux.HandleFunc("POST /admin/workforce/agent-instance/archive", s.agentArchiveHandler)
 	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-all", s.agentFindAllHandler)
@@ -326,9 +319,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-by-name", s.agentFindByNameHandler)
 	s.mux.HandleFunc("GET /admin/workforce/project/find-all", s.projectFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/project/find-by-id", s.projectFindByIDHandler)
-	s.mux.HandleFunc("POST /admin/workforce/project/add", s.projectAddHandler)
-	s.mux.HandleFunc("POST /admin/workforce/project/remove", s.projectRemoveHandler)
-	s.mux.HandleFunc("POST /admin/workforce/project/update", s.projectUpdateHandler)
 
 	// --- environment (v2.7 D1, ADR-0050, task #102) ----------------------
 	// Worker-initiated control channel. ADDITIVE — rides the same bearer
@@ -423,47 +413,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-child-conv-id", s.convRefFindByChildConvIDHandler)
 	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-source-msg-id", s.convRefFindBySourceMsgIDHandler)
 
-	// --- taskruntime -----------------------------------------------------
-	s.mux.HandleFunc("GET /admin/taskruntime/task/find-by-id", s.taskFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/task/find-by-status", s.taskFindByStatusHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-id", s.execFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-task-id", s.execFindByTaskIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-status", s.execFindByStatusHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-by-id", s.irFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-by-execution-id", s.irFindByExecutionIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-pending", s.irFindPendingHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/artifact/find-by-id", s.artifactFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/artifact/find-by-execution-id", s.artifactFindByExecutionIDHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/task/create", s.taskCreateHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/task/bind-conversation", s.taskBindConversationHandler)
-	// v2.3-1 (task #24): agent-facing read-context proxy (was missing,
-	// `read-task-context` returned ExitNotImplemented in Client mode).
-	s.mux.HandleFunc("GET /admin/taskruntime/task/read-context", s.taskReadContextHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/ir/create", s.irCreateHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/ir/respond", s.irRespondHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/ir/cancel", s.irCancelHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/artifact/append", s.artifactAppendHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-progress", s.execReportProgressHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-failure", s.execReportFailureHandler)
-	// v2.2 Phase D: state-machine progression endpoints — worker daemon
-	// calls notify-working post-spawn and conclude on clean exit. Without
-	// these the execution never leaves `submitted`.
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/notify-working", s.execNotifyWorkingHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/conclude", s.execConcludeHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch", s.dispatchHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/kill/request", s.killExecutionHandler)
-	// --- discussion ------------------------------------------------------
-	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-id", s.issueFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-project", s.issueFindByProjectHandler)
-	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-status", s.issueFindByStatusHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/open", s.issueOpenHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/conclude", s.issueConcludeHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/withdraw", s.issueWithdrawHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/comment", s.issueCommentHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/bind-auto", s.issueBindAutoHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/bind-to", s.issueBindToHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/link", s.issueLinkHandler)
-
 	// --- secret ----------------------------------------------------------
 	s.mux.HandleFunc("GET /admin/secret/user-secret/find-all", s.secretFindAllHandler)
 	s.mux.HandleFunc("GET /admin/secret/user-secret/find-by-id", s.secretFindByIDHandler)
@@ -489,9 +438,4 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/admintoken/create", s.admintokenCreateHandler)
 	s.mux.HandleFunc("GET /admin/admintoken/list", s.admintokenListHandler)
 	s.mux.HandleFunc("POST /admin/admintoken/revoke", s.admintokenRevokeHandler)
-
-	// --- dispatch queue (v2.2-A3 — worker daemon drains via these) ------
-	s.mux.HandleFunc("GET /admin/dispatch/queue/pull", s.dispatchQueuePullHandler)
-	s.mux.HandleFunc("GET /admin/dispatch/queue/peek", s.queuePeekHandler)
-	s.mux.HandleFunc("GET /admin/kill/queue/pull", s.killQueuePullHandler)
 }

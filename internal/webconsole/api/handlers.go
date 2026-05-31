@@ -16,7 +16,6 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
@@ -26,11 +25,6 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -45,28 +39,12 @@ type HandlerDeps struct {
 	ChannelMgmtSvc     *convservice.ChannelManagementService
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
 	CarryOverSvc       *convservice.CarryOverService
-	IRRepo             inputrequest.Repository
-	IRSvc              *trservice.InputRequestService
-	// ExecRepo resolves InputRequest → execution → task → project for v2.6
-	// org-scoped input-request lists (X1 §3). Optional; when nil the IR list
-	// is not org-filtered (legacy/test deps).
-	ExecRepo          execution.Repository
-	AgentInstanceRepo workforce.AgentInstanceRepository
-	UserSecretRepo    secretmgmt.UserSecretRepository
-	UserSecretSvc     *secretservice.UserSecretService
-	ProjectRepo       workforce.ProjectRepository
-	QuerySvc          *query.Service
-	FleetSvc          *query.FleetSnapshotService
-	ReadStateRepo     conversation.UserConversationReadStateRepository
-	ReadStateSvc      *convservice.ReadStateService
-	// IssueRepo / TaskRepo back the BC-native list + detail
-	// endpoints (`GET /api/issues`, `GET /api/issues/{id}`,
-	// `GET /api/tasks`, `GET /api/tasks/{id}`). Restores BC ownership:
-	// Issue projection lives in Discussion BC and Task projection
-	// lives in TaskRuntime BC, so SPA reads no longer require the
-	// Conversation BC's `kind=issue|task` filter.
-	IssueRepo discussion.IssueRepository
-	TaskRepo  task.Repository
+	AgentInstanceRepo  workforce.AgentInstanceRepository
+	UserSecretRepo     secretmgmt.UserSecretRepository
+	UserSecretSvc      *secretservice.UserSecretService
+	FleetSvc           *query.FleetSnapshotService
+	ReadStateRepo      conversation.UserConversationReadStateRepository
+	ReadStateSvc       *convservice.ReadStateService
 
 	// v2.4-D-X1 (@oopslink ask): workers.name editing surface in the
 	// Fleet view. WorkerRenameSvc is the workforce service that wraps
@@ -189,22 +167,6 @@ func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
 		}
 	}
 	return ""
-}
-
-// orgProjectIDSet returns the set of project IDs that belong to orgID. Used by
-// issue/task/input-request/fleet/trace handlers to scope BC-native reads that
-// don't carry organization_id directly but reference a project (which does).
-// v2.6 X1 §3: these surfaces must not leak cross-org rows.
-func orgProjectIDSet(r *http.Request, d HandlerDeps, orgID string) (map[string]bool, error) {
-	projects, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{OrganizationID: orgID})
-	if err != nil {
-		return nil, err
-	}
-	set := make(map[string]bool, len(projects))
-	for _, p := range projects {
-		set[string(p.ID())] = true
-	}
-	return set, nil
 }
 
 // requireOrgMember is the authoritative auth/scope helper for org-scoped APIs.
@@ -342,44 +304,6 @@ func (s *Server) requireWorkerInOrg(w http.ResponseWriter, r *http.Request, d Ha
 	}
 	if wk.OrganizationID() != orgID {
 		writeError(w, http.StatusNotFound, "not_found", "worker not found")
-		return "", false
-	}
-	return orgID, true
-}
-
-// requireInputRequestInOrg guards input-request mutation endpoints. Resolves
-// IR → execution → task → project → org.
-func (s *Server) requireInputRequestInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, irID string) (orgID string, ok bool) {
-	_, _, orgID, member := requireOrgMember(w, r, d)
-	if !member {
-		return "", false
-	}
-	if d.IRRepo == nil || d.ExecRepo == nil || d.TaskRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_wired", "input-request scope deps not wired")
-		return "", false
-	}
-	ir, err := d.IRRepo.FindByID(r.Context(), taskruntime.InputRequestID(irID))
-	if err != nil || ir == nil {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
-		return "", false
-	}
-	ex, err := d.ExecRepo.FindByID(r.Context(), ir.TaskExecutionID())
-	if err != nil || ex == nil {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
-		return "", false
-	}
-	tk, err := d.TaskRepo.FindByID(r.Context(), ex.TaskID())
-	if err != nil || tk == nil {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
-		return "", false
-	}
-	set, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return "", false
-	}
-	if !set[tk.ProjectID()] {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
 		return "", false
 	}
 	return orgID, true
@@ -926,117 +850,7 @@ func (s *Server) removeParticipantHandler(w http.ResponseWriter, r *http.Request
 }
 
 // =============================================================================
-// Input requests
-// =============================================================================
-
-func (s *Server) listInputRequestsHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	// v2.6 X1 §3: require org membership; scope IRs to the org's projects via
-	// execution → task → project resolution (requires ExecRepo + TaskRepo).
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	irs, err := d.IRRepo.FindPending(r.Context(), time.Now().UTC().Add(24*365*time.Hour))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	orgProjects, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return
-	}
-	arr := make([]map[string]any, 0, len(irs))
-	for _, ir := range irs {
-		// When ExecRepo + TaskRepo are wired, resolve the IR's project and keep
-		// only org-owned ones. If repos are unavailable, fail closed (skip) to
-		// avoid leaking cross-org IRs.
-		if d.ExecRepo == nil || d.TaskRepo == nil {
-			continue
-		}
-		ex, exErr := d.ExecRepo.FindByID(r.Context(), ir.TaskExecutionID())
-		if exErr != nil || ex == nil {
-			continue
-		}
-		tk, tkErr := d.TaskRepo.FindByID(r.Context(), ex.TaskID())
-		if tkErr != nil || tk == nil || !orgProjects[tk.ProjectID()] {
-			continue
-		}
-		arr = append(arr, irPublicMap(ir))
-	}
-	writeJSON(w, http.StatusOK, arr)
-}
-
-type respondReq struct {
-	Answer    string `json:"answer"`
-	DecidedBy string `json:"decided_by"`
-}
-
-func (s *Server) respondInputRequestHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	id := taskruntime.InputRequestID(r.PathValue("id"))
-	var req respondReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	// v2.6 X1 §5: org guard before the mutation (after body parse so a bad
-	// body is a 400 regardless of org).
-	if _, ok := s.requireInputRequestInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	who := req.DecidedBy
-	if who == "" {
-		who = string(d.Actor)
-	}
-	if err := d.IRSvc.Respond(r.Context(), trservice.RespondInput{
-		InputRequestID: id, Answer: req.Answer, DecidedBy: who, Actor: d.Actor,
-	}); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"answered": true})
-}
-
-type cancelInputRequestReq struct {
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
-}
-
-func (s *Server) cancelInputRequestHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	id := taskruntime.InputRequestID(r.PathValue("id"))
-	if d.IRSvc == nil {
-		writeError(w, http.StatusNotImplemented, "ir_svc_not_wired", "")
-		return
-	}
-	var req cancelInputRequestReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	if req.Reason == "" {
-		req.Reason = "user_cancel"
-	}
-	// v2.6 X1 §5: org guard before the mutation.
-	if _, ok := s.requireInputRequestInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	if err := d.IRSvc.Cancel(r.Context(), trservice.CancelInput{
-		InputRequestID: id,
-		Reason:         req.Reason,
-		Message:        req.Message,
-		Actor:          d.Actor,
-	}); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true})
-}
-
-// =============================================================================
-// Fleet snapshot + task trace
+// Fleet snapshot
 // =============================================================================
 
 func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
@@ -1058,49 +872,6 @@ func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := d.FleetSvc.Snapshot(r.Context(), filter)
 	writeJSON(w, http.StatusOK, snap)
-}
-
-func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.QuerySvc == nil {
-		writeError(w, http.StatusNotImplemented, "query_not_wired", "")
-		return
-	}
-	taskID := r.PathValue("id")
-	if taskID == "" {
-		writeError(w, http.StatusBadRequest, "missing_task_id", "")
-		return
-	}
-	// v2.6 X1 §3: require org membership + verify the task's project is in the org.
-	if d.TaskRepo != nil {
-		_, _, orgID, ok := requireOrgMember(w, r, d)
-		if !ok {
-			return
-		}
-		tk, terr := d.TaskRepo.FindByID(r.Context(), taskruntime.TaskID(taskID))
-		if terr != nil {
-			writeError(w, http.StatusNotFound, "not_found", "task not found")
-			return
-		}
-		orgProjects, perr := orgProjectIDSet(r, d, orgID)
-		if perr != nil {
-			writeError(w, http.StatusInternalServerError, "org_scope_failed", perr.Error())
-			return
-		}
-		if !orgProjects[tk.ProjectID()] {
-			writeError(w, http.StatusNotFound, "not_found", "task not found")
-			return
-		}
-	}
-	res, err := d.QuerySvc.Query(r.Context(), "events", query.QueryFilter{
-		TaskID: taskID,
-		Limit:  500,
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "query_failed", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, res)
 }
 
 // =============================================================================
@@ -1125,16 +896,6 @@ func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
-
-// =============================================================================
-// Tasks (BC-native read; TaskRuntime BC owns the Task projection)
-// =============================================================================
-//
-// Sibling to the Issues read endpoints above. Coexists with the
-// existing `GET /api/tasks/{id}/trace` — net/http's pattern-matcher
-// resolves `/{id}/trace` ahead of `/{id}` because the longer pattern
-// wins on tie-break (ServeMux specificity rule). Verified by
-// TestAPI_TaskTrace + TestAPI_ShowTask_Happy in this package.
 
 func (s *Server) showAgentHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -1354,8 +1115,7 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
 		errors.Is(err, workforce.ErrAgentInstanceNotFound),
-		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
-		errors.Is(err, inputrequest.ErrInputRequestNotFound):
+		errors.Is(err, secretmgmt.ErrUserSecretNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, conversation.ErrConversationVersionConflict),
 		errors.Is(err, conversation.ErrReadStateVersionConflict),
@@ -1458,24 +1218,6 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 		out["attachments"] = arr
 	}
 	return out
-}
-
-func irPublicMap(ir *inputrequest.InputRequest) map[string]any {
-	m := map[string]any{
-		"id":           string(ir.ID()),
-		"status":       string(ir.Status()),
-		"execution_id": string(ir.TaskExecutionID()),
-		"question":     ir.Question(),
-		"options":      ir.Options(),
-		"urgency":      string(ir.Urgency()),
-		"created_at":   ir.CreatedAt().Format(time.RFC3339Nano),
-	}
-	if ra := ir.RespondedAt(); ra != nil {
-		m["answer"] = ir.ResponseText()
-		m["decided_by"] = ir.RespondedBy()
-		m["decided_at"] = ra.Format(time.RFC3339Nano)
-	}
-	return m
 }
 
 func agentPublicMap(ai *workforce.AgentInstance) map[string]any {

@@ -31,7 +31,6 @@ function resetStore() {
     currentUserId: 'user:test',
     sseStatus: 'idle',
     sseLastEventId: null,
-    navBadges: { inputRequests: 0 },
   });
 }
 
@@ -93,27 +92,6 @@ describe('dispatchToQueryClient', () => {
   it('conversation.read_state.changed invalidates unread', () => {
     dispatchToQueryClient(qc, ev('conversation.read_state.changed', 'C1'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
-  });
-
-  it('input_request.requested invalidates IRs (badge derived from query, not bumped)', () => {
-    dispatchToQueryClient(qc, ev('input_request.requested'));
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.inputRequests() });
-    // Badge no longer bumped by SSE — derived from useInputRequests in
-    // AppLayout. The store counter is kept for forward-compat but stays 0.
-    expect(useAppStore.getState().navBadges.inputRequests).toBe(0);
-  });
-
-  it('all input_request.* variants invalidate IRs', () => {
-    for (const t of [
-      'input_request.requested',
-      'input_request.responded',
-      'input_request.canceled',
-      'input_request.timed_out',
-      'input_request.escalated',
-    ]) {
-      dispatchToQueryClient(qc, ev(t));
-    }
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.inputRequests() });
   });
 
   it('workforce.agent_instance.* invalidates agents + fleet (note BC prefix)', () => {
@@ -234,10 +212,9 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.issues() });
   });
 
-  it('task_execution.input_required invalidates fleet + IRs', () => {
+  it('task_execution.input_required invalidates fleet', () => {
     dispatchToQueryClient(qc, ev('task_execution.input_required'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.fleet() });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.inputRequests() });
   });
 
   it('participant_joined / participant_left invalidate the affected conversation', () => {

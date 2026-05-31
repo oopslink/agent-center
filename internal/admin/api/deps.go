@@ -14,8 +14,6 @@ import (
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	"github.com/oopslink/agent-center/internal/discussion"
-	disservice "github.com/oopslink/agent-center/internal/discussion/service"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -25,12 +23,6 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	"github.com/oopslink/agent-center/internal/taskruntime/kill"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -64,14 +56,8 @@ type HandlerDeps struct {
 
 	// Workforce BC
 	WorkerRepo        workforce.WorkerRepository
-	MappingRepo       workforce.WorkerProjectMappingRepository
-	ProposalRepo      workforce.WorkerProjectProposalRepository
-	ProjectRepo       workforce.ProjectRepository
 	AgentInstanceRepo workforce.AgentInstanceRepository
 	EnrollSvc         *wfservice.WorkerEnrollService
-	DiscoverySvc      *wfservice.ProjectDiscoveryService
-	AcceptanceSvc     *wfservice.ProposalAcceptanceService
-	ProjectSvc        *wfservice.ProjectCRUDService
 	AgentMgmtSvc      *wfservice.AgentInstanceManagementService
 
 	// Environment BC (v2.7 D1, ADR-0050, task #102) — worker-initiated
@@ -128,18 +114,6 @@ type HandlerDeps struct {
 	// projectFindAllHandler uses its operator-global ListAll.
 	PMProjectRepo projectmanager.ProjectRepository
 
-	// TaskRuntime BC
-	TaskRepo        task.Repository
-	ExecRepo        execution.Repository
-	IRRepo          inputrequest.Repository
-	ArtifactRepo    execution.ArtifactRepository
-	TaskSvc         *trservice.TaskService
-	IRSvc           *trservice.InputRequestService
-	ArtifactSvc     *trservice.ArtifactService
-	ExecSvc         *trservice.ExecutionService
-	DispatchSvc     *dispatch.Service
-	KillCoordinator *kill.Coordinator
-
 	// SecretManagement BC
 	UserSecretRepo secretmgmt.UserSecretRepository
 	UserSecretSvc  *secretservice.UserSecretService
@@ -153,13 +127,6 @@ type HandlerDeps struct {
 	// a concrete pointer here so handlers can reach FindAll / Create /
 	// Revoke too (the Verifier interface only exposes verify/mark).
 	AdminTokenSvc *admintokensvc.Service
-
-	// Discussion BC
-	IssueRepo                discussion.IssueRepository
-	IssueLifecycleSvc        *disservice.IssueLifecycleService
-	IssueCommentSvc          *disservice.IssueCommentService
-	IssueBindConversationSvc *disservice.IssueBindConversationService
-	IssueLinkConversationSvc *disservice.IssueLinkConversationService
 
 	// Observability BC
 	EventRepo observability.EventRepository

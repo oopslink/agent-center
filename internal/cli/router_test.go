@@ -44,14 +44,14 @@ func TestRouter_AddAndDispatch(t *testing.T) {
 func TestRouter_NestedSubcommand(t *testing.T) {
 	r := NewRouter("agent-center")
 	called := false
-	_ = r.Add([]string{"worker", "proposal"}, &Command{
-		Name: "accept",
+	_ = r.Add([]string{"group", "sub"}, &Command{
+		Name: "leaf",
 		Run: func(ctx context.Context, args []string, out, err io.Writer) ExitCode {
 			called = true
 			return ExitOK
 		},
 	})
-	code := r.Run(context.Background(), []string{"worker", "proposal", "accept"})
+	code := r.Run(context.Background(), []string{"group", "sub", "leaf"})
 	if code != ExitOK {
 		t.Fatalf("code: %d", code)
 	}

@@ -4,8 +4,6 @@
 //
 // Endpoint surface mirrors plan-11 § 3.2:
 //   - conversations / messages / participants / archive
-//   - issues / tasks (CV4 derivation)
-//   - input_requests (list / show / respond)
 //   - agents (read-only) / secrets (full CRUD, plaintext never echoed)
 //   - sse (single user-level long connection + subscribe/unsubscribe)
 //
@@ -159,11 +157,6 @@ func (s *Server) routes() {
 	// methods remain as dead code pending a follow-up BC removal; they are no
 	// longer routed.)
 
-	// Input requests.
-	s.mux.HandleFunc("GET /api/input_requests", s.listInputRequestsHandler)
-	s.mux.HandleFunc("POST /api/input_requests/{id}/respond", s.respondInputRequestHandler)
-	s.mux.HandleFunc("POST /api/input_requests/{id}/cancel", s.cancelInputRequestHandler)
-
 	// Projects — v2.7 B3-c: repointed to the ProjectManager BC (ADR-0046).
 	// The legacy Workforce project routes + worker↔project mapping routes are
 	// retired (worker↔project is now transitive: Project→Task→AgentWorkItem→
@@ -236,9 +229,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sse/subscribe", s.sseSubscribeHandler)
 	s.mux.HandleFunc("POST /api/sse/unsubscribe", s.sseUnsubscribeHandler)
 
-	// Fleet snapshot + per-task event trace.
+	// Fleet snapshot.
 	s.mux.HandleFunc("GET /api/fleet", s.fleetSnapshotHandler)
-	s.mux.HandleFunc("GET /api/tasks/{id}/trace", s.taskTraceHandler)
 
 	// v2.4-D-F3 fix: AddWorkerModal mints enroll tokens here.
 	s.mux.HandleFunc("POST /api/admintoken/mint-enroll", s.mintEnrollHandler)

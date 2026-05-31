@@ -14,9 +14,6 @@ import (
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/persistence"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	"github.com/oopslink/agent-center/internal/workforce"
-	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
 
 // TestPhase4_CLIHandlers_FullStack drives the inspect / query / ps / stats
@@ -37,26 +34,14 @@ func TestPhase4_CLIHandlers_FullStack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Seed a worker + project + task directly via the still-wired write
-	// services (the `project add` / `task create` CLI commands were removed in
-	// #132). The real assertions below are on the read-only observability verbs.
+	// Seed a worker directly via the still-wired enroll command. The workforce
+	// project-write surface (ProjectSvc) was retired in #131 PR-4, and the
+	// `query tasks --project=proj` read path resolves tasks from pm_tasks
+	// (ListByProject returns empty for an unknown project, no error), so no
+	// project seed is needed — the real assertions below are on the read-only
+	// observability verbs.
 	if _, _, code := runHandler(t, findCmd(app.WorkerCommands(), "enroll"), []string{"--worker-id=W-1"}); code != cli.ExitOK {
 		t.Fatalf("enroll: %d", code)
-	}
-	if _, err := app.ProjectSvc.Add(context.Background(), wfservice.AddCommand{
-		ID:    workforce.ProjectID("proj"),
-		Name:  "Proj",
-		Actor: app.DefaultActor(),
-	}); err != nil {
-		t.Fatalf("seed project: %v", err)
-	}
-	if _, err := app.TaskSvc.Create(context.Background(), trservice.TaskCreateInput{
-		ProjectID:        "proj",
-		Title:            "build foo",
-		WithConversation: true,
-		Actor:            app.DefaultActor(),
-	}); err != nil {
-		t.Fatalf("seed task: %v", err)
 	}
 	// inspect / query / ps / stats
 	for _, args := range [][]string{

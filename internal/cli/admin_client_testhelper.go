@@ -71,7 +71,7 @@ func setupAdminServerForTests(t *testing.T) (*App, func()) {
 	}
 
 	sock := testShortSocketPath(t, "admin.sock")
-	srv := api.NewServerWithDeps(sock, api.ServerDeps{Queue: app.DispatchQueue})
+	srv := api.NewServerWithDeps(sock, api.ServerDeps{})
 	// v2.3-3a (task #28): mint a test bearer with `*` scope so all
 	// endpoints pass auth + scope checks, then wrap the mux with the
 	// same AuthMiddleware production uses. Tests that want to

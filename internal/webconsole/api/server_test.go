@@ -17,7 +17,6 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
-	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -30,10 +29,6 @@ import (
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
-	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
@@ -61,16 +56,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	coSvc := convservice.NewCarryOverService(db, convRepo, msgRepo, refRepo, sink, gen, clk)
 	rsRepo := convsqlite.NewReadStateRepo(db)
 	rsSvc := convservice.NewReadStateService(db, rsRepo, msgRepo, sink, clk)
-	// Query svc with minimal deps; covers /api/tasks/{id}/trace endpoint.
-	querySvc := query.NewService(query.Deps{Events: er})
 	fleetSvc := query.NewFleetSnapshotService(query.Deps{Events: er})
-	irRepo := trsqlite.NewInputRequestRepo(db)
-	taskRepo := trsqlite.NewTaskRepo(db)
-	execRepo := trsqlite.NewTaskExecutionRepo(db)
-	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, convRepo, msgRepo,
-		sink, gen, clk, "")
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
-	issueRepo := disqlite.NewIssueRepo(db)
 	// Wire UserSecret with a test master key.
 	userSecretRepo := secretsqlite.NewUserSecretRepo(db)
 	mk, err := secretmgmt.GenerateMasterKey()
@@ -86,34 +73,25 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		ChannelMgmtSvc:     chSvc,
 		ParticipantMgmtSvc: pSvc,
 		CarryOverSvc:       coSvc,
-		QuerySvc:           querySvc,
 		FleetSvc:           fleetSvc,
-		IRRepo:             irRepo,
-		ExecRepo:           execRepo,
-		IRSvc:              irSvc,
 		UserSecretRepo:     userSecretRepo,
 		UserSecretSvc:      userSecretSvc,
 		AgentInstanceRepo:  aiRepo,
 		ReadStateRepo:      rsRepo,
 		ReadStateSvc:       rsSvc,
-		IssueRepo:          issueRepo,
-		TaskRepo:           taskRepo,
 	}
 	return deps, db
 }
 
 // setupAPIWithAuth returns deps with identity (AuthSvc/OrgRepo/MemberRepo) wired
-// using the fixed test signing key, plus a real ProjectRepo so org-scoped
-// issue/task/IR/fleet endpoints can resolve the org's project set. Pair with
-// setupTestSession for a valid cookie + org, and seedOrgProject to put a
-// project in that org.
+// using the fixed test signing key. Pair with setupTestSession for a valid
+// cookie + org.
 func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	t.Helper()
 	deps, db := setupAPI(t)
 	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
-	deps.ProjectRepo = wfsqlite.NewProjectRepo(db)
 	// v2.7 B3: wire the ProjectManager service for the nested /api/projects/...
 	// routes (the pm handlers in handlers_pm.go).
 	deps.PM = pmservice.New(pmservice.Deps{
@@ -161,25 +139,6 @@ func seedOrgChannel(t *testing.T, deps HandlerDeps, orgID, name string) string {
 		t.Fatal(err)
 	}
 	return string(res.ConversationID)
-}
-
-// seedOrgProject creates a project belonging to orgID with the given id so
-// org-scoped issue/task/IR/fleet reads (which resolve via ProjectRepo) pass.
-func seedOrgProject(t *testing.T, db *sql.DB, orgID, projectID, name string) {
-	t.Helper()
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID:                  workforce.ProjectID(projectID),
-		Name:                name,
-		OrganizationID:      orgID,
-		CreatedByIdentityID: "user:hayang",
-		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := wfsqlite.NewProjectRepo(db).Save(context.Background(), p); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // testSession holds a signed-in identity + org + cookie for v2.6 org-scoped tests.
@@ -480,17 +439,6 @@ func TestAPI_FleetWithoutSvc(t *testing.T) {
 	}
 }
 
-func TestAPI_TaskTraceWithoutSvc(t *testing.T) {
-	deps, _ := setupAPI(t)
-	deps.QuerySvc = nil
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks/t-1/trace")
-	if resp.StatusCode != 501 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
 func TestAPI_FleetSnapshot(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -504,28 +452,6 @@ func TestAPI_FleetSnapshot(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&snap)
 	if snap["generated_at"] == nil {
 		t.Fatalf("expected generated_at: %v", snap)
-	}
-}
-
-func TestAPI_TaskTrace(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
-	// Seed task t-1 in the org's project so the trace gate (task→project→org) passes.
-	tk, _ := task.New(task.NewInput{ID: "t-1", ProjectID: "p-1", Title: "x", CreatedBy: "user:hayang", Now: time.Now()})
-	if err := deps.TaskRepo.Save(context.Background(), tk); err != nil {
-		t.Fatal(err)
-	}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/tasks/t-1/trace", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-	var res map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&res)
-	if res["resource"] != "events" {
-		t.Fatalf("expected resource=events: %v", res)
 	}
 }
 

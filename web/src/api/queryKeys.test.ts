@@ -16,9 +16,7 @@ describe('query key factory', () => {
     expect(qk.agentWorkItems('A-1')).toEqual([...P, 'agentWorkItems', 'A-1']);
     expect(qk.agentActivity('A-1')).toEqual([...P, 'agentActivity', 'A-1']);
     expect(qk.secrets()).toEqual([...P, 'secrets']);
-    expect(qk.inputRequests()).toEqual([...P, 'inputRequests']);
     expect(qk.fleet()).toEqual([...P, 'fleet']);
-    expect(qk.taskTrace('T1')).toEqual([...P, 'taskTrace', 'T1']);
     expect(qk.unread('C1')).toEqual([...P, 'unread', 'C1']);
     expect(qk.projects()).toEqual([...P, 'projects']);
     expect(qk.project('p-1')).toEqual([...P, 'project', 'p-1']);

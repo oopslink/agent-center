@@ -106,21 +106,19 @@ func TestE2EP4_Inspect_UnknownKind_ExitUsage(t *testing.T) {
 
 func TestE2EP4_Query_Events_PrefixMatch(t *testing.T) {
 	h := newHarness(t)
-	// Seed via the in-process services (project add / task create CLI removed in
-	// #132). TaskService.Create emits task.created, which the query-events prefix
-	// filter below asserts on.
+	// Seed via the in-process services. EnrollSvc.Enroll emits
+	// workforce.worker.enrolled, which the query-events prefix filter below
+	// asserts on. (taskruntime task-create seeding was retired in #131 PR-4.)
 	app, done := inProcessApp(t, h)
-	seedProjectE2E(t, app, "proj", "proj")
 	seedWorkerE2E(t, app, "W-1")
-	_, _ = seedTaskRuntimeE2E(t, app, "proj", "title 1", true)
 	done()
 	// Pull events
-	out, _, code := h.run("query", "events", "--type=task.", "--format=json")
+	out, _, code := h.run("query", "events", "--type=workforce.", "--format=json")
 	if code != 0 {
 		t.Fatalf("query events: %d", code)
 	}
-	if !strings.Contains(out, "task.") {
-		t.Fatalf("expected at least one task.* event, got %s", out)
+	if !strings.Contains(out, "workforce.") {
+		t.Fatalf("expected at least one workforce.* event, got %s", out)
 	}
 }
 

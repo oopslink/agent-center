@@ -3,7 +3,6 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
-import { useInputRequests } from '@/api/inputRequests';
 import { useConversations } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
 import { useAppStore } from '@/store/app';
@@ -112,7 +111,6 @@ export default function AppLayout(): React.ReactElement {
       'mod+2': () => navigate('/channels'),
       'mod+3': () => navigate('/dms'),
       'mod+4': () => navigate('/projects'),
-      'mod+5': () => navigate('/inputrequests'),
       'mod+6': () => navigate('/agents'),
       'mod+7': () => navigate('/fleet'),
     }),
@@ -228,12 +226,9 @@ export default function AppLayout(): React.ReactElement {
   );
 }
 
-type NavBadgeKey = 'inputRequests' | null;
-
 interface NavItem {
   to: string;
   label: string;
-  badge?: NavBadgeKey;
   end?: boolean; // react-router NavLink end-match (used for '/' Home)
   Icon: () => React.ReactElement;
 }
@@ -267,12 +262,6 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
       ],
     },
     {
-      label: 'Work',
-      items: [
-        { to: p('inputrequests'), label: 'Input Requests', badge: 'inputRequests' as NavBadgeKey, Icon: InboxIcon },
-      ],
-    },
-    {
       label: 'Members',
       items: [
         { to: p('members/humans'), label: 'Humans', Icon: UsersIcon },
@@ -303,14 +292,10 @@ function Sidebar({
   onDismiss: () => void;
   displayName?: string;
 }): React.ReactElement {
-  const irs = useInputRequests();
   const signout = useSignout();
   const orgCtx = useOptionalOrgContext();
   const orgBase = orgCtx ? `/organizations/${orgCtx.slug}` : '';
   const navSections = buildNavSections(orgBase);
-  const inputRequestBadge = (irs.data ?? []).filter(
-    (ir) => ir.status === 'pending',
-  ).length;
 
   // v2.5.x #63 — per-group + per-expandable-item expand state. Default
   // for unseen keys is true (expanded).
@@ -392,8 +377,6 @@ function Sidebar({
             {(isCollapsed || open) && (
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
-                  const badgeCount =
-                    item.badge === 'inputRequests' ? inputRequestBadge : 0;
                   // Channels / DMs / Projects nav items expand into sub-lists.
                   const subChildren =
                     item.to.endsWith('/channels')
@@ -436,19 +419,6 @@ function Sidebar({
                               </span>
                             )}
                           </span>
-                          {badgeCount > 0 && (
-                            <span
-                              className={[
-                                'rounded-full bg-accent text-xs font-medium text-white tabular-nums',
-                                isCollapsed
-                                  ? 'absolute ml-3 -mt-3 h-3.5 w-3.5 text-[0.625rem] leading-none flex items-center justify-center'
-                                  : 'px-1.5 py-0.5',
-                              ].join(' ')}
-                              data-testid={`nav-badge-${item.badge}`}
-                            >
-                              {badgeCount}
-                            </span>
-                          )}
                         </NavLink>
                         {!isCollapsed && subChildren && (
                           <button
@@ -766,13 +736,6 @@ function ChatIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M4 5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-5l-3 3v-3H4A1.5 1.5 0 0 1 2.5 12.5v-6A1.5 1.5 0 0 1 4 5z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function InboxIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <path d="M3 11.5V5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 17 5v6.5M3 11.5h4.5l1 2h3l1-2H17M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5" strokeLinejoin="round" />
     </svg>
   );
 }

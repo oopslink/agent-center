@@ -19,9 +19,9 @@ func TestBuildRouter_FullTreeBuilds(t *testing.T) {
 		names[c.Name] = true
 	}
 	for _, want := range []string{"version", "server", "migrate", "admin", "bootstrap",
-		"worker", "task", "issue",
+		"worker",
 		"project", "conversation", "channel", "message", "agent",
-		"input-request", "secret",
+		"secret",
 		"inspect", "query", "ps", "stats",
 		"logs", "peek-trace"} {
 		if !names[want] {

@@ -18,12 +18,10 @@ const DMs = lazy(() => import('./pages/DMs'));
 const DMDetail = lazy(() => import('./pages/DMDetail'));
 const IssueDetail = lazy(() => import('./pages/IssueDetail'));
 const TaskDetail = lazy(() => import('./pages/TaskDetail'));
-const TaskTrace = lazy(() => import('./pages/TaskTrace'));
 const Agents = lazy(() => import('./pages/Agents'));
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
-const InputRequests = lazy(() => import('./pages/InputRequests'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Fleet = lazy(() => import('./pages/Fleet'));
 const Environment = lazy(() => import('./pages/Environment'));
@@ -60,14 +58,12 @@ export function App(): React.ReactElement {
           <Route path="channels/:name" element={<ChannelDetail />} />
           <Route path="dms" element={<DMs />} />
           <Route path="dms/:id" element={<DMDetail />} />
-          <Route path="tasks/:id/trace" element={<TaskTrace />} />
           <Route path="agents" element={<Agents />} />
           <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
           <Route path="projects/:projectId/issues/:id" element={<IssueDetail />} />
           <Route path="projects/:projectId/tasks/:id" element={<TaskDetail />} />
-          <Route path="inputrequests" element={<InputRequests />} />
           <Route path="secrets" element={<Secrets />} />
           <Route path="fleet" element={<Fleet />} />
           <Route path="environment" element={<Environment />} />
