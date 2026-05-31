@@ -163,7 +163,11 @@ type AddMessageCommand struct {
 	Content          string
 	Direction        conversation.MessageDirection
 	InputRequestRef  string
-	Actor            observability.Actor
+	// Attachments are the message's file attachments (v2.7 #133): unified
+	// MessageAttachment {ac://files URI, filename, mime, size}. Optional; nil for
+	// a plain message. Stored on the Message (attachments JSON column, A0).
+	Attachments []conversation.MessageAttachment
+	Actor       observability.Actor
 }
 
 // AddMessageResult tracks the message id + event id.
@@ -201,6 +205,7 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			Content:          cmd.Content,
 			Direction:        cmd.Direction,
 			InputRequestRef:  cmd.InputRequestRef,
+			Attachments:      cmd.Attachments,
 			PostedAt:         w.clock.Now(),
 		})
 		if err != nil {

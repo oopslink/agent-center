@@ -741,11 +741,23 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendMessageReq struct {
-	SenderIdentityID string `json:"sender_identity_id"`
-	Content          string `json:"content"`
-	ContentKind      string `json:"content_kind"`
-	Direction        string `json:"direction"`
-	InputRequestRef  string `json:"input_request_ref"`
+	SenderIdentityID string              `json:"sender_identity_id"`
+	Content          string              `json:"content"`
+	ContentKind      string              `json:"content_kind"`
+	Direction        string              `json:"direction"`
+	InputRequestRef  string              `json:"input_request_ref"`
+	Attachments      []msgAttachmentJSON `json:"attachments"`
+}
+
+// msgAttachmentJSON is the wire shape for a message attachment (v2.7 #133):
+// a reference to an already-uploaded blob (ac://files/{ulid}) plus display
+// metadata. The client uploads via POST /api/files first, then sends the
+// message carrying the returned file_uri here.
+type msgAttachmentJSON struct {
+	URI      string `json:"uri"`
+	Filename string `json:"filename"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
 }
 
 func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
@@ -771,6 +783,12 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	if dir == "" {
 		dir = string(conversation.DirectionInbound)
 	}
+	var atts []conversation.MessageAttachment
+	for _, a := range req.Attachments {
+		atts = append(atts, conversation.MessageAttachment{
+			URI: a.URI, Filename: a.Filename, MimeType: a.MimeType, Size: a.Size,
+		})
+	}
 	res, err := d.MessageWriter.AddMessage(r.Context(), convservice.AddMessageCommand{
 		ConversationID:   id,
 		SenderIdentityID: conversation.IdentityRef(sender),
@@ -778,6 +796,7 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		Content:          req.Content,
 		Direction:        conversation.MessageDirection(dir),
 		InputRequestRef:  req.InputRequestRef,
+		Attachments:      atts,
 		Actor:            d.Actor,
 	})
 	if err != nil {
@@ -1422,6 +1441,21 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 			"task_ref":      cr.TaskRef,
 			"agent_ref":     cr.AgentRef,
 		}
+	}
+	// attachments (v2.7 #133): unified MessageAttachment metadata for UI display.
+	// Emitted only when present (plain messages carry no key) — the UI derives the
+	// display type (image preview vs file chip) from mime_type.
+	if atts := m.Attachments(); len(atts) > 0 {
+		arr := make([]map[string]any, len(atts))
+		for i, a := range atts {
+			arr[i] = map[string]any{
+				"uri":       a.URI,
+				"filename":  a.Filename,
+				"mime_type": a.MimeType,
+				"size":      a.Size,
+			}
+		}
+		out["attachments"] = arr
 	}
 	return out
 }
