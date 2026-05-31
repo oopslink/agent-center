@@ -11,9 +11,7 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -34,15 +32,6 @@ type FleetWorkerRow struct {
 	LastHeartbeatAt string `json:"last_heartbeat_at,omitempty"`
 }
 
-// FleetInputRequestRow is one row in FleetSnapshot.OpenInputRequests.
-type FleetInputRequestRow struct {
-	InputRequestID  string `json:"input_request_id"`
-	TaskExecutionID string `json:"task_execution_id"`
-	Question        string `json:"question"`
-	Urgency         string `json:"urgency"`
-	RequestedAt     string `json:"requested_at"`
-}
-
 // FleetIssueRow is one row in FleetSnapshot.PendingIssues.
 type FleetIssueRow struct {
 	IssueID   string `json:"issue_id"`
@@ -56,12 +45,11 @@ type FleetIssueRow struct {
 // FleetSnapshot is the VO returned by FleetSnapshotService.Snapshot.
 // Per observability/00 § 7.2 + plan-4 § 1.3.
 type FleetSnapshot struct {
-	WorkItems         []WorkItemRow          `json:"work_items"`
-	Workers           []FleetWorkerRow       `json:"workers"`
-	OpenInputRequests []FleetInputRequestRow `json:"open_input_requests"`
-	PendingIssues     []FleetIssueRow        `json:"pending_issues"`
-	GeneratedAt       string                 `json:"generated_at"`
-	Warnings          []string               `json:"warnings,omitempty"`
+	WorkItems     []WorkItemRow    `json:"work_items"`
+	Workers       []FleetWorkerRow `json:"workers"`
+	PendingIssues []FleetIssueRow  `json:"pending_issues"`
+	GeneratedAt   string           `json:"generated_at"`
+	Warnings      []string         `json:"warnings,omitempty"`
 }
 
 // FleetSnapshotService runs the 4-segment parallel aggregation
@@ -114,17 +102,15 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	now := time.Now().UTC()
 	snap := FleetSnapshot{GeneratedAt: now.Format(time.RFC3339Nano)}
 	var (
-		execs        []WorkItemRow
-		execsErr     error
-		workers      []FleetWorkerRow
-		workersErr   error
-		inputReqs    []FleetInputRequestRow
-		inputReqsErr error
-		issues       []FleetIssueRow
-		issuesErr    error
+		execs      []WorkItemRow
+		execsErr   error
+		workers    []FleetWorkerRow
+		workersErr error
+		issues     []FleetIssueRow
+		issuesErr  error
 	)
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		execs, execsErr = s.fetchExecutions(ctx, filter)
@@ -135,25 +121,17 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	}()
 	go func() {
 		defer wg.Done()
-		inputReqs, inputReqsErr = s.fetchOpenInputRequests(ctx, filter)
-	}()
-	go func() {
-		defer wg.Done()
 		issues, issuesErr = s.fetchPendingIssues(ctx, filter)
 	}()
 	wg.Wait()
 	snap.WorkItems = execs
 	snap.Workers = workers
-	snap.OpenInputRequests = inputReqs
 	snap.PendingIssues = issues
 	if execsErr != nil {
 		snap.Warnings = append(snap.Warnings, fmt.Sprintf("executions: %v", execsErr))
 	}
 	if workersErr != nil {
 		snap.Warnings = append(snap.Warnings, fmt.Sprintf("workers: %v", workersErr))
-	}
-	if inputReqsErr != nil {
-		snap.Warnings = append(snap.Warnings, fmt.Sprintf("input_requests: %v", inputReqsErr))
 	}
 	if issuesErr != nil {
 		snap.Warnings = append(snap.Warnings, fmt.Sprintf("pending_issues: %v", issuesErr))
@@ -290,39 +268,6 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 	return out, nil
 }
 
-func (s *FleetSnapshotService) fetchOpenInputRequests(ctx context.Context, filter SnapshotFilter) ([]FleetInputRequestRow, error) {
-	if s.deps.InputReqs == nil {
-		return nil, errors.New("input_requests repo not wired")
-	}
-	items, err := s.deps.InputReqs.FindPending(ctx, time.Now().Add(365*24*time.Hour))
-	if err != nil {
-		return nil, err
-	}
-	orgProjects, orgScoped := s.orgProjectSet(ctx, filter)
-	out := make([]FleetInputRequestRow, 0, len(items))
-	for _, ir := range items {
-		if ir.Status() != inputrequest.StatusPending {
-			continue
-		}
-		// Optional project filter: walk through execution → task → project.
-		if filter.ProjectID != "" && !s.execMatchesProject(ctx, ir.TaskExecutionID(), filter.ProjectID) {
-			continue
-		}
-		// v2.6 X1 §3: org scope — walk execution → task → project, keep only org's.
-		if orgScoped && !s.execMatchesOrgProjects(ctx, ir.TaskExecutionID(), orgProjects) {
-			continue
-		}
-		out = append(out, FleetInputRequestRow{
-			InputRequestID:  string(ir.ID()),
-			TaskExecutionID: string(ir.TaskExecutionID()),
-			Question:        ir.Question(),
-			Urgency:         string(ir.Urgency()),
-			RequestedAt:     ir.RequestedAt().UTC().Format(time.RFC3339Nano),
-		})
-	}
-	return out, nil
-}
-
 // fleetPendingIssueStatuses is the fleet "pending" issue set (v2.7 #107 #119,
 // PD-pinned口径): all NON-terminal pm issue statuses. Terminal {resolved,
 // closed, withdrawn} are excluded — they are no longer awaiting attention.
@@ -389,38 +334,6 @@ func isFleetPendingIssue(st pm.IssueStatus) bool {
 		}
 	}
 	return false
-}
-
-// execMatchesOrgProjects resolves execID → task → project and reports whether
-// the project is in the org's project set.
-func (s *FleetSnapshotService) execMatchesOrgProjects(ctx context.Context, execID taskruntime.TaskExecutionID, orgProjects map[string]bool) bool {
-	if s.deps.Executions == nil || s.deps.Tasks == nil {
-		return false
-	}
-	e, err := s.deps.Executions.FindByID(ctx, execID)
-	if err != nil || e == nil {
-		return false
-	}
-	t, err := s.deps.Tasks.FindByID(ctx, e.TaskID())
-	if err != nil || t == nil {
-		return false
-	}
-	return orgProjects[t.ProjectID()]
-}
-
-func (s *FleetSnapshotService) execMatchesProject(ctx context.Context, execID taskruntime.TaskExecutionID, projectID string) bool {
-	if s.deps.Executions == nil || s.deps.Tasks == nil {
-		return true
-	}
-	e, err := s.deps.Executions.FindByID(ctx, execID)
-	if err != nil {
-		return false
-	}
-	t, err := s.deps.Tasks.FindByID(ctx, e.TaskID())
-	if err != nil {
-		return false
-	}
-	return t.ProjectID() == projectID
 }
 
 func fmtTimePtrStr(t *time.Time) string {

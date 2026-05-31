@@ -543,11 +543,6 @@ func printFleet(out, errw io.Writer, format string, snap query.FleetSnapshot) Ex
 		fmt.Fprintf(out, "  %s status=%s active=%d mappings=%d\n",
 			w.WorkerID, w.Status, w.ActiveCount, w.MappingsCount)
 	}
-	fmt.Fprintf(out, "\nOPEN INPUT REQUESTS (%d)\n", len(snap.OpenInputRequests))
-	for _, ir := range snap.OpenInputRequests {
-		fmt.Fprintf(out, "  %s exec=%s urgency=%s q=%q\n",
-			ir.InputRequestID, ir.TaskExecutionID, ir.Urgency, ir.Question)
-	}
 	fmt.Fprintf(out, "\nPENDING ISSUES (%d)\n", len(snap.PendingIssues))
 	for _, i := range snap.PendingIssues {
 		fmt.Fprintf(out, "  %s project=%s opener=%s title=%q\n",
