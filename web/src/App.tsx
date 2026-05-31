@@ -26,6 +26,7 @@ const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const InputRequests = lazy(() => import('./pages/InputRequests'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Fleet = lazy(() => import('./pages/Fleet'));
+const Environment = lazy(() => import('./pages/Environment'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
 const OrgSettings = lazy(() => import('./pages/OrgSettings'));
@@ -69,6 +70,7 @@ export function App(): React.ReactElement {
           <Route path="inputrequests" element={<InputRequests />} />
           <Route path="secrets" element={<Secrets />} />
           <Route path="fleet" element={<Fleet />} />
+          <Route path="environment" element={<Environment />} />
           <Route path="settings" element={<Settings />} />
           <Route path="me" element={<Me />} />
           <Route path="org/settings" element={<OrgSettings />} />
