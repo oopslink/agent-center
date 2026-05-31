@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
@@ -21,6 +22,7 @@ import (
 	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
 // commandTypeAgentReconcile is the declarative reconcile command the projector
@@ -63,22 +65,35 @@ type AgentControlProjector struct {
 	// This mirrors WakeProjector's existing agent.WorkItemRepository read dep, so
 	// it introduces no new import cycle / BC-layering violation.
 	workItems agent.WorkItemRepository
+	// tasks is a READ-ONLY cross-BC dependency (FINDING-1 #115 backfill): the
+	// re-emit resolves the SAME work brief (task title+description) that
+	// pm WorkItemProjector.enqueueWork captures, so a re-delivered agent.work
+	// command carries the original task content instead of an empty brief (which
+	// made claude reply with only a generic greeting → lost work). OPTIONAL (nil →
+	// brief degrades to "", matching enqueueWork's degraded-brief path, so fixtures
+	// that don't wire it still pass). The root projectmanager package imports only
+	// stdlib (no environment dep), so this introduces NO import cycle.
+	tasks pm.TaskRepository
 }
 
 // NewAgentControlProjector constructs the projector WITHOUT the optional
 // work-reemit dep (legacy reconcile-only behavior).
 func NewAgentControlProjector(db *sql.DB, controlLog *environment.ControlLog, applied outbox.AppliedStore, clk clock.Clock) *AgentControlProjector {
-	return NewAgentControlProjectorWithWork(db, controlLog, applied, clk, nil)
+	return NewAgentControlProjectorWithWork(db, controlLog, applied, clk, nil, nil)
 }
 
 // NewAgentControlProjectorWithWork constructs the projector with the optional
-// read-only workItems dep enabling the FINDING-1 PART ② work re-emit on
-// lifecycle→running. Passing nil workItems reproduces NewAgentControlProjector.
-func NewAgentControlProjectorWithWork(db *sql.DB, controlLog *environment.ControlLog, applied outbox.AppliedStore, clk clock.Clock, workItems agent.WorkItemRepository) *AgentControlProjector {
+// read-only workItems + tasks deps enabling the FINDING-1 PART ② work re-emit on
+// lifecycle→running. workItems supplies the in-flight WIs to (re-)deliver; tasks
+// supplies the SAME brief (title+description) that pm enqueueWork captures, so the
+// re-emit backfills the original task content rather than an empty brief (#115).
+// Passing nil for both reproduces NewAgentControlProjector; nil tasks alone keeps
+// the re-emit but degrades the brief to "" (matching enqueueWork's degraded path).
+func NewAgentControlProjectorWithWork(db *sql.DB, controlLog *environment.ControlLog, applied outbox.AppliedStore, clk clock.Clock, workItems agent.WorkItemRepository, tasks pm.TaskRepository) *AgentControlProjector {
 	if clk == nil {
 		clk = clock.SystemClock{}
 	}
-	return &AgentControlProjector{db: db, controlLog: controlLog, applied: applied, clock: clk, workItems: workItems}
+	return &AgentControlProjector{db: db, controlLog: controlLog, applied: applied, clock: clk, workItems: workItems, tasks: tasks}
 }
 
 // Name is the AppliedStore key (its own namespace, separate from other
@@ -109,9 +124,10 @@ type reconcileCommandPayload struct {
 
 // workCommandPayload MUST stay byte-identical to pm WorkItemProjector's
 // workCommandPayload (same JSON keys/order) — the daemon AgentController consumes
-// one command type regardless of which projector emitted it. NOTE: the re-emit does
-// not re-load the task brief (this BC has no tasks repo); Brief is left empty and
-// the daemon resolves detail from task_ref (matching enqueueWork's degraded-brief path).
+// one command type regardless of which projector emitted it. The re-emit backfills
+// Brief from the tasks repo via briefForTask, producing the SAME title\n\ndesc that
+// enqueueWork captures (#115: an empty brief made claude reply with only a generic
+// greeting → original task content was lost even though the WI got activated).
 type workCommandPayload struct {
 	AgentID    string `json:"agent_id"`
 	WorkItemID string `json:"work_item_id"`
@@ -227,7 +243,11 @@ func (p *AgentControlProjector) reemitWorkOnRunning(ctx context.Context, pl agen
 			AgentID:    pl.AgentID,
 			WorkItemID: wi.ID(),
 			TaskRef:    wi.TaskRef(),
-			Brief:      "", // re-emit has no tasks repo; daemon resolves from task_ref
+			// #115 backfill: resolve the SAME brief (title\n\ndesc) that pm
+			// enqueueWork captures so the re-delivered work carries the original
+			// task content. nil tasks repo / lookup-fail / bad ref → "" (degraded,
+			// matching enqueueWork.brief).
+			Brief: p.briefForTask(ctx, wi.TaskRef()),
 		})
 		if err != nil {
 			return err
@@ -242,6 +262,49 @@ func (p *AgentControlProjector) reemitWorkOnRunning(ctx context.Context, pl agen
 		}
 	}
 	return nil
+}
+
+// briefForTask resolves the work brief — the task's title + description — from a
+// "pm://tasks/{id}" taskRef, REPLICATING pm WorkItemProjector.brief EXACTLY so a
+// re-emitted agent.work command carries the IDENTICAL brief that enqueueWork
+// captured for the same task (#115). Format: "title\n\ndescription" (description
+// omitted when empty). Degrades to "" when the tasks repo is unwired, the ref is
+// not a task ref, or the task can't be loaded — matching enqueueWork's degraded
+// path (the WorkItem's task_ref still lets the controller resolve detail later).
+// We REPLICATE the ~15-line logic rather than import pm/service's unexported
+// brief/taskIDFromRef helpers: env/service importing pm/service would close the
+// cycle (pm/service already imports environment), whereas importing only the root
+// projectmanager package (stdlib-only, no environment dep) is cycle-free.
+func (p *AgentControlProjector) briefForTask(ctx context.Context, taskRef string) string {
+	if p.tasks == nil {
+		return ""
+	}
+	id, ok := taskIDFromRef(taskRef)
+	if !ok {
+		return ""
+	}
+	t, err := p.tasks.FindByID(ctx, pm.TaskID(id))
+	if err != nil || t == nil {
+		slog.Info("agent control projector: brief unavailable (task lookup failed)",
+			"task_ref", taskRef, "err", err)
+		return ""
+	}
+	title := strings.TrimSpace(t.Title())
+	desc := strings.TrimSpace(t.Description())
+	if desc == "" {
+		return title
+	}
+	return title + "\n\n" + desc
+}
+
+// taskIDFromRef extracts the Task id from a "pm://tasks/{id}" ref (replicates pm
+// WorkItemProjector.taskIDFromRef so brief resolution is byte-identical).
+func taskIDFromRef(ref string) (string, bool) {
+	const prefix = "pm://tasks/"
+	if strings.HasPrefix(ref, prefix) && len(ref) > len(prefix) {
+		return strings.TrimPrefix(ref, prefix), true
+	}
+	return "", false
 }
 
 var _ outbox.Projector = (*AgentControlProjector)(nil)

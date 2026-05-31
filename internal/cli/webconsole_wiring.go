@@ -247,7 +247,12 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// same tx so the session is up before work arrives (no HOL deadlock). It needs a
 	// READ-ONLY WorkItemRepository to find active WIs (no transition sink — it does
 	// not transition, only reads + delivers).
-	agentControlProj := envservice.NewAgentControlProjectorWithWork(a.DB, controlLog, appliedRepo, a.Clock, agentsql.NewWorkItemRepo(a.DB))
+	// #115 brief backfill: the re-emit also needs the pm tasks repo to resolve the
+	// SAME brief (title+description) enqueueWork captures, so re-delivered work
+	// carries the original task content (an empty brief made claude reply with only
+	// a generic greeting → lost work). pmsql.TaskRepo is stateless read-only, so a
+	// fresh instance over a.DB matches the per-projector construction pattern above.
+	agentControlProj := envservice.NewAgentControlProjectorWithWork(a.DB, controlLog, appliedRepo, a.Clock, agentsql.NewWorkItemRepo(a.DB), pmsql.NewTaskRepo(a.DB))
 	// v2.7 D2-e-i (OQ5): ADDITIVE wakeup. A message posted into a TASK conversation
 	// (MessageWriter emits conversation.message_added) becomes an agent.wake command
 	// for every agent whose AgentWorkItem on that task is waiting_input (sender

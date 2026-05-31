@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -13,15 +14,18 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 // reemitFixture wires the projector WITH the read-only workItems dep (PART ②) over
 // one shared DB, so a test can seed work-items and assert the re-emit.
 type reemitFixture struct {
-	proj    *AgentControlProjector
-	control *environment.ControlLog
-	wiRepo  *agentsql.WorkItemRepo
-	ctx     context.Context
+	proj     *AgentControlProjector
+	control  *environment.ControlLog
+	wiRepo   *agentsql.WorkItemRepo
+	taskRepo *pmsql.TaskRepo
+	ctx      context.Context
 }
 
 func newReemitFixture(t *testing.T) *reemitFixture {
@@ -39,8 +43,28 @@ func newReemitFixture(t *testing.T) *reemitFixture {
 	control := environment.NewControlLog(envsql.NewControlEventRepo(db), gen, clk)
 	applied := outboxsql.NewAppliedRepo(db)
 	wiRepo := agentsql.NewWorkItemRepo(db)
-	proj := NewAgentControlProjectorWithWork(db, control, applied, clk, wiRepo)
-	return &reemitFixture{proj: proj, control: control, wiRepo: wiRepo, ctx: context.Background()}
+	taskRepo := pmsql.NewTaskRepo(db)
+	// #115 backfill: wire the tasks repo so the re-emit resolves the SAME brief
+	// (title\n\ndesc) that pm enqueueWork captures.
+	proj := NewAgentControlProjectorWithWork(db, control, applied, clk, wiRepo, taskRepo)
+	return &reemitFixture{proj: proj, control: control, wiRepo: wiRepo, taskRepo: taskRepo, ctx: context.Background()}
+}
+
+// seedTask inserts a pm task so the re-emit can resolve its brief (title+desc).
+// The taskRef "pm://tasks/<id>" on a seeded WorkItem must match this id.
+func (f *reemitFixture) seedTask(t *testing.T, id, title, desc string) {
+	t.Helper()
+	at := time.Unix(1_700_000_000, 0).UTC()
+	tk, err := pm.NewTask(pm.NewTaskInput{
+		ID: pm.TaskID(id), ProjectID: "P1", Title: title, Description: desc,
+		CreatedBy: "user:a", CreatedAt: at,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.taskRepo.Save(f.ctx, tk); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (f *reemitFixture) commandsFor(t *testing.T, workerID string) []*environment.WorkerControlEvent {
@@ -92,6 +116,11 @@ func (f *reemitFixture) seedWorkItem(t *testing.T, id, agentID, taskRef string, 
 // outcome catch).
 func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	f := newReemitFixture(t)
+	// #115: seed the pm tasks so the re-emit backfills the SAME brief (title\n\ndesc)
+	// that pm enqueueWork captures — t1 has a description (→ "title\n\ndesc"), t2 has
+	// none (→ just "title"). An empty brief made claude greet generically = lost work.
+	f.seedTask(t, "t1", "Fix login bug", "Users cannot log in after the v2.7 deploy.")
+	f.seedTask(t, "t2", "Write release notes", "")
 	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
 	f.seedWorkItem(t, "wi-queued", "AG1", "pm://tasks/t2", agentpkg.WorkItemQueued)
 	f.seedWorkItem(t, "wi-waiting", "AG1", "pm://tasks/t3", agentpkg.WorkItemWaitingInput)
@@ -111,6 +140,7 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	}
 	reconcileOff := cmds[0].Offset()
 	workKeys := map[string]bool{}
+	briefByKey := map[string]string{}
 	for _, c := range cmds[1:] {
 		if c.CommandType() != "agent.work" {
 			t.Fatalf("commands after reconcile must be agent.work, got %q", c.CommandType())
@@ -119,12 +149,27 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 			t.Fatalf("work offset %d must be > reconcile offset %d (session before work)", c.Offset(), reconcileOff)
 		}
 		workKeys[c.IdempotencyKey()] = true
+		var pl workCommandPayload
+		if err := json.Unmarshal([]byte(c.Payload()), &pl); err != nil {
+			t.Fatalf("unmarshal work payload: %v", err)
+		}
+		briefByKey[c.IdempotencyKey()] = pl.Brief
 	}
 	if !workKeys["agent.work:wi-active"] || !workKeys["agent.work:wi-queued"] {
 		t.Fatalf("re-emit must cover BOTH queued + active (ready-to-dispatch), got keys %v", workKeys)
 	}
 	if workKeys["agent.work:wi-waiting"] {
 		t.Fatalf("waiting_input must NOT be re-emitted, got it in %v", workKeys)
+	}
+	// #115 CORE assertion: the re-emitted brief must be NON-EMPTY and equal the SAME
+	// title\n\ndesc that pm enqueueWork.brief produces for the task (NOT "").
+	const wantActiveBrief = "Fix login bug\n\nUsers cannot log in after the v2.7 deploy."
+	if got := briefByKey["agent.work:wi-active"]; got != wantActiveBrief {
+		t.Fatalf("re-emitted brief (with desc) = %q, want %q (title\\n\\ndesc, NOT empty — lost-work bug #115)", got, wantActiveBrief)
+	}
+	const wantQueuedBrief = "Write release notes" // desc empty → title only
+	if got := briefByKey["agent.work:wi-queued"]; got != wantQueuedBrief {
+		t.Fatalf("re-emitted brief (no desc) = %q, want %q (title only)", got, wantQueuedBrief)
 	}
 }
 
