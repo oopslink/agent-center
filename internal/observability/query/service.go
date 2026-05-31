@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
@@ -26,6 +28,12 @@ type Deps struct {
 	Projection   projection.Repository
 	Tasks        task.Repository
 	Executions   execution.Repository
+	// v2.7 #107 Phase-2 (fleet repoint): new-model read deps. WorkItemProjections
+	// is the fleet data source (agent_work_item_projections); WorkItems resolves
+	// a work item's task_ref; PMTasks resolves task_ref→project for org-scoping.
+	WorkItemProjections projection.AgentWorkItemProjectionRepository
+	WorkItems           agentpkg.WorkItemRepository
+	PMTasks             pm.TaskRepository
 	Artifacts    execution.ArtifactRepository
 	InputReqs    inputrequest.Repository
 	Issues       discussion.IssueRepository
