@@ -66,14 +66,6 @@ func TestInspectConversation_WithMessages(t *testing.T) {
 	}
 }
 
-func TestInspectInputRequest_NotFound(t *testing.T) {
-	env := newQEnv(t)
-	_, err := env.svc.Inspect(context.Background(), "input_request", "IR-x")
-	if err == nil {
-		t.Fatal("expected not found error since IR not saved")
-	}
-}
-
 func TestInspect_Worker_NoMappings(t *testing.T) {
 	env := newQEnv(t)
 	env.seedWorker(t, "W-x", workforce.WorkerOnline)

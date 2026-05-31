@@ -302,7 +302,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Tasks:         taskRepo,
 		Executions:    execRepo,
 		Artifacts:     artifactRepo,
-		InputReqs:     irRepo,
 		Issues:        issueRepo,
 		Conversations: cr,
 		Messages:      mgRepo,

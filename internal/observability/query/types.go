@@ -17,14 +17,13 @@ const (
 	InspectWorker       InspectKind = "worker"
 	InspectIssue        InspectKind = "issue"
 	InspectConversation InspectKind = "conversation"
-	InspectInputRequest InspectKind = "input_request"
 	InspectProject      InspectKind = "project"
 )
 
 // AllInspectKinds is the closed-enum list used by `--help` and validation.
 var AllInspectKinds = []InspectKind{
 	InspectTask, InspectExecution, InspectWorker, InspectIssue,
-	InspectConversation, InspectInputRequest,
+	InspectConversation,
 	InspectProject,
 }
 
@@ -46,7 +45,6 @@ const (
 	QueryExecutions    QueryResource = "executions"
 	QueryWorkers       QueryResource = "workers"
 	QueryIssues        QueryResource = "issues"
-	QueryInputRequests QueryResource = "input_requests"
 	QueryProposals     QueryResource = "proposals"
 	QueryEvents        QueryResource = "events"
 )
@@ -54,7 +52,7 @@ const (
 // AllQueryResources lists every supported `query <resource>` value.
 var AllQueryResources = []QueryResource{
 	QueryTasks, QueryExecutions, QueryWorkers, QueryIssues,
-	QueryInputRequests, QueryProposals, QueryEvents,
+	QueryProposals, QueryEvents,
 }
 
 // ValidQueryResource reports whether the resource is recognised.
