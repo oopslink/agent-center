@@ -179,14 +179,17 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 	})
 }
 
-// reemitWorkOnRunning appends an agent.work command for every ACTIVE in-flight
-// WorkItem of the agent, called only on a lifecycle→running transition and only
-// when the read-only workItems dep is wired.
+// reemitWorkOnRunning appends an agent.work command for every ready-to-dispatch
+// (QUEUED or ACTIVE) in-flight WorkItem of the agent, called only on a
+// lifecycle→running transition and only when the read-only workItems dep is wired.
 //
-// CAVEAT 3 (active-only): we re-emit ONLY for WorkItems in `active` status — NOT
-// queued (the original enqueueWork delivers those on creation when the agent is
-// running) and NOT waiting_input (those wait on a human reply, delivered via the
-// wake path, not on dispatch). Terminal items are skipped implicitly (not active).
+// CAVEAT 3 (ready-to-dispatch = queued + active): re-emit for `queued` (the primary
+// deliver-on-start case — PART ①'s guard skipped the original enqueue while the
+// agent was not running, so the WI sits queued, never delivered) AND `active` (flap
+// re-delivery; collapses on the stable key). SKIP `waiting_input` (waits on a human
+// reply, delivered via the wake path) and terminal. NOTE: this was originally
+// active-only, which silently dropped guard-skipped QUEUED WIs (= lost work); fixed
+// per Tester's #115 outcome verification.
 //
 // CAVEAT 1 (flap idempotency): the command is keyed by "agent.work:<workItemID>",
 // EXACTLY matching pm WorkItemProjector.enqueueWork. ControlLog.AppendCommand is
@@ -208,7 +211,16 @@ func (p *AgentControlProjector) reemitWorkOnRunning(ctx context.Context, pl agen
 		return nil
 	}
 	for _, wi := range items {
-		if wi.Status() != agent.WorkItemActive { // CAVEAT 3: active-only
+		// CAVEAT 3 (ready-to-dispatch): re-emit for QUEUED and ACTIVE work items.
+		// QUEUED is the primary case — PART ①'s guard skipped the original enqueue
+		// while the agent was not running, so the WI sits queued (never delivered,
+		// never activated); this re-emit is the deliver-on-start that un-defers it.
+		// ACTIVE covers a flap re-delivery (already-delivered actives collapse on the
+		// stable idempotency key → no double-inject). Skip waiting_input (waits on a
+		// human reply, delivered via the wake path) and terminal. (active-only was a
+		// bug: it left guard-skipped QUEUED WIs undelivered = silent lost work —
+		// Tester #115 outcome catch.)
+		if s := wi.Status(); s != agent.WorkItemQueued && s != agent.WorkItemActive {
 			continue
 		}
 		payload, err := json.Marshal(workCommandPayload{

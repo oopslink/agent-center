@@ -83,11 +83,14 @@ func (f *reemitFixture) seedWorkItem(t *testing.T, id, agentID, taskRef string, 
 	}
 }
 
-// TestReemit_RunningEmitsReconcileThenWorkForActive is PART ②'s core acceptance:
-// on lifecycle→running the projector appends the reconcile command FIRST, then an
-// agent.work command for the ACTIVE WorkItem — in control-log order (session before
-// work → no deadlock). NOT for queued / waiting_input items (CAVEAT 3 active-only).
-func TestReemit_RunningEmitsReconcileThenWorkForActive(t *testing.T) {
+// TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch is PART ②'s core
+// acceptance: on lifecycle→running the projector appends the reconcile command
+// FIRST, then an agent.work command for every READY-TO-DISPATCH (queued + active)
+// WorkItem — in control-log order (session before work → no deadlock). waiting_input
+// is skipped (wake path). QUEUED is the primary deliver-on-start case (the guard
+// skipped its original enqueue); active-only would silently drop it (Tester #115
+// outcome catch).
+func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	f := newReemitFixture(t)
 	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
 	f.seedWorkItem(t, "wi-queued", "AG1", "pm://tasks/t2", agentpkg.WorkItemQueued)
@@ -99,22 +102,29 @@ func TestReemit_RunningEmitsReconcileThenWorkForActive(t *testing.T) {
 	}
 
 	cmds := f.commandsFor(t, "W1")
-	if len(cmds) != 2 {
-		t.Fatalf("want 2 commands (reconcile + 1 work), got %d: %+v", len(cmds), cmds)
+	// 1 reconcile + 2 work (queued + active); waiting_input skipped.
+	if len(cmds) != 3 {
+		t.Fatalf("want 3 commands (reconcile + queued + active work), got %d: %+v", len(cmds), cmds)
 	}
-	// Order: reconcile FIRST (session), then work.
 	if cmds[0].CommandType() != "agent.reconcile" {
 		t.Fatalf("cmds[0] type = %q, want agent.reconcile (must precede work)", cmds[0].CommandType())
 	}
-	if cmds[1].CommandType() != "agent.work" {
-		t.Fatalf("cmds[1] type = %q, want agent.work", cmds[1].CommandType())
+	reconcileOff := cmds[0].Offset()
+	workKeys := map[string]bool{}
+	for _, c := range cmds[1:] {
+		if c.CommandType() != "agent.work" {
+			t.Fatalf("commands after reconcile must be agent.work, got %q", c.CommandType())
+		}
+		if c.Offset() <= reconcileOff {
+			t.Fatalf("work offset %d must be > reconcile offset %d (session before work)", c.Offset(), reconcileOff)
+		}
+		workKeys[c.IdempotencyKey()] = true
 	}
-	if cmds[0].Offset() >= cmds[1].Offset() {
-		t.Fatalf("reconcile offset %d must be < work offset %d", cmds[0].Offset(), cmds[1].Offset())
+	if !workKeys["agent.work:wi-active"] || !workKeys["agent.work:wi-queued"] {
+		t.Fatalf("re-emit must cover BOTH queued + active (ready-to-dispatch), got keys %v", workKeys)
 	}
-	// The work command targets ONLY the active WI, with the shared key shape.
-	if cmds[1].IdempotencyKey() != "agent.work:wi-active" {
-		t.Fatalf("work idempotency_key = %q, want agent.work:wi-active", cmds[1].IdempotencyKey())
+	if workKeys["agent.work:wi-waiting"] {
+		t.Fatalf("waiting_input must NOT be re-emitted, got it in %v", workKeys)
 	}
 }
 
