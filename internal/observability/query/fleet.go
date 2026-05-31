@@ -254,9 +254,15 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 					}
 					if filter.OrganizationID != "" {
 						if _, _, wiOrg := s.workItemTaskProjectOrg(ctx, wi.ID()); wiOrg != "" && wiOrg != w.OrganizationID() {
+							// §-1 no-leak: do NOT name the foreign org (wiOrg) — this
+							// warning surfaces in the org-scoped snapshot of an org
+							// member, so naming the other org would leak its existence
+							// (same red line as #119/#137/#138). The worker + work-item
+							// ids (both in-org) keep it actionable; the specific foreign
+							// org is recoverable via the non-org-scoped admin tools.
 							warnings = append(warnings, fmt.Sprintf(
-								"worker %s active_count: work item %s skipped — its task→pm-project org %q != worker org %q (org-scoped-dispatch invariant broken)",
-								w.ID(), wi.ID(), wiOrg, w.OrganizationID()))
+								"worker %s active_count: work item %s skipped — its task's pm-project belongs to a different organization (org-scoped-dispatch invariant broken)",
+								w.ID(), wi.ID()))
 							continue
 						}
 					}

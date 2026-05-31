@@ -3,6 +3,7 @@ package query_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/observability/query"
@@ -223,6 +224,16 @@ func TestFleetSnapshot_ActiveCount_OrgMismatch_FailClosed(t *testing.T) {
 	}
 	if len(snap.Warnings) == 0 {
 		t.Fatalf("expected a visible org-mismatch warning, got none")
+	}
+	// §-1 no-leak (PD/Tester red line, same as #119/#137/#138): the warning must
+	// NOT name the foreign org — surfacing org-B's id to an org-A viewer is a
+	// cross-org existence leak. It must still name the work item for diagnosis.
+	joined := strings.Join(snap.Warnings, " ")
+	if strings.Contains(joined, "org-B") {
+		t.Fatalf("no-leak: warning must not name the foreign org, got %q", joined)
+	}
+	if !strings.Contains(joined, "WI-x") {
+		t.Fatalf("warning should name the work item for diagnosis, got %q", joined)
 	}
 }
 
