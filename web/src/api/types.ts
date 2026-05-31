@@ -174,6 +174,24 @@ export interface EnvWorker {
   version: number;
 }
 
+// TransferSession (v2.7 E1 #139): an in-flight file-transfer session shown on the
+// Environment page. Org is resolved server-side via the session's scope
+// (fail-closed); the list only contains the caller org's open+unexpired sessions.
+export interface TransferSession {
+  id: string;
+  file_uri: string;
+  transfer_uri: string;
+  direction: string; // 'upload' | 'download'
+  status: string; // 'open' (the list is in-flight only)
+  scope: string; // task | issue | project | conversation | agent
+  scope_id: string;
+  content_type: string;
+  size: number;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+}
+
 export interface FleetWorkerRow {
   worker_id: string;
   // Friendly operator-facing label (v2.4-D-X1). Falls back to

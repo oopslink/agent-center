@@ -70,6 +70,7 @@ describe('Environment page', () => {
       http.get('/api/agents', () =>
         HttpResponse.json({ agents: [agent('bot-a', 'w-1'), agent('bot-b', 'w-1')] }),
       ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
     );
     wrap(<Environment />);
 
@@ -92,6 +93,7 @@ describe('Environment page', () => {
     server.use(
       http.get('/api/workers', () => HttpResponse.json({ workers: [] })),
       http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
     );
     wrap(<Environment />);
     await waitFor(() => expect(screen.getByTestId('environment-empty')).toBeInTheDocument());
@@ -104,10 +106,44 @@ describe('Environment page', () => {
         HttpResponse.json({ error: 'env_workers_error', message: 'db down' }, { status: 500 }),
       ),
       http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
     );
     wrap(<Environment />);
     await waitFor(() =>
       expect(screen.getByTestId('environment-error')).toHaveTextContent(/db down/),
     );
+  });
+
+  it('renders in-flight transfer sessions in the transfers section', async () => {
+    server.use(
+      http.get('/api/workers', () => HttpResponse.json({ workers: [] })),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () =>
+        HttpResponse.json({
+          transfer_sessions: [
+            {
+              id: 't-1',
+              file_uri: 'ac://files/abc',
+              transfer_uri: 'ac://transfers/t-1',
+              direction: 'upload',
+              status: 'open',
+              scope: 'project',
+              scope_id: 'p-1',
+              content_type: 'application/pdf',
+              size: 2048,
+              created_by: 'user:hayang',
+              created_at: '2026-05-24T01:00:00Z',
+              expires_at: '2026-05-24T02:00:00Z',
+            },
+          ],
+        }),
+      ),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('transfer-row')).toBeInTheDocument());
+    const row = screen.getByTestId('transfer-row');
+    expect(row).toHaveAttribute('data-scope', 'project');
+    expect(row).toHaveTextContent('upload');
+    expect(row).toHaveTextContent('project/p-1');
   });
 });

@@ -41,6 +41,7 @@ export const qk = {
   fleet: () => o('fleet'),
   workers: () => o('workers'),
   worker: (id: string) => o('worker', id),
+  transferSessions: () => o('transferSessions'),
   taskTrace: (taskId: string) => o('taskTrace', taskId),
   unread: (convId: string) => o('unread', convId),
   // v2.7 ProjectManager BC: Issues/Tasks are per-project. Lists are
