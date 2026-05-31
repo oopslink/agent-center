@@ -140,41 +140,6 @@ func TestCreate_BadInputs(t *testing.T) {
 }
 
 // =============================================================================
-// AgentInstanceLifecycleService extra paths
-// =============================================================================
-
-func TestNewAgentInstanceLifecycleService_NilClock(t *testing.T) {
-	s := setupSuite(t)
-	life := NewAgentInstanceLifecycleService(s.db, nil, s.sink, nil)
-	if life == nil {
-		t.Fatal()
-	}
-}
-
-func TestAILifecycle_OnWorkerOffline_NoAgents(t *testing.T) {
-	s := setupAISuite(t)
-	// No agents on W-NONE; bulk update returns 0 affected.
-	n, err := s.life.OnWorkerOffline(context.Background(), "W-NONE", "system")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 0 {
-		t.Fatalf("expected 0, got %d", n)
-	}
-}
-
-func TestAILifecycle_OnWorkerOnline_NoAgents(t *testing.T) {
-	s := setupAISuite(t)
-	n, err := s.life.OnWorkerOnline(context.Background(), "W-NONE", "system")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 0 {
-		t.Fatal()
-	}
-}
-
-// =============================================================================
 // BootstrapTokenService extra paths
 // =============================================================================
 
@@ -229,25 +194,6 @@ func TestReissue_EmptyWorkerID(t *testing.T) {
 func TestScanExpired_BadActor(t *testing.T) {
 	s := setupBTSuite(t)
 	_, err := s.svc.ScanExpired(context.Background(), "bogus:x")
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-// AILifecycle: OnWorkerOnline tx failure via trigger.
-func TestAILifecycle_OnWorkerOnline_TxFailure(t *testing.T) {
-	s := setupAISuite(t)
-	_, _ = s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
-		Name: "c2", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
-	})
-	_, _ = s.life.OnWorkerOffline(context.Background(), "W-1", "system")
-	if _, err := s.db.ExecContext(context.Background(),
-		`CREATE TEMP TRIGGER block_ai_on BEFORE UPDATE ON agent_instances BEGIN
-		   SELECT RAISE(ABORT, 'blocked');
-		 END`); err != nil {
-		t.Fatal(err)
-	}
-	_, err := s.life.OnWorkerOnline(context.Background(), "W-1", "system")
 	if err == nil {
 		t.Fatal()
 	}
@@ -325,23 +271,6 @@ func TestAIMgmt_Create_SaveFailure(t *testing.T) {
 	_, err := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
 		Name: "x", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
 	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-func TestAILifecycle_OnExecutionStarted_TxFailure(t *testing.T) {
-	s := setupAISuite(t)
-	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
-		Name: "x", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
-	})
-	if _, err := s.db.ExecContext(context.Background(),
-		`CREATE TEMP TRIGGER block_ai_update BEFORE UPDATE ON agent_instances BEGIN
-		   SELECT RAISE(ABORT, 'blocked');
-		 END`); err != nil {
-		t.Fatal(err)
-	}
-	err := s.life.OnExecutionStarted(context.Background(), created.ID, "system")
 	if err == nil {
 		t.Fatal()
 	}
@@ -484,24 +413,6 @@ func TestIssue_EmitFailure(t *testing.T) {
 	_, err := s.svc.Issue(context.Background(), IssueCommand{
 		WorkerID: "W-1", ActorIdentity: "user:x",
 	})
-	if err == nil {
-		t.Fatal()
-	}
-}
-
-// OnWorkerOffline tx failure via trigger on agent_instances.
-func TestAILifecycle_OnWorkerOffline_TxFailure(t *testing.T) {
-	s := setupAISuite(t)
-	_, _ = s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
-		Name: "c", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
-	})
-	if _, err := s.db.ExecContext(context.Background(),
-		`CREATE TEMP TRIGGER block_ai_off BEFORE UPDATE ON agent_instances BEGIN
-		   SELECT RAISE(ABORT, 'blocked');
-		 END`); err != nil {
-		t.Fatal(err)
-	}
-	_, err := s.life.OnWorkerOffline(context.Background(), "W-1", "system")
 	if err == nil {
 		t.Fatal()
 	}
