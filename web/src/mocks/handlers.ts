@@ -330,33 +330,6 @@ export const handlers = [
   // Project members (read-only).
   http.get('/api/projects/:pid/members', () => ok({ members: [] })),
 
-  // Derivation (deferred scope — still posts to the retired flat routes;
-  // the SPA derive flow keeps these mocks for tests only).
-  http.post('/api/issues', () =>
-    ok(
-      {
-        issue_id: 'IS-1',
-        conversation_id: 'I-1',
-        reference_count: 0,
-        issue_event_id: 'E-i',
-        carry_over_event_id: '',
-      },
-      201,
-    ),
-  ),
-  http.post('/api/tasks', () =>
-    ok(
-      {
-        task_id: 'TS-1',
-        conversation_id: 'T-1',
-        reference_count: 0,
-        task_event_id: 'E-t',
-        carry_over_event_id: '',
-      },
-      201,
-    ),
-  ),
-
   // Input requests
   http.get('/api/input_requests', () =>
     ok([

@@ -112,8 +112,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, workforce.ErrProjectHasActiveDeps),
 		errors.Is(err, convservice.ErrParticipantNotActive),
 		errors.Is(err, convservice.ErrParticipantNotOwner),
-		errors.Is(err, convservice.ErrDerivationSourceNotActive),
-		errors.Is(err, convservice.ErrDerivationCallerNotParticipant),
 		errors.Is(err, pm.ErrIllegalTransition),
 		errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrSelfVerify):

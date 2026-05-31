@@ -641,32 +641,6 @@ func TestCLI_ConvRefs_Empty(t *testing.T) {
 }
 
 // =============================================================================
-// derivation shim helpers
-// =============================================================================
-
-func TestParseMessageIDs(t *testing.T) {
-	got := parseMessageIDs("")
-	if got != nil {
-		t.Fatal()
-	}
-	got = parseMessageIDs("a,b , c")
-	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
-		t.Fatalf("got %v", got)
-	}
-	got = parseMessageIDs(",,a")
-	if len(got) != 1 {
-		t.Fatalf("got %v", got)
-	}
-}
-
-func TestSplitCSV(t *testing.T) {
-	got := splitCSV(" a , b,c ")
-	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
-		t.Fatalf("got %v", got)
-	}
-}
-
-// =============================================================================
 // helpers for SecretCreate happy path — installs master key via wireSecret.
 // =============================================================================
 

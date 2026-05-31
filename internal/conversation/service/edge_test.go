@@ -197,28 +197,3 @@ func TestArchiveChannel_EmitFailure(t *testing.T) {
 		t.Fatal()
 	}
 }
-
-func TestDeriveTask_SourceNotActive(t *testing.T) {
-	dbW, w := setupRaw(t)
-	rr := convsqlite.NewReferenceRepo(dbW)
-	co := NewCarryOverService(dbW, w.convRepo, w.msgRepo, rr, w.sink, w.idgen, w.clock)
-	ch := NewChannelManagementService(dbW, w.convRepo, w.sink, w.idgen, w.clock)
-	_ = co
-	tc := &fakeTaskCreator{w: w}
-	d := NewMessageDerivationService(dbW, w.convRepo, w.msgRepo, co, nil, tc, w.sink, w.clock)
-	_, _ = ch.CreateChannel(context.Background(), CreateChannelCommand{
-		Name: "tn", CreatedBy: "user:hayang", Actor: "user:hayang",
-	})
-	source, _ := w.convRepo.FindByName(context.Background(), "tn")
-	_, _ = ch.ArchiveChannel(context.Background(), ArchiveChannelCommand{
-		Name: "tn", ArchivedBy: "user:hayang", Actor: "user:hayang",
-	})
-	_, err := d.DeriveTask(context.Background(), DeriveTaskCommand{
-		SourceConversationID: source.ID(),
-		ProjectID:            "p", Title: "T", AgentInstanceID: "ai-1",
-		CreatedBy: "user:hayang", Actor: "user:hayang",
-	})
-	if !errors.Is(err, ErrDerivationSourceNotActive) {
-		t.Fatalf("got %v", err)
-	}
-}

@@ -420,8 +420,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/conversation/participant/leave", s.leaveParticipantHandler)
 	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-child-conv", s.carryOverFindByChildConvHandler)
 	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-source-msg", s.carryOverFindBySourceMsgHandler)
-	s.mux.HandleFunc("POST /admin/conversation/derivation/derive-issue", s.deriveIssueHandler)
-	s.mux.HandleFunc("POST /admin/conversation/derivation/derive-task", s.deriveTaskHandler)
 	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-child-conv-id", s.convRefFindByChildConvIDHandler)
 	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-source-msg-id", s.convRefFindBySourceMsgIDHandler)
 

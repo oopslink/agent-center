@@ -27,7 +27,6 @@ import {
 import { useSecrets, useCreateSecret, useRevokeSecret } from './secrets';
 import { useInputRequests, useRespondInputRequest } from './inputRequests';
 import { useFleet, useTaskTrace } from './fleet';
-import { useDeriveIssue, useDeriveTask } from './derive';
 import { useProjects, useProject } from './projects';
 
 // Mutation tests use the sync `mutate(args)` API + waitFor on isSuccess
@@ -235,33 +234,6 @@ describe('react-query hooks', () => {
   it('useTaskTrace skips when taskId is undefined', () => {
     const { result } = renderHook(() => useTaskTrace(undefined), { wrapper: makeWrapper() });
     expect(result.current.fetchStatus).toBe('idle');
-  });
-
-  it('useDeriveIssue + useDeriveTask', async () => {
-    const wrapper = makeWrapper();
-    const issue = renderHook(() => useDeriveIssue(), { wrapper });
-    act(() => {
-      issue.result.current.mutate({
-        source_conversation_id: 'C1',
-        source_message_ids: ['M1'],
-        project_id: 'p-demo',
-        title: 'fix it',
-      });
-    });
-    await waitFor(() => expect(issue.result.current.isSuccess).toBe(true));
-    expect(issue.result.current.data?.conversation_id).toBe('I-1');
-
-    const task = renderHook(() => useDeriveTask(), { wrapper });
-    act(() => {
-      task.result.current.mutate({
-        source_conversation_id: 'C1',
-        source_message_ids: ['M1'],
-        project_id: 'p-demo',
-        title: 'do it',
-      });
-    });
-    await waitFor(() => expect(task.result.current.isSuccess).toBe(true));
-    expect(task.result.current.data?.conversation_id).toBe('T-1');
   });
 
   it('useProjects + useProject round-trip through MSW', async () => {

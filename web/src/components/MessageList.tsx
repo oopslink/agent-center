@@ -31,11 +31,6 @@ export function formatBytes(n: number): string {
 
 interface Props {
   messages: Message[];
-  // Optional selection mode (per F9 derive UI). When `selectable` is
-  // true each row prepends a checkbox driven by `isSelected` / `onToggle`.
-  selectable?: boolean;
-  isSelected?: (id: string) => boolean;
-  onToggle?: (id: string) => void;
   // v2.7 #137: when true (task/issue conversations) the list is split into
   // labeled segments by work_item_ref. Off for channels/DMs, which carry no
   // work-item provenance and render as a flat list.
@@ -51,9 +46,6 @@ interface Props {
 // scrolled up to read history, we don't yank them back.
 export function MessageList({
   messages,
-  selectable = false,
-  isSelected,
-  onToggle,
   segmentByWorkItem = false,
 }: Props): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -115,30 +107,13 @@ export function MessageList({
     );
   }
   const renderRow = (m: Message): React.ReactElement => {
-    const checked = selectable && !!isSelected?.(m.id);
     return (
       <article
         key={m.id}
-        className={[
-          'flex gap-3 rounded border bg-bg-elevated p-3 text-sm shadow-sm',
-          checked ? 'border-accent ring-1 ring-accent/40' : 'border-border-base',
-        ].join(' ')}
+        className="flex gap-3 rounded border border-border-base bg-bg-elevated p-3 text-sm shadow-sm"
         data-testid="message-row"
         data-message-id={m.id}
-        data-selected={checked}
       >
-        {selectable && (
-          <label className="flex items-start pt-0.5">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={() => onToggle?.(m.id)}
-              className="h-4 w-4 cursor-pointer"
-              data-testid="message-select"
-              aria-label={`select message ${m.id}`}
-            />
-          </label>
-        )}
         <div className="flex-1">
           <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
             <span className="font-mono">{m.sender_identity_id}</span>
