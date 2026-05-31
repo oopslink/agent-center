@@ -28,3 +28,10 @@ fleet step 2: rewrite fetchExecutions; resolve task_ref per WI via agent.WorkIte
 ## Drop tables (NEW migration 0047+, no data migration): task_execution_projections / task_executions / discussion tables / old tasks.
 
 ## Drop-safety (Q3, Tester-endorsed): before drop, enumerate NO live WRITER to old tables (OnExecutionTerminal old-projection writer / discussion issue writes must be dead). READ+WRITE double-clean.
+
+## Delete-phase §-1 flags (PD review msg 4b19fb19 — shift-left, into delete-plan):
+1. **discussion→pm-issues feature-parity (biggest slice risk)**: before repointing issue-API (cli/admin/webconsole/observability), produce a parity list of discussion.Issue ops/fields USED by consumers vs pm Issues. If pm Issues lacks any used op/field → that consumer breaks. Verify parity BEFORE repoint.
+2. **derivation_shims (cli/handlers_issue)** = old derive logic. Before deleting, confirm pm derive fully covers it OR it's truly dead. Don't delete live functionality.
+3. **IR/artifact separability**: IR(input_request)+artifact (KEEP) and the execution model (DROP) share the taskruntime BC. Verify IR/artifact do NOT depend on the to-be-deleted execution model (task_executions etc) — else dropping execution breaks IR. Cut the dependency cleanly before carve-out.
+
+## Drop-migration: ONE migration (0047+), placed LAST — atomic drop AFTER all repoint slices verified green (avoid mid-sequence drop breaking a not-yet-repointed reader).
