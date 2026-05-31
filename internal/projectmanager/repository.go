@@ -35,6 +35,11 @@ type IssueRepository interface {
 	Update(ctx context.Context, i *Issue) error
 	FindByID(ctx context.Context, id IssueID) (*Issue, error)
 	ListByProject(ctx context.Context, projectID ProjectID) ([]*Issue, error)
+	// FindByStatuses returns issues in any of the given statuses across ALL
+	// projects (global), oldest-first, capped at limit (<=0 = uncapped). It is
+	// the pm successor to the retired discussion FindByStatus full scan, used by
+	// the fleet pending-issues segment's global-admin path (v2.7 #107 #119).
+	FindByStatuses(ctx context.Context, statuses []IssueStatus, limit int) ([]*Issue, error)
 }
 
 // TaskRepository persists Task ARs.

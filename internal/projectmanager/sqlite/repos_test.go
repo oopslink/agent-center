@@ -266,3 +266,54 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 		t.Fatalf("since must exclude the early blocked task: got %v", got2)
 	}
 }
+
+// TestIssueRepo_FindByStatuses_GlobalNonTerminal pins the additive global
+// issue-by-status scan (v2.7 #107 #119 fleet issues-repoint): the fleet
+// pending-issues segment's global-admin path needs all non-terminal issues
+// {open,in_progress,reopened} across ALL projects, mirroring the retired
+// discussion FindByStatus full scan. Terminal {resolved,closed,withdrawn}
+// must be excluded.
+func TestIssueRepo_FindByStatuses_GlobalNonTerminal(t *testing.T) {
+	ctx, pr, _, ir, _, _, _, _ := setup(t)
+	mkProj := func(id, org string) {
+		p, err := pm.NewProject(pm.NewProjectInput{ID: pm.ProjectID(id), OrganizationID: org, Name: id, CreatedBy: "user:a", CreatedAt: t0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := pr.Save(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkProj("P1", "org-1")
+	mkProj("P2", "org-2")
+	mkIssue := func(id, proj string, st pm.IssueStatus) {
+		i, err := pm.RehydrateIssue(pm.RehydrateIssueInput{
+			ID: pm.IssueID(id), ProjectID: pm.ProjectID(proj), Title: id, Status: st,
+			CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ir.Save(ctx, i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkIssue("I-open", "P1", pm.IssueOpen)
+	mkIssue("I-inprog", "P2", pm.IssueInProgress) // cross-project/org + in_progress must be included
+	mkIssue("I-reopened", "P1", pm.IssueReopened)
+	mkIssue("I-resolved", "P1", pm.IssueResolved) // terminal — excluded
+	mkIssue("I-closed", "P2", pm.IssueClosed)     // terminal — excluded
+
+	got, err := ir.FindByStatuses(ctx, []pm.IssueStatus{pm.IssueOpen, pm.IssueInProgress, pm.IssueReopened}, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("want 3 non-terminal across projects (open/in_progress/reopened), got %d", len(got))
+	}
+	for _, i := range got {
+		if i.Status() == pm.IssueResolved || i.Status() == pm.IssueClosed || i.Status() == pm.IssueWithdrawn {
+			t.Fatalf("terminal issue leaked: %s status=%s", i.ID(), i.Status())
+		}
+	}
+}

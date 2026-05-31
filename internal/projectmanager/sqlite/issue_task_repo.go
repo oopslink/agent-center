@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -58,6 +59,42 @@ func (r *IssueRepo) FindByID(ctx context.Context, id pm.IssueID) (*pm.Issue, err
 func (r *IssueRepo) ListByProject(ctx context.Context, projectID pm.ProjectID) ([]*pm.Issue, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, issueSelect+` WHERE project_id = ? ORDER BY created_at, id`, string(projectID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*pm.Issue
+	for rows.Next() {
+		i, err := scanIssue(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, i)
+	}
+	return out, rows.Err()
+}
+
+// FindByStatuses returns issues in any of the given statuses across ALL
+// projects (global), oldest-first, capped at limit (<=0 = uncapped). v2.7 #107
+// #119 fleet issues-repoint: the pm successor to the retired discussion
+// FindByStatus full scan, for the fleet pending-issues global-admin path.
+func (r *IssueRepo) FindByStatuses(ctx context.Context, statuses []pm.IssueStatus, limit int) ([]*pm.Issue, error) {
+	if len(statuses) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	ph := make([]string, len(statuses))
+	args := make([]any, 0, len(statuses)+1)
+	for i, s := range statuses {
+		ph[i] = "?"
+		args = append(args, string(s))
+	}
+	q := issueSelect + ` WHERE status IN (` + strings.Join(ph, ",") + `) ORDER BY created_at, id`
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := exec.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
