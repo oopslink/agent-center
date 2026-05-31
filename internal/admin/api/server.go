@@ -52,6 +52,15 @@ type Server struct {
 	tlsFingerprint string
 	tcpSrv         *http.Server
 	tcpListener    net.Listener
+
+	// mu guards the listener-lifecycle fields (listener, tcpListener, tcpSrv)
+	// that ListenAndServe writes (on the serving goroutine path) and Shutdown
+	// reads (possibly on another goroutine). Without it, the bind→assign in
+	// ListenAndServe races a concurrent Shutdown read — the socket file
+	// becoming visible does NOT establish a happens-before on the field write.
+	// srv/socketPath are set once in the constructor (before any goroutine) and
+	// are not guarded. (#128)
+	mu sync.Mutex
 }
 
 // NewServer constructs a Server with no Queue wired. Use
@@ -143,13 +152,17 @@ func (s *Server) ListenAndServe() error {
 	errs := make(chan result, 2)
 	var legs int
 
+	var unixLn net.Listener
 	if s.socketPath != "" {
 		legs++
 		ln, err := s.bindUnix()
 		if err != nil {
 			return err
 		}
+		unixLn = ln
+		s.mu.Lock()
 		s.listener = ln
+		s.mu.Unlock()
 		go func() { errs <- result{from: "unix", err: s.srv.Serve(ln)} }()
 	}
 
@@ -158,17 +171,17 @@ func (s *Server) ListenAndServe() error {
 		ln, err := s.bindTCP()
 		if err != nil {
 			// Clean up the unix leg if it managed to bind, so the
-			// caller doesn't have to.
-			if s.listener != nil {
-				_ = s.listener.Close()
+			// caller doesn't have to. Use the local (not s.listener) to
+			// avoid a guarded read on the error path.
+			if unixLn != nil {
+				_ = unixLn.Close()
 			}
 			return err
 		}
-		s.tcpListener = ln
 		// Build the TCP http.Server lazily so SetHandler applied
 		// before ListenAndServe is reflected. Mirror the unix
 		// srv's Handler + timeouts.
-		s.tcpSrv = &http.Server{
+		tcpSrv := &http.Server{
 			Handler:           s.srv.Handler,
 			ReadHeaderTimeout: 10 * time.Second,
 			TLSConfig: &tls.Config{
@@ -176,11 +189,16 @@ func (s *Server) ListenAndServe() error {
 				MinVersion:   tls.VersionTLS12,
 			},
 		}
+		s.mu.Lock()
+		s.tcpListener = ln
+		s.tcpSrv = tcpSrv
+		s.mu.Unlock()
 		go func() {
 			// ServeTLS reads cert from disk if path-args non-empty;
 			// our TLSConfig already has the cert in-memory so pass
-			// empty strings.
-			errs <- result{from: "tcp", err: s.tcpSrv.ServeTLS(ln, "", "")}
+			// empty strings. Use the captured locals (not the guarded
+			// fields) so the serving goroutine needs no lock.
+			errs <- result{from: "tcp", err: tcpSrv.ServeTLS(ln, "", "")}
 		}()
 	}
 
@@ -239,24 +257,30 @@ func (s *Server) bindTCP() (net.Listener, error) {
 // Shutdown cleanly stops both listeners (if active) + removes the
 // socket file. Safe to call multiple times.
 func (s *Server) Shutdown(ctx context.Context) error {
-	var firstErr error
+	// Snapshot the listener-lifecycle fields under the lock (they may still be
+	// being assigned by a concurrent ListenAndServe). srv is constructor-set.
+	s.mu.Lock()
+	srv, listener := s.srv, s.listener
+	tcpSrv, tcpListener := s.tcpSrv, s.tcpListener
+	s.mu.Unlock()
+
 	var wg sync.WaitGroup
-	if s.srv != nil && s.listener != nil {
+	// Each leg writes its OWN error var (read only after wg.Wait) so the two
+	// shutdown goroutines never write a shared field — fixes the prior
+	// concurrent-write race on firstErr.
+	var unixErr, tcpErr error
+	if srv != nil && listener != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.srv.Shutdown(ctx); err != nil && firstErr == nil {
-				firstErr = err
-			}
+			unixErr = srv.Shutdown(ctx)
 		}()
 	}
-	if s.tcpSrv != nil && s.tcpListener != nil {
+	if tcpSrv != nil && tcpListener != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.tcpSrv.Shutdown(ctx); err != nil && firstErr == nil {
-				firstErr = err
-			}
+			tcpErr = tcpSrv.Shutdown(ctx)
 		}()
 	}
 	wg.Wait()
@@ -265,7 +289,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s.socketPath != "" {
 		_ = os.Remove(s.socketPath)
 	}
-	return firstErr
+	if unixErr != nil {
+		return unixErr
+	}
+	return tcpErr
 }
 
 // routes registers the full v2.2-A2 admin surface: 79 AppService methods
