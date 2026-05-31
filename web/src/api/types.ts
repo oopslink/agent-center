@@ -262,6 +262,16 @@ export interface CodeRepo {
   created_at: string;
 }
 
+// ProjectMember — read-only project membership entry (v2.7 ProjectManager BC).
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  identity_id: string;
+  role: string;
+  added_by: string;
+  created_at: string;
+}
+
 export interface ConversationMessageReference {
   id: string;
   child_conversation_id: string;

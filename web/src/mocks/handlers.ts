@@ -327,6 +327,9 @@ export const handlers = [
   // Code repos (read-only).
   http.get('/api/projects/:pid/code-repos', () => ok({ code_repos: [] })),
 
+  // Project members (read-only).
+  http.get('/api/projects/:pid/members', () => ok({ members: [] })),
+
   // Derivation (deferred scope — still posts to the retired flat routes;
   // the SPA derive flow keeps these mocks for tests only).
   http.post('/api/issues', () =>

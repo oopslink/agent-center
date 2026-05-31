@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   useDeleteProject,
   useProject,
+  useProjectCodeRepos,
+  useProjectMembers,
   useUpdateProject,
   type Project,
 } from '@/api/projects';
@@ -266,7 +268,7 @@ const editInputClass =
 // -----------------------------------------------------------------------------
 // Work tabs: Issues / Tasks live inside the project.
 // -----------------------------------------------------------------------------
-type WorkTab = 'issues' | 'tasks';
+type WorkTab = 'issues' | 'tasks' | 'members' | 'repos';
 
 function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactElement {
   const [tab, setTab] = useState<WorkTab>('issues');
@@ -275,13 +277,14 @@ function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactEleme
       <div className="flex gap-1" role="tablist" aria-label="project work">
         <TabButton label="Issues" value="issues" active={tab === 'issues'} onClick={() => setTab('issues')} />
         <TabButton label="Tasks" value="tasks" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
+        <TabButton label="Members" value="members" active={tab === 'members'} onClick={() => setTab('members')} />
+        <TabButton label="Code repos" value="repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
       </div>
       <div className="mt-3">
-        {tab === 'issues' ? (
-          <IssuesPanel projectId={projectId} />
-        ) : (
-          <TasksPanel projectId={projectId} />
-        )}
+        {tab === 'issues' && <IssuesPanel projectId={projectId} />}
+        {tab === 'tasks' && <TasksPanel projectId={projectId} />}
+        {tab === 'members' && <MembersPanel projectId={projectId} />}
+        {tab === 'repos' && <CodeReposPanel projectId={projectId} />}
       </div>
     </div>
   );
@@ -314,6 +317,93 @@ function TabButton({
     >
       {label}
     </button>
+  );
+}
+
+function MembersPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const members = useProjectMembers(projectId);
+  const data = members.data ?? [];
+  return (
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
+      data-testid="project-members-panel"
+    >
+      <h2 className="mb-2 font-heading text-sm font-semibold text-text-primary">Members</h2>
+      {members.isLoading ? (
+        <div className="space-y-2 py-2">
+          <Skeleton height="1.5rem" />
+          <Skeleton height="1.5rem" />
+        </div>
+      ) : members.isError ? (
+        <p className="py-2 text-xs text-danger" data-testid="project-members-error">
+          {(members.error as Error).message}
+        </p>
+      ) : data.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">No members yet</p>
+      ) : (
+        <ul className="divide-y divide-border-base">
+          {data.map((m) => (
+            <li
+              key={m.id}
+              data-testid="member-row"
+              data-member-id={m.id}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <span className="truncate font-mono text-sm text-text-primary">{m.identity_id}</span>
+              <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
+                {m.role}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const repos = useProjectCodeRepos(projectId);
+  const data = repos.data ?? [];
+  return (
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
+      data-testid="project-repos-panel"
+    >
+      <h2 className="mb-2 font-heading text-sm font-semibold text-text-primary">Code repos</h2>
+      {repos.isLoading ? (
+        <div className="space-y-2 py-2">
+          <Skeleton height="1.5rem" />
+          <Skeleton height="1.5rem" />
+        </div>
+      ) : repos.isError ? (
+        <p className="py-2 text-xs text-danger" data-testid="project-repos-error">
+          {(repos.error as Error).message}
+        </p>
+      ) : data.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">No code repos linked</p>
+      ) : (
+        <ul className="divide-y divide-border-base">
+          {data.map((r) => (
+            <li
+              key={r.id}
+              data-testid="repo-row"
+              data-repo-id={r.id}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <a
+                href={r.url}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-sm text-accent hover:underline"
+              >
+                {r.label || r.url}
+              </a>
+              <span className="truncate font-mono text-[0.6875rem] text-text-muted">{r.url}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
