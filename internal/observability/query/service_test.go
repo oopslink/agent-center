@@ -25,7 +25,6 @@ import (
 	pmsqlite "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -63,7 +62,6 @@ func newQEnv(t *testing.T) *qenv {
 		Tasks:         trsqlite.NewTaskRepo(db),
 		Executions:    trsqlite.NewTaskExecutionRepo(db),
 		Artifacts:     trsqlite.NewArtifactRepo(db),
-		InputReqs:     trsqlite.NewInputRequestRepo(db),
 		Issues:        disqlite.NewIssueRepo(db),
 		Conversations: convsqlite.NewConversationRepo(db),
 		Messages:      convsqlite.NewMessageRepo(db),
@@ -337,30 +335,6 @@ func TestInspect_Project(t *testing.T) {
 // Phase-2 (proj-A): worktree detail is execution-keyed with no work-item model
 // equivalent (worktree state lives in supervisormanager runtime).
 
-func TestInspect_InputRequest(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusInputRequired)
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: taskruntime.InputRequestID("IR-1"), TaskExecutionID: "E-1",
-		Question: "yes or no?", Urgency: inputrequest.UrgencyNormal, Now: env.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := env.deps.InputReqs.Save(context.Background(), ir); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Inspect(context.Background(), "input_request", "IR-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := res.Data.(map[string]any)
-	if data["id"] != "IR-1" || data["question"] != "yes or no?" {
-		t.Fatalf("ir inspect: %+v", data)
-	}
-}
-
 // TestInspect_Supervisor_Decision_Removed verifies that supervisor/decision
 // inspect kinds return an error in v2.6 (both were removed in BE-9).
 func TestInspect_Supervisor_Decision_Removed(t *testing.T) {
@@ -514,28 +488,6 @@ func TestQuery_Decisions_Removed(t *testing.T) {
 	_, err := env.svc.Query(context.Background(), "decisions", query.QueryFilter{})
 	if err == nil {
 		t.Fatal("expected error for removed 'decisions' resource, got nil")
-	}
-}
-
-func TestQuery_InputRequests_PendingOnly(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusInputRequired)
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-1", TaskExecutionID: "E-1", Question: "?", Urgency: inputrequest.UrgencyNormal, Now: env.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := env.deps.InputReqs.Save(context.Background(), ir); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Query(context.Background(), "input_requests", query.QueryFilter{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Items) != 1 {
-		t.Fatalf("expected 1, got %d", len(res.Items))
 	}
 }
 

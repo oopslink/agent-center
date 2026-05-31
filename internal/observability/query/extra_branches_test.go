@@ -11,7 +11,7 @@ import (
 
 func TestQuery_RepoNotWiredErrors(t *testing.T) {
 	svc := query.NewService(query.Deps{})
-	for _, r := range []string{"tasks", "executions", "workers", "issues", "input_requests", "proposals", "events"} {
+	for _, r := range []string{"tasks", "executions", "workers", "issues", "proposals", "events"} {
 		_, err := svc.Query(context.Background(), r, query.QueryFilter{})
 		if err == nil {
 			t.Errorf("%s should error when repo missing", r)
@@ -21,7 +21,7 @@ func TestQuery_RepoNotWiredErrors(t *testing.T) {
 
 func TestInspect_RepoNotWiredErrors(t *testing.T) {
 	svc := query.NewService(query.Deps{})
-	for _, k := range []string{"task", "execution", "worker", "issue", "conversation", "input_request", "project", "worktree"} {
+	for _, k := range []string{"task", "execution", "worker", "issue", "conversation", "project", "worktree"} {
 		_, err := svc.Inspect(context.Background(), k, "X")
 		if err == nil {
 			t.Errorf("%s should error when repo missing", k)

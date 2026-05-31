@@ -156,7 +156,7 @@ func TestQueryCmd_AllResources_NoCrash(t *testing.T) {
 	tk, _ := task.New(task.NewInput{ID: "T-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", Now: time.Now()})
 	_ = app.TaskRepo.Save(context.Background(), tk)
 	cmd := findCmd(app.ObservabilityCommands(), "query")
-	for _, r := range []string{"tasks", "executions", "workers", "issues", "input_requests", "proposals", "events"} {
+	for _, r := range []string{"tasks", "executions", "workers", "issues", "proposals", "events"} {
 		_, _, code := runHandler(t, cmd, []string{r, "--format=json"})
 		if code != ExitOK {
 			t.Errorf("resource=%s code=%d", r, code)

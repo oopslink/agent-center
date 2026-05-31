@@ -15,7 +15,6 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -48,7 +47,6 @@ type Deps struct {
 	// ListByWorker → ListByAgent. Same pm·agent source (no retired task_executions).
 	Agents agentpkg.Repository
 	Artifacts    execution.ArtifactRepository
-	InputReqs    inputrequest.Repository
 	Issues       discussion.IssueRepository
 	Conversations conversation.ConversationRepository
 	Messages     conversation.MessageRepository
@@ -95,8 +93,6 @@ func (s *Service) Inspect(ctx context.Context, kind, id string) (InspectResult, 
 		return s.inspectIssue(ctx, id)
 	case InspectConversation:
 		return s.inspectConversation(ctx, id)
-	case InspectInputRequest:
-		return s.inspectInputRequest(ctx, id)
 	case InspectProject:
 		return s.inspectProject(ctx, id)
 	default:
@@ -118,8 +114,6 @@ func (s *Service) Query(ctx context.Context, resource string, filter QueryFilter
 		return s.queryWorkers(ctx, filter)
 	case QueryIssues:
 		return s.queryIssues(ctx, filter)
-	case QueryInputRequests:
-		return s.queryInputRequests(ctx, filter)
 	case QueryProposals:
 		return s.queryProposals(ctx, filter)
 	case QueryEvents:
@@ -314,32 +308,6 @@ func (s *Service) inspectConversation(ctx context.Context, id string) (InspectRe
 		out["messages"] = projectMessageList(msgs)
 	}
 	return InspectResult{Kind: InspectConversation, ID: id, Data: out}, nil
-}
-
-func (s *Service) inspectInputRequest(ctx context.Context, id string) (InspectResult, error) {
-	if s.deps.InputReqs == nil {
-		return InspectResult{}, errors.New("query: input_requests repo not wired")
-	}
-	ir, err := s.deps.InputReqs.FindByID(ctx, taskruntime.InputRequestID(id))
-	if err != nil {
-		return InspectResult{}, mapNotFound(err)
-	}
-	out := map[string]any{
-		"id":                string(ir.ID()),
-		"task_execution_id": string(ir.TaskExecutionID()),
-		"status":            string(ir.Status()),
-		"question":          ir.Question(),
-		"urgency":           string(ir.Urgency()),
-		"requested_at":      ir.RequestedAt().UTC().Format(time.RFC3339Nano),
-		"version":           ir.Version(),
-	}
-	if s.deps.Events != nil {
-		evs, _ := s.deps.Events.Find(ctx, observability.EventQueryFilter{
-			Refs: observability.EventRefsFilter{InputRequestID: id}, Limit: 50,
-		})
-		out["recent_events"] = projectEventSummaryList(evs)
-	}
-	return InspectResult{Kind: InspectInputRequest, ID: id, Data: out}, nil
 }
 
 func (s *Service) inspectProject(ctx context.Context, id string) (InspectResult, error) {
@@ -559,41 +527,6 @@ func (s *Service) queryIssues(ctx context.Context, f QueryFilter) (QueryResult, 
 		out = append(out, projectIssueRow(i))
 	}
 	return QueryResult{Resource: QueryIssues, Items: out}, nil
-}
-
-func (s *Service) queryInputRequests(ctx context.Context, f QueryFilter) (QueryResult, error) {
-	if s.deps.InputReqs == nil {
-		return QueryResult{}, errors.New("query: input_requests repo not wired")
-	}
-	// We re-use FindPending(epoch) to cover "all" + the caller can filter
-	// by status after.
-	items, err := s.deps.InputReqs.FindPending(ctx, time.Now().Add(365*24*time.Hour))
-	if err != nil {
-		return QueryResult{}, err
-	}
-	if f.TaskID != "" {
-		var pruned []*inputrequest.InputRequest
-		for _, ir := range items {
-			if string(ir.TaskExecutionID()) == f.TaskID || string(ir.ID()) == f.TaskID {
-				pruned = append(pruned, ir)
-			}
-		}
-		items = pruned
-	}
-	if f.Status != "" {
-		var pruned []*inputrequest.InputRequest
-		for _, ir := range items {
-			if string(ir.Status()) == f.Status {
-				pruned = append(pruned, ir)
-			}
-		}
-		items = pruned
-	}
-	out := make([]any, 0, len(items))
-	for _, ir := range items {
-		out = append(out, projectInputRequest(ir))
-	}
-	return QueryResult{Resource: QueryInputRequests, Items: out}, nil
 }
 
 func (s *Service) queryProposals(ctx context.Context, f QueryFilter) (QueryResult, error) {

@@ -10,7 +10,6 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -121,19 +120,6 @@ func projectMessageList(items []*conversation.Message) []any {
 		})
 	}
 	return out
-}
-
-func projectInputRequest(ir *inputrequest.InputRequest) map[string]any {
-	return map[string]any{
-		"id":                string(ir.ID()),
-		"task_execution_id": string(ir.TaskExecutionID()),
-		"status":            string(ir.Status()),
-		"question":          ir.Question(),
-		"urgency":           string(ir.Urgency()),
-		"requested_at":      ir.RequestedAt().UTC().Format(time.RFC3339Nano),
-		"responded_at":      fmtTimePtr(ir.RespondedAt()),
-		"version":           ir.Version(),
-	}
 }
 
 func projectEventFull(e *observability.Event) map[string]any {
