@@ -55,6 +55,19 @@ type RuntimeConfig struct {
 	// NoopCommandHandler (logs, does nothing real). Production plugs the
 	// AgentController here.
 	ControlHandler CommandHandler
+
+	// ControlStreamClient, when non-nil and not disabled, makes the control loop
+	// STREAM-FIRST (SSE down-push) with poll as fallback (v2.7 D5 slice-2).
+	// Production wires the daemon's *AdminClient here (its StreamCommands
+	// satisfies StreamClient). Nil → poll-only.
+	ControlStreamClient StreamClient
+	// DisableControlStream forces the poll-only path even when ControlStreamClient
+	// is wired. The stream is default-on for v2.7; this is the operator escape
+	// hatch back to pure poll (same delivery contract).
+	DisableControlStream bool
+	// ControlStreamIdleTimeout overrides the stream no-frame fallback timeout.
+	// Default defaultStreamIdleTimeout (≈2× the 30s server heartbeat).
+	ControlStreamIdleTimeout time.Duration
 }
 
 // Runtime is the daemon orchestrator.
@@ -122,10 +135,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 		interval = r.cfg.PollInterval
 	}
 	cl := NewControlLoop(ControlLoopConfig{
-		WorkerID:     r.cfg.WorkerID,
-		PollInterval: interval,
-		Handler:      r.cfg.ControlHandler, // nil → NoopCommandHandler
-		Logger:       r.cfg.Logger,
+		WorkerID:          r.cfg.WorkerID,
+		PollInterval:      interval,
+		Handler:           r.cfg.ControlHandler, // nil → NoopCommandHandler
+		Logger:            r.cfg.Logger,
+		StreamClient:      r.cfg.ControlStreamClient, // nil → poll-only
+		DisableStream:     r.cfg.DisableControlStream,
+		StreamIdleTimeout: r.cfg.ControlStreamIdleTimeout,
 	}, r.cfg.ControlClient)
 	r.wg.Add(1)
 	go func() {
