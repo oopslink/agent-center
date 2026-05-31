@@ -10,10 +10,36 @@ import (
 )
 
 // WorkItemRepo implements agent.WorkItemRepository.
-type WorkItemRepo struct{ db *sql.DB }
+//
+// When a transition sink is wired (NewWorkItemRepoWithSink), Save/Update drain
+// the AR's pending transitions and hand them to the sink IN THE SAME ctx/tx as
+// the row write (v2.7 #111 locus B: structural no-miss — every status change
+// persisted through this chokepoint emits, regardless of caller BC). A nil sink
+// keeps the legacy behaviour (persist-only) for fixtures that don't exercise it.
+type WorkItemRepo struct {
+	db   *sql.DB
+	sink agent.WorkItemTransitionSink // optional; nil → no emit
+}
 
-// NewWorkItemRepo constructs the repo.
+// NewWorkItemRepo constructs the repo with no transition sink (persist-only).
 func NewWorkItemRepo(db *sql.DB) *WorkItemRepo { return &WorkItemRepo{db: db} }
+
+// NewWorkItemRepoWithSink constructs the repo wired to emit drained transitions
+// to sink within the persisting tx. sink may be nil (same as NewWorkItemRepo).
+func NewWorkItemRepoWithSink(db *sql.DB, sink agent.WorkItemTransitionSink) *WorkItemRepo {
+	return &WorkItemRepo{db: db, sink: sink}
+}
+
+// emitTransitions drains w's pending transitions and forwards them to the sink
+// in the caller's ctx/tx. Drain ALWAYS runs (clears the AR buffer so a second
+// Update never double-emits); the sink call is skipped when nil or empty.
+func (r *WorkItemRepo) emitTransitions(ctx context.Context, w *agent.AgentWorkItem) error {
+	ts := w.DrainTransitions()
+	if r.sink == nil || len(ts) == 0 {
+		return nil
+	}
+	return r.sink.AppendTransitions(ctx, ts)
+}
 
 func (r *WorkItemRepo) Save(ctx context.Context, w *agent.AgentWorkItem) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
@@ -25,7 +51,10 @@ func (r *WorkItemRepo) Save(ctx context.Context, w *agent.AgentWorkItem) error {
 	if err != nil && isUnique(err) {
 		return agent.ErrWorkItemExists
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return r.emitTransitions(ctx, w)
 }
 
 func (r *WorkItemRepo) Update(ctx context.Context, w *agent.AgentWorkItem) error {
@@ -39,7 +68,7 @@ func (r *WorkItemRepo) Update(ctx context.Context, w *agent.AgentWorkItem) error
 	if n, _ := res.RowsAffected(); n == 0 {
 		return agent.ErrWorkItemNotFound
 	}
-	return nil
+	return r.emitTransitions(ctx, w)
 }
 
 func (r *WorkItemRepo) FindByID(ctx context.Context, id string) (*agent.AgentWorkItem, error) {

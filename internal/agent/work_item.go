@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
@@ -90,6 +91,31 @@ var (
 	ErrWorkItemAgentRequired = errors.New("agent: work item must reference an agent")
 )
 
+// WorkItemTransition is a status change recorded on an AgentWorkItem at
+// transition time (v2.7 #111 locus B). The persistence adapter drains these on
+// Save/Update and the wired sink emits each — within the persisting tx — as an
+// agent.work_item_transitioned domain event consumed by the work-item /
+// pm-task-status projections + observability stats. PrevStatus is "" for
+// creation (queued). Version is the AR version AFTER the transition, used by
+// consumers for idempotency / ordering.
+type WorkItemTransition struct {
+	WorkItemID string
+	AgentID    AgentID
+	TaskRef    string
+	PrevStatus WorkItemStatus
+	Status     WorkItemStatus
+	Version    int
+	OccurredAt time.Time
+}
+
+// WorkItemTransitionSink receives transitions drained by the WorkItem repository
+// after a successful row write, for same-tx emission. Defined here (domain) so
+// the persistence adapter need not depend on the outbox package; the concrete
+// impl is wired at the composition root.
+type WorkItemTransitionSink interface {
+	AppendTransitions(ctx context.Context, transitions []WorkItemTransition) error
+}
+
 // AgentWorkItem AR.
 type AgentWorkItem struct {
 	id           string
@@ -100,6 +126,36 @@ type AgentWorkItem struct {
 	createdAt    time.Time
 	updatedAt    time.Time
 	version      int
+
+	// pending holds transitions recorded since the last DrainTransitions, for
+	// same-tx emission by the repository. Never persisted/rehydrated.
+	pending []WorkItemTransition
+}
+
+// recordTransition appends a transition VO capturing the AR's current identity +
+// post-transition status/version/timestamp. prev is the status before the move.
+func (w *AgentWorkItem) recordTransition(prev WorkItemStatus) {
+	w.pending = append(w.pending, WorkItemTransition{
+		WorkItemID: w.id,
+		AgentID:    w.agentID,
+		TaskRef:    w.taskRef,
+		PrevStatus: prev,
+		Status:     w.status,
+		Version:    w.version,
+		OccurredAt: w.updatedAt,
+	})
+}
+
+// DrainTransitions returns the transitions recorded since the last drain and
+// clears the buffer. The repository calls this on Save/Update and emits the
+// result in the persisting tx. Returns nil when there is nothing pending.
+func (w *AgentWorkItem) DrainTransitions() []WorkItemTransition {
+	if len(w.pending) == 0 {
+		return nil
+	}
+	out := w.pending
+	w.pending = nil
+	return out
 }
 
 // NewWorkItemInput captures constructor args.
@@ -125,10 +181,14 @@ func NewWorkItem(in NewWorkItemInput) (*AgentWorkItem, error) {
 		return nil, errors.New("agent: created_at required")
 	}
 	at := in.CreatedAt.UTC()
-	return &AgentWorkItem{
+	w := &AgentWorkItem{
 		id: in.ID, agentID: in.AgentID, taskRef: in.TaskRef,
 		status: WorkItemQueued, createdAt: at, updatedAt: at, version: 1,
-	}, nil
+	}
+	// Creation is a transition too (""→queued) so a freshly-enqueued work item is
+	// visible in fleet/projections before its first activation (#111 口径).
+	w.recordTransition("")
+	return w, nil
 }
 
 // RehydrateWorkItemInput is for repository round-trip.
@@ -214,12 +274,14 @@ func (w *AgentWorkItem) FailFromAgentDeath(at time.Time) error {
 	if w.status != WorkItemActive && w.status != WorkItemWaitingInput {
 		return ErrWorkItemIllegalMove // not in flight (e.g. queued)
 	}
+	prev := w.status
 	w.status = WorkItemFailed
 	if at.IsZero() {
 		at = time.Now()
 	}
 	w.updatedAt = at.UTC()
 	w.version++
+	w.recordTransition(prev)
 	return nil
 }
 
@@ -237,11 +299,13 @@ func (w *AgentWorkItem) move(to WorkItemStatus, at time.Time) error {
 	if !w.status.CanTransitionTo(to) {
 		return ErrWorkItemIllegalMove
 	}
+	prev := w.status
 	w.status = to
 	if at.IsZero() {
 		at = time.Now()
 	}
 	w.updatedAt = at.UTC()
 	w.version++
+	w.recordTransition(prev)
 	return nil
 }

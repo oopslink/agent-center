@@ -27,6 +27,13 @@ import (
 const (
 	EvtAgentCreated          = "agent.created"
 	EvtAgentLifecycleChanged = "agent.lifecycle_changed"
+	// EvtAgentWorkItemTransitioned is emitted (v2.7 #111 locus B) for every
+	// AgentWorkItem status change, drained from the AR and appended in the SAME
+	// tx as the row write. It is a DISTINCT type the D2 reconcile/AgentController
+	// does NOT consume (those consume only agent.created / agent.lifecycle_changed),
+	// so emitting it never re-triggers reconcile. Consumers: the work-item
+	// projection (#1), pm-task-status sync (#2), and observability stats (③).
+	EvtAgentWorkItemTransitioned = "agent.work_item_transitioned"
 )
 
 // Sentinel errors surfaced to the HTTP layer.

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -223,9 +224,14 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// assignee Agent's Worker control stream, same tx. The agents repo resolves
 	// the assignee → worker; the pm tasks repo supplies the brief. Like D2-a this
 	// only enqueues — the daemon controller (D2-c-ii) is not active yet.
+	// v2.7 #111 locus B: this projector transitions work items (Supersede/Cancel
+	// on reassign / task-blocked), so its repo MUST carry the transition sink —
+	// otherwise canceled/superseded emits would be missed (structural no-miss
+	// requires every transition-capable repo instance to emit).
+	workItemTransitionSink := agentsvc.NewOutboxWorkItemTransitionSink(outboxRepo, a.IDGen)
 	workItemProj := pmservice.NewWorkItemProjectorWithDeps(pmservice.WorkItemProjectorDeps{
 		DB:         a.DB,
-		WorkItems:  agentsql.NewWorkItemRepo(a.DB),
+		WorkItems:  agentsql.NewWorkItemRepoWithSink(a.DB, workItemTransitionSink),
 		Applied:    appliedRepo,
 		IDGen:      a.IDGen,
 		Clock:      a.Clock,

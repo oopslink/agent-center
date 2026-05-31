@@ -415,7 +415,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// admin agent-tools surface (v2.7 D2-b2) needs the raw repo to do
 	// Update + WaitInput inside an outer tx (the AppService only exposes a
 	// read-only ListWorkItems).
-	agentWorkItemRepo := agentsql.NewWorkItemRepo(db)
+	// v2.7 #111 locus B: the shared WorkItem repo emits agent.work_item_transitioned
+	// for every status change, drained from the AR and appended in the persisting
+	// tx via the outbox sink. Wiring the sink here (composition root) keeps the
+	// sqlite adapter free of any outbox dependency.
+	workItemTransitionSink := agentsvc.NewOutboxWorkItemTransitionSink(outboxsql.NewOutboxRepo(db), gen)
+	agentWorkItemRepo := agentsql.NewWorkItemRepoWithSink(db, workItemTransitionSink)
 	agentActivityRepo := agentsql.NewActivityEventRepo(db)
 
 	agentSvc := agentsvc.New(agentsvc.Deps{
