@@ -103,6 +103,10 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 		sb.WriteString(` AND organization_id = ?`)
 		args = append(args, filter.OrganizationID)
 	}
+	if filter.OwnerRef != nil {
+		sb.WriteString(` AND owner_ref = ?`)
+		args = append(args, string(*filter.OwnerRef))
+	}
 	if filter.Cursor != nil {
 		sb.WriteString(` AND id > ?`)
 		args = append(args, string(*filter.Cursor))

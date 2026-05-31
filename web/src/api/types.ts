@@ -24,7 +24,19 @@ export interface Conversation {
   status: ConversationStatus;
   participants?: Participant[];
   parent_conversation_id?: string;
+  // owner_ref pins a task/issue conversation to its pm owner
+  // (pm://tasks|issues/{id}); empty/absent for channels and DMs. v2.7 #137.
+  owner_ref?: string;
   opened_at?: string;
+}
+
+// ContextRefs (v2.7 #137) — the pm/agent work-item provenance a message
+// carries. Present only when the message was produced under a work item;
+// absent on plain channel/DM chat. Mirrors the backend context_refs map.
+export interface ContextRefs {
+  work_item_ref: string;
+  task_ref: string;
+  agent_ref: string;
 }
 
 export interface Message {
@@ -36,6 +48,7 @@ export interface Message {
   direction: 'inbound' | 'outbound' | 'internal';
   posted_at: string;
   input_request_ref?: string;
+  context_refs?: ContextRefs;
 }
 
 // Agent BC (v2.7 #101). Org-scoped agents with a lifecycle/availability

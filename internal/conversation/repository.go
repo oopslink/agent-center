@@ -15,6 +15,12 @@ type ConversationFilter struct {
 	// Empty string means "no org filter" — used by legacy callers and
 	// tests; production webconsole handlers should always set this.
 	OrganizationID string
+	// OwnerRef, when set, returns only the conversation pinned to that pm
+	// owner_ref (pm://tasks|issues/{id}). v2.7 #137: the UI fetches a task/
+	// issue conversation by owner_ref. Combined with OrganizationID it is
+	// org-scoped by construction (a cross-org owner_ref yields no rows —
+	// fail-closed, no leak).
+	OwnerRef *OwnerRef
 }
 
 // DefaultConversationLimit caps Find when Limit <= 0.

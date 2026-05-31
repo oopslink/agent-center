@@ -48,7 +48,10 @@ describe('IssueDetail page', () => {
       ),
     );
     wrap('/projects/proj-a/issues/IS-1');
-    await waitFor(() => expect(screen.getByText('login bug')).toBeInTheDocument());
+    // Title is echoed by the #137 conversation owner banner; scope to heading.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'login bug' })).toBeInTheDocument(),
+    );
     expect(screen.getByTestId('issue-description')).toHaveTextContent('cannot sign in');
     expect(screen.getByTestId('issue-status')).toHaveTextContent('open');
     expect(screen.getByTestId('issue-project-link')).toHaveAttribute(
@@ -74,7 +77,9 @@ describe('IssueDetail page', () => {
       ),
     );
     wrap('/projects/proj-a/issues/IS-1');
-    await waitFor(() => expect(screen.getByText('open issue')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'open issue' })).toBeInTheDocument(),
+    );
     // open → {in_progress, withdrawn}
     expect(screen.getByTestId('issue-transition-in_progress')).toBeInTheDocument();
     expect(screen.getByTestId('issue-transition-withdrawn')).toBeInTheDocument();

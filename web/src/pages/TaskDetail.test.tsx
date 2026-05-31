@@ -48,7 +48,11 @@ describe('TaskDetail page', () => {
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByText('rebuild docs')).toBeInTheDocument());
+    // Title appears in the page heading and is echoed by the #137 conversation
+    // owner banner — scope to the heading so the assertion stays unambiguous.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'rebuild docs' })).toBeInTheDocument(),
+    );
     expect(screen.getByTestId('task-description')).toHaveTextContent('regenerate the site');
     expect(screen.getByTestId('task-status')).toHaveTextContent('open');
     expect(screen.getByTestId('task-view-trace')).toHaveAttribute('href', '/tasks/TS-1/trace');
