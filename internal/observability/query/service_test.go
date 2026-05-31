@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
+	agentsqlite "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
@@ -19,6 +21,8 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsqlite "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
@@ -67,6 +71,9 @@ func newQEnv(t *testing.T) *qenv {
 		Mappings:      wfsqlite.NewMappingRepo(db),
 		Proposals:     wfsqlite.NewProposalRepo(db),
 		Projects:      wfsqlite.NewProjectRepo(db),
+		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
+		WorkItems:           agentsqlite.NewWorkItemRepo(db),
+		PMTasks:             pmsqlite.NewTaskRepo(db),
 	}
 	return &qenv{db: db, deps: deps, svc: query.NewService(deps), sink: sink, er: er, clk: clk, gen: gen}
 }
@@ -566,4 +573,67 @@ func TestQuery_Events_Cursor_Pagination(t *testing.T) {
 	if len(seen) != 250 {
 		t.Fatalf("expected 250 events, got %d", len(seen))
 	}
+}
+
+// --- v2.7 #107 fleet repoint seed helpers (new work-item model) ---
+
+func (e *qenv) seedOrgProject(t *testing.T, projectID, orgID string) {
+	t.Helper()
+	p, err := workforce.NewProject(workforce.NewProjectInput{
+		ID: workforce.ProjectID(projectID), Name: projectID, CreatedByIdentityID: "user:test",
+		CreatedAt: e.clk.Now(), OrganizationID: orgID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wfsqlite.NewProjectRepo(e.db).Save(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e *qenv) seedPMTask(t *testing.T, taskID, projectID, title string) {
+	t.Helper()
+	tk, err := pm.NewTask(pm.NewTaskInput{
+		ID: pm.TaskID(taskID), ProjectID: pm.ProjectID(projectID), Title: title,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pmsqlite.NewTaskRepo(e.db).Save(context.Background(), tk); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e *qenv) seedWorkItem(t *testing.T, wiID, agentID, taskID string) {
+	t.Helper()
+	wi, err := agentpkg.NewWorkItem(agentpkg.NewWorkItemInput{
+		ID: wiID, AgentID: agentpkg.AgentID(agentID), TaskRef: "pm://tasks/" + taskID, CreatedAt: e.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := agentsqlite.NewWorkItemRepo(e.db).Save(context.Background(), wi); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e *qenv) seedWorkItemProjection(t *testing.T, wiID, agentID, status string) {
+	t.Helper()
+	if _, _, err := obsqlite.NewAgentWorkItemProjectionRepo(e.db).UpsertIfFresh(context.Background(), wiID, projection.AgentWorkItemProjectionUpdate{
+		AgentID: agentID, Status: status, CurrentActivity: "edit", TotalToolCalls: 2, TotalTokensInput: 100, TotalTokensOutput: 50, LastActivityAt: e.clk.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// seedLiveWorkItem wires a full live work item: org-project + pm task + agent
+// work item (task_ref) + projection — so fleet's resolve (proj→task_ref→pm
+// task→project→org) has every hop.
+func (e *qenv) seedLiveWorkItem(t *testing.T, wiID, agentID, taskID, projectID, orgID, status string) {
+	t.Helper()
+	e.seedOrgProject(t, projectID, orgID)
+	e.seedPMTask(t, taskID, projectID, taskID)
+	e.seedWorkItem(t, wiID, agentID, taskID)
+	e.seedWorkItemProjection(t, wiID, agentID, status)
 }

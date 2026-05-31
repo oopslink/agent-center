@@ -18,7 +18,7 @@ import (
 func TestPrintFleet_HumanIncludesAllSegments(t *testing.T) {
 	var out, errw bytes.Buffer
 	snap := query.FleetSnapshot{
-		Executions:        []query.FleetExecutionRow{{ExecutionID: "E-1", TaskID: "T-1", WorkerID: "W-1", Status: "working"}},
+		WorkItems:         []query.FleetWorkItemRow{{WorkItemID: "WI-1", TaskID: "T-1", AgentID: "AG-1", Status: "active"}},
 		Workers:           []query.FleetWorkerRow{{WorkerID: "W-1", Status: "online", ActiveCount: 1}},
 		OpenInputRequests: []query.FleetInputRequestRow{{InputRequestID: "IR-1", TaskExecutionID: "E-1", Question: "?"}},
 		PendingIssues:     []query.FleetIssueRow{{IssueID: "I-1", ProjectID: "p", Title: "discuss"}},
@@ -32,7 +32,7 @@ func TestPrintFleet_HumanIncludesAllSegments(t *testing.T) {
 	if !strings.Contains(errw.String(), "warning") {
 		t.Fatalf("warning not emitted: %s", errw.String())
 	}
-	for _, want := range []string{"E-1", "W-1", "IR-1", "I-1"} {
+	for _, want := range []string{"WI-1", "W-1", "IR-1", "I-1"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("missing %q in: %s", want, out.String())
 		}

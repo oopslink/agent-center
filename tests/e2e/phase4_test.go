@@ -112,8 +112,8 @@ func TestE2EP4_Ps_HumanAndJSON(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("ps json: %d", code)
 	}
-	if !strings.Contains(out, `"executions"`) {
-		t.Fatalf("missing executions key: %s", out)
+	if !strings.Contains(out, `"work_items"`) {
+		t.Fatalf("missing work_items key: %s", out)
 	}
 }
 
