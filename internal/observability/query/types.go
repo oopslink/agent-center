@@ -19,14 +19,13 @@ const (
 	InspectConversation InspectKind = "conversation"
 	InspectInputRequest InspectKind = "input_request"
 	InspectProject      InspectKind = "project"
-	InspectWorktree     InspectKind = "worktree"
 )
 
 // AllInspectKinds is the closed-enum list used by `--help` and validation.
 var AllInspectKinds = []InspectKind{
 	InspectTask, InspectExecution, InspectWorker, InspectIssue,
 	InspectConversation, InspectInputRequest,
-	InspectProject, InspectWorktree,
+	InspectProject,
 }
 
 // ValidInspectKind reports whether kind is a recognised inspect kind.

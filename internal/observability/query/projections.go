@@ -5,15 +5,29 @@ import (
 	"fmt"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
+
+// projectWorkItemSummary is the compact work-item row used by inspectWorker's
+// active_work_items list (v2.7 #107 Phase-2 proj-A: worker→agents→work-items).
+// Summary form (id/agent/task/status); full activity detail is via
+// inspect execution <work_item_id> (the projection).
+func projectWorkItemSummary(wi *agentpkg.AgentWorkItem) map[string]any {
+	taskID, _ := fleetTaskIDFromRef(wi.TaskRef())
+	return map[string]any{
+		"work_item_id": wi.ID(),
+		"agent_id":     string(wi.AgentID()),
+		"task_id":      taskID,
+		"status":       string(wi.Status()),
+	}
+}
 
 // projectTaskRow builds the row used by `query tasks` / inspect (short form).
 func projectTaskRow(t *task.Task) map[string]any {
@@ -33,64 +47,6 @@ func projectTaskList(items []*task.Task) []any {
 	out := make([]any, 0, len(items))
 	for _, t := range items {
 		out = append(out, projectTaskRow(t))
-	}
-	return out
-}
-
-func projectExecution(e *execution.TaskExecution) map[string]any {
-	return map[string]any{
-		"id":               string(e.ID()),
-		"task_id":          string(e.TaskID()),
-		"worker_id":        e.WorkerID(),
-		"agent_cli":        e.AgentCLI(),
-		"workspace_mode":   string(e.WorkspaceMode()),
-		"status":           string(e.Status()),
-		"dispatch_state":   string(e.DispatchState()),
-		"started_at":       e.StartedAt().UTC().Format(time.RFC3339Nano),
-		"ended_at":         fmtTimePtr(e.EndedAt()),
-		"failed_reason":    string(e.FailedReason()),
-		"failed_message":   e.FailedMessage(),
-		"completed_reason": string(e.CompletedReason()),
-		"killed_reason":    string(e.KilledReason()),
-		"version":          e.Version(),
-	}
-}
-
-func projectExecutionList(items []*execution.TaskExecution) []any {
-	out := make([]any, 0, len(items))
-	for _, e := range items {
-		out = append(out, projectExecution(e))
-	}
-	return out
-}
-
-func projectProjection(p *projection.TaskExecutionProjection) map[string]any {
-	return map[string]any{
-		"task_execution_id":           string(p.TaskExecutionID),
-		"current_activity":            p.CurrentActivity,
-		"current_activity_at":         fmtTimeOrEmpty(p.CurrentActivityAt),
-		"total_tool_calls":            p.TotalToolCalls,
-		"total_tokens_input":          p.TotalTokensInput,
-		"total_tokens_output":         p.TotalTokensOutput,
-		"working_seconds_accumulated": p.WorkingSecondsAccumulated,
-		"last_push_at":                p.LastPushAt.UTC().Format(time.RFC3339Nano),
-	}
-}
-
-func projectArtifactList(items []*execution.Artifact) []any {
-	out := make([]any, 0, len(items))
-	for _, a := range items {
-		out = append(out, map[string]any{
-			"id":           string(a.ID()),
-			"task_id":      string(a.TaskID()),
-			"execution_id": string(a.ExecutionID()),
-			"kind":         a.Kind(),
-			"title":        a.Title(),
-			"blob_ref":     a.BlobRef(),
-			"url":          a.URL(),
-			"created_at":   a.CreatedAt().UTC().Format(time.RFC3339Nano),
-			"created_by":   a.CreatedBy(),
-		})
 	}
 	return out
 }

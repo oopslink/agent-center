@@ -316,6 +316,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		PMTasks:             pmsql.NewTaskRepo(db),
 		PMProjects:          pmsql.NewProjectRepo(db),
 		PMIssues:            pmsql.NewIssueRepo(db),
+		// v2.7 #107 Phase-2 proj-A: inspectWorker/queryExecutions worker→agents→work-items (Q3 MAP).
+		Agents: agentsql.NewAgentRepo(db),
 	}
 	querySvc := query.NewService(deps)
 	fleetSvc := query.NewFleetSnapshotService(deps)

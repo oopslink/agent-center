@@ -7,14 +7,15 @@ import (
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
+// v2.7 #107 Phase-2 (proj-A): query executions repointed to the work-item model.
 func TestQuery_Executions_ByTaskID(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
+	env.seedPMTask(t, "T-1", "p", "x")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
 	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{TaskID: "T-1"})
 	if err != nil {
 		t.Fatal(err)
@@ -26,8 +27,9 @@ func TestQuery_Executions_ByTaskID(t *testing.T) {
 
 func TestQuery_Executions_DefaultActive(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
+	env.seedPMTask(t, "T-1", "p", "x")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
 	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{})
 	if err != nil {
 		t.Fatal(err)
