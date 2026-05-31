@@ -52,35 +52,5 @@ func osWriteFile(path string, data []byte, mode os.FileMode) error {
 	return os.WriteFile(path, data, mode)
 }
 
-// projectAdd seeds a project so issue/task derivation FK validation passes.
-func projectAdd(t *testing.T, app *App, id string) (string, string, ExitCode) {
-	t.Helper()
-	cmd := findCmd(app.ProjectCommands(), "add")
-	if cmd == nil {
-		t.Fatal("project add not found")
-	}
-	return runHandler(t, cmd, []string{id, "--description=test project"})
-}
-
-// runOnIssue executes `issue open`.
-func runOnIssue(t *testing.T, app *App, args []string) (string, string, ExitCode) {
-	t.Helper()
-	cmd := findCmd(app.IssueCommands(), "open")
-	if cmd == nil {
-		t.Fatal("issue open not found")
-	}
-	return runHandler(t, cmd, args)
-}
-
-// runOnTask executes `task create`.
-func runOnTask(t *testing.T, app *App, args []string) (string, string, ExitCode) {
-	t.Helper()
-	cmd := findCmd(app.TaskCommands(), "create")
-	if cmd == nil {
-		t.Fatal("task create not found")
-	}
-	return runHandler(t, cmd, args)
-}
-
 // _ keep observability import alive for actor-related test helpers.
 var _ = observability.Actor("")

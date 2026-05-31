@@ -6,53 +6,15 @@ import (
 	"testing"
 )
 
-// seedPhase2 creates a project + worker so task tests can run.
+// seedPhase2 creates a project + worker so task tests can run. The `project
+// add` / `worker enroll` write commands moved off the CLI in #132, so we seed
+// through the in-process services against the harness DB.
 func seedPhase2(t *testing.T, h *harness) {
 	t.Helper()
-	_, _, code := h.run("project", "add", "p-1", "--name=Test Project", "--format=json")
-	if code != 0 {
-		t.Fatalf("project add: %d", code)
-	}
-	_, _, code = h.run("worker", "enroll", "--worker-id=W-1", "--format=json")
-	if code != 0 {
-		t.Fatalf("worker enroll: %d", code)
-	}
-}
-
-func TestE2EP2_TaskCreateAndConversation(t *testing.T) {
-	h := newHarness(t)
-	seedPhase2(t, h)
-	stdout, _, code := h.run("task", "create", "p-1", "do thing", "--format=json")
-	if code != 0 {
-		t.Fatalf("task create: %d", code)
-	}
-	var got struct {
-		TaskID         string `json:"task_id"`
-		ConversationID string `json:"conversation_id"`
-	}
-	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
-		t.Fatalf("decode: %v / %s", err, stdout)
-	}
-	if got.TaskID == "" || got.ConversationID == "" {
-		t.Fatalf("missing ids: %+v", got)
-	}
-}
-
-func TestE2EP2_TaskCreate_NoConversation(t *testing.T) {
-	h := newHarness(t)
-	seedPhase2(t, h)
-	stdout, _, code := h.run("task", "create", "p-1", "do thing", "--no-conversation=true", "--format=json")
-	if code != 0 {
-		t.Fatalf("code: %d", code)
-	}
-	var got struct {
-		TaskID         string `json:"task_id"`
-		ConversationID string `json:"conversation_id"`
-	}
-	_ = json.Unmarshal([]byte(stdout), &got)
-	if got.ConversationID != "" {
-		t.Fatalf("expected no conv: %+v", got)
-	}
+	app, done := inProcessApp(t, h)
+	defer done()
+	seedProjectE2E(t, app, "p-1", "Test Project")
+	seedWorkerE2E(t, app, "W-1")
 }
 
 func TestE2EP2_TaskUnbindConversation_NotImplemented(t *testing.T) {
@@ -69,13 +31,14 @@ func TestE2EP2_TaskUnbindConversation_NotImplemented(t *testing.T) {
 
 func TestE2EP2_DispatchHappyAndEventChain(t *testing.T) {
 	h := newHarness(t)
-	seedPhase2(t, h)
-	stdout, _, _ := h.run("task", "create", "p-1", "do thing", "--format=json")
-	var taskOut struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(stdout), &taskOut)
-	stdout, stderr, code := h.run("dispatch", taskOut.TaskID, "--worker=W-1", "--format=json")
+	// Seed project + worker + task directly (task create CLI removed in #132).
+	app, done := inProcessApp(t, h)
+	seedProjectE2E(t, app, "p-1", "Test Project")
+	seedWorkerE2E(t, app, "W-1")
+	taskID, _ := seedTaskRuntimeE2E(t, app, "p-1", "do thing", true)
+	done()
+
+	stdout, stderr, code := h.run("dispatch", taskID, "--worker=W-1", "--format=json")
 	if code != 0 {
 		t.Fatalf("dispatch: %d / err: %s", code, stderr)
 	}
@@ -132,13 +95,13 @@ func TestE2EP2_KillExecutionUsage(t *testing.T) {
 
 func TestE2EP2_ReadTaskContext(t *testing.T) {
 	h := newHarness(t)
-	seedPhase2(t, h)
-	stdout, _, _ := h.run("task", "create", "p-1", "do thing", "--format=json")
-	var taskOut struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(stdout), &taskOut)
-	stdout, stderr, code := h.run("read-task-context", taskOut.TaskID)
+	app, done := inProcessApp(t, h)
+	seedProjectE2E(t, app, "p-1", "Test Project")
+	seedWorkerE2E(t, app, "W-1")
+	taskID, _ := seedTaskRuntimeE2E(t, app, "p-1", "do thing", true)
+	done()
+
+	stdout, stderr, code := h.run("read-task-context", taskID)
 	if code != 0 {
 		t.Fatalf("read-task-context: %d / err: %s", code, stderr)
 	}
@@ -149,13 +112,13 @@ func TestE2EP2_ReadTaskContext(t *testing.T) {
 
 func TestE2EP2_TaskBindAuto(t *testing.T) {
 	h := newHarness(t)
-	seedPhase2(t, h)
-	stdout, _, _ := h.run("task", "create", "p-1", "do thing", "--no-conversation=true", "--format=json")
-	var taskOut struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(stdout), &taskOut)
-	stdout, _, code := h.run("task", "bind-conversation", taskOut.TaskID, "--auto=true", "--format=json")
+	app, done := inProcessApp(t, h)
+	seedProjectE2E(t, app, "p-1", "Test Project")
+	seedWorkerE2E(t, app, "W-1")
+	taskID, _ := seedTaskRuntimeE2E(t, app, "p-1", "do thing", false)
+	done()
+
+	stdout, _, code := h.run("task", "bind-conversation", taskID, "--auto=true", "--format=json")
 	if code != 0 {
 		t.Fatalf("bind: %d / %s", code, stdout)
 	}
@@ -164,28 +127,15 @@ func TestE2EP2_TaskBindAuto(t *testing.T) {
 	}
 }
 
-func TestE2EP2_TaskCreateUsageErrors(t *testing.T) {
-	h := newHarness(t)
-	seedPhase2(t, h)
-	_, _, code := h.run("task", "create", "--format=json")
-	if code != 2 {
-		t.Fatalf("expected exit 2: %d", code)
-	}
-	_, _, code = h.run("task", "create", "p-1", "title", "--priority=garbage", "--format=json")
-	if code != 2 {
-		t.Fatalf("expected exit 2 for priority: %d", code)
-	}
-}
-
 func TestE2EP2_ReportArtifact(t *testing.T) {
 	h := newHarness(t)
-	seedPhase2(t, h)
-	stdout, _, _ := h.run("task", "create", "p-1", "do", "--format=json")
-	var taskOut struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(stdout), &taskOut)
-	stdout, _, _ = h.run("dispatch", taskOut.TaskID, "--worker=W-1", "--format=json")
+	app, done := inProcessApp(t, h)
+	seedProjectE2E(t, app, "p-1", "Test Project")
+	seedWorkerE2E(t, app, "W-1")
+	taskID, _ := seedTaskRuntimeE2E(t, app, "p-1", "do", true)
+	done()
+
+	stdout, _, _ := h.run("dispatch", taskID, "--worker=W-1", "--format=json")
 	var execOut struct {
 		ExecutionID string `json:"execution_id"`
 	}

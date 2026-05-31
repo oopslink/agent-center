@@ -7,20 +7,16 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/oopslink/agent-center/internal/conversation"
-	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 )
 
 // TaskCommands returns the user/supervisor-facing `task` commands.
 func (a *App) TaskCommands() []*Command {
 	return []*Command{
-		{Name: "create", Summary: "Create a new task", Flags: a.taskCreateHandler},
 		{Name: "bind-conversation", Summary: "Bind a task to a conversation", Flags: a.taskBindConversationHandler},
 		{Name: "unbind-conversation", Summary: "(v1) reserved — not implemented", Flags: a.taskUnbindConversationHandler},
 	}
@@ -44,115 +40,6 @@ func (a *App) AgentRuntimeCommands() []*Command {
 		{Name: "report-artifact", Summary: "Agent reports an artifact", Flags: a.reportArtifactHandler},
 		{Name: "report-failure", Summary: "Agent reports failure", Flags: a.reportFailureHandler},
 		{Name: "read-task-context", Summary: "Agent reads task context", Flags: a.readTaskContextHandler},
-	}
-}
-
-// =============================================================================
-// task create
-// =============================================================================
-
-func (a *App) taskCreateHandler(fs *flag.FlagSet) Handler {
-	description := fs.String("description", "", "task description")
-	parent := fs.String("parent", "", "parent task id")
-	fromIssue := fs.String("from-issue", "", "from issue id")
-	priority := fs.String("priority", "medium", "task priority (high|medium|low)")
-	requiresWorktree := fs.Bool("worktree", true, "requires worktree workspace")
-	noConv := fs.Bool("no-conversation", false, "skip conversation creation (b/c/d path)")
-	fromConversation := fs.String("from-conversation", "", "(CV4 derive) source conversation id; switches to derive flow")
-	selectMessages := fs.String("select-messages", "", "(CV4 derive) comma-separated source message ids to carry over")
-	agentInstance := fs.String("agent", "", "(CV4 derive) target AgentInstance id (required for derive)")
-	format := fs.String("format", FormatTable, formatFlagHelp())
-	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-		if len(args) < 2 {
-			return PrintError(errw, *format, "usage_error", "usage: task create <project_id> <title> [flags]", ExitUsage)
-		}
-		projectID := args[0]
-		title := strings.Join(args[1:], " ")
-		// CV4 derive path.
-		if *fromConversation != "" {
-			if a.DerivationSvc == nil {
-				return PrintError(errw, *format, "internal_error",
-					"derivation service not wired", ExitNotImplemented)
-			}
-			msgIDs := parseMessageIDs(*selectMessages)
-			actor := a.DefaultActor()
-			res, err := a.DerivationSvc.DeriveTask(ctx, convservice.DeriveTaskCommand{
-				SourceConversationID: conversation.ConversationID(*fromConversation),
-				SourceMessageIDs:     msgIDs,
-				ProjectID:            projectID,
-				Title:                title,
-				Description:          *description,
-				AgentInstanceID:      *agentInstance,
-				CreatedBy:            conversation.IdentityRef(actor),
-				Actor:                actor,
-			})
-			if err != nil {
-				return HandleDomainError(errw, *format, err)
-			}
-			if *format == "json" {
-				b, _ := json.Marshal(map[string]any{
-					"task_id":             res.TaskID,
-					"conversation_id":     string(res.ChildConversationID),
-					"reference_count":     res.ReferenceCount,
-					"task_event_id":       string(res.TaskEventID),
-					"carry_over_event_id": string(res.CarryOverEventID),
-				})
-				writeOut(out, string(b))
-			} else {
-				fmt.Fprintf(out, "created task %s from conversation %s (conv=%s, refs=%d)\n",
-					res.TaskID, *fromConversation, res.ChildConversationID, res.ReferenceCount)
-			}
-			return ExitOK
-		}
-		pr, err := task.ParsePriority(*priority)
-		if err != nil {
-			return PrintError(errw, *format, "task_invalid_priority", err.Error(), ExitUsage)
-		}
-		var taskID, convID string
-		if a.Client != nil {
-			res, cerr := a.Client.TaskCreate(ctx, TaskCreateRequest{
-				ProjectID:         projectID,
-				Title:             title,
-				Description:       *description,
-				ParentTaskID:      *parent,
-				FromIssueID:       *fromIssue,
-				Priority:          string(pr),
-				RequiresWorktree:  *requiresWorktree,
-				WithConversation:  !*noConv,
-				ConversationTitle: title,
-			})
-			if cerr != nil {
-				return HandleClientError(errw, *format, cerr)
-			}
-			taskID, convID = res.TaskID, res.ConversationID
-		} else {
-			res, cerr := a.TaskSvc.Create(ctx, trservice.TaskCreateInput{
-				ProjectID:         projectID,
-				Title:             title,
-				Description:       *description,
-				ParentTaskID:      taskruntime.TaskID(*parent),
-				FromIssueID:       *fromIssue,
-				Priority:          pr,
-				RequiresWorktree:  *requiresWorktree,
-				WithConversation:  !*noConv,
-				ConversationTitle: title,
-				Actor:             a.DefaultActor(),
-			})
-			if cerr != nil {
-				return HandleDomainError(errw, *format, cerr)
-			}
-			taskID, convID = string(res.TaskID), string(res.ConversationID)
-		}
-		if *format == "json" {
-			b, _ := json.Marshal(map[string]any{
-				"task_id":         taskID,
-				"conversation_id": convID,
-			})
-			writeOut(out, string(b))
-		} else {
-			fmt.Fprintf(out, "created task %s (conversation %s)\n", taskID, convID)
-		}
-		return ExitOK
 	}
 }
 

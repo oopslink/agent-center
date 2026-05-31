@@ -19,7 +19,22 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
+	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
+
+// seedProject creates a workforce Project directly via the still-wired
+// ProjectService (the `project add` CLI command was removed in #132). Used by
+// tests whose real assertion is on the read-only project commands (list/show).
+func seedProject(t *testing.T, app *App, id, name string) {
+	t.Helper()
+	if _, err := app.ProjectSvc.Add(context.Background(), wfservice.AddCommand{
+		ID:    workforce.ProjectID(id),
+		Name:  name,
+		Actor: app.DefaultActor(),
+	}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+}
 
 // helper: spin up an App with a fresh on-disk DB and migration applied.
 func newTestApp(t *testing.T) *App {
@@ -316,89 +331,12 @@ func TestCLI_ProposalShow_Happy(t *testing.T) {
 // project CRUD
 // =============================================================================
 
-func TestCLI_ProjectAdd_Happy(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	out, _, code := add([]string{"my-proj", "--name=My Proj", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d err out: %s", code, out)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["project_id"] != "my-proj" {
-		t.Fatalf("got %v", r)
-	}
-}
-
-func TestCLI_ProjectAdd_DupID(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	_, errOut, code := add([]string{"p", "--name=p", "--format=json"})
-	if code != ExitBusinessError {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "project_already_exists") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProjectRemove_HasActiveDeps(t *testing.T) {
-	app := newTestApp(t)
-	// enroll + propose + accept → creates project + mapping
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	_, _, _ = accept([]string{id, "--project-id=p"})
-	// Now p has an active mapping; remove should fail.
-	rm := runByName(t, app, "project", "remove")
-	_, errOut, code := rm([]string{"p"})
-	if code != ExitInvariantViolation {
-		t.Fatalf("code: %d errOut: %s", code, errOut)
-	}
-	if !strings.Contains(errOut, "project_has_active_deps") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProjectUpdate_VersionConflict(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	upd := runByName(t, app, "project", "update")
-	_, errOut, code := upd([]string{"p", "--name=Renamed", "--version=99"})
-	if code != ExitVersionConflict {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "project_version_conflict") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProjectUpdate_NoVersion(t *testing.T) {
-	app := newTestApp(t)
-	upd := runByName(t, app, "project", "update")
-	_, _, code := upd([]string{"p", "--name=x"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectUpdate_NoFields(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	upd := runByName(t, app, "project", "update")
-	_, _, code := upd([]string{"p", "--version=1"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
 func TestCLI_ProjectList_All(t *testing.T) {
 	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"a", "--name=a"})
-	_, _, _ = add([]string{"b", "--name=b"})
+	// Seed two projects directly via the workforce service (the `project add`
+	// CLI command was removed in #132); the read assertion is on `project list`.
+	seedProject(t, app, "a", "a")
+	seedProject(t, app, "b", "b")
 	list := runByName(t, app, "project", "list")
 	out, _, _ := list([]string{"--format=json"})
 	var arr []map[string]any

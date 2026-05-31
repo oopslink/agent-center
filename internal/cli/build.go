@@ -184,14 +184,11 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 			return nil, "", err
 		}
 	}
-	// issue group + top-level open-issue (agent audience)
+	// issue group (read/bind only; create/manage moved to webconsole/admin/MCP — #132)
 	for _, c := range provider.issueCommands() {
 		if err := router.Add([]string{"issue"}, c); err != nil {
 			return nil, "", err
 		}
-	}
-	if err := router.Add(nil, provider.openIssueCommand()); err != nil {
-		return nil, "", err
 	}
 	// worker shim placeholder (system audience)
 	if err := router.Add([]string{"worker"}, WorkerShimPlaceholder()); err != nil {
@@ -486,7 +483,7 @@ func (l *lazyApp) workerCommands() []*Command {
 }
 
 func (l *lazyApp) projectCommands() []*Command {
-	names := []string{"add", "list", "show", "update", "remove"}
+	names := []string{"list", "show"}
 	out := make([]*Command, 0, len(names))
 	for _, n := range names {
 		n := n
@@ -570,7 +567,7 @@ func (l *lazyApp) channelCommands() []*Command {
 }
 
 func (l *lazyApp) taskCommands() []*Command {
-	names := []string{"create", "bind-conversation", "unbind-conversation"}
+	names := []string{"bind-conversation", "unbind-conversation"}
 	out := make([]*Command, 0, len(names))
 	for _, n := range names {
 		n := n
@@ -602,7 +599,7 @@ func (l *lazyApp) agentRuntimeCommands() []*Command {
 }
 
 func (l *lazyApp) issueCommands() []*Command {
-	names := []string{"open", "comment", "conclude", "withdraw", "bind-conversation", "link-conversation"}
+	names := []string{"bind-conversation", "link-conversation"}
 	out := make([]*Command, 0, len(names))
 	for _, n := range names {
 		n := n
@@ -611,10 +608,6 @@ func (l *lazyApp) issueCommands() []*Command {
 		}))
 	}
 	return out
-}
-
-func (l *lazyApp) openIssueCommand() *Command {
-	return l.withApp(func(a *App) *Command { return a.OpenIssueCommand() })
 }
 
 func (l *lazyApp) observabilityCommands() []*Command {

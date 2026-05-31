@@ -52,29 +52,13 @@ func TestClient_TaskRuntime_TaskCreateDispatchKill_OverAdminEndpoint(t *testing.
 	defer cleanup()
 	seedProjectAndWorkerClient(t, app)
 
-	// --- task create ----------------------------------------------------
-	create := findCmd(app.TaskCommands(), "create")
-	out, _, code := runHandler(t, create, []string{
-		"p-1", "do thing", "--no-conversation=true", "--format=json",
-	})
-	if code != ExitOK {
-		t.Fatalf("create exit=%d out=%s", code, out)
-	}
-	var created struct {
-		TaskID         string `json:"task_id"`
-		ConversationID string `json:"conversation_id"`
-	}
-	if err := json.Unmarshal([]byte(out), &created); err != nil {
-		t.Fatalf("decode create out: %v body=%s", err, out)
-	}
-	if created.TaskID == "" {
-		t.Fatal("expected task_id")
-	}
+	// --- seed a task directly (task create CLI removed in #132) ---------
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "do thing", false)
 
 	// --- dispatch -------------------------------------------------------
 	dispatch := app.DispatchCommand()
 	out2, _, code := runHandler(t, dispatch, []string{
-		created.TaskID, "--worker=W-1", "--format=json",
+		taskID, "--worker=W-1", "--format=json",
 	})
 	if code != ExitOK {
 		t.Fatalf("dispatch exit=%d out=%s", code, out2)
@@ -133,23 +117,13 @@ func TestClient_TaskRuntime_TaskBindConversation_OverAdminEndpoint(t *testing.T)
 	defer cleanup()
 	seedProjectAndWorkerClient(t, app)
 
-	// First create a task without conversation.
-	create := findCmd(app.TaskCommands(), "create")
-	out, _, code := runHandler(t, create, []string{
-		"p-1", "title", "--no-conversation=true", "--format=json",
-	})
-	if code != ExitOK {
-		t.Fatalf("create exit=%d", code)
-	}
-	var created struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	// Seed a task without a conversation directly.
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "title", false)
 
 	// Bind a fresh conversation via --auto.
 	bind := findCmd(app.TaskCommands(), "bind-conversation")
 	out2, _, code := runHandler(t, bind, []string{
-		created.TaskID, "--auto=true", "--format=json",
+		taskID, "--auto=true", "--format=json",
 	})
 	if code != ExitOK {
 		t.Fatalf("bind exit=%d out=%s", code, out2)
@@ -164,20 +138,12 @@ func TestClient_TaskRuntime_IRListShow_OverAdminEndpoint(t *testing.T) {
 	defer cleanup()
 	seedProjectAndWorkerClient(t, app)
 
-	// Create + dispatch + advance to working so request-input has a
+	// Seed + dispatch + advance to working so request-input has a
 	// channel to write to.
-	create := findCmd(app.TaskCommands(), "create")
-	out, _, code := runHandler(t, create, []string{"p-1", "x", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("create exit=%d", code)
-	}
-	var created struct {
-		TaskID string `json:"task_id"`
-	}
-	_ = json.Unmarshal([]byte(out), &created)
+	taskID, _ := seedTaskRuntimeTask(t, app, "p-1", "x", true)
 
 	dispatch := app.DispatchCommand()
-	dout, _, code := runHandler(t, dispatch, []string{created.TaskID, "--worker=W-1", "--format=json"})
+	dout, _, code := runHandler(t, dispatch, []string{taskID, "--worker=W-1", "--format=json"})
 	if code != ExitOK {
 		t.Fatalf("dispatch exit=%d", code)
 	}
