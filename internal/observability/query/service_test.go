@@ -26,7 +26,6 @@ import (
 	"github.com/oopslink/agent-center/internal/taskruntime"
 	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
@@ -59,7 +58,6 @@ func newQEnv(t *testing.T) *qenv {
 	deps := query.Deps{
 		Events:        er,
 		Projection:    obsqlite.NewProjectionRepo(db),
-		Tasks:         trsqlite.NewTaskRepo(db),
 		Executions:    trsqlite.NewTaskExecutionRepo(db),
 		Artifacts:     trsqlite.NewArtifactRepo(db),
 		Issues:        disqlite.NewIssueRepo(db),
@@ -79,19 +77,38 @@ func newQEnv(t *testing.T) *qenv {
 	return &qenv{db: db, deps: deps, svc: query.NewService(deps), sink: sink, er: er, clk: clk, gen: gen}
 }
 
-func (e *qenv) seedTask(t *testing.T, id, project, title string) *task.Task {
+// seedTask seeds a pm.Task (v2.7 #107 Phase-2 proj-B: observability tasks read
+// the pm model). Created in the default open status.
+func (e *qenv) seedTask(t *testing.T, id, project, title string) *pm.Task {
 	t.Helper()
-	tk, err := task.New(task.NewInput{
-		ID: taskruntime.TaskID(id), ProjectID: project, Title: title,
-		CreatedBy: "user:test", Now: e.clk.Now(),
+	tk, err := pm.NewTask(pm.NewTaskInput{
+		ID: pm.TaskID(id), ProjectID: pm.ProjectID(project), Title: title,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.deps.Tasks.Save(context.Background(), tk); err != nil {
+	if err := e.deps.PMTasks.Save(context.Background(), tk); err != nil {
 		t.Fatal(err)
 	}
 	return tk
+}
+
+// seedTaskStatus seeds a pm.Task in a specific status (via rehydrate) for the
+// status-set query tests. v2.7 #107 Phase-2 proj-B.
+func (e *qenv) seedTaskStatus(t *testing.T, id, project string, status pm.TaskStatus) {
+	t.Helper()
+	tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+		ID: pm.TaskID(id), ProjectID: pm.ProjectID(project), Title: id,
+		Status: status, CreatedBy: "user:test",
+		CreatedAt: e.clk.Now(), UpdatedAt: e.clk.Now(), Version: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.deps.PMTasks.Save(context.Background(), tk); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (e *qenv) seedExecution(t *testing.T, id, taskID, workerID string, status execution.Status) *execution.TaskExecution {
@@ -209,8 +226,40 @@ func TestInspect_Task_HappyPath(t *testing.T) {
 	if data["id"] != "T-1" || data["title"] != "hello" {
 		t.Fatalf("inspect task: %+v", data)
 	}
-	// v2.7 #107 Phase-2 (proj-A): inspectTask's old executions sub-section is
-	// dropped (re-added as work-items when inspectTask repoints to pm in proj-B).
+	// v2.7 #107 Phase-2 (proj-B): reads pm.Task. priority/conversation_id dropped;
+	// pm fields present.
+	if _, ok := data["assignee"]; !ok {
+		t.Fatalf("expected assignee key (pm field): %+v", data)
+	}
+	if _, ok := data["priority"]; ok {
+		t.Fatalf("priority should be dropped (no pm.Task field): %+v", data)
+	}
+	if data["created_by"] != "user:test" {
+		t.Fatalf("expected created_by from pm.Task: %+v", data)
+	}
+}
+
+// TestInspect_Task_WorkItemsSubSection pins the proj-B work-items sub-section:
+// inspectTask lists the agent work items for the pm task (resolved by task_ref
+// "pm://tasks/{id}") — the section proj-A deferred until inspectTask read pm.
+func TestInspect_Task_WorkItemsSubSection(t *testing.T) {
+	env := newQEnv(t)
+	env.seedTask(t, "T-1", "proj", "hello")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItem(t, "WI-2", "AG-2", "T-1")
+	res, err := env.svc.Inspect(context.Background(), "task", "T-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := res.Data.(map[string]any)
+	wis, ok := data["work_items"].([]any)
+	if !ok || len(wis) != 2 {
+		t.Fatalf("expected 2 work_items for the task, got %+v", data["work_items"])
+	}
+	first := wis[0].(map[string]any)
+	if first["work_item_id"] != "WI-1" || first["task_id"] != "T-1" {
+		t.Fatalf("work item summary fields wrong: %+v", first)
+	}
 }
 
 func TestInspect_Task_NotFound(t *testing.T) {
@@ -231,7 +280,7 @@ func TestInspect_UnknownKind(t *testing.T) {
 
 func TestInspect_Execution_WithProjection(t *testing.T) {
 	env := newQEnv(t)
-	env.seedPMTask(t, "T-1", "proj", "h")
+	env.seedTask(t, "T-1", "proj", "h")
 	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
 	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active") // sets CurrentActivity:"edit"
 	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
@@ -380,7 +429,7 @@ func TestQuery_Tasks_ByProject(t *testing.T) {
 // their work items (Q3 MAP).
 func TestQuery_Executions_ByWorker(t *testing.T) {
 	env := newQEnv(t)
-	env.seedPMTask(t, "T-1", "p", "x")
+	env.seedTask(t, "T-1", "p", "x")
 	env.seedAgent(t, "AG-1", "W-1")
 	env.seedAgent(t, "AG-2", "W-2")
 	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
@@ -567,20 +616,6 @@ func (e *qenv) seedOrgProject(t *testing.T, projectID, orgID string) {
 	}
 }
 
-func (e *qenv) seedPMTask(t *testing.T, taskID, projectID, title string) {
-	t.Helper()
-	tk, err := pm.NewTask(pm.NewTaskInput{
-		ID: pm.TaskID(taskID), ProjectID: pm.ProjectID(projectID), Title: title,
-		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := pmsqlite.NewTaskRepo(e.db).Save(context.Background(), tk); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // seedPMIssue seeds a pm issue (pm_issues) in a project with a given status —
 // the fleet pending-issues source after the #119 repoint. Use a real pm project
 // (seedOrgProject) for org-scoped tests so org resolves via the pm source.
@@ -641,7 +676,7 @@ func (e *qenv) seedWorkItemProjection(t *testing.T, wiID, agentID, status string
 func (e *qenv) seedLiveWorkItem(t *testing.T, wiID, agentID, taskID, projectID, orgID, status string) {
 	t.Helper()
 	e.seedOrgProject(t, projectID, orgID)
-	e.seedPMTask(t, taskID, projectID, taskID)
+	e.seedTask(t, taskID, projectID, taskID)
 	e.seedWorkItem(t, wiID, agentID, taskID)
 	e.seedWorkItemProjection(t, wiID, agentID, status)
 }

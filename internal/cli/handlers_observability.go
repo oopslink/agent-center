@@ -76,8 +76,6 @@ func (a *App) queryCommand() *Command {
 			format := fs.String("format", FormatTable, formatFlagHelp())
 			status := fs.String("status", "", "")
 			project := fs.String("project", "", "")
-			priority := fs.String("priority", "", "")
-			blockedBy := fs.String("blocked-by", "", "")
 			workerID := fs.String("worker", "", "")
 			taskID := fs.String("task-id", "", "")
 			execID := fs.String("execution-id", "", "")
@@ -104,8 +102,6 @@ func (a *App) queryCommand() *Command {
 				filter := query.QueryFilter{
 					Status:        *status,
 					ProjectID:     *project,
-					Priority:      *priority,
-					BlockedBy:     *blockedBy,
 					WorkerID:      *workerID,
 					TaskID:        *taskID,
 					ExecutionID:   *execID,

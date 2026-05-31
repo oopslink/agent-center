@@ -23,8 +23,8 @@ func TestStats_UnknownScope(t *testing.T) {
 func TestStats_Tasks_CountsByStatus(t *testing.T) {
 	env := newQEnv(t)
 	// v2.7 #107 Phase-2: tasks scope repointed to pm_tasks (grouped count).
-	env.seedPMTask(t, "T-1", "p", "a")
-	env.seedPMTask(t, "T-2", "p", "b")
+	env.seedTask(t, "T-1", "p", "a")
+	env.seedTask(t, "T-2", "p", "b")
 	svc := query.NewStatsService(env.deps)
 	res, err := svc.Aggregate(context.Background(), "tasks", nil)
 	if err != nil {

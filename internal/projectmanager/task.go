@@ -58,6 +58,20 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 	return false
 }
 
+// IsTerminal reports whether the task has reached a concluded state: work is
+// done (completed/verified) or abandoned (canceled). A Reopen can re-activate a
+// completed/verified task, but in any concluded state the task is not "active
+// work in flight". The complement (the active / non-terminal set) is exactly
+// {open, assigned, running, blocked, reopened}. v2.7 #107 Phase-2 (proj-B):
+// the observability default task-query set is the non-terminal set.
+func (s TaskStatus) IsTerminal() bool {
+	switch s {
+	case TaskCompleted, TaskVerified, TaskCanceled:
+		return true
+	}
+	return false
+}
+
 // Task is a project-scoped unit of work and its assignment state. It binds a
 // stable Conversation via owner_ref pm://tasks/{id} (held by Conversation,
 // ADR-0047) across reassignments. A Task may be independent or derived from an

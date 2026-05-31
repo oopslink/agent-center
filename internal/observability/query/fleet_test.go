@@ -18,8 +18,9 @@ import (
 
 func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 	env := newQEnv(t)
-	// Seed: 1 task + 1 working execution + 1 worker online + 1 IR + 1 issue
-	env.seedTask(t, "T-1", "proj", "title")
+	// Seed: 1 worker online + 1 issue + 1 live work item (which seeds its pm
+	// task T-1). The legacy execution is kept only as inert data the fleet no
+	// longer reads (proj-A: fleet reads work-item projections).
 	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusInputRequired)
 	env.seedWorker(t, "W-1", workforce.WorkerOnline)
 	env.seedPMIssue(t, "I-1", "proj", "discuss", pm.IssueOpen)

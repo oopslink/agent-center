@@ -7,15 +7,15 @@ import (
 
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/observability/query"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 func TestLogsCmd_UnknownKind_ExitUsage(t *testing.T) {
 	app := newTestApp(t)
 	bs, _ := blobstore.NewLocalDir(t.TempDir())
 	app.BlobStore = bs
-	app.LogsSvc = query.NewLogsService(query.Deps{Tasks: app.TaskRepo}, bs)
+	app.LogsSvc = query.NewLogsService(query.Deps{PMTasks: pmsql.NewTaskRepo(app.DB)}, bs)
 	cmd := findCmd(app.ObservabilityCommands(), "logs")
 	_, _, code := runHandler(t, cmd, []string{"blob", "X"})
 	if code != ExitUsage {
@@ -27,13 +27,13 @@ func TestLogsCmd_BlobNotFound_ExitNotFound(t *testing.T) {
 	app := newTestApp(t)
 	bs, _ := blobstore.NewLocalDir(t.TempDir())
 	app.BlobStore = bs
-	app.LogsSvc = query.NewLogsService(query.Deps{Tasks: app.TaskRepo}, bs)
-	// Seed task (but no blob).
-	tk, _ := task.New(task.NewInput{
-		ID: taskruntime.TaskID("T-1"), ProjectID: "p", Title: "x",
-		CreatedBy: "user:t", Now: time.Now(),
+	app.LogsSvc = query.NewLogsService(query.Deps{PMTasks: pmsql.NewTaskRepo(app.DB)}, bs)
+	// Seed a pm task (but no blob).
+	tk, _ := pm.NewTask(pm.NewTaskInput{
+		ID: pm.TaskID("T-1"), ProjectID: "p", Title: "x",
+		CreatedBy: "user:t", CreatedAt: time.Now(),
 	})
-	_ = app.TaskRepo.Save(context.Background(), tk)
+	_ = pmsql.NewTaskRepo(app.DB).Save(context.Background(), tk)
 	cmd := findCmd(app.ObservabilityCommands(), "logs")
 	_, _, code := runHandler(t, cmd, []string{"task", "T-1"})
 	if code != ExitNotFound {

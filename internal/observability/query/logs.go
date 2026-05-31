@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/oopslink/agent-center/internal/blobstore"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/taskruntime"
 )
 
@@ -77,10 +78,11 @@ func (s *LogsService) Open(ctx context.Context, req LogsRequest) (io.ReadCloser,
 	var blobRef string
 	switch req.Kind {
 	case LogsTask:
-		if s.deps.Tasks == nil {
-			return nil, "", errors.New("logs: tasks repo not wired")
+		// v2.7 #107 Phase-2 (proj-B): task existence-check reads pm.Task.
+		if s.deps.PMTasks == nil {
+			return nil, "", errors.New("logs: pm tasks repo not wired")
 		}
-		t, err := s.deps.Tasks.FindByID(ctx, taskruntime.TaskID(req.ID))
+		t, err := s.deps.PMTasks.FindByID(ctx, pm.TaskID(req.ID))
 		if err != nil {
 			return nil, "", err
 		}

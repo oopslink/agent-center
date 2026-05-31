@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/observability/peek"
+	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 // Phase 4 e2e tests drive the real binary against the 6 Observability
@@ -23,15 +26,41 @@ func runWithCfg(t *testing.T, h *harness, args ...string) (string, string, int) 
 	return h.run(args...)
 }
 
+// seedPMTaskE2E writes a pm.Task directly into the harness DB so the pm read
+// path (`query tasks` / `inspect task`) can be exercised end-to-end. v2.7 #107
+// proj-B (B′): observability reads the pm model; CLI `task create` still writes
+// the old taskruntime model (migration tracked in #132). Runs migrations first
+// so the call is self-contained (no prior CLI command required).
+func seedPMTaskE2E(t *testing.T, dbPath, id, project, title string) {
+	t.Helper()
+	db, err := persistence.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	tk, err := pm.NewTask(pm.NewTaskInput{
+		ID: pm.TaskID(id), ProjectID: pm.ProjectID(project), Title: title,
+		CreatedBy: "user:test", CreatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pmsql.NewTaskRepo(db).Save(context.Background(), tk); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestE2EP4_Inspect_Task_Roundtrip(t *testing.T) {
 	h := newHarness(t)
-	// Seed: enroll worker, register a project, create a task.
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("project", "add", "--name=proj", "proj")
-	_, _, code := h.run("task", "create", "proj", "build foo")
-	if code != 0 {
-		t.Fatalf("task create: %d", code)
-	}
+	// v2.7 #107 Phase-2 (proj-B, B′): the observability "task" inspect/query
+	// verbs read the project-management (pm) model. CLI `task create` still
+	// writes the OLD taskruntime model (CLI management-surface migration tracked
+	// in #132), so seed a pm.Task directly via the repo to exercise the pm read
+	// path end-to-end.
+	seedPMTaskE2E(t, h.dbPath, "T-e2e", "proj", "build foo")
 	// Find task id via `query tasks`
 	out, _, code := h.run("query", "tasks", "--project=proj", "--format=json")
 	if code != 0 {

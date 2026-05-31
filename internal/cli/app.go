@@ -299,7 +299,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	deps := query.Deps{
 		Events:        er,
 		Projection:    projRepo,
-		Tasks:         taskRepo,
 		Executions:    execRepo,
 		Artifacts:     artifactRepo,
 		Issues:        issueRepo,

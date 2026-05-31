@@ -69,8 +69,6 @@ func ValidQueryResource(resource string) bool {
 type QueryFilter struct {
 	Status        string
 	ProjectID     string
-	Priority      string
-	BlockedBy     string
 	WorkerID      string
 	TaskID        string
 	ExecutionID   string

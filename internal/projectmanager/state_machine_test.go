@@ -7,6 +7,34 @@ import (
 
 var t0 = time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
 
+// TestTaskStatus_IsTerminal_Partition pins the terminal/active partition that
+// the observability default task-query relies on (v2.7 #107 proj-B): terminal =
+// {completed, verified, canceled}; active (non-terminal) = {open, assigned,
+// running, blocked, reopened}. Iterating every enum value guards against a new
+// status silently landing on the wrong side (the proj-A "core-enum" §-1 lesson).
+func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
+	terminal := map[TaskStatus]bool{TaskCompleted: true, TaskVerified: true, TaskCanceled: true}
+	all := []TaskStatus{TaskOpen, TaskAssigned, TaskRunning, TaskBlocked, TaskCompleted, TaskVerified, TaskCanceled, TaskReopened}
+	for _, s := range all {
+		if !s.IsValid() {
+			t.Fatalf("%s not IsValid — enum drift", s)
+		}
+		if got := s.IsTerminal(); got != terminal[s] {
+			t.Fatalf("IsTerminal(%s) = %v, want %v", s, got, terminal[s])
+		}
+	}
+	// Exactly 3 terminal, 5 active.
+	var nTerminal int
+	for _, s := range all {
+		if s.IsTerminal() {
+			nTerminal++
+		}
+	}
+	if nTerminal != 3 {
+		t.Fatalf("expected 3 terminal statuses, got %d", nTerminal)
+	}
+}
+
 func newTask(t *testing.T) *Task {
 	t.Helper()
 	tk, err := NewTask(NewTaskInput{ID: "T1", ProjectID: "P1", Title: "do", CreatedBy: "user:a", CreatedAt: t0})

@@ -54,6 +54,12 @@ type TaskRepository interface {
 	// scan that stats used. since, if non-nil, restricts to tasks created
 	// at/after it. v2.7 #107 Phase-2 stats repoint.
 	CountByStatus(ctx context.Context, since *time.Time) (map[TaskStatus]int, error)
+	// ListByStatuses returns tasks whose status is in any of the given statuses,
+	// across ALL projects/orgs (global), stable-ordered (created_at, id). Empty
+	// input → empty result. v2.7 #107 Phase-2 (proj-B): observability task query
+	// reads pm_tasks by status (by-status filter = one status; default = the
+	// non-terminal active set).
+	ListByStatuses(ctx context.Context, statuses []TaskStatus) ([]*Task, error)
 }
 
 // TaskSubscriberRepository persists manual Task subscriber records.
