@@ -24,7 +24,6 @@ import (
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
-	"github.com/oopslink/agent-center/internal/observability/projection"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -161,13 +160,11 @@ type App struct {
 	IdentityOrgUpdateSvc        *identity.OrganizationUpdateService
 
 	// Observability Phase 4
-	ProjectionRepo projection.Repository
-	ProjectionSvc  *projection.TaskExecutionProjectionService
-	QuerySvc       *query.Service
-	FleetSvc       *query.FleetSnapshotService
-	StatsSvc       *query.StatsService
-	LogsSvc        *query.LogsService
-	BlobStore      blobstore.BlobStore
+	QuerySvc  *query.Service
+	FleetSvc  *query.FleetSnapshotService
+	StatsSvc  *query.StatsService
+	LogsSvc   *query.LogsService
+	BlobStore blobstore.BlobStore
 }
 
 // NewApp wires the full dependency graph from a Config. The DB must
@@ -206,8 +203,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	readStateSvc := convservice.NewReadStateService(db, readStateRepo, mgRepo, sink, clk)
 
 	// Observability Phase 4
-	projRepo := obsqlite.NewProjectionRepo(db)
-	projSvc := projection.NewTaskExecutionProjectionService(projRepo, sink, nil, clk)
 	deps := query.Deps{
 		Events:        er,
 		Conversations: cr,
@@ -402,13 +397,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AdminTokenRepo: adminTokenRepo,
 		AdminTokenSvc:  adminTokenSvc,
 
-		ProjectionRepo: projRepo,
-		ProjectionSvc:  projSvc,
-		QuerySvc:       querySvc,
-		FleetSvc:       fleetSvc,
-		StatsSvc:       statsSvc,
-		LogsSvc:        logsSvc,
-		BlobStore:      bs,
+		QuerySvc:  querySvc,
+		FleetSvc:  fleetSvc,
+		StatsSvc:  statsSvc,
+		LogsSvc:   logsSvc,
+		BlobStore: bs,
 	}, nil
 }
 
@@ -451,4 +444,3 @@ func OpenAndMigrate(cfg config.Config) (*sql.DB, error) {
 func writeOut(w io.Writer, s string) {
 	fmt.Fprintln(w, s)
 }
-

@@ -311,10 +311,10 @@ func MigrateUpCommand() *Command {
 	}
 }
 
-// WorkerShimPlaceholder is the `worker shim` entry point. v1 builds the
-// shim runtime as a library (internal/shim) and offers a thin CLI hook
-// that delegates to it. Daemon spawns shim via this entry; users do not
-// directly invoke it (it's audience=Sys per 03-cli § 8.3).
+// WorkerShimPlaceholder is the `worker shim` entry point. The shim
+// runtime is daemon-internal; this is a thin CLI hook. Daemon spawns shim
+// via this entry; users do not directly invoke it (audience=Sys per
+// 03-cli § 8.3).
 func WorkerShimPlaceholder() *Command {
 	return placeholderCommand("shim",
 		"Per-execution shim entry (system; ADR-0018)",

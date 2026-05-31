@@ -6,10 +6,9 @@ import (
 )
 
 // AgentWorkItemProjection is the read-model VO mirroring a single
-// agent_work_item_projections row (mig 0046) — the new-model equivalent of
-// TaskExecutionProjection. PK = work_item_id (1:1 with agent_work_items.id),
-// no version column (high-frequency UPSERT, staleness guarded by
-// last_activity_at — the new "last_push_at").
+// agent_work_item_projections row (mig 0046). PK = work_item_id (1:1 with
+// agent_work_items.id), no version column (high-frequency UPSERT, staleness
+// guarded by last_activity_at).
 type AgentWorkItemProjection struct {
 	WorkItemID                string
 	AgentID                   string
@@ -24,8 +23,8 @@ type AgentWorkItemProjection struct {
 }
 
 // AgentWorkItemProjectionUpdate is the VO carrying a single incremental
-// projection push payload (the new-model analog of ProjectionUpdate). The
-// work-item id is the key arg, so it is not part of the update body.
+// projection push payload. The work-item id is the key arg, so it is not
+// part of the update body.
 //
 // The repository merges into the existing row (UPSERT) and applies staleness
 // protection on LastActivityAt.

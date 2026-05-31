@@ -23,17 +23,11 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 )
 
 // ServerDeps is the dependency bag for Server-level state shared
 // across handlers (NOT the per-request HandlerDeps in deps.go).
-// v2.2-A3: holds the dispatchq.Queue so dispatch/kill pull endpoints
-// can drain it.
-type ServerDeps struct {
-	Queue *dispatchq.Queue
-}
+type ServerDeps struct{}
 
 // Server is the admin endpoint HTTP server. v2.2 bound only to a unix
 // socket; v2.3-7a (task #27) adds an optional concurrent TCP+TLS
@@ -63,9 +57,7 @@ type Server struct {
 	mu sync.Mutex
 }
 
-// NewServer constructs a Server with no Queue wired. Use
-// NewServerWithDeps when the dispatch/kill pull endpoints should be
-// live (v2.2-A3 wiring path).
+// NewServer constructs a Server with default (empty) server-level deps.
 func NewServer(socketPath string) *Server {
 	return NewServerWithDeps(socketPath, ServerDeps{})
 }
