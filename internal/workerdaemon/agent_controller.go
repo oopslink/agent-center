@@ -831,6 +831,19 @@ func (c *AgentController) stopSession(ctx context.Context, agentID string, repor
 // marshaled to a JSON object. It NEVER posts to a Conversation (only the
 // activity endpoint). Best-effort: a feedback failure is logged, not fatal.
 func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
+	// Stamp the in-flight WorkItem onto the activity so the observability
+	// projection can aggregate tool_calls / tokens / current_activity per
+	// work-item (#111: previously hardcoded ""). Read under the lock, mirroring
+	// surfaceTurnFailure — this callback runs on the session reader goroutine and
+	// the agents map + currentWorkItemID are mutex-guarded. Empty when idle (no
+	// in-flight work), which is the pre-#111 behaviour.
+	c.mu.Lock()
+	var workItemRef string
+	if ma := c.agents[agentID]; ma != nil {
+		workItemRef = ma.currentWorkItemID
+	}
+	c.mu.Unlock()
+
 	payload, err := json.Marshal(streamActivityPayload(ev))
 	if err != nil {
 		c.log("activity agent=%s marshal event: %v", agentID, err)
@@ -838,7 +851,7 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 		// best-effort, but a failed turn must not be swallowed by a marshal error.
 	} else if err := c.cfg.Reporter.ReportAgentActivity(
 		context.Background(), agentID, ev.Type, string(payload),
-		"" /*workItemRef*/, "" /*interactionRef*/, time.Now(),
+		workItemRef, "" /*interactionRef*/, time.Now(),
 	); err != nil {
 		c.log("activity agent=%s report: %v", agentID, err)
 	}

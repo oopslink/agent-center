@@ -839,3 +839,36 @@ func TestAgentController_Wake_NoConvID_NoMarkSeen_DedupStillWorks(t *testing.T) 
 		t.Fatalf("no conversation_id must skip mark-seen, got %+v", ms)
 	}
 }
+
+// TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem pins v2.7 #111:
+// onEvent must stamp the in-flight WorkItem id onto the activity event's
+// work_item_ref (previously hardcoded "") so the observability projection can
+// aggregate tool_calls / tokens / current_activity per work-item. With NO
+// in-flight WorkItem the ref stays empty (idle activity), unchanged.
+func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile running: %v", err)
+	}
+	fs := rs.last()
+
+	// No in-flight work item yet → activity carries an empty work_item_ref.
+	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-0"})
+	acts := rep.activityCalls()
+	if last := acts[len(acts)-1]; last.workItemRef != "" {
+		t.Fatalf("idle activity (no in-flight WI) must have empty work_item_ref, got %q", last.workItemRef)
+	}
+
+	// Simulate an in-flight work item (set the same field work/wake delivery sets).
+	c.mu.Lock()
+	c.agents["agent-1"].currentWorkItemID = "WI-1"
+	c.mu.Unlock()
+
+	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-1"})
+	acts = rep.activityCalls()
+	last := acts[len(acts)-1]
+	if last.workItemRef != "WI-1" {
+		t.Fatalf("activity during an in-flight work item must carry its work_item_ref; want WI-1, got %q", last.workItemRef)
+	}
+}
