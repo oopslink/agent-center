@@ -275,7 +275,11 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		appliedRepo,
 		a.Clock,
 	)
-	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj)
+	// v2.7 #111 #2: sync pm.Task status to the agent work-item lifecycle —
+	// active → Task.Start (assigned→running), the keystone that makes the
+	// agent-declared complete_task/block_task reachable (both require running).
+	taskStatusSyncProj := pmservice.NewTaskStatusSyncProjector(a.DB, a.PMService, appliedRepo, a.Clock)
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj, taskStatusSyncProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})
