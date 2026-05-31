@@ -30,9 +30,8 @@ func WorkerRunCommand() *Command {
 		LongHelp: "Runs the worker daemon in THIS unified agent-center binary so the daemon's " +
 			"os.Executable() can route the worker agent-supervisor / mcp-host subcommands it " +
 			"spawns. Talks to the center only over the admin endpoint (never opens SQLite, " +
-			"§ 0.4). Enrolls (or loads the persisted long-term token), then runs the legacy " +
-			"dispatch loop — or, with --use-control-loop, the v2.7 control-stream execution " +
-			"path (which disables the legacy loop). Graceful drain on SIGINT/SIGTERM.",
+			"§ 0.4). Enrolls (or loads the persisted long-term token), then runs the " +
+			"control-stream execution path. Graceful drain on SIGINT/SIGTERM.",
 		Flags: func(fs *flag.FlagSet) Handler {
 			cfgPath := fs.String("config", "", "path to agent-center.yaml")
 			workerID := fs.String("worker-id", "", "worker identity (required)")
@@ -49,8 +48,6 @@ func WorkerRunCommand() *Command {
 				"sha256:HH:HH:... pinned server cert fingerprint (required with --admin-target=tcp://...); falls back to AGENT_CENTER_SERVER_FINGERPRINT env")
 			skillsDir := fs.String("skills-dir", "",
 				"directory containing worker-agent.md + extra skills (real-agent dispatch)")
-			useControlLoop := fs.Bool("use-control-loop", false,
-				"v2.7 D2-f: run the new control-stream execution path (disables the legacy dispatch loop)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				if strings.TrimSpace(*workerID) == "" {
 					fmt.Fprintln(errw, "Error: worker run: --worker-id is required")
@@ -68,7 +65,6 @@ func WorkerRunCommand() *Command {
 					AdminTarget:       *adminTarget,
 					ServerFingerprint: *serverFingerprint,
 					SkillsDir:         *skillsDir,
-					UseControlLoop:    *useControlLoop,
 				}, logf)
 				if err != nil {
 					if workerdaemon.IsShutdownError(err) {

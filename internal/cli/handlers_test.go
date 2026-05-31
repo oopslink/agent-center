@@ -710,7 +710,7 @@ func TestWorkerRunCommand_FlagParity(t *testing.T) {
 	want := []string{
 		"config", "worker-id", "worker-name", "fake-agent", "poll-interval",
 		"capabilities", "admin-token", "admin-target", "server-fingerprint",
-		"skills-dir", "use-control-loop",
+		"skills-dir",
 	}
 	for _, name := range want {
 		if fs.Lookup(name) == nil {
@@ -721,8 +721,10 @@ func TestWorkerRunCommand_FlagParity(t *testing.T) {
 	if f := fs.Lookup("poll-interval"); f != nil && f.DefValue != "1s" {
 		t.Errorf("--poll-interval default = %q, want 1s", f.DefValue)
 	}
-	if f := fs.Lookup("use-control-loop"); f != nil && f.DefValue != "false" {
-		t.Errorf("--use-control-loop default = %q, want false", f.DefValue)
+	// #107 slice-2: --use-control-loop was removed (control-stream path is now
+	// unconditional). Guard that it is not reintroduced.
+	if fs.Lookup("use-control-loop") != nil {
+		t.Errorf("--use-control-loop should be removed (control-stream path is unconditional)")
 	}
 }
 

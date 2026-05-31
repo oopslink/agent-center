@@ -13,11 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/oopslink/agent-center/internal/admin/dispatchq"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 )
 
 // shortSock returns a unix-socket-safe path. macOS caps at 104 bytes;
@@ -41,10 +36,6 @@ type fakeServer struct {
 
 	mu       sync.Mutex
 	requests []recordedReq
-
-	// queued payloads
-	dispatches []dispatch.DispatchEnvelope
-	kills      []dispatchq.KillRequest
 }
 
 type recordedReq struct {
@@ -122,30 +113,6 @@ func (fs *fakeServer) registerRoutes() {
 		fs.record(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"worker_id":"w-1"}`))
-	})
-	fs.mux.HandleFunc("/admin/dispatch/queue/pull", func(w http.ResponseWriter, r *http.Request) {
-		fs.record(r)
-		w.Header().Set("Content-Type", "application/json")
-		fs.mu.Lock()
-		pending := fs.dispatches
-		fs.dispatches = nil
-		fs.mu.Unlock()
-		if pending == nil {
-			pending = []dispatch.DispatchEnvelope{}
-		}
-		_ = json.NewEncoder(w).Encode(pending)
-	})
-	fs.mux.HandleFunc("/admin/kill/queue/pull", func(w http.ResponseWriter, r *http.Request) {
-		fs.record(r)
-		w.Header().Set("Content-Type", "application/json")
-		fs.mu.Lock()
-		pending := fs.kills
-		fs.kills = nil
-		fs.mu.Unlock()
-		if pending == nil {
-			pending = []dispatchq.KillRequest{}
-		}
-		_ = json.NewEncoder(w).Encode(pending)
 	})
 	fs.mux.HandleFunc("/admin/taskruntime/exec/report-progress", func(w http.ResponseWriter, r *http.Request) {
 		fs.record(r)
@@ -239,75 +206,6 @@ func TestAdminClient_Heartbeat_EmptyWorkerIDFails(t *testing.T) {
 	defer cleanup()
 	if err := client.Heartbeat(context.Background(), "  ", nil); err == nil {
 		t.Fatal("expected error for empty worker_id")
-	}
-}
-
-func TestAdminClient_PullDispatches_Empty(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	envs, err := client.PullDispatches(context.Background(), "w-1")
-	if err != nil {
-		t.Fatalf("PullDispatches: %v", err)
-	}
-	if len(envs) != 0 {
-		t.Fatalf("want empty, got %d", len(envs))
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 {
-		t.Fatalf("want 1 req, got %d", len(reqs))
-	}
-	if reqs[0].Method != "GET" || reqs[0].Path != "/admin/dispatch/queue/pull" || reqs[0].Query != "worker_id=w-1" {
-		t.Fatalf("bad request: %+v", reqs[0])
-	}
-}
-
-func TestAdminClient_PullDispatches_Returns(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	fs.mu.Lock()
-	fs.dispatches = []dispatch.DispatchEnvelope{
-		{
-			EnvelopeVersion: dispatch.EnvelopeVersionV2,
-			ExecutionID:     "E-1",
-			TaskID:          "T-1",
-			WorkerID:        "w-1",
-			ProjectID:       "P-1",
-			AgentInstanceID: "A-1",
-			AgentCLI:        "fakeagent",
-			WorkspaceMode:   execution.WorkspaceDirect,
-			TaskTitle:       "do thing",
-			Priority:        "normal",
-		},
-	}
-	fs.mu.Unlock()
-
-	envs, err := client.PullDispatches(context.Background(), "w-1")
-	if err != nil {
-		t.Fatalf("PullDispatches: %v", err)
-	}
-	if len(envs) != 1 || envs[0].ExecutionID != "E-1" {
-		t.Fatalf("unexpected envs: %+v", envs)
-	}
-}
-
-func TestAdminClient_PullKills(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	fs.mu.Lock()
-	fs.kills = []dispatchq.KillRequest{
-		{ExecutionID: "E-2", Reason: execution.KilledUserRequest, Message: "user cancelled"},
-	}
-	fs.mu.Unlock()
-
-	got, err := client.PullKills(context.Background())
-	if err != nil {
-		t.Fatalf("PullKills: %v", err)
-	}
-	if len(got) != 1 || got[0].ExecutionID != "E-2" {
-		t.Fatalf("unexpected kills: %+v", got)
 	}
 }
 
@@ -448,6 +346,3 @@ func TestAdminClient_NonStatus2xx_ReturnsAdminError(t *testing.T) {
 // Touch httptest import so it stays referenced even if a future refactor
 // drops the inline server.
 var _ = httptest.NewServer
-
-// Touch taskruntime to ensure import alignment with envelope types.
-var _ = taskruntime.TaskID("")

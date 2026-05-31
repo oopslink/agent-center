@@ -28,9 +28,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
-	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 	"github.com/oopslink/agent-center/internal/mcphost"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 )
 
 // Compile-time assertion: *AdminClient is the real transport behind the
@@ -187,39 +185,6 @@ func (c *AdminClient) Heartbeat(ctx context.Context, workerID string, capabiliti
 		"additional_working_seconds": 0,
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/heartbeat", body, nil)
-}
-
-// PullDispatches GETs /admin/dispatch/queue/pull?worker_id=X and decodes
-// the returned envelope array. Returns an empty slice (not nil) when
-// nothing is pending.
-func (c *AdminClient) PullDispatches(ctx context.Context, workerID string) ([]dispatch.DispatchEnvelope, error) {
-	if strings.TrimSpace(workerID) == "" {
-		return nil, errors.New("adminclient: worker_id required")
-	}
-	path := "/admin/dispatch/queue/pull?worker_id=" + workerID
-	var out []dispatch.DispatchEnvelope
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, &out); err != nil {
-		return nil, err
-	}
-	if out == nil {
-		out = []dispatch.DispatchEnvelope{}
-	}
-	return out, nil
-}
-
-// PullKills GETs /admin/kill/queue/pull and returns pending kill
-// requests. The server returns ALL unrouted kills (per dispatchq
-// design); the daemon filters by its owned executions on the receive
-// side.
-func (c *AdminClient) PullKills(ctx context.Context) ([]dispatchq.KillRequest, error) {
-	var out []dispatchq.KillRequest
-	if err := c.doJSON(ctx, http.MethodGet, "/admin/kill/queue/pull", nil, &out); err != nil {
-		return nil, err
-	}
-	if out == nil {
-		out = []dispatchq.KillRequest{}
-	}
-	return out, nil
 }
 
 // NotifyWorking POSTs to /admin/taskruntime/exec/notify-working. Flips

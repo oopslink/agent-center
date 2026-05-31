@@ -40,7 +40,6 @@ type RunOptions struct {
 	AdminTarget       string
 	ServerFingerprint string
 	SkillsDir         string
-	UseControlLoop    bool
 }
 
 // RunDaemon boots and runs the worker daemon until ctx is cancelled or a SIGINT/
@@ -145,17 +144,14 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		Logger:            logf,
 		// main already ran enroll-or-load above → the runtime loop must not re-enroll.
 		SkipInitialEnroll: true,
+		// #107 slice-2: the control-stream path is the unconditional execution
+		// path. Always wire ControlClient so Run starts the control loop.
+		ControlClient: client,
 	}
-	var skillLoader SkillLoader
-	if strings.TrimSpace(opts.SkillsDir) != "" {
-		skillLoader = FSSkillLoader{FS: os.DirFS(opts.SkillsDir)}
-	}
-	injector := NewMCPInjector(NewAdminClientSecretResolver(client))
 
-	// v2.7 (b) cutover: BinaryPath = os.Executable(). When the daemon runs as the
-	// unified `agent-center` binary this routes `worker agent-supervisor` +
-	// `worker mcp-host` (the spawn-bug fix). The AgentController stays DORMANT
-	// unless --use-control-loop wires ControlClient (see below).
+	// BinaryPath = os.Executable(). When the daemon runs as the unified
+	// `agent-center` binary this routes `worker agent-supervisor` +
+	// `worker mcp-host`.
 	binPath, _ := os.Executable()
 	if controller, cerr := NewAgentController(AgentControllerConfig{
 		Reporter:          client,
@@ -171,19 +167,9 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		logf("warning: agent controller not wired: " + cerr.Error())
 	} else {
 		rtCfg.ControlHandler = controller
-		// The activation line: only --use-control-loop makes ControlClient live →
-		// (a) starts the control-stream execution loop, (b) gates the legacy dispatch
-		// poll OFF. Default false → legacy path, unchanged behavior.
-		if opts.UseControlLoop {
-			rtCfg.ControlClient = client
-			logf("v2.7 D2-f: control-stream execution path ENABLED (legacy dispatch disabled)")
-		}
 	}
 
-	rt := NewRuntimeWithDeps(rtCfg, client, nil, RuntimeDeps{
-		SkillLoader: skillLoader,
-		MCPInjector: injector,
-	})
+	rt := NewRuntime(rtCfg, client)
 
 	// Signal-aware context (SIGINT/SIGTERM → cancel → graceful drain).
 	runCtx, cancel := context.WithCancel(ctx)

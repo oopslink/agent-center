@@ -1,19 +1,13 @@
-// Package workerdaemon: Runtime is the v2.2-C worker daemon main loop.
-// It glues AdminClient (transport to center) + AgentRunner (subprocess
-// spawn) into a polling loop:
+// Package workerdaemon: Runtime is the worker daemon main loop.
 //
-//  1. Tick every PollInterval (default 1s).
-//  2. PullDispatches — for each new envelope, kick off an agent spawn
-//     in a goroutine and remember the procHandle in the live map.
-//  3. PullKills — for each kill request whose execution_id we own,
-//     SIGTERM the proc (escalate to SIGKILL after KillGrace).
-//  4. On Run(ctx) cancellation: stop polling, wait for in-flight
-//     spawns to drain (or hard-kill after ShutdownGrace).
+// As of v2.7 #107 slice-2 the daemon runs the control-stream path
+// UNCONDITIONALLY: Run enrolls (unless SkipInitialEnroll), performs a
+// best-effort boot-reconcile, starts the ControlLoop goroutine, and then
+// heartbeats on a ticker until ctx is cancelled. The legacy taskruntime
+// dispatch poll has been removed.
 //
 // The Runtime intentionally treats the AdminClient as an opaque
 // dependency (interface, not concrete type) so tests can inject a fake.
-// Same for AgentSpawnerFunc — tests bypass real `exec.Command` by
-// supplying a closure that emits scripted events.
 package workerdaemon
 
 import (
@@ -21,11 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"syscall"
 	"time"
-
-	"github.com/oopslink/agent-center/internal/admin/dispatchq"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
 )
 
 // CenterClient is the subset of AdminClient methods Runtime needs.
@@ -33,23 +23,7 @@ import (
 type CenterClient interface {
 	Enroll(ctx context.Context, workerID string, capabilities []string) error
 	Heartbeat(ctx context.Context, workerID string, capabilities []string) error
-	PullDispatches(ctx context.Context, workerID string) ([]dispatch.DispatchEnvelope, error)
-	PullKills(ctx context.Context) ([]dispatchq.KillRequest, error)
-	// NotifyWorking flips the center-side execution state submitted →
-	// working. v2.2 Phase D state-machine fix.
-	NotifyWorking(ctx context.Context, executionID, cwd, branchName string) error
-	// Conclude closes the state machine on clean exit (working →
-	// completed + task → done). v2.2 Phase D state-machine fix.
-	Conclude(ctx context.Context, executionID, message string) error
-	ReportProgress(ctx context.Context, executionID, milestone, content string) error
-	ReportFailure(ctx context.Context, executionID, reason, message string) error
-	ReportArtifact(ctx context.Context, executionID string, blob []byte, kind string) error
 }
-
-// AgentSpawnerFunc is the v2.2-C indirection for spawning an agent.
-// Production uses spawnAgentProcess (wraps AgentRunner.Run). Tests
-// supply a closure that emits scripted events directly.
-type AgentSpawnerFunc func(ctx context.Context, env dispatch.DispatchEnvelope, runtime *Runtime) error
 
 // RuntimeConfig parameterises the daemon loop.
 type RuntimeConfig struct {
@@ -57,94 +31,47 @@ type RuntimeConfig struct {
 	Capabilities   []string
 	PollInterval   time.Duration // default 1s
 	HeartbeatEvery time.Duration // default 30s
-	KillGrace      time.Duration // SIGTERM → SIGKILL gap; default 5s
 	ShutdownGrace  time.Duration // wait for in-flight on shutdown; default 30s
 	// AgentCLIOverrides → AgentRunnerConfig (e.g. fakeagent path).
 	AgentCLIOverrides map[string]string
-	// ExecBaseDir is the per-execution working dir root. Empty disables
-	// per-execution dirs (subprocess inherits caller cwd).
-	ExecBaseDir string
 	// Logger receives one-line ops messages with `[worker] ` prefix.
 	Logger func(msg string)
 	// SkipInitialEnroll lets main.go own the enroll + long-term token
 	// exchange (v2.4-D B5 fix). When true, Run skips its initial
-	// Enroll call and goes straight to the poll loop. main.go must
+	// Enroll call and goes straight to the loop. main.go must
 	// have ensured the AdminClient bearer is the long-term token
 	// before calling Run.
 	SkipInitialEnroll bool
 
-	// ControlClient enables the v2.7 D1 (ADR-0050, task #102) worker-
-	// initiated control-stream poll loop for the Environment BC. ADDITIVE:
-	// when non-nil, Run starts a SEPARATE ControlLoop goroutine alongside the
-	// legacy dispatch loop, sharing the same ctx/lifecycle. When nil the
-	// control loop is not started and the dispatch loop behaves exactly as
-	// before. Production wires the daemon's *AdminClient (its
+	// ControlClient drives the control-stream poll loop for the
+	// Environment BC (ADR-0050, task #102). Always wired in production
+	// (RunDaemon passes the daemon's *AdminClient, whose
 	// ConnectControl/PullCommands/AckControl satisfy ControlClient).
 	ControlClient ControlClient
 	// ControlPollInterval overrides the control loop's poll cadence. Default
 	// reuses PollInterval.
 	ControlPollInterval time.Duration
-	// ControlHandler is the pluggable command executor. Nil → D1
-	// NoopCommandHandler (logs, does nothing real). D2's AgentController
-	// plugs a real handler here.
+	// ControlHandler is the pluggable command executor. Nil →
+	// NoopCommandHandler (logs, does nothing real). Production plugs the
+	// AgentController here.
 	ControlHandler CommandHandler
-}
-
-// RuntimeDeps bundles optional dependencies the daemon's defaultAgentSpawner
-// needs to do the v2.3-3b real-agent dispatch chain (per task #29):
-//
-//   - SkillLoader supplies worker-agent.md + any envelope ExtraSkillFiles.
-//     Production wires FSSkillLoader{FS: os.DirFS(--skills-dir)}. Nil
-//     defaults to StaticSkillLoader{} (empty); AssemblePrompt skips
-//     missing skills gracefully.
-//   - MCPInjector materialises mcp_config.runtime.json from each agent's
-//     home_dir/mcp_config.json template, resolving `secret:<name>` refs
-//     via the wired SecretResolver. Nil defaults to NewMCPInjector(nil);
-//     Inject becomes a no-op for empty home_dir + a hard error otherwise.
-//
-// fakeagent skips both regardless of wiring (script is supplied via the
-// task_description fakeagent-script: line — no prompt assembly nor MCP
-// needed).
-type RuntimeDeps struct {
-	SkillLoader SkillLoader
-	MCPInjector *MCPInjector
 }
 
 // Runtime is the daemon orchestrator.
 type Runtime struct {
-	cfg     RuntimeConfig
-	client  CenterClient
-	spawner AgentSpawnerFunc
+	cfg    RuntimeConfig
+	client CenterClient
 
-	skillLoader SkillLoader
-	mcpInjector *MCPInjector
-
-	mu   sync.Mutex
-	live map[string]*procHandle // executionID → process handle
-
-	wg sync.WaitGroup // tracks in-flight spawn goroutines
+	wg sync.WaitGroup // tracks in-flight goroutines (control loop)
 }
 
-// NewRuntime constructs a Runtime with default RuntimeDeps. Kept for
-// source compat; new callers should prefer NewRuntimeWithDeps so the
-// real-agent dispatch chain is wired explicitly.
-func NewRuntime(cfg RuntimeConfig, client CenterClient, spawner AgentSpawnerFunc) *Runtime {
-	return NewRuntimeWithDeps(cfg, client, spawner, RuntimeDeps{})
-}
-
-// NewRuntimeWithDeps is the v2.3-3b constructor that takes the
-// real-agent dispatch chain dependencies. spawner == nil wires the
-// production defaultAgentSpawner; deps fields default to safe no-ops
-// when nil (StaticSkillLoader{}, NewMCPInjector(nil)).
-func NewRuntimeWithDeps(cfg RuntimeConfig, client CenterClient, spawner AgentSpawnerFunc, deps RuntimeDeps) *Runtime {
+// NewRuntime constructs a Runtime.
+func NewRuntime(cfg RuntimeConfig, client CenterClient) *Runtime {
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 1 * time.Second
 	}
 	if cfg.HeartbeatEvery <= 0 {
 		cfg.HeartbeatEvery = 30 * time.Second
-	}
-	if cfg.KillGrace <= 0 {
-		cfg.KillGrace = 5 * time.Second
 	}
 	if cfg.ShutdownGrace <= 0 {
 		cfg.ShutdownGrace = 30 * time.Second
@@ -152,28 +79,14 @@ func NewRuntimeWithDeps(cfg RuntimeConfig, client CenterClient, spawner AgentSpa
 	if cfg.Logger == nil {
 		cfg.Logger = func(msg string) {}
 	}
-	if deps.SkillLoader == nil {
-		deps.SkillLoader = StaticSkillLoader{}
+	return &Runtime{
+		cfg:    cfg,
+		client: client,
 	}
-	if deps.MCPInjector == nil {
-		deps.MCPInjector = NewMCPInjector(nil)
-	}
-	rt := &Runtime{
-		cfg:         cfg,
-		client:      client,
-		spawner:     spawner,
-		skillLoader: deps.SkillLoader,
-		mcpInjector: deps.MCPInjector,
-		live:        map[string]*procHandle{},
-	}
-	if rt.spawner == nil {
-		rt.spawner = defaultAgentSpawner
-	}
-	return rt
 }
 
-// Run blocks until ctx is cancelled. Performs initial enroll and
-// then loops on poll interval, draining dispatch + kill queues.
+// Run blocks until ctx is cancelled. Performs initial enroll, a
+// best-effort boot-reconcile, starts the control loop, then heartbeats.
 func (r *Runtime) Run(ctx context.Context) error {
 	if r.cfg.WorkerID == "" {
 		return errors.New("runtime: worker_id required")
@@ -187,48 +100,42 @@ func (r *Runtime) Run(ctx context.Context) error {
 		r.log("enrolled as worker_id=%s", r.cfg.WorkerID)
 	}
 
-	// v2.7 D1 (ADR-0050, task #102): start the Environment-BC control-stream
-	// poll loop in its OWN goroutine, ADDITIVELY, sharing this ctx. This does
-	// not touch the dispatch loop below. Only started when a ControlClient is
-	// wired; the loop itself degrades gracefully (logs + keeps polling) if the
-	// control endpoints are unavailable, so it never crashes the daemon.
-	if r.cfg.ControlClient != nil {
-		// v2.7 D2-f s4b: BOOT RECONCILE — before the poll loop starts, reconcile
-		// this worker's agents (re-attach survivors / relaunch the dead / stop the
-		// unwanted) by joining center resume-state with local supervisor probes. Run
-		// SYNCHRONOUSLY: the attach/start paths are only safe for the single-threaded
-		// ControlLoop caller, which has not started yet. Best-effort — a failure is
-		// logged, never crashes the daemon (the poll loop still starts; the center
-		// re-reconciles via commands). Skipped when the handler is not a
-		// bootReconciler (e.g. D1's NoopCommandHandler) → additive.
-		if br, ok := r.cfg.ControlHandler.(bootReconciler); ok {
-			if err := br.ReconcileOnBoot(ctx); err != nil {
-				r.log("boot reconcile: %v (continuing — poll loop will reconcile)", err)
-			}
+	// Environment-BC control-stream poll loop (ADR-0050, task #102). This is
+	// the unconditional execution path as of #107 slice-2.
+	//
+	// BOOT RECONCILE — before the poll loop starts, reconcile this worker's
+	// agents (re-attach survivors / relaunch the dead / stop the unwanted) by
+	// joining center resume-state with local supervisor probes. Run
+	// SYNCHRONOUSLY: the attach/start paths are only safe for the
+	// single-threaded ControlLoop caller, which has not started yet.
+	// Best-effort — a failure is logged, never crashes the daemon (the poll
+	// loop still starts; the center re-reconciles via commands). Skipped when
+	// the handler is not a bootReconciler.
+	if br, ok := r.cfg.ControlHandler.(bootReconciler); ok {
+		if err := br.ReconcileOnBoot(ctx); err != nil {
+			r.log("boot reconcile: %v (continuing — poll loop will reconcile)", err)
 		}
-
-		interval := r.cfg.ControlPollInterval
-		if interval <= 0 {
-			interval = r.cfg.PollInterval
-		}
-		cl := NewControlLoop(ControlLoopConfig{
-			WorkerID:     r.cfg.WorkerID,
-			PollInterval: interval,
-			Handler:      r.cfg.ControlHandler, // nil → D1 NoopCommandHandler
-			Logger:       r.cfg.Logger,
-		}, r.cfg.ControlClient)
-		r.wg.Add(1)
-		go func() {
-			defer r.wg.Done()
-			if err := cl.Run(ctx); err != nil {
-				r.log("control loop: %v", err)
-			}
-		}()
-		r.log("control loop started worker_id=%s", r.cfg.WorkerID)
 	}
 
-	pollTick := time.NewTicker(r.cfg.PollInterval)
-	defer pollTick.Stop()
+	interval := r.cfg.ControlPollInterval
+	if interval <= 0 {
+		interval = r.cfg.PollInterval
+	}
+	cl := NewControlLoop(ControlLoopConfig{
+		WorkerID:     r.cfg.WorkerID,
+		PollInterval: interval,
+		Handler:      r.cfg.ControlHandler, // nil → NoopCommandHandler
+		Logger:       r.cfg.Logger,
+	}, r.cfg.ControlClient)
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		if err := cl.Run(ctx); err != nil {
+			r.log("control loop: %v", err)
+		}
+	}()
+	r.log("control loop started worker_id=%s", r.cfg.WorkerID)
+
 	hbTick := time.NewTicker(r.cfg.HeartbeatEvery)
 	defer hbTick.Stop()
 
@@ -236,18 +143,6 @@ func (r *Runtime) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return r.shutdown()
-		case <-pollTick.C:
-			// v2.7 D2-f cutover (XOR switch): the LEGACY taskruntime dispatch poll
-			// runs ONLY when the new control-stream path is OFF
-			// (ControlClient==nil). When the control loop is active
-			// (ControlClient!=nil) the two are MUTUALLY EXCLUSIVE — exactly one
-			// execution path drains, so an agent is never double-run. Both loops
-			// key off the SAME ControlClient (fixed at construction), so there is
-			// no "both/neither" window. Heartbeat below runs in BOTH modes (worker
-			// liveness is path-independent).
-			if r.legacyDispatchEnabled() {
-				r.pollOnce(ctx)
-			}
 		case <-hbTick.C:
 			if err := r.client.Heartbeat(ctx, r.cfg.WorkerID, r.cfg.Capabilities); err != nil {
 				r.log("heartbeat: %v", err)
@@ -256,121 +151,10 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 }
 
-// legacyDispatchEnabled reports whether the LEGACY taskruntime dispatch poll
-// should run. It is the daemon side of the v2.7 D2-f cutover XOR switch: the
-// legacy path runs iff the new control-stream path is OFF (ControlClient==nil).
-// The control loop (above) starts iff ControlClient!=nil — the SAME condition
-// inverted — so the two execution paths are mutually exclusive on one value
-// fixed at construction (no "both/neither" window, no double-run). Default
-// wiring leaves ControlClient nil → legacy runs → unchanged behavior until D2-f
-// is flipped (--use-control-loop).
-func (r *Runtime) legacyDispatchEnabled() bool {
-	return r.cfg.ControlClient == nil
-}
-
-// pollOnce drains both queues. Errors are logged, not returned —
-// transient transport failures should not kill the daemon.
-func (r *Runtime) pollOnce(ctx context.Context) {
-	// Dispatches first so a kill in the same tick can target an
-	// already-spawned execution.
-	envelopes, err := r.client.PullDispatches(ctx, r.cfg.WorkerID)
-	if err != nil {
-		r.log("pull dispatches: %v", err)
-	} else {
-		for _, env := range envelopes {
-			r.handleDispatch(ctx, env)
-		}
-	}
-	kills, err := r.client.PullKills(ctx)
-	if err != nil {
-		r.log("pull kills: %v", err)
-		return
-	}
-	for _, k := range kills {
-		r.handleKill(k)
-	}
-}
-
-// handleDispatch validates + spawns. Spawn runs in its own goroutine so
-// pollOnce returns quickly.
-func (r *Runtime) handleDispatch(ctx context.Context, env dispatch.DispatchEnvelope) {
-	if err := env.Validate(); err != nil {
-		r.log("envelope %s invalid: %v", env.ExecutionID, err)
-		_ = r.client.ReportFailure(ctx, string(env.ExecutionID),
-			"nack_envelope_invalid", err.Error())
-		return
-	}
-	// Dedup: already running.
-	r.mu.Lock()
-	if _, exists := r.live[string(env.ExecutionID)]; exists {
-		r.mu.Unlock()
-		r.log("envelope %s already running; skipping", env.ExecutionID)
-		return
-	}
-	r.mu.Unlock()
-
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		r.log("dispatch %s task=%s agent=%s", env.ExecutionID, env.TaskID, env.AgentCLI)
-		if err := r.spawner(ctx, env, r); err != nil {
-			r.log("spawn %s: %v", env.ExecutionID, err)
-		}
-		// Drop the live handle on exit.
-		r.mu.Lock()
-		delete(r.live, string(env.ExecutionID))
-		r.mu.Unlock()
-	}()
-}
-
-// handleKill SIGTERMs the matching live execution. Escalates to
-// SIGKILL after r.cfg.KillGrace.
-func (r *Runtime) handleKill(k dispatchq.KillRequest) {
-	r.mu.Lock()
-	h, ok := r.live[string(k.ExecutionID)]
-	r.mu.Unlock()
-	if !ok {
-		// Not owned by this worker — drop silently. Other workers will
-		// also see this kill on their pull and will likewise filter.
-		return
-	}
-	r.log("kill %s reason=%s", k.ExecutionID, k.Reason)
-	if err := h.Signal(syscall.SIGTERM); err != nil {
-		r.log("kill %s SIGTERM: %v", k.ExecutionID, err)
-	}
-	go func(h *procHandle, execID string) {
-		time.Sleep(r.cfg.KillGrace)
-		// Still alive? Escalate.
-		r.mu.Lock()
-		_, stillThere := r.live[execID]
-		r.mu.Unlock()
-		if stillThere {
-			r.log("kill %s SIGKILL escalation", execID)
-			_ = h.Signal(syscall.SIGKILL)
-		}
-	}(h, string(k.ExecutionID))
-}
-
-// registerLive is called by AgentSpawnerFunc once the process is up so
-// subsequent kills can find it.
-func (r *Runtime) registerLive(executionID string, h *procHandle) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.live[executionID] = h
-}
-
-// LiveCount is for tests / observability.
-func (r *Runtime) LiveCount() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.live)
-}
-
-// shutdown waits for in-flight spawns to finish or escalates after
+// shutdown waits for in-flight goroutines to finish or escalates after
 // ShutdownGrace.
 func (r *Runtime) shutdown() error {
-	r.log("shutdown: waiting for %d in-flight executions (grace=%s)",
-		r.LiveCount(), r.cfg.ShutdownGrace)
+	r.log("shutdown: waiting for in-flight goroutines (grace=%s)", r.cfg.ShutdownGrace)
 	done := make(chan struct{})
 	go func() {
 		r.wg.Wait()
@@ -381,14 +165,6 @@ func (r *Runtime) shutdown() error {
 		r.log("shutdown: clean")
 		return nil
 	case <-time.After(r.cfg.ShutdownGrace):
-		// Hard-kill anything left.
-		r.mu.Lock()
-		for execID, h := range r.live {
-			r.log("shutdown: hard-kill %s", execID)
-			_ = h.Signal(syscall.SIGKILL)
-		}
-		r.mu.Unlock()
-		<-done
 		r.log("shutdown: forced after grace")
 		return errors.New("runtime: shutdown grace exceeded")
 	}
@@ -400,256 +176,4 @@ func (r *Runtime) log(format string, args ...any) {
 		return
 	}
 	r.cfg.Logger(fmt.Sprintf(format, args...))
-}
-
-// defaultAgentSpawner is the production spawn path used when
-// NewRuntime is called with spawner == nil.
-//
-// Step sequence (v2.3-3b real-agent dispatch chain per task #29):
-//  1. fakeagent shortcut — extract script + skip prompt/MCP wiring.
-//  2. Real agents — AssemblePrompt(loader, BaseSkill=worker-agent.md,
-//     HomeDir=env.HomeDir). Falls back to title+description when
-//     HomeDir is empty (v1 envelopes).
-//  3. Real agents — MCPInjector.Inject(env.HomeDir) → runtimePath
-//     + cleanup. Defer cleanup. Pass runtimePath through
-//     AgentRunnerConfig.MCPConfigPath so the subprocess sees it via
-//     MCP_CONFIG=<path>.
-//  4. On Inject error: ReportFailure(reason=secret_unresolvable) + abort.
-//  5. Spawn the subprocess; stream JSONL → forward to admin endpoint.
-//  6. On exit: emit final done / failure event.
-func defaultAgentSpawner(ctx context.Context, env dispatch.DispatchEnvelope, rt *Runtime) error {
-	var (
-		prompt         string
-		args           []string
-		mcpRuntimePath string
-		mcpCleanup     = func() {}
-	)
-	if env.AgentCLI == "fakeagent" {
-		// fakeagent skips the real-agent chain entirely: no prompt
-		// assembly (script is the source of truth) and no MCP injection
-		// (no secret resolution needed in tests).
-		script := extractFakeAgentScript(env)
-		if script == "" {
-			err := errors.New("fakeagent: no script path in envelope (expect 'fakeagent-script: <path>' line in task_description)")
-			_ = rt.client.ReportFailure(ctx, string(env.ExecutionID), "fakeagent_missing_script", err.Error())
-			return err
-		}
-		args = []string{"--script=" + script}
-		prompt = env.TaskTitle
-		if env.TaskDescription != "" {
-			prompt = env.TaskTitle + "\n\n" + env.TaskDescription
-		}
-	} else {
-		// Real-agent path. Both AssemblePrompt + MCPInjector require a
-		// HomeDir; if empty we degrade gracefully — prompt falls back to
-		// title+description and MCP injection is skipped. This protects
-		// v1 envelopes that pre-date HomeDir.
-		if env.HomeDir != "" && rt.skillLoader != nil {
-			p, err := AssemblePrompt(rt.skillLoader, AssemblePromptInput{
-				Envelope:  env,
-				BaseSkill: "worker-agent.md",
-				HomeDir:   env.HomeDir,
-			})
-			if err == nil {
-				prompt = p
-			} else {
-				rt.log("prompt assembly %s: %v (falling back to title+description)",
-					env.ExecutionID, err)
-			}
-		}
-		if prompt == "" {
-			prompt = env.TaskTitle
-			if env.TaskDescription != "" {
-				prompt = env.TaskTitle + "\n\n" + env.TaskDescription
-			}
-		}
-		if env.HomeDir != "" && rt.mcpInjector != nil {
-			rp, cleanup, err := rt.mcpInjector.Inject(ctx, env.HomeDir)
-			if err != nil {
-				// Per ADR-0011 reason set: secret_unresolvable is the
-				// canonical NACK reason when MCP injection fails (most
-				// commonly a missing/revoked secret). Don't spawn an
-				// agent with broken config — fail fast.
-				_ = rt.client.ReportFailure(ctx, string(env.ExecutionID),
-					"secret_unresolvable", err.Error())
-				return err
-			}
-			mcpRuntimePath = rp
-			if cleanup != nil {
-				mcpCleanup = cleanup
-			}
-		}
-	}
-	defer mcpCleanup()
-
-	runner := NewAgentRunner(AgentRunnerConfig{
-		AgentCLI:          env.AgentCLI,
-		Args:              args,
-		Prompt:            prompt,
-		AgentCLIOverrides: rt.cfg.AgentCLIOverrides,
-		EnvAllowList:      nil, // use defaults
-		ExtraEnv:          nil,
-		MCPConfigPath:     mcpRuntimePath,
-	})
-	startedCh := make(chan *procHandle, 1)
-	// Register handle as soon as it lands.
-	go func() {
-		h, ok := <-startedCh
-		if !ok {
-			return
-		}
-		rt.registerLive(string(env.ExecutionID), h)
-	}()
-
-	// Flip server-side state machine submitted → working. This is the
-	// v2.2 Phase D fix for gap #1: without this call the execution
-	// sits in `submitted` forever even though the worker is running it.
-	if err := rt.client.NotifyWorking(ctx, string(env.ExecutionID),
-		"", ""); err != nil {
-		rt.log("notify-working %s: %v", env.ExecutionID, err)
-		// Non-fatal — agent can still run; ReportProgress will surface
-		// trace events even if the state didn't transition. The
-		// supervisor reconciler will eventually catch the stuck state.
-	}
-
-	// Report start as a progress event so SSE/trace shows the
-	// transition out of submitted.
-	_ = rt.client.ReportProgress(ctx, string(env.ExecutionID), "started",
-		fmt.Sprintf("worker=%s agent_cli=%s", rt.cfg.WorkerID, env.AgentCLI))
-
-	// The server requires non-empty `content` on report-progress; we
-	// substitute a default when the agent emits a content-less event.
-	nonEmpty := func(s, fallback string) string {
-		if s != "" {
-			return s
-		}
-		return fallback
-	}
-	// ReportProgress is a no-op on the server unless the task has a
-	// conversation attached (ADR-0017 silent-skip). For deploy smoke
-	// the task often has no conversation, but the call still fails fast
-	// on validation. We swallow "no conversation" style errors here to
-	// keep the agent loop alive — production wiring (Phase D) will
-	// always attach a conversation.
-	safeProgress := func(ctx context.Context, milestone, content string) error {
-		err := rt.client.ReportProgress(ctx, string(env.ExecutionID),
-			milestone, nonEmpty(content, milestone))
-		if err != nil {
-			rt.log("report-progress %s/%s: %v", env.ExecutionID, milestone, err)
-		}
-		return nil // never abort the agent on transport hiccups
-	}
-	handler := func(ctx context.Context, ev AgentEvent, raw []byte) error {
-		switch ev.Type {
-		case "start":
-			return safeProgress(ctx, "agent_start", ev.Text)
-		case "progress":
-			milestone := ev.Milestone
-			if milestone == "" {
-				milestone = "progress"
-			}
-			return safeProgress(ctx, milestone, ev.Content)
-		case "artifact":
-			kind := ev.Kind
-			if kind == "" {
-				kind = "artifact"
-			}
-			if err := rt.client.ReportArtifact(ctx, string(env.ExecutionID), raw, kind); err != nil {
-				rt.log("report-artifact %s/%s: %v", env.ExecutionID, kind, err)
-			}
-			return nil
-		case "done":
-			return safeProgress(ctx, "done", ev.Content)
-		case "failed":
-			if err := rt.client.ReportFailure(ctx, string(env.ExecutionID),
-				safeReason(ev.Reason), ev.Message); err != nil {
-				rt.log("report-failure %s: %v", env.ExecutionID, err)
-			}
-			return nil
-		default:
-			return safeProgress(ctx, nonEmpty(ev.Type, "progress"), string(raw))
-		}
-	}
-
-	res, err := runner.Run(ctx, handler, startedCh)
-	if err != nil {
-		// Failure was already reported on the failed/exit path if
-		// possible; ensure at least one report-failure landed.
-		_ = rt.client.ReportFailure(ctx, string(env.ExecutionID),
-			"shim_crashed", err.Error())
-		return err
-	}
-	if res.Failed {
-		_ = rt.client.ReportFailure(ctx, string(env.ExecutionID),
-			"agent_exit_nonzero", res.FailedMsg)
-		return nil
-	}
-	// Clean exit. The agent should have emitted a "done" event; report-
-	// progress with milestone=done here is idempotent on the server.
-	_ = rt.client.ReportProgress(ctx, string(env.ExecutionID), "done",
-		fmt.Sprintf("agent exited cleanly pid=%d", res.PID))
-	// Close out the state machine: working → completed + task → done.
-	// v2.2 Phase D state-machine fix (gap #1 from C report).
-	if err := rt.client.Conclude(ctx, string(env.ExecutionID),
-		fmt.Sprintf("agent exited cleanly pid=%d", res.PID)); err != nil {
-		rt.log("conclude %s: %v", env.ExecutionID, err)
-	}
-	return nil
-}
-
-// safeReason maps an agent-emitted reason to a server-accepted enum.
-// Empty / unknown → "agent_self_reported_failure".
-func safeReason(raw string) string {
-	if raw == "" {
-		return "agent_self_reported_failure"
-	}
-	return raw
-}
-
-// extractFakeAgentScript pulls the script path from a task_description
-// line of the form `fakeagent-script: <path>`. Returns "" if absent.
-func extractFakeAgentScript(env dispatch.DispatchEnvelope) string {
-	const prefix = "fakeagent-script:"
-	for _, line := range splitLines(env.TaskDescription) {
-		l := trim(line)
-		if hasPrefix(l, prefix) {
-			return trim(l[len(prefix):])
-		}
-	}
-	return ""
-}
-
-// trivial string helpers (avoid pulling strings import twice — keep
-// this file self-contained for readability).
-func splitLines(s string) []string {
-	out := []string{}
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			out = append(out, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		out = append(out, s[start:])
-	}
-	return out
-}
-
-func trim(s string) string {
-	i, j := 0, len(s)
-	for i < j && (s[i] == ' ' || s[i] == '\t') {
-		i++
-	}
-	for j > i && (s[j-1] == ' ' || s[j-1] == '\t' || s[j-1] == '\r') {
-		j--
-	}
-	return s[i:j]
-}
-
-func hasPrefix(s, p string) bool {
-	if len(s) < len(p) {
-		return false
-	}
-	return s[:len(p)] == p
 }
