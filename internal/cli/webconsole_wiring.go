@@ -212,8 +212,16 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// v2.7 D2-a: ADDITIVE reconcile projector. Agent lifecycle intent changes
 	// (C3 agent.lifecycle_changed) become declarative agent.reconcile commands on
 	// the agent's Worker control stream (D1). D1's NoopHandler no-op-acks them →
-	// zero real effect yet (no execution cutover).
+	// zero real effect yet (no execution cutover; old taskruntime path untouched).
+	// v2.7 D5 slice-1: inject the shared SSE down-push bus as the OPTIONAL
+	// after-commit publisher. AppendCommand best-effort pushes each newly-appended
+	// command (with its offset) to the bus so a subscribed worker gets it with low
+	// latency; a publish failure cannot fail the append (poll + catch-up recover).
+	// nil-safe (a.ControlStreamBus may be nil in non-webconsole boot paths).
 	controlLog := environment.NewControlLog(envsql.NewControlEventRepo(a.DB), a.IDGen, a.Clock)
+	if a.ControlStreamBus != nil {
+		controlLog = controlLog.WithPublisher(a.ControlStreamBus)
+	}
 	// v2.7 D2-c-i: ADDITIVE work delivery. When the projector creates a queued
 	// AgentWorkItem it ALSO enqueues an agent.work command (with a brief) onto the
 	// assignee Agent's Worker control stream, same tx. The agents repo resolves

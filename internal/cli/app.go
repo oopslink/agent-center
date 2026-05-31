@@ -19,6 +19,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
+	"github.com/oopslink/agent-center/internal/environment/controlstream"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
@@ -109,6 +110,13 @@ type App struct {
 	// (D1, ADR-0050, task #102) — backs the additive /admin/environment/...
 	// worker control endpoints.
 	EnvControlSvc *envservice.EnvControl
+
+	// ControlStreamBus is the v2.7 D5 slice-1 center-side SSE down-push bus. A
+	// single shared instance: the projector's ControlLog publishes appended
+	// commands here (after commit, best-effort), and the
+	// /admin/environment/worker/commands/stream endpoint subscribes workers to
+	// it. Same WorkerControlEvent log backs both push + poll.
+	ControlStreamBus *controlstream.Bus
 
 	MessageWriter      *convservice.MessageWriter
 	ChannelMgmtSvc     *convservice.ChannelManagementService
@@ -345,6 +353,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:   clk,
 	})
 
+	// v2.7 D5 slice-1: the shared SSE down-push bus. Created here so it is the
+	// SAME instance the projector's ControlLog publishes to (webconsole_wiring.go)
+	// and the stream endpoint subscribes from (admin_wiring.go → HandlerDeps).
+	controlStreamBus := controlstream.NewBus()
+
 	return &App{
 		Config:             cfg,
 		DB:                 db,
@@ -356,6 +369,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		AgentWorkItemRepo:  agentWorkItemRepo,
 		AgentActivityRepo:  agentActivityRepo,
 		EnvControlSvc:      envControlSvc,
+		ControlStreamBus:   controlStreamBus,
 		WorkerRepo:         wr,
 		PMProjectRepo:      pmProjRepo,
 		ConvRepo:           cr,

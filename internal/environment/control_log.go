@@ -17,9 +17,28 @@ import (
 // This is the D1 #102 acceptance core. Process control (executing the commands)
 // and the agent.lifecycle→command projector are D2.
 type ControlLog struct {
-	events ControlEventRepository
-	idgen  idgen.Generator
-	clock  clock.Clock
+	events    ControlEventRepository
+	idgen     idgen.Generator
+	clock     clock.Clock
+	publisher CommandPublisher // OPTIONAL — nil means no SSE down-push (D5 slice-1).
+}
+
+// CommandPublisher is the OPTIONAL center-side SSE down-push hook (v2.7 D5
+// slice-1). After AppendCommand COMMITS a new command, the log best-effort
+// publishes the appended command (carrying its assigned offset) so a subscribed
+// Worker receives it with low latency instead of waiting for its next poll.
+//
+// Contract (§-1 INVARIANTS):
+//   - Publish runs AFTER the repo Append succeeds (after commit) — never before,
+//     so the bus can never advertise a command the log failed to persist.
+//   - Publish is BEST-EFFORT: a publish failure (no subscriber, full buffer,
+//     dropped connection) must NOT fail AppendCommand. The poll fallback +
+//     reconnect-by-offset catch-up recovers any missed publish (at-least-once is
+//     preserved by the log, not the bus).
+//   - A nil publisher is a no-op (fixtures + the synthetic D1 path are
+//     unaffected; only the composition root injects a real bus).
+type CommandPublisher interface {
+	Publish(e *WorkerControlEvent)
 }
 
 // NewControlLog constructs the service.
@@ -28,6 +47,14 @@ func NewControlLog(events ControlEventRepository, gen idgen.Generator, clk clock
 		clk = clock.SystemClock{}
 	}
 	return &ControlLog{events: events, idgen: gen, clock: clk}
+}
+
+// WithPublisher injects the OPTIONAL SSE down-push publisher and returns the
+// same *ControlLog (fluent, for wiring at the composition root). Passing nil
+// leaves the log publish-free. Idempotent — the last call wins.
+func (l *ControlLog) WithPublisher(p CommandPublisher) *ControlLog {
+	l.publisher = p
+	return l
 }
 
 // AppendCommandInput captures an enqueue request.
@@ -88,7 +115,22 @@ func (l *ControlLog) AppendCommand(ctx context.Context, in AppendCommandInput) (
 		}
 		return nil, err
 	}
+	// AFTER-COMMIT, BEST-EFFORT SSE down-push (D5 slice-1). Only the genuine new
+	// append publishes — the idempotent-dedup returns above intentionally do NOT
+	// (the entry already exists; re-publishing would gratuitously double-send,
+	// and the original append already pushed it). A nil publisher is a no-op. A
+	// publish failure CANNOT fail AppendCommand: the command is already committed,
+	// and the poll fallback + reconnect catch-up (CommandsAfter) recovers a miss.
+	l.publish(evt)
 	return evt, nil
+}
+
+// publish runs the optional SSE down-push hook. nil-safe; best-effort.
+func (l *ControlLog) publish(e *WorkerControlEvent) {
+	if l.publisher == nil {
+		return
+	}
+	l.publisher.Publish(e)
 }
 
 // CommandsAfter returns the replay set: commands with offset strictly greater
