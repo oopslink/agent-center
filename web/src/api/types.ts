@@ -128,17 +128,21 @@ export interface InputRequest {
   decided_at?: string;
 }
 
-export interface FleetExecutionRow {
-  execution_id: string;
-  task_id: string;
-  worker_id: string;
-  agent_cli: string;
-  workspace_mode: string;
+// WorkItemRow is one fleet work-item row (v2.7 #107: the work-item model
+// replaced the retired task-execution model — executions→work_items). Mirrors
+// internal/observability/query/work_item_row.go.
+export interface WorkItemRow {
+  work_item_id: string;
+  agent_id: string;
+  task_id?: string;
   status: string;
   current_activity?: string;
+  total_tool_calls: number;
+  total_tokens_input: number;
+  total_tokens_output: number;
+  // 0 in v2.7 (no per-turn duration source; deferred v2.8).
   working_seconds: number;
-  started_at: string;
-  projection_last_push_at?: string;
+  last_activity_at?: string;
 }
 
 export interface FleetWorkerRow {
@@ -152,14 +156,6 @@ export interface FleetWorkerRow {
   last_heartbeat_at?: string;
 }
 
-export interface FleetIRRow {
-  input_request_id: string;
-  task_execution_id: string;
-  question: string;
-  urgency: string;
-  requested_at: string;
-}
-
 export interface FleetIssueRow {
   issue_id: string;
   project_id: string;
@@ -169,10 +165,12 @@ export interface FleetIssueRow {
   opener: string;
 }
 
+// FleetSnapshot (v2.7 #107/#118): executions→work_items; the open_input_requests
+// segment was dropped — "待输入" is a work item with status=waiting_input,
+// surfaced in work_items.
 export interface FleetSnapshot {
-  executions: FleetExecutionRow[];
+  work_items: WorkItemRow[];
   workers: FleetWorkerRow[];
-  open_input_requests: FleetIRRow[];
   pending_issues: FleetIssueRow[];
   generated_at?: string;
   warnings?: string[];

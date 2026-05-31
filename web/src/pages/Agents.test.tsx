@@ -79,9 +79,8 @@ describe('Agents page', () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          executions: [],
+          work_items: [],
           workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
-          open_input_requests: [],
           pending_issues: [],
         }),
       ),
@@ -100,9 +99,8 @@ describe('Agents page', () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          executions: [],
+          work_items: [],
           workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
-          open_input_requests: [],
           pending_issues: [],
         }),
       ),

@@ -21,10 +21,9 @@ export default function Home(): React.ReactElement {
 
   const pendingIRCount = (irs.data ?? []).filter((ir) => ir.status === 'pending').length;
   const onlineWorkers = (fleet.data?.workers ?? []).filter((w) => w.status === 'online').length;
-  const runningExecs = (fleet.data?.executions ?? []).filter(
-    (e) => e.status === 'working' || e.status === 'submitted',
-  );
-  const failedExecs = (fleet.data?.executions ?? []).filter((e) => e.status === 'failed');
+  // v2.7 #107/#118: fleet now returns only non-terminal work items
+  // {queued,active,waiting_input}; terminal (incl failed) is not surfaced here.
+  const workItems = fleet.data?.work_items ?? [];
   // Merge channels + DMs, take 5 newest by opened_at desc. Conversations
   // don't carry an updated_at on the read DTO (would require a server-
   // side projection change); opened_at is "close enough" for the
@@ -83,9 +82,9 @@ export default function Home(): React.ReactElement {
           loading={irs.isLoading}
         />
         <StatCard
-          label="Failed executions"
-          value={failedExecs.length}
-          tone={failedExecs.length > 0 ? 'danger' : 'neutral'}
+          label="Active work items"
+          value={workItems.length}
+          tone={workItems.length > 0 ? 'success' : 'neutral'}
           href="/fleet"
           loading={fleet.isLoading}
         />
@@ -102,23 +101,29 @@ export default function Home(): React.ReactElement {
       {/* Row 2 — running tasks + recent conversations. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PanelCard
-          title="Running executions"
+          title="Work items"
           to="/fleet"
-          empty="No running executions"
+          empty="No active work items"
           loading={fleet.isLoading}
-          data-testid="home-running-execs"
+          data-testid="home-active-work-items"
         >
-          {runningExecs.slice(0, 5).map((e) => (
-            <li key={e.execution_id} className="flex items-center justify-between gap-3 py-1.5">
-              <OrgLink
-                to={`/tasks/${encodeURIComponent(e.task_id)}/trace`}
-                className="truncate font-mono text-xs text-accent hover:underline"
-              >
-                {e.execution_id.slice(0, 12)}
-              </OrgLink>
-              <span className="text-xs text-text-secondary">{e.worker_id}</span>
+          {workItems.slice(0, 5).map((wi) => (
+            <li key={wi.work_item_id} className="flex items-center justify-between gap-3 py-1.5">
+              {wi.task_id ? (
+                <OrgLink
+                  to={`/tasks/${encodeURIComponent(wi.task_id)}/trace`}
+                  className="truncate font-mono text-xs text-accent hover:underline"
+                >
+                  {wi.task_id}
+                </OrgLink>
+              ) : (
+                <span className="truncate font-mono text-xs text-text-muted">
+                  {wi.work_item_id.slice(0, 12)}
+                </span>
+              )}
+              <span className="text-xs text-text-secondary">{wi.agent_id}</span>
               <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                {e.status}
+                {wi.status}
               </span>
             </li>
           ))}
