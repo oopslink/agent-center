@@ -1,0 +1,43 @@
+name: Deploy design site to GitHub Pages
+
+# 把 sites/ 目录（纯静态 HTML，无构建步骤）发布到 GitHub Pages。
+# sites/ 下是各版本 DDD 设计展示页：sites/index.html 版本索引 + sites/designs/<version>/。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sites/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同时只跑一个发布，新提交不取消进行中的发布
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload sites/ as artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: sites
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
