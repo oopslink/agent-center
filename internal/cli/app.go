@@ -34,6 +34,7 @@ import (
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
@@ -84,6 +85,10 @@ type App struct {
 	MappingRepo  workforce.WorkerProjectMappingRepository
 	ProposalRepo workforce.WorkerProjectProposalRepository
 	ProjectRepo  workforce.ProjectRepository
+	// PMProjectRepo is the new-model (pm) project repo used by the
+	// operator-scoped CLI project READ handlers (list/show). v2.7 #131
+	// PR-3 — the LOCAL list path uses its operator-global ListAll.
+	PMProjectRepo pm.ProjectRepository
 	ConvRepo     conversation.ConversationRepository
 	MsgRepo      conversation.MessageRepository
 	EventRepo    *obsqlite.EventRepo
@@ -227,6 +232,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	mr := wfsqlite.NewMappingRepo(db)
 	prRepo := wfsqlite.NewProposalRepo(db)
 	pjRepo := wfsqlite.NewProjectRepo(db)
+	// pm (new-model) project repo for the operator-scoped CLI project READ
+	// handlers (list/show). v2.7 #131 PR-3.
+	pmProjRepo := pmsql.NewProjectRepo(db)
 	cr := convsqlite.NewConversationRepo(db)
 	mgRepo := convsqlite.NewMessageRepo(db)
 
@@ -448,6 +456,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		MappingRepo:        mr,
 		ProposalRepo:       prRepo,
 		ProjectRepo:        pjRepo,
+		PMProjectRepo:      pmProjRepo,
 		ConvRepo:           cr,
 		MsgRepo:            mgRepo,
 		EventRepo:          er,

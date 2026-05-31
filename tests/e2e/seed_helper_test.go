@@ -3,11 +3,13 @@ package e2e
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/cli"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
@@ -50,6 +52,27 @@ func seedProjectE2E(t *testing.T, app *cli.App, id, name string) {
 		Actor: app.DefaultActor(),
 	}); err != nil {
 		t.Fatalf("seed project: %v", err)
+	}
+}
+
+// seedPMProjectE2E creates a pm.Project directly via the pm project repo. The
+// CLI project READ commands (list/show) read the new pm.Project model since
+// #131 PR-3, so e2e read assertions on `project show` / `project list` seed
+// via pm rather than the workforce service.
+func seedPMProjectE2E(t *testing.T, app *cli.App, id, name string) {
+	t.Helper()
+	p, err := pm.NewProject(pm.NewProjectInput{
+		ID:             pm.ProjectID(id),
+		OrganizationID: "org-e2e",
+		Name:           name,
+		CreatedBy:      pm.IdentityRef("user:hayang"),
+		CreatedAt:      time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("seed pm project (NewProject): %v", err)
+	}
+	if err := app.PMProjectRepo.Save(context.Background(), p); err != nil {
+		t.Fatalf("seed pm project (Save): %v", err)
 	}
 }
 
