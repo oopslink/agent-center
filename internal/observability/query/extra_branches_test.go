@@ -11,7 +11,7 @@ import (
 
 func TestQuery_RepoNotWiredErrors(t *testing.T) {
 	svc := query.NewService(query.Deps{})
-	for _, r := range []string{"tasks", "executions", "workers", "issues", "proposals", "events"} {
+	for _, r := range []string{"tasks", "executions", "workers", "issues", "events"} {
 		_, err := svc.Query(context.Background(), r, query.QueryFilter{})
 		if err == nil {
 			t.Errorf("%s should error when repo missing", r)
@@ -47,13 +47,6 @@ func TestLogs_RepoNotWiredErrors(t *testing.T) {
 	}
 }
 
-func TestQuery_Proposals_StatusButNoWorker(t *testing.T) {
-	env := newQEnv(t)
-	res, err := env.svc.Query(context.Background(), "proposals", query.QueryFilter{Status: "accepted"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Items) != 0 {
-		t.Fatalf("expected 0, got %d", len(res.Items))
-	}
-}
+// TestQuery_Proposals_StatusButNoWorker removed — the `query proposals` verb is
+// deleted in v2.7 #131 (workforce WorkerProjectProposal model retired; no
+// new-model equivalent). "proposals" now resolves to ErrQueryResourceUnknown.

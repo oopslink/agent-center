@@ -7,9 +7,9 @@ import (
 	"time"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -210,20 +210,26 @@ func (s *StatsService) aggregateEvents(ctx context.Context, res StatsResult, sin
 }
 
 func (s *StatsService) aggregateIssues(ctx context.Context, res StatsResult, since *time.Time) (StatsResult, error) {
-	if s.deps.Issues == nil {
-		return res, errors.New("issues repo not wired")
+	if s.deps.PMIssues == nil {
+		return res, errors.New("pm issues repo not wired")
 	}
-	statuses := []discussion.Status{
-		discussion.StatusOpen, discussion.StatusUnderDiscussion,
-		discussion.StatusConcluded, discussion.StatusClosedNoAction,
-		discussion.StatusClosedWithTasks, discussion.StatusWithdrawn,
+	// v2.7 #131: repointed off the retired discussion model to pm_issues.
+	// Counter labels are pm.IssueStatus names; one FindByStatuses scan covers the
+	// full enum (mirrors the aggregateTasks/aggregateExecutions new-model reads in
+	// this file). pm.Issue has no OpenedAt → the `since` window uses CreatedAt.
+	statuses := []pm.IssueStatus{
+		pm.IssueOpen, pm.IssueInProgress, pm.IssueReopened,
+		pm.IssueResolved, pm.IssueClosed, pm.IssueWithdrawn,
 	}
-	for _, st := range statuses {
-		items, err := s.deps.Issues.FindByStatus(ctx, st, discussion.IssueFilter{Limit: 1000})
-		if err != nil {
-			return res, err
+	items, err := s.deps.PMIssues.FindByStatuses(ctx, statuses, 1000)
+	if err != nil {
+		return res, err
+	}
+	for _, i := range items {
+		if since != nil && i.CreatedAt().Before(*since) {
+			continue
 		}
-		res.Counters[string(st)] = countSince(items, issueOpenedAt, since)
+		res.Counters[string(i.Status())]++
 	}
 	total := 0
 	for _, v := range res.Counters {
@@ -233,19 +239,3 @@ func (s *StatsService) aggregateIssues(ctx context.Context, res StatsResult, sin
 	return res, nil
 }
 
-// countSince counts items whose timestamp (via extractor) is >= since;
-// since==nil counts everything.
-func countSince[T any](items []T, extract func(T) time.Time, since *time.Time) int {
-	if since == nil {
-		return len(items)
-	}
-	n := 0
-	for _, it := range items {
-		if !extract(it).Before(*since) {
-			n++
-		}
-	}
-	return n
-}
-
-func issueOpenedAt(i *discussion.Issue) time.Time { return i.OpenedAt() }

@@ -126,7 +126,6 @@ export default function Fleet(): React.ReactElement {
                     <th className="border-b border-border-base px-3 py-2">Worker</th>
                     <th className="border-b border-border-base px-3 py-2">Status</th>
                     <th className="border-b border-border-base px-3 py-2">Active</th>
-                    <th className="border-b border-border-base px-3 py-2">Mappings</th>
                     <th className="border-b border-border-base px-3 py-2">Last heartbeat</th>
                     <th className="border-b border-border-base px-3 py-2 text-right">Actions</th>
                   </tr>
@@ -156,9 +155,6 @@ export default function Fleet(): React.ReactElement {
                       </td>
                       <td className="border-b border-border-base px-3 py-2 font-mono text-xs">
                         {w.active_count}
-                      </td>
-                      <td className="border-b border-border-base px-3 py-2 font-mono text-xs">
-                        {w.mappings_count}
                       </td>
                       <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
                         {w.last_heartbeat_at || '—'}

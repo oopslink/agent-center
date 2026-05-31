@@ -62,34 +62,6 @@ func projectWorker(w *workforce.Worker) map[string]any {
 	}
 }
 
-func projectMappingList(items []*workforce.WorkerProjectMapping) []any {
-	out := make([]any, 0, len(items))
-	for _, m := range items {
-		out = append(out, map[string]any{
-			"id":         string(m.ID()),
-			"worker_id":  string(m.WorkerID()),
-			"project_id": string(m.ProjectID()),
-			"base_path":  m.BasePath(),
-			"status":     string(m.Status()),
-			"added_at":   m.AddedAt().UTC().Format(time.RFC3339Nano),
-			"version":    m.Version(),
-		})
-	}
-	return out
-}
-
-func projectProposal(p *workforce.WorkerProjectProposal) map[string]any {
-	return map[string]any{
-		"id":                   string(p.ID()),
-		"worker_id":            string(p.WorkerID()),
-		"candidate_path":       p.CandidatePath(),
-		"suggested_project_id": string(p.SuggestedProjectID()),
-		"status":               string(p.Status()),
-		"proposed_at":          p.ProposedAt().UTC().Format(time.RFC3339Nano),
-		"version":              p.Version(),
-	}
-}
-
 // projectIssueRow formats a pm issue list row (v2.7 #125: repointed off the
 // retired discussion model). opened_by←created_by, opened_at←created_at;
 // conversation_id dropped (pm.Issue has no conversation link).

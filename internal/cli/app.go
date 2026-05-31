@@ -298,16 +298,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	projSvc := projection.NewTaskExecutionProjectionService(projRepo, sink, nil, clk)
 	deps := query.Deps{
 		Events:        er,
-		Projection:    projRepo,
-		Executions:    execRepo,
-		Artifacts:     artifactRepo,
-		Issues:        issueRepo,
 		Conversations: cr,
 		Messages:      mgRepo,
 		Workers:       wr,
-		Mappings:      mr,
-		Proposals:     prRepo,
-		Projects:      pjRepo,
 		// v2.7 #107 Phase-2 fleet repoint: new-model read deps.
 		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
 		WorkItems:           agentsql.NewWorkItemRepo(db),

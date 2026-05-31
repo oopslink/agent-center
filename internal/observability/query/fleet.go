@@ -11,8 +11,6 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // FleetWorkItemRow rows live in FleetSnapshot.WorkItems. The row VO + its
@@ -28,7 +26,6 @@ type FleetWorkerRow struct {
 	Name            string `json:"name"`
 	Status          string `json:"status"`
 	ActiveCount     int    `json:"active_count"`
-	MappingsCount   int    `json:"mappings_count"`
 	LastHeartbeatAt string `json:"last_heartbeat_at,omitempty"`
 }
 
@@ -69,27 +66,10 @@ func NewFleetSnapshotService(deps Deps) *FleetSnapshotService {
 type SnapshotFilter struct {
 	ProjectID string
 	// OrganizationID scopes the entire snapshot to a single organization
-	// (v2.6 X1 §3). When set, executions/input-requests/issues are limited to
-	// the org's projects and workers to the org. Requires deps.Projects.
+	// (v2.6 X1 §3). When set, work-items/issues are limited to the org's pm
+	// projects (issue→pm-project→org, work-item→task→pm-project→org) and
+	// workers to the org (workers carry organization_id directly).
 	OrganizationID string
-}
-
-// orgProjectSet resolves the set of project IDs owned by filter.OrganizationID.
-// Returns (nil, false) when no org scoping is requested. Returns (set, true)
-// when org scoping applies (set may be empty → no rows pass).
-func (s *FleetSnapshotService) orgProjectSet(ctx context.Context, filter SnapshotFilter) (map[string]bool, bool) {
-	if filter.OrganizationID == "" || s.deps.Projects == nil {
-		return nil, false
-	}
-	projects, err := s.deps.Projects.FindAll(ctx, workforce.ProjectFilter{OrganizationID: filter.OrganizationID})
-	if err != nil {
-		return map[string]bool{}, true // scoping requested but lookup failed → empty (fail-closed)
-	}
-	set := make(map[string]bool, len(projects))
-	for _, p := range projects {
-		set[string(p.ID())] = true
-	}
-	return set, true
 }
 
 // Snapshot runs the 4 segments concurrently and returns the assembled VO.
@@ -243,25 +223,27 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 		if row.Name == "" {
 			row.Name = row.WorkerID
 		}
-		if s.deps.Mappings != nil {
-			ms, _ := s.deps.Mappings.FindByWorkerID(ctx, w.ID())
-			if filter.ProjectID != "" {
-				match := false
-				for _, m := range ms {
-					if string(m.ProjectID()) == filter.ProjectID {
-						match = true
-						break
+		// v2.7 #131: ActiveCount repointed off the retired task_execution model to
+		// the agent work-item model, mirroring inspectWorker (service.go): a worker
+		// controls many agents, work items are agent-keyed, so "what's this worker
+		// actively running" = ListByWorker → ListByAgent, counting non-terminal
+		// (queued/active/waiting_input). Org-scope is preserved fail-closed: the
+		// loop already skips any worker whose OrganizationID() != filter.OrganizationID
+		// (above), and an agent's work items belong to that org-scoped worker — so
+		// org-A never counts org-B's work items (same source/scope as inspectWorker).
+		if s.deps.Agents != nil && s.deps.WorkItems != nil {
+			agents, _ := s.deps.Agents.ListByWorker(ctx, string(w.ID()))
+			active := 0
+			for _, ag := range agents {
+				wis, _ := s.deps.WorkItems.ListByAgent(ctx, ag.ID())
+				for _, wi := range wis {
+					if wi.Status().IsTerminal() {
+						continue
 					}
-				}
-				if !match {
-					continue
+					active++
 				}
 			}
-			row.MappingsCount = len(ms)
-		}
-		if s.deps.Executions != nil {
-			exs, _ := s.deps.Executions.FindByWorkerID(ctx, string(w.ID()), execution.StatusSubmitted, execution.StatusWorking, execution.StatusInputRequired)
-			row.ActiveCount = len(exs)
+			row.ActiveCount = active
 		}
 		out = append(out, row)
 	}
@@ -306,8 +288,7 @@ func (s *FleetSnapshotService) fetchPendingIssues(ctx context.Context, filter Sn
 		}
 		projectID := string(i.ProjectID())
 		// v2.7 #107 #119: org scope resolved from the pm source
-		// (issue→pm-project→org), fail-closed — NOT the retired workforce
-		// orgProjectSet (which is empty at runtime → would exclude everything).
+		// (issue→pm-project→org), fail-closed.
 		if orgScoped && s.issueOrg(ctx, projectID) != filter.OrganizationID {
 			continue
 		}

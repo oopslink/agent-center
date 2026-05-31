@@ -247,10 +247,11 @@ func TestInspect_AllKinds_NoPanic_SnapshotShape(t *testing.T) {
 		ID: "I-1", ProjectID: "p", Title: "x", CreatedBy: "user:t", CreatedAt: time.Now(),
 	})
 	_ = pmsql.NewIssueRepo(app.DB).Save(context.Background(), pmIssue)
-	proj, _ := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p", Name: "P", CreatedByIdentityID: "user:t", CreatedAt: time.Now(),
+	// v2.7 #131: inspect-project reads pm_projects now → seed a pm project.
+	pmProj, _ := pm.NewProject(pm.NewProjectInput{
+		ID: "p", Name: "P", OrganizationID: "org-1", CreatedBy: "user:t", CreatedAt: time.Now(),
 	})
-	_ = app.ProjectRepo.Save(context.Background(), proj)
+	_ = pmsql.NewProjectRepo(app.DB).Save(context.Background(), pmProj)
 	// v2.7 #107 Phase-2 (proj-A): inspect "execution" now inspects a work item.
 	wi, _ := agentpkg.NewWorkItem(agentpkg.NewWorkItemInput{ID: "WI-1", AgentID: "AG-1", TaskRef: "pm://tasks/T-1", CreatedAt: time.Now()})
 	_ = app.AgentWorkItemRepo.Save(context.Background(), wi)

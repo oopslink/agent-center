@@ -52,7 +52,7 @@ describe('Home / Overview (v2.3 P3)', () => {
             { work_item_id: 'WI-1', agent_id: 'AG-1', task_id: 'T1', status: 'active', current_activity: 'edit', total_tool_calls: 2, total_tokens_input: 100, total_tokens_output: 50, working_seconds: 0, last_activity_at: 't' },
           ],
           workers: [
-            { worker_id: 'W1', status: 'online', active_count: 1, mappings_count: 1 },
+            { worker_id: 'W1', status: 'online', active_count: 1 },
           ],
           pending_issues: [],
         }),

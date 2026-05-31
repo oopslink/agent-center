@@ -8,6 +8,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -157,8 +158,9 @@ func TestStats_Executions_CountsActiveAndTerminal(t *testing.T) {
 
 func TestStats_Issues_CountsByStatus(t *testing.T) {
 	env := newQEnv(t)
-	env.seedIssue(t, "I-1", "p", "a")
-	env.seedIssue(t, "I-2", "p", "b")
+	// v2.7 #131: issues scope repointed to pm_issues.
+	env.seedPMIssue(t, "I-1", "p", "a", pm.IssueOpen)
+	env.seedPMIssue(t, "I-2", "p", "b", pm.IssueOpen)
 	svc := query.NewStatsService(env.deps)
 	res, err := svc.Aggregate(context.Background(), "issues", nil)
 	if err != nil {
@@ -172,11 +174,12 @@ func TestStats_Issues_CountsByStatus(t *testing.T) {
 func TestStats_SinceFilter(t *testing.T) {
 	env := newQEnv(t)
 	now := env.clk.Now()
+	// v2.7 #131: pm.Issue has no OpenedAt → the since window uses CreatedAt.
 	// Seed an issue before the cutoff.
-	env.seedIssue(t, "I-1", "p", "a")
+	env.seedPMIssue(t, "I-1", "p", "a", pm.IssueOpen)
 	// Advance + seed after.
 	env.clk.Set(now.Add(time.Hour))
-	env.seedIssue(t, "I-2", "p", "b")
+	env.seedPMIssue(t, "I-2", "p", "b", pm.IssueOpen)
 	since := now.Add(30 * time.Minute)
 	svc := query.NewStatsService(env.deps)
 	res, err := svc.Aggregate(context.Background(), "issues", &since)
