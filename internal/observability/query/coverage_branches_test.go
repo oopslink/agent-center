@@ -163,14 +163,14 @@ func TestQuery_Events_CorrelationAndDecisionIDFilter(t *testing.T) {
 	}
 }
 
-// Covers stats.go:229 `taskCreatedAt` extractor (only invoked when
-// countSince has a non-nil cutoff — the existing tests pass nil).
+// Covers the stats tasks since-filter path (v2.7 #107 Phase-2: pm CountByStatus
+// with a non-nil since cutoff filters by pm_tasks.created_at).
 func TestStats_Tasks_SinceFilter(t *testing.T) {
 	env := newQEnv(t)
 	now := env.clk.Now()
-	env.seedTask(t, "T-1", "p", "old")
+	env.seedPMTask(t, "T-1", "p", "old")
 	env.clk.Set(now.Add(time.Hour))
-	env.seedTask(t, "T-2", "p", "new")
+	env.seedPMTask(t, "T-2", "p", "new")
 	since := now.Add(30 * time.Minute)
 	svc := query.NewStatsService(env.deps)
 	res, err := svc.Aggregate(context.Background(), "tasks", &since)
