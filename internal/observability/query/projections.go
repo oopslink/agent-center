@@ -7,9 +7,9 @@ import (
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -91,16 +91,18 @@ func projectProposal(p *workforce.WorkerProjectProposal) map[string]any {
 	}
 }
 
-func projectIssueRow(i *discussion.Issue) map[string]any {
+// projectIssueRow formats a pm issue list row (v2.7 #125: repointed off the
+// retired discussion model). opened_by←created_by, opened_at←created_at;
+// conversation_id dropped (pm.Issue has no conversation link).
+func projectIssueRow(i *pm.Issue) map[string]any {
 	return map[string]any{
-		"id":              string(i.ID()),
-		"project_id":      i.ProjectID(),
-		"title":           i.Title(),
-		"status":          string(i.Status()),
-		"opened_by":       i.OpenedByIdentityID(),
-		"opened_at":       i.OpenedAt().UTC().Format(time.RFC3339Nano),
-		"conversation_id": stringOrNil(string(i.ConversationID())),
-		"version":         i.Version(),
+		"id":         string(i.ID()),
+		"project_id": string(i.ProjectID()),
+		"title":      i.Title(),
+		"status":     string(i.Status()),
+		"opened_by":  string(i.CreatedBy()),
+		"opened_at":  i.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"version":    i.Version(),
 	}
 }
 

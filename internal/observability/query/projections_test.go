@@ -66,30 +66,6 @@ func TestInspectConversation_WithMessages(t *testing.T) {
 	}
 }
 
-func TestInspectIssue_WithEventsAndMessages(t *testing.T) {
-	env := newQEnv(t)
-	// Issue with conversation_id binding
-	env.seedConversation(t, "C-issue", conversation.ConversationKindIssue)
-	i := env.seedIssue(t, "I-1", "p", "x")
-	_ = i
-	if err := env.deps.Issues.UpdateConversationID(context.Background(), "I-1", "C-issue", i.Version(), env.clk.Now()); err != nil {
-		t.Fatal(err)
-	}
-	msg, _ := conversation.NewMessage(conversation.NewMessageInput{
-		ID: "M-x", ConversationID: "C-issue", SenderIdentityID: "user:t",
-		ContentKind: "text", Content: "hello", Direction: "internal", PostedAt: env.clk.Now(),
-	})
-	_ = env.deps.Messages.Append(context.Background(), msg)
-	res, err := env.svc.Inspect(context.Background(), "issue", "I-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := res.Data.(map[string]any)
-	if _, ok := data["messages"]; !ok {
-		t.Fatalf("expected messages key: %+v", data)
-	}
-}
-
 func TestInspectInputRequest_NotFound(t *testing.T) {
 	env := newQEnv(t)
 	_, err := env.svc.Inspect(context.Background(), "input_request", "IR-x")
