@@ -244,6 +244,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/admintoken/mint-enroll", s.mintEnrollHandler)
 	s.mux.HandleFunc("POST /api/admintoken/revoke", s.revokeEnrollHandler)
 
+	// v2.7 E1 #138 (Environment domain page): org-scoped READS of the
+	// control-connected workers (environment.Worker). List is org-scoped at the
+	// source (ListByOrg); detail is fetch-then-check-org (cross-org id → 404).
+	s.mux.HandleFunc("GET /api/workers", s.listWorkersHandler)
+	s.mux.HandleFunc("GET /api/workers/{id}", s.getWorkerHandler)
+
 	// v2.4-D-X1 (@oopslink ask): rename worker friendly name.
 	s.mux.HandleFunc("PATCH /api/workers/{id}/name", s.workerRenameHandler)
 

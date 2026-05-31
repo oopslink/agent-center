@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/discussion"
+	"github.com/oopslink/agent-center/internal/environment"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -98,6 +99,12 @@ type HandlerDeps struct {
 	// we need the Worker's name to embed in `--worker-name=...`
 	// when rebuilding the install line.
 	WorkerRepo workforce.WorkerRepository
+
+	// v2.7 E1 #138: EnvWorkerRepo backs the org-scoped Environment-page worker
+	// reads (GET /api/workers + /api/workers/{id}) — the CONTROL-CONNECTED view
+	// (environment.Worker, distinct from the legacy workforce.Worker above).
+	// Optional — nil means the environment worker reads are not wired (501).
+	EnvWorkerRepo environment.WorkerRepository
 
 	// v2.7 B3: the ProjectManager AppService facade backs the nested
 	// /api/projects/{project_id}/{members,issues,tasks,code-repos} routes
