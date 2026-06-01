@@ -1,3 +1,5 @@
+> 🗑️ **TaskRuntime / Discussion BC 已退役（v2.7 #131 carve-out）。** 下文对它们的引用（**TaskRuntime / Discussion ↔ Conversation Shared Kernel / 1:1**、`task.conversation_id` / `issue.conversation_id` 同步建路径、`message.input_request_ref` 弱引用 TaskRuntime InputRequest、worker daemon 经 TaskRuntime BC 长连 RPC 等）为**历史记录、非当前架构**：Task / Issue 现属 pm BC（pm.Task / pm.Issue 持 `conversation_id`），InputRequest 语义随 agent-work-item 收口。链接指向 `docs/design/retired/`。当前架构见 sites/designs/v2.7/；按新模型重写见 task #144-b。
+
 # Conversation BC — DDD 战术设计 Overview
 
 > **DDD 战术层** · BC: Conversation
@@ -33,8 +35,8 @@
 
 [strategic/03-bounded-contexts § 3](../../strategic/03-bounded-contexts.md)：
 
-- **Discussion ↔ Conversation**：**Shared Kernel / 1:1**（`issue.conversation_id` 强引用 `kind=issue` Conversation；per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）
-- **TaskRuntime ↔ Conversation**：**Shared Kernel / 1:1**（`task.conversation_id` 强引用 `kind=task` Conversation；per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）
+- **Discussion ↔ Conversation**：**RETIRED / historical Shared Kernel / 1:1**（`issue.conversation_id` 强引用 `kind=issue` Conversation；per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）
+- **TaskRuntime ↔ Conversation**：**RETIRED / historical Shared Kernel / 1:1**（`task.conversation_id` 强引用 `kind=task` Conversation；per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）
 - **Cognition → Conversation**：Customer-Supplier（supervisor 调 `conversation add-message`；worker daemon 通过 RPC 调同一 API；agent instance 通过 CLI 写）
 - **Web Console / CLI → Conversation**：Customer-Supplier（用户入口，per [ADR-0037](../../../decisions/0037-web-console-as-main-user-ui.md) + [ADR-0038](../../../decisions/0038-cli-ux-enhancement.md)）
 - **Observability ← Conversation**：Open Host（订阅 `conversation.*` / `identity.*` 事件做投影）
@@ -63,7 +65,7 @@
 | **ConversationKind** | conversation.kind 字段 | 6 种枚举：`dm` / `channel` / `adhoc` / `notification` / `task` / `issue`（v2 CV1: `channel` 升业务一等公民；详 [ADR-0032](../../../decisions/0032-conversation-channel-as-first-class.md)）|
 | **MessageContentKind** | message.content_kind 字段 | 6 种枚举：text / system / agent_finding / supervisor_summary / conclusion_draft / task_proposal |
 | **MessageDirection** | message.direction 字段 | inbound / outbound / internal（v2 取消 vendor 路径后，inbound/outbound 仅用于区分用户↔系统 vs 系统内部）|
-| **InputRequestRef** | message.input_request_ref 字段 | 跨 BC 弱引用到 TaskRuntime InputRequest |
+| **InputRequestRef** | message.input_request_ref 字段 | RETIRED / historical：跨 BC 弱引用到 TaskRuntime InputRequest |
 | **IdentityRef** | message.sender_identity_id / 各处 actor | `kind:id` 形式化字符串（per [ADR-0033](../../../decisions/0033-identity-model-refactor.md)）|
 | **Participants** | conversation.participants 字段 | JSON 数组，元素 = IdentityRef；详 [ADR-0034](../../../decisions/0034-conversation-participants-field.md) |
 | **CarryOverRef** | message.carry_over_ref 字段 | 跨 conversation 弱引用，详 [ADR-0035](../../../decisions/0035-cross-conversation-message-carryover.md) |
@@ -167,8 +169,8 @@
 | Caller | Kind | 同步 / 懒创建 |
 |---|---|---|
 | Web Console / CLI（用户开 channel / DM / adhoc） | `dm` / `channel` / `adhoc` | 用户操作时同步建 |
-| TaskRuntime（task 创建同步建路径） | `task` | 同步建（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）|
-| Discussion（issue 创建同步建路径） | `issue` | 同步建（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）|
+| TaskRuntime（RETIRED / historical task 创建同步建路径） | `task` | 同步建（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）|
+| Discussion（RETIRED / historical issue 创建同步建路径） | `issue` | 同步建（per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md)）|
 | Cognition（supervisor 主动 push） | `dm` / `adhoc` / `notification` | 按需 |
 
 ### 4.2 MessageFactory
@@ -273,16 +275,16 @@ var (
 |---|---|---|---|
 | **Message → Conversation**（`message.conversation_id`） | 强 / 不可变 | tx 同步 | add-message |
 | **Message → Identity**（`message.sender_identity_id`） | 强 / 不可变 | tx 同步 | add-message |
-| **Message → InputRequest**（`message.input_request_ref`，跨 BC） | 弱 / nullable | tx 同步（InputRequest 创建时同事务写）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
+| **Message → InputRequest**（RETIRED / historical：`message.input_request_ref`，跨 BC） | 弱 / nullable | tx 同步（InputRequest 创建时同事务写）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
 | **Message → Message**（`message.carry_over_ref`，跨 conversation） | 弱 / nullable | tx 同步 | per [ADR-0035](../../../decisions/0035-cross-conversation-message-carryover.md) |
 | **Conversation → Conversation**（`parent_conversation_id`） | 强 / nullable | tx 同步 | Channel → Issue / Task 父子链 |
-| **Task → Conversation**（`task.conversation_id`，TaskRuntime BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
-| **Issue → Conversation**（`issue.conversation_id`，Discussion BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
+| **Task → Conversation**（RETIRED / historical：`task.conversation_id`，TaskRuntime BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
+| **Issue → Conversation**（RETIRED / historical：`issue.conversation_id`，Discussion BC） | 强 / 1:1 | tx 同步（同步建路径）| per [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
 
 **跨聚合一致性策略汇总**：
 
 - **task / issue 同步建路径**：跨 BC tx 内建 Conversation + 写 sub-aggregate id 字段（[ADR-0014 § 2](../../../decisions/0014-event-sourcing-level.md)）
-- **InputRequest 集成**：写 InputRequest 行 + 写一条 Message (`input_request_ref=<id>`) 同事务
+- **RETIRED / historical InputRequest 集成**：写 InputRequest 行 + 写一条 Message (`input_request_ref=<id>`) 同事务
 
 ---
 
@@ -302,15 +304,15 @@ Conversation BC 写入 Message + emit conversation.message_added
 订阅方（Observability / Cognition）按需响应
 ```
 
-> **Worker daemon 是合法 actor**：worker daemon 通过 [TaskRuntime BC 长连 RPC](../task-runtime/00-overview.md) 调 `conversation add-message`，用于把 worker 进度 milestone / agent 请示写到 task.conversation_id。
+> **Worker daemon 是合法 actor**：worker daemon 通过 [TaskRuntime BC 长连 RPC](../../../retired/task-runtime/00-overview.md) 调 `conversation add-message`，用于把 worker 进度 milestone / agent 请示写到 task.conversation_id。
 
 ### 7.2 Customer-Supplier 上下游汇总
 
 | 方向 | 方式 | 例子 |
 |---|---|---|
 | **Conversation → ALL** | Pub/Sub | 所有 BC 可订阅 `conversation.message_added`，按需响应 |
-| **Discussion → Conversation** | Shared Kernel / 1:1 | issue.conversation_id 强引用 |
-| **TaskRuntime → Conversation** | Shared Kernel / 1:1 | task.conversation_id 强引用 |
+| **Discussion → Conversation** | RETIRED / historical Shared Kernel / 1:1 | issue.conversation_id 强引用 |
+| **TaskRuntime → Conversation** | RETIRED / historical Shared Kernel / 1:1 | task.conversation_id 强引用 |
 | **Cognition → Conversation** | Customer-Supplier | Supervisor 调 `conversation add-message` |
 | **Web Console / CLI → Conversation** | Customer-Supplier | 用户消息写入 |
 | **Observability ← Conversation** | Open Host | 订阅 `conversation.*` / `identity.*` 事件 |
@@ -366,9 +368,9 @@ Conversation BC 写入 Message + emit conversation.message_added
 
 ### 跨 BC 协作文档
 
-- [discussion/00-overview.md](../discussion/00-overview.md) — Issue ↔ Conversation 1:1（kind=issue）
-- [task-runtime/00-overview.md](../task-runtime/00-overview.md) — Task ↔ Conversation 1:1（kind=task）
-- [task-runtime/03-input-request.md](../task-runtime/03-input-request.md) — InputRequest 集成 Message
+- [discussion/00-overview.md](../../../retired/discussion/00-overview.md) — Issue ↔ Conversation 1:1（kind=issue）
+- [task-runtime/00-overview.md](../../../retired/task-runtime/00-overview.md) — Task ↔ Conversation 1:1（kind=task）
+- [task-runtime/03-input-request.md](../../../retired/task-runtime/03-input-request.md) — InputRequest 集成 Message
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor / worker daemon 调 `conversation add-message`
 - [observability/00-overview.md](../observability/00-overview.md) — `conversation.*` / `identity.*` 事件订阅
 

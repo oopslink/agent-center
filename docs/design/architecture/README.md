@@ -8,8 +8,8 @@
 architecture/
 ├── strategic/        # DDD 战略层（域愿景 / 子域分类 / 限界上下文 / 系统总览）
 └── tactical/         # DDD 战术层
-    ├── task-runtime/      # BC1: 任务运行时（合并自原 Scheduling + Execution；ADR-0019）
-    ├── discussion/        # BC2: 讨论
+    # ~~task-runtime/~~     # ~~BC1: 任务运行时~~ — RETIRED (v2.7 #131)；战术设计已移至 docs/design/retired/task-runtime/
+    # ~~discussion/~~       # ~~BC2: 讨论~~ — RETIRED (v2.7 #131)；战术设计已移至 docs/design/retired/discussion/
     ├── workforce/         # BC3: 工作池
     ├── cognition/         # BC4: 认知 / Supervisor
     ├── observability/     # BC5: 观测
@@ -43,22 +43,24 @@ DDD 战略设计：从整体看系统怎么切。
 
 DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain Service / Factory / Repository。
 
-### TaskRuntime（任务运行时）— BC1
+### ~~TaskRuntime（任务运行时）— BC1~~ — RETIRED (v2.7 #131)
 
-> 合并自原 BC1 Scheduling + BC4 Execution（[ADR-0019](../decisions/0019-bc-scheduling-execution-merged-to-task-runtime.md)）。按聚合骨架多文件组织。
-
-| # | 主题 | 状态 |
-|---|---|---|
-| 00 | [BC 入口 / Domain Service / Factory / Repo / 跨聚合](tactical/task-runtime/00-overview.md) | Draft |
-| 01 | [Task 聚合](tactical/task-runtime/01-task.md) | Draft |
-| 02 | [TaskExecution 聚合（含 worker 运行时 / Artifact）](tactical/task-runtime/02-task-execution.md) | Draft |
-| 03 | [InputRequest 聚合](tactical/task-runtime/03-input-request.md) | Draft |
-
-### Discussion（讨论）— BC2
+> ⚠️ **RETIRED (v2.7 #131 carve-out)**：BC 已从代码库删除（code + tables removed）。职责迁移至 ProjectManager BC（pm.Task）+ Agent work-items。以下链接指向归档战术设计文档。
 
 | # | 主题 | 状态 |
 |---|---|---|
-| 00 | [Discussion BC Overview](tactical/discussion/00-overview.md) | Draft |
+| 00 | [BC 入口 / Domain Service / Factory / Repo / 跨聚合](../retired/task-runtime/00-overview.md) | RETIRED |
+| 01 | [Task 聚合](../retired/task-runtime/01-task.md) | RETIRED |
+| 02 | [TaskExecution 聚合（含 worker 运行时 / Artifact）](../retired/task-runtime/02-task-execution.md) | RETIRED |
+| 03 | [InputRequest 聚合](../retired/task-runtime/03-input-request.md) | RETIRED |
+
+### ~~Discussion（讨论）— BC2~~ — RETIRED (v2.7 #131)
+
+> ⚠️ **RETIRED (v2.7 #131 carve-out)**：BC 已从代码库删除（code + tables removed）。职责迁移至 ProjectManager BC（pm.Issue）+ Agent work-items。以下链接指向归档战术设计文档。
+
+| # | 主题 | 状态 |
+|---|---|---|
+| 00 | [Discussion BC Overview](../retired/discussion/00-overview.md) | RETIRED |
 
 ### Workforce（工作池）— BC3
 
