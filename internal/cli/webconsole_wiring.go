@@ -63,6 +63,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		return nil
 	}
 	deps := api.HandlerDeps{
+		DB:                  a.DB,
 		Actor:               a.DefaultActor(),
 		ConvRepo:            a.ConvRepo,
 		MsgRepo:             a.MsgRepo,
@@ -135,6 +136,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// once from the configured blobstore root (nil when unconfigured).
 	filesSvc := buildFilesService(a)
 	deps := api.HandlerDeps{
+		DB:                  a.DB,
 		Actor:               a.DefaultActor(),
 		ConvRepo:            a.ConvRepo,
 		MsgRepo:             a.MsgRepo,

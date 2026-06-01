@@ -353,6 +353,7 @@ export interface SendMessageInput {
   content_kind?: string;
   direction?: 'inbound' | 'outbound' | 'internal';
   input_request_ref?: string;
+  attachments?: MessageAttachment[];
 }
 
 export interface SendMessageResult {

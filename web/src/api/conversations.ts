@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from './client';
+import { api, withOrgSlug } from './client';
 import { qk } from './queryKeys';
 import type {
   Conversation,
@@ -12,6 +12,12 @@ import type {
   SendMessageInput,
   SendMessageResult,
 } from './types';
+
+interface CreateUploadResult {
+  file_uri: string;
+  transfer_uri: string;
+  transfer_id: string;
+}
 
 export function useConversations(filter?: { kind?: ConversationKind; status?: ConversationStatus }) {
   const search = new URLSearchParams();
@@ -86,6 +92,32 @@ export function useSendMessage() {
       void qc.invalidateQueries({ queryKey: qk.messages(vars.conversationId) });
     },
   });
+}
+
+export async function uploadMessageAttachment(file: File) {
+  const contentType = file.type || 'application/octet-stream';
+  const created = await api.post<CreateUploadResult>('/files', {
+    content_type: contentType,
+    size: file.size,
+  });
+  const putPath = `/api${withOrgSlug(`/files/transfer/${encodeURIComponent(created.transfer_id)}`)}`;
+  const putResp = await fetch(putPath, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: file,
+  });
+  if (!putResp.ok) {
+    throw new Error(`upload failed: ${putResp.status}`);
+  }
+  await api.post(`/files/transfer/${encodeURIComponent(created.transfer_id)}/complete`, {
+    size: file.size,
+  });
+  return {
+    uri: created.file_uri,
+    filename: file.name,
+    mime_type: contentType,
+    size: file.size,
+  };
 }
 
 export function useArchiveConversation() {

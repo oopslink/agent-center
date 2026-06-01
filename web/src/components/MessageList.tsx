@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
+import { withOrgSlug } from '@/api/client';
 import { groupMessagesByWorkItem } from './messageSegments';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
@@ -27,6 +28,15 @@ export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// attachmentHref maps an ac://files/{ulid} URI to the gated download endpoint,
+// carrying the current org scope (?org_slug=) the same way the api client does —
+// GET /api/files/{ulid} runs requireOrgMember, which 400s without an org scope.
+export function attachmentHref(uri: string): string {
+  const prefix = 'ac://files/';
+  if (!uri.startsWith(prefix)) return '#';
+  return `/api${withOrgSlug(`/files/${encodeURIComponent(uri.slice(prefix.length))}`)}`;
 }
 
 interface Props {
@@ -120,11 +130,8 @@ export function MessageList({
             <time>{m.posted_at}</time>
           </header>
           <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
-          {/* v2.7 #133: render message attachments as METADATA chips only
-              (filename / type / size). No download affordance here — download +
-              attach-time authz land in #142; until then a download link would 403
-              (gated, leak-safe) and read as a false affordance. Only when present,
-              so the #137 work_item segmentation below is unaffected. */}
+          {/* v2.7 #142: attachments download through the same gated /api/files/{id}
+              endpoint used by the backend reachability checks. */}
           {m.attachments && m.attachments.length > 0 && (
             <ul className="mt-1 flex flex-wrap gap-2" data-testid="message-attachments">
               {m.attachments.map((att) => (
@@ -133,15 +140,32 @@ export function MessageList({
                   className="flex items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
                   data-testid="message-attachment"
                   data-mime={att.mime_type}
-                  title="Download coming soon (#142)"
                 >
-                  <span
-                    className="rounded bg-bg-elevated px-1 font-mono uppercase text-text-muted"
-                    data-testid="attachment-type"
+                  {att.mime_type.startsWith('image/') && (
+                    <a href={attachmentHref(att.uri)} target="_blank" rel="noreferrer" aria-label={`Open ${att.filename}`}>
+                      <img
+                        src={attachmentHref(att.uri)}
+                        alt={att.filename}
+                        className="h-10 w-10 rounded object-cover"
+                        data-testid="attachment-preview"
+                      />
+                    </a>
+                  )}
+                  <a
+                    href={attachmentHref(att.uri)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 text-text-primary hover:underline"
+                    data-testid="attachment-link"
                   >
-                    {attachmentKind(att.mime_type)}
-                  </span>
-                  <span className="text-text-primary">{att.filename}</span>
+                    <span
+                      className="rounded bg-bg-elevated px-1 font-mono uppercase text-text-muted"
+                      data-testid="attachment-type"
+                    >
+                      {attachmentKind(att.mime_type)}
+                    </span>
+                    <span>{att.filename}</span>
+                  </a>
                   <span className="text-text-muted">{formatBytes(att.size)}</span>
                 </li>
               ))}

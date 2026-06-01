@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -105,6 +107,83 @@ func uploadBlob(t *testing.T, baseURL string, sess testSession, content []byte) 
 		t.Fatalf("complete: status=%d body=%s", resp.StatusCode, b)
 	}
 	return files.FileURI(fileURI).ULID()
+}
+
+func setupNamedTestSession(t *testing.T, db *sql.DB, username, orgSlug string) testSession {
+	t.Helper()
+	ctx := context.Background()
+	hash, _ := identity.HashPasscode("123456")
+	ident, err := identity.IdentityFactory{}.NewUser(username, hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idRepo := identity.NewSQLiteIdentityRepo(db)
+	orgRepo := identity.NewSQLiteOrganizationRepo(db)
+	memberRepo := identity.NewSQLiteMemberRepo(db)
+	if err := idRepo.Save(ctx, ident); err != nil {
+		t.Fatal(err)
+	}
+	org, err := identity.OrganizationFactory{}.New(orgSlug, orgSlug, ident.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := orgRepo.Save(ctx, org); err != nil {
+		t.Fatal(err)
+	}
+	member, err := identity.MemberFactory{}.New(org.ID(), ident.ID(), identity.RoleOwner, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := memberRepo.Save(ctx, member); err != nil {
+		t.Fatal(err)
+	}
+	jwt, err := identity.MintJWT(ident.ID(), testSigningKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return testSession{
+		IdentityID: ident.ID(),
+		OrgID:      org.ID(),
+		OrgSlug:    org.Slug(),
+		Cookie:     &http.Cookie{Name: "ac_session", Value: jwt},
+	}
+}
+
+func seedParticipantDM(t *testing.T, deps HandlerDeps, sess testSession) string {
+	t.Helper()
+	owner := conversation.IdentityRef("user:" + sess.IdentityID)
+	res, err := deps.MessageWriter.OpenConversation(context.Background(), convservice.OpenCommand{
+		Kind:           conversation.ConversationKindDM,
+		OrganizationID: sess.OrgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: owner, Role: "owner", JoinedAt: "t", JoinedBy: owner},
+		},
+		CreatedBy: owner,
+		Actor:     observability.Actor(owner),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(res.ConversationID)
+}
+
+func sendAttachmentMessage(t *testing.T, baseURL, convID string, sess testSession, fileURI string) (int, []byte) {
+	t.Helper()
+	body := fmt.Sprintf(`{"content":"see attached","attachments":[{"uri":%q,"filename":"note.txt","mime_type":"text/plain","size":4}]}`, fileURI)
+	resp := orgScopedPost(t, baseURL+"/api/conversations/"+convID+"/messages", body, sess)
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, b
+}
+
+func responseBytes(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 func itoa(n int) string {
@@ -358,5 +437,146 @@ func TestAPI_Files_Download_NoSession_Unauthorized(t *testing.T) {
 	}
 	if resp.StatusCode == 200 {
 		t.Fatalf("expected non-200 without session, got 200")
+	}
+}
+
+func TestAPI_Files_CompleteUpload_NonInitiatorForbiddenNoUploaderRef(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	ownerSess := setupTestSession(t, db, deps)
+	otherSess := setupNamedTestSession(t, db, "completeother", "complete-other")
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/files", `{"content_type":"text/plain","size":4}`, ownerSess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: status=%d body=%s", resp.StatusCode, responseBytes(t, resp))
+	}
+	var created map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	transferID := created["transfer_id"].(string)
+	fileURI := created["file_uri"].(string)
+	ulid := files.FileURI(fileURI).ULID()
+
+	put := orgScopedPut(t, s.URL+"/api/files/transfer/"+transferID, []byte("data"), ownerSess)
+	if put.StatusCode != http.StatusOK {
+		t.Fatalf("put: status=%d body=%s", put.StatusCode, responseBytes(t, put))
+	}
+	complete := orgScopedPost(t, s.URL+"/api/files/transfer/"+transferID+"/complete", `{"size":4}`, otherSess)
+	if complete.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-initiator complete: status=%d body=%s", complete.StatusCode, responseBytes(t, complete))
+	}
+	refs, err := svc.ListReferences(context.Background(), mustURI(t, ulid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 0 {
+		t.Fatalf("non-initiator complete wrote refs: %+v", refs)
+	}
+}
+
+func TestAPI_SendMessage_AttachmentOwnUploadCreatesConversationRefAndDownload(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	convID := seedParticipantDM(t, deps, sess)
+	ulid := uploadBlob(t, s.URL, sess, []byte("mine"))
+	fileURI := "ac://files/" + ulid
+
+	status, body := sendAttachmentMessage(t, s.URL, convID, sess, fileURI)
+	if status != http.StatusCreated {
+		t.Fatalf("send attachment: status=%d body=%s", status, body)
+	}
+	msgs, err := deps.MsgRepo.FindByConversationID(context.Background(), conversation.ConversationID(convID), conversation.MessageFilter{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || len(msgs[0].Attachments()) != 1 || msgs[0].Attachments()[0].URI != fileURI {
+		t.Fatalf("message attachment not persisted: %+v", msgs)
+	}
+	refs, err := svc.ListReferences(context.Background(), mustURI(t, ulid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var conversationRefs int
+	for _, ref := range refs {
+		if ref.Scope == files.ScopeConversation && ref.ScopeID == convID {
+			conversationRefs++
+		}
+	}
+	if conversationRefs != 1 {
+		t.Fatalf("conversation ref count = %d, refs=%+v", conversationRefs, refs)
+	}
+	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
+	got := responseBytes(t, resp)
+	if resp.StatusCode != http.StatusOK || !bytes.Equal(got, []byte("mine")) {
+		t.Fatalf("download after attach: status=%d body=%s", resp.StatusCode, got)
+	}
+}
+
+func TestAPI_SendMessage_AttachmentUnreachableWritesNothingAndIsOpaque(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	otherSess := setupNamedTestSession(t, db, "otheruser", "otherorg")
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	convID := seedParticipantDM(t, deps, sess)
+	foreignULID := uploadBlob(t, s.URL, otherSess, []byte("away"))
+	foreignURI := "ac://files/" + foreignULID
+	missingURI := "ac://files/" + idgen.MustNewULID()
+
+	foreignStatus, foreignBody := sendAttachmentMessage(t, s.URL, convID, sess, foreignURI)
+	missingStatus, missingBody := sendAttachmentMessage(t, s.URL, convID, sess, missingURI)
+	if foreignStatus != http.StatusForbidden || missingStatus != http.StatusForbidden {
+		t.Fatalf("statuses: foreign=%d body=%s missing=%d body=%s", foreignStatus, foreignBody, missingStatus, missingBody)
+	}
+	if !bytes.Equal(foreignBody, missingBody) {
+		t.Fatalf("unreachable attach responses differ:\nforeign=%s\nmissing=%s", foreignBody, missingBody)
+	}
+	msgs, err := deps.MsgRepo.FindByConversationID(context.Background(), conversation.ConversationID(convID), conversation.MessageFilter{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("unreachable attachment wrote messages: %+v", msgs)
+	}
+	refs, err := svc.ListReferences(context.Background(), mustURI(t, foreignULID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range refs {
+		if ref.Scope == files.ScopeConversation && ref.ScopeID == convID {
+			t.Fatalf("unreachable attachment wrote conversation ref: %+v", refs)
+		}
+	}
+}
+
+func TestAPI_Files_Download_UnreachableResponsesAreOpaque(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	otherSess := setupNamedTestSession(t, db, "downloadother", "download-other")
+	attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	foreignULID := uploadBlob(t, s.URL, otherSess, []byte("foreign"))
+	missingULID := idgen.MustNewULID()
+
+	foreignResp := orgScopedGet(t, s.URL+"/api/files/"+foreignULID, sess)
+	foreignBody := responseBytes(t, foreignResp)
+	missingResp := orgScopedGet(t, s.URL+"/api/files/"+missingULID, sess)
+	missingBody := responseBytes(t, missingResp)
+	if foreignResp.StatusCode != http.StatusForbidden || missingResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("statuses: foreign=%d body=%s missing=%d body=%s", foreignResp.StatusCode, foreignBody, missingResp.StatusCode, missingBody)
+	}
+	if !bytes.Equal(foreignBody, missingBody) {
+		t.Fatalf("unreachable download responses differ:\nforeign=%s\nmissing=%s", foreignBody, missingBody)
 	}
 }

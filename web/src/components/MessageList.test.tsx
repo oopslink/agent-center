@@ -93,7 +93,7 @@ describe('MessageList', () => {
   });
 });
 
-describe('MessageList attachments (#133)', () => {
+describe('MessageList attachments (#142)', () => {
   afterEach(() => cleanup());
 
   const withAtts = (id: string, atts: Message['attachments']): Message => ({
@@ -101,13 +101,13 @@ describe('MessageList attachments (#133)', () => {
     attachments: atts,
   });
 
-  it('renders attachments as metadata chips (type/filename/size) with NO download affordance', () => {
+  it('renders attachments as gated download links with image previews', () => {
     const { container } = render(
       <MessageList
         messages={[
           withAtts('m1', [
-            { uri: 'ac://files/IMG', filename: 'design.png', mime_type: 'image/png', size: 2048 },
-            { uri: 'ac://files/DOC', filename: 'spec.pdf', mime_type: 'application/pdf', size: 1048576 },
+            { uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAV', filename: 'design.png', mime_type: 'image/png', size: 2048 },
+            { uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAW', filename: 'spec.pdf', mime_type: 'application/pdf', size: 1048576 },
           ]),
         ]}
       />,
@@ -120,10 +120,13 @@ describe('MessageList attachments (#133)', () => {
     expect(atts[0]).toHaveTextContent('design.png');
     expect(atts[1]).toHaveTextContent('spec.pdf');
     expect(atts[1]).toHaveTextContent('1.0 MB');
-    // #133 is display-only — NO download/fetch affordance of any kind (those land
-    // in #142): no link, no image/video/audio element that would hit the gated blob.
-    expect(container.querySelector('a')).toBeNull();
-    expect(container.querySelector('img')).toBeNull();
+    const links = screen.getAllByTestId('attachment-link');
+    expect(links[0]).toHaveAttribute('href', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    expect(links[1]).toHaveAttribute('href', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAW');
+    const preview = screen.getByTestId('attachment-preview');
+    expect(preview).toHaveAttribute('src', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    // No media elements other than image preview; all fetches go through the same
+    // gated /api/files/{id} endpoint.
     expect(container.querySelector('video')).toBeNull();
     expect(container.querySelector('audio')).toBeNull();
   });
