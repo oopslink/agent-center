@@ -1,10 +1,14 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
+	agentbc "github.com/oopslink/agent-center/internal/agent"
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/identity"
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -158,6 +162,15 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		DisplayName string `json:"display_name"`
 		Description string `json:"description"`
 		Role        string `json:"role"`
+		// v2.7 #157: when present, Members→Add Agent ALSO creates the execution
+		// Agent in one step (the unified create). worker_id is required for an
+		// execution agent (immutable binding, ADR-0049). Absent → identity-member
+		// only (legacy path).
+		Model    string            `json:"model"`
+		CLI      string            `json:"cli"`
+		WorkerID string            `json:"worker_id"`
+		EnvVars  map[string]string `json:"env_vars"`
+		Skills   []string          `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -175,21 +188,78 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden", "admin cannot add owner-role agents")
 		return
 	}
-	res, err := d.AgentProvisionSvc.Provision(r.Context(),
-		identity.AgentProvisionForm{
-			DisplayName: body.DisplayName,
-			Description: body.Description,
-			Role:        identity.MemberRole(body.Role),
-		},
-		orgID, callerID.ID())
-	if err != nil {
-		writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+
+	// v2.7 #157: unified one-step create. The agent identity + Member (identity BC)
+	// and the execution Agent (agent BC) are created in ONE outer transaction.
+	// persistence.RunInTx is reentrant, so both services' inner RunInTx join this
+	// outer tx — if the execution-agent create fails (e.g. worker not in org), the
+	// identity+member provision ROLLS BACK too: both-or-neither, no orphan.
+	var (
+		member     *identity.Member
+		idn        *identity.Identity
+		agentID    agentbc.AgentID
+		agentPhase bool // true once we're in the execution-agent create (error mapping)
+	)
+	txErr := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		provRes, perr := d.AgentProvisionSvc.Provision(txCtx,
+			identity.AgentProvisionForm{
+				DisplayName: body.DisplayName,
+				Description: body.Description,
+				Role:        identity.MemberRole(body.Role),
+			},
+			orgID, callerID.ID())
+		if perr != nil {
+			return perr
+		}
+		member, idn = provRes.Member, provRes.Identity
+		if body.WorkerID == "" {
+			return nil // identity-member only (legacy path)
+		}
+		if d.AgentSvc == nil {
+			writeError(w, http.StatusNotImplemented, "agent_not_wired", "")
+			return errAbortHandled
+		}
+		agentPhase = true
+		aid, aerr := d.AgentSvc.CreateAgent(txCtx, agentsvc.CreateAgentCommand{
+			OrganizationID:   orgID,
+			Name:             body.DisplayName,
+			Description:      body.Description,
+			Model:            body.Model,
+			CLI:              body.CLI,
+			EnvVars:          body.EnvVars,
+			Skills:           body.Skills,
+			WorkerID:         body.WorkerID,
+			CreatedBy:        agentCallerRef(callerID),
+			IdentityMemberID: idn.ID(),
+		})
+		if aerr != nil {
+			return aerr
+		}
+		agentID = aid
+		return nil
+	})
+	if txErr != nil {
+		if errors.Is(txErr, errAbortHandled) {
+			return // response already written
+		}
+		if agentPhase {
+			mapAgentError(w, txErr)
+			return
+		}
+		writeError(w, mapIdentityError(txErr), identityErrCode(txErr), txErr.Error())
 		return
 	}
-	result := memberPublicMap(res.Member)
-	result["display_name"] = res.Identity.DisplayName()
+	result := memberPublicMap(member)
+	result["display_name"] = idn.DisplayName()
+	if agentID != "" {
+		result["agent_id"] = string(agentID)
+	}
 	writeJSON(w, http.StatusCreated, result)
 }
+
+// errAbortHandled signals a RunInTx closure already wrote the HTTP response and
+// the tx should roll back without further error mapping.
+var errAbortHandled = errors.New("handler: response already written")
 
 // requireTargetMemberInOrg validates that memberID exists and belongs to orgID.
 // Returns the target Member on success; on failure writes the error response.
