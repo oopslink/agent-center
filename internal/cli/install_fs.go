@@ -330,7 +330,12 @@ func centerConfigYAML(dataDir string, port int, tcpListen, masterKeyPath string)
 # Edit this file then ` + "`systemctl --user restart agent-center`" + ` (or launchctl) to apply.
 
 server:
-  listen_addr: ":7000"
+  # v2.7 #161: default off :7000 — macOS AirPlay Receiver (AirTunes) listens on
+  # 7000 by default, so :7000 fails to bind on a fresh Mac install and the center
+  # never starts. :7050 avoids AirPlay (7000) and the web console (7100), and
+  # keeps the 70xx/73xx numbering. (server and web_console are separate listeners
+  # and must not share a port.)
+  listen_addr: ":7050"
   sqlite_path: "` + dataDir + `/agent-center.db"
   admin_socket_path: "` + dataDir + `/admin.sock"
 `
@@ -352,6 +357,17 @@ web_console:
   enabled: true
   listen_addr: "127.0.0.1:%d"
 `, masterKeyPath, port)
+	// v2.7 #159: the install config MUST set a writable blob_store root, else
+	// FilesSvc is never wired and every /api/files upload returns 501 (channel/
+	// conversation file attachments — #133/#142 — fully broken on a fresh
+	// install). The DefaultConfig fallback ("/var/lib/agent-center/blobs") is a
+	// Linux-system path that MkdirAll cannot create under a macOS user-mode
+	// prefix. Anchor it under the install data dir (<prefix>/var) like sqlite.
+	yaml += `
+blob_store:
+  kind: "local"
+  root: "` + dataDir + `/blobs"
+`
 	return yaml
 }
 
