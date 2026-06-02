@@ -149,6 +149,17 @@ type HandlerDeps struct {
 // hd retrieves the typed dep bag from the request context.
 func hd(r *http.Request) HandlerDeps {
 	v, _ := r.Context().Value(depsKey{}).(HandlerDeps)
+	// v2.7 #146: stamp domain identity + audit actor from the authenticated
+	// session, not the static configured default_user. authMiddleware installs
+	// the real identity for every /api route; it is nil only on legacy/no-auth
+	// paths (AuthSvc unwired), which keep the configured fallback. HandlerDeps
+	// is returned by value, so this override is per-request and does not mutate
+	// the shared dep bag. Uses the SAME ref convention as the #142 download gate
+	// (filesCallerRef) so a conversation owner/participant ref matches the gate's
+	// caller ref — closing the F142-2 own-attachment-download ship-blocker.
+	if id := CurrentIdentity(r); id != nil {
+		v.Actor = observability.Actor(filesCallerRef(id))
+	}
 	return v
 }
 
@@ -712,10 +723,12 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	sender := req.SenderIdentityID
-	if sender == "" {
-		sender = string(d.Actor)
-	}
+	// v2.7 #146: this webconsole endpoint is human-session-only — there is no
+	// delegated-send path here (agents/workers post via the admin API, not this
+	// JWT-cookie route). Always stamp the sender from the authenticated session
+	// (d.Actor is per-request, see hd) and IGNORE any client-supplied
+	// sender_identity_id to prevent sender spoofing.
+	sender := string(d.Actor)
 	ck := req.ContentKind
 	if ck == "" {
 		ck = string(conversation.MessageContentText)
