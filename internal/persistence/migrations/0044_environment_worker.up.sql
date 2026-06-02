@@ -11,9 +11,13 @@
 -- NOTE: `offset` is a reserved-ish word; it is quoted in DDL + queries to stay
 -- safe with modernc.org/sqlite.
 
+-- v2.7 #140 step-3: org is NOT stored on the control-channel Worker AR — a
+-- worker's org is the canonical workforce.Worker's org (resolved + guarded at the
+-- handler layer). This table carries only control-channel state (status / ack
+-- cursor / heartbeat). (fresh-install: column squashed out of the create, no drop
+-- migration per the standing fresh-install rule.)
 CREATE TABLE env_workers (
     id                TEXT PRIMARY KEY,
-    organization_id   TEXT NOT NULL,
     name              TEXT,
     status            TEXT NOT NULL,             -- offline | online
     last_acked_offset INTEGER NOT NULL DEFAULT 0,
@@ -22,7 +26,6 @@ CREATE TABLE env_workers (
     updated_at        TEXT NOT NULL,
     version           INTEGER NOT NULL
 );
-CREATE INDEX idx_env_workers_org ON env_workers (organization_id);
 
 CREATE TABLE worker_control_events (
     id              TEXT PRIMARY KEY,

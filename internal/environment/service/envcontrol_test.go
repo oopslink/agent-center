@@ -38,40 +38,33 @@ func newTestSvc(t *testing.T) (context.Context, *sql.DB, *EnvControl) {
 func TestEnvControl_ConnectWorker_CreateThenConnect(t *testing.T) {
 	ctx, _, svc := newTestSvc(t)
 
-	// First connect auto-creates the Worker AR (offline → online) stamped
-	// with the provided org, last_acked_offset 0.
-	w, err := svc.ConnectWorker(ctx, "w1", "org-1")
+	// First connect auto-creates the Worker AR (offline → online),
+	// last_acked_offset 0. v2.7 #140 step-3: no org stored on the AR.
+	w, err := svc.ConnectWorker(ctx, "w1")
 	if err != nil {
 		t.Fatalf("ConnectWorker(create): %v", err)
 	}
 	if w.Status() != environment.WorkerOnline {
 		t.Fatalf("status = %q, want online", w.Status())
 	}
-	if w.OrganizationID() != "org-1" {
-		t.Fatalf("org = %q, want org-1", w.OrganizationID())
-	}
 	if w.LastAckedOffset() != 0 {
 		t.Fatalf("last_acked_offset = %d, want 0", w.LastAckedOffset())
 	}
 
 	// Second connect loads the existing AR (does not error / re-create) and
-	// stays online.
-	w2, err := svc.ConnectWorker(ctx, "w1", "org-ignored")
+	// stays online — the ack cursor is preserved (control-channel state intact).
+	w2, err := svc.ConnectWorker(ctx, "w1")
 	if err != nil {
 		t.Fatalf("ConnectWorker(reconnect): %v", err)
 	}
 	if w2.Status() != environment.WorkerOnline {
 		t.Fatalf("status = %q, want online", w2.Status())
 	}
-	// Org provenance is stamped at create time and not overwritten on reconnect.
-	if w2.OrganizationID() != "org-1" {
-		t.Fatalf("org = %q, want org-1 (unchanged)", w2.OrganizationID())
-	}
 }
 
 func TestEnvControl_AckWorker_Monotonic(t *testing.T) {
 	ctx, _, svc := newTestSvc(t)
-	if _, err := svc.ConnectWorker(ctx, "w1", "org-1"); err != nil {
+	if _, err := svc.ConnectWorker(ctx, "w1"); err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 
@@ -104,7 +97,7 @@ func TestEnvControl_AckWorker_Monotonic(t *testing.T) {
 
 func TestEnvControl_CommandsAfter(t *testing.T) {
 	ctx, _, svc := newTestSvc(t)
-	if _, err := svc.ConnectWorker(ctx, "w1", "org-1"); err != nil {
+	if _, err := svc.ConnectWorker(ctx, "w1"); err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 
@@ -158,7 +151,7 @@ func TestEnvControl_AckWorker_UnknownWorker(t *testing.T) {
 
 func TestEnvControl_EnqueueCommand_Idempotent(t *testing.T) {
 	ctx, _, svc := newTestSvc(t)
-	if _, err := svc.ConnectWorker(ctx, "w1", "org-1"); err != nil {
+	if _, err := svc.ConnectWorker(ctx, "w1"); err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 	first, err := svc.EnqueueCommand(ctx, environment.AppendCommandInput{
@@ -187,7 +180,7 @@ func TestEnvControl_EnqueueCommand_Idempotent(t *testing.T) {
 
 func TestEnvControl_Heartbeat(t *testing.T) {
 	ctx, _, svc := newTestSvc(t)
-	if _, err := svc.ConnectWorker(ctx, "w1", "org-1"); err != nil {
+	if _, err := svc.ConnectWorker(ctx, "w1"); err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 	if err := svc.Heartbeat(ctx, "w1"); err != nil {

@@ -63,20 +63,21 @@ func New(d Deps) *EnvControl {
 }
 
 // ConnectWorker opens the control stream for a Worker: it ensures the Worker AR
-// exists (creating it in the offline state on first connect, stamped with the
-// provided org), marks it online, and persists. The caller reads
-// LastAckedOffset() off the returned Worker to know where to replay from.
+// exists (creating it in the offline state on first connect), marks it online,
+// and persists. The caller reads LastAckedOffset() off the returned Worker to
+// know where to replay from.
 //
-// orgID is org PROVENANCE stamped from the workforce.Worker the daemon enrolled
-// under — it is NOT a tight Agent↔Worker map (the handler resolves it).
-func (c *EnvControl) ConnectWorker(ctx context.Context, workerID environment.WorkerID, orgID string) (*environment.Worker, error) {
+// v2.7 #140 step-3: org is no longer stored on the control-channel Worker AR —
+// the worker's org is the canonical workforce.Worker's org, resolved + guarded at
+// the handler layer (E-10b / org-enrolled precondition) BEFORE this call. This AR
+// carries only control-channel state (cursor / online / heartbeat).
+func (c *EnvControl) ConnectWorker(ctx context.Context, workerID environment.WorkerID) (*environment.Worker, error) {
 	now := c.clock.Now()
 	w, err := c.workers.FindByID(ctx, workerID)
 	if errors.Is(err, environment.ErrWorkerNotFound) {
 		w, err = environment.NewWorker(environment.NewWorkerInput{
-			ID:             workerID,
-			OrganizationID: orgID,
-			CreatedAt:      now,
+			ID:        workerID,
+			CreatedAt: now,
 		})
 		if err != nil {
 			return nil, err

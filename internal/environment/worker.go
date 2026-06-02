@@ -14,7 +14,6 @@ import (
 // the Agent AR (ADR-0049); the Worker does not own Agents here.
 type Worker struct {
 	id              WorkerID
-	organizationID  string
 	name            string
 	status          WorkerStatus
 	lastAckedOffset int64 // highest contiguous command offset the Worker has acked
@@ -24,12 +23,13 @@ type Worker struct {
 	version         int
 }
 
-// NewWorkerInput captures constructor args.
+// NewWorkerInput captures constructor args. v2.7 #140 step-3: org is no longer
+// stored on the Worker — it is derived from the canonical workforce.Worker at the
+// handler layer; the control-channel AR carries only cursor/online state.
 type NewWorkerInput struct {
-	ID             WorkerID
-	OrganizationID string
-	Name           string
-	CreatedAt      time.Time
+	ID        WorkerID
+	Name      string
+	CreatedAt time.Time
 }
 
 // NewWorker registers a fresh Worker in the offline state (it has not yet opened
@@ -38,16 +38,12 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 	if strings.TrimSpace(string(in.ID)) == "" {
 		return nil, errors.New("environment: worker id required")
 	}
-	if strings.TrimSpace(in.OrganizationID) == "" {
-		return nil, errors.New("environment: organization_id required")
-	}
 	if in.CreatedAt.IsZero() {
 		return nil, errors.New("environment: created_at required")
 	}
 	at := in.CreatedAt.UTC()
 	return &Worker{
 		id:              in.ID,
-		organizationID:  in.OrganizationID,
 		name:            in.Name,
 		status:          WorkerOffline,
 		lastAckedOffset: 0,
@@ -60,7 +56,6 @@ func NewWorker(in NewWorkerInput) (*Worker, error) {
 // RehydrateWorkerInput is for repository round-trip.
 type RehydrateWorkerInput struct {
 	ID              WorkerID
-	OrganizationID  string
 	Name            string
 	Status          WorkerStatus
 	LastAckedOffset int64
@@ -80,7 +75,6 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 	}
 	return &Worker{
 		id:              in.ID,
-		organizationID:  in.OrganizationID,
 		name:            in.Name,
 		status:          in.Status,
 		lastAckedOffset: in.LastAckedOffset,
@@ -93,7 +87,6 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 
 // Getters.
 func (w *Worker) ID() WorkerID               { return w.id }
-func (w *Worker) OrganizationID() string     { return w.organizationID }
 func (w *Worker) Name() string               { return w.name }
 func (w *Worker) Status() WorkerStatus       { return w.status }
 func (w *Worker) LastAckedOffset() int64     { return w.lastAckedOffset }

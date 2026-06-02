@@ -198,15 +198,15 @@ func TestMigrations_V1TablesAbsent(t *testing.T) {
 		// a fresh install (no drop-migration). Positive assertion that a fresh
 		// schema is new-model ONLY — taskruntime / discussion / old-projection /
 		// workforce-project tables must be absent.
-		"tasks",                     // taskruntime (retired → pm_tasks)
-		"task_executions",           // taskruntime execution (retired → agent work-items)
-		"input_requests",            // taskruntime IR (retired → waiting_input WI + conversation)
-		"artifacts",                 // taskruntime artifacts (retired)
-		"issues",                    // discussion (retired → pm_issues)
+		"tasks",                      // taskruntime (retired → pm_tasks)
+		"task_executions",            // taskruntime execution (retired → agent work-items)
+		"input_requests",             // taskruntime IR (retired → waiting_input WI + conversation)
+		"artifacts",                  // taskruntime artifacts (retired)
+		"issues",                     // discussion (retired → pm_issues)
 		"task_execution_projections", // old observability projection (retired → agent_work_item_projections)
-		"projects",                  // workforce projects (retired → pm_projects)
-		"worker_project_mappings",   // workforce mapping (retired)
-		"worker_project_proposals",  // workforce proposal (retired)
+		"projects",                   // workforce projects (retired → pm_projects)
+		"worker_project_mappings",    // workforce mapping (retired)
+		"worker_project_proposals",   // workforce proposal (retired)
 	} {
 		if tableExists(t, db, tbl) {
 			t.Fatalf("retired table %s must be absent after fresh Up (v2.7 carve-out: new-model only)", tbl)
@@ -371,10 +371,16 @@ func TestMigration_0044_EnvironmentWorkerShape(t *testing.T) {
 			t.Fatalf("%s must exist after Up", tbl)
 		}
 	}
-	for _, idx := range []string{"idx_env_workers_org", "idx_wce_worker_offset"} {
+	// v2.7 #140 step-3: idx_env_workers_org removed with the organization_id
+	// column (org is no longer stored on the control-channel Worker AR).
+	for _, idx := range []string{"idx_wce_worker_offset"} {
 		if !indexExists(t, db, idx) {
 			t.Fatalf("index %s must exist after Up", idx)
 		}
+	}
+	// v2.7 #140 step-3: org is NOT stored on the control-channel Worker AR.
+	if columnExists(t, db, "env_workers", "organization_id") {
+		t.Fatal("env_workers.organization_id must be gone (#140 step-3: org derives from workforce.Worker)")
 	}
 
 	now := "2026-05-29T15:00:00Z"
