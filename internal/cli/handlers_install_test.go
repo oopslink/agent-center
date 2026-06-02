@@ -192,7 +192,7 @@ func TestInstallWorker_DryRun(t *testing.T) {
 	stdout, _, code := runHandler(t, cmd, []string{
 		"--prefix=" + prefix, "--dry-run",
 		"--bootstrap=tcp://host:7300", "--token=abc",
-		"--server-fingerprint=sha256:AA:BB",
+		"--server-fingerprint=sha256:AA:BB", "--worker-id=w1",
 	})
 	if code != ExitOK {
 		t.Fatalf("dry-run on fresh prefix should ExitOK, got %d", code)
@@ -228,10 +228,29 @@ func TestInstallWorker_UnixBootstrapOK(t *testing.T) {
 	prefix := t.TempDir()
 	_, _, code := runHandler(t, cmd, []string{
 		"--prefix=" + prefix, "--dry-run",
-		"--bootstrap=unix:/tmp/admin.sock", "--token=abc",
+		"--bootstrap=unix:/tmp/admin.sock", "--token=abc", "--worker-id=w1",
 	})
 	if code != ExitOK {
 		t.Fatalf("unix:/ bootstrap without fingerprint should succeed, got %d", code)
+	}
+}
+
+// v2.7 #171 (@oopslink): --worker-id is REQUIRED — there is no hostname
+// fallback. A bare `install worker` (id omitted) must fail with a clear
+// ExitUsage error pointing back at the Web Console Add Worker command,
+// so two workers on one machine can't silently collide on hostname.
+func TestInstallWorker_RejectsMissingWorkerID(t *testing.T) {
+	cmd := InstallWorkerCommand()
+	prefix := t.TempDir()
+	_, stderr, code := runHandler(t, cmd, []string{
+		"--prefix=" + prefix, "--dry-run",
+		"--bootstrap=unix:/tmp/admin.sock", "--token=abc",
+	})
+	if code != ExitUsage {
+		t.Fatalf("missing --worker-id should be ExitUsage, got %d", code)
+	}
+	if !strings.Contains(stderr, "--worker-id is required") {
+		t.Errorf("stderr should mention worker-id requirement: %q", stderr)
 	}
 }
 
