@@ -352,6 +352,17 @@ web_console:
   enabled: true
   listen_addr: "127.0.0.1:%d"
 `, masterKeyPath, port)
+	// v2.7 #159: the install config MUST set a writable blob_store root, else
+	// FilesSvc is never wired and every /api/files upload returns 501 (channel/
+	// conversation file attachments — #133/#142 — fully broken on a fresh
+	// install). The DefaultConfig fallback ("/var/lib/agent-center/blobs") is a
+	// Linux-system path that MkdirAll cannot create under a macOS user-mode
+	// prefix. Anchor it under the install data dir (<prefix>/var) like sqlite.
+	yaml += `
+blob_store:
+  kind: "local"
+  root: "` + dataDir + `/blobs"
+`
 	return yaml
 }
 
