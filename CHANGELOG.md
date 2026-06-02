@@ -168,6 +168,21 @@ ADR / phase plan landscape, see
   stamps it onto the Conversation at creation; the create branch refuses an empty org
   (defensive, no silent broken conversation). v2.7 is a fresh install (drop+recreate)
   so no backfill of pre-existing org-less conversations is needed.
+- **macOS 26 (Darwin 25) `install`/`upgrade` failed to start the service (ship-blocker
+  #150).** `serviceActivateCmds` activated the launchd unit with the deprecated
+  `launchctl load`, which is removed on macOS 26 → the service never started → the
+  admin unix socket was never created → the post-install health probe failed with
+  `dial unix admin.sock: no such file or directory` and the upgrade rolled back.
+  Activation now uses `launchctl bootout`/`bootstrap` (the modern API the v2.5.17
+  uninstall fix already adopted); systemd is unchanged. **This was the real
+  install-time startup blocker** behind the "center won't start" reports.
+- **Install default `server.listen_addr` changed `:7000` → `:7050` (#161).** Note:
+  this field is **vestigial** — it is parsed and validated-required but never bound (a
+  leftover from the pre-carve-out gRPC dispatch listener). The center actually listens
+  on the Web Console port (`127.0.0.1:7100`) and the admin endpoint (TCP `:7300` + a
+  unix socket). Changing the default is a cleanup to avoid confusion with macOS
+  AirPlay Receiver's `:7000`; it is **not** a startup-failure fix — the startup
+  blocker was #150. (The vestigial field itself is removed in v2.8, #174.)
 
 ## [v2.6.0] — 2026-05-28
 
