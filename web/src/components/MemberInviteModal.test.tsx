@@ -19,9 +19,11 @@ const members = [
   { id: 'm-bot', organization_id: 'org', identity_id: 'agent-bot', kind: 'agent', role: 'member', status: 'joined', joined_at: 't', display_name: 'BotOne' },
 ];
 
-// alice is already a participant (prefixed ref) → excluded from candidates.
+// alice is an ACTIVE participant → excluded. bob was KICKED from this channel
+// (left_at set) → still a valid candidate (re-invitable, per PD's §-1 clarification).
 const existing: Participant[] = [
   { identity_id: 'user:user-alice', role: 'member', joined_at: 't', joined_by: 'user:owner' },
+  { identity_id: 'user:user-bob', role: 'member', joined_at: 't', joined_by: 'user:owner', left_at: 't2', left_reason: 'kicked' },
 ];
 
 function mockMembers() {

@@ -26,21 +26,30 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
   // identity refs already in the conversation (active OR left), normalized to the
   // bare id so a prefixed participant ref ("user:user-x") matches a bare member
   // identity_id ("user-x").
-  const existing = useMemo(
-    () => new Set(participants.map((p) => normalizeIdentityRef(p.identity_id))),
+  // Only CURRENTLY-active participants are excluded. A member kicked from this
+  // channel (left_at set) is re-invitable, so they stay a candidate (§-1: this
+  // is the channel-kick case, distinct from org-level removal which the
+  // status==='joined' filter handles).
+  const activeIds = useMemo(
+    () =>
+      new Set(
+        participants
+          .filter((p) => !p.left_at)
+          .map((p) => normalizeIdentityRef(p.identity_id)),
+      ),
     [participants],
   );
 
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (members.data ?? [])
-      .filter((m) => m.status === 'joined' && !existing.has(normalizeIdentityRef(m.identity_id)))
+      .filter((m) => m.status === 'joined' && !activeIds.has(normalizeIdentityRef(m.identity_id)))
       .filter((m) => {
         if (!q) return true;
         const name = (m.display_name ?? '').toLowerCase();
         return name.includes(q) || m.identity_id.toLowerCase().includes(q);
       });
-  }, [members.data, existing, query]);
+  }, [members.data, activeIds, query]);
 
   // Build the invite ref ("<kind>:<id>") the backend expects from a bare member.
   const refOf = (m: MemberResult) => (m.kind === 'agent' ? 'agent:' : 'user:') + m.identity_id;
