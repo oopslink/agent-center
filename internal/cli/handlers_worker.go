@@ -48,13 +48,15 @@ func (a *App) WorkerCommands() []*Command {
 
 func (a *App) workerEnrollHandler(fs *flag.FlagSet) Handler {
 	workerID := fs.String("worker-id", "", "worker id")
-	capsStr := fs.String("capabilities", "claude-code", "comma-separated capability list")
 	format := fs.String("format", FormatTable, formatFlagHelp())
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		if *workerID == "" {
 			return PrintError(errw, *format, "usage_error", "--worker-id required", ExitUsage)
 		}
-		caps := splitNonEmpty(*capsStr, ",")
+		// v2.7 #147: capabilities are auto-discovered by the worker daemon
+		// (ProbeAllAdapters → report on every online), not hand-set. A manual
+		// `worker enroll` seeds an empty set; the daemon fills it on online.
+		var caps []string
 		// v2.2-B: prefer the admin Client. Fall back to direct Service
 		// access for back-compat with in-process tests until they're
 		// migrated to setupAdminServerForTests.

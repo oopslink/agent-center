@@ -160,7 +160,7 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath, logsDir st
 // non-flag terminator): the unified CLI router consumes the sub-command path
 // first, then `worker run` flag-parses the remainder — so the prefix is correct
 // and required.
-func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, caps, logsDir string) string {
+func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, logsDir string) string {
 	args := []string{
 		"worker", "run",
 		"--config=" + configPath,
@@ -174,9 +174,8 @@ func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, 
 	if fingerprint != "" {
 		args = append(args, "--server-fingerprint="+fingerprint)
 	}
-	if caps != "" {
-		args = append(args, "--capabilities="+caps)
-	}
+	// v2.7 #147: no --capabilities — the daemon auto-probes installed CLIs on
+	// every online and reports them to center.
 	switch sp.ServiceManager {
 	case "launchd":
 		return renderLaunchdPlist(sp.WorkerServiceID, binaryPath, args, logsDir)

@@ -81,6 +81,8 @@ type App struct {
 	Sink          *observability.EventSink
 
 	EnrollSvc *wfservice.WorkerEnrollService
+	// WorkerConfigSvc backs the operator per-CLI capability toggle (v2.7 #147).
+	WorkerConfigSvc *wfservice.WorkerConfigService
 
 	// v2.7 ProjectManager BC AppService facade (ADR-0046) — backs the nested
 	// /api/projects/{project_id}/... routes + produces the outbox events the
@@ -199,6 +201,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	mgRepo := convsqlite.NewMessageRepo(db)
 
 	enroll := wfservice.NewWorkerEnrollService(db, wr, sink, clk)
+	workerConfig := wfservice.NewWorkerConfigService(db, wr, sink, clk)
 	// v2.7 D2-e-i (OQ5): attach the cross-BC outbox emitter so AddMessage emits a
 	// conversation.message_added wake-trigger event (same tx) for task-owned
 	// conversations. The WakeProjector (webconsole_wiring) consumes it.
@@ -377,6 +380,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		EventRepo:          er,
 		Sink:               sink,
 		EnrollSvc:          enroll,
+		WorkerConfigSvc:    workerConfig,
 		MessageWriter:      writer,
 		ChannelMgmtSvc:     channelMgmt,
 		ParticipantMgmtSvc: participantMgmt,

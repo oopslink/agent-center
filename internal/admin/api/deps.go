@@ -60,6 +60,9 @@ type HandlerDeps struct {
 	AgentInstanceRepo workforce.AgentInstanceRepository
 	EnrollSvc         *wfservice.WorkerEnrollService
 	AgentMgmtSvc      *wfservice.AgentInstanceManagementService
+	// WorkerConfigSvc backs the operator per-CLI capability toggle
+	// (v2.7 #147 PATCH .../capabilities/{name}/enabled).
+	WorkerConfigSvc *wfservice.WorkerConfigService
 
 	// Environment BC (v2.7 D1, ADR-0050, task #102) — worker-initiated
 	// control channel riding this same admin API + bearer auth. WorkerRepo

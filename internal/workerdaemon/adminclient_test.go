@@ -113,6 +113,12 @@ func (fs *fakeServer) registerRoutes() {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"worker_id":"w-1"}`))
 	})
+	// v2.7 #147: worker capability report (auto-probe upload).
+	fs.mux.HandleFunc("/admin/workforce/worker/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		fs.record(r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"worker_id":"w-1","version":2}`))
+	})
 	fs.mux.HandleFunc("/admin/taskruntime/exec/report-progress", func(w http.ResponseWriter, r *http.Request) {
 		fs.record(r)
 		w.WriteHeader(http.StatusOK)

@@ -39,7 +39,6 @@ func WorkerRunCommand() *Command {
 				"operator-facing friendly label set at enroll time (v2.4-D-X1); blank defaults to worker-id server-side")
 			fakeAgent := fs.String("fake-agent", "", "override path for the 'fakeagent' agent_cli (e2e tests)")
 			pollInterval := fs.Duration("poll-interval", 1*time.Second, "queue poll interval")
-			capsFlag := fs.String("capabilities", "", "comma-separated capability list")
 			adminToken := fs.String("admin-token", "",
 				"admin bearer token (required by v2.3-3a auth); falls back to AGENT_CENTER_ADMIN_TOKEN env")
 			adminTarget := fs.String("admin-target", "",
@@ -62,7 +61,6 @@ func WorkerRunCommand() *Command {
 					WorkerName:        *workerName,
 					FakeAgent:         *fakeAgent,
 					PollInterval:      *pollInterval,
-					CapabilitiesCSV:   *capsFlag,
 					AdminToken:        *adminToken,
 					AdminTarget:       *adminTarget,
 					ServerFingerprint:    *serverFingerprint,

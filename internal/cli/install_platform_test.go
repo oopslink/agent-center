@@ -289,7 +289,7 @@ func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center",
 		"/opt/agent-center/config.yaml",
-		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode", "/opt/agent-center/logs")
+		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "/opt/agent-center/logs")
 	// The `worker run` sub-command path must be present (as ordered plist args).
 	if !strings.Contains(body, "<string>worker</string>") {
 		t.Errorf("plist missing 'worker' sub-command prefix:\n%s", body)
@@ -303,11 +303,15 @@ func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 		"--admin-target=tcp://host:7300",
 		"--admin-token=tok-abc",
 		"--server-fingerprint=sha256:AA",
-		"--capabilities=claudecode",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("plist missing %q:\n%s", want, body)
 		}
+	}
+	// v2.7 #147: the unit must NOT bake in --capabilities — the daemon
+	// auto-probes installed CLIs on every online instead.
+	if strings.Contains(body, "--capabilities=") {
+		t.Errorf("unit must not carry --capabilities (auto-probe now):\n%s", body)
 	}
 }
 
@@ -318,7 +322,7 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 		WorkerUnitPath:  "/tmp/test.plist",
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
-		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "" /* no caps */, "/opt/logs")
+		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "/opt/logs")
 	if strings.Contains(body, "--server-fingerprint=") {
 		t.Errorf("empty fingerprint should be omitted:\n%s", body)
 	}
