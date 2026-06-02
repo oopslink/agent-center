@@ -22,7 +22,7 @@ export default function Agents(): React.ReactElement {
         <div>
           <h2 className="text-xl font-semibold">Agents</h2>
           <p className="text-xs text-text-muted">
-            Org-scoped agents with a managed lifecycle.
+            Organization-scoped agents with a managed lifecycle.
           </p>
         </div>
         <button
