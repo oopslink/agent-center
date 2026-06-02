@@ -262,11 +262,15 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
       ],
     },
     {
-      label: 'Members',
+      // v2.7 #151: this group is the organization's people + settings, so it is
+      // labeled "Organization" (was "Members") — that makes "Organization
+      // Settings" read as a peer of the member lists, not a member type nested
+      // under "Members" (the IA fix @oopslink asked for).
+      label: 'Organization',
       items: [
         { to: p('members/humans'), label: 'Humans', Icon: UsersIcon },
-        { to: p('members/agents'), label: 'Agents (org)', Icon: AgentsIcon },
-        { to: p('org/settings'), label: 'Org Settings', Icon: SettingsIcon },
+        { to: p('members/agents'), label: 'Agents (organization)', Icon: AgentsIcon },
+        { to: p('org/settings'), label: 'Organization Settings', Icon: SettingsIcon },
       ],
     },
     {
@@ -644,7 +648,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
                 if (!slug || slug === autoSlug(name)) setSlug(autoSlug(e.target.value));
               }}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="My Org"
+              placeholder="My Organization"
             />
           </div>
           <div className="space-y-1">

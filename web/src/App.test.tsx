@@ -94,9 +94,15 @@ describe('App shell + route tree', () => {
       'Projects',
       'Agents',
       'Settings',
+      // v2.7 #151: org group renamed + labels spelled out (no "Org" abbrev).
+      'Organization',
+      'Organization Settings',
     ]) {
       expect(nav).toHaveTextContent(label);
     }
+    // v2.7 #151: no abbreviated "Org" labels in the nav.
+    expect(nav).not.toHaveTextContent('Org Settings');
+    expect(nav).not.toHaveTextContent('Agents (org)');
     // Input Requests nav entry removed (#131 PR-4).
     expect(nav).not.toHaveTextContent('Input Requests');
     // Issues / Tasks no longer have global nav entries (v2.7).
