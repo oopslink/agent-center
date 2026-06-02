@@ -896,6 +896,17 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "missing_identity_id", "identity_id required")
 		return
 	}
+	// v2.7 #158: validate the ref FORMAT up-front (mirrors createDM's member
+	// check). A malformed identity (no user:/agent: prefix) is a client error —
+	// reject with 400 instead of letting the Invite service's validation error
+	// bubble through mapDomainError into an opaque 500 (which also leaked the
+	// ADR-0033 rule text). Well-formed-but-nonexistent refs keep existing behavior.
+	inviteRef := conversation.IdentityRef(req.IdentityID)
+	if err := inviteRef.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_identity_id",
+			"identity_id must be a valid ref (user:<id> or agent:<id>)")
+		return
+	}
 	// Resolve channel name from conv id (ParticipantManagementService
 	// takes name; we look up by id first).
 	c, err := d.ConvRepo.FindByID(r.Context(), convID)
@@ -909,7 +920,7 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 	}
 	evID, err := d.ParticipantMgmtSvc.Invite(r.Context(), convservice.InviteCommand{
 		ConversationName: c.Name(),
-		IdentityID:       conversation.IdentityRef(req.IdentityID),
+		IdentityID:       inviteRef,
 		Role:             req.Role,
 		InvitedBy:        conversation.IdentityRef(d.Actor),
 		Actor:            d.Actor,
