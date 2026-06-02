@@ -115,10 +115,6 @@ func runByName(t *testing.T, app *App, group string, names ...string) func(args 
 		switch group {
 		case "worker":
 			cmds = app.WorkerCommands()
-		case "project":
-			cmds = app.ProjectCommands()
-		case "conversation":
-			cmds = app.ConversationCommands()
 		}
 		cmd := findCmd(cmds, names[0])
 		for _, n := range names[1:] {
@@ -224,118 +220,6 @@ func TestCLI_WorkerList_InvalidStatus(t *testing.T) {
 	_, _, code := run([]string{"--status=bogus"})
 	if code != ExitUsage {
 		t.Fatalf("code: %d", code)
-	}
-}
-
-// =============================================================================
-// project CRUD
-// =============================================================================
-
-func TestCLI_ProjectList_All(t *testing.T) {
-	app := newTestApp(t)
-	// Seed two projects directly via the workforce service (the `project add`
-	// CLI command was removed in #132); the read assertion is on `project list`.
-	seedProject(t, app, "a", "a")
-	seedProject(t, app, "b", "b")
-	list := runByName(t, app, "project", "list")
-	out, _, _ := list([]string{"--format=json"})
-	var arr []map[string]any
-	_ = json.Unmarshal([]byte(out), &arr)
-	if len(arr) != 2 {
-		t.Fatalf("got %d", len(arr))
-	}
-}
-
-// =============================================================================
-// conversation
-// =============================================================================
-
-func TestCLI_ConvAddMessage_Happy(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	out, _, code := open([]string{"--kind=dm", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	convID := r["conversation_id"].(string)
-	add := runByName(t, app, "conversation", "add-message")
-	out, _, code = add([]string{convID, "--kind=text", "--content=hello", "--direction=internal", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d out: %s", code, out)
-	}
-}
-
-func TestCLI_ConvAddMessage_Closed(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	out, _, _ := open([]string{"--kind=dm", "--format=json"})
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	convID := r["conversation_id"].(string)
-	closeC := runByName(t, app, "conversation", "close")
-	_, _, _ = closeC([]string{convID, "--reason=done", "--message=ok", "--version=1"})
-	add := runByName(t, app, "conversation", "add-message")
-	_, errOut, code := add([]string{convID, "--kind=text", "--content=x", "--direction=internal", "--format=json"})
-	if code != ExitBusinessError {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "conversation_closed") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ConvList_TaskKind_Empty(t *testing.T) {
-	app := newTestApp(t)
-	list := runByName(t, app, "conversation", "list")
-	out, _, code := list([]string{"--kind=task", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	if strings.TrimSpace(out) != "null" && strings.TrimSpace(out) != "[]" {
-		t.Fatalf("expected empty: %s", out)
-	}
-}
-
-func TestCLI_ConvOpen_BadKind(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	_, _, code := open([]string{"--kind=bogus"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvOpen_TaskKind_Rejected(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	_, errOut, code := open([]string{"--kind=task"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "conversation_invalid_kind") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ConvRead_Tail(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	out, _, _ := open([]string{"--kind=dm", "--format=json"})
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	convID := r["conversation_id"].(string)
-	add := runByName(t, app, "conversation", "add-message")
-	for i := 0; i < 3; i++ {
-		_, _, _ = add([]string{convID, "--kind=text", "--content=msg", "--direction=internal"})
-	}
-	read := runByName(t, app, "conversation", "read")
-	out, _, _ = read([]string{convID, "--tail=2", "--format=json"})
-	var arr []map[string]any
-	_ = json.Unmarshal([]byte(out), &arr)
-	if len(arr) != 2 {
-		t.Fatalf("got %d", len(arr))
 	}
 }
 
@@ -578,7 +462,8 @@ func TestBuildRouter_AddsAllSubcommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"version", "server", "migrate", "admin", "worker", "project", "conversation"} {
+	// v2.7 #162: data CLI commands retired; only deployment/lifecycle remain.
+	for _, name := range []string{"version", "server", "migrate", "admin", "worker", "install"} {
 		if findSubcommand(router.Root, name) == nil {
 			t.Fatalf("missing top-level command: %s", name)
 		}
@@ -643,13 +528,6 @@ func TestBuildPlaceholderApp(t *testing.T) {
 	_ = app.DB.Close()
 }
 
-func TestApp_DefaultActor(t *testing.T) {
-	app := newTestApp(t)
-	if string(app.DefaultActor()) != "user:hayang" {
-		t.Fatalf("got %v", app.DefaultActor())
-	}
-}
-
 func TestApp_NewApp_NilDB(t *testing.T) {
 	_, err := NewApp(config.DefaultConfig(), nil, nil)
 	if err == nil {
@@ -701,7 +579,7 @@ func TestMigrateCommand_RunsUp(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
-	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n"); err != nil {
+	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n"); err != nil {
 		t.Fatal(err)
 	}
 	stdout, _, code := runHandler(t, cmd, []string{"--config=" + cfgPath})
@@ -732,7 +610,7 @@ func TestMigrateCommand_TargetDown(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
-	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n"); err != nil {
+	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n"); err != nil {
 		t.Fatal(err)
 	}
 	// First run --up to populate to head.
@@ -765,7 +643,7 @@ func TestServerCommand_MigrateOnly(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
-	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n")
+	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n")
 	stdout, _, code := runHandler(t, cmd, []string{"--config=" + cfgPath, "--migrate-only"})
 	if code != ExitOK {
 		t.Fatalf("code: %d", code)
@@ -796,7 +674,7 @@ func TestServerCommand_CtxCancelExitsCleanly(t *testing.T) {
 	if err := writeTestMasterKey(mkPath); err != nil {
 		t.Fatal(err)
 	}
-	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\nsecret_management:\n  master_key_file: '"+mkPath+"'\n  skip_perms_check: true\n")
+	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nsecret_management:\n  master_key_file: '"+mkPath+"'\n  skip_perms_check: true\n")
 
 	// Build the handler directly so we can pass our own ctx.
 	fs := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)

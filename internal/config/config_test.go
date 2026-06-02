@@ -26,9 +26,6 @@ func TestLoad_DefaultsWhenNoPath(t *testing.T) {
 	if cfg.Server.ListenAddr != ":7000" {
 		t.Fatalf("default listen_addr: got %q", cfg.Server.ListenAddr)
 	}
-	if cfg.Identity.DefaultUser != "hayang" {
-		t.Fatalf("default user: got %q", cfg.Identity.DefaultUser)
-	}
 }
 
 func TestLoad_FromYAML(t *testing.T) {
@@ -39,8 +36,6 @@ server:
   admin_socket_path: "/tmp/x.sock"
 notification:
   default_channel: "web:user:hayang:dm"
-identity:
-  default_user: "alice"
 `)
 	cfg, err := Load(LoadOptions{Path: path})
 	if err != nil {
@@ -49,8 +44,8 @@ identity:
 	if cfg.Server.ListenAddr != ":8888" {
 		t.Fatalf("listen_addr: got %q", cfg.Server.ListenAddr)
 	}
-	if cfg.Identity.DefaultUser != "alice" {
-		t.Fatalf("default_user: got %q", cfg.Identity.DefaultUser)
+	if cfg.Notification.DefaultChannel != "web:user:hayang:dm" {
+		t.Fatalf("default_channel: got %q", cfg.Notification.DefaultChannel)
 	}
 }
 
@@ -136,17 +131,6 @@ server:
 	}
 	if !strings.Contains(err.Error(), "listen_addr") {
 		t.Fatalf("error missing listen_addr: %v", err)
-	}
-}
-
-func TestLoad_RejectsBadIdentity(t *testing.T) {
-	path := writeYAML(t, `
-identity:
-  default_user: "bad user"
-`)
-	_, err := Load(LoadOptions{Path: path})
-	if err == nil {
-		t.Fatal("expected error for invalid user")
 	}
 }
 
@@ -255,7 +239,6 @@ func TestApplyEnvOverrides_AllKnownKeys(t *testing.T) {
 		"AGENT_CENTER_SERVER_SQLITE_PATH":           "/p.db",
 		"AGENT_CENTER_SERVER_ADMIN_SOCKET_PATH":     "/a.sock",
 		"AGENT_CENTER_NOTIFICATION_DEFAULT_CHANNEL": "x:y:z",
-		"AGENT_CENTER_IDENTITY_DEFAULT_USER":        "alice",
 	}
 	cfg, err := Load(LoadOptions{
 		Env: func(k string) (string, bool) {
@@ -278,17 +261,13 @@ func TestApplyEnvOverrides_AllKnownKeys(t *testing.T) {
 	if cfg.Notification.DefaultChannel != "x:y:z" {
 		t.Fatal()
 	}
-	if cfg.Identity.DefaultUser != "alice" {
-		t.Fatal()
-	}
 }
 
 func TestApplyFlagOverrides_AllKnownKeys(t *testing.T) {
 	cfg, err := Load(LoadOptions{
 		FlagOverrides: map[string]string{
-			"server.listen_addr":    ":5555",
-			"server.sqlite_path":    "/x.db",
-			"identity.default_user": "bob",
+			"server.listen_addr": ":5555",
+			"server.sqlite_path": "/x.db",
 		},
 	})
 	if err != nil {
@@ -300,23 +279,19 @@ func TestApplyFlagOverrides_AllKnownKeys(t *testing.T) {
 	if cfg.Server.SqlitePath != "/x.db" {
 		t.Fatal()
 	}
-	if cfg.Identity.DefaultUser != "bob" {
-		t.Fatal()
-	}
 }
 
 func TestValidate_AllMissingFields(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Server.ListenAddr = ""
 	cfg.Server.SqlitePath = ""
-	cfg.Identity.DefaultUser = ""
 	err := validate(&cfg)
 	if err == nil {
 		t.Fatal()
 	}
 	reasons := AsErrorList(err)
-	if len(reasons) < 3 {
-		t.Fatalf("expected 3 reasons: %v", reasons)
+	if len(reasons) < 2 {
+		t.Fatalf("expected 2 reasons: %v", reasons)
 	}
 }
 

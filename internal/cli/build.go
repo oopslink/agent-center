@@ -116,58 +116,17 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 		return nil, "", err
 	}
 
-	// project group
-	for _, c := range provider.projectCommands() {
-		if err := router.Add([]string{"project"}, c); err != nil {
-			return nil, "", err
-		}
-	}
-
-	// conversation group
-	for _, c := range provider.conversationCommands() {
-		if err := router.Add([]string{"conversation"}, c); err != nil {
-			return nil, "", err
-		}
-	}
-
-	// message group (ADR-0035 CV3 reverse lookup).
-	for _, c := range provider.messageCommands() {
-		if err := router.Add([]string{"message"}, c); err != nil {
-			return nil, "", err
-		}
-	}
-
-	// agent group (ADR-0024 / ADR-0029 — AgentInstance + Identity auto-register).
-	for _, c := range provider.agentCommands() {
-		if err := router.Add([]string{"agent"}, c); err != nil {
-			return nil, "", err
-		}
-	}
-
-
-	// secret group (P11 § 3.7b — user-owned UserSecret CRUD).
-	for _, c := range provider.secretCommands() {
-		if err := router.Add([]string{"secret"}, c); err != nil {
-			return nil, "", err
-		}
-	}
-
-	// channel group (ADR-0032 CV1 — first-class channel commands).
-	for _, c := range provider.channelCommands() {
-		if err := router.Add([]string{"channel"}, c); err != nil {
-			return nil, "", err
-		}
-	}
+	// v2.7 #162: ALL data-management + data-read CLI command groups are retired
+	// — management/inspection is webconsole-only now. Removed: agent / secret /
+	// channel / conversation (management, used the now-deleted DefaultActor /
+	// identity.default_user), project / message (read), and observability
+	// (inspect / query / ps / stats / logs / peek-trace, read). KEPT below:
+	// deployment / lifecycle / operator commands only (server, install, uninstall,
+	// upgrade, migrate, bootstrap, worker, admin, version, help).
 
 	// worker shim placeholder (system audience)
 	if err := router.Add([]string{"worker"}, WorkerShimPlaceholder()); err != nil {
 		return nil, "", err
-	}
-	// Observability verbs (top-level): inspect / query / ps / stats / logs / peek-trace
-	for _, c := range provider.observabilityCommands() {
-		if err := router.Add(nil, c); err != nil {
-			return nil, "", err
-		}
 	}
 
 	// Phase 7: `admin backup`.
@@ -435,90 +394,6 @@ func (l *lazyApp) workerCommands() []*Command {
 			return findCmd(c, "status")
 		}),
 	)
-	return out
-}
-
-func (l *lazyApp) projectCommands() []*Command {
-	names := []string{"list", "show"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.ProjectCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) conversationCommands() []*Command {
-	names := []string{"open", "add-message", "send", "list", "read", "tail", "show", "refs", "close"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.ConversationCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) messageCommands() []*Command {
-	names := []string{"refs"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.MessageCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) agentCommands() []*Command {
-	names := []string{"create", "list", "show", "archive"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.AgentCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) secretCommands() []*Command {
-	names := []string{"list", "show", "create", "revoke"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.SecretCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) channelCommands() []*Command {
-	names := []string{"create", "list", "show", "archive", "invite", "leave", "kick", "participants"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.ChannelCommands(), n)
-		}))
-	}
-	return out
-}
-
-func (l *lazyApp) observabilityCommands() []*Command {
-	names := []string{"inspect", "query", "ps", "stats", "logs", "peek-trace"}
-	out := make([]*Command, 0, len(names))
-	for _, n := range names {
-		n := n
-		out = append(out, l.withApp(func(a *App) *Command {
-			return findCmd(a.ObservabilityCommands(), n)
-		}))
-	}
 	return out
 }
 

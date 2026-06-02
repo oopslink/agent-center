@@ -439,10 +439,16 @@ func NewClientApp(cfg config.Config, client *Client) *App {
 	}
 }
 
-// DefaultActor returns the configured single-user identity wrapped in the
-// observability.Actor type.
-func (a *App) DefaultActor() observability.Actor {
-	return observability.Actor("user:" + a.Config.Identity.DefaultUser)
+// operatorActor is the actor stamped on the few remaining server-side
+// system/operator operations that have no logged-in session (the reconciler,
+// admin rate-limit sink, the webconsole's no-session deps fallback, and worker
+// commands). v2.7 #162: replaces the old config-derived DefaultActor — the CLI
+// data-management commands that needed a user identity were retired, and
+// identity.default_user was removed, so a fixed system actor is correct here.
+func (a *App) operatorActor() observability.Actor {
+	// "system" is the canonical system actor (ADR-0033: bare "system" is valid;
+	// "system:<x>" is NOT — the prefixed scopes are user:/supervisor:/worker:/agent:).
+	return observability.Actor("system")
 }
 
 // OpenAndMigrate is a convenience that opens the DB pointed to by cfg

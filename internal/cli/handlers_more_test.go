@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -65,185 +64,6 @@ func TestCLI_WorkerStatus_HumanFormat(t *testing.T) {
 	}
 }
 
-func TestCLI_ProjectShow(t *testing.T) {
-	app := newTestApp(t)
-	seedProject(t, app, "p", "p")
-	show := runByName(t, app, "project", "show")
-	out, _, code := show([]string{"p", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["project_id"] != "p" {
-		t.Fatalf("got %v", r)
-	}
-}
-
-func TestCLI_ProjectShow_HumanFormat(t *testing.T) {
-	app := newTestApp(t)
-	seedProject(t, app, "p", "Pname")
-	show := runByName(t, app, "project", "show")
-	stdout, _, _ := show([]string{"p"})
-	if !strings.Contains(stdout, "Pname") {
-		t.Fatalf("got %s", stdout)
-	}
-}
-
-func TestCLI_ProjectShow_NotFound(t *testing.T) {
-	app := newTestApp(t)
-	show := runByName(t, app, "project", "show")
-	_, _, code := show([]string{"nope"})
-	if code != ExitNotFound {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectShow_MissingArg(t *testing.T) {
-	app := newTestApp(t)
-	show := runByName(t, app, "project", "show")
-	_, _, code := show([]string{})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectList_BadKind(t *testing.T) {
-	app := newTestApp(t)
-	list := runByName(t, app, "project", "list")
-	_, _, code := list([]string{"--kind=bogus"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectList_HumanFormat(t *testing.T) {
-	app := newTestApp(t)
-	seedProject(t, app, "p", "PName")
-	list := runByName(t, app, "project", "list")
-	stdout, _, _ := list([]string{})
-	if !strings.Contains(stdout, "PName") {
-		t.Fatalf("got %s", stdout)
-	}
-}
-
-func TestCLI_ConvAddMessage_MissingID(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "conversation", "add-message")
-	_, _, code := add([]string{"--kind=text"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvAddMessage_BadKind(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "conversation", "add-message")
-	_, _, code := add([]string{"C-1", "--kind=bogus", "--name=C-1"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvAddMessage_BadDirection(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "conversation", "add-message")
-	_, _, code := add([]string{"C-1", "--direction=bogus", "--name=C-1"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvList_BadKind(t *testing.T) {
-	app := newTestApp(t)
-	list := runByName(t, app, "conversation", "list")
-	_, _, code := list([]string{"--kind=bogus"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvList_BadStatus(t *testing.T) {
-	app := newTestApp(t)
-	list := runByName(t, app, "conversation", "list")
-	_, _, code := list([]string{"--status=bogus"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvList_HumanFormat(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	_, _, _ = open([]string{"--kind=dm", "--name=My Name"})
-	list := runByName(t, app, "conversation", "list")
-	stdout, _, _ := list([]string{})
-	if !strings.Contains(stdout, "My Name") {
-		t.Fatalf("got %s", stdout)
-	}
-}
-
-func TestCLI_ConvRead_MissingID(t *testing.T) {
-	app := newTestApp(t)
-	read := runByName(t, app, "conversation", "read")
-	_, _, code := read([]string{})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvRead_Since_BadFormat(t *testing.T) {
-	app := newTestApp(t)
-	read := runByName(t, app, "conversation", "read")
-	_, _, code := read([]string{"C-X", "--since=notatime"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvRead_HumanFormat(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	stdout, _, _ := open([]string{"--kind=dm", "--format=json"})
-	var r map[string]any
-	_ = json.Unmarshal([]byte(stdout), &r)
-	convID := r["conversation_id"].(string)
-	add := runByName(t, app, "conversation", "add-message")
-	_, _, _ = add([]string{convID, "--kind=text", "--content=hello", "--direction=internal"})
-	read := runByName(t, app, "conversation", "read")
-	stdout, _, _ = read([]string{convID})
-	if !strings.Contains(stdout, "hello") {
-		t.Fatalf("got %s", stdout)
-	}
-}
-
-func TestCLI_ConvClose_Missing(t *testing.T) {
-	app := newTestApp(t)
-	closeC := runByName(t, app, "conversation", "close")
-	_, _, code := closeC([]string{})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvClose_MissingReason(t *testing.T) {
-	app := newTestApp(t)
-	closeC := runByName(t, app, "conversation", "close")
-	_, _, code := closeC([]string{"C-X", "--version=1"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvClose_MissingVersion(t *testing.T) {
-	app := newTestApp(t)
-	closeC := runByName(t, app, "conversation", "close")
-	_, _, code := closeC([]string{"C-X", "--reason=x", "--message=y"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
 func TestWorkerToMap_WithHeartbeat(t *testing.T) {
 	w, _ := workforce.NewWorker(workforce.NewWorkerInput{
 		ID: "W-1", EnrolledAt: timeNow(),
@@ -252,31 +72,6 @@ func TestWorkerToMap_WithHeartbeat(t *testing.T) {
 	m := workerToMap(w)
 	if _, ok := m["last_heartbeat_at"]; !ok {
 		t.Fatal("expected last_heartbeat_at field")
-	}
-}
-
-func TestConvToMap(t *testing.T) {
-	c, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID: "C-1", Kind: conversation.ConversationKindDM,
-		CreatedBy: conversation.IdentityRef("system"), OpenedAt: timeNow(),
-	})
-	m := convToMap(c)
-	if m["conversation_id"] != "C-1" {
-		t.Fatal()
-	}
-}
-
-func TestMsgToMap_Roundtrip(t *testing.T) {
-	mm, _ := conversation.NewMessage(conversation.NewMessageInput{
-		ID: "M-1", ConversationID: "C-1", SenderIdentityID: "user:x",
-		ContentKind: conversation.MessageContentText,
-		Direction:   conversation.DirectionInbound,
-		Content:     "hi",
-		PostedAt:    timeNow(),
-	})
-	m := msgToMap(mm)
-	if m["message_id"] != "M-1" {
-		t.Fatal()
 	}
 }
 
@@ -295,7 +90,7 @@ func TestLazyApp_BuildOK(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/x.db"
-	_ = writeFileImpl(cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n")
+	_ = writeFileImpl(cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n")
 	provider := &lazyApp{cfgPath: cfgPath}
 	app, err := provider.build()
 	if err != nil {
@@ -314,7 +109,7 @@ func TestBuildRouter_LazyResourceCmd(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/x.db"
-	_ = writeFileImpl(cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n")
+	_ = writeFileImpl(cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n")
 	args := []string{"--config=" + cfgPath, "worker", "enroll", "--worker-id=W-1", "--format=json"}
 	router, _, err := BuildRouter("v", "c", args)
 	if err != nil {
@@ -338,7 +133,7 @@ func TestBuildRouter_LazyResourceCmd_BadConfig(t *testing.T) {
 func TestLazyApp_Build_BadDBPath(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
-	_ = writeFileImpl(cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '/proc/no/such/file'\nidentity:\n  default_user: hayang\n")
+	_ = writeFileImpl(cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '/proc/no/such/file'\n")
 	provider := &lazyApp{cfgPath: cfgPath}
 	_, err := provider.build()
 	if err == nil {

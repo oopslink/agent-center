@@ -157,7 +157,7 @@ func ServerCommand() *Command {
 					if adminInfo.TLSExpiryWarn && app.Sink != nil {
 						_, _ = app.Sink.Emit(ctx, observability.EmitCommand{
 							EventType: "admin.tcp_cert_expiring",
-							Actor:     app.DefaultActor(),
+							Actor:     app.operatorActor(),
 							Payload: map[string]any{
 								"cert_path":      cfg.Server.AdminTLSCertPath,
 								"expires_at":     adminInfo.TLSCertNotAfter.UTC().Format(time.RFC3339),
@@ -212,7 +212,7 @@ func ServerCommand() *Command {
 				reconciler := wfservice.NewHeartbeatReconciler(app.WorkerRepo, app.Sink, nil, 0, 0)
 				reconcilerCtx, reconcilerCancel := context.WithCancel(ctx)
 				go func() {
-					_ = reconciler.Run(reconcilerCtx, app.DefaultActor())
+					_ = reconciler.Run(reconcilerCtx, app.operatorActor())
 				}()
 				defer reconcilerCancel()
 

@@ -26,7 +26,6 @@ import (
 type Config struct {
 	Server           ServerConfig           `yaml:"server"`
 	Notification     NotificationConfig     `yaml:"notification"`
-	Identity         IdentityConfig         `yaml:"identity"`
 	Execution        ExecutionConfig        `yaml:"execution"`
 	BlobStore        BlobStoreConfig        `yaml:"blob_store"`
 	Peek             PeekConfig             `yaml:"peek"`
@@ -157,13 +156,6 @@ func (e ExecutionConfig) KillGrace() time.Duration {
 	return time.Duration(e.KillGraceSeconds) * time.Second
 }
 
-// IdentityConfig captures the v1 single-user default actor written into CLI
-// emitted events. Not in 04-configuration § 7 yet — we add it here as a
-// Phase 1 v1 simplification per plan § 6 R4 / R5 (Identity AR is Phase 5).
-type IdentityConfig struct {
-	DefaultUser string `yaml:"default_user"`
-}
-
 // DefaultConfig returns a Config seeded with the defaults from 04 § 7.
 func DefaultConfig() Config {
 	return Config{
@@ -174,9 +166,6 @@ func DefaultConfig() Config {
 		},
 		Notification: NotificationConfig{
 			DefaultChannel: "",
-		},
-		Identity: IdentityConfig{
-			DefaultUser: "hayang",
 		},
 		Execution: ExecutionConfig{
 			SubmittedTimeoutSeconds:    300,
@@ -338,9 +327,6 @@ func collectKnownKeys(cfg Config) keyTree {
 		},
 		"notification": keyTree{
 			"default_channel": nil,
-		},
-		"identity": keyTree{
-			"default_user": nil,
 		},
 		"blob_store": keyTree{
 			"kind": nil,
@@ -513,10 +499,6 @@ func applyEnvOverrides(cfg *Config, env func(string) (string, bool)) error {
 			cfg.Notification.DefaultChannel = v
 			return nil
 		}},
-		{"AGENT_CENTER_IDENTITY_DEFAULT_USER", func(v string) error {
-			cfg.Identity.DefaultUser = v
-			return nil
-		}},
 	}
 	var errs []string
 	for _, b := range bindings {
@@ -549,10 +531,6 @@ func applyFlagOverrides(cfg *Config, flags map[string]string) error {
 			cfg.Server.SqlitePath = v
 			return nil
 		},
-		"identity.default_user": func(v string) error {
-			cfg.Identity.DefaultUser = v
-			return nil
-		},
 	}
 	var errs []string
 	for k, v := range flags {
@@ -578,12 +556,6 @@ func validate(cfg *Config) error {
 	}
 	if strings.TrimSpace(cfg.Server.SqlitePath) == "" {
 		errs = append(errs, "server.sqlite_path: required")
-	}
-	if strings.TrimSpace(cfg.Identity.DefaultUser) == "" {
-		errs = append(errs, "identity.default_user: required")
-	}
-	if cfg.Identity.DefaultUser != "" && strings.ContainsAny(cfg.Identity.DefaultUser, " :") {
-		errs = append(errs, fmt.Sprintf("identity.default_user %q: must not contain space or ':'", cfg.Identity.DefaultUser))
 	}
 	if len(errs) > 0 {
 		return &ConfigError{Reasons: errs}

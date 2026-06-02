@@ -70,7 +70,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	cfg := fmt.Sprintf(
-		"server:\n  listen_addr: ':7000'\n  sqlite_path: '%s'\n  admin_socket_path: '%s/admin.sock'\nidentity:\n  default_user: hayang\nsecret_management:\n  master_key_file: '%s'\n  skip_perms_check: true\n",
+		"server:\n  listen_addr: ':7000'\n  sqlite_path: '%s'\n  admin_socket_path: '%s/admin.sock'\nsecret_management:\n  master_key_file: '%s'\n  skip_perms_check: true\n",
 		dbPath, dir, mkPath,
 	)
 	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
@@ -165,30 +165,6 @@ func TestE2E1_WorkerEnrollListStatus(t *testing.T) {
 }
 
 // =============================================================================
-// E2E-4: conversation open → add → read
-// =============================================================================
-
-func TestE2E4_ConversationOpenAddRead(t *testing.T) {
-	h := newHarness(t)
-	res, code := h.runJSON("conversation", "open", "--kind=dm", "--name=DM")
-	if code != 0 {
-		t.Fatalf("open: %d", code)
-	}
-	cid := res["conversation_id"].(string)
-	for i := 0; i < 3; i++ {
-		_, _, c := h.run("conversation", "add-message", cid,
-			"--kind=text", "--content=hi"+fmt.Sprint(i), "--direction=internal")
-		if c != 0 {
-			t.Fatalf("add-message #%d: %d", i, c)
-		}
-	}
-	msgs, _ := h.runJSONArray("conversation", "read", cid)
-	if len(msgs) != 3 {
-		t.Fatalf("got %d", len(msgs))
-	}
-}
-
-// =============================================================================
 // E2E-5: worker enroll → events table contains worker.enrolled row
 // =============================================================================
 
@@ -205,32 +181,9 @@ func TestE2E5_EnrollEmitsEvent(t *testing.T) {
 	if !strings.Contains(rows[0]["refs"], `"worker_id":"W-1"`) {
 		t.Fatalf("refs: %s", rows[0]["refs"])
 	}
-	if !strings.Contains(rows[0]["actor"], "user:hayang") {
+	// v2.7 #162: CLI operations stamp the "system" operator actor (identity.default_user removed).
+	if !strings.Contains(rows[0]["actor"], "system") {
 		t.Fatalf("actor: %s", rows[0]["actor"])
-	}
-}
-
-// =============================================================================
-// E2E-7: conversation flow → 2 events (opened + message_added)
-// =============================================================================
-
-func TestE2E7_ConversationEvents(t *testing.T) {
-	h := newHarness(t)
-	res, _ := h.runJSON("conversation", "open", "--kind=dm")
-	cid := res["conversation_id"].(string)
-	if _, _, c := h.run("conversation", "add-message", cid,
-		"--kind=text", "--content=hi", "--direction=internal"); c != 0 {
-		t.Fatal()
-	}
-	rows := h.queryEvents(t, `SELECT event_type FROM events WHERE event_type LIKE 'conversation.%' ORDER BY seq`)
-	if len(rows) != 2 {
-		t.Fatalf("got %d rows: %v", len(rows), rows)
-	}
-	if rows[0]["event_type"] != "conversation.opened" {
-		t.Fatalf("event[0]: %s", rows[0]["event_type"])
-	}
-	if rows[1]["event_type"] != "conversation.message_added" {
-		t.Fatalf("event[1]: %s", rows[1]["event_type"])
 	}
 }
 
@@ -389,7 +342,8 @@ func TestE2E_Help(t *testing.T) {
 	if code != 0 {
 		t.Fatal()
 	}
-	if !strings.Contains(stdout, "worker") || !strings.Contains(stdout, "project") {
+	// v2.7 #162: "project" (and other data CLI commands) retired; "worker" + "install" remain.
+	if !strings.Contains(stdout, "worker") || !strings.Contains(stdout, "install") {
 		t.Fatalf("help: %s", stdout)
 	}
 }

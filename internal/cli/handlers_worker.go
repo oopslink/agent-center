@@ -75,7 +75,7 @@ func (a *App) workerEnrollHandler(fs *flag.FlagSet) Handler {
 			res, err := a.EnrollSvc.Enroll(ctx, wfservice.EnrollCommand{
 				WorkerID:      workforce.WorkerID(*workerID),
 				Capabilities:  caps,
-				ActorIdentity: a.DefaultActor(),
+				ActorIdentity: a.operatorActor(),
 			})
 			if err != nil {
 				return HandleDomainError(errw, *format, err)
