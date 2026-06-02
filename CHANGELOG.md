@@ -13,6 +13,140 @@ ADR / phase plan landscape, see
 
 ## [Unreleased]
 
+> **v2.7.0 release draft (DRAFT — PD finalizes version + date at E2).** v2.7 is
+> the agent-execution rearchitecture: a new Agent / WorkItem / Environment domain
+> model replaces the legacy task-runtime execution engine, workers survive daemon
+> restarts and self-heal, and ~26k lines of the old stack are deleted. Items
+> marked _(pending merge at draft time)_ were still in review when this draft was
+> written — confirm they landed before tagging.
+
+### Breaking changes
+
+- **Fresh install required — no in-place upgrade, all data is lost.** v2.7
+  replaces the execution and project/task data model wholesale; the database is
+  **dropped and recreated** on install. Existing v2.5/v2.6 data — channels,
+  conversations, projects, tasks, issues, agents, workers, secrets — is **not**
+  migrated and will be lost. v2.7 always builds the new-model schema on a clean
+  DB (migrations Option A: the retired legacy tables are never created); pointing
+  v2.7 at a v2.6 database is unsupported. Back up anything you need before
+  installing. See **Migration** below.
+- **Legacy execution stack removed.** The `taskruntime` execution engine, the
+  `discussion` bounded context, the old `task` / `issue` / `project` domain
+  models, the dispatch/kill queue path, the agent-instance shim, and the legacy
+  observability projections are deleted. All execution now flows through the new
+  Agent BC + AgentWorkItem model on the control loop. CLI old-model management
+  and write commands are removed (#132).
+- **Worker `--capabilities` flag removed.** Workers auto-discover their installed
+  agent CLIs on every online; manual capability declaration is gone (#147)
+  _(pending merge at draft time)_.
+
+### Added
+
+- **Agent execution domain (new model).** Agent BC + `AgentWorkItem` aggregate
+  (the unit of execution), `agent_work_items` + `agent_activity_events`
+  persistence, and `agent_work_item_projections` (mig 0046) aggregating execution
+  status / tokens / tool-calls / working-seconds / current-activity — the new
+  equivalent of the retired task-execution projections. Work-item transitions emit
+  `agent.work_item_transitioned` and fan out to the observability event store
+  (stats) and a pm.Task status-sync projector (assigned→running on active,
+  completed on done; terminal agent-death → task blocked) (#111).
+- **ProjectManager BC.** `pm_projects` / `pm_tasks` / `pm_issues` + project
+  membership and code-repo refs — the single canonical project/task/issue model
+  the whole read side now points at.
+- **Environment / Worker control-channel (D1).** `environment.Worker` AR for the
+  control-connected view (status / last-acked-offset / heartbeat), enrollment, and
+  the control loop that drives agent execution.
+- **Survive-and-reattach worker architecture (D2 control-loop cutover).** A
+  persistent agent-supervisor process owns each `claude` session and survives
+  worker-daemon restarts; the daemon re-attaches over a unix-socket RPC
+  (inject/read/ack) on boot-reconcile, replaying resume-state. Durable
+  reset-epoch + session-id plumbing gives a clean-slate session on reset. The
+  standalone worker-daemon is retired in favor of `worker run`.
+- **GATE-7 Mode-B crash recovery.** A hard-killed (kill-9 / OOM) agent self-heals:
+  a mid-run state machine relaunches with exponential backoff + a cap, and a
+  crash-loop past the cap trips a terminal `LifecycleFailed` circuit-breaker. A
+  terminally-failed agent cascades its in-flight WorkItems (active + waiting_input)
+  → failed atomically, so a user's task never silently looks "still running"
+  (B1/B2/B3). The relaunch forks the killed session into a fresh generation id so
+  it sidesteps the session-id lock (see Fixed).
+- **D5 SSE control stream.** Server-sent control-command push from center → daemon
+  (replacing the poll path), with a wake-reconcile poll fallback (#108) _(pending
+  merge at draft time — runtime gate in progress)_.
+- **Message attachments.** Compose-time upload, metadata chips, and download in
+  the conversation UI (#133/#142), gated by attach-time and download-time
+  authorization (see Security below).
+- **Worker CLI auto-discovery.** On every online a worker probes its installed
+  agent CLIs (claude-code / codex / opencode), reports a rich capability set
+  (version + MCP/skills/session support) to the center over a new
+  `POST /admin/workforce/worker/capabilities` endpoint (caller-bound to its own
+  worker_id), and the center merges them — newly detected CLIs default enabled,
+  operator toggles are preserved. An operator toggle endpoint
+  (`PATCH /admin/workforce/worker/{id}/capabilities/{name}/enabled`) is included;
+  the webconsole toggle UI is deferred to v2.8 (#147) _(pending merge at draft
+  time)_.
+- **Webconsole pages on the new model (E1).** Fleet + overview read the work-item
+  model (input-request segment dropped); ProjectManager pages (project Members /
+  Code repos); Agent domain page; Environment page (control-connected workers +
+  agents + in-flight file-transfer sessions, all org-scoped); task/issue detail
+  pages embed their conversation with an owner banner + work-item segmentation
+  (#105/#134–#139).
+
+### Changed
+
+- **Observability read side repointed to the new model.** Fleet, stats, and
+  inspect/query for executions, tasks, and issues now read the pm / agent model
+  (`pm_tasks` / `pm_issues` / `agent_work_items` / `agent_work_item_projections`)
+  instead of the retired task-runtime / discussion tables, with org-scoped
+  fail-closed access at the source (#107 / #118 / #119 / #125 / #127 / #130).
+- **Agent-supervisor RPC drops the cross-version range gate** — a returning daemon
+  always re-attaches to a live supervisor (protocol assumed backward-compatible;
+  see Notes / Compatibility for the additive-only contract).
+
+### Removed
+
+- `internal/taskruntime/`, `internal/discussion/`, the legacy workforce execution
+  slice, the old observability projection packages, `internal/dispatchq/`, the
+  agent-instance shim, and the legacy trace package (~26k lines, #131).
+- Legacy CLI / admin / webconsole read + write surface for the old task/issue/
+  project model (#131 PR-4, #132).
+- The retired derive-from-conversation feature (CV4 entry point, #131 PR-2).
+- The fleet `open_input_requests` segment and the `input_request` inspect/query
+  verb (stale readers of the retired model, #118 / #127).
+- Worker `--capabilities` flag and its install/upgrade/run plumbing (#147)
+  _(pending merge at draft time)_.
+
+### Security
+
+- **Conversation attachment authorization (#142).** Attaching a file to a message
+  is gated by attach-time reachability (you can only attach a blob you can already
+  reach or that you uploaded); downloading is gated by current scope membership
+  (being a live conversation participant), **not** by "I once uploaded it" — so an
+  uploader removed from a conversation loses access (no permanent back-door).
+  Upload-session completion is gated to the session initiator. Both attach and
+  download rejects are **byte-for-byte indistinguishable** between
+  "doesn't exist" and "exists but cross-org" (no existence oracle); the two
+  bounded-context writes (message + file reference) commit atomically.
+- **Per-request actor — webconsole no longer stamps the static configured user
+  (#146).** Domain identity and audit actor are now derived from the authenticated
+  session per request instead of a static `default_user`, so a conversation's
+  owner/participants are the real logged-in users. (This also fixed the
+  attachment download ship-blocker: a creator could not download their own
+  attachment because the conversation owner had been stamped as `default_user`.)
+  The send-message endpoint ignores any client-supplied `sender_identity_id` and
+  always stamps the session identity (anti-spoofing).
+
+### Migration
+
+- **There is no migration path. v2.7 is a clean install on an empty database.**
+  Stop the v2.6 center/worker, **back up** the existing SQLite database if you
+  want to keep any data (it will not be readable by v2.7), then install v2.7,
+  which drops and recreates the schema with the new-model tables only. On first
+  boot a fresh install opens the browser to `/signup` (as in v2.6).
+- **Re-enroll workers.** Worker enrollment state lives in the recreated DB;
+  workers must re-enroll against the fresh center. Capabilities are auto-discovered
+  on online — do not pass `--capabilities` (removed).
+- **Bookmarks** remain `/organizations/{slug}/...` (unchanged from v2.6).
+
 ### Notes / Compatibility
 
 - **Agent-supervisor RPC protocol — backward-compatibility contract
