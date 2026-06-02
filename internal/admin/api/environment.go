@@ -54,6 +54,16 @@ func (s *Server) envWorkerConnectHandler(w http.ResponseWriter, r *http.Request)
 		mapDomainError(w, err) // workforce.ErrWorkerNotFound → 404
 		return
 	}
+	// v2.7 #148: a worker that enrolled via a bare admin token (not the
+	// org-domain install-command path) has no organization_id. Connecting it to
+	// the control channel is a missing precondition, not a server fault — reject
+	// with a clear 409 instead of letting the empty-org error bubble through
+	// ConnectWorker → environment.NewWorker into an opaque 500.
+	if wfw.OrganizationID() == "" {
+		writeError(w, http.StatusConflict, "worker_not_org_enrolled",
+			"worker is not enrolled in an organization; enroll it via the org install command before connecting")
+		return
+	}
 	worker, err := d.EnvControlSvc.ConnectWorker(r.Context(),
 		environment.WorkerID(req.WorkerID), wfw.OrganizationID())
 	if err != nil {
