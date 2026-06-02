@@ -72,9 +72,18 @@ func activateService(sp servicePaths, serviceID string, out io.Writer, skipActiv
 func serviceActivateCmds(sp servicePaths, serviceID string) []activationStep {
 	switch sp.ServiceManager {
 	case "launchd":
+		// Modern domain-target API (bootout/bootstrap), NOT the deprecated
+		// load/unload: `launchctl load` fails with "Load failed: 5: Input/output
+		// error" on Darwin 25.1.0+ (macOS 26), breaking install + upgrade. This
+		// mirrors the #72 teardown migration to `bootout gui/<uid>` — the
+		// activate/restart path had been missed. bootout (tolerated: the service
+		// may not be loaded yet on a fresh install, and on upgrade it removes the
+		// running old service) → bootstrap loads the plist, which starts the
+		// service via RunAtLoad=true. domain = gui/<uid> (same helper as teardown).
+		domain := launchdGUIDomain()
 		return []activationStep{
-			{Cmd: "launchctl unload " + sp.unitPathFor(serviceID), Tolerate: true},
-			{Cmd: "launchctl load " + sp.unitPathFor(serviceID)},
+			{Cmd: "launchctl bootout " + domain + " " + sp.unitPathFor(serviceID), Tolerate: true},
+			{Cmd: "launchctl bootstrap " + domain + " " + sp.unitPathFor(serviceID)},
 		}
 	case "systemd":
 		if sp.UserMode {
