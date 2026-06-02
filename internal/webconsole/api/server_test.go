@@ -91,6 +91,7 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	t.Helper()
 	deps, db := setupAPI(t)
 	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
+	deps.IdentityRepo = identity.NewSQLiteIdentityRepo(db)
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
 	// v2.7 B3: wire the ProjectManager service for the nested /api/projects/...
@@ -483,4 +484,90 @@ func TestServer_DecodeJSON_BadJSON(t *testing.T) {
 	if err := decodeJSON(req, &got); err == nil {
 		t.Fatal("expected parse error")
 	}
+}
+
+// stubSPA is a minimal embedded-SPA stand-in for routing tests: it 200s every
+// path so we can assert the auth middleware lets non-/api requests through.
+func stubSPA() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("SPA:" + r.URL.Path))
+	})
+}
+
+// v2.7 #145: the auth middleware must guard ONLY /api/* — the embedded SPA
+// (/, /signin, /signup, /assets/*) must be served to a fresh/unauth visitor,
+// not answered with a JSON 401. /api/* (non-public) stays gated; health +
+// auth/* (incl. bootstrap) stay public.
+func TestAPI_AuthMiddleware_OnlyGuardsAPI(t *testing.T) {
+	deps, _ := setupAPIWithAuth(t)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	for _, p := range []string{"/", "/signin", "/signup", "/assets/app.js"} {
+		resp, err := http.Get(s.URL + p)
+		if err != nil {
+			t.Fatalf("GET %s: %v", p, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized {
+			t.Errorf("GET %s (no cookie): got 401, want SPA passthrough", p)
+		}
+	}
+	resp, err := http.Get(s.URL + "/api/orgs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("GET /api/orgs (no cookie): got %d, want 401", resp.StatusCode)
+	}
+	for _, p := range []string{"/api/health", "/api/auth/bootstrap"} {
+		resp, err := http.Get(s.URL + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized {
+			t.Errorf("GET %s: got 401, want public", p)
+		}
+	}
+}
+
+// v2.7 #145: GET /api/auth/bootstrap reports initialized=false on a fresh
+// install (no users) and initialized=true once any user exists — letting the
+// SPA route to /signup vs /signin without an authenticated /api/orgs bounce.
+func TestAPI_Bootstrap_ReflectsUserExistence(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	if got := bootstrapInitialized(t, s.URL); got {
+		t.Errorf("fresh install: initialized=true, want false")
+	}
+	setupTestSession(t, db, deps) // provisions a user identity
+	if got := bootstrapInitialized(t, s.URL); !got {
+		t.Errorf("after user provisioned: initialized=false, want true")
+	}
+}
+
+func bootstrapInitialized(t *testing.T, base string) bool {
+	t.Helper()
+	resp, err := http.Get(base + "/api/auth/bootstrap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("bootstrap: status %d", resp.StatusCode)
+	}
+	var body struct {
+		Initialized bool `json:"initialized"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	return body.Initialized
 }

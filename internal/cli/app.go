@@ -148,6 +148,7 @@ type App struct {
 	IdentitySignoutSvc          *identity.SignoutService
 	IdentityAuthSvc             *identity.AuthService
 	IdentityPasscodeChangeSvc   *identity.PasscodeChangeService
+	IdentityRepo                identity.IdentityRepository
 	IdentityOrgRepo             identity.OrganizationRepository
 	IdentityOrgCreateSvc        *identity.OrganizationCreateService
 	IdentityOrgLifecycleSvc     *identity.OrganizationLifecycleService
@@ -383,6 +384,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IdentitySignoutSvc:          identitySignoutSvc,
 		IdentityAuthSvc:             identityAuthSvc,
 		IdentityPasscodeChangeSvc:   identityPasscodeChangeSvc,
+		IdentityRepo:                idIdentityRepo,
 		IdentityOrgRepo:             idOrgRepo,
 		IdentityOrgCreateSvc:        identityOrgCreateSvc,
 		IdentityOrgLifecycleSvc:     identityOrgLifecycleSvc,
