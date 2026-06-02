@@ -48,6 +48,16 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 		if wid, ok := agentWorker[m.IdentityID()]; ok {
 			row["worker_id"] = wid
 		}
+		// v2.7 #160: enrich with the identity's display name. The Member AR only
+		// carries identity_id; the UI needs a human name to render message senders
+		// + the participant list (else it shows the raw "user:<id>" ref).
+		// Best-effort — a miss leaves display_name unset and the UI falls back to
+		// the ref.
+		if d.IdentityRepo != nil {
+			if ident, err := d.IdentityRepo.GetByID(r.Context(), m.IdentityID()); err == nil && ident != nil {
+				row["display_name"] = ident.DisplayName()
+			}
+		}
 		arr = append(arr, row)
 	}
 	writeJSON(w, http.StatusOK, arr)

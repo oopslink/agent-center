@@ -1,7 +1,22 @@
+import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageList } from './MessageList';
 import type { Message } from '@/api/types';
+
+// v2.7 #160: MessageList now resolves sender display names via useMembers
+// (react-query), so renders need a QueryClient. With no /api/members data the
+// resolver falls back to the raw ref — these tests assert the ref unchanged.
+const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function render(ui: React.ReactElement) {
+  const utils = rtlRender(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return {
+    ...utils,
+    rerender: (next: React.ReactElement) =>
+      utils.rerender(<QueryClientProvider client={qc}>{next}</QueryClientProvider>),
+  };
+}
 
 const sample = (id: string, content: string): Message => ({
   id,
