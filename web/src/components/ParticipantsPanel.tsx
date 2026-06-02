@@ -4,6 +4,7 @@ import {
   useInviteParticipant,
   useRemoveParticipant,
 } from '@/api/conversations';
+import { useDisplayNameResolver } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import type { Participant } from '@/api/types';
 
@@ -20,6 +21,7 @@ export function ParticipantsPanel({
   participants,
 }: Props): React.ReactElement {
   const me = useAppStore((s) => s.currentUserId);
+  const displayName = useDisplayNameResolver();
   const isOwner = participants.some(
     (p) => p.identity_id === me && p.role === 'owner' && !p.left_at,
   );
@@ -61,7 +63,7 @@ export function ParticipantsPanel({
             data-identity={p.identity_id}
           >
             <span>
-              <span className="font-mono text-xs">{p.identity_id}</span>
+              <span className="text-xs" title={p.identity_id}>{displayName(p.identity_id)}</span>
               <span className="ml-2 text-xs uppercase text-text-muted">{p.role}</span>
             </span>
             {isOwner && p.role !== 'owner' && (

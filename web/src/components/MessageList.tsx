@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
+import { useDisplayNameResolver } from '@/api/members';
 import { groupMessagesByWorkItem } from './messageSegments';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
@@ -58,6 +59,7 @@ export function MessageList({
   messages,
   segmentByWorkItem = false,
 }: Props): React.ReactElement {
+  const displayName = useDisplayNameResolver();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
   const latestId = messages[messages.length - 1]?.id;
@@ -126,7 +128,7 @@ export function MessageList({
       >
         <div className="flex-1">
           <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
-            <span className="font-mono">{m.sender_identity_id}</span>
+            <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
             <time>{m.posted_at}</time>
           </header>
           <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
