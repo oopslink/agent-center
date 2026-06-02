@@ -155,6 +155,15 @@ func (r *Runtime) Run(ctx context.Context) error {
 	hbTick := time.NewTicker(r.cfg.HeartbeatEvery)
 	defer hbTick.Stop()
 
+	// v2.7 #154: assert liveness IMMEDIATELY on startup. time.Ticker only fires
+	// after the first full interval, so without this the worker stays offline
+	// until the first HeartbeatEvery tick (default 30s) — the center marks a
+	// worker online on its first heartbeat. An immediate heartbeat brings the
+	// "online" display to ~1 RTT on both fresh start and restart.
+	if err := r.client.Heartbeat(ctx, r.cfg.WorkerID, r.cfg.Capabilities); err != nil {
+		r.log("initial heartbeat: %v", err)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
