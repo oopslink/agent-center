@@ -1,21 +1,31 @@
 import type React from 'react';
-import { useState } from 'react';
-import {
-  useInviteParticipant,
-  useRemoveParticipant,
-} from '@/api/conversations';
+import { useEffect, useState } from 'react';
+import { useRemoveParticipant } from '@/api/conversations';
 import { useDisplayNameResolver } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import type { Participant } from '@/api/types';
+import { MemberInviteModal } from './MemberInviteModal';
 
 interface Props {
   conversationId: string;
   participants: Participant[];
 }
 
+const COLLAPSE_KEY = 'ac.participants.collapsed';
+
+function readCollapsed(): boolean {
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return false;
+    return localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 // ParticipantsPanel — list participants + role + invite/remove controls.
 // Only the channel owner (or supervisor) gets the action buttons; non-
-// owners see a read-only list.
+// owners see a read-only list. v2.7 #167: invite is a search+multi-select
+// modal (MemberInviteModal), and the panel can collapse/expand.
 export function ParticipantsPanel({
   conversationId,
   participants,
@@ -26,34 +36,63 @@ export function ParticipantsPanel({
     (p) => p.identity_id === me && p.role === 'owner' && !p.left_at,
   );
   const active = participants.filter((p) => !p.left_at);
-  const [inviteId, setInviteId] = useState('');
-  const invite = useInviteParticipant();
   const remove = useRemoveParticipant();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
 
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteId.trim()) return;
+  useEffect(() => {
     try {
-      await invite.mutateAsync({
-        conversationId,
-        identityId: inviteId.trim(),
-        role: 'member',
-      });
-      setInviteId('');
+      if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+        localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
+      }
     } catch {
-      // Error surfaces below.
+      // ignore
     }
-  };
+  }, [collapsed]);
+
+  if (collapsed) {
+    return (
+      <aside
+        className="flex w-10 flex-shrink-0 flex-col items-center border-l border-border-base bg-bg-subtle py-3"
+        aria-label="participants"
+        data-testid="participants-panel"
+        data-collapsed="true"
+      >
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          aria-label="Expand participants"
+          title={`Participants (${active.length})`}
+          data-testid="participants-expand"
+          className="rounded p-1 text-text-secondary hover:bg-bg-base hover:text-text-primary"
+        >
+          ‹ {active.length}
+        </button>
+      </aside>
+    );
+  }
 
   return (
     <aside
       className="w-64 flex-shrink-0 border-l border-border-base bg-bg-subtle p-4"
       aria-label="participants"
       data-testid="participants-panel"
+      data-collapsed="false"
     >
-      <h3 className="mb-3 text-sm font-semibold text-text-primary">
-        Participants ({active.length})
-      </h3>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-text-primary">
+          Participants ({active.length})
+        </h3>
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          aria-label="Collapse participants"
+          data-testid="participants-collapse"
+          className="rounded p-1 text-xs text-text-muted hover:bg-bg-base hover:text-text-primary"
+        >
+          ›
+        </button>
+      </div>
       <ul className="space-y-2">
         {active.map((p) => (
           <li
@@ -81,30 +120,23 @@ export function ParticipantsPanel({
       </ul>
 
       {isOwner && (
-        <form className="mt-4 space-y-2" onSubmit={handleInvite}>
-          <label className="block text-xs text-text-secondary">Invite identity</label>
-          <input
-            type="text"
-            value={inviteId}
-            onChange={(e) => setInviteId(e.target.value)}
-            placeholder="agent:bot-1 or user:alice"
-            className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus:border-accent"
-            data-testid="invite-input"
-          />
+        <>
           <button
-            type="submit"
-            disabled={!inviteId.trim() || invite.isPending}
-            className="w-full rounded bg-text-primary px-2 py-1 text-xs font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
-            data-testid="invite-submit"
+            type="button"
+            onClick={() => setInviteOpen(true)}
+            className="mt-4 w-full rounded bg-text-primary px-2 py-1 text-xs font-medium text-bg-elevated hover:opacity-90"
+            data-testid="invite-open"
           >
-            {invite.isPending ? 'Inviting…' : 'Invite'}
+            Invite
           </button>
-          {invite.isError && (
-            <span className="block text-xs text-danger" data-testid="invite-error">
-              {(invite.error as Error).message}
-            </span>
+          {inviteOpen && (
+            <MemberInviteModal
+              conversationId={conversationId}
+              participants={participants}
+              onClose={() => setInviteOpen(false)}
+            />
           )}
-        </form>
+        </>
       )}
     </aside>
   );
