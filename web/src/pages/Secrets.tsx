@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRevokeSecret, useSecrets } from '@/api/secrets';
 import type { Secret } from '@/api/types';
 import { SecretCreateModal } from '@/components/SecretCreateModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 
@@ -15,14 +16,13 @@ import { Skeleton } from '@/components/Skeleton';
 //     + create new.
 export default function Secrets(): React.ReactElement {
   const [createOpen, setCreateOpen] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<Secret | null>(null);
   const secrets = useSecrets();
   const revoke = useRevokeSecret();
 
-  const handleRevoke = (s: Secret) => {
-    if (!window.confirm(`Revoke secret "${s.name}"? This cannot be undone.`)) {
-      return;
-    }
-    revoke.mutate(s.id);
+  const confirmRevoke = () => {
+    if (!revokeTarget) return;
+    revoke.mutate(revokeTarget.id, { onSuccess: () => setRevokeTarget(null) });
   };
 
   return (
@@ -109,7 +109,7 @@ export default function Secrets(): React.ReactElement {
                   {s.state === 'active' && (
                     <button
                       type="button"
-                      onClick={() => handleRevoke(s)}
+                      onClick={() => setRevokeTarget(s)}
                       disabled={revoke.isPending}
                       className="rounded px-3 py-1 text-xs text-danger hover:bg-bg-subtle disabled:opacity-50"
                       data-testid="secret-revoke-button"
@@ -127,6 +127,21 @@ export default function Secrets(): React.ReactElement {
       <SecretCreateModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+
+      <ConfirmModal
+        open={revokeTarget !== null}
+        title="Revoke secret?"
+        message={
+          revokeTarget
+            ? `Revoke secret "${revokeTarget.name}"? This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Revoke"
+        danger
+        busy={revoke.isPending}
+        onConfirm={confirmRevoke}
+        onCancel={() => setRevokeTarget(null)}
       />
     </section>
   );

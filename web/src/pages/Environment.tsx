@@ -11,6 +11,7 @@ import type { Agent, FleetWorkerRow } from '@/api/types';
 import { LifecycleBadge } from '@/components/AgentBadges';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
 import { InstallCommandModal } from '@/components/InstallCommandModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 // Environment page (/environment). v2.7 #164: Fleet merged into Environment — this
 // is the single operational page for the organization's workers + agents + work
@@ -444,8 +445,7 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
 }
 
 // WorkerRowActions: install command (offline only) + Remove. Ported from Fleet
-// (#164). The window.confirm calls are intentionally left as-is — task #169
-// converts all native dialogs to Modal components separately.
+// (#164). #169: native window.confirm replaced with ConfirmModal.
 function WorkerRowActions({
   worker,
   onShowInstall,
@@ -456,6 +456,7 @@ function WorkerRowActions({
   onReMintInstall: () => void;
 }): React.ReactElement {
   const showInstallActions = worker.status === 'offline';
+  const [confirmReMint, setConfirmReMint] = useState(false);
   return (
     <div className="flex shrink-0 justify-end gap-2" data-testid="environment-worker-actions">
       {showInstallActions && (
@@ -471,20 +472,25 @@ function WorkerRowActions({
           <button
             type="button"
             className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Re-mint will revoke the current install token and issue a fresh one. ' +
-                    'Use this if the original command expired or got lost. Continue?',
-                )
-              ) {
-                onReMintInstall();
-              }
-            }}
+            onClick={() => setConfirmReMint(true)}
             data-testid="environment-worker-remint-install"
           >
             Re-mint install command
           </button>
+          <ConfirmModal
+            open={confirmReMint}
+            title="Re-mint install command?"
+            message={
+              'Re-mint will revoke the current install token and issue a fresh one. ' +
+              'Use this if the original command expired or got lost. Continue?'
+            }
+            confirmLabel="Re-mint"
+            onConfirm={() => {
+              setConfirmReMint(false);
+              onReMintInstall();
+            }}
+            onCancel={() => setConfirmReMint(false)}
+          />
         </>
       )}
       <RemoveWorkerButton worker={worker} />
@@ -493,19 +499,19 @@ function WorkerRowActions({
 }
 
 // RemoveWorkerButton: DELETE /api/workers/{id} after confirm. Ported from Fleet
-// (#164). window.confirm left as-is for #169.
+// (#164). #169: native window.confirm replaced with ConfirmModal.
 function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const confirmMessage =
+    worker.status === 'online'
+      ? `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
+        'This will revoke the worker token and remove the record. ' +
+        'The worker daemon will hit 401 next cycle.'
+      : `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
+        'This will revoke any active install token and remove the record.';
   const handleRemove = async () => {
-    const message =
-      worker.status === 'online'
-        ? `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
-          'This will revoke the worker token and remove the record. ' +
-          'The worker daemon will hit 401 next cycle.'
-        : `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
-          'This will revoke any active install token and remove the record.';
-    if (!window.confirm(message)) return;
     setBusy(true);
     setError(null);
     try {
@@ -522,8 +528,10 @@ function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.React
         }
         throw new Error(detail);
       }
+      setConfirmOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setConfirmOpen(false);
     } finally {
       setBusy(false);
     }
@@ -539,11 +547,21 @@ function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.React
         type="button"
         disabled={busy}
         className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:text-text-muted"
-        onClick={() => void handleRemove()}
+        onClick={() => setConfirmOpen(true)}
         data-testid="environment-worker-remove"
       >
         {busy ? 'Removing...' : 'Remove'}
       </button>
+      <ConfirmModal
+        open={confirmOpen}
+        title="Remove worker?"
+        message={confirmMessage}
+        confirmLabel="Remove"
+        danger
+        busy={busy}
+        onConfirm={() => void handleRemove()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </span>
   );
 }
