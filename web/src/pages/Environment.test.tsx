@@ -1,5 +1,5 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -172,5 +172,71 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     expect(row).toHaveAttribute('data-scope', 'project');
     expect(row).toHaveTextContent('upload');
     expect(row).toHaveTextContent('project/p-1');
+  });
+
+  // #169: native window.confirm → ConfirmModal for worker remove + install re-mint.
+  it('removing a worker opens a confirm modal, then DELETEs on confirm', async () => {
+    let deletedId: string | undefined;
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'online' })])),
+      ),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+      http.delete('/api/workers/:id', ({ params }) => {
+        deletedId = params.id as string;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-worker-remove')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('environment-worker-remove'));
+    const modal = await screen.findByTestId('confirm-modal');
+    expect(modal).toHaveTextContent('w-1');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(deletedId).toBe('w-1'));
+  });
+
+  it('cancelling the remove confirm modal makes no DELETE', async () => {
+    const hit = vi.fn();
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'online' })])),
+      ),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+      http.delete('/api/workers/:id', () => {
+        hit();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-worker-remove')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('environment-worker-remove'));
+    await screen.findByTestId('confirm-modal');
+    fireEvent.click(screen.getByTestId('confirm-modal-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('confirm-modal')).toBeNull());
+    expect(hit).not.toHaveBeenCalled();
+  });
+
+  it('re-mint install opens a confirm modal, then opens the install command modal on confirm', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'offline' })])),
+      ),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+      http.post('/api/workers/:id/install-command/re-mint', () =>
+        HttpResponse.json({ command: 'install …', expires_at: '2026-05-24T03:00:00Z' }),
+      ),
+    );
+    wrap(<Environment />);
+    await waitFor(() =>
+      expect(screen.getByTestId('environment-worker-remint-install')).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId('environment-worker-remint-install'));
+    await screen.findByTestId('confirm-modal');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(screen.getByTestId('install-command-modal')).toBeInTheDocument());
   });
 });

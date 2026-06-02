@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa smoke vet tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc lint-spa-eslint smoke vet tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -21,12 +21,13 @@ help:
 	@echo "  release-dir          — stage release layout (no tarball) at \$$OUT (source installer, task #92)"
 	@echo ""
 	@echo "Lint (conventions § 0.4 enforce mechanisms):"
-	@echo "  lint                       — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa"
+	@echo "  lint                       — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa + lint-spa-tsc + lint-spa-eslint"
 	@echo "  lint-vendor                — #v1 vendor residue grep (ADR-0031)"
 	@echo "  lint-vendor-selftest       — positive-fail check for lint-vendor"
 	@echo "  lint-mock-default          — § 0.4 #2: NoopSender/NoopKillSender prod-wiring guard"
 	@echo "  lint-doc-impl-drift        — § 0.4 #3: ADR claim vs code contradiction checks"
 	@echo "  lint-no-raw-colors-spa     — web/src/ design-token guard (no raw Tailwind palette classes)"
+	@echo "  lint-spa-eslint            — web/src/ native-dialog ban (no window.confirm/alert/prompt, #169)"
 	@echo ""
 	@echo "Deployed-binary smoke (conventions § 0.4 #4):"
 	@echo "  smoke                — fresh-binary deploy + drive task pipeline → done"
@@ -157,8 +158,17 @@ smoke:
 lint-spa-tsc:
 	cd web && npx tsc -b --force
 
+# lint-spa-eslint — Web Console SPA ESLint (#169). Intentionally narrow: the
+# only rule is a ban on native browser dialogs (window.confirm/alert/prompt)
+# via no-restricted-globals + no-restricted-properties; all confirmation UX
+# must use ConfirmModal. Wiring it into the composite `lint` target is the
+# point — a rule that nothing runs is not a rule (#163 acceptance §1: a
+# convention without a mechanism is not enforced).
+lint-spa-eslint:
+	cd web && pnpm lint
+
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc
+lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc lint-spa-eslint
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.
