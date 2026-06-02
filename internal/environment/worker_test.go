@@ -8,7 +8,7 @@ import (
 )
 
 func TestWorker_ConnectDisconnectHeartbeat(t *testing.T) {
-	w, err := NewWorker(NewWorkerInput{ID: "W1", OrganizationID: "org-1", Name: "box", CreatedAt: time.Unix(1, 0)})
+	w, err := NewWorker(NewWorkerInput{ID: "W1", Name: "box", CreatedAt: time.Unix(1, 0)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestWorker_ConnectDisconnectHeartbeat(t *testing.T) {
 }
 
 func TestWorker_AckOffsetMonotonic(t *testing.T) {
-	w, _ := NewWorker(NewWorkerInput{ID: "W1", OrganizationID: "org-1", CreatedAt: time.Unix(1, 0)})
+	w, _ := NewWorker(NewWorkerInput{ID: "W1", CreatedAt: time.Unix(1, 0)})
 	w.AckOffset(3, time.Unix(2, 0))
 	if w.LastAckedOffset() != 3 {
 		t.Fatalf("ack 3 → 3, got %d", w.LastAckedOffset())
@@ -51,7 +51,7 @@ func TestWorker_AckOffsetMonotonic(t *testing.T) {
 // DeriveAvailability. The REAL source switch (agents reading Environment Worker
 // instead of workforce.Worker) is D2; D1 only proves the mapping.
 func TestWorker_StatusFeedsAvailability(t *testing.T) {
-	w, _ := NewWorker(NewWorkerInput{ID: "W1", OrganizationID: "org-1", CreatedAt: time.Unix(1, 0)})
+	w, _ := NewWorker(NewWorkerInput{ID: "W1", CreatedAt: time.Unix(1, 0)})
 	online := func() bool { return w.Status() == WorkerOnline }
 
 	// Offline worker → every agent on it is unavailable, regardless of lifecycle.

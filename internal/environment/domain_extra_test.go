@@ -6,13 +6,11 @@ import (
 )
 
 func TestNewWorker_Validation(t *testing.T) {
-	if _, err := NewWorker(NewWorkerInput{OrganizationID: "o", CreatedAt: time.Unix(1, 0)}); err == nil {
+	if _, err := NewWorker(NewWorkerInput{CreatedAt: time.Unix(1, 0)}); err == nil {
 		t.Fatal("missing id should error")
 	}
-	if _, err := NewWorker(NewWorkerInput{ID: "W1", CreatedAt: time.Unix(1, 0)}); err == nil {
-		t.Fatal("missing org should error")
-	}
-	if _, err := NewWorker(NewWorkerInput{ID: "W1", OrganizationID: "o"}); err == nil {
+	// v2.7 #140 step-3: org is no longer required on the control-channel Worker.
+	if _, err := NewWorker(NewWorkerInput{ID: "W1"}); err == nil {
 		t.Fatal("zero created_at should error")
 	}
 }
@@ -20,13 +18,13 @@ func TestNewWorker_Validation(t *testing.T) {
 func TestRehydrateWorker_RoundTripAndGuards(t *testing.T) {
 	at := time.Unix(1_700_000_000, 0).UTC()
 	w, err := RehydrateWorker(RehydrateWorkerInput{
-		ID: "W1", OrganizationID: "org-1", Name: "box", Status: WorkerOnline,
+		ID: "W1", Name: "box", Status: WorkerOnline,
 		LastAckedOffset: 7, LastHeartbeatAt: at, CreatedAt: at, UpdatedAt: at, Version: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w.ID() != "W1" || w.OrganizationID() != "org-1" || w.Name() != "box" ||
+	if w.ID() != "W1" || w.Name() != "box" ||
 		w.Status() != WorkerOnline || w.LastAckedOffset() != 7 || w.Version() != 4 ||
 		!w.LastHeartbeatAt().Equal(at) || !w.CreatedAt().Equal(at) || !w.UpdatedAt().Equal(at) {
 		t.Fatalf("rehydrate round-trip mismatch: %+v", w)

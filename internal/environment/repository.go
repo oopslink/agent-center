@@ -8,7 +8,6 @@ type WorkerRepository interface {
 	Save(ctx context.Context, w *Worker) error
 	Update(ctx context.Context, w *Worker) error
 	FindByID(ctx context.Context, id WorkerID) (*Worker, error)
-	ListByOrg(ctx context.Context, orgID string) ([]*Worker, error)
 }
 
 // ControlEventRepository persists the per-Worker WorkerControlEvent stream.

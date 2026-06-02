@@ -25,10 +25,10 @@ func newTestDB(t *testing.T) (context.Context, *sql.DB) {
 	return ctx, db
 }
 
-func mustWorker(t *testing.T, id, org, name string) *env.Worker {
+func mustWorker(t *testing.T, id, name string) *env.Worker {
 	t.Helper()
 	w, err := env.NewWorker(env.NewWorkerInput{
-		ID: env.WorkerID(id), OrganizationID: org, Name: name,
+		ID: env.WorkerID(id), Name: name,
 		CreatedAt: time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
@@ -41,7 +41,7 @@ func TestWorkerRepo_RoundTrip(t *testing.T) {
 	ctx, db := newTestDB(t)
 	repo := NewWorkerRepo(db)
 
-	w := mustWorker(t, "w1", "org1", "alpha")
+	w := mustWorker(t, "w1", "alpha")
 	if err := repo.Save(ctx, w); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestWorkerRepo_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
 	}
-	if got.ID() != "w1" || got.OrganizationID() != "org1" || got.Name() != "alpha" {
+	if got.ID() != "w1" || got.Name() != "alpha" {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
 	if got.Status() != env.WorkerOffline {
@@ -100,7 +100,7 @@ func TestWorkerRepo_FindByID_NotFound(t *testing.T) {
 func TestWorkerRepo_Update_NotFound(t *testing.T) {
 	ctx, db := newTestDB(t)
 	repo := NewWorkerRepo(db)
-	w := mustWorker(t, "ghost", "org1", "x")
+	w := mustWorker(t, "ghost", "x")
 	if err := repo.Update(ctx, w); !errors.Is(err, env.ErrWorkerNotFound) {
 		t.Fatalf("got %v want ErrWorkerNotFound", err)
 	}
@@ -109,7 +109,7 @@ func TestWorkerRepo_Update_NotFound(t *testing.T) {
 func TestWorkerRepo_Save_Duplicate(t *testing.T) {
 	ctx, db := newTestDB(t)
 	repo := NewWorkerRepo(db)
-	w := mustWorker(t, "w1", "org1", "alpha")
+	w := mustWorker(t, "w1", "alpha")
 	if err := repo.Save(ctx, w); err != nil {
 		t.Fatalf("first Save: %v", err)
 	}
@@ -118,43 +118,6 @@ func TestWorkerRepo_Save_Duplicate(t *testing.T) {
 	}
 }
 
-func TestWorkerRepo_ListByOrg(t *testing.T) {
-	ctx, db := newTestDB(t)
-	repo := NewWorkerRepo(db)
-
-	if err := repo.Save(ctx, mustWorker(t, "w1", "org1", "alpha")); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.Save(ctx, mustWorker(t, "w2", "org1", "beta")); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.Save(ctx, mustWorker(t, "w3", "org2", "gamma")); err != nil {
-		t.Fatal(err)
-	}
-
-	list, err := repo.ListByOrg(ctx, "org1")
-	if err != nil {
-		t.Fatalf("ListByOrg: %v", err)
-	}
-	if len(list) != 2 {
-		t.Fatalf("ListByOrg(org1): got %d want 2", len(list))
-	}
-	for _, w := range list {
-		if w.OrganizationID() != "org1" {
-			t.Fatalf("leaked worker from %q", w.OrganizationID())
-		}
-	}
-
-	other, err := repo.ListByOrg(ctx, "org2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(other) != 1 || other[0].ID() != "w3" {
-		t.Fatalf("ListByOrg(org2): %+v", other)
-	}
-
-	empty, err := repo.ListByOrg(ctx, "nope")
-	if err != nil || len(empty) != 0 {
-		t.Fatalf("ListByOrg(empty): %+v err=%v", empty, err)
-	}
-}
+// v2.7 #140 step-3: TestWorkerRepo_ListByOrg removed — ListByOrg is gone (org is
+// no longer stored on the control-channel Worker; the Environment page worker
+// list reads canonical workforce.Worker via the webconsole handler).

@@ -64,8 +64,10 @@ func (s *Server) envWorkerConnectHandler(w http.ResponseWriter, r *http.Request)
 			"worker is not enrolled in an organization; enroll it via the org install command before connecting")
 		return
 	}
-	worker, err := d.EnvControlSvc.ConnectWorker(r.Context(),
-		environment.WorkerID(req.WorkerID), wfw.OrganizationID())
+	// v2.7 #140 step-3: org is no longer stored on the control-channel Worker AR.
+	// The org-enrolled precondition (409 above) + E-10b are still enforced here
+	// from the canonical workforce.Worker; ConnectWorker only manages control state.
+	worker, err := d.EnvControlSvc.ConnectWorker(r.Context(), environment.WorkerID(req.WorkerID))
 	if err != nil {
 		mapDomainError(w, err)
 		return

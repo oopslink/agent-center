@@ -106,7 +106,7 @@ func TestControlLog_ReplayFromAckCursor_NoReDeliverProcessed(t *testing.T) {
 		}
 	}
 	// Worker processed + acked through offset 1, then reconnects.
-	w, _ := NewWorker(NewWorkerInput{ID: "W1", OrganizationID: "org-1", CreatedAt: time.Unix(1, 0)})
+	w, _ := NewWorker(NewWorkerInput{ID: "W1", CreatedAt: time.Unix(1, 0)})
 	w.AckOffset(1, time.Unix(2, 0))
 	replay, err := l.Replay(ctx, w)
 	if err != nil {
