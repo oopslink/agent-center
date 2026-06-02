@@ -52,11 +52,11 @@ export function OrgLink(
 function OrgErrorScreen({ code, slug }: { code: 403 | 404; slug?: string }): React.ReactElement {
   const orgs = useOrgs();
   const firstOrg = orgs.data?.[0];
-  const title = code === 404 ? '组织不存在或无权访问' : '无权访问该组织（403）';
+  const title = code === 404 ? 'Organization not found or no access' : 'No access to this organization (403)';
   const body =
     code === 404
-      ? `组织 "${slug ?? ''}" 不存在、已被删除，或你不是该组织成员。`
-      : `你不是组织 "${slug ?? ''}" 的成员，无权访问。`;
+      ? `Organization "${slug ?? ''}" does not exist, has been deleted, or you are not a member.`
+      : `You are not a member of organization "${slug ?? ''}" and cannot access it.`;
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-3 bg-bg-base px-4 text-center" data-testid="org-error">
       <h1 className="text-xl font-semibold text-text-primary">{title}</h1>
@@ -64,11 +64,11 @@ function OrgErrorScreen({ code, slug }: { code: 403 | 404; slug?: string }): Rea
       <div className="flex gap-3 pt-2">
         {firstOrg && (
           <Link to={`/organizations/${firstOrg.slug}`} className="text-accent hover:underline" data-testid="org-error-home">
-            前往我的组织
+            Go to my organization
           </Link>
         )}
         <Link to="/me" className="text-accent hover:underline">
-          账户设置
+          Account settings
         </Link>
       </div>
     </div>
@@ -91,7 +91,7 @@ export function OrgGuard({ children }: { children: React.ReactNode }): React.Rea
   if (orgs.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-bg-base">
-        <span className="text-sm text-text-muted">加载中…</span>
+        <span className="text-sm text-text-muted">Loading…</span>
       </div>
     );
   }
@@ -125,7 +125,7 @@ export function OrgRedirect(): React.ReactElement {
   if (orgs.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-bg-base">
-        <span className="text-sm text-text-muted">加载中…</span>
+        <span className="text-sm text-text-muted">Loading…</span>
       </div>
     );
   }

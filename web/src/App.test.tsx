@@ -61,7 +61,9 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/projects`, 'page-Projects'],
       [`${ORG_BASE}/projects/proj-a`, 'page-ProjectDetail'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
-      [`${ORG_BASE}/fleet`, 'page-Fleet'],
+      [`${ORG_BASE}/environment`, 'page-Environment'],
+      // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
+      [`${ORG_BASE}/fleet`, 'page-Environment'],
       [`${ORG_BASE}/settings`, 'page-Settings'],
     ];
     for (const [path, testId] of cases) {
@@ -94,15 +96,22 @@ describe('App shell + route tree', () => {
       'Projects',
       'Agents',
       'Settings',
-      // v2.7 #151: org group renamed + labels spelled out (no "Org" abbrev).
-      'Organization',
-      'Organization Settings',
+      // v2.7 #166: org people group is "Members" (Humans + single "Agents").
+      'Members',
+      'Humans',
+      // v2.7 #164: Fleet merged into Environment — single "Environment" entry.
+      'Environment',
     ]) {
       expect(nav).toHaveTextContent(label);
     }
-    // v2.7 #151: no abbreviated "Org" labels in the nav.
+    // v2.7 #166-1: org group renamed Organization → Members.
+    expect(nav).not.toHaveTextContent('Organization');
+    // v2.7 #166-2: Organization Settings moved off the sidebar into the org switcher.
+    expect(nav).not.toHaveTextContent('Organization Settings');
     expect(nav).not.toHaveTextContent('Org Settings');
     expect(nav).not.toHaveTextContent('Agents (org)');
+    // v2.7 #164: Fleet entry removed (merged into Environment).
+    expect(nav).not.toHaveTextContent('Fleet');
     // Input Requests nav entry removed (#131 PR-4).
     expect(nav).not.toHaveTextContent('Input Requests');
     // Issues / Tasks no longer have global nav entries (v2.7).

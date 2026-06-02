@@ -56,11 +56,11 @@ describe('WorkItemConversation (#137)', () => {
     server.use(http.get('/api/conversations', () => HttpResponse.json([])));
     wrap('pm://tasks/NONE', 'orphan task');
     await waitFor(() =>
-      expect(screen.getByTestId('conversation-empty')).toHaveTextContent(/暂无关联会话/),
+      expect(screen.getByTestId('conversation-empty')).toHaveTextContent(/No linked conversation/),
     );
   });
 
-  it('splits messages into work-item segments with a "未关联工作项" bucket before the first WI segment', async () => {
+  it('splits messages into work-item segments with an "Unassociated work item" bucket before the first WI segment', async () => {
     server.use(
       http.get('/api/conversations', () => HttpResponse.json([conv])),
       http.get('/api/conversations/conv-1/messages', () =>
@@ -74,8 +74,8 @@ describe('WorkItemConversation (#137)', () => {
     await waitFor(() => expect(screen.getAllByTestId('message-segment')).toHaveLength(2));
     const segments = screen.getAllByTestId('message-segment');
     expect(segments[0]).toHaveAttribute('data-work-item-ref', '');
-    expect(segments[0]).toHaveTextContent('未关联工作项');
+    expect(segments[0]).toHaveTextContent('Unassociated work item');
     expect(segments[1]).toHaveAttribute('data-work-item-ref', 'agent://WI-1');
-    expect(segments[1]).toHaveTextContent('工作项 agent://WI-1');
+    expect(segments[1]).toHaveTextContent('Work item agent://WI-1');
   });
 });

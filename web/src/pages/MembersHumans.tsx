@@ -47,7 +47,7 @@ function MemberRow({
         <span
           className={member.status === 'joined' ? 'text-success' : 'text-text-muted'}
         >
-          {member.status === 'joined' ? '已加入' : '已禁用'}
+          {member.status === 'joined' ? 'Joined' : 'Disabled'}
         </span>
       </td>
       <td className="py-2 px-3 text-right">
@@ -72,7 +72,7 @@ function MemberRow({
                   onClick={() => { setMenuOpen(false); setRolePickerOpen(true); }}
                   className="flex w-full px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
                 >
-                  修改角色
+                  Change role
                 </button>
                 {member.status === 'joined' ? (
                   <button
@@ -81,7 +81,7 @@ function MemberRow({
                     onClick={() => { setMenuOpen(false); setConfirmAction('disable'); }}
                     className="flex w-full px-3 py-2 text-sm text-danger hover:bg-bg-subtle"
                   >
-                    禁用
+                    Disable
                   </button>
                 ) : (
                   <button
@@ -90,7 +90,7 @@ function MemberRow({
                     onClick={() => { setMenuOpen(false); setConfirmAction('reenable'); }}
                     className="flex w-full px-3 py-2 text-sm text-success hover:bg-bg-subtle"
                   >
-                    重新启用
+                    Re-enable
                   </button>
                 )}
               </div>
@@ -120,7 +120,7 @@ function MemberRow({
               onClick={() => setRolePickerOpen(false)}
               className="flex w-full px-3 py-2 text-xs text-text-muted hover:bg-bg-subtle"
             >
-              取消
+              Cancel
             </button>
           </div>
         )}
@@ -128,7 +128,7 @@ function MemberRow({
         {confirmAction && (
           <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-border bg-bg-elevated p-3 shadow-[var(--shadow-2)]">
             <p className="text-sm text-text-primary mb-2">
-              {confirmAction === 'disable' ? '确认禁用该成员？' : '确认重新启用？'}
+              {confirmAction === 'disable' ? 'Disable this member?' : 'Re-enable this member?'}
             </p>
             <div className="flex gap-2 justify-end">
               <button
@@ -136,7 +136,7 @@ function MemberRow({
                 onClick={() => setConfirmAction(null)}
                 className="rounded px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
               >
-                取消
+                Cancel
               </button>
               <button
                 type="button"
@@ -149,7 +149,7 @@ function MemberRow({
                   confirmAction === 'disable' ? 'bg-danger' : 'bg-success'
                 }`}
               >
-                确认
+                Confirm
               </button>
             </div>
           </div>
@@ -183,7 +183,7 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
         },
         onError: (err) => {
           if (err instanceof ApiError) setError(err.message);
-          else setError('添加失败');
+          else setError('Failed to add user');
         },
       },
     );
@@ -198,15 +198,15 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
         aria-modal="true"
       >
         <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
-          <h2 className="text-base font-semibold text-text-primary mb-2">用户创建成功</h2>
+          <h2 className="text-base font-semibold text-text-primary mb-2">User created</h2>
           <p className="text-sm text-text-secondary mb-3">
-            用户 <strong>{createdName}</strong> 的临时密码（只显示一次，请立即转交）：
+            Temporary passcode for <strong>{createdName}</strong> (shown once — hand it over now):
           </p>
           <div className="rounded bg-bg-subtle border border-border-strong px-3 py-3 mb-4 text-center">
             <code className="text-2xl font-mono tracking-widest text-text-primary">{tempPasscode}</code>
           </div>
           <p className="text-xs text-text-muted mb-4">
-            用户应在首次登录后立即在 /me 修改密码。关闭此窗口后无法再次查看此密码。
+            The user should change their password at /me right after first sign-in. This passcode cannot be viewed again after closing this window.
           </p>
           <div className="flex justify-end">
             <button
@@ -214,7 +214,7 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
               onClick={onClose}
               className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
             >
-              我已记下，关闭
+              I've saved it, close
             </button>
           </div>
         </div>
@@ -230,8 +230,8 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
-        <h2 className="text-base font-semibold text-text-primary mb-4">添加用户</h2>
-        <p className="text-xs text-text-muted mb-3">系统将创建新用户身份并生成 6 位临时密码。</p>
+        <h2 className="text-base font-semibold text-text-primary mb-4">Add user</h2>
+        <p className="text-xs text-text-muted mb-3">A new user identity will be created with a 6-digit temporary passcode.</p>
         {error && (
           <div role="alert" className="mb-3 rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
             {error}
@@ -239,18 +239,18 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
         )}
         <form onSubmit={handleSubmit} noValidate className="space-y-3">
           <div className="space-y-1">
-            <label htmlFor="add-user-name" className="block text-sm text-text-primary">显示名称</label>
+            <label htmlFor="add-user-name" className="block text-sm text-text-primary">Display name</label>
             <input
               id="add-user-name"
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="用户的显示名称"
+              placeholder="The user's display name"
             />
           </div>
           <div className="space-y-1">
-            <label htmlFor="add-user-role" className="block text-sm text-text-primary">角色</label>
+            <label htmlFor="add-user-role" className="block text-sm text-text-primary">Role</label>
             <select
               id="add-user-role"
               value={role}
@@ -263,13 +263,13 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
             </select>
           </div>
           <div className="flex gap-2 justify-end pt-1">
-            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">取消</button>
+            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">Cancel</button>
             <button
               type="submit"
               disabled={add.isPending || !displayName.trim()}
               className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
-              {add.isPending ? '创建中…' : '创建用户'}
+              {add.isPending ? 'Creating…' : 'Create user'}
             </button>
           </div>
         </form>
@@ -290,23 +290,23 @@ export default function MembersHumans(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-MembersHumans">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-text-primary">成员 — 用户</h2>
+        <h2 className="text-xl font-semibold text-text-primary">Humans</h2>
         <button
           type="button"
           onClick={() => setAddModalOpen(true)}
           className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
         >
-          添加用户
+          Add user
         </button>
       </div>
 
-      {members.isLoading && <p className="text-sm text-text-muted">加载中…</p>}
+      {members.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
       {members.isError && (
-        <p className="text-sm text-danger">加载失败：{String(members.error)}</p>
+        <p className="text-sm text-danger">Failed to load: {String(members.error)}</p>
       )}
 
       {!members.isLoading && humanMembers.length === 0 && (
-        <p className="text-sm text-text-muted">暂无用户成员</p>
+        <p className="text-sm text-text-muted">No human members yet</p>
       )}
 
       {humanMembers.length > 0 && (
@@ -315,8 +315,8 @@ export default function MembersHumans(): React.ReactElement {
             <thead>
               <tr className="border-b border-border">
                 <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Identity</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">角色</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">状态</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Role</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
                 <th className="py-2 px-3 w-12" />
               </tr>
             </thead>

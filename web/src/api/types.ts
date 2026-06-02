@@ -226,7 +226,7 @@ export interface FleetIssueRow {
 }
 
 // FleetSnapshot (v2.7 #107/#118): executions→work_items; the open_input_requests
-// segment was dropped — "待输入" is a work item with status=waiting_input,
+// segment was dropped — "waiting input" is a work item with status=waiting_input,
 // surfaced in work_items.
 export interface FleetSnapshot {
   work_items: WorkItemRow[];

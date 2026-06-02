@@ -495,4 +495,7 @@ export const handlers = [
       generated_at: '2026-05-24T01:00:00Z',
     }),
   ),
+
+  // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
+  http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),
 ];
