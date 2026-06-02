@@ -11,6 +11,26 @@ import (
 
 const jwtCookieName = "ac_session"
 
+// bootstrapHandler handles GET /api/auth/bootstrap (PUBLIC — exempt from the
+// auth middleware via the /api/auth/ prefix). v2.7 #145: reports whether the
+// system has been initialized (any user identity exists). The SPA calls this
+// when no session is present to decide signup (fresh install, initialized=false)
+// vs signin (initialized=true) WITHOUT bouncing off an authenticated
+// /api/orgs 401. Anonymous-safe: returns only a single boolean, no PII.
+func (s *Server) bootstrapHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	initialized := false
+	if d.IdentityRepo != nil {
+		ids, err := d.IdentityRepo.List(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "bootstrap_failed", err.Error())
+			return
+		}
+		initialized = len(ids) > 0
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"initialized": initialized})
+}
+
 // signupHandler handles POST /api/auth/signup.
 func (s *Server) signupHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -163,8 +183,16 @@ func authMiddleware(deps HandlerDeps) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			// Exempt auth endpoints from the middleware.
 			path := r.URL.Path
+			// v2.7 #145: the embedded SPA (/, /signin, /signup, /assets/*,
+			// react-router deep links) is public — only /api/* is auth-gated.
+			// Non-API paths pass through to the SPA catch-all so a fresh/unauth
+			// visitor gets the register/login UI, not a JSON 401.
+			if len(path) < 5 || path[:5] != "/api/" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			// Exempt public API endpoints (health + auth/*) from the cookie gate.
 			if path == "/api/health" ||
 				len(path) >= 10 && path[:10] == "/api/auth/" {
 				next.ServeHTTP(w, r)

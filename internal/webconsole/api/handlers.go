@@ -136,6 +136,11 @@ type HandlerDeps struct {
 	OrgCreateSvc    *identity.OrganizationCreateService
 	OrgLifecycleSvc *identity.OrganizationLifecycleService
 
+	// v2.7 #145: identity (user) repo backing the public GET /api/auth/bootstrap
+	// "is the system initialized" check (any user exists). Optional — nil means
+	// bootstrap reports initialized=false (fresh).
+	IdentityRepo identity.IdentityRepository
+
 	// v2.6-FE-4: Member management services.
 	MemberRepo          identity.MemberRepository
 	MemberAddSvc        *identity.MemberAddService

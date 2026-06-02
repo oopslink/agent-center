@@ -114,6 +114,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
 
 	// v2.6-FE-1: Auth endpoints — exempt from the JWT middleware.
+	// v2.7 #145: public bootstrap-status probe — lets the SPA decide signup
+	// (fresh install) vs signin without an authenticated /api/orgs 401 bounce.
+	s.mux.HandleFunc("GET /api/auth/bootstrap", s.bootstrapHandler)
 	s.mux.HandleFunc("POST /api/auth/signup", s.signupHandler)
 	s.mux.HandleFunc("POST /api/auth/signin", s.signinHandler)
 	s.mux.HandleFunc("POST /api/auth/signout", s.signoutHandler)
