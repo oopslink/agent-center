@@ -683,7 +683,10 @@ func renderWorkerEnrollFailure(err error, ic installContext, layout installLayou
 	b.WriteString("      • center unreachable (check --bootstrap host:port + firewall)\n")
 	b.WriteString("      • fingerprint mismatch (cert rotated; copy the new fingerprint from the Web Console)\n")
 	b.WriteString("\nTo retry from scratch:\n")
-	b.WriteString("  launchctl unload " + sp.WorkerUnitPath + "\n")
+	// v2.7 #150: modern API (bootout), not the deprecated `launchctl unload`
+	// which fails on Darwin 25.1.0+ (macOS 26) — keep operator guidance
+	// consistent with the activate/teardown paths.
+	b.WriteString("  launchctl bootout " + launchdGUIDomain() + " " + sp.WorkerUnitPath + "\n")
 	b.WriteString("  rm -f " + tokenFile + "\n")
 	b.WriteString("  # mint a fresh enroll token from the Web Console, then:\n")
 	b.WriteString("  ./install worker --bootstrap=" + ic.Bootstrap + " --server-fingerprint=" + ic.Fingerprint + " --token=<NEW>\n")
