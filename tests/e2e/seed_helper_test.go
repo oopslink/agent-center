@@ -7,6 +7,7 @@ import (
 	"github.com/oopslink/agent-center/internal/cli"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
@@ -46,7 +47,7 @@ func seedWorkerE2E(t *testing.T, app *cli.App, id string) {
 	if _, err := app.EnrollSvc.Enroll(context.Background(), wfservice.EnrollCommand{
 		WorkerID:      workforce.WorkerID(id),
 		Capabilities:  []string{"claude-code"},
-		ActorIdentity: app.DefaultActor(),
+		ActorIdentity: observability.Actor("system"),
 	}); err != nil {
 		t.Fatalf("seed worker: %v", err)
 	}

@@ -61,9 +61,7 @@ func writeMigrateCfg(t *testing.T, cfgPath, dbPath string) {
 	t.Helper()
 	body := "server:\n" +
 		"  listen_addr: ':7000'\n" +
-		"  sqlite_path: '" + dbPath + "'\n" +
-		"identity:\n" +
-		"  default_user: hayang\n"
+		"  sqlite_path: '" + dbPath + "'\n"
 	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
 		t.Fatalf("write cfg: %v", err)
 	}

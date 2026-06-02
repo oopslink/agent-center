@@ -344,9 +344,6 @@ server:
 `
 	}
 	yaml += fmt.Sprintf(`
-identity:
-  default_user: hayang
-
 secret_management:
   # v2.5 X1 polish: auto-generated at install time (mode 0600).
   # UserSecret BC + Add Worker Show install command depend on this

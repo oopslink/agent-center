@@ -18,14 +18,19 @@ func TestBuildRouter_FullTreeBuilds(t *testing.T) {
 	for _, c := range router.Root.Subcommands {
 		names[c.Name] = true
 	}
+	// v2.7 #162: only deployment/lifecycle/operator commands remain.
 	for _, want := range []string{"version", "server", "migrate", "admin", "bootstrap",
-		"worker",
-		"project", "conversation", "channel", "message", "agent",
-		"secret",
-		"inspect", "query", "ps", "stats",
-		"logs", "peek-trace"} {
+		"worker", "install", "uninstall", "upgrade"} {
 		if !names[want] {
 			t.Errorf("missing command: %s", want)
+		}
+	}
+	// v2.7 #162: data-management + data-read CLI commands are retired.
+	for _, gone := range []string{
+		"project", "conversation", "channel", "message", "agent", "secret",
+		"inspect", "query", "ps", "stats", "logs", "peek-trace"} {
+		if names[gone] {
+			t.Errorf("retired command still present: %s", gone)
 		}
 	}
 	if cfgPath != "" {

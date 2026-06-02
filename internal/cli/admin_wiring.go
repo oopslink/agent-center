@@ -199,7 +199,7 @@ func newAdminRateLimitSink(app *App) api.RateLimitSink {
 	if app == nil || app.Sink == nil {
 		return nil // Middleware uses noopRateLimitSink as fallback.
 	}
-	return &adminRateLimitSink{sink: app.Sink, actor: app.DefaultActor()}
+	return &adminRateLimitSink{sink: app.Sink, actor: app.operatorActor()}
 }
 
 func (s *adminRateLimitSink) EmitRateLimitHit(id admintoken.TokenID, ip, method, path string) {
@@ -225,7 +225,7 @@ func (s *adminRateLimitSink) EmitRateLimitHit(id admintoken.TokenID, ip, method,
 // admin Client (Phase B), so a missing dep here = a dead CLI path.
 func adminDepsFromApp(a *App) api.HandlerDeps {
 	return api.HandlerDeps{
-		Actor: a.DefaultActor(),
+		Actor: a.operatorActor(),
 
 		// Raw DB for composite endpoints (v2.3-2 ADR-0014 § 2).
 		DB: a.DB,

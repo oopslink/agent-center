@@ -22,8 +22,6 @@ func TestE2E_P7_AdminBackupCLI(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte(`server:
   listen_addr: ":7000"
   sqlite_path: `+dbPath+`
-identity:
-  default_user: hayang
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -100,8 +98,6 @@ func TestE2E_P7_ServerMigrateOnly(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte(`server:
   listen_addr: ":7000"
   sqlite_path: `+dbPath+`
-identity:
-  default_user: hayang
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
