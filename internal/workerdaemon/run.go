@@ -40,6 +40,10 @@ type RunOptions struct {
 	AdminTarget       string
 	ServerFingerprint string
 	SkillsDir         string
+	// DisableControlStream forces the control loop onto the pure-poll path.
+	// The SSE down-push stream is DEFAULT-ON for v2.7 (D5 slice-2); this is the
+	// operator escape hatch. Poll keeps the identical delivery contract.
+	DisableControlStream bool
 }
 
 // RunDaemon boots and runs the worker daemon until ctx is cancelled or a SIGINT/
@@ -147,6 +151,12 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		// #107 slice-2: the control-stream path is the unconditional execution
 		// path. Always wire ControlClient so Run starts the control loop.
 		ControlClient: client,
+		// #108 D5 slice-2: STREAM-FIRST by default. The same *AdminClient serves
+		// the SSE down-push (StreamCommands) — ride the same bearer/transport.
+		// Poll (ControlClient) remains the always-available fallback. Operators
+		// can opt out via --disable-control-stream.
+		ControlStreamClient:  client,
+		DisableControlStream: opts.DisableControlStream,
 	}
 
 	// BinaryPath = os.Executable(). When the daemon runs as the unified

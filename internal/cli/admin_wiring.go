@@ -249,6 +249,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// Environment BC (v2.7 D1, ADR-0050, task #102)
 		EnvControlSvc: a.EnvControlSvc,
+		// v2.7 D5 slice-1: SSE down-push bus for /admin/environment/worker/commands/stream.
+		ControlStreamBus: a.ControlStreamBus,
 
 		// Agent BC (v2.7 C3 / D2-b1) — per-agent MCP tool surface.
 		AgentSvc: a.AgentService,

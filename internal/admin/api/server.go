@@ -318,6 +318,11 @@ func (s *Server) routes() {
 	// legacy /admin/workforce/... dispatch surface.
 	s.mux.HandleFunc("POST /admin/environment/worker/connect", s.envWorkerConnectHandler)
 	s.mux.HandleFunc("GET /admin/environment/worker/commands", s.envWorkerCommandsHandler)
+	// v2.7 D5 slice-1 (center-side SSE down-push): the same command stream as the
+	// poll endpoint above, pushed over SSE for low latency. Catch-up via
+	// CommandsAfter(?after=offset) + live bus fan-out, deduped by offset; same
+	// bearer auth; reconnect-by-offset. Degrades to 501 if the bus isn't wired.
+	s.mux.HandleFunc("GET /admin/environment/worker/commands/stream", s.envWorkerCommandsStreamHandler)
 	s.mux.HandleFunc("POST /admin/environment/worker/ack", s.envWorkerAckHandler)
 	s.mux.HandleFunc("POST /admin/environment/worker/heartbeat", s.envWorkerHeartbeatHandler)
 	// v2.7 D2-f s4 (ADR-0049/0050): worker boot-resume. On (re)start with the

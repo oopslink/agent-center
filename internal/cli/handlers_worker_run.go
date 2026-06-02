@@ -48,6 +48,8 @@ func WorkerRunCommand() *Command {
 				"sha256:HH:HH:... pinned server cert fingerprint (required with --admin-target=tcp://...); falls back to AGENT_CENTER_SERVER_FINGERPRINT env")
 			skillsDir := fs.String("skills-dir", "",
 				"directory containing worker-agent.md + extra skills (real-agent dispatch)")
+			disableControlStream := fs.Bool("disable-control-stream", false,
+				"force the pure-poll control path (the SSE down-push stream is default-on for v2.7; poll keeps the identical delivery contract)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 				if strings.TrimSpace(*workerID) == "" {
 					fmt.Fprintln(errw, "Error: worker run: --worker-id is required")
@@ -63,8 +65,9 @@ func WorkerRunCommand() *Command {
 					CapabilitiesCSV:   *capsFlag,
 					AdminToken:        *adminToken,
 					AdminTarget:       *adminTarget,
-					ServerFingerprint: *serverFingerprint,
-					SkillsDir:         *skillsDir,
+					ServerFingerprint:    *serverFingerprint,
+					SkillsDir:            *skillsDir,
+					DisableControlStream: *disableControlStream,
 				}, logf)
 				if err != nil {
 					if workerdaemon.IsShutdownError(err) {

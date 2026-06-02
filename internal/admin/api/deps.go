@@ -14,6 +14,7 @@ import (
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	"github.com/oopslink/agent-center/internal/environment/controlstream"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -64,6 +65,15 @@ type HandlerDeps struct {
 	// control channel riding this same admin API + bearer auth. WorkerRepo
 	// (above) supplies org provenance on connect.
 	EnvControlSvc *envservice.EnvControl
+
+	// ControlStreamBus is the OPTIONAL center-side SSE down-push bus (v2.7 D5
+	// slice-1). When wired, GET /admin/environment/worker/commands/stream
+	// subscribes a worker to its own control commands; AppendCommand publishes
+	// here best-effort after commit. nil → the stream endpoint returns 501 (the
+	// poll endpoint /admin/environment/worker/commands remains the path). The
+	// SAME WorkerControlEvent log backs both; the bus is a low-latency push, not
+	// a new log.
+	ControlStreamBus *controlstream.Bus
 
 	// Agent BC (v2.7 C3 / D2-b1) — drives the per-agent MCP tool surface
 	// (/admin/agent-tools/...). The per-agent auth gate (requireAgentOnWorker)
