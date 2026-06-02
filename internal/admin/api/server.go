@@ -301,6 +301,11 @@ func (s *Server) routes() {
 	// re-calling enroll + swallowing 409).
 	s.mux.HandleFunc("POST /admin/workforce/worker/heartbeat", s.workerHeartbeatHandler)
 	s.mux.HandleFunc("POST /admin/workforce/worker/rename", s.workerRenameHandler)
+	// v2.7 #147: worker auto-discovers installed agent CLIs and reports them
+	// here on every online (caller = the worker itself; rich capability shape).
+	s.mux.HandleFunc("POST /admin/workforce/worker/capabilities", s.workerReportCapabilitiesHandler)
+	// v2.7 #147 D4: operator per-CLI enable/disable toggle.
+	s.mux.HandleFunc("PATCH /admin/workforce/worker/{id}/capabilities/{name}/enabled", s.workerSetCapabilityEnabledHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-all", s.workerFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-id", s.workerFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-status", s.workerFindByStatusHandler)

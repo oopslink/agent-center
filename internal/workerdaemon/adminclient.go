@@ -29,6 +29,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/mcphost"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // Compile-time assertion: *AdminClient is the real transport behind the
@@ -164,6 +165,26 @@ func (c *AdminClient) EnrollWithExchange(ctx context.Context, workerID, name str
 		return EnrollResponse{}, err
 	}
 	return out, nil
+}
+
+// ReportCapabilities POSTs the worker's freshly-probed capability list to
+// /admin/workforce/worker/capabilities (v2.7 #147). Unlike enroll (which only
+// runs on first boot), this is called on EVERY online so a newly-installed CLI
+// is auto-discovered. The rich workforce.Capability shape is sent verbatim so
+// probe version + feature flags survive the wire; the center merges onto the
+// stored set, preserving operator Enabled toggles.
+func (c *AdminClient) ReportCapabilities(ctx context.Context, workerID string, capabilities []workforce.Capability) error {
+	if strings.TrimSpace(workerID) == "" {
+		return errors.New("adminclient: worker_id required")
+	}
+	if capabilities == nil {
+		capabilities = []workforce.Capability{}
+	}
+	body := map[string]any{
+		"worker_id":    workerID,
+		"capabilities": capabilities,
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/capabilities", body, nil)
 }
 
 // Heartbeat asserts liveness for an already-enrolled worker.

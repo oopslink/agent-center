@@ -245,6 +245,7 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		WorkerRepo:        a.WorkerRepo,
 		AgentInstanceRepo: a.AgentInstanceRepo,
 		EnrollSvc:         a.EnrollSvc,
+		WorkerConfigSvc:   a.WorkerConfigSvc,
 		AgentMgmtSvc:      a.AgentMgmtSvc,
 
 		// Environment BC (v2.7 D1, ADR-0050, task #102)

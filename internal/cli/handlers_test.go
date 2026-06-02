@@ -535,13 +535,19 @@ func TestWorkerRunCommand_FlagParity(t *testing.T) {
 	_ = WorkerRunCommand().Flags(fs)
 	want := []string{
 		"config", "worker-id", "worker-name", "fake-agent", "poll-interval",
-		"capabilities", "admin-token", "admin-target", "server-fingerprint",
+		"admin-token", "admin-target", "server-fingerprint",
 		"skills-dir",
 	}
 	for _, name := range want {
 		if fs.Lookup(name) == nil {
 			t.Errorf("worker run missing flag --%s (parity with standalone daemon)", name)
 		}
+	}
+	// v2.7 #147: --capabilities was removed — the daemon auto-probes installed
+	// CLIs (ProbeAllAdapters) and reports them on every online. Guard against
+	// reintroduction.
+	if fs.Lookup("capabilities") != nil {
+		t.Errorf("--capabilities should be removed (worker auto-discovers CLIs now)")
 	}
 	// Behavior-critical default parity.
 	if f := fs.Lookup("poll-interval"); f != nil && f.DefValue != "1s" {

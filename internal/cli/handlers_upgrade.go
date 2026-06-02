@@ -111,7 +111,6 @@ func upgradeWorkerHandler(fs *flag.FlagSet) Handler {
 	bootstrap := fs.String("bootstrap", "", "admin endpoint URL (preserved across upgrade; only honoured on Fresh, which upgrade refuses)")
 	token := fs.String("token", "", "enroll token (preserved across upgrade)")
 	fingerprint := fs.String("server-fingerprint", "", "pinned server fingerprint (preserved across upgrade)")
-	caps := fs.String("capabilities", "", "comma-separated capabilities (preserved across upgrade)")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = args
@@ -152,7 +151,6 @@ func upgradeWorkerHandler(fs *flag.FlagSet) Handler {
 			Bootstrap:      *bootstrap,
 			Token:          *token,
 			Fingerprint:    *fingerprint,
-			Caps:           *caps,
 			Version:        version,
 			CurrentVersion: currentVersion,
 		})

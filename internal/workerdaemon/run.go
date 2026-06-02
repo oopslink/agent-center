@@ -25,6 +25,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // RunOptions carries the resolved worker-daemon launch parameters. The caller
@@ -35,7 +36,6 @@ type RunOptions struct {
 	WorkerName        string
 	FakeAgent         string
 	PollInterval      time.Duration
-	CapabilitiesCSV   string
 	AdminToken        string
 	AdminTarget       string
 	ServerFingerprint string
@@ -97,6 +97,13 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	}
 	client = client.WithToken(token)
 
+	// v2.7 #147: auto-discover installed agent CLIs on every online (no manual
+	// --capabilities flag). The rich probe result feeds both the enroll seed
+	// (names) and the authoritative capability report (rich, below); the
+	// Runtime advertises the detected set.
+	probed := ProbeAllAdapters(ctx, nil)
+	caps := detectedCLINames(probed)
+
 	// Long-term worker token persistence (v2.4-D-X1): load an existing token and
 	// skip enroll, else enroll-with-exchange and persist the minted long-term token.
 	tokenPath := workerTokenFilePath(cfg)
@@ -111,7 +118,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	}
 	if enrollNeeded {
 		ctxEnroll, cancelEnroll := context.WithTimeout(ctx, 30*time.Second)
-		enrollResp, eerr := client.EnrollWithExchange(ctxEnroll, opts.WorkerID, opts.WorkerName, parseCaps(opts.CapabilitiesCSV))
+		enrollResp, eerr := client.EnrollWithExchange(ctxEnroll, opts.WorkerID, opts.WorkerName, caps)
 		cancelEnroll()
 		if eerr != nil {
 			return fmt.Errorf("worker daemon: enroll failed: %w", eerr)
@@ -130,6 +137,19 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		logf("enrolled + persisted long-term token to " + tokenPath)
 	}
 
+	// v2.7 #147: report probed capabilities on EVERY online (including the
+	// enroll-skipped path) so a CLI installed after first enroll is discovered.
+	// Non-fatal: a failed report just means stale caps until the next online.
+	{
+		ctxRep, cancelRep := context.WithTimeout(ctx, 30*time.Second)
+		if rerr := client.ReportCapabilities(ctxRep, opts.WorkerID, probed); rerr != nil {
+			logf(fmt.Sprintf("warning: capability report failed (will retry next online): %v", rerr))
+		} else {
+			logf(fmt.Sprintf("reported %d probed capabilities", len(probed)))
+		}
+		cancelRep()
+	}
+
 	// Build Runtime config.
 	overrides := map[string]string{}
 	if strings.TrimSpace(opts.FakeAgent) != "" {
@@ -139,7 +159,6 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	if pollInterval <= 0 {
 		pollInterval = time.Second
 	}
-	caps := parseCaps(opts.CapabilitiesCSV)
 	rtCfg := RuntimeConfig{
 		WorkerID:          opts.WorkerID,
 		Capabilities:      caps,
@@ -207,17 +226,14 @@ func IsShutdownError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "shutdown grace exceeded")
 }
 
-// parseCaps splits the comma-separated capabilities list into a trimmed slice.
+// detectedCLINames returns the agent-CLI names that were detected during probe
+// (v2.7 #147). Used to seed enroll + advertise the Runtime's executable set.
 // Empty input yields nil (the enroll handler tolerates nil but not [""]).
-func parseCaps(csv string) []string {
-	csv = strings.TrimSpace(csv)
-	if csv == "" {
-		return nil
-	}
+func detectedCLINames(caps []workforce.Capability) []string {
 	var out []string
-	for _, c := range strings.Split(csv, ",") {
-		if c = strings.TrimSpace(c); c != "" {
-			out = append(out, c)
+	for _, c := range caps {
+		if c.Detected {
+			out = append(out, c.AgentCLI)
 		}
 	}
 	return out

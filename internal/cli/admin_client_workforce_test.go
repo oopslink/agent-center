@@ -33,9 +33,10 @@ func TestClient_WorkerEnrollAndList_OverAdminEndpoint(t *testing.T) {
 	if enroll == nil {
 		t.Fatal("enroll command missing")
 	}
+	// v2.7 #147: --capabilities removed; manual enroll seeds an empty set and
+	// the worker daemon auto-reports its probed CLIs on online.
 	out, _, code := runHandler(t, enroll, []string{
 		"--worker-id=W-CLIENT-1",
-		"--capabilities=claude-code,codex",
 		"--format=json",
 	})
 	if code != ExitOK {
@@ -60,9 +61,6 @@ func TestClient_WorkerEnrollAndList_OverAdminEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(out2, "W-CLIENT-1") {
 		t.Fatalf("list missing enrolled worker: %s", out2)
-	}
-	if !strings.Contains(out2, "claude-code,codex") {
-		t.Fatalf("list missing capabilities: %s", out2)
 	}
 
 	// --- status ----------------------------------------------------------
