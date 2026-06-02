@@ -38,10 +38,10 @@ type Event struct {
 // Bus is the subscriber pool + ringbuffer. v2 single-user case has 1
 // connection per user (typically 1-3 tabs at most).
 type Bus struct {
-	mu       sync.RWMutex
-	subs     map[string]*subscriber       // userID → connection
-	channels map[string]map[string]struct{} // userID → set of conversation_ids
-	ring     *ringBuffer
+	mu        sync.RWMutex
+	subs      map[string]*subscriber         // userID → connection
+	channels  map[string]map[string]struct{} // userID → set of conversation_ids
+	ring      *ringBuffer
 	heartbeat time.Duration
 }
 
@@ -151,6 +151,17 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
+
+	// v2.7 #172 (acceptance FINDING-A): flush the response head immediately
+	// on connect. Go's net/http only sends status+headers on the first
+	// Write/Flush; before this, a fresh connection (no Last-Event-ID to
+	// replay below) had no flush until the first ~30s heartbeat, so the
+	// browser EventSource onopen — and the UI "connecting"→"live" flip —
+	// was delayed a full heartbeat on every page load. (Root cause behind
+	// the original #153 "connecting" report, which still reproduced on a
+	// healthy center.)
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
 
 	// Replay missed events when Last-Event-ID present. Header is the
 	// standard channel (native browser EventSource passes it on auto-
