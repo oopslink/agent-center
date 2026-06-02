@@ -19,16 +19,35 @@ const (
 	ScopeConversation FileScope = "conversation"
 	ScopeAgent        FileScope = "agent"
 	ScopeTmp          FileScope = "tmp"
+	// ScopeUploader (v2.7 #142) is a SERVER-INTERNAL reachability scope: a
+	// reference with Scope=uploader, ScopeID=<uploader identity ref> grants the
+	// uploader (and ONLY that identity) reachability to the blob they uploaded.
+	// The server creates it at upload-complete (gated on the session initiator);
+	// it is deliberately EXCLUDED from IsValid so a client can never set it on an
+	// upload request — uploader reachability is a server-derived fact, not a
+	// client claim. The attach flow uses it to let a user reference a blob they
+	// uploaded (fileReachableForHuman) before a conversation reference is made.
+	ScopeUploader FileScope = "uploader"
 )
 
-// IsValid reports whether s is one of the six known scopes.
+// IsValid reports whether s is a known, persistable reference scope (incl. the
+// server-internal ScopeUploader). NOTE: ScopeUploader is server-internal — it is
+// a valid scope for a server-created reference, but the webconsole upload handler
+// rejects a CLIENT-supplied scope=uploader (see createUploadHandler) so uploader
+// reachability can never be claimed by a client; it is always server-derived.
 func (s FileScope) IsValid() bool {
 	switch s {
-	case ScopeTask, ScopeIssue, ScopeProject, ScopeConversation, ScopeAgent, ScopeTmp:
+	case ScopeTask, ScopeIssue, ScopeProject, ScopeConversation, ScopeAgent, ScopeTmp, ScopeUploader:
 		return true
 	default:
 		return false
 	}
+}
+
+// IsClientSettable reports whether a client may set this scope on an upload
+// request. ScopeUploader is excluded (server-internal — see IsValid).
+func (s FileScope) IsClientSettable() bool {
+	return s.IsValid() && s != ScopeUploader
 }
 
 // Sentinel errors.

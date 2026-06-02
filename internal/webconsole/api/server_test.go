@@ -66,6 +66,7 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	}
 	userSecretSvc := secretservice.NewUserSecretService(db, userSecretRepo, gen, sink, clk, mk)
 	deps := HandlerDeps{
+		DB:                 db,
 		Actor:              observability.Actor("user:hayang"),
 		ConvRepo:           convRepo,
 		MsgRepo:            msgRepo,

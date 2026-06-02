@@ -85,6 +85,31 @@ func (s *Server) fileReachableForHuman(ctx context.Context, d HandlerDeps, calle
 	return false, nil
 }
 
+// callerUploaded is the ATTACH-ONLY authorization predicate (v2.7 #142): it
+// reports whether callerRef uploaded the blob at fileURI — i.e. a LIVE
+// uploader-scope reference exists with ScopeID == callerRef. This is what lets a
+// user attach a blob they uploaded to a message (the attach flow verifies it
+// BEFORE creating a conversation reference, so a client cannot forge an attachment
+// to another org's blob). It deliberately does NOT consult download reachability:
+// attach-authz ("you uploaded it") and download-authz ("you are a current member
+// of a scope referencing it") are distinct — see refReachableForHuman's uploader
+// case. ListReferences returns only live (non-deleted) references.
+func (s *Server) callerUploaded(ctx context.Context, d HandlerDeps, callerRef string, fileURI files.FileURI) (bool, error) {
+	if d.FilesSvc == nil {
+		return false, nil
+	}
+	refs, err := d.FilesSvc.ListReferences(ctx, fileURI)
+	if err != nil {
+		return false, err
+	}
+	for _, ref := range refs {
+		if ref.Scope == files.ScopeUploader && ref.ScopeID == callerRef {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // refReachableForHuman resolves a single live reference's domain accessibility.
 func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, callerRef, orgID string, ref files.FileReference) (bool, error) {
 	switch ref.Scope {
@@ -128,9 +153,14 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 		}
 		return conv.HasActiveParticipant(conversation.IdentityRef(callerRef)), nil
 
-	case files.ScopeAgent, files.ScopeTmp:
-		// Not human-accessible: an agent-domain or tmp placement never grants a
-		// human download.
+	case files.ScopeAgent, files.ScopeTmp, files.ScopeUploader:
+		// Not a human DOWNLOAD grant. agent/tmp are agent-domain/transient. Uploader
+		// (v2.7 #142) is ATTACH-ONLY reachability: it lets the uploader REFERENCE a
+		// blob they uploaded (via callerUploaded, used by the attach flow), but it
+		// must NOT grant download — download authz is current-scope-membership
+		// (e.g. being a live conversation participant), NOT "I once uploaded this".
+		// Conflating them would be a permanent access-leak backdoor (an uploader
+		// removed from a conversation would still download via the uploader ref).
 		return false, nil
 
 	default:
@@ -182,7 +212,10 @@ func (s *Server) createUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scope := files.FileScope(req.Scope)
-	if req.Scope != "" && !scope.IsValid() {
+	// v2.7 #142: a client may set any client-settable scope, but NOT the
+	// server-internal ScopeUploader (uploader reachability is server-derived at
+	// complete from the session initiator, never a client claim).
+	if req.Scope != "" && !scope.IsClientSettable() {
 		writeError(w, http.StatusBadRequest, "invalid_scope", "unknown file scope")
 		return
 	}
@@ -236,7 +269,8 @@ func (s *Server) completeUploadHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "files_not_wired", "files service not wired")
 		return
 	}
-	if _, _, _, ok := requireOrgMember(w, r, d); !ok {
+	caller, _, _, ok := requireOrgMember(w, r, d)
+	if !ok {
 		return
 	}
 	var req completeUploadReq
@@ -245,8 +279,39 @@ func (s *Server) completeUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	transferURI := transferURIPrefix + r.PathValue("transfer_id")
+	callerRef := filesCallerRef(caller)
+	// v2.7 #142: authorize the SESSION INITIATOR before completing. Without this,
+	// any org member could complete someone else's upload session and (below) be
+	// granted uploader-reachability to a blob they did not upload — a
+	// privilege-escalation seam. The session's CreatedBy is the trustworthy
+	// uploader identity; reject a non-initiator. (The agent file-tools complete
+	// path already checks this; the webconsole path was missing it.)
+	sess, err := d.FilesSvc.FindSessionByTransferURI(r.Context(), transferURI)
+	if err != nil {
+		mapFilesError(w, err)
+		return
+	}
+	if sess.CreatedBy() != callerRef {
+		writeError(w, http.StatusForbidden, "forbidden", "not the upload session initiator")
+		return
+	}
 	if err := d.FilesSvc.CompleteUpload(r.Context(), transferURI, req.SHA256, req.Size); err != nil {
 		mapFilesError(w, err)
+		return
+	}
+	// v2.7 #142: record an uploader-scope reference so the initiator can REACH the
+	// blob they just uploaded (refReachableForHuman ScopeUploader → ScopeID==caller).
+	// This is what lets the attach flow verify caller-owns-the-blob before creating
+	// a conversation reference. Server-derived (scope_id=callerRef), never client-set.
+	if _, rerr := d.FilesSvc.AddReference(r.Context(), filesservice.AddReferenceCmd{
+		FileURI:   sess.FileURI(),
+		Scope:     files.ScopeUploader,
+		ScopeID:   callerRef,
+		MimeType:  sess.ContentType(),
+		SizeBytes: sess.Size(),
+		CreatedBy: callerRef,
+	}); rerr != nil {
+		writeError(w, http.StatusInternalServerError, "reference_failed", rerr.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"completed": true})

@@ -171,10 +171,20 @@ func TestAPI_RemoveParticipant_Happy(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
-	cid := seedOrgChannel(t, deps, sess.OrgID, "remove-test")
+	// v2.7 #146: the kicker is the logged-in session user, and Kick requires the
+	// caller to be the channel owner — so the session user must own the channel
+	// (mirrors production: the creator opens it, then kicks).
+	sref := conversation.IdentityRef("user:" + sess.IdentityID)
+	cres, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "remove-test", OrganizationID: sess.OrgID, CreatedBy: sref, Actor: observability.Actor(sref),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cid := string(cres.ConversationID)
 	_, _ = deps.ParticipantMgmtSvc.Invite(ctx, convservice.InviteCommand{
 		ConversationName: "remove-test", IdentityID: "user:bob",
-		InvitedBy: "user:hayang", Actor: observability.Actor("user:hayang"),
+		InvitedBy: sref, Actor: observability.Actor(sref),
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()

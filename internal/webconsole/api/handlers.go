@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
+	"github.com/oopslink/agent-center/internal/persistence"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
@@ -32,6 +34,7 @@ import (
 // HandlerDeps is the narrow surface handlers need. The cli.App provides
 // these via an adapter (see internal/cli/webconsole_adapter.go).
 type HandlerDeps struct {
+	DB                 *sql.DB
 	Actor              observability.Actor
 	ConvRepo           conversation.ConversationRepository
 	MsgRepo            conversation.MessageRepository
@@ -146,6 +149,17 @@ type HandlerDeps struct {
 // hd retrieves the typed dep bag from the request context.
 func hd(r *http.Request) HandlerDeps {
 	v, _ := r.Context().Value(depsKey{}).(HandlerDeps)
+	// v2.7 #146: stamp domain identity + audit actor from the authenticated
+	// session, not the static configured default_user. authMiddleware installs
+	// the real identity for every /api route; it is nil only on legacy/no-auth
+	// paths (AuthSvc unwired), which keep the configured fallback. HandlerDeps
+	// is returned by value, so this override is per-request and does not mutate
+	// the shared dep bag. Uses the SAME ref convention as the #142 download gate
+	// (filesCallerRef) so a conversation owner/participant ref matches the gate's
+	// caller ref — closing the F142-2 own-attachment-download ship-blocker.
+	if id := CurrentIdentity(r); id != nil {
+		v.Actor = observability.Actor(filesCallerRef(id))
+	}
 	return v
 }
 
@@ -687,7 +701,21 @@ type msgAttachmentJSON struct {
 func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
-	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if d.ConvRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "conversation repo not wired")
+		return
+	}
+	conv, err := d.ConvRepo.FindByID(r.Context(), id)
+	if err != nil || conv == nil {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
+		return
+	}
+	if conv.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
 		return
 	}
 	var req sendMessageReq
@@ -695,10 +723,12 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	sender := req.SenderIdentityID
-	if sender == "" {
-		sender = string(d.Actor)
-	}
+	// v2.7 #146: this webconsole endpoint is human-session-only — there is no
+	// delegated-send path here (agents/workers post via the admin API, not this
+	// JWT-cookie route). Always stamp the sender from the authenticated session
+	// (d.Actor is per-request, see hd) and IGNORE any client-supplied
+	// sender_identity_id to prevent sender spoofing.
+	sender := string(d.Actor)
 	ck := req.ContentKind
 	if ck == "" {
 		ck = string(conversation.MessageContentText)
@@ -713,16 +743,83 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 			URI: a.URI, Filename: a.Filename, MimeType: a.MimeType, Size: a.Size,
 		})
 	}
-	res, err := d.MessageWriter.AddMessage(r.Context(), convservice.AddMessageCommand{
-		ConversationID:   id,
-		SenderIdentityID: conversation.IdentityRef(sender),
-		ContentKind:      conversation.MessageContentKind(ck),
-		Content:          req.Content,
-		Direction:        conversation.MessageDirection(dir),
-		InputRequestRef:  req.InputRequestRef,
-		Attachments:      atts,
-		Actor:            d.Actor,
-	})
+	var fileURIs []files.FileURI
+	callerRef := filesCallerRef(caller)
+	if len(req.Attachments) > 0 {
+		if d.FilesSvc == nil {
+			writeError(w, http.StatusNotImplemented, "files_not_wired", "files service not wired")
+			return
+		}
+		if d.DB == nil {
+			writeError(w, http.StatusNotImplemented, "db_not_wired", "database not wired")
+			return
+		}
+		for _, a := range req.Attachments {
+			fileURI, err := files.ParseFileURI(a.URI)
+			if err != nil {
+				writeAttachmentNotReachable(w)
+				return
+			}
+			reachable, err := s.fileReachableForHuman(r.Context(), d, caller, orgID, fileURI)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "reachability_failed", err.Error())
+				return
+			}
+			if !reachable {
+				uploaded, err := s.callerUploaded(r.Context(), d, callerRef, fileURI)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "reachability_failed", err.Error())
+					return
+				}
+				reachable = uploaded
+			}
+			if !reachable {
+				writeAttachmentNotReachable(w)
+				return
+			}
+			fileURIs = append(fileURIs, fileURI)
+		}
+	}
+	add := func(ctx context.Context) (convservice.AddMessageResult, error) {
+		res, err := d.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+			ConversationID:   id,
+			SenderIdentityID: conversation.IdentityRef(sender),
+			ContentKind:      conversation.MessageContentKind(ck),
+			Content:          req.Content,
+			Direction:        conversation.MessageDirection(dir),
+			InputRequestRef:  req.InputRequestRef,
+			Attachments:      atts,
+			Actor:            d.Actor,
+		})
+		if err != nil {
+			return convservice.AddMessageResult{}, err
+		}
+		for i, fileURI := range fileURIs {
+			a := req.Attachments[i]
+			if _, err := d.FilesSvc.AddReference(ctx, filesservice.AddReferenceCmd{
+				FileURI:   fileURI,
+				Scope:     files.ScopeConversation,
+				ScopeID:   string(id),
+				Filename:  a.Filename,
+				MimeType:  a.MimeType,
+				SizeBytes: a.Size,
+				CreatedBy: callerRef,
+			}); err != nil {
+				return convservice.AddMessageResult{}, err
+			}
+		}
+		return res, nil
+	}
+	var res convservice.AddMessageResult
+	if len(fileURIs) > 0 {
+		err = persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+			var txErr error
+			res, txErr = add(txCtx)
+			return txErr
+		})
+	} else {
+		res, err = add(r.Context())
+	}
 	if err != nil {
 		mapDomainError(w, err)
 		return
@@ -731,6 +828,10 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		"message_id": string(res.MessageID),
 		"event_id":   string(res.EventID),
 	})
+}
+
+func writeAttachmentNotReachable(w http.ResponseWriter) {
+	writeError(w, http.StatusForbidden, "forbidden", "attachment is not reachable")
 }
 
 type archiveReq struct {
