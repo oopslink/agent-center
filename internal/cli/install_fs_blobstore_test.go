@@ -32,4 +32,15 @@ func TestCenterConfigYAML_WiresBlobStoreRoot(t *testing.T) {
 	if cfg.BlobStore.Root != want {
 		t.Fatalf("BlobStore.Root = %q, want %q (empty/unwritable → FilesSvc nil → /api/files 501)", cfg.BlobStore.Root, want)
 	}
+
+	// v2.7 #161: server must not default to :7000 (macOS AirPlay Receiver holds
+	// 7000 → center can't bind on a fresh Mac install), and must differ from the
+	// web console port (separate listeners).
+	if cfg.Server.ListenAddr == ":7000" {
+		t.Fatalf("Server.ListenAddr is :7000 — collides with macOS AirPlay Receiver; center won't bind")
+	}
+	if cfg.Server.ListenAddr == cfg.WebConsole.ListenAddr {
+		t.Fatalf("Server.ListenAddr (%q) must not equal WebConsole.ListenAddr (%q) — separate listeners",
+			cfg.Server.ListenAddr, cfg.WebConsole.ListenAddr)
+	}
 }
