@@ -120,9 +120,16 @@ type Agent struct {
 	lifecycle      AgentLifecycle
 	lifecycleError string // populated when lifecycle == error
 	createdBy      IdentityRef
-	createdAt      time.Time
-	updatedAt      time.Time
-	version        int
+	// identityMemberID is the agent identity-member (identity BC) this execution
+	// Agent represents (v2.7 #157) — it holds the identity-member's identity ID
+	// ("agent-<ulid>"), so Members can navigate member→AgentDetail by
+	// member.identity_id == agent.identity_member_id. NOT an ADR-0033 actor ref
+	// (createdBy is that); a plain id pointer. Optional: set by the unified
+	// Members→Add Agent flow, empty for a standalone execution-agent create.
+	identityMemberID string
+	createdAt        time.Time
+	updatedAt        time.Time
+	version          int
 }
 
 // NewAgentInput captures constructor args.
@@ -133,7 +140,10 @@ type NewAgentInput struct {
 	Skills         []string
 	WorkerID       string // required; immutable thereafter
 	CreatedBy      IdentityRef
-	CreatedAt      time.Time
+	// IdentityMemberID (optional, v2.7 #157) — the identity-member id ("agent-<ulid>")
+	// this execution Agent represents; set by the unified Members→Add Agent flow.
+	IdentityMemberID string
+	CreatedAt        time.Time
 }
 
 // NewAgent constructs a fresh Agent in the stopped state. A Worker MUST be
@@ -159,32 +169,34 @@ func NewAgent(in NewAgentInput) (*Agent, error) {
 	}
 	at := in.CreatedAt.UTC()
 	return &Agent{
-		id:             in.ID,
-		organizationID: in.OrganizationID,
-		profile:        in.Profile,
-		skills:         append([]string(nil), in.Skills...),
-		workerID:       in.WorkerID,
-		lifecycle:      LifecycleStopped,
-		createdBy:      in.CreatedBy,
-		createdAt:      at,
-		updatedAt:      at,
-		version:        1,
+		id:               in.ID,
+		organizationID:   in.OrganizationID,
+		profile:          in.Profile,
+		skills:           append([]string(nil), in.Skills...),
+		workerID:         in.WorkerID,
+		lifecycle:        LifecycleStopped,
+		createdBy:        in.CreatedBy,
+		identityMemberID: in.IdentityMemberID,
+		createdAt:        at,
+		updatedAt:        at,
+		version:          1,
 	}, nil
 }
 
 // RehydrateAgentInput is for repository round-trip.
 type RehydrateAgentInput struct {
-	ID             AgentID
-	OrganizationID string
-	Profile        Profile
-	Skills         []string
-	WorkerID       string
-	Lifecycle      AgentLifecycle
-	LifecycleError string
-	CreatedBy      IdentityRef
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	Version        int
+	ID               AgentID
+	OrganizationID   string
+	Profile          Profile
+	Skills           []string
+	WorkerID         string
+	Lifecycle        AgentLifecycle
+	LifecycleError   string
+	CreatedBy        IdentityRef
+	IdentityMemberID string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	Version          int
 }
 
 // RehydrateAgent reconstructs without invariant checks.
@@ -196,17 +208,18 @@ func RehydrateAgent(in RehydrateAgentInput) (*Agent, error) {
 		return nil, errors.New("agent: version must be >= 1")
 	}
 	return &Agent{
-		id:             in.ID,
-		organizationID: in.OrganizationID,
-		profile:        in.Profile,
-		skills:         append([]string(nil), in.Skills...),
-		workerID:       in.WorkerID,
-		lifecycle:      in.Lifecycle,
-		lifecycleError: in.LifecycleError,
-		createdBy:      in.CreatedBy,
-		createdAt:      in.CreatedAt.UTC(),
-		updatedAt:      in.UpdatedAt.UTC(),
-		version:        in.Version,
+		id:               in.ID,
+		organizationID:   in.OrganizationID,
+		profile:          in.Profile,
+		skills:           append([]string(nil), in.Skills...),
+		workerID:         in.WorkerID,
+		lifecycle:        in.Lifecycle,
+		lifecycleError:   in.LifecycleError,
+		createdBy:        in.CreatedBy,
+		identityMemberID: in.IdentityMemberID,
+		createdAt:        in.CreatedAt.UTC(),
+		updatedAt:        in.UpdatedAt.UTC(),
+		version:          in.Version,
 	}, nil
 }
 
@@ -218,6 +231,7 @@ func (a *Agent) WorkerID() string          { return a.workerID }
 func (a *Agent) Lifecycle() AgentLifecycle { return a.lifecycle }
 func (a *Agent) LifecycleError() string    { return a.lifecycleError }
 func (a *Agent) CreatedBy() IdentityRef    { return a.createdBy }
+func (a *Agent) IdentityMemberID() string  { return a.identityMemberID }
 func (a *Agent) CreatedAt() time.Time      { return a.createdAt }
 func (a *Agent) UpdatedAt() time.Time      { return a.updatedAt }
 func (a *Agent) Version() int              { return a.version }

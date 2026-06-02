@@ -126,6 +126,9 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 		IDGen:     idgen.NewGenerator(clock.SystemClock{}),
 		Clock:     clock.SystemClock{},
 	})
+	// v2.7 #157: agent identity-member provisioning (Members→Add Agent), incl. the
+	// unified one-step create that also spins up the execution Agent.
+	deps.AgentProvisionSvc = identity.NewAgentIdentityProvisionService(db, deps.IdentityRepo, deps.MemberRepo)
 	return deps, db
 }
 

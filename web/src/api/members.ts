@@ -32,13 +32,28 @@ export function normalizeIdentityRef(ref: string): string {
 export interface AddUserResult extends MemberResult {
   temp_passcode?: string;
   display_name?: string;
+  // v2.7 #157: present when Members→Add Agent did the unified one-step create
+  // (also created the execution Agent). The UI navigates to its AgentDetail.
+  agent_id?: string;
+}
+
+// AddAgentMemberPayload — v2.7 #157: when model/cli/worker_id are present the
+// backend does the UNIFIED one-step create (agent identity-member + execution
+// Agent, atomically). worker_id is required for the execution agent.
+export interface AddAgentMemberPayload {
+  display_name: string;
+  description?: string;
+  role?: string;
+  model?: string;
+  cli?: string;
+  worker_id?: string;
 }
 
 export const membersApi = {
   list: () => api.get<MemberResult[]>('/members'),
   add: (payload: { display_name: string; role?: string; reuse?: boolean }) =>
     api.post<AddUserResult>('/members', payload),
-  addAgent: (payload: { display_name: string; description?: string; role?: string }) =>
+  addAgent: (payload: AddAgentMemberPayload) =>
     api.post<AddUserResult>('/members/agent', payload),
   changeRole: (id: string, role: string) =>
     api.patch<void>(`/members/${id}/role`, { role }),
@@ -83,8 +98,7 @@ export function useAddMember() {
 export function useAddAgentMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { display_name: string; description?: string; role?: string }) =>
-      membersApi.addAgent(payload),
+    mutationFn: (payload: AddAgentMemberPayload) => membersApi.addAgent(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
   });
 }

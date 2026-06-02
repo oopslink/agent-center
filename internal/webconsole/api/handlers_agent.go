@@ -59,8 +59,12 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		"env_vars": p.EnvVars, "skills": a.Skills(), "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
-		"created_at": a.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at": a.UpdatedAt().Format(time.RFC3339Nano),
+		// v2.7 #157: the agent identity-member this execution Agent represents
+		// (empty for standalone agents). Lets the Members page navigate an agent
+		// member → AgentDetail (member.identity_id == agent.identity_member_id).
+		"identity_member_id": a.IdentityMemberID(),
+		"created_at":         a.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at":         a.UpdatedAt().Format(time.RFC3339Nano),
 	}
 	if le := a.LifecycleError(); le != "" {
 		m["lifecycle_error"] = le
