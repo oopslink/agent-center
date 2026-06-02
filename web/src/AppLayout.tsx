@@ -125,8 +125,8 @@ export default function AppLayout(): React.ReactElement {
       'mod+2': () => navigate('/channels'),
       'mod+3': () => navigate('/dms'),
       'mod+4': () => navigate('/projects'),
-      'mod+6': () => navigate('/agents'),
-      'mod+7': () => navigate('/fleet'),
+      'mod+6': () => navigate('/members/agents'),
+      'mod+7': () => navigate('/environment'),
     }),
     [navigate],
   );
@@ -157,9 +157,7 @@ export default function AppLayout(): React.ReactElement {
           >
             <SidebarToggleIcon collapsed={collapsed} />
           </button>
-          <span className="font-heading text-base font-semibold tracking-tight text-text-primary">
-            agent-center
-          </span>
+          {/* v2.7 #166-4: removed the "agent-center" text label next to the logo. */}
           {/* v2.6 FE-3: Org Switcher dropdown. */}
           <div className="relative hidden sm:block">
             <button
@@ -276,23 +274,23 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
       ],
     },
     {
-      // v2.7 #151: this group is the organization's people + settings, so it is
-      // labeled "Organization" (was "Members") — that makes "Organization
-      // Settings" read as a peer of the member lists, not a member type nested
-      // under "Members" (the IA fix @oopslink asked for).
-      label: 'Organization',
+      // v2.7 #166: the org people group is labeled "Members" (Humans + Agents).
+      // Organization Settings is NOT a sidebar item — it moved into the org
+      // switcher dropdown (#166-2). The single "Agents" entry lives here (#165);
+      // the old SYSTEM → Agents entry is removed. Agent management opens by
+      // clicking an Agent member → AgentDetail (#157).
+      label: 'Members',
       items: [
         { to: p('members/humans'), label: 'Humans', Icon: UsersIcon },
-        { to: p('members/agents'), label: 'Agents (organization)', Icon: AgentsIcon },
-        { to: p('org/settings'), label: 'Organization Settings', Icon: SettingsIcon },
+        { to: p('members/agents'), label: 'Agents', Icon: AgentsIcon },
       ],
     },
     {
+      // v2.7 #164: Fleet merged into Environment (one operational page). #165:
+      // SYSTEM → Agents removed (single Agents entry under Members).
       label: 'System',
       items: [
-        { to: p('fleet'), label: 'Fleet', Icon: FleetIcon },
         { to: p('environment'), label: 'Environment', Icon: FleetIcon },
-        { to: p('agents'), label: 'Agents', Icon: AgentsIcon },
         { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
       ],
     },
@@ -580,6 +578,23 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownPro
         </button>
       ))}
       {orgs.length > 0 && <hr className="border-border" />}
+      {/* v2.7 #166-2: Organization Settings moved off the sidebar into this
+          dropdown. The /org/settings route stays accessible (this navigates to it). */}
+      {currentSlug && (
+        <button
+          type="button"
+          role="menuitem"
+          data-testid="org-dropdown-settings"
+          onClick={() => {
+            navigate(`/organizations/${currentSlug}/org/settings`);
+            onClose();
+          }}
+          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
+        >
+          <SettingsIcon />
+          <span>Organization Settings</span>
+        </button>
+      )}
       <button
         type="button"
         role="menuitem"
@@ -587,17 +602,17 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownPro
         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-accent hover:bg-bg-subtle"
       >
         <span aria-hidden="true">+</span>
-        <span>创建新组织</span>
+        <span>Create organization</span>
       </button>
     </div>
   );
 }
 
 function validateSlugLocal(v: string): string {
-  if (v.length < 3) return 'Slug 至少 3 个字符';
-  if (v.length > 40) return 'Slug 最多 40 个字符';
-  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug 只能包含 [a-z0-9-]';
-  if (/^-|-$/.test(v)) return 'Slug 不能以连字符开头或结尾';
+  if (v.length < 3) return 'Slug must be at least 3 characters';
+  if (v.length > 40) return 'Slug must be at most 40 characters';
+  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug may only contain [a-z0-9-]';
+  if (/^-|-$/.test(v)) return 'Slug cannot start or end with a hyphen';
   return '';
 }
 
@@ -629,7 +644,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
     setError('');
     const slugErr = validateSlugLocal(slug);
     if (slugErr) { setError(slugErr); return; }
-    if (!name.trim()) { setError('请输入组织名称'); return; }
+    if (!name.trim()) { setError('Please enter an organization name'); return; }
     create.mutate();
   };
 
@@ -643,7 +658,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
     >
       <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
         <h2 id="create-org-title" className="text-base font-semibold text-text-primary mb-4">
-          创建新组织
+          Create organization
         </h2>
         {error && (
           <div role="alert" className="mb-3 rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
@@ -652,7 +667,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
         )}
         <form onSubmit={handleSubmit} noValidate className="space-y-3">
           <div className="space-y-1">
-            <label htmlFor="new-org-name" className="block text-sm text-text-primary">组织名称</label>
+            <label htmlFor="new-org-name" className="block text-sm text-text-primary">Organization name</label>
             <input
               id="new-org-name"
               type="text"
@@ -677,13 +692,13 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
             />
           </div>
           <div className="flex gap-2 justify-end pt-1">
-            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">取消</button>
+            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">Cancel</button>
             <button
               type="submit"
               disabled={create.isPending}
               className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
-              {create.isPending ? '创建中…' : '创建'}
+              {create.isPending ? 'Creating…' : 'Create'}
             </button>
           </div>
         </form>

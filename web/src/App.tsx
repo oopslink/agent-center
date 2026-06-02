@@ -1,6 +1,6 @@
 import type React from 'react';
 import { lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './AppLayout';
 import { OrgGuard, OrgRedirect } from './OrgContext';
 
@@ -23,7 +23,6 @@ const AgentDetail = lazy(() => import('./pages/AgentDetail'));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const Secrets = lazy(() => import('./pages/Secrets'));
-const Fleet = lazy(() => import('./pages/Fleet'));
 const Environment = lazy(() => import('./pages/Environment'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
@@ -65,7 +64,8 @@ export function App(): React.ReactElement {
           <Route path="projects/:projectId/issues/:id" element={<IssueDetail />} />
           <Route path="projects/:projectId/tasks/:id" element={<TaskDetail />} />
           <Route path="secrets" element={<Secrets />} />
-          <Route path="fleet" element={<Fleet />} />
+          {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
+          <Route path="fleet" element={<Navigate to="../environment" replace />} />
           <Route path="environment" element={<Environment />} />
           <Route path="settings" element={<Settings />} />
           <Route path="me" element={<Me />} />
