@@ -12,7 +12,7 @@ export interface MessageSegment {
   messages: Message[];
 }
 
-const UNASSOCIATED_LABEL = '未关联工作项';
+const UNASSOCIATED_LABEL = 'Unassociated work item';
 
 // groupMessagesByWorkItem splits a chronological message list into
 // contiguous segments keyed by work_item_ref. A segment boundary is drawn
@@ -20,7 +20,7 @@ const UNASSOCIATED_LABEL = '未关联工作项';
 //   - consecutive same-WI messages group together;
 //   - a re-dispatched work item (its ref reappearing after an interruption)
 //     becomes a NEW segment rather than merging back (no mis-merge);
-//   - messages with no work item land in a labeled "未关联工作项" segment kept
+//   - messages with no work item land in a labeled "Unassociated work item" segment kept
 //     in chronological position — never hoisted (a conversation is a
 //     time-ordered stream); a leading no-ref run naturally sits before the
 //     first WI segment, a sandwiched one stays between WI segments. No drop.
@@ -33,7 +33,7 @@ export function groupMessagesByWorkItem(messages: Message[]): MessageSegment[] {
       current = {
         key: `${i}:${ref}`,
         workItemRef: ref,
-        label: ref ? `工作项 ${ref}` : UNASSOCIATED_LABEL,
+        label: ref ? `Work item ${ref}` : UNASSOCIATED_LABEL,
         messages: [],
       };
       segments.push(current);

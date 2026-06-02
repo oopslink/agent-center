@@ -4,33 +4,33 @@ import { authApi } from '@/api/auth';
 import { ApiError } from '@/api/client';
 
 function validateDisplayName(v: string): string {
-  if (!v.trim()) return '请输入显示名称';
-  if (v.length > 40) return '显示名称最多 40 个字符';
+  if (!v.trim()) return 'Please enter a display name';
+  if (v.length > 40) return 'Display name must be at most 40 characters';
   return '';
 }
 
 function validatePasscode(v: string): string {
-  if (!/^\d{6}$/.test(v)) return '请输入 6 位数字密码';
+  if (!/^\d{6}$/.test(v)) return 'Please enter a 6-digit passcode';
   return '';
 }
 
 function validateConfirm(p: string, c: string): string {
-  if (p !== c) return '两次输入的密码不一致';
+  if (p !== c) return 'Passcodes do not match';
   return '';
 }
 
 function validateOrgName(v: string): string {
-  if (!v.trim()) return '请输入组织名称';
-  if (v.length > 80) return '组织名称最多 80 个字符';
+  if (!v.trim()) return 'Please enter an organization name';
+  if (v.length > 80) return 'Organization name must be at most 80 characters';
   return '';
 }
 
 function validateSlug(v: string): string {
-  if (v.length < 3) return 'Slug 至少 3 个字符';
-  if (v.length > 40) return 'Slug 最多 40 个字符';
-  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug 只能包含 [a-z0-9-]';
-  if (/^-|-$/.test(v)) return 'Slug 不能以连字符开头或结尾';
-  if (/--/.test(v)) return 'Slug 不能包含连续连字符';
+  if (v.length < 3) return 'Slug must be at least 3 characters';
+  if (v.length > 40) return 'Slug must be at most 40 characters';
+  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug may only contain [a-z0-9-]';
+  if (/^-|-$/.test(v)) return 'Slug cannot start or end with a hyphen';
+  if (/--/.test(v)) return 'Slug cannot contain consecutive hyphens';
   return '';
 }
 
@@ -136,14 +136,14 @@ export default function Signup(): React.ReactElement {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === 'display_name_taken') {
-          setErrors((prev) => ({ ...prev, displayName: '该显示名称已被使用' }));
+          setErrors((prev) => ({ ...prev, displayName: 'That display name is already taken' }));
         } else if (err.code === 'slug_taken') {
-          setErrors((prev) => ({ ...prev, orgSlug: '该 Slug 已被使用' }));
+          setErrors((prev) => ({ ...prev, orgSlug: 'That slug is already taken' }));
         } else {
           setServerError(err.message);
         }
       } else {
-        setServerError('注册失败，请稍后重试');
+        setServerError('Sign-up failed, please try again later');
       }
     } finally {
       setSubmitting(false);
@@ -154,8 +154,8 @@ export default function Signup(): React.ReactElement {
     <div className="min-h-screen flex items-center justify-center bg-bg-base px-4">
       <div className="w-full max-w-md">
         <div className="bg-bg-elevated border border-border rounded-xl p-8 shadow-[var(--shadow-3)]">
-          <h1 className="text-2xl font-bold text-text-primary mb-1">创建账户</h1>
-          <p className="text-sm text-text-muted mb-6">设置你的 Agent Center 账户和第一个组织</p>
+          <h1 className="text-2xl font-bold text-text-primary mb-1">Create account</h1>
+          <p className="text-sm text-text-muted mb-6">Set up your Agent Center account and first organization</p>
 
           {serverError && (
             <div role="alert" className="mb-4 rounded-md bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
@@ -166,16 +166,16 @@ export default function Signup(): React.ReactElement {
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <Field
               id="display_name"
-              label="显示名称"
+              label="Display name"
               value={displayName}
               error={errors.displayName ?? ''}
-              placeholder="你的名字"
+              placeholder="Your name"
               maxLength={40}
               onChange={setDisplayName}
             />
             <Field
               id="passcode"
-              label="6 位数字密码"
+              label="6-digit passcode"
               type="password"
               value={passcode}
               error={errors.passcode ?? ''}
@@ -185,7 +185,7 @@ export default function Signup(): React.ReactElement {
             />
             <Field
               id="confirm_passcode"
-              label="确认密码"
+              label="Confirm passcode"
               type="password"
               value={confirmPasscode}
               error={errors.confirmPasscode ?? ''}
@@ -198,7 +198,7 @@ export default function Signup(): React.ReactElement {
 
             <Field
               id="org_name"
-              label="组织名称"
+              label="Organization name"
               value={orgName}
               error={errors.orgName ?? ''}
               placeholder="My Organization"
@@ -207,7 +207,7 @@ export default function Signup(): React.ReactElement {
             />
             <Field
               id="org_slug"
-              label="组织 Slug（URL 路径）"
+              label="Organization slug (URL path)"
               value={orgSlug}
               error={errors.orgSlug ?? ''}
               placeholder="my-org"
@@ -220,14 +220,14 @@ export default function Signup(): React.ReactElement {
               disabled={submitting || !isValid()}
               className="w-full rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? '注册中…' : '创建账户'}
+              {submitting ? 'Signing up…' : 'Create account'}
             </button>
           </form>
 
           <p className="mt-4 text-center text-sm text-text-muted">
-            已有账户？{' '}
+            Already have an account?{' '}
             <Link to="/signin" className="text-accent hover:underline">
-              登录
+              Sign in
             </Link>
           </p>
         </div>

@@ -26,7 +26,7 @@ describe('groupMessagesByWorkItem (#137 work-item segments)', () => {
     const segs = groupMessagesByWorkItem([msg('1', 'wi-A'), msg('2', 'wi-A'), msg('3', 'wi-A')]);
     expect(segs).toHaveLength(1);
     expect(segs[0].workItemRef).toBe('wi-A');
-    expect(segs[0].label).toBe('工作项 wi-A');
+    expect(segs[0].label).toBe('Work item wi-A');
     expect(segs[0].messages.map((m) => m.id)).toEqual(['1', '2', '3']);
   });
 
@@ -43,10 +43,10 @@ describe('groupMessagesByWorkItem (#137 work-item segments)', () => {
     expect(new Set(segs.map((s) => s.key)).size).toBe(3);
   });
 
-  it('places messages with no work_item_ref into a labeled "未关联工作项" segment, ordered chronologically before the first WI segment', () => {
+  it('places messages with no work_item_ref into a labeled "Unassociated work item" segment, ordered chronologically before the first WI segment', () => {
     const segs = groupMessagesByWorkItem([msg('1'), msg('2'), msg('3', 'wi-A')]);
     expect(segs.map((s) => s.workItemRef)).toEqual(['', 'wi-A']);
-    expect(segs[0].label).toBe('未关联工作项');
+    expect(segs[0].label).toBe('Unassociated work item');
     expect(segs[0].messages.map((m) => m.id)).toEqual(['1', '2']);
     expect(segs[1].messages.map((m) => m.id)).toEqual(['3']);
   });
@@ -61,10 +61,10 @@ describe('groupMessagesByWorkItem (#137 work-item segments)', () => {
   it('keeps a no-ref message in its chronological position (does NOT hoist it before WI segments)', () => {
     // PD §-1 ruling: a conversation is a time-ordered stream. An unassociated
     // message sandwiched between two work-item runs stays in time order — its
-    // "未关联工作项" segment sits BETWEEN the WI segments, not pulled to the top.
+    // "Unassociated work item" segment sits BETWEEN the WI segments, not pulled to the top.
     const segs = groupMessagesByWorkItem([msg('1', 'wi-A'), msg('2'), msg('3', 'wi-B')]);
     expect(segs.map((s) => s.workItemRef)).toEqual(['wi-A', '', 'wi-B']);
-    expect(segs[1].label).toBe('未关联工作项');
+    expect(segs[1].label).toBe('Unassociated work item');
     expect(segs[1].messages.map((m) => m.id)).toEqual(['2']);
   });
 });

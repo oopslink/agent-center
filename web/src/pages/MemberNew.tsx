@@ -48,7 +48,7 @@ export default function MemberNew(): React.ReactElement {
           // page (AgentDetail) directly; fall back to the agents list otherwise.
           onSuccess: (res) =>
             navigate(res.agent_id ? `${base}/agents/${res.agent_id}` : `${base}/members/agents`),
-          onError: (err) => setError(err instanceof ApiError ? err.message : '创建失败'),
+          onError: (err) => setError(err instanceof ApiError ? err.message : 'Create failed'),
         },
       );
     } else {
@@ -59,7 +59,7 @@ export default function MemberNew(): React.ReactElement {
             if (res.temp_passcode) setTempPasscode(res.temp_passcode);
             else navigate(`${base}/members/humans`);
           },
-          onError: (err) => setError(err instanceof ApiError ? err.message : '创建失败'),
+          onError: (err) => setError(err instanceof ApiError ? err.message : 'Create failed'),
         },
       );
     }
@@ -68,8 +68,8 @@ export default function MemberNew(): React.ReactElement {
   if (tempPasscode) {
     return (
       <section className="space-y-4 max-w-md" data-testid="page-MemberNew">
-        <h2 className="text-xl font-semibold text-text-primary">用户创建成功</h2>
-        <p className="text-sm text-text-secondary">临时密码（只显示一次，请立即转交）：</p>
+        <h2 className="text-xl font-semibold text-text-primary">User created</h2>
+        <p className="text-sm text-text-secondary">Temporary passcode (shown once — hand it over now):</p>
         <div className="rounded bg-bg-subtle border border-border-strong px-3 py-3 text-center">
           <code className="text-2xl font-mono tracking-widest text-text-primary">{tempPasscode}</code>
         </div>
@@ -78,7 +78,7 @@ export default function MemberNew(): React.ReactElement {
           onClick={() => navigate(`${base}/members/humans`)}
           className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
         >
-          我已记下，返回成员列表
+          I've saved it, back to members
         </button>
       </section>
     );
@@ -87,7 +87,7 @@ export default function MemberNew(): React.ReactElement {
   return (
     <section className="space-y-4 max-w-md" data-testid="page-MemberNew">
       <h2 className="text-xl font-semibold text-text-primary">
-        {kind === 'agent' ? '添加 Agent' : '添加用户'}
+        {kind === 'agent' ? 'Add agent' : 'Add user'}
       </h2>
       {error && (
         <div role="alert" className="rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
@@ -96,19 +96,19 @@ export default function MemberNew(): React.ReactElement {
       )}
       <form onSubmit={handleSubmit} noValidate className="space-y-3 bg-bg-elevated border border-border rounded-lg p-4">
         <div className="space-y-1">
-          <label htmlFor="mn-name" className="block text-sm text-text-primary">显示名称</label>
+          <label htmlFor="mn-name" className="block text-sm text-text-primary">Display name</label>
           <input
             id="mn-name"
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-            placeholder={kind === 'agent' ? 'Agent 名称' : '用户名称'}
+            placeholder={kind === 'agent' ? 'Agent name' : 'User name'}
           />
         </div>
         {kind === 'agent' && (
           <div className="space-y-1">
-            <label htmlFor="mn-desc" className="block text-sm text-text-primary">描述（可选）</label>
+            <label htmlFor="mn-desc" className="block text-sm text-text-primary">Description (optional)</label>
             <input
               id="mn-desc"
               type="text"
@@ -122,14 +122,14 @@ export default function MemberNew(): React.ReactElement {
           <>
             {/* v2.7 #157: execution-agent fields — one-step create runs the agent on a worker. */}
             <div className="space-y-1">
-              <label htmlFor="mn-worker" className="block text-sm text-text-primary">运行 Worker</label>
+              <label htmlFor="mn-worker" className="block text-sm text-text-primary">Run on worker</label>
               <select
                 id="mn-worker"
                 value={workerID}
                 onChange={(e) => setWorkerID(e.target.value)}
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary"
               >
-                <option value="">选择一个 worker…</option>
+                <option value="">Select a worker…</option>
                 {(workers.data ?? []).map((w) => (
                   <option key={w.worker_id} value={w.worker_id}>
                     {w.name || w.worker_id}
@@ -138,31 +138,31 @@ export default function MemberNew(): React.ReactElement {
               </select>
             </div>
             <div className="space-y-1">
-              <label htmlFor="mn-model" className="block text-sm text-text-primary">模型（可选）</label>
+              <label htmlFor="mn-model" className="block text-sm text-text-primary">Model (optional)</label>
               <input
                 id="mn-model"
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="如 claude-opus-4"
+                placeholder="e.g. claude-opus-4"
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="mn-cli" className="block text-sm text-text-primary">CLI（可选）</label>
+              <label htmlFor="mn-cli" className="block text-sm text-text-primary">CLI (optional)</label>
               <input
                 id="mn-cli"
                 type="text"
                 value={cli}
                 onChange={(e) => setCli(e.target.value)}
-                placeholder="如 claudecode"
+                placeholder="e.g. claudecode"
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               />
             </div>
           </>
         )}
         <div className="space-y-1">
-          <label htmlFor="mn-role" className="block text-sm text-text-primary">角色</label>
+          <label htmlFor="mn-role" className="block text-sm text-text-primary">Role</label>
           <select
             id="mn-role"
             value={role}
@@ -180,14 +180,14 @@ export default function MemberNew(): React.ReactElement {
             onClick={() => navigate(`${base}/members/${kind === 'agent' ? 'agents' : 'humans'}`)}
             className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
           >
-            取消
+            Cancel
           </button>
           <button
             type="submit"
             disabled={pending || !displayName.trim() || (kind === 'agent' && !workerID)}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
-            {pending ? '创建中…' : '创建'}
+            {pending ? 'Creating…' : 'Create'}
           </button>
         </div>
       </form>

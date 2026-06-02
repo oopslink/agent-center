@@ -28,19 +28,19 @@ export default function MembersAgents(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-MembersAgents">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-text-primary">成员 — Agent</h2>
+        <h2 className="text-xl font-semibold text-text-primary">Agents</h2>
         <Link
           to={`${base}/members/new?kind=agent`}
           className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
         >
-          添加 Agent
+          Add agent
         </Link>
       </div>
 
-      {members.isLoading && <p className="text-sm text-text-muted">加载中…</p>}
+      {members.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
 
       {!members.isLoading && agentMembers.length === 0 && (
-        <p className="text-sm text-text-muted">暂无 Agent 成员</p>
+        <p className="text-sm text-text-muted">No agent members yet</p>
       )}
 
       {agentMembers.length > 0 && (
@@ -49,9 +49,9 @@ export default function MembersAgents(): React.ReactElement {
             <thead>
               <tr className="border-b border-border">
                 <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Identity</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">角色</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">运行于</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">状态</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Role</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Running on</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -75,12 +75,12 @@ export default function MembersAgents(): React.ReactElement {
                     {m.worker_id ? (
                       <span className="font-mono text-xs">running on {m.worker_id}</span>
                     ) : (
-                      <span className="text-text-muted italic">未绑定 worker</span>
+                      <span className="text-text-muted italic">Not bound to a worker</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-sm">
                     <span className={m.status === 'joined' ? 'text-success' : 'text-text-muted'}>
-                      {m.status === 'joined' ? '已加入' : '已禁用'}
+                      {m.status === 'joined' ? 'Joined' : 'Disabled'}
                     </span>
                   </td>
                 </tr>

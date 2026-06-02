@@ -5,10 +5,10 @@ import { ApiError } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
 
 function validateSlug(v: string): string {
-  if (v.length < 3) return 'Slug 至少 3 个字符';
-  if (v.length > 40) return 'Slug 最多 40 个字符';
-  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug 只能包含 [a-z0-9-]';
-  if (/^-|-$/.test(v)) return 'Slug 不能以连字符开头或结尾';
+  if (v.length < 3) return 'Slug must be at least 3 characters';
+  if (v.length > 40) return 'Slug must be at most 40 characters';
+  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug may only contain [a-z0-9-]';
+  if (/^-|-$/.test(v)) return 'Slug cannot start or end with a hyphen';
   return '';
 }
 
@@ -55,7 +55,7 @@ export default function OrgSettings(): React.ReactElement {
     onSuccess: () => {
       const slugChanged = org && slug !== org.slug;
       qc.invalidateQueries({ queryKey: ['orgs'] });
-      setSuccess('组织信息已更新');
+      setSuccess('Organization info updated');
       setError('');
       setTimeout(() => setSuccess(''), 3000);
       // Slug change moves the URL — redirect to the new slug.
@@ -65,7 +65,7 @@ export default function OrgSettings(): React.ReactElement {
     },
     onError: (err) => {
       if (err instanceof ApiError) setError(err.message);
-      else setError('更新失败');
+      else setError('Update failed');
     },
   });
 
@@ -74,12 +74,12 @@ export default function OrgSettings(): React.ReactElement {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['orgs'] });
       setDeleteConfirm(false);
-      setSuccess('组织已删除');
+      setSuccess('Organization deleted');
       setTimeout(() => { window.location.href = '/'; }, 800);
     },
     onError: (err) => {
       if (err instanceof ApiError) setError(err.message);
-      else setError('删除失败，请稍后重试');
+      else setError('Delete failed, please try again');
     },
   });
 
@@ -90,13 +90,13 @@ export default function OrgSettings(): React.ReactElement {
       const slugErr = validateSlug(slug);
       if (slugErr) { setError(slugErr); return; }
     }
-    if (!name.trim()) { setError('请输入组织名称'); return; }
+    if (!name.trim()) { setError('Please enter an organization name'); return; }
     save.mutate();
   };
 
   return (
     <section className="space-y-6 max-w-md" data-testid="page-OrgSettings">
-      <h2 className="text-xl font-semibold text-text-primary">组织设置</h2>
+      <h2 className="text-xl font-semibold text-text-primary">Organization Settings</h2>
 
       {success && (
         <div role="status" className="rounded-md bg-success/10 border border-success/30 px-3 py-2 text-sm text-success">
@@ -109,14 +109,14 @@ export default function OrgSettings(): React.ReactElement {
         </div>
       )}
 
-      {orgs.isLoading && <p className="text-sm text-text-muted">加载中…</p>}
+      {orgs.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
 
       {org && (
         <>
           <form onSubmit={handleSave} noValidate className="bg-bg-elevated border border-border rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-text-primary">组织信息</h3>
+            <h3 className="text-sm font-semibold text-text-primary">Organization Info</h3>
             <div className="space-y-1">
-              <label htmlFor="org-name" className="block text-xs text-text-muted">名称</label>
+              <label htmlFor="org-name" className="block text-xs text-text-muted">Name</label>
               <input
                 id="org-name"
                 type="text"
@@ -127,7 +127,7 @@ export default function OrgSettings(): React.ReactElement {
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="org-slug" className="block text-xs text-text-muted">Slug（修改后 URL 会变化）</label>
+              <label htmlFor="org-slug" className="block text-xs text-text-muted">Slug (changing this changes the URL)</label>
               <input
                 id="org-slug"
                 type="text"
@@ -138,7 +138,7 @@ export default function OrgSettings(): React.ReactElement {
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="org-desc" className="block text-xs text-text-muted">描述</label>
+              <label htmlFor="org-desc" className="block text-xs text-text-muted">Description</label>
               <textarea
                 id="org-desc"
                 value={description}
@@ -153,25 +153,25 @@ export default function OrgSettings(): React.ReactElement {
                 disabled={save.isPending || !dirty}
                 className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
               >
-                {save.isPending ? '保存中…' : '保存'}
+                {save.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>
           </form>
 
           <div className="bg-bg-elevated border border-border rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-danger mb-2">危险操作</h3>
+            <h3 className="text-sm font-semibold text-danger mb-2">Danger Zone</h3>
             {!deleteConfirm ? (
               <button
                 type="button"
                 onClick={() => setDeleteConfirm(true)}
                 className="rounded border border-danger/50 px-4 py-1.5 text-sm text-danger hover:bg-danger/10"
               >
-                删除组织
+                Delete Organization
               </button>
             ) : (
               <div className="space-y-2">
                 <p className="text-sm text-text-secondary">
-                  确认要删除 <strong>{org.name}</strong> 吗？此操作不可恢复，且您必须是 owner。
+                  Delete <strong>{org.name}</strong>? This cannot be undone, and you must be an owner.
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -179,7 +179,7 @@ export default function OrgSettings(): React.ReactElement {
                     onClick={() => { setDeleteConfirm(false); setError(''); }}
                     className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
                   >
-                    取消
+                    Cancel
                   </button>
                   <button
                     type="button"
@@ -187,7 +187,7 @@ export default function OrgSettings(): React.ReactElement {
                     disabled={deleteOrg.isPending}
                     className="rounded bg-danger px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                   >
-                    {deleteOrg.isPending ? '删除中…' : '确认删除'}
+                    {deleteOrg.isPending ? 'Deleting…' : 'Confirm delete'}
                   </button>
                 </div>
               </div>

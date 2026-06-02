@@ -26,21 +26,21 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
         data-testid="conversation-owner-banner"
         data-owner-ref={ownerRef}
       >
-        <span className="font-semibold uppercase tracking-wide text-text-muted">会话</span>
-        <span>· 关联</span>
+        <span className="font-semibold uppercase tracking-wide text-text-muted">Conversation</span>
+        <span>· linked</span>
         <span className="font-mono text-text-primary">{bannerLabel}</span>
       </div>
 
       {conv.isLoading ? (
         <p className="rounded-b border border-t-0 border-border-base p-4 text-sm text-text-muted" data-testid="conversation-loading">
-          加载会话中…
+          Loading conversation…
         </p>
       ) : !conv.data ? (
         <p
           className="rounded-b border border-t-0 border-border-base p-4 text-sm italic text-text-muted"
           data-testid="conversation-empty"
         >
-          暂无关联会话。
+          No linked conversation yet.
         </p>
       ) : messages.isError ? (
         <p className="rounded-b border border-t-0 border-border-base p-4 text-sm text-danger" data-testid="conversation-messages-error">
@@ -50,7 +50,7 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
         <div className="flex min-h-0 flex-1 flex-col rounded-b border border-t-0 border-border-base">
           {messages.isLoading ? (
             <p className="p-4 text-sm text-text-muted" data-testid="conversation-messages-loading">
-              加载消息中…
+              Loading messages…
             </p>
           ) : (
             <MessageList messages={messages.data ?? []} segmentByWorkItem />
