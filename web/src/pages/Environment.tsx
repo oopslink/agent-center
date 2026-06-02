@@ -1,127 +1,288 @@
-import type React from 'react';
-
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useFleet } from '@/api/fleet';
 import { useAgents } from '@/api/agents';
-import { useWorkers, useTransferSessions } from '@/api/workers';
-import { OrgLink } from '@/OrgContext';
+import { useTransferSessions } from '@/api/workers';
+import { qk } from '@/api/queryKeys';
+import { withOrgSlug } from '@/api/client';
+import { useOptionalOrgContext, OrgLink } from '@/OrgContext';
+import type { Agent, FleetWorkerRow } from '@/api/types';
 import { LifecycleBadge } from '@/components/AgentBadges';
-import { EmptyState } from '@/components/EmptyState';
-import { Skeleton } from '@/components/Skeleton';
-import type { Agent } from '@/api/types';
+import { AddWorkerModal } from '@/components/AddWorkerModal';
+import { InstallCommandModal } from '@/components/InstallCommandModal';
 
-// Environment page (/environment). Environment BC (v2.7 E1 #138) — the
-// CONTROL-CONNECTED worker view (environment.Worker): workers that have connected
-// the control channel, each with its control-stream state (status / last-acked
-// offset / heartbeat) and the agents bound to it (grouped from the org-scoped
-// /api/agents by worker_id).
-//
-// NOTE: this is the control-connected set, DISTINCT from the Fleet page's enrolled
-// set (legacy workforce.Worker). The header says so explicitly, so an operator does
-// not expect an enrolled-but-never-connected worker to appear here.
+// Environment page (/environment). v2.7 #164: Fleet merged into Environment — this
+// is the single operational page for the organization's workers + agents + work
+// items + file transfers. Worker data comes from /api/fleet (canonical
+// workforce.Worker + active work-item count); each worker shows the agents bound
+// to it (grouped from the org-scoped /api/agents by worker_id), its install/remove
+// actions, and inline rename. Work items + pending issues + in-flight transfers
+// follow. (The old separate Fleet page + sidebar entry were removed; /fleet now
+// redirects here.)
+const HIGHLIGHT_MS = 3_000;
+
+type InstallCommandModalState = { workerID: string; mode: 'show' | 'remint' } | null;
+
 export default function Environment(): React.ReactElement {
-  const workers = useWorkers();
+  const fleet = useFleet();
   const agents = useAgents();
   const transfers = useTransferSessions();
+  const orgCtx = useOptionalOrgContext();
+  const base = orgCtx ? `/organizations/${orgCtx.slug}` : '';
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [installModal, setInstallModal] = useState<InstallCommandModalState>(null);
+  const [highlighted, setHighlighted] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ worker_id?: string }>).detail || {};
+      if (!detail.worker_id) return;
+      const id = detail.worker_id;
+      setHighlighted((prev) => ({ ...prev, [id]: Date.now() + HIGHLIGHT_MS }));
+      setTimeout(() => {
+        setHighlighted((prev) => {
+          if (!prev[id]) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }, HIGHLIGHT_MS);
+    };
+    window.addEventListener('agent-center:worker-enrolled', handler);
+    return () => window.removeEventListener('agent-center:worker-enrolled', handler);
+  }, []);
 
   const agentsByWorker = (workerID: string): Agent[] =>
     (agents.data ?? []).filter((a) => a.worker_id === workerID);
 
   return (
-    <section className="space-y-4" data-testid="page-Environment">
-      <header>
-        <h2 className="text-xl font-semibold">Environment</h2>
-        <p className="text-xs text-text-muted">
-          Workers connected to the control channel (control-connected view) and the
-          agents bound to them. Enrolled-but-not-connected workers appear on Fleet.
-        </p>
+    <section className="space-y-6" data-testid="page-Environment">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Environment</h2>
+          <p className="text-xs text-text-muted">
+            Workers in this organization, the agents bound to them, in-flight work
+            items, and file transfers.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+          onClick={() => setModalOpen(true)}
+          data-testid="environment-add-worker-btn"
+        >
+          + Add Worker
+        </button>
       </header>
 
-      {workers.isLoading && (
-        <div className="space-y-2" data-testid="environment-loading">
-          <Skeleton height="3rem" />
-          <Skeleton height="3rem" />
-        </div>
-      )}
-      {workers.isError && (
-        <p className="text-sm text-danger" data-testid="environment-error">
-          {(workers.error as Error).message}
-        </p>
-      )}
-      {workers.isSuccess && workers.data.length === 0 && (
-        <EmptyState
-          testId="environment-empty"
-          title="No control-connected workers"
-          body="A worker appears here once its daemon connects the control channel. Enroll a worker on the Fleet page, then start its daemon."
+      {modalOpen && <AddWorkerModal onClose={() => setModalOpen(false)} />}
+      {installModal && (
+        <InstallCommandModal
+          workerID={installModal.workerID}
+          mode={installModal.mode}
+          onClose={() => setInstallModal(null)}
         />
       )}
-      {workers.isSuccess && workers.data.length > 0 && (
-        <ul className="space-y-3" data-testid="environment-workers">
-          {workers.data.map((wk) => {
-            const wkAgents = agentsByWorker(wk.worker_id);
-            return (
-              <li
-                key={wk.worker_id}
-                className="rounded border border-border-base bg-bg-elevated p-3"
-                data-testid="environment-worker"
-                data-worker-id={wk.worker_id}
-                data-status={wk.status}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{wk.name || wk.worker_id}</span>
-                    <span
-                      className="rounded px-1.5 py-0.5 text-xs"
-                      data-testid="environment-worker-status"
-                      data-status={wk.status}
-                    >
-                      {wk.status}
-                    </span>
-                  </div>
-                  <span className="font-mono text-xs text-text-muted">
-                    offset {wk.last_acked_offset}
-                  </span>
-                </div>
 
-                {wkAgents.length === 0 ? (
-                  <p className="mt-2 text-xs text-text-muted" data-testid="environment-worker-noagents">
-                    No agents bound to this worker.
-                  </p>
-                ) : (
-                  <ul className="mt-2 space-y-1" data-testid="environment-worker-agents">
-                    {wkAgents.map((a) => (
-                      <li
-                        key={a.id}
-                        className="flex items-center justify-between text-sm"
-                        data-testid="environment-agent"
-                        data-agent-id={a.id}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span>{a.name}</span>
-                          <LifecycleBadge lifecycle={a.lifecycle} />
-                        </span>
-                        <OrgLink
-                          to={`/agents/${encodeURIComponent(a.id)}`}
-                          className="text-xs text-accent hover:underline"
-                        >
-                          Open →
-                        </OrgLink>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+      {fleet.isLoading && (
+        <p className="text-sm text-text-muted" data-testid="environment-loading">
+          Loading…
+        </p>
+      )}
+      {fleet.isError && (
+        <p className="text-sm text-danger" data-testid="environment-error">
+          {(fleet.error as Error).message}
+        </p>
       )}
 
-      <div data-testid="environment-transfers-section" className="pt-2">
-        <h3 className="text-sm font-semibold">In-flight file transfers</h3>
+      {fleet.data?.warnings && fleet.data.warnings.length > 0 && (
+        <div
+          className="rounded border border-warning/40 bg-warning/10 p-3 text-sm text-warning"
+          data-testid="environment-warnings"
+        >
+          <p className="font-medium">Partial snapshot:</p>
+          <ul className="ml-4 list-disc text-xs">
+            {fleet.data.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {fleet.isSuccess && (
+        <>
+          <Section title="Workers">
+            {fleet.data.workers.length === 0 ? (
+              <div
+                className="rounded border border-dashed border-border-strong bg-bg-subtle p-6 text-center"
+                data-testid="environment-workers-empty"
+              >
+                <p className="text-sm text-text-secondary">No workers connected yet.</p>
+                <p className="mt-2 text-xs text-text-muted">
+                  A worker is a machine where agents actually run. Add at least one to
+                  start dispatching tasks.
+                </p>
+                <button
+                  type="button"
+                  className="mt-4 rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                  onClick={() => setModalOpen(true)}
+                  data-testid="environment-workers-empty-cta"
+                >
+                  + Add your first worker
+                </button>
+              </div>
+            ) : (
+              <ul className="space-y-3" data-testid="environment-workers">
+                {fleet.data.workers.map((wk) => {
+                  const flashing = Boolean(highlighted[wk.worker_id]);
+                  const wkAgents = agentsByWorker(wk.worker_id);
+                  return (
+                    <li
+                      key={wk.worker_id}
+                      className={`rounded border border-border-base bg-bg-elevated p-3 ${
+                        flashing
+                          ? 'motion-safe:animate-pulse bg-success/10 motion-safe:transition-colors motion-safe:duration-700'
+                          : ''
+                      }`}
+                      data-testid="environment-worker"
+                      data-worker-id={wk.worker_id}
+                      data-status={wk.status}
+                      data-just-enrolled={flashing ? 'true' : undefined}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <WorkerNameCell worker={wk} />
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary"
+                            data-testid="environment-worker-status"
+                            data-status={wk.status}
+                          >
+                            {wk.status}
+                          </span>
+                          <span className="font-mono text-xs text-text-muted" data-testid="environment-worker-active">
+                            {wk.active_count} active
+                          </span>
+                          <span className="text-xs text-text-muted">
+                            {wk.last_heartbeat_at ? `hb ${wk.last_heartbeat_at}` : 'hb —'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        {wkAgents.length === 0 ? (
+                          <p className="text-xs text-text-muted" data-testid="environment-worker-noagents">
+                            No agents bound to this worker.
+                          </p>
+                        ) : (
+                          <ul className="space-y-1" data-testid="environment-worker-agents">
+                            {wkAgents.map((a) => (
+                              <li
+                                key={a.id}
+                                className="flex items-center gap-2 text-sm"
+                                data-testid="environment-agent"
+                                data-agent-id={a.id}
+                              >
+                                <span>{a.name}</span>
+                                <LifecycleBadge lifecycle={a.lifecycle} />
+                                <OrgLink
+                                  to={`/agents/${encodeURIComponent(a.id)}`}
+                                  className="text-xs text-accent hover:underline"
+                                >
+                                  Open →
+                                </OrgLink>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <WorkerRowActions
+                          worker={wk}
+                          onShowInstall={() => setInstallModal({ workerID: wk.worker_id, mode: 'show' })}
+                          onReMintInstall={() => setInstallModal({ workerID: wk.worker_id, mode: 'remint' })}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Section>
+
+          <Section title="Work items">
+            {fleet.data.work_items.length === 0 ? (
+              <p className="text-xs text-text-muted" data-testid="environment-workitem-empty">
+                Nothing running right now.
+              </p>
+            ) : (
+              <ul
+                className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
+                data-testid="environment-workitem-list"
+              >
+                {fleet.data.work_items.map((wi) => (
+                  <li
+                    key={wi.work_item_id}
+                    className="flex items-center justify-between px-3 py-2 text-xs"
+                    data-testid="environment-workitem-row"
+                    data-work-item-id={wi.work_item_id}
+                  >
+                    <span>
+                      {wi.task_id ? (
+                        <Link
+                          to={`${base}/tasks/${encodeURIComponent(wi.task_id)}`}
+                          className="font-mono text-accent hover:underline"
+                        >
+                          {wi.task_id}
+                        </Link>
+                      ) : (
+                        <span className="font-mono text-text-muted">{wi.work_item_id}</span>
+                      )}{' '}
+                      <span className="text-text-muted">agent</span>{' '}
+                      <span className="font-mono">{wi.agent_id}</span>
+                      {wi.current_activity ? (
+                        <span className="text-text-muted"> · {wi.current_activity}</span>
+                      ) : null}
+                    </span>
+                    <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
+                      {wi.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          <Section title="Pending issues">
+            {fleet.data.pending_issues.length === 0 ? (
+              <p className="text-xs text-text-muted">No pending issues.</p>
+            ) : (
+              <ul
+                className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
+                data-testid="environment-issues-list"
+              >
+                {fleet.data.pending_issues.map((i) => (
+                  <li key={i.issue_id} className="px-3 py-2 text-xs">
+                    <Link
+                      to={`${base}/issues/${encodeURIComponent(i.issue_id)}`}
+                      className="text-accent hover:underline"
+                    >
+                      {i.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+        </>
+      )}
+
+      <Section title="In-flight file transfers">
         <p className="text-xs text-text-muted">
           Open file-transfer sessions in this organization (resolved by scope).
         </p>
         {transfers.isLoading && (
           <div className="mt-2" data-testid="transfers-loading">
-            <Skeleton height="2rem" />
+            <p className="text-xs text-text-muted">Loading…</p>
           </div>
         )}
         {transfers.isError && (
@@ -171,7 +332,218 @@ export default function Environment(): React.ReactElement {
             </tbody>
           </table>
         )}
-      </div>
+      </Section>
     </section>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-text-primary">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+// WorkerNameCell: friendly name + worker id with inline rename (PATCH
+// /api/workers/{id}/name). Ported from the retired Fleet page (#164).
+function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const displayName = worker.name || worker.worker_id;
+  const [draft, setDraft] = useState(displayName);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const next = draft.trim();
+    if (!next || next === displayName) {
+      setEditing(false);
+      setDraft(displayName);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const resp = await fetch(withOrgSlug(`/api/workers/${encodeURIComponent(worker.worker_id)}/name`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: next }),
+      });
+      if (!resp.ok) {
+        const body = (await resp.json().catch(() => ({}))) as { error?: string; message?: string };
+        throw new Error(body.message || body.error || `HTTP ${resp.status}`);
+      }
+      setEditing(false);
+      void qc.invalidateQueries({ queryKey: qk.fleet() });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          disabled={busy}
+          className="w-40 rounded border border-border-base bg-bg-elevated px-2 py-0.5 text-sm text-text-primary focus:border-accent"
+          data-testid="environment-worker-name-input"
+        />
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded bg-brand px-2 py-0.5 text-xs text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
+          data-testid="environment-worker-name-save"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setEditing(false);
+            setDraft(displayName);
+            setError(null);
+          }}
+          className="text-xs text-text-muted hover:text-text-primary"
+        >
+          Cancel
+        </button>
+        {error && <span className="text-xs text-danger">{error}</span>}
+      </form>
+    );
+  }
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        className="text-left text-sm font-medium text-text-primary hover:text-accent"
+        onClick={() => setEditing(true)}
+        title="Click to rename"
+        data-testid="environment-worker-name"
+      >
+        {displayName}
+      </button>
+      <span className="font-mono text-[0.6875rem] text-text-muted" data-testid="environment-worker-id">
+        {worker.worker_id}
+      </span>
+    </div>
+  );
+}
+
+// WorkerRowActions: install command (offline only) + Remove. Ported from Fleet
+// (#164). The window.confirm calls are intentionally left as-is — task #169
+// converts all native dialogs to Modal components separately.
+function WorkerRowActions({
+  worker,
+  onShowInstall,
+  onReMintInstall,
+}: {
+  worker: FleetWorkerRow;
+  onShowInstall: () => void;
+  onReMintInstall: () => void;
+}): React.ReactElement {
+  const showInstallActions = worker.status === 'offline';
+  return (
+    <div className="flex shrink-0 justify-end gap-2" data-testid="environment-worker-actions">
+      {showInstallActions && (
+        <>
+          <button
+            type="button"
+            className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            onClick={onShowInstall}
+            data-testid="environment-worker-show-install"
+          >
+            Show install command
+          </button>
+          <button
+            type="button"
+            className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Re-mint will revoke the current install token and issue a fresh one. ' +
+                    'Use this if the original command expired or got lost. Continue?',
+                )
+              ) {
+                onReMintInstall();
+              }
+            }}
+            data-testid="environment-worker-remint-install"
+          >
+            Re-mint install command
+          </button>
+        </>
+      )}
+      <RemoveWorkerButton worker={worker} />
+    </div>
+  );
+}
+
+// RemoveWorkerButton: DELETE /api/workers/{id} after confirm. Ported from Fleet
+// (#164). window.confirm left as-is for #169.
+function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const handleRemove = async () => {
+    const message =
+      worker.status === 'online'
+        ? `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
+          'This will revoke the worker token and remove the record. ' +
+          'The worker daemon will hit 401 next cycle.'
+        : `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
+          'This will revoke any active install token and remove the record.';
+    if (!window.confirm(message)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const resp = await fetch(withOrgSlug(`/api/workers/${encodeURIComponent(worker.worker_id)}`), {
+        method: 'DELETE',
+      });
+      if (!resp.ok && resp.status !== 204) {
+        let detail = `HTTP ${resp.status}`;
+        try {
+          const body = (await resp.json()) as { message?: string };
+          if (body.message) detail = body.message;
+        } catch {
+          // ignore parse failure
+        }
+        throw new Error(detail);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="flex items-center gap-2">
+      {error && (
+        <span className="text-xs text-danger" data-testid="environment-worker-remove-error">
+          {error}
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={busy}
+        className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:text-text-muted"
+        onClick={() => void handleRemove()}
+        data-testid="environment-worker-remove"
+      >
+        {busy ? 'Removing...' : 'Remove'}
+      </button>
+    </span>
   );
 }
