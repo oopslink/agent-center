@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAddMember, useAddAgentMember } from '@/api/members';
+import { useWorkers } from '@/api/workers';
 import { ApiError } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
 
@@ -16,11 +17,17 @@ export default function MemberNew(): React.ReactElement {
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [role, setRole] = useState('member');
+  // v2.7 #157: Members→Add Agent is one step — also create the execution Agent
+  // (model/cli + the worker it runs on). worker_id is required for an agent.
+  const [model, setModel] = useState('');
+  const [cli, setCli] = useState('');
+  const [workerID, setWorkerID] = useState('');
   const [error, setError] = useState('');
   const [tempPasscode, setTempPasscode] = useState('');
 
   const addUser = useAddMember();
   const addAgent = useAddAgentMember();
+  const workers = useWorkers();
   const pending = addUser.isPending || addAgent.isPending;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -28,9 +35,19 @@ export default function MemberNew(): React.ReactElement {
     setError('');
     if (kind === 'agent') {
       addAgent.mutate(
-        { display_name: displayName.trim(), description: description.trim(), role },
         {
-          onSuccess: () => navigate(`${base}/members/agents`),
+          display_name: displayName.trim(),
+          description: description.trim(),
+          role,
+          model: model.trim() || undefined,
+          cli: cli.trim() || undefined,
+          worker_id: workerID || undefined,
+        },
+        {
+          // Unified create returns the execution agent's id → open its management
+          // page (AgentDetail) directly; fall back to the agents list otherwise.
+          onSuccess: (res) =>
+            navigate(res.agent_id ? `${base}/agents/${res.agent_id}` : `${base}/members/agents`),
           onError: (err) => setError(err instanceof ApiError ? err.message : '创建失败'),
         },
       );
@@ -101,6 +118,49 @@ export default function MemberNew(): React.ReactElement {
             />
           </div>
         )}
+        {kind === 'agent' && (
+          <>
+            {/* v2.7 #157: execution-agent fields — one-step create runs the agent on a worker. */}
+            <div className="space-y-1">
+              <label htmlFor="mn-worker" className="block text-sm text-text-primary">运行 Worker</label>
+              <select
+                id="mn-worker"
+                value={workerID}
+                onChange={(e) => setWorkerID(e.target.value)}
+                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary"
+              >
+                <option value="">选择一个 worker…</option>
+                {(workers.data ?? []).map((w) => (
+                  <option key={w.worker_id} value={w.worker_id}>
+                    {w.name || w.worker_id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="mn-model" className="block text-sm text-text-primary">模型（可选）</label>
+              <input
+                id="mn-model"
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="如 claude-opus-4"
+                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="mn-cli" className="block text-sm text-text-primary">CLI（可选）</label>
+              <input
+                id="mn-cli"
+                type="text"
+                value={cli}
+                onChange={(e) => setCli(e.target.value)}
+                placeholder="如 claudecode"
+                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
+              />
+            </div>
+          </>
+        )}
         <div className="space-y-1">
           <label htmlFor="mn-role" className="block text-sm text-text-primary">角色</label>
           <select
@@ -124,7 +184,7 @@ export default function MemberNew(): React.ReactElement {
           </button>
           <button
             type="submit"
-            disabled={pending || !displayName.trim()}
+            disabled={pending || !displayName.trim() || (kind === 'agent' && !workerID)}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {pending ? '创建中…' : '创建'}

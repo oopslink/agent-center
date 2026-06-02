@@ -470,13 +470,17 @@ export const handlers = [
     return ok(resp, 201);
   }),
   http.post('/api/members/agent', async ({ request }) => {
-    const body = (await request.json()) as { display_name?: string; role?: string };
-    return ok({
+    const body = (await request.json()) as { display_name?: string; role?: string; worker_id?: string };
+    const res: Record<string, unknown> = {
       id: 'mem-agent', organization_id: 'org-test',
       identity_id: `agent-${(body.display_name ?? 'new').slice(0, 8)}`,
       kind: 'agent', role: body.role ?? 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
       display_name: body.display_name ?? 'new',
-    }, 201);
+    };
+    // v2.7 #157: when worker_id is present the backend also creates the execution
+    // Agent (unified one-step create) and returns its id.
+    if (body.worker_id) res.agent_id = 'A-new';
+    return ok(res, 201);
   }),
   http.patch('/api/members/:id/role', () => new HttpResponse(null, { status: 204 })),
   http.post('/api/members/:id/disable', () => new HttpResponse(null, { status: 204 })),

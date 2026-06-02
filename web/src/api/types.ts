@@ -87,6 +87,9 @@ export interface Agent {
   lifecycle: AgentLifecycle;
   availability: Availability;
   created_by: string;
+  // v2.7 #157: the agent identity-member this execution Agent represents (empty
+  // for standalone agents). Lets Members navigate member→AgentDetail.
+  identity_member_id?: string;
   version: number;
   created_at: string;
   updated_at: string;

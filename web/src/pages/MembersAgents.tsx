@@ -1,16 +1,29 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useMembers } from '@/api/members';
+import { useAgents } from '@/api/agents';
 import { useOptionalOrgContext } from '@/OrgContext';
 
 export default function MembersAgents(): React.ReactElement {
   const members = useMembers();
+  const agents = useAgents();
   const orgCtx = useOptionalOrgContext();
   const base = orgCtx ? `/organizations/${orgCtx.slug}` : '';
   // Use `kind` field from v2.6 member response; fall back to identity_id prefix for compatibility.
   const agentMembers = (members.data ?? []).filter(
     (m) => m.kind === 'agent' || m.identity_id.startsWith('agent-') || m.identity_id.startsWith('agent:'),
   );
+  // v2.7 #157: resolve agent member → its execution Agent for the AgentDetail
+  // link. The execution Agent carries identity_member_id == the member's
+  // identity_id (the unified-create link). No match → no link yet (legacy
+  // identity-only member or pre-#157 row).
+  const agentIDByIdentity = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of agents.data ?? []) {
+      if (a.identity_member_id) m.set(a.identity_member_id, a.id);
+    }
+    return m;
+  }, [agents.data]);
 
   return (
     <section className="space-y-4" data-testid="page-MembersAgents">
@@ -44,7 +57,19 @@ export default function MembersAgents(): React.ReactElement {
             <tbody>
               {agentMembers.map((m) => (
                 <tr key={m.id} className="border-b border-border last:border-0">
-                  <td className="py-2 px-3 text-sm text-text-primary font-mono">{m.identity_id}</td>
+                  <td className="py-2 px-3 text-sm font-mono">
+                    {agentIDByIdentity.get(m.identity_id) ? (
+                      <Link
+                        to={`${base}/agents/${agentIDByIdentity.get(m.identity_id)}`}
+                        className="text-brand hover:underline"
+                        data-testid={`agent-member-link-${m.identity_id}`}
+                      >
+                        {m.display_name || m.identity_id}
+                      </Link>
+                    ) : (
+                      <span className="text-text-primary">{m.display_name || m.identity_id}</span>
+                    )}
+                  </td>
                   <td className="py-2 px-3 text-sm text-text-secondary">{m.role}</td>
                   <td className="py-2 px-3 text-sm text-text-secondary">
                     {m.worker_id ? (
