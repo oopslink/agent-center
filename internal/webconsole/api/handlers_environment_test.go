@@ -8,36 +8,38 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/environment"
-	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
+	"github.com/oopslink/agent-center/internal/workforce"
+	wfsql "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
-// saveEnvWorkerInOrg saves an environment.Worker (control-connected view) owned by
-// orgID directly via the sqlite repo, so the org-scoped /api/workers reads see it.
-func saveEnvWorkerInOrg(t *testing.T, db *sql.DB, orgID, workerID string) {
+// saveWorkforceWorkerInOrg saves a workforce.Worker (the canonical enrolled-set
+// model — v2.7 #140 step-2 convergence) owned by orgID directly via the sqlite
+// repo, so the org-scoped /api/workers reads see it.
+func saveWorkforceWorkerInOrg(t *testing.T, db *sql.DB, orgID, workerID string) {
 	t.Helper()
-	w, err := environment.NewWorker(environment.NewWorkerInput{
-		ID:             environment.WorkerID(workerID),
+	w, err := workforce.NewWorker(workforce.NewWorkerInput{
+		ID:             workforce.WorkerID(workerID),
 		OrganizationID: orgID,
 		Name:           workerID,
-		CreatedAt:      time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
+		EnrolledAt:     time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := envsql.NewWorkerRepo(db).Save(context.Background(), w); err != nil {
+	if err := wfsql.NewWorkerRepo(db).Save(context.Background(), w); err != nil {
 		t.Fatal(err)
 	}
 }
 
 // TestAPI_EnvWorkers_ListOrgScoped: GET /api/workers returns ONLY the caller org's
-// control-connected workers (ListByOrg) — a worker in another org never leaks.
+// workers — a worker in another org never leaks. v2.7 #140 step-2: sourced from the
+// canonical workforce.Worker (enrolled set), org-filtered in-handler.
 func TestAPI_EnvWorkers_ListOrgScoped(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
-	deps.EnvWorkerRepo = envsql.NewWorkerRepo(db)
+	deps.WorkerRepo = wfsql.NewWorkerRepo(db)
 	sess := setupTestSession(t, db, deps)
-	saveEnvWorkerInOrg(t, db, sess.OrgID, "w-mine")
-	saveEnvWorkerInOrg(t, db, "org-other", "w-other")
+	saveWorkforceWorkerInOrg(t, db, sess.OrgID, "w-mine")
+	saveWorkforceWorkerInOrg(t, db, "org-other", "w-other")
 	s := newTestServer(t, deps)
 	defer s.Close()
 
@@ -55,17 +57,27 @@ func TestAPI_EnvWorkers_ListOrgScoped(t *testing.T) {
 	if list.Workers[0]["organization_id"] != sess.OrgID {
 		t.Fatalf("worker org = %v, want %s", list.Workers[0]["organization_id"], sess.OrgID)
 	}
+	// v2.7 #140 step-2: the control-channel-only field is gone (workforce.Worker
+	// has no acked offset); the enrolled-set shape carries enrolled_at instead.
+	if _, ok := list.Workers[0]["last_acked_offset"]; ok {
+		t.Fatalf("last_acked_offset must be dropped after workforce repoint: %+v", list.Workers[0])
+	}
+	if _, ok := list.Workers[0]["enrolled_at"]; !ok {
+		t.Fatalf("enrolled_at missing (enrolled-set shape): %+v", list.Workers[0])
+	}
 }
 
 // TestAPI_EnvWorkers_GetOwnAndCrossOrg404: detail returns 200 for the caller org's
 // worker, and 404 (NOT 403/leak) for another org's worker id — the fetch-then-check
-// guard prevents probing cross-org worker ids (E-10b hard invariant).
+// guard prevents probing cross-org worker ids (E-10b hard invariant). v2.7 #140
+// step-2: now workforce.WorkerRepository.FindByID + same org-check (NOT a scoped
+// query — the invariant is preserved across the repoint).
 func TestAPI_EnvWorkers_GetOwnAndCrossOrg404(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
-	deps.EnvWorkerRepo = envsql.NewWorkerRepo(db)
+	deps.WorkerRepo = wfsql.NewWorkerRepo(db)
 	sess := setupTestSession(t, db, deps)
-	saveEnvWorkerInOrg(t, db, sess.OrgID, "w-mine")
-	saveEnvWorkerInOrg(t, db, "org-other", "w-other")
+	saveWorkforceWorkerInOrg(t, db, sess.OrgID, "w-mine")
+	saveWorkforceWorkerInOrg(t, db, "org-other", "w-other")
 	s := newTestServer(t, deps)
 	defer s.Close()
 
@@ -93,10 +105,11 @@ func TestAPI_EnvWorkers_GetOwnAndCrossOrg404(t *testing.T) {
 	}
 }
 
-// TestAPI_EnvWorkers_NotWired: with no EnvWorkerRepo wired the reads return 501
+// TestAPI_EnvWorkers_NotWired: with no WorkerRepo wired the reads return 501
 // (graceful not-wired, not a panic).
 func TestAPI_EnvWorkers_NotWired(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
+	deps.WorkerRepo = nil
 	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()

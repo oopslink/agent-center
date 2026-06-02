@@ -239,9 +239,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/admintoken/mint-enroll", s.mintEnrollHandler)
 	s.mux.HandleFunc("POST /api/admintoken/revoke", s.revokeEnrollHandler)
 
-	// v2.7 E1 #138 (Environment domain page): org-scoped READS of the
-	// control-connected workers (environment.Worker). List is org-scoped at the
-	// source (ListByOrg); detail is fetch-then-check-org (cross-org id → 404).
+	// v2.7 E1 #138 (Environment domain page): org-scoped READS of the org's
+	// workers. v2.7 #140 step-2: sourced from canonical workforce.Worker
+	// (enrolled set) — list is FindAll + in-handler org-filter; detail is
+	// fetch-then-check-org (cross-org id → 404, E-10b).
 	s.mux.HandleFunc("GET /api/workers", s.listWorkersHandler)
 	s.mux.HandleFunc("GET /api/workers/{id}", s.getWorkerHandler)
 	// v2.7 E1 #139: in-flight file-transfer sessions, org-scoped via scope→org

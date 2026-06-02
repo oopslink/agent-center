@@ -7,84 +7,92 @@ import (
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/files"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // v2.7 E1 #138 — Environment domain web surface (org-scoped READS).
 //
-// The Environment page shows the org's WORKERS from the CONTROL-CONNECTED view:
-// these are environment.Worker ARs (created when a worker connects the control
-// channel — D1, ADR-0050), carrying control-channel state (status / last-acked
-// offset / heartbeat). This is DISTINCT from the Fleet page's workers segment,
-// which derives from the legacy workforce.Worker (enrolled set). The two models
-// are being converged in the workforce carve-out; until then the UI labels this
-// page explicitly as the control-connected view so operators don't expect the
-// full enrolled set here.
+// The Environment page shows the org's WORKERS. v2.7 #140 step-2 (worker-model
+// convergence): this now sources the CANONICAL workforce.Worker (the enrolled
+// set) instead of the retiring environment.Worker. SEMANTIC CHANGE (intentional,
+// PD-ruled): `status` is now the ENROLLED-SET state (offline|online enrolled),
+// NOT the control-connection state — the Environment page is the enrolled-worker
+// view, same source as the Fleet page (the control-connected/enrolled-set split
+// is being collapsed; pages stay structurally separate per v2.7, merge is a
+// post-v2.7 UX call). The control-channel `last_acked_offset` field is DROPPED
+// (no equivalent on workforce.Worker; it was a control-channel internal). Org
+// isolation: workforce.Worker carries organization_id, filtered in-handler.
 //
 // Agents-on-worker are NOT a new endpoint: the page reuses the already org-scoped
 // GET /api/agents (each Agent carries worker_id) and groups client-side.
 // File-transfer sessions are slice-2 (#139).
 
-// envWorkerMap serializes an environment.Worker (control-connected view) to JSON.
-func envWorkerMap(w *environment.Worker) map[string]any {
+// envWorkerMap serializes a workforce.Worker (enrolled-set view) to JSON.
+func envWorkerMap(w *workforce.Worker) map[string]any {
 	m := map[string]any{
-		"worker_id":         string(w.ID()),
-		"organization_id":   w.OrganizationID(),
-		"name":              w.Name(),
-		"status":            string(w.Status()), // online | offline (control-connection state)
-		"last_acked_offset": w.LastAckedOffset(),
-		"created_at":        w.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at":        w.UpdatedAt().Format(time.RFC3339Nano),
-		"version":           w.Version(),
+		"worker_id":       string(w.ID()),
+		"organization_id": w.OrganizationID(),
+		"name":            w.Name(),
+		"status":          string(w.Status()), // enrolled-set state (offline|online)
+		"enrolled_at":     w.EnrolledAt().Format(time.RFC3339Nano),
+		"created_at":      w.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at":      w.UpdatedAt().Format(time.RFC3339Nano),
+		"version":         w.Version(),
 	}
-	if hb := w.LastHeartbeatAt(); !hb.IsZero() {
+	if hb := w.LastHeartbeatAt(); hb != nil {
 		m["last_heartbeat_at"] = hb.Format(time.RFC3339Nano)
 	}
 	return m
 }
 
-// listWorkersHandler serves GET /api/workers — the org's control-connected
-// workers. Org-scoped at the source via environment.WorkerRepository.ListByOrg,
-// so a caller only ever sees their own org's workers (no cross-org leak).
+// listWorkersHandler serves GET /api/workers — the caller org's enrolled workers.
+// v2.7 #140 step-2: workforce.WorkerRepository has no per-org query, so we FindAll
+// and filter by worker.OrganizationID in-handler (same org-scoping pattern as the
+// Fleet workers segment), fail-closed — a caller only ever sees their own org's
+// workers (no cross-org leak).
 func (s *Server) listWorkersHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.EnvWorkerRepo == nil {
-		writeError(w, http.StatusNotImplemented, "env_workers_not_wired", "environment worker repo not wired")
+	if d.WorkerRepo == nil {
+		writeError(w, http.StatusNotImplemented, "env_workers_not_wired", "worker repo not wired")
 		return
 	}
 	_, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	workers, err := d.EnvWorkerRepo.ListByOrg(r.Context(), orgID)
+	workers, err := d.WorkerRepo.FindAll(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "env_workers_error", err.Error())
 		return
 	}
 	out := make([]map[string]any, 0, len(workers))
 	for _, wk := range workers {
+		if wk.OrganizationID() != orgID {
+			continue
+		}
 		out = append(out, envWorkerMap(wk))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"workers": out})
 }
 
-// getWorkerHandler serves GET /api/workers/{id} — one control-connected worker.
+// getWorkerHandler serves GET /api/workers/{id} — one enrolled worker.
 // Org isolation is enforced by FETCH-then-CHECK (not a scoped query): the worker
 // is fetched by id and a cross-org (or unknown) id returns 404, so an attacker
-// cannot probe another org's worker ids. (E-10b hard invariant.)
+// cannot probe another org's worker ids. (E-10b hard invariant — preserved across
+// the v2.7 #140 step-2 repoint to workforce.WorkerRepository.)
 func (s *Server) getWorkerHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.EnvWorkerRepo == nil {
-		writeError(w, http.StatusNotImplemented, "env_workers_not_wired", "environment worker repo not wired")
+	if d.WorkerRepo == nil {
+		writeError(w, http.StatusNotImplemented, "env_workers_not_wired", "worker repo not wired")
 		return
 	}
 	_, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	wk, err := d.EnvWorkerRepo.FindByID(r.Context(), environment.WorkerID(r.PathValue("id")))
+	wk, err := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(r.PathValue("id")))
 	if err != nil || wk.OrganizationID() != orgID {
 		writeError(w, http.StatusNotFound, "not_found", "worker not found in this organization")
 		return

@@ -17,7 +17,6 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/identity"
@@ -80,13 +79,10 @@ type HandlerDeps struct {
 	// v2.5-B2: WorkerRepo backs the show-install-command lookup —
 	// we need the Worker's name to embed in `--worker-name=...`
 	// when rebuilding the install line.
+	// v2.7 #140 step-2: WorkerRepo also backs the Environment-page worker reads
+	// (GET /api/workers + /api/workers/{id}) — repointed off the retiring
+	// environment.Worker onto the canonical workforce.Worker (enrolled set).
 	WorkerRepo workforce.WorkerRepository
-
-	// v2.7 E1 #138: EnvWorkerRepo backs the org-scoped Environment-page worker
-	// reads (GET /api/workers + /api/workers/{id}) — the CONTROL-CONNECTED view
-	// (environment.Worker, distinct from the legacy workforce.Worker above).
-	// Optional — nil means the environment worker reads are not wired (501).
-	EnvWorkerRepo environment.WorkerRepository
 
 	// v2.7 E1 #139: FileTransferRepo backs the Environment-page in-flight
 	// transfer-session view (GET /api/files/transfers). Org is resolved per
