@@ -25,6 +25,47 @@ func TestNewAgent_RequiresWorker(t *testing.T) {
 	}
 }
 
+// TestAgent_IdentityMemberID — v2.7 #157: an execution Agent created via the
+// unified Members→Add Agent flow carries the identity-member id it represents
+// (so Members can navigate member→AgentDetail by member.identity_id == this).
+// It holds the identity-member's identity ID ("agent-<ulid>"), NOT an ADR-0033
+// actor ref. Optional: a bare POST /api/agents create omits it (empty).
+func TestAgent_IdentityMemberID(t *testing.T) {
+	a, err := NewAgent(NewAgentInput{
+		ID: "A1", OrganizationID: "org", Profile: Profile{Name: "x"},
+		WorkerID: "W1", CreatedBy: "user:a", CreatedAt: t0, IdentityMemberID: "agent-bot-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.IdentityMemberID() != "agent-bot-1" {
+		t.Fatalf("IdentityMemberID = %q, want agent-bot-1", a.IdentityMemberID())
+	}
+	// Roundtrip through the repo rehydrate path must preserve it.
+	r, err := RehydrateAgent(RehydrateAgentInput{
+		ID: "A1", OrganizationID: "org", Profile: Profile{Name: "x"}, WorkerID: "W1",
+		Lifecycle: LifecycleStopped, CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0,
+		Version: 1, IdentityMemberID: "agent-bot-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.IdentityMemberID() != "agent-bot-1" {
+		t.Fatalf("rehydrate IdentityMemberID lost: %q", r.IdentityMemberID())
+	}
+	// Omitted → empty (the standalone execution-agent create path).
+	a2, err := NewAgent(NewAgentInput{
+		ID: "A2", OrganizationID: "org", Profile: Profile{Name: "x"},
+		WorkerID: "W1", CreatedBy: "user:a", CreatedAt: t0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a2.IdentityMemberID() != "" {
+		t.Fatalf("unset IdentityMemberID should be empty, got %q", a2.IdentityMemberID())
+	}
+}
+
 func TestNewAgent_Defaults(t *testing.T) {
 	a := newAgent(t)
 	if a.Lifecycle() != LifecycleStopped {

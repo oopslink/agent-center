@@ -39,11 +39,11 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	p := a.Profile()
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO agents (id, organization_id, name, description, model, cli, env_vars, skills,
-			worker_id, lifecycle, lifecycle_error, created_by, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), env, skills, a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
-		string(a.CreatedBy()), ts(a.CreatedAt()), ts(a.UpdatedAt()), a.Version())
+		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), a.Version())
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "unique") {
 		return agent.ErrAgentExists
 	}
@@ -109,7 +109,7 @@ func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, er
 }
 
 const agentSelect = `SELECT id, organization_id, name, description, model, cli, env_vars, skills,
-	worker_id, lifecycle, lifecycle_error, created_by, created_at, updated_at, version FROM agents`
+	worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version FROM agents`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
@@ -137,12 +137,12 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, err error) {
 func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 	var (
 		id, org, name, workerID, lifecycle, createdBy, createdAt, updatedAt string
-		desc, model, cli, lifecycleErr                                      sql.NullString
+		desc, model, cli, lifecycleErr, identityMemberID                    sql.NullString
 		envJSON, skillsJSON                                                 string
 		version                                                             int
 	)
 	if err := scan(&id, &org, &name, &desc, &model, &cli, &envJSON, &skillsJSON,
-		&workerID, &lifecycle, &lifecycleErr, &createdBy, &createdAt, &updatedAt, &version); err != nil {
+		&workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
 	var env map[string]string
@@ -158,8 +158,9 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 		Profile: agent.Profile{Name: name, Description: desc.String, Model: model.String, CLI: cli.String, EnvVars: env},
 		Skills:  skills, WorkerID: workerID,
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,
-		CreatedBy: agent.IdentityRef(createdBy),
-		CreatedAt: parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
+		CreatedBy:        agent.IdentityRef(createdBy),
+		IdentityMemberID: identityMemberID.String,
+		CreatedAt:        parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
 	})
 }
 

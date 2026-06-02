@@ -20,6 +20,9 @@ type CreateAgentCommand struct {
 	Skills         []string
 	WorkerID       string
 	CreatedBy      agent.IdentityRef
+	// IdentityMemberID (optional, v2.7 #157) — the identity-member id this
+	// execution Agent represents; set by the unified Members→Add Agent flow.
+	IdentityMemberID string
 }
 
 // CreateAgent validates the chosen Worker belongs to the caller's org, then
@@ -34,10 +37,11 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 			Name: cmd.Name, Description: cmd.Description, Model: cmd.Model,
 			CLI: cmd.CLI, EnvVars: cmd.EnvVars,
 		},
-		Skills:    cmd.Skills,
-		WorkerID:  cmd.WorkerID,
-		CreatedBy: cmd.CreatedBy,
-		CreatedAt: now,
+		Skills:           cmd.Skills,
+		WorkerID:         cmd.WorkerID,
+		CreatedBy:        cmd.CreatedBy,
+		IdentityMemberID: cmd.IdentityMemberID,
+		CreatedAt:        now,
 	})
 	if err != nil {
 		return "", err

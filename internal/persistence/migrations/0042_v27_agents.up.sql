@@ -22,6 +22,10 @@ CREATE TABLE agents (
     lifecycle        TEXT NOT NULL,                -- stopped|running|stopping|resetting|error
     lifecycle_error  TEXT,
     created_by       TEXT NOT NULL,
+    -- v2.7 #157: the agent identity-member (identity BC) id this execution Agent
+    -- represents (set by the unified Members→Add Agent flow). NULL for standalone
+    -- creates. Enables member→AgentDetail nav (member.identity_id == this).
+    identity_member_id TEXT,
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL,
     version          INTEGER NOT NULL DEFAULT 1
