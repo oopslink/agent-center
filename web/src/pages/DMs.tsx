@@ -2,8 +2,9 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useConversations } from '@/api/conversations';
+import { useConversations, useDeleteConversation } from '@/api/conversations';
 import { DMStartModal } from '@/components/DMStartModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
@@ -13,6 +14,9 @@ import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 export default function DMs(): React.ReactElement {
   const dms = useConversations({ kind: 'dm' });
   const [startOpen, setStartOpen] = useState(false);
+  // v2.7 #198: per-row delete (hard-delete) gated behind a confirm dialog.
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const del = useDeleteConversation();
   const navigate = useNavigate();
   useSSEConversationSubscribe(dms.data?.map((c) => c.id));
 
@@ -52,10 +56,10 @@ export default function DMs(): React.ReactElement {
       {dms.isSuccess && dms.data.length > 0 && (
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {dms.data.map((c) => (
-            <li key={c.id} data-testid="dm-row" data-dm-id={c.id}>
+            <li key={c.id} data-testid="dm-row" data-dm-id={c.id} className="flex items-center">
               <OrgLink
                 to={`/dms/${encodeURIComponent(c.id)}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
+                className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
                 <span className="flex items-center gap-3">
                   <span className="font-medium">{c.name || c.id}</span>
@@ -65,15 +69,61 @@ export default function DMs(): React.ReactElement {
                   </span>
                 </span>
               </OrgLink>
+              <button
+                type="button"
+                data-testid="dm-delete-button"
+                data-dm-id={c.id}
+                aria-label={`Delete DM ${c.name || c.id}`}
+                title="Delete DM"
+                onClick={() => {
+                  del.reset();
+                  setPendingDelete({ id: c.id, name: c.name || c.id });
+                }}
+                className="mr-2 shrink-0 rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+              >
+                Delete
+              </button>
             </li>
           ))}
         </ul>
+      )}
+
+      {del.isError && (
+        <p className="text-sm text-danger" data-testid="dm-delete-error" role="alert">
+          {(del.error as Error).message}
+        </p>
       )}
 
       <DMStartModal
         open={startOpen}
         onClose={() => setStartOpen(false)}
         onCreated={(id) => navigate(`/dms/${encodeURIComponent(id)}`)}
+      />
+
+      <ConfirmModal
+        open={pendingDelete !== null}
+        danger
+        busy={del.isPending}
+        title="Delete DM"
+        message={
+          pendingDelete
+            ? `Delete the DM "${pendingDelete.name}"? This permanently removes the conversation and all its messages for everyone. This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        onCancel={() => {
+          if (del.isPending) return;
+          setPendingDelete(null);
+          del.reset();
+        }}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          del.mutate(pendingDelete.id, {
+            // Close on both outcomes; an error surfaces as a page-level alert
+            // (Rule 9: never silent) that the next delete attempt resets.
+            onSettled: () => setPendingDelete(null),
+          });
+        }}
       />
     </section>
   );
