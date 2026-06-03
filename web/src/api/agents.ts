@@ -76,6 +76,22 @@ export function useResetAgent(id: string) {
   });
 }
 
+// useDeleteAgent hard-deletes an agent and its identity-member in one tx
+// (v2.7 #197, symmetric to #157's atomic create). The backend guards reject
+// a non-stopped agent (409 `agent_running`) or one with active work items
+// (409 `agent_has_active_work`); the worker binding is released (worker row
+// untouched). Errors surface as ApiError for the caller to map + display.
+export function useDeleteAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<void>(`/agents/${id}`),
+    onSuccess: (_, id) => {
+      void qc.invalidateQueries({ queryKey: qk.agents() });
+      void qc.removeQueries({ queryKey: qk.agent(id) });
+    },
+  });
+}
+
 export function useAgentWorkItems(id: string | undefined) {
   return useQuery({
     queryKey: qk.agentWorkItems(id ?? ''),

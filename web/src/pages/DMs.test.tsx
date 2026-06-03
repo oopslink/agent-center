@@ -123,7 +123,7 @@ describe('DMs delete (#198)', () => {
     oneDm();
     server.use(
       http.delete('/api/conversations/C-D1', () =>
-        HttpResponse.json({ error: 'forbidden', message: 'only a participant can delete this DM' }, { status: 403 }),
+        HttpResponse.json({ error: 'not_a_participant', message: 'not a participant' }, { status: 403 }),
       ),
     );
     wrap(<DMs />);
@@ -132,7 +132,7 @@ describe('DMs delete (#198)', () => {
       fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
     });
     await waitFor(() =>
-      expect(screen.getByTestId('dm-delete-error')).toHaveTextContent(/only a participant/),
+      expect(screen.getByTestId('dm-delete-error')).toHaveTextContent(/only a participant can delete this dm/i),
     );
   });
 });
