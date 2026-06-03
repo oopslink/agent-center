@@ -88,25 +88,65 @@ describe('TaskDetail page', () => {
     expect(screen.getByTestId('task-breadcrumb-project')).toHaveAttribute('href', '/projects/proj-a');
   });
 
-  it('assigns an agent via the assign modal', async () => {
+  it('assigns via the searchable picker — agent → agent:<member-id> ref (#186-5b)', async () => {
     let received: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      // Picker sources agents (→ agent:<identity_member_id>) + human members.
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [{ id: 'agent-bld1', identity_member_id: 'agent-bld1', name: 'builder', worker_id: 'w-1', lifecycle: 'stopped' }],
+        }),
+      ),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-h1', organization_id: 'O-1', identity_id: 'user-h1', kind: 'user', role: 'member', status: 'joined', display_name: 'Alice' },
+        ]),
+      ),
       http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(taskAt('assigned', { assignee: 'agent:builder' }));
+        return HttpResponse.json(taskAt('assigned', { assignee: 'agent:agent-bld1' }));
       }),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await waitFor(() => expect(screen.getByTestId('task-assign-button')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('task-assign-button'));
-    fireEvent.change(screen.getByTestId('task-assign-input'), {
-      target: { value: 'agent:builder' },
-    });
+    // Candidates load (agent + human); filter then pick the agent.
+    await waitFor(() => expect(screen.getAllByTestId('task-assign-candidate').length).toBeGreaterThan(0));
+    fireEvent.change(screen.getByTestId('task-assign-search'), { target: { value: 'builder' } });
+    const agentCandidate = await screen.findByTestId('task-assign-candidate');
+    expect(agentCandidate).toHaveAttribute('data-assignee-ref', 'agent:agent-bld1');
     await act(async () => {
-      fireEvent.click(screen.getByTestId('task-assign-submit'));
+      fireEvent.click(agentCandidate);
     });
-    await waitFor(() => expect(received).toMatchObject({ assignee: 'agent:builder' }));
+    await waitFor(() => expect(received).toMatchObject({ assignee: 'agent:agent-bld1' }));
+  });
+
+  it('can assign a human (PM tracking) → user:<identity_id> ref (#186-5a)', async () => {
+    let received: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-h1', organization_id: 'O-1', identity_id: 'user-h1', kind: 'user', role: 'member', status: 'joined', display_name: 'Alice' },
+        ]),
+      ),
+      http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
+        received = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(taskAt('assigned', { assignee: 'user:user-h1' }));
+      }),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await waitFor(() => expect(screen.getByTestId('task-assign-button')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('task-assign-button'));
+    const human = await screen.findByTestId('task-assign-candidate');
+    expect(human).toHaveAttribute('data-assignee-ref', 'user:user-h1');
+    expect(human).toHaveAttribute('data-kind', 'human');
+    await act(async () => {
+      fireEvent.click(human);
+    });
+    await waitFor(() => expect(received).toMatchObject({ assignee: 'user:user-h1' }));
   });
 
   it('shows running actions (block + complete) and posts complete', async () => {

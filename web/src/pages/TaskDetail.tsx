@@ -1,7 +1,9 @@
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
+import { useAgents } from '@/api/agents';
+import { useMembers } from '@/api/members';
 import {
   useAssignTask,
   useBlockTask,
@@ -267,6 +269,11 @@ function ActionButton({
   );
 }
 
+// v2.7 #186-5a/5b: searchable assignee picker (#167 pattern) over agents +
+// human members. Selecting a candidate submits the org-scoped identity ref:
+// agent = `agent:<member-id>` (agent.identity_member_id, the business id — the
+// backend resolves member→entity via the bridge); human = `user:<identity_id>`
+// (PM-tracking, no execution). Replaces the old free-text agent-name input.
 function AssignModal({
   pending,
   error,
@@ -278,35 +285,69 @@ function AssignModal({
   onClose: () => void;
   onSubmit: (assignee: string) => void;
 }): React.ReactElement {
-  const [name, setName] = useState('');
-  const trimmed = name.trim();
-  // The backend expects an Agent ref string `agent:NAME`.
-  const assignee = trimmed.startsWith('agent:') ? trimmed : `agent:${trimmed}`;
-  const canSubmit = trimmed.length > 0 && !pending;
+  const agents = useAgents();
+  const members = useMembers();
+  const [q, setQ] = useState('');
+  const candidates = useMemo(() => {
+    const out: { ref: string; label: string; kind: 'agent' | 'human' }[] = [];
+    for (const a of agents.data ?? []) {
+      out.push({ ref: `agent:${a.identity_member_id || a.id}`, label: a.name || a.id, kind: 'agent' });
+    }
+    for (const m of members.data ?? []) {
+      if (m.kind !== 'user') continue;
+      out.push({ ref: `user:${m.identity_id}`, label: m.display_name || m.identity_id, kind: 'human' });
+    }
+    const f = q.trim().toLowerCase();
+    return f ? out.filter((c) => c.label.toLowerCase().includes(f) || c.ref.toLowerCase().includes(f)) : out;
+  }, [agents.data, members.data, q]);
   return (
     <Modal testId="task-assign-modal" title="Assign task" onClose={onClose}>
-      <label className="mb-1 block text-xs font-medium text-text-primary">
-        Assignee (agent name)<span className="ml-1 text-danger">*</span>
-      </label>
       <input
-        data-testid="task-assign-input"
+        data-testid="task-assign-search"
         className={modalInputClass}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="agent:builder"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search agents or people…"
+        autoFocus
       />
+      <ul className="mt-2 max-h-60 overflow-y-auto" data-testid="task-assign-candidates">
+        {candidates.length === 0 && (
+          <li className="px-2 py-1.5 text-xs text-text-muted" data-testid="task-assign-empty">
+            No matching agents or people.
+          </li>
+        )}
+        {candidates.map((c) => (
+          <li key={c.ref}>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => onSubmit(c.ref)}
+              data-testid="task-assign-candidate"
+              data-assignee-ref={c.ref}
+              data-kind={c.kind}
+              className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-bg-subtle disabled:opacity-50"
+            >
+              <span>{c.label}</span>
+              <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-xs uppercase text-text-muted">{c.kind}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
       {error && (
         <p className="mt-2 text-xs text-danger" data-testid="task-assign-error">
           {error.message}
         </p>
       )}
-      <ModalFooter
-        onClose={onClose}
-        submitLabel={pending ? 'Assigning…' : 'Assign'}
-        submitTestId="task-assign-submit"
-        disabled={!canSubmit}
-        onSubmit={() => canSubmit && onSubmit(assignee)}
-      />
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
+          data-testid="task-assign-cancel"
+        >
+          Cancel
+        </button>
+      </div>
     </Modal>
   );
 }
