@@ -166,7 +166,7 @@ export default function AgentDetail(): React.ReactElement {
         <dt className="text-text-muted">CLI</dt>
         <dd className="font-mono text-xs">{a.cli || '—'}</dd>
         <dt className="text-text-muted">Skills</dt>
-        <dd className="font-mono text-xs">{a.skills.length > 0 ? a.skills.join(', ') : '—'}</dd>
+        <dd className="font-mono text-xs">{a.skills && a.skills.length > 0 ? a.skills.join(', ') : '—'}</dd>
       </dl>
 
       {/* WorkItem queue */}

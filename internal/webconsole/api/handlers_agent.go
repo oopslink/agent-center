@@ -56,10 +56,24 @@ func mapAgentError(w http.ResponseWriter, err error) {
 
 func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]any {
 	p := a.Profile()
+	// v2.7 #183 (FINDING): emit skills/env_vars as [] / {} never null. Go nil
+	// slices/maps marshal to JSON null, but the SPA types them non-null
+	// (skills: string[]) and reads a.skills.length — a freshly-created agent
+	// with no skills sent "skills": null → AgentDetail crashed
+	// (Cannot read properties of null (reading 'length')). Honor the contract
+	// at the serializer so every consumer (get/list/create) is safe.
+	skills := a.Skills()
+	if skills == nil {
+		skills = []string{}
+	}
+	envVars := p.EnvVars
+	if envVars == nil {
+		envVars = map[string]string{}
+	}
 	m := map[string]any{
 		"id": string(a.ID()), "organization_id": a.OrganizationID(),
 		"name": p.Name, "description": p.Description, "model": p.Model, "cli": p.CLI,
-		"env_vars": p.EnvVars, "skills": a.Skills(), "worker_id": a.WorkerID(),
+		"env_vars": envVars, "skills": skills, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
 		// v2.7 #157: the agent identity-member this execution Agent represents
