@@ -89,8 +89,10 @@ describe('Agents page', () => {
     await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
     fireEvent.click(screen.getByTestId('agents-add-btn'));
     expect(screen.getByTestId('agent-create-modal')).toBeInTheDocument();
+    // v2.7 #191: worker picker is a searchable EntitySelect — open it to see options.
+    fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
-      expect(screen.getByTestId('agent-create-worker')).toHaveTextContent('box-7'),
+      expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
   });
 
@@ -119,10 +121,12 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agents-add-btn'));
 
     await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
+    // v2.7 #191: pick the worker via the EntitySelect (open → click option).
+    fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
-      expect(screen.getByTestId('agent-create-worker')).toHaveTextContent('box-7'),
+      expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
     );
-    await userEvent.selectOptions(screen.getByTestId('agent-create-worker'), 'w-7');
+    fireEvent.click(screen.getByTestId('agent-create-worker-option'));
     // v2.7 #181 / FINDING-F: cli is a single-option select (claude-code only).
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
