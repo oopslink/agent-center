@@ -179,6 +179,7 @@ func (s *Server) routes() {
 	// /api/projects to the pm Service).
 	s.mux.HandleFunc("GET /api/projects/{project_id}/members", s.pmListMembersHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/members", s.pmAddMemberHandler)
+	s.mux.HandleFunc("DELETE /api/projects/{project_id}/members/{identity_id}", s.pmRemoveMemberHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/code-repos", s.pmListCodeReposHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/issues", s.pmListIssuesHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/issues", s.pmCreateIssueHandler)

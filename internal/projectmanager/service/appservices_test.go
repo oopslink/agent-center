@@ -93,6 +93,48 @@ func TestAddProjectMember_GatedByMembership(t *testing.T) {
 	}
 }
 
+// v2.7 #207/#208: RemoveProjectMember — owner-only authz, owner-protected, emits
+// pm.member.removed. Mirrors the Add gate + PD's error contract.
+func TestRemoveProjectMember(t *testing.T) {
+	svc, ob, ctx := setup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	// user:a is the owner; add two plain members.
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:c", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// non-owner member cannot remove.
+	if err := svc.RemoveProjectMember(ctx, RemoveProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:c"}); err != ErrNotOwner {
+		t.Fatalf("non-owner remove → want ErrNotOwner, got %v", err)
+	}
+	// a stranger (non-member) cannot remove (gate before target lookup).
+	if err := svc.RemoveProjectMember(ctx, RemoveProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:stranger"}); err != ErrNotMember {
+		t.Fatalf("stranger remove → want ErrNotMember, got %v", err)
+	}
+	// owner cannot be removed (no ownerless project).
+	if err := svc.RemoveProjectMember(ctx, RemoveProjectMemberCommand{ProjectID: pid, IdentityID: "user:a", Actor: "user:a"}); err != ErrCannotRemoveOwner {
+		t.Fatalf("remove owner → want ErrCannotRemoveOwner, got %v", err)
+	}
+	// removing a non-member target → ErrMemberNotFound.
+	if err := svc.RemoveProjectMember(ctx, RemoveProjectMemberCommand{ProjectID: pid, IdentityID: "user:zzz", Actor: "user:a"}); err != pm.ErrMemberNotFound {
+		t.Fatalf("remove non-member → want ErrMemberNotFound, got %v", err)
+	}
+
+	// happy path: owner removes a member.
+	if err := svc.RemoveProjectMember(ctx, RemoveProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
+		t.Fatalf("owner remove member → want nil, got %v", err)
+	}
+	if _, err := svc.members.FindByProjectAndIdentity(ctx, pid, "user:b"); err != pm.ErrMemberNotFound {
+		t.Fatalf("user:b should be gone, got %v", err)
+	}
+	if !contains(unprocessedTypes(t, ob, ctx), EvtMemberRemoved) {
+		t.Fatal("expected pm.member.removed outbox event")
+	}
+}
+
 func TestCreateTask_EmitsCreatedWithCreatorSubscriber(t *testing.T) {
 	svc, ob, ctx := setup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

@@ -35,8 +35,10 @@ func mapPMError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrTaskNotFound), errors.Is(err, pm.ErrMemberNotFound),
 		errors.Is(err, pm.ErrCodeRepoRefNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
-	case errors.Is(err, pmservice.ErrNotMember):
+	case errors.Is(err, pmservice.ErrNotMember), errors.Is(err, pmservice.ErrNotOwner):
 		writeError(w, http.StatusForbidden, "forbidden", err.Error())
+	case errors.Is(err, pmservice.ErrCannotRemoveOwner):
+		writeError(w, http.StatusConflict, "cannot_remove_owner", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrSelfVerify), errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
@@ -245,6 +247,38 @@ func (s *Server) pmAddMemberHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := d.PM.AddProjectMember(r.Context(), pmservice.AddProjectMemberCommand{ProjectID: p.ID(), IdentityID: pm.IdentityRef(req.IdentityID), Role: pm.ProjectMemberRole(req.Role), Actor: caller}); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// pmRemoveMemberHandler handles DELETE /api/projects/{project_id}/members/{identity_id}
+// (v2.7 #207/#208). identity_id is the prefixed ref (user:.../agent:...); the
+// net/http ServeMux unescapes the {identity_id} path wildcard, so the frontend
+// sends encodeURIComponent(identity_id) and the colon round-trips. Owner-only +
+// owner-protected; see Service.RemoveProjectMember.
+func (s *Server) pmRemoveMemberHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	identityID := r.PathValue("identity_id")
+	if identityID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "identity_id required")
+		return
+	}
+	if err := d.PM.RemoveProjectMember(r.Context(), pmservice.RemoveProjectMemberCommand{
+		ProjectID: p.ID(), IdentityID: pm.IdentityRef(identityID), Actor: caller,
+	}); err != nil {
+		// Honor the #207/#208 contract code the frontend keys on: the target not
+		// being a member is `not_member` (404), distinct from the generic
+		// not_found mapPMError would emit for ErrMemberNotFound.
+		if errors.Is(err, pm.ErrMemberNotFound) {
+			writeError(w, http.StatusNotFound, "not_member", "identity is not a member of this project")
+			return
+		}
 		mapPMError(w, err)
 		return
 	}
