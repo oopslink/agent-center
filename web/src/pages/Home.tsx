@@ -3,8 +3,10 @@ import { OrgLink } from '@/OrgContext';
 
 import { useFleet } from '@/api/fleet';
 import { useConversations } from '@/api/conversations';
+import { useAgents } from '@/api/agents';
 import type { Conversation } from '@/api/types';
 import { Skeleton } from '@/components/Skeleton';
+import { EntityRef } from '@/components/EntityRef';
 
 // Home / Overview (v2.3 P3). Bento-grid dashboard surface designed
 // per docs/design/web-console-design-system.md § 2.2.
@@ -16,6 +18,12 @@ export default function Home(): React.ReactElement {
   const fleet = useFleet();
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
+  const agents = useAgents();
+  // v2.7 #192: resolve a work-item's agent ref → agent name (raw id on hover).
+  const agentName = (ref: string): string | undefined => {
+    const bare = ref.replace(/^agent:/, '');
+    return (agents.data ?? []).find((a) => a.id === bare || a.identity_member_id === bare)?.name || undefined;
+  };
 
   const onlineWorkers = (fleet.data?.workers ?? []).filter((w) => w.status === 'online').length;
   // v2.7 #107/#118: fleet now returns only non-terminal work items
@@ -98,17 +106,20 @@ export default function Home(): React.ReactElement {
           data-testid="home-active-work-items"
         >
           {workItems.slice(0, 5).map((wi) => (
-            <li key={wi.work_item_id} className="flex items-center justify-between gap-3 py-1.5">
-              {wi.task_id ? (
-                <span className="truncate font-mono text-xs text-text-secondary">
-                  {wi.task_id}
-                </span>
-              ) : (
-                <span className="truncate font-mono text-xs text-text-muted">
-                  {wi.work_item_id.slice(0, 12)}
-                </span>
-              )}
-              <span className="text-xs text-text-secondary">{wi.agent_id}</span>
+            <li
+              key={wi.work_item_id}
+              // v2.7 #192: agent name is the visible handle; the task/work-item
+              // id stays on hover (no client-side task title on the fleet DTO).
+              title={wi.task_id || wi.work_item_id}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <EntityRef
+                id={wi.agent_id}
+                name={agentName(wi.agent_id)}
+                fallback={wi.agent_id}
+                testId="home-wi-agent"
+                className="truncate text-xs text-text-secondary"
+              />
               <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
                 {wi.status}
               </span>
@@ -128,7 +139,13 @@ export default function Home(): React.ReactElement {
             return (
               <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
                 <OrgLink to={href} className="truncate text-sm text-text-primary hover:text-accent">
-                  <span className="text-text-muted">{c.kind === 'dm' ? '◐' : '#'}</span> {c.name || c.id}
+                  <span className="text-text-muted">{c.kind === 'dm' ? '◐' : '#'}</span>{' '}
+                  {c.kind === 'dm' ? (
+                    // v2.7 #192/Rule 2a: DM peer name, never the raw conversation id.
+                    <EntityRef id={c.id} name={c.name} fallback="Direct message" testId="home-conv-name" />
+                  ) : (
+                    c.name || c.id
+                  )}
                 </OrgLink>
                 <span className="text-xs text-text-muted tabular-nums">
                   {c.opened_at ? formatRelative(c.opened_at) : ''}

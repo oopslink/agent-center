@@ -5,6 +5,7 @@ import { useDisplayNameResolver } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import type { Participant } from '@/api/types';
 import { MemberInviteModal } from './MemberInviteModal';
+import { EntityRef } from './EntityRef';
 
 interface Props {
   conversationId: string;
@@ -102,7 +103,14 @@ export function ParticipantsPanel({
             data-identity={p.identity_id}
           >
             <span>
-              <span className="text-xs" title={p.identity_id}>{displayName(p.identity_id)}</span>
+              {/* v2.7 #192/E1: a participant whose member was deleted (ref no
+                  longer resolves) renders "(deleted)", never the raw agent:/user: ref. */}
+              <EntityRef
+                id={p.identity_id}
+                name={displayName(p.identity_id) === p.identity_id ? undefined : displayName(p.identity_id)}
+                testId="participant-name"
+                className="text-xs"
+              />
               <span className="ml-2 text-xs uppercase text-text-muted">{p.role}</span>
             </span>
             {isOwner && p.role !== 'owner' && (

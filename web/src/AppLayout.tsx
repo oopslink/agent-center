@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
 import { useConversations } from '@/api/conversations';
+import { useDisplayNameResolver } from '@/api/members';
 import { useProjects } from '@/api/projects';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
@@ -348,14 +349,17 @@ function Sidebar({
   const dms = useConversations({ kind: 'dm' });
   const projects = useProjects();
   const me = useAppStore((s) => s.currentUserId);
+  // v2.7 #192/Rule 2a: resolve DM peers to display names; never show the raw
+  // conversation id (an unnamed DM reads "Direct message").
+  const resolvePeerName = useDisplayNameResolver();
   const channelChildren = (channels.data ?? [])
     .filter((c) => c.status !== 'archived')
     .map((c) => ({ to: `${orgBase}/channels/${encodeURIComponent(c.name ?? '')}`, label: `# ${c.name}` }));
   const dmChildren = (dms.data ?? []).map((d) => {
     const peers = (d.participants ?? [])
       .filter((p) => !p.left_at && p.identity_id !== me)
-      .map((p) => p.identity_id);
-    const peerLabel = d.name || peers.join(' · ') || d.id;
+      .map((p) => resolvePeerName(p.identity_id));
+    const peerLabel = d.name || peers.join(' · ') || 'Direct message';
     return { to: `${orgBase}/dms/${encodeURIComponent(d.id)}`, label: `@ ${peerLabel}` };
   });
   // v2.5.x #67 — Projects expand to the project list, mirroring the
