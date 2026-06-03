@@ -36,8 +36,9 @@ describe('DMs page', () => {
     wrap(<DMs />);
     await waitFor(() => expect(screen.getAllByTestId('dm-row')).toHaveLength(2));
     expect(screen.getByText('with bot-1')).toBeInTheDocument();
-    // Row without a name falls back to its id.
-    expect(screen.getByText('C-D2')).toBeInTheDocument();
+    // v2.7 #192/Rule 2a: an unnamed DM reads "Direct message", never the raw id.
+    expect(screen.getByText('Direct message')).toBeInTheDocument();
+    expect(screen.queryByText('C-D2')).not.toBeInTheDocument();
   });
 
   it('shows the empty state when there are no DMs', async () => {

@@ -6,6 +6,7 @@ import { ApiError } from '@/api/client';
 import { useConversations, useDeleteConversation } from '@/api/conversations';
 import { DMStartModal } from '@/components/DMStartModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { EntityRef } from '@/components/EntityRef';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
@@ -74,7 +75,15 @@ export default function DMs(): React.ReactElement {
                 className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
                 <span className="flex items-center gap-3">
-                  <span className="font-medium">{c.name || c.id}</span>
+                  {/* v2.7 #192 / Rule 2a: show the DM's peer name, never the raw
+                      conversation id; unnamed DMs read "Direct message". */}
+                  <EntityRef
+                    id={c.id}
+                    name={c.name}
+                    fallback="Direct message"
+                    testId="dm-name"
+                    className="font-medium"
+                  />
                   <UnreadBadge conversationId={c.id} />
                   <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {c.status}

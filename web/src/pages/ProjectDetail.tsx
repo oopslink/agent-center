@@ -11,8 +11,10 @@ import {
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
 import { useTasksList } from '@/api/tasks';
+import { useDisplayNameResolver } from '@/api/members';
 import { IssueCreateModal } from '@/components/IssueCreateModal';
 import { TaskCreateModal } from '@/components/TaskCreateModal';
+import { EntityRef } from '@/components/EntityRef';
 import { Skeleton } from '@/components/Skeleton';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
@@ -88,10 +90,8 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
     <header className="space-y-2 border-b border-border-base pb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">{p.name}</h1>
-          <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-muted">
-            {p.id}
-          </span>
+          {/* v2.7 #192: project name as heading; raw id on hover, no visible badge. */}
+          <h1 className="font-heading text-2xl font-semibold text-text-primary" title={p.id}>{p.name}</h1>
           <ProjectStatusBadge status={p.status} />
         </div>
         <div className="flex gap-2">
@@ -322,6 +322,8 @@ function TabButton({
 
 function MembersPanel({ projectId }: { projectId: string }): React.ReactElement {
   const members = useProjectMembers(projectId);
+  // v2.7 #192: show member display names (raw identity id on hover).
+  const resolveName = useDisplayNameResolver();
   const data = members.data ?? [];
   return (
     <div
@@ -349,7 +351,13 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
               data-member-id={m.id}
               className="flex items-center justify-between gap-3 py-1.5"
             >
-              <span className="truncate font-mono text-sm text-text-primary">{m.identity_id}</span>
+              <EntityRef
+                id={m.identity_id}
+                name={resolveName(m.identity_id) === m.identity_id ? undefined : resolveName(m.identity_id)}
+                fallback={m.identity_id}
+                testId="project-member-ref"
+                className="truncate text-sm text-text-primary"
+              />
               <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
                 {m.role}
               </span>
