@@ -101,6 +101,48 @@ func TestCreateChannel_NameUniquePerOrg(t *testing.T) {
 	}
 }
 
+// v2.7 #201: channel create seeds members[] as participants (like DM) — an agent
+// member must become an ACTIVE participant so a channel @mention can wake it.
+// The creator-owner is not duplicated; invalid refs are rejected.
+func TestCreateChannel_SeedsMemberParticipants(t *testing.T) {
+	svc := setupChan(t)
+	res, err := svc.CreateChannel(context.Background(), CreateChannelCommand{
+		Name: "general", OrganizationID: "org-1",
+		CreatedBy: "user:alice", Actor: "user:alice",
+		Members: []conversation.IdentityRef{"agent:agent-x", "user:bob", "user:alice"}, // alice = creator dup
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conv, err := svc.convRepo.FindByID(context.Background(), res.ConversationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !conv.HasActiveParticipant("agent:agent-x") {
+		t.Fatal("agent member must be an active participant (#201 — else channel @mention can't wake it)")
+	}
+	if !conv.HasActiveParticipant("user:bob") {
+		t.Fatal("human member must be an active participant")
+	}
+	if !conv.HasActiveParticipant("user:alice") {
+		t.Fatal("creator must be the owner participant")
+	}
+	if n := len(conv.Participants()); n != 3 {
+		t.Fatalf("want 3 participants (owner + agent + bob; creator not duplicated), got %d", n)
+	}
+}
+
+func TestCreateChannel_RejectsInvalidMember(t *testing.T) {
+	svc := setupChan(t)
+	_, err := svc.CreateChannel(context.Background(), CreateChannelCommand{
+		Name: "x", OrganizationID: "org-1", CreatedBy: "user:alice", Actor: "user:alice",
+		Members: []conversation.IdentityRef{"no-prefix-bareid"},
+	})
+	if err == nil {
+		t.Fatal("invalid member ref must be rejected")
+	}
+}
+
 func TestCreateChannel_BadActor(t *testing.T) {
 	svc := setupChan(t)
 	_, err := svc.CreateChannel(context.Background(), CreateChannelCommand{

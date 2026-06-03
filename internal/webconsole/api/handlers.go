@@ -381,8 +381,10 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 
 // createConversationReq is the unified create payload (SPA F2).
 //
-//   - kind=channel: requires `name`; `members` ignored (caller becomes
-//     sole owner; further invites use the participants endpoint).
+//   - kind=channel: requires `name`. The caller becomes owner; `members`
+//     (user:/agent: refs) are added as participants at creation (v2.7 #201 —
+//     so an agent member can be @mentioned immediately). Further invites still
+//     use the participants endpoint.
 //   - kind=dm:      requires at least one entry in `members` (peers besides
 //     the caller); `name` optional. Caller is automatically added as a
 //     participant with role=owner alongside each peer (role=member).
@@ -434,10 +436,17 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, d Handler
 	} else {
 		orgID = resolveOrgIDFromRequest(r, d)
 	}
+	// v2.7 #201: seed members[] as participants (like DM create). Without this an
+	// agent added at channel-create was dropped → channel @mention never woke it.
+	chanMembers := make([]conversation.IdentityRef, 0, len(req.Members))
+	for _, m := range req.Members {
+		chanMembers = append(chanMembers, conversation.IdentityRef(m))
+	}
 	res, err := d.ChannelMgmtSvc.CreateChannel(r.Context(), convservice.CreateChannelCommand{
 		Name:           req.Name,
 		Description:    req.Description,
 		OrganizationID: orgID,
+		Members:        chanMembers,
 		CreatedBy:      conversation.IdentityRef(d.Actor),
 		Actor:          d.Actor,
 	})

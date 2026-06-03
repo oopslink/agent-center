@@ -63,7 +63,14 @@ type CreateChannelCommand struct {
 	// OQ10). Empty = no label.
 	ProjectRef string
 	CreatedBy  conversation.IdentityRef
-	Actor      observability.Actor
+	// Members are additional participants (besides the creator-owner) to add at
+	// creation (v2.7 #201) — user:/agent: refs. Aligns channel create with DM
+	// create, which already seeds members[]; without this an agent added at
+	// channel-create was dropped, so a channel @mention never woke it (the
+	// emit gate saw no active agent participant). Invalid/duplicate refs are
+	// rejected/skipped. Empty = creator-only (the prior behavior).
+	Members []conversation.IdentityRef
+	Actor   observability.Actor
 }
 
 // CreateChannelResult is what callers get.
@@ -88,10 +95,31 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 		return CreateChannelResult{}, errors.New("channel: name required")
 	}
 	now := s.clock.Now()
+	nowStr := now.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 	// A channel is owned by exactly one Org (plan §10 OQ10).
 	var ownerRef conversation.OwnerRef
 	if strings.TrimSpace(cmd.OrganizationID) != "" {
 		ownerRef = conversation.NewOrgOwnerRef(cmd.OrganizationID)
+	}
+	// v2.7 #201: seed the creator as owner PLUS each requested member (user:/
+	// agent:) as a participant — aligns channel create with DM create. An agent
+	// member must be an active participant for channel @mention to wake it.
+	participants := []conversation.ParticipantElement{{
+		IdentityID: cmd.CreatedBy, Role: "owner", JoinedAt: nowStr, JoinedBy: cmd.CreatedBy,
+	}}
+	seen := map[conversation.IdentityRef]bool{cmd.CreatedBy: true}
+	for _, m := range cmd.Members {
+		ref := conversation.IdentityRef(strings.TrimSpace(string(m)))
+		if ref == "" || seen[ref] {
+			continue
+		}
+		if verr := ref.Validate(); verr != nil {
+			return CreateChannelResult{}, fmt.Errorf("channel: member %q: %w", ref, verr)
+		}
+		seen[ref] = true
+		participants = append(participants, conversation.ParticipantElement{
+			IdentityID: ref, Role: "member", JoinedAt: nowStr, JoinedBy: cmd.CreatedBy,
+		})
 	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
 		ID:             newConversationID(s.idgen, conversation.ConversationKindChannel),
@@ -103,14 +131,7 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 		OrganizationID: cmd.OrganizationID,
 		CreatedBy:      cmd.CreatedBy,
 		OpenedAt:       now,
-		Participants: []conversation.ParticipantElement{
-			{
-				IdentityID: cmd.CreatedBy,
-				Role:       "owner",
-				JoinedAt:   now.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
-				JoinedBy:   cmd.CreatedBy,
-			},
-		},
+		Participants:   participants,
 	})
 	if err != nil {
 		return CreateChannelResult{}, err
