@@ -115,3 +115,34 @@ export function useProjectMembers(id: string | undefined) {
     enabled: !!id,
   });
 }
+
+// useAddProjectMember (v2.7 #207) — POST /api/projects/{id}/members. The
+// identity ref is "<kind>:<id>" (user:/agent:); the backend gates the actor to
+// project members. Invalidates the project's member list on success.
+export function useAddProjectMember(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ identityId, role }: { identityId: string; role?: string }) =>
+      api.post<{ ok: boolean }>(`/projects/${projectId}/members`, {
+        identity_id: identityId,
+        role: role ?? 'member',
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.membersByProject(projectId) });
+    },
+  });
+}
+
+// useRemoveProjectMember (v2.7 #207) — DELETE /api/projects/{id}/members/{identity_id}.
+// Owner-only on the backend; rejects removing the last owner (409
+// cannot_remove_owner) and unknown members (404 not_member).
+export function useRemoveProjectMember(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (identityId: string) =>
+      api.del<void>(`/projects/${projectId}/members/${encodeURIComponent(identityId)}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.membersByProject(projectId) });
+    },
+  });
+}

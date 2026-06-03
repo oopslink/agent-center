@@ -1,10 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
+import { useAppStore } from '@/store/app';
 import ProjectDetail from './ProjectDetail';
 
 beforeAll(() => {
@@ -169,5 +170,45 @@ describe('ProjectDetail page', () => {
     const repoRow = screen.getByTestId('repo-row');
     expect(repoRow).toHaveAttribute('data-repo-id', 'R-1');
     expect(repoRow).toHaveTextContent('main repo');
+  });
+
+  it('owner sees Add + can Remove a non-owner member (#207)', async () => {
+    useAppStore.setState({ currentUserId: 'user:hayang' });
+    let removed: string | null = null;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/projects/:pid/code-repos', () => HttpResponse.json({ code_repos: [] })),
+      http.get('/api/projects/:pid/members', () =>
+        HttpResponse.json({
+          members: [
+            { id: 'M-1', project_id: 'proj-a', identity_id: 'user:hayang', role: 'owner', added_by: 'user:hayang', created_at: '2026-05-20T01:00:00Z' },
+            { id: 'M-2', project_id: 'proj-a', identity_id: 'user:bob', role: 'member', added_by: 'user:hayang', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        }),
+      ),
+      http.delete('/api/projects/proj-a/members/:identity', ({ params }) => {
+        removed = String(params.identity);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-tab-members'));
+    await waitFor(() => expect(screen.getAllByTestId('member-row')).toHaveLength(2));
+
+    // Owner sees the Add button; only the non-owner row exposes Remove.
+    expect(screen.getByTestId('project-add-member-button')).toBeInTheDocument();
+    const removeButtons = screen.getAllByTestId('project-member-remove');
+    expect(removeButtons).toHaveLength(1);
+    expect(removeButtons[0]).toHaveAttribute('data-identity', 'user:bob');
+
+    fireEvent.click(removeButtons[0]);
+    await screen.findByTestId('confirm-modal');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    });
+    await waitFor(() => expect(removed).toMatch(/bob/));
   });
 });
