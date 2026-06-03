@@ -351,6 +351,11 @@ func (s *Server) routes() {
 	// agent participant's read-state cursor after a wake inject so the next batch
 	// flush won't re-deliver. Same requireAgentOnWorker guardrail; only-forward.
 	s.mux.HandleFunc("POST /admin/environment/agent/mark-seen", s.envAgentMarkSeenHandler)
+	// v2.7 #185 follow-up (UX Rule 9): controller→center converse-error. When an
+	// agent.converse (DM/channel) turn ends is_error, the controller posts a
+	// visible system message into the conversation so the human isn't left in a
+	// silent black hole. Same requireAgentOnWorker guardrail + participant check.
+	s.mux.HandleFunc("POST /admin/environment/agent/converse-error", s.envAgentConverseErrorHandler)
 
 	// --- agent tools (v2.7 D2-b1, ADR-0049) ------------------------------
 	// Per-agent MCP tool surface. ADDITIVE — rides the same bearer auth as

@@ -235,6 +235,75 @@ func (s *Server) envAgentMarkSeenHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// agentConverseErrorReq is the body for POST /admin/environment/agent/converse-error.
+type agentConverseErrorReq struct {
+	AgentID        string `json:"agent_id"`
+	ConversationID string `json:"conversation_id"`
+	Error          string `json:"error"`
+	At             string `json:"at,omitempty"`
+}
+
+// envAgentConverseErrorHandler posts a VISIBLE system message into the
+// conversation when an agent.converse turn ended is_error (#185 follow-up / UX
+// Rule 9 — no silent black hole: a DM/channel reply that failed, e.g. invalid
+// model → claude 404, must tell the human instead of leaving them waiting). The
+// controller (no DB) calls this after detecting the failed turn. Same per-agent
+// guardrail as the other feedback endpoints (requireAgentOnWorker); the agent
+// must be an active participant of the conversation. The message is posted as
+// `system` (not the agent), mirroring the stopped-agent notice the WakeProjector
+// emits.
+func (s *Server) envAgentConverseErrorHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req agentConverseErrorReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.MessageWriter == nil || d.ConvRepo == nil {
+		writeError(w, http.StatusNotImplemented, "conversation_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ConversationID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_conversation_id", "")
+		return
+	}
+	conv, err := d.ConvRepo.FindByID(r.Context(), conversation.ConversationID(req.ConversationID))
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	if !agentIsActiveParticipant(conv, a) {
+		writeError(w, http.StatusForbidden, "not_a_participant",
+			"agent is not an active participant of this conversation")
+		return
+	}
+	name := strings.TrimSpace(a.Profile().Name)
+	if name == "" {
+		name = string(a.ID())
+	}
+	msg := "⚠️ @" + name + " couldn't process the message"
+	if summary := strings.TrimSpace(req.Error); summary != "" {
+		msg += " (" + summary + ")"
+	}
+	msg += "."
+	if _, err := d.MessageWriter.AddMessage(r.Context(), convservice.AddMessageCommand{
+		ConversationID:   conv.ID(),
+		SenderIdentityID: conversation.IdentityRef("system"),
+		ContentKind:      conversation.MessageContentSystem,
+		Direction:        conversation.DirectionOutbound,
+		Content:          msg,
+		Actor:            observability.Actor("system"),
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 // parseOptionalTime parses an optional RFC3339 timestamp. An empty string
 // yields the zero time (callers treat it as "use server clock").
 func parseOptionalTime(s string) (time.Time, error) {

@@ -20,10 +20,11 @@ import (
 type recordingReporter struct {
 	mu sync.Mutex
 
-	activities []activityCall
-	lifecycles []lifecycleCall
-	workItems  []workItemCall
-	markSeens  []markSeenCall
+	activities   []activityCall
+	lifecycles   []lifecycleCall
+	workItems    []workItemCall
+	markSeens    []markSeenCall
+	converseErrs []converseErrCall
 }
 
 type activityCall struct {
@@ -37,6 +38,9 @@ type workItemCall struct {
 }
 type markSeenCall struct {
 	agentID, conversationID, messageID string
+}
+type converseErrCall struct {
+	agentID, conversationID, summary string
 }
 
 func (r *recordingReporter) ReportAgentActivity(_ context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, _ time.Time) error {
@@ -65,6 +69,21 @@ func (r *recordingReporter) ReportMarkSeen(_ context.Context, agentID, conversat
 	defer r.mu.Unlock()
 	r.markSeens = append(r.markSeens, markSeenCall{agentID, conversationID, messageID})
 	return nil
+}
+
+func (r *recordingReporter) ReportConverseError(_ context.Context, agentID, conversationID, summary string, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.converseErrs = append(r.converseErrs, converseErrCall{agentID, conversationID, summary})
+	return nil
+}
+
+func (r *recordingReporter) converseErrCalls() []converseErrCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]converseErrCall, len(r.converseErrs))
+	copy(out, r.converseErrs)
+	return out
 }
 
 func (r *recordingReporter) markSeenCalls() []markSeenCall {
@@ -299,6 +318,21 @@ func wakeCmdConv(t *testing.T, agentID, workItemID, conversationID, messageID, m
 	}
 }
 
+// converseCmd builds an agent.converse command (DM/channel reply, no WorkItem).
+func converseCmd(t *testing.T, agentID, conversationID, messageID, messageText string, offset int64) ControlCommand {
+	t.Helper()
+	pl := conversePayload{
+		AgentID: agentID, ConversationID: conversationID, ConvKind: "dm",
+		SenderDisplay: "alice", MessageID: messageID, MessageText: messageText,
+	}
+	return ControlCommand{
+		ID:          "cmd-converse",
+		Offset:      offset,
+		CommandType: cmdTypeAgentConverse,
+		Payload:     mustJSON(t, pl),
+	}
+}
+
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
 	b, err := json.Marshal(v)
@@ -461,6 +495,50 @@ func TestAgentController_Work_IsErrorTurnFailsWorkItem(t *testing.T) {
 	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
 	if got := failedCount(rep.workItemCalls(), "wi-1"); got != 1 {
 		t.Fatalf("a second is_error result must not re-fail the WorkItem, got %d", got)
+	}
+}
+
+// TestAgentController_Converse_IsErrorTurnPostsConverseError is the converse
+// analogue of the L2 WorkItem failure surface (#185 follow-up / UX Rule 9): a
+// DM/channel turn (no WorkItem) that ends is_error — e.g. an invalid model →
+// claude 404 — must post a VISIBLE converse-error system message into its
+// conversation, not leave the human in a silent black hole. A success turn must
+// not, and a stray second is_error must not double-post.
+func TestAgentController_Converse_IsErrorTurnPostsConverseError(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := c.Handle(context.Background(), converseCmd(t, "agent-1", "conv-1", "m1", "hi agent", 2)); err != nil {
+		t.Fatalf("converse: %v", err)
+	}
+	fs := rs.last()
+
+	// A successful converse turn posts NO converse-error.
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", Result: "PONG", IsError: false})
+	if got := len(rep.converseErrCalls()); got != 0 {
+		t.Fatalf("success converse turn must not post converse-error, got %d", got)
+	}
+
+	// An is_error converse turn posts exactly one converse-error for conv-1.
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", Result: "model x not found", IsError: true})
+	calls := rep.converseErrCalls()
+	if len(calls) != 1 || calls[0].conversationID != "conv-1" || calls[0].agentID != "agent-1" {
+		t.Fatalf("is_error converse turn must post 1 converse-error for conv-1, got %+v", calls)
+	}
+	if !strings.Contains(calls[0].summary, "error_during_execution") {
+		t.Fatalf("summary should carry the subtype, got %q", calls[0].summary)
+	}
+	// Converse has no WorkItem → no WorkItem feedback.
+	if got := len(rep.workItemCalls()); got != 0 {
+		t.Fatalf("converse turn must not produce WorkItem feedback, got %+v", rep.workItemCalls())
+	}
+	// A stray second is_error must NOT re-post (in-flight conversation cleared).
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
+	if got := len(rep.converseErrCalls()); got != 1 {
+		t.Fatalf("a second is_error must not re-post converse-error, got %d", got)
 	}
 }
 
