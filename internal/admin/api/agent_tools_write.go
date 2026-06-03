@@ -46,9 +46,21 @@ var errNoLiveWorkItem = errors.New("agent has no live work item for this task")
 // taskRefFor builds the canonical agent WorkItem task ref for a pm task id.
 func taskRefFor(taskID string) string { return "pm://tasks/" + taskID }
 
-// agentActor returns the agent's actor/sender ref ("agent:<bare-id>") used as
-// the message sender, the observability Actor, and the pm IdentityRef.
-func agentActor(a *agent.Agent) string { return "agent:" + string(a.ID()) }
+// agentActor returns the agent's BUSINESS identity ref used as the message
+// sender, the observability Actor, and the pm IdentityRef. v2.7 #185 (FINDING-L):
+// this is the identity-MEMBER ref ("agent:<member-id>"), NOT the execution-entity
+// id — conversation participants, project membership, and post_message authz all
+// key on the member id (the business-layer agent identity). Using the entity id
+// here made the agent's reply fail authz (agentIsActiveParticipant compared an
+// entity ref against a member-ref participant) and leaked the entity ULID as the
+// message sender. Falls back to the entity id only for an agent with no identity
+// member (should not occur after no-middle-state).
+func agentActor(a *agent.Agent) string {
+	if m := strings.TrimSpace(a.IdentityMemberID()); m != "" {
+		return "agent:" + m
+	}
+	return "agent:" + string(a.ID())
+}
 
 // findOwnWorkItems returns the agent's WorkItems for pm://tasks/{taskID} — the
 // per-agent own-work scope (OQ4/OQ6, tightest scope: the agent acts on its own
