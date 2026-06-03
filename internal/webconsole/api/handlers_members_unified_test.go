@@ -20,7 +20,7 @@ func TestAPI_AddAgentMember_UnifiedCreate(t *testing.T) {
 	defer s.Close()
 
 	resp := orgScopedPost(t, s.URL+"/api/members/agent",
-		`{"display_name":"Bot","model":"claude","cli":"claudecode","worker_id":"w-1"}`, sess)
+		`{"display_name":"Bot","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("unified create: got %d, want 201", resp.StatusCode)
 	}
@@ -54,7 +54,7 @@ func TestAPI_AddAgentMember_RollbackOnBadWorker(t *testing.T) {
 	defer s.Close()
 
 	resp := orgScopedPost(t, s.URL+"/api/members/agent",
-		`{"display_name":"Bot","model":"claude","cli":"claudecode","worker_id":"w-ghost"}`, sess)
+		`{"display_name":"Bot","model":"claude","cli":"claude-code","worker_id":"w-ghost"}`, sess)
 	if resp.StatusCode < 400 || resp.StatusCode >= 500 {
 		t.Fatalf("bad-worker unified create must be 4xx, got %d", resp.StatusCode)
 	}

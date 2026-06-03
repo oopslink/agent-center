@@ -479,6 +479,12 @@ function WorkerCapabilities({ worker }: { worker: FleetWorkerRow }): React.React
           {c.enabled ? '' : ' (disabled)'}
         </span>
       ))}
+      {/* v2.7 #181 / FINDING-F: detected ≠ runnable. Only claude-code executes
+          in v2.7; codex/opencode are discovery-only until v2.8 (#180). Be
+          explicit so the list isn't read as "all runnable". */}
+      <span className="text-xs italic text-text-muted" data-testid="environment-worker-executable-note">
+        Executable: claude-code only (codex/opencode discovery only — v2.8)
+      </span>
     </div>
   );
 }

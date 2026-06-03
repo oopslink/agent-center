@@ -28,6 +28,13 @@ type CreateAgentCommand struct {
 // CreateAgent validates the chosen Worker belongs to the caller's org, then
 // creates the Agent (stopped) + emits agent.created in one tx.
 func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agent.AgentID, error) {
+	// v2.7 #181 / FINDING-F: reject a cli the runtime can't execute (empty /
+	// codex / opencode / unknown) — they are discovered (#147) + displayed
+	// (#176) but their adapters are ErrNotImplemented stubs, so only
+	// claude-code actually runs. Fail fast before touching the tx.
+	if !agent.IsSupportedExecutionCLI(cmd.CLI) {
+		return "", agent.ErrUnsupportedCLI
+	}
 	id := agent.AgentID(s.idgen.NewULID())
 	now := s.clock.Now()
 	a, err := agent.NewAgent(agent.NewAgentInput{

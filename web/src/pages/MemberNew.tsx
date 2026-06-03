@@ -20,7 +20,9 @@ export default function MemberNew(): React.ReactElement {
   // v2.7 #157: Members→Add Agent is one step — also create the execution Agent
   // (model/cli + the worker it runs on). worker_id is required for an agent.
   const [model, setModel] = useState('');
-  const [cli, setCli] = useState('');
+  // v2.7 #181 / FINDING-F: only claude-code is executable — single-option
+  // select (codex/opencode become selectable in v2.8 #180).
+  const [cli, setCli] = useState('claude-code');
   const [workerID, setWorkerID] = useState('');
   const [error, setError] = useState('');
   const [tempPasscode, setTempPasscode] = useState('');
@@ -40,7 +42,7 @@ export default function MemberNew(): React.ReactElement {
           description: description.trim(),
           role,
           model: model.trim() || undefined,
-          cli: cli.trim() || undefined,
+          cli,
           worker_id: workerID || undefined,
         },
         {
@@ -149,15 +151,16 @@ export default function MemberNew(): React.ReactElement {
               />
             </div>
             <div className="space-y-1">
-              <label htmlFor="mn-cli" className="block text-sm text-text-primary">CLI (optional)</label>
-              <input
+              <label htmlFor="mn-cli" className="block text-sm text-text-primary">CLI</label>
+              <select
                 id="mn-cli"
-                type="text"
                 value={cli}
                 onChange={(e) => setCli(e.target.value)}
-                placeholder="e.g. claudecode"
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
-              />
+              >
+                <option value="claude-code">claude-code</option>
+              </select>
+              <p className="text-xs text-text-muted">v2.7 runs claude-code only (codex/opencode coming in v2.8).</p>
             </div>
           </>
         )}

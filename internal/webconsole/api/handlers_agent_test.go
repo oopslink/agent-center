@@ -40,7 +40,7 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 
 	// POST /api/agents → 200, stopped.
 	resp := orgScopedPost(t, s.URL+"/api/agents",
-		`{"name":"coder","description":"d","model":"claude","cli":"claudecode","worker_id":"w-1"}`, sess)
+		`{"name":"coder","description":"d","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("create: got %d", resp.StatusCode)
 	}
@@ -140,7 +140,7 @@ func TestAPI_Agent_CreateWorkerNotInOrg(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 	resp := orgScopedPost(t, s.URL+"/api/agents",
-		`{"name":"coder","model":"claude","cli":"claudecode","worker_id":"w-other"}`, sess)
+		`{"name":"coder","model":"claude","cli":"claude-code","worker_id":"w-other"}`, sess)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("cross-org worker: got %d, want 400", resp.StatusCode)
 	}
@@ -158,7 +158,7 @@ func TestAPI_Agent_CrossOrgAgent404(t *testing.T) {
 	// Seed a worker + create an agent in ANOTHER org via the wired service.
 	saveWorkerInOrg(t, db, "org-other", "w-other")
 	foreignID, err := deps.AgentSvc.CreateAgent(context.Background(), agentsvc.CreateAgentCommand{
-		OrganizationID: "org-other", Name: "foreign", Model: "claude", CLI: "claudecode",
+		OrganizationID: "org-other", Name: "foreign", Model: "claude", CLI: "claude-code",
 		WorkerID: "w-other", CreatedBy: "user:someone",
 	})
 	if err != nil {

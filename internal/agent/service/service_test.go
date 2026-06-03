@@ -95,7 +95,7 @@ func (f *fixture) createAgent(t *testing.T, workerID string) agent.AgentID {
 	t.Helper()
 	id, err := f.svc.CreateAgent(context.Background(), CreateAgentCommand{
 		OrganizationID: testOrg, Name: "coder", Description: "d", Model: "claude",
-		CLI: "claudecode", WorkerID: workerID, CreatedBy: "user:hayang",
+		CLI: "claude-code", WorkerID: workerID, CreatedBy: "user:hayang",
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
@@ -139,11 +139,42 @@ func TestCreateAgent_Happy(t *testing.T) {
 	}
 }
 
+// v2.7 #181 / FINDING-F: agent creation rejects a cli the runtime can't
+// execute. v2.7 allowlist = {claude-code}; empty / codex / opencode / unknown
+// are 400 invalid_cli (mapped at the handler). Tx must not run (no outbox).
+func TestCreateAgent_RejectsUnsupportedCLI(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	for _, cli := range []string{"", "codex", "opencode", "foobar", "claudecode"} {
+		_, err := f.svc.CreateAgent(context.Background(), CreateAgentCommand{
+			OrganizationID: testOrg, Name: "coder", Model: "claude", CLI: cli,
+			WorkerID: testWorker, CreatedBy: "user:hayang",
+		})
+		if !errors.Is(err, agent.ErrUnsupportedCLI) {
+			t.Fatalf("cli=%q: want ErrUnsupportedCLI, got %v", cli, err)
+		}
+	}
+	if c := f.outboxCount(t); c != 0 {
+		t.Fatalf("outbox count = %d, want 0 (no agent created)", c)
+	}
+}
+
+func TestCreateAgent_AcceptsClaudeCode(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	if _, err := f.svc.CreateAgent(context.Background(), CreateAgentCommand{
+		OrganizationID: testOrg, Name: "coder", Model: "claude", CLI: "claude-code",
+		WorkerID: testWorker, CreatedBy: "user:hayang",
+	}); err != nil {
+		t.Fatalf("claude-code should be accepted, got %v", err)
+	}
+}
+
 func TestCreateAgent_WorkerUnknown(t *testing.T) {
 	f := newFixture(t)
 	// no worker seeded
 	_, err := f.svc.CreateAgent(context.Background(), CreateAgentCommand{
-		OrganizationID: testOrg, Name: "coder", Model: "claude", CLI: "claudecode",
+		OrganizationID: testOrg, Name: "coder", Model: "claude", CLI: "claude-code",
 		WorkerID: "nope", CreatedBy: "user:hayang",
 	})
 	if !errors.Is(err, ErrWorkerNotInOrg) {
@@ -158,7 +189,7 @@ func TestCreateAgent_WorkerCrossOrg(t *testing.T) {
 	f := newFixture(t)
 	f.seedWorker(t, testWorker, otherOrg) // worker exists but in a different org
 	_, err := f.svc.CreateAgent(context.Background(), CreateAgentCommand{
-		OrganizationID: testOrg, Name: "coder", Model: "claude", CLI: "claudecode",
+		OrganizationID: testOrg, Name: "coder", Model: "claude", CLI: "claude-code",
 		WorkerID: testWorker, CreatedBy: "user:hayang",
 	})
 	if !errors.Is(err, ErrWorkerNotInOrg) {
@@ -281,7 +312,7 @@ func TestAvailability(t *testing.T) {
 	// Agent on an ONLINE worker.
 	f.seedOnlineWorker(t, onlineWorker, testOrg)
 	id, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
-		OrganizationID: testOrg, Name: "a", Model: "claude", CLI: "claudecode",
+		OrganizationID: testOrg, Name: "a", Model: "claude", CLI: "claude-code",
 		WorkerID: onlineWorker, CreatedBy: "user:hayang",
 	})
 	if err != nil {
@@ -326,7 +357,7 @@ func TestAvailability(t *testing.T) {
 
 	// offline worker → unavailable even when running.
 	offID, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
-		OrganizationID: testOrg, Name: "b", Model: "claude", CLI: "claudecode",
+		OrganizationID: testOrg, Name: "b", Model: "claude", CLI: "claude-code",
 		WorkerID: onlineWorker, CreatedBy: "user:hayang",
 	})
 	if err != nil {

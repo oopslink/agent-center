@@ -14,7 +14,10 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [model, setModel] = useState('');
-  const [cli, setCli] = useState('');
+  // v2.7 #181 / FINDING-F: only claude-code is executable. cli is a single-
+  // option select (no free text) so the form can't create an agent bound to a
+  // CLI the runtime won't run; codex/opencode open up in v2.8 (#180).
+  const [cli, setCli] = useState('claude-code');
   const [skills, setSkills] = useState('');
   const [workerId, setWorkerId] = useState('');
   const create = useCreateAgent();
@@ -39,7 +42,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         name: trimmedName,
         description: description.trim() || undefined,
         model: model.trim() || undefined,
-        cli: cli.trim() || undefined,
+        cli,
         skills: parsedSkills.length > 0 ? parsedSkills : undefined,
         worker_id: workerId,
       });
@@ -103,14 +106,15 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
         </Field>
 
-        <Field label="CLI" hint="Optional.">
-          <input
+        <Field label="CLI" hint="v2.7 runs claude-code only (codex/opencode coming in v2.8).">
+          <select
             data-testid="agent-create-cli"
             value={cli}
             onChange={(e) => setCli(e.target.value)}
-            placeholder="claudecode"
             className={inputClass}
-          />
+          >
+            <option value="claude-code">claude-code</option>
+          </select>
         </Field>
 
         <Field label="Skills" hint="Optional. Comma-separated.">

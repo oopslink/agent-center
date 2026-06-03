@@ -272,7 +272,12 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     const codex = caps.find((c) => c.getAttribute('data-agent-cli') === 'codex')!;
     expect(codex).toHaveAttribute('data-enabled', 'false');
     expect(codex).toHaveTextContent(/disabled/);
-    expect(screen.queryByText(/opencode/)).toBeNull();
+    // opencode (detected=false) gets no capability chip.
+    expect(caps.find((c) => c.getAttribute('data-agent-cli') === 'opencode')).toBeUndefined();
+    // v2.7 #181: an explicit note clarifies detected ≠ runnable.
+    expect(screen.getByTestId('environment-worker-executable-note')).toHaveTextContent(
+      /Executable: claude-code only/,
+    );
   });
 
   it('shows an empty hint when a worker has detected no CLIs', async () => {
