@@ -4,8 +4,10 @@ import { useState } from 'react';
 
 import { ApiError } from '@/api/client';
 import { useAgents, useDeleteAgent } from '@/api/agents';
+import { useWorkers } from '@/api/workers';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { EntityRef } from '@/components/EntityRef';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
@@ -29,6 +31,9 @@ function agentDeleteErrorMessage(err: unknown): string {
 // workforce.AgentInstance list.
 export default function Agents(): React.ReactElement {
   const agents = useAgents();
+  const workers = useWorkers();
+  const workerName = (id: string): string | undefined =>
+    (workers.data ?? []).find((w) => w.worker_id === id)?.name || undefined;
   const [createOpen, setCreateOpen] = useState(false);
   // v2.7 #197: per-row hard-delete gated behind a confirm dialog.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -104,8 +109,17 @@ export default function Agents(): React.ReactElement {
                 <td className="border-b border-border-base px-3 py-2">
                   <AvailabilityBadge availability={a.availability} />
                 </td>
-                <td className="border-b border-border-base px-3 py-2 font-mono text-xs text-text-muted">
-                  {a.worker_id || '—'}
+                <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
+                  {a.worker_id ? (
+                    <EntityRef
+                      id={a.worker_id}
+                      name={workerName(a.worker_id)}
+                      fallback={a.worker_id}
+                      testId="agent-worker-ref"
+                    />
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className="border-b border-border-base px-3 py-2 text-right">
                   <div className="flex items-center justify-end gap-3">

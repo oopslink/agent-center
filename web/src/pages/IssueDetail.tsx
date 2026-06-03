@@ -9,6 +9,8 @@ import {
 } from '@/api/issues';
 import { IssueEditModal } from '@/components/IssueEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
+import { EntityRef } from '@/components/EntityRef';
+import { useDisplayNameResolver } from '@/api/members';
 import type { IssueStatus } from '@/api/types';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
@@ -19,6 +21,9 @@ export default function IssueDetail(): React.ReactElement {
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const issue = useIssue(projectId, id);
   const transition = useTransitionIssue(projectId, id);
+  // v2.7 #192: resolve created_by ref → display name (raw ref on hover); a
+  // deleted/unresolvable author renders "(deleted)".
+  const resolveName = useDisplayNameResolver();
   const [editOpen, setEditOpen] = useState(false);
 
   if (issue.isLoading) {
@@ -65,7 +70,12 @@ export default function IssueDetail(): React.ReactElement {
               {iss.status.replace(/_/g, ' ')}
             </span>
             <span>
-              by <span className="font-mono">{iss.created_by}</span>
+              by{' '}
+              <EntityRef
+                id={iss.created_by}
+                name={resolveName(iss.created_by) === iss.created_by ? undefined : resolveName(iss.created_by)}
+                testId="issue-created-by"
+              />
             </span>
             {iss.project_id && (
               <OrgLink

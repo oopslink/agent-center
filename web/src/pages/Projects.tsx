@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 
 import { useProjects, type Project } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
+import { EntityRef } from '@/components/EntityRef';
 import { Skeleton } from '@/components/Skeleton';
 import { ProjectCreateModal } from '@/components/ProjectCreateModal';
 
@@ -66,10 +67,14 @@ export default function Projects(): React.ReactElement {
                 className="flex flex-col gap-1 px-4 py-3 motion-safe:transition-colors hover:bg-bg-subtle"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-text-primary">{p.name}</span>
-                  <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-muted">
-                    {p.id}
-                  </span>
+                  {/* v2.7 #192: project name, raw id on hover (no visible id badge). */}
+                  <EntityRef
+                    id={p.id}
+                    name={p.name}
+                    fallback={p.id}
+                    testId="project-name"
+                    className="font-medium text-text-primary"
+                  />
                   <ProjectStatusBadge status={p.status} />
                 </div>
                 <div className="flex items-center justify-between gap-3">

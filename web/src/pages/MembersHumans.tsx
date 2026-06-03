@@ -8,6 +8,7 @@ import {
   type MemberResult,
 } from '@/api/members';
 import { ApiError } from '@/api/client';
+import { EntityRef } from '@/components/EntityRef';
 
 function RoleBadge({ role }: { role: string }): React.ReactElement {
   const colors: Record<string, string> = {
@@ -39,7 +40,10 @@ function MemberRow({
 
   return (
     <tr className="border-b border-border last:border-0">
-      <td className="py-2 px-3 text-sm text-text-primary font-mono">{member.identity_id}</td>
+      {/* v2.7 #192: show the member's display name, raw identity id on hover. */}
+      <td className="py-2 px-3 text-sm text-text-primary">
+        <EntityRef id={member.identity_id} name={member.display_name} fallback={member.identity_id} />
+      </td>
       <td className="py-2 px-3">
         <RoleBadge role={member.role} />
       </td>

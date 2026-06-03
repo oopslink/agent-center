@@ -2,7 +2,9 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useMembers } from '@/api/members';
 import { useAgents } from '@/api/agents';
+import { useWorkers } from '@/api/workers';
 import { useOptionalOrgContext } from '@/OrgContext';
+import { EntityRef } from '@/components/EntityRef';
 
 export default function MembersAgents(): React.ReactElement {
   const members = useMembers();
@@ -24,6 +26,13 @@ export default function MembersAgents(): React.ReactElement {
     }
     return m;
   }, [agents.data]);
+  // v2.7 #192: resolve worker_id → worker name for the "Running on" column.
+  const workers = useWorkers();
+  const workerNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const w of workers.data ?? []) m.set(w.worker_id, w.name || w.worker_id);
+    return m;
+  }, [workers.data]);
 
   return (
     <section className="space-y-4" data-testid="page-MembersAgents">
@@ -57,23 +66,35 @@ export default function MembersAgents(): React.ReactElement {
             <tbody>
               {agentMembers.map((m) => (
                 <tr key={m.id} className="border-b border-border last:border-0">
-                  <td className="py-2 px-3 text-sm font-mono">
-                    {agentIDByIdentity.get(m.identity_id) ? (
-                      <Link
-                        to={`${base}/agents/${agentIDByIdentity.get(m.identity_id)}`}
-                        className="text-brand hover:underline"
-                        data-testid={`agent-member-link-${m.identity_id}`}
-                      >
-                        {m.display_name || m.identity_id}
-                      </Link>
-                    ) : (
-                      <span className="text-text-primary">{m.display_name || m.identity_id}</span>
-                    )}
+                  {/* v2.7 #192: agent display name, raw identity id on hover; links
+                      to AgentDetail when an execution Agent is resolved. */}
+                  <td className="py-2 px-3 text-sm text-text-primary">
+                    {(() => {
+                      const aid = agentIDByIdentity.get(m.identity_id);
+                      return (
+                        <EntityRef
+                          id={m.identity_id}
+                          name={m.display_name}
+                          fallback={m.identity_id}
+                          to={aid ? `/agents/${aid}` : undefined}
+                          testId={aid ? `agent-member-link-${m.identity_id}` : undefined}
+                          className={aid ? 'text-brand' : undefined}
+                        />
+                      );
+                    })()}
                   </td>
                   <td className="py-2 px-3 text-sm text-text-secondary">{m.role}</td>
                   <td className="py-2 px-3 text-sm text-text-secondary">
                     {m.worker_id ? (
-                      <span className="font-mono text-xs">running on {m.worker_id}</span>
+                      <span className="text-xs">
+                        running on{' '}
+                        <EntityRef
+                          id={m.worker_id}
+                          name={workerNameById.get(m.worker_id)}
+                          fallback={m.worker_id}
+                          testId="agent-member-worker"
+                        />
+                      </span>
                     ) : (
                       <span className="text-text-muted italic">Not bound to a worker</span>
                     )}
