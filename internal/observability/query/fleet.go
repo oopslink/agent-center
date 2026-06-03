@@ -155,6 +155,7 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 		return nil, err
 	}
 	orgScoped := filter.OrganizationID != ""
+	memberIDOf := s.agentMemberIDResolver(ctx)
 	out := make([]WorkItemRow, 0, len(projs))
 	for _, p := range projs {
 		taskID, projectID, orgID := s.workItemTaskProjectOrg(ctx, p.WorkItemID)
@@ -164,9 +165,38 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 		if orgScoped && orgID != filter.OrganizationID {
 			continue // fail-closed: never leak a work item whose org can't be confirmed
 		}
-		out = append(out, workItemRowFromProjection(p, taskID))
+		row := workItemRowFromProjection(p, taskID)
+		// v2.7 #185: the work-item projection stores the execution-entity agent id
+		// (internal). The fleet snapshot is user-facing (Web Console), so expose
+		// the business-layer member id instead — no entity-ULID leak.
+		row.AgentID = memberIDOf(row.AgentID)
+		out = append(out, row)
 	}
 	return out, nil
+}
+
+// agentMemberIDResolver returns a memoized entity-id → identity-member-id mapper
+// (v2.7 #185). A missing repo or unresolvable/member-less agent falls back to the
+// input id so a row never loses its agent reference. Memoized because several
+// work items can share one agent within a snapshot.
+func (s *FleetSnapshotService) agentMemberIDResolver(ctx context.Context) func(string) string {
+	cache := map[string]string{}
+	return func(entityID string) string {
+		if entityID == "" || s.deps.Agents == nil {
+			return entityID
+		}
+		if v, ok := cache[entityID]; ok {
+			return v
+		}
+		out := entityID
+		if a, err := s.deps.Agents.FindByID(ctx, agentpkg.AgentID(entityID)); err == nil {
+			if m := strings.TrimSpace(a.IdentityMemberID()); m != "" {
+				out = m
+			}
+		}
+		cache[entityID] = out
+		return out
+	}
 }
 
 // workItemTaskProjectOrg resolves a work item's task id + owning project id +

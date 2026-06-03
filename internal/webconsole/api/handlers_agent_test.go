@@ -38,32 +38,49 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	// POST /api/agents → 200, stopped.
-	resp := orgScopedPost(t, s.URL+"/api/agents",
-		`{"name":"coder","description":"d","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
-	if resp.StatusCode != http.StatusOK {
+	// v2.7 #185: the single creation entry is POST /api/members/agent (atomic
+	// identity+member+execution agent). The response is the member object; the
+	// agent's business id is identity_id ("agent-<ulid>", == IdentityMemberID),
+	// NOT the membership row id. The execution-entity ULID never appears.
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"coder","description":"d","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
+	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("create: got %d", resp.StatusCode)
 	}
 	var created map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&created)
-	if created["lifecycle"] != "stopped" {
-		t.Fatalf("created lifecycle = %v, want stopped", created["lifecycle"])
+	if _, leaked := created["agent_id"]; leaked {
+		t.Fatalf("create response must not leak execution-entity agent_id: %v", created)
 	}
-	id, _ := created["id"].(string)
+	id, _ := created["identity_id"].(string)
 	if id == "" {
-		t.Fatalf("missing agent id: %v", created)
-	}
-	// v2.7 #183 (FINDING): a no-skills agent must serialize skills/env_vars as
-	// [] / {} never null — the SPA types them non-null and reads
-	// a.skills.length (AgentDetail crashed on "skills": null).
-	if _, ok := created["skills"].([]any); !ok {
-		t.Fatalf("created skills must be a JSON array (not null), got %T %v", created["skills"], created["skills"])
-	}
-	if _, ok := created["env_vars"].(map[string]any); !ok {
-		t.Fatalf("created env_vars must be a JSON object (not null), got %T %v", created["env_vars"], created["env_vars"])
+		t.Fatalf("missing agent business id (identity_id): %v", created)
 	}
 
-	// GET list contains it.
+	// GET by id (member id) → resolves via the bridge to the agentMap. This is
+	// where lifecycle/skills/env_vars live.
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+id, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get: got %d", resp.StatusCode)
+	}
+	var got map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&got)
+	if got["id"] != id || got["name"] != "coder" {
+		t.Fatalf("get = %+v (id should be the member id, name coder)", got)
+	}
+	if got["lifecycle"] != "stopped" {
+		t.Fatalf("created lifecycle = %v, want stopped", got["lifecycle"])
+	}
+	// v2.7 #183 (FINDING): a no-skills agent must serialize skills/env_vars as
+	// [] / {} never null — the SPA types them non-null and reads a.skills.length.
+	if _, ok := got["skills"].([]any); !ok {
+		t.Fatalf("skills must be a JSON array (not null), got %T %v", got["skills"], got["skills"])
+	}
+	if _, ok := got["env_vars"].(map[string]any); !ok {
+		t.Fatalf("env_vars must be a JSON object (not null), got %T %v", got["env_vars"], got["env_vars"])
+	}
+
+	// GET list contains it, addressed by the same member id.
 	resp = orgScopedGet(t, s.URL+"/api/agents", sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("list: got %d", resp.StatusCode)
@@ -74,17 +91,6 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&list)
 	if len(list.Agents) != 1 || list.Agents[0]["id"] != id {
 		t.Fatalf("list = %+v", list.Agents)
-	}
-
-	// GET by id.
-	resp = orgScopedGet(t, s.URL+"/api/agents/"+id, sess)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("get: got %d", resp.StatusCode)
-	}
-	var got map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&got)
-	if got["id"] != id || got["name"] != "coder" {
-		t.Fatalf("get = %+v", got)
 	}
 
 	// POST start → running.
@@ -144,12 +150,12 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 func TestAPI_Agent_CreateWorkerNotInOrg(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
-	// Seed a worker in a DIFFERENT org → create must 400.
+	// Seed a worker in a DIFFERENT org → unified create must 400 (and roll back).
 	saveWorkerInOrg(t, db, "org-other", "w-other")
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/agents",
-		`{"name":"coder","model":"claude","cli":"claude-code","worker_id":"w-other"}`, sess)
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"coder","model":"claude","cli":"claude-code","worker_id":"w-other"}`, sess)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("cross-org worker: got %d, want 400", resp.StatusCode)
 	}

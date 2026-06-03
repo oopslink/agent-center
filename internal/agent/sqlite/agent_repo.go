@@ -82,6 +82,26 @@ func (r *AgentRepo) FindByID(ctx context.Context, id agent.AgentID) (*agent.Agen
 	return a, err
 }
 
+// FindByIdentityMemberID resolves the agent whose identity_member_id column
+// equals id (v2.7 #157 / #185 FINDING-J). identity_member_id is nullable, so a
+// NULL row never matches a non-empty id. One identity-member maps to one
+// execution agent; ORDER BY created_at, id LIMIT 1 makes the result
+// deterministic if that invariant is ever violated.
+func (r *AgentRepo) FindByIdentityMemberID(ctx context.Context, identityMemberID string) (*agent.Agent, error) {
+	id := strings.TrimSpace(identityMemberID)
+	if id == "" {
+		return nil, agent.ErrAgentNotFound
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		agentSelect+` WHERE identity_member_id = ? ORDER BY created_at, id LIMIT 1`, id)
+	a, err := scanAgent(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, agent.ErrAgentNotFound
+	}
+	return a, err
+}
+
 func (r *AgentRepo) ListByOrg(ctx context.Context, orgID string) ([]*agent.Agent, error) {
 	return r.list(ctx, agentSelect+` WHERE organization_id = ? ORDER BY created_at, id`, orgID)
 }

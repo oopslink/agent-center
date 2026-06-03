@@ -60,6 +60,47 @@ func TestAgentRepo_RoundTrip(t *testing.T) {
 	}
 }
 
+// v2.7 #185 FINDING-J: the member→entity bridge. An agent saved with an
+// identity_member_id is resolvable by it; an empty/absent id and a NULL
+// identity_member_id (standalone agent) both yield ErrAgentNotFound.
+func TestAgentRepo_FindByIdentityMemberID(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	withMember, err := agent.NewAgent(agent.NewAgentInput{
+		ID: "01ENTITY", OrganizationID: "org", WorkerID: "W1",
+		Profile: agent.Profile{Name: "bot"}, CreatedBy: "user:a", CreatedAt: t0,
+		IdentityMemberID: "agent-mem1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Save(ctx, withMember); err != nil {
+		t.Fatal(err)
+	}
+	// standalone agent (no identity_member_id → NULL column).
+	if err := r.Save(ctx, mkAgent(t, "01STANDALONE", "W1")); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := r.FindByIdentityMemberID(ctx, "agent-mem1")
+	if err != nil {
+		t.Fatalf("resolve by member id: %v", err)
+	}
+	if got.ID() != "01ENTITY" || got.IdentityMemberID() != "agent-mem1" {
+		t.Fatalf("wrong agent resolved: %+v", got)
+	}
+	if _, err := r.FindByIdentityMemberID(ctx, "agent-absent"); err != agent.ErrAgentNotFound {
+		t.Fatalf("absent member id want ErrAgentNotFound, got %v", err)
+	}
+	if _, err := r.FindByIdentityMemberID(ctx, ""); err != agent.ErrAgentNotFound {
+		t.Fatalf("empty member id want ErrAgentNotFound, got %v", err)
+	}
+	// the NULL-column standalone agent must not match an empty lookup.
+	if _, err := r.FindByIdentityMemberID(ctx, "01STANDALONE"); err != agent.ErrAgentNotFound {
+		t.Fatalf("entity id is not a member id, want ErrAgentNotFound, got %v", err)
+	}
+}
+
 func TestAgentRepo_UpdateKeepsWorkerImmutable(t *testing.T) {
 	r := newDB(t)
 	ctx := context.Background()

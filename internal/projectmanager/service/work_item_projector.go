@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -180,9 +181,21 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 		}
 		// On dispatch, create a fresh queued WorkItem when the assignee is an
 		// Agent (a Task may be assigned to a human, which has no AgentWorkItem).
+		// v2.7 #185: the assignee ref may carry the business-layer member id;
+		// resolve it to the execution-entity id so WorkItem.AgentID (and all
+		// downstream wake/daemon/dispatch keying) stays the internal entity id.
 		if dispatch && isAgent {
+			entityID := agentID
+			if p.agents != nil {
+				if a, rerr := resolveAgentByEither(txCtx, p.agents, string(agentID)); rerr == nil {
+					entityID = a.ID()
+				} else {
+					slog.Warn("workitem projector: assignee agent unresolved; keeping raw id",
+						"assignee", pl.Assignee, "err", rerr)
+				}
+			}
 			nw, nerr := agent.NewWorkItem(agent.NewWorkItemInput{
-				ID: p.idgen.NewULID(), AgentID: agentID, TaskRef: taskRef, CreatedAt: now,
+				ID: p.idgen.NewULID(), AgentID: entityID, TaskRef: taskRef, CreatedAt: now,
 			})
 			if nerr != nil {
 				return nerr
@@ -195,7 +208,7 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 			// (worker, "agent.work:<workItemID>") so re-projection never double-
 			// enqueues. A nil controlLog (test fixtures) or an Agent with no worker
 			// binding skips the enqueue without failing the projection.
-			if ferr := p.enqueueWork(txCtx, nw, agentID, taskRef); ferr != nil {
+			if ferr := p.enqueueWork(txCtx, nw, entityID, taskRef); ferr != nil {
 				return ferr
 			}
 		}
@@ -300,6 +313,21 @@ func taskIDFromRef(ref string) (string, bool) {
 		return strings.TrimPrefix(ref, p), true
 	}
 	return "", false
+}
+
+// resolveAgentByEither resolves rawID — which may be the execution-entity id OR
+// the identity-member id ("agent-<ulid>", v2.7 #185 — the business-layer id the
+// assign path now carries) — to the Agent. Entity-id first (cheap, no collision),
+// then the member→entity bridge (FindByIdentityMemberID).
+func resolveAgentByEither(ctx context.Context, repo agent.Repository, rawID string) (*agent.Agent, error) {
+	a, err := repo.FindByID(ctx, agent.AgentID(rawID))
+	if err == nil {
+		return a, nil
+	}
+	if !errors.Is(err, agent.ErrAgentNotFound) {
+		return nil, err
+	}
+	return repo.FindByIdentityMemberID(ctx, rawID)
 }
 
 // agentIDFromRef extracts the Agent id from an "agent:<id>" identity ref.

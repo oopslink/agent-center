@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
@@ -281,9 +282,26 @@ func (s *Service) ListAgents(ctx context.Context, orgID string) ([]*agent.Agent,
 	return s.agents.ListByOrg(ctx, orgID)
 }
 
-// GetAgent returns one Agent by id.
+// GetAgent returns one Agent by its execution-entity id.
 func (s *Service) GetAgent(ctx context.Context, id agent.AgentID) (*agent.Agent, error) {
 	return s.agents.FindByID(ctx, id)
+}
+
+// ResolveAgent resolves an Agent by either its execution-entity id (internal /
+// back-compat) OR its identity-member id ("agent-<ulid>", the business-layer id
+// — v2.7 #185). The webconsole addresses agents by member id, so {id} path
+// values are member ids; this bridges to the entity. Entity-id is tried first
+// (cheap, no collision risk — member ids are "agent-"-prefixed, entity ids are
+// bare ULIDs), then the member→entity bridge.
+func (s *Service) ResolveAgent(ctx context.Context, idOrMemberID string) (*agent.Agent, error) {
+	a, err := s.agents.FindByID(ctx, agent.AgentID(idOrMemberID))
+	if err == nil {
+		return a, nil
+	}
+	if !errors.Is(err, agent.ErrAgentNotFound) {
+		return nil, err
+	}
+	return s.agents.FindByIdentityMemberID(ctx, idOrMemberID)
 }
 
 // ListWorkItems returns an Agent's work items (queue + history).
