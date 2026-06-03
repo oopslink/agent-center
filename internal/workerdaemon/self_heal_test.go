@@ -67,7 +67,7 @@ func TestDecideSelfHeal_CurveCapReset(t *testing.T) {
 func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	base := t.TempDir()
 	// AcquireHomeLock + startSession operate under the agent home; create it.
-	home := filepath.Join(base, "workers", "w-1", "agents", "ag-1")
+	home := filepath.Join(base, "agents", "ag-1")
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 // remain byte-identical.
 func TestSelfHeal_IdleRelaunchFreshNoResume(t *testing.T) {
 	base := t.TempDir()
-	home := filepath.Join(base, "workers", "w-1", "agents", "ag-1")
+	home := filepath.Join(base, "agents", "ag-1")
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestSelfHeal_IdleRelaunchFreshNoResume(t *testing.T) {
 // nextRelaunchAt was consumed.
 func TestSelfHeal_RelaunchFailCircuitBreaks(t *testing.T) {
 	base := t.TempDir()
-	home := filepath.Join(base, "workers", "w-1", "agents", "ag-1")
+	home := filepath.Join(base, "agents", "ag-1")
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func (e errSentinel) Error() string { return string(e) }
 // recovery).
 func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 	base := t.TempDir()
-	home := filepath.Join(base, "workers", "w-1", "agents", "ag-1")
+	home := filepath.Join(base, "agents", "ag-1")
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
 	}

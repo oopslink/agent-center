@@ -23,8 +23,9 @@ func envMap(entries []string) map[string]string {
 // safe system vars are kept. It also pins the v2.7 A-isolation choice: HOME is NOT
 // relocated (it passes through unchanged — keychain /login is bound to it), and an
 // inherited CLAUDE_CONFIG_DIR never passes through (no relocation; the child uses
-// the default $HOME/.claude). A isolation itself is the `--setting-sources ""`
-// claude argv flag, asserted in the claudestream package.
+// the default $HOME/.claude). Setting sources are `--setting-sources user,project`
+// (#182: user = keychain auth, project = the agent's own config), asserted in the
+// claudestream package.
 func TestBuildClaudeEnv_AllowlistDropsWorkerSecretsKeepsClaudeAuth(t *testing.T) {
 	source := []string{
 		"PATH=/usr/bin", "HOME=/home/op", "LANG=en_US.UTF-8", "LC_ALL=C", "TZ=UTC",
