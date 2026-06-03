@@ -1241,12 +1241,13 @@ func (c *AgentController) recordVersion(agentID string, version int) {
 // layout: AgentHomeBase/agents/{agent_id}/ with a workspace/ subdir. Returns
 // (home, workspace, error).
 //
-// v2.7 #179: AgentHomeBase is ALREADY worker-scoped (it resolves to
-// <sqlite_dir>/agent-homes, and sqlite_dir lives under the worker's install
-// prefix <prefix>/workers/<wid>/var). The previous layout re-appended
-// "workers/<wid>" here, double-nesting it — a redundant segment that also
-// helped overflow the macOS sun_path limit (see #178). The dedup MUST stay in
-// lockstep with boot_reconcile's home scan (same base, same join) or
+// v2.7 #179 + #209: AgentHomeBase is ALREADY worker-scoped — it resolves to the
+// worker state dir <sqlite_dir> (= <prefix>/workers/<wid>/var), so the per-agent
+// home is the FLAT <prefix>/workers/<wid>/var/agents/<aid>/. #179 removed a
+// re-appended "workers/<wid>" double-nesting here; #209 removed the "agent-homes"
+// wrapper that used to sit between var/ and agents/ (both redundant segments that
+// also helped overflow the macOS sun_path limit, see #178). The layout MUST stay
+// in lockstep with boot_reconcile's home scan (same base, same join) or
 // boot-reconcile can't find supervisors → reattach breaks.
 func (c *AgentController) agentPaths(agentID string) (home, workspace string, err error) {
 	if strings.TrimSpace(c.cfg.AgentHomeBase) == "" {

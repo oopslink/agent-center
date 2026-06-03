@@ -203,6 +203,14 @@ ADR / phase plan landscape, see
   that also helped push the supervisor socket path past macOS's limit (see #178). It
   is now `<base>/agents/<id>` (agentPaths + the boot-reconcile scan changed in
   lockstep so re-attach still finds surviving supervisors).
+- **Per-agent home layout flattened to `workers/<wid>/var/agents/<ULID>/` (#209).**
+  The base previously resolved to `…/var/agent-homes`, so the per-agent home was
+  `…/var/agent-homes/agents/<id>` — `agent-homes/` was a meaningless wrapper (its
+  only child was `agents/`). The base is now the worker state dir (`…/var`)
+  directly, dropping the wrapper (same cleanup spirit as #179; also shortens the
+  supervisor socket-adjacent paths). Fresh-install only — no migration (v2.6→v2.7
+  already requires reinstall); existing pre-tag installs uninstall + `rm -rf` +
+  reinstall.
 - **Fresh install web console first-screen now routes correctly (#145, ship-blocker).**
   The auth middleware guarded the entire mux, so the SPA's `/`, `/signin`, `/signup`,
   and `/assets/*` all returned `401 JSON` on first load — the SPA catch-all never
