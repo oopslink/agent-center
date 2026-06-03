@@ -239,4 +239,51 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(screen.getByTestId('install-command-modal')).toBeInTheDocument());
   });
+
+  // #176 (FINDING-C visibility): the worker card shows probed agent-CLI
+  // capabilities so the operator sees what each worker discovered (§5 exit).
+  it('renders a worker’s detected CLI capabilities with enabled/disabled state', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          fleetSnapshot([
+            fleetWorker('w-1', {
+              capabilities: [
+                { agent_cli: 'claude-code', detected: true, enabled: true, version: '1.2' },
+                { agent_cli: 'codex', detected: true, enabled: false },
+                { agent_cli: 'opencode', detected: false, enabled: false },
+              ],
+            }),
+          ]),
+        ),
+      ),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-worker')).toBeInTheDocument());
+
+    const caps = screen.getAllByTestId('environment-worker-capability');
+    // Only detected CLIs are shown — opencode (detected=false) is hidden.
+    expect(caps).toHaveLength(2);
+    const claude = caps.find((c) => c.getAttribute('data-agent-cli') === 'claude-code')!;
+    expect(claude).toHaveAttribute('data-enabled', 'true');
+    expect(claude).toHaveTextContent('claude-code');
+    const codex = caps.find((c) => c.getAttribute('data-agent-cli') === 'codex')!;
+    expect(codex).toHaveAttribute('data-enabled', 'false');
+    expect(codex).toHaveTextContent(/disabled/);
+    expect(screen.queryByText(/opencode/)).toBeNull();
+  });
+
+  it('shows an empty hint when a worker has detected no CLIs', async () => {
+    server.use(
+      http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([fleetWorker('w-1')]))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() =>
+      expect(screen.getByTestId('environment-worker-nocaps')).toBeInTheDocument(),
+    );
+  });
 });
