@@ -104,9 +104,14 @@ describe('Agents page', () => {
           pending_issues: [],
         }),
       ),
-      http.post('/api/agents', async ({ request }) => {
+      // v2.7 #186/#77: POST /api/agents removed; Add Agent now posts to the
+      // unified /api/members/agent (atomic identity-member + execution Agent).
+      http.post('/api/members/agent', async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(agent('A-NEW', { name: 'newbot' }), { status: 201 });
+        return HttpResponse.json(
+          { id: 'agent-new', identity_id: 'agent-new', kind: 'agent', display_name: 'newbot' },
+          { status: 201 },
+        );
       }),
     );
     wrap(<Agents />);
@@ -125,7 +130,8 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agent-create-submit'));
 
     await waitFor(() => expect(posted).not.toBeNull());
-    expect(posted).toMatchObject({ name: 'newbot', worker_id: 'w-7', cli: 'claude-code' });
+    // Unified create payload: display_name (not name) + role + worker_id + cli.
+    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code' });
     await waitFor(() =>
       expect(screen.queryByTestId('agent-create-modal')).not.toBeInTheDocument(),
     );

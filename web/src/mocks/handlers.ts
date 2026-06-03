@@ -74,10 +74,7 @@ function agentHandlers() {
   });
   return [
     http.get('/api/agents', () => ok({ agents: [baseAgent('A-1')] })),
-    http.post('/api/agents', async ({ request }) => {
-      const body = (await request.json()) as Record<string, unknown>;
-      return ok(baseAgent('A-NEW', { ...body }), 201);
-    }),
+    // v2.7 #186/#77: POST /api/agents removed; agent creation = POST /api/members/agent.
     http.get('/api/agents/:id', ({ params }) =>
       ok(baseAgent(String(params.id))),
     ),

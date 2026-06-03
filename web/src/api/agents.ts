@@ -8,15 +8,10 @@ import type { Agent, AgentActivityEvent, AgentWorkItem } from './types';
 // responses are WRAPPED objects; detail + lifecycle mutations return a
 // bare AgentMap.
 
-export interface CreateAgentInput {
-  name: string;
-  description?: string;
-  model?: string;
-  cli?: string;
-  env_vars?: Record<string, string>;
-  skills?: string[];
-  worker_id: string;
-}
+// v2.7 #186/#77: CreateAgentInput + useCreateAgent removed — POST /api/agents
+// was deleted ("no middle state": agent always has a member id). Agent creation
+// now goes through the unified POST /api/members/agent (useAddAgentMember in
+// api/members.ts), which atomically creates the identity-member + execution Agent.
 
 export type ResetScope = 'memory' | 'workspace' | 'all';
 
@@ -40,16 +35,6 @@ export function useAgent(id: string | undefined) {
     queryKey: qk.agent(id ?? ''),
     queryFn: () => api.get<Agent>(`/agents/${id}`),
     enabled: !!id,
-  });
-}
-
-export function useCreateAgent() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: CreateAgentInput) => api.post<Agent>('/agents', input),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.agents() });
-    },
   });
 }
 

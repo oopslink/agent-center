@@ -1,9 +1,11 @@
-// AgentCreateModal — Agent BC (v2.7 #101) "Add Agent" form. Posts to
-// POST /api/agents. The Worker picker is sourced from the Fleet snapshot
-// (useFleet().workers) and submits the chosen worker_id. name + worker_id
-// are required; description/model/cli/skills are optional.
+// AgentCreateModal — Agent BC "Add Agent" form. v2.7 #186/#77: POST /api/agents
+// was removed ("no middle state" — agent always has a member id), so this posts
+// to the unified POST /api/members/agent (atomic identity-member + execution
+// Agent, #157). The Worker picker is sourced from the Fleet snapshot
+// (useFleet().workers); name + worker_id are required; description/model/cli/
+// skills optional. The created agent's business id = response identity_id.
 import React, { useState } from 'react';
-import { useCreateAgent } from '@/api/agents';
+import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
 
 interface Props {
@@ -20,7 +22,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const [cli, setCli] = useState('claude-code');
   const [skills, setSkills] = useState('');
   const [workerId, setWorkerId] = useState('');
-  const create = useCreateAgent();
+  const create = useAddAgentMember();
   const fleet = useFleet();
   const workers = fleet.data?.workers ?? [];
 
@@ -39,8 +41,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
     const parsedSkills = parseSkills(skills);
     try {
       await create.mutateAsync({
-        name: trimmedName,
+        display_name: trimmedName,
         description: description.trim() || undefined,
+        role: 'member',
         model: model.trim() || undefined,
         cli,
         skills: parsedSkills.length > 0 ? parsedSkills : undefined,

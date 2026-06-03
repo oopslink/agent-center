@@ -47,6 +47,7 @@ export interface AddAgentMemberPayload {
   model?: string;
   cli?: string;
   worker_id?: string;
+  skills?: string[];
 }
 
 export const membersApi = {
