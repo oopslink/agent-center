@@ -106,7 +106,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 
 	// Long-term worker token persistence (v2.4-D-X1): load an existing token and
 	// skip enroll, else enroll-with-exchange and persist the minted long-term token.
-	tokenPath := workerTokenFilePath(cfg)
+	tokenPath := workerTokenFilePath(cfg, opts.ConfigPath, opts.WorkerID)
 	enrollNeeded := true
 	if existing, rerr := readWorkerTokenFile(tokenPath); rerr == nil && existing != "" {
 		client = client.WithToken(existing)
@@ -190,7 +190,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		WorkerToken:       token,
 		ServerFingerprint: fingerprint,
 		BinaryPath:        binPath,
-		AgentHomeBase:     agentHomeBase(cfg),
+		AgentHomeBase:     agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
 		Logger:            logf,
 	}); cerr != nil {
 		logf("warning: agent controller not wired: " + cerr.Error())
@@ -239,25 +239,83 @@ func detectedCLINames(caps []workforce.Capability) []string {
 	return out
 }
 
-// workerTokenFilePath returns the path the daemon persists its long-term admin
-// token to (next to the worker's SQLite DB so backup boundaries match).
-func workerTokenFilePath(cfg config.Config) string {
-	sqlitePath := strings.TrimSpace(cfg.Server.SqlitePath)
-	if sqlitePath == "" {
-		return "worker-token"
+// workerStateDir resolves the directory the worker persists its OWN runtime state
+// under (the long-term token + the per-agent home layout).
+//
+// v2.7 FINDING-Q (#205): the worker never opens SQLite (§ 0.4), so deriving its
+// state dir from cfg.Server.SqlitePath is only correct when a config FILE actually
+// provided that path:
+//   - configFile loaded (installed worker / #203-discovered config / explicit
+//     --config): use filepath.Dir(cfg.Server.SqlitePath) — the install's
+//     user-writable data dir (<prefix>/var) — so state shares the install backup
+//     boundary. UNCHANGED behavior.
+//   - NO config file: cfg is the built-in DefaultConfig whose sqlite_path is the
+//     SYSTEM /var/lib path (a server default, meaningless for a worker, and
+//     UNWRITABLE in the #199 user-mode foreground run). Fall back to a
+//     user-writable, worker-id-keyed dir that mirrors the install layout #203
+//     probes (~/.agent-center/workers/<id>/var) instead of failing with
+//     `mkdir /var/lib/agent-center: permission denied`.
+//
+// Returns "" only when there is no config file AND no resolvable HOME; callers then
+// use a cwd-relative name (never the unwritable system default).
+func workerStateDir(cfg config.Config, configPath, workerID string) string {
+	if strings.TrimSpace(configPath) != "" {
+		if sqlitePath := strings.TrimSpace(cfg.Server.SqlitePath); sqlitePath != "" {
+			return filepath.Dir(sqlitePath)
+		}
 	}
-	return filepath.Join(filepath.Dir(sqlitePath), "worker-token")
+	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		if id := sanitizeWorkerStateID(workerID); id != "" {
+			return filepath.Join(home, ".agent-center", "workers", id, "var")
+		}
+	}
+	return ""
+}
+
+// sanitizeWorkerStateID makes a worker-id safe as a single path segment for the
+// FINDING-Q user-writable fallback dir (no separators / traversal). It need not
+// byte-match the installer's label sanitizer: this path is only used when NO
+// install config exists (so there is no pre-existing token to line up with) — it
+// just has to be stable + user-writable.
+func sanitizeWorkerStateID(workerID string) string {
+	id := strings.TrimSpace(workerID)
+	if id == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range id {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	out := strings.Trim(b.String(), ".")
+	if out == "" {
+		return ""
+	}
+	return out
+}
+
+// workerTokenFilePath returns the path the daemon persists its long-term admin
+// token to (under the worker state dir; see workerStateDir for FINDING-Q #205).
+func workerTokenFilePath(cfg config.Config, configPath, workerID string) string {
+	if dir := workerStateDir(cfg, configPath, workerID); dir != "" {
+		return filepath.Join(dir, "worker-token")
+	}
+	return "worker-token"
 }
 
 // agentHomeBase returns the runtime home root for the per-agent layout
-// (workers/{worker_id}/agents/{agent_id}/); next to the worker SQLite DB, else
-// "agent-homes" in the cwd.
-func agentHomeBase(cfg config.Config) string {
-	sqlitePath := strings.TrimSpace(cfg.Server.SqlitePath)
-	if sqlitePath == "" {
-		return "agent-homes"
+// (workers/{worker_id}/agents/{agent_id}/) under the worker state dir, else
+// "agent-homes" in the cwd (see workerStateDir for FINDING-Q #205).
+func agentHomeBase(cfg config.Config, configPath, workerID string) string {
+	if dir := workerStateDir(cfg, configPath, workerID); dir != "" {
+		return filepath.Join(dir, "agent-homes")
 	}
-	return filepath.Join(filepath.Dir(sqlitePath), "agent-homes")
+	return "agent-homes"
 }
 
 // readWorkerTokenFile reads a previously-persisted long-term token (trimmed).
