@@ -33,6 +33,9 @@ export default function TaskDetail(): React.ReactElement {
   const [editOpen, setEditOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
+  // v2.7 #186-3a: lifecycle transitions are presented as a dropdown anchored
+  // to the status badge instead of a scattered row of buttons.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const assign = useAssignTask(projectId, id);
   const start = useStartTask(projectId, id);
@@ -74,9 +77,38 @@ export default function TaskDetail(): React.ReactElement {
   const tk = task.data;
   const status = tk.status;
   const isTerminal = status === 'canceled';
-  const canAssign = status === 'open';
-  const canReopen = status === 'completed' || status === 'verified';
   const canCancel = status !== 'canceled' && status !== 'verified' && status !== 'completed';
+
+  // v2.7 #186-3a: the lifecycle transitions valid for the current status.
+  // Each becomes a dropdown item; the status badge is the trigger.
+  type TaskAction = { testId: string; label: string; onClick: () => void; danger?: boolean; pending?: boolean };
+  const actions: TaskAction[] = [];
+  switch (status) {
+    case 'open':
+      actions.push({ testId: 'task-assign-button', label: 'Assign', onClick: () => setAssignOpen(true) });
+      break;
+    case 'assigned':
+      actions.push({ testId: 'task-start-button', label: 'Start', onClick: () => start.mutate(), pending: start.isPending });
+      actions.push({ testId: 'task-unassign-button', label: 'Unassign', onClick: () => unassign.mutate(), pending: unassign.isPending });
+      break;
+    case 'running':
+      actions.push({ testId: 'task-complete-button', label: 'Complete', onClick: () => complete.mutate(), pending: complete.isPending });
+      actions.push({ testId: 'task-block-button', label: 'Block', onClick: () => setBlockOpen(true) });
+      break;
+    case 'blocked':
+      actions.push({ testId: 'task-unblock-button', label: 'Unblock', onClick: () => unblock.mutate(), pending: unblock.isPending });
+      break;
+    case 'completed':
+      actions.push({ testId: 'task-verify-button', label: 'Verify', onClick: () => verify.mutate(), pending: verify.isPending });
+      actions.push({ testId: 'task-reopen-button', label: 'Reopen', onClick: () => reopen.mutate(), pending: reopen.isPending });
+      break;
+    case 'verified':
+      actions.push({ testId: 'task-reopen-button', label: 'Reopen', onClick: () => reopen.mutate(), pending: reopen.isPending });
+      break;
+  }
+  if (canCancel) {
+    actions.push({ testId: 'task-cancel-button', label: 'Cancel', onClick: () => cancel.mutate(), danger: true, pending: cancel.isPending });
+  }
 
   const actionError =
     (assign.error ?? start.error ?? block.error ?? unblock.error ??
@@ -109,12 +141,44 @@ export default function TaskDetail(): React.ReactElement {
           </nav>
           <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            <span
-              className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary"
-              data-testid="task-status"
-            >
-              {status}
-            </span>
+            {/* v2.7 #186-3a: the status badge is the transition dropdown trigger. */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary hover:bg-border-base"
+                data-testid="task-status"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen && actions.length > 0}
+              >
+                {status}
+              </button>
+              {menuOpen && actions.length > 0 && (
+                <ul
+                  className="absolute left-0 z-10 mt-1 min-w-[10rem] rounded border border-border-base bg-bg-elevated py-1 shadow-lg"
+                  data-testid="task-status-menu"
+                  role="menu"
+                >
+                  {actions.map((a) => (
+                    <li key={a.testId} role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={a.pending}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          a.onClick();
+                        }}
+                        data-testid={a.testId}
+                        className={`block w-full px-3 py-1.5 text-left text-xs font-medium normal-case hover:bg-bg-subtle disabled:opacity-50 ${a.danger ? 'text-danger' : 'text-text-primary'}`}
+                      >
+                        {a.pending ? `${a.label}…` : a.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             {tk.assignee && (
               <span className="font-mono" data-testid="task-assignee">
                 {tk.assignee}
@@ -145,48 +209,6 @@ export default function TaskDetail(): React.ReactElement {
               data-testid="task-edit-button"
             >
               Edit
-            </button>
-          )}
-          {canAssign && (
-            <button
-              type="button"
-              onClick={() => setAssignOpen(true)}
-              className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
-              data-testid="task-assign-button"
-            >
-              Assign
-            </button>
-          )}
-          {status === 'assigned' && (
-            <ActionButton testId="task-start-button" label="Start" onClick={() => start.mutate()} pending={start.isPending} />
-          )}
-          {status === 'assigned' && (
-            <ActionButton testId="task-unassign-button" label="Unassign" onClick={() => unassign.mutate()} pending={unassign.isPending} />
-          )}
-          {status === 'running' && (
-            <ActionButton testId="task-block-button" label="Block" onClick={() => setBlockOpen(true)} />
-          )}
-          {status === 'running' && (
-            <ActionButton testId="task-complete-button" label="Complete" onClick={() => complete.mutate()} pending={complete.isPending} />
-          )}
-          {status === 'blocked' && (
-            <ActionButton testId="task-unblock-button" label="Unblock" onClick={() => unblock.mutate()} pending={unblock.isPending} />
-          )}
-          {status === 'completed' && (
-            <ActionButton testId="task-verify-button" label="Verify" onClick={() => verify.mutate()} pending={verify.isPending} />
-          )}
-          {canReopen && (
-            <ActionButton testId="task-reopen-button" label="Reopen" onClick={() => reopen.mutate()} pending={reopen.isPending} />
-          )}
-          {canCancel && (
-            <button
-              type="button"
-              onClick={() => cancel.mutate()}
-              disabled={cancel.isPending}
-              className="rounded bg-danger px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-              data-testid="task-cancel-button"
-            >
-              {cancel.isPending ? 'Canceling…' : 'Cancel'}
             </button>
           )}
         </div>
@@ -242,30 +264,6 @@ export default function TaskDetail(): React.ReactElement {
         />
       )}
     </section>
-  );
-}
-
-function ActionButton({
-  testId,
-  label,
-  onClick,
-  pending,
-}: {
-  testId: string;
-  label: string;
-  onClick: () => void;
-  pending?: boolean;
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={pending}
-      className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-      data-testid={testId}
-    >
-      {pending ? `${label}…` : label}
-    </button>
   );
 }
 
