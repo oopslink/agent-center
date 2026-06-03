@@ -117,10 +117,12 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 	}
 	var evID observability.EventID
 	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		// App-layer pre-check (the DB partial unique index is the
-		// ultimate authority but a friendlier ErrAlreadyExists from a
-		// pre-check is good UX).
-		if existing, lookErr := s.convRepo.FindByName(txCtx, name); lookErr == nil && existing != nil {
+		// App-layer pre-check (the DB partial unique index is the ultimate
+		// authority but a friendlier ErrAlreadyExists from a pre-check is good UX).
+		// v2.7 #195: uniqueness is ORG-SCOPED — dedup within the channel's org so
+		// two orgs may share a name; the org-less admin path stays global.
+		existing, lookErr := s.findChannelByName(txCtx, cmd.OrganizationID, name)
+		if lookErr == nil && existing != nil {
 			return conversation.ErrConversationAlreadyExists
 		} else if lookErr != nil && !errors.Is(lookErr, conversation.ErrConversationNotFound) {
 			return lookErr
@@ -153,11 +155,24 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 	return CreateChannelResult{ConversationID: conv.ID(), EventID: evID}, nil
 }
 
+// findChannelByName resolves a channel by name, ORG-SCOPED when orgID is set
+// (v2.7 #195), else GLOBAL (org-agnostic admin path). Returns
+// ErrConversationNotFound when absent.
+func (s *ChannelManagementService) findChannelByName(ctx context.Context, orgID, name string) (*conversation.Conversation, error) {
+	if strings.TrimSpace(orgID) != "" {
+		return s.convRepo.FindByNameInOrg(ctx, orgID, name)
+	}
+	return s.convRepo.FindByName(ctx, name)
+}
+
 // ArchiveChannelCommand wraps `agent-center channel archive`.
 type ArchiveChannelCommand struct {
-	Name       string
-	ArchivedBy conversation.IdentityRef
-	Actor      observability.Actor
+	Name string
+	// OrganizationID scopes the name lookup (v2.7 #195). Empty = global (the
+	// org-agnostic admin path); set = resolve within that org.
+	OrganizationID string
+	ArchivedBy     conversation.IdentityRef
+	Actor          observability.Actor
 }
 
 // ArchiveChannel transitions a channel to archived (terminal). Lookup is
@@ -174,7 +189,7 @@ func (s *ChannelManagementService) ArchiveChannel(ctx context.Context, cmd Archi
 	}
 	var evID observability.EventID
 	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		conv, err := s.convRepo.FindByName(txCtx, cmd.Name)
+		conv, err := s.findChannelByName(txCtx, cmd.OrganizationID, cmd.Name)
 		if err != nil {
 			return err
 		}

@@ -79,6 +79,28 @@ func TestCreateChannel_NameUnique(t *testing.T) {
 	}
 }
 
+// v2.7 #195: channel name uniqueness is ORG-SCOPED. Two orgs may each have a
+// "general"; a duplicate within ONE org is rejected.
+func TestCreateChannel_NameUniquePerOrg(t *testing.T) {
+	svc := setupChan(t)
+	mk := func(org string) error {
+		_, err := svc.CreateChannel(context.Background(), CreateChannelCommand{
+			Name: "general", OrganizationID: org,
+			CreatedBy: "user:hayang", Actor: "user:hayang",
+		})
+		return err
+	}
+	if err := mk("org-A"); err != nil {
+		t.Fatalf("org-A general: %v", err)
+	}
+	if err := mk("org-B"); err != nil {
+		t.Fatalf("org-B general (different org must succeed): %v", err)
+	}
+	if err := mk("org-A"); !errors.Is(err, conversation.ErrConversationAlreadyExists) {
+		t.Fatalf("dup general in org-A want ErrConversationAlreadyExists, got %v", err)
+	}
+}
+
 func TestCreateChannel_BadActor(t *testing.T) {
 	svc := setupChan(t)
 	_, err := svc.CreateChannel(context.Background(), CreateChannelCommand{

@@ -31,6 +31,11 @@ type ConversationRepository interface {
 	FindByID(ctx context.Context, id ConversationID) (*Conversation, error)
 	Find(ctx context.Context, filter ConversationFilter) ([]*Conversation, error)
 	FindByName(ctx context.Context, name string) (*Conversation, error)
+	// FindByNameInOrg looks up a channel by name WITHIN an organization (v2.7 #195:
+	// channel name is org-scoped unique, not global). Returns ErrConversationNotFound
+	// if absent in that org. Used by the org-scoped create dedup + the webconsole
+	// participant lookups so a name shared across orgs resolves the right channel.
+	FindByNameInOrg(ctx context.Context, orgID, name string) (*Conversation, error)
 	// FindByOwnerRef looks up a task/issue Conversation by its owner_ref URI
 	// (pm://tasks|issues/{id}); ErrConversationNotFound if absent. Used by the
 	// v2.7 ProjectManager→Conversation participant projector to create/sync the
