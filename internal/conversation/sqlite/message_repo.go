@@ -56,6 +56,14 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 	return err
 }
 
+// DeleteByConversationID hard-removes all messages of a conversation (v2.7 #198,
+// DM delete). Idempotent — no rows = nil.
+func (r *MessageRepo) DeleteByConversationID(ctx context.Context, conversationID conversation.ConversationID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM messages WHERE conversation_id = ?`, string(conversationID))
+	return err
+}
+
 // FindByID returns a message; ErrMessageNotFound if absent.
 func (r *MessageRepo) FindByID(ctx context.Context, id conversation.MessageID) (*conversation.Message, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)

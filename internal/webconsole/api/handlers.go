@@ -876,6 +876,52 @@ func (s *Server) archiveConversationHandler(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"event_id": string(evID)})
 }
 
+// deleteConversationHandler hard-deletes a DM conversation (v2.7 #198). Only
+// kind=DM is deletable — channels use archive (terminal-but-retained), so a
+// channel returns 400 use_archive. Authz: the caller must be an active
+// participant of the DM. The conversation row + its messages + read-state are
+// removed in one tx (no DB-level cascade).
+func (s *Server) deleteConversationHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	id := conversation.ConversationID(r.PathValue("id"))
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if d.ConvRepo == nil || d.MsgRepo == nil || d.ReadStateRepo == nil || d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "conversation repos not wired")
+		return
+	}
+	c, err := d.ConvRepo.FindByID(r.Context(), id)
+	if err != nil || c == nil || c.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
+		return
+	}
+	if c.Kind() != conversation.ConversationKindDM {
+		writeError(w, http.StatusBadRequest, "use_archive",
+			"only DMs can be deleted; archive channels instead")
+		return
+	}
+	if !c.HasActiveParticipant(conversation.IdentityRef("user:" + caller.ID())) {
+		writeError(w, http.StatusForbidden, "not_a_participant",
+			"only a participant can delete this DM")
+		return
+	}
+	if err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		if derr := d.MsgRepo.DeleteByConversationID(txCtx, id); derr != nil {
+			return derr
+		}
+		if derr := d.ReadStateRepo.DeleteByConversationID(txCtx, id); derr != nil {
+			return derr
+		}
+		return d.ConvRepo.Delete(txCtx, id)
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "conversation_id": string(id)})
+}
+
 type inviteReq struct {
 	IdentityID string `json:"identity_id"`
 	Role       string `json:"role"`

@@ -274,3 +274,71 @@ func TestAPI_CreateConversation_DM_MessageWriterNotWired(t *testing.T) {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
 }
+
+// v2.7 #198: DELETE /api/conversations/{id} hard-deletes a DM (conversation row +
+// messages); a channel returns 400 use_archive; a non-participant gets 403.
+func TestDeleteConversation_DMHardDelete(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	// Caller opens a DM → caller is the owner participant.
+	resp := orgScopedPost(t, s.URL+"/api/conversations", `{"kind":"dm","members":["agent:s-1"]}`, sess)
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		t.Fatalf("create dm: status %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	convID, _ := created["conversation_id"].(string)
+	if convID == "" {
+		t.Fatalf("no conversation_id: %v", created)
+	}
+	// Post a message so we can assert messages are cascade-deleted.
+	if _, err := deps.MessageWriter.AddMessage(context.Background(), convservice.AddMessageCommand{
+		ConversationID:   conversation.ConversationID(convID),
+		SenderIdentityID: conversation.IdentityRef("agent:s-1"),
+		ContentKind:      conversation.MessageContentText,
+		Direction:        conversation.DirectionInbound,
+		Content:          "hi",
+		Actor:            "agent:s-1",
+	}); err != nil {
+		t.Fatalf("seed message: %v", err)
+	}
+
+	del := orgScopedDelete(t, s.URL+"/api/conversations/"+convID, sess)
+	if del.StatusCode != http.StatusOK {
+		t.Fatalf("delete dm: status %d", del.StatusCode)
+	}
+	del.Body.Close()
+
+	// Conversation gone.
+	if _, err := deps.ConvRepo.FindByID(context.Background(), conversation.ConversationID(convID)); err == nil {
+		t.Fatalf("conversation must be gone after delete")
+	}
+	// Messages gone.
+	msgs, _ := deps.MsgRepo.FindByConversationID(context.Background(), conversation.ConversationID(convID), conversation.MessageFilter{})
+	if len(msgs) != 0 {
+		t.Fatalf("messages must be cascade-deleted, got %d", len(msgs))
+	}
+}
+
+func TestDeleteConversation_ChannelRejected(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	convID := seedOrgChannel(t, deps, sess.OrgID, "general")
+	del := orgScopedDelete(t, s.URL+"/api/conversations/"+convID, sess)
+	defer del.Body.Close()
+	if del.StatusCode != http.StatusBadRequest {
+		t.Fatalf("channel delete must be 400 use_archive, got %d", del.StatusCode)
+	}
+	var e map[string]any
+	_ = json.NewDecoder(del.Body).Decode(&e)
+	if e["error"] != "use_archive" {
+		t.Fatalf("want error use_archive, got %v", e)
+	}
+}
