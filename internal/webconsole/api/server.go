@@ -211,6 +211,8 @@ func (s *Server) routes() {
 	// /api/members/agent, which atomically provisions identity+member+execution
 	// agent (#157) so an agent ALWAYS has a member id (the business-layer id).
 	s.mux.HandleFunc("GET /api/agents/{id}", s.agentGetHandler)
+	// v2.7 #197: hard-delete an agent (stopped + idle) + cascade its identity-member.
+	s.mux.HandleFunc("DELETE /api/agents/{id}", s.agentDeleteHandler)
 	s.mux.HandleFunc("POST /api/agents/{id}/start", s.agentStartHandler)
 	s.mux.HandleFunc("POST /api/agents/{id}/stop", s.agentStopHandler)
 	s.mux.HandleFunc("POST /api/agents/{id}/restart", s.agentRestartHandler)

@@ -191,3 +191,87 @@ func TestAPI_Agent_CrossOrgAgent404(t *testing.T) {
 		t.Fatalf("unknown agent get: got %d, want 404", resp.StatusCode)
 	}
 }
+
+// v2.7 #197: DELETE /api/agents/{id} hard-deletes a stopped, idle agent AND
+// cascade-deletes its identity-member + identity (symmetric to #157's atomic
+// create — no orphan member left). Addressed by the business (member) id.
+func TestAPI_AgentDelete_CascadesIdentityMember(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"DelBot","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	memberID, _ := created["identity_id"].(string)
+	if memberID == "" {
+		t.Fatalf("no identity_id: %v", created)
+	}
+
+	del := orgScopedDelete(t, s.URL+"/api/agents/"+memberID, sess)
+	if del.StatusCode != http.StatusOK {
+		t.Fatalf("delete: status %d", del.StatusCode)
+	}
+	del.Body.Close()
+
+	if _, err := deps.AgentSvc.ResolveAgent(ctx, memberID); err == nil {
+		t.Fatalf("agent must be gone after delete")
+	}
+	if _, err := deps.IdentityRepo.GetByID(ctx, memberID); err == nil {
+		t.Fatalf("identity must be cascade-deleted")
+	}
+	if m, _ := deps.MemberRepo.GetByOrganizationAndIdentity(ctx, sess.OrgID, memberID); m != nil {
+		t.Fatalf("member must be cascade-deleted")
+	}
+}
+
+// v2.7 #197: a non-Stopped agent cannot be deleted (operator stops it first).
+func TestAPI_AgentDelete_RunningRejected(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"RunBot","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	memberID, _ := created["identity_id"].(string)
+
+	a, err := deps.AgentSvc.ResolveAgent(ctx, memberID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.AgentSvc.StartAgent(ctx, a.ID()); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	del := orgScopedDelete(t, s.URL+"/api/agents/"+memberID, sess)
+	defer del.Body.Close()
+	if del.StatusCode != http.StatusConflict {
+		t.Fatalf("running agent delete must be 409, got %d", del.StatusCode)
+	}
+	var e map[string]any
+	_ = json.NewDecoder(del.Body).Decode(&e)
+	if e["error"] != "agent_running" {
+		t.Fatalf("want error agent_running, got %v", e)
+	}
+	// Still present (delete was rejected).
+	if _, err := deps.AgentSvc.ResolveAgent(ctx, memberID); err != nil {
+		t.Fatalf("agent must still exist after rejected delete")
+	}
+}

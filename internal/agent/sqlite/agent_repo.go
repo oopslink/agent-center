@@ -102,6 +102,14 @@ func (r *AgentRepo) FindByIdentityMemberID(ctx context.Context, identityMemberID
 	return a, err
 }
 
+// Delete hard-removes the agent row (v2.7 #197). Idempotent — absent id affects
+// 0 rows and returns nil. The worker_id binding column goes with the row.
+func (r *AgentRepo) Delete(ctx context.Context, id agent.AgentID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM agents WHERE id = ?`, string(id))
+	return err
+}
+
 func (r *AgentRepo) ListByOrg(ctx context.Context, orgID string) ([]*agent.Agent, error) {
 	return r.list(ctx, agentSelect+` WHERE organization_id = ? ORDER BY created_at, id`, orgID)
 }

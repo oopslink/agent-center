@@ -9,6 +9,12 @@ type IdentityRepository interface {
 	GetByID(ctx context.Context, id string) (*Identity, error)
 	GetByDisplayName(ctx context.Context, name string) (*Identity, error)
 	List(ctx context.Context) ([]*Identity, error)
+	// Delete hard-removes an Identity row by id. v2.7 #197: currently used ONLY by
+	// the agent-delete cascade (delete the execution agent + its agent-identity +
+	// member atomically, symmetric to #157's atomic create). Generic by design
+	// (not kind-limited); callers are responsible for not deleting an identity
+	// still strongly referenced (e.g. an org owner). Idempotent: absent id = no-op.
+	Delete(ctx context.Context, id string) error
 }
 
 // OrganizationRepository defines persistence operations for the Organization AR.
@@ -26,6 +32,10 @@ type MemberRepository interface {
 	GetByOrganizationAndIdentity(ctx context.Context, organizationID, identityID string) (*Member, error)
 	ListByOrganization(ctx context.Context, organizationID string) ([]*Member, error)
 	CountActiveOwners(ctx context.Context, organizationID string) (int, error)
+	// Delete hard-removes a Member row by id. v2.7 #197: used by the agent-delete
+	// cascade (an agent member has no org-owner constraints). Idempotent: absent
+	// id = no-op.
+	Delete(ctx context.Context, id string) error
 }
 
 // InvitationRepository defines persistence operations for the Invitation AR.

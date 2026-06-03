@@ -22,6 +22,11 @@ type Repository interface {
 	// ListByWorker returns agents bound to a Worker (one Worker controls many
 	// Agents — Environment availability derivation walks this).
 	ListByWorker(ctx context.Context, workerID string) ([]*Agent, error)
+	// Delete hard-removes the agent row (v2.7 #197). The worker binding lives on
+	// the agent row (worker_id column), so deleting the row releases it — the
+	// worker is untouched and free to bind a new agent. Idempotent: absent id =
+	// no-op. Lifecycle / active-work guards are the service's responsibility.
+	Delete(ctx context.Context, id AgentID) error
 }
 
 // WorkItemRepository persists AgentWorkItem ARs (C2). ExecutorFromCtx-aware so

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/identity"
+	"github.com/oopslink/agent-center/internal/persistence"
 )
 
 // agentFacingID returns the business-layer id for an agent: its identity-member
@@ -50,6 +52,11 @@ func mapAgentError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, agentbc.ErrIllegalLifecycle):
 		writeError(w, http.StatusConflict, "illegal_transition", err.Error())
+	case errors.Is(err, agentbc.ErrAgentNotStopped):
+		// v2.7 #197: must stop the agent before deleting it.
+		writeError(w, http.StatusConflict, "agent_running", err.Error())
+	case errors.Is(err, agentbc.ErrAgentHasActiveWork):
+		writeError(w, http.StatusConflict, "agent_has_active_work", err.Error())
 	case errors.Is(err, agentsvc.ErrWorkerNotInOrg):
 		writeError(w, http.StatusBadRequest, "worker_not_in_org", err.Error())
 	case errors.Is(err, agentbc.ErrUnsupportedCLI):
@@ -206,6 +213,45 @@ func (s *Server) agentGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.agentWriteJSON(w, r, d, a)
+}
+
+// agentDeleteHandler hard-deletes an agent (v2.7 #197). Guards (in the service):
+// the agent must be Stopped (else 409 agent_running) and idle (no active work
+// item, else 409 agent_has_active_work). In one tx it deletes the agent row
+// (releasing the worker binding) AND cascade-deletes the agent's identity-member
+// + identity (symmetric to #157's atomic create — no orphan member). Lingering
+// pm/conversation refs to the deleted agent render as "(deleted)" + a v2.8 sweep.
+func (s *Server) agentDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, orgID, ok := s.agentRequireInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	if d.AgentSvc == nil || d.IdentityRepo == nil || d.MemberRepo == nil || d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "agent delete deps not wired")
+		return
+	}
+	memberID := strings.TrimSpace(a.IdentityMemberID())
+	if err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		if err := d.AgentSvc.DeleteAgent(txCtx, a.ID()); err != nil {
+			return err
+		}
+		if memberID != "" {
+			if m, merr := d.MemberRepo.GetByOrganizationAndIdentity(txCtx, orgID, memberID); merr == nil && m != nil {
+				if derr := d.MemberRepo.Delete(txCtx, m.ID()); derr != nil {
+					return derr
+				}
+			}
+			if derr := d.IdentityRepo.Delete(txCtx, memberID); derr != nil {
+				return derr
+			}
+		}
+		return nil
+	}); err != nil {
+		mapAgentError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": agentFacingID(a)})
 }
 
 // agentLifecycleAction runs a lifecycle verb then returns the refreshed agent.
