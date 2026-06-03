@@ -75,6 +75,13 @@ type ServerConfig struct {
 	// Both AdminSocketPath and AdminTCPListen empty = boot error
 	// (server has no admin endpoint at all).
 	AdminTCPListen string `yaml:"admin_tcp_listen"`
+	// BootstrapPublicURL (v2.7 #200) is the externally-reachable admin host:port
+	// the Web Console's "Add Worker" command should advertise, INDEPENDENT of the
+	// bind address (admin_tcp_listen). When the center binds 0.0.0.0/loopback but
+	// remote workers must dial a public DNS name / LB / NAT address, set this so
+	// the generated install command is reachable. Empty = fall back to deriving
+	// the host from admin_tcp_listen (the bind address). A bare host:port.
+	BootstrapPublicURL string `yaml:"bootstrap_public_url"`
 	// v2.3-7a: cert + key paths for the TCP admin listener. Empty =
 	// defaults under filepath.Dir(SqlitePath) (admin-tls.crt / .key /
 	// .fingerprint). Auto-generated on boot if missing.
@@ -89,15 +96,15 @@ type NotificationConfig struct {
 
 // ExecutionConfig: 04-configuration § 7.6.
 type ExecutionConfig struct {
-	SubmittedTimeoutSeconds      int `yaml:"submitted_timeout_seconds"`
-	DefaultTimeoutHours          int `yaml:"default_timeout_hours"`
-	DispatchAckTimeoutSeconds    int `yaml:"dispatch_ack_timeout_seconds"`
-	InputRequestPingHours        int `yaml:"input_request_ping_hours"`
-	InputRequestTimeoutHours     int `yaml:"input_request_timeout_hours"`
-	ShimHelloTimeoutSeconds      int `yaml:"shim_hello_timeout_seconds"`
-	ShimGoodbyeAckTimeoutHours   int `yaml:"shim_goodbye_ack_timeout_hours"`
-	MaxExecutionsPerTask         int `yaml:"max_executions_per_task"`
-	KillGraceSeconds             int `yaml:"kill_grace_seconds"`
+	SubmittedTimeoutSeconds    int `yaml:"submitted_timeout_seconds"`
+	DefaultTimeoutHours        int `yaml:"default_timeout_hours"`
+	DispatchAckTimeoutSeconds  int `yaml:"dispatch_ack_timeout_seconds"`
+	InputRequestPingHours      int `yaml:"input_request_ping_hours"`
+	InputRequestTimeoutHours   int `yaml:"input_request_timeout_hours"`
+	ShimHelloTimeoutSeconds    int `yaml:"shim_hello_timeout_seconds"`
+	ShimGoodbyeAckTimeoutHours int `yaml:"shim_goodbye_ack_timeout_hours"`
+	MaxExecutionsPerTask       int `yaml:"max_executions_per_task"`
+	KillGraceSeconds           int `yaml:"kill_grace_seconds"`
 }
 
 // DispatchAckTimeout returns the Duration form (helper for clients).
@@ -318,12 +325,12 @@ func collectKnownKeys(cfg Config) keyTree {
 	// avoids reflection in a security-sensitive layer (config validation).
 	return keyTree{
 		"server": keyTree{
-			"listen_addr":          nil,
-			"sqlite_path":          nil,
-			"admin_socket_path":    nil,
-			"admin_tcp_listen":     nil,
-			"admin_tls_cert_path":  nil,
-			"admin_tls_key_path":   nil,
+			"listen_addr":         nil,
+			"sqlite_path":         nil,
+			"admin_socket_path":   nil,
+			"admin_tcp_listen":    nil,
+			"admin_tls_cert_path": nil,
+			"admin_tls_key_path":  nil,
 		},
 		"notification": keyTree{
 			"default_channel": nil,
@@ -344,15 +351,15 @@ func collectKnownKeys(cfg Config) keyTree {
 			"listen_addr": nil,
 		},
 		"execution": keyTree{
-			"submitted_timeout_seconds":     nil,
-			"default_timeout_hours":         nil,
-			"dispatch_ack_timeout_seconds":  nil,
-			"input_request_ping_hours":      nil,
-			"input_request_timeout_hours":   nil,
-			"shim_hello_timeout_seconds":    nil,
+			"submitted_timeout_seconds":      nil,
+			"default_timeout_hours":          nil,
+			"dispatch_ack_timeout_seconds":   nil,
+			"input_request_ping_hours":       nil,
+			"input_request_timeout_hours":    nil,
+			"shim_hello_timeout_seconds":     nil,
 			"shim_goodbye_ack_timeout_hours": nil,
-			"max_executions_per_task":       nil,
-			"kill_grace_seconds":            nil,
+			"max_executions_per_task":        nil,
+			"kill_grace_seconds":             nil,
 		},
 	}
 }

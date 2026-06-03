@@ -286,7 +286,7 @@ func atomicSymlinkSwap(layout installLayout) error {
 // until the operator manually provisions one. Auto-provisioning
 // matches v2.4-D-A2's bootstrap_token approach: opinionated
 // defaults so the happy path works out of the box.
-func writeCenterConfig(layout installLayout, port int, tcpListen string) error {
+func writeCenterConfig(layout installLayout, port int, tcpListen, bootstrapPublicURL string) error {
 	if err := os.MkdirAll(layout.ConfigDir, 0o755); err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func writeCenterConfig(layout installLayout, port int, tcpListen string) error {
 	if err := ensureMasterKeyFile(masterKeyPath); err != nil {
 		return err
 	}
-	yaml := centerConfigYAML(layout.DataDir, port, tcpListen, masterKeyPath)
+	yaml := centerConfigYAML(layout.DataDir, port, tcpListen, bootstrapPublicURL, masterKeyPath)
 	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o644)
 }
 
@@ -325,7 +325,7 @@ func ensureMasterKeyFile(path string) error {
 
 // centerConfigYAML returns the YAML body for the default center config.
 // Kept as a pure function so tests can assert content.
-func centerConfigYAML(dataDir string, port int, tcpListen, masterKeyPath string) string {
+func centerConfigYAML(dataDir string, port int, tcpListen, bootstrapPublicURL, masterKeyPath string) string {
 	yaml := `# agent-center — installed by v2.4-D-A2 install command.
 # Edit this file then ` + "`systemctl --user restart agent-center`" + ` (or launchctl) to apply.
 
@@ -341,6 +341,13 @@ server:
 `
 	if tcpListen != "" {
 		yaml += `  admin_tcp_listen: "` + tcpListen + `"
+`
+	}
+	// v2.7 #200: externally-reachable host:port for the Web Console Add Worker
+	// command, independent of the bind address. Set when remote workers must dial
+	// a public DNS / LB / NAT address rather than the bind addr.
+	if bootstrapPublicURL != "" {
+		yaml += `  bootstrap_public_url: "` + bootstrapPublicURL + `"
 `
 	}
 	yaml += fmt.Sprintf(`

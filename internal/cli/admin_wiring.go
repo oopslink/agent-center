@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/api"
@@ -176,6 +177,19 @@ func enrollBootstrapHost(adminTCPListen string) string {
 		return "127.0.0.1:" + port
 	}
 	return host + ":" + port
+}
+
+// resolveEnrollBootstrapHost picks the host:port the Web Console "Add Worker"
+// command advertises (v2.7 #200). An explicit bootstrap_public_url wins — it is
+// independent of the bind address, so a center that binds 0.0.0.0/loopback can
+// still advertise a public DNS / LB / NAT address remote workers can dial. A
+// leading "tcp://" scheme (if pasted) is stripped. Empty → derive from the bind
+// address (admin_tcp_listen), the prior behavior.
+func resolveEnrollBootstrapHost(bootstrapPublicURL, adminTCPListen string) string {
+	if p := strings.TrimSpace(bootstrapPublicURL); p != "" {
+		return strings.TrimPrefix(p, "tcp://")
+	}
+	return enrollBootstrapHost(adminTCPListen)
 }
 
 // splitHostPortFlexible accepts "host:port" or ":port" (bare port).
