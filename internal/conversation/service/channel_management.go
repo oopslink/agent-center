@@ -94,7 +94,7 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 		ownerRef = conversation.NewOrgOwnerRef(cmd.OrganizationID)
 	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:             conversation.ConversationID(s.idgen.NewULID()),
+		ID:             newConversationID(s.idgen, conversation.ConversationKindChannel),
 		Kind:           conversation.ConversationKindChannel,
 		OwnerRef:       ownerRef,
 		ProjectRef:     strings.TrimSpace(cmd.ProjectRef),

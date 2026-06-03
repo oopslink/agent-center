@@ -98,6 +98,21 @@ type OpenResult struct {
 	EventID        observability.EventID
 }
 
+// newConversationID mints a conversation id (v2.7 #187): user-facing DM/channel
+// get the "<prefix>-<8hex>" entity id; task/issue (and anything else) keep the
+// internal ULID — a task conversation is navigated via its owner_ref (the
+// user-facing id is the pm task id), so its conversation id stays internal.
+func newConversationID(gen idgen.Generator, kind conversation.ConversationKind) conversation.ConversationID {
+	switch kind {
+	case conversation.ConversationKindChannel:
+		return conversation.ConversationID(gen.NewEntityID("channel"))
+	case conversation.ConversationKindDM:
+		return conversation.ConversationID(gen.NewEntityID("dm"))
+	default:
+		return conversation.ConversationID(gen.NewULID())
+	}
+}
+
 // OpenConversation creates a fresh conversation and emits
 // `conversation.opened`. task / issue kinds rejected — they go through
 // TaskRuntime / Discussion sync-create paths.
@@ -113,7 +128,7 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 			conversation.ErrConversationInvalidKind, cmd.Kind)
 	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:                   conversation.ConversationID(w.idgen.NewULID()),
+		ID:                   newConversationID(w.idgen, cmd.Kind),
 		Kind:                 cmd.Kind,
 		Name:                 cmd.Name,
 		Description:          cmd.Description,

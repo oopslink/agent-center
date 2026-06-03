@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,32 @@ func (d allOrgDir) OrgOfAgent(_ context.Context, _ string) (string, error) { ret
 type agentNotFoundErr struct{}
 
 func (*agentNotFoundErr) Error() string { return "fake: agent not found" }
+
+// v2.7 #187: project/issue/task ids are user-facing "<entity>-<8hex>".
+func TestCreate_EntityIDPrefixes(t *testing.T) {
+	svc, ctx := agentDirSetup(t, fakeAgentDir{})
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	iid, err := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "i", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tid, err := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(pid), "project-") {
+		t.Errorf("project id %q want project- prefix", pid)
+	}
+	if !strings.HasPrefix(string(iid), "issue-") {
+		t.Errorf("issue id %q want issue- prefix", iid)
+	}
+	if !strings.HasPrefix(string(tid), "task-") {
+		t.Errorf("task id %q want task- prefix", tid)
+	}
+}
 
 // agentDirSetup wires a pm Service with the given fake AgentDirectory.
 func agentDirSetup(t *testing.T, dir AgentDirectory) (*Service, context.Context) {

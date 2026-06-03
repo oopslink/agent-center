@@ -19,6 +19,33 @@ func TestNewULID_FormatAndLen(t *testing.T) {
 	}
 }
 
+// v2.7 #187: NewEntityID returns "<prefix>-<8hex>" for user-facing entity ids.
+func TestNewEntityID_FormatAndUniqueness(t *testing.T) {
+	g := NewGenerator(clock.SystemClock{})
+	for _, prefix := range []string{"task", "issue", "project", "channel", "dm"} {
+		id := g.NewEntityID(prefix)
+		want := prefix + "-"
+		if len(id) != len(want)+8 || id[:len(want)] != want {
+			t.Fatalf("NewEntityID(%q) = %q, want %q+8 hex chars", prefix, id, want)
+		}
+		// the 8 chars after the dash must be lowercase hex.
+		for _, c := range id[len(want):] {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+				t.Fatalf("NewEntityID(%q) = %q has non-hex tail", prefix, id)
+			}
+		}
+	}
+	// distinct calls differ.
+	seen := map[string]struct{}{}
+	for i := 0; i < 1000; i++ {
+		id := g.NewEntityID("task")
+		if _, dup := seen[id]; dup {
+			t.Fatalf("NewEntityID dup at %d: %s", i, id)
+		}
+		seen[id] = struct{}{}
+	}
+}
+
 func TestNewULID_UniquePerCall(t *testing.T) {
 	g := NewGenerator(clock.SystemClock{})
 	seen := make(map[string]struct{}, 1000)
