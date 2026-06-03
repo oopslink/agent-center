@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -104,9 +104,14 @@ describe('Agents page', () => {
           pending_issues: [],
         }),
       ),
-      http.post('/api/agents', async ({ request }) => {
+      // v2.7 #186/#77: POST /api/agents removed; Add Agent now posts to the
+      // unified /api/members/agent (atomic identity-member + execution Agent).
+      http.post('/api/members/agent', async ({ request }) => {
         posted = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(agent('A-NEW', { name: 'newbot' }), { status: 201 });
+        return HttpResponse.json(
+          { id: 'agent-new', identity_id: 'agent-new', kind: 'agent', display_name: 'newbot' },
+          { status: 201 },
+        );
       }),
     );
     wrap(<Agents />);
@@ -125,7 +130,8 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agent-create-submit'));
 
     await waitFor(() => expect(posted).not.toBeNull());
-    expect(posted).toMatchObject({ name: 'newbot', worker_id: 'w-7', cli: 'claude-code' });
+    // Unified create payload: display_name (not name) + role + worker_id + cli.
+    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code' });
     await waitFor(() =>
       expect(screen.queryByTestId('agent-create-modal')).not.toBeInTheDocument(),
     );
@@ -139,5 +145,89 @@ describe('Agents page', () => {
     );
     wrap(<Agents />);
     await waitFor(() => expect(screen.getByTestId('agents-error')).toHaveTextContent(/db down/));
+  });
+});
+
+// v2.7 #197: agent rows carry a delete action (hard-delete agent + identity-member);
+// confirmed via the shared ConfirmModal; the 409 guard codes (agent_running /
+// agent_has_active_work) surface as friendly copy, never silent.
+describe('Agents delete (#197)', () => {
+  beforeEach(() => {
+    server.use(http.get('/api/agents', () => HttpResponse.json({ agents: seed })));
+  });
+  afterEach(() => cleanup());
+
+  it('exposes a delete action per agent row', async () => {
+    wrap(<Agents />);
+    const btns = await screen.findAllByTestId('agent-delete-button');
+    expect(btns).toHaveLength(3);
+    expect(btns[1]).toHaveAttribute('data-agent-id', 'bot-2');
+  });
+
+  it('confirms (naming the agent) before posting DELETE', async () => {
+    let deleted: string | null = null;
+    server.use(
+      http.delete('/api/agents/bot-2', () => {
+        deleted = 'bot-2';
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap(<Agents />);
+    const btns = await screen.findAllByTestId('agent-delete-button');
+    fireEvent.click(btns[1]);
+    const modal = await screen.findByTestId('confirm-modal');
+    expect(modal).toHaveTextContent('bot-2');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    });
+    await waitFor(() => expect(deleted).toBe('bot-2'));
+  });
+
+  it('maps the 409 agent_running guard to friendly copy (Rule 9, no raw code)', async () => {
+    server.use(
+      http.delete('/api/agents/bot-1', () =>
+        HttpResponse.json({ error: 'agent_running', message: 'agent is running' }, { status: 409 }),
+      ),
+    );
+    wrap(<Agents />);
+    const btns = await screen.findAllByTestId('agent-delete-button');
+    fireEvent.click(btns[0]);
+    await act(async () => {
+      fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    });
+    const err = await screen.findByTestId('agent-delete-error');
+    expect(err).toHaveTextContent(/stopped/i);
+  });
+
+  it('maps the 409 agent_has_active_work guard to friendly copy', async () => {
+    server.use(
+      http.delete('/api/agents/bot-1', () =>
+        HttpResponse.json({ error: 'agent_has_active_work', message: 'has work' }, { status: 409 }),
+      ),
+    );
+    wrap(<Agents />);
+    const btns = await screen.findAllByTestId('agent-delete-button');
+    fireEvent.click(btns[0]);
+    await act(async () => {
+      fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    });
+    const err = await screen.findByTestId('agent-delete-error');
+    expect(err).toHaveTextContent(/active work/i);
+  });
+
+  it('can be canceled without deleting', async () => {
+    let deleted = false;
+    server.use(
+      http.delete('/api/agents/bot-2', () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap(<Agents />);
+    const btns = await screen.findAllByTestId('agent-delete-button');
+    fireEvent.click(btns[1]);
+    fireEvent.click(await screen.findByTestId('confirm-modal-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('confirm-modal')).not.toBeInTheDocument());
+    expect(deleted).toBe(false);
   });
 });

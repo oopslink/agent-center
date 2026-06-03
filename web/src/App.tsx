@@ -26,7 +26,6 @@ const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
-const OrgSettings = lazy(() => import('./pages/OrgSettings'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
 const MembersAgents = lazy(() => import('./pages/MembersAgents'));
 const MemberNew = lazy(() => import('./pages/MemberNew'));
@@ -69,7 +68,6 @@ export function App(): React.ReactElement {
           <Route path="environment" element={<Environment />} />
           <Route path="settings" element={<Settings />} />
           <Route path="me" element={<Me />} />
-          <Route path="org/settings" element={<OrgSettings />} />
           <Route path="members/humans" element={<MembersHumans />} />
           <Route path="members/agents" element={<MembersAgents />} />
           <Route path="members/new" element={<MemberNew />} />

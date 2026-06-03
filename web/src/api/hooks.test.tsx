@@ -16,7 +16,6 @@ import {
 import {
   useAgents,
   useAgent,
-  useCreateAgent,
   useStartAgent,
   useStopAgent,
   useRestartAgent,
@@ -146,12 +145,8 @@ describe('react-query hooks', () => {
     expect(result.current.fetchStatus).toBe('idle');
   });
 
-  it('useCreateAgent posts and returns the new AgentMap', async () => {
-    const { result } = renderHook(() => useCreateAgent(), { wrapper: makeWrapper() });
-    act(() => result.current.mutate({ name: 'newbot', worker_id: 'w-1' }));
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.name).toBe('newbot');
-  });
+  // v2.7 #186/#77: useCreateAgent removed (POST /api/agents deleted; agent
+  // creation goes through useAddAgentMember → /api/members/agent).
 
   it('lifecycle hooks return the refreshed AgentMap', async () => {
     const startH = renderHook(() => useStartAgent('A-1'), { wrapper: makeWrapper() });

@@ -52,6 +52,17 @@ describe('WorkItemConversation (#137)', () => {
     await waitFor(() => expect(seenOwnerRef).toBe('pm://tasks/TS-1'));
   });
 
+  // v2.7 #186-4: a message composer is rendered when a conversation is bound,
+  // so a human can send into the task conversation (was read-only before).
+  it('renders a message composer when the conversation is bound (#186-4)', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs');
+    await waitFor(() => expect(screen.getByTestId('conversation-composer')).toBeInTheDocument());
+  });
+
   it('shows an empty hint (not an error) when no conversation is bound to the owner_ref', async () => {
     server.use(http.get('/api/conversations', () => HttpResponse.json([])));
     wrap('pm://tasks/NONE', 'orphan task');

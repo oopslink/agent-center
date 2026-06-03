@@ -2,11 +2,26 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
 
-import { useAgents } from '@/api/agents';
+import { ApiError } from '@/api/client';
+import { useAgents, useDeleteAgent } from '@/api/agents';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
+
+// v2.7 #197: map the backend's delete-guard codes to friendly copy so the UI
+// never shows a raw error code or fails silently (Rule 9).
+function agentDeleteErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.code === 'agent_running') return 'This agent must be stopped before it can be deleted.';
+    if (err.code === 'agent_has_active_work') {
+      return 'This agent has active work items and cannot be deleted until they finish.';
+    }
+    if (err.code === 'not_found') return 'This agent no longer exists.';
+  }
+  return err instanceof Error ? err.message : 'Delete failed, please try again.';
+}
 
 // Agents page (/agents). Agent BC (v2.7 #101) — lists org-scoped agents
 // with lifecycle + availability badges and worker, plus an "+ Add Agent"
@@ -15,6 +30,9 @@ import { Skeleton } from '@/components/Skeleton';
 export default function Agents(): React.ReactElement {
   const agents = useAgents();
   const [createOpen, setCreateOpen] = useState(false);
+  // v2.7 #197: per-row hard-delete gated behind a confirm dialog.
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const del = useDeleteAgent();
 
   return (
     <section className="space-y-4" data-testid="page-Agents">
@@ -90,18 +108,66 @@ export default function Agents(): React.ReactElement {
                   {a.worker_id || '—'}
                 </td>
                 <td className="border-b border-border-base px-3 py-2 text-right">
-                  <OrgLink
-                    to={`/agents/${encodeURIComponent(a.id)}`}
-                    className="text-xs text-accent hover:underline"
-                  >
-                    Open →
-                  </OrgLink>
+                  <div className="flex items-center justify-end gap-3">
+                    <OrgLink
+                      to={`/agents/${encodeURIComponent(a.id)}`}
+                      className="text-xs text-accent hover:underline"
+                    >
+                      Open →
+                    </OrgLink>
+                    <button
+                      type="button"
+                      data-testid="agent-delete-button"
+                      data-agent-id={a.id}
+                      aria-label={`Delete agent ${a.name}`}
+                      title="Delete agent"
+                      onClick={() => {
+                        del.reset();
+                        setPendingDelete({ id: a.id, name: a.name });
+                      }}
+                      className="rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      {del.isError && (
+        <p className="text-sm text-danger" data-testid="agent-delete-error" role="alert">
+          {agentDeleteErrorMessage(del.error)}
+        </p>
+      )}
+
+      <ConfirmModal
+        open={pendingDelete !== null}
+        danger
+        busy={del.isPending}
+        title="Delete agent"
+        message={
+          pendingDelete
+            ? `Delete the agent "${pendingDelete.name}"? This permanently removes the agent and its membership. The agent must be stopped with no active work. This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        onCancel={() => {
+          if (del.isPending) return;
+          setPendingDelete(null);
+          del.reset();
+        }}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          del.mutate(pendingDelete.id, {
+            // Close on both outcomes; an error surfaces as a page-level alert
+            // (Rule 9: never silent) that the next delete attempt resets.
+            onSettled: () => setPendingDelete(null),
+          });
+        }}
+      />
     </section>
   );
 }

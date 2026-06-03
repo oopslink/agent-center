@@ -120,6 +120,21 @@ export async function uploadMessageAttachment(file: File) {
   };
 }
 
+// useDeleteConversation hard-deletes a conversation and its messages +
+// read-state in one tx (v2.7 #198). The backend rejects channel conversations
+// with 400 use_archive (channels are archived, not deleted) and unauthorized
+// callers with 403 — both surface to the caller as ApiError for display.
+export function useDeleteConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<void>(`/conversations/${id}`),
+    onSuccess: (_, id) => {
+      void qc.invalidateQueries({ queryKey: qk.conversations() });
+      void qc.removeQueries({ queryKey: qk.conversation(id) });
+    },
+  });
+}
+
 export function useArchiveConversation() {
   const qc = useQueryClient();
   return useMutation({

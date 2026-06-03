@@ -46,10 +46,11 @@ export default function MemberNew(): React.ReactElement {
           worker_id: workerID || undefined,
         },
         {
-          // Unified create returns the execution agent's id → open its management
-          // page (AgentDetail) directly; fall back to the agents list otherwise.
+          // v2.7 #185/#77: business-layer agent id = member identity_id (entity
+          // id is internal-only). Navigate to AgentDetail by identity_id
+          // (GET /api/agents/{identity_id} resolves via the member→entity bridge).
           onSuccess: (res) =>
-            navigate(res.agent_id ? `${base}/agents/${res.agent_id}` : `${base}/members/agents`),
+            navigate(res.identity_id ? `${base}/agents/${res.identity_id}` : `${base}/members/agents`),
           onError: (err) => setError(err instanceof ApiError ? err.message : 'Create failed'),
         },
       );

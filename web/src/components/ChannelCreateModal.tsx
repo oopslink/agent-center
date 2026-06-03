@@ -1,7 +1,18 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useCreateConversation } from '@/api/conversations';
+import { ApiError } from '@/api/client';
 import { useModalA11y } from './useModalA11y';
+
+// v2.7 #195: channel names are unique within an organization (composite
+// UNIQUE(org_id,name)); a duplicate create returns 409 `already_exists`.
+// Surface a friendly, org-scoped message instead of the raw envelope.
+function channelCreateErrorMessage(err: unknown, name: string): string {
+  if (err instanceof ApiError && err.code === 'already_exists') {
+    return `A channel named "${name}" already exists in this organization.`;
+  }
+  return err instanceof Error ? err.message : 'Failed to create channel.';
+}
 
 interface Props {
   open: boolean;
@@ -77,7 +88,7 @@ export function ChannelCreateModal({
           </div>
           {create.isError && (
             <p className="text-xs text-danger" data-testid="create-channel-error">
-              {(create.error as Error).message}
+              {channelCreateErrorMessage(create.error, name.trim())}
             </p>
           )}
           <div className="flex justify-end gap-2">

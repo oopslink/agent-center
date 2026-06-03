@@ -24,6 +24,13 @@ function wrap(path: string) {
   );
 }
 
+// v2.7 #186-3a: lifecycle transitions live behind the status badge, which is
+// a dropdown trigger. Open it before asserting/clicking an action item.
+async function openStatusMenu() {
+  fireEvent.click(await screen.findByTestId('task-status'));
+  await screen.findByTestId('task-status-menu');
+}
+
 // v2.7 ProjectManager BC: TaskDetail is nested under a project and is
 // driven entirely by the Task projection. The new state-machine actions
 // each POST to a sub-route and return the refreshed task.
@@ -56,29 +63,113 @@ describe('TaskDetail page', () => {
     expect(screen.getByTestId('task-description')).toHaveTextContent('regenerate the site');
     expect(screen.getByTestId('task-status')).toHaveTextContent('open');
     expect(screen.getByTestId('task-project-link')).toHaveAttribute('href', '/projects/proj-a');
-    // open → Assign available.
+    // open → Assign available behind the status dropdown.
+    await openStatusMenu();
     expect(screen.getByTestId('task-assign-button')).toBeInTheDocument();
   });
 
-  it('assigns an agent via the assign modal', async () => {
+  it('opens a transition menu from the status badge and closes it again (#186-3a)', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    const trigger = await screen.findByTestId('task-status');
+    // Closed by default — items hidden.
+    expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(screen.getByTestId('task-status-menu')).toBeInTheDocument();
+    // Toggling again closes it.
+    fireEvent.click(trigger);
+    expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
+  });
+
+  it('shows a breadcrumb with the project display name, not its ULID (#186-1/2)', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      http.get('/api/projects/proj-a', () =>
+        HttpResponse.json({
+          id: 'proj-a',
+          organization_id: 'O-1',
+          name: 'Alpha Project',
+          description: '',
+          status: 'active',
+          created_by: 'user:x',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
+        }),
+      ),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    const crumb = await screen.findByTestId('task-breadcrumb');
+    expect(crumb).toHaveTextContent('Tasks');
+    expect(crumb).toHaveTextContent('rebuild docs');
+    // project name (not the proj-a ULID) renders + links to the project.
+    await waitFor(() =>
+      expect(screen.getByTestId('task-breadcrumb-project')).toHaveTextContent('Alpha Project'),
+    );
+    expect(screen.getByTestId('task-breadcrumb-project')).toHaveAttribute('href', '/projects/proj-a');
+  });
+
+  it('assigns via the searchable picker — agent → agent:<member-id> ref (#186-5b)', async () => {
     let received: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      // Picker sources agents (→ agent:<identity_member_id>) + human members.
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [{ id: 'agent-bld1', identity_member_id: 'agent-bld1', name: 'builder', worker_id: 'w-1', lifecycle: 'stopped' }],
+        }),
+      ),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-h1', organization_id: 'O-1', identity_id: 'user-h1', kind: 'user', role: 'member', status: 'joined', display_name: 'Alice' },
+        ]),
+      ),
       http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(taskAt('assigned', { assignee: 'agent:builder' }));
+        return HttpResponse.json(taskAt('assigned', { assignee: 'agent:agent-bld1' }));
       }),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('task-assign-button')).toBeInTheDocument());
+    await openStatusMenu();
     fireEvent.click(screen.getByTestId('task-assign-button'));
-    fireEvent.change(screen.getByTestId('task-assign-input'), {
-      target: { value: 'agent:builder' },
-    });
+    // Candidates load (agent + human); filter then pick the agent.
+    await waitFor(() => expect(screen.getAllByTestId('task-assign-candidate').length).toBeGreaterThan(0));
+    fireEvent.change(screen.getByTestId('task-assign-search'), { target: { value: 'builder' } });
+    const agentCandidate = await screen.findByTestId('task-assign-candidate');
+    expect(agentCandidate).toHaveAttribute('data-assignee-ref', 'agent:agent-bld1');
     await act(async () => {
-      fireEvent.click(screen.getByTestId('task-assign-submit'));
+      fireEvent.click(agentCandidate);
     });
-    await waitFor(() => expect(received).toMatchObject({ assignee: 'agent:builder' }));
+    await waitFor(() => expect(received).toMatchObject({ assignee: 'agent:agent-bld1' }));
+  });
+
+  it('can assign a human (PM tracking) → user:<identity_id> ref (#186-5a)', async () => {
+    let received: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-h1', organization_id: 'O-1', identity_id: 'user-h1', kind: 'user', role: 'member', status: 'joined', display_name: 'Alice' },
+        ]),
+      ),
+      http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
+        received = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(taskAt('assigned', { assignee: 'user:user-h1' }));
+      }),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    fireEvent.click(screen.getByTestId('task-assign-button'));
+    const human = await screen.findByTestId('task-assign-candidate');
+    expect(human).toHaveAttribute('data-assignee-ref', 'user:user-h1');
+    expect(human).toHaveAttribute('data-kind', 'human');
+    await act(async () => {
+      fireEvent.click(human);
+    });
+    await waitFor(() => expect(received).toMatchObject({ assignee: 'user:user-h1' }));
   });
 
   it('shows running actions (block + complete) and posts complete', async () => {
@@ -91,7 +182,7 @@ describe('TaskDetail page', () => {
       }),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('task-complete-button')).toBeInTheDocument());
+    await openStatusMenu();
     expect(screen.getByTestId('task-block-button')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('task-complete-button'));
     await waitFor(() => expect(completed).toBe(true));
@@ -107,7 +198,7 @@ describe('TaskDetail page', () => {
       }),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('task-block-button')).toBeInTheDocument());
+    await openStatusMenu();
     fireEvent.click(screen.getByTestId('task-block-button'));
     // submit disabled until reason filled
     expect((screen.getByTestId('task-block-submit') as HTMLButtonElement).disabled).toBe(true);
@@ -125,7 +216,8 @@ describe('TaskDetail page', () => {
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('completed'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('task-verify-button')).toBeInTheDocument());
+    await openStatusMenu();
+    expect(screen.getByTestId('task-verify-button')).toBeInTheDocument();
     // completed → {verified, reopened}: no cancel edge.
     expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
     expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
@@ -136,7 +228,8 @@ describe('TaskDetail page', () => {
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('verified'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument());
+    await openStatusMenu();
+    expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
     expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
   });
@@ -146,16 +239,20 @@ describe('TaskDetail page', () => {
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('assigned'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('task-start-button')).toBeInTheDocument());
+    await openStatusMenu();
+    expect(screen.getByTestId('task-start-button')).toBeInTheDocument();
     expect(screen.getByTestId('task-unassign-button')).toBeInTheDocument();
   });
 
-  it('canceled tasks hide all lifecycle actions', async () => {
+  it('canceled tasks hide all lifecycle actions — status badge is not a menu', async () => {
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('canceled'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await waitFor(() => expect(screen.getByTestId('task-status')).toHaveTextContent('canceled'));
+    // No transitions available → clicking the badge opens nothing.
+    fireEvent.click(screen.getByTestId('task-status'));
+    expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-reopen-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
