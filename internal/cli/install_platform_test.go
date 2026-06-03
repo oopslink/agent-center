@@ -86,7 +86,7 @@ func TestRenderSystemdUnit_Center_SystemMode_HasHardening(t *testing.T) {
 }
 
 func TestRenderLaunchdPlist_HasLabel(t *testing.T) {
-	body := renderLaunchdPlist("com.test.x", "/bin/agent-center", []string{"server", "--config=/tmp/c.yaml"}, "/var/logs/ac")
+	body := renderLaunchdPlist("com.test.x", "/bin/agent-center", []string{"server", "--config=/tmp/c.yaml"}, "/var/logs/ac", "")
 	if !strings.Contains(body, "com.test.x") {
 		t.Errorf("missing label: %s", body)
 	}
@@ -113,9 +113,14 @@ func TestRenderLaunchdPlist_HasLabel(t *testing.T) {
 // renderLaunchdPlist falls back to /tmp when logsDir is empty — the
 // safety net for test fixtures that don't bother constructing a layout.
 func TestRenderLaunchdPlist_EmptyLogsDirFallsBackToTmp(t *testing.T) {
-	body := renderLaunchdPlist("com.test.x", "/bin/x", nil, "")
+	body := renderLaunchdPlist("com.test.x", "/bin/x", nil, "", "")
 	if !strings.Contains(body, "<string>/tmp/com.test.x.err.log</string>") {
 		t.Errorf("expected /tmp fallback for empty logsDir:\n%s", body)
+	}
+	// Empty pathEnv (center / no-PATH case) must NOT emit an
+	// EnvironmentVariables block.
+	if strings.Contains(body, "EnvironmentVariables") {
+		t.Errorf("empty pathEnv should not emit EnvironmentVariables:\n%s", body)
 	}
 }
 
@@ -289,7 +294,8 @@ func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center",
 		"/opt/agent-center/config.yaml",
-		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "/opt/agent-center/logs")
+		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "/opt/agent-center/logs",
+		"/opt/homebrew/bin:/usr/bin")
 	// The `worker run` sub-command path must be present (as ordered plist args).
 	if !strings.Contains(body, "<string>worker</string>") {
 		t.Errorf("plist missing 'worker' sub-command prefix:\n%s", body)
@@ -313,6 +319,15 @@ func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 	if strings.Contains(body, "--capabilities=") {
 		t.Errorf("unit must not carry --capabilities (auto-probe now):\n%s", body)
 	}
+	// v2.7 #175: the worker plist must carry an EnvironmentVariables PATH so
+	// the launchd-started daemon can find user-installed agent CLIs.
+	if !strings.Contains(body, "<key>EnvironmentVariables</key>") {
+		t.Errorf("worker plist missing EnvironmentVariables block:\n%s", body)
+	}
+	if !strings.Contains(body, "<key>PATH</key>") ||
+		!strings.Contains(body, "<string>/opt/homebrew/bin:/usr/bin</string>") {
+		t.Errorf("worker plist missing/incorrect PATH:\n%s", body)
+	}
 }
 
 func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
@@ -322,7 +337,7 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 		WorkerUnitPath:  "/tmp/test.plist",
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
-		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "/opt/logs")
+		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "/opt/logs", "")
 	if strings.Contains(body, "--server-fingerprint=") {
 		t.Errorf("empty fingerprint should be omitted:\n%s", body)
 	}
@@ -331,6 +346,50 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 	}
 	if strings.Contains(body, "--worker-name=") {
 		t.Errorf("empty worker-name should be omitted:\n%s", body)
+	}
+}
+
+// v2.7 #175: the systemd worker unit must carry Environment=PATH= so the
+// daemon (and the agent CLIs it spawns) inherit the user's PATH.
+func TestRenderWorkerServiceUnit_SystemdHasPathEnv(t *testing.T) {
+	sp := servicePaths{
+		ServiceManager:  "systemd",
+		WorkerServiceID: "agent-center-worker-w.service",
+		UserMode:        true,
+	}
+	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
+		"w", "", "unix:/run/admin.sock", "tok", "", "/opt/logs",
+		"/home/u/.local/bin:/usr/bin")
+	if !strings.Contains(body, "Environment=PATH=/home/u/.local/bin:/usr/bin") {
+		t.Errorf("systemd worker unit missing Environment=PATH:\n%s", body)
+	}
+}
+
+// v2.7 #175: resolveWorkerPATH unions the live PATH (first, in order)
+// with well-known user CLI dirs, de-duplicating while preserving order.
+func TestResolveWorkerPATH_UnionDedupPreserveOrder(t *testing.T) {
+	// /opt/homebrew/bin appears in both the live PATH and the well-known
+	// backstop — it must not be duplicated.
+	t.Setenv("PATH", "/custom/bin:/opt/homebrew/bin")
+	parts := filepath.SplitList(resolveWorkerPATH("/home/u"))
+
+	if len(parts) < 2 || parts[0] != "/custom/bin" || parts[1] != "/opt/homebrew/bin" {
+		t.Fatalf("live PATH must come first in order, got: %v", parts)
+	}
+	count := map[string]int{}
+	for _, p := range parts {
+		count[p]++
+	}
+	if count["/opt/homebrew/bin"] != 1 {
+		t.Fatalf("/opt/homebrew/bin must be de-duplicated, got %d: %v", count["/opt/homebrew/bin"], parts)
+	}
+	for _, want := range []string{
+		"/usr/local/bin", "/home/u/.local/bin", "/home/u/.cargo/bin",
+		"/home/u/.npm-global/bin", "/home/u/.volta/bin",
+	} {
+		if count[want] != 1 {
+			t.Errorf("missing well-known dir %q in: %v", want, parts)
+		}
 	}
 }
 
