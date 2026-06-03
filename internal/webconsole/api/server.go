@@ -269,6 +269,17 @@ func (s *Server) routes() {
 	// retire automatically.
 	s.mux.HandleFunc("DELETE /api/workers/{id}", s.removeWorkerHandler)
 
+	// Unmatched /api/* → JSON 404, NOT the SPA HTML catch-all (#196 / FINDING-M).
+	// Without this, an unknown or wrong-method /api path (e.g. POST /api/agents
+	// after that route was removed in #185) falls through to the "/" SPA handler
+	// and returns 200 text/html, misleading programmatic clients. The /api/
+	// subtree is more specific than "/", so it intercepts before the SPA; the
+	// explicit method+path routes (GET /api/agents, …) are more specific still and
+	// keep precedence for their own method.
+	s.mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusNotFound, "not_found", "no such API route")
+	})
+
 	// SPA catch-all. Registered LAST so all the /api/* patterns take
 	// precedence. Serves the embedded React build (web/dist/ baked in
 	// by go:embed) for "/" + every non-/api path, with index.html
