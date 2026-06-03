@@ -49,11 +49,19 @@ Default ports (loopback Web Console, plus the admin endpoint workers dial):
 # From the release tarball, on the host machine:
 cd agent-center-v2.7.0-<os>-<arch>/
 ./install center
-# The last line prints the Web Console URL (http://127.0.0.1:7100) — open it.
-# First-time setup mints the bootstrap admin token in the browser.
+# Default = FOREGROUND: drops files + config, then prints the run command:
+agent-center server --config=<prefix>/etc/config.yaml   # logs to stdout
+# Then open the Web Console URL (http://127.0.0.1:7100) — first-time setup
+# mints the bootstrap admin token in the browser.
 ```
 
-`install center` is idempotent and upgrade-aware: re-running it on the same prefix detects the existing install and does nothing if the version matches. Default prefix is `~/.agent-center` (macOS / Linux user mode) or `/opt/agent-center` (Linux system mode); override with `--prefix=<dir>`. On macOS the service is a user **LaunchAgent**; on Linux a **systemd** unit.
+**Foreground by default (v2.7).** `install center` only drops the binaries + config and tells you the foreground command to run (`agent-center server`, logs to stdout) — it does **not** register a background service or auto-start on boot. To install a managed background service instead, add `--service`:
+
+```bash
+./install center --service   # registers + starts a LaunchAgent (macOS) / systemd unit (Linux), auto-starts on boot
+```
+
+`install center` is idempotent and upgrade-aware: re-running it on the same prefix detects the existing install and does nothing if the version matches. Default prefix is `~/.agent-center` (macOS / Linux user mode) or `/opt/agent-center` (Linux system mode); override with `--prefix=<dir>`.
 
 ### Agent execution — authentication & configuration
 
@@ -84,9 +92,11 @@ A worker can run on the same machine as the center or any other machine. In the 
   --worker-id=worker-... --worker-name="my box"
 ```
 
+Like the center, `install worker` is **foreground by default**: it drops files + config and prints the `agent-center worker run …` command to run yourself (logs to stdout). Add `--service` to register a managed LaunchAgent/systemd unit that auto-starts on boot.
+
 `--worker-id` is **required** — there is no hostname default, so a missing id is a hard error that points you back to the Web Console's Add Worker flow (which mints a unique id). This keeps two workers on one machine from silently colliding.
 
-**Multiple workers per machine** are supported: each worker installs under its own subtree (`<prefix>/workers/<worker-id>/`) with its own LaunchAgent/systemd label (`com.agent-center.worker.<worker-id>`), so distinct `--worker-id`s coexist with zero overlap. (Re-running with the *same* `--worker-id` is treated as a re-enroll/upgrade of that worker.) `--server-fingerprint` is required when `--bootstrap` is `tcp://`.
+**Multiple workers per machine** are supported: each worker installs under its own subtree (`<prefix>/workers/<worker-id>/`); with `--service`, each gets its own LaunchAgent/systemd label (`com.agent-center.worker.<worker-id>`), so distinct `--worker-id`s coexist with zero overlap. (Re-running with the *same* `--worker-id` is treated as a re-enroll/upgrade of that worker.) `--server-fingerprint` is required when `--bootstrap` is `tcp://`.
 
 ### 3. Upgrade the center
 
