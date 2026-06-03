@@ -55,6 +55,32 @@ genuinely has no record (e.g., a left-org member referenced in
 historical audit data). Hover provides the ref for power users; rendering
 a raw ref as the primary label is a review-blocking finding.
 
+### 2a — DMs render the *other* party's name, not the DM's own ID
+
+**Sub-rule.** A direct-message conversation is identified to the user by
+**the name of the other participant(s)**, not by the conversation's own
+ID. In the DM list, the DM header, the inbox, and any DM
+cross-reference, the label is "Alice" (or "Alice, Bob, Carol" for a
+group DM with three other people), never "DM 01KT5VYZQ5HZWSF7SOVOQTHXTM"
+or "01KT…". The DM's conversation ID is acceptable on hover, in URLs,
+and in audit logs — never as the primary label.
+
+**Why.** Users think of DMs as "my conversation with Alice", not as a
+named conversation with an opaque ID. A DM list rendered by conversation
+ID is unreadable — the user has to open each DM to discover whom it is
+with. This is the same Rule 2 principle, specialised to the DM case
+where the entity name is *another participant*, not the conversation
+itself.
+
+**How to apply.** The DM list rendering computes `display_name` by
+filtering out the current viewer's identity from the participant list
+and joining the remaining names ("Alice" for one, "Alice, Bob" for two,
+"Alice and 2 others" if the list grows past two). The same rule applies
+to the DM header and any cross-references in messages or notifications.
+For a hypothetical 1-on-1 DM where the viewer is the only remaining
+participant (the other party left), fall back to "Empty DM" rather than
+the raw ID.
+
 ## 3 — In-app modals; never native browser dialogs
 
 **Rule.** Confirmation, alert, and prompt UIs are in-app components
