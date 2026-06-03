@@ -432,8 +432,12 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	// embedded in the URL (tcp://<fp>@host:port). A3 (#37) will burn
 	// the token on first enroll. Until then the worker daemon will
 	// 401 on a stale token, which is the right behavior.
+	// #175: pass an augmented PATH so the launchd/systemd-started daemon can
+	// find user-installed agent CLIs (claude/codex/opencode) that live
+	// outside the service manager's minimal default PATH.
 	unitBody := renderWorkerServiceUnit(sp, currentBin, layout.ConfigPath,
-		ic.WorkerID, ic.WorkerName, ic.Bootstrap, ic.Token, ic.Fingerprint, layout.LogsDir)
+		ic.WorkerID, ic.WorkerName, ic.Bootstrap, ic.Token, ic.Fingerprint, layout.LogsDir,
+		resolveWorkerPATH(home))
 	if err := writeUnitFile(sp.WorkerUnitPath, unitBody); err != nil {
 		return PrintError(errw, FormatText, "install_write_unit_failed", err.Error(), ExitBusinessError)
 	}
