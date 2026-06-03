@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
+import { EntitySelect } from './EntitySelect';
 
 interface Props {
   onClose: () => void;
@@ -131,19 +132,21 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         </Field>
 
         <Field label="Worker" required hint="Sourced from the Fleet.">
-          <select
-            data-testid="agent-create-worker"
+          {/* v2.7 #191: shared searchable EntitySelect instead of a raw <select>. */}
+          <EntitySelect
+            testId="agent-create-worker"
             value={workerId}
-            onChange={(e) => setWorkerId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Select a worker…</option>
-            {workers.map((w) => (
-              <option key={w.worker_id} value={w.worker_id}>
-                {w.name || w.worker_id} ({w.status})
-              </option>
-            ))}
-          </select>
+            onChange={setWorkerId}
+            options={workers.map((w) => ({
+              value: w.worker_id,
+              label: w.name || w.worker_id,
+              badge: w.status,
+            }))}
+            placeholder="Select a worker…"
+            searchPlaceholder="Search workers…"
+            emptyLabel="No matching workers."
+            ariaLabel="Worker"
+          />
           {fleet.isSuccess && workers.length === 0 && (
             <p className="mt-1 text-[0.6875rem] text-text-muted" data-testid="agent-create-no-workers">
               No workers in the fleet yet — enroll a worker first.

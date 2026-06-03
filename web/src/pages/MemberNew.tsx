@@ -4,6 +4,7 @@ import { useAddMember, useAddAgentMember } from '@/api/members';
 import { useWorkers } from '@/api/workers';
 import { ApiError } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
+import { EntitySelect } from '@/components/EntitySelect';
 
 // MemberNew backs /organizations/{slug}/members/new?kind=agent|user.
 // Acceptance plan §3 references /members/new?kind=agent as the Add Agent entry.
@@ -125,20 +126,20 @@ export default function MemberNew(): React.ReactElement {
           <>
             {/* v2.7 #157: execution-agent fields — one-step create runs the agent on a worker. */}
             <div className="space-y-1">
-              <label htmlFor="mn-worker" className="block text-sm text-text-primary">Run on worker</label>
-              <select
-                id="mn-worker"
+              <span className="block text-sm text-text-primary">Run on worker</span>
+              {/* v2.7 #191: shared searchable EntitySelect instead of a raw <select>. */}
+              <EntitySelect
+                testId="mn-worker"
                 value={workerID}
-                onChange={(e) => setWorkerID(e.target.value)}
-                className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary"
-              >
-                <option value="">Select a worker…</option>
-                {(workers.data ?? []).map((w) => (
-                  <option key={w.worker_id} value={w.worker_id}>
-                    {w.name || w.worker_id}
-                  </option>
-                ))}
-              </select>
+                onChange={setWorkerID}
+                options={(workers.data ?? []).map((w) => ({
+                  value: w.worker_id,
+                  label: w.name || w.worker_id,
+                }))}
+                placeholder="Select a worker…"
+                searchPlaceholder="Search workers…"
+                ariaLabel="Run on worker"
+              />
             </div>
             <div className="space-y-1">
               <label htmlFor="mn-model" className="block text-sm text-text-primary">Model (optional)</label>
