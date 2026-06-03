@@ -27,7 +27,8 @@ type instanceRecord struct {
 	AgentID       string `json:"agent_id"`
 	SupervisorPID int    `json:"supervisor_pid"`
 	ChildPID      int    `json:"child_pid"`
-	StartedAt     string `json:"started_at"` // RFC3339Nano
+	StartedAt     string `json:"started_at"`          // RFC3339Nano
+	SockPath      string `json:"sock_path,omitempty"` // v2.7 #178: live socket path (outside HomeDir)
 }
 
 // writeArtifacts writes claude.pid (the child pid) and supervisor.instance
@@ -48,6 +49,7 @@ func (s *Supervisor) writeArtifacts() error {
 		SupervisorPID: os.Getpid(),
 		ChildPID:      childPID,
 		StartedAt:     s.startedAt.Format(time.RFC3339Nano),
+		SockPath:      s.cfg.SockPath,
 	}
 	b, err := json.MarshalIndent(rec, "", "  ")
 	if err != nil {

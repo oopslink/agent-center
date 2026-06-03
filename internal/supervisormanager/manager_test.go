@@ -109,6 +109,7 @@ type instRec struct {
 	SupervisorPID int    `json:"supervisor_pid"`
 	ChildPID      int    `json:"child_pid"`
 	StartedAt     string `json:"started_at"`
+	SockPath      string `json:"sock_path,omitempty"` // v2.7 #178
 }
 
 func readInstanceFile(home string) instRec {
@@ -209,6 +210,60 @@ func TestProbeAgent_Reattachable(t *testing.T) {
 	}
 }
 
+// TestSpawnSupervisor_SocketOutsideHome_ReattachViaInstance is the v2.7 #178
+// (acceptance FINDING-E) regression: the live supervisor socket must NOT live
+// under the deeply-nested agent home (which overflowed macOS's 104-byte
+// sun_path limit) — it lives under the OS temp dir, its path is recorded in
+// supervisor.instance, and a returning daemon re-attaches by reading that path.
+func TestSpawnSupervisor_SocketOutsideHome_ReattachViaInstance(t *testing.T) {
+	bin := buildAgentCenter(t)
+	claude := standinClaude(t)
+	home := t.TempDir()
+
+	ref := spawnHelper(t, bin, claude, home, "agent-sockreloc")
+	defer reapRef(ref)
+
+	want := agentsupervisor.SockPath("agent-sockreloc")
+
+	// The legacy in-home socket must NOT exist.
+	if _, err := os.Stat(filepath.Join(home, agentsupervisor.DefaultSocketName)); !os.IsNotExist(err) {
+		t.Fatalf("legacy in-home socket must not exist (stat err=%v)", err)
+	}
+	// The live socket is the short temp-dir path, is bound, and is what the ref carries.
+	if ref.SockPath != want {
+		t.Fatalf("ref.SockPath=%q want %q", ref.SockPath, want)
+	}
+	if !strings.HasPrefix(ref.SockPath, os.TempDir()) {
+		t.Fatalf("sock %q must be under TempDir %q", ref.SockPath, os.TempDir())
+	}
+	if _, err := os.Stat(ref.SockPath); err != nil {
+		t.Fatalf("bound socket missing at %q: %v", ref.SockPath, err)
+	}
+	// The instance file records sock_path so a restarted daemon can find it.
+	if rec := readInstanceFile(home); rec.SockPath != want {
+		t.Fatalf("instance sock_path=%q want %q", rec.SockPath, want)
+	}
+
+	// Simulate a daemon restart: drop our client, then a FRESH ProbeAgent (as a
+	// new daemon would) reads the instance, resolves sock_path, and re-attaches.
+	supervisormanager.Detach(ref)
+	pr, err := supervisormanager.ProbeAgent(context.Background(), home)
+	if err != nil {
+		t.Fatalf("ProbeAgent: %v", err)
+	}
+	defer func() {
+		if pr.Client != nil {
+			_ = pr.Client.Close()
+		}
+	}()
+	if pr.State != supervisormanager.Reattachable {
+		t.Fatalf("state=%v reason=%s want Reattachable", pr.State, pr.Reason)
+	}
+	if pr.SockPath != want {
+		t.Fatalf("probe SockPath=%q want %q", pr.SockPath, want)
+	}
+}
+
 func TestProbeAgent_DeadThenRelaunchNewInstance(t *testing.T) {
 	bin := buildAgentCenter(t)
 	claude := standinClaude(t)
@@ -269,6 +324,10 @@ func TestProbeAgent_DifferentVersionStillReattachable(t *testing.T) {
 	instanceID := "01DIFFVER999INSTANCE"
 	startedAt := time.Now().Format(time.RFC3339Nano)
 
+	// v2.7 #178: the live socket lives outside the home; record its path in the
+	// instance so ProbeAgent (which prefers rec.sock_path) connects there.
+	sockPath := agentsupervisor.SockPath("agent-diffver")
+
 	// Write a supervisor.instance the running fake "matches".
 	rec := instRec{
 		InstanceID:    instanceID,
@@ -276,13 +335,13 @@ func TestProbeAgent_DifferentVersionStillReattachable(t *testing.T) {
 		SupervisorPID: os.Getpid(),
 		ChildPID:      os.Getpid(),
 		StartedAt:     startedAt,
+		SockPath:      sockPath,
 	}
 	b, _ := json.MarshalIndent(rec, "", "  ")
 	if err := os.WriteFile(filepath.Join(home, agentsupervisor.InstanceFileName), b, 0o600); err != nil {
 		t.Fatalf("write instance: %v", err)
 	}
 
-	sockPath := filepath.Join(home, agentsupervisor.DefaultSocketName)
 	stop := serveFakeHello(t, sockPath, helloFrame{
 		Ok:              true,
 		ProtocolVersion: 999, // a version this build has never seen

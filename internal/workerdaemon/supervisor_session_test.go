@@ -248,7 +248,7 @@ func TestSupervisorSession_StartAndPump(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	var base int64
 	for time.Now().Before(deadline) {
-		cli, derr := agentsupervisor.Connect(context.Background(), filepath.Join(home, agentsupervisor.DefaultSocketName))
+		cli, derr := agentsupervisor.Connect(context.Background(), agentsupervisor.SockPath("agent-pump")) // v2.7 #178: sock lives under TempDir, not home
 		if derr != nil {
 			time.Sleep(50 * time.Millisecond)
 			continue

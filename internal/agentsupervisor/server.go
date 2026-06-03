@@ -9,16 +9,36 @@ package agentsupervisor
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 )
 
-// DefaultSocketName is the unix socket filename under HomeDir.
+// DefaultSocketName is the legacy unix socket filename that used to live under
+// HomeDir. v2.7 #178 moved the live socket OUT of the agent home (see SockPath);
+// this name is now only used to clean up stale pre-#178 sockets on upgrade.
 const DefaultSocketName = "supervisor.sock"
+
+// SockPath returns the supervisor's unix socket path for an agent. v2.7 #178
+// (acceptance FINDING-E): the socket must NOT live under the agent home — that
+// path is deeply nested (`<prefix>/workers/<wid>/var/agent-homes/.../agents/<aid>`)
+// and blew past macOS's 104-byte AF_UNIX sun_path limit, so bind() failed, the
+// supervisor never came up, and the worker spun in an infinite restart loop.
+// The socket instead lives under the OS temp dir with a short hashed name. It is
+// deterministic from agentID so the daemon and the supervisor agree on the path
+// without passing it around, and short — TMPDIR + "acsv-" + 12 hex + ".sock"
+// (~71B on macOS) stays well under the limit. The resolved path is also recorded
+// in supervisor.instance for robustness across restarts / TMPDIR contexts.
+func SockPath(agentID string) string {
+	sum := sha256.Sum256([]byte(agentID))
+	return filepath.Join(os.TempDir(), "acsv-"+hex.EncodeToString(sum[:])[:12]+".sock")
+}
 
 // Serve listens on the unix socket at sockPath and serves attach clients until
 // ctx is cancelled, the supervisor's child exits, or a fatal listen error.

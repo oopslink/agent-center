@@ -11,6 +11,16 @@ import (
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
 )
 
+// removeSupervisorSock best-effort removes a supervisor's socket on teardown.
+// v2.7 #178: the live socket lives outside the home (ref.SockPath), so remove
+// that; also clean any legacy pre-#178 socket that used to sit under the home.
+func removeSupervisorSock(ref *SupervisorRef) {
+	if ref.SockPath != "" {
+		_ = os.Remove(ref.SockPath)
+	}
+	_ = os.Remove(filepath.Join(ref.HomeDir, agentsupervisor.DefaultSocketName))
+}
+
 // StopSupervisor is the EXPLICIT-terminate path (PM focus): it SIGTERMs the
 // supervisor PROCESS so the supervisor's own signal handler gracefully stops
 // claude (its child group) and exits — i.e. the supervisor stays the sole owner
@@ -43,7 +53,7 @@ func StopSupervisor(ref *SupervisorRef, grace time.Duration) error {
 	rec, ok := readInstance(ref.HomeDir)
 	if !ok {
 		// Nothing recorded → nothing to signal. Best-effort socket cleanup.
-		_ = os.Remove(filepath.Join(ref.HomeDir, agentsupervisor.DefaultSocketName))
+		removeSupervisorSock(ref)
 		return nil
 	}
 	supPID := rec.SupervisorPID
@@ -58,7 +68,7 @@ func StopSupervisor(ref *SupervisorRef, grace time.Duration) error {
 	deadline := time.Now().Add(grace)
 	for time.Now().Before(deadline) {
 		if (supPID <= 0 || !alive(supPID)) && (childPID <= 0 || !alive(childPID)) {
-			_ = os.Remove(filepath.Join(ref.HomeDir, agentsupervisor.DefaultSocketName))
+			removeSupervisorSock(ref)
 			return nil
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -84,7 +94,7 @@ func StopSupervisor(ref *SupervisorRef, grace time.Duration) error {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	_ = os.Remove(filepath.Join(ref.HomeDir, agentsupervisor.DefaultSocketName))
+	removeSupervisorSock(ref)
 
 	if supPID > 0 && alive(supPID) {
 		return fmt.Errorf("supervisormanager: StopSupervisor: supervisor pid=%d still alive after SIGKILL", supPID)
