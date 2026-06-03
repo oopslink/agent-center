@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type React from 'react';
@@ -73,6 +73,23 @@ describe('App shell + route tree', () => {
       });
       unmount();
     }
+  });
+
+  it('opens per-org settings as a modal from the switcher gear, no standalone entry (#186-6)', async () => {
+    await renderAt(`${ORG_BASE}`);
+    await waitFor(() => expect(screen.getByTestId('page-Home')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('org-switcher'));
+    // The old single "Organization Settings" dropdown entry is gone.
+    expect(screen.queryByTestId('org-dropdown-settings')).not.toBeInTheDocument();
+    // Each org row has its own gear → opens the per-org settings modal.
+    const gear = await screen.findByTestId('org-settings-gear');
+    expect(gear).toHaveAttribute('data-org-id', 'org-test');
+    fireEvent.click(gear);
+    const modal = await screen.findByTestId('org-settings-modal');
+    expect(modal).toBeInTheDocument();
+    await waitFor(() =>
+      expect((screen.getByTestId('org-settings-name') as HTMLInputElement).value).toBe('Test Org'),
+    );
   });
 
   it('falls back to the 404 page with a nav link home', async () => {

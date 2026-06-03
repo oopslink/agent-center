@@ -9,6 +9,7 @@ import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { CommandPalette } from '@/components/CommandPalette';
 import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
+import { OrgSettingsModal } from '@/components/OrgSettingsModal';
 import { useKeyShortcuts } from '@/useKeyShortcuts';
 import { readTheme, writeTheme, type Theme } from '@/theme';
 import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
@@ -85,6 +86,8 @@ export default function AppLayout(): React.ReactElement {
     : orgs.data?.[0];
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
+  // v2.7 #186-6: org settings is a per-org modal opened from the switcher gear.
+  const [settingsOrgId, setSettingsOrgId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(readSidebarCollapsed);
   const [theme, setTheme] = useState<Theme>(readTheme);
@@ -175,11 +178,18 @@ export default function AppLayout(): React.ReactElement {
                   setOrgDropdownOpen(false);
                   setCreateOrgModalOpen(true);
                 }}
+                onOpenSettings={(id) => {
+                  setOrgDropdownOpen(false);
+                  setSettingsOrgId(id);
+                }}
               />
             )}
           </div>
           {createOrgModalOpen && (
             <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />
+          )}
+          {settingsOrgId && (
+            <OrgSettingsModal orgId={settingsOrgId} onClose={() => setSettingsOrgId(null)} />
           )}
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
@@ -545,9 +555,10 @@ interface OrgDropdownProps {
   currentSlug?: string;
   onClose: () => void;
   onCreateOrg: () => void;
+  onOpenSettings: (orgId: string) => void;
 }
 
-function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownProps): React.ReactElement {
+function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg, onOpenSettings }: OrgDropdownProps): React.ReactElement {
   const navigate = useNavigate();
   // Close on click-outside.
   useEffect(() => {
@@ -572,38 +583,38 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownPro
       className="absolute left-0 top-full z-50 mt-1 w-48 rounded-md border border-border bg-bg-elevated shadow-[var(--shadow-2)]"
       role="menu"
     >
+      {/* v2.7 #186-6: each org row carries its own settings gear (opens a
+          per-org modal); the standalone "Organization Settings" entry is gone. */}
       {orgs.map((o) => (
-        <button
+        <div
           key={o.id}
-          type="button"
-          role="menuitem"
-          className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-bg-subtle ${
-            o.slug === currentSlug ? 'bg-bg-subtle font-medium text-brand' : 'text-text-primary'
-          }`}
-          onClick={() => handleSwitch(o.slug)}
+          className={`flex w-full items-center ${o.slug === currentSlug ? 'bg-bg-subtle' : ''}`}
         >
-          <OrgIcon />
-          <span className="truncate">{o.name}</span>
-        </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm hover:bg-bg-subtle ${
+              o.slug === currentSlug ? 'font-medium text-brand' : 'text-text-primary'
+            }`}
+            onClick={() => handleSwitch(o.slug)}
+          >
+            <OrgIcon />
+            <span className="truncate">{o.name}</span>
+          </button>
+          <button
+            type="button"
+            data-testid="org-settings-gear"
+            data-org-id={o.id}
+            aria-label={`Settings for ${o.name}`}
+            title="Organization settings"
+            onClick={() => onOpenSettings(o.id)}
+            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border hover:text-text-primary"
+          >
+            <SettingsIcon />
+          </button>
+        </div>
       ))}
       {orgs.length > 0 && <hr className="border-border" />}
-      {/* v2.7 #166-2: Organization Settings moved off the sidebar into this
-          dropdown. The /org/settings route stays accessible (this navigates to it). */}
-      {currentSlug && (
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="org-dropdown-settings"
-          onClick={() => {
-            navigate(`/organizations/${currentSlug}/org/settings`);
-            onClose();
-          }}
-          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
-        >
-          <SettingsIcon />
-          <span>Organization Settings</span>
-        </button>
-      )}
       <button
         type="button"
         role="menuitem"
