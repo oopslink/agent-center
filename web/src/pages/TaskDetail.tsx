@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
-import { useMembers } from '@/api/members';
+import { useMembers, useDisplayNameResolver } from '@/api/members';
+import { EntityRef } from '@/components/EntityRef';
 import {
   useAssignTask,
   useBlockTask,
@@ -30,6 +31,9 @@ export default function TaskDetail(): React.ReactElement {
   // v2.7 #186-2: show the project's display name (not its ULID) in the
   // breadcrumb + project link.
   const project = useProject(projectId);
+  // v2.7 #192: resolve the assignee ref to a display name (raw ref on hover);
+  // an unresolved ref (e.g. a deleted assignee) renders "(deleted)".
+  const resolveName = useDisplayNameResolver();
   const [editOpen, setEditOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
@@ -180,9 +184,11 @@ export default function TaskDetail(): React.ReactElement {
               )}
             </div>
             {tk.assignee && (
-              <span className="font-mono" data-testid="task-assignee">
-                {tk.assignee}
-              </span>
+              <EntityRef
+                id={tk.assignee}
+                name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
+                testId="task-assignee"
+              />
             )}
             {tk.blocked_reason && status === 'blocked' && (
               <span className="text-danger" data-testid="task-blocked-reason">
