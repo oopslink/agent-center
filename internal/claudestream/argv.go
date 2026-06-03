@@ -95,7 +95,7 @@ func SessionUUIDGen(agentID string, epoch, generation int) string {
 //
 //	claudecode.New(binary).BuildCommand(SpawnRequest{ExecutionID: SessionUUID(agentID), ...})
 //	→ rewriteForStreamingInput(...)            (--print/--input-format/--output-format/--verbose
-//	                                            + v2.7 security flags: --setting-sources ""
+//	                                            + v2.7 security flags: --setting-sources user,project
 //	                                            and the non-interactive permission group)
 //	→ + BuildMCPConfigArg(mcpConfigPath)       (--mcp-config <path> + --strict-mcp-config),
 //	                                            when non-empty
@@ -143,9 +143,11 @@ func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation
 		// must NOT also load operator/workspace MCP sources (.mcp.json, ~/.claude.json
 		// mcpServers). Under bypassPermissions this is LOAD-BEARING (PD ruling 4c405a91):
 		// without it, bypass would auto-allow un-vetted operator MCP tools, collapsing
-		// the "MCP surface = our OQ4 config only" boundary. It is the MCP-source analogue
-		// of `--setting-sources ""` (which covers settings/hooks). Added ONLY alongside
-		// --mcp-config (strict with no servers = zero MCP tools).
+		// the "MCP surface = our OQ4 config only" boundary. This MCP pinning is now the
+		// SOLE remaining isolation lever for MCP servers, since `--setting-sources` was
+		// changed from "" to user,project (#182) and therefore no longer suppresses the
+		// operator's settings. Added ONLY alongside --mcp-config (strict with no servers
+		// = zero MCP tools).
 		args = append(args, "--strict-mcp-config")
 	}
 	// Mode-B fork: resume the prior (possibly lock-held) session's conversation into
@@ -169,8 +171,8 @@ const longLivedSentinelPrompt = "__ac_streaming_input__"
 //	--print --input-format stream-json --output-format stream-json --verbose
 //	--session-id <agentID>   (+ --mcp-config <path>, appended by the caller)
 //
-// It also ensures (once) the v2.7 security/launch flags: `--setting-sources ""`
-// (A isolation) and the non-interactive permission group
+// It also ensures (once) the v2.7 security/launch flags: `--setting-sources user,project`
+// (#182: auth via the user source + the agent's own project source) and the non-interactive permission group
 // (`--allow-dangerously-skip-permissions --dangerously-skip-permissions
 // --permission-mode bypassPermissions`). See the ensure-once tail for rationale.
 //
@@ -236,13 +238,24 @@ func rewriteForStreamingInput(in []string) []string {
 	}
 	// v2.7 security/launch flags (ensure-once; appended if the adapter did not
 	// already supply them):
-	//   --setting-sources ""   A ISOLATION — claude loads NO settings sources, so the
-	//                          operator's ~/.claude hooks/settings/SessionStart do NOT
-	//                          run in the agent (@oopslink ruling). Done IN-PLACE here
-	//                          instead of relocating HOME/CLAUDE_CONFIG_DIR, which both
-	//                          break keychain /login (Tester-verified). The value is the
-	//                          EMPTY STRING (a legal flag value = "no sources"), so it is
-	//                          emitted as TWO argv elements ["--setting-sources", ""].
+	//   --setting-sources user,project
+	//                          v2.7 #182 (acceptance FINDING-G): claude's keychain
+	//                          /login credential is loaded via the "user" setting
+	//                          source. The previous value "" loaded NO sources →
+	//                          suppressed auth → every agent turn failed with
+	//                          `403 Request not allowed` (empirically isolated:
+	//                          `--setting-sources ""` 403, `user` OK; CLAUDE_CONFIG_DIR
+	//                          override also breaks auth — the cred is bound to the
+	//                          default ~/.claude). So we load "user" (auth + the
+	//                          operator's user-level settings) PLUS "project" so the
+	//                          agent can carry its OWN config in <workspace>/.claude.
+	//                          TRADEOFF (@oopslink/PD ruling): this loads the operator's
+	//                          USER-level ~/.claude settings (hooks/env/plugins) in the
+	//                          agent — user-level isolation is NOT solved by setting-
+	//                          sources (auth + operator settings share the user source);
+	//                          full isolation is deferred to v2.8 via a setup-token
+	//                          (CLAUDE_CODE_OAUTH_TOKEN) path. `--strict-mcp-config`
+	//                          (added alongside --mcp-config) still pins MCP servers.
 	//   --allow-dangerously-skip-permissions / --dangerously-skip-permissions /
 	//   --permission-mode bypassPermissions
 	//                          DETERMINISTIC non-interactive tool permission (PD ruling
@@ -252,7 +265,7 @@ func rewriteForStreamingInput(in []string) []string {
 	//                          cwd (local tools), per-call AppService MCP authz, and the
 	//                          layer-1 env allowlist. This is the slock-verified group.
 	if !hasArg(out, "--setting-sources") {
-		out = append(out, "--setting-sources", "")
+		out = append(out, "--setting-sources", "user,project")
 	}
 	if !hasArg(out, "--allow-dangerously-skip-permissions") {
 		out = append(out, "--allow-dangerously-skip-permissions")

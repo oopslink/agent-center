@@ -312,7 +312,10 @@ const workItemStatusActive = "active"
 // SURVIVED a daemon restart. These are the candidates the center may NOT list
 // (orphans). A missing agents dir (fresh worker) yields no ids, no error.
 func (c *AgentController) enumerateLocalAgents() ([]string, error) {
-	base := filepath.Join(c.cfg.AgentHomeBase, "workers", c.cfg.WorkerID, "agents")
+	// v2.7 #179: MUST match agentPaths' layout (AgentHomeBase/agents/<id>) — the
+	// redundant workers/<wid> segment was removed there; keeping it here would
+	// scan the wrong dir → surviving supervisors not found → reattach breaks.
+	base := filepath.Join(c.cfg.AgentHomeBase, "agents")
 	entries, err := os.ReadDir(base)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -288,29 +288,30 @@ func countArg(argv []string, x string) int {
 // TestBuildStreamingArgv_SecurityFlags pins the v2.7 ① security/launch flags into
 // the streaming argv and is the DEV-side drift guard (the unit half of the
 // "isolation hangs on a single flag" invariant — PM patch 1 / Tester §2.6): if a
-// refactor drops or duplicates `--setting-sources ""`, this goes red. The runtime
-// "operator config does not pollute the agent" half is Tester's standing contract.
+// refactor drops or duplicates `--setting-sources user,project`, this goes red.
+// v2.7 #182 (FINDING-G): the value is `user,project` (NOT "") — the empty value
+// suppressed the keychain /login credential (loaded via the user source) → 403.
 func TestBuildStreamingArgv_SecurityFlags(t *testing.T) {
 	argv, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, 0, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
 
-	// A isolation: --setting-sources present EXACTLY once with the empty-string
-	// value (load NO settings sources → operator hooks/settings do not run).
+	// #182: --setting-sources present EXACTLY once with value "user,project"
+	// (user = keychain /login auth, project = the agent's own <workspace>/.claude).
 	if c := countArg(argv, "--setting-sources"); c != 1 {
 		t.Fatalf("--setting-sources count = %d, want exactly 1 (drift guard): %v", c, argv)
 	}
-	sawEmptyValue := false
+	sawValue := false
 	for i := 0; i+1 < len(argv); i++ {
 		if argv[i] == "--setting-sources" {
-			if argv[i+1] != "" {
-				t.Fatalf("--setting-sources value = %q, want the empty string: %v", argv[i+1], argv)
+			if argv[i+1] != "user,project" {
+				t.Fatalf("--setting-sources value = %q, want \"user,project\" (#182): %v", argv[i+1], argv)
 			}
-			sawEmptyValue = true
+			sawValue = true
 		}
 	}
-	if !sawEmptyValue {
+	if !sawValue {
 		t.Fatalf("--setting-sources has no following value element: %v", argv)
 	}
 

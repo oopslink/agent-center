@@ -528,7 +528,7 @@ func TestAgentController_ReconcileReset_WipesWorkspaceWithContainment(t *testing
 		t.Fatalf("first start must use epoch 0, got %d", got)
 	}
 
-	home := filepath.Join(base, "workers", "w-1", "agents", "agent-1")
+	home := filepath.Join(base, "agents", "agent-1")
 	workspace := filepath.Join(home, "workspace")
 	// Plant a file inside the workspace (to be wiped).
 	if err := os.MkdirAll(workspace, 0o700); err != nil {
@@ -539,7 +539,7 @@ func TestAgentController_ReconcileReset_WipesWorkspaceWithContainment(t *testing
 		t.Fatal(err)
 	}
 	// Plant a sibling dir OUTSIDE the agent home (must be untouched).
-	sibling := filepath.Join(base, "workers", "w-1", "agents", "other-agent")
+	sibling := filepath.Join(base, "agents", "other-agent")
 	if err := os.MkdirAll(sibling, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -584,10 +584,38 @@ func TestAgentController_ReconcileReset_WipesWorkspaceWithContainment(t *testing
 	}
 }
 
+// v2.7 #179: the per-agent home must NOT re-append "workers/<wid>" (AgentHomeBase
+// is already worker-scoped). It resolves to <base>/agents/<id> with no double
+// nesting — and MUST equal the dir boot_reconcile's enumerateLocalAgents scans,
+// or reattach breaks.
+func TestAgentController_agentPaths_DedupedNoDoubleWorkers(t *testing.T) {
+	base := t.TempDir()
+	c, _, _ := newTestController(t, base)
+
+	home, workspace, err := c.agentPaths("ag-x")
+	if err != nil {
+		t.Fatalf("agentPaths: %v", err)
+	}
+	want := filepath.Join(base, "agents", "ag-x")
+	if home != want {
+		t.Fatalf("home = %q, want %q (no redundant workers/<wid>)", home, want)
+	}
+	if workspace != filepath.Join(want, "workspace") {
+		t.Fatalf("workspace = %q", workspace)
+	}
+	if strings.Contains(home, filepath.Join("workers", "w-1")) {
+		t.Fatalf("home still contains redundant workers/<wid>: %q", home)
+	}
+	// Must match boot_reconcile's scan root (parent of the per-agent homes).
+	if got := filepath.Dir(home); got != filepath.Join(base, "agents") {
+		t.Fatalf("home parent = %q, boot-reconcile scans %q — mismatch breaks reattach", got, filepath.Join(base, "agents"))
+	}
+}
+
 func TestAgentController_ResetContainmentRefusesEscape(t *testing.T) {
 	base := t.TempDir()
 	c, _, _ := newTestController(t, base)
-	home := filepath.Join(base, "workers", "w-1", "agents", "agent-1")
+	home := filepath.Join(base, "agents", "agent-1")
 
 	// A target that escapes the agent home must be refused (nothing deleted).
 	outside := filepath.Join(base, "outside")

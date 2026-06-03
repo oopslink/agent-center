@@ -697,6 +697,14 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	if err := os.MkdirAll(workspace, 0o700); err != nil {
 		return fmt.Errorf("agent_controller: mkdir workspace: %w", err)
 	}
+	// v2.7 #182: claude runs with cwd=workspace and `--setting-sources user,project`,
+	// so its "project" settings source resolves to <workspace>/.claude. Create the
+	// directory as the agent's own project-config load point. It is left EMPTY —
+	// agent-center never pre-fills settings/hooks here (no indirect pollution); the
+	// agent (or a future feature) may drop a settings.json into it.
+	if err := os.MkdirAll(filepath.Join(workspace, ".claude"), 0o700); err != nil {
+		return fmt.Errorf("agent_controller: mkdir workspace/.claude: %w", err)
+	}
 
 	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
 		ServerName:        mcpServerName,
@@ -980,10 +988,10 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	}
 	detaching := ma.detaching
 	expected := ma.expectedStop
-	version := ma.appliedVersion          // captured for a possible self-heal relaunch
-	hadWork := ma.hadWork                 // injected work → nudge on self-heal relaunch
-	workItemID := ma.currentWorkItemID    // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
-	model := ma.model                     // agent's --model → carry across crash so self-heal re-drive uses the SAME model
+	version := ma.appliedVersion       // captured for a possible self-heal relaunch
+	hadWork := ma.hadWork              // injected work → nudge on self-heal relaunch
+	workItemID := ma.currentWorkItemID // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
+	model := ma.model                  // agent's --model → carry across crash so self-heal re-drive uses the SAME model
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
@@ -1065,9 +1073,17 @@ func (c *AgentController) recordVersion(agentID string, version int) {
 // Agent home layout + reset cleanup (containment-guarded).
 // ---------------------------------------------------------------------------
 
-// agentPaths resolves the per-agent home + workspace under the C1 OQ7 runtime
-// home layout: AgentHomeBase/workers/{worker_id}/agents/{agent_id}/ with a
-// workspace/ subdir. Returns (home, workspace, error).
+// agentPaths resolves the per-agent home + workspace under the runtime home
+// layout: AgentHomeBase/agents/{agent_id}/ with a workspace/ subdir. Returns
+// (home, workspace, error).
+//
+// v2.7 #179: AgentHomeBase is ALREADY worker-scoped (it resolves to
+// <sqlite_dir>/agent-homes, and sqlite_dir lives under the worker's install
+// prefix <prefix>/workers/<wid>/var). The previous layout re-appended
+// "workers/<wid>" here, double-nesting it — a redundant segment that also
+// helped overflow the macOS sun_path limit (see #178). The dedup MUST stay in
+// lockstep with boot_reconcile's home scan (same base, same join) or
+// boot-reconcile can't find supervisors → reattach breaks.
 func (c *AgentController) agentPaths(agentID string) (home, workspace string, err error) {
 	if strings.TrimSpace(c.cfg.AgentHomeBase) == "" {
 		return "", "", errors.New("agent_controller: agent_home_base required")
@@ -1078,7 +1094,7 @@ func (c *AgentController) agentPaths(agentID string) (home, workspace string, er
 	if strings.TrimSpace(agentID) == "" {
 		return "", "", errors.New("agent_controller: agent_id required")
 	}
-	home = filepath.Join(c.cfg.AgentHomeBase, "workers", c.cfg.WorkerID, "agents", agentID)
+	home = filepath.Join(c.cfg.AgentHomeBase, "agents", agentID)
 	workspace = filepath.Join(home, "workspace")
 	return home, workspace, nil
 }

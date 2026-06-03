@@ -183,6 +183,26 @@ ADR / phase plan landscape, see
   unix socket). Changing the default is a cleanup to avoid confusion with macOS
   AirPlay Receiver's `:7000`; it is **not** a startup-failure fix — the startup
   blocker was #150. (The vestigial field itself is removed in v2.8, #174.)
+- **Agents could not run any task — every agent's claude turn failed with `403
+  Request not allowed` (#182, FINDING-G).** The agent's claude is launched with
+  `--setting-sources ""` (intended to isolate the operator's `~/.claude`
+  hooks/settings), but that value loads NO settings sources — and claude's keychain
+  `/login` credential is loaded via the **user** source. So the flag suppressed
+  authentication and every turn 403'd (orchestration, MCP, and the streaming
+  pipeline all worked — only claude's own auth failed). The flag is now
+  `--setting-sources user,project`: **user** restores `/login` auth, **project** lets
+  the agent carry its own config in `<workspace>/.claude` (created empty per agent).
+  **Tradeoff:** loading the user source also loads the operator's user-level
+  `~/.claude` settings (hooks/env/plugins) in the agent — user-level isolation is not
+  solved here (auth and operator settings share the user source); full isolation is
+  deferred to v2.8 via a `setup-token` (`CLAUDE_CODE_OAUTH_TOKEN`) path. `--strict-mcp-config`
+  still pins MCP servers to our generated config.
+- **Per-agent home path no longer double-nests `workers/<worker-id>` (#179).** The
+  runtime home resolved to `<base>/workers/<wid>/agents/<id>` even though `<base>`
+  (the worker's `…/var/agent-homes`) was already worker-scoped — a redundant segment
+  that also helped push the supervisor socket path past macOS's limit (see #178). It
+  is now `<base>/agents/<id>` (agentPaths + the boot-reconcile scan changed in
+  lockstep so re-attach still finds surviving supervisors).
 
 ## [v2.6.0] — 2026-05-28
 

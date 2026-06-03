@@ -11,19 +11,20 @@ package agentsupervisor
 //     claude's OWN auth namespace. Everything else (notably AGENT_CENTER_* worker
 //     secrets, and any UNKNOWN worker secret) is structurally dropped. Allowlist >
 //     denylist: a secret we never thought of is excluded by default.
-//   - A ISOLATION via `--setting-sources ""` (set in the claude argv — see
-//     claudestream.BuildStreamingArgv), NOT by relocating the config dir: claude is
-//     told to load NO settings sources, so the operator's ~/.claude
-//     hooks/settings/SessionStart do NOT run in the agent. HOME / CLAUDE_CONFIG_DIR
-//     are LEFT AT THEIR DEFAULTS — relocating either breaks keychain /login (the
-//     credential is bound to the original HOME/config path; Tester verified that a
-//     CLAUDE_CONFIG_DIR override AND a HOME override both break /login). Auth is thus
-//     the operator's untouched keychain login; no auth files are copied.
-//
-// 🕒 Runtime assumptions verified by Tester's GATE (the fix+verify closure):
-// keychain /login authes under the default HOME/config; `--setting-sources ""`
-// suppresses operator hooks (operator reverse-marker = 0); no worker secret reaches
-// claude's env; the agent can still invoke its MCP tools under suppressed settings.
+//   - SETTING SOURCES via `--setting-sources user,project` (set in the claude argv —
+//     see claudestream.BuildStreamingArgv), with HOME / CLAUDE_CONFIG_DIR LEFT AT
+//     THEIR DEFAULTS — relocating either breaks keychain /login (the credential is
+//     bound to the default HOME/~/.claude; empirically confirmed both break it).
+//     v2.7 #182 (acceptance FINDING-G) CORRECTION: the earlier value `""` (load NO
+//     sources) ALSO suppressed the keychain /login credential — auth loads via the
+//     "user" source — so every agent turn 403'd. (The earlier comment here claiming
+//     "Tester verified keychain /login works under --setting-sources ''" was WRONG.)
+//     We now load "user" (auth + the operator's user-level settings) + "project"
+//     (the agent's own <workspace>/.claude). CONSEQUENCE: the operator's USER-level
+//     ~/.claude settings (hooks/env/plugins) DO load in the agent — user-level
+//     isolation is NOT achieved here (auth and operator user-settings share the same
+//     source). Full isolation is deferred to v2.8 via a setup-token
+//     (CLAUDE_CODE_OAUTH_TOKEN, which authes independent of setting-sources).
 
 import (
 	"sort"
@@ -57,11 +58,11 @@ var envAllowPrefix = []string{"LC_", "ANTHROPIC_", "CLAUDE_"}
 //
 // Two CLAUDE_* exclusions are applied even though they match the CLAUDE_ allow
 // -prefix below:
-//   - CLAUDE_CONFIG_DIR: we deliberately DO NOT relocate the child's config dir (A
-//     isolation is done IN-PLACE via `--setting-sources ""`, not by redirecting
-//     config — redirecting breaks keychain /login). An inherited CLAUDE_CONFIG_DIR
-//     must therefore NOT pass through, so the child uses the default $HOME/.claude
-//     that keychain /login is bound to.
+//   - CLAUDE_CONFIG_DIR: we deliberately DO NOT relocate the child's config dir —
+//     redirecting it breaks keychain /login (the credential is bound to the default
+//     ~/.claude; #182 empirically reconfirmed CLAUDE_CONFIG_DIR=<elsewhere> → "Not
+//     logged in"). An inherited CLAUDE_CONFIG_DIR must therefore NOT pass through, so
+//     the child uses the default $HOME/.claude that keychain /login is bound to.
 //   - CLAUDE_CODE_* (whole prefix, NO exception): the PARENT claude-code's runtime
 //     namespace — the SDK-session markers (SESSION_ID / ENTRYPOINT / EXECPATH /
 //     TMPDIR / SSE_PORT / ...) AND the non-interactive subscription auth token
@@ -119,7 +120,8 @@ func BuildSupervisorEnv(source []string) []string {
 //
 //	layer 1 — allowlisted system env (default-deny; no worker secrets). HOME and
 //	          CLAUDE_CONFIG_DIR are NOT overridden (defaults preserved → keychain
-//	          /login intact); A isolation is the claude argv flag `--setting-sources ""`.
+//	          /login intact); setting sources are `--setting-sources user,project` in
+//	          the claude argv (#182: user = auth, project = agent's own config).
 //	layer 2 — agentEnv overlaid AS-IS (center-injected per-agent env / Profile.EnvVars,
 //	          slice ②; NOT allowlist-filtered — intentional, trusted per-agent env)
 //

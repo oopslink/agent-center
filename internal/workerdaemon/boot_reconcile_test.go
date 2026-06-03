@@ -82,7 +82,7 @@ func TestReconcileOnBoot_SourceUnionAndRouting(t *testing.T) {
 
 	// Plant a LOCAL orphan: a home with a supervisor.instance but NOT in the center
 	// set — only the local enumeration can surface it.
-	orphanHome := filepath.Join(base, "workers", "w-1", "agents", "ag-orphan")
+	orphanHome := filepath.Join(base, "agents", "ag-orphan")
 	writeBootInstance(t, orphanHome, "ag-orphan")
 
 	if err := c.ReconcileOnBoot(context.Background()); err != nil {

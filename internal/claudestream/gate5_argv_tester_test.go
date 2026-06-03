@@ -81,8 +81,8 @@ func TestGATE5_ArgvStaticAssertion(t *testing.T) {
 	}
 	// Positional-arg guard (catches a stray positional prompt = the sentinel
 	// leak). Skip any element that is the VALUE of a known value-taking flag —
-	// incl. --setting-sources's empty value "" (A-isolation flag, @oopslink
-	// 8de95e70): the empty string is a legal flag value, not a positional.
+	// incl. --setting-sources's value `user,project` (#182): the value after a
+	// value-taking flag is not a positional.
 	valueFlag := map[string]bool{
 		"--input-format": true, "--output-format": true, "--session-id": true,
 		"--mcp-config": true, "--model": true, "--setting-sources": true,
@@ -90,7 +90,7 @@ func TestGATE5_ArgvStaticAssertion(t *testing.T) {
 	}
 	for i, a := range args {
 		if i > 0 && valueFlag[args[i-1]] {
-			continue // a is the value of a known value-flag (incl. "" after --setting-sources)
+			continue // a is the value of a known value-flag (incl. user,project after --setting-sources)
 		}
 		if !strings.HasPrefix(a, "-") {
 			t.Errorf("FAIL: unexpected positional arg in argv: %q", a)
