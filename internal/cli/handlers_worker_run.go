@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,13 +58,13 @@ func WorkerRunCommand() *Command {
 				}
 				logf := func(msg string) { fmt.Fprintf(errw, "[worker] %s\n", msg) }
 				err := workerdaemon.RunDaemon(ctx, workerdaemon.RunOptions{
-					ConfigPath:        resolveWorkerConfigPath(*cfgPath),
-					WorkerID:          *workerID,
-					WorkerName:        *workerName,
-					FakeAgent:         *fakeAgent,
-					PollInterval:      *pollInterval,
-					AdminToken:        *adminToken,
-					AdminTarget:       *adminTarget,
+					ConfigPath:           resolveWorkerConfigPath(*cfgPath, *workerID),
+					WorkerID:             *workerID,
+					WorkerName:           *workerName,
+					FakeAgent:            *fakeAgent,
+					PollInterval:         *pollInterval,
+					AdminToken:           *adminToken,
+					AdminTarget:          *adminTarget,
 					ServerFingerprint:    *serverFingerprint,
 					SkillsDir:            *skillsDir,
 					DisableControlStream: *disableControlStream,
@@ -94,9 +96,24 @@ func WorkerRunCommand() *Command {
 // daemon across the WHOLE config surface (sqlite/admin-socket/token path/...). Caught
 // by Tester's runtime parity check (msg 601b01a3); flag-parity unit tests + the
 // "both entrypoints call RunDaemon" structural argument did not cover this seam.
-func resolveWorkerConfigPath(flagVal string) string {
+func resolveWorkerConfigPath(flagVal, workerID string) string {
 	if v := strings.TrimSpace(flagVal); v != "" {
 		return v
 	}
-	return GlobalConfigPath()
+	if g := GlobalConfigPath(); g != "" {
+		return g
+	}
+	// v2.7 FINDING-O (#203): symmetric to #90's server-side discovery — bare
+	// `worker run --worker-id=X` (no --config) discovers the worker-mode install
+	// config (~/.agent-center/workers/<X>/etc/config.yaml) instead of falling back
+	// to the system /var/lib defaults (where the long-term token / state would be
+	// unwritable in user mode). Missing → "" → DefaultConfig (zero-install dev
+	// fallback, same as #90; XDG second-tier fallback deferred to v2.8).
+	if id := strings.TrimSpace(workerID); id != "" {
+		p := filepath.Join(defaultWorkerInstallPrefix(true, id), "etc", "config.yaml")
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }
