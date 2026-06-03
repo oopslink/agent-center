@@ -134,10 +134,27 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 	return out, rows.Err()
 }
 
-// FindByName looks up a channel by its unique business name (ADR-0032 § 3).
+// FindByName looks up a channel by its business name, GLOBALLY (no org scope).
+// Retained for org-agnostic admin tooling; v2.7 #195 made channel name org-scoped
+// unique, so across orgs this can match more than one row and returns the first —
+// org-scoped callers must use FindByNameInOrg.
 func (r *ConversationRepo) FindByName(ctx context.Context, name string) (*conversation.Conversation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, convSelect+` WHERE name = ? AND kind = 'channel' LIMIT 1`, name)
+	c, err := scanConversation(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, conversation.ErrConversationNotFound
+	}
+	return c, err
+}
+
+// FindByNameInOrg looks up a channel by name within an organization (v2.7 #195:
+// channel name is org-scoped unique). Backed by the composite partial unique
+// index uniq_conversations_channel_name_org (organization_id, name).
+func (r *ConversationRepo) FindByNameInOrg(ctx context.Context, orgID, name string) (*conversation.Conversation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		convSelect+` WHERE organization_id = ? AND name = ? AND kind = 'channel' LIMIT 1`, orgID, name)
 	c, err := scanConversation(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, conversation.ErrConversationNotFound

@@ -920,10 +920,13 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 	}
 	evID, err := d.ParticipantMgmtSvc.Invite(r.Context(), convservice.InviteCommand{
 		ConversationName: c.Name(),
-		IdentityID:       inviteRef,
-		Role:             req.Role,
-		InvitedBy:        conversation.IdentityRef(d.Actor),
-		Actor:            d.Actor,
+		// v2.7 #195: org-scope the name re-lookup to the verified-in-org channel,
+		// so a same-named channel in another org can't be resolved by mistake.
+		OrganizationID: c.OrganizationID(),
+		IdentityID:     inviteRef,
+		Role:           req.Role,
+		InvitedBy:      conversation.IdentityRef(d.Actor),
+		Actor:          d.Actor,
 	})
 	if err != nil {
 		mapDomainError(w, err)
@@ -950,6 +953,7 @@ func (s *Server) removeParticipantHandler(w http.ResponseWriter, r *http.Request
 	}
 	evID, err := d.ParticipantMgmtSvc.Kick(r.Context(), convservice.KickCommand{
 		ConversationName: c.Name(),
+		OrganizationID:   c.OrganizationID(), // v2.7 #195: org-scope the name re-lookup
 		IdentityID:       conversation.IdentityRef(identityID),
 		KickedBy:         conversation.IdentityRef(d.Actor),
 		Reason:           "kicked",
