@@ -97,6 +97,15 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-activity-row')).toHaveAttribute('data-event-type', 'agent.started');
   });
 
+  it('renders without crashing when skills is null (FINDING #183: fresh agent, no skills)', async () => {
+    // Pre-#183 the backend sent "skills": null for a no-skills agent and
+    // AgentDetail read a.skills.length → TypeError crashed the whole page.
+    stubAgent({ skills: null });
+    wrap('/agents/A1');
+    await waitFor(() => expect(screen.getByText('bot-1')).toBeInTheDocument());
+    expect(screen.getByText('Skills')).toBeInTheDocument();
+  });
+
   it('stopped agent shows Start (no Stop/Restart) and can start', async () => {
     stubAgent({ lifecycle: 'stopped' });
     let started = false;

@@ -53,6 +53,15 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 	if id == "" {
 		t.Fatalf("missing agent id: %v", created)
 	}
+	// v2.7 #183 (FINDING): a no-skills agent must serialize skills/env_vars as
+	// [] / {} never null — the SPA types them non-null and reads
+	// a.skills.length (AgentDetail crashed on "skills": null).
+	if _, ok := created["skills"].([]any); !ok {
+		t.Fatalf("created skills must be a JSON array (not null), got %T %v", created["skills"], created["skills"])
+	}
+	if _, ok := created["env_vars"].(map[string]any); !ok {
+		t.Fatalf("created env_vars must be a JSON object (not null), got %T %v", created["env_vars"], created["env_vars"])
+	}
 
 	// GET list contains it.
 	resp = orgScopedGet(t, s.URL+"/api/agents", sess)
