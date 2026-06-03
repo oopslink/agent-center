@@ -342,3 +342,33 @@ func TestDeleteConversation_ChannelRejected(t *testing.T) {
 		t.Fatalf("want error use_archive, got %v", e)
 	}
 }
+
+// v2.7 #201 (Tester repro): POST /api/conversations kind=channel with an agent in
+// members[] must add it as an active participant (it was dropped before, breaking
+// channel @mention→agent). Mirrors the DM behavior.
+func TestCreateChannel_SeedsAgentParticipant(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/conversations",
+		`{"kind":"channel","name":"x","members":["agent:agent-0ae4eb1b"]}`, sess)
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		t.Fatalf("create channel: status %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	convID, _ := created["conversation_id"].(string)
+	if convID == "" {
+		t.Fatalf("no conversation_id: %v", created)
+	}
+	c, err := deps.ConvRepo.FindByID(context.Background(), conversation.ConversationID(convID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.HasActiveParticipant("agent:agent-0ae4eb1b") {
+		t.Fatalf("channel must include the agent member as an active participant (#201); got %d participants", len(c.Participants()))
+	}
+}
