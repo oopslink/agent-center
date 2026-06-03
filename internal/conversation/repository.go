@@ -46,6 +46,11 @@ type ConversationRepository interface {
 	UpdateStatus(ctx context.Context, id ConversationID, from, to ConversationStatus, version int, closedReason, closedMessage string, at time.Time) error
 	UpdateArchive(ctx context.Context, id ConversationID, version int, archivedBy IdentityRef, at time.Time) error
 	UpdateParticipants(ctx context.Context, id ConversationID, participants []ParticipantElement, version int, at time.Time) error
+	// Delete hard-removes the conversation row (v2.7 #198, DM delete). Channels
+	// use UpdateArchive (terminal-but-retained); only DMs are hard-deleted. The
+	// caller deletes the conversation's messages + read-state in the same tx (no
+	// DB-level cascade). Idempotent: deleting an absent id is a no-op.
+	Delete(ctx context.Context, id ConversationID) error
 }
 
 // MessageFilter narrows MessageRepository queries.
@@ -66,6 +71,9 @@ type MessageRepository interface {
 	FindByConversationID(ctx context.Context, conversationID ConversationID, filter MessageFilter) ([]*Message, error)
 	FindRecent(ctx context.Context, conversationID ConversationID, n int) ([]*Message, error)
 	Append(ctx context.Context, m *Message) error
+	// DeleteByConversationID hard-removes all messages of a conversation (v2.7
+	// #198, DM delete). Idempotent: no rows = no error.
+	DeleteByConversationID(ctx context.Context, conversationID ConversationID) error
 }
 
 // ConversationMessageReference is the carry-over VO (ADR-0035 /

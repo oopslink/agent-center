@@ -378,6 +378,10 @@ func (f *fakeReadStateRepo) Upsert(ctx context.Context,
 	return f.upsertErr
 }
 
+func (f *fakeReadStateRepo) DeleteByConversationID(ctx context.Context, convID conversation.ConversationID) error {
+	return nil
+}
+
 func TestNewReadStateService_NilClockDefaults(t *testing.T) {
 	// Constructor's nil-clock fallback path.
 	svc := NewReadStateService(nil, &fakeReadStateRepo{}, nil, nil, nil)

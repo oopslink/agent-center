@@ -39,6 +39,10 @@ type UserConversationReadStateRepository interface {
 	// Returns ErrReadStateVersionConflict when a concurrent writer
 	// already moved the row.
 	Upsert(ctx context.Context, s *UserConversationReadState) error
+
+	// DeleteByConversationID hard-removes all read-state rows for a conversation
+	// (v2.7 #198, DM delete). Idempotent: no rows = no error.
+	DeleteByConversationID(ctx context.Context, convID ConversationID) error
 }
 
 // Read-state sentinel errors.

@@ -224,6 +224,15 @@ func (r *ConversationRepo) UpdateStatus(ctx context.Context, id conversation.Con
 	return nil
 }
 
+// Delete hard-removes the conversation row (v2.7 #198, DM delete). Idempotent —
+// an absent id affects 0 rows and returns nil. Messages + read-state are deleted
+// by the caller in the same tx (no DB-level cascade).
+func (r *ConversationRepo) Delete(ctx context.Context, id conversation.ConversationID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM conversations WHERE id = ?`, string(id))
+	return err
+}
+
 // UpdateArchive transitions to archived (terminal) with audit who/when.
 func (r *ConversationRepo) UpdateArchive(ctx context.Context, id conversation.ConversationID, version int, archivedBy conversation.IdentityRef, at time.Time) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)

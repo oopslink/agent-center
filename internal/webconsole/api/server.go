@@ -142,6 +142,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/conversations", s.listConversationsHandler)
 	s.mux.HandleFunc("POST /api/conversations", s.createConversationHandler)
 	s.mux.HandleFunc("GET /api/conversations/{id}", s.showConversationHandler)
+	// v2.7 #198: hard-delete a DM (channels use archive → 400 use_archive).
+	s.mux.HandleFunc("DELETE /api/conversations/{id}", s.deleteConversationHandler)
 	s.mux.HandleFunc("GET /api/conversations/{id}/messages", s.listMessagesHandler)
 	s.mux.HandleFunc("POST /api/conversations/{id}/messages", s.sendMessageHandler)
 	s.mux.HandleFunc("POST /api/conversations/{id}/archive", s.archiveConversationHandler)
