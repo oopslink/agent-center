@@ -55,6 +55,23 @@ cd agent-center-v2.7.0-<os>-<arch>/
 
 `install center` is idempotent and upgrade-aware: re-running it on the same prefix detects the existing install and does nothing if the version matches. Default prefix is `~/.agent-center` (macOS / Linux user mode) or `/opt/agent-center` (Linux system mode); override with `--prefix=<dir>`. On macOS the service is a user **LaunchAgent**; on Linux a **systemd** unit.
 
+### Agent execution — authentication & configuration
+
+A worker spawns each agent's CLI (e.g. `claude`). The agent authenticates with the **same credential the worker user's own Claude Code uses** — agent-center does not require a separate API key:
+
+- **Subscription `/login` works out of the box.** If the worker user has logged in to Claude Code (`claude` then `/login`, stored in the macOS keychain), the agent's claude uses that same login — no extra configuration. (`ANTHROPIC_API_KEY` in the worker's service environment also works if you prefer key-based auth.)
+- The agent runs claude with `--setting-sources user,project`: **user** supplies the keychain `/login` credential, **project** lets the agent carry its own config in `<agent-home>/workspace/.claude` (created empty per agent).
+
+**What the agent inherits from the worker user's `~/.claude`** (user-level settings, verified in acceptance):
+
+| Inherited into the agent | Isolated from the agent |
+|---|---|
+| `~/.claude/settings.json` **hooks** (run under bypassPermissions), **plugins**, and **env** vars | **MCP servers** — the agent gets only its own agent-center MCP (pinned by `--strict-mcp-config`); the user's/plugin MCP servers are not loaded |
+
+> ⚠️ **Security note.** Because auth and the user's settings load from the same "user" source, the agent inherits the worker user's `~/.claude` **hooks** and runs them under `bypassPermissions`. If you keep sensitive or side-effecting hooks there, be aware the agent will execute them. **Full user-level isolation** (auth without loading the user source, via a `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN`) is planned for **v2.8**.
+
+If claude has no reachable credential at all, orchestration still works end-to-end (dispatch → spawn → MCP connect → activity stream), but the agent's turn fails auth (`403 Request not allowed`) and its work item is marked failed.
+
 ### 2. Install a worker
 
 A worker can run on the same machine as the center or any other machine. In the Web Console click **"+ Add Worker"**, type a friendly name, and copy the generated command — it already carries the bootstrap URL, a one-time enroll token, the pinned server fingerprint, and a unique `--worker-id`:
