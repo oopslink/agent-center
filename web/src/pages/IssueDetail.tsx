@@ -7,6 +7,7 @@ import {
   useIssue,
   useTransitionIssue,
 } from '@/api/issues';
+import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { EntityRef } from '@/components/EntityRef';
@@ -24,6 +25,8 @@ export default function IssueDetail(): React.ReactElement {
   // v2.7 #192: resolve created_by ref → display name (raw ref on hover); a
   // deleted/unresolvable author renders "(deleted)".
   const resolveName = useDisplayNameResolver();
+  // v2.7 #192: parent project shown by name (raw id on hover), not raw project id.
+  const project = useProject(issue.data?.project_id);
   const [editOpen, setEditOpen] = useState(false);
 
   if (issue.isLoading) {
@@ -82,8 +85,9 @@ export default function IssueDetail(): React.ReactElement {
                 to={`/projects/${encodeURIComponent(iss.project_id)}`}
                 className="text-accent hover:underline"
                 data-testid="issue-project-link"
+                title={iss.project_id}
               >
-                project · {iss.project_id}
+                project · {project.data?.name || iss.project_id}
               </OrgLink>
             )}
           </div>

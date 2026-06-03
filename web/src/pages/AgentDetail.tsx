@@ -212,8 +212,11 @@ export default function AgentDetail(): React.ReactElement {
                 data-testid="agent-workitem-row"
                 data-workitem-id={w.id}
                 data-status={w.status}
+                // v2.7 #192: the raw pm task ref stays on hover (the work-item
+                // DTO carries no task title; full task name needs a backend field).
+                title={w.task_ref}
               >
-                <span className="font-mono">{w.task_ref}</span>
+                <span className="text-text-secondary">Work item</span>
                 <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
                   {w.status}
                 </span>

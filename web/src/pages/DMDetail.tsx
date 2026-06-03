@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
+import { useDisplayNameResolver } from '@/api/members';
 import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { useAppStore } from '@/store/app';
@@ -19,6 +20,8 @@ import { MessageComposer } from '@/components/MessageComposer';
 export default function DMDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const me = useAppStore((s) => s.currentUserId);
+  // v2.7 #192/Rule 2a: DM heading = peer display name(s), never a raw ref/id.
+  const displayName = useDisplayNameResolver();
   const conv = useConversation(id);
   const messages = useMessages(id);
   const markSeen = useMarkSeen();
@@ -65,8 +68,8 @@ export default function DMDetail(): React.ReactElement {
   // by " · ". For group DMs this lists everyone.
   const peers = (conv.data.participants ?? [])
     .filter((p) => !p.left_at && p.identity_id !== me)
-    .map((p) => p.identity_id);
-  const heading = conv.data.name || peers.join(' · ') || conv.data.id;
+    .map((p) => displayName(p.identity_id));
+  const heading = conv.data.name || peers.join(' · ') || 'Direct message';
 
   return (
     <section
