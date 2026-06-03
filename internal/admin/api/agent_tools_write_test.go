@@ -361,6 +361,50 @@ func TestPostTaskMessage_NoWorkItem_403(t *testing.T) {
 	}
 }
 
+// v2.7 #185 FINDING-L: an agent's reply via post_message is authorized by
+// agentIsActiveParticipant. Conversation participants carry the agent's MEMBER
+// ref (agent:<member-id>), but the execution-entity id differs — agentActor must
+// yield the member ref so authz matches AND the message sender is the business id
+// (not the entity ULID). The prior entity-id agentActor failed authz (the reply
+// turn errored) and would have leaked the entity ULID as the sender.
+func TestAgentActor_PostMessageAuthz_UseMemberID(t *testing.T) {
+	a, err := agent.NewAgent(agent.NewAgentInput{
+		ID: "01ENTITYULID", OrganizationID: atTestOrg,
+		Profile: agent.Profile{Name: "Helper"}, WorkerID: "W1",
+		CreatedBy: "system", CreatedAt: atNow, IdentityMemberID: "agent-mem1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := agentActor(a); got != "agent:agent-mem1" {
+		t.Fatalf("agentActor = %q, want agent:agent-mem1 (member ref, not entity id)", got)
+	}
+
+	conv, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID: "c1", Kind: conversation.ConversationKindChannel, Name: "general",
+		OrganizationID: atTestOrg, CreatedBy: "user:alice", OpenedAt: atNow,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Participant ref is the MEMBER id (the business ref the assign/picker stores).
+	conv.SetParticipants([]conversation.ParticipantElement{
+		{IdentityID: "user:alice", Role: "owner", JoinedAt: "t"},
+		{IdentityID: "agent:agent-mem1", Role: "member", JoinedAt: "t"},
+	}, atNow)
+	if !agentIsActiveParticipant(conv, a) {
+		t.Fatal("agent with member-ref participant must pass post_message authz (FINDING-L)")
+	}
+
+	other, _ := agent.NewAgent(agent.NewAgentInput{
+		ID: "01OTHER", OrganizationID: atTestOrg, Profile: agent.Profile{Name: "Other"},
+		WorkerID: "W1", CreatedBy: "system", CreatedAt: atNow, IdentityMemberID: "agent-mem2",
+	})
+	if agentIsActiveParticipant(conv, other) {
+		t.Fatal("non-participant agent must be rejected")
+	}
+}
+
 func TestPostTaskMessage_CrossWorker_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
