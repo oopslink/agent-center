@@ -23,7 +23,7 @@ func (s *Service) CreateProject(ctx context.Context, cmd CreateProjectCommand) (
 	}
 	now := s.clock.Now()
 	p, err := pm.NewProject(pm.NewProjectInput{
-		ID: pm.ProjectID(s.idgen.NewULID()), OrganizationID: cmd.OrganizationID,
+		ID: pm.ProjectID(s.idgen.NewEntityID("project")), OrganizationID: cmd.OrganizationID,
 		Name: cmd.Name, Description: cmd.Description, CreatedBy: cmd.CreatedBy, CreatedAt: now,
 	})
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 	}
 	now := s.clock.Now()
 	i, err := pm.NewIssue(pm.NewIssueInput{
-		ID: pm.IssueID(s.idgen.NewULID()), ProjectID: cmd.ProjectID, Title: cmd.Title,
+		ID: pm.IssueID(s.idgen.NewEntityID("issue")), ProjectID: cmd.ProjectID, Title: cmd.Title,
 		Description: cmd.Description, CreatedBy: cmd.CreatedBy, CreatedAt: now,
 	})
 	if err != nil {
@@ -157,7 +157,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 	}
 	now := s.clock.Now()
 	t, err := pm.NewTask(pm.NewTaskInput{
-		ID: pm.TaskID(s.idgen.NewULID()), ProjectID: cmd.ProjectID, Title: cmd.Title,
+		ID: pm.TaskID(s.idgen.NewEntityID("task")), ProjectID: cmd.ProjectID, Title: cmd.Title,
 		Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now,
 	})
 	if err != nil {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -317,5 +318,20 @@ func TestAddMessage_WithAttachments(t *testing.T) {
 	m2, _ := msgRepo.FindByID(context.Background(), got2.MessageID)
 	if len(m2.Attachments()) != 0 {
 		t.Fatalf("plain message should have no attachments, got %+v", m2.Attachments())
+	}
+}
+
+// v2.7 #187: conversation ids are user-facing "<kind>-<8hex>" for channel/DM;
+// task (and other internal) conversations keep the ULID (navigated via owner_ref).
+func TestNewConversationID_PrefixByKind(t *testing.T) {
+	gen := idgen.NewGenerator(clock.SystemClock{})
+	if got := newConversationID(gen, conversation.ConversationKindChannel); !strings.HasPrefix(string(got), "channel-") {
+		t.Errorf("channel id %q want channel- prefix", got)
+	}
+	if got := newConversationID(gen, conversation.ConversationKindDM); !strings.HasPrefix(string(got), "dm-") {
+		t.Errorf("dm id %q want dm- prefix", got)
+	}
+	if got := newConversationID(gen, conversation.ConversationKindTask); !idgen.IsValid(string(got)) {
+		t.Errorf("task conversation id %q want internal ULID (no prefix)", got)
 	}
 }

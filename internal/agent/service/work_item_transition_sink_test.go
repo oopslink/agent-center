@@ -31,6 +31,11 @@ type seqGen struct{ n int }
 
 func (g *seqGen) NewULID() string { g.n++; return "E-" + string(rune('0'+g.n)) }
 
+func (g *seqGen) NewEntityID(prefix string) string {
+	g.n++
+	return prefix + "-" + string(rune('0'+g.n))
+}
+
 func TestOutboxWorkItemTransitionSink_AppendsTransitionedEvents(t *testing.T) {
 	co := &capOutbox{}
 	sink := NewOutboxWorkItemTransitionSink(co, &seqGen{})
