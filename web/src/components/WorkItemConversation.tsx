@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useConversationByOwnerRef, useMessages } from '@/api/conversations';
 import { MessageList } from './MessageList';
+import { MessageComposer } from './MessageComposer';
 
 interface Props {
   // The expected pm owner_ref for the embedding page (pm://tasks|issues/{id}).
@@ -13,8 +14,9 @@ interface Props {
 // TaskDetail / IssueDetail. It fetches the conversation BY owner_ref (the
 // list endpoint is org-scoped, so a cross-org owner_ref yields nothing —
 // fail-closed). An owner banner names the bound task/issue, and the message
-// list is split into work-item segments. Read-only: the interactive surface
-// stays in the channel/DM pages.
+// list is split into work-item segments. v2.7 #186-4: a MessageComposer at
+// the bottom makes the task/issue conversation interactive — a human can
+// send a message into it (the agent replies via #185 wake + post_message).
 export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.ReactElement {
   const conv = useConversationByOwnerRef(ownerRef);
   const messages = useMessages(conv.data?.id);
@@ -55,6 +57,10 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
           ) : (
             <MessageList messages={messages.data ?? []} segmentByWorkItem />
           )}
+          {/* v2.7 #186-4: send a message into the task/issue conversation. */}
+          <div className="border-t border-border-base p-2" data-testid="conversation-composer">
+            <MessageComposer conversationId={conv.data.id} />
+          </div>
         </div>
       )}
     </section>
