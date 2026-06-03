@@ -10,6 +10,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -398,16 +399,47 @@ func TestResolveWorkerConfigPath_GlobalFallback(t *testing.T) {
 	defer SetGlobalConfigPath(prev)
 
 	SetGlobalConfigPath("/tmp/operator-config.yaml")
-	if got := resolveWorkerConfigPath(""); got != "/tmp/operator-config.yaml" {
+	if got := resolveWorkerConfigPath("", "w1"); got != "/tmp/operator-config.yaml" {
 		t.Fatalf("empty subcommand --config must fall back to the global config, got %q", got)
 	}
 	// An explicit subcommand --config (e.g. via runHandler / direct invocation) wins.
-	if got := resolveWorkerConfigPath("/sub/explicit.yaml"); got != "/sub/explicit.yaml" {
+	if got := resolveWorkerConfigPath("/sub/explicit.yaml", "w1"); got != "/sub/explicit.yaml" {
 		t.Fatalf("explicit subcommand --config must win, got %q", got)
 	}
 	SetGlobalConfigPath("")
-	if got := resolveWorkerConfigPath(""); got != "" {
-		t.Fatalf("both empty → empty, got %q", got)
+	if got := resolveWorkerConfigPath("", "w1"); got != "" {
+		t.Fatalf("both empty + no install → empty, got %q", got)
+	}
+}
+
+// v2.7 FINDING-O (#203): symmetric to #90 — bare `worker run --worker-id=X` with
+// no --config / global discovers the worker-mode install config
+// (~/.agent-center/workers/<X>/etc/config.yaml).
+func TestResolveWorkerConfigPath_DiscoversWorkerInstallConfig(t *testing.T) {
+	prev := GlobalConfigPath()
+	defer SetGlobalConfigPath(prev)
+	SetGlobalConfigPath("")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// No install config → empty (falls through to DefaultConfig in the daemon).
+	if got := resolveWorkerConfigPath("", "w1"); got != "" {
+		t.Fatalf("no worker install config → want empty, got %q", got)
+	}
+	// Write the worker-mode install config → discovered.
+	want := filepath.Join(defaultWorkerInstallPrefix(true, "w1"), "etc", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(want), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(want, []byte("server: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveWorkerConfigPath("", "w1"); got != want {
+		t.Fatalf("worker install config present → want %q, got %q", want, got)
+	}
+	// An explicit --config still wins over discovery.
+	if got := resolveWorkerConfigPath("/x/explicit.yaml", "w1"); got != "/x/explicit.yaml" {
+		t.Fatalf("explicit --config must win over discovery, got %q", got)
 	}
 }
 
