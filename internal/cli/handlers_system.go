@@ -184,7 +184,9 @@ func ServerCommand() *Command {
 					// bootstrap host through to the Web Console so the
 					// AddWorkerModal can render a working install command.
 					enrollWiring := WebConsoleEnrollWiring{
-						BootstrapHost: enrollBootstrapHost(cfg.Server.AdminTCPListen),
+						// v2.7 #200: bootstrap_public_url (if set) wins over the bind
+						// address so remote workers get a reachable Add Worker command.
+						BootstrapHost: resolveEnrollBootstrapHost(cfg.Server.BootstrapPublicURL, cfg.Server.AdminTCPListen),
 						Fingerprint:   adminInfo.TLSFingerprint,
 					}
 					bus := sse.NewBus()

@@ -98,6 +98,8 @@ Like the center, `install worker` is **foreground by default**: it drops files +
 
 **Multiple workers per machine** are supported: each worker installs under its own subtree (`<prefix>/workers/<worker-id>/`); with `--service`, each gets its own LaunchAgent/systemd label (`com.agent-center.worker.<worker-id>`), so distinct `--worker-id`s coexist with zero overlap. (Re-running with the *same* `--worker-id` is treated as a re-enroll/upgrade of that worker.) `--server-fingerprint` is required when `--bootstrap` is `tcp://`.
 
+> **Remote workers behind a private bind (`bootstrap_public_url`).** The Web Console's Add Worker command derives its `--bootstrap` address from the center's `admin_tcp_listen` bind. If the center binds a private/loopback address but workers dial it over a public DNS name, load balancer, or NAT, set the externally-reachable address explicitly — either `server.bootstrap_public_url: "center.example.com:7300"` in the config, or `install center --bootstrap-public-url=center.example.com:7300`. The Add Worker command then advertises that address instead of the bind one.
+
 ### 3. Upgrade the center
 
 From a **source checkout**, pull the new code, rebuild the binary, then run `upgrade center` (it copies the new binaries, atomically swaps `current` → new version, runs a health probe, and auto-rolls-back if the probe fails):

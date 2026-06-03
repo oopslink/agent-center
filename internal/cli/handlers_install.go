@@ -113,6 +113,7 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 	// (unix-socket-only deployments).
 	tcpListen := fs.String("tcp-listen", "0.0.0.0:7300", "admin TCP listener address (e.g. 0.0.0.0:7300). Pass --tcp-listen= to disable (unix-only).")
 	service := fs.Bool("service", false, "register + start a launchd/systemd background service that auto-starts on boot. Default: foreground — install only drops files + config; run `agent-center server --config=<path>` yourself (logs to stdout).")
+	bootstrapPublicURL := fs.String("bootstrap-public-url", "", "externally-reachable admin host:port for the Web Console Add Worker command (v2.7 #200), independent of --tcp-listen. Set when remote workers must dial a public DNS/LB/NAT address. Empty = derive from the bind address.")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
 
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
@@ -153,12 +154,13 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 			return ExitOK
 		case InstallStateFresh:
 			return installCenterFresh(out, errw, installContext{
-				Prefix:    resolvedPrefix,
-				UserMode:  *userMode,
-				Port:      *port,
-				TCPListen: *tcpListen,
-				Version:   version,
-				Service:   *service,
+				Prefix:             resolvedPrefix,
+				UserMode:           *userMode,
+				Port:               *port,
+				TCPListen:          *tcpListen,
+				BootstrapPublicURL: strings.TrimSpace(*bootstrapPublicURL),
+				Version:            version,
+				Service:            *service,
 			})
 		case InstallStateUpgrade:
 			return installCenterUpgrade(out, errw, installContext{
@@ -292,17 +294,21 @@ func installWorkerHandler(fs *flag.FlagSet) Handler {
 // installContext bundles the resolved flag values for the install/
 // upgrade implementations (filled in by A2 / A5).
 type installContext struct {
-	Prefix         string
-	UserMode       bool
-	Port           int
-	TCPListen      string
-	WorkerID       string
-	WorkerName     string
-	Bootstrap      string
-	Token          string
-	Fingerprint    string
-	Version        string
-	CurrentVersion string
+	Prefix    string
+	UserMode  bool
+	Port      int
+	TCPListen string
+	// BootstrapPublicURL (v2.7 #200, center only) — externally-reachable admin
+	// host:port the Web Console Add Worker command advertises, written into the
+	// center config. Empty → enroll wiring derives the host from admin_tcp_listen.
+	BootstrapPublicURL string
+	WorkerID           string
+	WorkerName         string
+	Bootstrap          string
+	Token              string
+	Fingerprint        string
+	Version            string
+	CurrentVersion     string
 	// Service, when true, registers + starts a launchd/systemd background service
 	// (the pre-v2.7 behavior). Default false (v2.7 #199): install only drops files
 	// + config; the operator runs the foreground command (server / worker run,
@@ -343,7 +349,7 @@ func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err := writeVersionFile(layout); err != nil {
 		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
 	}
-	if err := writeCenterConfig(layout, ic.Port, ic.TCPListen); err != nil {
+	if err := writeCenterConfig(layout, ic.Port, ic.TCPListen, ic.BootstrapPublicURL); err != nil {
 		return PrintError(errw, FormatText, "install_write_config_failed", err.Error(), ExitBusinessError)
 	}
 	if err := atomicSymlinkSwap(layout); err != nil {

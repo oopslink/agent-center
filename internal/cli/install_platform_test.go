@@ -125,7 +125,7 @@ func TestRenderLaunchdPlist_EmptyLogsDirFallsBackToTmp(t *testing.T) {
 }
 
 func TestCenterConfigYAML_HasFields(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "", "/var/data/master.key")
+	yaml := centerConfigYAML("/var/data", 7100, "", "", "/var/data/master.key")
 	for _, want := range []string{
 		"sqlite_path:",
 		"admin_socket_path:",
@@ -145,9 +145,21 @@ func TestCenterConfigYAML_HasFields(t *testing.T) {
 }
 
 func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "/var/data/master.key")
+	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "", "/var/data/master.key")
 	if !strings.Contains(yaml, `admin_tcp_listen: "0.0.0.0:7300"`) {
 		t.Errorf("missing admin_tcp_listen:\n%s", yaml)
+	}
+}
+
+// v2.7 #200: bootstrap_public_url is written when set, omitted when empty.
+func TestCenterConfigYAML_BootstrapPublicURL(t *testing.T) {
+	with := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "center.example.com:7300", "/var/data/master.key")
+	if !strings.Contains(with, `bootstrap_public_url: "center.example.com:7300"`) {
+		t.Errorf("missing bootstrap_public_url:\n%s", with)
+	}
+	without := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "", "/var/data/master.key")
+	if strings.Contains(without, "bootstrap_public_url:") {
+		t.Errorf("bootstrap_public_url must be omitted when empty:\n%s", without)
 	}
 }
 
@@ -158,7 +170,7 @@ func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
 func TestWriteCenterConfig_AutoProvisionsMasterKey(t *testing.T) {
 	prefix := t.TempDir()
 	layout := newInstallLayout(prefix, "v2.5.0")
-	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300"); err != nil {
+	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300", ""); err != nil {
 		t.Fatalf("writeCenterConfig: %v", err)
 	}
 	keyPath := filepath.Join(layout.DataDir, "master.key")
@@ -178,7 +190,7 @@ func TestWriteCenterConfig_AutoProvisionsMasterKey(t *testing.T) {
 	}
 	// Re-install should preserve the existing key (otherwise every
 	// upgrade would orphan all encrypted UserSecret payloads).
-	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300"); err != nil {
+	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300", ""); err != nil {
 		t.Fatalf("re-install: %v", err)
 	}
 	preserved, err := os.ReadFile(keyPath)
@@ -483,5 +495,23 @@ func TestEnrollBootstrapHost(t *testing.T) {
 		if c.wantHost && len(got) <= len(":"+c.wantPort) {
 			t.Errorf("in=%q got=%q missing host part", c.in, got)
 		}
+	}
+}
+
+// v2.7 #200: an explicit bootstrap_public_url wins over the bind address (so a
+// 0.0.0.0/loopback-bound center can advertise a reachable public host); a tcp://
+// scheme is stripped; empty falls back to deriving from admin_tcp_listen.
+func TestResolveEnrollBootstrapHost(t *testing.T) {
+	if got := resolveEnrollBootstrapHost("center.example.com:7300", "0.0.0.0:7300"); got != "center.example.com:7300" {
+		t.Errorf("public url must win, got %q", got)
+	}
+	if got := resolveEnrollBootstrapHost("tcp://center.example.com:7300", "0.0.0.0:7300"); got != "center.example.com:7300" {
+		t.Errorf("tcp:// scheme must be stripped, got %q", got)
+	}
+	if got := resolveEnrollBootstrapHost("  ", "127.0.0.1:7300"); got != "127.0.0.1:7300" {
+		t.Errorf("blank public url must fall back to bind-derived, got %q", got)
+	}
+	if got := resolveEnrollBootstrapHost("", ""); got != "" {
+		t.Errorf("both empty → empty, got %q", got)
 	}
 }
