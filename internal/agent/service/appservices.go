@@ -304,6 +304,30 @@ func (s *Service) ResolveAgent(ctx context.Context, idOrMemberID string) (*agent
 	return s.agents.FindByIdentityMemberID(ctx, idOrMemberID)
 }
 
+// DeleteAgent hard-deletes a Stopped, idle agent (v2.7 #197). Guards: the agent
+// must be Stopped (else ErrAgentNotStopped — operator stops it first) and have no
+// active/waiting_input work item (else ErrAgentHasActiveWork). Deletes the agent
+// row, which releases its worker binding (worker_id column). The webconsole
+// wraps this in one tx with the identity-member delete for an atomic teardown
+// (mirrors #157's atomic create — no orphan member left behind).
+func (s *Service) DeleteAgent(ctx context.Context, id agent.AgentID) error {
+	a, err := s.agents.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if a.Lifecycle() != agent.LifecycleStopped {
+		return agent.ErrAgentNotStopped
+	}
+	active, err := s.workItems.HasActiveWorkItem(ctx, id)
+	if err != nil {
+		return err
+	}
+	if active {
+		return agent.ErrAgentHasActiveWork
+	}
+	return s.agents.Delete(ctx, id)
+}
+
 // ListWorkItems returns an Agent's work items (queue + history).
 func (s *Service) ListWorkItems(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
 	return s.workItems.ListByAgent(ctx, id)

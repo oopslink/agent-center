@@ -90,13 +90,19 @@ func (s ResetScope) IsValid() bool {
 
 // Sentinel errors.
 var (
-	ErrAgentNotFound     = errors.New("agent: agent not found")
-	ErrAgentExists       = errors.New("agent: agent already exists")
-	ErrWorkerRequired    = errors.New("agent: a worker is required at creation (immutable binding, ADR-0049)")
-	ErrInvalidLifecycle  = errors.New("agent: invalid lifecycle state")
-	ErrIllegalLifecycle  = errors.New("agent: illegal lifecycle transition")
-	ErrInvalidResetScope = errors.New("agent: invalid reset scope")
-	ErrVersionConflict   = errors.New("agent: version conflict (optimistic lock)")
+	ErrAgentNotFound = errors.New("agent: agent not found")
+	ErrAgentExists   = errors.New("agent: agent already exists")
+	// ErrAgentNotStopped rejects deleting an agent that is not in the Stopped
+	// terminal-ish state (v2.7 #197) — the operator must stop it first.
+	ErrAgentNotStopped = errors.New("agent: agent must be stopped before delete")
+	// ErrAgentHasActiveWork rejects deleting an agent with a non-terminal work
+	// item (v2.7 #197) — it is actively working; don't delete out from under it.
+	ErrAgentHasActiveWork = errors.New("agent: agent has an active work item")
+	ErrWorkerRequired     = errors.New("agent: a worker is required at creation (immutable binding, ADR-0049)")
+	ErrInvalidLifecycle   = errors.New("agent: invalid lifecycle state")
+	ErrIllegalLifecycle   = errors.New("agent: illegal lifecycle transition")
+	ErrInvalidResetScope  = errors.New("agent: invalid reset scope")
+	ErrVersionConflict    = errors.New("agent: version conflict (optimistic lock)")
 	// ErrUnsupportedCLI rejects creating an agent bound to a cli the runtime
 	// cannot execute (v2.7 #181 / FINDING-F). v2.7 supports only "claude-code";
 	// empty / codex / opencode / unknown are rejected.

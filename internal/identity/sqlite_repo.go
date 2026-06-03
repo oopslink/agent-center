@@ -130,6 +130,17 @@ func (r *SQLiteIdentityRepo) GetByID(ctx context.Context, id string) (*Identity,
 	return scanIdentity(row)
 }
 
+// Delete hard-removes an Identity row (v2.7 #197 agent-delete cascade).
+// Idempotent — absent id affects 0 rows and returns nil.
+func (r *SQLiteIdentityRepo) Delete(ctx context.Context, id string) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `DELETE FROM identities WHERE id=?`, id)
+	return err
+}
+
 // GetByDisplayName returns a user Identity by display_name.
 func (r *SQLiteIdentityRepo) GetByDisplayName(ctx context.Context, name string) (*Identity, error) {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
@@ -171,8 +182,8 @@ func (r *SQLiteIdentityRepo) List(ctx context.Context) ([]*Identity, error) {
 func scanIdentity(row *sql.Row) (*Identity, error) {
 	var (
 		id, kind, displayName, description, accountStatus, passcodeHash string
-		passcodeSetAtStr                                                   sql.NullString
-		createdAtStr, updatedAtStr                                         string
+		passcodeSetAtStr                                                sql.NullString
+		createdAtStr, updatedAtStr                                      string
 	)
 	err := row.Scan(&id, &kind, &displayName, &description, &accountStatus,
 		&passcodeHash, &passcodeSetAtStr, &createdAtStr, &updatedAtStr)
@@ -188,8 +199,8 @@ func scanIdentity(row *sql.Row) (*Identity, error) {
 func scanIdentityRow(rows *sql.Rows) (*Identity, error) {
 	var (
 		id, kind, displayName, description, accountStatus, passcodeHash string
-		passcodeSetAtStr                                                   sql.NullString
-		createdAtStr, updatedAtStr                                         string
+		passcodeSetAtStr                                                sql.NullString
+		createdAtStr, updatedAtStr                                      string
 	)
 	err := rows.Scan(&id, &kind, &displayName, &description, &accountStatus,
 		&passcodeHash, &passcodeSetAtStr, &createdAtStr, &updatedAtStr)
@@ -458,6 +469,17 @@ func (r *SQLiteMemberRepo) GetByID(ctx context.Context, id string) (*Member, err
 	return scanMember(row)
 }
 
+// Delete hard-removes a Member row (v2.7 #197 agent-delete cascade).
+// Idempotent — absent id affects 0 rows and returns nil.
+func (r *SQLiteMemberRepo) Delete(ctx context.Context, id string) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `DELETE FROM members WHERE id=?`, id)
+	return err
+}
+
 // GetByOrganizationAndIdentity finds the joined member for (org, identity).
 func (r *SQLiteMemberRepo) GetByOrganizationAndIdentity(ctx context.Context, orgID, identityID string) (*Member, error) {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
@@ -514,10 +536,10 @@ func (r *SQLiteMemberRepo) CountActiveOwners(ctx context.Context, orgID string) 
 func scanMember(row *sql.Row) (*Member, error) {
 	var (
 		id, orgID, identityID, role, status string
-		joinedAtStr                          string
-		invitedByStr                         sql.NullString
-		invitedAtStr, disabledAtStr          sql.NullString
-		disabledReason                       string
+		joinedAtStr                         string
+		invitedByStr                        sql.NullString
+		invitedAtStr, disabledAtStr         sql.NullString
+		disabledReason                      string
 	)
 	err := row.Scan(&id, &orgID, &identityID, &role, &status, &joinedAtStr,
 		&invitedByStr, &invitedAtStr, &disabledAtStr, &disabledReason)
@@ -533,10 +555,10 @@ func scanMember(row *sql.Row) (*Member, error) {
 func scanMemberRow(rows *sql.Rows) (*Member, error) {
 	var (
 		id, orgID, identityID, role, status string
-		joinedAtStr                          string
-		invitedByStr                         sql.NullString
-		invitedAtStr, disabledAtStr          sql.NullString
-		disabledReason                       string
+		joinedAtStr                         string
+		invitedByStr                        sql.NullString
+		invitedAtStr, disabledAtStr         sql.NullString
+		disabledReason                      string
 	)
 	err := rows.Scan(&id, &orgID, &identityID, &role, &status, &joinedAtStr,
 		&invitedByStr, &invitedAtStr, &disabledAtStr, &disabledReason)
@@ -673,9 +695,9 @@ func (r *SQLiteInvitationRepo) ListByOrganization(ctx context.Context, orgID str
 func scanInvitation(row *sql.Row) (*Invitation, error) {
 	var (
 		id, orgID, inviteeHandle, roleToGrant, invitedBy, status, token string
-		createdAtStr, expiresAtStr                                        string
-		acceptedByStr                                                      sql.NullString
-		acceptedAtStr                                                      sql.NullString
+		createdAtStr, expiresAtStr                                      string
+		acceptedByStr                                                   sql.NullString
+		acceptedAtStr                                                   sql.NullString
 	)
 	err := row.Scan(&id, &orgID, &inviteeHandle, &roleToGrant, &invitedBy,
 		&status, &token, &createdAtStr, &expiresAtStr, &acceptedByStr, &acceptedAtStr)
@@ -691,9 +713,9 @@ func scanInvitation(row *sql.Row) (*Invitation, error) {
 func scanInvitationRow(rows *sql.Rows) (*Invitation, error) {
 	var (
 		id, orgID, inviteeHandle, roleToGrant, invitedBy, status, token string
-		createdAtStr, expiresAtStr                                        string
-		acceptedByStr                                                      sql.NullString
-		acceptedAtStr                                                      sql.NullString
+		createdAtStr, expiresAtStr                                      string
+		acceptedByStr                                                   sql.NullString
+		acceptedAtStr                                                   sql.NullString
 	)
 	err := rows.Scan(&id, &orgID, &inviteeHandle, &roleToGrant, &invitedBy,
 		&status, &token, &createdAtStr, &expiresAtStr, &acceptedByStr, &acceptedAtStr)
