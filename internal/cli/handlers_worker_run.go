@@ -45,6 +45,17 @@ func WorkerRunCommand() *Command {
 				"admin bearer token (required by v2.3-3a auth); falls back to AGENT_CENTER_ADMIN_TOKEN env")
 			adminTarget := fs.String("admin-target", "",
 				"admin endpoint, e.g. unix:/run/admin.sock or tcp://host:7300 (default: cfg.server.admin_socket_path)")
+			// v2.7 FINDING-P (#204): accept the SAME friendly flag vocabulary as
+			// `install worker` / the Web Console Add-Worker command so an operator can
+			// copy-paste either way without `flag provided but not defined: -bootstrap`.
+			// --bootstrap aliases --admin-target (the admin endpoint URL) and --token
+			// aliases --admin-token (the bearer/enroll token); the legacy
+			// --admin-target/--admin-token stay for back-compat. The friendly flag wins
+			// when both are set (it is the one the operator copied from the UI).
+			bootstrap := fs.String("bootstrap", "",
+				"admin endpoint URL the worker dials, e.g. tcp://host:7300 (alias of --admin-target; matches `install worker`)")
+			token := fs.String("token", "",
+				"admin bearer / enroll token (alias of --admin-token; matches `install worker`)")
 			serverFingerprint := fs.String("server-fingerprint", "",
 				"sha256:HH:HH:... pinned server cert fingerprint (required with --admin-target=tcp://...); falls back to AGENT_CENTER_SERVER_FINGERPRINT env")
 			skillsDir := fs.String("skills-dir", "",
@@ -63,8 +74,8 @@ func WorkerRunCommand() *Command {
 					WorkerName:           *workerName,
 					FakeAgent:            *fakeAgent,
 					PollInterval:         *pollInterval,
-					AdminToken:           *adminToken,
-					AdminTarget:          *adminTarget,
+					AdminToken:           coalesceWorkerFlag(*token, *adminToken),
+					AdminTarget:          coalesceWorkerFlag(*bootstrap, *adminTarget),
 					ServerFingerprint:    *serverFingerprint,
 					SkillsDir:            *skillsDir,
 					DisableControlStream: *disableControlStream,
@@ -116,4 +127,18 @@ func resolveWorkerConfigPath(flagVal, workerID string) string {
 		}
 	}
 	return ""
+}
+
+// coalesceWorkerFlag picks the value for a `worker run` option that has two
+// spellings (v2.7 FINDING-P #204): the friendly flag (--bootstrap / --token,
+// matching `install worker` + the Web Console) and the legacy back-compat alias
+// (--admin-target / --admin-token). The friendly value wins when both are set —
+// it is the one the operator copy-pasted from the UI; otherwise the non-empty
+// one is used. Empty/empty leaves the daemon's own defaults (config /
+// AGENT_CENTER_ADMIN_TOKEN env) intact.
+func coalesceWorkerFlag(friendly, legacy string) string {
+	if v := strings.TrimSpace(friendly); v != "" {
+		return v
+	}
+	return strings.TrimSpace(legacy)
 }
