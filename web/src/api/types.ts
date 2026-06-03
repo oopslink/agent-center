@@ -206,6 +206,15 @@ export interface TransferSession {
   expires_at: string;
 }
 
+// WorkerCapability is one probed agent-CLI on a worker (v2.7 #176 /
+// FINDING-C): what ProbeAllAdapters discovered + its detected/enabled state.
+export interface WorkerCapability {
+  agent_cli: string;
+  detected: boolean;
+  enabled: boolean;
+  version?: string;
+}
+
 export interface FleetWorkerRow {
   worker_id: string;
   // Friendly operator-facing label (v2.4-D-X1). Falls back to
@@ -214,6 +223,9 @@ export interface FleetWorkerRow {
   status: string;
   active_count: number;
   last_heartbeat_at?: string;
+  // Probed agent-CLI capabilities (v2.7 #176). Omitted when the worker has
+  // reported none yet.
+  capabilities?: WorkerCapability[];
 }
 
 export interface FleetIssueRow {

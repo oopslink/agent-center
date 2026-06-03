@@ -44,6 +44,51 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 	}
 }
 
+// v2.7 #176 (FINDING-C visibility): the fleet worker row must surface the
+// worker's probed CLI capabilities (agent_cli + detected + enabled) so the
+// Web Console Environment page can show what each worker discovered — the
+// §5 "Environment 可见" exit criterion. Data already lives on
+// workforce.Worker (ReportCapabilities → CapabilityList); this asserts the
+// projection carries it through.
+func TestFleetSnapshot_WorkerRowIncludesCapabilities(t *testing.T) {
+	env := newQEnv(t)
+	w, err := workforce.NewWorker(workforce.NewWorkerInput{
+		ID:         "W-CAP",
+		EnrolledAt: env.clk.Now(),
+		CapabilityList: []workforce.Capability{
+			{AgentCLI: "claude-code", Detected: true, Enabled: true, Version: "1.2"},
+			{AgentCLI: "codex", Detected: true, Enabled: false},
+			{AgentCLI: "opencode", Detected: false, Enabled: false},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.deps.Workers.Save(context.Background(), w); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := query.NewFleetSnapshotService(env.deps)
+	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{})
+	row := fleetWorkerRow(t, snap, "W-CAP")
+	if len(row.Capabilities) != 3 {
+		t.Fatalf("capabilities: got %d, want 3: %+v", len(row.Capabilities), row.Capabilities)
+	}
+	byCLI := map[string]query.FleetCapabilityRow{}
+	for _, c := range row.Capabilities {
+		byCLI[c.AgentCLI] = c
+	}
+	if c := byCLI["claude-code"]; !c.Detected || !c.Enabled || c.Version != "1.2" {
+		t.Fatalf("claude-code want detected+enabled v1.2, got %+v", c)
+	}
+	if c := byCLI["codex"]; !c.Detected || c.Enabled {
+		t.Fatalf("codex want detected+disabled, got %+v", c)
+	}
+	if c := byCLI["opencode"]; c.Detected || c.Enabled {
+		t.Fatalf("opencode want not-detected, got %+v", c)
+	}
+}
+
 func TestFleetSnapshot_ProjectFilter(t *testing.T) {
 	env := newQEnv(t)
 	env.seedLiveWorkItem(t, "WI-A", "AG-A", "T-1", "proj-a", "org-1", "active")

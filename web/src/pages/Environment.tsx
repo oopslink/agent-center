@@ -171,6 +171,8 @@ export default function Environment(): React.ReactElement {
                         </div>
                       </div>
 
+                      <WorkerCapabilities worker={wk} />
+
                       <div className="mt-2 flex items-center justify-between gap-2">
                         {wkAgents.length === 0 ? (
                           <p className="text-xs text-text-muted" data-testid="environment-worker-noagents">
@@ -440,6 +442,43 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
       <span className="font-mono text-[0.6875rem] text-text-muted" data-testid="environment-worker-id">
         {worker.worker_id}
       </span>
+    </div>
+  );
+}
+
+// WorkerCapabilities renders the worker's probed agent-CLI list (v2.7 #176 /
+// FINDING-C): the CLIs ProbeAllAdapters discovered, each tagged enabled or
+// disabled. Only detected CLIs are shown (the operator cares about what the
+// worker can actually run); a worker that has reported none shows an empty
+// hint. This is the §5 "Environment 可见" exit surface.
+function WorkerCapabilities({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const detected = (worker.capabilities ?? []).filter((c) => c.detected);
+  if (detected.length === 0) {
+    return (
+      <p className="mt-2 text-xs text-text-muted" data-testid="environment-worker-nocaps">
+        No agent CLIs detected.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid="environment-worker-capabilities">
+      <span className="text-xs text-text-muted">CLIs:</span>
+      {detected.map((c) => (
+        <span
+          key={c.agent_cli}
+          className={`rounded px-1.5 py-0.5 text-xs ${
+            c.enabled ? 'bg-success/15 text-success' : 'bg-bg-subtle text-text-muted'
+          }`}
+          data-testid="environment-worker-capability"
+          data-agent-cli={c.agent_cli}
+          data-detected={c.detected ? 'true' : 'false'}
+          data-enabled={c.enabled ? 'true' : 'false'}
+        >
+          {c.agent_cli}
+          {c.version ? ` ${c.version}` : ''}
+          {c.enabled ? '' : ' (disabled)'}
+        </span>
+      ))}
     </div>
   );
 }

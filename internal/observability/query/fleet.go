@@ -27,6 +27,20 @@ type FleetWorkerRow struct {
 	Status          string `json:"status"`
 	ActiveCount     int    `json:"active_count"`
 	LastHeartbeatAt string `json:"last_heartbeat_at,omitempty"`
+	// Capabilities is the worker's probed agent-CLI list (v2.7 #176 /
+	// FINDING-C): what ProbeAllAdapters discovered + the per-CLI
+	// detected/enabled state, so the Web Console can show which CLIs a
+	// worker can run. Omitted when the worker has reported none yet.
+	Capabilities []FleetCapabilityRow `json:"capabilities,omitempty"`
+}
+
+// FleetCapabilityRow is one probed agent-CLI capability on a worker
+// (v2.7 #176). Mirrors workforce.Capability's user-facing fields.
+type FleetCapabilityRow struct {
+	AgentCLI string `json:"agent_cli"`
+	Detected bool   `json:"detected"`
+	Enabled  bool   `json:"enabled"`
+	Version  string `json:"version,omitempty"`
 }
 
 // FleetIssueRow is one row in FleetSnapshot.PendingIssues.
@@ -225,6 +239,21 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 		}
 		if row.Name == "" {
 			row.Name = row.WorkerID
+		}
+		// v2.7 #176: surface probed CLI capabilities (detected/enabled per
+		// agent_cli) so the Web Console Environment view can show what each
+		// worker discovered. Data already lives on the Worker AR.
+		if caps := w.CapabilityList(); len(caps) > 0 {
+			rows := make([]FleetCapabilityRow, 0, len(caps))
+			for _, c := range caps {
+				rows = append(rows, FleetCapabilityRow{
+					AgentCLI: c.AgentCLI,
+					Detected: c.Detected,
+					Enabled:  c.Enabled,
+					Version:  c.Version,
+				})
+			}
+			row.Capabilities = rows
 		}
 		// v2.7 #131: ActiveCount repointed off the retired task_execution model to
 		// the agent work-item model, mirroring inspectWorker (service.go): a worker
