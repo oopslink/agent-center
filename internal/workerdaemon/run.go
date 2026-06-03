@@ -308,14 +308,25 @@ func workerTokenFilePath(cfg config.Config, configPath, workerID string) string 
 	return "worker-token"
 }
 
-// agentHomeBase returns the runtime home root for the per-agent layout
-// (workers/{worker_id}/agents/{agent_id}/) under the worker state dir, else
-// "agent-homes" in the cwd (see workerStateDir for FINDING-Q #205).
+// agentHomeBase returns the per-agent layout root — the worker STATE DIR itself,
+// under which agentPaths builds agents/<agent_id>/ (→ workers/<wid>/var/agents/
+// <ULID>/).
+//
+// v2.7 #209: dropped the redundant "agent-homes" wrapper that used to sit between
+// var/ and agents/. var/'s only child was agent-homes/, whose only child was
+// agents/ — a meaningless nesting level accumulated over time (same cleanup
+// spirit as #179's double-workers/<wid> dedup). Fresh-install only (no migration;
+// v2.6→v2.7 requires reinstall).
+//
+// dir resolution is workerStateDir (config → <sqlite_dir>=worker var; no-config →
+// user-writable ~/.agent-center/workers/<id>/var, FINDING-Q #205). Falls back to
+// "." (cwd) only when neither a config sqlite_path nor HOME exists, so
+// agentPaths' non-empty-base guard still holds → agents/<id> resolves cwd-relative.
 func agentHomeBase(cfg config.Config, configPath, workerID string) string {
 	if dir := workerStateDir(cfg, configPath, workerID); dir != "" {
-		return filepath.Join(dir, "agent-homes")
+		return dir
 	}
-	return "agent-homes"
+	return "."
 }
 
 // readWorkerTokenFile reads a previously-persisted long-term token (trimmed).

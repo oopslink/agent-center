@@ -27,7 +27,8 @@ const DefaultSocketName = "supervisor.sock"
 
 // SockPath returns the supervisor's unix socket path for an agent. v2.7 #178
 // (acceptance FINDING-E): the socket must NOT live under the agent home — that
-// path is deeply nested (`<prefix>/workers/<wid>/var/agent-homes/.../agents/<aid>`)
+// path is deeply nested (`<prefix>/workers/<wid>/var/agents/<aid>`, and was even
+// deeper before #179/#209 dropped the double-workers/<wid> + agent-homes wrappers)
 // and blew past macOS's 104-byte AF_UNIX sun_path limit, so bind() failed, the
 // supervisor never came up, and the worker spun in an infinite restart loop.
 // The socket instead lives under the OS temp dir with a short hashed name. It is

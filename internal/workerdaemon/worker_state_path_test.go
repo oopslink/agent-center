@@ -47,8 +47,15 @@ func TestWorkerStateDir_FindingQ(t *testing.T) {
 		if got, want := workerTokenFilePath(sysDefault, "", "w1"), filepath.Join(dir, "worker-token"); got != want {
 			t.Fatalf("token path = %q, want %q", got, want)
 		}
-		if got, want := agentHomeBase(sysDefault, "", "w1"), filepath.Join(dir, "agent-homes"); got != want {
-			t.Fatalf("agent-home base = %q, want %q", got, want)
+		// v2.7 #209: agentHomeBase IS the state dir (no "agent-homes" wrapper); the
+		// per-agent home (agentPaths) is <stateDir>/agents/<id> = workers/<wid>/var/
+		// agents/<id>.
+		if got, want := agentHomeBase(sysDefault, "", "w1"), dir; got != want {
+			t.Fatalf("agent-home base = %q, want %q (flat, no agent-homes wrapper)", got, want)
+		}
+		// The downstream per-agent path must be flat: <var>/agents/<id>.
+		if got, want := filepath.Join(agentHomeBase(sysDefault, "", "w1"), "agents", "ag-1"), filepath.Join(dir, "agents", "ag-1"); got != want {
+			t.Fatalf("per-agent home = %q, want flat %q", got, want)
 		}
 	})
 
@@ -75,8 +82,10 @@ func TestWorkerStateDir_NoHomeLastResort(t *testing.T) {
 	if got := workerTokenFilePath(sysDefault, "", "w1"); got != "worker-token" {
 		t.Fatalf("no config + no HOME → want cwd-relative worker-token, got %q", got)
 	}
-	if got := agentHomeBase(sysDefault, "", "w1"); got != "agent-homes" {
-		t.Fatalf("no config + no HOME → want cwd-relative agent-homes, got %q", got)
+	// v2.7 #209: no-state fallback is "." (cwd), so agentPaths' non-empty-base
+	// guard holds and the per-agent home resolves cwd-relative (agents/<id>).
+	if got := agentHomeBase(sysDefault, "", "w1"); got != "." {
+		t.Fatalf("no config + no HOME → want cwd-relative \".\", got %q", got)
 	}
 }
 
