@@ -39,6 +39,9 @@ func mapAgentError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "illegal_transition", err.Error())
 	case errors.Is(err, agentsvc.ErrWorkerNotInOrg):
 		writeError(w, http.StatusBadRequest, "worker_not_in_org", err.Error())
+	case errors.Is(err, agentbc.ErrUnsupportedCLI):
+		// v2.7 #181 / FINDING-F: cli not in the execution allowlist.
+		writeError(w, http.StatusBadRequest, "invalid_cli", err.Error())
 	case errors.Is(err, agentsvc.ErrResetNotConfirmed),
 		errors.Is(err, agentbc.ErrInvalidResetScope),
 		errors.Is(err, agentbc.ErrWorkerRequired),

@@ -118,10 +118,14 @@ describe('Agents page', () => {
       expect(screen.getByTestId('agent-create-worker')).toHaveTextContent('box-7'),
     );
     await userEvent.selectOptions(screen.getByTestId('agent-create-worker'), 'w-7');
+    // v2.7 #181 / FINDING-F: cli is a single-option select (claude-code only).
+    const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
+    expect(cliSelect.tagName).toBe('SELECT');
+    expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);
     fireEvent.click(screen.getByTestId('agent-create-submit'));
 
     await waitFor(() => expect(posted).not.toBeNull());
-    expect(posted).toMatchObject({ name: 'newbot', worker_id: 'w-7' });
+    expect(posted).toMatchObject({ name: 'newbot', worker_id: 'w-7', cli: 'claude-code' });
     await waitFor(() =>
       expect(screen.queryByTestId('agent-create-modal')).not.toBeInTheDocument(),
     );

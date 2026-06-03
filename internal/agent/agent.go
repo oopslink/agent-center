@@ -97,6 +97,10 @@ var (
 	ErrIllegalLifecycle  = errors.New("agent: illegal lifecycle transition")
 	ErrInvalidResetScope = errors.New("agent: invalid reset scope")
 	ErrVersionConflict   = errors.New("agent: version conflict (optimistic lock)")
+	// ErrUnsupportedCLI rejects creating an agent bound to a cli the runtime
+	// cannot execute (v2.7 #181 / FINDING-F). v2.7 supports only "claude-code";
+	// empty / codex / opencode / unknown are rejected.
+	ErrUnsupportedCLI = errors.New("agent: unsupported cli (v2.7 supports claude-code only)")
 )
 
 // Profile is the Agent product profile.
