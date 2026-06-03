@@ -539,9 +539,12 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 }
 
 // workerRunCommand renders the foreground `worker run` command line (v2.7 #199),
-// mirroring the args the service unit would otherwise carry.
+// mirroring the args the service unit would otherwise carry. v2.7 FINDING-P
+// (#204): emit the friendly --bootstrap/--token spelling so the whole chain
+// (Web Console Add-Worker → install worker → worker run) shares ONE vocabulary;
+// `worker run` accepts these as aliases of --admin-target/--admin-token.
 func workerRunCommand(bin, configPath string, ic installContext) string {
-	cmd := fmt.Sprintf("%s worker run --config=%s --worker-id=%s --admin-target=%s --admin-token=%s",
+	cmd := fmt.Sprintf("%s worker run --config=%s --worker-id=%s --bootstrap=%s --token=%s",
 		bin, configPath, ic.WorkerID, ic.Bootstrap, ic.Token)
 	if ic.WorkerName != "" {
 		cmd += " --worker-name=" + ic.WorkerName

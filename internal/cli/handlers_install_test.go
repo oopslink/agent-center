@@ -321,11 +321,18 @@ func TestWorkerRunCommand(t *testing.T) {
 	})
 	for _, want := range []string{
 		"/bin/agent-center worker run", "--config=/cfg.yaml", "--worker-id=w1",
-		"--admin-target=tcp://h:7300", "--admin-token=tok",
+		// v2.7 FINDING-P (#204): foreground command emits the friendly
+		// --bootstrap/--token spelling, identical to `install worker` + the UI.
+		"--bootstrap=tcp://h:7300", "--token=tok",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("workerRunCommand missing %q in %q", want, got)
 		}
+	}
+	// The foreground command must NOT use the legacy spelling (the whole point of
+	// #204 is one vocabulary across UI/install/worker run).
+	if strings.Contains(got, "--admin-target=") || strings.Contains(got, "--admin-token=") {
+		t.Errorf("foreground command must use --bootstrap/--token, not legacy admin-*: %q", got)
 	}
 	if strings.Contains(got, "--worker-name") || strings.Contains(got, "--server-fingerprint") {
 		t.Errorf("optional flags must be omitted when empty: %q", got)

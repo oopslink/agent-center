@@ -443,6 +443,28 @@ func TestResolveWorkerConfigPath_DiscoversWorkerInstallConfig(t *testing.T) {
 	}
 }
 
+// v2.7 FINDING-P (#204): --bootstrap/--token (friendly, matching `install worker`
+// + the Web Console) coalesce with the legacy --admin-target/--admin-token
+// aliases; the friendly value wins when both are set.
+func TestCoalesceWorkerFlag(t *testing.T) {
+	cases := []struct {
+		name             string
+		friendly, legacy string
+		want             string
+	}{
+		{"friendly only", "tcp://h:7300", "", "tcp://h:7300"},
+		{"legacy only (back-compat)", "", "tcp://old:7300", "tcp://old:7300"},
+		{"friendly wins when both set", "tcp://new:7300", "tcp://old:7300", "tcp://new:7300"},
+		{"both empty", "", "", ""},
+		{"trims whitespace", "  tcp://h:7300  ", "", "tcp://h:7300"},
+	}
+	for _, c := range cases {
+		if got := coalesceWorkerFlag(c.friendly, c.legacy); got != c.want {
+			t.Errorf("%s: coalesceWorkerFlag(%q,%q)=%q want %q", c.name, c.friendly, c.legacy, got, c.want)
+		}
+	}
+}
+
 // TestWorkerRunCommand_FlagParity guards the `worker run` flag set against the
 // (retiring) standalone daemon — no silent drop / rename / default change (the
 // PM+Tester parity watch, v2.7 (b) cutover). Complements Tester's --help diff.
@@ -453,6 +475,10 @@ func TestWorkerRunCommand_FlagParity(t *testing.T) {
 		"config", "worker-id", "worker-name", "fake-agent", "poll-interval",
 		"admin-token", "admin-target", "server-fingerprint",
 		"skills-dir",
+		// v2.7 FINDING-P (#204): friendly aliases matching `install worker` + the
+		// Web Console Add-Worker command, so a copied command never hits
+		// "flag provided but not defined: -bootstrap".
+		"bootstrap", "token",
 	}
 	for _, name := range want {
 		if fs.Lookup(name) == nil {
