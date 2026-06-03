@@ -292,6 +292,17 @@ type managedAgent struct {
 	// since the result line carries no WorkItem id). (CHANGELOG + Tester §A.)
 	currentWorkItemID string
 
+	// currentConversationID is the conversation of the LAST agent.converse inject
+	// (a DM/channel turn, which has NO WorkItem). It is the converse analogue of
+	// currentWorkItemID for the L2 no-silent-failure surface: when a converse turn
+	// ends is_error (e.g. an invalid model → claude 404), onEvent posts a visible
+	// "couldn't process the message" SYSTEM message into this conversation instead
+	// of leaving the human in a silent black hole (UX Rule 9). currentWorkItemID
+	// and currentConversationID are mutually exclusive — whichever context was
+	// injected last is set, the other cleared. Same "last injected" imprecision +
+	// deferred-with-trigger caveat as currentWorkItemID. Guarded by mu.
+	currentConversationID string
+
 	// model is the agent's configured claude --model (Profile.Model, threaded from the
 	// reconcile command). Held here so a mid-run self-heal relaunch — which gets NO
 	// fresh reconcile and deletes this managedAgent on crash — can carry it across the
@@ -575,6 +586,7 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 		cur.hadWork = true
 		if pl.WorkItemID != "" {
 			cur.currentWorkItemID = pl.WorkItemID
+			cur.currentConversationID = "" // work context supersedes any converse context
 		}
 	}
 	c.mu.Unlock()
@@ -660,6 +672,7 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 		c.mu.Lock()
 		if cur := c.agents[pl.AgentID]; cur != nil {
 			cur.currentWorkItemID = pl.WorkItemID
+			cur.currentConversationID = "" // work context supersedes any converse context
 		}
 		c.mu.Unlock()
 		// waiting_input→active via the existing feedback endpoint (MarkWorkItemState
@@ -711,6 +724,16 @@ func (c *AgentController) converse(ctx context.Context, pl conversePayload) erro
 		return fmt.Errorf("agent_controller: converse inject agent=%s: %w", pl.AgentID, err)
 	}
 	c.recordWake(pl.AgentID, pl.MessageID)
+
+	// L2 no-silent-failure (converse): record this as the in-flight CONVERSATION
+	// (no WorkItem) so an is_error turn surfaces a system message into it. Clear
+	// any stale WorkItem context — a converse turn is not work.
+	c.mu.Lock()
+	if cur := c.agents[pl.AgentID]; cur != nil {
+		cur.currentConversationID = pl.ConversationID
+		cur.currentWorkItemID = ""
+	}
+	c.mu.Unlock()
 
 	// Advance the agent's read-state cursor so a later batch flush doesn't
 	// re-deliver this message. Best-effort (dedup set already guards replay).
@@ -994,13 +1017,22 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 // in-flight pointer so a stray second result cannot re-fail an already-failed WI.
 func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
 	c.mu.Lock()
-	var wiID string
+	var wiID, convID string
 	if ma := c.agents[agentID]; ma != nil {
 		wiID = ma.currentWorkItemID
+		convID = ma.currentConversationID
 	}
 	c.mu.Unlock()
 
 	if wiID == "" {
+		// No WorkItem. If the in-flight context is a CONVERSATION (agent.converse),
+		// surface the failure as a VISIBLE system message in that conversation (UX
+		// Rule 9 — a DM/channel turn that errored, e.g. invalid model → claude 404,
+		// must not leave the human waiting in silence). Otherwise (truly idle) log.
+		if convID != "" {
+			c.surfaceConverseFailure(agentID, convID, ev)
+			return
+		}
 		c.log("L2 agent=%s is_error turn with NO in-flight WorkItem (subtype=%q) — surfaced as warning, not silently dropped", agentID, ev.Subtype)
 		return
 	}
@@ -1021,6 +1053,44 @@ func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
 		ma.currentWorkItemID = ""
 	}
 	c.mu.Unlock()
+}
+
+// surfaceConverseFailure posts a VISIBLE system message into the conversation of
+// a failed agent.converse turn (no WorkItem) so the human sees the agent errored
+// instead of waiting in silence (UX Rule 9 / #185 follow-up). Best-effort: a
+// report failure is logged (the is_error is still in the activity stream). Clears
+// the in-flight conversation pointer so a stray second result doesn't double-post.
+func (c *AgentController) surfaceConverseFailure(agentID, convID string, ev StreamEvent) {
+	if err := c.cfg.Reporter.ReportConverseError(
+		context.Background(), agentID, convID, converseErrorSummary(ev), time.Now(),
+	); err != nil {
+		c.log("L2 agent=%s conv=%s converse-error report: %v", agentID, convID, err)
+		return
+	}
+	c.log("L2 agent=%s conv=%s converse turn failed (is_error, subtype=%q) — system notice posted", agentID, convID, ev.Subtype)
+	c.mu.Lock()
+	if ma := c.agents[agentID]; ma != nil && ma.currentConversationID == convID {
+		ma.currentConversationID = ""
+	}
+	c.mu.Unlock()
+}
+
+// converseErrorSummary builds a short, human-readable failure summary from the
+// result event for the conversation system message (subtype + a bounded slice of
+// the result text). The full detail remains in the result activity record.
+func converseErrorSummary(ev StreamEvent) string {
+	s := strings.TrimSpace(ev.Subtype)
+	if s == "" {
+		s = "error"
+	}
+	if r := strings.TrimSpace(ev.Result); r != "" {
+		const max = 200
+		if len(r) > max {
+			r = r[:max] + "…"
+		}
+		s = s + ": " + r
+	}
+	return s
 }
 
 // streamActivityPayload builds the JSON activity payload for a StreamEvent,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
@@ -85,6 +86,7 @@ func newFBFixture(t *testing.T) *fbFixture {
 	msgs := convsql.NewMessageRepo(db)
 	readState := convsql.NewReadStateRepo(db)
 	readStateSvc := convservice.NewReadStateService(db, readState, msgs, sink, clk)
+	msgWriter := convservice.NewMessageWriter(db, convs, msgs, sink, gen, clk)
 
 	for _, id := range []string{atWorker1, atWorker2} {
 		w, werr := workforce.NewWorker(workforce.NewWorkerInput{
@@ -105,7 +107,9 @@ func newFBFixture(t *testing.T) *fbFixture {
 			DB: db, AgentSvc: svc, WorkerRepo: workers,
 			AgentRepo:         agents,
 			AgentWorkItemRepo: work, AgentActivityRepo: activity,
-			ReadStateSvc: readStateSvc,
+			ReadStateSvc:  readStateSvc,
+			MessageWriter: msgWriter,
+			ConvRepo:      convs,
 		},
 		verifier: verifier, agents: agents, work: work, activity: activity, outbox: ob,
 		convs: convs, msgs: msgs, readState: readState, gen: gen, clk: clk, ctx: ctx,
@@ -509,6 +513,79 @@ func TestEnvAgentMarkSeen_CrossWorker_403(t *testing.T) {
 	})
 	if status != http.StatusForbidden || body["error"] != "agent_not_bound_to_worker" {
 		t.Fatalf("want 403 agent_not_bound_to_worker, got %d %v", status, body)
+	}
+}
+
+// --- converse-error (#185 follow-up / UX Rule 9) ----------------------------
+
+// seedConvWithAgentParticipant creates a DM conversation with the agent as an
+// active participant. The seeded agent has no identity-member, so its participant
+// ref is the entity ref agent:<id> (matching agentActor's fallback).
+func (f *fbFixture) seedConvWithAgentParticipant(t *testing.T, convID, agentID string) string {
+	t.Helper()
+	c, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID:             conversation.ConversationID(convID),
+		Kind:           conversation.ConversationKindDM,
+		OrganizationID: atTestOrg,
+		CreatedBy:      conversation.IdentityRef("user:alice"),
+		OpenedAt:       f.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetParticipants([]conversation.ParticipantElement{
+		{IdentityID: "user:alice", Role: "owner", JoinedAt: "t"},
+		{IdentityID: conversation.IdentityRef("agent:" + agentID), Role: "member", JoinedAt: "t"},
+	}, f.clk.Now())
+	if err := f.convs.Save(f.ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	return convID
+}
+
+func TestEnvAgentConverseError_PostsSystemMessage(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
+	convID := f.seedConvWithAgentParticipant(t, "conv-1", atAgent1)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/converse-error", "acat_fb_w1", map[string]any{
+		"agent_id": atAgent1, "conversation_id": convID, "error": "error_during_execution: model x not found",
+	})
+	if status != http.StatusOK || body["ok"] != true {
+		t.Fatalf("status = %d body = %v, want 200 ok", status, body)
+	}
+	msgs, err := f.msgs.FindByConversationID(f.ctx, conversation.ConversationID(convID), conversation.MessageFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range msgs {
+		if m.ContentKind() == conversation.MessageContentSystem &&
+			string(m.SenderIdentityID()) == "system" &&
+			strings.Contains(m.Content(), "couldn't process") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want a system 'couldn't process' message in the conversation; got %d msgs", len(msgs))
+	}
+}
+
+func TestEnvAgentConverseError_NotParticipant_403(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
+	// A conversation that does NOT include atAgent1 as a participant.
+	convID, _ := f.seedTaskConvWithMessage(t, "conv-1", "T1", "user:bob", "hi")
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/converse-error", "acat_fb_w1", map[string]any{
+		"agent_id": atAgent1, "conversation_id": convID, "error": "boom",
+	})
+	if status != http.StatusForbidden || body["error"] != "not_a_participant" {
+		t.Fatalf("status = %d body = %v, want 403 not_a_participant", status, body)
 	}
 }
 

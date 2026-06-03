@@ -492,6 +492,11 @@ type feedbackReporter interface {
 	// a wake inject the controller marks the delivered batch seen so the next batch
 	// flush won't re-deliver it.
 	ReportMarkSeen(ctx context.Context, agentID, conversationID, messageID string, at time.Time) error
+	// ReportConverseError posts a VISIBLE system message into a conversation when
+	// an agent.converse turn ended is_error (UX Rule 9 — no silent black hole for
+	// a DM/channel reply that failed, e.g. invalid model → claude 404). summary is
+	// a short failure description (subtype + bounded result text).
+	ReportConverseError(ctx context.Context, agentID, conversationID, summary string, at time.Time) error
 }
 
 // var _ feedbackReporter asserts *AdminClient satisfies the controller seam.
@@ -583,6 +588,29 @@ func (c *AdminClient) ReportMarkSeen(ctx context.Context, agentID, conversationI
 		body["at"] = at.UTC().Format(time.RFC3339Nano)
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/mark-seen", body, nil)
+}
+
+// ReportConverseError POSTs to /admin/environment/agent/converse-error. The
+// server (requireAgentOnWorker-gated) posts a system message into the
+// conversation announcing the agent's turn failed (UX Rule 9). agent_id is the
+// execution-entity id (the worker's view); the server resolves it + the agent's
+// display name when formatting the system message.
+func (c *AdminClient) ReportConverseError(ctx context.Context, agentID, conversationID, summary string, at time.Time) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	if strings.TrimSpace(conversationID) == "" {
+		return errors.New("adminclient: conversation_id required")
+	}
+	body := map[string]any{
+		"agent_id":        agentID,
+		"conversation_id": conversationID,
+		"error":           summary,
+	}
+	if !at.IsZero() {
+		body["at"] = at.UTC().Format(time.RFC3339Nano)
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/converse-error", body, nil)
 }
 
 // doJSON is the shared request helper. Returns a typed error on non-2xx
