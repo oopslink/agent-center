@@ -12,7 +12,9 @@ import {
   useStopAgent,
   type ResetScope,
 } from '@/api/agents';
+import { useWorkers } from '@/api/workers';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
+import { EntityRef } from '@/components/EntityRef';
 
 // AgentDetail (/agents/:id). Agent BC (v2.7 #101). Header (name, lifecycle,
 // availability, worker) + lifecycle controls gated by state, a Reset modal
@@ -23,6 +25,8 @@ export default function AgentDetail(): React.ReactElement {
   const agent = useAgent(id);
   const workItems = useAgentWorkItems(id);
   const activity = useAgentActivity(id);
+  // v2.7 #192: resolve the bound worker_id to its name (raw id on hover).
+  const workers = useWorkers();
 
   const start = useStartAgent(id);
   const stop = useStopAgent(id);
@@ -90,7 +94,19 @@ export default function AgentDetail(): React.ReactElement {
             <AvailabilityBadge availability={a.availability} />
           </div>
           <p className="text-xs text-text-muted">
-            worker <span className="font-mono">{a.worker_id || '—'}</span>
+            {a.worker_id ? (
+              <>
+                worker{' '}
+                <EntityRef
+                  id={a.worker_id}
+                  name={(workers.data ?? []).find((w) => w.worker_id === a.worker_id)?.name || undefined}
+                  fallback={a.worker_id}
+                  testId="agent-detail-worker"
+                />
+              </>
+            ) : (
+              'no worker'
+            )}
           </p>
         </div>
 

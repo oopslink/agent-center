@@ -37,17 +37,10 @@ export function EntityRef({
   testId = 'entity-ref',
 }: EntityRefProps): React.ReactElement {
   const resolved = typeof name === 'string' && name.trim().length > 0;
+  // A dangling reference: not resolved AND no fallback → "(deleted)", never linked.
+  const deleted = !resolved && fallback === undefined;
 
-  if (!resolved) {
-    // A present entity with no display name shows its `fallback`; a dangling
-    // reference (no fallback) shows the "(deleted)" placeholder.
-    if (fallback !== undefined) {
-      return (
-        <span data-testid={testId} data-entity-id={id} title={id} className={className}>
-          {fallback}
-        </span>
-      );
-    }
+  if (deleted) {
     return (
       <span
         data-testid={testId}
@@ -61,6 +54,9 @@ export function EntityRef({
     );
   }
 
+  // Present entity: show the name, or the fallback when it has none.
+  const text = resolved ? name : fallback;
+
   if (to) {
     return (
       <OrgLink
@@ -70,14 +66,14 @@ export function EntityRef({
         title={id}
         className={`hover:underline ${className ?? ''}`}
       >
-        {name}
+        {text}
       </OrgLink>
     );
   }
 
   return (
     <span data-testid={testId} data-entity-id={id} title={id} className={className}>
-      {name}
+      {text}
     </span>
   );
 }
