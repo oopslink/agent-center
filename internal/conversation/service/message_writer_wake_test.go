@@ -168,6 +168,78 @@ func TestAddMessage_DMConversation_NoWakeOutbox(t *testing.T) {
 	}
 }
 
+// saveConvWithAgent saves a conversation that includes an active agent
+// participant (v2.7 #185).
+func (f *wakeFixture) saveConvWithAgent(t *testing.T, id conversation.ConversationID, kind conversation.ConversationKind, owner conversation.OwnerRef, name, agentID string) {
+	t.Helper()
+	c, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID:        id,
+		Kind:      kind,
+		OwnerRef:  owner,
+		Name:      name,
+		CreatedBy: conversation.IdentityRef("user:alice"),
+		OpenedAt:  f.clk.Now(),
+	})
+	if err != nil {
+		t.Fatalf("new conversation: %v", err)
+	}
+	c.SetParticipants([]conversation.ParticipantElement{
+		{IdentityID: conversation.IdentityRef("user:alice"), Role: "owner", JoinedAt: "t"},
+		{IdentityID: conversation.IdentityRef("agent:" + agentID), Role: "member", JoinedAt: "t"},
+	}, f.clk.Now())
+	if err := f.convRepo.Save(f.ctx, c); err != nil {
+		t.Fatalf("save conversation: %v", err)
+	}
+}
+
+// v2.7 #185 FINDING-I: a DM WITH an agent participant MUST emit
+// conversation.message_added (the prior task-only gate left the WakeProjector's
+// DM/channel branch dead → DM/channel→agent never fired). This exercises the
+// real AddMessage→emit path the projector unit tests bypassed.
+func TestAddMessage_DMWithAgent_EmitsWakeOutbox(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-dm-agent")
+	f.saveConvWithAgent(t, convID, conversation.ConversationKindDM, "", "", "AG1")
+
+	if _, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID:   convID,
+		SenderIdentityID: conversation.IdentityRef("user:bob"),
+		ContentKind:      conversation.MessageContentText,
+		Content:          "hi agent",
+		Direction:        conversation.DirectionInbound,
+		Actor:            observability.Actor("user:bob"),
+	}); err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+
+	if evs := f.messageAddedEvents(t); len(evs) != 1 {
+		t.Fatalf("DM-with-agent must emit 1 conversation.message_added (FINDING-I), got %d", len(evs))
+	}
+}
+
+// A channel WITH an agent participant also emits (the WakeProjector then gates
+// on @mention).
+func TestAddMessage_ChannelWithAgent_EmitsWakeOutbox(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-chan-agent")
+	f.saveConvWithAgent(t, convID, conversation.ConversationKindChannel, conversation.NewOrgOwnerRef("org-1"), "general", "AG1")
+
+	if _, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID:   convID,
+		SenderIdentityID: conversation.IdentityRef("user:bob"),
+		ContentKind:      conversation.MessageContentText,
+		Content:          "hey @Helper",
+		Direction:        conversation.DirectionInbound,
+		Actor:            observability.Actor("user:bob"),
+	}); err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+
+	if evs := f.messageAddedEvents(t); len(evs) != 1 {
+		t.Fatalf("channel-with-agent must emit 1 conversation.message_added, got %d", len(evs))
+	}
+}
+
 // A nil outbox dep (default) must not emit and must not break AddMessage.
 func TestAddMessage_NilOutbox_NoEmitNoError(t *testing.T) {
 	f := newWakeFixture(t)

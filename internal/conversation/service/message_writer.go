@@ -246,9 +246,19 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 		// stays atomic: the wake event commits iff the message commits. The
 		// agent's own question carries sender=agent:<id>, which the WakeProjector
 		// self-excludes — so request_input never wakes the asking agent.
+		// Emit conversation.message_added to the cross-BC outbox for the
+		// conversations where an agent may need waking:
+		//   - TASK conversations (owner_ref pm://tasks/) → WorkItem wake (D2-e-i).
+		//   - v2.7 #185: DM/Channel conversations that HAVE an agent participant →
+		//     conversational wake (the WakeProjector decides DM-direct vs
+		//     channel-@mention; loop-break is the user:-only sender check there).
+		// Other conversations — and agent-less DMs/channels — emit nothing: there
+		// is no agent to wake, so the event would be a pure no-op. (FINDING-I: the
+		// emit was previously task-only, leaving the projector's DM/channel branch
+		// dead code → DM/channel→agent never fired.)
 		if w.outbox != nil {
 			ownerRef := string(conv.OwnerRef())
-			if strings.HasPrefix(ownerRef, ownerRefTasksPrefix) {
+			if strings.HasPrefix(ownerRef, ownerRefTasksPrefix) || conversationHasAgentParticipant(conv) {
 				if emitErr := w.emitMessageAddedOutbox(txCtx, conv, m); emitErr != nil {
 					return emitErr
 				}
@@ -258,6 +268,19 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 		return nil
 	})
 	return res, err
+}
+
+// conversationHasAgentParticipant reports whether conv has at least one ACTIVE
+// agent participant (IdentityRef "agent:<id>"). v2.7 #185: gates the DM/Channel
+// conversation.message_added emit so agent-less human conversations stay
+// no-emit (no agent to wake → the outbox event would be a no-op).
+func conversationHasAgentParticipant(conv *conversation.Conversation) bool {
+	for _, p := range conv.Participants() {
+		if p.IsActive() && strings.HasPrefix(string(p.IdentityID), "agent:") {
+			return true
+		}
+	}
+	return false
 }
 
 // messageAddedOutboxPayload is the JSON payload of the EvtConversationMessageAdded
