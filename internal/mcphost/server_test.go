@@ -82,6 +82,8 @@ func textContent(t *testing.T, res *mcp.CallToolResult) string {
 var wantTools = []string{
 	// b3-i (locked)
 	"get_my_work", "post_task_message",
+	// v2.7 #185: DM/channel reply
+	"post_message",
 	// reads
 	"get_task", "get_issue",
 	// pm writes / passthrough

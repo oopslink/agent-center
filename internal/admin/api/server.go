@@ -361,6 +361,7 @@ func (s *Server) routes() {
 	// v2.7 D2-b2 — explicit human-visible communication write tools. The agent
 	// posts to the task it is working; composite tools are atomic (one outer tx).
 	s.mux.HandleFunc("POST /admin/agent-tools/post_task_message", s.postTaskMessageHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/post_message", s.postMessageHandler) // v2.7 #185: DM/channel reply
 	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)

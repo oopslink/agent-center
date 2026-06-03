@@ -106,6 +106,11 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Post a message into a task the calling agent participates in.",
 	}, makePostTaskMessage(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "post_message",
+		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given.",
+	}, makePostMessage(cfg))
+
 	// --- read tools (own-scope) ----------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_task",
@@ -217,6 +222,27 @@ func makePostTaskMessage(cfg Config) mcp.ToolHandlerFor[postTaskMessageArgs, any
 			"content":  args.Text,
 		}
 		return callAdmin(ctx, cfg, "post_task_message", body)
+	}
+}
+
+// postMessageArgs is the typed input for post_message (v2.7 #185). Like
+// post_task_message there is NO agent_id field — it is process-fixed and
+// injected by the handler so the model cannot spoof which agent posts.
+type postMessageArgs struct {
+	ConversationID string `json:"conversation_id" jsonschema:"the conversation to reply in (use the conversation_id from the message you received)"`
+	Text           string `json:"text" jsonschema:"the message text"`
+}
+
+// makePostMessage returns the post_message handler bound to cfg. agent_id is
+// injected from cfg, NEVER from args.
+func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args postMessageArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":        cfg.AgentID,
+			"conversation_id": args.ConversationID,
+			"content":         args.Text,
+		}
+		return callAdmin(ctx, cfg, "post_message", body)
 	}
 }
 

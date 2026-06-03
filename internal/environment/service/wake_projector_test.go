@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -33,6 +34,8 @@ type wakeFixture struct {
 	gen       idgen.Generator
 	clk       *clock.FakeClock
 	ctx       context.Context
+	db        *sql.DB             // v2.7 #185: for building projector variants in tests
+	applied   outbox.AppliedStore // v2.7 #185: ditto
 }
 
 func newWakeFixture(t *testing.T) *wakeFixture {
@@ -71,6 +74,7 @@ func newWakeFixture(t *testing.T) *wakeFixture {
 		workItems: workItems, agents: agents,
 		convs: convs, msgs: msgs, readState: readState, gen: gen,
 		clk: clk, ctx: context.Background(),
+		db: db, applied: applied,
 	}
 }
 
@@ -210,9 +214,15 @@ func (f *wakeFixture) saveWorkItem(t *testing.T, id, agentID, taskRef string, st
 }
 
 func messageAddedEvent(id, convID, taskID, msgID, sender, text string) outbox.Event {
+	return messageAddedEventOwner(id, convID, "pm://tasks/"+taskID, msgID, sender, text)
+}
+
+// messageAddedEventOwner builds a message_added event with an explicit owner_ref
+// (v2.7 #185: empty/non-task owner_ref routes to the DM/channel path).
+func messageAddedEventOwner(id, convID, ownerRef, msgID, sender, text string) outbox.Event {
 	pl, err := json.Marshal(map[string]string{
 		"conversation_id": convID,
-		"owner_ref":       "pm://tasks/" + taskID,
+		"owner_ref":       ownerRef,
 		"message_id":      msgID,
 		"sender":          sender,
 		"text":            text,

@@ -103,6 +103,7 @@ const (
 	cmdTypeAgentReconcile = "agent.reconcile"
 	cmdTypeAgentWork      = "agent.work"
 	cmdTypeAgentWake      = "agent.wake"
+	cmdTypeAgentConverse  = "agent.converse" // v2.7 #185: DM/channel message → inject (no WorkItem)
 )
 
 // wakeDedupCap bounds the per-agent set of already-injected wake message IDs
@@ -151,6 +152,21 @@ type wakePayload struct {
 	WorkItemID     string `json:"work_item_id"`
 	TaskRef        string `json:"task_ref"`
 	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	MessageText    string `json:"message_text"`
+}
+
+// conversePayload decodes an "agent.converse" command (v2.7 #185). Mirrors
+// environment/service.converseCommandPayload. NON-WorkItem: a DM/channel message
+// injected into the running session so the agent replies via the post_message
+// MCP tool (conversation_id is the reply target + the read-state cursor).
+type conversePayload struct {
+	AgentID        string `json:"agent_id"`
+	ConversationID string `json:"conversation_id"`
+	ConvKind       string `json:"conv_kind"`
+	ConvName       string `json:"conv_name"`
+	SenderRef      string `json:"sender_ref"`
+	SenderDisplay  string `json:"sender_display"`
 	MessageID      string `json:"message_id"`
 	MessageText    string `json:"message_text"`
 }
@@ -355,6 +371,13 @@ func (c *AgentController) Handle(ctx context.Context, cmd ControlCommand) error 
 			return nil
 		}
 		return c.wake(ctx, pl)
+	case cmdTypeAgentConverse:
+		var pl conversePayload
+		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
+			c.log("converse decode (offset=%d): %v — skipping", cmd.Offset, err)
+			return nil
+		}
+		return c.converse(ctx, pl)
 	default:
 		// Unknown command type: log + ack (don't wedge the cursor on a command
 		// this controller version doesn't understand).
@@ -648,6 +671,77 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 		}
 	}
 	return nil
+}
+
+// converse handles an agent.converse command (v2.7 #185): a DM/channel message
+// from a human, injected into the agent's running session WITHOUT a WorkItem.
+// It mirrors wake()'s session lookup + dedup + mark-seen, but builds a
+// context-rich brief (who/where + how to reply) and never touches a WorkItem.
+func (c *AgentController) converse(ctx context.Context, pl conversePayload) error {
+	if strings.TrimSpace(pl.AgentID) == "" {
+		c.log("converse missing agent_id — skipping")
+		return nil
+	}
+
+	c.mu.Lock()
+	ma := c.agents[pl.AgentID]
+	var sess agentSession
+	if ma != nil {
+		sess = ma.session
+		// Dedup: a replay of an already-injected message is a no-op (reuses the
+		// same per-agent wakeSeen FIFO set, keyed by conversation message id).
+		if pl.MessageID != "" && ma.wakeSeen != nil {
+			if _, seen := ma.wakeSeen[pl.MessageID]; seen {
+				c.mu.Unlock()
+				c.log("converse agent=%s message=%s already injected — dedup no-op", pl.AgentID, pl.MessageID)
+				return nil
+			}
+		}
+	}
+	c.mu.Unlock()
+
+	if sess == nil {
+		// Not running (shouldn't normally reach here — the projector only enqueues
+		// converse for running agents + posts a system notice otherwise). Retry so
+		// a converse racing a just-started session is not lost.
+		return fmt.Errorf("agent_controller: converse for agent=%s but no running session (retry after reconcile)", pl.AgentID)
+	}
+
+	if err := sess.Inject(ctx, buildConverseBrief(pl)); err != nil {
+		return fmt.Errorf("agent_controller: converse inject agent=%s: %w", pl.AgentID, err)
+	}
+	c.recordWake(pl.AgentID, pl.MessageID)
+
+	// Advance the agent's read-state cursor so a later batch flush doesn't
+	// re-deliver this message. Best-effort (dedup set already guards replay).
+	if pl.ConversationID != "" && pl.MessageID != "" {
+		if err := c.cfg.Reporter.ReportMarkSeen(ctx, pl.AgentID, pl.ConversationID, pl.MessageID, time.Now()); err != nil {
+			c.log("converse agent=%s mark-seen conv=%s msg=%s: %v", pl.AgentID, pl.ConversationID, pl.MessageID, err)
+		}
+	}
+	return nil
+}
+
+// buildConverseBrief renders the stdin brief injected for an agent.converse: who
+// messaged, where (DM vs channel), the text, and how to reply (post_message with
+// the conversation_id). Kept deterministic + plain so claude can act on it.
+func buildConverseBrief(pl conversePayload) string {
+	sender := strings.TrimSpace(pl.SenderDisplay)
+	if sender == "" {
+		sender = strings.TrimSpace(pl.SenderRef)
+	}
+	var header string
+	if pl.ConvKind == "channel" {
+		where := strings.TrimSpace(pl.ConvName)
+		if where == "" {
+			where = "a channel"
+		}
+		header = fmt.Sprintf("[Channel #%s] %s mentioned you:", where, sender)
+	} else {
+		header = fmt.Sprintf("[Direct message from %s]:", sender)
+	}
+	return fmt.Sprintf("%s\n%s\n\n(To reply, use the post_message tool with conversation_id=%q. This is a conversation, not a task — there is no work item to complete.)",
+		header, pl.MessageText, pl.ConversationID)
 }
 
 // recordWake records messageID in the agent's bounded wake-dedup set, evicting
