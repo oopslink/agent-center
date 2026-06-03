@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
 	"syscall"
 	"time"
@@ -352,6 +353,14 @@ func loadConfigForCLI(path string, flagOverrides map[string]string) (config.Conf
 	if path == "" {
 		path = globalConfigPath
 	}
+	// v2.7 #199 follow-up: with no explicit --config (and no global/env), prefer
+	// the user-mode install config (~/.agent-center/etc/config.yaml) over the
+	// built-in defaults. #199 makes the operator run `agent-center server` in the
+	// foreground; without this, a bare run fell back to the system /var/lib paths
+	// (which need root) and failed to start in user mode.
+	if path == "" {
+		path = discoverDefaultConfigPath()
+	}
 	// Drop empty overrides so they don't shadow YAML / env.
 	clean := map[string]string{}
 	for k, v := range flagOverrides {
@@ -364,6 +373,19 @@ func loadConfigForCLI(path string, flagOverrides map[string]string) (config.Conf
 		return config.Config{}, err
 	}
 	return cfg, nil
+}
+
+// discoverDefaultConfigPath returns the user-mode install config path
+// (~/.agent-center/etc/config.yaml) when it exists, else "" (v2.7 #199 follow-up).
+// Lets a bare `agent-center server` (the foreground run command #199 prints) pick
+// up the install's config instead of the built-in system /var/lib defaults that
+// need root. A missing file → "" → fall through to config.Load's defaults.
+func discoverDefaultConfigPath() string {
+	p := filepath.Join(defaultInstallPrefix(true), "etc", "config.yaml")
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	return ""
 }
 
 func emitConfigErrors(w io.Writer, err error) {
