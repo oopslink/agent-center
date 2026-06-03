@@ -292,3 +292,49 @@ func TestInstallerVersion_Fallback(t *testing.T) {
 		t.Errorf("overridden version = %q", got)
 	}
 }
+
+// v2.7 #199: install defaults to FOREGROUND (no unit, no auto-start) and --service
+// opts back into the background service. The end-to-end foreground-vs-service +
+// uninstall/upgrade behavior is covered by Tester's real-install acceptance (a
+// full install needs sibling binaries the unit-test build env lacks); here we
+// lock the decision logic (unitFileExists source-of-truth + the foreground
+// worker run-command rendering).
+func TestUnitFileExists(t *testing.T) {
+	if unitFileExists("") {
+		t.Error("empty path must be false")
+	}
+	if unitFileExists(filepath.Join(t.TempDir(), "nope.plist")) {
+		t.Error("missing file must be false")
+	}
+	p := filepath.Join(t.TempDir(), "unit.plist")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !unitFileExists(p) {
+		t.Error("present file must be true")
+	}
+}
+
+func TestWorkerRunCommand(t *testing.T) {
+	got := workerRunCommand("/bin/agent-center", "/cfg.yaml", installContext{
+		WorkerID: "w1", Bootstrap: "tcp://h:7300", Token: "tok",
+	})
+	for _, want := range []string{
+		"/bin/agent-center worker run", "--config=/cfg.yaml", "--worker-id=w1",
+		"--admin-target=tcp://h:7300", "--admin-token=tok",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("workerRunCommand missing %q in %q", want, got)
+		}
+	}
+	if strings.Contains(got, "--worker-name") || strings.Contains(got, "--server-fingerprint") {
+		t.Errorf("optional flags must be omitted when empty: %q", got)
+	}
+	got2 := workerRunCommand("/bin/agent-center", "/cfg.yaml", installContext{
+		WorkerID: "w1", Bootstrap: "tcp://h:7300", Token: "tok",
+		WorkerName: "My W", Fingerprint: "sha256:AA",
+	})
+	if !strings.Contains(got2, "--worker-name=My W") || !strings.Contains(got2, "--server-fingerprint=sha256:AA") {
+		t.Errorf("optional flags must appear when set: %q", got2)
+	}
+}
