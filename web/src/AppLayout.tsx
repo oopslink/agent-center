@@ -146,17 +146,9 @@ export default function AppLayout(): React.ReactElement {
           >
             <HamburgerIcon />
           </button>
-          <button
-            type="button"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-pressed={collapsed}
-            data-testid="sidebar-collapse-toggle"
-            onClick={() => setCollapsed((v) => !v)}
-            className="hidden h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors md:inline-flex"
-            title="Toggle sidebar (⌘B)"
-          >
-            <SidebarToggleIcon collapsed={collapsed} />
-          </button>
+          {/* v2.7 #186-7a: the desktop collapse toggle moved out of the header
+              into a chevron embedded in the sidebar's right edge (Slack/VSCode
+              pattern, single affordance). ⌘B still toggles it. */}
           {/* v2.7 #166-4: removed the "agent-center" text label next to the logo. */}
           {/* v2.6 FE-3: Org Switcher dropdown. */}
           <div className="relative hidden sm:block">
@@ -212,15 +204,16 @@ export default function AppLayout(): React.ReactElement {
           >
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
-          <span className="hidden text-xs text-text-muted sm:inline">
-            v2 · loopback
-          </span>
+          {/* v2.7 #186-7: removed hardcoded "v2 · loopback" placeholder span
+              (misleading fake version/mode; a real injected build-version badge
+              is deferred to v2.8). */}
         </div>
       </header>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           drawerOpen={drawerOpen}
           collapsed={collapsed}
+          onToggleCollapsed={() => setCollapsed((v) => !v)}
           onDismiss={() => setDrawerOpen(false)}
           displayName={me.data?.display_name}
         />
@@ -300,11 +293,13 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
 function Sidebar({
   drawerOpen,
   collapsed,
+  onToggleCollapsed,
   onDismiss,
   displayName,
 }: {
   drawerOpen: boolean;
   collapsed: boolean;
+  onToggleCollapsed: () => void;
   onDismiss: () => void;
   displayName?: string;
 }): React.ReactElement {
@@ -492,17 +487,31 @@ function Sidebar({
 
   return (
     <>
-      {/* Desktop sidebar — width depends on collapsed flag. */}
+      {/* Desktop sidebar — width depends on collapsed flag. relative so the
+          edge collapse chevron (#186-7a) can sit on the right border. */}
       <nav
         aria-label="primary"
         data-collapsed={collapsed}
         className={[
-          'hidden flex-col flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:flex',
+          'relative hidden flex-col flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:flex',
           collapsed ? 'w-14' : 'w-52',
         ].join(' ')}
       >
         <div className="flex-1 overflow-y-auto">{navTree(collapsed)}</div>
         <SidebarFooter collapsed={collapsed} displayName={displayName} orgBase={orgBase} onSignout={() => signout.mutate()} />
+        {/* v2.7 #186-7a: collapse chevron embedded in the sidebar's right edge
+            (Slack/VSCode pattern). → when collapsed, ← when expanded. */}
+        <button
+          type="button"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-pressed={collapsed}
+          data-testid="sidebar-collapse-toggle"
+          onClick={onToggleCollapsed}
+          title="Toggle sidebar (⌘B)"
+          className="absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary shadow-sm hover:bg-bg-subtle hover:text-text-primary motion-safe:transition-colors"
+        >
+          <SidebarToggleIcon collapsed={collapsed} />
+        </button>
       </nav>
       {/* Mobile drawer — opens on hamburger toggle (always full-width labels). */}
       {drawerOpen && (
