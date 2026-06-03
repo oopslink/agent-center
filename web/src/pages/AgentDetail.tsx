@@ -1,16 +1,39 @@
 import type React from 'react';
+import { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
-import { useAgent } from '@/api/agents';
-import { useFleet } from '@/api/fleet';
+import {
+  useAgent,
+  useAgentActivity,
+  useAgentWorkItems,
+  useResetAgent,
+  useRestartAgent,
+  useStartAgent,
+  useStopAgent,
+  type ResetScope,
+} from '@/api/agents';
+import { useWorkers } from '@/api/workers';
+import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
+import { EntityRef } from '@/components/EntityRef';
 
-// AgentDetail (/agents/:name). Read-only profile + the agent's current
-// executions pulled from the fleet snapshot (matched by agent_cli +
-// worker_id since the snapshot doesn't carry agent_instance_id today).
+// AgentDetail (/agents/:id). Agent BC (v2.7 #101). Header (name, lifecycle,
+// availability, worker) + lifecycle controls gated by state, a Reset modal
+// (scope + double-confirm), a WorkItem queue and an Activity stream.
+// No profile-edit (no backend update-profile endpoint in #101 scope).
 export default function AgentDetail(): React.ReactElement {
-  const { name = '' } = useParams<{ name: string }>();
-  const agent = useAgent(name);
-  const fleet = useFleet();
+  const { id = '' } = useParams<{ id: string }>();
+  const agent = useAgent(id);
+  const workItems = useAgentWorkItems(id);
+  const activity = useAgentActivity(id);
+  // v2.7 #192: resolve the bound worker_id to its name (raw id on hover).
+  const workers = useWorkers();
+
+  const start = useStartAgent(id);
+  const stop = useStopAgent(id);
+  const restart = useRestartAgent(id);
+  const reset = useResetAgent(id);
+
+  const [resetOpen, setResetOpen] = useState(false);
 
   if (agent.isLoading) {
     return (
@@ -40,81 +63,293 @@ export default function AgentDetail(): React.ReactElement {
   }
 
   const a = agent.data;
-  const ownExecs = (fleet.data?.executions ?? []).filter(
-    (e) => e.worker_id === a.worker_id && e.agent_cli === a.agent_cli,
-  );
+  const lc = a.lifecycle;
+  const transient = lc === 'stopping' || lc === 'resetting';
+  const canStart = lc === 'stopped' || lc === 'error';
+  const canStopRestart = lc === 'running';
+  // Reset is available unless the agent is already resetting.
+  const canReset = lc !== 'resetting';
+
+  const lifecyclePending =
+    start.isPending || stop.isPending || restart.isPending;
+  const lifecycleError =
+    (start.error as Error | null)?.message ??
+    (stop.error as Error | null)?.message ??
+    (restart.error as Error | null)?.message ??
+    (reset.error as Error | null)?.message ??
+    null;
 
   return (
-    <section className="space-y-4" data-testid="page-AgentDetail" data-agent-name={a.name}>
-      <header className="border-b border-border-base pb-3">
-        <h2 className="text-xl font-semibold">{a.name}</h2>
-        <p className="text-xs text-text-muted">
-          identity <span className="font-mono">{a.identity_id}</span>
-        </p>
+    <section
+      className="space-y-4"
+      data-testid="page-AgentDetail"
+      data-agent-id={a.id}
+      data-lifecycle={a.lifecycle}
+    >
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base pb-3">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold">{a.name}</h2>
+            <LifecycleBadge lifecycle={a.lifecycle} />
+            <AvailabilityBadge availability={a.availability} />
+          </div>
+          <p className="text-xs text-text-muted">
+            {a.worker_id ? (
+              <>
+                worker{' '}
+                <EntityRef
+                  id={a.worker_id}
+                  name={(workers.data ?? []).find((w) => w.worker_id === a.worker_id)?.name || undefined}
+                  fallback={a.worker_id}
+                  testId="agent-detail-worker"
+                />
+              </>
+            ) : (
+              'no worker'
+            )}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2" data-testid="agent-controls">
+          {canStart && (
+            <button
+              type="button"
+              onClick={() => start.mutate()}
+              disabled={lifecyclePending}
+              className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              data-testid="agent-start-btn"
+            >
+              Start
+            </button>
+          )}
+          {canStopRestart && (
+            <>
+              <button
+                type="button"
+                onClick={() => stop.mutate()}
+                disabled={lifecyclePending}
+                className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                data-testid="agent-stop-btn"
+              >
+                Stop
+              </button>
+              <button
+                type="button"
+                onClick={() => restart.mutate()}
+                disabled={lifecyclePending}
+                className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                data-testid="agent-restart-btn"
+              >
+                Restart
+              </button>
+            </>
+          )}
+          {canReset && (
+            <button
+              type="button"
+              onClick={() => setResetOpen(true)}
+              disabled={transient || reset.isPending}
+              className="rounded border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
+              data-testid="agent-reset-btn"
+            >
+              Reset
+            </button>
+          )}
+          {transient && (
+            <span className="text-xs text-text-muted" data-testid="agent-transient-note">
+              {lc}…
+            </span>
+          )}
+        </div>
       </header>
 
+      {a.lifecycle_error && (
+        <p className="text-xs text-danger" data-testid="agent-lifecycle-error">
+          {a.lifecycle_error}
+        </p>
+      )}
+      {lifecycleError && (
+        <p className="text-xs text-danger" data-testid="agent-action-error">
+          {lifecycleError}
+        </p>
+      )}
+
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded border border-border-base bg-bg-elevated p-4 text-sm text-text-primary">
+        <dt className="text-text-muted">Description</dt>
+        <dd>{a.description || <span className="italic text-text-muted">none</span>}</dd>
+        <dt className="text-text-muted">Model</dt>
+        <dd className="font-mono text-xs">{a.model || '—'}</dd>
         <dt className="text-text-muted">CLI</dt>
-        <dd className="font-mono">{a.agent_cli}</dd>
-        <dt className="text-text-muted">State</dt>
-        <dd>
-          <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase">{a.state}</span>
-        </dd>
-        <dt className="text-text-muted">Worker</dt>
-        <dd className="font-mono text-xs">{a.worker_id || '—'}</dd>
-        <dt className="text-text-muted">Max concurrent</dt>
-        <dd className="font-mono text-xs">{a.max_concurrent ?? '—'}</dd>
-        <dt className="text-text-muted">Builtin</dt>
-        <dd className="font-mono text-xs">{a.is_builtin ? 'yes' : 'no'}</dd>
+        <dd className="font-mono text-xs">{a.cli || '—'}</dd>
+        <dt className="text-text-muted">Skills</dt>
+        <dd className="font-mono text-xs">{a.skills && a.skills.length > 0 ? a.skills.join(', ') : '—'}</dd>
       </dl>
 
+      {/* WorkItem queue */}
       <section className="rounded border border-border-base bg-bg-elevated p-4">
-        <h3 className="mb-2 text-sm font-semibold text-text-primary">Active executions</h3>
-        {fleet.isLoading && (
-          <p className="text-xs text-text-muted" data-testid="agent-exec-loading">
-            Loading fleet…
+        <h3 className="mb-2 text-sm font-semibold text-text-primary">Work items</h3>
+        {workItems.isLoading && (
+          <p className="text-xs text-text-muted" data-testid="agent-workitems-loading">
+            Loading work items…
           </p>
         )}
-        {fleet.isError && (
-          <p className="text-xs text-danger" data-testid="agent-exec-error">
-            {(fleet.error as Error).message}
+        {workItems.isError && (
+          <p className="text-xs text-danger" data-testid="agent-workitems-error">
+            {(workItems.error as Error).message}
           </p>
         )}
-        {fleet.isSuccess && ownExecs.length === 0 && (
-          <p className="text-xs text-text-muted" data-testid="agent-exec-empty">
-            No active executions for this agent right now.
+        {workItems.isSuccess && workItems.data.length === 0 && (
+          <p className="text-xs text-text-muted" data-testid="agent-workitems-empty">
+            No work items in the queue.
           </p>
         )}
-        {ownExecs.length > 0 && (
-          <ul
-            className="divide-y divide-border-base"
-            data-testid="agent-exec-list"
-          >
-            {ownExecs.map((e) => (
+        {workItems.isSuccess && workItems.data.length > 0 && (
+          <ul className="divide-y divide-border-base" data-testid="agent-workitems-list">
+            {workItems.data.map((w) => (
               <li
-                key={e.execution_id}
+                key={w.id}
                 className="flex items-center justify-between py-2 text-xs"
-                data-testid="agent-exec-row"
-                data-execution-id={e.execution_id}
+                data-testid="agent-workitem-row"
+                data-workitem-id={w.id}
+                data-status={w.status}
+                // v2.7 #192: the raw pm task ref stays on hover (the work-item
+                // DTO carries no task title; full task name needs a backend field).
+                title={w.task_ref}
               >
-                <span>
-                  <span className="font-mono">{e.execution_id}</span>{' '}
-                  <span className="text-text-muted">on task</span>{' '}
-                  <OrgLink
-                    to={`/tasks/${encodeURIComponent(e.task_id)}`}
-                    className="font-mono text-accent hover:underline"
-                  >
-                    {e.task_id}
-                  </OrgLink>
-                </span>
+                <span className="text-text-secondary">Work item</span>
                 <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
-                  {e.status}
+                  {w.status}
                 </span>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {/* Activity stream */}
+      <section className="rounded border border-border-base bg-bg-elevated p-4">
+        <h3 className="mb-2 text-sm font-semibold text-text-primary">Activity</h3>
+        {activity.isLoading && (
+          <p className="text-xs text-text-muted" data-testid="agent-activity-loading">
+            Loading activity…
+          </p>
+        )}
+        {activity.isError && (
+          <p className="text-xs text-danger" data-testid="agent-activity-error">
+            {(activity.error as Error).message}
+          </p>
+        )}
+        {activity.isSuccess && activity.data.length === 0 && (
+          <p className="text-xs text-text-muted" data-testid="agent-activity-empty">
+            No activity yet.
+          </p>
+        )}
+        {activity.isSuccess && activity.data.length > 0 && (
+          <ul className="divide-y divide-border-base" data-testid="agent-activity-list">
+            {activity.data.map((ev) => (
+              <li
+                key={ev.id}
+                className="flex items-center justify-between py-2 text-xs"
+                data-testid="agent-activity-row"
+                data-activity-id={ev.id}
+                data-event-type={ev.event_type}
+              >
+                <span className="font-mono">{ev.event_type}</span>
+                <span className="tabular-nums text-text-muted">{ev.occurred_at}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {resetOpen && (
+        <ResetModal
+          pending={reset.isPending}
+          onClose={() => setResetOpen(false)}
+          onConfirm={(scope) => {
+            reset.mutate(
+              { scope, confirm: true },
+              { onSuccess: () => setResetOpen(false) },
+            );
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+// ResetModal — scope select + a SECOND confirmation checkbox before the
+// destructive reset fires with confirm:true.
+function ResetModal({
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: (scope: ResetScope) => void;
+}): React.ReactElement {
+  const [scope, setScope] = useState<ResetScope>('memory');
+  const [confirmed, setConfirmed] = useState(false);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      role="dialog"
+      aria-modal="true"
+      data-testid="agent-reset-modal"
+    >
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
+        <h2 className="text-lg font-semibold">Reset agent</h2>
+        <p className="mt-1 text-xs text-text-muted">
+          Resetting is destructive and cannot be undone. Choose a scope and
+          confirm to proceed.
+        </p>
+
+        <label className="mt-4 mb-1 block text-xs font-medium text-text-primary">
+          Scope
+        </label>
+        <select
+          value={scope}
+          onChange={(e) => setScope(e.target.value as ResetScope)}
+          className="block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent"
+          data-testid="agent-reset-scope"
+        >
+          <option value="memory">Memory</option>
+          <option value="workspace">Workspace</option>
+          <option value="all">All</option>
+        </select>
+
+        <label className="mt-4 flex items-center gap-2 text-xs text-text-primary">
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(e) => setConfirmed(e.target.checked)}
+            data-testid="agent-reset-confirm"
+          />
+          I understand this will reset the agent&apos;s {scope}.
+        </label>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+            data-testid="agent-reset-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!confirmed || pending}
+            onClick={() => onConfirm(scope)}
+            className="rounded bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="agent-reset-submit"
+          >
+            {pending ? 'Resetting…' : 'Reset'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

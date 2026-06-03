@@ -1,3 +1,5 @@
+> ⚠️ **SUPERSEDED (v2.7 #131 carve-out).** The bounded context / feature this ADR decided has been RETIRED in v2.7 (taskruntime/discussion deleted; see sites/designs/v2.7/). Retained as historical record; does not reflect current architecture.
+
 # 0010. Task / TaskExecution 两层模型；AgentSession 合并
 
 | Field | Value |

@@ -45,10 +45,13 @@ func TestAPI_Unread_HappyPath(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	convID, ids := seedConvAndMessages(t, deps, sess.OrgID, "unread-happy", 3)
+	// v2.7 #146: read-state is keyed to the logged-in session identity (the
+	// handler resolves the user per-request), so seed for the session user.
+	sref := conversation.IdentityRef("user:" + sess.IdentityID)
 	// Mark seen up to msg 0.
 	if _, err := deps.ReadStateSvc.MarkSeen(context.Background(), convservice.MarkSeenCommand{
-		UserID: "user:hayang", ConversationID: convID,
-		LastSeenMessageID: ids[0], Actor: observability.Actor("user:hayang"),
+		UserID: sref, ConversationID: convID,
+		LastSeenMessageID: ids[0], Actor: observability.Actor(sref),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +96,7 @@ func TestAPI_Unread_NotFoundConv(t *testing.T) {
 	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp := orgScopedGet(t, s.URL + "/api/conversations/nope/unread", sess)
+	resp := orgScopedGet(t, s.URL+"/api/conversations/nope/unread", sess)
 	if resp.StatusCode != 404 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -166,10 +169,13 @@ func TestAPI_Seen_NoOpBackward(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	convID, ids := seedConvAndMessages(t, deps, sess.OrgID, "seen-noop", 2)
+	// v2.7 #146: seed the cursor for the session user (the handler marks-seen as
+	// the logged-in session identity), so the backward no-op applies same-user.
+	sref := conversation.IdentityRef("user:" + sess.IdentityID)
 	// Pre-seed cursor at msg[1].
 	if _, err := deps.ReadStateSvc.MarkSeen(context.Background(), convservice.MarkSeenCommand{
-		UserID: "user:hayang", ConversationID: convID,
-		LastSeenMessageID: ids[1], Actor: "user:hayang",
+		UserID: sref, ConversationID: convID,
+		LastSeenMessageID: ids[1], Actor: observability.Actor(sref),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -282,11 +288,12 @@ func TestAPI_Seen_DefaultsUserIDToActor(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
-	// Repo should now have a row for user:hayang (the default actor).
+	// v2.7 #146: the row is keyed to the authenticated session identity (the
+	// per-request actor), not the static configured default_user.
 	row, err := deps.ReadStateRepo.FindByUserAndConv(context.Background(),
-		"user:hayang", convID)
+		conversation.IdentityRef("user:"+sess.IdentityID), convID)
 	if err != nil {
-		t.Fatalf("expected row for actor: %v", err)
+		t.Fatalf("expected row for session actor: %v", err)
 	}
 	if row.LastSeenMessageID != ids[0] {
 		t.Fatalf("row last_seen=%s want %s", row.LastSeenMessageID, ids[0])

@@ -98,9 +98,12 @@ export async function request<T>(path: string, init: RequestInitWithTimeout = {}
     ]);
   } catch (err) {
     if (err instanceof ApiError) {
-      // Redirect to /signin on 401 (except for /auth/* endpoints which handle auth themselves).
+      // On 401 (except /auth/* endpoints which handle auth themselves) route the
+      // visitor to the right first screen — /signup on a fresh install, /signin
+      // otherwise (v2.7 #145). The decision uses the public bootstrap probe so a
+      // fresh install lands on register, not a login page it can't use yet.
       if (err.status === 401 && !path.startsWith('/auth/')) {
-        window.location.href = '/signin';
+        void redirectUnauthenticated();
       }
       throw err;
     }
@@ -108,6 +111,30 @@ export async function request<T>(path: string, init: RequestInitWithTimeout = {}
       throw new ApiError(0, 'network_error', err.message);
     }
     throw new ApiError(0, 'unknown_error', String(err));
+  }
+}
+
+// v2.7 #145: decide the unauthenticated first screen via the public bootstrap
+// probe — /signup when the system has no users yet (fresh install), /signin
+// otherwise. Guarded so concurrent 401s don't double-navigate.
+let redirectingUnauthenticated = false;
+async function redirectUnauthenticated(): Promise<void> {
+  if (redirectingUnauthenticated) return;
+  redirectingUnauthenticated = true;
+  let target = '/signin';
+  try {
+    const res = await fetch('/api/auth/bootstrap', { credentials: 'same-origin' });
+    if (res.ok) {
+      const body = (await res.json()) as { initialized?: boolean };
+      if (body.initialized === false) target = '/signup';
+    }
+  } catch {
+    // Network error → fall back to /signin.
+  }
+  if (window.location.pathname !== target) {
+    window.location.href = target;
+  } else {
+    redirectingUnauthenticated = false;
   }
 }
 

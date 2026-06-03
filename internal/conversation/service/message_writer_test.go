@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -258,5 +259,79 @@ func TestArchive_BadActor(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal()
+	}
+}
+
+// TestAddMessage_WithAttachments verifies #133 write-wire: AddMessageCommand.Attachments
+// are persisted on the Message and round-trip via the repo (URI/filename/mime/size).
+func TestAddMessage_WithAttachments(t *testing.T) {
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	fc := clock.NewFakeClock(time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
+	gen := idgen.NewGenerator(fc)
+	er, _ := obsqlite.NewEventRepo(context.Background(), db)
+	sink := observability.NewEventSink(er, er, gen, fc)
+	convRepo := convsqlite.NewConversationRepo(db)
+	msgRepo := convsqlite.NewMessageRepo(db)
+	w := NewMessageWriter(db, convRepo, msgRepo, sink, gen, fc)
+
+	res, err := w.OpenConversation(context.Background(), OpenCommand{
+		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor: observability.Actor("user:hayang"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	atts := []conversation.MessageAttachment{
+		{URI: "ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAV", Filename: "design.png", MimeType: "image/png", Size: 2048},
+	}
+	got, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: res.ConversationID, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "see attached",
+		Direction: conversation.DirectionInbound, Attachments: atts,
+		Actor: observability.Actor("user:hayang"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := msgRepo.FindByID(context.Background(), got.MessageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := m.Attachments()
+	if len(rt) != 1 || rt[0].URI != atts[0].URI || rt[0].Filename != "design.png" || rt[0].MimeType != "image/png" || rt[0].Size != 2048 {
+		t.Fatalf("attachments not persisted/round-tripped: %+v", rt)
+	}
+
+	// A plain message (no attachments) round-trips with none.
+	got2, _ := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: res.ConversationID, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "plain",
+		Direction: conversation.DirectionInbound, Actor: observability.Actor("user:hayang"),
+	})
+	m2, _ := msgRepo.FindByID(context.Background(), got2.MessageID)
+	if len(m2.Attachments()) != 0 {
+		t.Fatalf("plain message should have no attachments, got %+v", m2.Attachments())
+	}
+}
+
+// v2.7 #187: conversation ids are user-facing "<kind>-<8hex>" for channel/DM;
+// task (and other internal) conversations keep the ULID (navigated via owner_ref).
+func TestNewConversationID_PrefixByKind(t *testing.T) {
+	gen := idgen.NewGenerator(clock.SystemClock{})
+	if got := newConversationID(gen, conversation.ConversationKindChannel); !strings.HasPrefix(string(got), "channel-") {
+		t.Errorf("channel id %q want channel- prefix", got)
+	}
+	if got := newConversationID(gen, conversation.ConversationKindDM); !strings.HasPrefix(string(got), "dm-") {
+		t.Errorf("dm id %q want dm- prefix", got)
+	}
+	if got := newConversationID(gen, conversation.ConversationKindTask); !idgen.IsValid(string(got)) {
+		t.Errorf("task conversation id %q want internal ULID (no prefix)", got)
 	}
 }

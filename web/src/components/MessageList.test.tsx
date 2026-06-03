@@ -1,7 +1,22 @@
+import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageList } from './MessageList';
 import type { Message } from '@/api/types';
+
+// v2.7 #160: MessageList now resolves sender display names via useMembers
+// (react-query), so renders need a QueryClient. With no /api/members data the
+// resolver falls back to the raw ref — these tests assert the ref unchanged.
+const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function render(ui: React.ReactElement) {
+  const utils = rtlRender(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return {
+    ...utils,
+    rerender: (next: React.ReactElement) =>
+      utils.rerender(<QueryClientProvider client={qc}>{next}</QueryClientProvider>),
+  };
+}
 
 const sample = (id: string, content: string): Message => ({
   id,
@@ -90,5 +105,49 @@ describe('MessageList', () => {
     fireEvent.click(pill);
     expect(list.scrollTop).toBe(list.scrollHeight);
     expect(screen.queryByTestId('message-list-new-pill')).not.toBeInTheDocument();
+  });
+});
+
+describe('MessageList attachments (#142)', () => {
+  afterEach(() => cleanup());
+
+  const withAtts = (id: string, atts: Message['attachments']): Message => ({
+    ...sample(id, 'see attached'),
+    attachments: atts,
+  });
+
+  it('renders attachments as gated download links with image previews', () => {
+    const { container } = render(
+      <MessageList
+        messages={[
+          withAtts('m1', [
+            { uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAV', filename: 'design.png', mime_type: 'image/png', size: 2048 },
+            { uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAW', filename: 'spec.pdf', mime_type: 'application/pdf', size: 1048576 },
+          ]),
+        ]}
+      />,
+    );
+    const atts = screen.getAllByTestId('message-attachment');
+    expect(atts).toHaveLength(2);
+    // metadata: type label + filename + human size.
+    const kinds = screen.getAllByTestId('attachment-type').map((e) => e.textContent);
+    expect(kinds).toEqual(['IMG', 'FILE']);
+    expect(atts[0]).toHaveTextContent('design.png');
+    expect(atts[1]).toHaveTextContent('spec.pdf');
+    expect(atts[1]).toHaveTextContent('1.0 MB');
+    const links = screen.getAllByTestId('attachment-link');
+    expect(links[0]).toHaveAttribute('href', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    expect(links[1]).toHaveAttribute('href', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAW');
+    const preview = screen.getByTestId('attachment-preview');
+    expect(preview).toHaveAttribute('src', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    // No media elements other than image preview; all fetches go through the same
+    // gated /api/files/{id} endpoint.
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('audio')).toBeNull();
+  });
+
+  it('renders nothing extra for a plain message (no attachments)', () => {
+    render(<MessageList messages={[sample('m2', 'plain')]} />);
+    expect(screen.queryByTestId('message-attachments')).not.toBeInTheDocument();
   });
 });

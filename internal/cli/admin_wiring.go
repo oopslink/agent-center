@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/api"
@@ -21,23 +22,23 @@ import (
 // auto-managed cert + fingerprint files. At least one of SocketPath or
 // TCPListenAddr must be non-empty.
 type AdminTransportConfig struct {
-	SocketPath       string
-	TCPListenAddr    string
-	TLSCertPath      string
-	TLSKeyPath       string
-	FingerprintPath  string
-	Hostname         string
+	SocketPath      string
+	TCPListenAddr   string
+	TLSCertPath     string
+	TLSKeyPath      string
+	FingerprintPath string
+	Hostname        string
 }
 
 // AdminTransportInfo is what runAdminEndpoint returns to the caller
 // (boot banner code in handlers_system.go uses this to print the cert
 // fingerprint, expiry, etc.).
 type AdminTransportInfo struct {
-	TLSFingerprint     string
-	TLSCertNotAfter    time.Time
-	TLSCertGenerated   bool
-	TLSExpiryWarn      bool
-	TLSExpiryDays      int
+	TLSFingerprint   string
+	TLSCertNotAfter  time.Time
+	TLSCertGenerated bool
+	TLSExpiryWarn    bool
+	TLSExpiryDays    int
 }
 
 // runAdminEndpoint starts the v2.2 admin unix-socket server (and, since
@@ -82,9 +83,7 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 	}
 
 	deps := adminDepsFromApp(app)
-	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{
-		Queue: app.DispatchQueue,
-	})
+	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{})
 	// Wrap the inner mux with deps middleware (parallel to
 	// webconsole_wiring.go pattern), then rate-limit (v2.3-7c task #27),
 	// then auth on top so every non-public request must carry a valid
@@ -180,6 +179,19 @@ func enrollBootstrapHost(adminTCPListen string) string {
 	return host + ":" + port
 }
 
+// resolveEnrollBootstrapHost picks the host:port the Web Console "Add Worker"
+// command advertises (v2.7 #200). An explicit bootstrap_public_url wins — it is
+// independent of the bind address, so a center that binds 0.0.0.0/loopback can
+// still advertise a public DNS / LB / NAT address remote workers can dial. A
+// leading "tcp://" scheme (if pasted) is stripped. Empty → derive from the bind
+// address (admin_tcp_listen), the prior behavior.
+func resolveEnrollBootstrapHost(bootstrapPublicURL, adminTCPListen string) string {
+	if p := strings.TrimSpace(bootstrapPublicURL); p != "" {
+		return strings.TrimPrefix(p, "tcp://")
+	}
+	return enrollBootstrapHost(adminTCPListen)
+}
+
 // splitHostPortFlexible accepts "host:port" or ":port" (bare port).
 func splitHostPortFlexible(addr string) (host, port string, err error) {
 	if addr != "" && addr[0] == ':' {
@@ -201,7 +213,7 @@ func newAdminRateLimitSink(app *App) api.RateLimitSink {
 	if app == nil || app.Sink == nil {
 		return nil // Middleware uses noopRateLimitSink as fallback.
 	}
-	return &adminRateLimitSink{sink: app.Sink, actor: app.DefaultActor()}
+	return &adminRateLimitSink{sink: app.Sink, actor: app.operatorActor()}
 }
 
 func (s *adminRateLimitSink) EmitRateLimitHit(id admintoken.TokenID, ip, method, path string) {
@@ -227,46 +239,53 @@ func (s *adminRateLimitSink) EmitRateLimitHit(id admintoken.TokenID, ip, method,
 // admin Client (Phase B), so a missing dep here = a dead CLI path.
 func adminDepsFromApp(a *App) api.HandlerDeps {
 	return api.HandlerDeps{
-		Actor: a.DefaultActor(),
+		Actor: a.operatorActor(),
 
 		// Raw DB for composite endpoints (v2.3-2 ADR-0014 § 2).
 		DB: a.DB,
 
 		// Conversation BC
-		ConvRepo:            a.ConvRepo,
-		MsgRepo:             a.MsgRepo,
-		ConvRefRepo:         a.ConvRefRepo,
-		ReadStateRepo:       a.ReadStateRepo,
-		MessageWriter:       a.MessageWriter,
-		ChannelMgmtSvc:      a.ChannelMgmtSvc,
-		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
-		CarryOverSvc:        a.CarryOverSvc,
-		DerivationSvc:       a.DerivationSvc,
-		ReadStateSvc:        a.ReadStateSvc,
+		ConvRepo:           a.ConvRepo,
+		MsgRepo:            a.MsgRepo,
+		ConvRefRepo:        a.ConvRefRepo,
+		ReadStateRepo:      a.ReadStateRepo,
+		MessageWriter:      a.MessageWriter,
+		ChannelMgmtSvc:     a.ChannelMgmtSvc,
+		ParticipantMgmtSvc: a.ParticipantMgmtSvc,
+		CarryOverSvc:       a.CarryOverSvc,
+		ReadStateSvc:       a.ReadStateSvc,
 
 		// Workforce BC
 		WorkerRepo:        a.WorkerRepo,
-		MappingRepo:       a.MappingRepo,
-		ProposalRepo:      a.ProposalRepo,
-		ProjectRepo:       a.ProjectRepo,
 		AgentInstanceRepo: a.AgentInstanceRepo,
 		EnrollSvc:         a.EnrollSvc,
-		DiscoverySvc:      a.DiscoverySvc,
-		AcceptanceSvc:     a.AcceptanceSvc,
-		ProjectSvc:        a.ProjectSvc,
+		WorkerConfigSvc:   a.WorkerConfigSvc,
 		AgentMgmtSvc:      a.AgentMgmtSvc,
 
-		// TaskRuntime BC
-		TaskRepo:        a.TaskRepo,
-		ExecRepo:        a.ExecRepo,
-		IRRepo:          a.IRRepo,
-		ArtifactRepo:    a.ArtifactRepo,
-		TaskSvc:         a.TaskSvc,
-		IRSvc:           a.IRSvc,
-		ArtifactSvc:     a.ArtifactSvc,
-		ExecSvc:         a.ExecSvc,
-		DispatchSvc:     a.DispatchSvc,
-		KillCoordinator: a.KillCoordinator,
+		// Environment BC (v2.7 D1, ADR-0050, task #102)
+		EnvControlSvc: a.EnvControlSvc,
+		// v2.7 D5 slice-1: SSE down-push bus for /admin/environment/worker/commands/stream.
+		ControlStreamBus: a.ControlStreamBus,
+
+		// Agent BC (v2.7 C3 / D2-b1) — per-agent MCP tool surface.
+		AgentSvc: a.AgentService,
+		// v2.7 D2-f s4 — worker boot-resume endpoint reads the worker's agents.
+		AgentRepo:         a.AgentRepo,
+		AgentWorkItemRepo: a.AgentWorkItemRepo,
+		AgentActivityRepo: a.AgentActivityRepo,
+		// v2.7 D2-e-ii (OQ5): outbox emitter for request_input's agent.awaiting_input.
+		OutboxRepo: a.OutboxRepo,
+
+		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
+		PMService: a.PMService,
+		// pm (new-model) project repo for the operator/admin-token project
+		// find-* read endpoints. v2.7 #131 PR-3.
+		PMProjectRepo: a.PMProjectRepo,
+
+		// Files module (v2.7 post-D3, task #104) — agent file MCP tools. Reuses
+		// the shared buildFilesService helper (same as the webconsole FilesSvc +
+		// GC loop); nil when the blobstore root is unset → file endpoints 501.
+		FilesSvc: buildFilesService(a),
 
 		// SecretManagement BC
 		UserSecretRepo:       a.UserSecretRepo,
@@ -275,13 +294,6 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// AdminToken BC (v2.3-3a task #28)
 		AdminTokenSvc: a.AdminTokenSvc,
-
-		// Discussion BC
-		IssueRepo:                a.IssueRepo,
-		IssueLifecycleSvc:        a.IssueLifecycleSvc,
-		IssueCommentSvc:          a.IssueCommentSvc,
-		IssueBindConversationSvc: a.IssueBindConversationSvc,
-		IssueLinkConversationSvc: a.IssueLinkConversationSvc,
 
 		// Observability BC
 		EventRepo: a.EventRepo,

@@ -187,33 +187,3 @@ func TestAgentInstanceRepo_Archive_RejectsActive(t *testing.T) {
 	}
 }
 
-func TestAgentInstanceRepo_BulkUpdateStateByWorker(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewAgentInstanceRepo(db)
-	for _, name := range []string{"a1", "a2", "a3"} {
-		_ = repo.Save(context.Background(), newAI(t, workforce.AgentInstanceID("01H_"+name), name, "W-1"))
-	}
-	// Mark a2 active so bulk(idle→sleeping) skips it.
-	_ = repo.UpdateState(context.Background(), "01H_a2", workforce.AgentInstanceIdle, workforce.AgentInstanceActive, 1)
-	n, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1", workforce.AgentInstanceIdle, workforce.AgentInstanceSleeping)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 2 {
-		t.Fatalf("expected 2 updated, got %d", n)
-	}
-}
-
-func TestAgentInstanceRepo_CountActiveExecutions(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewAgentInstanceRepo(db)
-	_ = repo.Save(context.Background(), newAI(t, "01HA", "a1", "W-1"))
-	// No task_executions rows referencing it yet.
-	c, err := repo.CountActiveExecutions(context.Background(), "01HA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c != 0 {
-		t.Fatalf("expected 0, got %d", c)
-	}
-}

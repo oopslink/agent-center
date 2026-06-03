@@ -1,4 +1,5 @@
--- 0010_v2_task_executions_agent_instance.down.sql — revert agent_instance_id 字段
-
-DROP INDEX IF EXISTS idx_task_executions_agent_instance;
-ALTER TABLE task_executions DROP COLUMN agent_instance_id;
+-- 0010_v2_task_executions_agent_instance.down.sql
+-- v2.7 #131: task_executions RETIRED — no-op down
+-- Fresh install is new-model only — these legacy tables are never created
+-- (no drop-migration; nothing to drop). This migration is intentionally a
+-- no-op, kept for version-number continuity (schema Version stays 46).

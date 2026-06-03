@@ -54,10 +54,22 @@ var (
 // InviteCommand wraps the invite call.
 type InviteCommand struct {
 	ConversationName string
-	IdentityID       conversation.IdentityRef
-	Role             string // owner|member|observer; default member
-	InvitedBy        conversation.IdentityRef
-	Actor            observability.Actor
+	// OrganizationID scopes the channel-name lookup (v2.7 #195: channel name is
+	// org-scoped unique). Empty = global (org-agnostic admin path).
+	OrganizationID string
+	IdentityID     conversation.IdentityRef
+	Role           string // owner|member|observer; default member
+	InvitedBy      conversation.IdentityRef
+	Actor          observability.Actor
+}
+
+// resolveChannelByName resolves a channel by name, ORG-SCOPED when orgID is set
+// (v2.7 #195), else GLOBAL (the org-agnostic admin path).
+func (s *ParticipantManagementService) resolveChannelByName(ctx context.Context, orgID, name string) (*conversation.Conversation, error) {
+	if strings.TrimSpace(orgID) != "" {
+		return s.convRepo.FindByNameInOrg(ctx, orgID, name)
+	}
+	return s.convRepo.FindByName(ctx, name)
 }
 
 // Invite adds a participant. Returns ErrParticipantAlreadyActive when
@@ -84,7 +96,7 @@ func (s *ParticipantManagementService) Invite(ctx context.Context, cmd InviteCom
 	}
 	var evID observability.EventID
 	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		conv, err := s.convRepo.FindByName(txCtx, cmd.ConversationName)
+		conv, err := s.resolveChannelByName(txCtx, cmd.OrganizationID, cmd.ConversationName)
 		if err != nil {
 			return err
 		}
@@ -128,6 +140,7 @@ func (s *ParticipantManagementService) Invite(ctx context.Context, cmd InviteCom
 // LeaveCommand wraps the self-leave call.
 type LeaveCommand struct {
 	ConversationName string
+	OrganizationID   string // v2.7 #195: org-scopes the name lookup (empty = global)
 	IdentityID       conversation.IdentityRef
 	Reason           string
 	Actor            observability.Actor
@@ -139,6 +152,7 @@ func (s *ParticipantManagementService) Leave(ctx context.Context, cmd LeaveComma
 	reason := orDefault(cmd.Reason, "self_leave")
 	return s.markLeft(ctx, markLeftInput{
 		ConversationName: cmd.ConversationName,
+		OrganizationID:   cmd.OrganizationID,
 		IdentityID:       cmd.IdentityID,
 		Reason:           reason,
 		Actor:            cmd.Actor,
@@ -154,6 +168,7 @@ func (s *ParticipantManagementService) Leave(ctx context.Context, cmd LeaveComma
 // KickCommand wraps the channel-owner-driven kick call.
 type KickCommand struct {
 	ConversationName string
+	OrganizationID   string // v2.7 #195: org-scopes the name lookup (empty = global)
 	IdentityID       conversation.IdentityRef
 	KickedBy         conversation.IdentityRef
 	Reason           string
@@ -169,6 +184,7 @@ func (s *ParticipantManagementService) Kick(ctx context.Context, cmd KickCommand
 	reason := orDefault(cmd.Reason, "kicked")
 	return s.markLeft(ctx, markLeftInput{
 		ConversationName: cmd.ConversationName,
+		OrganizationID:   cmd.OrganizationID,
 		IdentityID:       cmd.IdentityID,
 		Reason:           reason,
 		Actor:            cmd.Actor,
@@ -185,6 +201,7 @@ func (s *ParticipantManagementService) Kick(ctx context.Context, cmd KickCommand
 
 type markLeftInput struct {
 	ConversationName string
+	OrganizationID   string
 	IdentityID       conversation.IdentityRef
 	Reason           string
 	Actor            observability.Actor
@@ -206,7 +223,7 @@ func (s *ParticipantManagementService) markLeft(ctx context.Context, in markLeft
 	}
 	var evID observability.EventID
 	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		conv, err := s.convRepo.FindByName(txCtx, in.ConversationName)
+		conv, err := s.resolveChannelByName(txCtx, in.OrganizationID, in.ConversationName)
 		if err != nil {
 			return err
 		}

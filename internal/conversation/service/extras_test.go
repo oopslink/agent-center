@@ -64,7 +64,7 @@ func TestOpenConversation_ChannelNameRequired(t *testing.T) {
 func TestArchive_VersionConflict(t *testing.T) {
 	_, w := setupRaw(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
-		Kind: conversation.ConversationKindDM,
+		Kind:      conversation.ConversationKindDM,
 		CreatedBy: conversation.IdentityRef("user:hayang"),
 		Actor:     observability.Actor("user:hayang"),
 	})

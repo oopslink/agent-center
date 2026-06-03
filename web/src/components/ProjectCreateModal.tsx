@@ -1,55 +1,19 @@
-// ProjectCreateModal — v2.5.5 (#59) simplified Add Project form.
-//
-// id is server-generated (proj-<8hex>); kind / default_agent_cli are
-// gone. Tags is a free-text combobox with 6 builtin suggestions —
-// operator can pick from the chip row or type a new one and Enter to
-// add it. Submission only requires `name`.
-import React, { useState, useRef } from 'react';
+// ProjectCreateModal — v2.7 Add Project form. id is server-generated;
+// `tags` was retired. Submission only requires `name`.
+import React, { useState } from 'react';
 import { useCreateProject } from '@/api/projects';
 
 interface Props {
   onClose: () => void;
 }
 
-// v2.5.5 design (msg=68d33af4) — small builtin pool, free type still
-// allowed. Pool size 6 keeps the chip row scannable on a 360-wide
-// modal without scrolling.
-const SUGGESTED_TAGS = ['coding', 'research', 'ops', 'docs', 'experimental', 'archived'];
-
 export function ProjectCreateModal({ onClose }: Props): React.ReactElement {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
   const create = useCreateProject();
 
   const trimmedName = name.trim();
   const canSubmit = trimmedName.length > 0 && !create.isPending;
-
-  const addTag = (raw: string) => {
-    const t = raw.trim();
-    if (!t) return;
-    if (tags.includes(t)) return;
-    setTags([...tags, t]);
-    setTagInput('');
-  };
-
-  const removeTag = (t: string) => {
-    setTags(tags.filter((x) => x !== t));
-  };
-
-  const onTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      addTag(tagInput);
-    } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
-      // Convenience: backspace into empty input pops the last chip so
-      // the operator can edit/recreate it without reaching for the
-      // mouse.
-      removeTag(tags[tags.length - 1]);
-    }
-  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +22,6 @@ export function ProjectCreateModal({ onClose }: Props): React.ReactElement {
       await create.mutateAsync({
         name: trimmedName,
         description: description || undefined,
-        tags: tags.length > 0 ? tags : undefined,
       });
       onClose();
     } catch {
@@ -108,52 +71,6 @@ export function ProjectCreateModal({ onClose }: Props): React.ReactElement {
             rows={3}
             className={inputClass}
           />
-        </Field>
-
-        <Field
-          label="Tags"
-          hint="Click a suggestion or type your own (Enter / , to add)."
-        >
-          <div className={tagChipsContainerClass}>
-            {tags.map((t) => (
-              <span key={t} className={tagChipClass} data-testid={`project-create-tag-chip-${t}`}>
-                {t}
-                <button
-                  type="button"
-                  className="ml-1 text-text-muted hover:text-text-primary"
-                  onClick={() => removeTag(t)}
-                  aria-label={`Remove tag ${t}`}
-                >
-                  x
-                </button>
-              </span>
-            ))}
-            <input
-              ref={inputRef}
-              data-testid="project-create-tag-input"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={onTagKeyDown}
-              placeholder={tags.length === 0 ? 'add a tag...' : ''}
-              className="flex-1 min-w-[6rem] bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
-            />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5" data-testid="project-create-tag-suggestions">
-            {SUGGESTED_TAGS.filter((s) => !tags.includes(s)).map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={suggestionPillClass}
-                onClick={() => {
-                  addTag(s);
-                  inputRef.current?.focus();
-                }}
-                data-testid={`project-create-tag-suggest-${s}`}
-              >
-                + {s}
-              </button>
-            ))}
-          </div>
         </Field>
 
         {create.isError && (
@@ -210,12 +127,3 @@ function Field({
 
 const inputClass =
   'block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent';
-
-const tagChipsContainerClass =
-  'flex flex-wrap items-center gap-1.5 rounded border border-border-base bg-bg-elevated px-2 py-1.5 focus-within:border-accent';
-
-const tagChipClass =
-  'inline-flex items-center rounded bg-bg-subtle px-2 py-0.5 text-xs text-text-primary';
-
-const suggestionPillClass =
-  'rounded-full border border-border-base px-2 py-0.5 text-[0.6875rem] text-text-muted hover:bg-bg-subtle hover:text-text-primary';

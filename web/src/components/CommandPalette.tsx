@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 
 // CommandPalette — Cmd/Ctrl-K quick-switcher (v2.3 P6). Searches
-// channels + DMs + issues + tasks client-side (substring match on
-// name/id; case-insensitive). No new dependency: the dropdown +
-// keyboard navigation are ~80 lines instead of pulling cmdk (~13KB).
+// channels + DMs client-side (substring match on name/id;
+// case-insensitive). No new dependency: the dropdown + keyboard
+// navigation are ~80 lines instead of pulling cmdk (~13KB).
 //
 // Hidden by default; AppLayout owns the open/close state so the global
 // ⌘K hook can flip it.
@@ -30,8 +30,6 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
-  const issues = useConversations({ kind: 'issue' });
-  const tasks = useConversations({ kind: 'task' });
 
   // Build the full item list once per data change. Static nav targets
   // come first so an empty query still surfaces top-level pages.
@@ -40,8 +38,7 @@ export function CommandPalette({
       { label: 'Overview', href: '/', hint: 'page' },
       { label: 'Channels', href: '/channels', hint: 'page' },
       { label: 'DMs', href: '/dms', hint: 'page' },
-      { label: 'Issues', href: '/issues', hint: 'page' },
-      { label: 'Tasks', href: '/tasks', hint: 'page' },
+      { label: 'Projects', href: '/projects', hint: 'page' },
       { label: 'Input Requests', href: '/inputrequests', hint: 'page' },
       { label: 'Agents', href: '/agents', hint: 'page' },
       { label: 'Fleet', href: '/fleet', hint: 'page' },
@@ -62,22 +59,8 @@ export function CommandPalette({
         hint: 'dm',
       });
     }
-    for (const c of issues.data ?? []) {
-      out.push({
-        label: `◧ ${c.name || c.id}`,
-        href: `/issues/${encodeURIComponent(c.id)}`,
-        hint: 'issue',
-      });
-    }
-    for (const c of tasks.data ?? []) {
-      out.push({
-        label: `◨ ${c.name || c.id}`,
-        href: `/tasks/${encodeURIComponent(c.id)}`,
-        hint: 'task',
-      });
-    }
     return out;
-  }, [channels.data, dms.data, issues.data, tasks.data]);
+  }, [channels.data, dms.data]);
 
   const filtered = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
@@ -156,7 +139,7 @@ export function CommandPalette({
             setSelected(0);
           }}
           onKeyDown={handleKey}
-          placeholder="Search pages, channels, DMs, issues, tasks…"
+          placeholder="Search pages, channels, DMs…"
           aria-label="Search"
           data-testid="palette-input"
           className="w-full border-b border-border-base bg-transparent px-4 py-3 text-sm text-text-primary placeholder:text-text-muted"

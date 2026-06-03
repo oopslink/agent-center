@@ -358,7 +358,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 > 来源：[ADR-0025 agent:create 协议 = G1 CLI Endpoint](../../../decisions/0025-agent-create-via-cli-not-protocol.md)
 
-派单 NACK 含跟 AgentInstance 相关的 reason（[task-runtime/00-overview § 3.1](../task-runtime/00-overview.md) + [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md)）：
+派单 NACK 含跟 AgentInstance 相关的 reason（[task-runtime/00-overview § 3.1](../../../retired/task-runtime/00-overview.md) + [ADR-0011](../../../decisions/0011-dispatch-reliability-protocol.md)）：
 
 | NACK reason | Supervisor 标准动作 |
 |---|---|
@@ -396,7 +396,7 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 | 项 | 归属 |
 |---|---|
 | Supervisor 自动重试（claude_nonzero / timed_out 自动重发同 trigger）| [roadmap](../../../roadmap.md)（未来视失败率统计决定）|
-| Task-level "long-no-update" auto-ping（每 task 加 idle timer 主动唤醒 supervisor）| [roadmap](../../../roadmap.md)（跟 [task-runtime/00-overview § 8 OOS](../task-runtime/00-overview.md) "ETA 过期触发 supervisor 唤醒" 同类）|
+| Task-level "long-no-update" auto-ping（每 task 加 idle timer 主动唤醒 supervisor）| [roadmap](../../../roadmap.md)（跟 [task-runtime/00-overview § 8 OOS](../../../retired/task-runtime/00-overview.md) "ETA 过期触发 supervisor 唤醒" 同类）|
 | Cross-invocation 协调机制（多 invocation 间互锁）| [roadmap](../../../roadmap.md)（多 supervisor 之前）|
 | Memory 并发写 advisory lock | [roadmap](../../../roadmap.md) |
 | Memory 跨 BC 聚合查询（grep 工具化、Web Console 可视）| [roadmap](../../../roadmap.md) |
@@ -430,8 +430,8 @@ Supervisor 用同样的 `inspect` / `query` / `ps` CLI 查 task / execution / is
 
 ### 跨 BC 协作文档
 
-- [task-runtime/00-overview.md § 7.1](../task-runtime/00-overview.md) — Supervisor 唤醒事件白名单（task / execution / input_request 部分权威）
-- [discussion/00-overview.md § 7.1](../discussion/00-overview.md) — Issue 相关唤醒事件
+- [task-runtime/00-overview.md § 7.1](../../../retired/task-runtime/00-overview.md) — Supervisor 唤醒事件白名单（task / execution / input_request 部分权威）
+- [discussion/00-overview.md § 7.1](../../../retired/discussion/00-overview.md) — Issue 相关唤醒事件
 - [workforce/00-overview.md § 7.1](../workforce/00-overview.md) — Worker / Proposal 相关唤醒事件
 - [conversation/00-overview.md](../conversation/00-overview.md) — conversation.message_added 唤醒事件
 - [observability/00-overview.md](../observability/00-overview.md) — events 表 + `inspect supervisor` 查询接口

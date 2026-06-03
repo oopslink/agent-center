@@ -27,6 +27,14 @@ const readStateSelect = `SELECT user_id, conversation_id, last_seen_message_id,
 	FROM user_conversation_read_state`
 
 // FindByUserAndConv returns the row or ErrReadStateNotFound.
+// DeleteByConversationID hard-removes all read-state rows for a conversation
+// (v2.7 #198, DM delete). Idempotent — no rows = nil.
+func (r *ReadStateRepo) DeleteByConversationID(ctx context.Context, convID conversation.ConversationID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM user_conversation_read_state WHERE conversation_id = ?`, string(convID))
+	return err
+}
+
 func (r *ReadStateRepo) FindByUserAndConv(ctx context.Context,
 	userID conversation.IdentityRef, convID conversation.ConversationID,
 ) (*conversation.UserConversationReadState, error) {
@@ -115,7 +123,7 @@ func (r *ReadStateRepo) Upsert(ctx context.Context,
 func scanReadState(scan func(...any) error) (*conversation.UserConversationReadState, error) {
 	var (
 		userID, convID, lastSeen, updatedAt string
-		version                              int
+		version                             int
 	)
 	if err := scan(&userID, &convID, &lastSeen, &updatedAt, &version); err != nil {
 		return nil, err

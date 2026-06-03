@@ -22,7 +22,7 @@ func TestConversationGetters_AllFields(t *testing.T) {
 		OpenedAt:             now,
 		ClosedAt:             &closed, ClosedReason: "done", ClosedMessage: "wrapped",
 		ArchivedAt: &archived, ArchivedBy: "user:hayang",
-		CreatedAt:  now, UpdatedAt: archived,
+		CreatedAt: now, UpdatedAt: archived,
 		Version: 5,
 	})
 	if err != nil {

@@ -23,12 +23,7 @@ ALTER TABLE conversations ADD COLUMN organization_id TEXT NOT NULL DEFAULT '';
 CREATE INDEX idx_conversations_org
     ON conversations (organization_id);
 
--- ---- projects (Workforce BC) -------------------------------------------------
-
-ALTER TABLE projects ADD COLUMN organization_id TEXT NOT NULL DEFAULT '';
-
-CREATE INDEX idx_projects_org
-    ON projects (organization_id);
+-- ---- projects: RETIRED v2.7 #131 (table no longer created; org-scope N/A) ----
 
 -- ---- workers (Workforce BC) --------------------------------------------------
 

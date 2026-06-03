@@ -90,8 +90,7 @@ describe('Secrets page — strict no-plaintext-echo (ADR-0026 § 5)', () => {
     expect(row).toHaveAttribute('data-secret-state', 'active');
   });
 
-  it('revoke triggers native confirm + DELETE when accepted', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('revoke opens a confirm modal, then DELETEs when confirmed', async () => {
     let revokedId: string | undefined;
     server.use(
       http.delete('/api/secrets/:id', ({ params }) => {
@@ -102,12 +101,14 @@ describe('Secrets page — strict no-plaintext-echo (ADR-0026 § 5)', () => {
     wrap(<Secrets />);
     await waitFor(() => expect(screen.getByTestId('secret-revoke-button')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('secret-revoke-button'));
+    // ConfirmModal appears (no native window.confirm) naming the secret.
+    const modal = await screen.findByTestId('confirm-modal');
+    expect(modal).toHaveTextContent('github');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(revokedId).toBe('S-1'));
-    confirmSpy.mockRestore();
   });
 
-  it('revoke aborts when confirm dismissed', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('revoke aborts (no DELETE) when the confirm modal is cancelled', async () => {
     const hit = vi.fn();
     server.use(
       http.delete('/api/secrets/:id', () => {
@@ -118,8 +119,10 @@ describe('Secrets page — strict no-plaintext-echo (ADR-0026 § 5)', () => {
     wrap(<Secrets />);
     await waitFor(() => expect(screen.getByTestId('secret-revoke-button')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('secret-revoke-button'));
+    await screen.findByTestId('confirm-modal');
+    fireEvent.click(screen.getByTestId('confirm-modal-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('confirm-modal')).toBeNull());
     expect(hit).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it('opens create modal from header button', async () => {

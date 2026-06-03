@@ -2,31 +2,30 @@ import React, { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  useCreateProjectMapping,
   useDeleteProject,
-  useDeleteProjectMapping,
   useProject,
-  useProjectMappings,
+  useProjectCodeRepos,
+  useProjectMembers,
+  useRemoveProjectMember,
   useUpdateProject,
-  type DeleteProjectError,
   type Project,
 } from '@/api/projects';
-import { useFleet } from '@/api/fleet';
 import { useIssues } from '@/api/issues';
 import { useTasksList } from '@/api/tasks';
+import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
+import { ApiError } from '@/api/client';
+import { useAppStore } from '@/store/app';
+import { IssueCreateModal } from '@/components/IssueCreateModal';
+import { TaskCreateModal } from '@/components/TaskCreateModal';
+import { EntityRef } from '@/components/EntityRef';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { ProjectMemberAddModal } from '@/components/ProjectMemberAddModal';
 import { Skeleton } from '@/components/Skeleton';
 
-// ProjectDetail (/projects/:id). Read-only profile + Issues/Tasks
-// preview panels.
-//
-// v2.3-5b cutover (per § 0.6): the Issues/Tasks panels now read real
-// per-project lists via the BC-native endpoints (Discussion BC for
-// issues, TaskRuntime BC for tasks). Previously these were a
-// cross-BC `useConversations({kind:'issue'|'task'})` read filtered
-// purely on the client (the Conversation projection carries no
-// project_id), which surfaced cross-project data with a hint chip.
-// Cutover deletes that hint — the panels now answer the obvious
-// question accurately.
+// ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
+// project hosts its Issues and Tasks as tabs/sections — there is no
+// global Issues/Tasks page and no cross-project aggregation. Worker /
+// project mapping was retired.
 export default function ProjectDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const project = useProject(id);
@@ -67,20 +66,28 @@ export default function ProjectDetail(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-ProjectDetail" data-project-id={p.id}>
       <ProjectHeader project={p} />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <IssuesPanel projectId={p.id} />
-        <TasksPanel projectId={p.id} />
-      </div>
-
-      <WorkersPanel projectId={p.id} />
-      <FleetLinkSection projectId={p.id} />
+      <ProjectWorkTabs projectId={p.id} />
+      <FleetLinkSection />
     </section>
   );
 }
 
-// ProjectHeader inlines the v2.5.3 Edit + Delete actions next to the
-// existing read-view layout.
+function ProjectStatusBadge({ status }: { status: Project['status'] }): React.ReactElement {
+  return (
+    <span
+      className={[
+        'rounded px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide',
+        status === 'archived'
+          ? 'bg-bg-subtle text-text-muted'
+          : 'bg-success/10 text-success',
+      ].join(' ')}
+      data-testid={`project-status-${status}`}
+    >
+      {status}
+    </span>
+  );
+}
+
 function ProjectHeader({ project: p }: { project: Project }): React.ReactElement {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -88,19 +95,9 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
     <header className="space-y-2 border-b border-border-base pb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">{p.name}</h1>
-          <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-muted">
-            {p.id}
-          </span>
-          {p.tags.map((t) => (
-            <span
-              key={t}
-              className="rounded bg-brand/10 px-2 py-0.5 text-[0.6875rem] tracking-wide text-brand"
-              data-testid={`project-tag-${t}`}
-            >
-              {t}
-            </span>
-          ))}
+          {/* v2.7 #192: project name as heading; raw id on hover, no visible badge. */}
+          <h1 className="font-heading text-2xl font-semibold text-text-primary" title={p.id}>{p.name}</h1>
+          <ProjectStatusBadge status={p.status} />
         </div>
         <div className="flex gap-2">
           <button
@@ -117,7 +114,7 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
             onClick={() => setDeleting(true)}
             data-testid="project-delete-btn"
           >
-            Delete
+            Archive
           </button>
         </div>
       </div>
@@ -141,40 +138,13 @@ function ProjectEditModal({
 }): React.ReactElement {
   const [name, setName] = useState(p.name);
   const [description, setDescription] = useState(p.description ?? '');
-  const [tags, setTags] = useState<string[]>(p.tags ?? []);
-  const [tagInput, setTagInput] = useState('');
   const update = useUpdateProject(p.id);
-
-  const addTag = (raw: string) => {
-    const t = raw.trim();
-    if (!t || tags.includes(t)) return;
-    setTags([...tags, t]);
-    setTagInput('');
-  };
-  const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
-  const onTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      addTag(tagInput);
-    } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
-      removeTag(tags[tags.length - 1]);
-    }
-  };
-
-  const sameTags = (a: string[], b: string[]) =>
-    a.length === b.length && a.every((v, i) => v === b[i]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fields: {
-      version: number;
-      name?: string;
-      description?: string;
-      tags?: string[];
-    } = { version: p.version ?? 1 };
+    const fields: { name?: string; description?: string } = {};
     if (name !== p.name) fields.name = name;
     if (description !== (p.description ?? '')) fields.description = description;
-    if (!sameTags(tags, p.tags ?? [])) fields.tags = tags;
     try {
       await update.mutateAsync(fields);
       onClose();
@@ -209,30 +179,6 @@ function ProjectEditModal({
           className={editInputClass}
           data-testid="project-edit-description"
         />
-        <label className="mb-2 mt-3 block text-xs font-medium">Tags</label>
-        <div className={editTagChipsContainerClass}>
-          {tags.map((t) => (
-            <span key={t} className={editTagChipClass} data-testid={`project-edit-tag-chip-${t}`}>
-              {t}
-              <button
-                type="button"
-                className="ml-1 text-text-muted hover:text-text-primary"
-                onClick={() => removeTag(t)}
-                aria-label={`Remove tag ${t}`}
-              >
-                x
-              </button>
-            </span>
-          ))}
-          <input
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={onTagKeyDown}
-            placeholder={tags.length === 0 ? 'add a tag...' : ''}
-            data-testid="project-edit-tag-input"
-            className="flex-1 min-w-[6rem] bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
-          />
-        </div>
         {update.isError && (
           <p className="mt-3 text-xs text-danger" data-testid="project-edit-error">
             {(update.error as Error).message}
@@ -269,19 +215,12 @@ function ProjectDeleteModal({
 }): React.ReactElement {
   const navigate = useNavigate();
   const del = useDeleteProject(p.id);
-  const [conflict, setConflict] = useState<DeleteProjectError | null>(null);
-  const [understood, setUnderstood] = useState(false);
-  const handleDelete = async (force: boolean) => {
+  const handleDelete = async () => {
     try {
-      await del.mutateAsync({ force });
+      await del.mutateAsync();
       navigate('/projects');
-    } catch (err) {
-      const body = err as DeleteProjectError;
-      if (body?.error === 'project_has_active_work') {
-        setConflict(body);
-        return;
-      }
-      // other errors surface below
+    } catch {
+      // surfaced below
     }
   };
   return (
@@ -292,192 +231,38 @@ function ProjectDeleteModal({
       aria-modal="true"
     >
       <div className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold text-danger">Delete project?</h2>
-        {!conflict && (
-          <>
-            <p className="mb-3 text-sm text-text-secondary">
-              Delete <span className="font-mono">{p.name}</span> ({p.id})?
-            </p>
-            <p className="mb-4 text-xs text-text-muted">
-              The Web Console will refuse if active tasks, open issues, or worker
-              mappings reference this project; you can force-delete after confirming.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
-                onClick={onClose}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-                onClick={() => void handleDelete(false)}
-                data-testid="project-delete-confirm"
-              >
-                Delete
-              </button>
-            </div>
-          </>
+        <h2 className="mb-4 text-lg font-semibold text-danger">Archive project?</h2>
+        <p className="mb-3 text-sm text-text-secondary">
+          Archive <span className="font-mono">{p.name}</span> ({p.id})?
+        </p>
+        <p className="mb-4 text-xs text-text-muted">
+          Archiving hides the project from the active list. Its Issues and Tasks
+          remain but the project is marked archived.
+        </p>
+        {del.isError && (
+          <p className="mb-3 text-xs text-danger" data-testid="project-delete-error">
+            {(del.error as Error).message}
+          </p>
         )}
-        {conflict && (
-          <>
-            <p className="mb-3 text-sm font-medium text-warning">
-              Project has active dependencies.
-            </p>
-            <ul className="mb-4 list-inside list-disc text-xs text-text-secondary">
-              {conflict.task_count ? <li>{conflict.task_count} open / suspended tasks</li> : null}
-              {conflict.issue_count ? <li>{conflict.issue_count} open issues</li> : null}
-              {conflict.mapping_count ? <li>{conflict.mapping_count} active worker mappings</li> : null}
-            </ul>
-            <p className="mb-3 text-xs text-text-muted">
-              Force-delete will abandon tasks, leave issues orphaned, and invalidate the
-              worker mappings. The Project row goes away. This is NOT REVERSIBLE.
-            </p>
-            <label className="mb-3 flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={understood}
-                onChange={(e) => setUnderstood(e.target.checked)}
-                data-testid="project-delete-understood"
-              />
-              I understand
-            </label>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
-                onClick={onClose}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!understood}
-                className="rounded bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
-                onClick={() => void handleDelete(true)}
-                data-testid="project-delete-force"
-              >
-                Force delete
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// WorkersPanel lists existing mappings + lets the operator map a new
-// worker. Combobox of all known workers from /api/fleet.
-function WorkersPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const mappings = useProjectMappings(projectId);
-  const fleet = useFleet();
-  const create = useCreateProjectMapping(projectId);
-  const del = useDeleteProjectMapping(projectId);
-  const [showAdd, setShowAdd] = useState(false);
-  const [workerID, setWorkerID] = useState('');
-  const [path, setPath] = useState('');
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!workerID || !path) return;
-    try {
-      await create.mutateAsync({ worker_id: workerID, path });
-      setShowAdd(false);
-      setWorkerID('');
-      setPath('');
-    } catch {
-      // surfaced inline
-    }
-  };
-  return (
-    <div
-      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
-      data-testid="project-workers-panel"
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold text-text-primary">Mapped workers</h2>
-        <button
-          type="button"
-          className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
-          onClick={() => setShowAdd((v) => !v)}
-          data-testid="project-map-worker-btn"
-        >
-          {showAdd ? 'Cancel' : '+ Map worker'}
-        </button>
-      </div>
-      {showAdd && (
-        <form onSubmit={submit} className="mb-3 space-y-2 rounded border border-border-base p-3">
-          <label className="block text-xs">
-            Worker
-            <select
-              value={workerID}
-              onChange={(e) => setWorkerID(e.target.value)}
-              className={editInputClass}
-              data-testid="project-map-worker-select"
-            >
-              <option value="">Choose a worker…</option>
-              {(fleet.data?.workers ?? []).map((w) => (
-                <option key={w.worker_id} value={w.worker_id}>
-                  {w.name} ({w.worker_id})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-xs">
-            Path on worker
-            <input
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
-              placeholder="/Users/me/projects/myp"
-              className={editInputClass}
-              data-testid="project-map-worker-path"
-            />
-          </label>
-          {create.isError && (
-            <p className="text-xs text-danger">{(create.error as Error).message}</p>
-          )}
+        <div className="flex justify-end gap-2">
           <button
-            type="submit"
-            className="rounded bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
-            disabled={!workerID || !path || create.isPending}
-            data-testid="project-map-worker-submit"
+            type="button"
+            className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+            onClick={onClose}
           >
-            {create.isPending ? 'Mapping...' : 'Map worker'}
+            Cancel
           </button>
-        </form>
-      )}
-      {mappings.isLoading ? (
-        <p className="text-xs text-text-muted">Loading…</p>
-      ) : (mappings.data ?? []).filter((m) => m.status === 'active').length === 0 ? (
-        <p className="py-3 text-center text-xs text-text-muted">No workers mapped.</p>
-      ) : (
-        <ul className="divide-y divide-border-base">
-          {(mappings.data ?? [])
-            .filter((m) => m.status === 'active')
-            .map((m) => (
-              <li
-                key={m.id}
-                className="flex items-center justify-between gap-2 py-2"
-                data-testid="project-mapping-row"
-              >
-                <div className="flex flex-col">
-                  <span className="font-mono text-xs text-text-primary">{m.worker_id}</span>
-                  <span className="font-mono text-[0.6875rem] text-text-muted">{m.path}</span>
-                </div>
-                <button
-                  type="button"
-                  className="rounded border border-border-base px-2 py-0.5 text-[0.6875rem] text-text-secondary hover:bg-bg-subtle"
-                  onClick={() => void del.mutateAsync(m.id)}
-                  data-testid="project-unmap-btn"
-                >
-                  Unmap
-                </button>
-              </li>
-            ))}
-        </ul>
-      )}
+          <button
+            type="button"
+            disabled={del.isPending}
+            className="rounded bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+            onClick={() => void handleDelete()}
+            data-testid="project-delete-confirm"
+          >
+            {del.isPending ? 'Archiving…' : 'Archive'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -485,110 +270,359 @@ function WorkersPanel({ projectId }: { projectId: string }): React.ReactElement 
 const editInputClass =
   'mt-1 block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent';
 
-const editTagChipsContainerClass =
-  'mt-1 flex flex-wrap items-center gap-1.5 rounded border border-border-base bg-bg-elevated px-2 py-1.5 focus-within:border-accent';
-
-const editTagChipClass =
-  'inline-flex items-center rounded bg-bg-subtle px-2 py-0.5 text-xs text-text-primary';
-
 // -----------------------------------------------------------------------------
-// Inline PanelCard — mirrors the Home.tsx shape (per brief: don't extract a
-// shared component this pass, just copy).
+// Work tabs: Issues / Tasks live inside the project.
 // -----------------------------------------------------------------------------
-function PanelCard({
-  title,
-  to,
-  empty,
-  loading,
-  children,
-  ...rest
-}: {
-  title: string;
-  to: string;
-  empty: string;
-  loading: boolean;
-  children: React.ReactNode;
-} & React.HTMLAttributes<HTMLDivElement>): React.ReactElement {
-  const items = React.Children.toArray(children);
+type WorkTab = 'issues' | 'tasks' | 'members' | 'repos';
+
+function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactElement {
+  const [tab, setTab] = useState<WorkTab>('issues');
   return (
-    <div className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1" {...rest}>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold text-text-primary">{title}</h2>
-        <OrgLink to={to} className="text-xs text-accent hover:underline">
-          View all →
-        </OrgLink>
+    <div data-testid="project-work-tabs">
+      <div className="flex gap-1" role="tablist" aria-label="project work">
+        <TabButton label="Issues" value="issues" active={tab === 'issues'} onClick={() => setTab('issues')} />
+        <TabButton label="Tasks" value="tasks" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
+        <TabButton label="Members" value="members" active={tab === 'members'} onClick={() => setTab('members')} />
+        <TabButton label="Code repos" value="repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
       </div>
-      {loading ? (
+      <div className="mt-3">
+        {tab === 'issues' && <IssuesPanel projectId={projectId} />}
+        {tab === 'tasks' && <TasksPanel projectId={projectId} />}
+        {tab === 'members' && <MembersPanel projectId={projectId} />}
+        {tab === 'repos' && <CodeReposPanel projectId={projectId} />}
+      </div>
+    </div>
+  );
+}
+
+function TabButton({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: WorkTab;
+  active: boolean;
+  onClick: () => void;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      data-testid={`project-tab-${value}`}
+      className={[
+        'rounded px-3 py-1 text-xs uppercase tracking-wide',
+        active
+          ? 'bg-text-primary text-bg-elevated'
+          : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
+}
+
+// v2.7 #207: map the RemoveProjectMember guard codes to friendly copy (Rule 9).
+function removeMemberErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.code === 'cannot_remove_owner') return "The project owner can't be removed.";
+    if (err.code === 'not_member') return 'This member is no longer in the project.';
+  }
+  return err instanceof Error ? err.message : 'Remove failed, please try again.';
+}
+
+function MembersPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const members = useProjectMembers(projectId);
+  // v2.7 #192: show member display names (raw identity id on hover).
+  const resolveName = useDisplayNameResolver();
+  // v2.7 #207: owner-gated add/remove.
+  const me = useAppStore((s) => s.currentUserId);
+  const remove = useRemoveProjectMember(projectId);
+  const [addOpen, setAddOpen] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<{ id: string; label: string } | null>(null);
+  const data = members.data ?? [];
+  const isOwner = data.some(
+    (m) => normalizeIdentityRef(m.identity_id) === normalizeIdentityRef(me ?? '') && m.role === 'owner',
+  );
+
+  return (
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
+      data-testid="project-members-panel"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-heading text-sm font-semibold text-text-primary">Members</h2>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            data-testid="project-add-member-button"
+            className="rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
+          >
+            + Add
+          </button>
+        )}
+      </div>
+      {members.isLoading ? (
         <div className="space-y-2 py-2">
           <Skeleton height="1.5rem" />
           <Skeleton height="1.5rem" />
         </div>
-      ) : items.length === 0 ? (
-        <p className="py-4 text-center text-xs text-text-muted">{empty}</p>
+      ) : members.isError ? (
+        <p className="py-2 text-xs text-danger" data-testid="project-members-error">
+          {(members.error as Error).message}
+        </p>
+      ) : data.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">No members yet</p>
       ) : (
-        <ul className="divide-y divide-border-base">{items}</ul>
+        <ul className="divide-y divide-border-base">
+          {data.map((m) => {
+            const label = resolveName(m.identity_id) === m.identity_id ? m.identity_id : resolveName(m.identity_id);
+            return (
+              <li
+                key={m.id}
+                data-testid="member-row"
+                data-member-id={m.id}
+                className="flex items-center justify-between gap-3 py-1.5"
+              >
+                <EntityRef
+                  id={m.identity_id}
+                  name={resolveName(m.identity_id) === m.identity_id ? undefined : resolveName(m.identity_id)}
+                  fallback={m.identity_id}
+                  testId="project-member-ref"
+                  className="truncate text-sm text-text-primary"
+                />
+                <span className="flex items-center gap-2">
+                  <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
+                    {m.role}
+                  </span>
+                  {/* Owner-only; the owner row can't be removed (backend guards too). */}
+                  {isOwner && m.role !== 'owner' && (
+                    <button
+                      type="button"
+                      data-testid="project-member-remove"
+                      data-identity={m.identity_id}
+                      onClick={() => {
+                        remove.reset();
+                        setPendingRemove({ id: m.identity_id, label });
+                      }}
+                      className="rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {remove.isError && (
+        <p className="mt-2 text-xs text-danger" data-testid="project-member-remove-error" role="alert">
+          {removeMemberErrorMessage(remove.error)}
+        </p>
+      )}
+
+      {addOpen && (
+        <ProjectMemberAddModal projectId={projectId} existing={data} onClose={() => setAddOpen(false)} />
+      )}
+
+      <ConfirmModal
+        open={pendingRemove !== null}
+        danger
+        busy={remove.isPending}
+        title="Remove member"
+        message={
+          pendingRemove
+            ? `Remove ${pendingRemove.label} from this project? They lose access to the project's tasks and issues.`
+            : undefined
+        }
+        confirmLabel="Remove"
+        onCancel={() => {
+          if (remove.isPending) return;
+          setPendingRemove(null);
+          remove.reset();
+        }}
+        onConfirm={() => {
+          if (!pendingRemove) return;
+          remove.mutate(pendingRemove.id, { onSettled: () => setPendingRemove(null) });
+        }}
+      />
+    </div>
+  );
+}
+
+function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const repos = useProjectCodeRepos(projectId);
+  const data = repos.data ?? [];
+  return (
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
+      data-testid="project-repos-panel"
+    >
+      <h2 className="mb-2 font-heading text-sm font-semibold text-text-primary">Code repos</h2>
+      {repos.isLoading ? (
+        <div className="space-y-2 py-2">
+          <Skeleton height="1.5rem" />
+          <Skeleton height="1.5rem" />
+        </div>
+      ) : repos.isError ? (
+        <p className="py-2 text-xs text-danger" data-testid="project-repos-error">
+          {(repos.error as Error).message}
+        </p>
+      ) : data.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">No code repos linked</p>
+      ) : (
+        <ul className="divide-y divide-border-base">
+          {data.map((r) => (
+            <li
+              key={r.id}
+              data-testid="repo-row"
+              data-repo-id={r.id}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <a
+                href={r.url}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-sm text-accent hover:underline"
+              >
+                {r.label || r.url}
+              </a>
+              <span className="truncate font-mono text-[0.6875rem] text-text-muted">{r.url}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
 }
 
 function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const issues = useIssues({ projectId });
-  const recent = (issues.data ?? []).slice(0, 5);
+  const issues = useIssues(projectId);
+  const [createOpen, setCreateOpen] = useState(false);
+  const data = issues.data ?? [];
   return (
-    <PanelCard
-      title="Issues"
-      to={`/issues?project=${encodeURIComponent(projectId)}`}
-      empty="No issues yet"
-      loading={issues.isLoading}
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
       data-testid="project-issues-panel"
     >
-      {recent.map((iss) => (
-        <li key={iss.id} className="flex items-center justify-between gap-3 py-1.5">
-          <OrgLink
-            to={`/issues/${encodeURIComponent(iss.id)}`}
-            className="truncate text-sm text-text-primary hover:text-accent"
-          >
-            {iss.title || iss.id}
-          </OrgLink>
-          <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-            {iss.status.replace(/_/g, ' ')}
-          </span>
-        </li>
-      ))}
-    </PanelCard>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-heading text-sm font-semibold text-text-primary">Issues</h2>
+        <button
+          type="button"
+          className="rounded bg-brand px-2 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+          onClick={() => setCreateOpen(true)}
+          data-testid="project-issue-create-btn"
+        >
+          + Open Issue
+        </button>
+      </div>
+      {createOpen && (
+        <IssueCreateModal projectId={projectId} onClose={() => setCreateOpen(false)} />
+      )}
+      {issues.isLoading ? (
+        <div className="space-y-2 py-2">
+          <Skeleton height="1.5rem" />
+          <Skeleton height="1.5rem" />
+        </div>
+      ) : issues.isError ? (
+        <p className="py-2 text-xs text-danger" data-testid="project-issues-error">
+          {(issues.error as Error).message}
+        </p>
+      ) : data.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">No issues yet</p>
+      ) : (
+        <ul className="divide-y divide-border-base">
+          {data.map((iss) => (
+            <li
+              key={iss.id}
+              data-testid="issue-row"
+              data-issue-id={iss.id}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <OrgLink
+                to={`/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(iss.id)}`}
+                className="truncate text-sm text-text-primary hover:text-accent"
+              >
+                {iss.title || iss.id}
+              </OrgLink>
+              <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
+                {iss.status.replace(/_/g, ' ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
 function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const tasks = useTasksList({ projectId });
-  const recent = (tasks.data ?? []).slice(0, 5);
+  const tasks = useTasksList(projectId);
+  const [createOpen, setCreateOpen] = useState(false);
+  const data = tasks.data ?? [];
   return (
-    <PanelCard
-      title="Tasks"
-      to={`/tasks?project=${encodeURIComponent(projectId)}`}
-      empty="No tasks yet"
-      loading={tasks.isLoading}
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
       data-testid="project-tasks-panel"
     >
-      {recent.map((tk) => (
-        <li key={tk.id} className="flex items-center justify-between gap-3 py-1.5">
-          <OrgLink
-            to={`/tasks/${encodeURIComponent(tk.id)}`}
-            className="truncate text-sm text-text-primary hover:text-accent"
-          >
-            {tk.title || tk.id}
-          </OrgLink>
-          <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-            {tk.status}
-          </span>
-        </li>
-      ))}
-    </PanelCard>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-heading text-sm font-semibold text-text-primary">Tasks</h2>
+        <button
+          type="button"
+          className="rounded bg-brand px-2 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+          onClick={() => setCreateOpen(true)}
+          data-testid="project-task-create-btn"
+        >
+          + New Task
+        </button>
+      </div>
+      {createOpen && (
+        <TaskCreateModal projectId={projectId} onClose={() => setCreateOpen(false)} />
+      )}
+      {tasks.isLoading ? (
+        <div className="space-y-2 py-2">
+          <Skeleton height="1.5rem" />
+          <Skeleton height="1.5rem" />
+        </div>
+      ) : tasks.isError ? (
+        <p className="py-2 text-xs text-danger" data-testid="project-tasks-error">
+          {(tasks.error as Error).message}
+        </p>
+      ) : data.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">No tasks yet</p>
+      ) : (
+        <ul className="divide-y divide-border-base">
+          {data.map((tk) => (
+            <li
+              key={tk.id}
+              data-testid="task-row"
+              data-task-id={tk.id}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <OrgLink
+                to={`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(tk.id)}`}
+                className="truncate text-sm text-text-primary hover:text-accent"
+              >
+                {tk.title || tk.id}
+              </OrgLink>
+              <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
+                {tk.status}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
-function FleetLinkSection({ projectId }: { projectId: string }): React.ReactElement {
+function FleetLinkSection(): React.ReactElement {
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -596,10 +630,10 @@ function FleetLinkSection({ projectId }: { projectId: string }): React.ReactElem
     >
       <h2 className="font-heading text-sm font-semibold text-text-primary">Workers</h2>
       <p className="mt-1 text-xs text-text-secondary">
-        Worker / execution rollups for this project live in the Fleet view.
+        Worker / execution rollups live in the Fleet view.
       </p>
       <OrgLink
-        to={`/fleet?project=${encodeURIComponent(projectId)}`}
+        to="/fleet"
         className="mt-2 inline-block text-xs text-accent hover:underline"
       >
         View in Fleet →

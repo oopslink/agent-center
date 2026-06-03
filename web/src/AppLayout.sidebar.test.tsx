@@ -32,7 +32,6 @@ beforeAll(() => {
 
 beforeEach(() => {
   localStorage.clear();
-  server.use(http.get('/api/input_requests', () => HttpResponse.json([])));
   // Three channels + two DMs to seed the sub-lists.
   server.use(
     http.get('/api/conversations', ({ request }) => {
@@ -73,26 +72,32 @@ beforeEach(() => {
   // v2.5.x #67 — Projects sub-list under Workspace group.
   server.use(
     http.get('/api/projects', () =>
-      HttpResponse.json([
-        {
-          id: 'proj-abc',
-          name: 'agent-center',
-          description: '',
-          tags: [],
-          version: 1,
-          created_at: '2026-05-27T00:00:00Z',
-          updated_at: '2026-05-27T00:00:00Z',
-        },
-        {
-          id: 'proj-def',
-          name: 'sandbox',
-          description: '',
-          tags: [],
-          version: 1,
-          created_at: '2026-05-27T00:00:00Z',
-          updated_at: '2026-05-27T00:00:00Z',
-        },
-      ]),
+      HttpResponse.json({
+        projects: [
+          {
+            id: 'proj-abc',
+            organization_id: 'org-test',
+            name: 'agent-center',
+            description: '',
+            status: 'active',
+            created_by: 'user:hayang',
+            version: 1,
+            created_at: '2026-05-27T00:00:00Z',
+            updated_at: '2026-05-27T00:00:00Z',
+          },
+          {
+            id: 'proj-def',
+            organization_id: 'org-test',
+            name: 'sandbox',
+            description: '',
+            status: 'active',
+            created_by: 'user:hayang',
+            version: 1,
+            created_at: '2026-05-27T00:00:00Z',
+            updated_at: '2026-05-27T00:00:00Z',
+          },
+        ],
+      }),
     ),
   );
 });
@@ -119,7 +124,6 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
   it('renders each group as a collapsible button + items expanded by default', () => {
     renderShell();
     expect(screen.getByTestId('sidebar-group-toggle-Conversations')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-group-toggle-Work')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-group-toggle-System')).toBeInTheDocument();
     // Conversations expanded by default → Channels + DMs links visible.
     expect(screen.getByRole('link', { name: /channels/i })).toBeInTheDocument();

@@ -1,6 +1,6 @@
 // Package cli — admin_client_conversation.go: Client methods for the
 // Conversation BC admin surface (ConvRepo / MsgRepo / MessageWriter /
-// ChannelMgmtSvc / ParticipantMgmtSvc / CarryOverSvc / DerivationSvc /
+// ChannelMgmtSvc / ParticipantMgmtSvc / CarryOverSvc /
 // ConvRefRepo). Mirrors internal/admin/api/conversation.go 1:1.
 //
 // 19 endpoints registered in internal/admin/api/server.go under the
@@ -177,45 +177,6 @@ type ParticipantLeaveRequest struct {
 	Reason           string `json:"reason"`
 }
 
-// DeriveIssueRequest mirrors api deriveIssueReq.
-type DeriveIssueRequest struct {
-	SourceConversationID string   `json:"source_conversation_id"`
-	SourceMessageIDs     []string `json:"source_message_ids"`
-	ProjectID            string   `json:"project_id"`
-	Title                string   `json:"title"`
-	Description          string   `json:"description"`
-	CreatedBy            string   `json:"created_by"`
-}
-
-// DeriveIssueResponse mirrors the success projection.
-type DeriveIssueResponse struct {
-	IssueID          string `json:"issue_id"`
-	ConversationID   string `json:"conversation_id"`
-	ReferenceCount   int    `json:"reference_count"`
-	IssueEventID     string `json:"issue_event_id"`
-	CarryOverEventID string `json:"carry_over_event_id"`
-}
-
-// DeriveTaskRequest mirrors api deriveTaskReq.
-type DeriveTaskRequest struct {
-	SourceConversationID string   `json:"source_conversation_id"`
-	SourceMessageIDs     []string `json:"source_message_ids"`
-	ProjectID            string   `json:"project_id"`
-	Title                string   `json:"title"`
-	Description          string   `json:"description"`
-	AgentInstanceID      string   `json:"agent_instance_id"`
-	CreatedBy            string   `json:"created_by"`
-}
-
-// DeriveTaskResponse mirrors the success projection.
-type DeriveTaskResponse struct {
-	TaskID           string `json:"task_id"`
-	ConversationID   string `json:"conversation_id"`
-	ReferenceCount   int    `json:"reference_count"`
-	TaskEventID      string `json:"task_event_id"`
-	CarryOverEventID string `json:"carry_over_event_id"`
-}
-
 // =============================================================================
 // ConvRepo — Find / FindByID / FindByName
 // =============================================================================
@@ -370,24 +331,6 @@ func (c *Client) CarryOverFindBySourceMsg(ctx context.Context, sourceMsgID strin
 	err := c.getJSON(ctx, "/admin/conversation/carry-over/find-by-source-msg"+
 		buildQuery("source_message_id", sourceMsgID), &out)
 	return out, err
-}
-
-// =============================================================================
-// DerivationSvc — DeriveIssue / DeriveTask
-// =============================================================================
-
-// DerivationDeriveIssue POSTs /admin/conversation/derivation/derive-issue.
-func (c *Client) DerivationDeriveIssue(ctx context.Context, req DeriveIssueRequest) (DeriveIssueResponse, error) {
-	var res DeriveIssueResponse
-	err := c.postJSON(ctx, "/admin/conversation/derivation/derive-issue", req, &res)
-	return res, err
-}
-
-// DerivationDeriveTask POSTs /admin/conversation/derivation/derive-task.
-func (c *Client) DerivationDeriveTask(ctx context.Context, req DeriveTaskRequest) (DeriveTaskResponse, error) {
-	var res DeriveTaskResponse
-	err := c.postJSON(ctx, "/admin/conversation/derivation/derive-task", req, &res)
-	return res, err
 }
 
 // =============================================================================

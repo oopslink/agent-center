@@ -1,6 +1,6 @@
 import type React from 'react';
 import { lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './AppLayout';
 import { OrgGuard, OrgRedirect } from './OrgContext';
 
@@ -16,21 +16,16 @@ const Channels = lazy(() => import('./pages/Channels'));
 const ChannelDetail = lazy(() => import('./pages/ChannelDetail'));
 const DMs = lazy(() => import('./pages/DMs'));
 const DMDetail = lazy(() => import('./pages/DMDetail'));
-const Issues = lazy(() => import('./pages/Issues'));
 const IssueDetail = lazy(() => import('./pages/IssueDetail'));
-const Tasks = lazy(() => import('./pages/Tasks'));
 const TaskDetail = lazy(() => import('./pages/TaskDetail'));
-const TaskTrace = lazy(() => import('./pages/TaskTrace'));
 const Agents = lazy(() => import('./pages/Agents'));
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
-const InputRequests = lazy(() => import('./pages/InputRequests'));
 const Secrets = lazy(() => import('./pages/Secrets'));
-const Fleet = lazy(() => import('./pages/Fleet'));
+const Environment = lazy(() => import('./pages/Environment'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
-const OrgSettings = lazy(() => import('./pages/OrgSettings'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
 const MembersAgents = lazy(() => import('./pages/MembersAgents'));
 const MemberNew = lazy(() => import('./pages/MemberNew'));
@@ -61,21 +56,18 @@ export function App(): React.ReactElement {
           <Route path="channels/:name" element={<ChannelDetail />} />
           <Route path="dms" element={<DMs />} />
           <Route path="dms/:id" element={<DMDetail />} />
-          <Route path="issues" element={<Issues />} />
-          <Route path="issues/:id" element={<IssueDetail />} />
-          <Route path="tasks" element={<Tasks />} />
-          <Route path="tasks/:id" element={<TaskDetail />} />
-          <Route path="tasks/:id/trace" element={<TaskTrace />} />
           <Route path="agents" element={<Agents />} />
-          <Route path="agents/:name" element={<AgentDetail />} />
+          <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
-          <Route path="inputrequests" element={<InputRequests />} />
+          <Route path="projects/:projectId/issues/:id" element={<IssueDetail />} />
+          <Route path="projects/:projectId/tasks/:id" element={<TaskDetail />} />
           <Route path="secrets" element={<Secrets />} />
-          <Route path="fleet" element={<Fleet />} />
+          {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
+          <Route path="fleet" element={<Navigate to="../environment" replace />} />
+          <Route path="environment" element={<Environment />} />
           <Route path="settings" element={<Settings />} />
           <Route path="me" element={<Me />} />
-          <Route path="org/settings" element={<OrgSettings />} />
           <Route path="members/humans" element={<MembersHumans />} />
           <Route path="members/agents" element={<MembersAgents />} />
           <Route path="members/new" element={<MemberNew />} />

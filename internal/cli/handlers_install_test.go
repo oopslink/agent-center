@@ -192,7 +192,7 @@ func TestInstallWorker_DryRun(t *testing.T) {
 	stdout, _, code := runHandler(t, cmd, []string{
 		"--prefix=" + prefix, "--dry-run",
 		"--bootstrap=tcp://host:7300", "--token=abc",
-		"--server-fingerprint=sha256:AA:BB",
+		"--server-fingerprint=sha256:AA:BB", "--worker-id=w1",
 	})
 	if code != ExitOK {
 		t.Fatalf("dry-run on fresh prefix should ExitOK, got %d", code)
@@ -228,10 +228,29 @@ func TestInstallWorker_UnixBootstrapOK(t *testing.T) {
 	prefix := t.TempDir()
 	_, _, code := runHandler(t, cmd, []string{
 		"--prefix=" + prefix, "--dry-run",
-		"--bootstrap=unix:/tmp/admin.sock", "--token=abc",
+		"--bootstrap=unix:/tmp/admin.sock", "--token=abc", "--worker-id=w1",
 	})
 	if code != ExitOK {
 		t.Fatalf("unix:/ bootstrap without fingerprint should succeed, got %d", code)
+	}
+}
+
+// v2.7 #171 (@oopslink): --worker-id is REQUIRED — there is no hostname
+// fallback. A bare `install worker` (id omitted) must fail with a clear
+// ExitUsage error pointing back at the Web Console Add Worker command,
+// so two workers on one machine can't silently collide on hostname.
+func TestInstallWorker_RejectsMissingWorkerID(t *testing.T) {
+	cmd := InstallWorkerCommand()
+	prefix := t.TempDir()
+	_, stderr, code := runHandler(t, cmd, []string{
+		"--prefix=" + prefix, "--dry-run",
+		"--bootstrap=unix:/tmp/admin.sock", "--token=abc",
+	})
+	if code != ExitUsage {
+		t.Fatalf("missing --worker-id should be ExitUsage, got %d", code)
+	}
+	if !strings.Contains(stderr, "--worker-id is required") {
+		t.Errorf("stderr should mention worker-id requirement: %q", stderr)
 	}
 }
 
@@ -271,5 +290,58 @@ func TestInstallerVersion_Fallback(t *testing.T) {
 	defer func() { installBuildVersion = prior }()
 	if got := installerVersion(); got != "v9.9.9-test" {
 		t.Errorf("overridden version = %q", got)
+	}
+}
+
+// v2.7 #199: install defaults to FOREGROUND (no unit, no auto-start) and --service
+// opts back into the background service. The end-to-end foreground-vs-service +
+// uninstall/upgrade behavior is covered by Tester's real-install acceptance (a
+// full install needs sibling binaries the unit-test build env lacks); here we
+// lock the decision logic (unitFileExists source-of-truth + the foreground
+// worker run-command rendering).
+func TestUnitFileExists(t *testing.T) {
+	if unitFileExists("") {
+		t.Error("empty path must be false")
+	}
+	if unitFileExists(filepath.Join(t.TempDir(), "nope.plist")) {
+		t.Error("missing file must be false")
+	}
+	p := filepath.Join(t.TempDir(), "unit.plist")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !unitFileExists(p) {
+		t.Error("present file must be true")
+	}
+}
+
+func TestWorkerRunCommand(t *testing.T) {
+	got := workerRunCommand("/bin/agent-center", "/cfg.yaml", installContext{
+		WorkerID: "w1", Bootstrap: "tcp://h:7300", Token: "tok",
+	})
+	for _, want := range []string{
+		"/bin/agent-center worker run", "--config=/cfg.yaml", "--worker-id=w1",
+		// v2.7 FINDING-P (#204): foreground command emits the friendly
+		// --bootstrap/--token spelling, identical to `install worker` + the UI.
+		"--bootstrap=tcp://h:7300", "--token=tok",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("workerRunCommand missing %q in %q", want, got)
+		}
+	}
+	// The foreground command must NOT use the legacy spelling (the whole point of
+	// #204 is one vocabulary across UI/install/worker run).
+	if strings.Contains(got, "--admin-target=") || strings.Contains(got, "--admin-token=") {
+		t.Errorf("foreground command must use --bootstrap/--token, not legacy admin-*: %q", got)
+	}
+	if strings.Contains(got, "--worker-name") || strings.Contains(got, "--server-fingerprint") {
+		t.Errorf("optional flags must be omitted when empty: %q", got)
+	}
+	got2 := workerRunCommand("/bin/agent-center", "/cfg.yaml", installContext{
+		WorkerID: "w1", Bootstrap: "tcp://h:7300", Token: "tok",
+		WorkerName: "My W", Fingerprint: "sha256:AA",
+	})
+	if !strings.Contains(got2, "--worker-name=My W") || !strings.Contains(got2, "--server-fingerprint=sha256:AA") {
+		t.Errorf("optional flags must appear when set: %q", got2)
 	}
 }

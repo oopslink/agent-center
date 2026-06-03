@@ -11,6 +11,459 @@ ADR / phase plan landscape, see
 
 ---
 
+## [Unreleased]
+
+### Notes / Compatibility
+
+- **Agent-supervisor RPC protocol — backward-compatibility contract
+  (deferred-with-trigger).** The v2.7 agent-execution cutover drops the
+  cross-version range gate on the persistent agent-supervisor's RPC: a returning
+  worker daemon always re-attaches to a live supervisor regardless of its
+  advertised protocol version. The protocol is therefore assumed
+  **backward-compatible**, which is a CONVENTION, not a runtime guarantee:
+  protocol evolution MUST be **additive only** (add optional fields; never
+  remove/repurpose a field or change a message's semantics). **Trigger:** if a
+  future change is genuinely breaking, it MUST at that time re-introduce a
+  mixed-version guard (force-relaunch incompatible old supervisors) or
+  force-relaunch all existing agents on deploy, plus its real-claude e2e —
+  otherwise an old supervisor mis-parses the new wire and re-attach silently
+  breaks. Canonical record: the `ProtocolVersion` note in
+  `internal/agentsupervisor/protocol.go` (+ the re-entry comment in
+  `supervisormanager.ProbeAgent`); also registered on the acceptance side (§A).
+- **Agent terminal-fail → queued WorkItem reassignment (deferred-with-trigger).**
+  The v2.7 GATE-7 Mode-B self-heal circuit-breaker (an agent that crash-loops past
+  its relaunch cap → terminal `LifecycleFailed`) cascades only its IN-FLIGHT
+  WorkItems (active + waiting_input) → failed, atomically (so the user's task never
+  silently looks "still running"). A **queued** WorkItem (not yet started, not
+  session-bound) is deliberately LEFT `queued`: its work is unstarted/recoverable, so
+  failing it would wrongly kill work that could still run, and the owning agent is
+  itself visibly `failed` (queryable) — so the residual is non-silent and loses no
+  done work. Long-term, a queued WorkItem on a terminally-failed agent should be
+  **reassigned to a healthy agent** (work is not session-bound; the reassignment
+  mechanism `AgentWorkItem.Supersede` + recreate already exists), but wiring
+  agent-death → workforce/dispatch reassignment is a cross-BC change beyond
+  Mode-B/B3. **Trigger:** queued WorkItems stuck on dead agents become a practical /
+  fleet-scale pain point → wire the agent-death→reassign path + its e2e then.
+  Canonical record: the cascade comment in
+  `internal/agent/service/appservices.go` (`MarkAgentFailed`); also registered on the
+  acceptance side (§A).
+- **L2 no-silent-failure turn↔WorkItem correlation (deferred-with-trigger).** When a
+  claude turn ends with `is_error=true`, the AgentController fails the agent's
+  in-flight WorkItem so a failed turn never sits silently `active`. The correlation
+  uses the **last** WorkItem injected into the session (`managedAgent.currentWorkItemID`),
+  NOT a precise per-turn id — claude's `result` line carries no WorkItem id, and the
+  result event is delivered asynchronously by the session pump (~50ms). If a second
+  `work()` injects before the first turn's result is pumped, the result is
+  mis-attributed, and the race is two-sided: charging result(A) to B both wrongly
+  fails B AND leaves A silently active (A's failure never surfaces). v2.7 injects
+  sequentially with low/=1 `max_concurrent`, so the window is effectively unreachable.
+  **Trigger:** `max_concurrent > 1` OR an observed mis-attribution → add precise
+  correlation (a turn-seq/token claude echoes back). Canonical record: the
+  `currentWorkItemID` comment in `internal/workerdaemon/agent_controller.go`; also
+  registered on the acceptance side (§A).
+- **GATE-7 Mode-B orphan fork-generation sessions (deferred-with-trigger).** The
+  Mode-B crash-relaunch fix forks the killed session into a new generation id each
+  relaunch (see Fixed below). The prior generations' claude session jsonl files
+  (`~/.claude/projects/<path>/<old-id>.jsonl`) are left behind — harmless but
+  accumulating across repeated crashes. **Trigger:** if fork-generation orphans
+  become a disk/clutter concern at scale → add a housekeeping sweep that prunes
+  superseded-generation session files for an agent on reset / terminal-fail.
+  Canonical record: the `Generation` comment in
+  `internal/supervisormanager/epoch.go`; also registered on the acceptance side (§A).
+- **Detached-supervisor claude stderr is not captured (deferred-with-trigger,
+  observability).** The agent-supervisor runs `claude` with `Stderr = os.Stderr` and
+  is itself spawned detached (`exec.Command` + `Release` + setsid), so claude's
+  stderr follows the daemon's stderr fd and is NOT persisted per-agent. This made a
+  real-path "Session ID already in use" error invisible in the worker log during the
+  GATE-7 Mode-B diagnosis (the mechanism was confirmed via isolated repro instead).
+  **Trigger:** when agent-claude failure diagnosis needs the child's own stderr →
+  redirect the supervisor's claude stderr to a per-agent home file. Non-blocking;
+  registered on the acceptance side (§A).
+- **Mode-B WorkItem-id rebind placement (deferred-with-trigger, defensive).** The
+  L2×Mode-B fix rebinds the in-flight WorkItem id onto the relaunched managedAgent's
+  `currentWorkItemID` AFTER `startSession` returns (in `bootReapRelaunch`), rather
+  than inside `startSession` at managedAgent creation. There is a theoretical window
+  between those two steps where a resume-phase result could read an empty id, but it
+  is UNREACHABLE today: under stream-json `--input-format`, claude does not turn on
+  `--resume`/`--fork-session` until it receives stdin input (the resume-nudge,
+  injected AFTER the bind), so no result can land before the bind. **Trigger:** a
+  future bind-point / nudge-timing refactor, OR observing any resume-phase (pre-nudge)
+  result → move the bind INTO `startSession` (set `currentWorkItemID` at managedAgent
+  creation = structurally window-free). Canonical record: the bind comment in
+  `internal/workerdaemon/boot_reconcile.go` (`bootReapRelaunch`); also registered on
+  the acceptance side (§A).
+
+### Fixed
+
+- **Agent-claude could not reach the Anthropic API behind an HTTP proxy (GATE-1
+  ship-blocker).** The supervisor's default-deny env allowlist (`BuildClaudeEnv`)
+  stripped `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`/`ALL_PROXY` (+ lowercase), so in a
+  proxied deployment claude's API request was rejected with a 403 (misleadingly
+  surfaced as `authentication_failed`) — agent work was consumed but no turn was
+  produced. The proxy routing vars are now allowlisted (routing config, not worker
+  secrets; the `AGENT_CENTER_*` secret drop and `CLAUDE_CODE_*` deny are unchanged).
+- **A failed claude turn no longer sits silently active (L2 no-silent-failure).** A
+  `result` event with `is_error=true` now fails the in-flight WorkItem
+  (`active→failed` via the normal feedback edge — distinct from the GATE-7 Mode-B
+  agent-death cascade, which handles a crashed/result-less claude), so a failed turn
+  surfaces as a failed task instead of a task stuck "running".
+- **GATE-7 Mode-B crash recovery failed to relaunch (session-id lock; A-seg
+  ship-blocker).** A hard-killed claude (kill -9 / OOM / killpg) does NOT release its
+  session-id lock, so the self-heal / boot-reconcile relaunch — which re-used the
+  same durable-epoch session-id — was refused by claude (`Session ID … already in
+  use`), exited before producing any output, took the supervisor down with it, and
+  crash-looped to the terminal circuit-breaker (work lost). It manifested as a timing
+  race (idle agents whose lock released in time recovered; work-in-flight agents,
+  exactly what Mode-B protects, consistently failed). The relaunch now FORKS the
+  killed session into a fresh, never-locked id: a per-agent **generation** counter is
+  bumped+persisted (atomically, under the home lock, before spawn) per relaunch
+  attempt, and the supervisor spawns claude with `--session-id
+  SessionUUIDGen(agent,epoch,gen) --resume <prior-id> --fork-session` — preserving
+  the conversation while sidestepping the lock, deterministically (independent of
+  lock-hold timing). Generation 0 derives byte-identically to the pre-fix
+  `SessionUUID(agent,epoch)`, so initial/normal/clean-restart sessions are unchanged;
+  only the crash-recovery paths fork. A reset zeroes the generation (clean slate).
+- **A failed re-drive turn after a Mode-B relaunch no longer silently leaves its
+  WorkItem active (L2×Mode-B no-silent-failure).** On a crash the `managedAgent`
+  (which holds `currentWorkItemID`) is deleted, and the relaunch's resume-nudge does
+  not flow through `work()`, so the in-flight WorkItem id was lost across the
+  relaunch — if the re-driven turn then ended with `is_error` while the agent stayed
+  alive, L2 had no WorkItem to fail (it surfaced only a warning) and B3 (the
+  agent-death cascade) did not apply, leaving the original WorkItem silently
+  `active`. The in-flight WorkItem id is now carried across the crash: captured
+  before the managedAgent is deleted, stored on the crash-surviving `selfHealEntry`
+  (self-heal path) or taken from resume-state's active WorkItem (boot-reconcile
+  path), and rebound onto the relaunched managedAgent's `currentWorkItemID` — the
+  same field L2's `surfaceTurnFailure` reads — so a failed re-drive fails the
+  WorkItem (`active→failed`) instead of going silent.
+- **Agent `Profile.Model` was ignored by the v2.7 control-loop spawn (all agents
+  used claude's default model).** The supervisor's `--model` plumbing existed
+  downstream, but no control-loop path fed the agent's configured model into it: the
+  reconcile command, resume-state, and the `agent.lifecycle_changed` event all
+  lacked it, and the daemon (AdminClient-only, no DB) cannot self-source it. The
+  model is now carried end-to-end: the Agent BC emits it in the lifecycle event
+  (ADDITIVE field), the Environment projector passes it through into the reconcile
+  command (pure event-driven, no Agent-repo read), and resume-state carries it; the
+  daemon threads it on all three spawn paths — initial reconcile, **the mid-run
+  self-heal relaunch (carried across the crash on `selfHealEntry.model`, since
+  self-heal gets no fresh reconcile — otherwise a crash would silently revert the
+  agent to claude's default model)**, and boot-reconcile (`centerRecord.Model` from
+  resume-state) — into the supervisor's `--model`. **Semantics:** the model is
+  snapshotted at the (re)start that emits the lifecycle event, i.e. a model change
+  takes effect on the next (re)start/relaunch, not live mid-session. Backward-compat:
+  an empty `Profile.Model` passes no `--model` (claude default), so existing
+  unconfigured agents are unchanged. (`Profile.EnvVars` remains deferred to slice ②
+  — its layer-2 agent-env injection is a worker-secret-leak boundary needing
+  dedicated security acceptance, a separate track from this low-risk model name.)
+- **Task/Issue conversations were created without an organization_id → humans could
+  not reply to them (and could not wake a waiting_input agent).** The participant
+  projector created the bound task/issue Conversation without stamping its org, so
+  every org-scoped conversation endpoint — including `POST
+  /api/conversations/{id}/messages` (the web UI's human-reply route) — hit
+  `requireConversationInOrg`'s `conv.org == actor.org` check with an empty conv org
+  and returned 404 to **everyone**, including a legitimate same-org participant. This
+  broke the core interaction: a human could not reply to an agent waiting on input,
+  so the agent never woke (GATE-4 ship-blocker). The project's org now rides the
+  `agent.*.created` event payload (sourced from the project at emit) and the projector
+  stamps it onto the Conversation at creation; the create branch refuses an empty org
+  (defensive, no silent broken conversation). v2.7 is a fresh install (drop+recreate)
+  so no backfill of pre-existing org-less conversations is needed.
+- **macOS 26 (Darwin 25) `install`/`upgrade` failed to start the service (ship-blocker
+  #150).** `serviceActivateCmds` activated the launchd unit with the deprecated
+  `launchctl load`, which is removed on macOS 26 → the service never started → the
+  admin unix socket was never created → the post-install health probe failed with
+  `dial unix admin.sock: no such file or directory` and the upgrade rolled back.
+  Activation now uses `launchctl bootout`/`bootstrap` (the modern API the v2.5.17
+  uninstall fix already adopted); systemd is unchanged. **This was the real
+  install-time startup blocker** behind the "center won't start" reports.
+- **Install default `server.listen_addr` changed `:7000` → `:7050` (#161).** Note:
+  this field is **vestigial** — it is parsed and validated-required but never bound (a
+  leftover from the pre-carve-out gRPC dispatch listener). The center actually listens
+  on the Web Console port (`127.0.0.1:7100`) and the admin endpoint (TCP `:7300` + a
+  unix socket). Changing the default is a cleanup to avoid confusion with macOS
+  AirPlay Receiver's `:7000`; it is **not** a startup-failure fix — the startup
+  blocker was #150. (The vestigial field itself is removed in v2.8, #174.)
+- **Agents could not run any task — every agent's claude turn failed with `403
+  Request not allowed` (#182, FINDING-G).** The agent's claude is launched with
+  `--setting-sources ""` (intended to isolate the operator's `~/.claude`
+  hooks/settings), but that value loads NO settings sources — and claude's keychain
+  `/login` credential is loaded via the **user** source. So the flag suppressed
+  authentication and every turn 403'd (orchestration, MCP, and the streaming
+  pipeline all worked — only claude's own auth failed). The flag is now
+  `--setting-sources user,project`: **user** restores `/login` auth, **project** lets
+  the agent carry its own config in `<workspace>/.claude` (created empty per agent).
+  **Tradeoff:** loading the user source also loads the operator's user-level
+  `~/.claude` settings (hooks/env/plugins) in the agent — user-level isolation is not
+  solved here (auth and operator settings share the user source); full isolation is
+  deferred to v2.8 via a `setup-token` (`CLAUDE_CODE_OAUTH_TOKEN`) path. `--strict-mcp-config`
+  still pins MCP servers to our generated config.
+- **Per-agent home path no longer double-nests `workers/<worker-id>` (#179).** The
+  runtime home resolved to `<base>/workers/<wid>/agents/<id>` even though `<base>`
+  (the worker's `…/var/agent-homes`) was already worker-scoped — a redundant segment
+  that also helped push the supervisor socket path past macOS's limit (see #178). It
+  is now `<base>/agents/<id>` (agentPaths + the boot-reconcile scan changed in
+  lockstep so re-attach still finds surviving supervisors).
+- **Per-agent home layout flattened to `workers/<wid>/var/agents/<ULID>/` (#209).**
+  The base previously resolved to `…/var/agent-homes`, so the per-agent home was
+  `…/var/agent-homes/agents/<id>` — `agent-homes/` was a meaningless wrapper (its
+  only child was `agents/`). The base is now the worker state dir (`…/var`)
+  directly, dropping the wrapper (same cleanup spirit as #179; also shortens the
+  supervisor socket-adjacent paths). Fresh-install only — no migration (v2.6→v2.7
+  already requires reinstall); existing pre-tag installs uninstall + `rm -rf` +
+  reinstall.
+- **Fresh install web console first-screen now routes correctly (#145, ship-blocker).**
+  The auth middleware guarded the entire mux, so the SPA's `/`, `/signin`, `/signup`,
+  and `/assets/*` all returned `401 JSON` on first load — the SPA catch-all never
+  reached. Middleware now guards only `/api/*`; SPA paths are served directly. A new
+  public endpoint `GET /api/auth/bootstrap` returns `{"initialized":bool}` so the
+  frontend deterministically routes an unauthenticated user to `/signup` (fresh
+  system) vs `/signin` (already initialized), instead of probing `/api/orgs 401`.
+- **Worker now appears `online` within ~1 RTT instead of up to 30s after start
+  (#154).** `RunDaemon` invoked a single `Heartbeat()` immediately before entering the
+  ticker loop, so `MarkOnline` + the `workforce.worker.online` event fire on the first
+  RTT after enroll — both fresh starts and restarts — rather than waiting for the
+  default 30s ticker.
+- **Web console identity references now show real users instead of a configured
+  default (#155).** The webconsole HandlerDeps `Actor` was a static
+  `observability.Actor("user:"+identity.default_user)` built at startup and reused for
+  every request, so every channel created, every message sent, and every read-state
+  update was stamped with the configured default user — and the SPA's `currentUserId`
+  was likewise hard-coded to `user:hayang` in the store. As a result the channel
+  participant ownership check (`isOwner`) never matched, the Invite/Remove controls
+  silently disappeared, and message history showed the wrong author. `hd(r)` now
+  derives `Actor` per-request from the JWT-authenticated identity via
+  `filesCallerRef(CurrentIdentity(r))`, and `AppLayout` seeds `currentUserId` from
+  `/api/auth/me` (the post-`#146` per-request session identity that already powers the
+  attachment download gate). The web `sendMessage` handler also ignores any
+  client-supplied `sender_identity_id` and stamps the message from the authenticated
+  session.
+- **Conversation message senders and participants render display names instead of
+  raw `user:<id>` / `agent:<id>` refs (#160).** `/api/members` now enriches each
+  member with `display_name` from the Identity repo (a service-level join that the
+  list endpoint was already prepared to add). A `useDisplayNameResolver` hook in the
+  SPA builds an `identityRef→display_name` map normalised across the bare-id
+  (`user-xxx` from `/api/members`) and prefixed (`user:user-xxx` from message events)
+  formats, and `MessageList` + `ParticipantsPanel` resolve through it before falling
+  back to the raw ref. The `members.list` response is the only backend touch — `Member`
+  and `Identity` aggregates are unchanged.
+- **Invitations with a malformed identity ref no longer surface as `500` (#158).**
+  `POST /api/conversations/{id}/participants` now performs the same identity ref
+  format check that channel creation uses, so a body like `not-a-valid-ref` (missing
+  the `user:` / `agent:` prefix) returns `400 invalid_identity_id` with a clear
+  message instead of bubbling an ADR-0033 validation error string out as `500
+  internal`. A legitimate `user:ghost` (well-formed but not yet provisioned) still
+  returns `201`, matching pre-existing acceptance behaviour.
+- **Attachment download authorization (#142 + #146).** The webconsole now exposes
+  conversation message attachments via a real download path (`GET
+  /api/conversations/{id}/messages/{mid}/files/{file_id}`) with attach-time auth on
+  the send side: the message handler verifies `fileReachableForHuman(caller, uri)`
+  for every URI before constructing the `Message` and `FileReference` rows
+  atomically in one transaction — so an unreachable URI never produces a half-written
+  conversation. Cross-org and non-existent URIs both return a byte-identical `403`
+  ("attachment is not reachable"), eliminating the existence oracle on attach.
+  `completeUpload` requires the caller to be the upload-session initiator before
+  binding a `uploader`-scope reference (`403 + zero FileReference` for
+  non-initiators), and `scope=uploader` is no longer accepted from the client
+  (server-derives `scope_id` from the caller). The download gate consults
+  `HasActiveParticipant` only, so a participant removed from the conversation loses
+  download access on the same edge as their participation.
+- **Worker control commands now arrive in near-real-time (#108, D5 SSE).** The
+  worker daemon opens a long-lived `GET /admin/environment/worker/commands/stream`
+  SSE connection that delivers each `WorkerControlEvent` with its monotonic offset
+  the moment it's appended to the control log, and acks back via the same offset
+  cursor as poll. Poll remains the fallback (clean disconnect, heartbeat-timeout,
+  ring eviction → poll backfills); stream and poll feed off the same control log and
+  the same `MarkAcked` cursor, so duplicates and gaps are structurally impossible.
+  Worker-side stream client + daemon switchover, plus the bus de-dup ring, are new;
+  the legacy poll path is unchanged.
+- **Worker capabilities are discovered automatically and rendered in the Environment
+  page (#147 + #176 + #177).** Each worker now probes the locally-installed agent
+  CLIs (`claude-code`, `codex`, `opencode`) every time it comes online — version,
+  detected/enabled flags, MCP/skills/session support — and reports the result to the
+  center via a new `POST /admin/workforce/worker/capabilities` endpoint that enforces
+  token-ownership (a worker can only write its own capabilities, cross-worker writes
+  return `403`). A new `PATCH
+  /admin/workforce/worker/{id}/capabilities/{name}/enabled` lets an operator toggle a
+  CLI off without removing the detection. The `/api/fleet` projection now carries the
+  detected capabilities per worker; the Environment worker card renders `claude-code`
+  + `codex` + `opencode` with `detected`/`enabled` status and a clear
+  `Executable: claude-code only (codex/opencode discovery only — v2.8)` footnote.
+  `--capabilities` is removed from `agent-center install`/`worker run` (auto-probe
+  replaces the manual flag). The CLI dispatch layer remains pinned to `claude-code`
+  in v2.7 (see Added → "Agent CLI is restricted to claude-code in v2.7" below); the
+  v2.8 design that lets `codex` / `opencode` actually execute is tracked as #180.
+- **`worker daemon` daemon now finds user-installed agent CLIs (#175).** The
+  launchd / systemd unit generated by `install worker` inherits a minimal PATH that
+  does not include `~/.local/bin`, `~/.cargo/bin`, `~/.opencode/bin`,
+  `/opt/homebrew/bin`, etc., so `ProbeAllAdapters` only ever saw whichever CLI
+  happened to live on the system PATH. The installer now captures the install-time
+  shell PATH and unions it with a well-known list of user-tool bin dirs, deduped and
+  order-preserved, into the unit's `EnvironmentVariables.PATH` (launchd) /
+  `Environment=PATH=` (systemd). Center installs are unaffected (no spawned CLI).
+- **`install worker` now requires `--worker-id` (#171).** The previous fallback to
+  `hostname` silently collided when the same machine ran two worker installs without
+  an explicit id (each subsequent `install worker` overwrote the previous worker's
+  prefix subtree and launchd unit). Missing `--worker-id` now returns
+  `install_worker_missing_id` with a message pointing at the Web Console "Add
+  Worker" flow, which has always generated a unique id. Web-Console-driven installs
+  are unaffected. Multi-worker-per-machine is supported by the existing
+  per-worker-id prefix isolation; an `agent-center list-local-workers` discovery
+  command is deferred to v2.8 (#170).
+- **macOS install activates the launchd service with the modern API (#150).** See
+  the entry above; this was the real install-time startup blocker on macOS 26.
+- **Agent supervisor socket no longer overflows `sun_path` on macOS (#178,
+  ship-blocker).** The agent supervisor's unix-socket path was assembled under the
+  agent home (`<base>/agents/<id>/supervisor.sock`), which on a typical user-mode
+  install ran ~143 bytes — past macOS's 104-byte `sockaddr_un.sun_path` limit, so
+  `bind()` failed silently, the supervisor never came up, the daemon retried
+  forever, and orphan `claude` + `supervisor` processes accumulated on every Start.
+  The socket now lives at `<TMPDIR>/acsv-<sha256(agent_id)[:12]>.sock` (~71 bytes,
+  agent-home-independent, deterministic across daemon restarts). The path is also
+  written into `supervisor.instance` so a returning daemon reads it back rather than
+  re-deriving — survive-reattach across `--use-control-loop` daemon restarts is
+  unaffected. Linux is unaffected (`sun_path` is 108).
+- **Agent CLI field is now validated at creation time (#181).** Previously, any
+  string was accepted for `cli` and silently mapped to `claude-code` at runtime
+  (only the claude-code execution path is wired in v2.7 — `codex` / `opencode`
+  adapters are discovery-only stubs that return `ErrNotImplemented`). The agent BC
+  now requires `cli ∈ {"claude-code"}`: missing / `codex` / `opencode` / any other
+  value returns `400 invalid_cli` from `POST /api/agents` and
+  `POST /api/members/agent`. The webconsole Agent-Create modal shows `claude-code`
+  as the only selectable option, and the Environment worker card's detected-CLI
+  list carries an explicit `Executable: claude-code only (codex/opencode discovery
+  only — v2.8)` note so users do not expect a discovered CLI to actually run. The
+  full per-CLI runtime-dispatch plumbing is tracked as #180 for v2.8.
+- **`AgentDetail` page no longer crashes for agents with no skills / no env
+  (#183).** `agentMap` returned the Go nil slice / map for `Skills` and `EnvVars`,
+  which serialised to JSON `null` instead of `[]` / `{}`, and the SPA's
+  `agent.skills.length` read on detail render dereferenced the null. The webconsole
+  now coalesces `Skills` → `[]` and `EnvVars` → `{}` at the projection edge (one fix
+  for every agent response), and `AgentDetail` reads through a defensive guard for
+  belt-and-braces. Other detail pages (Project / Issue / Task / Channel / DM /
+  Members / Environment) were not affected (sweep across 13 pages: zero console
+  errors).
+- **SSE connection now shows `live` on first frame, not after the 30s heartbeat
+  (#172).** `bus.go` set the `text/event-stream` headers but only called
+  `flusher.Flush()` inside the `last_event_id` replay branch, so a fresh connection
+  received no bytes until the first 30s heartbeat — the browser `EventSource`'s
+  `onopen` fired only then, and the top-right status flipped from `connecting` to
+  `live` after a 30-second pause on every page load. Headers + a `200 OK` now flush
+  immediately on accept.
+
+### Added
+
+- **End-to-end UI integration (#105 / E1 umbrella).** Every v2.7 domain now has a
+  full Web Console surface: the Project page (members / issues / tasks / repo
+  refs), the Agent page (lifecycle controls / work queue / activity stream — `#136`),
+  the Environment page (workers / agents / file transfer sessions — including the
+  Fleet operational data merge, see Changed), the unified Conversation surface
+  (task / issue owner banner + work-item segmentation + attachment thumbnails per
+  metadata), and the Agents-as-organization-Members flow (one-step creation +
+  click-through to the lifecycle page).
+- **Members → Add Agent creates an execution Agent and an organization Member in a
+  single atomic flow (#157).** A new `Agent.identityMemberID` field binds the
+  execution Agent to its organization-member principal, and `POST
+  /api/members/agent` (with `worker_id` + `model` + `cli`) wraps the
+  `AgentProvisionService.Provision` and `Agent.CreateAgent` calls in a single,
+  re-entrant `RunInTx` boundary — either both rows commit, or both roll back (the
+  TDD includes a "bad worker → 4xx → no orphan member, no orphan agent"
+  assertion). Clicking an agent in the Members list now navigates to its
+  Agent-detail page via `identityMemberID`. The legacy `member_id`-only Provision
+  path remains available for non-agent member kinds.
+- **Channel participant invite is now a search + multi-select modal (#167).** The
+  free-text "Invite identity" input is replaced with an `Invite` button that opens
+  a `MemberInviteModal`: a search box filters `/api/members` client-side, each
+  candidate row carries a `Human` / `Agent` badge, and multi-select + confirm
+  issues a batch `POST .../participants` per selected member. Active participants
+  are excluded from the candidate list; participants previously removed from the
+  channel (`left_at` set, still in the org) reappear as candidates and can be
+  re-invited. The Participants panel itself is now collapsible (state persisted in
+  `localStorage`) so a long member list doesn't crowd the channel view.
+- **Worker page shows execution capabilities (#176).** The Environment worker card
+  now renders the discovered CLI list with `detected`/`enabled` status. (Reported
+  as the visibility half of #147; see Fixed → "Worker capabilities are discovered
+  automatically …".)
+- **v2.7 release acceptance harness, in-repo (#163).** The acceptance checklist
+  (16 functional domains, real-install methodology, executable verification
+  recipes + exit criteria) and the multi-worker per-machine deployed-smoke
+  evidence (real binary install of two workers, 6-of-6 isolation checks green)
+  are committed under `docs/release/acceptance-checklist.md` and
+  `docs/release/evidence/v27-multiworker-deployed-smoke.md` respectively.
+
+### Changed
+
+- **Sidebar IA: ORGANIZATION → "Members"; Fleet + Environment merge into a single
+  "Environment" page; "Agents (organization)" → "Agents" (one entry, in Members);
+  Organization Settings moves into the organization switcher; the "agent-center"
+  text label leaves the header (#164 / #165 / #166 in one PR).** The SYSTEM
+  sidebar group is now `{Environment, Settings}` (Fleet removed; the legacy `/fleet`
+  route 302s to `/environment`). The Environment page absorbs Fleet's worker
+  cards, `active_count`, rename / install / remove modals, and the work-items +
+  pending-issues sections; the worker `status` semantics there are now the
+  workforce-enrolled set (not the control-channel connection), matching the
+  Environment-Worker convergence (#140 step-2). The Members group is
+  `{Humans, Agents}` (one Agents entry, replacing the old SYSTEM → Agents). The
+  organization switcher dropdown now carries a `Settings` button that opens
+  `/org/settings` (still directly addressable); the sidebar no longer lists
+  Organization Settings.
+- **All user-facing strings spell out "Organization" instead of "Org" (#151).**
+  Sidebar labels, switcher placeholders, page subtitles, the Agents-organization
+  badge, and incidental form copy all use the full word. Code-level comments and
+  internal symbols still use the short form where it was already there.
+- **All web console copy is English (#166).** The Organization Settings page,
+  modals, toasts, and error messages no longer mix Chinese strings into the
+  English UI.
+- **Worker model is consolidated on `workforce.Worker` everywhere (#140 step-2 /
+  step-3).** The Environment page's worker list reads `workforce.Worker` (via
+  `/api/workers`) instead of `environment.Worker`; the `last_acked_offset` field
+  is no longer surfaced (control-channel state, not a UI concern). The internal
+  `environment.Worker` aggregate no longer carries its own copy of
+  `organization_id` (the canonical owner is the `workforce.Worker`); the
+  connection-establishment handler derives the worker's org from the
+  `workforce.Worker` row before binding the control session, and the unused
+  `environment_workers.organization_id` column / `ListByOrg` projection are
+  removed.
+- **All confirmation dialogs are now in-app modals; native
+  `window.confirm/alert/prompt` are banned (#169).** A new `ConfirmModal` (built
+  on the existing `useModalA11y`) replaces every native browser dialog (Secrets
+  revoke, Environment Re-mint, Environment Remove worker). An ESLint
+  `no-restricted-globals` + `no-restricted-properties` rule wired into `make lint`
+  prevents the regression.
+
+### Removed
+
+- **CLI data-management and read-only business commands (#162).** `agent-center
+  agent / secret / channel / conversation / project / message / inspect / query /
+  ps / stats / logs / peek-trace` are removed: all of these are now performed
+  through the Web Console (the SPA + REST surface). Operational commands —
+  `server`, `version`, `worker` (+ `run` / `mcp-host` / `agent-supervisor` /
+  `shim`), `install`, `uninstall`, `upgrade`, `migrate`, `bootstrap`, `admin`,
+  `help` — are retained.
+- **`identity.default_user` config key (#162).** With the CLI data path retired,
+  the remaining `DefaultActor()` consumers (system reconciler, admin sink, the
+  webconsole HandlerDeps' no-session fallback, the worker daemon's single use)
+  now stamp `observability.Actor("system")` directly. The struct field, default,
+  YAML key, env / flag overrides, validation, and the `install` config template
+  are all gone.
+- **The `--capabilities` flag is gone from `install`, `worker run`, and
+  `agent-center upgrade` (#147).** Capability reporting is now auto-probed on
+  every worker `online`; manual capability strings are no longer accepted (and
+  would have been silently overwritten by the next probe).
+
+### Breaking changes
+
+- **Fresh install required.** v2.7 drops and recreates database tables (the
+  agent / agent-work-item / pm-task / pm-issue / pm-project / files BC schemas
+  are introduced clean; the legacy `taskruntime` / `discussion` / old-
+  `tasks`-`issues`-`projects` schema, retired during the carve-out, is not
+  re-created). v2.6 data does not migrate; back-up before installing.
+- **CLI data-management commands removed.** See Removed; integrate against the
+  Web Console / REST API instead.
+- **`install worker --worker-id` is now required.** See Fixed (#171).
+- **macOS install default `server.listen_addr` is `:7050`.** Was `:7000`; see
+  Fixed (#161). This is the install-template default — a custom `--prefix` install
+  is unaffected if the operator overrode the value.
+
 ## [v2.6.0] — 2026-05-28
 
 ### Breaking changes

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -69,7 +70,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	cfg := fmt.Sprintf(
-		"server:\n  listen_addr: ':7000'\n  sqlite_path: '%s'\n  admin_socket_path: '%s/admin.sock'\nidentity:\n  default_user: hayang\nsecret_management:\n  master_key_file: '%s'\n  skip_perms_check: true\n",
+		"server:\n  listen_addr: ':7000'\n  sqlite_path: '%s'\n  admin_socket_path: '%s/admin.sock'\nsecret_management:\n  master_key_file: '%s'\n  skip_perms_check: true\n",
 		dbPath, dir, mkPath,
 	)
 	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
@@ -164,83 +165,6 @@ func TestE2E1_WorkerEnrollListStatus(t *testing.T) {
 }
 
 // =============================================================================
-// E2E-2: propose → accept → check project
-// =============================================================================
-
-func TestE2E2_ProposeAccept(t *testing.T) {
-	h := newHarness(t)
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac")
-	list, _ := h.runJSONArray("worker", "proposal", "list")
-	if len(list) != 1 {
-		t.Fatalf("expected 1 proposal, got %d", len(list))
-	}
-	pid := list[0]["proposal_id"].(string)
-	acc, code := h.runJSON("worker", "proposal", "accept", pid)
-	if code != 0 {
-		t.Fatalf("accept: %d", code)
-	}
-	if acc["project_id"] == "" {
-		t.Fatalf("accept: %v", acc)
-	}
-	// Project should exist now.
-	pj, code := h.runJSON("project", "show", "ac")
-	if code != 0 {
-		t.Fatalf("project show: %d", code)
-	}
-	if pj["project_id"] != "ac" {
-		t.Fatalf("project: %v", pj)
-	}
-}
-
-// =============================================================================
-// E2E-3: proposal ignore → unignore → accept
-// =============================================================================
-
-func TestE2E3_IgnoreUnignoreAccept(t *testing.T) {
-	h := newHarness(t)
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac")
-	list, _ := h.runJSONArray("worker", "proposal", "list")
-	pid := list[0]["proposal_id"].(string)
-	if _, _, c := h.run("worker", "proposal", "ignore", pid); c != 0 {
-		t.Fatal("ignore failed")
-	}
-	if _, _, c := h.run("worker", "proposal", "unignore", pid); c != 0 {
-		t.Fatal("unignore failed")
-	}
-	if _, _, c := h.run("worker", "proposal", "accept", pid); c != 0 {
-		t.Fatal("accept failed")
-	}
-}
-
-// =============================================================================
-// E2E-4: conversation open → add → read
-// =============================================================================
-
-func TestE2E4_ConversationOpenAddRead(t *testing.T) {
-	h := newHarness(t)
-	res, code := h.runJSON("conversation", "open", "--kind=dm", "--name=DM")
-	if code != 0 {
-		t.Fatalf("open: %d", code)
-	}
-	cid := res["conversation_id"].(string)
-	for i := 0; i < 3; i++ {
-		_, _, c := h.run("conversation", "add-message", cid,
-			"--kind=text", "--content=hi"+fmt.Sprint(i), "--direction=internal")
-		if c != 0 {
-			t.Fatalf("add-message #%d: %d", i, c)
-		}
-	}
-	msgs, _ := h.runJSONArray("conversation", "read", cid)
-	if len(msgs) != 3 {
-		t.Fatalf("got %d", len(msgs))
-	}
-}
-
-// =============================================================================
 // E2E-5: worker enroll → events table contains worker.enrolled row
 // =============================================================================
 
@@ -257,68 +181,9 @@ func TestE2E5_EnrollEmitsEvent(t *testing.T) {
 	if !strings.Contains(rows[0]["refs"], `"worker_id":"W-1"`) {
 		t.Fatalf("refs: %s", rows[0]["refs"])
 	}
-	if !strings.Contains(rows[0]["actor"], "user:hayang") {
+	// v2.7 #162: CLI operations stamp the "system" operator actor (identity.default_user removed).
+	if !strings.Contains(rows[0]["actor"], "system") {
 		t.Fatalf("actor: %s", rows[0]["actor"])
-	}
-}
-
-// =============================================================================
-// E2E-6: proposal accept emits 3 (existing project) or 4 (new project) events
-// =============================================================================
-
-func TestE2E6_ProposalAcceptEmitsEvents_NewProject(t *testing.T) {
-	h := newHarness(t)
-	_, _, _ = h.run("worker", "enroll", "--worker-id=W-1")
-	_, _, _ = h.run("worker", "proposal", "propose",
-		"--worker-id=W-1", "--candidate-path=/x/ac")
-	list, _ := h.runJSONArray("worker", "proposal", "list")
-	pid := list[0]["proposal_id"].(string)
-	if _, _, c := h.run("worker", "proposal", "accept", pid); c != 0 {
-		t.Fatal()
-	}
-	rows := h.queryEvents(t, `SELECT event_type FROM events WHERE event_type LIKE 'workforce.%' ORDER BY seq`)
-	types := []string{}
-	for _, r := range rows {
-		types = append(types, r["event_type"])
-	}
-	expected := []string{
-		"workforce.worker.enrolled",
-		"workforce.worker_project_proposal.proposed",
-		"workforce.project.created",
-		"workforce.worker_project_mapping.added",
-		"workforce.worker_project_proposal.accepted",
-	}
-	if len(types) != len(expected) {
-		t.Fatalf("event types: got %v want %v", types, expected)
-	}
-	for i, want := range expected {
-		if types[i] != want {
-			t.Fatalf("event[%d]: got %s want %s", i, types[i], want)
-		}
-	}
-}
-
-// =============================================================================
-// E2E-7: conversation flow → 2 events (opened + message_added)
-// =============================================================================
-
-func TestE2E7_ConversationEvents(t *testing.T) {
-	h := newHarness(t)
-	res, _ := h.runJSON("conversation", "open", "--kind=dm")
-	cid := res["conversation_id"].(string)
-	if _, _, c := h.run("conversation", "add-message", cid,
-		"--kind=text", "--content=hi", "--direction=internal"); c != 0 {
-		t.Fatal()
-	}
-	rows := h.queryEvents(t, `SELECT event_type FROM events WHERE event_type LIKE 'conversation.%' ORDER BY seq`)
-	if len(rows) != 2 {
-		t.Fatalf("got %d rows: %v", len(rows), rows)
-	}
-	if rows[0]["event_type"] != "conversation.opened" {
-		t.Fatalf("event[0]: %s", rows[0]["event_type"])
-	}
-	if rows[1]["event_type"] != "conversation.message_added" {
-		t.Fatalf("event[1]: %s", rows[1]["event_type"])
 	}
 }
 
@@ -326,34 +191,62 @@ func TestE2E7_ConversationEvents(t *testing.T) {
 // E2E-8: server start → SIGTERM → clean exit
 // =============================================================================
 
+// TestE2E8_ServerStartSIGTERM exercises GRACEFUL shutdown: the server must
+// react to a real SIGTERM by running its shutdown path (it logs "shutting
+// down"), NOT be hard-killed. #129: the prior version used exec.CommandContext
+// with no cmd.Cancel, so ctx-cancel sent SIGKILL (despite the name/comment) →
+// Shutdown never ran and the assertion merely hoped the startup banner had
+// flushed before the hard kill (flaky). The fix: (1) cmd.Cancel sends a real
+// SIGTERM (cmd.WaitDelay force-kills if graceful hangs); (2) readiness is a
+// race-free poll of the admin socket file (created when the server is up),
+// not a fixed sleep + concurrent read of the stdout buffer; (3) assert the
+// graceful "shutting down" log — which is what the name claims and what
+// exercises the #128 listener-shutdown path.
 func TestE2E8_ServerStartSIGTERM(t *testing.T) {
 	h := newHarness(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, h.binary, "--config="+h.cfgPath, "server")
-	var out, err strings.Builder
+	// Real SIGTERM on cancel (default ctx-cancel = SIGKILL, which skips
+	// graceful shutdown). WaitDelay force-kills if graceful teardown hangs.
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.WaitDelay = 5 * time.Second
+	var out, errb strings.Builder
 	cmd.Stdout = &out
-	cmd.Stderr = &err
+	cmd.Stderr = &errb
 	if startErr := cmd.Start(); startErr != nil {
 		t.Fatal(startErr)
 	}
-	// Give it a moment to start + flush the banner before we kill it.
-	time.Sleep(1500 * time.Millisecond)
-	// Send SIGTERM via context cancel.
+	// Race-free readiness: the admin unix socket is created when the server's
+	// admin listener is up. Poll the file (NOT the stdout buffer, which the
+	// os/exec copy goroutine writes concurrently).
+	sock := filepath.Join(filepath.Dir(h.cfgPath), "admin.sock")
+	readyDeadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, statErr := os.Stat(sock); statErr == nil {
+			break
+		}
+		if time.Now().After(readyDeadline) {
+			cancel()
+			_ = cmd.Wait()
+			t.Fatalf("server never became ready (admin socket %s absent)\nstderr: %s", sock, errb.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	// Graceful SIGTERM.
 	cancel()
-	// Wait for exit.
 	waitErr := cmd.Wait()
 	if waitErr != nil {
 		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) {
-			t.Fatalf("wait: %v stderr: %s", waitErr, err.String())
+		// context.Canceled is expected: os/exec returns it when the process is
+		// interrupted via cmd.Cancel (our SIGTERM), even on a graceful exit.
+		if !errors.As(waitErr, &exitErr) && !errors.Is(waitErr, context.Canceled) {
+			t.Fatalf("wait: %v stderr: %s", waitErr, errb.String())
 		}
 	}
-	// stdout should mention shutting down OR contain the phase / running banner.
-	if !strings.Contains(out.String(), "shutting down") &&
-		!strings.Contains(out.String(), "Phase") &&
-		!strings.Contains(out.String(), "agent-center server:") {
-		t.Fatalf("server output unexpected: %s\nstderr: %s", out.String(), err.String())
+	// out is read only after Wait() (copy goroutine done) → no race.
+	if !strings.Contains(out.String(), "shutting down") {
+		t.Fatalf("expected graceful 'shutting down' on SIGTERM, got stdout: %q\nstderr: %q", out.String(), errb.String())
 	}
 }
 
@@ -373,13 +266,17 @@ func TestE2E9_SupervisorRemoved(t *testing.T) {
 	}
 }
 
-func TestE2E9_WorkerRunStub(t *testing.T) {
+// TestE2E9_WorkerRunRequiresWorkerID verifies `worker run` now routes to the real
+// daemon handler (v2.7 (b) unified binary) and requires --worker-id, replacing the
+// old not-implemented stub. Assertion owned by Tester (msg 2ce24698): no
+// --worker-id → exit 2 (ExitUsage) + stderr "--worker-id is required".
+func TestE2E9_WorkerRunRequiresWorkerID(t *testing.T) {
 	h := newHarness(t)
 	_, errOut, code := h.run("worker", "run")
-	if code != 64 {
-		t.Fatalf("expected exit 64, got %d", code)
+	if code != 2 {
+		t.Fatalf("expected exit 2 (ExitUsage), got %d", code)
 	}
-	if !strings.Contains(errOut, "not_implemented_in_phase_1") {
+	if !strings.Contains(errOut, "--worker-id is required") {
 		t.Fatalf("stderr: %s", errOut)
 	}
 }
@@ -445,7 +342,8 @@ func TestE2E_Help(t *testing.T) {
 	if code != 0 {
 		t.Fatal()
 	}
-	if !strings.Contains(stdout, "worker") || !strings.Contains(stdout, "project") {
+	// v2.7 #162: "project" (and other data CLI commands) retired; "worker" + "install" remain.
+	if !strings.Contains(stdout, "worker") || !strings.Contains(stdout, "install") {
 		t.Fatalf("help: %s", stdout)
 	}
 }

@@ -2,10 +2,11 @@ import React from 'react';
 import { OrgLink } from '@/OrgContext';
 
 import { useFleet } from '@/api/fleet';
-import { useInputRequests } from '@/api/inputRequests';
 import { useConversations } from '@/api/conversations';
+import { useAgents } from '@/api/agents';
 import type { Conversation } from '@/api/types';
 import { Skeleton } from '@/components/Skeleton';
+import { EntityRef } from '@/components/EntityRef';
 
 // Home / Overview (v2.3 P3). Bento-grid dashboard surface designed
 // per docs/design/web-console-design-system.md § 2.2.
@@ -15,16 +16,19 @@ import { Skeleton } from '@/components/Skeleton';
 // doesn't blank the whole page.
 export default function Home(): React.ReactElement {
   const fleet = useFleet();
-  const irs = useInputRequests();
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
+  const agents = useAgents();
+  // v2.7 #192: resolve a work-item's agent ref → agent name (raw id on hover).
+  const agentName = (ref: string): string | undefined => {
+    const bare = ref.replace(/^agent:/, '');
+    return (agents.data ?? []).find((a) => a.id === bare || a.identity_member_id === bare)?.name || undefined;
+  };
 
-  const pendingIRCount = (irs.data ?? []).filter((ir) => ir.status === 'pending').length;
   const onlineWorkers = (fleet.data?.workers ?? []).filter((w) => w.status === 'online').length;
-  const runningExecs = (fleet.data?.executions ?? []).filter(
-    (e) => e.status === 'working' || e.status === 'submitted',
-  );
-  const failedExecs = (fleet.data?.executions ?? []).filter((e) => e.status === 'failed');
+  // v2.7 #107/#118: fleet now returns only non-terminal work items
+  // {queued,active,waiting_input}; terminal (incl failed) is not surfaced here.
+  const workItems = fleet.data?.work_items ?? [];
   // Merge channels + DMs, take 5 newest by opened_at desc. Conversations
   // don't carry an updated_at on the read DTO (would require a server-
   // side projection change); opened_at is "close enough" for the
@@ -74,18 +78,11 @@ export default function Home(): React.ReactElement {
       )}
 
       {/* Row 1 — at-a-glance stat cards. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
-          label="Pending input requests"
-          value={pendingIRCount}
-          tone={pendingIRCount > 0 ? 'warning' : 'neutral'}
-          href="/inputrequests"
-          loading={irs.isLoading}
-        />
-        <StatCard
-          label="Failed executions"
-          value={failedExecs.length}
-          tone={failedExecs.length > 0 ? 'danger' : 'neutral'}
+          label="Active work items"
+          value={workItems.length}
+          tone={workItems.length > 0 ? 'success' : 'neutral'}
           href="/fleet"
           loading={fleet.isLoading}
         />
@@ -102,23 +99,29 @@ export default function Home(): React.ReactElement {
       {/* Row 2 — running tasks + recent conversations. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PanelCard
-          title="Running executions"
+          title="Work items"
           to="/fleet"
-          empty="No running executions"
+          empty="No active work items"
           loading={fleet.isLoading}
-          data-testid="home-running-execs"
+          data-testid="home-active-work-items"
         >
-          {runningExecs.slice(0, 5).map((e) => (
-            <li key={e.execution_id} className="flex items-center justify-between gap-3 py-1.5">
-              <OrgLink
-                to={`/tasks/${encodeURIComponent(e.task_id)}/trace`}
-                className="truncate font-mono text-xs text-accent hover:underline"
-              >
-                {e.execution_id.slice(0, 12)}
-              </OrgLink>
-              <span className="text-xs text-text-secondary">{e.worker_id}</span>
+          {workItems.slice(0, 5).map((wi) => (
+            <li
+              key={wi.work_item_id}
+              // v2.7 #192: agent name is the visible handle; the task/work-item
+              // id stays on hover (no client-side task title on the fleet DTO).
+              title={wi.task_id || wi.work_item_id}
+              className="flex items-center justify-between gap-3 py-1.5"
+            >
+              <EntityRef
+                id={wi.agent_id}
+                name={agentName(wi.agent_id)}
+                fallback={wi.agent_id}
+                testId="home-wi-agent"
+                className="truncate text-xs text-text-secondary"
+              />
               <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                {e.status}
+                {wi.status}
               </span>
             </li>
           ))}
@@ -136,7 +139,13 @@ export default function Home(): React.ReactElement {
             return (
               <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
                 <OrgLink to={href} className="truncate text-sm text-text-primary hover:text-accent">
-                  <span className="text-text-muted">{c.kind === 'dm' ? '◐' : '#'}</span> {c.name || c.id}
+                  <span className="text-text-muted">{c.kind === 'dm' ? '◐' : '#'}</span>{' '}
+                  {c.kind === 'dm' ? (
+                    // v2.7 #192/Rule 2a: DM peer name, never the raw conversation id.
+                    <EntityRef id={c.id} name={c.name} fallback="Direct message" testId="home-conv-name" />
+                  ) : (
+                    c.name || c.id
+                  )}
                 </OrgLink>
                 <span className="text-xs text-text-muted tabular-nums">
                   {c.opened_at ? formatRelative(c.opened_at) : ''}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,11 +12,9 @@ import (
 
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretsvcCreate "github.com/oopslink/agent-center/internal/secretmgmt/service"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -174,10 +171,20 @@ func TestAPI_RemoveParticipant_Happy(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
-	cid := seedOrgChannel(t, deps, sess.OrgID, "remove-test")
+	// v2.7 #146: the kicker is the logged-in session user, and Kick requires the
+	// caller to be the channel owner — so the session user must own the channel
+	// (mirrors production: the creator opens it, then kicks).
+	sref := conversation.IdentityRef("user:" + sess.IdentityID)
+	cres, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "remove-test", OrganizationID: sess.OrgID, CreatedBy: sref, Actor: observability.Actor(sref),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cid := string(cres.ConversationID)
 	_, _ = deps.ParticipantMgmtSvc.Invite(ctx, convservice.InviteCommand{
 		ConversationName: "remove-test", IdentityID: "user:bob",
-		InvitedBy: "user:hayang", Actor: observability.Actor("user:hayang"),
+		InvitedBy: sref, Actor: observability.Actor(sref),
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
@@ -239,476 +246,13 @@ func TestAPI_InviteParticipant_BadJSON(t *testing.T) {
 }
 
 // ============================================================================
-// Derivation — minimal stubs
-// ============================================================================
-
-type fakeIssueOpener struct {
-	called bool
-	deps   HandlerDeps
-}
-
-func (f *fakeIssueOpener) OpenFromConversation(ctx context.Context, in convservice.OpenFromConversationInput) (convservice.OpenFromConversationResult, error) {
-	f.called = true
-	// Create a real child conv so subsequent CarryOver.Materialise can
-	// validate the child exists.
-	id := conversation.ConversationID("CHILD-ISSUE")
-	conv, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID: id, Kind: conversation.ConversationKindIssue,
-		Name: in.Title, CreatedBy: in.OpenedBy,
-		OpenedAt: time.Now().UTC(),
-	})
-	_ = f.deps.ConvRepo.Save(ctx, conv)
-	return convservice.OpenFromConversationResult{IssueID: "I-1", ConversationID: id, EventID: "E-X"}, nil
-}
-
-type fakeTaskCreator struct {
-	called bool
-	deps   HandlerDeps
-}
-
-func (f *fakeTaskCreator) CreateFromConversation(ctx context.Context, in convservice.CreateFromConversationInput) (convservice.CreateFromConversationResult, error) {
-	f.called = true
-	id := conversation.ConversationID("CHILD-TASK")
-	conv, _ := conversation.NewConversation(conversation.NewConversationInput{
-		ID: id, Kind: conversation.ConversationKindTask,
-		Name: in.Title, CreatedBy: in.CreatedBy,
-		OpenedAt: time.Now().UTC(),
-	})
-	_ = f.deps.ConvRepo.Save(ctx, conv)
-	return convservice.CreateFromConversationResult{TaskID: "T-1", ConversationID: id}, nil
-}
-
-func setupDerive(t *testing.T) (HandlerDeps, *fakeIssueOpener, *fakeTaskCreator, testSession) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
-	// Seed a source channel (in the org) + 1 message so derive validates.
-	ctx := context.Background()
-	res, _ := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "src", OrganizationID: sess.OrgID, CreatedBy: "user:hayang", Actor: "user:hayang",
-	})
-	mw, _ := deps.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
-		ConversationID:   res.ConversationID,
-		SenderIdentityID: "user:hayang",
-		ContentKind:      conversation.MessageContentText,
-		Direction:        conversation.DirectionInbound,
-		Content:          "x",
-		Actor:            observability.Actor("user:hayang"),
-	})
-	io := &fakeIssueOpener{deps: deps}
-	tc := &fakeTaskCreator{deps: deps}
-	refRepo := convsqlite.NewReferenceRepo(db)
-	carryOver := convservice.NewCarryOverService(db, deps.ConvRepo, deps.MsgRepo, refRepo,
-		nil, nil, nil)
-	_ = carryOver
-	deps.DerivationSvc = convservice.NewMessageDerivationService(db,
-		deps.ConvRepo, deps.MsgRepo, deps.CarryOverSvc, io, tc, nil, nil)
-	_ = mw
-	_ = res
-	return deps, io, tc, sess
-}
-
-func TestAPI_DeriveIssue_Happy(t *testing.T) {
-	deps, io, _, sess := setupDerive(t)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	// fetch the seeded conv + msg.
-	src, _ := deps.ConvRepo.FindByName(context.Background(), "src")
-	msgs, _ := deps.MsgRepo.FindByConversationID(context.Background(), src.ID(),
-		conversation.MessageFilter{Limit: 10})
-	body, _ := json.Marshal(map[string]any{
-		"source_conversation_id": string(src.ID()),
-		"source_message_ids":     []string{string(msgs[0].ID())},
-		"project_id":             "p-1",
-		"title":                  "X",
-		"description":            "",
-	})
-	resp := orgScopedPost(t, s.URL+"/api/issues", string(body), sess)
-	if resp.StatusCode != 201 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-	if !io.called {
-		t.Fatal("opener not invoked")
-	}
-}
-
-func TestAPI_DeriveIssue_DerivationNotWired(t *testing.T) {
-	deps, _ := setupAPI(t)
-	// DerivationSvc nil; payload carries source fields so the post handler
-	// routes into the derive branch (v2.5.x #61: empty source now means
-	// open-from-scratch instead of derive-not-wired).
-	deps.DerivationSvc = nil
-	s := newTestServer(t, deps)
-	defer s.Close()
-	body := `{"source_conversation_id":"C-1","source_message_ids":["M-1"]}`
-	resp, _ := http.Post(s.URL+"/api/issues", "application/json", strings.NewReader(body))
-	if resp.StatusCode != 501 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_DeriveIssue_BadJSON(t *testing.T) {
-	deps, _, _, sess := setupDerive(t)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/issues", `{not`, sess)
-	if resp.StatusCode != 400 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_DeriveTask_Happy(t *testing.T) {
-	deps, _, tc, sess := setupDerive(t)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	src, _ := deps.ConvRepo.FindByName(context.Background(), "src")
-	msgs, _ := deps.MsgRepo.FindByConversationID(context.Background(), src.ID(),
-		conversation.MessageFilter{Limit: 10})
-	body, _ := json.Marshal(map[string]any{
-		"source_conversation_id": string(src.ID()),
-		"source_message_ids":     []string{string(msgs[0].ID())},
-		"project_id":             "p-1",
-		"title":                  "T",
-		"agent_instance_id":      "ai-1",
-	})
-	resp := orgScopedPost(t, s.URL+"/api/tasks", string(body), sess)
-	if resp.StatusCode != 201 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-	if !tc.called {
-		t.Fatal()
-	}
-}
-
-func TestAPI_DeriveTask_NotWired(t *testing.T) {
-	deps, _ := setupAPI(t)
-	// DerivationSvc nil; payload carries source fields so the post handler
-	// routes into the derive branch (v2.5.x #62: empty source now means
-	// create-from-scratch instead of derive-not-wired).
-	deps.DerivationSvc = nil
-	s := newTestServer(t, deps)
-	defer s.Close()
-	body := `{"source_conversation_id":"C-1","source_message_ids":["M-1"]}`
-	resp, _ := http.Post(s.URL+"/api/tasks", "application/json", strings.NewReader(body))
-	if resp.StatusCode != 501 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_DeriveTask_BadJSON(t *testing.T) {
-	deps, _, _, sess := setupDerive(t)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/tasks", `x{`, sess)
-	if resp.StatusCode != 400 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-// ============================================================================
-// Input Requests
-// ============================================================================
-
-func TestAPI_ListInputRequests_Empty(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/input_requests", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_RespondInputRequest_BadJSON(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	// Bad JSON is a 400 before the org guard (body parse runs first).
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/x/respond", `{xx`, sess)
-	if resp.StatusCode != 400 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-// ============================================================================
 // Agents
 // ============================================================================
-
-func TestAPI_ListAgents_Empty(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.AgentInstanceRepo = &fakeAgentRepo{}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/agents", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_ShowAgent_NotFound(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.AgentInstanceRepo = &fakeAgentRepo{}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/agents/nope", sess)
-	if resp.StatusCode != 404 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-// ============================================================================
-// Projects (v2.1-A — powers DeriveModal project picker)
-// ============================================================================
-
-func TestAPI_ListProjects_Empty(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.ProjectRepo = &fakeProjectRepo{}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("status=%d", resp.StatusCode)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	if strings.TrimSpace(string(body)) != "[]" {
-		t.Fatalf("expected [] got %q", body)
-	}
-}
-
-func TestAPI_ListProjects_SingleProject(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p-1", Name: "Demo", Tags: []string{"coding"},
-		CreatedByIdentityID: "user:hayang",
-		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("status=%d", resp.StatusCode)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	var arr []map[string]any
-	if err := json.Unmarshal(body, &arr); err != nil {
-		t.Fatal(err)
-	}
-	if len(arr) != 1 {
-		t.Fatalf("expected 1 project got %d", len(arr))
-	}
-	if arr[0]["id"] != "p-1" || arr[0]["name"] != "Demo" {
-		t.Fatalf("bad row: %v", arr[0])
-	}
-	tagsAny, _ := arr[0]["tags"].([]any)
-	if len(tagsAny) != 1 || tagsAny[0] != "coding" {
-		t.Fatalf("bad tags: %v", arr[0]["tags"])
-	}
-}
-
-func TestAPI_ListProjects_RepoNotWired(t *testing.T) {
-	deps, _ := setupAPI(t)
-	// deps.ProjectRepo intentionally not set
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects")
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status=%d want 501", resp.StatusCode)
-	}
-}
-
-func TestAPI_ListProjects_RepoError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.ProjectRepo = &fakeProjectRepo{findAllErr: errors.New("db boom")}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
-	if resp.StatusCode != 500 {
-		t.Fatalf("status=%d want 500", resp.StatusCode)
-	}
-}
-
-// v2.5.5: list projection emits {id, name, description, tags, version,
-// created_at, updated_at}. kind / default_agent_cli were removed.
-func TestAPI_ListProjects_FullProjection(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p-2", Name: "Beta", Tags: []string{"coding", "ops"},
-		Description:         "the beta project",
-		CreatedByIdentityID: "user:hayang",
-		CreatedAt:           time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/projects", sess)
-	body, _ := io.ReadAll(resp.Body)
-	var arr []map[string]any
-	if err := json.Unmarshal(body, &arr); err != nil {
-		t.Fatal(err)
-	}
-	if len(arr) != 1 {
-		t.Fatalf("len=%d", len(arr))
-	}
-	row := arr[0]
-	if row["description"] != "the beta project" {
-		t.Fatalf("missing description: %v", row)
-	}
-	if row["updated_at"] == nil {
-		t.Fatalf("missing updated_at: %v", row)
-	}
-	tagsAny, _ := row["tags"].([]any)
-	if len(tagsAny) != 2 {
-		t.Fatalf("expected 2 tags, got %v", row["tags"])
-	}
-}
-
-// v2.5.5: GET /api/projects/{id} happy path emits the simplified shape.
-func TestAPI_ShowProject_Happy(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: "p-1", Name: "Demo", Tags: []string{"coding"},
-		Description:         "demo project",
-		OrganizationID:      sess.OrgID,
-		CreatedByIdentityID: "user:hayang",
-		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deps.ProjectRepo = &fakeProjectRepo{projects: []*workforce.Project{p}}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/projects/p-1", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("status=%d", resp.StatusCode)
-	}
-	body, _ := io.ReadAll(resp.Body)
-	var got map[string]any
-	if err := json.Unmarshal(body, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got["id"] != "p-1" || got["name"] != "Demo" {
-		t.Fatalf("bad: %v", got)
-	}
-	tagsAny, _ := got["tags"].([]any)
-	if len(tagsAny) != 1 || tagsAny[0] != "coding" {
-		t.Fatalf("bad tags: %v", got["tags"])
-	}
-}
-
-// v2.3-4: GET /api/projects/{id} 404.
-func TestAPI_ShowProject_NotFound(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.ProjectRepo = &fakeProjectRepo{}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/projects/ghost", sess)
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("status=%d want 404", resp.StatusCode)
-	}
-}
-
-// v2.3-4: GET /api/projects/{id} 501 when repo unwired.
-func TestAPI_ShowProject_RepoNotWired(t *testing.T) {
-	deps, _ := setupAPI(t)
-	// deps.ProjectRepo intentionally not set
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/projects/p-1")
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status=%d want 501", resp.StatusCode)
-	}
-}
-
-// v2.3-4: GET /api/projects/{id} surfaces non-404 errors as 500.
-func TestAPI_ShowProject_RepoError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	deps.ProjectRepo = &fakeProjectRepo{findByIDErr: errors.New("db down")}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/projects/p-1", sess)
-	// repo error during org-scope check surfaces as non-200 (404/500).
-	if resp.StatusCode == 200 {
-		t.Fatalf("expected non-200 on repo error, got %d", resp.StatusCode)
-	}
-}
-
-type fakeProjectRepo struct {
-	projects    []*workforce.Project
-	findAllErr  error
-	findByIDErr error
-}
-
-func (f *fakeProjectRepo) FindByID(ctx context.Context, id workforce.ProjectID) (*workforce.Project, error) {
-	if f.findByIDErr != nil {
-		return nil, f.findByIDErr
-	}
-	for _, p := range f.projects {
-		if p.ID() == id {
-			return p, nil
-		}
-	}
-	return nil, workforce.ErrProjectNotFound
-}
-func (f *fakeProjectRepo) FindAll(ctx context.Context, filter workforce.ProjectFilter) ([]*workforce.Project, error) {
-	if f.findAllErr != nil {
-		return nil, f.findAllErr
-	}
-	return f.projects, nil
-}
-func (f *fakeProjectRepo) Save(ctx context.Context, p *workforce.Project) error { return nil }
-func (f *fakeProjectRepo) Update(ctx context.Context, id workforce.ProjectID, fields workforce.ProjectUpdateFields, version int, at time.Time) (*workforce.Project, error) {
-	return nil, nil
-}
-func (f *fakeProjectRepo) Delete(ctx context.Context, id workforce.ProjectID) error { return nil }
-
-type fakeAgentRepo struct{}
-
-func (fakeAgentRepo) FindByID(ctx context.Context, id workforce.AgentInstanceID) (*workforce.AgentInstance, error) {
-	return nil, workforce.ErrAgentInstanceNotFound
-}
-func (fakeAgentRepo) FindByName(ctx context.Context, name string) (*workforce.AgentInstance, error) {
-	return nil, workforce.ErrAgentInstanceNotFound
-}
-func (fakeAgentRepo) FindAll(ctx context.Context, filter workforce.AgentInstanceFilter) ([]*workforce.AgentInstance, error) {
-	return nil, nil
-}
-func (fakeAgentRepo) Save(ctx context.Context, a *workforce.AgentInstance) error {
-	return nil
-}
-func (fakeAgentRepo) UpdateState(ctx context.Context, id workforce.AgentInstanceID, from, to workforce.AgentInstanceState, version int) error {
-	return nil
-}
-func (fakeAgentRepo) UpdateConfig(ctx context.Context, id workforce.AgentInstanceID, config string, maxConcurrent *int, version int) error {
-	return nil
-}
-func (fakeAgentRepo) Archive(ctx context.Context, id workforce.AgentInstanceID, at time.Time, reason workforce.AgentInstanceArchivedReason, message string, version int) error {
-	return nil
-}
-func (fakeAgentRepo) CountActiveExecutions(ctx context.Context, id workforce.AgentInstanceID) (int, error) {
-	return 0, nil
-}
-func (fakeAgentRepo) BulkUpdateStateByWorker(ctx context.Context, workerID workforce.WorkerID, from, to workforce.AgentInstanceState) (int, error) {
-	return 0, nil
-}
+//
+// The legacy workforce.AgentInstance /api/agents tests (ListAgents_Empty,
+// ShowAgent_NotFound, ListAgents_DBError) + their fakeAgentRepo were removed
+// when v2.7 C3 replaced that surface with the new Agent BC. The new surface is
+// covered by handlers_agent_test.go (+ internal/agent/service tests).
 
 // ============================================================================
 // Secrets
@@ -961,7 +505,6 @@ func TestMapDomainError_Matrix(t *testing.T) {
 		{conversation.ErrMessageNotFound, 404},
 		{workforce.ErrAgentInstanceNotFound, 404},
 		{secretmgmt.ErrUserSecretNotFound, 404},
-		{inputrequest.ErrInputRequestNotFound, 404},
 		{conversation.ErrConversationVersionConflict, 409},
 		{secretmgmt.ErrUserSecretVersionConflict, 409},
 		{conversation.ErrConversationArchived, 403},
@@ -1003,25 +546,6 @@ func TestSecretPublicMap_RevokedFieldsPresent(t *testing.T) {
 	}
 	if m["revoked_by"] != "user:hayang" {
 		t.Fatalf("revoked_by: %v", m["revoked_by"])
-	}
-}
-
-func TestIRPublicMap_Responded(t *testing.T) {
-	now := time.Now().UTC()
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-1", TaskExecutionID: "E-1",
-		Question: "q?", Options: []string{"yes", "no"},
-		Urgency: inputrequest.UrgencyNormal, Now: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = ir.Respond(inputrequest.InputResponse{
-		Answer: "yes", DecidedBy: "user:hayang", DecidedAt: now,
-	})
-	m := irPublicMap(ir)
-	if m["answer"] != "yes" {
-		t.Fatalf("answer: %v", m["answer"])
 	}
 }
 
@@ -1121,30 +645,6 @@ func TestAPI_ShowConversation_DBError(t *testing.T) {
 	}
 }
 
-func TestAPI_ListInputRequests_DBError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	db.Close()
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/input_requests", sess)
-	if resp.StatusCode == 200 {
-		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_ListAgents_DBError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	db.Close()
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/agents", sess)
-	if resp.StatusCode == 200 {
-		t.Fatalf("expected non-200, got %d", resp.StatusCode)
-	}
-}
-
 func TestAPI_ListSecrets_DBError(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -1154,18 +654,6 @@ func TestAPI_ListSecrets_DBError(t *testing.T) {
 	resp := orgScopedGet(t, s.URL+"/api/secrets", sess)
 	if resp.StatusCode == 200 {
 		t.Fatalf("expected non-200, got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_TaskTrace_DBError(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	db.Close()
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/tasks/t-1/trace", sess)
-	if resp.StatusCode == 200 {
-		t.Fatalf("expected non-200 on closed db, got %d", resp.StatusCode)
 	}
 }
 
@@ -1192,29 +680,6 @@ func TestAPI_Archive_DBError(t *testing.T) {
 	}
 }
 
-func TestAPI_DeriveIssue_SourceNotFound(t *testing.T) {
-	deps, _, _, sess := setupDerive(t)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	// Source conversation "nope" is not in the org → guard returns 404.
-	body := `{"source_conversation_id":"nope","project_id":"p-1","title":"X"}`
-	resp := orgScopedPost(t, s.URL+"/api/issues", body, sess)
-	if resp.StatusCode != 500 && resp.StatusCode != 404 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_DeriveTask_SourceNotFound(t *testing.T) {
-	deps, _, _, sess := setupDerive(t)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	body := `{"source_conversation_id":"nope","project_id":"p-1","title":"X","agent_instance_id":"a"}`
-	resp := orgScopedPost(t, s.URL+"/api/tasks", body, sess)
-	if resp.StatusCode != 500 && resp.StatusCode != 404 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
 func TestAPI_ArchiveConversation_BadJSON(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -1232,52 +697,3 @@ func TestAPI_ArchiveConversation_BadJSON(t *testing.T) {
 	}
 }
 
-func TestAPI_CancelInputRequest_BadJSON(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/anything/cancel", `{not json`, sess)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("got %d want 400", resp.StatusCode)
-	}
-	var body map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&body)
-	if body["error"] != "invalid_json" {
-		t.Fatalf("error=%v want invalid_json", body["error"])
-	}
-}
-
-func TestAPI_CancelInputRequest_NotWired(t *testing.T) {
-	deps, _ := setupAPI(t)
-	deps.IRSvc = nil
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/input_requests/anything/cancel",
-		"application/json", strings.NewReader(`{"message":"nm"}`))
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_CancelInputRequest_NotFound(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/nope/cancel", `{"message":"nm"}`, sess)
-	if resp.StatusCode != 404 && resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
-func TestAPI_RespondInputRequest_NotFound(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedPost(t, s.URL+"/api/input_requests/nope/respond", `{"answer":"yes"}`, sess)
-	if resp.StatusCode != 404 && resp.StatusCode != 500 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}

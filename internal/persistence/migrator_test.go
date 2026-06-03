@@ -21,9 +21,7 @@ func TestMigrator_UpCreatesAllPhase1Tables(t *testing.T) {
 	for _, tbl := range []string{
 		"events",
 		"workers",
-		"worker_project_mappings",
-		"worker_project_proposals",
-		"projects",
+		// v2.7 #131: worker_project_mappings / worker_project_proposals / projects retired.
 		"conversations",
 		"messages",
 	} {
@@ -80,7 +78,7 @@ func TestMigrator_UpCreatesV2Tables(t *testing.T) {
 		{"workers", "discovery_json", true},
 		{"workers", "capabilities_json", true},
 		{"workers", "capabilities", false}, // dropped by 0007
-		{"task_executions", "agent_instance_id", true},
+		// v2.7 #131: task_executions table retired (0002/0010 no-op) — column check removed.
 	} {
 		var found bool
 		rows, err := db.Query(`SELECT name FROM pragma_table_info(?)`, c.table)
@@ -180,8 +178,8 @@ func TestMigrator_VersionTracksApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 36 {
-		t.Fatalf("version after Up: got %d want 36", v)
+	if v != 47 {
+		t.Fatalf("version after Up: got %d want 47", v)
 	}
 	if err := m.Down(ctx, 0); err != nil {
 		t.Fatal(err)

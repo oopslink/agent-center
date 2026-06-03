@@ -10,61 +10,49 @@ function wrap(ui: React.ReactElement) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-const projectsHandler = http.get('/api/projects', () =>
-  HttpResponse.json([
-    { id: 'proj-1', name: 'Alpha', tags: ['coding'] },
-    { id: 'proj-2', name: 'Beta', tags: [] },
-  ]),
-);
-
 describe('IssueCreateModal', () => {
   afterEach(() => cleanup());
 
-  it('renders project picker + title + description fields', async () => {
-    server.use(projectsHandler);
-    wrap(<IssueCreateModal onClose={() => undefined} />);
+  it('renders title + description fields', () => {
+    wrap(<IssueCreateModal projectId="proj-a" onClose={() => undefined} />);
     expect(screen.getByTestId('issue-create-modal')).toBeInTheDocument();
-    expect(screen.getByTestId('issue-create-project')).toBeInTheDocument();
     expect(screen.getByTestId('issue-create-title')).toBeInTheDocument();
     expect(screen.getByTestId('issue-create-description')).toBeInTheDocument();
-    // Wait for project options to load.
-    await waitFor(() => {
-      expect(screen.getByText('Alpha')).toBeInTheDocument();
-    });
   });
 
-  it('submit is disabled until project + title are set', async () => {
-    server.use(projectsHandler);
-    wrap(<IssueCreateModal onClose={() => undefined} />);
+  it('submit is disabled until title is set', () => {
+    wrap(<IssueCreateModal projectId="proj-a" onClose={() => undefined} />);
     const submit = screen.getByTestId('issue-create-submit') as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
-    // pick project
-    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId('issue-create-project'), {
-      target: { value: 'proj-1' },
-    });
-    expect(submit.disabled).toBe(true); // title still empty
     fireEvent.change(screen.getByTestId('issue-create-title'), {
       target: { value: 'login bug' },
     });
     expect(submit.disabled).toBe(false);
   });
 
-  it('POSTs /api/issues with the entered fields + calls onClose on success', async () => {
+  it('POSTs the nested issue route with the entered fields + calls onClose', async () => {
     let received: Record<string, unknown> | undefined;
-    server.use(projectsHandler);
     server.use(
-      http.post('/api/issues', async ({ request }) => {
+      http.post('/api/projects/proj-a/issues', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
-          { issue_id: 'I-1', conversation_id: 'C-1', event_id: 'E-1' },
+          {
+            id: 'IS-NEW',
+            project_id: 'proj-a',
+            title: 'feature X',
+            description: 'do the thing',
+            status: 'open',
+            created_by: 'user:hayang',
+            version: 1,
+            created_at: 'x',
+            updated_at: 'x',
+          },
           { status: 201 },
         );
       }),
     );
     const onClose = vi.fn();
-    wrap(<IssueCreateModal defaultProjectId="proj-1" onClose={onClose} />);
-    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    wrap(<IssueCreateModal projectId="proj-a" onClose={onClose} />);
     fireEvent.change(screen.getByTestId('issue-create-title'), {
       target: { value: 'feature X' },
     });
@@ -74,7 +62,6 @@ describe('IssueCreateModal', () => {
     fireEvent.click(screen.getByTestId('issue-create-submit'));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(received).toMatchObject({
-      project_id: 'proj-1',
       title: 'feature X',
       description: 'do the thing',
     });

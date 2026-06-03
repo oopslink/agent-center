@@ -24,43 +24,49 @@ function wrap(ui: React.ReactElement) {
 describe('Projects page', () => {
   afterEach(() => cleanup());
 
-  it('renders project rows with name + tag chips', async () => {
+  it('renders project rows with name + status badge', async () => {
     server.use(
       http.get('/api/projects', () =>
-        HttpResponse.json([
-          {
-            id: 'proj-a',
-            name: 'Project Alpha',
-            description: 'first',
-            tags: ['coding', 'ops'],
-            version: 1,
-            created_at: '2026-05-20T01:00:00Z',
-            updated_at: '2026-05-20T01:00:00Z',
-          },
-          {
-            id: 'proj-b',
-            name: 'Project Beta',
-            description: 'second',
-            tags: [],
-            version: 1,
-            created_at: '2026-05-21T01:00:00Z',
-            updated_at: '2026-05-21T01:00:00Z',
-          },
-        ]),
+        HttpResponse.json({
+          projects: [
+            {
+              id: 'proj-a',
+              organization_id: 'org-test',
+              name: 'Project Alpha',
+              description: 'first',
+              status: 'active',
+              created_by: 'user:hayang',
+              version: 1,
+              created_at: '2026-05-20T01:00:00Z',
+              updated_at: '2026-05-20T01:00:00Z',
+            },
+            {
+              id: 'proj-b',
+              organization_id: 'org-test',
+              name: 'Project Beta',
+              description: 'second',
+              status: 'archived',
+              created_by: 'user:hayang',
+              version: 1,
+              created_at: '2026-05-21T01:00:00Z',
+              updated_at: '2026-05-21T01:00:00Z',
+            },
+          ],
+        }),
       ),
     );
     wrap(<Projects />);
     await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
     expect(screen.getByText('Project Alpha')).toBeInTheDocument();
     expect(screen.getByText('Project Beta')).toBeInTheDocument();
-    expect(screen.getByTestId('project-tag-coding')).toBeInTheDocument();
-    expect(screen.getByTestId('project-tag-ops')).toBeInTheDocument();
+    expect(screen.getByTestId('project-status-active')).toBeInTheDocument();
+    expect(screen.getByTestId('project-status-archived')).toBeInTheDocument();
     const links = screen.getAllByRole('link');
     expect(links.some((a) => a.getAttribute('href') === '/projects/proj-a')).toBe(true);
   });
 
   it('shows the EmptyState when the list is empty', async () => {
-    server.use(http.get('/api/projects', () => HttpResponse.json([])));
+    server.use(http.get('/api/projects', () => HttpResponse.json({ projects: [] })));
     wrap(<Projects />);
     await waitFor(() => expect(screen.getByTestId('projects-empty')).toBeInTheDocument());
     expect(screen.getByTestId('projects-empty')).toHaveTextContent(/Add Project/);
@@ -71,7 +77,7 @@ describe('Projects page', () => {
       http.get('/api/projects', async () => {
         // Never-resolving delay so the loading branch stays alive.
         await new Promise<void>(() => {});
-        return HttpResponse.json([]);
+        return HttpResponse.json({ projects: [] });
       }),
     );
     wrap(<Projects />);

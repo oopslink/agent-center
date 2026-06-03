@@ -8,63 +8,12 @@ import (
 	"io"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/oopslink/agent-center/internal/cli"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
-
-// TestPhase4_CLIHandlers_FullStack drives the inspect / query / ps / stats
-// verbs through cli.App against a real SQLite-backed App stack.
-func TestPhase4_CLIHandlers_FullStack(t *testing.T) {
-	path := t.TempDir() + "/test.db"
-	db, err := persistence.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	cfg := config.DefaultConfig()
-	clk := clock.NewFakeClock(time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC))
-	app, err := cli.NewApp(cfg, db, clk)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Seed a worker + project.
-	if _, _, code := runHandler(t, findCmd(app.WorkerCommands(), "enroll"), []string{"--worker-id=W-1"}); code != cli.ExitOK {
-		t.Fatalf("enroll: %d", code)
-	}
-	if _, _, code := runHandler(t, findCmd(app.ProjectCommands(), "add"), []string{"--name=Proj", "proj"}); code != cli.ExitOK {
-		t.Fatalf("project add: %d", code)
-	}
-	// task create
-	if _, _, code := runHandler(t, findCmd(app.TaskCommands(), "create"), []string{"proj", "build foo"}); code != cli.ExitOK {
-		t.Fatalf("task create: %d", code)
-	}
-	// inspect / query / ps / stats
-	for _, args := range [][]string{
-		{"query", "tasks", "--project=proj", "--format=json"},
-		{"query", "workers", "--format=json"},
-		{"query", "events", "--type=task.", "--format=json"},
-		{"ps", "--format=json"},
-		{"stats", "--scope=tasks", "--format=json"},
-		{"stats", "--scope=events", "--format=json"},
-		{"stats", "--scope=workers"},
-	} {
-		cmd := findCmd(app.ObservabilityCommands(), args[0])
-		if cmd == nil {
-			t.Fatalf("cmd %s not found", args[0])
-		}
-		_, errOut, code := runHandler(t, cmd, args[1:])
-		if code != cli.ExitOK {
-			t.Errorf("%v exit=%d err=%s", args, code, errOut)
-		}
-	}
-}
 
 // TestPhase4_NewApp_BlobStoreWired confirms NewApp wires the LocalDir blob
 // store when config.BlobStore.Root is set.

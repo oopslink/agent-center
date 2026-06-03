@@ -1,43 +1,37 @@
-// IssueCreateModal — v2.5.x #61 Open Issue from scratch (no message
-// source). The DeriveModal still exists for "create issue from selected
-// messages"; this is the standalone path.
+// IssueCreateModal — v2.7 create an Issue inside a project.
 import React, { useState } from 'react';
-import { useOpenIssue } from '@/api/issues';
-import { useProjects } from '@/api/projects';
+import { useCreateIssue } from '@/api/issues';
 
 interface Props {
-  defaultProjectId?: string;
+  projectId: string;
   onClose: () => void;
   onCreated?: (issueId: string) => void;
 }
 
 export function IssueCreateModal({
-  defaultProjectId,
+  projectId,
   onClose,
   onCreated,
 }: Props): React.ReactElement {
-  const projects = useProjects();
-  const [projectId, setProjectId] = useState<string>(defaultProjectId ?? '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const open = useOpenIssue();
+  const create = useCreateIssue(projectId);
 
   const trimmedTitle = title.trim();
-  const canSubmit = projectId !== '' && trimmedTitle.length > 0 && !open.isPending;
+  const canSubmit = trimmedTitle.length > 0 && !create.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     try {
-      const res = await open.mutateAsync({
-        project_id: projectId,
+      const res = await create.mutateAsync({
         title: trimmedTitle,
         description: description.trim() || undefined,
       });
-      onCreated?.(res.issue_id);
+      onCreated?.(res.id);
       onClose();
     } catch {
-      // Surfaced via open.error below.
+      // Surfaced via create.error below.
     }
   };
 
@@ -67,27 +61,6 @@ export function IssueCreateModal({
 
         <div className="mb-3">
           <label className="mb-1 block text-xs font-medium text-text-primary">
-            Project<span className="ml-1 text-danger">*</span>
-          </label>
-          <select
-            data-testid="issue-create-project"
-            className={inputClass}
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-          >
-            <option value="" disabled>
-              Pick a project…
-            </option>
-            {(projects.data ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mb-3">
-          <label className="mb-1 block text-xs font-medium text-text-primary">
             Title<span className="ml-1 text-danger">*</span>
           </label>
           <input
@@ -113,9 +86,9 @@ export function IssueCreateModal({
           />
         </div>
 
-        {open.isError && (
+        {create.isError && (
           <p className="mb-3 text-xs text-danger" data-testid="issue-create-error">
-            {(open.error as Error).message}
+            {(create.error as Error).message}
           </p>
         )}
 
@@ -134,7 +107,7 @@ export function IssueCreateModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="issue-create-submit"
           >
-            {open.isPending ? 'Opening…' : 'Open Issue'}
+            {create.isPending ? 'Opening…' : 'Open Issue'}
           </button>
         </div>
       </form>

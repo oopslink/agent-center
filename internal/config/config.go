@@ -26,7 +26,6 @@ import (
 type Config struct {
 	Server           ServerConfig           `yaml:"server"`
 	Notification     NotificationConfig     `yaml:"notification"`
-	Identity         IdentityConfig         `yaml:"identity"`
 	Execution        ExecutionConfig        `yaml:"execution"`
 	BlobStore        BlobStoreConfig        `yaml:"blob_store"`
 	Peek             PeekConfig             `yaml:"peek"`
@@ -76,6 +75,13 @@ type ServerConfig struct {
 	// Both AdminSocketPath and AdminTCPListen empty = boot error
 	// (server has no admin endpoint at all).
 	AdminTCPListen string `yaml:"admin_tcp_listen"`
+	// BootstrapPublicURL (v2.7 #200) is the externally-reachable admin host:port
+	// the Web Console's "Add Worker" command should advertise, INDEPENDENT of the
+	// bind address (admin_tcp_listen). When the center binds 0.0.0.0/loopback but
+	// remote workers must dial a public DNS name / LB / NAT address, set this so
+	// the generated install command is reachable. Empty = fall back to deriving
+	// the host from admin_tcp_listen (the bind address). A bare host:port.
+	BootstrapPublicURL string `yaml:"bootstrap_public_url"`
 	// v2.3-7a: cert + key paths for the TCP admin listener. Empty =
 	// defaults under filepath.Dir(SqlitePath) (admin-tls.crt / .key /
 	// .fingerprint). Auto-generated on boot if missing.
@@ -90,15 +96,15 @@ type NotificationConfig struct {
 
 // ExecutionConfig: 04-configuration § 7.6.
 type ExecutionConfig struct {
-	SubmittedTimeoutSeconds      int `yaml:"submitted_timeout_seconds"`
-	DefaultTimeoutHours          int `yaml:"default_timeout_hours"`
-	DispatchAckTimeoutSeconds    int `yaml:"dispatch_ack_timeout_seconds"`
-	InputRequestPingHours        int `yaml:"input_request_ping_hours"`
-	InputRequestTimeoutHours     int `yaml:"input_request_timeout_hours"`
-	ShimHelloTimeoutSeconds      int `yaml:"shim_hello_timeout_seconds"`
-	ShimGoodbyeAckTimeoutHours   int `yaml:"shim_goodbye_ack_timeout_hours"`
-	MaxExecutionsPerTask         int `yaml:"max_executions_per_task"`
-	KillGraceSeconds             int `yaml:"kill_grace_seconds"`
+	SubmittedTimeoutSeconds    int `yaml:"submitted_timeout_seconds"`
+	DefaultTimeoutHours        int `yaml:"default_timeout_hours"`
+	DispatchAckTimeoutSeconds  int `yaml:"dispatch_ack_timeout_seconds"`
+	InputRequestPingHours      int `yaml:"input_request_ping_hours"`
+	InputRequestTimeoutHours   int `yaml:"input_request_timeout_hours"`
+	ShimHelloTimeoutSeconds    int `yaml:"shim_hello_timeout_seconds"`
+	ShimGoodbyeAckTimeoutHours int `yaml:"shim_goodbye_ack_timeout_hours"`
+	MaxExecutionsPerTask       int `yaml:"max_executions_per_task"`
+	KillGraceSeconds           int `yaml:"kill_grace_seconds"`
 }
 
 // DispatchAckTimeout returns the Duration form (helper for clients).
@@ -157,13 +163,6 @@ func (e ExecutionConfig) KillGrace() time.Duration {
 	return time.Duration(e.KillGraceSeconds) * time.Second
 }
 
-// IdentityConfig captures the v1 single-user default actor written into CLI
-// emitted events. Not in 04-configuration § 7 yet — we add it here as a
-// Phase 1 v1 simplification per plan § 6 R4 / R5 (Identity AR is Phase 5).
-type IdentityConfig struct {
-	DefaultUser string `yaml:"default_user"`
-}
-
 // DefaultConfig returns a Config seeded with the defaults from 04 § 7.
 func DefaultConfig() Config {
 	return Config{
@@ -174,9 +173,6 @@ func DefaultConfig() Config {
 		},
 		Notification: NotificationConfig{
 			DefaultChannel: "",
-		},
-		Identity: IdentityConfig{
-			DefaultUser: "hayang",
 		},
 		Execution: ExecutionConfig{
 			SubmittedTimeoutSeconds:    300,
@@ -329,18 +325,15 @@ func collectKnownKeys(cfg Config) keyTree {
 	// avoids reflection in a security-sensitive layer (config validation).
 	return keyTree{
 		"server": keyTree{
-			"listen_addr":          nil,
-			"sqlite_path":          nil,
-			"admin_socket_path":    nil,
-			"admin_tcp_listen":     nil,
-			"admin_tls_cert_path":  nil,
-			"admin_tls_key_path":   nil,
+			"listen_addr":         nil,
+			"sqlite_path":         nil,
+			"admin_socket_path":   nil,
+			"admin_tcp_listen":    nil,
+			"admin_tls_cert_path": nil,
+			"admin_tls_key_path":  nil,
 		},
 		"notification": keyTree{
 			"default_channel": nil,
-		},
-		"identity": keyTree{
-			"default_user": nil,
 		},
 		"blob_store": keyTree{
 			"kind": nil,
@@ -358,15 +351,15 @@ func collectKnownKeys(cfg Config) keyTree {
 			"listen_addr": nil,
 		},
 		"execution": keyTree{
-			"submitted_timeout_seconds":     nil,
-			"default_timeout_hours":         nil,
-			"dispatch_ack_timeout_seconds":  nil,
-			"input_request_ping_hours":      nil,
-			"input_request_timeout_hours":   nil,
-			"shim_hello_timeout_seconds":    nil,
+			"submitted_timeout_seconds":      nil,
+			"default_timeout_hours":          nil,
+			"dispatch_ack_timeout_seconds":   nil,
+			"input_request_ping_hours":       nil,
+			"input_request_timeout_hours":    nil,
+			"shim_hello_timeout_seconds":     nil,
 			"shim_goodbye_ack_timeout_hours": nil,
-			"max_executions_per_task":       nil,
-			"kill_grace_seconds":            nil,
+			"max_executions_per_task":        nil,
+			"kill_grace_seconds":             nil,
 		},
 	}
 }
@@ -513,10 +506,6 @@ func applyEnvOverrides(cfg *Config, env func(string) (string, bool)) error {
 			cfg.Notification.DefaultChannel = v
 			return nil
 		}},
-		{"AGENT_CENTER_IDENTITY_DEFAULT_USER", func(v string) error {
-			cfg.Identity.DefaultUser = v
-			return nil
-		}},
 	}
 	var errs []string
 	for _, b := range bindings {
@@ -549,10 +538,6 @@ func applyFlagOverrides(cfg *Config, flags map[string]string) error {
 			cfg.Server.SqlitePath = v
 			return nil
 		},
-		"identity.default_user": func(v string) error {
-			cfg.Identity.DefaultUser = v
-			return nil
-		},
 	}
 	var errs []string
 	for k, v := range flags {
@@ -578,12 +563,6 @@ func validate(cfg *Config) error {
 	}
 	if strings.TrimSpace(cfg.Server.SqlitePath) == "" {
 		errs = append(errs, "server.sqlite_path: required")
-	}
-	if strings.TrimSpace(cfg.Identity.DefaultUser) == "" {
-		errs = append(errs, "identity.default_user: required")
-	}
-	if cfg.Identity.DefaultUser != "" && strings.ContainsAny(cfg.Identity.DefaultUser, " :") {
-		errs = append(errs, fmt.Sprintf("identity.default_user %q: must not contain space or ':'", cfg.Identity.DefaultUser))
 	}
 	if len(errs) > 0 {
 		return &ConfigError{Reasons: errs}

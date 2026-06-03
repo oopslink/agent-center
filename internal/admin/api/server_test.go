@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -146,6 +147,39 @@ func TestAdminServer_ShutdownRemovesSocket(t *testing.T) {
 	waitForSocket(t, sock, errCh, time.Second)
 	if err := srv.Shutdown(context.Background()); err != nil {
 		t.Fatalf("shutdown: %v", err)
+	}
+	if _, err := os.Stat(sock); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("socket should be removed after shutdown; got err=%v", err)
+	}
+}
+
+// TestAdminServer_ConcurrentShutdown_RaceClean exercises the #128 listener-lifecycle
+// synchronization: ListenAndServe runs on one goroutine (writing s.listener) while two
+// Shutdown calls race concurrently (reading the snapshot + removing the socket). Before
+// the fix this raced on s.listener (write in ListenAndServe vs read in Shutdown). It also
+// asserts the documented "safe to call multiple times" — both Shutdown calls return nil.
+// Must be run under -race to catch a regression.
+func TestAdminServer_ConcurrentShutdown_RaceClean(t *testing.T) {
+	sock := shortSocketPath(t, "cc.sock")
+	srv := NewServer(sock)
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe() }()
+	waitForSocket(t, sock, errCh, time.Second)
+
+	var wg sync.WaitGroup
+	results := make([]error, 2)
+	for i := range results {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			results[idx] = srv.Shutdown(context.Background())
+		}(i)
+	}
+	wg.Wait()
+	for i, err := range results {
+		if err != nil {
+			t.Fatalf("concurrent Shutdown call %d returned %v, want nil (safe to call multiple times)", i, err)
+		}
 	}
 	if _, err := os.Stat(sock); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("socket should be removed after shutdown; got err=%v", err)

@@ -4,17 +4,17 @@
 // Sequence on `agent-center install center|worker` when an existing
 // install is detected at a different version:
 //
-//   1. Read `<prefix>/current` to capture the rollback target.
-//   2. Copy new-version binaries into `<prefix>/versions/<newver>/`.
-//   3. Write VERSION file.
-//   4. Atomic symlink swap `<prefix>/current` → `<prefix>/versions/<newver>`.
-//      (Service unit + config file unchanged — they point at
-//      `<prefix>/current/...` which is now the new version.)
-//   5. Restart the service via systemctl/launchctl.
-//   6. Health probe: poll `/admin/health` over unix socket (center) or
-//      `<launchctl|systemctl> is-active` (worker) for up to 10s.
-//   7. On any failure between (4)-(6): swap symlink BACK to the
-//      rollback target + restart + return error.
+//  1. Read `<prefix>/current` to capture the rollback target.
+//  2. Copy new-version binaries into `<prefix>/versions/<newver>/`.
+//  3. Write VERSION file.
+//  4. Atomic symlink swap `<prefix>/current` → `<prefix>/versions/<newver>`.
+//     (Service unit + config file unchanged — they point at
+//     `<prefix>/current/...` which is now the new version.)
+//  5. Restart the service via systemctl/launchctl.
+//  6. Health probe: poll `/admin/health` over unix socket (center) or
+//     `<launchctl|systemctl> is-active` (worker) for up to 10s.
+//  7. On any failure between (4)-(6): swap symlink BACK to the
+//     rollback target + restart + return error.
 //
 // Config + unit files are NOT rewritten on upgrade — preserves operator
 // edits and matches the "same command does install + upgrade" UX.

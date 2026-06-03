@@ -1,42 +1,55 @@
 import type React from 'react';
+import { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useConversation, useMessages } from '@/api/conversations';
+import { useAgents } from '@/api/agents';
+import { useMembers, useDisplayNameResolver } from '@/api/members';
+import { EntityRef } from '@/components/EntityRef';
 import {
-  useBindTaskConversation,
-  useResumeTask,
-  useSuspendTask,
+  useAssignTask,
+  useBlockTask,
+  useCancelTask,
+  useCompleteTask,
+  useReopenTask,
+  useStartTask,
   useTask,
+  useUnassignTask,
+  useUnblockTask,
+  useVerifyTask,
 } from '@/api/tasks';
-import { MessageList } from '@/components/MessageList';
-import { MessageComposer } from '@/components/MessageComposer';
-import { ParticipantsPanel } from '@/components/ParticipantsPanel';
-import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
-import { TaskAbandonModal } from '@/components/TaskAbandonModal';
+import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
-import { useSelection } from '@/components/useSelection';
+import { WorkItemConversation } from '@/components/WorkItemConversation';
 
-// TaskDetail (/tasks/:id).
-//
-// v2.3-5b route shape (per § 0.6, Option B): `:id` is now the TASK_ID
-// (TaskRuntime BC), not the conversation_id. Header is driven by the
-// Task projection (title / status / priority / created_at / project
-// link / optional current_execution_id); message thread + composer
-// stay on Conversation BC, scoped to the `conversation_id` the Task
-// projection points at.
+// TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
+// the task is project-scoped and driven entirely by its projection.
+// The new state machine actions each POST to a sub-route and return the
+// refreshed task. Metadata edits via PATCH.
 export default function TaskDetail(): React.ReactElement {
-  const { id = '' } = useParams<{ id: string }>();
-  const task = useTask(id);
-  const convId = task.data?.conversation_id;
-  const conv = useConversation(convId);
-  const messages = useMessages(convId);
-  const selection = useSelection();
-  const [abandonOpen, setAbandonOpen] = useState(false);
+  const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
+  const task = useTask(projectId, id);
+  // v2.7 #186-2: show the project's display name (not its ULID) in the
+  // breadcrumb + project link.
+  const project = useProject(projectId);
+  // v2.7 #192: resolve the assignee ref to a display name (raw ref on hover);
+  // an unresolved ref (e.g. a deleted assignee) renders "(deleted)".
+  const resolveName = useDisplayNameResolver();
   const [editOpen, setEditOpen] = useState(false);
-  const suspend = useSuspendTask(id);
-  const resume = useResumeTask(id);
-  const bindConv = useBindTaskConversation(id);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  // v2.7 #186-3a: lifecycle transitions are presented as a dropdown anchored
+  // to the status badge instead of a scattered row of buttons.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const assign = useAssignTask(projectId, id);
+  const start = useStartTask(projectId, id);
+  const block = useBlockTask(projectId, id);
+  const unblock = useUnblockTask(projectId, id);
+  const complete = useCompleteTask(projectId, id);
+  const verify = useVerifyTask(projectId, id);
+  const cancel = useCancelTask(projectId, id);
+  const unassign = useUnassignTask(projectId, id);
+  const reopen = useReopenTask(projectId, id);
 
   if (task.isLoading) {
     return (
@@ -51,8 +64,8 @@ export default function TaskDetail(): React.ReactElement {
         <p className="text-sm text-danger" data-testid="task-not-found">
           {(task.error as Error).message}
         </p>
-        <OrgLink to="/tasks" className="text-accent hover:underline">
-          Back to tasks
+        <OrgLink to={`/projects/${encodeURIComponent(projectId)}`} className="text-accent hover:underline">
+          Back to project
         </OrgLink>
       </section>
     );
@@ -65,42 +78,131 @@ export default function TaskDetail(): React.ReactElement {
     );
   }
 
-  const participants = conv.data?.participants ?? [];
   const tk = task.data;
-  const isOpen = tk.status === 'open';
-  const isSuspended = tk.status === 'suspended';
-  const isTerminal = tk.status === 'done' || tk.status === 'abandoned';
+  const status = tk.status;
+  const isTerminal = status === 'canceled';
+  const canCancel = status !== 'canceled' && status !== 'verified' && status !== 'completed';
+
+  // v2.7 #186-3a: the lifecycle transitions valid for the current status.
+  // Each becomes a dropdown item; the status badge is the trigger.
+  type TaskAction = { testId: string; label: string; onClick: () => void; danger?: boolean; pending?: boolean };
+  const actions: TaskAction[] = [];
+  switch (status) {
+    case 'open':
+      actions.push({ testId: 'task-assign-button', label: 'Assign', onClick: () => setAssignOpen(true) });
+      break;
+    case 'assigned':
+      actions.push({ testId: 'task-start-button', label: 'Start', onClick: () => start.mutate(), pending: start.isPending });
+      actions.push({ testId: 'task-unassign-button', label: 'Unassign', onClick: () => unassign.mutate(), pending: unassign.isPending });
+      break;
+    case 'running':
+      actions.push({ testId: 'task-complete-button', label: 'Complete', onClick: () => complete.mutate(), pending: complete.isPending });
+      actions.push({ testId: 'task-block-button', label: 'Block', onClick: () => setBlockOpen(true) });
+      break;
+    case 'blocked':
+      actions.push({ testId: 'task-unblock-button', label: 'Unblock', onClick: () => unblock.mutate(), pending: unblock.isPending });
+      break;
+    case 'completed':
+      actions.push({ testId: 'task-verify-button', label: 'Verify', onClick: () => verify.mutate(), pending: verify.isPending });
+      actions.push({ testId: 'task-reopen-button', label: 'Reopen', onClick: () => reopen.mutate(), pending: reopen.isPending });
+      break;
+    case 'verified':
+      actions.push({ testId: 'task-reopen-button', label: 'Reopen', onClick: () => reopen.mutate(), pending: reopen.isPending });
+      break;
+  }
+  if (canCancel) {
+    actions.push({ testId: 'task-cancel-button', label: 'Cancel', onClick: () => cancel.mutate(), danger: true, pending: cancel.isPending });
+  }
+
+  const actionError =
+    (assign.error ?? start.error ?? block.error ?? unblock.error ??
+      complete.error ?? verify.error ?? cancel.error ?? unassign.error ??
+      reopen.error) as Error | null;
 
   return (
-    <section
-      className="flex h-full flex-col"
-      data-testid="page-TaskDetail"
-      data-task-id={tk.id}
-    >
+    <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
       <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
+          {/* v2.7 #186-1: breadcrumb [project name] › Tasks › [task title]. */}
+          <nav
+            className="flex flex-wrap items-center gap-1.5 text-xs text-text-muted"
+            aria-label="Breadcrumb"
+            data-testid="task-breadcrumb"
+          >
+            <OrgLink
+              to={`/projects/${encodeURIComponent(tk.project_id)}`}
+              className="hover:underline"
+              data-testid="task-breadcrumb-project"
+            >
+              {project.data?.name || tk.project_id}
+            </OrgLink>
+            <span aria-hidden="true">›</span>
+            <span>Tasks</span>
+            <span aria-hidden="true">›</span>
+            <span className="text-text-secondary" data-testid="task-breadcrumb-title">
+              {tk.title || tk.id}
+            </span>
+          </nav>
           <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
-              {tk.status}
-            </span>
-            <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
-              {tk.priority}
-            </span>
-            <span>
-              created <span className="font-mono">{formatRelative(tk.created_at)}</span>
-            </span>
+            {/* v2.7 #186-3a: the status badge is the transition dropdown trigger. */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary hover:bg-border-base"
+                data-testid="task-status"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen && actions.length > 0}
+              >
+                {status}
+              </button>
+              {menuOpen && actions.length > 0 && (
+                <ul
+                  className="absolute left-0 z-10 mt-1 min-w-[10rem] rounded border border-border-base bg-bg-elevated py-1 shadow-lg"
+                  data-testid="task-status-menu"
+                  role="menu"
+                >
+                  {actions.map((a) => (
+                    <li key={a.testId} role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={a.pending}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          a.onClick();
+                        }}
+                        data-testid={a.testId}
+                        className={`block w-full px-3 py-1.5 text-left text-xs font-medium normal-case hover:bg-bg-subtle disabled:opacity-50 ${a.danger ? 'text-danger' : 'text-text-primary'}`}
+                      >
+                        {a.pending ? `${a.label}…` : a.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {tk.assignee && (
+              <EntityRef
+                id={tk.assignee}
+                name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
+                testId="task-assignee"
+              />
+            )}
+            {tk.blocked_reason && status === 'blocked' && (
+              <span className="text-danger" data-testid="task-blocked-reason">
+                blocked: {tk.blocked_reason}
+              </span>
+            )}
             {tk.project_id && (
               <OrgLink
                 to={`/projects/${encodeURIComponent(tk.project_id)}`}
                 className="text-accent hover:underline"
                 data-testid="task-project-link"
               >
-                project · {tk.project_id}
+                project · {project.data?.name || tk.project_id}
               </OrgLink>
-            )}
-            {tk.current_execution_id && (
-              <span className="font-mono">exec · {tk.current_execution_id}</span>
             )}
           </div>
         </div>
@@ -115,149 +217,258 @@ export default function TaskDetail(): React.ReactElement {
               Edit
             </button>
           )}
-          {isOpen && (
-            <button
-              type="button"
-              onClick={() => suspend.mutate()}
-              disabled={suspend.isPending}
-              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base disabled:opacity-50"
-              data-testid="task-suspend-button"
-            >
-              {suspend.isPending ? 'Suspending…' : 'Suspend'}
-            </button>
-          )}
-          {isSuspended && (
-            <button
-              type="button"
-              onClick={() => resume.mutate()}
-              disabled={resume.isPending}
-              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base disabled:opacity-50"
-              data-testid="task-resume-button"
-            >
-              {resume.isPending ? 'Resuming…' : 'Resume'}
-            </button>
-          )}
-          {!isTerminal && (
-            <button
-              type="button"
-              onClick={() => setAbandonOpen(true)}
-              className="rounded bg-danger px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
-              data-testid="task-abandon-button"
-            >
-              Abandon
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={selection.toggleSelectMode}
-            className={[
-              'rounded px-2.5 py-1 text-xs font-medium',
-              selection.selectMode
-                ? 'bg-text-primary text-bg-elevated'
-                : 'bg-bg-subtle text-text-primary hover:bg-border-base',
-            ].join(' ')}
-            data-testid="select-mode-toggle"
-            aria-pressed={selection.selectMode}
-          >
-            {selection.selectMode ? 'Cancel select' : 'Select messages'}
-          </button>
-          <OrgLink
-            to={`/tasks/${encodeURIComponent(tk.id)}/trace`}
-            className="rounded bg-bg-subtle px-3 py-1.5 text-xs text-text-primary hover:bg-border-base"
-            data-testid="task-view-trace"
-          >
-            View trace →
-          </OrgLink>
         </div>
       </header>
-      {abandonOpen && (
-        <TaskAbandonModal
-          taskId={tk.id}
-          onClose={() => setAbandonOpen(false)}
-        />
-      )}
-      {editOpen && (
-        <TaskEditModal
-          task={tk}
-          onClose={() => setEditOpen(false)}
-        />
+
+      {actionError && (
+        <p className="mt-2 text-xs text-danger" data-testid="task-action-error">
+          {actionError.message}
+        </p>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {!convId && (
-            // v2.5.16 (#69): legacy task without a bound conversation.
-            // Offer an explicit "Start discussion" CTA so the operator
-            // can attach a chat thread on demand.
-            <div
-              className="m-4 flex flex-col items-start gap-3 rounded border border-dashed border-border-base bg-bg-subtle p-4 text-sm text-text-secondary"
-              data-testid="task-no-conversation"
-            >
-              <div>
-                <p className="font-medium text-text-primary">No discussion thread yet</p>
-                <p className="mt-1 text-text-muted">
-                  This task was created without a conversation. Start one to
-                  chat about it with collaborators or agents.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => bindConv.mutate()}
-                disabled={bindConv.isPending}
-                data-testid="task-start-discussion"
-                className="rounded bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-              >
-                {bindConv.isPending ? 'Starting…' : 'Start discussion'}
-              </button>
-              {bindConv.isError && (
-                <p className="text-xs text-danger" data-testid="task-start-discussion-error">
-                  {(bindConv.error as Error).message}
-                </p>
-              )}
-            </div>
-          )}
-          {convId && messages.isLoading && (
-            <p className="p-4 text-sm text-text-muted" data-testid="task-messages-loading">
-              Loading messages…
-            </p>
-          )}
-          {convId && messages.isError && (
-            <p className="p-4 text-sm text-danger" data-testid="task-messages-error">
-              {(messages.error as Error).message}
-            </p>
-          )}
-          {convId && messages.isSuccess && (
-            <MessageList
-              messages={messages.data}
-              selectable={selection.selectMode}
-              isSelected={selection.isSelected}
-              onToggle={selection.toggle}
-            />
-          )}
-          {convId && (
-            <>
-              <ConversationDeriveControls
-                conversationId={convId}
-                selection={selection}
-              />
-              <MessageComposer conversationId={convId} />
-            </>
-          )}
-        </div>
-        {convId && (
-          <ParticipantsPanel conversationId={convId} participants={participants} />
-        )}
-      </div>
+      {tk.description ? (
+        <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="task-description">
+          {tk.description}
+        </p>
+      ) : (
+        <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+      )}
+
+      <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
+
+      {editOpen && (
+        <TaskEditModal projectId={projectId} task={tk} onClose={() => setEditOpen(false)} />
+      )}
+      {assignOpen && (
+        <AssignModal
+          pending={assign.isPending}
+          error={assign.error as Error | null}
+          onClose={() => setAssignOpen(false)}
+          onSubmit={async (assignee) => {
+            try {
+              await assign.mutateAsync({ assignee });
+              setAssignOpen(false);
+            } catch {
+              // surfaced
+            }
+          }}
+        />
+      )}
+      {blockOpen && (
+        <BlockModal
+          pending={block.isPending}
+          error={block.error as Error | null}
+          onClose={() => setBlockOpen(false)}
+          onSubmit={async (reason) => {
+            try {
+              await block.mutateAsync({ reason });
+              setBlockOpen(false);
+            } catch {
+              // surfaced
+            }
+          }}
+        />
+      )}
     </section>
   );
 }
 
-function formatRelative(iso: string): string {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return '—';
-  const delta = Math.max(0, Math.floor((Date.now() - t) / 1000));
-  if (delta < 60) return `${delta}s ago`;
-  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
-  if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
-  return `${Math.floor(delta / 86400)}d ago`;
+// v2.7 #186-5a/5b: searchable assignee picker (#167 pattern) over agents +
+// human members. Selecting a candidate submits the org-scoped identity ref:
+// agent = `agent:<member-id>` (agent.identity_member_id, the business id — the
+// backend resolves member→entity via the bridge); human = `user:<identity_id>`
+// (PM-tracking, no execution). Replaces the old free-text agent-name input.
+function AssignModal({
+  pending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  pending: boolean;
+  error: Error | null;
+  onClose: () => void;
+  onSubmit: (assignee: string) => void;
+}): React.ReactElement {
+  const agents = useAgents();
+  const members = useMembers();
+  const [q, setQ] = useState('');
+  const candidates = useMemo(() => {
+    const out: { ref: string; label: string; kind: 'agent' | 'human' }[] = [];
+    for (const a of agents.data ?? []) {
+      out.push({ ref: `agent:${a.identity_member_id || a.id}`, label: a.name || a.id, kind: 'agent' });
+    }
+    for (const m of members.data ?? []) {
+      if (m.kind !== 'user') continue;
+      out.push({ ref: `user:${m.identity_id}`, label: m.display_name || m.identity_id, kind: 'human' });
+    }
+    const f = q.trim().toLowerCase();
+    return f ? out.filter((c) => c.label.toLowerCase().includes(f) || c.ref.toLowerCase().includes(f)) : out;
+  }, [agents.data, members.data, q]);
+  return (
+    <Modal testId="task-assign-modal" title="Assign task" onClose={onClose}>
+      <input
+        data-testid="task-assign-search"
+        className={modalInputClass}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search agents or people…"
+        autoFocus
+      />
+      <ul className="mt-2 max-h-60 overflow-y-auto" data-testid="task-assign-candidates">
+        {candidates.length === 0 && (
+          <li className="px-2 py-1.5 text-xs text-text-muted" data-testid="task-assign-empty">
+            No matching agents or people.
+          </li>
+        )}
+        {candidates.map((c) => (
+          <li key={c.ref}>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => onSubmit(c.ref)}
+              data-testid="task-assign-candidate"
+              data-assignee-ref={c.ref}
+              data-kind={c.kind}
+              className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-bg-subtle disabled:opacity-50"
+            >
+              <span>{c.label}</span>
+              <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-xs uppercase text-text-muted">{c.kind}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && (
+        <p className="mt-2 text-xs text-danger" data-testid="task-assign-error">
+          {error.message}
+        </p>
+      )}
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
+          data-testid="task-assign-cancel"
+        >
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  );
 }
+
+function BlockModal({
+  pending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  pending: boolean;
+  error: Error | null;
+  onClose: () => void;
+  onSubmit: (reason: string) => void;
+}): React.ReactElement {
+  const [reason, setReason] = useState('');
+  const trimmed = reason.trim();
+  const canSubmit = trimmed.length > 0 && !pending;
+  return (
+    <Modal testId="task-block-modal" title="Block task" onClose={onClose}>
+      <label className="mb-1 block text-xs font-medium text-text-primary">
+        Reason<span className="ml-1 text-danger">*</span>
+      </label>
+      <textarea
+        data-testid="task-block-input"
+        className={modalInputClass}
+        rows={3}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Why is this blocked?"
+      />
+      {error && (
+        <p className="mt-2 text-xs text-danger" data-testid="task-block-error">
+          {error.message}
+        </p>
+      )}
+      <ModalFooter
+        onClose={onClose}
+        submitLabel={pending ? 'Blocking…' : 'Block'}
+        submitTestId="task-block-submit"
+        disabled={!canSubmit}
+        onSubmit={() => canSubmit && onSubmit(trimmed)}
+      />
+    </Modal>
+  );
+}
+
+function Modal({
+  testId,
+  title,
+  onClose,
+  children,
+}: {
+  testId: string;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      data-testid={testId}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <button
+            type="button"
+            className="text-text-muted hover:text-text-primary"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            X
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ModalFooter({
+  onClose,
+  onSubmit,
+  submitLabel,
+  submitTestId,
+  disabled,
+}: {
+  onClose: () => void;
+  onSubmit: () => void;
+  submitLabel: string;
+  submitTestId: string;
+  disabled: boolean;
+}): React.ReactElement {
+  return (
+    <div className="mt-4 flex justify-end gap-2">
+      <button
+        type="button"
+        className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+        onClick={onClose}
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
+        data-testid={submitTestId}
+        onClick={onSubmit}
+      >
+        {submitLabel}
+      </button>
+    </div>
+  );
+}
+
+const modalInputClass =
+  'block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent';

@@ -61,9 +61,7 @@ func writeMigrateCfg(t *testing.T, cfgPath, dbPath string) {
 	t.Helper()
 	body := "server:\n" +
 		"  listen_addr: ':7000'\n" +
-		"  sqlite_path: '" + dbPath + "'\n" +
-		"identity:\n" +
-		"  default_user: hayang\n"
+		"  sqlite_path: '" + dbPath + "'\n"
 	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
 		t.Fatalf("write cfg: %v", err)
 	}
@@ -116,7 +114,7 @@ func TestMigrateV1ToV2_DryRunReportsCounts(t *testing.T) {
 	}
 	for _, want := range []string{
 		"current schema version: 6",
-		"target  schema version: 36",
+		"target  schema version: 47",
 		"feishu_delivery_ledger:    2",
 		"bridge_subscription_cursors: 1",
 		"dry-run: no changes applied",
@@ -151,7 +149,7 @@ func TestMigrateV1ToV2_ApplyArchivesAndUpgrades(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("code=%d stdout=%s", code, stdout)
 	}
-	if !strings.Contains(stdout, "new schema version: 36") {
+	if !strings.Contains(stdout, "new schema version: 47") {
 		t.Fatalf("expected new version line; got:\n%s", stdout)
 	}
 
@@ -195,8 +193,8 @@ func TestMigrateV1ToV2_ApplyArchivesAndUpgrades(t *testing.T) {
 	db, _ := persistence.Open(dbPath)
 	defer db.Close()
 	v, _ := persistence.NewMigrator(db).Version(context.Background())
-	if v != 36 {
-		t.Fatalf("post-apply version=%d want 36", v)
+	if v != 47 {
+		t.Fatalf("post-apply version=%d want 47", v)
 	}
 	for _, tbl := range []string{"feishu_delivery_ledger", "bridge_subscription_cursors"} {
 		var n int

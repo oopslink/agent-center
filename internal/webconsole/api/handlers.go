@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,21 +14,18 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	"github.com/oopslink/agent-center/internal/discussion"
-	disservice "github.com/oopslink/agent-center/internal/discussion/service"
+	"github.com/oopslink/agent-center/internal/files"
+	filesservice "github.com/oopslink/agent-center/internal/files/service"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
+	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -35,6 +33,7 @@ import (
 // HandlerDeps is the narrow surface handlers need. The cli.App provides
 // these via an adapter (see internal/cli/webconsole_adapter.go).
 type HandlerDeps struct {
+	DB                 *sql.DB
 	Actor              observability.Actor
 	ConvRepo           conversation.ConversationRepository
 	MsgRepo            conversation.MessageRepository
@@ -42,40 +41,12 @@ type HandlerDeps struct {
 	ChannelMgmtSvc     *convservice.ChannelManagementService
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
 	CarryOverSvc       *convservice.CarryOverService
-	DerivationSvc      *convservice.MessageDerivationService
-	IRRepo             inputrequest.Repository
-	IRSvc              *trservice.InputRequestService
-	// ExecRepo resolves InputRequest → execution → task → project for v2.6
-	// org-scoped input-request lists (X1 §3). Optional; when nil the IR list
-	// is not org-filtered (legacy/test deps).
-	ExecRepo           execution.Repository
 	AgentInstanceRepo  workforce.AgentInstanceRepository
 	UserSecretRepo     secretmgmt.UserSecretRepository
 	UserSecretSvc      *secretservice.UserSecretService
-	ProjectRepo        workforce.ProjectRepository
-	QuerySvc           *query.Service
 	FleetSvc           *query.FleetSnapshotService
 	ReadStateRepo      conversation.UserConversationReadStateRepository
 	ReadStateSvc       *convservice.ReadStateService
-	// IssueRepo / TaskRepo back the BC-native list + detail
-	// endpoints (`GET /api/issues`, `GET /api/issues/{id}`,
-	// `GET /api/tasks`, `GET /api/tasks/{id}`). Restores BC ownership:
-	// Issue projection lives in Discussion BC and Task projection
-	// lives in TaskRuntime BC, so SPA reads no longer require the
-	// Conversation BC's `kind=issue|task` filter.
-	IssueRepo discussion.IssueRepository
-	TaskRepo  task.Repository
-
-	// v2.5.x #61: IssueLifecycleSvc backs the Web Console "Open Issue"
-	// + "Conclude" mutation surfaces. Same service the CLI uses; the
-	// webconsole calls it directly (no admin transport hop) since both
-	// surfaces run in the same process per ADR-0037.
-	IssueLifecycleSvc *disservice.IssueLifecycleService
-
-	// v2.5.x #62: TaskSvc backs the Web Console New Task button +
-	// TaskDetail lifecycle actions (Suspend / Resume / Abandon). Same
-	// service the CLI uses.
-	TaskSvc *trservice.TaskService
 
 	// v2.4-D-X1 (@oopslink ask): workers.name editing surface in the
 	// Fleet view. WorkerRenameSvc is the workforce service that wraps
@@ -108,20 +79,32 @@ type HandlerDeps struct {
 	// v2.5-B2: WorkerRepo backs the show-install-command lookup —
 	// we need the Worker's name to embed in `--worker-name=...`
 	// when rebuilding the install line.
+	// v2.7 #140 step-2: WorkerRepo also backs the Environment-page worker reads
+	// (GET /api/workers + /api/workers/{id}) — repointed off the retiring
+	// environment.Worker onto the canonical workforce.Worker (enrolled set).
 	WorkerRepo workforce.WorkerRepository
 
-	// v2.5.3 (#58): Project CRUD UI backs `POST /api/projects` +
-	// `PATCH /api/projects/{id}` + `DELETE /api/projects/{id}`
-	// + `POST /api/projects/{id}/workers`. ProjectCRUDSvc owns the
-	// Project AR write path; MappingRepo lets the handler list
-	// existing mappings for the cascade-on-delete check + the
-	// Map worker UI.
-	ProjectCRUDSvc interface {
-		Add(ctx context.Context, cmd wfservice.AddCommand) (wfservice.AddResult, error)
-		Update(ctx context.Context, cmd wfservice.UpdateCommand) (wfservice.UpdateResult, error)
-		Remove(ctx context.Context, cmd wfservice.RemoveCommand) (observability.EventID, error)
-	}
-	MappingRepo workforce.WorkerProjectMappingRepository
+	// v2.7 E1 #139: FileTransferRepo backs the Environment-page in-flight
+	// transfer-session view (GET /api/files/transfers). Org is resolved per
+	// session via its scope (fail-closed). Optional — nil → 501.
+	FileTransferRepo files.FileTransferSessionRepository
+
+	// v2.7 B3: the ProjectManager AppService facade backs the nested
+	// /api/projects/{project_id}/{members,issues,tasks,code-repos} routes
+	// (work-management truth; ADR-0046). Optional — nil means the v2.7 PM
+	// endpoints are not wired (legacy/test deps).
+	PM *pmservice.Service
+
+	// v2.7 C3: the Agent BC AppService facade backs the org-scoped
+	// /api/agents + /api/agents/{id}/{start,stop,restart,reset} routes.
+	AgentSvc *agentsvc.Service
+
+	// v2.7 D3-d: the files transfer Service backs the human upload/download
+	// HTTP endpoints (/api/files...). Upload mints a session, streams bytes
+	// (write-once), then completes; download runs the reverse per-reference
+	// download-reachability check (fileReachableForHuman) before streaming.
+	// Optional — nil means the /api/files surface is not wired (legacy/test).
+	FilesSvc *filesservice.Service
 
 	// v2.4-D-F3 fix: enroll-token mint endpoint for the Add Worker
 	// Modal. AdminTokenSvc is the same service the admin endpoint uses
@@ -130,7 +113,7 @@ type HandlerDeps struct {
 	// values the Modal needs to render the worker install command;
 	// both are derived from the admin TCP listener config + cert at
 	// server boot.
-	AdminTokenSvc      *admintokensvc.Service
+	AdminTokenSvc       *admintokensvc.Service
 	EnrollBootstrapHost string
 	EnrollFingerprint   string
 
@@ -149,19 +132,35 @@ type HandlerDeps struct {
 	OrgCreateSvc    *identity.OrganizationCreateService
 	OrgLifecycleSvc *identity.OrganizationLifecycleService
 
+	// v2.7 #145: identity (user) repo backing the public GET /api/auth/bootstrap
+	// "is the system initialized" check (any user exists). Optional — nil means
+	// bootstrap reports initialized=false (fresh).
+	IdentityRepo identity.IdentityRepository
+
 	// v2.6-FE-4: Member management services.
-	MemberRepo            identity.MemberRepository
-	MemberAddSvc          *identity.MemberAddService
-	MemberCreateUserSvc   *identity.MemberCreateUserService
-	MemberRoleChangeSvc   *identity.MemberRoleChangeService
-	MemberDisableSvc      *identity.MemberDisableService
-	AgentProvisionSvc     *identity.AgentIdentityProvisionService
-	OrgUpdateSvc          *identity.OrganizationUpdateService
+	MemberRepo          identity.MemberRepository
+	MemberAddSvc        *identity.MemberAddService
+	MemberCreateUserSvc *identity.MemberCreateUserService
+	MemberRoleChangeSvc *identity.MemberRoleChangeService
+	MemberDisableSvc    *identity.MemberDisableService
+	AgentProvisionSvc   *identity.AgentIdentityProvisionService
+	OrgUpdateSvc        *identity.OrganizationUpdateService
 }
 
 // hd retrieves the typed dep bag from the request context.
 func hd(r *http.Request) HandlerDeps {
 	v, _ := r.Context().Value(depsKey{}).(HandlerDeps)
+	// v2.7 #146: stamp domain identity + audit actor from the authenticated
+	// session, not the static configured default_user. authMiddleware installs
+	// the real identity for every /api route; it is nil only on legacy/no-auth
+	// paths (AuthSvc unwired), which keep the configured fallback. HandlerDeps
+	// is returned by value, so this override is per-request and does not mutate
+	// the shared dep bag. Uses the SAME ref convention as the #142 download gate
+	// (filesCallerRef) so a conversation owner/participant ref matches the gate's
+	// caller ref — closing the F142-2 own-attachment-download ship-blocker.
+	if id := CurrentIdentity(r); id != nil {
+		v.Actor = observability.Actor(filesCallerRef(id))
+	}
 	return v
 }
 
@@ -183,22 +182,6 @@ func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
 		}
 	}
 	return ""
-}
-
-// orgProjectIDSet returns the set of project IDs that belong to orgID. Used by
-// issue/task/input-request/fleet/trace handlers to scope BC-native reads that
-// don't carry organization_id directly but reference a project (which does).
-// v2.6 X1 §3: these surfaces must not leak cross-org rows.
-func orgProjectIDSet(r *http.Request, d HandlerDeps, orgID string) (map[string]bool, error) {
-	projects, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{OrganizationID: orgID})
-	if err != nil {
-		return nil, err
-	}
-	set := make(map[string]bool, len(projects))
-	for _, p := range projects {
-		set[string(p.ID())] = true
-	}
-	return set, nil
 }
 
 // requireOrgMember is the authoritative auth/scope helper for org-scoped APIs.
@@ -273,29 +256,6 @@ func (s *Server) requireConversationInOrg(w http.ResponseWriter, r *http.Request
 	return orgID, true
 }
 
-// requireProjectInOrg guards project detail/CRUD/mapping endpoints. Projects
-// carry organization_id directly.
-func (s *Server) requireProjectInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, projectID string) (orgID string, ok bool) {
-	_, _, orgID, member := requireOrgMember(w, r, d)
-	if !member {
-		return "", false
-	}
-	if d.ProjectRepo == nil {
-		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
-		return "", false
-	}
-	p, err := d.ProjectRepo.FindByID(r.Context(), workforce.ProjectID(projectID))
-	if err != nil || p == nil {
-		writeError(w, http.StatusNotFound, "not_found", "project not found")
-		return "", false
-	}
-	if p.OrganizationID() != orgID {
-		writeError(w, http.StatusNotFound, "not_found", "project not found")
-		return "", false
-	}
-	return orgID, true
-}
-
 // requireAgentInOrg guards agent detail endpoints. AgentInstances carry
 // organization_id directly. Looks up by name.
 func (s *Server) requireAgentInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, name string) (orgID string, ok bool) {
@@ -341,76 +301,6 @@ func (s *Server) requireSecretInOrg(w http.ResponseWriter, r *http.Request, d Ha
 	return orgID, true
 }
 
-// requireProjectIDInOrg verifies a bare project id belongs to the caller's org
-// (used by issue/task create where the project_id comes from the request body).
-func (s *Server) requireProjectIDInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, orgID, projectID string) bool {
-	set, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return false
-	}
-	if !set[projectID] {
-		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
-		return false
-	}
-	return true
-}
-
-// requireTaskInOrg guards task mutation endpoints. Tasks reference a project
-// which carries organization_id.
-func (s *Server) requireTaskInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, taskID string) (orgID string, ok bool) {
-	_, _, orgID, member := requireOrgMember(w, r, d)
-	if !member {
-		return "", false
-	}
-	if d.TaskRepo == nil {
-		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
-		return "", false
-	}
-	tk, err := d.TaskRepo.FindByID(r.Context(), taskruntime.TaskID(taskID))
-	if err != nil || tk == nil {
-		writeError(w, http.StatusNotFound, "not_found", "task not found")
-		return "", false
-	}
-	set, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return "", false
-	}
-	if !set[tk.ProjectID()] {
-		writeError(w, http.StatusNotFound, "not_found", "task not found")
-		return "", false
-	}
-	return orgID, true
-}
-
-// requireIssueInOrg guards issue mutation endpoints.
-func (s *Server) requireIssueInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, issueID string) (orgID string, ok bool) {
-	_, _, orgID, member := requireOrgMember(w, r, d)
-	if !member {
-		return "", false
-	}
-	if d.IssueRepo == nil {
-		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
-		return "", false
-	}
-	is, err := d.IssueRepo.FindByID(r.Context(), discussion.IssueID(issueID))
-	if err != nil || is == nil {
-		writeError(w, http.StatusNotFound, "not_found", "issue not found")
-		return "", false
-	}
-	set, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return "", false
-	}
-	if !set[is.ProjectID()] {
-		writeError(w, http.StatusNotFound, "not_found", "issue not found")
-		return "", false
-	}
-	return orgID, true
-}
-
 // requireWorkerInOrg guards worker rename / show-install / re-mint / remove and
 // the project-mapping worker_id check. Workers carry organization_id directly.
 func (s *Server) requireWorkerInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, workerID string) (orgID string, ok bool) {
@@ -429,44 +319,6 @@ func (s *Server) requireWorkerInOrg(w http.ResponseWriter, r *http.Request, d Ha
 	}
 	if wk.OrganizationID() != orgID {
 		writeError(w, http.StatusNotFound, "not_found", "worker not found")
-		return "", false
-	}
-	return orgID, true
-}
-
-// requireInputRequestInOrg guards input-request mutation endpoints. Resolves
-// IR → execution → task → project → org.
-func (s *Server) requireInputRequestInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, irID string) (orgID string, ok bool) {
-	_, _, orgID, member := requireOrgMember(w, r, d)
-	if !member {
-		return "", false
-	}
-	if d.IRRepo == nil || d.ExecRepo == nil || d.TaskRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_wired", "input-request scope deps not wired")
-		return "", false
-	}
-	ir, err := d.IRRepo.FindByID(r.Context(), taskruntime.InputRequestID(irID))
-	if err != nil || ir == nil {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
-		return "", false
-	}
-	ex, err := d.ExecRepo.FindByID(r.Context(), ir.TaskExecutionID())
-	if err != nil || ex == nil {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
-		return "", false
-	}
-	tk, err := d.TaskRepo.FindByID(r.Context(), ex.TaskID())
-	if err != nil || tk == nil {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
-		return "", false
-	}
-	set, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return "", false
-	}
-	if !set[tk.ProjectID()] {
-		writeError(w, http.StatusNotFound, "not_found", "input request not found")
 		return "", false
 	}
 	return orgID, true
@@ -507,6 +359,14 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		ss := conversation.ConversationStatus(st)
 		filter.Status = &ss
 	}
+	// v2.7 #137: fetch a task/issue conversation by owner_ref (pm://tasks|
+	// issues/{id}). org-scoped by construction — filter.OrganizationID is
+	// already set above, so a cross-org owner_ref returns no rows (fail-closed,
+	// no leak); never bypasses org isolation.
+	if or := r.URL.Query().Get("owner_ref"); or != "" {
+		o := conversation.OwnerRef(or)
+		filter.OwnerRef = &o
+	}
 	convs, err := d.ConvRepo.Find(r.Context(), filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
@@ -521,8 +381,10 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 
 // createConversationReq is the unified create payload (SPA F2).
 //
-//   - kind=channel: requires `name`; `members` ignored (caller becomes
-//     sole owner; further invites use the participants endpoint).
+//   - kind=channel: requires `name`. The caller becomes owner; `members`
+//     (user:/agent: refs) are added as participants at creation (v2.7 #201 —
+//     so an agent member can be @mentioned immediately). Further invites still
+//     use the participants endpoint.
 //   - kind=dm:      requires at least one entry in `members` (peers besides
 //     the caller); `name` optional. Caller is automatically added as a
 //     participant with role=owner alongside each peer (role=member).
@@ -574,10 +436,17 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, d Handler
 	} else {
 		orgID = resolveOrgIDFromRequest(r, d)
 	}
+	// v2.7 #201: seed members[] as participants (like DM create). Without this an
+	// agent added at channel-create was dropped → channel @mention never woke it.
+	chanMembers := make([]conversation.IdentityRef, 0, len(req.Members))
+	for _, m := range req.Members {
+		chanMembers = append(chanMembers, conversation.IdentityRef(m))
+	}
 	res, err := d.ChannelMgmtSvc.CreateChannel(r.Context(), convservice.CreateChannelCommand{
 		Name:           req.Name,
 		Description:    req.Description,
 		OrganizationID: orgID,
+		Members:        chanMembers,
 		CreatedBy:      conversation.IdentityRef(d.Actor),
 		Actor:          d.Actor,
 	})
@@ -820,17 +689,43 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendMessageReq struct {
-	SenderIdentityID string `json:"sender_identity_id"`
-	Content          string `json:"content"`
-	ContentKind      string `json:"content_kind"`
-	Direction        string `json:"direction"`
-	InputRequestRef  string `json:"input_request_ref"`
+	SenderIdentityID string              `json:"sender_identity_id"`
+	Content          string              `json:"content"`
+	ContentKind      string              `json:"content_kind"`
+	Direction        string              `json:"direction"`
+	InputRequestRef  string              `json:"input_request_ref"`
+	Attachments      []msgAttachmentJSON `json:"attachments"`
+}
+
+// msgAttachmentJSON is the wire shape for a message attachment (v2.7 #133):
+// a reference to an already-uploaded blob (ac://files/{ulid}) plus display
+// metadata. The client uploads via POST /api/files first, then sends the
+// message carrying the returned file_uri here.
+type msgAttachmentJSON struct {
+	URI      string `json:"uri"`
+	Filename string `json:"filename"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
 }
 
 func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
-	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if d.ConvRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "conversation repo not wired")
+		return
+	}
+	conv, err := d.ConvRepo.FindByID(r.Context(), id)
+	if err != nil || conv == nil {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
+		return
+	}
+	if conv.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
 		return
 	}
 	var req sendMessageReq
@@ -838,10 +733,12 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	sender := req.SenderIdentityID
-	if sender == "" {
-		sender = string(d.Actor)
-	}
+	// v2.7 #146: this webconsole endpoint is human-session-only — there is no
+	// delegated-send path here (agents/workers post via the admin API, not this
+	// JWT-cookie route). Always stamp the sender from the authenticated session
+	// (d.Actor is per-request, see hd) and IGNORE any client-supplied
+	// sender_identity_id to prevent sender spoofing.
+	sender := string(d.Actor)
 	ck := req.ContentKind
 	if ck == "" {
 		ck = string(conversation.MessageContentText)
@@ -850,15 +747,89 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	if dir == "" {
 		dir = string(conversation.DirectionInbound)
 	}
-	res, err := d.MessageWriter.AddMessage(r.Context(), convservice.AddMessageCommand{
-		ConversationID:   id,
-		SenderIdentityID: conversation.IdentityRef(sender),
-		ContentKind:      conversation.MessageContentKind(ck),
-		Content:          req.Content,
-		Direction:        conversation.MessageDirection(dir),
-		InputRequestRef:  req.InputRequestRef,
-		Actor:            d.Actor,
-	})
+	var atts []conversation.MessageAttachment
+	for _, a := range req.Attachments {
+		atts = append(atts, conversation.MessageAttachment{
+			URI: a.URI, Filename: a.Filename, MimeType: a.MimeType, Size: a.Size,
+		})
+	}
+	var fileURIs []files.FileURI
+	callerRef := filesCallerRef(caller)
+	if len(req.Attachments) > 0 {
+		if d.FilesSvc == nil {
+			writeError(w, http.StatusNotImplemented, "files_not_wired", "files service not wired")
+			return
+		}
+		if d.DB == nil {
+			writeError(w, http.StatusNotImplemented, "db_not_wired", "database not wired")
+			return
+		}
+		for _, a := range req.Attachments {
+			fileURI, err := files.ParseFileURI(a.URI)
+			if err != nil {
+				writeAttachmentNotReachable(w)
+				return
+			}
+			reachable, err := s.fileReachableForHuman(r.Context(), d, caller, orgID, fileURI)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "reachability_failed", err.Error())
+				return
+			}
+			if !reachable {
+				uploaded, err := s.callerUploaded(r.Context(), d, callerRef, fileURI)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "reachability_failed", err.Error())
+					return
+				}
+				reachable = uploaded
+			}
+			if !reachable {
+				writeAttachmentNotReachable(w)
+				return
+			}
+			fileURIs = append(fileURIs, fileURI)
+		}
+	}
+	add := func(ctx context.Context) (convservice.AddMessageResult, error) {
+		res, err := d.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+			ConversationID:   id,
+			SenderIdentityID: conversation.IdentityRef(sender),
+			ContentKind:      conversation.MessageContentKind(ck),
+			Content:          req.Content,
+			Direction:        conversation.MessageDirection(dir),
+			InputRequestRef:  req.InputRequestRef,
+			Attachments:      atts,
+			Actor:            d.Actor,
+		})
+		if err != nil {
+			return convservice.AddMessageResult{}, err
+		}
+		for i, fileURI := range fileURIs {
+			a := req.Attachments[i]
+			if _, err := d.FilesSvc.AddReference(ctx, filesservice.AddReferenceCmd{
+				FileURI:   fileURI,
+				Scope:     files.ScopeConversation,
+				ScopeID:   string(id),
+				Filename:  a.Filename,
+				MimeType:  a.MimeType,
+				SizeBytes: a.Size,
+				CreatedBy: callerRef,
+			}); err != nil {
+				return convservice.AddMessageResult{}, err
+			}
+		}
+		return res, nil
+	}
+	var res convservice.AddMessageResult
+	if len(fileURIs) > 0 {
+		err = persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+			var txErr error
+			res, txErr = add(txCtx)
+			return txErr
+		})
+	} else {
+		res, err = add(r.Context())
+	}
 	if err != nil {
 		mapDomainError(w, err)
 		return
@@ -867,6 +838,10 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		"message_id": string(res.MessageID),
 		"event_id":   string(res.EventID),
 	})
+}
+
+func writeAttachmentNotReachable(w http.ResponseWriter) {
+	writeError(w, http.StatusForbidden, "forbidden", "attachment is not reachable")
 }
 
 type archiveReq struct {
@@ -910,6 +885,52 @@ func (s *Server) archiveConversationHandler(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"event_id": string(evID)})
 }
 
+// deleteConversationHandler hard-deletes a DM conversation (v2.7 #198). Only
+// kind=DM is deletable — channels use archive (terminal-but-retained), so a
+// channel returns 400 use_archive. Authz: the caller must be an active
+// participant of the DM. The conversation row + its messages + read-state are
+// removed in one tx (no DB-level cascade).
+func (s *Server) deleteConversationHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	id := conversation.ConversationID(r.PathValue("id"))
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if d.ConvRepo == nil || d.MsgRepo == nil || d.ReadStateRepo == nil || d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "not_wired", "conversation repos not wired")
+		return
+	}
+	c, err := d.ConvRepo.FindByID(r.Context(), id)
+	if err != nil || c == nil || c.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
+		return
+	}
+	if c.Kind() != conversation.ConversationKindDM {
+		writeError(w, http.StatusBadRequest, "use_archive",
+			"only DMs can be deleted; archive channels instead")
+		return
+	}
+	if !c.HasActiveParticipant(conversation.IdentityRef("user:" + caller.ID())) {
+		writeError(w, http.StatusForbidden, "not_a_participant",
+			"only a participant can delete this DM")
+		return
+	}
+	if err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		if derr := d.MsgRepo.DeleteByConversationID(txCtx, id); derr != nil {
+			return derr
+		}
+		if derr := d.ReadStateRepo.DeleteByConversationID(txCtx, id); derr != nil {
+			return derr
+		}
+		return d.ConvRepo.Delete(txCtx, id)
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "conversation_id": string(id)})
+}
+
 type inviteReq struct {
 	IdentityID string `json:"identity_id"`
 	Role       string `json:"role"`
@@ -930,6 +951,17 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "missing_identity_id", "identity_id required")
 		return
 	}
+	// v2.7 #158: validate the ref FORMAT up-front (mirrors createDM's member
+	// check). A malformed identity (no user:/agent: prefix) is a client error —
+	// reject with 400 instead of letting the Invite service's validation error
+	// bubble through mapDomainError into an opaque 500 (which also leaked the
+	// ADR-0033 rule text). Well-formed-but-nonexistent refs keep existing behavior.
+	inviteRef := conversation.IdentityRef(req.IdentityID)
+	if err := inviteRef.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_identity_id",
+			"identity_id must be a valid ref (user:<id> or agent:<id>)")
+		return
+	}
 	// Resolve channel name from conv id (ParticipantManagementService
 	// takes name; we look up by id first).
 	c, err := d.ConvRepo.FindByID(r.Context(), convID)
@@ -943,10 +975,13 @@ func (s *Server) inviteParticipantHandler(w http.ResponseWriter, r *http.Request
 	}
 	evID, err := d.ParticipantMgmtSvc.Invite(r.Context(), convservice.InviteCommand{
 		ConversationName: c.Name(),
-		IdentityID:       conversation.IdentityRef(req.IdentityID),
-		Role:             req.Role,
-		InvitedBy:        conversation.IdentityRef(d.Actor),
-		Actor:            d.Actor,
+		// v2.7 #195: org-scope the name re-lookup to the verified-in-org channel,
+		// so a same-named channel in another org can't be resolved by mistake.
+		OrganizationID: c.OrganizationID(),
+		IdentityID:     inviteRef,
+		Role:           req.Role,
+		InvitedBy:      conversation.IdentityRef(d.Actor),
+		Actor:          d.Actor,
 	})
 	if err != nil {
 		mapDomainError(w, err)
@@ -973,6 +1008,7 @@ func (s *Server) removeParticipantHandler(w http.ResponseWriter, r *http.Request
 	}
 	evID, err := d.ParticipantMgmtSvc.Kick(r.Context(), convservice.KickCommand{
 		ConversationName: c.Name(),
+		OrganizationID:   c.OrganizationID(), // v2.7 #195: org-scope the name re-lookup
 		IdentityID:       conversation.IdentityRef(identityID),
 		KickedBy:         conversation.IdentityRef(d.Actor),
 		Reason:           "kicked",
@@ -986,692 +1022,7 @@ func (s *Server) removeParticipantHandler(w http.ResponseWriter, r *http.Request
 }
 
 // =============================================================================
-// Derivation
-// =============================================================================
-
-type deriveIssueReq struct {
-	SourceConversationID string   `json:"source_conversation_id"`
-	SourceMessageIDs     []string `json:"source_message_ids"`
-	ProjectID            string   `json:"project_id"`
-	Title                string   `json:"title"`
-	Description          string   `json:"description"`
-}
-
-// postIssueHandler routes POST /api/issues to either derive (with source
-// fields) or open-from-scratch (v2.5.x #61 Create Issue Modal). Branching
-// keeps the URL stable while letting the SPA pick the flow by payload
-// shape; the existing DeriveModal omits nothing, the new CreateIssueModal
-// sends only project_id / title / description.
-func (s *Server) postIssueHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req deriveIssueReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	// Open-from-scratch path: no source conversation/messages.
-	if strings.TrimSpace(req.SourceConversationID) == "" && len(req.SourceMessageIDs) == 0 {
-		s.openIssueFromScratch(w, r, d, req)
-		return
-	}
-	if d.DerivationSvc == nil {
-		writeError(w, http.StatusNotImplemented, "derivation_not_wired", "")
-		return
-	}
-	// v2.6 X1 §5: derive path — source conversation must be in org + target
-	// project (if given) must be in org.
-	if _, ok := s.requireConversationInOrg(w, r, d, req.SourceConversationID); !ok {
-		return
-	}
-	if req.ProjectID != "" {
-		_, _, orgID, ok := requireOrgMember(w, r, d)
-		if !ok {
-			return
-		}
-		if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
-			return
-		}
-	}
-	msgIDs := make([]conversation.MessageID, 0, len(req.SourceMessageIDs))
-	for _, m := range req.SourceMessageIDs {
-		msgIDs = append(msgIDs, conversation.MessageID(m))
-	}
-	res, err := d.DerivationSvc.DeriveIssue(r.Context(), convservice.DeriveIssueCommand{
-		SourceConversationID: conversation.ConversationID(req.SourceConversationID),
-		SourceMessageIDs:     msgIDs,
-		ProjectID:            req.ProjectID,
-		Title:                req.Title,
-		Description:          req.Description,
-		CreatedBy:            conversation.IdentityRef(d.Actor),
-		Actor:                d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"issue_id":            res.IssueID,
-		"conversation_id":     string(res.ChildConversationID),
-		"reference_count":     res.ReferenceCount,
-		"issue_event_id":      string(res.IssueEventID),
-		"carry_over_event_id": string(res.CarryOverEventID),
-	})
-}
-
-// openIssueFromScratch implements the v2.5.x #61 Create Issue Modal path.
-// Wraps IssueLifecycleSvc.Open with OriginWebConsole (sync-build: a sibling
-// kind=issue Conversation is created in the same tx, so issue.conversation_id
-// is bound immediately).
-func (s *Server) openIssueFromScratch(w http.ResponseWriter, r *http.Request, d HandlerDeps, req deriveIssueReq) {
-	if d.IssueLifecycleSvc == nil {
-		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
-		return
-	}
-	if strings.TrimSpace(req.ProjectID) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "project_id required")
-		return
-	}
-	if strings.TrimSpace(req.Title) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "title required")
-		return
-	}
-	// v2.6 X1 §5: require org membership + the target project must be in the org.
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
-		return
-	}
-	res, err := d.IssueLifecycleSvc.Open(r.Context(), disservice.OpenIssueCommand{
-		ProjectID:          req.ProjectID,
-		Title:              req.Title,
-		Description:        req.Description,
-		OpenedByIdentityID: string(d.Actor),
-		Origin:             discussion.OriginWebConsole,
-		Actor:              d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"issue_id":        string(res.IssueID),
-		"conversation_id": string(res.ConversationID),
-		"event_id":        string(res.EventID),
-	})
-}
-
-// concludeIssueReq is the POST /api/issues/{id}/conclude body. Tasks is
-// only required when kind=closed_with_tasks; otherwise omitted.
-type concludeIssueReq struct {
-	Kind    string                  `json:"kind"`
-	Summary string                  `json:"summary"`
-	Tasks   []concludeIssueTaskReq  `json:"tasks,omitempty"`
-}
-
-type concludeIssueTaskReq struct {
-	LocalID     string `json:"local_id,omitempty"`
-	Title       string `json:"title"`
-	Description string `json:"description,omitempty"`
-	Priority    string `json:"priority,omitempty"`
-}
-
-// concludeIssueHandler serves POST /api/issues/{id}/conclude. Wraps
-// IssueLifecycleSvc.Conclude. v2.5.x #61.
-func (s *Server) concludeIssueHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.IssueLifecycleSvc == nil {
-		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
-		return
-	}
-	id := discussion.IssueID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	var req concludeIssueReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	kind := discussion.ResolutionKind(req.Kind)
-	if !kind.IsValid() {
-		writeError(w, http.StatusBadRequest, "invalid_input",
-			"kind must be one of closed_no_action / closed_with_tasks / withdrawn")
-		return
-	}
-	// v2.6 X1 §5: org guard before the mutation (after input validation so a
-	// malformed request is a 400 regardless of org).
-	if _, ok := s.requireIssueInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	resolution := discussion.Resolution{
-		Kind:    kind,
-		Summary: req.Summary,
-	}
-	if kind == discussion.ResolutionClosedWithTasks {
-		resolution.Tasks = make([]dispatch.IssueConcludeTaskSpec, 0, len(req.Tasks))
-		for i, t := range req.Tasks {
-			localID := t.LocalID
-			if localID == "" {
-				localID = fmt.Sprintf("t%d", i+1)
-			}
-			resolution.Tasks = append(resolution.Tasks, dispatch.IssueConcludeTaskSpec{
-				LocalID:     localID,
-				Title:       t.Title,
-				Description: t.Description,
-				Priority:    task.Priority(t.Priority),
-			})
-		}
-	}
-	res, err := d.IssueLifecycleSvc.Conclude(r.Context(), disservice.ConcludeIssueCommand{
-		IssueID:     id,
-		Resolution:  resolution,
-		ConcludedBy: string(d.Actor),
-		Actor:       d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	taskIDs := make([]string, len(res.TaskIDs))
-	for i, tid := range res.TaskIDs {
-		taskIDs[i] = string(tid)
-	}
-	eventIDs := make([]string, len(res.EventIDs))
-	for i, eid := range res.EventIDs {
-		eventIDs[i] = string(eid)
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"issue_id":  string(res.IssueID),
-		"task_ids":  taskIDs,
-		"event_ids": eventIDs,
-	})
-}
-
-type deriveTaskReq struct {
-	SourceConversationID string   `json:"source_conversation_id"`
-	SourceMessageIDs     []string `json:"source_message_ids"`
-	ProjectID            string   `json:"project_id"`
-	Title                string   `json:"title"`
-	Description          string   `json:"description"`
-	AgentInstanceID      string   `json:"agent_instance_id"`
-	// v2.5.x #62 — fields used only by the open-from-scratch branch.
-	ParentTaskID     string `json:"parent_task_id,omitempty"`
-	Priority         string `json:"priority,omitempty"`
-	RequiresWorktree bool   `json:"requires_worktree,omitempty"`
-	WithConversation bool   `json:"with_conversation,omitempty"`
-}
-
-// postTaskHandler routes POST /api/tasks to either derive (with source
-// fields) or create-from-scratch (v2.5.x #62 Create Task Modal). Same
-// branching pattern as postIssueHandler for symmetry.
-func (s *Server) postTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req deriveTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	if strings.TrimSpace(req.SourceConversationID) == "" && len(req.SourceMessageIDs) == 0 {
-		s.createTaskFromScratch(w, r, d, req)
-		return
-	}
-	if d.DerivationSvc == nil {
-		writeError(w, http.StatusNotImplemented, "derivation_not_wired", "")
-		return
-	}
-	// v2.6 X1 §5: derive path — require org membership + source conversation in
-	// org + target project in org.
-	if _, ok := s.requireConversationInOrg(w, r, d, req.SourceConversationID); !ok {
-		return
-	}
-	if req.ProjectID != "" {
-		_, _, orgID, ok := requireOrgMember(w, r, d)
-		if !ok {
-			return
-		}
-		if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
-			return
-		}
-	}
-	msgIDs := make([]conversation.MessageID, 0, len(req.SourceMessageIDs))
-	for _, m := range req.SourceMessageIDs {
-		msgIDs = append(msgIDs, conversation.MessageID(m))
-	}
-	res, err := d.DerivationSvc.DeriveTask(r.Context(), convservice.DeriveTaskCommand{
-		SourceConversationID: conversation.ConversationID(req.SourceConversationID),
-		SourceMessageIDs:     msgIDs,
-		ProjectID:            req.ProjectID,
-		Title:                req.Title,
-		Description:          req.Description,
-		AgentInstanceID:      req.AgentInstanceID,
-		CreatedBy:            conversation.IdentityRef(d.Actor),
-		Actor:                d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"task_id":             res.TaskID,
-		"conversation_id":     string(res.ChildConversationID),
-		"reference_count":     res.ReferenceCount,
-		"task_event_id":       string(res.TaskEventID),
-		"carry_over_event_id": string(res.CarryOverEventID),
-	})
-}
-
-// createTaskFromScratch implements the v2.5.x #62 Create Task Modal
-// path. Wraps TaskSvc.Create.
-func (s *Server) createTaskFromScratch(w http.ResponseWriter, r *http.Request, d HandlerDeps, req deriveTaskReq) {
-	if d.TaskSvc == nil {
-		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
-		return
-	}
-	if strings.TrimSpace(req.ProjectID) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "project_id required")
-		return
-	}
-	if strings.TrimSpace(req.Title) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "title required")
-		return
-	}
-	// v2.6 X1 §5: require org membership + target project in org.
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	if !s.requireProjectIDInOrg(w, r, d, orgID, req.ProjectID) {
-		return
-	}
-	in := trservice.TaskCreateInput{
-		ProjectID:        req.ProjectID,
-		Title:            req.Title,
-		Description:      req.Description,
-		ParentTaskID:     taskruntime.TaskID(req.ParentTaskID),
-		Priority:         task.Priority(req.Priority),
-		RequiresWorktree: req.RequiresWorktree,
-		WithConversation: req.WithConversation,
-		ConversationTitle: req.Title,
-		Actor:            d.Actor,
-	}
-	res, err := d.TaskSvc.Create(r.Context(), in)
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"task_id":         string(res.TaskID),
-		"conversation_id": string(res.ConversationID),
-	})
-}
-
-// suspendTaskHandler / resumeTaskHandler / abandonTaskHandler wrap the
-// TaskService lifecycle methods. v2.5.x #62.
-
-func (s *Server) suspendTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskSvc == nil {
-		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
-		return
-	}
-	id := taskruntime.TaskID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	evID, err := d.TaskSvc.Suspend(r.Context(), trservice.LifecycleCommand{
-		TaskID: id,
-		Actor:  d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"task_id":  string(id),
-		"event_id": string(evID),
-	})
-}
-
-func (s *Server) resumeTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskSvc == nil {
-		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
-		return
-	}
-	id := taskruntime.TaskID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	evID, err := d.TaskSvc.Resume(r.Context(), trservice.LifecycleCommand{
-		TaskID: id,
-		Actor:  d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"task_id":  string(id),
-		"event_id": string(evID),
-	})
-}
-
-type abandonTaskReq struct {
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
-}
-
-func (s *Server) abandonTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskSvc == nil {
-		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
-		return
-	}
-	id := taskruntime.TaskID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	var req abandonTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	evID, err := d.TaskSvc.Abandon(r.Context(), trservice.AbandonCommand{
-		TaskID:  id,
-		Reason:  req.Reason,
-		Message: req.Message,
-		Actor:   d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"task_id":  string(id),
-		"event_id": string(evID),
-	})
-}
-
-// bindTaskConversationHandler serves POST /api/tasks/{id}/bind-conversation.
-// v2.5.16 (#69): operators want a chat thread on a task that was
-// created without one (CLI/SPA flows that skip the auto-conversation
-// path). The handler wraps TaskService.BindConversation in auto mode,
-// which creates a new conversation + binds it under one tx.
-func (s *Server) bindTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskSvc == nil {
-		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
-		return
-	}
-	id := taskruntime.TaskID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	convID, err := d.TaskSvc.BindConversation(r.Context(), trservice.BindConversationInput{
-		TaskID: id,
-		Mode:   "auto",
-		Actor:  d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"task_id":         string(id),
-		"conversation_id": string(convID),
-	})
-}
-
-// updateIssueReq is the PATCH /api/issues/{id} body (v2.5.x #64 Edit).
-type updateIssueReq struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-}
-
-// updateIssueHandler serves PATCH /api/issues/{id} — wraps
-// IssueLifecycleSvc.UpdateMetadata.
-func (s *Server) updateIssueHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.IssueLifecycleSvc == nil {
-		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
-		return
-	}
-	id := discussion.IssueID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	if _, ok := s.requireIssueInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	var req updateIssueReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	evID, err := d.IssueLifecycleSvc.UpdateMetadata(r.Context(), disservice.UpdateMetadataCommand{
-		IssueID:     id,
-		Title:       req.Title,
-		Description: req.Description,
-		Actor:       d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"issue_id": string(id),
-		"event_id": string(evID),
-	})
-}
-
-// reopenIssueHandler serves POST /api/issues/{id}/reopen — wraps
-// IssueLifecycleSvc.Reopen (v2.5.x #64, (c) semantics — spawned tasks
-// are NOT cascaded).
-func (s *Server) reopenIssueHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.IssueLifecycleSvc == nil {
-		writeError(w, http.StatusNotImplemented, "issue_lifecycle_not_wired", "")
-		return
-	}
-	id := discussion.IssueID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	if _, ok := s.requireIssueInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	evID, err := d.IssueLifecycleSvc.Reopen(r.Context(), disservice.ReopenCommand{
-		IssueID: id,
-		Actor:   d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"issue_id": string(id),
-		"event_id": string(evID),
-	})
-}
-
-// updateTaskReq is the PATCH /api/tasks/{id} body (v2.5.x #65 Edit).
-type updateTaskReq struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Priority    string `json:"priority"`
-}
-
-// updateTaskHandler serves PATCH /api/tasks/{id} — wraps
-// TaskService.UpdateMetadata for the Web Console Edit modal.
-func (s *Server) updateTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskSvc == nil {
-		writeError(w, http.StatusNotImplemented, "task_service_not_wired", "")
-		return
-	}
-	id := taskruntime.TaskID(r.PathValue("id"))
-	if strings.TrimSpace(string(id)) == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "id required")
-		return
-	}
-	if _, ok := s.requireTaskInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	var req updateTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	evID, err := d.TaskSvc.UpdateMetadata(r.Context(), trservice.UpdateMetadataCommand{
-		TaskID:      id,
-		Title:       req.Title,
-		Description: req.Description,
-		Priority:    task.Priority(req.Priority),
-		Actor:       d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"task_id":  string(id),
-		"event_id": string(evID),
-	})
-}
-
-// =============================================================================
-// Input requests
-// =============================================================================
-
-func (s *Server) listInputRequestsHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	// v2.6 X1 §3: require org membership; scope IRs to the org's projects via
-	// execution → task → project resolution (requires ExecRepo + TaskRepo).
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	irs, err := d.IRRepo.FindPending(r.Context(), time.Now().UTC().Add(24*365*time.Hour))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	orgProjects, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return
-	}
-	arr := make([]map[string]any, 0, len(irs))
-	for _, ir := range irs {
-		// When ExecRepo + TaskRepo are wired, resolve the IR's project and keep
-		// only org-owned ones. If repos are unavailable, fail closed (skip) to
-		// avoid leaking cross-org IRs.
-		if d.ExecRepo == nil || d.TaskRepo == nil {
-			continue
-		}
-		ex, exErr := d.ExecRepo.FindByID(r.Context(), ir.TaskExecutionID())
-		if exErr != nil || ex == nil {
-			continue
-		}
-		tk, tkErr := d.TaskRepo.FindByID(r.Context(), ex.TaskID())
-		if tkErr != nil || tk == nil || !orgProjects[tk.ProjectID()] {
-			continue
-		}
-		arr = append(arr, irPublicMap(ir))
-	}
-	writeJSON(w, http.StatusOK, arr)
-}
-
-type respondReq struct {
-	Answer    string `json:"answer"`
-	DecidedBy string `json:"decided_by"`
-}
-
-func (s *Server) respondInputRequestHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	id := taskruntime.InputRequestID(r.PathValue("id"))
-	var req respondReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	// v2.6 X1 §5: org guard before the mutation (after body parse so a bad
-	// body is a 400 regardless of org).
-	if _, ok := s.requireInputRequestInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	who := req.DecidedBy
-	if who == "" {
-		who = string(d.Actor)
-	}
-	if err := d.IRSvc.Respond(r.Context(), trservice.RespondInput{
-		InputRequestID: id, Answer: req.Answer, DecidedBy: who, Actor: d.Actor,
-	}); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"answered": true})
-}
-
-type cancelInputRequestReq struct {
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
-}
-
-func (s *Server) cancelInputRequestHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	id := taskruntime.InputRequestID(r.PathValue("id"))
-	if d.IRSvc == nil {
-		writeError(w, http.StatusNotImplemented, "ir_svc_not_wired", "")
-		return
-	}
-	var req cancelInputRequestReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	if req.Reason == "" {
-		req.Reason = "user_cancel"
-	}
-	// v2.6 X1 §5: org guard before the mutation.
-	if _, ok := s.requireInputRequestInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	if err := d.IRSvc.Cancel(r.Context(), trservice.CancelInput{
-		InputRequestID: id,
-		Reason:         req.Reason,
-		Message:        req.Message,
-		Actor:          d.Actor,
-	}); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"cancelled": true})
-}
-
-// =============================================================================
-// Fleet snapshot + task trace
+// Fleet snapshot
 // =============================================================================
 
 func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
@@ -1695,49 +1046,6 @@ func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, snap)
 }
 
-func (s *Server) taskTraceHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.QuerySvc == nil {
-		writeError(w, http.StatusNotImplemented, "query_not_wired", "")
-		return
-	}
-	taskID := r.PathValue("id")
-	if taskID == "" {
-		writeError(w, http.StatusBadRequest, "missing_task_id", "")
-		return
-	}
-	// v2.6 X1 §3: require org membership + verify the task's project is in the org.
-	if d.TaskRepo != nil {
-		_, _, orgID, ok := requireOrgMember(w, r, d)
-		if !ok {
-			return
-		}
-		tk, terr := d.TaskRepo.FindByID(r.Context(), taskruntime.TaskID(taskID))
-		if terr != nil {
-			writeError(w, http.StatusNotFound, "not_found", "task not found")
-			return
-		}
-		orgProjects, perr := orgProjectIDSet(r, d, orgID)
-		if perr != nil {
-			writeError(w, http.StatusInternalServerError, "org_scope_failed", perr.Error())
-			return
-		}
-		if !orgProjects[tk.ProjectID()] {
-			writeError(w, http.StatusNotFound, "not_found", "task not found")
-			return
-		}
-	}
-	res, err := d.QuerySvc.Query(r.Context(), "events", query.QueryFilter{
-		TaskID: taskID,
-		Limit:  500,
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "query_failed", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, res)
-}
-
 // =============================================================================
 // Agents (read-only)
 // =============================================================================
@@ -1759,251 +1067,6 @@ func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 		arr[i] = agentPublicMap(ai)
 	}
 	writeJSON(w, http.StatusOK, arr)
-}
-
-// listProjectsHandler returns every project as the full projection
-// (id, name, kind, default_agent_cli, description, created_at,
-// updated_at). Powers both the v2.1-A DeriveModal project picker AND
-// the v2.3-4 /projects list page. Read-only; CRUD verbs go through
-// the `agent-center project` CLI subtree (ADR-0029).
-func (s *Server) listProjectsHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectRepo == nil {
-		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
-		return
-	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	pfilter := workforce.ProjectFilter{OrganizationID: orgID}
-	list, err := d.ProjectRepo.FindAll(r.Context(), pfilter)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	arr := make([]map[string]any, len(list))
-	for i, p := range list {
-		arr[i] = projectPublicMap(p)
-	}
-	writeJSON(w, http.StatusOK, arr)
-}
-
-// showProjectHandler returns a single Project projection (404 if not
-// found). Powers the v2.3-4 /projects/{id} detail page.
-func (s *Server) showProjectHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectRepo == nil {
-		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
-		return
-	}
-	id := workforce.ProjectID(r.PathValue("id"))
-	if _, ok := s.requireProjectInOrg(w, r, d, string(id)); !ok {
-		return
-	}
-	p, err := d.ProjectRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, workforce.ErrProjectNotFound) {
-			writeError(w, http.StatusNotFound, "not_found", err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, projectPublicMap(p))
-}
-
-// =============================================================================
-// Issues (BC-native read; Discussion BC owns the Issue projection)
-// =============================================================================
-//
-// v2.3-5a per Option C in #agent-center:97f6710d — backend-only ST.
-// The SPA's #5b cutover replaces its `GET /api/conversations?kind=issue`
-// call with these endpoints; this restores BC ownership (Issue
-// projection from Discussion BC, not Conversation BC).
-//
-// Read-only. Mutations (open / withdraw / conclude / link / bind /
-// comment) flow through the CLI / admin server per ADR-0029.
-
-// listIssuesHandler serves `GET /api/issues[?project_id=<id>][&status=<s>]`.
-// v2.5.15 (#68): project_id is now OPTIONAL — when omitted the handler
-// returns issues across all projects (Discussion BC FindAll). Optional
-// `status` filters by Discussion BC's 6-state status enum.
-func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.IssueRepo == nil {
-		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
-		return
-	}
-	// v2.6 X1 §3: require org membership + scope issues to the org's projects.
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	orgProjects, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return
-	}
-	projectID := r.URL.Query().Get("project_id")
-	if projectID != "" && !orgProjects[projectID] {
-		// Caller asked for a project that isn't in their org.
-		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
-		return
-	}
-	filter := discussion.IssueFilter{}
-	if st := r.URL.Query().Get("status"); st != "" {
-		ss := discussion.Status(st)
-		filter.Status = &ss
-	}
-	var list []*discussion.Issue
-	if projectID != "" {
-		list, err = d.IssueRepo.FindByProject(r.Context(), projectID, filter)
-	} else {
-		list, err = d.IssueRepo.FindAll(r.Context(), filter)
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	arr := make([]map[string]any, 0, len(list))
-	for _, is := range list {
-		// Filter to the org's projects (covers the no-project_id FindAll case).
-		if !orgProjects[is.ProjectID()] {
-			continue
-		}
-		arr = append(arr, issuePublicMap(is))
-	}
-	writeJSON(w, http.StatusOK, arr)
-}
-
-// showIssueHandler serves `GET /api/issues/{id}`. 404 on not found.
-func (s *Server) showIssueHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.IssueRepo == nil {
-		writeError(w, http.StatusNotImplemented, "issue_repo_not_wired", "")
-		return
-	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	id := discussion.IssueID(r.PathValue("id"))
-	is, err := d.IssueRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, discussion.ErrIssueNotFound) {
-			writeError(w, http.StatusNotFound, "not_found", err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	// v2.6 X1 §3: 404 if the issue's project isn't in the caller's org (don't
-	// leak existence across orgs).
-	orgProjects, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return
-	}
-	if !orgProjects[is.ProjectID()] {
-		writeError(w, http.StatusNotFound, "not_found", "issue not found")
-		return
-	}
-	writeJSON(w, http.StatusOK, issuePublicMap(is))
-}
-
-// =============================================================================
-// Tasks (BC-native read; TaskRuntime BC owns the Task projection)
-// =============================================================================
-//
-// Sibling to the Issues read endpoints above. Coexists with the
-// existing `GET /api/tasks/{id}/trace` — net/http's pattern-matcher
-// resolves `/{id}/trace` ahead of `/{id}` because the longer pattern
-// wins on tie-break (ServeMux specificity rule). Verified by
-// TestAPI_TaskTrace + TestAPI_ShowTask_Happy in this package.
-
-// listTasksHandler serves `GET /api/tasks[?project_id=<id>][&status=<s>]`.
-// v2.5.15 (#70): project_id is now OPTIONAL — when omitted the handler
-// returns tasks across all projects (TaskRuntime BC FindAll). Optional
-// `status` filters by Task.Status.
-func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskRepo == nil {
-		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
-		return
-	}
-	// v2.6 X1 §3: require org membership + scope tasks to the org's projects.
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	orgProjects, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return
-	}
-	projectID := r.URL.Query().Get("project_id")
-	if projectID != "" && !orgProjects[projectID] {
-		writeError(w, http.StatusForbidden, "forbidden", "project is not in this organization")
-		return
-	}
-	filter := task.Filter{}
-	if st := r.URL.Query().Get("status"); st != "" {
-		ss := task.Status(st)
-		filter.Status = &ss
-	}
-	var list []*task.Task
-	if projectID != "" {
-		list, err = d.TaskRepo.FindByProject(r.Context(), projectID, filter)
-	} else {
-		list, err = d.TaskRepo.FindAll(r.Context(), filter)
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	arr := make([]map[string]any, 0, len(list))
-	for _, tk := range list {
-		if !orgProjects[tk.ProjectID()] {
-			continue
-		}
-		arr = append(arr, taskPublicMap(tk))
-	}
-	writeJSON(w, http.StatusOK, arr)
-}
-
-// showTaskHandler serves `GET /api/tasks/{id}`. 404 on not found.
-func (s *Server) showTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.TaskRepo == nil {
-		writeError(w, http.StatusNotImplemented, "task_repo_not_wired", "")
-		return
-	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	id := taskruntime.TaskID(r.PathValue("id"))
-	tk, err := d.TaskRepo.FindByID(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, task.ErrTaskNotFound) {
-			writeError(w, http.StatusNotFound, "not_found", err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	// v2.6 X1 §3: 404 if the task's project isn't in the caller's org.
-	orgProjects, err := orgProjectIDSet(r, d, orgID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "org_scope_failed", err.Error())
-		return
-	}
-	if !orgProjects[tk.ProjectID()] {
-		writeError(w, http.StatusNotFound, "not_found", "task not found")
-		return
-	}
-	writeJSON(w, http.StatusOK, taskPublicMap(tk))
 }
 
 func (s *Server) showAgentHandler(w http.ResponseWriter, r *http.Request) {
@@ -2224,8 +1287,7 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
 		errors.Is(err, workforce.ErrAgentInstanceNotFound),
-		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
-		errors.Is(err, inputrequest.ErrInputRequestNotFound):
+		errors.Is(err, secretmgmt.ErrUserSecretNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, conversation.ErrConversationVersionConflict),
 		errors.Is(err, conversation.ErrReadStateVersionConflict),
@@ -2256,10 +1318,14 @@ func convPublicMap(c *conversation.Conversation) map[string]any {
 		"description":            c.Description(),
 		"status":                 string(c.Status()),
 		"parent_conversation_id": string(c.ParentConversationID()),
-		"created_by":             string(c.CreatedBy()),
-		"created_at":             c.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at":             c.UpdatedAt().Format(time.RFC3339Nano),
-		"version":                c.Version(),
+		// owner_ref pins task/issue conversations to their pm object
+		// (pm://tasks|issues/{id}); empty for channels/DMs. v2.7 #137: the UI
+		// embeds a task/issue conversation by resolving this ref.
+		"owner_ref":  string(c.OwnerRef()),
+		"created_by": string(c.CreatedBy()),
+		"created_at": c.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at": c.UpdatedAt().Format(time.RFC3339Nano),
+		"version":    c.Version(),
 	}
 	if a := c.ArchivedAt(); a != nil {
 		m["archived_at"] = a.Format(time.RFC3339Nano)
@@ -2287,7 +1353,7 @@ func convPublicMapWithParticipants(c *conversation.Conversation) map[string]any 
 }
 
 func msgPublicMap(m *conversation.Message) map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"id":                 string(m.ID()),
 		"conversation_id":    string(m.ConversationID()),
 		"sender_identity_id": string(m.SenderIdentityID()),
@@ -2297,24 +1363,33 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 		"input_request_ref":  m.InputRequestRef(),
 		"posted_at":          m.PostedAt().Format(time.RFC3339Nano),
 	}
-}
-
-func irPublicMap(ir *inputrequest.InputRequest) map[string]any {
-	m := map[string]any{
-		"id":           string(ir.ID()),
-		"status":       string(ir.Status()),
-		"execution_id": string(ir.TaskExecutionID()),
-		"question":     ir.Question(),
-		"options":      ir.Options(),
-		"urgency":      string(ir.Urgency()),
-		"created_at":   ir.CreatedAt().Format(time.RFC3339Nano),
+	// context_refs lets the UI segment a task conversation's messages by
+	// AgentWorkItem across re-dispatches (v2.7 #137). Emitted only when set
+	// (daemon writes work_item_ref/task_ref/agent_ref; empty for plain chat).
+	cr := m.ContextRefs()
+	if cr.WorkItemRef != "" || cr.TaskRef != "" || cr.AgentRef != "" {
+		out["context_refs"] = map[string]any{
+			"work_item_ref": cr.WorkItemRef,
+			"task_ref":      cr.TaskRef,
+			"agent_ref":     cr.AgentRef,
+		}
 	}
-	if ra := ir.RespondedAt(); ra != nil {
-		m["answer"] = ir.ResponseText()
-		m["decided_by"] = ir.RespondedBy()
-		m["decided_at"] = ra.Format(time.RFC3339Nano)
+	// attachments (v2.7 #133): unified MessageAttachment metadata for UI display.
+	// Emitted only when present (plain messages carry no key) — the UI derives the
+	// display type (image preview vs file chip) from mime_type.
+	if atts := m.Attachments(); len(atts) > 0 {
+		arr := make([]map[string]any, len(atts))
+		for i, a := range atts {
+			arr[i] = map[string]any{
+				"uri":       a.URI,
+				"filename":  a.Filename,
+				"mime_type": a.MimeType,
+				"size":      a.Size,
+			}
+		}
+		out["attachments"] = arr
 	}
-	return m
+	return out
 }
 
 func agentPublicMap(ai *workforce.AgentInstance) map[string]any {
@@ -2332,89 +1407,6 @@ func agentPublicMap(ai *workforce.AgentInstance) map[string]any {
 		"max_concurrent": ai.MaxConcurrent(),
 		"identity_id":    "agent:" + string(ai.ID()),
 	}
-}
-
-// projectPublicMap is the wire-format projection for a workforce
-// Project. v2.5.5 simplified the shape to id / name / description /
-// tags / version / created_at / updated_at — kind and
-// default_agent_cli are gone alongside the type. Tags is always
-// emitted (possibly empty) so the SPA can render a stable empty-state
-// chip row.
-func projectPublicMap(p *workforce.Project) map[string]any {
-	tags := p.Tags()
-	if tags == nil {
-		tags = []string{}
-	}
-	row := map[string]any{
-		"id":          string(p.ID()),
-		"name":        p.Name(),
-		"description": p.Description(),
-		"tags":        tags,
-		"version":     p.Version(),
-		"created_at":  p.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at":  p.UpdatedAt().Format(time.RFC3339Nano),
-	}
-	return row
-}
-
-// issuePublicMap is the wire-format projection for a Discussion BC
-// Issue AR — v2.3-5a `GET /api/issues[/{id}]`. Only fields the Issue
-// AR exposes via getters are projected (the AR has neither `kind` nor
-// `priority` getters in v2; do NOT invent them from the
-// `discussion.Origin` enum — that classifies the entry-point, not the
-// issue's category). `closed_at` mirrors AR's `concluded_at` (nil
-// until conclude/withdraw lands). `closed_reason` is included only
-// for the withdrawn terminal — Discussion BC's conclusion paths use
-// `conclusion_summary`, which we do not project here to avoid
-// confusing the SPA's terminal-banner shape.
-func issuePublicMap(i *discussion.Issue) map[string]any {
-	m := map[string]any{
-		"id":              string(i.ID()),
-		"project_id":      i.ProjectID(),
-		"conversation_id": string(i.ConversationID()),
-		"title":           i.Title(),
-		"description":     i.Description(),
-		"status":          string(i.Status()),
-		"opened_at":       i.OpenedAt().Format(time.RFC3339Nano),
-		"opener":          i.OpenedByIdentityID(),
-	}
-	if ca := i.ConcludedAt(); ca != nil {
-		m["closed_at"] = ca.Format(time.RFC3339Nano)
-	}
-	if reason := i.WithdrawReason(); reason != "" {
-		m["closed_reason"] = reason
-	}
-	return m
-}
-
-// taskPublicMap is the wire-format projection for a TaskRuntime BC
-// Task AR — v2.3-5a `GET /api/tasks[/{id}]`. Mirrors the Issue
-// projection shape (id / project_id / conversation_id / title /
-// status / priority / created_at) plus task-only addenda
-// (current_execution_id when active, depends_on_task_ids when
-// non-empty).
-func taskPublicMap(t *task.Task) map[string]any {
-	m := map[string]any{
-		"id":              string(t.ID()),
-		"project_id":      t.ProjectID(),
-		"conversation_id": t.ConversationID(),
-		"title":           t.Title(),
-		"description":     t.Description(),
-		"status":          string(t.Status()),
-		"priority":        string(t.Priority()),
-		"created_at":      t.CreatedAt().Format(time.RFC3339Nano),
-	}
-	if execID := string(t.CurrentExecutionID()); execID != "" {
-		m["current_execution_id"] = execID
-	}
-	if deps := t.DependsOnTaskIDs(); len(deps) > 0 {
-		as := make([]string, len(deps))
-		for k, d := range deps {
-			as[k] = string(d)
-		}
-		m["depends_on_task_ids"] = as
-	}
-	return m
 }
 
 // =============================================================================
@@ -2892,321 +1884,6 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// =============================================================================
-// Project CRUD — v2.5.3 (#58)
-//
-// Web Console parity for the existing `agent-center project` CLI. The
-// read endpoints landed in v2.3-4 #30; this section adds create /
-// update / delete + worker-mapping CRUD. Default delete refuses when
-// the project still has open tasks/issues/mappings; ?force=true
-// invalidates the mappings + drops the project anyway.
-// =============================================================================
-
-// createProjectReq is the POST /api/projects body. v2.5.5 simplified
-// the shape: the id is server-generated, kind / default_agent_cli are
-// gone, and tags is a JSON array of free-text strings (UI suggests a
-// builtin pool but the server doesn't validate the set).
-type createProjectReq struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-}
-
-func (s *Server) createProjectHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectCRUDSvc == nil {
-		writeError(w, http.StatusNotImplemented, "project_crud_not_wired", "")
-		return
-	}
-	// v2.6 X1 §2: require org membership; stamp the new project with the org.
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	var req createProjectReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	if strings.TrimSpace(req.Name) == "" {
-		writeError(w, http.StatusBadRequest, "missing_field",
-			"name is required")
-		return
-	}
-	res, err := d.ProjectCRUDSvc.Add(r.Context(), wfservice.AddCommand{
-		Name:           req.Name,
-		Description:    req.Description,
-		Tags:           req.Tags,
-		OrganizationID: orgID,
-		Actor:          d.Actor,
-	})
-	if err != nil {
-		mapWorkforceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, projectPublicMap(res.Project))
-}
-
-// updateProjectReq is the PATCH /api/projects/{id} body. v2.5.5
-// dropped kind / default_agent_cli; mutable surface is now name +
-// description + tags.
-type updateProjectReq struct {
-	Version     int       `json:"version"`
-	Name        *string   `json:"name,omitempty"`
-	Description *string   `json:"description,omitempty"`
-	Tags        *[]string `json:"tags,omitempty"`
-}
-
-func (s *Server) updateProjectHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectCRUDSvc == nil {
-		writeError(w, http.StatusNotImplemented, "project_crud_not_wired", "")
-		return
-	}
-	id := r.PathValue("id")
-	if strings.TrimSpace(id) == "" {
-		writeError(w, http.StatusBadRequest, "missing_id", "")
-		return
-	}
-	if _, ok := s.requireProjectInOrg(w, r, d, id); !ok {
-		return
-	}
-	var req updateProjectReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	fields := workforce.ProjectUpdateFields{
-		Name:        req.Name,
-		Description: req.Description,
-		Tags:        req.Tags,
-	}
-	res, err := d.ProjectCRUDSvc.Update(r.Context(), wfservice.UpdateCommand{
-		ID:      workforce.ProjectID(id),
-		Version: req.Version,
-		Fields:  fields,
-		Actor:   d.Actor,
-	})
-	if err != nil {
-		mapWorkforceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, projectPublicMap(res.Project))
-}
-
-func (s *Server) deleteProjectHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectCRUDSvc == nil {
-		writeError(w, http.StatusNotImplemented, "project_crud_not_wired", "")
-		return
-	}
-	id := r.PathValue("id")
-	if strings.TrimSpace(id) == "" {
-		writeError(w, http.StatusBadRequest, "missing_id", "")
-		return
-	}
-	if _, ok := s.requireProjectInOrg(w, r, d, id); !ok {
-		return
-	}
-	force := r.URL.Query().Get("force") == "true"
-	pid := workforce.ProjectID(id)
-	// Cascade-decision: count active mappings + open tasks + open
-	// issues. With force=false we refuse if any > 0; with force=true
-	// we tear down dependents first (mappings only — task/issue
-	// cleanup is a future ADR; for now we just delete the Project
-	// row and let the orphan tasks/issues surface in their own UI).
-	mappingCount := 0
-	taskCount := 0
-	issueCount := 0
-	if d.MappingRepo != nil {
-		n, _ := d.MappingRepo.CountActiveByProjectID(r.Context(), pid)
-		mappingCount = n
-	}
-	if d.TaskRepo != nil {
-		ts, _ := d.TaskRepo.FindByProject(r.Context(), string(pid), task.Filter{})
-		for _, t := range ts {
-			if string(t.Status()) == "open" || string(t.Status()) == "suspended" {
-				taskCount++
-			}
-		}
-	}
-	if d.IssueRepo != nil {
-		is, _ := d.IssueRepo.FindByProject(r.Context(), string(pid), discussion.IssueFilter{})
-		for _, i := range is {
-			if string(i.Status()) != "closed" {
-				issueCount++
-			}
-		}
-	}
-	if !force && (mappingCount > 0 || taskCount > 0 || issueCount > 0) {
-		writeJSON(w, http.StatusConflict, map[string]any{
-			"error":          "project_has_active_work",
-			"message":        fmt.Sprintf("Project has %d active mappings, %d open tasks, %d open issues. Use ?force=true to cascade-delete.", mappingCount, taskCount, issueCount),
-			"mapping_count":  mappingCount,
-			"task_count":     taskCount,
-			"issue_count":    issueCount,
-		})
-		return
-	}
-	if force && mappingCount > 0 && d.MappingRepo != nil {
-		mappings, _ := d.MappingRepo.FindByProjectID(r.Context(), pid)
-		for _, m := range mappings {
-			if m.Status() != workforce.MappingActive {
-				continue
-			}
-			_ = d.MappingRepo.Invalidate(r.Context(), m.ID(),
-				workforce.InvalidateReasonManualRemove,
-				"project force-deleted via Web Console",
-				time.Now().UTC())
-		}
-	}
-	if _, err := d.ProjectCRUDSvc.Remove(r.Context(), wfservice.RemoveCommand{
-		ID:    pid,
-		Actor: d.Actor,
-	}); err != nil {
-		mapWorkforceError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-type createMappingReq struct {
-	WorkerID string `json:"worker_id"`
-	Path     string `json:"path"`
-}
-
-func (s *Server) listProjectMappingsHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.MappingRepo == nil {
-		writeError(w, http.StatusNotImplemented, "mapping_repo_not_wired", "")
-		return
-	}
-	id := r.PathValue("id")
-	if _, ok := s.requireProjectInOrg(w, r, d, id); !ok {
-		return
-	}
-	mappings, err := d.MappingRepo.FindByProjectID(r.Context(), workforce.ProjectID(id))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
-		return
-	}
-	out := make([]map[string]any, 0, len(mappings))
-	for _, m := range mappings {
-		out = append(out, mappingPublicMap(m))
-	}
-	writeJSON(w, http.StatusOK, out)
-}
-
-func (s *Server) createProjectMappingHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.MappingRepo == nil {
-		writeError(w, http.StatusNotImplemented, "mapping_repo_not_wired", "")
-		return
-	}
-	id := r.PathValue("id")
-	orgID, ok := s.requireProjectInOrg(w, r, d, id)
-	if !ok {
-		return
-	}
-	var req createMappingReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	if strings.TrimSpace(req.WorkerID) == "" || strings.TrimSpace(req.Path) == "" {
-		writeError(w, http.StatusBadRequest, "missing_field",
-			"worker_id and path are required")
-		return
-	}
-	// v2.6 X1 §4: the worker being mapped must belong to the same org as the
-	// project (prevents mapping org A's project to org B's worker).
-	if d.WorkerRepo != nil {
-		wk, werr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(req.WorkerID))
-		if werr != nil || wk == nil || wk.OrganizationID() != orgID {
-			writeError(w, http.StatusForbidden, "forbidden", "worker is not in this organization")
-			return
-		}
-	}
-	mid := workforce.MappingID("M-" + generateShortID())
-	m, err := workforce.NewWorkerProjectMapping(workforce.NewMappingInput{
-		ID:        mid,
-		WorkerID:  workforce.WorkerID(req.WorkerID),
-		ProjectID: workforce.ProjectID(id),
-		BasePath:  req.Path,
-		AddedAt:   time.Now().UTC(),
-	})
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_mapping", err.Error())
-		return
-	}
-	if err := d.MappingRepo.Save(r.Context(), m); err != nil {
-		writeError(w, http.StatusInternalServerError, "save_failed", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, mappingPublicMap(m))
-}
-
-func (s *Server) deleteProjectMappingHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.MappingRepo == nil {
-		writeError(w, http.StatusNotImplemented, "mapping_repo_not_wired", "")
-		return
-	}
-	if pid := r.PathValue("id"); pid != "" {
-		if _, ok := s.requireProjectInOrg(w, r, d, pid); !ok {
-			return
-		}
-	}
-	mid := workforce.MappingID(r.PathValue("mapping_id"))
-	if err := d.MappingRepo.Invalidate(r.Context(), mid,
-		workforce.InvalidateReasonManualRemove,
-		"unmapped via Web Console",
-		time.Now().UTC()); err != nil {
-		mapWorkforceError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func mappingPublicMap(m *workforce.WorkerProjectMapping) map[string]any {
-	return map[string]any{
-		"id":         string(m.ID()),
-		"worker_id":  string(m.WorkerID()),
-		"project_id": string(m.ProjectID()),
-		"path":       m.BasePath(),
-		"status":     string(m.Status()),
-		"added_at":   m.AddedAt().Format(time.RFC3339Nano),
-	}
-}
-
-// mapWorkforceError translates known workforce sentinels into HTTP
-// status codes. Unknown errors → 500.
-func mapWorkforceError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, workforce.ErrProjectNotFound):
-		writeError(w, http.StatusNotFound, "project_not_found", err.Error())
-	case errors.Is(err, workforce.ErrProjectAlreadyExists):
-		writeError(w, http.StatusConflict, "project_already_exists", err.Error())
-	case errors.Is(err, workforce.ErrProjectHasActiveDeps):
-		writeError(w, http.StatusConflict, "project_has_active_deps", err.Error())
-	case errors.Is(err, workforce.ErrProjectVersionConflict):
-		writeError(w, http.StatusConflict, "project_version_conflict", err.Error())
-	case errors.Is(err, workforce.ErrMappingNotFound):
-		writeError(w, http.StatusNotFound, "mapping_not_found", err.Error())
-	default:
-		writeError(w, http.StatusInternalServerError, "workforce_error", err.Error())
-	}
-}
-
-// generateShortID returns a short hex id suitable for mapping ids.
-// 8 hex chars = 32 bits — plenty for a single operator's lifetime
-// of mappings (collision prob < 1e-9 after 1k mappings).
-func generateShortID() string {
-	var b [4]byte
-	_, _ = rand.Read(b[:])
-	return fmt.Sprintf("%x", b[:])
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

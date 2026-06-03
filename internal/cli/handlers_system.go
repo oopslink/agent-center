@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
 	"syscall"
 	"time"
@@ -157,7 +158,7 @@ func ServerCommand() *Command {
 					if adminInfo.TLSExpiryWarn && app.Sink != nil {
 						_, _ = app.Sink.Emit(ctx, observability.EmitCommand{
 							EventType: "admin.tcp_cert_expiring",
-							Actor:     app.DefaultActor(),
+							Actor:     app.operatorActor(),
 							Payload: map[string]any{
 								"cert_path":      cfg.Server.AdminTLSCertPath,
 								"expires_at":     adminInfo.TLSCertNotAfter.UTC().Format(time.RFC3339),
@@ -184,7 +185,9 @@ func ServerCommand() *Command {
 					// bootstrap host through to the Web Console so the
 					// AddWorkerModal can render a working install command.
 					enrollWiring := WebConsoleEnrollWiring{
-						BootstrapHost: enrollBootstrapHost(cfg.Server.AdminTCPListen),
+						// v2.7 #200: bootstrap_public_url (if set) wins over the bind
+						// address so remote workers get a reachable Add Worker command.
+						BootstrapHost: resolveEnrollBootstrapHost(cfg.Server.BootstrapPublicURL, cfg.Server.AdminTCPListen),
 						Fingerprint:   adminInfo.TLSFingerprint,
 					}
 					bus := sse.NewBus()
@@ -212,7 +215,7 @@ func ServerCommand() *Command {
 				reconciler := wfservice.NewHeartbeatReconciler(app.WorkerRepo, app.Sink, nil, 0, 0)
 				reconcilerCtx, reconcilerCancel := context.WithCancel(ctx)
 				go func() {
-					_ = reconciler.Run(reconcilerCtx, app.DefaultActor())
+					_ = reconciler.Run(reconcilerCtx, app.operatorActor())
 				}()
 				defer reconcilerCancel()
 
@@ -311,28 +314,10 @@ func MigrateUpCommand() *Command {
 	}
 }
 
-// WorkerRunPlaceholder returns the `worker run` daemon stub. The real
-// daemon ships as a separate binary (`cmd/worker-daemon`) so the
-// daemon process never accidentally inherits the CLI's open DB handle
-// (conventions § 0.4: worker daemon must talk to the center via the
-// admin endpoint, not by re-opening sqlite). This placeholder points
-// users at the correct binary.
-func WorkerRunPlaceholder() *Command {
-	return placeholderCommand("run",
-		"Run the worker daemon (see cmd/worker-daemon)",
-		"The worker daemon ships as a separate binary so it cannot accidentally "+
-			"open the SQLite file directly (conventions § 0.4). Build + run it with:\n\n"+
-			"  go build -o ./bin/agent-center-worker-daemon ./cmd/worker-daemon\n"+
-			"  ./bin/agent-center-worker-daemon --config=<path> --worker-id=<id>\n\n"+
-			"It talks to the running agent-center server over the admin unix socket "+
-			"configured in server.admin_socket_path.",
-	)
-}
-
-// WorkerShimPlaceholder is the `worker shim` entry point. v1 builds the
-// shim runtime as a library (internal/shim) and offers a thin CLI hook
-// that delegates to it. Daemon spawns shim via this entry; users do not
-// directly invoke it (it's audience=Sys per 03-cli § 8.3).
+// WorkerShimPlaceholder is the `worker shim` entry point. The shim
+// runtime is daemon-internal; this is a thin CLI hook. Daemon spawns shim
+// via this entry; users do not directly invoke it (audience=Sys per
+// 03-cli § 8.3).
 func WorkerShimPlaceholder() *Command {
 	return placeholderCommand("shim",
 		"Per-execution shim entry (system; ADR-0018)",
@@ -368,6 +353,14 @@ func loadConfigForCLI(path string, flagOverrides map[string]string) (config.Conf
 	if path == "" {
 		path = globalConfigPath
 	}
+	// v2.7 #199 follow-up: with no explicit --config (and no global/env), prefer
+	// the user-mode install config (~/.agent-center/etc/config.yaml) over the
+	// built-in defaults. #199 makes the operator run `agent-center server` in the
+	// foreground; without this, a bare run fell back to the system /var/lib paths
+	// (which need root) and failed to start in user mode.
+	if path == "" {
+		path = discoverDefaultConfigPath()
+	}
 	// Drop empty overrides so they don't shadow YAML / env.
 	clean := map[string]string{}
 	for k, v := range flagOverrides {
@@ -380,6 +373,19 @@ func loadConfigForCLI(path string, flagOverrides map[string]string) (config.Conf
 		return config.Config{}, err
 	}
 	return cfg, nil
+}
+
+// discoverDefaultConfigPath returns the user-mode install config path
+// (~/.agent-center/etc/config.yaml) when it exists, else "" (v2.7 #199 follow-up).
+// Lets a bare `agent-center server` (the foreground run command #199 prints) pick
+// up the install's config instead of the built-in system /var/lib defaults that
+// need root. A missing file → "" → fall through to config.Load's defaults.
+func discoverDefaultConfigPath() string {
+	p := filepath.Join(defaultInstallPrefix(true), "etc", "config.yaml")
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	return ""
 }
 
 func emitConfigErrors(w io.Writer, err error) {

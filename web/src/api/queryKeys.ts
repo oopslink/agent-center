@@ -27,27 +27,31 @@ export const qk = {
   conversations: (kind?: string) =>
     kind ? (o('conversations', { kind })) : (o('conversations')),
   conversation: (id: string) => o('conversation', id),
+  conversationByOwner: (ownerRef: string) => o('conversationByOwner', ownerRef),
   messages: (convId: string) => o('messages', convId),
   refs: (convId: string) => o('refs', convId),
   agents: () => o('agents'),
-  agent: (name: string) => o('agent', name),
+  agent: (id: string) => o('agent', id),
+  agentWorkItems: (id: string) => o('agentWorkItems', id),
+  agentActivity: (id: string) => o('agentActivity', id),
   secrets: () => o('secrets'),
   projects: () => o('projects'),
   project: (id: string) => o('project', id),
-  inputRequests: () => o('inputRequests'),
   fleet: () => o('fleet'),
-  taskTrace: (taskId: string) => o('taskTrace', taskId),
+  workers: () => o('workers'),
+  worker: (id: string) => o('worker', id),
+  transferSessions: () => o('transferSessions'),
   unread: (convId: string) => o('unread', convId),
-  // v2.3-5b BC-native Issue/Task reads. Keyed by {projectId, status}
-  // so changing either filter slot invalidates / refetches cleanly.
-  issues: (filter?: { projectId?: string; status?: string }) =>
-    filter && (filter.projectId || filter.status)
-      ? o('issues', filter)
-      : o('issues'),
+  // v2.7 ProjectManager BC: Issues/Tasks are per-project. Lists are
+  // keyed by projectId; detail keys stay by id.
+  issuesByProject: (projectId: string) => o('issuesByProject', projectId),
   issue: (id: string) => o('issue', id),
-  tasksList: (filter?: { projectId?: string; status?: string }) =>
-    filter && (filter.projectId || filter.status)
-      ? o('tasksList', filter)
-      : o('tasksList'),
+  tasksByProject: (projectId: string) => o('tasksByProject', projectId),
   task: (id: string) => o('task', id),
+  codeReposByProject: (projectId: string) => o('codeReposByProject', projectId),
+  membersByProject: (projectId: string) => o('membersByProject', projectId),
+  // Coarse no-arg list keys kept so derive.ts (deferred scope) keeps
+  // compiling — it invalidates these after a derive-from-message POST.
+  issues: () => o('issues'),
+  tasksList: () => o('tasksList'),
 };

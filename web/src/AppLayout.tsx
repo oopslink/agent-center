@@ -3,13 +3,14 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
-import { useInputRequests } from '@/api/inputRequests';
 import { useConversations } from '@/api/conversations';
+import { useDisplayNameResolver } from '@/api/members';
 import { useProjects } from '@/api/projects';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { CommandPalette } from '@/components/CommandPalette';
 import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
+import { OrgSettingsModal } from '@/components/OrgSettingsModal';
 import { useKeyShortcuts } from '@/useKeyShortcuts';
 import { readTheme, writeTheme, type Theme } from '@/theme';
 import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
@@ -65,6 +66,20 @@ function writeJSONMap(key: string, value: Record<string, boolean>): void {
 export default function AppLayout(): React.ReactElement {
   useSSE();
   const me = useMe();
+  // v2.7 #155: wire the store's currentUserId to the AUTHENTICATED identity ref.
+  // It otherwise stays at the hardcoded default ('user:hayang'), which silently
+  // mismatched every identity-ref comparison (e.g. ParticipantsPanel's owner
+  // check → no invite/remove controls; DM peer filtering). The backend stamps
+  // refs as "<kind>:<id>" (user:/agent:), so build the same shape from
+  // /api/auth/me (identity_id + kind). This was latent until #146 made the
+  // backend use the real session identity instead of the same static default.
+  const setCurrentUserId = useAppStore((s) => s.setCurrentUserId);
+  useEffect(() => {
+    const m = me.data;
+    if (!m?.identity_id) return;
+    const ref = (m.kind === 'agent' ? 'agent:' : 'user:') + m.identity_id;
+    setCurrentUserId(ref);
+  }, [me.data?.identity_id, me.data?.kind, setCurrentUserId]);
   const orgs = useOrgs();
   const orgCtx = useOptionalOrgContext();
   const currentOrg = orgCtx
@@ -72,6 +87,8 @@ export default function AppLayout(): React.ReactElement {
     : orgs.data?.[0];
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
+  // v2.7 #186-6: org settings is a per-org modal opened from the switcher gear.
+  const [settingsOrgId, setSettingsOrgId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(readSidebarCollapsed);
   const [theme, setTheme] = useState<Theme>(readTheme);
@@ -111,10 +128,9 @@ export default function AppLayout(): React.ReactElement {
       'mod+1': () => navigate('/'),
       'mod+2': () => navigate('/channels'),
       'mod+3': () => navigate('/dms'),
-      'mod+4': () => navigate('/issues'),
-      'mod+5': () => navigate('/tasks'),
-      'mod+6': () => navigate('/inputrequests'),
-      'mod+7': () => navigate('/agents'),
+      'mod+4': () => navigate('/projects'),
+      'mod+6': () => navigate('/members/agents'),
+      'mod+7': () => navigate('/environment'),
     }),
     [navigate],
   );
@@ -134,20 +150,10 @@ export default function AppLayout(): React.ReactElement {
           >
             <HamburgerIcon />
           </button>
-          <button
-            type="button"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-pressed={collapsed}
-            data-testid="sidebar-collapse-toggle"
-            onClick={() => setCollapsed((v) => !v)}
-            className="hidden h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors md:inline-flex"
-            title="Toggle sidebar (⌘B)"
-          >
-            <SidebarToggleIcon collapsed={collapsed} />
-          </button>
-          <span className="font-heading text-base font-semibold tracking-tight text-text-primary">
-            agent-center
-          </span>
+          {/* v2.7 #186-7a: the desktop collapse toggle moved out of the header
+              into a chevron embedded in the sidebar's right edge (Slack/VSCode
+              pattern, single affordance). ⌘B still toggles it. */}
+          {/* v2.7 #166-4: removed the "agent-center" text label next to the logo. */}
           {/* v2.6 FE-3: Org Switcher dropdown. */}
           <div className="relative hidden sm:block">
             <button
@@ -173,11 +179,18 @@ export default function AppLayout(): React.ReactElement {
                   setOrgDropdownOpen(false);
                   setCreateOrgModalOpen(true);
                 }}
+                onOpenSettings={(id) => {
+                  setOrgDropdownOpen(false);
+                  setSettingsOrgId(id);
+                }}
               />
             )}
           </div>
           {createOrgModalOpen && (
             <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />
+          )}
+          {settingsOrgId && (
+            <OrgSettingsModal orgId={settingsOrgId} onClose={() => setSettingsOrgId(null)} />
           )}
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
@@ -202,15 +215,16 @@ export default function AppLayout(): React.ReactElement {
           >
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
-          <span className="hidden text-xs text-text-muted sm:inline">
-            v2 · loopback
-          </span>
+          {/* v2.7 #186-7: removed hardcoded "v2 · loopback" placeholder span
+              (misleading fake version/mode; a real injected build-version badge
+              is deferred to v2.8). */}
         </div>
       </header>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           drawerOpen={drawerOpen}
           collapsed={collapsed}
+          onToggleCollapsed={() => setCollapsed((v) => !v)}
           onDismiss={() => setDrawerOpen(false)}
           displayName={me.data?.display_name}
         />
@@ -228,12 +242,9 @@ export default function AppLayout(): React.ReactElement {
   );
 }
 
-type NavBadgeKey = 'inputRequests' | null;
-
 interface NavItem {
   to: string;
   label: string;
-  badge?: NavBadgeKey;
   end?: boolean; // react-router NavLink end-match (used for '/' Home)
   Icon: () => React.ReactElement;
 }
@@ -267,26 +278,23 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
       ],
     },
     {
-      label: 'Work',
-      items: [
-        { to: p('issues'), label: 'Issues', Icon: IssuesIcon },
-        { to: p('tasks'), label: 'Tasks', Icon: TasksIcon },
-        { to: p('inputrequests'), label: 'Input Requests', badge: 'inputRequests' as NavBadgeKey, Icon: InboxIcon },
-      ],
-    },
-    {
+      // v2.7 #166: the org people group is labeled "Members" (Humans + Agents).
+      // Organization Settings is NOT a sidebar item — it moved into the org
+      // switcher dropdown (#166-2). The single "Agents" entry lives here (#165);
+      // the old SYSTEM → Agents entry is removed. Agent management opens by
+      // clicking an Agent member → AgentDetail (#157).
       label: 'Members',
       items: [
         { to: p('members/humans'), label: 'Humans', Icon: UsersIcon },
-        { to: p('members/agents'), label: 'Agents (org)', Icon: AgentsIcon },
-        { to: p('org/settings'), label: 'Org Settings', Icon: SettingsIcon },
+        { to: p('members/agents'), label: 'Agents', Icon: AgentsIcon },
       ],
     },
     {
+      // v2.7 #164: Fleet merged into Environment (one operational page). #165:
+      // SYSTEM → Agents removed (single Agents entry under Members).
       label: 'System',
       items: [
-        { to: p('fleet'), label: 'Fleet', Icon: FleetIcon },
-        { to: p('agents'), label: 'Agents', Icon: AgentsIcon },
+        { to: p('environment'), label: 'Environment', Icon: FleetIcon },
         { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
       ],
     },
@@ -296,22 +304,20 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
 function Sidebar({
   drawerOpen,
   collapsed,
+  onToggleCollapsed,
   onDismiss,
   displayName,
 }: {
   drawerOpen: boolean;
   collapsed: boolean;
+  onToggleCollapsed: () => void;
   onDismiss: () => void;
   displayName?: string;
 }): React.ReactElement {
-  const irs = useInputRequests();
   const signout = useSignout();
   const orgCtx = useOptionalOrgContext();
   const orgBase = orgCtx ? `/organizations/${orgCtx.slug}` : '';
   const navSections = buildNavSections(orgBase);
-  const inputRequestBadge = (irs.data ?? []).filter(
-    (ir) => ir.status === 'pending',
-  ).length;
 
   // v2.5.x #63 — per-group + per-expandable-item expand state. Default
   // for unseen keys is true (expanded).
@@ -343,14 +349,17 @@ function Sidebar({
   const dms = useConversations({ kind: 'dm' });
   const projects = useProjects();
   const me = useAppStore((s) => s.currentUserId);
+  // v2.7 #192/Rule 2a: resolve DM peers to display names; never show the raw
+  // conversation id (an unnamed DM reads "Direct message").
+  const resolvePeerName = useDisplayNameResolver();
   const channelChildren = (channels.data ?? [])
     .filter((c) => c.status !== 'archived')
     .map((c) => ({ to: `${orgBase}/channels/${encodeURIComponent(c.name ?? '')}`, label: `# ${c.name}` }));
   const dmChildren = (dms.data ?? []).map((d) => {
     const peers = (d.participants ?? [])
       .filter((p) => !p.left_at && p.identity_id !== me)
-      .map((p) => p.identity_id);
-    const peerLabel = d.name || peers.join(' · ') || d.id;
+      .map((p) => resolvePeerName(p.identity_id));
+    const peerLabel = d.name || peers.join(' · ') || 'Direct message';
     return { to: `${orgBase}/dms/${encodeURIComponent(d.id)}`, label: `@ ${peerLabel}` };
   });
   // v2.5.x #67 — Projects expand to the project list, mirroring the
@@ -393,8 +402,6 @@ function Sidebar({
             {(isCollapsed || open) && (
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
-                  const badgeCount =
-                    item.badge === 'inputRequests' ? inputRequestBadge : 0;
                   // Channels / DMs / Projects nav items expand into sub-lists.
                   const subChildren =
                     item.to.endsWith('/channels')
@@ -437,19 +444,6 @@ function Sidebar({
                               </span>
                             )}
                           </span>
-                          {badgeCount > 0 && (
-                            <span
-                              className={[
-                                'rounded-full bg-accent text-xs font-medium text-white tabular-nums',
-                                isCollapsed
-                                  ? 'absolute ml-3 -mt-3 h-3.5 w-3.5 text-[0.625rem] leading-none flex items-center justify-center'
-                                  : 'px-1.5 py-0.5',
-                              ].join(' ')}
-                              data-testid={`nav-badge-${item.badge}`}
-                            >
-                              {badgeCount}
-                            </span>
-                          )}
                         </NavLink>
                         {!isCollapsed && subChildren && (
                           <button
@@ -507,17 +501,31 @@ function Sidebar({
 
   return (
     <>
-      {/* Desktop sidebar — width depends on collapsed flag. */}
+      {/* Desktop sidebar — width depends on collapsed flag. relative so the
+          edge collapse chevron (#186-7a) can sit on the right border. */}
       <nav
         aria-label="primary"
         data-collapsed={collapsed}
         className={[
-          'hidden flex-col flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:flex',
+          'relative hidden flex-col flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:flex',
           collapsed ? 'w-14' : 'w-52',
         ].join(' ')}
       >
         <div className="flex-1 overflow-y-auto">{navTree(collapsed)}</div>
         <SidebarFooter collapsed={collapsed} displayName={displayName} orgBase={orgBase} onSignout={() => signout.mutate()} />
+        {/* v2.7 #186-7a: collapse chevron embedded in the sidebar's right edge
+            (Slack/VSCode pattern). → when collapsed, ← when expanded. */}
+        <button
+          type="button"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-pressed={collapsed}
+          data-testid="sidebar-collapse-toggle"
+          onClick={onToggleCollapsed}
+          title="Toggle sidebar (⌘B)"
+          className="absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary shadow-sm hover:bg-bg-subtle hover:text-text-primary motion-safe:transition-colors"
+        >
+          <SidebarToggleIcon collapsed={collapsed} />
+        </button>
       </nav>
       {/* Mobile drawer — opens on hamburger toggle (always full-width labels). */}
       {drawerOpen && (
@@ -551,9 +559,10 @@ interface OrgDropdownProps {
   currentSlug?: string;
   onClose: () => void;
   onCreateOrg: () => void;
+  onOpenSettings: (orgId: string) => void;
 }
 
-function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownProps): React.ReactElement {
+function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg, onOpenSettings }: OrgDropdownProps): React.ReactElement {
   const navigate = useNavigate();
   // Close on click-outside.
   useEffect(() => {
@@ -578,19 +587,36 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownPro
       className="absolute left-0 top-full z-50 mt-1 w-48 rounded-md border border-border bg-bg-elevated shadow-[var(--shadow-2)]"
       role="menu"
     >
+      {/* v2.7 #186-6: each org row carries its own settings gear (opens a
+          per-org modal); the standalone "Organization Settings" entry is gone. */}
       {orgs.map((o) => (
-        <button
+        <div
           key={o.id}
-          type="button"
-          role="menuitem"
-          className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-bg-subtle ${
-            o.slug === currentSlug ? 'bg-bg-subtle font-medium text-brand' : 'text-text-primary'
-          }`}
-          onClick={() => handleSwitch(o.slug)}
+          className={`flex w-full items-center ${o.slug === currentSlug ? 'bg-bg-subtle' : ''}`}
         >
-          <OrgIcon />
-          <span className="truncate">{o.name}</span>
-        </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm hover:bg-bg-subtle ${
+              o.slug === currentSlug ? 'font-medium text-brand' : 'text-text-primary'
+            }`}
+            onClick={() => handleSwitch(o.slug)}
+          >
+            <OrgIcon />
+            <span className="truncate">{o.name}</span>
+          </button>
+          <button
+            type="button"
+            data-testid="org-settings-gear"
+            data-org-id={o.id}
+            aria-label={`Settings for ${o.name}`}
+            title="Organization settings"
+            onClick={() => onOpenSettings(o.id)}
+            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border hover:text-text-primary"
+          >
+            <SettingsIcon />
+          </button>
+        </div>
       ))}
       {orgs.length > 0 && <hr className="border-border" />}
       <button
@@ -600,17 +626,17 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg }: OrgDropdownPro
         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-accent hover:bg-bg-subtle"
       >
         <span aria-hidden="true">+</span>
-        <span>创建新组织</span>
+        <span>Create organization</span>
       </button>
     </div>
   );
 }
 
 function validateSlugLocal(v: string): string {
-  if (v.length < 3) return 'Slug 至少 3 个字符';
-  if (v.length > 40) return 'Slug 最多 40 个字符';
-  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug 只能包含 [a-z0-9-]';
-  if (/^-|-$/.test(v)) return 'Slug 不能以连字符开头或结尾';
+  if (v.length < 3) return 'Slug must be at least 3 characters';
+  if (v.length > 40) return 'Slug must be at most 40 characters';
+  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug may only contain [a-z0-9-]';
+  if (/^-|-$/.test(v)) return 'Slug cannot start or end with a hyphen';
   return '';
 }
 
@@ -642,7 +668,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
     setError('');
     const slugErr = validateSlugLocal(slug);
     if (slugErr) { setError(slugErr); return; }
-    if (!name.trim()) { setError('请输入组织名称'); return; }
+    if (!name.trim()) { setError('Please enter an organization name'); return; }
     create.mutate();
   };
 
@@ -656,7 +682,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
     >
       <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
         <h2 id="create-org-title" className="text-base font-semibold text-text-primary mb-4">
-          创建新组织
+          Create organization
         </h2>
         {error && (
           <div role="alert" className="mb-3 rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
@@ -665,7 +691,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
         )}
         <form onSubmit={handleSubmit} noValidate className="space-y-3">
           <div className="space-y-1">
-            <label htmlFor="new-org-name" className="block text-sm text-text-primary">组织名称</label>
+            <label htmlFor="new-org-name" className="block text-sm text-text-primary">Organization name</label>
             <input
               id="new-org-name"
               type="text"
@@ -675,7 +701,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
                 if (!slug || slug === autoSlug(name)) setSlug(autoSlug(e.target.value));
               }}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="My Org"
+              placeholder="My Organization"
             />
           </div>
           <div className="space-y-1">
@@ -690,13 +716,13 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
             />
           </div>
           <div className="flex gap-2 justify-end pt-1">
-            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">取消</button>
+            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">Cancel</button>
             <button
               type="submit"
               disabled={create.isPending}
               className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
-              {create.isPending ? '创建中…' : '创建'}
+              {create.isPending ? 'Creating…' : 'Create'}
             </button>
           </div>
         </form>
@@ -767,29 +793,6 @@ function ChatIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M4 5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-5l-3 3v-3H4A1.5 1.5 0 0 1 2.5 12.5v-6A1.5 1.5 0 0 1 4 5z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IssuesIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <circle cx="10" cy="10" r="6.5" />
-      <path d="M10 7v3.5M10 13.25v.25" strokeLinecap="round" />
-    </svg>
-  );
-}
-function TasksIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <rect x="3.5" y="3.5" width="13" height="13" rx="2" />
-      <path d="M6.5 10.5l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function InboxIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <path d="M3 11.5V5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 17 5v6.5M3 11.5h4.5l1 2h3l1-2H17M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5" strokeLinejoin="round" />
     </svg>
   );
 }

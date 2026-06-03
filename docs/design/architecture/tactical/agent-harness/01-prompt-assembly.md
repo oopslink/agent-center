@@ -52,7 +52,7 @@ agent CLI 一次性吃下作为 system + user prompt
 
 ## Dispatch Envelope
 
-Supervisor 派单时发的载荷（载荷小，不含 charter / skill 原文）。详细字段见 [task-runtime/02-task-execution § 5 字段 / DispatchEnvelope](../task-runtime/02-task-execution.md)，相关 prompt 部分摘录：
+Supervisor 派单时发的载荷（载荷小，不含 charter / skill 原文）。详细字段见 [task-runtime/02-task-execution § 5 字段 / DispatchEnvelope](../../../retired/task-runtime/02-task-execution.md)，相关 prompt 部分摘录：
 
 ```yaml
 task_id: ...

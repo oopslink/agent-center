@@ -1,58 +1,34 @@
-// TaskCreateModal — v2.5.x #62 New Task from scratch (no message
-// source). Fields: project picker, title, description, parent_task_id
-// (optional), workspace_mode (requires_worktree checkbox).
+// TaskCreateModal — v2.7 create a Task inside a project.
 import React, { useState } from 'react';
 import { useCreateTask } from '@/api/tasks';
-import { useProjects } from '@/api/projects';
 
 interface Props {
-  defaultProjectId?: string;
+  projectId: string;
   onClose: () => void;
   onCreated?: (taskId: string) => void;
 }
 
-const PRIORITY_OPTIONS = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-];
-
 export function TaskCreateModal({
-  defaultProjectId,
+  projectId,
   onClose,
   onCreated,
 }: Props): React.ReactElement {
-  const projects = useProjects();
-  const [projectId, setProjectId] = useState<string>(defaultProjectId ?? '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [parentTaskId, setParentTaskId] = useState('');
-  const [priority, setPriority] = useState<string>('medium');
-  const [requiresWorktree, setRequiresWorktree] = useState(false);
-  const create = useCreateTask();
+  const create = useCreateTask(projectId);
 
   const trimmedTitle = title.trim();
-  const canSubmit =
-    projectId !== '' && trimmedTitle.length > 0 && !create.isPending;
+  const canSubmit = trimmedTitle.length > 0 && !create.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     try {
       const res = await create.mutateAsync({
-        project_id: projectId,
         title: trimmedTitle,
         description: description.trim() || undefined,
-        parent_task_id: parentTaskId.trim() || undefined,
-        priority,
-        requires_worktree: requiresWorktree,
-        // v2.5.16 (#69): always create a Conversation alongside the
-        // Task so TaskDetail can host the discussion thread + composer
-        // out of the box. Legacy tasks (without a conversation) get
-        // the explicit "Start discussion" affordance on TaskDetail.
-        with_conversation: true,
       });
-      onCreated?.(res.task_id);
+      onCreated?.(res.id);
       onClose();
     } catch {
       // Surfaced via create.error.
@@ -83,24 +59,6 @@ export function TaskCreateModal({
           </button>
         </div>
 
-        <Field label="Project" required>
-          <select
-            data-testid="task-create-project"
-            className={inputClass}
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-          >
-            <option value="" disabled>
-              Pick a project…
-            </option>
-            {(projects.data ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-
         <Field label="Title" required>
           <input
             data-testid="task-create-title"
@@ -121,44 +79,6 @@ export function TaskCreateModal({
             placeholder="Optional. Context, acceptance criteria, links…"
           />
         </Field>
-
-        <Field label="Parent task id" hint="Optional. For nested subtasks.">
-          <input
-            data-testid="task-create-parent"
-            className={inputClass}
-            value={parentTaskId}
-            onChange={(e) => setParentTaskId(e.target.value)}
-            placeholder="e.g. 01HX… (leave blank for top-level)"
-          />
-        </Field>
-
-        <Field label="Priority">
-          <select
-            data-testid="task-create-priority"
-            className={inputClass}
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-          >
-            {PRIORITY_OPTIONS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <div className="mb-3 flex items-center gap-2">
-          <input
-            id="task-create-worktree"
-            type="checkbox"
-            checked={requiresWorktree}
-            onChange={(e) => setRequiresWorktree(e.target.checked)}
-            data-testid="task-create-worktree"
-          />
-          <label htmlFor="task-create-worktree" className="text-xs text-text-primary">
-            Requires worktree (isolated workspace)
-          </label>
-        </div>
 
         {create.isError && (
           <p className="mb-3 text-xs text-danger" data-testid="task-create-error">

@@ -10,6 +10,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -131,19 +133,21 @@ func platformPaths(osName string, userMode bool, homeDir string) (servicePaths, 
 func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath, logsDir string) string {
 	switch sp.ServiceManager {
 	case "launchd":
+		// The center neither probes CLIs nor spawns agent CLIs, so it
+		// needs no augmented PATH (empty pathEnv = no EnvironmentVariables).
 		return renderLaunchdPlist(sp.CenterServiceID, binaryPath, []string{
 			"server", "--config=" + configPath,
-		}, logsDir)
+		}, logsDir, "")
 	case "systemd":
 		return renderSystemdUnit(systemdUnit{
-			Description:   "agent-center server",
-			ExecStart:     binaryPath + " server --config=" + configPath,
-			After:         "network-online.target",
-			Wants:         "network-online.target",
-			KillMode:      "", // server uses default (control-group); only worker needs KillMode=process
-			UserMode:      sp.UserMode,
-			WantedByUser:  "default.target",
-			WantedBySys:   "multi-user.target",
+			Description:  "agent-center server",
+			ExecStart:    binaryPath + " server --config=" + configPath,
+			After:        "network-online.target",
+			Wants:        "network-online.target",
+			KillMode:     "", // server uses default (control-group); only worker needs KillMode=process
+			UserMode:     sp.UserMode,
+			WantedByUser: "default.target",
+			WantedBySys:  "multi-user.target",
 		})
 	}
 	return ""
@@ -151,15 +155,18 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath, logsDir st
 
 // renderWorkerServiceUnit ditto for worker.
 //
-// v2.4-D-F4 X1 fix: the binary is the standalone
-// `agent-center-worker-daemon` (cmd/worker-daemon/main.go), not the
-// `agent-center` multi-tool binary. Its arg parser is flag.Parse()
-// over flags only — no positional sub-commands. Earlier versions
-// here prepended ["worker", "run", ...] which flag.Parse() treated
-// as a non-flag terminator, causing every flag after to be ignored
-// and the daemon to exit with `--worker-id is required`.
-func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, caps, logsDir string) string {
+// v2.7 (b) cutover: the worker now runs as `agent-center worker run` (the unified
+// binary — so the daemon's os.Executable() can route the worker agent-supervisor /
+// mcp-host subcommands it spawns). binaryPath is therefore `agent-center` and the
+// args are PREFIXED with the `worker run` sub-command path. This REVERSES the
+// v2.4-D-F4 X1 fix (which dropped the prefix because the OLD standalone
+// `agent-center-worker-daemon` used flag.Parse() and treated `worker run` as a
+// non-flag terminator): the unified CLI router consumes the sub-command path
+// first, then `worker run` flag-parses the remainder — so the prefix is correct
+// and required.
+func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, logsDir, pathEnv string) string {
 	args := []string{
+		"worker", "run",
 		"--config=" + configPath,
 		"--worker-id=" + workerID,
 		"--admin-target=" + bootstrap,
@@ -171,12 +178,11 @@ func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, 
 	if fingerprint != "" {
 		args = append(args, "--server-fingerprint="+fingerprint)
 	}
-	if caps != "" {
-		args = append(args, "--capabilities="+caps)
-	}
+	// v2.7 #147: no --capabilities — the daemon auto-probes installed CLIs on
+	// every online and reports them to center.
 	switch sp.ServiceManager {
 	case "launchd":
-		return renderLaunchdPlist(sp.WorkerServiceID, binaryPath, args, logsDir)
+		return renderLaunchdPlist(sp.WorkerServiceID, binaryPath, args, logsDir, pathEnv)
 	case "systemd":
 		return renderSystemdUnit(systemdUnit{
 			Description:  "agent-center worker daemon",
@@ -186,9 +192,58 @@ func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, 
 			UserMode:     sp.UserMode,
 			WantedByUser: "default.target",
 			WantedBySys:  "multi-user.target",
+			PathEnv:      pathEnv,
 		})
 	}
 	return ""
+}
+
+// resolveWorkerPATH builds the PATH the worker daemon's service unit
+// should run with. v2.7 #175 (acceptance FINDING-C sub-3): launchd (and
+// systemd) start the daemon with a minimal PATH, so the daemon's CLI
+// probe (ProbeAllAdapters) — and the agent CLIs it later spawns — could
+// not find user-installed binaries (claude/codex/opencode) that live in
+// homebrew / cargo / npm-global / etc. We union the installing user's own
+// PATH (captured at install time — catches volta/nvm/asdf/custom layouts
+// that no hardcoded list would) with a set of well-known user CLI dirs as
+// a backstop (covers the case where the install itself ran from a reduced
+// env). Order is preserved with the live PATH first; duplicates dropped.
+func resolveWorkerPATH(home string) string {
+	var ordered []string
+	seen := map[string]struct{}{}
+	add := func(dir string) {
+		if dir == "" {
+			return
+		}
+		if _, ok := seen[dir]; ok {
+			return
+		}
+		seen[dir] = struct{}{}
+		ordered = append(ordered, dir)
+	}
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		add(dir)
+	}
+	wellKnown := []string{
+		"/usr/local/bin",
+		"/opt/homebrew/bin",
+		"/usr/bin",
+		"/bin",
+		"/usr/sbin",
+		"/sbin",
+	}
+	if home != "" {
+		wellKnown = append(wellKnown,
+			filepath.Join(home, ".local", "bin"),
+			filepath.Join(home, ".cargo", "bin"),
+			filepath.Join(home, ".npm-global", "bin"),
+			filepath.Join(home, ".volta", "bin"),
+		)
+	}
+	for _, dir := range wellKnown {
+		add(dir)
+	}
+	return strings.Join(ordered, string(os.PathListSeparator))
 }
 
 // systemdUnit captures the systemd-unit-file fields we care about.
@@ -201,6 +256,7 @@ type systemdUnit struct {
 	UserMode     bool
 	WantedByUser string
 	WantedBySys  string
+	PathEnv      string // #175: Environment=PATH= so the daemon finds user CLIs
 }
 
 func renderSystemdUnit(u systemdUnit) string {
@@ -215,6 +271,9 @@ func renderSystemdUnit(u systemdUnit) string {
 	}
 	b.WriteString("\n[Service]\n")
 	b.WriteString("Type=simple\n")
+	if u.PathEnv != "" {
+		b.WriteString("Environment=PATH=" + u.PathEnv + "\n")
+	}
 	b.WriteString("ExecStart=" + u.ExecStart + "\n")
 	b.WriteString("Restart=on-failure\n")
 	b.WriteString("RestartSec=5s\n")
@@ -244,7 +303,7 @@ func renderSystemdUnit(u systemdUnit) string {
 // `/tmp/` so a `~/.agent-center/` install keeps everything in one tree
 // and reboots don't wipe the daemon log (operator finds last-failure
 // context where the rest of the install lives).
-func renderLaunchdPlist(label, binaryPath string, args []string, logsDir string) string {
+func renderLaunchdPlist(label, binaryPath string, args []string, logsDir, pathEnv string) string {
 	var argsXML strings.Builder
 	argsXML.WriteString("\t\t<string>" + xmlEscape(binaryPath) + "</string>\n")
 	for _, a := range args {
@@ -252,6 +311,18 @@ func renderLaunchdPlist(label, binaryPath string, args []string, logsDir string)
 	}
 	outPath := launchdLogPath(logsDir, label, "out")
 	errPath := launchdLogPath(logsDir, label, "err")
+	// #175: launchd starts daemons with a minimal PATH. When pathEnv is
+	// set (worker), inject an EnvironmentVariables dict so the daemon's CLI
+	// probe + the agent CLIs it spawns can find user-installed binaries.
+	envXML := ""
+	if pathEnv != "" {
+		envXML = `	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>` + xmlEscape(pathEnv) + `</string>
+	</dict>
+`
+	}
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -261,7 +332,7 @@ func renderLaunchdPlist(label, binaryPath string, args []string, logsDir string)
 	<key>ProgramArguments</key>
 	<array>
 ` + argsXML.String() + `	</array>
-	<key>RunAtLoad</key>
+` + envXML + `	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
 	<dict>

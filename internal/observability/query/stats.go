@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/discussion"
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/observability"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
+	"github.com/oopslink/agent-center/internal/observability/projection"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -93,56 +93,78 @@ func (s *StatsService) Aggregate(ctx context.Context, scope string, since *time.
 }
 
 func (s *StatsService) aggregateTasks(ctx context.Context, res StatsResult, since *time.Time) (StatsResult, error) {
-	if s.deps.Tasks == nil {
-		return res, errors.New("tasks repo not wired")
+	if s.deps.PMTasks == nil {
+		return res, errors.New("pm tasks repo not wired")
 	}
-	statuses := []task.Status{task.StatusOpen, task.StatusSuspended, task.StatusDone, task.StatusAbandoned}
-	for _, st := range statuses {
-		items, err := s.deps.Tasks.FindByStatus(ctx, st, task.Filter{Limit: 1000})
-		if err != nil {
-			return res, err
-		}
-		res.Counters[string(st)] = countSince(items, taskCreatedAt, since)
+	// v2.7 #107 Phase-2: repointed to pm_tasks (grouped count across ALL
+	// projects/orgs — global, like the old taskruntime FindByStatus scan).
+	// Counter labels are pm.Task status names (open/assigned/running/blocked/
+	// completed/verified/canceled/reopened); the old taskruntime status names
+	// are gone (clean swap, no compat — known breaking, recorded in E2 docs).
+	counts, err := s.deps.PMTasks.CountByStatus(ctx, since)
+	if err != nil {
+		return res, err
 	}
 	total := 0
-	for _, v := range res.Counters {
-		total += v
+	for st, n := range counts {
+		res.Counters[string(st)] = n
+		total += n
 	}
 	res.Totals["total"] = total
 	return res, nil
 }
 
 func (s *StatsService) aggregateExecutions(ctx context.Context, res StatsResult, since *time.Time) (StatsResult, error) {
-	if s.deps.Executions == nil {
-		return res, errors.New("executions repo not wired")
+	if s.deps.WorkItemProjections == nil {
+		return res, errors.New("work item projections repo not wired")
 	}
-	// Active by status
-	active, err := s.deps.Executions.FindActive(ctx)
+	// v2.7 #107 Phase-2: repointed to the agent work-item model.
+	// Active (live) by status — new-model equivalent of the old
+	// executions.FindActive; live set mirrors fleet (queued/active/waiting_input).
+	projs, err := s.deps.WorkItemProjections.List(ctx, projection.AgentWorkItemProjectionFilter{
+		Statuses: []string{
+			string(agentpkg.WorkItemQueued),
+			string(agentpkg.WorkItemActive),
+			string(agentpkg.WorkItemWaitingInput),
+		},
+	})
 	if err != nil {
 		return res, err
 	}
-	for _, e := range active {
-		res.Counters[string(e.Status())]++
+	for _, p := range projs {
+		res.Counters[p.Status]++
 	}
-	// Terminal: walk recent executions per-status via events table. v1
-	// shortcut: count emitted task_execution.completed / .failed /
-	// .killed events (since events are 1:1 with terminal transitions).
+	res.Totals["active"] = len(projs)
+	// Terminal: count agent.work_item.transitioned events whose status is a
+	// terminal outcome. Decision ①=A — count transition events, preserving v1
+	// cumulative semantics. v1 counted completed/failed/killed; new-model
+	// equivalents are completed→done, failed→failed, killed→canceled (external
+	// termination) → terminal set = {done, failed, canceled} (no v1 class
+	// dropped). Each work item emits exactly one terminal transition (idempotent
+	// via the WorkItemEventProjector AppliedStore), so this counts distinct
+	// terminal work items, no double count. superseded is excluded — it has no
+	// v1 analog (it marks a work item replaced by a reassignment attempt =
+	// internal bookkeeping, not an execution outcome). Limit 1000 mirrors the v1
+	// stats shortcut.
 	if s.deps.Events != nil {
-		for _, kind := range []string{"task_execution.completed", "task_execution.failed", "task_execution.killed"} {
-			et := observability.EventType(kind)
-			f := observability.EventQueryFilter{EventType: &et, Limit: 1000}
-			if since != nil {
-				f.Since = since
+		et := observability.EventType("agent.work_item.transitioned")
+		f := observability.EventQueryFilter{EventType: &et, Limit: 1000}
+		if since != nil {
+			f.Since = since
+		}
+		evs, err := s.deps.Events.Find(ctx, f)
+		if err != nil {
+			return res, err
+		}
+		for _, e := range evs {
+			if st, ok := e.Payload()["status"].(string); ok &&
+				(st == string(agentpkg.WorkItemDone) ||
+					st == string(agentpkg.WorkItemFailed) ||
+					st == string(agentpkg.WorkItemCanceled)) {
+				res.Counters[st]++
 			}
-			evs, err := s.deps.Events.Find(ctx, f)
-			if err != nil {
-				return res, err
-			}
-			label := kind[len("task_execution."):]
-			res.Counters[label] += len(evs)
 		}
 	}
-	res.Totals["active"] = len(active)
 	return res, nil
 }
 
@@ -188,20 +210,26 @@ func (s *StatsService) aggregateEvents(ctx context.Context, res StatsResult, sin
 }
 
 func (s *StatsService) aggregateIssues(ctx context.Context, res StatsResult, since *time.Time) (StatsResult, error) {
-	if s.deps.Issues == nil {
-		return res, errors.New("issues repo not wired")
+	if s.deps.PMIssues == nil {
+		return res, errors.New("pm issues repo not wired")
 	}
-	statuses := []discussion.Status{
-		discussion.StatusOpen, discussion.StatusUnderDiscussion,
-		discussion.StatusConcluded, discussion.StatusClosedNoAction,
-		discussion.StatusClosedWithTasks, discussion.StatusWithdrawn,
+	// v2.7 #131: repointed off the retired discussion model to pm_issues.
+	// Counter labels are pm.IssueStatus names; one FindByStatuses scan covers the
+	// full enum (mirrors the aggregateTasks/aggregateExecutions new-model reads in
+	// this file). pm.Issue has no OpenedAt → the `since` window uses CreatedAt.
+	statuses := []pm.IssueStatus{
+		pm.IssueOpen, pm.IssueInProgress, pm.IssueReopened,
+		pm.IssueResolved, pm.IssueClosed, pm.IssueWithdrawn,
 	}
-	for _, st := range statuses {
-		items, err := s.deps.Issues.FindByStatus(ctx, st, discussion.IssueFilter{Limit: 1000})
-		if err != nil {
-			return res, err
+	items, err := s.deps.PMIssues.FindByStatuses(ctx, statuses, 1000)
+	if err != nil {
+		return res, err
+	}
+	for _, i := range items {
+		if since != nil && i.CreatedAt().Before(*since) {
+			continue
 		}
-		res.Counters[string(st)] = countSince(items, issueOpenedAt, since)
+		res.Counters[string(i.Status())]++
 	}
 	total := 0
 	for _, v := range res.Counters {
@@ -211,23 +239,3 @@ func (s *StatsService) aggregateIssues(ctx context.Context, res StatsResult, sin
 	return res, nil
 }
 
-// countSince counts items whose timestamp (via extractor) is >= since;
-// since==nil counts everything.
-func countSince[T any](items []T, extract func(T) time.Time, since *time.Time) int {
-	if since == nil {
-		return len(items)
-	}
-	n := 0
-	for _, it := range items {
-		if !extract(it).Before(*since) {
-			n++
-		}
-	}
-	return n
-}
-
-func taskCreatedAt(t *task.Task) time.Time   { return t.CreatedAt() }
-func issueOpenedAt(i *discussion.Issue) time.Time { return i.OpenedAt() }
-
-// Touch the execution package import (used implicitly for Status enums).
-var _ = execution.StatusSubmitted

@@ -58,8 +58,19 @@ type CreateChannelCommand struct {
 	Name           string
 	Description    string
 	OrganizationID string // v2.6: scopes the channel to an org (multi-tenant isolation)
-	CreatedBy      conversation.IdentityRef
-	Actor          observability.Actor
+	// ProjectRef is an OPTIONAL constraint-free soft label (pm://projects/{id})
+	// for grouping/navigation only — channels are NOT project-bound (plan §10
+	// OQ10). Empty = no label.
+	ProjectRef string
+	CreatedBy  conversation.IdentityRef
+	// Members are additional participants (besides the creator-owner) to add at
+	// creation (v2.7 #201) — user:/agent: refs. Aligns channel create with DM
+	// create, which already seeds members[]; without this an agent added at
+	// channel-create was dropped, so a channel @mention never woke it (the
+	// emit gate saw no active agent participant). Invalid/duplicate refs are
+	// rejected/skipped. Empty = creator-only (the prior behavior).
+	Members []conversation.IdentityRef
+	Actor   observability.Actor
 }
 
 // CreateChannelResult is what callers get.
@@ -84,32 +95,55 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 		return CreateChannelResult{}, errors.New("channel: name required")
 	}
 	now := s.clock.Now()
+	nowStr := now.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+	// A channel is owned by exactly one Org (plan §10 OQ10).
+	var ownerRef conversation.OwnerRef
+	if strings.TrimSpace(cmd.OrganizationID) != "" {
+		ownerRef = conversation.NewOrgOwnerRef(cmd.OrganizationID)
+	}
+	// v2.7 #201: seed the creator as owner PLUS each requested member (user:/
+	// agent:) as a participant — aligns channel create with DM create. An agent
+	// member must be an active participant for channel @mention to wake it.
+	participants := []conversation.ParticipantElement{{
+		IdentityID: cmd.CreatedBy, Role: "owner", JoinedAt: nowStr, JoinedBy: cmd.CreatedBy,
+	}}
+	seen := map[conversation.IdentityRef]bool{cmd.CreatedBy: true}
+	for _, m := range cmd.Members {
+		ref := conversation.IdentityRef(strings.TrimSpace(string(m)))
+		if ref == "" || seen[ref] {
+			continue
+		}
+		if verr := ref.Validate(); verr != nil {
+			return CreateChannelResult{}, fmt.Errorf("channel: member %q: %w", ref, verr)
+		}
+		seen[ref] = true
+		participants = append(participants, conversation.ParticipantElement{
+			IdentityID: ref, Role: "member", JoinedAt: nowStr, JoinedBy: cmd.CreatedBy,
+		})
+	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
-		ID:             conversation.ConversationID(s.idgen.NewULID()),
+		ID:             newConversationID(s.idgen, conversation.ConversationKindChannel),
 		Kind:           conversation.ConversationKindChannel,
+		OwnerRef:       ownerRef,
+		ProjectRef:     strings.TrimSpace(cmd.ProjectRef),
 		Name:           name,
 		Description:    cmd.Description,
 		OrganizationID: cmd.OrganizationID,
 		CreatedBy:      cmd.CreatedBy,
 		OpenedAt:       now,
-		Participants: []conversation.ParticipantElement{
-			{
-				IdentityID: cmd.CreatedBy,
-				Role:       "owner",
-				JoinedAt:   now.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
-				JoinedBy:   cmd.CreatedBy,
-			},
-		},
+		Participants:   participants,
 	})
 	if err != nil {
 		return CreateChannelResult{}, err
 	}
 	var evID observability.EventID
 	err = persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		// App-layer pre-check (the DB partial unique index is the
-		// ultimate authority but a friendlier ErrAlreadyExists from a
-		// pre-check is good UX).
-		if existing, lookErr := s.convRepo.FindByName(txCtx, name); lookErr == nil && existing != nil {
+		// App-layer pre-check (the DB partial unique index is the ultimate
+		// authority but a friendlier ErrAlreadyExists from a pre-check is good UX).
+		// v2.7 #195: uniqueness is ORG-SCOPED — dedup within the channel's org so
+		// two orgs may share a name; the org-less admin path stays global.
+		existing, lookErr := s.findChannelByName(txCtx, cmd.OrganizationID, name)
+		if lookErr == nil && existing != nil {
 			return conversation.ErrConversationAlreadyExists
 		} else if lookErr != nil && !errors.Is(lookErr, conversation.ErrConversationNotFound) {
 			return lookErr
@@ -142,11 +176,24 @@ func (s *ChannelManagementService) CreateChannel(ctx context.Context, cmd Create
 	return CreateChannelResult{ConversationID: conv.ID(), EventID: evID}, nil
 }
 
+// findChannelByName resolves a channel by name, ORG-SCOPED when orgID is set
+// (v2.7 #195), else GLOBAL (org-agnostic admin path). Returns
+// ErrConversationNotFound when absent.
+func (s *ChannelManagementService) findChannelByName(ctx context.Context, orgID, name string) (*conversation.Conversation, error) {
+	if strings.TrimSpace(orgID) != "" {
+		return s.convRepo.FindByNameInOrg(ctx, orgID, name)
+	}
+	return s.convRepo.FindByName(ctx, name)
+}
+
 // ArchiveChannelCommand wraps `agent-center channel archive`.
 type ArchiveChannelCommand struct {
-	Name       string
-	ArchivedBy conversation.IdentityRef
-	Actor      observability.Actor
+	Name string
+	// OrganizationID scopes the name lookup (v2.7 #195). Empty = global (the
+	// org-agnostic admin path); set = resolve within that org.
+	OrganizationID string
+	ArchivedBy     conversation.IdentityRef
+	Actor          observability.Actor
 }
 
 // ArchiveChannel transitions a channel to archived (terminal). Lookup is
@@ -163,7 +210,7 @@ func (s *ChannelManagementService) ArchiveChannel(ctx context.Context, cmd Archi
 	}
 	var evID observability.EventID
 	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
-		conv, err := s.convRepo.FindByName(txCtx, cmd.Name)
+		conv, err := s.findChannelByName(txCtx, cmd.OrganizationID, cmd.Name)
 		if err != nil {
 			return err
 		}

@@ -12,7 +12,7 @@ import (
 
 // =============================================================================
 // Fail-injection mocks for AgentInstanceRepository (only methods exercised
-// by EnsureBuiltinSupervisor / OnExecutionStarted / OnExecutionEnded paths).
+// by EnsureBuiltinSupervisor paths).
 // Each method can be programmed to return a specific error.
 // =============================================================================
 
@@ -21,7 +21,6 @@ type fakeAIRepo struct {
 	saveErr       error
 	updateErr     error
 	countErr      error
-	bulkErr       error
 	countActive   int
 }
 
@@ -51,9 +50,6 @@ func (f *fakeAIRepo) Archive(ctx context.Context, id workforce.AgentInstanceID, 
 }
 func (f *fakeAIRepo) CountActiveExecutions(ctx context.Context, id workforce.AgentInstanceID) (int, error) {
 	return f.countActive, f.countErr
-}
-func (f *fakeAIRepo) BulkUpdateStateByWorker(ctx context.Context, workerID workforce.WorkerID, from, to workforce.AgentInstanceState) (int, error) {
-	return 0, f.bulkErr
 }
 
 // =============================================================================
@@ -110,51 +106,6 @@ func TestEnsureBuiltinSupervisor_SaveOtherErr(t *testing.T) {
 	_, err := mgmt.EnsureBuiltinSupervisor(context.Background())
 	if err == nil || err.Error() != "save blew up" {
 		t.Fatalf("expected save error, got %v", err)
-	}
-}
-
-// =============================================================================
-// OnExecutionEnded paths
-// =============================================================================
-
-func TestOnExecutionEnded_StillBusyNoTransition(t *testing.T) {
-	s := setupAISuite(t)
-	created, _ := s.mgmt.Create(context.Background(), CreateAgentInstanceCommand{
-		Name: "c", AgentCLI: "claude-code", WorkerID: "W-1", ActorIdentity: "user:x",
-	})
-	_ = s.life.OnExecutionStarted(context.Background(), created.ID, "system")
-	// Insert two task_executions rows so count > 0.
-	for _, idval := range []string{"01HE1", "01HE2"} {
-		if _, err := s.db.ExecContext(context.Background(), `INSERT INTO task_executions
-			(id, task_id, worker_id, agent_cli, workspace_mode, priority, status, dispatch_state,
-			 started_at, created_at, updated_at, agent_instance_id)
-			VALUES (?, 'T', 'W-1', 'claude-code', 'worktree', 'medium', 'working', 'acked',
-			        '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', ?)`,
-			idval, string(created.ID)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := s.life.OnExecutionEnded(context.Background(), created.ID, "system"); err != nil {
-		t.Fatal(err)
-	}
-	// State should still be active.
-	got, _ := s.aiRepo.FindByID(context.Background(), created.ID)
-	if got.State() != workforce.AgentInstanceActive {
-		t.Fatalf("state should remain active: %s", got.State())
-	}
-}
-
-func TestOnExecutionEnded_NotFound(t *testing.T) {
-	s := setupAISuite(t)
-	if err := s.life.OnExecutionEnded(context.Background(), "01H-MISSING", "system"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestOnExecutionStarted_NotFound(t *testing.T) {
-	s := setupAISuite(t)
-	if err := s.life.OnExecutionStarted(context.Background(), "01H-MISSING", "system"); err == nil {
-		t.Fatal()
 	}
 }
 

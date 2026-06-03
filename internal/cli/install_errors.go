@@ -76,9 +76,9 @@ type installErrorContext struct {
 
 // renderInstallError formats a friendly error block for the operator:
 //
-//   Error: <friendly>
-//     What to try: <hint>
-//     Underlying: <raw err>
+//	Error: <friendly>
+//	  What to try: <hint>
+//	  Underlying: <raw err>
 //
 // Falls back to the raw err verbatim when no friendly mapping exists.
 func renderInstallError(err error, context installErrorContext) string {

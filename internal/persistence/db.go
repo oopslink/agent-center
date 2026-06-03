@@ -109,10 +109,10 @@ func normalizeDSN(in string) (string, error) {
 	}
 	q := u.Query()
 	required := map[string]string{
-		"journal_mode":  "journal_mode(WAL)",
-		"busy_timeout":  "busy_timeout(5000)",
-		"foreign_keys":  "foreign_keys(ON)",
-		"synchronous":   "synchronous(NORMAL)",
+		"journal_mode": "journal_mode(WAL)",
+		"busy_timeout": "busy_timeout(5000)",
+		"foreign_keys": "foreign_keys(ON)",
+		"synchronous":  "synchronous(NORMAL)",
 	}
 	have := map[string]bool{}
 	for _, p := range q["_pragma"] {

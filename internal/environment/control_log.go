@@ -1,0 +1,147 @@
+package environment
+
+import (
+	"context"
+	"errors"
+
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/idgen"
+)
+
+// ControlLog is the command-stream service (ADR-0050 §4 core). It assigns the
+// per-Worker monotonic offset, enforces center-side idempotency (a re-issued
+// logical command — same idempotency_key — does NOT create a second stream
+// entry, so a destructive stop/reset is never duplicated), and serves the replay
+// set for a reconnecting Worker (everything after its last acked offset).
+//
+// This is the D1 #102 acceptance core. Process control (executing the commands)
+// and the agent.lifecycle→command projector are D2.
+type ControlLog struct {
+	events    ControlEventRepository
+	idgen     idgen.Generator
+	clock     clock.Clock
+	publisher CommandPublisher // OPTIONAL — nil means no SSE down-push (D5 slice-1).
+}
+
+// CommandPublisher is the OPTIONAL center-side SSE down-push hook (v2.7 D5
+// slice-1). After AppendCommand COMMITS a new command, the log best-effort
+// publishes the appended command (carrying its assigned offset) so a subscribed
+// Worker receives it with low latency instead of waiting for its next poll.
+//
+// Contract (§-1 INVARIANTS):
+//   - Publish runs AFTER the repo Append succeeds (after commit) — never before,
+//     so the bus can never advertise a command the log failed to persist.
+//   - Publish is BEST-EFFORT: a publish failure (no subscriber, full buffer,
+//     dropped connection) must NOT fail AppendCommand. The poll fallback +
+//     reconnect-by-offset catch-up recovers any missed publish (at-least-once is
+//     preserved by the log, not the bus).
+//   - A nil publisher is a no-op (fixtures + the synthetic D1 path are
+//     unaffected; only the composition root injects a real bus).
+type CommandPublisher interface {
+	Publish(e *WorkerControlEvent)
+}
+
+// NewControlLog constructs the service.
+func NewControlLog(events ControlEventRepository, gen idgen.Generator, clk clock.Clock) *ControlLog {
+	if clk == nil {
+		clk = clock.SystemClock{}
+	}
+	return &ControlLog{events: events, idgen: gen, clock: clk}
+}
+
+// WithPublisher injects the OPTIONAL SSE down-push publisher and returns the
+// same *ControlLog (fluent, for wiring at the composition root). Passing nil
+// leaves the log publish-free. Idempotent — the last call wins.
+func (l *ControlLog) WithPublisher(p CommandPublisher) *ControlLog {
+	l.publisher = p
+	return l
+}
+
+// AppendCommandInput captures an enqueue request.
+type AppendCommandInput struct {
+	WorkerID       WorkerID
+	CommandType    string
+	Payload        string
+	IdempotencyKey string
+}
+
+// AppendCommand enqueues a command for a Worker. IDEMPOTENT: if a command with
+// the same (worker, idempotency_key) already exists, it returns that existing
+// entry unchanged (no new offset, no duplicate destructive command). Otherwise
+// it assigns the next offset (max+1) and appends.
+func (l *ControlLog) AppendCommand(ctx context.Context, in AppendCommandInput) (*WorkerControlEvent, error) {
+	if in.CommandType == "" {
+		return nil, ErrEmptyCommandType
+	}
+	if in.IdempotencyKey == "" {
+		return nil, ErrEmptyIdempotencyKey
+	}
+	// Center-side idempotency: re-issuing the same logical command is a no-op
+	// that returns the already-enqueued entry (best-effort here; the sqlite
+	// UNIQUE(worker_id, idempotency_key) constraint is the race backstop).
+	if existing, err := l.events.FindByIdempotencyKey(ctx, in.WorkerID, in.IdempotencyKey); err != nil {
+		return nil, err
+	} else if existing != nil {
+		return existing, nil
+	}
+	maxOff, err := l.events.MaxOffset(ctx, in.WorkerID)
+	if err != nil {
+		return nil, err
+	}
+	evt, err := NewWorkerControlEvent(NewWorkerControlEventInput{
+		ID:             l.idgen.NewULID(),
+		WorkerID:       in.WorkerID,
+		Offset:         maxOff + 1,
+		IdempotencyKey: in.IdempotencyKey,
+		CommandType:    in.CommandType,
+		Payload:        in.Payload,
+		CreatedAt:      l.clock.Now(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := l.events.Append(ctx, evt); err != nil {
+		// Lost a race on the same idempotency key (a concurrent AppendCommand
+		// inserted it between our pre-check and Append). The UNIQUE(worker_id,
+		// idempotency_key) constraint is the backstop; re-fetch and return the
+		// winning entry so idempotency still holds — the caller sees the existing
+		// command, not an error.
+		if errors.Is(err, ErrDuplicateIdempotencyKey) {
+			if existing, ferr := l.events.FindByIdempotencyKey(ctx, in.WorkerID, in.IdempotencyKey); ferr != nil {
+				return nil, ferr
+			} else if existing != nil {
+				return existing, nil
+			}
+		}
+		return nil, err
+	}
+	// AFTER-COMMIT, BEST-EFFORT SSE down-push (D5 slice-1). Only the genuine new
+	// append publishes — the idempotent-dedup returns above intentionally do NOT
+	// (the entry already exists; re-publishing would gratuitously double-send,
+	// and the original append already pushed it). A nil publisher is a no-op. A
+	// publish failure CANNOT fail AppendCommand: the command is already committed,
+	// and the poll fallback + reconnect catch-up (CommandsAfter) recovers a miss.
+	l.publish(evt)
+	return evt, nil
+}
+
+// publish runs the optional SSE down-push hook. nil-safe; best-effort.
+func (l *ControlLog) publish(e *WorkerControlEvent) {
+	if l.publisher == nil {
+		return
+	}
+	l.publisher.Publish(e)
+}
+
+// CommandsAfter returns the replay set: commands with offset strictly greater
+// than `offset`, ascending. Pass worker.LastAckedOffset() to get exactly what a
+// reconnecting Worker still needs.
+func (l *ControlLog) CommandsAfter(ctx context.Context, workerID WorkerID, offset int64) ([]*WorkerControlEvent, error) {
+	return l.events.ListAfter(ctx, workerID, offset)
+}
+
+// Replay is the convenience wrapper for a reconnecting Worker: the commands
+// after its cumulative ack cursor.
+func (l *ControlLog) Replay(ctx context.Context, w *Worker) ([]*WorkerControlEvent, error) {
+	return l.events.ListAfter(ctx, w.ID(), w.LastAckedOffset())
+}

@@ -10,6 +10,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,8 +19,31 @@ import (
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
+
+// seedProject creates a pm.Project directly via the pm project repo. The CLI
+// project READ commands (list/show) were repointed off the retired
+// workforce.Project model to the new pm.Project model in #131 PR-3, so the
+// list/show tests must seed pm projects. Used by tests whose real assertion is
+// on the read-only project commands (list/show).
+func seedProject(t *testing.T, app *App, id, name string) {
+	t.Helper()
+	p, err := pm.NewProject(pm.NewProjectInput{
+		ID:             pm.ProjectID(id),
+		OrganizationID: "org-test",
+		Name:           name,
+		CreatedBy:      pm.IdentityRef("user:tester"),
+		CreatedAt:      time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("seed project (pm.NewProject): %v", err)
+	}
+	if err := app.PMProjectRepo.Save(context.Background(), p); err != nil {
+		t.Fatalf("seed project (Save): %v", err)
+	}
+}
 
 // helper: spin up an App with a fresh on-disk DB and migration applied.
 func newTestApp(t *testing.T) *App {
@@ -92,10 +116,6 @@ func runByName(t *testing.T, app *App, group string, names ...string) func(args 
 		switch group {
 		case "worker":
 			cmds = app.WorkerCommands()
-		case "project":
-			cmds = app.ProjectCommands()
-		case "conversation":
-			cmds = app.ConversationCommands()
 		}
 		cmd := findCmd(cmds, names[0])
 		for _, n := range names[1:] {
@@ -205,303 +225,6 @@ func TestCLI_WorkerList_InvalidStatus(t *testing.T) {
 }
 
 // =============================================================================
-// proposal flow
-// =============================================================================
-
-func enrollAndPropose(t *testing.T, app *App) string {
-	t.Helper()
-	run := runByName(t, app, "worker", "enroll")
-	if _, _, c := run([]string{"--worker-id=W-1"}); c != ExitOK {
-		t.Fatal("enroll failed")
-	}
-	propose := runByName(t, app, "worker", "proposal", "propose")
-	out, _, c := propose([]string{"--worker-id=W-1", "--candidate-path=/x/y", "--format=json"})
-	if c != ExitOK {
-		t.Fatalf("propose failed: %s", out)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	return r["proposal_id"].(string)
-}
-
-func TestCLI_ProposalAccept_Happy(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	out, _, code := accept([]string{id, "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d out: %s", code, out)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["project_id"] == "" || r["mapping_id"] == "" {
-		t.Fatalf("missing fields: %v", r)
-	}
-}
-
-func TestCLI_ProposalAccept_AlreadyAccepted(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	_, _, _ = accept([]string{id})
-	_, errOut, code := accept([]string{id, "--format=json"})
-	if code != ExitInvalidTransition {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "proposal_already_terminated") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProposalIgnore_NotPending(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	_, _, _ = accept([]string{id})
-	ign := runByName(t, app, "worker", "proposal", "ignore")
-	_, errOut, code := ign([]string{id})
-	if code != ExitInvalidTransition {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "proposal_already_terminated") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProposalUnignore_Happy(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	ign := runByName(t, app, "worker", "proposal", "ignore")
-	_, _, _ = ign([]string{id})
-	un := runByName(t, app, "worker", "proposal", "unignore")
-	_, _, code := un([]string{id})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProposalList_Pending(t *testing.T) {
-	app := newTestApp(t)
-	enrollAndPropose(t, app)
-	list := runByName(t, app, "worker", "proposal", "list")
-	out, _, code := list([]string{"--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	var arr []map[string]any
-	if err := json.Unmarshal([]byte(out), &arr); err != nil {
-		t.Fatal(err)
-	}
-	if len(arr) != 1 {
-		t.Fatalf("got %d", len(arr))
-	}
-}
-
-func TestCLI_ProposalShow_Happy(t *testing.T) {
-	app := newTestApp(t)
-	id := enrollAndPropose(t, app)
-	show := runByName(t, app, "worker", "proposal", "show")
-	out, _, code := show([]string{id, "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["proposal_id"] != id {
-		t.Fatalf("got %v", r)
-	}
-}
-
-// =============================================================================
-// project CRUD
-// =============================================================================
-
-func TestCLI_ProjectAdd_Happy(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	out, _, code := add([]string{"my-proj", "--name=My Proj", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d err out: %s", code, out)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	if r["project_id"] != "my-proj" {
-		t.Fatalf("got %v", r)
-	}
-}
-
-func TestCLI_ProjectAdd_DupID(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	_, errOut, code := add([]string{"p", "--name=p", "--format=json"})
-	if code != ExitBusinessError {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "project_already_exists") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProjectRemove_HasActiveDeps(t *testing.T) {
-	app := newTestApp(t)
-	// enroll + propose + accept → creates project + mapping
-	id := enrollAndPropose(t, app)
-	accept := runByName(t, app, "worker", "proposal", "accept")
-	_, _, _ = accept([]string{id, "--project-id=p"})
-	// Now p has an active mapping; remove should fail.
-	rm := runByName(t, app, "project", "remove")
-	_, errOut, code := rm([]string{"p"})
-	if code != ExitInvariantViolation {
-		t.Fatalf("code: %d errOut: %s", code, errOut)
-	}
-	if !strings.Contains(errOut, "project_has_active_deps") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProjectUpdate_VersionConflict(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	upd := runByName(t, app, "project", "update")
-	_, errOut, code := upd([]string{"p", "--name=Renamed", "--version=99"})
-	if code != ExitVersionConflict {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "project_version_conflict") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ProjectUpdate_NoVersion(t *testing.T) {
-	app := newTestApp(t)
-	upd := runByName(t, app, "project", "update")
-	_, _, code := upd([]string{"p", "--name=x"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectUpdate_NoFields(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"p", "--name=p"})
-	upd := runByName(t, app, "project", "update")
-	_, _, code := upd([]string{"p", "--version=1"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ProjectList_All(t *testing.T) {
-	app := newTestApp(t)
-	add := runByName(t, app, "project", "add")
-	_, _, _ = add([]string{"a", "--name=a"})
-	_, _, _ = add([]string{"b", "--name=b"})
-	list := runByName(t, app, "project", "list")
-	out, _, _ := list([]string{"--format=json"})
-	var arr []map[string]any
-	_ = json.Unmarshal([]byte(out), &arr)
-	if len(arr) != 2 {
-		t.Fatalf("got %d", len(arr))
-	}
-}
-
-// =============================================================================
-// conversation
-// =============================================================================
-
-func TestCLI_ConvAddMessage_Happy(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	out, _, code := open([]string{"--kind=dm", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	convID := r["conversation_id"].(string)
-	add := runByName(t, app, "conversation", "add-message")
-	out, _, code = add([]string{convID, "--kind=text", "--content=hello", "--direction=internal", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d out: %s", code, out)
-	}
-}
-
-func TestCLI_ConvAddMessage_Closed(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	out, _, _ := open([]string{"--kind=dm", "--format=json"})
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	convID := r["conversation_id"].(string)
-	closeC := runByName(t, app, "conversation", "close")
-	_, _, _ = closeC([]string{convID, "--reason=done", "--message=ok", "--version=1"})
-	add := runByName(t, app, "conversation", "add-message")
-	_, errOut, code := add([]string{convID, "--kind=text", "--content=x", "--direction=internal", "--format=json"})
-	if code != ExitBusinessError {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "conversation_closed") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ConvList_TaskKind_Empty(t *testing.T) {
-	app := newTestApp(t)
-	list := runByName(t, app, "conversation", "list")
-	out, _, code := list([]string{"--kind=task", "--format=json"})
-	if code != ExitOK {
-		t.Fatalf("code: %d", code)
-	}
-	if strings.TrimSpace(out) != "null" && strings.TrimSpace(out) != "[]" {
-		t.Fatalf("expected empty: %s", out)
-	}
-}
-
-func TestCLI_ConvOpen_BadKind(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	_, _, code := open([]string{"--kind=bogus"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-}
-
-func TestCLI_ConvOpen_TaskKind_Rejected(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	_, errOut, code := open([]string{"--kind=task"})
-	if code != ExitUsage {
-		t.Fatalf("code: %d", code)
-	}
-	if !strings.Contains(errOut, "conversation_invalid_kind") {
-		t.Fatalf("err: %s", errOut)
-	}
-}
-
-func TestCLI_ConvRead_Tail(t *testing.T) {
-	app := newTestApp(t)
-	open := runByName(t, app, "conversation", "open")
-	out, _, _ := open([]string{"--kind=dm", "--format=json"})
-	var r map[string]any
-	_ = json.Unmarshal([]byte(out), &r)
-	convID := r["conversation_id"].(string)
-	add := runByName(t, app, "conversation", "add-message")
-	for i := 0; i < 3; i++ {
-		_, _, _ = add([]string{convID, "--kind=text", "--content=msg", "--direction=internal"})
-	}
-	read := runByName(t, app, "conversation", "read")
-	out, _, _ = read([]string{convID, "--tail=2", "--format=json"})
-	var arr []map[string]any
-	_ = json.Unmarshal([]byte(out), &arr)
-	if len(arr) != 2 {
-		t.Fatalf("got %d", len(arr))
-	}
-}
-
-// =============================================================================
 // error mapping coverage
 // =============================================================================
 
@@ -511,18 +234,6 @@ func TestMapDomainError_AllSentinels(t *testing.T) {
 		workforce.ErrWorkerAlreadyExists,
 		workforce.ErrWorkerVersionConflict,
 		workforce.ErrWorkerInvalidStatus,
-		workforce.ErrMappingNotFound,
-		workforce.ErrMappingAlreadyActive,
-		workforce.ErrMappingNotActive,
-		workforce.ErrProposalNotFound,
-		workforce.ErrProposalAlreadyTerminated,
-		workforce.ErrProposalInvalidTransition,
-		workforce.ErrProposalAlreadyExists,
-		workforce.ErrProposalVersionConflict,
-		workforce.ErrProjectNotFound,
-		workforce.ErrProjectAlreadyExists,
-		workforce.ErrProjectVersionConflict,
-		workforce.ErrProjectHasActiveDeps,
 		conversation.ErrConversationNotFound,
 		conversation.ErrConversationAlreadyExists,
 		conversation.ErrConversationClosed,
@@ -665,13 +376,129 @@ func TestSystemCommands_VersionDevFallback(t *testing.T) {
 	}
 }
 
+// TestWorkerRunCommand_RequiresWorkerID pins the usage guard: `worker run` with no
+// --worker-id returns ExitUsage BEFORE attempting any daemon bootstrap (so the test
+// is hermetic — no config/network).
+func TestWorkerRunCommand_RequiresWorkerID(t *testing.T) {
+	_, errOut, code := runHandler(t, WorkerRunCommand(), nil)
+	if code != ExitUsage {
+		t.Fatalf("missing --worker-id: code=%d want ExitUsage", code)
+	}
+	if !strings.Contains(errOut, "--worker-id is required") {
+		t.Fatalf("stderr=%q, want the --worker-id required message", errOut)
+	}
+}
 
-func TestWorkerRunPlaceholder_Stub(t *testing.T) {
-	cmd := WorkerRunPlaceholder()
-	var buf bytes.Buffer
-	code := cmd.Run(context.Background(), nil, io.Discard, &buf)
-	if code != ExitNotImplemented {
-		t.Fatalf("code: %d", code)
+// TestResolveWorkerConfigPath_GlobalFallback regression-guards the slice-1 parity
+// break (Tester msg 601b01a3): the unified router strips the global --config before
+// the `worker run` FlagSet, so the subcommand --config is empty in real routing and
+// the handler MUST fall back to the global config path (else worker run ignores the
+// operator config and uses /var/lib defaults).
+func TestResolveWorkerConfigPath_GlobalFallback(t *testing.T) {
+	prev := GlobalConfigPath()
+	defer SetGlobalConfigPath(prev)
+
+	SetGlobalConfigPath("/tmp/operator-config.yaml")
+	if got := resolveWorkerConfigPath("", "w1"); got != "/tmp/operator-config.yaml" {
+		t.Fatalf("empty subcommand --config must fall back to the global config, got %q", got)
+	}
+	// An explicit subcommand --config (e.g. via runHandler / direct invocation) wins.
+	if got := resolveWorkerConfigPath("/sub/explicit.yaml", "w1"); got != "/sub/explicit.yaml" {
+		t.Fatalf("explicit subcommand --config must win, got %q", got)
+	}
+	SetGlobalConfigPath("")
+	if got := resolveWorkerConfigPath("", "w1"); got != "" {
+		t.Fatalf("both empty + no install → empty, got %q", got)
+	}
+}
+
+// v2.7 FINDING-O (#203): symmetric to #90 — bare `worker run --worker-id=X` with
+// no --config / global discovers the worker-mode install config
+// (~/.agent-center/workers/<X>/etc/config.yaml).
+func TestResolveWorkerConfigPath_DiscoversWorkerInstallConfig(t *testing.T) {
+	prev := GlobalConfigPath()
+	defer SetGlobalConfigPath(prev)
+	SetGlobalConfigPath("")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// No install config → empty (falls through to DefaultConfig in the daemon).
+	if got := resolveWorkerConfigPath("", "w1"); got != "" {
+		t.Fatalf("no worker install config → want empty, got %q", got)
+	}
+	// Write the worker-mode install config → discovered.
+	want := filepath.Join(defaultWorkerInstallPrefix(true, "w1"), "etc", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(want), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(want, []byte("server: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveWorkerConfigPath("", "w1"); got != want {
+		t.Fatalf("worker install config present → want %q, got %q", want, got)
+	}
+	// An explicit --config still wins over discovery.
+	if got := resolveWorkerConfigPath("/x/explicit.yaml", "w1"); got != "/x/explicit.yaml" {
+		t.Fatalf("explicit --config must win over discovery, got %q", got)
+	}
+}
+
+// v2.7 FINDING-P (#204): --bootstrap/--token (friendly, matching `install worker`
+// + the Web Console) coalesce with the legacy --admin-target/--admin-token
+// aliases; the friendly value wins when both are set.
+func TestCoalesceWorkerFlag(t *testing.T) {
+	cases := []struct {
+		name             string
+		friendly, legacy string
+		want             string
+	}{
+		{"friendly only", "tcp://h:7300", "", "tcp://h:7300"},
+		{"legacy only (back-compat)", "", "tcp://old:7300", "tcp://old:7300"},
+		{"friendly wins when both set", "tcp://new:7300", "tcp://old:7300", "tcp://new:7300"},
+		{"both empty", "", "", ""},
+		{"trims whitespace", "  tcp://h:7300  ", "", "tcp://h:7300"},
+	}
+	for _, c := range cases {
+		if got := coalesceWorkerFlag(c.friendly, c.legacy); got != c.want {
+			t.Errorf("%s: coalesceWorkerFlag(%q,%q)=%q want %q", c.name, c.friendly, c.legacy, got, c.want)
+		}
+	}
+}
+
+// TestWorkerRunCommand_FlagParity guards the `worker run` flag set against the
+// (retiring) standalone daemon — no silent drop / rename / default change (the
+// PM+Tester parity watch, v2.7 (b) cutover). Complements Tester's --help diff.
+func TestWorkerRunCommand_FlagParity(t *testing.T) {
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	_ = WorkerRunCommand().Flags(fs)
+	want := []string{
+		"config", "worker-id", "worker-name", "fake-agent", "poll-interval",
+		"admin-token", "admin-target", "server-fingerprint",
+		"skills-dir",
+		// v2.7 FINDING-P (#204): friendly aliases matching `install worker` + the
+		// Web Console Add-Worker command, so a copied command never hits
+		// "flag provided but not defined: -bootstrap".
+		"bootstrap", "token",
+	}
+	for _, name := range want {
+		if fs.Lookup(name) == nil {
+			t.Errorf("worker run missing flag --%s (parity with standalone daemon)", name)
+		}
+	}
+	// v2.7 #147: --capabilities was removed — the daemon auto-probes installed
+	// CLIs (ProbeAllAdapters) and reports them on every online. Guard against
+	// reintroduction.
+	if fs.Lookup("capabilities") != nil {
+		t.Errorf("--capabilities should be removed (worker auto-discovers CLIs now)")
+	}
+	// Behavior-critical default parity.
+	if f := fs.Lookup("poll-interval"); f != nil && f.DefValue != "1s" {
+		t.Errorf("--poll-interval default = %q, want 1s", f.DefValue)
+	}
+	// #107 slice-2: --use-control-loop was removed (control-stream path is now
+	// unconditional). Guard that it is not reintroduced.
+	if fs.Lookup("use-control-loop") != nil {
+		t.Errorf("--use-control-loop should be removed (control-stream path is unconditional)")
 	}
 }
 
@@ -693,7 +520,8 @@ func TestBuildRouter_AddsAllSubcommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"version", "server", "migrate", "admin", "worker", "project", "conversation"} {
+	// v2.7 #162: data CLI commands retired; only deployment/lifecycle remain.
+	for _, name := range []string{"version", "server", "migrate", "admin", "worker", "install"} {
 		if findSubcommand(router.Root, name) == nil {
 			t.Fatalf("missing top-level command: %s", name)
 		}
@@ -737,18 +565,6 @@ func TestExtractConfigFlag(t *testing.T) {
 	}
 }
 
-func TestPathBasename(t *testing.T) {
-	if pathBasename("/a/b/c") != "c" {
-		t.Fatal()
-	}
-	if pathBasename("c") != "c" {
-		t.Fatal()
-	}
-	if pathBasename(`a\b\c`) != "c" {
-		t.Fatal()
-	}
-}
-
 func TestSplitNonEmpty(t *testing.T) {
 	got := splitNonEmpty("a,b, ,c", ",")
 	if len(got) != 3 {
@@ -768,13 +584,6 @@ func TestBuildPlaceholderApp(t *testing.T) {
 		t.Fatal()
 	}
 	_ = app.DB.Close()
-}
-
-func TestApp_DefaultActor(t *testing.T) {
-	app := newTestApp(t)
-	if string(app.DefaultActor()) != "user:hayang" {
-		t.Fatalf("got %v", app.DefaultActor())
-	}
 }
 
 func TestApp_NewApp_NilDB(t *testing.T) {
@@ -828,7 +637,7 @@ func TestMigrateCommand_RunsUp(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
-	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n"); err != nil {
+	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n"); err != nil {
 		t.Fatal(err)
 	}
 	stdout, _, code := runHandler(t, cmd, []string{"--config=" + cfgPath})
@@ -859,7 +668,7 @@ func TestMigrateCommand_TargetDown(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
-	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n"); err != nil {
+	if err := writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n"); err != nil {
 		t.Fatal(err)
 	}
 	// First run --up to populate to head.
@@ -892,7 +701,7 @@ func TestServerCommand_MigrateOnly(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/cfg.yaml"
 	dbPath := dir + "/test.db"
-	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\n")
+	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\n")
 	stdout, _, code := runHandler(t, cmd, []string{"--config=" + cfgPath, "--migrate-only"})
 	if code != ExitOK {
 		t.Fatalf("code: %d", code)
@@ -923,7 +732,7 @@ func TestServerCommand_CtxCancelExitsCleanly(t *testing.T) {
 	if err := writeTestMasterKey(mkPath); err != nil {
 		t.Fatal(err)
 	}
-	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nidentity:\n  default_user: hayang\nsecret_management:\n  master_key_file: '"+mkPath+"'\n  skip_perms_check: true\n")
+	_ = writeFile(t, cfgPath, "server:\n  listen_addr: ':7000'\n  sqlite_path: '"+dbPath+"'\nsecret_management:\n  master_key_file: '"+mkPath+"'\n  skip_perms_check: true\n")
 
 	// Build the handler directly so we can pass our own ctx.
 	fs := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)

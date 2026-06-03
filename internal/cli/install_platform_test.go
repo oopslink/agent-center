@@ -86,7 +86,7 @@ func TestRenderSystemdUnit_Center_SystemMode_HasHardening(t *testing.T) {
 }
 
 func TestRenderLaunchdPlist_HasLabel(t *testing.T) {
-	body := renderLaunchdPlist("com.test.x", "/bin/agent-center", []string{"server", "--config=/tmp/c.yaml"}, "/var/logs/ac")
+	body := renderLaunchdPlist("com.test.x", "/bin/agent-center", []string{"server", "--config=/tmp/c.yaml"}, "/var/logs/ac", "")
 	if !strings.Contains(body, "com.test.x") {
 		t.Errorf("missing label: %s", body)
 	}
@@ -113,14 +113,19 @@ func TestRenderLaunchdPlist_HasLabel(t *testing.T) {
 // renderLaunchdPlist falls back to /tmp when logsDir is empty — the
 // safety net for test fixtures that don't bother constructing a layout.
 func TestRenderLaunchdPlist_EmptyLogsDirFallsBackToTmp(t *testing.T) {
-	body := renderLaunchdPlist("com.test.x", "/bin/x", nil, "")
+	body := renderLaunchdPlist("com.test.x", "/bin/x", nil, "", "")
 	if !strings.Contains(body, "<string>/tmp/com.test.x.err.log</string>") {
 		t.Errorf("expected /tmp fallback for empty logsDir:\n%s", body)
+	}
+	// Empty pathEnv (center / no-PATH case) must NOT emit an
+	// EnvironmentVariables block.
+	if strings.Contains(body, "EnvironmentVariables") {
+		t.Errorf("empty pathEnv should not emit EnvironmentVariables:\n%s", body)
 	}
 }
 
 func TestCenterConfigYAML_HasFields(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "", "/var/data/master.key")
+	yaml := centerConfigYAML("/var/data", 7100, "", "", "/var/data/master.key")
 	for _, want := range []string{
 		"sqlite_path:",
 		"admin_socket_path:",
@@ -140,9 +145,21 @@ func TestCenterConfigYAML_HasFields(t *testing.T) {
 }
 
 func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "/var/data/master.key")
+	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "", "/var/data/master.key")
 	if !strings.Contains(yaml, `admin_tcp_listen: "0.0.0.0:7300"`) {
 		t.Errorf("missing admin_tcp_listen:\n%s", yaml)
+	}
+}
+
+// v2.7 #200: bootstrap_public_url is written when set, omitted when empty.
+func TestCenterConfigYAML_BootstrapPublicURL(t *testing.T) {
+	with := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "center.example.com:7300", "/var/data/master.key")
+	if !strings.Contains(with, `bootstrap_public_url: "center.example.com:7300"`) {
+		t.Errorf("missing bootstrap_public_url:\n%s", with)
+	}
+	without := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "", "/var/data/master.key")
+	if strings.Contains(without, "bootstrap_public_url:") {
+		t.Errorf("bootstrap_public_url must be omitted when empty:\n%s", without)
 	}
 }
 
@@ -153,7 +170,7 @@ func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
 func TestWriteCenterConfig_AutoProvisionsMasterKey(t *testing.T) {
 	prefix := t.TempDir()
 	layout := newInstallLayout(prefix, "v2.5.0")
-	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300"); err != nil {
+	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300", ""); err != nil {
 		t.Fatalf("writeCenterConfig: %v", err)
 	}
 	keyPath := filepath.Join(layout.DataDir, "master.key")
@@ -173,7 +190,7 @@ func TestWriteCenterConfig_AutoProvisionsMasterKey(t *testing.T) {
 	}
 	// Re-install should preserve the existing key (otherwise every
 	// upgrade would orphan all encrypted UserSecret payloads).
-	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300"); err != nil {
+	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300", ""); err != nil {
 		t.Fatalf("re-install: %v", err)
 	}
 	preserved, err := os.ReadFile(keyPath)
@@ -276,37 +293,52 @@ func TestSplitSpaces(t *testing.T) {
 	}
 }
 
-// v2.4-D-F4 X1 fix: the worker service unit's binary IS the
-// worker-daemon, whose flag.Parse() only knows flags — no positional
-// `worker run` prefix, which previously caused launchd-launched
-// daemons to crash with `--worker-id is required`.
-func TestRenderWorkerServiceUnit_NoPositionalPrefix(t *testing.T) {
+// v2.7 (b) cutover: the worker service unit now runs the UNIFIED `agent-center`
+// binary as `agent-center worker run ...`, so the `worker run` sub-command prefix
+// IS present (reversing the v2.4-D-F4 X1 expectation — the unified CLI router
+// consumes the sub-command path before flag parsing, so the prefix is correct).
+func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 	sp := servicePaths{
 		ServiceManager:  "launchd",
 		WorkerServiceID: "com.agent-center.worker",
 		WorkerUnitPath:  "/tmp/test.plist",
 		UserMode:        true,
 	}
-	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center-worker-daemon",
+	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center",
 		"/opt/agent-center/config.yaml",
-		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "claudecode", "/opt/agent-center/logs")
-	if strings.Contains(body, "<string>worker</string>") {
-		t.Errorf("plist still has positional 'worker' prefix:\n%s", body)
+		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "/opt/agent-center/logs",
+		"/opt/homebrew/bin:/usr/bin")
+	// The `worker run` sub-command path must be present (as ordered plist args).
+	if !strings.Contains(body, "<string>worker</string>") {
+		t.Errorf("plist missing 'worker' sub-command prefix:\n%s", body)
 	}
-	if strings.Contains(body, "<string>run</string>") {
-		t.Errorf("plist still has positional 'run' prefix:\n%s", body)
+	if !strings.Contains(body, "<string>run</string>") {
+		t.Errorf("plist missing 'run' sub-command prefix:\n%s", body)
 	}
-	// All four required flags present.
+	// All required flags present.
 	for _, want := range []string{
 		"--worker-id=my-worker",
 		"--admin-target=tcp://host:7300",
 		"--admin-token=tok-abc",
 		"--server-fingerprint=sha256:AA",
-		"--capabilities=claudecode",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("plist missing %q:\n%s", want, body)
 		}
+	}
+	// v2.7 #147: the unit must NOT bake in --capabilities — the daemon
+	// auto-probes installed CLIs on every online instead.
+	if strings.Contains(body, "--capabilities=") {
+		t.Errorf("unit must not carry --capabilities (auto-probe now):\n%s", body)
+	}
+	// v2.7 #175: the worker plist must carry an EnvironmentVariables PATH so
+	// the launchd-started daemon can find user-installed agent CLIs.
+	if !strings.Contains(body, "<key>EnvironmentVariables</key>") {
+		t.Errorf("worker plist missing EnvironmentVariables block:\n%s", body)
+	}
+	if !strings.Contains(body, "<key>PATH</key>") ||
+		!strings.Contains(body, "<string>/opt/homebrew/bin:/usr/bin</string>") {
+		t.Errorf("worker plist missing/incorrect PATH:\n%s", body)
 	}
 }
 
@@ -317,7 +349,7 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 		WorkerUnitPath:  "/tmp/test.plist",
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
-		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "" /* no caps */, "/opt/logs")
+		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "/opt/logs", "")
 	if strings.Contains(body, "--server-fingerprint=") {
 		t.Errorf("empty fingerprint should be omitted:\n%s", body)
 	}
@@ -326,6 +358,50 @@ func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
 	}
 	if strings.Contains(body, "--worker-name=") {
 		t.Errorf("empty worker-name should be omitted:\n%s", body)
+	}
+}
+
+// v2.7 #175: the systemd worker unit must carry Environment=PATH= so the
+// daemon (and the agent CLIs it spawns) inherit the user's PATH.
+func TestRenderWorkerServiceUnit_SystemdHasPathEnv(t *testing.T) {
+	sp := servicePaths{
+		ServiceManager:  "systemd",
+		WorkerServiceID: "agent-center-worker-w.service",
+		UserMode:        true,
+	}
+	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
+		"w", "", "unix:/run/admin.sock", "tok", "", "/opt/logs",
+		"/home/u/.local/bin:/usr/bin")
+	if !strings.Contains(body, "Environment=PATH=/home/u/.local/bin:/usr/bin") {
+		t.Errorf("systemd worker unit missing Environment=PATH:\n%s", body)
+	}
+}
+
+// v2.7 #175: resolveWorkerPATH unions the live PATH (first, in order)
+// with well-known user CLI dirs, de-duplicating while preserving order.
+func TestResolveWorkerPATH_UnionDedupPreserveOrder(t *testing.T) {
+	// /opt/homebrew/bin appears in both the live PATH and the well-known
+	// backstop — it must not be duplicated.
+	t.Setenv("PATH", "/custom/bin:/opt/homebrew/bin")
+	parts := filepath.SplitList(resolveWorkerPATH("/home/u"))
+
+	if len(parts) < 2 || parts[0] != "/custom/bin" || parts[1] != "/opt/homebrew/bin" {
+		t.Fatalf("live PATH must come first in order, got: %v", parts)
+	}
+	count := map[string]int{}
+	for _, p := range parts {
+		count[p]++
+	}
+	if count["/opt/homebrew/bin"] != 1 {
+		t.Fatalf("/opt/homebrew/bin must be de-duplicated, got %d: %v", count["/opt/homebrew/bin"], parts)
+	}
+	for _, want := range []string{
+		"/usr/local/bin", "/home/u/.local/bin", "/home/u/.cargo/bin",
+		"/home/u/.npm-global/bin", "/home/u/.volta/bin",
+	} {
+		if count[want] != 1 {
+			t.Errorf("missing well-known dir %q in: %v", want, parts)
+		}
 	}
 }
 
@@ -419,5 +495,23 @@ func TestEnrollBootstrapHost(t *testing.T) {
 		if c.wantHost && len(got) <= len(":"+c.wantPort) {
 			t.Errorf("in=%q got=%q missing host part", c.in, got)
 		}
+	}
+}
+
+// v2.7 #200: an explicit bootstrap_public_url wins over the bind address (so a
+// 0.0.0.0/loopback-bound center can advertise a reachable public host); a tcp://
+// scheme is stripped; empty falls back to deriving from admin_tcp_listen.
+func TestResolveEnrollBootstrapHost(t *testing.T) {
+	if got := resolveEnrollBootstrapHost("center.example.com:7300", "0.0.0.0:7300"); got != "center.example.com:7300" {
+		t.Errorf("public url must win, got %q", got)
+	}
+	if got := resolveEnrollBootstrapHost("tcp://center.example.com:7300", "0.0.0.0:7300"); got != "center.example.com:7300" {
+		t.Errorf("tcp:// scheme must be stripped, got %q", got)
+	}
+	if got := resolveEnrollBootstrapHost("  ", "127.0.0.1:7300"); got != "127.0.0.1:7300" {
+		t.Errorf("blank public url must fall back to bind-derived, got %q", got)
+	}
+	if got := resolveEnrollBootstrapHost("", ""); got != "" {
+		t.Errorf("both empty → empty, got %q", got)
 	}
 }

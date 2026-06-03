@@ -28,11 +28,19 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 		return errors.New("message repo: nil message")
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	ctxRefsJSON, err := conversation.MarshalContextRefsJSON(m.ContextRefs())
+	if err != nil {
+		return fmt.Errorf("message repo: marshal context_refs: %w", err)
+	}
+	attsJSON, err := conversation.MarshalAttachmentsJSON(m.Attachments())
+	if err != nil {
+		return fmt.Errorf("message repo: marshal attachments: %w", err)
+	}
 	const stmt = `INSERT INTO messages (
 		id, conversation_id, sender_identity_id, content_kind, content,
-		direction, input_request_ref, posted_at, created_at
-	) VALUES (?,?,?,?,?,?,?,?,?)`
-	_, err := exec.ExecContext(ctx, stmt,
+		direction, input_request_ref, context_refs, attachments, posted_at, created_at
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+	_, err = exec.ExecContext(ctx, stmt,
 		string(m.ID()),
 		string(m.ConversationID()),
 		string(m.SenderIdentityID()),
@@ -40,9 +48,19 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 		m.Content(),
 		string(m.Direction()),
 		nullString(m.InputRequestRef()),
+		ctxRefsJSON,
+		attsJSON,
 		m.PostedAt().Format(time.RFC3339Nano),
 		m.CreatedAt().Format(time.RFC3339Nano),
 	)
+	return err
+}
+
+// DeleteByConversationID hard-removes all messages of a conversation (v2.7 #198,
+// DM delete). Idempotent — no rows = nil.
+func (r *MessageRepo) DeleteByConversationID(ctx context.Context, conversationID conversation.ConversationID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM messages WHERE conversation_id = ?`, string(conversationID))
 	return err
 }
 
@@ -144,17 +162,18 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 }
 
 const messageSelect = `SELECT id, conversation_id, sender_identity_id, content_kind, content,
-	direction, input_request_ref, posted_at, created_at
+	direction, input_request_ref, context_refs, attachments, posted_at, created_at
 	FROM messages`
 
 func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 	var (
 		id, conversationID, senderIdentityID, contentKind, content, direction string
-		inputRequestRef                                                        sql.NullString
-		postedAt, createdAt                                                    string
+		inputRequestRef                                                       sql.NullString
+		contextRefsJSON, attachmentsJSON                                      sql.NullString
+		postedAt, createdAt                                                   string
 	)
 	if err := scan(&id, &conversationID, &senderIdentityID, &contentKind, &content,
-		&direction, &inputRequestRef, &postedAt, &createdAt); err != nil {
+		&direction, &inputRequestRef, &contextRefsJSON, &attachmentsJSON, &postedAt, &createdAt); err != nil {
 		return nil, err
 	}
 	pt, err := time.Parse(time.RFC3339Nano, postedAt)
@@ -165,6 +184,14 @@ func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctxRefs, err := conversation.UnmarshalContextRefsJSON(contextRefsJSON.String)
+	if err != nil {
+		return nil, fmt.Errorf("parse context_refs: %w", err)
+	}
+	atts, err := conversation.UnmarshalAttachmentsJSON(attachmentsJSON.String)
+	if err != nil {
+		return nil, fmt.Errorf("parse attachments: %w", err)
+	}
 	return conversation.RehydrateMessage(conversation.RehydrateMessageInput{
 		ID:               conversation.MessageID(id),
 		ConversationID:   conversation.ConversationID(conversationID),
@@ -173,6 +200,8 @@ func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 		Content:          content,
 		Direction:        conversation.MessageDirection(direction),
 		InputRequestRef:  inputRequestRef.String,
+		ContextRefs:      ctxRefs,
+		Attachments:      atts,
 		PostedAt:         pt,
 		CreatedAt:        ct,
 	})

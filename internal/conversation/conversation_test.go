@@ -271,19 +271,23 @@ func TestRehydrate_RejectsInvalidKind(t *testing.T) {
 }
 
 func TestKindEnumValid(t *testing.T) {
-	for _, k := range []ConversationKind{ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc,
-		ConversationKindNotification, ConversationKindTask, ConversationKindIssue} {
+	// v2.7 four-value enum (ADR-0047 / plan §10 OQ10): channel | issue | task | dm.
+	for _, k := range []ConversationKind{ConversationKindDM, ConversationKindChannel,
+		ConversationKindTask, ConversationKindIssue} {
 		if !k.IsValid() {
 			t.Fatalf("%s should be valid", k)
 		}
 	}
-	if ConversationKind("nope").IsValid() {
-		t.Fatal()
+	// Removed kinds are no longer valid (channel is RETAINED, not project_channel).
+	for _, k := range []ConversationKind{"project_channel", "adhoc", "notification", "nope"} {
+		if k.IsValid() {
+			t.Fatalf("%s should be invalid in v2.7", k)
+		}
 	}
 }
 
 func TestKindDirectOpenAllowed(t *testing.T) {
-	yes := []ConversationKind{ConversationKindDM, ConversationKindChannel, ConversationKindAdhoc, ConversationKindNotification}
+	yes := []ConversationKind{ConversationKindDM, ConversationKindChannel}
 	for _, k := range yes {
 		if !k.IsDirectOpenAllowed() {
 			t.Fatalf("%s should be direct-open-allowed", k)

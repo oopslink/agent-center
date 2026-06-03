@@ -48,12 +48,14 @@ func newWorkerEnrollTestDeps(t *testing.T) HandlerDeps {
 	tokenSvc := admintokensvc.New(tokenRepo, gen, clk)
 	workerRepo := wfsqlite.NewWorkerRepo(db)
 	enrollSvc := wfservice.NewWorkerEnrollService(db, workerRepo, sink, clk)
+	configSvc := wfservice.NewWorkerConfigService(db, workerRepo, sink, clk)
 	return HandlerDeps{
-		Actor:         observability.Actor("user:test"),
-		DB:            db,
-		WorkerRepo:    workerRepo,
-		EnrollSvc:     enrollSvc,
-		AdminTokenSvc: tokenSvc,
+		Actor:           observability.Actor("user:test"),
+		DB:              db,
+		WorkerRepo:      workerRepo,
+		EnrollSvc:       enrollSvc,
+		WorkerConfigSvc: configSvc,
+		AdminTokenSvc:   tokenSvc,
 	}
 }
 

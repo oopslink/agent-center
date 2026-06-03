@@ -9,15 +9,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/oopslink/agent-center/internal/admin/dispatchq"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/dispatch"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 )
 
 // shortSock returns a unix-socket-safe path. macOS caps at 104 bytes;
@@ -41,10 +35,6 @@ type fakeServer struct {
 
 	mu       sync.Mutex
 	requests []recordedReq
-
-	// queued payloads
-	dispatches []dispatch.DispatchEnvelope
-	kills      []dispatchq.KillRequest
 }
 
 type recordedReq struct {
@@ -123,29 +113,11 @@ func (fs *fakeServer) registerRoutes() {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"worker_id":"w-1"}`))
 	})
-	fs.mux.HandleFunc("/admin/dispatch/queue/pull", func(w http.ResponseWriter, r *http.Request) {
+	// v2.7 #147: worker capability report (auto-probe upload).
+	fs.mux.HandleFunc("/admin/workforce/worker/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		fs.record(r)
 		w.Header().Set("Content-Type", "application/json")
-		fs.mu.Lock()
-		pending := fs.dispatches
-		fs.dispatches = nil
-		fs.mu.Unlock()
-		if pending == nil {
-			pending = []dispatch.DispatchEnvelope{}
-		}
-		_ = json.NewEncoder(w).Encode(pending)
-	})
-	fs.mux.HandleFunc("/admin/kill/queue/pull", func(w http.ResponseWriter, r *http.Request) {
-		fs.record(r)
-		w.Header().Set("Content-Type", "application/json")
-		fs.mu.Lock()
-		pending := fs.kills
-		fs.kills = nil
-		fs.mu.Unlock()
-		if pending == nil {
-			pending = []dispatchq.KillRequest{}
-		}
-		_ = json.NewEncoder(w).Encode(pending)
+		_, _ = w.Write([]byte(`{"worker_id":"w-1","version":2}`))
 	})
 	fs.mux.HandleFunc("/admin/taskruntime/exec/report-progress", func(w http.ResponseWriter, r *http.Request) {
 		fs.record(r)
@@ -242,167 +214,6 @@ func TestAdminClient_Heartbeat_EmptyWorkerIDFails(t *testing.T) {
 	}
 }
 
-func TestAdminClient_PullDispatches_Empty(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	envs, err := client.PullDispatches(context.Background(), "w-1")
-	if err != nil {
-		t.Fatalf("PullDispatches: %v", err)
-	}
-	if len(envs) != 0 {
-		t.Fatalf("want empty, got %d", len(envs))
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 {
-		t.Fatalf("want 1 req, got %d", len(reqs))
-	}
-	if reqs[0].Method != "GET" || reqs[0].Path != "/admin/dispatch/queue/pull" || reqs[0].Query != "worker_id=w-1" {
-		t.Fatalf("bad request: %+v", reqs[0])
-	}
-}
-
-func TestAdminClient_PullDispatches_Returns(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	fs.mu.Lock()
-	fs.dispatches = []dispatch.DispatchEnvelope{
-		{
-			EnvelopeVersion: dispatch.EnvelopeVersionV2,
-			ExecutionID:     "E-1",
-			TaskID:          "T-1",
-			WorkerID:        "w-1",
-			ProjectID:       "P-1",
-			AgentInstanceID: "A-1",
-			AgentCLI:        "fakeagent",
-			WorkspaceMode:   execution.WorkspaceDirect,
-			TaskTitle:       "do thing",
-			Priority:        "normal",
-		},
-	}
-	fs.mu.Unlock()
-
-	envs, err := client.PullDispatches(context.Background(), "w-1")
-	if err != nil {
-		t.Fatalf("PullDispatches: %v", err)
-	}
-	if len(envs) != 1 || envs[0].ExecutionID != "E-1" {
-		t.Fatalf("unexpected envs: %+v", envs)
-	}
-}
-
-func TestAdminClient_PullKills(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	fs.mu.Lock()
-	fs.kills = []dispatchq.KillRequest{
-		{ExecutionID: "E-2", Reason: execution.KilledUserRequest, Message: "user cancelled"},
-	}
-	fs.mu.Unlock()
-
-	got, err := client.PullKills(context.Background())
-	if err != nil {
-		t.Fatalf("PullKills: %v", err)
-	}
-	if len(got) != 1 || got[0].ExecutionID != "E-2" {
-		t.Fatalf("unexpected kills: %+v", got)
-	}
-}
-
-func TestAdminClient_ReportProgress(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	if err := client.ReportProgress(context.Background(), "E-3", "step_1", "running"); err != nil {
-		t.Fatalf("ReportProgress: %v", err)
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/exec/report-progress" {
-		t.Fatalf("bad request: %+v", reqs)
-	}
-	var body map[string]string
-	if err := json.Unmarshal(reqs[0].Body, &body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body["execution_id"] != "E-3" || body["kind"] != "step_1" || body["content"] != "running" {
-		t.Fatalf("body=%v", body)
-	}
-}
-
-func TestAdminClient_ReportFailure(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	if err := client.ReportFailure(context.Background(), "E-4", "test_reason", "test_msg"); err != nil {
-		t.Fatalf("ReportFailure: %v", err)
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/exec/report-failure" {
-		t.Fatalf("bad path: %+v", reqs)
-	}
-	var body map[string]string
-	_ = json.Unmarshal(reqs[0].Body, &body)
-	if body["reason"] != "test_reason" || body["message"] != "test_msg" {
-		t.Fatalf("body=%v", body)
-	}
-}
-
-func TestAdminClient_ReportArtifact(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-
-	if err := client.ReportArtifact(context.Background(), "E-5", []byte("blobby"), "log"); err != nil {
-		t.Fatalf("ReportArtifact: %v", err)
-	}
-	reqs := fs.reqs()
-	// v2.3-3b: non-empty blob now triggers BlobPut first, then the
-	// artifact/append carries the resulting blob_ref.
-	if len(reqs) != 2 {
-		t.Fatalf("want 2 requests (blob_put + artifact append), got %d: %+v", len(reqs), reqs)
-	}
-	if reqs[0].Path != "/admin/blob/put" {
-		t.Fatalf("first request should be blob_put; got %+v", reqs[0])
-	}
-	if reqs[1].Path != "/admin/taskruntime/artifact/append" {
-		t.Fatalf("second request should be artifact append; got %+v", reqs[1])
-	}
-	var put map[string]string
-	_ = json.Unmarshal(reqs[0].Body, &put)
-	if put["rel_path"] == "" || put["content_base64"] == "" {
-		t.Fatalf("blob_put body missing fields: %v", put)
-	}
-	if !strings.HasPrefix(put["rel_path"], "artifacts/E-5/log-") {
-		t.Fatalf("rel_path shape unexpected: %v", put["rel_path"])
-	}
-	var append map[string]string
-	_ = json.Unmarshal(reqs[1].Body, &append)
-	if append["kind"] != "log" || append["execution_id"] != "E-5" {
-		t.Fatalf("artifact body=%v", append)
-	}
-	if append["blob_ref"] == "" || append["blob_ref"] != put["rel_path"] {
-		t.Fatalf("blob_ref mismatch: append=%v put=%v", append["blob_ref"], put["rel_path"])
-	}
-}
-
-func TestAdminClient_ReportArtifact_EmptyBlobSkipsBlobPut(t *testing.T) {
-	fs, client, cleanup := newFakeServer(t)
-	defer cleanup()
-	if err := client.ReportArtifact(context.Background(), "E-6", nil, "log"); err != nil {
-		t.Fatalf("ReportArtifact: %v", err)
-	}
-	reqs := fs.reqs()
-	if len(reqs) != 1 || reqs[0].Path != "/admin/taskruntime/artifact/append" {
-		t.Fatalf("expected single artifact append; got %+v", reqs)
-	}
-	var append map[string]string
-	_ = json.Unmarshal(reqs[0].Body, &append)
-	if append["blob_ref"] != "" {
-		t.Fatalf("blob_ref should be empty for empty blob; got %v", append["blob_ref"])
-	}
-}
-
 func TestAdminClient_NonStatus2xx_ReturnsAdminError(t *testing.T) {
 	sock := shortSock(t, "err.sock")
 	ln, err := net.Listen("unix", sock)
@@ -448,6 +259,3 @@ func TestAdminClient_NonStatus2xx_ReturnsAdminError(t *testing.T) {
 // Touch httptest import so it stays referenced even if a future refactor
 // drops the inline server.
 var _ = httptest.NewServer
-
-// Touch taskruntime to ensure import alignment with envelope types.
-var _ = taskruntime.TaskID("")

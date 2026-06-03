@@ -1,10 +1,15 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"strings"
 
+	agentbc "github.com/oopslink/agent-center/internal/agent"
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/identity"
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -47,6 +52,16 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 		row := memberPublicMap(m)
 		if wid, ok := agentWorker[m.IdentityID()]; ok {
 			row["worker_id"] = wid
+		}
+		// v2.7 #160: enrich with the identity's display name. The Member AR only
+		// carries identity_id; the UI needs a human name to render message senders
+		// + the participant list (else it shows the raw "user:<id>" ref).
+		// Best-effort — a miss leaves display_name unset and the UI falls back to
+		// the ref.
+		if d.IdentityRepo != nil {
+			if ident, err := d.IdentityRepo.GetByID(r.Context(), m.IdentityID()); err == nil && ident != nil {
+				row["display_name"] = ident.DisplayName()
+			}
 		}
 		arr = append(arr, row)
 	}
@@ -148,6 +163,15 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		DisplayName string `json:"display_name"`
 		Description string `json:"description"`
 		Role        string `json:"role"`
+		// v2.7 #157: when present, Members→Add Agent ALSO creates the execution
+		// Agent in one step (the unified create). worker_id is required for an
+		// execution agent (immutable binding, ADR-0049). Absent → identity-member
+		// only (legacy path).
+		Model    string            `json:"model"`
+		CLI      string            `json:"cli"`
+		WorkerID string            `json:"worker_id"`
+		EnvVars  map[string]string `json:"env_vars"`
+		Skills   []string          `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -165,21 +189,91 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden", "admin cannot add owner-role agents")
 		return
 	}
-	res, err := d.AgentProvisionSvc.Provision(r.Context(),
-		identity.AgentProvisionForm{
-			DisplayName: body.DisplayName,
-			Description: body.Description,
-			Role:        identity.MemberRole(body.Role),
-		},
-		orgID, callerID.ID())
-	if err != nil {
-		writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+	// v2.7 business-layer policy (#185 / no-middle-state): agent provision REQUIRES
+	// worker_id — validated up front so no identity/member is provisioned for a
+	// request that can't yield a runnable agent. This is an API-LAYER implementation
+	// choice, deliberately NOT baked into the domain as a new invariant (@oopslink:
+	// don't push an implementation constraint across the model boundary). When cloud
+	// agents land (v2.8+), this check relaxes HERE (deferred-with-trigger). NOTE: the
+	// agent AR also requires a worker today (ADR-0049 §5); that pre-existing domain
+	// invariant relaxes together with this in the cloud-agent work.
+	if strings.TrimSpace(body.WorkerID) == "" {
+		writeError(w, http.StatusBadRequest, "worker_id_required",
+			"worker_id is required (v2.7: an execution agent must bind a worker)")
 		return
 	}
-	result := memberPublicMap(res.Member)
-	result["display_name"] = res.Identity.DisplayName()
+
+	// v2.7 #157: unified one-step create. The agent identity + Member (identity BC)
+	// and the execution Agent (agent BC) are created in ONE outer transaction.
+	// persistence.RunInTx is reentrant, so both services' inner RunInTx join this
+	// outer tx — if the execution-agent create fails (e.g. worker not in org), the
+	// identity+member provision ROLLS BACK too: both-or-neither, no orphan.
+	var (
+		member     *identity.Member
+		idn        *identity.Identity
+		agentID    agentbc.AgentID
+		agentPhase bool // true once we're in the execution-agent create (error mapping)
+	)
+	txErr := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		provRes, perr := d.AgentProvisionSvc.Provision(txCtx,
+			identity.AgentProvisionForm{
+				DisplayName: body.DisplayName,
+				Description: body.Description,
+				Role:        identity.MemberRole(body.Role),
+			},
+			orgID, callerID.ID())
+		if perr != nil {
+			return perr
+		}
+		member, idn = provRes.Member, provRes.Identity
+		// worker_id is guaranteed non-empty (validated before the tx) — agent
+		// provision always creates the execution agent now (no identity-only path).
+		if d.AgentSvc == nil {
+			writeError(w, http.StatusNotImplemented, "agent_not_wired", "")
+			return errAbortHandled
+		}
+		agentPhase = true
+		aid, aerr := d.AgentSvc.CreateAgent(txCtx, agentsvc.CreateAgentCommand{
+			OrganizationID:   orgID,
+			Name:             body.DisplayName,
+			Description:      body.Description,
+			Model:            body.Model,
+			CLI:              body.CLI,
+			EnvVars:          body.EnvVars,
+			Skills:           body.Skills,
+			WorkerID:         body.WorkerID,
+			CreatedBy:        agentCallerRef(callerID),
+			IdentityMemberID: idn.ID(),
+		})
+		if aerr != nil {
+			return aerr
+		}
+		agentID = aid
+		return nil
+	})
+	if txErr != nil {
+		if errors.Is(txErr, errAbortHandled) {
+			return // response already written
+		}
+		if agentPhase {
+			mapAgentError(w, txErr)
+			return
+		}
+		writeError(w, mapIdentityError(txErr), identityErrCode(txErr), txErr.Error())
+		return
+	}
+	result := memberPublicMap(member)
+	result["display_name"] = idn.DisplayName()
+	// v2.7 #185: the member id (result["id"], == idn.ID()) IS the business-layer
+	// agent id. The execution-entity id (agentID) is internal and must NOT be
+	// exposed; callers that need the created agent use the member id.
+	_ = agentID
 	writeJSON(w, http.StatusCreated, result)
 }
+
+// errAbortHandled signals a RunInTx closure already wrote the HTTP response and
+// the tx should roll back without further error mapping.
+var errAbortHandled = errors.New("handler: response already written")
 
 // requireTargetMemberInOrg validates that memberID exists and belongs to orgID.
 // Returns the target Member on success; on failure writes the error response.

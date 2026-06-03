@@ -7,19 +7,18 @@ import (
 	"io"
 
 	"github.com/oopslink/agent-center/internal/blobstore"
-	"github.com/oopslink/agent-center/internal/taskruntime"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
 // LogsKind enumerates `logs <kind>` values.
 type LogsKind string
 
 const (
-	LogsTask      LogsKind = "task"
-	LogsExecution LogsKind = "execution"
+	LogsTask LogsKind = "task"
 )
 
 // AllLogsKinds is the closed enum.
-var AllLogsKinds = []LogsKind{LogsTask, LogsExecution}
+var AllLogsKinds = []LogsKind{LogsTask}
 
 // ValidLogsKind reports recognition.
 func ValidLogsKind(s string) bool {
@@ -77,10 +76,11 @@ func (s *LogsService) Open(ctx context.Context, req LogsRequest) (io.ReadCloser,
 	var blobRef string
 	switch req.Kind {
 	case LogsTask:
-		if s.deps.Tasks == nil {
-			return nil, "", errors.New("logs: tasks repo not wired")
+		// v2.7 #107 Phase-2 (proj-B): task existence-check reads pm.Task.
+		if s.deps.PMTasks == nil {
+			return nil, "", errors.New("logs: pm tasks repo not wired")
 		}
-		t, err := s.deps.Tasks.FindByID(ctx, taskruntime.TaskID(req.ID))
+		t, err := s.deps.PMTasks.FindByID(ctx, pm.TaskID(req.ID))
 		if err != nil {
 			return nil, "", err
 		}
@@ -88,15 +88,6 @@ func (s *LogsService) Open(ctx context.Context, req LogsRequest) (io.ReadCloser,
 		// to the canonical archive path on disk: tasks/<id>/log.log.gz.
 		_ = t
 		blobRef = fmt.Sprintf("tasks/%s/log.log.gz", req.ID)
-	case LogsExecution:
-		if s.deps.Executions == nil {
-			return nil, "", errors.New("logs: executions repo not wired")
-		}
-		e, err := s.deps.Executions.FindByID(ctx, taskruntime.TaskExecutionID(req.ID))
-		if err != nil {
-			return nil, "", err
-		}
-		blobRef = fmt.Sprintf("tasks/%s/%s/trace.jsonl.gz", e.TaskID(), e.ID())
 	}
 	rc, err := s.store.Get(ctx, blobRef)
 	if err != nil {

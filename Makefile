@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-worker-daemon build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa smoke vet tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc lint-spa-eslint smoke vet tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -6,7 +6,7 @@ help:
 	@echo "agent-center make targets:"
 	@echo ""
 	@echo "  build / build-frontend / build-backend"
-	@echo "  build-worker-daemon / build-fakeagent"
+	@echo "  build-fakeagent"
 	@echo ""
 	@echo "  test                 — go test ./..."
 	@echo "  test-install         — offline shell tests for the source installer (task #92)"
@@ -21,12 +21,13 @@ help:
 	@echo "  release-dir          — stage release layout (no tarball) at \$$OUT (source installer, task #92)"
 	@echo ""
 	@echo "Lint (conventions § 0.4 enforce mechanisms):"
-	@echo "  lint                       — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa"
+	@echo "  lint                       — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa + lint-spa-tsc + lint-spa-eslint"
 	@echo "  lint-vendor                — #v1 vendor residue grep (ADR-0031)"
 	@echo "  lint-vendor-selftest       — positive-fail check for lint-vendor"
 	@echo "  lint-mock-default          — § 0.4 #2: NoopSender/NoopKillSender prod-wiring guard"
 	@echo "  lint-doc-impl-drift        — § 0.4 #3: ADR claim vs code contradiction checks"
 	@echo "  lint-no-raw-colors-spa     — web/src/ design-token guard (no raw Tailwind palette classes)"
+	@echo "  lint-spa-eslint            — web/src/ native-dialog ban (no window.confirm/alert/prompt, #169)"
 	@echo ""
 	@echo "Deployed-binary smoke (conventions § 0.4 #4):"
 	@echo "  smoke                — fresh-binary deploy + drive task pipeline → done"
@@ -53,10 +54,10 @@ WEB := web
 # `VERSION=v2.4.1 make build`); COMMIT is auto-discovered from the
 # working tree (falls back to "unknown" outside a checkout). Kept in
 # sync with CHANGELOG's top section.
-VERSION ?= v2.5.5
+VERSION ?= v2.7.0
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
-build: build-frontend build-backend build-worker-daemon build-fakeagent
+build: build-frontend build-backend build-fakeagent
 
 build-frontend:
 	cd $(WEB) && pnpm install --frozen-lockfile
@@ -69,12 +70,6 @@ build-frontend:
 build-backend:
 	go build -ldflags "-X main.buildVersion=$(VERSION) -X main.buildCommit=$(COMMIT)" \
 	    -o ./bin/$(BIN) ./cmd/agent-center
-
-# v2.2-C worker daemon binary — the missing v2.0 GA consumer of the
-# dispatchq queue (conventions § 0.4: worker talks to center via the
-# admin endpoint, not by re-opening sqlite).
-build-worker-daemon:
-	go build -o ./bin/agent-center-worker-daemon ./cmd/worker-daemon
 
 # v2.2-D fakeagent — LLM-free agent stub used by e2e tests. Without
 # this in bin/ the Phase D deploy-binary e2e cannot run.
@@ -163,8 +158,17 @@ smoke:
 lint-spa-tsc:
 	cd web && npx tsc -b --force
 
+# lint-spa-eslint — Web Console SPA ESLint (#169). Intentionally narrow: the
+# only rule is a ban on native browser dialogs (window.confirm/alert/prompt)
+# via no-restricted-globals + no-restricted-properties; all confirmation UX
+# must use ConfirmModal. Wiring it into the composite `lint` target is the
+# point — a rule that nothing runs is not a rule (#163 acceptance §1: a
+# convention without a mechanism is not enforced).
+lint-spa-eslint:
+	cd web && pnpm lint
+
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc
+lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc lint-spa-eslint
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.
@@ -196,8 +200,7 @@ clean-dist:
 #
 #   agent-center-vX.Y.Z-<os>-<arch>/
 #   ├── bin/
-#   │   ├── agent-center
-#   │   └── agent-center-worker-daemon
+#   │   └── agent-center        (worker runs as `agent-center worker run`)
 #   ├── LICENSE
 #   ├── README.md
 #   └── install              -> bin/agent-center  (symlink)
@@ -224,7 +227,6 @@ define STAGE_RELEASE_LAYOUT
 	rm -rf $(1)
 	mkdir -p $(1)/bin
 	cp ./bin/agent-center $(1)/bin/
-	cp ./bin/agent-center-worker-daemon $(1)/bin/
 	cp LICENSE $(1)/
 	cp README.md $(1)/
 	printf '#!/bin/sh\n# v2.4 first-mile install entrypoint.\nexec "$$(dirname "$$0")/bin/agent-center" install "$$@"\n' > $(1)/install

@@ -3,44 +3,34 @@ package query_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/observability/projection"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
-func TestInspectExecution_WithArtifacts(t *testing.T) {
+// v2.7 #107 Phase-2 (proj-A): inspect "execution" now inspects a work item.
+// The id is a work-item id; rich detail comes from the work-item projection;
+// the artifacts segment is dropped (execution-keyed, no work-item equivalent).
+func TestInspectExecution_WorkItem(t *testing.T) {
 	env := newQEnv(t)
 	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	now := env.clk.Now()
-	art, err := execution.NewArtifact(execution.NewArtifactInput{
-		ID:          "A-1",
-		TaskID:      "T-1",
-		ExecutionID: "E-1",
-		Kind:        "pr_url",
-		Title:       "PR-42",
-		CreatedBy:   "agent:foo",
-		Now:         now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := env.deps.Artifacts.Append(context.Background(), art); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Inspect(context.Background(), "execution", "E-1")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
+	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	arts := data["artifacts"].([]any)
-	if len(arts) != 1 {
-		t.Fatalf("expected 1 artifact, got %d", len(arts))
+	// status is the work-item DOMAIN status (a freshly-seeded work item is
+	// "queued"); the projection (status=active here) is the activity detail.
+	if data["work_item_id"] != "WI-1" || data["status"] != "queued" || data["task_id"] != "T-1" {
+		t.Fatalf("inspect work item: %+v", data)
+	}
+	if _, ok := data["projection"]; !ok {
+		t.Fatal("expected projection key (work-item projection detail)")
+	}
+	if _, ok := data["artifacts"]; ok {
+		t.Fatal("artifacts segment must be dropped (execution-keyed, no work-item equiv)")
 	}
 }
 
@@ -73,38 +63,6 @@ func TestInspectConversation_WithMessages(t *testing.T) {
 	}
 }
 
-func TestInspectIssue_WithEventsAndMessages(t *testing.T) {
-	env := newQEnv(t)
-	// Issue with conversation_id binding
-	env.seedConversation(t, "C-issue", conversation.ConversationKindIssue)
-	i := env.seedIssue(t, "I-1", "p", "x")
-	_ = i
-	if err := env.deps.Issues.UpdateConversationID(context.Background(), "I-1", "C-issue", i.Version(), env.clk.Now()); err != nil {
-		t.Fatal(err)
-	}
-	msg, _ := conversation.NewMessage(conversation.NewMessageInput{
-		ID: "M-x", ConversationID: "C-issue", SenderIdentityID: "user:t",
-		ContentKind: "text", Content: "hello", Direction: "internal", PostedAt: env.clk.Now(),
-	})
-	_ = env.deps.Messages.Append(context.Background(), msg)
-	res, err := env.svc.Inspect(context.Background(), "issue", "I-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := res.Data.(map[string]any)
-	if _, ok := data["messages"]; !ok {
-		t.Fatalf("expected messages key: %+v", data)
-	}
-}
-
-func TestInspectInputRequest_NotFound(t *testing.T) {
-	env := newQEnv(t)
-	_, err := env.svc.Inspect(context.Background(), "input_request", "IR-x")
-	if err == nil {
-		t.Fatal("expected not found error since IR not saved")
-	}
-}
-
 func TestInspect_Worker_NoMappings(t *testing.T) {
 	env := newQEnv(t)
 	env.seedWorker(t, "W-x", workforce.WorkerOnline)
@@ -118,9 +76,12 @@ func TestInspect_Worker_NoMappings(t *testing.T) {
 	}
 }
 
-func TestInspect_Project_WithMappingsAndTasks(t *testing.T) {
+// v2.7 #131: inspect-project reads pm_projects; the mappings segment + tags
+// output are dropped (workforce model retired). The tasks segment (pm_tasks)
+// survives — pin it via the new pm project source.
+func TestInspect_Project_WithTasks(t *testing.T) {
 	env := newQEnv(t)
-	env.seedProject(t, "p", "P")
+	env.seedOrgProject(t, "p", "org-1")
 	env.seedTask(t, "T-1", "p", "a")
 	env.seedTask(t, "T-2", "p", "b")
 	res, err := env.svc.Inspect(context.Background(), "project", "p")
@@ -132,25 +93,11 @@ func TestInspect_Project_WithMappingsAndTasks(t *testing.T) {
 	if len(tasks) != 2 {
 		t.Fatalf("expected 2 tasks, got %d", len(tasks))
 	}
-}
-
-func TestInspect_Worktree_AllFields(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	now := env.clk.Now()
-	_, _, _ = env.deps.Projection.UpsertIfFresh(context.Background(), "E-1", projection.ProjectionUpdate{LastPushAt: now})
-	res, err := env.svc.Inspect(context.Background(), "worktree", "E-1")
-	if err != nil {
-		t.Fatal(err)
+	if _, ok := data["mappings"]; ok {
+		t.Fatal("mappings segment must be dropped (workforce model retired)")
 	}
-	data := res.Data.(map[string]any)
-	if data["execution_id"] != "E-1" {
-		t.Fatal("wt id")
+	if _, ok := data["tags"]; ok {
+		t.Fatal("tags must be dropped (pm.Project has no Tags)")
 	}
 }
 
-// silence unused
-var _ = taskruntime.TaskExecutionID("")
-var _ = task.PriorityHigh
-var _ = time.Time{}

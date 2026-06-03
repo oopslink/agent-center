@@ -6,7 +6,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
-	"github.com/oopslink/agent-center/internal/observability"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -18,11 +18,11 @@ import (
 // (rather than `*`) so a leaked worker token can't escalate to e.g.
 // admin:token operations.
 var workerLongTermTokenScopes = []admintoken.Scope{
-	"workforce:enroll",   // heartbeat / re-enroll
-	"dispatch:pull",      // /admin/dispatch/queue/pull
-	"task:*",             // exec/notify-working, report-success, etc.
-	"secret:resolve",     // /admin/secret/user-secret/resolve
-	"blob:put",           // /admin/blob/put
+	"workforce:enroll", // heartbeat / re-enroll
+	"dispatch:pull",    // /admin/dispatch/queue/pull
+	"task:*",           // exec/notify-working, report-success, etc.
+	"secret:resolve",   // /admin/secret/user-secret/resolve
+	"blob:put",         // /admin/blob/put
 }
 
 // =============================================================================
@@ -145,136 +145,6 @@ func (s *Server) workerHeartbeatHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"worker_id": req.WorkerID})
-}
-
-// =============================================================================
-// AcceptanceSvc — Propose / Accept / Ignore / Unignore
-// =============================================================================
-
-type proposeReq struct {
-	WorkerID           string `json:"worker_id"`
-	CandidatePath      string `json:"candidate_path"`
-	SuggestedProjectID string `json:"suggested_project_id"`
-}
-
-func (s *Server) proposalProposeHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.AcceptanceSvc == nil {
-		writeError(w, http.StatusNotImplemented, "acceptance_svc_not_wired", "")
-		return
-	}
-	var req proposeReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	actor := d.Actor
-	if req.WorkerID != "" {
-		actor = observability.Actor("worker:" + req.WorkerID)
-	}
-	res, err := d.AcceptanceSvc.Propose(r.Context(), wfservice.ProposeCommand{
-		WorkerID:           workforce.WorkerID(req.WorkerID),
-		CandidatePath:      req.CandidatePath,
-		SuggestedProjectID: workforce.ProjectID(req.SuggestedProjectID),
-		Actor:              actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"proposal_id":    string(res.ProposalID),
-		"event_id":       string(res.EventID),
-		"already_exists": res.AlreadyExists,
-	})
-}
-
-type proposalAcceptReq struct {
-	ProposalID          string `json:"proposal_id"`
-	OverrideProjectID   string `json:"override_project_id"`
-	OverrideProjectName string `json:"override_project_name"`
-}
-
-func (s *Server) proposalAcceptHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.AcceptanceSvc == nil {
-		writeError(w, http.StatusNotImplemented, "acceptance_svc_not_wired", "")
-		return
-	}
-	var req proposalAcceptReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	res, err := d.AcceptanceSvc.Accept(r.Context(), wfservice.AcceptCommand{
-		ProposalID:          workforce.ProposalID(req.ProposalID),
-		OverrideProjectID:   workforce.ProjectID(req.OverrideProjectID),
-		OverrideProjectName: req.OverrideProjectName,
-		Actor:               d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	evIDs := make([]string, len(res.EventIDs))
-	for i, e := range res.EventIDs {
-		evIDs[i] = string(e)
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"proposal_id":     string(res.ProposalID),
-		"mapping_id":      string(res.MappingID),
-		"project_id":      string(res.ProjectID),
-		"project_created": res.ProjectCreated,
-		"event_ids":       evIDs,
-	})
-}
-
-type proposalIgnoreReq struct {
-	ProposalID string `json:"proposal_id"`
-}
-
-func (s *Server) proposalIgnoreHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.AcceptanceSvc == nil {
-		writeError(w, http.StatusNotImplemented, "acceptance_svc_not_wired", "")
-		return
-	}
-	var req proposalIgnoreReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	evID, err := d.AcceptanceSvc.Ignore(r.Context(), wfservice.IgnoreCommand{
-		ProposalID: workforce.ProposalID(req.ProposalID),
-		Actor:      d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"event_id": string(evID)})
-}
-
-func (s *Server) proposalUnignoreHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.AcceptanceSvc == nil {
-		writeError(w, http.StatusNotImplemented, "acceptance_svc_not_wired", "")
-		return
-	}
-	var req proposalIgnoreReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	evID, err := d.AcceptanceSvc.Unignore(r.Context(), wfservice.IgnoreCommand{
-		ProposalID: workforce.ProposalID(req.ProposalID),
-		Actor:      d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"event_id": string(evID)})
 }
 
 // =============================================================================
@@ -421,101 +291,34 @@ func (s *Server) agentFindByNameHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // =============================================================================
-// ProposalRepo — FindByID / FindByWorkerID / FindPending
-// =============================================================================
-
-func (s *Server) proposalFindByIDHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProposalRepo == nil {
-		writeError(w, http.StatusNotImplemented, "proposal_repo_not_wired", "")
-		return
-	}
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "missing_id", "")
-		return
-	}
-	p, err := d.ProposalRepo.FindByID(r.Context(), workforce.ProposalID(id))
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, proposalMap(p))
-}
-
-func (s *Server) proposalFindByWorkerIDHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProposalRepo == nil {
-		writeError(w, http.StatusNotImplemented, "proposal_repo_not_wired", "")
-		return
-	}
-	wid := r.URL.Query().Get("worker_id")
-	if wid == "" {
-		writeError(w, http.StatusBadRequest, "missing_worker_id", "")
-		return
-	}
-	var statuses []workforce.ProposalStatus
-	if st := r.URL.Query().Get("status"); st != "" {
-		statuses = append(statuses, workforce.ProposalStatus(st))
-	}
-	list, err := d.ProposalRepo.FindByWorkerID(r.Context(), workforce.WorkerID(wid), statuses...)
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	out := make([]map[string]any, len(list))
-	for i, p := range list {
-		out[i] = proposalMap(p)
-	}
-	writeJSON(w, http.StatusOK, out)
-}
-
-func (s *Server) proposalFindPendingHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProposalRepo == nil {
-		writeError(w, http.StatusNotImplemented, "proposal_repo_not_wired", "")
-		return
-	}
-	list, err := d.ProposalRepo.FindPending(r.Context())
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	out := make([]map[string]any, len(list))
-	for i, p := range list {
-		out[i] = proposalMap(p)
-	}
-	writeJSON(w, http.StatusOK, out)
-}
-
-// =============================================================================
 // ProjectRepo — FindAll / FindByID
 // =============================================================================
 
+// projectFindAllHandler is the operator/admin-token project list. v2.7 #131
+// PR-3: repointed from the retired workforce.Project model to the new
+// pm.Project model via the operator-global ListAll (no org filter — these
+// admin find-* endpoints are operator-scoped, A9-consistent global-visible).
 func (s *Server) projectFindAllHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.ProjectRepo == nil {
+	if d.PMProjectRepo == nil {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
-	// v2.5.5: filter has no fields yet (ProjectKind dropped). The query
-	// is read tolerantly so existing clients passing ?kind=... don't
-	// 400 on unknown params.
-	list, err := d.ProjectRepo.FindAll(r.Context(), workforce.ProjectFilter{})
+	list, err := d.PMProjectRepo.ListAll(r.Context())
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
 	out := make([]map[string]any, len(list))
 	for i, p := range list {
-		out[i] = projectMap(p)
+		out[i] = pmProjectMap(p)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) projectFindByIDHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.ProjectRepo == nil {
+	if d.PMProjectRepo == nil {
 		writeError(w, http.StatusNotImplemented, "project_repo_not_wired", "")
 		return
 	}
@@ -524,120 +327,12 @@ func (s *Server) projectFindByIDHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "missing_id", "")
 		return
 	}
-	p, err := d.ProjectRepo.FindByID(r.Context(), workforce.ProjectID(id))
+	p, err := d.PMProjectRepo.FindByID(r.Context(), pm.ProjectID(id))
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, projectMap(p))
-}
-
-// =============================================================================
-// ProjectSvc — Add / Remove / Update
-// =============================================================================
-
-// projectAddReq mirrors v2.5.5 ProjectCRUDService.AddCommand. The id
-// is normally server-generated; CLI callers can pin a specific id
-// (id-override) by sending one. kind / default_agent_cli were dropped.
-type projectAddReq struct {
-	ID          string   `json:"id,omitempty"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-}
-
-func (s *Server) projectAddHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectSvc == nil {
-		writeError(w, http.StatusNotImplemented, "project_svc_not_wired", "")
-		return
-	}
-	var req projectAddReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	res, err := d.ProjectSvc.Add(r.Context(), wfservice.AddCommand{
-		ID:          workforce.ProjectID(req.ID),
-		Name:        req.Name,
-		Description: req.Description,
-		Tags:        req.Tags,
-		Actor:       d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"project":  projectMap(res.Project),
-		"event_id": string(res.EventID),
-	})
-}
-
-type projectRemoveReq struct {
-	ID string `json:"id"`
-}
-
-func (s *Server) projectRemoveHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectSvc == nil {
-		writeError(w, http.StatusNotImplemented, "project_svc_not_wired", "")
-		return
-	}
-	var req projectRemoveReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	evID, err := d.ProjectSvc.Remove(r.Context(), wfservice.RemoveCommand{
-		ID:    workforce.ProjectID(req.ID),
-		Actor: d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"event_id": string(evID)})
-}
-
-type projectUpdateReq struct {
-	ID          string    `json:"id"`
-	Version     int       `json:"version"`
-	Name        *string   `json:"name"`
-	Description *string   `json:"description"`
-	Tags        *[]string `json:"tags"`
-}
-
-func (s *Server) projectUpdateHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.ProjectSvc == nil {
-		writeError(w, http.StatusNotImplemented, "project_svc_not_wired", "")
-		return
-	}
-	var req projectUpdateReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	fields := workforce.ProjectUpdateFields{
-		Name:        req.Name,
-		Description: req.Description,
-		Tags:        req.Tags,
-	}
-	res, err := d.ProjectSvc.Update(r.Context(), wfservice.UpdateCommand{
-		ID:      workforce.ProjectID(req.ID),
-		Version: req.Version,
-		Fields:  fields,
-		Actor:   d.Actor,
-	})
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"project":  projectMap(res.Project),
-		"event_id": string(res.EventID),
-	})
+	writeJSON(w, http.StatusOK, pmProjectMap(p))
 }
 
 // =============================================================================
@@ -722,29 +417,18 @@ func workerMap(w *workforce.Worker) map[string]any {
 	return m
 }
 
-func proposalMap(p *workforce.WorkerProjectProposal) map[string]any {
+// pmProjectMap projects the new pm.Project model for the operator/admin-token
+// project find-* responses (v2.7 #131 PR-3). The CLI Client's ProjectDTO is
+// the live consumer: keys mirror that DTO. Tags dropped (pm.Project has none);
+// organization_id surfaced.
+func pmProjectMap(p *pm.Project) map[string]any {
 	return map[string]any{
-		"proposal_id":          string(p.ID()),
-		"worker_id":            string(p.WorkerID()),
-		"status":               string(p.Status()),
-		"candidate_path":       p.CandidatePath(),
-		"suggested_project_id": string(p.SuggestedProjectID()),
-		"version":              p.Version(),
-	}
-}
-
-func projectMap(p *workforce.Project) map[string]any {
-	tags := p.Tags()
-	if tags == nil {
-		tags = []string{}
-	}
-	return map[string]any{
-		"id":          string(p.ID()),
-		"name":        p.Name(),
-		"description": p.Description(),
-		"tags":        tags,
-		"version":     p.Version(),
-		"created_at":  p.CreatedAt().Format(time.RFC3339Nano),
+		"id":              string(p.ID()),
+		"name":            p.Name(),
+		"description":     p.Description(),
+		"organization_id": p.OrganizationID(),
+		"version":         p.Version(),
+		"created_at":      p.CreatedAt().Format(time.RFC3339Nano),
 	}
 }
 

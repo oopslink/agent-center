@@ -3,13 +3,12 @@ import { OrgLink } from '@/OrgContext';
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
+import { useDisplayNameResolver } from '@/api/members';
 import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { useAppStore } from '@/store/app';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
-import { ConversationDeriveControls } from '@/components/ConversationDeriveControls';
-import { useSelection } from '@/components/useSelection';
 
 // DMDetail page (/dms/:id). Mirrors ChannelDetail layout but skips the
 // ParticipantsPanel — DM membership is fixed at create time (per
@@ -21,9 +20,10 @@ import { useSelection } from '@/components/useSelection';
 export default function DMDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const me = useAppStore((s) => s.currentUserId);
+  // v2.7 #192/Rule 2a: DM heading = peer display name(s), never a raw ref/id.
+  const displayName = useDisplayNameResolver();
   const conv = useConversation(id);
   const messages = useMessages(id);
-  const selection = useSelection();
   const markSeen = useMarkSeen();
   useSSEConversationSubscribe(id ? [id] : undefined);
 
@@ -68,8 +68,8 @@ export default function DMDetail(): React.ReactElement {
   // by " · ". For group DMs this lists everyone.
   const peers = (conv.data.participants ?? [])
     .filter((p) => !p.left_at && p.identity_id !== me)
-    .map((p) => p.identity_id);
-  const heading = conv.data.name || peers.join(' · ') || conv.data.id;
+    .map((p) => displayName(p.identity_id));
+  const heading = conv.data.name || peers.join(' · ') || 'Direct message';
 
   return (
     <section
@@ -88,20 +88,6 @@ export default function DMDetail(): React.ReactElement {
               : `with ${peers.length} ${peers.length === 1 ? 'peer' : 'peers'}`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={selection.toggleSelectMode}
-          className={[
-            'rounded px-2.5 py-1 text-xs font-medium',
-            selection.selectMode
-              ? 'bg-text-primary text-bg-elevated'
-              : 'bg-bg-subtle text-text-primary hover:bg-border-base',
-          ].join(' ')}
-          data-testid="select-mode-toggle"
-          aria-pressed={selection.selectMode}
-        >
-          {selection.selectMode ? 'Cancel select' : 'Select messages'}
-        </button>
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -115,18 +101,7 @@ export default function DMDetail(): React.ReactElement {
             {(messages.error as Error).message}
           </p>
         )}
-        {messages.isSuccess && (
-          <MessageList
-            messages={messages.data}
-            selectable={selection.selectMode}
-            isSelected={selection.isSelected}
-            onToggle={selection.toggle}
-          />
-        )}
-        <ConversationDeriveControls
-          conversationId={conv.data.id}
-          selection={selection}
-        />
+        {messages.isSuccess && <MessageList messages={messages.data} />}
         <MessageComposer conversationId={conv.data.id} />
       </div>
     </section>

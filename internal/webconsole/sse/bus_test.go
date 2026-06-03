@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -266,6 +267,52 @@ func TestServeHTTP_HeartbeatIsRealDataMessageWithoutID(t *testing.T) {
 		if strings.Contains(line, "id:") {
 			t.Fatalf("heartbeat frame must not carry id: line, got: %q", line)
 		}
+	}
+}
+
+// v2.7 #172 (acceptance FINDING-A): a fresh SSE connection (no
+// Last-Event-ID to replay) must flush the response head immediately on
+// connect, so the browser EventSource fires onopen — and the UI flips
+// "connecting"→"live" — right away instead of waiting for the first
+// heartbeat. Regression: the only flush on connect lived in the replay
+// branch, so a bare connect didn't send status+headers until the first
+// (~30s) heartbeat, surfacing as a persistent "connecting" on every page
+// load (root cause behind the original #153 report on a healthy center).
+//
+// Test mechanism: with a deliberately long heartbeat, http Client.Do
+// returns only once the response head is received. Without the fix Do
+// blocks until the ctx deadline; with it, the head arrives in well under
+// one heartbeat.
+func TestServeHTTP_FlushesHeadImmediatelyOnConnect(t *testing.T) {
+	b := NewBus()
+	b.heartbeat = 30 * time.Second // long on purpose: the head must not depend on it
+
+	srv := httptest.NewServer(b)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+"?user_id=u1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	resp, err := http.DefaultClient.Do(req)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("connect head should arrive promptly, got error after %v: %v", elapsed, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want status 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("want Content-Type text/event-stream, got %q", ct)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("response head took %v (≈ a heartbeat) — not flushed on connect (regression)", elapsed)
 	}
 }
 

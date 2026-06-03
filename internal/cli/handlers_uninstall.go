@@ -143,7 +143,7 @@ func newUninstallPlan(layout installLayout, purge bool) *uninstallPlan {
 	p.installPaths = []string{
 		filepath.Join(layout.Prefix, "versions"),
 		layout.CurrentLink,
-		layout.ConfigDir, // etc/
+		layout.ConfigDir,                    // etc/
 		filepath.Join(layout.Prefix, "bin"), // legacy v2.4 layout
 	}
 	if purge {
@@ -158,6 +158,14 @@ func newUninstallPlan(layout installLayout, purge bool) *uninstallPlan {
 }
 
 func (p *uninstallPlan) addServiceTeardown(sp servicePaths, unitPath, serviceID string) {
+	// v2.7 #199: a foreground install registered no service — there is no unit
+	// file and no launchd/systemd registration to tear down. Skip the teardown
+	// steps (and the unit-file removal) entirely so uninstall never attempts a
+	// bootout for a service that was never installed. Unit-file presence is the
+	// source of truth.
+	if !unitFileExists(unitPath) {
+		return
+	}
 	p.unitPath = unitPath
 	p.serviceID = serviceID
 	p.serviceMgr = sp.ServiceManager

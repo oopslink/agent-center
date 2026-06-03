@@ -23,17 +23,11 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/oopslink/agent-center/internal/admin/dispatchq"
 )
 
 // ServerDeps is the dependency bag for Server-level state shared
 // across handlers (NOT the per-request HandlerDeps in deps.go).
-// v2.2-A3: holds the dispatchq.Queue so dispatch/kill pull endpoints
-// can drain it.
-type ServerDeps struct {
-	Queue *dispatchq.Queue
-}
+type ServerDeps struct{}
 
 // Server is the admin endpoint HTTP server. v2.2 bound only to a unix
 // socket; v2.3-7a (task #27) adds an optional concurrent TCP+TLS
@@ -52,11 +46,18 @@ type Server struct {
 	tlsFingerprint string
 	tcpSrv         *http.Server
 	tcpListener    net.Listener
+
+	// mu guards the listener-lifecycle fields (listener, tcpListener, tcpSrv)
+	// that ListenAndServe writes (on the serving goroutine path) and Shutdown
+	// reads (possibly on another goroutine). Without it, the bind→assign in
+	// ListenAndServe races a concurrent Shutdown read — the socket file
+	// becoming visible does NOT establish a happens-before on the field write.
+	// srv/socketPath are set once in the constructor (before any goroutine) and
+	// are not guarded. (#128)
+	mu sync.Mutex
 }
 
-// NewServer constructs a Server with no Queue wired. Use
-// NewServerWithDeps when the dispatch/kill pull endpoints should be
-// live (v2.2-A3 wiring path).
+// NewServer constructs a Server with default (empty) server-level deps.
 func NewServer(socketPath string) *Server {
 	return NewServerWithDeps(socketPath, ServerDeps{})
 }
@@ -143,13 +144,17 @@ func (s *Server) ListenAndServe() error {
 	errs := make(chan result, 2)
 	var legs int
 
+	var unixLn net.Listener
 	if s.socketPath != "" {
 		legs++
 		ln, err := s.bindUnix()
 		if err != nil {
 			return err
 		}
+		unixLn = ln
+		s.mu.Lock()
 		s.listener = ln
+		s.mu.Unlock()
 		go func() { errs <- result{from: "unix", err: s.srv.Serve(ln)} }()
 	}
 
@@ -158,17 +163,17 @@ func (s *Server) ListenAndServe() error {
 		ln, err := s.bindTCP()
 		if err != nil {
 			// Clean up the unix leg if it managed to bind, so the
-			// caller doesn't have to.
-			if s.listener != nil {
-				_ = s.listener.Close()
+			// caller doesn't have to. Use the local (not s.listener) to
+			// avoid a guarded read on the error path.
+			if unixLn != nil {
+				_ = unixLn.Close()
 			}
 			return err
 		}
-		s.tcpListener = ln
 		// Build the TCP http.Server lazily so SetHandler applied
 		// before ListenAndServe is reflected. Mirror the unix
 		// srv's Handler + timeouts.
-		s.tcpSrv = &http.Server{
+		tcpSrv := &http.Server{
 			Handler:           s.srv.Handler,
 			ReadHeaderTimeout: 10 * time.Second,
 			TLSConfig: &tls.Config{
@@ -176,11 +181,16 @@ func (s *Server) ListenAndServe() error {
 				MinVersion:   tls.VersionTLS12,
 			},
 		}
+		s.mu.Lock()
+		s.tcpListener = ln
+		s.tcpSrv = tcpSrv
+		s.mu.Unlock()
 		go func() {
 			// ServeTLS reads cert from disk if path-args non-empty;
 			// our TLSConfig already has the cert in-memory so pass
-			// empty strings.
-			errs <- result{from: "tcp", err: s.tcpSrv.ServeTLS(ln, "", "")}
+			// empty strings. Use the captured locals (not the guarded
+			// fields) so the serving goroutine needs no lock.
+			errs <- result{from: "tcp", err: tcpSrv.ServeTLS(ln, "", "")}
 		}()
 	}
 
@@ -239,24 +249,30 @@ func (s *Server) bindTCP() (net.Listener, error) {
 // Shutdown cleanly stops both listeners (if active) + removes the
 // socket file. Safe to call multiple times.
 func (s *Server) Shutdown(ctx context.Context) error {
-	var firstErr error
+	// Snapshot the listener-lifecycle fields under the lock (they may still be
+	// being assigned by a concurrent ListenAndServe). srv is constructor-set.
+	s.mu.Lock()
+	srv, listener := s.srv, s.listener
+	tcpSrv, tcpListener := s.tcpSrv, s.tcpListener
+	s.mu.Unlock()
+
 	var wg sync.WaitGroup
-	if s.srv != nil && s.listener != nil {
+	// Each leg writes its OWN error var (read only after wg.Wait) so the two
+	// shutdown goroutines never write a shared field — fixes the prior
+	// concurrent-write race on firstErr.
+	var unixErr, tcpErr error
+	if srv != nil && listener != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.srv.Shutdown(ctx); err != nil && firstErr == nil {
-				firstErr = err
-			}
+			unixErr = srv.Shutdown(ctx)
 		}()
 	}
-	if s.tcpSrv != nil && s.tcpListener != nil {
+	if tcpSrv != nil && tcpListener != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.tcpSrv.Shutdown(ctx); err != nil && firstErr == nil {
-				firstErr = err
-			}
+			tcpErr = tcpSrv.Shutdown(ctx)
 		}()
 	}
 	wg.Wait()
@@ -265,7 +281,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s.socketPath != "" {
 		_ = os.Remove(s.socketPath)
 	}
-	return firstErr
+	if unixErr != nil {
+		return unixErr
+	}
+	return tcpErr
 }
 
 // routes registers the full v2.2-A2 admin surface: 79 AppService methods
@@ -282,16 +301,14 @@ func (s *Server) routes() {
 	// re-calling enroll + swallowing 409).
 	s.mux.HandleFunc("POST /admin/workforce/worker/heartbeat", s.workerHeartbeatHandler)
 	s.mux.HandleFunc("POST /admin/workforce/worker/rename", s.workerRenameHandler)
+	// v2.7 #147: worker auto-discovers installed agent CLIs and reports them
+	// here on every online (caller = the worker itself; rich capability shape).
+	s.mux.HandleFunc("POST /admin/workforce/worker/capabilities", s.workerReportCapabilitiesHandler)
+	// v2.7 #147 D4: operator per-CLI enable/disable toggle.
+	s.mux.HandleFunc("PATCH /admin/workforce/worker/{id}/capabilities/{name}/enabled", s.workerSetCapabilityEnabledHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-all", s.workerFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-id", s.workerFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-status", s.workerFindByStatusHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/propose", s.proposalProposeHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/accept", s.proposalAcceptHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/ignore", s.proposalIgnoreHandler)
-	s.mux.HandleFunc("POST /admin/workforce/proposal/unignore", s.proposalUnignoreHandler)
-	s.mux.HandleFunc("GET /admin/workforce/proposal/find-by-id", s.proposalFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/workforce/proposal/find-by-worker-id", s.proposalFindByWorkerIDHandler)
-	s.mux.HandleFunc("GET /admin/workforce/proposal/find-pending", s.proposalFindPendingHandler)
 	s.mux.HandleFunc("POST /admin/workforce/agent-instance/create", s.agentCreateHandler)
 	s.mux.HandleFunc("POST /admin/workforce/agent-instance/archive", s.agentArchiveHandler)
 	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-all", s.agentFindAllHandler)
@@ -299,9 +316,85 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-by-name", s.agentFindByNameHandler)
 	s.mux.HandleFunc("GET /admin/workforce/project/find-all", s.projectFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/project/find-by-id", s.projectFindByIDHandler)
-	s.mux.HandleFunc("POST /admin/workforce/project/add", s.projectAddHandler)
-	s.mux.HandleFunc("POST /admin/workforce/project/remove", s.projectRemoveHandler)
-	s.mux.HandleFunc("POST /admin/workforce/project/update", s.projectUpdateHandler)
+
+	// --- environment (v2.7 D1, ADR-0050, task #102) ----------------------
+	// Worker-initiated control channel. ADDITIVE — rides the same bearer
+	// auth + TLS as the workforce worker routes above; does NOT touch the
+	// legacy /admin/workforce/... dispatch surface.
+	s.mux.HandleFunc("POST /admin/environment/worker/connect", s.envWorkerConnectHandler)
+	s.mux.HandleFunc("GET /admin/environment/worker/commands", s.envWorkerCommandsHandler)
+	// v2.7 D5 slice-1 (center-side SSE down-push): the same command stream as the
+	// poll endpoint above, pushed over SSE for low latency. Catch-up via
+	// CommandsAfter(?after=offset) + live bus fan-out, deduped by offset; same
+	// bearer auth; reconnect-by-offset. Degrades to 501 if the bus isn't wired.
+	s.mux.HandleFunc("GET /admin/environment/worker/commands/stream", s.envWorkerCommandsStreamHandler)
+	s.mux.HandleFunc("POST /admin/environment/worker/ack", s.envWorkerAckHandler)
+	s.mux.HandleFunc("POST /admin/environment/worker/heartbeat", s.envWorkerHeartbeatHandler)
+	// v2.7 D2-f s4 (ADR-0049/0050): worker boot-resume. On (re)start with the
+	// control-stream path active the daemon asks "which of MY agents should be
+	// running + their in-flight WorkItems" so it can re-attach/relaunch their
+	// claude sessions. Worker-level authz: worker from the token owner, body
+	// worker_id MUST == it (only-ask-self), else 403. ADDITIVE — same bearer auth;
+	// default-off path (the daemon only calls it when the control loop is active).
+	s.mux.HandleFunc("POST /admin/environment/worker/resume-state", s.envWorkerResumeStateHandler)
+
+	// --- environment agent feedback (v2.7 D2-c-i, ADR-0049/0050) ---------
+	// Controller→center feedback. ADDITIVE — worker/daemon-facing, same bearer
+	// auth as the worker control routes; each is gated by requireAgentOnWorker
+	// (worker from token owner + target agent must be bound to it). lifecycle-
+	// feedback is PERSIST-ONLY (never emits agent.lifecycle_changed → no
+	// reconcile loop). Nothing is activated; the legacy path is untouched.
+	s.mux.HandleFunc("POST /admin/environment/agent/activity", s.envAgentActivityHandler)
+	s.mux.HandleFunc("POST /admin/environment/agent/lifecycle-feedback", s.envAgentLifecycleFeedbackHandler)
+	s.mux.HandleFunc("POST /admin/environment/agent/work-item-state", s.envAgentWorkItemStateHandler)
+	// v2.7 D2-e-ii (OQ5): controller→center mark-seen. Monotonically advances the
+	// agent participant's read-state cursor after a wake inject so the next batch
+	// flush won't re-deliver. Same requireAgentOnWorker guardrail; only-forward.
+	s.mux.HandleFunc("POST /admin/environment/agent/mark-seen", s.envAgentMarkSeenHandler)
+	// v2.7 #185 follow-up (UX Rule 9): controller→center converse-error. When an
+	// agent.converse (DM/channel) turn ends is_error, the controller posts a
+	// visible system message into the conversation so the human isn't left in a
+	// silent black hole. Same requireAgentOnWorker guardrail + participant check.
+	s.mux.HandleFunc("POST /admin/environment/agent/converse-error", s.envAgentConverseErrorHandler)
+
+	// --- agent tools (v2.7 D2-b1, ADR-0049) ------------------------------
+	// Per-agent MCP tool surface. ADDITIVE — rides the same bearer auth as
+	// the worker routes above. The per-agent auth gate takes the worker from
+	// the TOKEN OWNER and verifies the target agent is bound to it (guardrail)
+	// before any tool runs. b1 ships one representative read tool.
+	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
+	// v2.7 D2-b2 — explicit human-visible communication write tools. The agent
+	// posts to the task it is working; composite tools are atomic (one outer tx).
+	s.mux.HandleFunc("POST /admin/agent-tools/post_task_message", s.postTaskMessageHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/post_message", s.postMessageHandler) // v2.7 #185: DM/channel reply
+	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
+	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
+	// AppServices (writes use actor=agent; the AppService's requireProjectMember
+	// is the write-gate) + per-agent-scoped reads (get_task own-work, get_issue
+	// project-membership domain).
+	s.mux.HandleFunc("POST /admin/agent-tools/create_task", s.createTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/assign_task", s.assignTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/reassign_task", s.assignTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/subscribe", s.subscribeHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/unsubscribe", s.unsubscribeHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/verify_task", s.verifyTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_task", s.getTaskHandler)
+	s.mux.HandleFunc("GET /admin/agent-tools/get_task", s.getTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)
+	s.mux.HandleFunc("GET /admin/agent-tools/get_issue", s.getIssueHandler)
+	// v2.7 post-D3 (task #104) — agent file MCP tools. Upload/download/attach with
+	// agent-domain reachability authz (the agent's OWN enumerable scopes). The
+	// byte mechanics mirror D3-d's human transport; only the authorization model
+	// differs. The literal `transfer` segment is more specific than `{ulid}`, so
+	// ServeMux routes PUT/complete to the transfer handlers and bare GET to
+	// download (same precedence trick as D3-d).
+	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/attach_file", s.attachFileHandler)
+	s.mux.HandleFunc("PUT /admin/files/transfer/{transfer_id}", s.putAgentBlobHandler)
+	s.mux.HandleFunc("POST /admin/files/transfer/{transfer_id}/complete", s.completeFileHandler)
+	s.mux.HandleFunc("GET /admin/files/{ulid}", s.downloadFileHandler)
 
 	// --- conversation ----------------------------------------------------
 	s.mux.HandleFunc("GET /admin/conversation/conv/find", s.convFindHandler)
@@ -325,51 +418,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/conversation/participant/leave", s.leaveParticipantHandler)
 	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-child-conv", s.carryOverFindByChildConvHandler)
 	s.mux.HandleFunc("GET /admin/conversation/carry-over/find-by-source-msg", s.carryOverFindBySourceMsgHandler)
-	s.mux.HandleFunc("POST /admin/conversation/derivation/derive-issue", s.deriveIssueHandler)
-	s.mux.HandleFunc("POST /admin/conversation/derivation/derive-task", s.deriveTaskHandler)
 	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-child-conv-id", s.convRefFindByChildConvIDHandler)
 	s.mux.HandleFunc("GET /admin/conversation/conv-ref/find-by-source-msg-id", s.convRefFindBySourceMsgIDHandler)
-
-	// --- taskruntime -----------------------------------------------------
-	s.mux.HandleFunc("GET /admin/taskruntime/task/find-by-id", s.taskFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/task/find-by-status", s.taskFindByStatusHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-id", s.execFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-task-id", s.execFindByTaskIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/exec/find-by-status", s.execFindByStatusHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-by-id", s.irFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-by-execution-id", s.irFindByExecutionIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/ir/find-pending", s.irFindPendingHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/artifact/find-by-id", s.artifactFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/taskruntime/artifact/find-by-execution-id", s.artifactFindByExecutionIDHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/task/create", s.taskCreateHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/task/bind-conversation", s.taskBindConversationHandler)
-	// v2.3-1 (task #24): agent-facing read-context proxy (was missing,
-	// `read-task-context` returned ExitNotImplemented in Client mode).
-	s.mux.HandleFunc("GET /admin/taskruntime/task/read-context", s.taskReadContextHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/ir/create", s.irCreateHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/ir/respond", s.irRespondHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/ir/cancel", s.irCancelHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/artifact/append", s.artifactAppendHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-progress", s.execReportProgressHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/report-failure", s.execReportFailureHandler)
-	// v2.2 Phase D: state-machine progression endpoints — worker daemon
-	// calls notify-working post-spawn and conclude on clean exit. Without
-	// these the execution never leaves `submitted`.
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/notify-working", s.execNotifyWorkingHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/exec/conclude", s.execConcludeHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/dispatch/dispatch", s.dispatchHandler)
-	s.mux.HandleFunc("POST /admin/taskruntime/kill/request", s.killExecutionHandler)
-	// --- discussion ------------------------------------------------------
-	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-id", s.issueFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-project", s.issueFindByProjectHandler)
-	s.mux.HandleFunc("GET /admin/discussion/issue/find-by-status", s.issueFindByStatusHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/open", s.issueOpenHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/conclude", s.issueConcludeHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/withdraw", s.issueWithdrawHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/comment", s.issueCommentHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/bind-auto", s.issueBindAutoHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/bind-to", s.issueBindToHandler)
-	s.mux.HandleFunc("POST /admin/discussion/issue/link", s.issueLinkHandler)
 
 	// --- secret ----------------------------------------------------------
 	s.mux.HandleFunc("GET /admin/secret/user-secret/find-all", s.secretFindAllHandler)
@@ -396,9 +446,4 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/admintoken/create", s.admintokenCreateHandler)
 	s.mux.HandleFunc("GET /admin/admintoken/list", s.admintokenListHandler)
 	s.mux.HandleFunc("POST /admin/admintoken/revoke", s.admintokenRevokeHandler)
-
-	// --- dispatch queue (v2.2-A3 — worker daemon drains via these) ------
-	s.mux.HandleFunc("GET /admin/dispatch/queue/pull", s.dispatchQueuePullHandler)
-	s.mux.HandleFunc("GET /admin/dispatch/queue/peek", s.queuePeekHandler)
-	s.mux.HandleFunc("GET /admin/kill/queue/pull", s.killQueuePullHandler)
 }

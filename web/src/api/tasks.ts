@@ -1,160 +1,137 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Task, TaskStatus } from './types';
+import type { Task } from './types';
 
-// useTasksList / useTask — v2.3-5b TaskRuntime BC list/show reads.
-//
-// Layer note (per § 0.6): these reach the BC that OWNS the Task
-// projection (TaskRuntime BC), replacing the previous
-// `useConversations({kind:'task'})` cross-BC reach. The trace hook
-// already in `api/fleet.ts` (`useTaskTrace`) is intentionally
-// separate — both surfaces live on TaskRuntime BC but they answer
-// different questions (list/show vs execution trace).
-//
-// v2.5.15 (#70): both `project_id` and `status` are optional. Omitting
-// `project_id` returns tasks across all projects (TaskRuntime BC
-// FindAll). The hook is always enabled.
+// Tasks (v2.7 ProjectManager BC). Project-scoped: every read/write is
+// nested under /projects/{project_id}/tasks. The list response is
+// wrapped ({ tasks: [...] }); single + action endpoints return TaskMap.
 
-export function useTasksList(filter?: { projectId?: string; status?: TaskStatus }) {
-  const projectId = filter?.projectId;
-  const status = filter?.status;
-  const search = new URLSearchParams();
-  if (projectId) search.set('project_id', projectId);
-  if (status) search.set('status', status);
-  const qs = search.toString();
+export function useTasksList(projectId: string | undefined) {
   return useQuery({
-    queryKey: qk.tasksList({ projectId, status }),
-    queryFn: () => api.get<Task[]>(`/tasks${qs ? `?${qs}` : ''}`),
+    queryKey: qk.tasksByProject(projectId ?? ''),
+    queryFn: async () => {
+      const resp = await api.get<{ tasks: Task[] }>(
+        `/projects/${projectId}/tasks`,
+      );
+      return resp.tasks;
+    },
+    enabled: !!projectId,
   });
 }
 
-export function useTask(id: string | undefined) {
+export function useTask(projectId: string | undefined, taskId: string | undefined) {
   return useQuery({
-    queryKey: qk.task(id ?? ''),
-    queryFn: () => api.get<Task>(`/tasks/${id}`),
-    enabled: !!id,
+    queryKey: qk.task(taskId ?? ''),
+    queryFn: () => api.get<Task>(`/projects/${projectId}/tasks/${taskId}`),
+    enabled: !!projectId && !!taskId,
   });
 }
-
-// v2.5.x #62 — Create Task from scratch (no message source). Same
-// POST /api/tasks endpoint also routes the CV4 derive flow when the
-// payload includes source_conversation_id.
 
 export interface CreateTaskInput {
-  project_id: string;
   title: string;
   description?: string;
-  parent_task_id?: string;
-  priority?: string;
-  requires_worktree?: boolean;
-  with_conversation?: boolean;
+  derived_from_issue?: string;
 }
 
-export interface CreateTaskResult {
-  task_id: string;
-  conversation_id?: string;
-}
-
-export function useCreateTask() {
+export function useCreateTask(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateTaskInput) =>
-      api.post<CreateTaskResult>('/tasks', input),
-    onSuccess: (_data, vars) => {
-      void qc.invalidateQueries({
-        queryKey: qk.tasksList({ projectId: vars.project_id }),
-      });
-    },
-  });
-}
-
-// v2.5.x #62 — Task lifecycle transitions.
-
-interface LifecycleResult {
-  task_id: string;
-  event_id: string;
-}
-
-export function useSuspendTask(taskId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.post<LifecycleResult>(`/tasks/${taskId}/suspend`, {}),
+      api.post<Task>(`/projects/${projectId}/tasks`, input),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
-      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+      void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
     },
   });
 }
-
-export function useResumeTask(taskId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.post<LifecycleResult>(`/tasks/${taskId}/resume`, {}),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
-      void qc.invalidateQueries({ queryKey: qk.tasksList() });
-    },
-  });
-}
-
-// v2.5.x #65 — Edit task metadata.
 
 export interface UpdateTaskInput {
-  title: string;
+  title?: string;
   description?: string;
-  priority?: string;
 }
 
-export function useUpdateTask(taskId: string) {
+export function useUpdateTask(projectId: string, taskId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: UpdateTaskInput) =>
-      api.patch<LifecycleResult>(`/tasks/${taskId}`, input),
+      api.patch<Task>(`/projects/${projectId}/tasks/${taskId}`, input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.task(taskId) });
-      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+      void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
     },
   });
 }
 
-export interface AbandonTaskInput {
-  reason: string;
-  message: string;
-}
-
-export function useAbandonTask(taskId: string) {
+// Task lifecycle actions. Each POSTs to a sub-route and returns the
+// refreshed task. They share an invalidation onSuccess.
+function useTaskAction<TVars>(
+  projectId: string,
+  taskId: string,
+  fn: (vars: TVars) => Promise<Task>,
+) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: AbandonTaskInput) =>
-      api.post<LifecycleResult>(`/tasks/${taskId}/abandon`, input),
+    mutationFn: fn,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.task(taskId) });
-      void qc.invalidateQueries({ queryKey: qk.tasksList() });
+      void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
     },
   });
 }
 
-// v2.5.16 (#69) — bind a Conversation to a Task that was created
-// without one. Server uses auto mode (creates + binds in one tx) so
-// the operator just needs to click "Start discussion".
+const taskPath = (projectId: string, taskId: string) =>
+  `/projects/${projectId}/tasks/${taskId}`;
 
-export interface BindTaskConversationResult {
-  task_id: string;
-  conversation_id: string;
+export function useAssignTask(projectId: string, taskId: string) {
+  return useTaskAction<{ assignee: string }>(projectId, taskId, (vars) =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/assign`, vars),
+  );
 }
 
-export function useBindTaskConversation(taskId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () =>
-      api.post<BindTaskConversationResult>(
-        `/tasks/${taskId}/bind-conversation`,
-        {},
-      ),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.task(taskId) });
-      void qc.invalidateQueries({ queryKey: qk.tasksList() });
-    },
-  });
+export function useStartTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/start`),
+  );
+}
+
+export function useBlockTask(projectId: string, taskId: string) {
+  return useTaskAction<{ reason: string }>(projectId, taskId, (vars) =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/block`, vars),
+  );
+}
+
+export function useUnblockTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/unblock`),
+  );
+}
+
+export function useCompleteTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/complete`),
+  );
+}
+
+export function useVerifyTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/verify`),
+  );
+}
+
+export function useCancelTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/cancel`),
+  );
+}
+
+export function useUnassignTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/unassign`),
+  );
+}
+
+export function useReopenTask(projectId: string, taskId: string) {
+  return useTaskAction<void>(projectId, taskId, () =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/reopen`),
+  );
 }

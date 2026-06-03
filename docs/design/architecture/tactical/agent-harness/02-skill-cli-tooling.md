@@ -78,4 +78,4 @@ agent-center query tasks ...
 
 ## Worker 内"阻塞式 CLI"实现
 
-agent 调 `agent-center request-input` 时，CLI 与 worker daemon 之间走 unix socket，daemon 持 pending map 等中心回应。详见 [03-input-request.md](../task-runtime/03-input-request.md) 流程图。
+agent 调 `agent-center request-input` 时，CLI 与 worker daemon 之间走 unix socket，daemon 持 pending map 等中心回应。详见 [03-input-request.md](../../../retired/task-runtime/03-input-request.md) 流程图。

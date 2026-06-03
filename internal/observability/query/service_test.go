@@ -8,22 +8,19 @@ import (
 	"testing"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
+	agentsqlite "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
-	"github.com/oopslink/agent-center/internal/discussion"
-	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
-	"github.com/oopslink/agent-center/internal/taskruntime"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsqlite "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
@@ -55,77 +52,51 @@ func newQEnv(t *testing.T) *qenv {
 	sink := observability.NewEventSink(er, er, gen, clk)
 	deps := query.Deps{
 		Events:        er,
-		Projection:    obsqlite.NewProjectionRepo(db),
-		Tasks:         trsqlite.NewTaskRepo(db),
-		Executions:    trsqlite.NewTaskExecutionRepo(db),
-		Artifacts:     trsqlite.NewArtifactRepo(db),
-		InputReqs:     trsqlite.NewInputRequestRepo(db),
-		Issues:        disqlite.NewIssueRepo(db),
 		Conversations: convsqlite.NewConversationRepo(db),
 		Messages:      convsqlite.NewMessageRepo(db),
 		Workers:       wfsqlite.NewWorkerRepo(db),
-		Mappings:      wfsqlite.NewMappingRepo(db),
-		Proposals:     wfsqlite.NewProposalRepo(db),
-		Projects:      wfsqlite.NewProjectRepo(db),
+		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
+		WorkItems:           agentsqlite.NewWorkItemRepo(db),
+		PMTasks:             pmsqlite.NewTaskRepo(db),
+		PMProjects:          pmsqlite.NewProjectRepo(db),
+		PMIssues:            pmsqlite.NewIssueRepo(db),
+		Agents:              agentsqlite.NewAgentRepo(db),
 	}
 	return &qenv{db: db, deps: deps, svc: query.NewService(deps), sink: sink, er: er, clk: clk, gen: gen}
 }
 
-func (e *qenv) seedTask(t *testing.T, id, project, title string) *task.Task {
+// seedTask seeds a pm.Task (v2.7 #107 Phase-2 proj-B: observability tasks read
+// the pm model). Created in the default open status.
+func (e *qenv) seedTask(t *testing.T, id, project, title string) *pm.Task {
 	t.Helper()
-	tk, err := task.New(task.NewInput{
-		ID: taskruntime.TaskID(id), ProjectID: project, Title: title,
-		CreatedBy: "user:test", Now: e.clk.Now(),
+	tk, err := pm.NewTask(pm.NewTaskInput{
+		ID: pm.TaskID(id), ProjectID: pm.ProjectID(project), Title: title,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.deps.Tasks.Save(context.Background(), tk); err != nil {
+	if err := e.deps.PMTasks.Save(context.Background(), tk); err != nil {
 		t.Fatal(err)
 	}
 	return tk
 }
 
-func (e *qenv) seedExecution(t *testing.T, id, taskID, workerID string, status execution.Status) *execution.TaskExecution {
+// seedTaskStatus seeds a pm.Task in a specific status (via rehydrate) for the
+// status-set query tests. v2.7 #107 Phase-2 proj-B.
+func (e *qenv) seedTaskStatus(t *testing.T, id, project string, status pm.TaskStatus) {
 	t.Helper()
-	ex, err := execution.New(execution.NewInput{
-		ID:            taskruntime.TaskExecutionID(id),
-		TaskID:        taskruntime.TaskID(taskID),
-		WorkerID:      workerID,
-		AgentCLI:      "claude-code",
-		WorkspaceMode: execution.WorkspaceWorktree,
-		Now:           e.clk.Now(),
+	tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+		ID: pm.TaskID(id), ProjectID: pm.ProjectID(project), Title: id,
+		Status: status, CreatedBy: "user:test",
+		CreatedAt: e.clk.Now(), UpdatedAt: e.clk.Now(), Version: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.deps.Executions.Save(context.Background(), ex); err != nil {
+	if err := e.deps.PMTasks.Save(context.Background(), tk); err != nil {
 		t.Fatal(err)
 	}
-	if status != execution.StatusSubmitted {
-		_ = ex.AckDispatch(e.clk.Now())
-		if err := e.deps.Executions.Update(context.Background(), ex); err != nil {
-			t.Fatal(err)
-		}
-		_ = ex.StartWorking("/tmp", e.clk.Now())
-		if err := e.deps.Executions.Update(context.Background(), ex); err != nil {
-			t.Fatal(err)
-		}
-		switch status {
-		case execution.StatusCompleted:
-			_ = ex.MarkCompleted(execution.CompletedAgentReportedSuccess, "ok", e.clk.Now())
-		case execution.StatusFailed:
-			_ = ex.MarkFailed(execution.FailedAgentCrashed, "boom", e.clk.Now())
-		case execution.StatusInputRequired:
-			_ = ex.EnterInputRequired(taskruntime.InputRequestID("IR-1"), e.clk.Now())
-		}
-		if status != execution.StatusWorking {
-			if err := e.deps.Executions.Update(context.Background(), ex); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	return ex
 }
 
 func (e *qenv) seedWorker(t *testing.T, id string, status workforce.WorkerStatus) *workforce.Worker {
@@ -145,19 +116,23 @@ func (e *qenv) seedWorker(t *testing.T, id string, status workforce.WorkerStatus
 	return w
 }
 
-func (e *qenv) seedIssue(t *testing.T, id, project, title string) *discussion.Issue {
+// seedWorkerOrg seeds an online worker assigned to a specific organization —
+// for the #131 §-1 #4 ActiveCount org-scope tests (worker.org is the gate the
+// ActiveCount path scopes by). Workers carry organization_id directly (v2.6 X1).
+func (e *qenv) seedWorkerOrg(t *testing.T, id, orgID string) *workforce.Worker {
 	t.Helper()
-	i, err := discussion.NewIssue(discussion.NewIssueInput{
-		ID: discussion.IssueID(id), ProjectID: project, Title: title,
-		OpenedByIdentityID: "user:test", Origin: discussion.OriginCLI, OpenedAt: e.clk.Now(),
+	w, err := workforce.NewWorker(workforce.NewWorkerInput{
+		ID: workforce.WorkerID(id), Capabilities: []string{"claude-code"},
+		OrganizationID: orgID, EnrolledAt: e.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.deps.Issues.Save(context.Background(), i); err != nil {
+	if err := e.deps.Workers.Save(context.Background(), w); err != nil {
 		t.Fatal(err)
 	}
-	return i
+	_ = e.deps.Workers.UpdateStatus(context.Background(), w.ID(), workforce.WorkerOffline, workforce.WorkerOnline, w.Version())
+	return w
 }
 
 func (e *qenv) seedConversation(t *testing.T, id string, kind conversation.ConversationKind) *conversation.Conversation {
@@ -175,21 +150,6 @@ func (e *qenv) seedConversation(t *testing.T, id string, kind conversation.Conve
 	return c
 }
 
-func (e *qenv) seedProject(t *testing.T, id, name string) *workforce.Project {
-	t.Helper()
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID: workforce.ProjectID(id), Name: name,
-		CreatedByIdentityID: "user:test", CreatedAt: e.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := e.deps.Projects.Save(context.Background(), p); err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
 func TestInspect_Task_HappyPath(t *testing.T) {
 	env := newQEnv(t)
 	env.seedTask(t, "T-1", "proj", "hello")
@@ -201,8 +161,39 @@ func TestInspect_Task_HappyPath(t *testing.T) {
 	if data["id"] != "T-1" || data["title"] != "hello" {
 		t.Fatalf("inspect task: %+v", data)
 	}
-	if _, ok := data["executions"]; !ok {
-		t.Fatal("expected executions key")
+	// v2.7 #107 Phase-2 (proj-B): reads pm.Task. priority/conversation_id dropped;
+	// pm fields present.
+	if _, ok := data["assignee"]; !ok {
+		t.Fatalf("expected assignee key (pm field): %+v", data)
+	}
+	if _, ok := data["priority"]; ok {
+		t.Fatalf("priority should be dropped (no pm.Task field): %+v", data)
+	}
+	if data["created_by"] != "user:test" {
+		t.Fatalf("expected created_by from pm.Task: %+v", data)
+	}
+}
+
+// TestInspect_Task_WorkItemsSubSection pins the proj-B work-items sub-section:
+// inspectTask lists the agent work items for the pm task (resolved by task_ref
+// "pm://tasks/{id}") — the section proj-A deferred until inspectTask read pm.
+func TestInspect_Task_WorkItemsSubSection(t *testing.T) {
+	env := newQEnv(t)
+	env.seedTask(t, "T-1", "proj", "hello")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItem(t, "WI-2", "AG-2", "T-1")
+	res, err := env.svc.Inspect(context.Background(), "task", "T-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := res.Data.(map[string]any)
+	wis, ok := data["work_items"].([]any)
+	if !ok || len(wis) != 2 {
+		t.Fatalf("expected 2 work_items for the task, got %+v", data["work_items"])
+	}
+	first := wis[0].(map[string]any)
+	if first["work_item_id"] != "WI-1" || first["task_id"] != "T-1" {
+		t.Fatalf("work item summary fields wrong: %+v", first)
 	}
 }
 
@@ -225,21 +216,18 @@ func TestInspect_UnknownKind(t *testing.T) {
 func TestInspect_Execution_WithProjection(t *testing.T) {
 	env := newQEnv(t)
 	env.seedTask(t, "T-1", "proj", "h")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	now := env.clk.Now()
-	if _, _, err := env.deps.Projection.UpsertIfFresh(context.Background(), "E-1", projection.ProjectionUpdate{LastPushAt: now, CurrentActivity: "edit"}); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Inspect(context.Background(), "execution", "E-1")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active") // sets CurrentActivity:"edit"
+	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	proj, ok := data["projection"].(map[string]any)
+	proj, ok := data["projection"].(query.WorkItemRow)
 	if !ok {
-		t.Fatalf("projection key missing: %+v", data)
+		t.Fatalf("projection key missing/wrong type: %+v", data)
 	}
-	if proj["current_activity"] != "edit" {
+	if proj.CurrentActivity != "edit" || proj.WorkItemID != "WI-1" {
 		t.Fatalf("projection: %+v", proj)
 	}
 }
@@ -259,13 +247,46 @@ func TestInspect_Worker(t *testing.T) {
 
 func TestInspect_Issue(t *testing.T) {
 	env := newQEnv(t)
-	env.seedIssue(t, "I-1", "proj", "discuss")
+	env.seedPMIssue(t, "I-1", "proj", "discuss", pm.IssueOpen)
 	res, err := env.svc.Inspect(context.Background(), "issue", "I-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Data.(map[string]any)["id"] != "I-1" {
-		t.Fatal("issue id mismatch")
+	data := res.Data.(map[string]any)
+	// v2.7 #125: inspect-issue reads pm_issues. opened_by←created_by,
+	// opened_at←created_at, +description/updated_at; origin/conversation_id/
+	// messages dropped (pm.Issue has no such concepts).
+	if data["id"] != "I-1" || data["status"] != "open" || data["opened_by"] != "user:test" {
+		t.Fatalf("pm issue inspect fields: %+v", data)
+	}
+	if _, ok := data["origin"]; ok {
+		t.Fatal("origin must be dropped (pm.Issue has no origin)")
+	}
+	if _, ok := data["messages"]; ok {
+		t.Fatal("messages section must be dropped (pm.Issue has no conversation link)")
+	}
+}
+
+func TestQuery_Issues_DefaultNonTerminalAndStatus(t *testing.T) {
+	env := newQEnv(t)
+	env.seedPMIssue(t, "I-open", "proj", "o", pm.IssueOpen)
+	env.seedPMIssue(t, "I-inprog", "proj", "p", pm.IssueInProgress)
+	env.seedPMIssue(t, "I-resolved", "proj", "r", pm.IssueResolved) // terminal
+	// default (no filter) = non-terminal set → excludes resolved.
+	res, err := env.svc.Query(context.Background(), "issues", query.QueryFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 2 {
+		t.Fatalf("default non-terminal: want 2 (open+in_progress), got %d", len(res.Items))
+	}
+	// explicit status filter surfaces the requested status (incl terminal).
+	res, err = env.svc.Query(context.Background(), "issues", query.QueryFilter{Status: "resolved"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("status=resolved: want 1, got %d", len(res.Items))
 	}
 }
 
@@ -283,53 +304,21 @@ func TestInspect_Conversation(t *testing.T) {
 
 func TestInspect_Project(t *testing.T) {
 	env := newQEnv(t)
-	env.seedProject(t, "proj-x", "X")
+	// v2.7 #131: inspect-project reads pm_projects (workforce project model retired).
+	env.seedOrgProject(t, "proj-x", "org-1")
 	res, err := env.svc.Inspect(context.Background(), "project", "proj-x")
 	if err != nil {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	if data["id"] != "proj-x" || data["name"] != "X" {
+	if data["id"] != "proj-x" || data["name"] != "proj-x" || data["organization_id"] != "org-1" {
 		t.Fatalf("project: %+v", data)
 	}
 }
 
-func TestInspect_Worktree(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	res, err := env.svc.Inspect(context.Background(), "worktree", "E-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Data.(map[string]any)["execution_id"] != "E-1" {
-		t.Fatal("worktree exec id")
-	}
-}
-
-func TestInspect_InputRequest(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusInputRequired)
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: taskruntime.InputRequestID("IR-1"), TaskExecutionID: "E-1",
-		Question: "yes or no?", Urgency: inputrequest.UrgencyNormal, Now: env.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := env.deps.InputReqs.Save(context.Background(), ir); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Inspect(context.Background(), "input_request", "IR-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := res.Data.(map[string]any)
-	if data["id"] != "IR-1" || data["question"] != "yes or no?" {
-		t.Fatalf("ir inspect: %+v", data)
-	}
-}
+// TestInspect_Worktree removed — inspect "worktree" verb dropped in v2.7 #107
+// Phase-2 (proj-A): worktree detail is execution-keyed with no work-item model
+// equivalent (worktree state lives in supervisormanager runtime).
 
 // TestInspect_Supervisor_Decision_Removed verifies that supervisor/decision
 // inspect kinds return an error in v2.6 (both were removed in BE-9).
@@ -372,34 +361,30 @@ func TestQuery_Tasks_ByProject(t *testing.T) {
 	}
 }
 
+// v2.7 #107 Phase-2 (proj-A): query executions by-worker = worker→its agents→
+// their work items (Q3 MAP).
 func TestQuery_Executions_ByWorker(t *testing.T) {
 	env := newQEnv(t)
 	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	env.seedExecution(t, "E-2", "T-1", "W-2", execution.StatusWorking)
+	env.seedAgent(t, "AG-1", "W-1")
+	env.seedAgent(t, "AG-2", "W-2")
+	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
+	env.seedWorkItem(t, "WI-2", "AG-2", "T-1")
+	env.seedWorkItemProjection(t, "WI-2", "AG-2", "active")
 	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{WorkerID: "W-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(res.Items) != 1 {
-		t.Fatalf("expected 1, got %d", len(res.Items))
+		t.Fatalf("expected 1 (W-1's agent's work item), got %d", len(res.Items))
 	}
 }
 
-func TestQuery_Executions_FailedReasonFilter(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusFailed)
-	env.seedExecution(t, "E-2", "T-1", "W-2", execution.StatusWorking)
-	// Note: FindActive doesn't return failed; passing worker filter works.
-	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{WorkerID: "W-1", Status: "failed", FailedReason: "agent_crashed"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Items) != 1 {
-		t.Fatalf("expected 1, got %d", len(res.Items))
-	}
-}
+// TestQuery_Executions_FailedReasonFilter removed — the exec-specific
+// FailedReason query filter is dropped in v2.7 #107 Phase-2 (proj-A, P3):
+// "why failed" is now observable via `inspect execution <work_item_id>`
+// recent_events (the failed transition's Cause), not a query filter.
 
 func TestQuery_Workers_FilterByStatus(t *testing.T) {
 	env := newQEnv(t)
@@ -416,7 +401,7 @@ func TestQuery_Workers_FilterByStatus(t *testing.T) {
 
 func TestQuery_Issues_ByProject(t *testing.T) {
 	env := newQEnv(t)
-	env.seedIssue(t, "I-1", "proj", "x")
+	env.seedPMIssue(t, "I-1", "proj", "x", pm.IssueOpen)
 	res, err := env.svc.Query(context.Background(), "issues", query.QueryFilter{ProjectID: "proj"})
 	if err != nil {
 		t.Fatal(err)
@@ -491,48 +476,8 @@ func TestQuery_Decisions_Removed(t *testing.T) {
 	}
 }
 
-func TestQuery_InputRequests_PendingOnly(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusInputRequired)
-	ir, err := inputrequest.New(inputrequest.NewInput{
-		ID: "IR-1", TaskExecutionID: "E-1", Question: "?", Urgency: inputrequest.UrgencyNormal, Now: env.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := env.deps.InputReqs.Save(context.Background(), ir); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Query(context.Background(), "input_requests", query.QueryFilter{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Items) != 1 {
-		t.Fatalf("expected 1, got %d", len(res.Items))
-	}
-}
-
-func TestQuery_Proposals_FilterByWorker(t *testing.T) {
-	env := newQEnv(t)
-	p, err := workforce.NewWorkerProjectProposal(workforce.NewProposalInput{
-		ID: "P-1", WorkerID: "W-1", CandidatePath: "/tmp/a", SuggestedProjectID: "x",
-		ProposedAt: env.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := env.deps.Proposals.Save(context.Background(), p); err != nil {
-		t.Fatal(err)
-	}
-	res, err := env.svc.Query(context.Background(), "proposals", query.QueryFilter{WorkerID: "W-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(res.Items) != 1 {
-		t.Fatalf("expected 1 proposal, got %d", len(res.Items))
-	}
-}
+// TestQuery_Proposals_FilterByWorker removed — the `query proposals` verb is
+// deleted in v2.7 #131 (workforce WorkerProjectProposal model retired).
 
 func TestQuery_Events_Cursor_Pagination(t *testing.T) {
 	env := newQEnv(t)
@@ -566,4 +511,90 @@ func TestQuery_Events_Cursor_Pagination(t *testing.T) {
 	if len(seen) != 250 {
 		t.Fatalf("expected 250 events, got %d", len(seen))
 	}
+}
+
+// --- v2.7 #107 fleet repoint seed helpers (new work-item model) ---
+
+// seedOrgProject seeds the org-owning project in the PM model (pm_projects) —
+// the SAME source fleet resolves a work item's org from at runtime (WI → pm task
+// → pm project → org). v2.7 #107: it must NOT seed the retired workforce
+// `projects` table; doing so masked the cross-model org-scope bug (workforce
+// projects are empty at runtime, so org-scope failed closed on every WI).
+func (e *qenv) seedOrgProject(t *testing.T, projectID, orgID string) {
+	t.Helper()
+	p, err := pm.NewProject(pm.NewProjectInput{
+		ID: pm.ProjectID(projectID), Name: projectID, OrganizationID: orgID,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pmsqlite.NewProjectRepo(e.db).Save(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// seedPMIssue seeds a pm issue (pm_issues) in a project with a given status —
+// the fleet pending-issues source after the #119 repoint. Use a real pm project
+// (seedOrgProject) for org-scoped tests so org resolves via the pm source.
+func (e *qenv) seedPMIssue(t *testing.T, issueID, projectID, title string, status pm.IssueStatus) {
+	t.Helper()
+	i, err := pm.RehydrateIssue(pm.RehydrateIssueInput{
+		ID: pm.IssueID(issueID), ProjectID: pm.ProjectID(projectID), Title: title, Status: status,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(), UpdatedAt: e.clk.Now(), Version: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pmsqlite.NewIssueRepo(e.db).Save(context.Background(), i); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e *qenv) seedAgent(t *testing.T, agentID, workerID string) {
+	t.Helper()
+	a, err := agentpkg.NewAgent(agentpkg.NewAgentInput{
+		ID: agentpkg.AgentID(agentID), OrganizationID: "org-test",
+		Profile: agentpkg.Profile{Name: agentID}, WorkerID: workerID,
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := agentsqlite.NewAgentRepo(e.db).Save(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e *qenv) seedWorkItem(t *testing.T, wiID, agentID, taskID string) {
+	t.Helper()
+	wi, err := agentpkg.NewWorkItem(agentpkg.NewWorkItemInput{
+		ID: wiID, AgentID: agentpkg.AgentID(agentID), TaskRef: "pm://tasks/" + taskID, CreatedAt: e.clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := agentsqlite.NewWorkItemRepo(e.db).Save(context.Background(), wi); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (e *qenv) seedWorkItemProjection(t *testing.T, wiID, agentID, status string) {
+	t.Helper()
+	if _, _, err := obsqlite.NewAgentWorkItemProjectionRepo(e.db).UpsertIfFresh(context.Background(), wiID, projection.AgentWorkItemProjectionUpdate{
+		AgentID: agentID, Status: status, CurrentActivity: "edit", TotalToolCalls: 2, TotalTokensInput: 100, TotalTokensOutput: 50, LastActivityAt: e.clk.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// seedLiveWorkItem wires a full live work item: org-project + pm task + agent
+// work item (task_ref) + projection — so fleet's resolve (proj→task_ref→pm
+// task→project→org) has every hop.
+func (e *qenv) seedLiveWorkItem(t *testing.T, wiID, agentID, taskID, projectID, orgID, status string) {
+	t.Helper()
+	e.seedOrgProject(t, projectID, orgID)
+	e.seedTask(t, taskID, projectID, taskID)
+	e.seedWorkItem(t, wiID, agentID, taskID)
+	e.seedWorkItemProjection(t, wiID, agentID, status)
 }

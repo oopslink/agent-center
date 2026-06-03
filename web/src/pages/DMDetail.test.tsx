@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -144,11 +144,5 @@ describe('DMDetail page', () => {
     );
     wrap('/dms/C-SOLO');
     await waitFor(() => expect(screen.getByText(/solo DM/i)).toBeInTheDocument());
-    // Flip select mode so the truthy arm of the select-mode-toggle
-    // ternary className (line 81) is exercised. F14 audit listed this
-    // alongside the solo DM branch.
-    const toggle = screen.getByTestId('select-mode-toggle');
-    fireEvent.click(toggle);
-    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
   });
 });

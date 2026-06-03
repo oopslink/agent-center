@@ -10,7 +10,6 @@ import (
 
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/observability/query"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
 )
 
 func TestLogs_UnknownKind(t *testing.T) {
@@ -67,24 +66,9 @@ func TestLogs_TargetMissing(t *testing.T) {
 	}
 }
 
-func TestLogs_Execution_Happy(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedExecution(t, "E-1", "T-1", "W-1", execution.StatusWorking)
-	bs, _ := blobstore.NewLocalDir(t.TempDir())
-	body := []byte("trace bytes")
-	_ = bs.Put(context.Background(), "tasks/T-1/E-1/trace.jsonl.gz", bytes.NewReader(body), int64(len(body)))
-	svc := query.NewLogsService(env.deps, bs)
-	rc, _, err := svc.Open(context.Background(), query.LogsRequest{Kind: query.LogsExecution, ID: "E-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rc.Close()
-	got, _ := io.ReadAll(rc)
-	if !bytes.Equal(got, body) {
-		t.Fatalf("body mismatch: %q", got)
-	}
-}
+// TestLogs_Execution_Happy removed — the `logs execution` kind is deleted in
+// v2.7 #131 (the retired task_execution model is no longer read; only
+// `logs task` survives).
 
 func TestLogs_EmptyID(t *testing.T) {
 	env := newQEnv(t)

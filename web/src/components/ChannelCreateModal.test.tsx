@@ -72,4 +72,27 @@ describe('ChannelCreateModal', () => {
     );
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  // v2.7 #195: duplicate channel name in the org → 409 already_exists → a
+  // friendly, org-scoped message (not the raw envelope).
+  it('shows a friendly org-scoped message on 409 already_exists', async () => {
+    server.use(
+      http.post('/api/conversations', () =>
+        HttpResponse.json(
+          { error: 'already_exists', message: 'channel name already exists' },
+          { status: 409 },
+        ),
+      ),
+    );
+    const onClose = vi.fn();
+    wrap(<ChannelCreateModal open onClose={onClose} />);
+    await userEvent.type(screen.getByTestId('create-channel-name'), 'general');
+    fireEvent.click(screen.getByTestId('create-channel-submit'));
+    await waitFor(() =>
+      expect(screen.getByTestId('create-channel-error')).toHaveTextContent(
+        /A channel named "general" already exists in this organization\./,
+      ),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

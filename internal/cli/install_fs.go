@@ -72,9 +72,18 @@ func activateService(sp servicePaths, serviceID string, out io.Writer, skipActiv
 func serviceActivateCmds(sp servicePaths, serviceID string) []activationStep {
 	switch sp.ServiceManager {
 	case "launchd":
+		// Modern domain-target API (bootout/bootstrap), NOT the deprecated
+		// load/unload: `launchctl load` fails with "Load failed: 5: Input/output
+		// error" on Darwin 25.1.0+ (macOS 26), breaking install + upgrade. This
+		// mirrors the #72 teardown migration to `bootout gui/<uid>` — the
+		// activate/restart path had been missed. bootout (tolerated: the service
+		// may not be loaded yet on a fresh install, and on upgrade it removes the
+		// running old service) → bootstrap loads the plist, which starts the
+		// service via RunAtLoad=true. domain = gui/<uid> (same helper as teardown).
+		domain := launchdGUIDomain()
 		return []activationStep{
-			{Cmd: "launchctl unload " + sp.unitPathFor(serviceID), Tolerate: true},
-			{Cmd: "launchctl load " + sp.unitPathFor(serviceID)},
+			{Cmd: "launchctl bootout " + domain + " " + sp.unitPathFor(serviceID), Tolerate: true},
+			{Cmd: "launchctl bootstrap " + domain + " " + sp.unitPathFor(serviceID)},
 		}
 	case "systemd":
 		if sp.UserMode {
@@ -169,7 +178,10 @@ func copyBinaries(layout installLayout) (centerBin, workerBin string, err error)
 	if err := os.MkdirAll(layout.BinDir, 0o755); err != nil {
 		return "", "", fmt.Errorf("mkdir %s: %w", layout.BinDir, err)
 	}
-	for _, name := range []string{"agent-center", "agent-center-worker-daemon", "fakeagent"} {
+	// v2.7 (b) cutover: the worker is now the unified `agent-center` binary
+	// (`agent-center worker run`); the standalone agent-center-worker-daemon is
+	// retired and no longer copied/deployed.
+	for _, name := range []string{"agent-center", "fakeagent"} {
 		src := filepath.Join(srcDir, name)
 		if _, err := os.Stat(src); err != nil {
 			if os.IsNotExist(err) {
@@ -186,9 +198,9 @@ func copyBinaries(layout installLayout) (centerBin, workerBin string, err error)
 			return "", "", fmt.Errorf("copy %s → %s: %w", src, dst, err)
 		}
 	}
-	return filepath.Join(layout.BinDir, "agent-center"),
-		filepath.Join(layout.BinDir, "agent-center-worker-daemon"),
-		nil
+	// workerBin is the same unified binary (worker runs as `agent-center worker run`).
+	agentCenterBin := filepath.Join(layout.BinDir, "agent-center")
+	return agentCenterBin, agentCenterBin, nil
 }
 
 // selfBinDir returns the directory containing the running binary.
@@ -274,7 +286,7 @@ func atomicSymlinkSwap(layout installLayout) error {
 // until the operator manually provisions one. Auto-provisioning
 // matches v2.4-D-A2's bootstrap_token approach: opinionated
 // defaults so the happy path works out of the box.
-func writeCenterConfig(layout installLayout, port int, tcpListen string) error {
+func writeCenterConfig(layout installLayout, port int, tcpListen, bootstrapPublicURL string) error {
 	if err := os.MkdirAll(layout.ConfigDir, 0o755); err != nil {
 		return err
 	}
@@ -285,7 +297,7 @@ func writeCenterConfig(layout installLayout, port int, tcpListen string) error {
 	if err := ensureMasterKeyFile(masterKeyPath); err != nil {
 		return err
 	}
-	yaml := centerConfigYAML(layout.DataDir, port, tcpListen, masterKeyPath)
+	yaml := centerConfigYAML(layout.DataDir, port, tcpListen, bootstrapPublicURL, masterKeyPath)
 	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o644)
 }
 
@@ -313,12 +325,17 @@ func ensureMasterKeyFile(path string) error {
 
 // centerConfigYAML returns the YAML body for the default center config.
 // Kept as a pure function so tests can assert content.
-func centerConfigYAML(dataDir string, port int, tcpListen, masterKeyPath string) string {
+func centerConfigYAML(dataDir string, port int, tcpListen, bootstrapPublicURL, masterKeyPath string) string {
 	yaml := `# agent-center — installed by v2.4-D-A2 install command.
 # Edit this file then ` + "`systemctl --user restart agent-center`" + ` (or launchctl) to apply.
 
 server:
-  listen_addr: ":7000"
+  # v2.7 #161: default off :7000 — macOS AirPlay Receiver (AirTunes) listens on
+  # 7000 by default, so :7000 fails to bind on a fresh Mac install and the center
+  # never starts. :7050 avoids AirPlay (7000) and the web console (7100), and
+  # keeps the 70xx/73xx numbering. (server and web_console are separate listeners
+  # and must not share a port.)
+  listen_addr: ":7050"
   sqlite_path: "` + dataDir + `/agent-center.db"
   admin_socket_path: "` + dataDir + `/admin.sock"
 `
@@ -326,10 +343,14 @@ server:
 		yaml += `  admin_tcp_listen: "` + tcpListen + `"
 `
 	}
+	// v2.7 #200: externally-reachable host:port for the Web Console Add Worker
+	// command, independent of the bind address. Set when remote workers must dial
+	// a public DNS / LB / NAT address rather than the bind addr.
+	if bootstrapPublicURL != "" {
+		yaml += `  bootstrap_public_url: "` + bootstrapPublicURL + `"
+`
+	}
 	yaml += fmt.Sprintf(`
-identity:
-  default_user: hayang
-
 secret_management:
   # v2.5 X1 polish: auto-generated at install time (mode 0600).
   # UserSecret BC + Add Worker Show install command depend on this
@@ -340,6 +361,17 @@ web_console:
   enabled: true
   listen_addr: "127.0.0.1:%d"
 `, masterKeyPath, port)
+	// v2.7 #159: the install config MUST set a writable blob_store root, else
+	// FilesSvc is never wired and every /api/files upload returns 501 (channel/
+	// conversation file attachments — #133/#142 — fully broken on a fresh
+	// install). The DefaultConfig fallback ("/var/lib/agent-center/blobs") is a
+	// Linux-system path that MkdirAll cannot create under a macOS user-mode
+	// prefix. Anchor it under the install data dir (<prefix>/var) like sqlite.
+	yaml += `
+blob_store:
+  kind: "local"
+  root: "` + dataDir + `/blobs"
+`
 	return yaml
 }
 

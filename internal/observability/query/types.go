@@ -17,16 +17,14 @@ const (
 	InspectWorker       InspectKind = "worker"
 	InspectIssue        InspectKind = "issue"
 	InspectConversation InspectKind = "conversation"
-	InspectInputRequest InspectKind = "input_request"
 	InspectProject      InspectKind = "project"
-	InspectWorktree     InspectKind = "worktree"
 )
 
 // AllInspectKinds is the closed-enum list used by `--help` and validation.
 var AllInspectKinds = []InspectKind{
 	InspectTask, InspectExecution, InspectWorker, InspectIssue,
-	InspectConversation, InspectInputRequest,
-	InspectProject, InspectWorktree,
+	InspectConversation,
+	InspectProject,
 }
 
 // ValidInspectKind reports whether kind is a recognised inspect kind.
@@ -43,19 +41,17 @@ func ValidInspectKind(kind string) bool {
 type QueryResource string
 
 const (
-	QueryTasks         QueryResource = "tasks"
-	QueryExecutions    QueryResource = "executions"
-	QueryWorkers       QueryResource = "workers"
-	QueryIssues        QueryResource = "issues"
-	QueryInputRequests QueryResource = "input_requests"
-	QueryProposals     QueryResource = "proposals"
-	QueryEvents        QueryResource = "events"
+	QueryTasks      QueryResource = "tasks"
+	QueryExecutions QueryResource = "executions"
+	QueryWorkers    QueryResource = "workers"
+	QueryIssues     QueryResource = "issues"
+	QueryEvents     QueryResource = "events"
 )
 
 // AllQueryResources lists every supported `query <resource>` value.
 var AllQueryResources = []QueryResource{
 	QueryTasks, QueryExecutions, QueryWorkers, QueryIssues,
-	QueryInputRequests, QueryProposals, QueryEvents,
+	QueryEvents,
 }
 
 // ValidQueryResource reports whether the resource is recognised.
@@ -72,15 +68,12 @@ func ValidQueryResource(resource string) bool {
 type QueryFilter struct {
 	Status        string
 	ProjectID     string
-	Priority      string
-	BlockedBy     string
 	WorkerID      string
 	TaskID        string
 	ExecutionID   string
 	IssueID       string
 	Opener        string
 	FailedReason  string
-	HasMapping    *bool
 	NotDispatch   *bool
 	InvocationID  string
 	Kind          string

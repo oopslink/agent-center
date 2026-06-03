@@ -10,73 +10,53 @@ function wrap(ui: React.ReactElement) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-const projectsHandler = http.get('/api/projects', () =>
-  HttpResponse.json([
-    { id: 'proj-1', name: 'Alpha', tags: [] },
-    { id: 'proj-2', name: 'Beta', tags: [] },
-  ]),
-);
-
 describe('TaskCreateModal', () => {
   afterEach(() => cleanup());
 
-  it('renders project picker + title + description + parent + priority + worktree fields', async () => {
-    server.use(projectsHandler);
-    wrap(<TaskCreateModal onClose={() => undefined} />);
+  it('renders title + description fields', () => {
+    wrap(<TaskCreateModal projectId="proj-a" onClose={() => undefined} />);
     expect(screen.getByTestId('task-create-modal')).toBeInTheDocument();
-    expect(screen.getByTestId('task-create-project')).toBeInTheDocument();
     expect(screen.getByTestId('task-create-title')).toBeInTheDocument();
     expect(screen.getByTestId('task-create-description')).toBeInTheDocument();
-    expect(screen.getByTestId('task-create-parent')).toBeInTheDocument();
-    expect(screen.getByTestId('task-create-priority')).toBeInTheDocument();
-    expect(screen.getByTestId('task-create-worktree')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
   });
 
-  it('submit disabled until project + title set', async () => {
-    server.use(projectsHandler);
-    wrap(<TaskCreateModal onClose={() => undefined} />);
+  it('submit disabled until title set', () => {
+    wrap(<TaskCreateModal projectId="proj-a" onClose={() => undefined} />);
     const submit = screen.getByTestId('task-create-submit') as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
-    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId('task-create-project'), {
-      target: { value: 'proj-1' },
-    });
     fireEvent.change(screen.getByTestId('task-create-title'), {
       target: { value: 'fix it' },
     });
     expect(submit.disabled).toBe(false);
   });
 
-  it('POSTs /api/tasks with selected fields + calls onClose on success', async () => {
+  it('POSTs the nested task route with entered fields + calls onClose', async () => {
     let received: Record<string, unknown> | undefined;
-    server.use(projectsHandler);
     server.use(
-      http.post('/api/tasks', async ({ request }) => {
+      http.post('/api/projects/proj-a/tasks', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
-          { task_id: 'T-1', conversation_id: '' },
+          {
+            id: 'TS-NEW',
+            project_id: 'proj-a',
+            title: 'fix the bug',
+            description: '',
+            status: 'open',
+            version: 1,
+            created_at: 'x',
+            updated_at: 'x',
+          },
           { status: 201 },
         );
       }),
     );
     const onClose = vi.fn();
-    wrap(<TaskCreateModal defaultProjectId="proj-1" onClose={onClose} />);
-    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    wrap(<TaskCreateModal projectId="proj-a" onClose={onClose} />);
     fireEvent.change(screen.getByTestId('task-create-title'), {
       target: { value: 'fix the bug' },
     });
-    fireEvent.change(screen.getByTestId('task-create-priority'), {
-      target: { value: 'high' },
-    });
-    fireEvent.click(screen.getByTestId('task-create-worktree'));
     fireEvent.click(screen.getByTestId('task-create-submit'));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-    expect(received).toMatchObject({
-      project_id: 'proj-1',
-      title: 'fix the bug',
-      priority: 'high',
-      requires_worktree: true,
-    });
+    expect(received).toMatchObject({ title: 'fix the bug' });
   });
 });

@@ -236,6 +236,9 @@ func refsLikeMap(f observability.EventRefsFilter) map[string]string {
 	if f.IssueID != "" {
 		m["issue_id"] = f.IssueID
 	}
+	if f.WorkItemID != "" {
+		m["work_item_id"] = f.WorkItemID
+	}
 	return m
 }
 

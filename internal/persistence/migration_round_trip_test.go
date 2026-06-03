@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 36 || v2 != 36 {
-		t.Fatalf("Version after Up: got (%d, %d) want (36, 36)", v1, v2)
+	if v1 != 47 || v2 != 47 {
+		t.Fatalf("Version after Up: got (%d, %d) want (47, 47)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
@@ -191,12 +191,25 @@ func TestMigrations_V1TablesAbsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tbl := range []string{
-		"channel_bindings",          // dropped by 0021
-		"feishu_delivery_ledger",    // dropped by 0025
+		"channel_bindings",            // dropped by 0021
+		"feishu_delivery_ledger",      // dropped by 0025
 		"bridge_subscription_cursors", // dropped by 0025
+		// v2.7 #131 carve-out (PR-6): retired-domain tables are NEVER created on
+		// a fresh install (no drop-migration). Positive assertion that a fresh
+		// schema is new-model ONLY — taskruntime / discussion / old-projection /
+		// workforce-project tables must be absent.
+		"tasks",                      // taskruntime (retired → pm_tasks)
+		"task_executions",            // taskruntime execution (retired → agent work-items)
+		"input_requests",             // taskruntime IR (retired → waiting_input WI + conversation)
+		"artifacts",                  // taskruntime artifacts (retired)
+		"issues",                     // discussion (retired → pm_issues)
+		"task_execution_projections", // old observability projection (retired → agent_work_item_projections)
+		"projects",                   // workforce projects (retired → pm_projects)
+		"worker_project_mappings",    // workforce mapping (retired)
+		"worker_project_proposals",   // workforce proposal (retired)
 	} {
 		if tableExists(t, db, tbl) {
-			t.Fatalf("v1 table %s must be absent after Up (regression)", tbl)
+			t.Fatalf("retired table %s must be absent after fresh Up (v2.7 carve-out: new-model only)", tbl)
 		}
 	}
 }
@@ -323,13 +336,108 @@ func TestMigrations_V1KindValuesAbsent(t *testing.T) {
 		t.Fatal("expected error inserting kind='supervisor' into v2.6 identities (CHECK constraint should reject)")
 	}
 
-	// conversations.kind should have been renamed.
+	// conversations.kind: v1 'group_thread' --0024--> 'channel'. v2.7 RETAINS
+	// 'channel' (channel model finalized plan §10 OQ10 — no project_channel
+	// rename), so the final kind is 'channel'.
 	kinds := scanStringSet(t, db, `SELECT kind FROM conversations`)
 	if kinds["group_thread"] {
 		t.Fatalf("conversations.kind='group_thread' must be renamed to 'channel' by 0024")
 	}
+	if kinds["project_channel"] {
+		t.Fatalf("conversations.kind='project_channel' must not exist (v2.7 retains 'channel')")
+	}
 	if !kinds["channel"] {
-		t.Fatalf("expected at least one conversations.kind='channel' after rename (got %v)", kinds)
+		t.Fatalf("expected conversations.kind='channel' after the rename chain (got %v)", kinds)
+	}
+}
+
+// TestMigration_0044_EnvironmentWorkerShape — v2.7 D1 (ADR-0050, task #102)
+// guard: the env_workers + worker_control_events tables land after a full Up,
+// with the supporting indexes and the two UNIQUE constraints on the control
+// stream (offset + idempotency_key) actually enforced.
+func TestMigration_0044_EnvironmentWorkerShape(t *testing.T) {
+	db, err := Open(t.TempDir() + "/m44.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tbl := range []string{"env_workers", "worker_control_events"} {
+		if !tableExists(t, db, tbl) {
+			t.Fatalf("%s must exist after Up", tbl)
+		}
+	}
+	// v2.7 #140 step-3: idx_env_workers_org removed with the organization_id
+	// column (org is no longer stored on the control-channel Worker AR).
+	for _, idx := range []string{"idx_wce_worker_offset"} {
+		if !indexExists(t, db, idx) {
+			t.Fatalf("index %s must exist after Up", idx)
+		}
+	}
+	// v2.7 #140 step-3: org is NOT stored on the control-channel Worker AR.
+	if columnExists(t, db, "env_workers", "organization_id") {
+		t.Fatal("env_workers.organization_id must be gone (#140 step-3: org derives from workforce.Worker)")
+	}
+
+	now := "2026-05-29T15:00:00Z"
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
+		 VALUES ('e1','w1',1,'k1','stop','{}',?)`, now); err != nil {
+		t.Fatalf("first event insert: %v", err)
+	}
+	// UNIQUE(worker_id, offset): re-using offset 1 for w1 must fail.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
+		 VALUES ('e2','w1',1,'k2','stop','{}',?)`, now); err == nil {
+		t.Fatal("duplicate (worker_id, offset) should have failed")
+	}
+	// UNIQUE(worker_id, idempotency_key): re-using key k1 for w1 must fail.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, created_at)
+		 VALUES ('e3','w1',2,'k1','stop','{}',?)`, now); err == nil {
+		t.Fatal("duplicate (worker_id, idempotency_key) should have failed")
+	}
+}
+
+// TestMigration_0045_FileTransferSessionShape — v2.7 D3-a (ADR-0048) guard:
+// the file_transfer_sessions table lands after a full Up with its supporting
+// indexes and the UNIQUE(transfer_uri) constraint actually enforced.
+func TestMigration_0045_FileTransferSessionShape(t *testing.T) {
+	db, err := Open(t.TempDir() + "/m45.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if !tableExists(t, db, "file_transfer_sessions") {
+		t.Fatal("file_transfer_sessions must exist after Up")
+	}
+	for _, idx := range []string{"idx_fts_status_expires", "idx_fts_file_uri"} {
+		if !indexExists(t, db, idx) {
+			t.Fatalf("index %s must exist after Up", idx)
+		}
+	}
+
+	now := "2026-05-29T15:00:00Z"
+	exp := "2026-05-29T16:00:00Z"
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO file_transfer_sessions (id, file_uri, transfer_uri, direction, status, content_type, size, sha256, scope, scope_id, created_by, created_at, expires_at)
+		 VALUES ('s1','ac://files/u1','ac://transfers/s1','upload','open','text/plain',0,NULL,NULL,NULL,'user:x',?,?)`, now, exp); err != nil {
+		t.Fatalf("first session insert: %v", err)
+	}
+	// UNIQUE(transfer_uri): re-using a transfer URI must fail.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO file_transfer_sessions (id, file_uri, transfer_uri, direction, status, content_type, size, sha256, scope, scope_id, created_by, created_at, expires_at)
+		 VALUES ('s2','ac://files/u2','ac://transfers/s1','upload','open','text/plain',0,NULL,NULL,NULL,'user:x',?,?)`, now, exp); err == nil {
+		t.Fatal("duplicate transfer_uri should have failed")
 	}
 }
 

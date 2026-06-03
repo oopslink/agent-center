@@ -186,7 +186,7 @@ func TestCarryOver_DuplicateRef(t *testing.T) {
 func TestCarryOver_MissingArgs(t *testing.T) {
 	_, co, _, _ := setupCarryOver(t)
 	cases := []MaterialiseCommand{
-		{}, // empty
+		{},                         // empty
 		{ChildConversationID: "x"}, // missing source
 		{ChildConversationID: "x", SourceConversationID: "y"}, // no msgs OK (early return) — skip
 	}

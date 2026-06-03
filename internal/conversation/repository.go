@@ -15,6 +15,12 @@ type ConversationFilter struct {
 	// Empty string means "no org filter" — used by legacy callers and
 	// tests; production webconsole handlers should always set this.
 	OrganizationID string
+	// OwnerRef, when set, returns only the conversation pinned to that pm
+	// owner_ref (pm://tasks|issues/{id}). v2.7 #137: the UI fetches a task/
+	// issue conversation by owner_ref. Combined with OrganizationID it is
+	// org-scoped by construction (a cross-org owner_ref yields no rows —
+	// fail-closed, no leak).
+	OwnerRef *OwnerRef
 }
 
 // DefaultConversationLimit caps Find when Limit <= 0.
@@ -25,11 +31,26 @@ type ConversationRepository interface {
 	FindByID(ctx context.Context, id ConversationID) (*Conversation, error)
 	Find(ctx context.Context, filter ConversationFilter) ([]*Conversation, error)
 	FindByName(ctx context.Context, name string) (*Conversation, error)
+	// FindByNameInOrg looks up a channel by name WITHIN an organization (v2.7 #195:
+	// channel name is org-scoped unique, not global). Returns ErrConversationNotFound
+	// if absent in that org. Used by the org-scoped create dedup + the webconsole
+	// participant lookups so a name shared across orgs resolves the right channel.
+	FindByNameInOrg(ctx context.Context, orgID, name string) (*Conversation, error)
+	// FindByOwnerRef looks up a task/issue Conversation by its owner_ref URI
+	// (pm://tasks|issues/{id}); ErrConversationNotFound if absent. Used by the
+	// v2.7 ProjectManager→Conversation participant projector to create/sync the
+	// bound Conversation idempotently.
+	FindByOwnerRef(ctx context.Context, ownerRef OwnerRef) (*Conversation, error)
 	FindByParent(ctx context.Context, parentID ConversationID) ([]*Conversation, error)
 	Save(ctx context.Context, c *Conversation) error
 	UpdateStatus(ctx context.Context, id ConversationID, from, to ConversationStatus, version int, closedReason, closedMessage string, at time.Time) error
 	UpdateArchive(ctx context.Context, id ConversationID, version int, archivedBy IdentityRef, at time.Time) error
 	UpdateParticipants(ctx context.Context, id ConversationID, participants []ParticipantElement, version int, at time.Time) error
+	// Delete hard-removes the conversation row (v2.7 #198, DM delete). Channels
+	// use UpdateArchive (terminal-but-retained); only DMs are hard-deleted. The
+	// caller deletes the conversation's messages + read-state in the same tx (no
+	// DB-level cascade). Idempotent: deleting an absent id is a no-op.
+	Delete(ctx context.Context, id ConversationID) error
 }
 
 // MessageFilter narrows MessageRepository queries.
@@ -50,6 +71,9 @@ type MessageRepository interface {
 	FindByConversationID(ctx context.Context, conversationID ConversationID, filter MessageFilter) ([]*Message, error)
 	FindRecent(ctx context.Context, conversationID ConversationID, n int) ([]*Message, error)
 	Append(ctx context.Context, m *Message) error
+	// DeleteByConversationID hard-removes all messages of a conversation (v2.7
+	// #198, DM delete). Idempotent: no rows = no error.
+	DeleteByConversationID(ctx context.Context, conversationID ConversationID) error
 }
 
 // ConversationMessageReference is the carry-over VO (ADR-0035 /

@@ -10,9 +10,9 @@ import (
 // TestArch_NoDirectPersistenceOpenInHandlers enforces conventions
 // § 0.4 enforce mechanism #1:
 //
-//   internal/cli/handlers_*.go 出现 persistence.Open = CI fail
-//   (白名单：handlers_migrate.go schema 迁移工具 + handlers_system.go
-//    server 启动)
+//	internal/cli/handlers_*.go 出现 persistence.Open = CI fail
+//	(白名单：handlers_migrate.go schema 迁移工具 + handlers_system.go
+//	 server 启动)
 //
 // Rationale: CLI handlers MUST go through the admin endpoint
 // (AppService transport), not open the sqlite store directly. The

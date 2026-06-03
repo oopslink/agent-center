@@ -36,15 +36,17 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 		return fmt.Errorf("conversation repo: marshal participants: %w", err)
 	}
 	const stmt = `INSERT INTO conversations (
-		id, kind, name, description, parent_conversation_id,
+		id, kind, owner_ref, project_ref, name, description, parent_conversation_id,
 		participants, created_by,
 		status, opened_at, closed_at, closed_reason, closed_message,
 		archived_at, archived_by,
 		created_at, updated_at, version, organization_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(c.ID()),
 		string(c.Kind()),
+		nullString(string(c.OwnerRef())),
+		nullString(c.ProjectRef()),
 		nullString(c.Name()),
 		nullString(c.Description()),
 		nullString(string(c.ParentConversationID())),
@@ -101,6 +103,10 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 		sb.WriteString(` AND organization_id = ?`)
 		args = append(args, filter.OrganizationID)
 	}
+	if filter.OwnerRef != nil {
+		sb.WriteString(` AND owner_ref = ?`)
+		args = append(args, string(*filter.OwnerRef))
+	}
 	if filter.Cursor != nil {
 		sb.WriteString(` AND id > ?`)
 		args = append(args, string(*filter.Cursor))
@@ -128,10 +134,40 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 	return out, rows.Err()
 }
 
-// FindByName looks up a channel by its unique business name (ADR-0032 § 3).
+// FindByName looks up a channel by its business name, GLOBALLY (no org scope).
+// Retained for org-agnostic admin tooling; v2.7 #195 made channel name org-scoped
+// unique, so across orgs this can match more than one row and returns the first —
+// org-scoped callers must use FindByNameInOrg.
 func (r *ConversationRepo) FindByName(ctx context.Context, name string) (*conversation.Conversation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, convSelect+` WHERE name = ? AND kind = 'channel' LIMIT 1`, name)
+	c, err := scanConversation(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, conversation.ErrConversationNotFound
+	}
+	return c, err
+}
+
+// FindByNameInOrg looks up a channel by name within an organization (v2.7 #195:
+// channel name is org-scoped unique). Backed by the composite partial unique
+// index uniq_conversations_channel_name_org (organization_id, name).
+func (r *ConversationRepo) FindByNameInOrg(ctx context.Context, orgID, name string) (*conversation.Conversation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		convSelect+` WHERE organization_id = ? AND name = ? AND kind = 'channel' LIMIT 1`, orgID, name)
+	c, err := scanConversation(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, conversation.ErrConversationNotFound
+	}
+	return c, err
+}
+
+// FindByOwnerRef returns the conversation bound to a pm:// owner_ref, or
+// ErrConversationNotFound. The idx_conversations_owner_ref partial index backs
+// this lookup (v2.7 A0).
+func (r *ConversationRepo) FindByOwnerRef(ctx context.Context, ownerRef conversation.OwnerRef) (*conversation.Conversation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx, convSelect+` WHERE owner_ref = ? LIMIT 1`, string(ownerRef))
 	c, err := scanConversation(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, conversation.ErrConversationNotFound
@@ -188,6 +224,15 @@ func (r *ConversationRepo) UpdateStatus(ctx context.Context, id conversation.Con
 	return nil
 }
 
+// Delete hard-removes the conversation row (v2.7 #198, DM delete). Idempotent —
+// an absent id affects 0 rows and returns nil. Messages + read-state are deleted
+// by the caller in the same tx (no DB-level cascade).
+func (r *ConversationRepo) Delete(ctx context.Context, id conversation.ConversationID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx, `DELETE FROM conversations WHERE id = ?`, string(id))
+	return err
+}
+
 // UpdateArchive transitions to archived (terminal) with audit who/when.
 func (r *ConversationRepo) UpdateArchive(ctx context.Context, id conversation.ConversationID, version int, archivedBy conversation.IdentityRef, at time.Time) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
@@ -241,7 +286,7 @@ func (r *ConversationRepo) casConflict(ctx context.Context, exec persistence.SQL
 	return conversation.ErrConversationVersionConflict
 }
 
-const convSelect = `SELECT id, kind, name, description, parent_conversation_id,
+const convSelect = `SELECT id, kind, owner_ref, project_ref, name, description, parent_conversation_id,
 	participants, created_by,
 	status, opened_at, closed_at, closed_reason, closed_message,
 	archived_at, archived_by,
@@ -250,21 +295,22 @@ const convSelect = `SELECT id, kind, name, description, parent_conversation_id,
 
 func scanConversation(scan func(...any) error) (*conversation.Conversation, error) {
 	var (
-		id, kind                                      string
-		name, description, parent                     sql.NullString
-		participantsJSON                              string
-		createdBy                                     string
-		status                                        string
-		openedAt                                      string
-		closedAt                                      sql.NullString
-		closedReason, closedMessage                   sql.NullString
-		archivedAt                                    sql.NullString
-		archivedBy                                    sql.NullString
-		createdAt, updatedAt                          string
-		version                                       int
-		organizationID                                string
+		id, kind                    string
+		ownerRef, projectRef        sql.NullString
+		name, description, parent   sql.NullString
+		participantsJSON            string
+		createdBy                   string
+		status                      string
+		openedAt                    string
+		closedAt                    sql.NullString
+		closedReason, closedMessage sql.NullString
+		archivedAt                  sql.NullString
+		archivedBy                  sql.NullString
+		createdAt, updatedAt        string
+		version                     int
+		organizationID              string
 	)
-	if err := scan(&id, &kind, &name, &description, &parent,
+	if err := scan(&id, &kind, &ownerRef, &projectRef, &name, &description, &parent,
 		&participantsJSON, &createdBy,
 		&status, &openedAt, &closedAt, &closedReason, &closedMessage,
 		&archivedAt, &archivedBy,
@@ -298,6 +344,8 @@ func scanConversation(scan func(...any) error) (*conversation.Conversation, erro
 	return conversation.RehydrateConversation(conversation.RehydrateConversationInput{
 		ID:                   conversation.ConversationID(id),
 		Kind:                 conversation.ConversationKind(kind),
+		OwnerRef:             conversation.OwnerRef(ownerRef.String),
+		ProjectRef:           projectRef.String,
 		Name:                 name.String,
 		Description:          description.String,
 		ParentConversationID: conversation.ConversationID(parent.String),

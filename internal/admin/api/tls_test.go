@@ -247,11 +247,11 @@ func writeExpiredCertPair(t *testing.T, certPath, keyPath string) error {
 		return err
 	}
 	tmpl := x509.Certificate{
-		SerialNumber: big.NewInt(2),
-		Subject:      pkix.Name{CommonName: "expired-test"},
-		NotBefore:    time.Now().Add(-2 * 365 * 24 * time.Hour),
-		NotAfter:     time.Now().Add(-1 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
+		SerialNumber:          big.NewInt(2),
+		Subject:               pkix.Name{CommonName: "expired-test"},
+		NotBefore:             time.Now().Add(-2 * 365 * 24 * time.Hour),
+		NotAfter:              time.Now().Add(-1 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 	}
 	derBytes, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, &priv.PublicKey, priv)

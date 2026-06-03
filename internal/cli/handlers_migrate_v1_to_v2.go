@@ -78,11 +78,19 @@ func MigrateV1ToV2Command() *Command {
 // token columns); v2.4-D-X1 added 0030 (workers.name); v2.5-B2
 // added 0031 (admin_tokens.worker_id + plaintext ciphertext columns
 // for the show-install-command flow); v2.5.5 (task #59) added 0032
-// (projects drop+recreate — server-gen id, tags replace kind). Update
-// this constant when any future migration lands so `migrate v1-to-v2`
-// always carries the install to the latest schema instead of leaving
-// it mid-version.
-const targetSchemaVersion = 36
+// (projects drop+recreate — server-gen id, tags replace kind);
+// v2.7-A0 (task #95) added 0037-0040 (Conversation owner_ref + kind
+// convergence, Message context_refs + attachments, files seam
+// blob_metadata/file_references, outbox_events/outbox_applied); v2.7-B1
+// (task #96) added 0041 (ProjectManager pm_* tables); v2.7-C1 (task #99)
+// added 0042 (agents); v2.7-C2 (task #100) added 0043 (agent_work_items,
+// agent_activity_events); v2.7-D1 (task #102) added 0044 (env_workers,
+// worker_control_events); v2.7-D3-a added 0045 (file_transfer_sessions);
+// v2.7-#107 added 0046 (agent_work_item_projections); v2.7-#195 added 0047
+// (channel name org-scoped unique). Update this constant when any future
+// migration lands so `migrate v1-to-v2` always carries the install to the
+// latest schema instead of leaving it mid-version.
+const targetSchemaVersion = 47
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -148,3 +148,30 @@ func (s *CarryOverService) FindByChildConv(ctx context.Context, childConvID conv
 func (s *CarryOverService) FindBySourceMsg(ctx context.Context, sourceMsgID conversation.MessageID) ([]*conversation.ConversationMessageReference, error) {
 	return s.refRepo.FindBySourceMsgID(ctx, sourceMsgID)
 }
+
+// validateMessagesInSourceConv ensures every message ID exists and belongs
+// to the given source conversation. An empty msgIDs slice is a no-op.
+func validateMessagesInSourceConv(ctx context.Context, msgRepo conversation.MessageRepository, sourceID conversation.ConversationID, msgIDs []conversation.MessageID) error {
+	if len(msgIDs) == 0 {
+		return nil
+	}
+	msgs, err := msgRepo.FindByIDs(ctx, msgIDs)
+	if err != nil {
+		return fmt.Errorf("carry_over: messages: %w", err)
+	}
+	found := make(map[conversation.MessageID]*conversation.Message, len(msgs))
+	for _, m := range msgs {
+		found[m.ID()] = m
+	}
+	for _, mid := range msgIDs {
+		m, ok := found[mid]
+		if !ok {
+			return fmt.Errorf("carry_over: message %s: %w", mid, conversation.ErrMessageNotFound)
+		}
+		if m.ConversationID() != sourceID {
+			return fmt.Errorf("%w: message %s belongs to %s, not %s",
+				ErrCarryOverSourceMsgNotInConv, mid, m.ConversationID(), sourceID)
+		}
+	}
+	return nil
+}

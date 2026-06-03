@@ -31,21 +31,95 @@
 
 ## Install
 
-`agent-center` is now **install-once-and-go**. Extract the release tarball, then run one command to install the center and another to install each worker:
+`agent-center` is **install-once-and-go**. One command installs the center, one installs each worker, and a matching pair of `upgrade` commands moves an existing install forward (atomic symlink swap + health probe + auto-rollback). Supported on macOS (this cycle's acceptance target) and Linux (systemd unit installed automatically; full validation deferred).
+
+Default ports (loopback Web Console, plus the admin endpoint workers dial):
+
+| Endpoint | Address | Notes |
+|---|---|---|
+| Web Console | `127.0.0.1:7100` | open this URL in a browser after install |
+| Center server | `:7050` | moved off `:7000` because macOS AirPlay Receiver holds 7000 |
+| Admin TCP (worker enroll) | `0.0.0.0:7300` | workers dial `tcp://<host>:7300` |
+
+> **macOS AirPlay warning.** macOS Ventura+ runs an **AirPlay Receiver** that listens on **port 7000**, so the legacy `:7000` default fails to bind and the center never starts. The installed config defaults to **`:7050`** to avoid this. If you previously pinned `listen_addr: ":7000"`, either change it to `:7050` or turn off *System Settings → General → AirDrop & Handoff → AirPlay Receiver*.
+
+### 1. Install the center
 
 ```bash
-# Install the center (on the host machine)
-cd agent-center-v2.4.0-<os>-<arch>/
+# From the release tarball, on the host machine:
+cd agent-center-v2.7.0-<os>-<arch>/
 ./install center
-# The last line prints a Web Console URL — open it in a browser.
-
-# Install a worker (same machine or any other machine)
-# In the Web Console, click "+ Add Worker", type a friendly name,
-# copy the generated command, and run it on the worker machine:
-./install worker --bootstrap=... --worker-id=... --worker-name=... --token=...
+# Default = FOREGROUND: drops files + config, then prints the run command:
+agent-center server --config=<prefix>/etc/config.yaml   # logs to stdout
+# Then open the Web Console URL (http://127.0.0.1:7100) — first-time setup
+# mints the bootstrap admin token in the browser.
 ```
 
-Supported on macOS (this cycle's acceptance target) and Linux (systemd unit installed automatically; full validation deferred). **Upgrades use the same command** — extract the new tarball, run `./install center`, and the installer atomically swaps the symlink with auto-rollback if the new version fails its health probe.
+**Foreground by default (v2.7).** `install center` only drops the binaries + config and tells you the foreground command to run (`agent-center server`, logs to stdout) — it does **not** register a background service or auto-start on boot. To install a managed background service instead, add `--service`:
+
+```bash
+./install center --service   # registers + starts a LaunchAgent (macOS) / systemd unit (Linux), auto-starts on boot
+```
+
+`install center` is idempotent and upgrade-aware: re-running it on the same prefix detects the existing install and does nothing if the version matches. Default prefix is `~/.agent-center` (macOS / Linux user mode) or `/opt/agent-center` (Linux system mode); override with `--prefix=<dir>`.
+
+### Agent execution — authentication & configuration
+
+A worker spawns each agent's CLI (e.g. `claude`). The agent authenticates with the **same credential the worker user's own Claude Code uses** — agent-center does not require a separate API key:
+
+- **Subscription `/login` works out of the box.** If the worker user has logged in to Claude Code (`claude` then `/login`, stored in the macOS keychain), the agent's claude uses that same login — no extra configuration. (`ANTHROPIC_API_KEY` in the worker's service environment also works if you prefer key-based auth.)
+- The agent runs claude with `--setting-sources user,project`: **user** supplies the keychain `/login` credential, **project** lets the agent carry its own config in `<agent-home>/workspace/.claude` (created empty per agent).
+
+**What the agent inherits from the worker user's `~/.claude`** (user-level settings, verified in acceptance):
+
+| Inherited into the agent | Isolated from the agent |
+|---|---|
+| `~/.claude/settings.json` **hooks** (run under bypassPermissions), **plugins**, and **env** vars | **MCP servers** — the agent gets only its own agent-center MCP (pinned by `--strict-mcp-config`); the user's/plugin MCP servers are not loaded |
+
+> ⚠️ **Security note.** Because auth and the user's settings load from the same "user" source, the agent inherits the worker user's `~/.claude` **hooks** and runs them under `bypassPermissions`. If you keep sensitive or side-effecting hooks there, be aware the agent will execute them. **Full user-level isolation** (auth without loading the user source, via a `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN`) is planned for **v2.8**.
+
+If claude has no reachable credential at all, orchestration still works end-to-end (dispatch → spawn → MCP connect → activity stream), but the agent's turn fails auth (`403 Request not allowed`) and its work item is marked failed.
+
+### 2. Install a worker
+
+A worker can run on the same machine as the center or any other machine. In the Web Console click **"+ Add Worker"**, type a friendly name, and copy the generated command — it already carries the bootstrap URL, a one-time enroll token, the pinned server fingerprint, and a unique `--worker-id`:
+
+```bash
+./install worker \
+  --bootstrap=tcp://HOST:7300 \
+  --server-fingerprint=sha256:... \
+  --token=enroll_... \
+  --worker-id=worker-... --worker-name="my box"
+```
+
+Like the center, `install worker` is **foreground by default**: it drops files + config and prints the `agent-center worker run …` command to run yourself (logs to stdout). Add `--service` to register a managed LaunchAgent/systemd unit that auto-starts on boot.
+
+`--worker-id` is **required** — there is no hostname default, so a missing id is a hard error that points you back to the Web Console's Add Worker flow (which mints a unique id). This keeps two workers on one machine from silently colliding.
+
+**Multiple workers per machine** are supported: each worker installs under its own subtree (`<prefix>/workers/<worker-id>/`); with `--service`, each gets its own LaunchAgent/systemd label (`com.agent-center.worker.<worker-id>`), so distinct `--worker-id`s coexist with zero overlap. (Re-running with the *same* `--worker-id` is treated as a re-enroll/upgrade of that worker.) `--server-fingerprint` is required when `--bootstrap` is `tcp://`.
+
+> **Remote workers behind a private bind (`bootstrap_public_url`).** The Web Console's Add Worker command derives its `--bootstrap` address from the center's `admin_tcp_listen` bind. If the center binds a private/loopback address but workers dial it over a public DNS name, load balancer, or NAT, set the externally-reachable address explicitly — either `server.bootstrap_public_url: "center.example.com:7300"` in the config, or `install center --bootstrap-public-url=center.example.com:7300`. The Add Worker command then advertises that address instead of the bind one.
+
+### 3. Upgrade the center
+
+From a **source checkout**, pull the new code, rebuild the binary, then run `upgrade center` (it copies the new binaries, atomically swaps `current` → new version, runs a health probe, and auto-rolls-back if the probe fails):
+
+```bash
+git pull
+make build                      # produces ./bin/agent-center at the new version
+./bin/agent-center upgrade center
+```
+
+From a **release tarball**, extract the new version and run `./install center` again — it detects the existing install and walks the same atomic-swap path. `upgrade center` refuses with an error if there is no existing install at the prefix (use `install center` for fresh installs). Existing config (ports, blob store, keys) is preserved across upgrades.
+
+### 4. Upgrade a worker
+
+Same shape, but you must name the worker so the right subtree on a multi-worker host is targeted. The enroll token, bootstrap URL, and server fingerprint are preserved from the original install:
+
+```bash
+git pull && make build
+./bin/agent-center upgrade worker --worker-id=worker-...
+```
 
 ### Install from source (guided)
 
@@ -77,14 +151,16 @@ The release tarball remains the **recommended stable production** path. Notes on
 
 | Command | What it does |
 |---|---|
-| `agent-center install center` | Install / upgrade the center (idempotent) |
-| `agent-center install worker` | Install / upgrade a worker daemon |
+| `agent-center install center` | Install the center (idempotent, upgrade-aware) |
+| `agent-center install worker` | Install a worker daemon (enrolls against a running center) |
+| `agent-center upgrade center` | Upgrade an existing center install (atomic swap + auto-rollback) |
+| `agent-center upgrade worker --worker-id=<id>` | Upgrade a worker install |
+| `agent-center uninstall center` | Remove the center (data preserved unless `--purge`) |
+| `agent-center uninstall worker --worker-id=<id>` | Remove a single worker subtree |
 | `agent-center server` | Run the center in the foreground (development) |
 | `agent-center help` | Full command tree (subject-verb grouped) |
-| `agent-center task create <proj> <title>` | Create a task |
-| `agent-center issue open <proj> <title>` | Open an issue to discuss before doing |
-| `agent-center ps [--watch]` | Live fleet view (worker × execution) |
-| `agent-center inspect <kind> <id>` | Inspect a single entity (task / issue / worker / ...) |
+
+> Day-to-day operations — tasks, issues, fleet view, inspecting entities — live in the **Web Console**, not the CLI. The v2.7 CLI is deliberately scoped to install / upgrade / uninstall / run; the older data-management subcommands (`task create`, `issue open`, `ps`, `inspect`, …) were retired.
 
 Full CLI surface: [CLI subcommands reference](./docs/design/implementation/03-cli-subcommands.md). Full deploy walkthrough: [v2.4 first-mile guide](./docs/deployment/v2.4-first-mile.md).
 

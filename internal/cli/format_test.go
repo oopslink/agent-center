@@ -103,84 +103,9 @@ func TestValidateRouterFormatFlag_PreservesJSON(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// End-to-end: --format=text on list handlers prints one ID per line.
-// =============================================================================
-
-func TestCLI_ChannelList_TextFormat(t *testing.T) {
-	app := newTestApp(t)
-	_, _, _ = runOn(t, app, "channel", "create", []string{"--name=t1"})
-	_, _, _ = runOn(t, app, "channel", "create", []string{"--name=t2"})
-	out, _, code := runOn(t, app, "channel", "list", []string{"--format=text"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) != 2 || lines[0] != "t1" || lines[1] != "t2" {
-		t.Fatalf("expected t1\\nt2; got %q", out)
-	}
-}
-
-func TestCLI_AgentList_TextFormat(t *testing.T) {
-	app := newTestApp(t)
-	_, _, _ = runOn(t, app, "agent", "create", []string{
-		"--name=a1", "--agent-cli=claudecode", "--worker=w-1",
-	})
-	out, _, code := runOn(t, app, "agent", "list", []string{"--format=text"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-	if strings.TrimSpace(out) == "" {
-		t.Fatalf("expected non-empty id list; got %q", out)
-	}
-	if strings.Contains(out, "STATE") || strings.Contains(out, "WORKER") {
-		t.Fatalf("text output should be ids only; got %q", out)
-	}
-}
-
-func TestCLI_SecretList_TextFormat(t *testing.T) {
-	app := newAppWithSecret(t)
-	_, _, _ = runOn(t, app, "secret", "create", []string{
-		"--name=s1", "--value-file=" + writeTempFile(t, "v"),
-	})
-	out, _, code := runOn(t, app, "secret", "list", []string{"--format=text"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-	if strings.TrimSpace(out) == "" {
-		t.Fatalf("expected id list; got %q", out)
-	}
-}
-
-func TestCLI_IRList_TextFormat(t *testing.T) {
-	app := newTestApp(t)
-	now := app.Clock.Now()
-	_ = seedExecAndIR(t, app, "E-TF1", "IR-TF1", now)
-	out, _, code := runOn(t, app, "input-request", "list", []string{"--format=text"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-	if !strings.Contains(out, "IR-TF1") {
-		t.Fatalf("expected IR-TF1 line; got %q", out)
-	}
-}
-
-// =============================================================================
-// End-to-end: --format=human still works (backwards compat alias).
-// =============================================================================
-
-func TestCLI_ChannelList_HumanAlias(t *testing.T) {
-	app := newTestApp(t)
-	_, _, _ = runOn(t, app, "channel", "create", []string{"--name=ha"})
-	out, _, code := runOn(t, app, "channel", "list", []string{"--format=human"})
-	if code != ExitOK {
-		t.Fatalf("code %d", code)
-	}
-	// human aliases to table, which prints a header.
-	if !strings.Contains(out, "NAME") || !strings.Contains(out, "STATUS") {
-		t.Fatalf("human/table should print header; got %q", out)
-	}
-}
+// v2.7 #162: the channel/agent/secret list --format=text|human end-to-end tests
+// were removed with the retired CLI command groups. The router-level format
+// validation below (synthetic command) is kept.
 
 // =============================================================================
 // End-to-end: --format=weird is rejected with ExitUsage at the router.

@@ -5,92 +5,47 @@ import (
 	"fmt"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/discussion"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/projection"
-	"github.com/oopslink/agent-center/internal/taskruntime/execution"
-	"github.com/oopslink/agent-center/internal/taskruntime/inputrequest"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
-// projectTaskRow builds the row used by `query tasks` / inspect (short form).
-func projectTaskRow(t *task.Task) map[string]any {
+// projectWorkItemSummary is the compact work-item row used by inspectWorker's
+// active_work_items list (v2.7 #107 Phase-2 proj-A: worker→agents→work-items).
+// Summary form (id/agent/task/status); full activity detail is via
+// inspect execution <work_item_id> (the projection).
+func projectWorkItemSummary(wi *agentpkg.AgentWorkItem) map[string]any {
+	taskID, _ := fleetTaskIDFromRef(wi.TaskRef())
 	return map[string]any{
-		"id":              string(t.ID()),
-		"project_id":      t.ProjectID(),
-		"title":           t.Title(),
-		"status":          string(t.Status()),
-		"priority":        string(t.Priority()),
-		"conversation_id": stringOrNil(t.ConversationID()),
-		"created_at":      t.CreatedAt().UTC().Format(time.RFC3339Nano),
-		"version":         t.Version(),
+		"work_item_id": wi.ID(),
+		"agent_id":     string(wi.AgentID()),
+		"task_id":      taskID,
+		"status":       string(wi.Status()),
 	}
 }
 
-func projectTaskList(items []*task.Task) []any {
+// projectTaskRow builds the short row used by `query tasks` and the project
+// inspect tasks-sublist. v2.7 #107 Phase-2 (proj-B): reads pm.Task. priority /
+// conversation_id dropped (no pm.Task field); assignee added (pm has it).
+func projectTaskRow(t *pm.Task) map[string]any {
+	return map[string]any{
+		"id":         string(t.ID()),
+		"project_id": string(t.ProjectID()),
+		"title":      t.Title(),
+		"status":     string(t.Status()),
+		"assignee":   stringOrNil(string(t.Assignee())),
+		"created_at": t.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"version":    t.Version(),
+	}
+}
+
+func projectTaskList(items []*pm.Task) []any {
 	out := make([]any, 0, len(items))
 	for _, t := range items {
 		out = append(out, projectTaskRow(t))
-	}
-	return out
-}
-
-func projectExecution(e *execution.TaskExecution) map[string]any {
-	return map[string]any{
-		"id":               string(e.ID()),
-		"task_id":          string(e.TaskID()),
-		"worker_id":        e.WorkerID(),
-		"agent_cli":        e.AgentCLI(),
-		"workspace_mode":   string(e.WorkspaceMode()),
-		"status":           string(e.Status()),
-		"dispatch_state":   string(e.DispatchState()),
-		"started_at":       e.StartedAt().UTC().Format(time.RFC3339Nano),
-		"ended_at":         fmtTimePtr(e.EndedAt()),
-		"failed_reason":    string(e.FailedReason()),
-		"failed_message":   e.FailedMessage(),
-		"completed_reason": string(e.CompletedReason()),
-		"killed_reason":    string(e.KilledReason()),
-		"version":          e.Version(),
-	}
-}
-
-func projectExecutionList(items []*execution.TaskExecution) []any {
-	out := make([]any, 0, len(items))
-	for _, e := range items {
-		out = append(out, projectExecution(e))
-	}
-	return out
-}
-
-func projectProjection(p *projection.TaskExecutionProjection) map[string]any {
-	return map[string]any{
-		"task_execution_id":           string(p.TaskExecutionID),
-		"current_activity":            p.CurrentActivity,
-		"current_activity_at":         fmtTimeOrEmpty(p.CurrentActivityAt),
-		"total_tool_calls":            p.TotalToolCalls,
-		"total_tokens_input":          p.TotalTokensInput,
-		"total_tokens_output":         p.TotalTokensOutput,
-		"working_seconds_accumulated": p.WorkingSecondsAccumulated,
-		"last_push_at":                p.LastPushAt.UTC().Format(time.RFC3339Nano),
-	}
-}
-
-func projectArtifactList(items []*execution.Artifact) []any {
-	out := make([]any, 0, len(items))
-	for _, a := range items {
-		out = append(out, map[string]any{
-			"id":           string(a.ID()),
-			"task_id":      string(a.TaskID()),
-			"execution_id": string(a.ExecutionID()),
-			"kind":         a.Kind(),
-			"title":        a.Title(),
-			"blob_ref":     a.BlobRef(),
-			"url":          a.URL(),
-			"created_at":   a.CreatedAt().UTC().Format(time.RFC3339Nano),
-			"created_by":   a.CreatedBy(),
-		})
 	}
 	return out
 }
@@ -107,44 +62,18 @@ func projectWorker(w *workforce.Worker) map[string]any {
 	}
 }
 
-func projectMappingList(items []*workforce.WorkerProjectMapping) []any {
-	out := make([]any, 0, len(items))
-	for _, m := range items {
-		out = append(out, map[string]any{
-			"id":         string(m.ID()),
-			"worker_id":  string(m.WorkerID()),
-			"project_id": string(m.ProjectID()),
-			"base_path":  m.BasePath(),
-			"status":     string(m.Status()),
-			"added_at":   m.AddedAt().UTC().Format(time.RFC3339Nano),
-			"version":    m.Version(),
-		})
-	}
-	return out
-}
-
-func projectProposal(p *workforce.WorkerProjectProposal) map[string]any {
+// projectIssueRow formats a pm issue list row (v2.7 #125: repointed off the
+// retired discussion model). opened_by←created_by, opened_at←created_at;
+// conversation_id dropped (pm.Issue has no conversation link).
+func projectIssueRow(i *pm.Issue) map[string]any {
 	return map[string]any{
-		"id":                   string(p.ID()),
-		"worker_id":            string(p.WorkerID()),
-		"candidate_path":       p.CandidatePath(),
-		"suggested_project_id": string(p.SuggestedProjectID()),
-		"status":               string(p.Status()),
-		"proposed_at":          p.ProposedAt().UTC().Format(time.RFC3339Nano),
-		"version":              p.Version(),
-	}
-}
-
-func projectIssueRow(i *discussion.Issue) map[string]any {
-	return map[string]any{
-		"id":              string(i.ID()),
-		"project_id":      i.ProjectID(),
-		"title":           i.Title(),
-		"status":          string(i.Status()),
-		"opened_by":       i.OpenedByIdentityID(),
-		"opened_at":       i.OpenedAt().UTC().Format(time.RFC3339Nano),
-		"conversation_id": stringOrNil(string(i.ConversationID())),
-		"version":         i.Version(),
+		"id":         string(i.ID()),
+		"project_id": string(i.ProjectID()),
+		"title":      i.Title(),
+		"status":     string(i.Status()),
+		"opened_by":  string(i.CreatedBy()),
+		"opened_at":  i.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"version":    i.Version(),
 	}
 }
 
@@ -163,19 +92,6 @@ func projectMessageList(items []*conversation.Message) []any {
 		})
 	}
 	return out
-}
-
-func projectInputRequest(ir *inputrequest.InputRequest) map[string]any {
-	return map[string]any{
-		"id":                string(ir.ID()),
-		"task_execution_id": string(ir.TaskExecutionID()),
-		"status":            string(ir.Status()),
-		"question":          ir.Question(),
-		"urgency":           string(ir.Urgency()),
-		"requested_at":      ir.RequestedAt().UTC().Format(time.RFC3339Nano),
-		"responded_at":      fmtTimePtr(ir.RespondedAt()),
-		"version":           ir.Version(),
-	}
 }
 
 func projectEventFull(e *observability.Event) map[string]any {

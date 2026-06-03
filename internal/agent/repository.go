@@ -1,0 +1,59 @@
+package agent
+
+import "context"
+
+// Repository persists Agent ARs (C1, task #99). The implementation lives in the
+// sqlite subpackage and honors persistence.ExecutorFromCtx so C2's
+// outbox-driven flows can compose writes in one transaction.
+type Repository interface {
+	Save(ctx context.Context, a *Agent) error
+	Update(ctx context.Context, a *Agent) error
+	FindByID(ctx context.Context, id AgentID) (*Agent, error)
+	// FindByIdentityMemberID resolves the execution Agent whose identity_member_id
+	// equals the given id ("agent-<ulid>", v2.7 #157) — the identity-member ref a
+	// conversation carries for an agent participant. Returns ErrAgentNotFound when
+	// no agent carries that identity-member binding (or id is empty). The
+	// conversational-wake projector (#185 FINDING-J) uses it to resolve a
+	// participant referenced by its identity-member id back to the worker-bound
+	// execution entity (FindByID keys on the entity id, a different value).
+	FindByIdentityMemberID(ctx context.Context, identityMemberID string) (*Agent, error)
+	// ListByOrg returns all agents in an Organization.
+	ListByOrg(ctx context.Context, orgID string) ([]*Agent, error)
+	// ListByWorker returns agents bound to a Worker (one Worker controls many
+	// Agents — Environment availability derivation walks this).
+	ListByWorker(ctx context.Context, workerID string) ([]*Agent, error)
+	// Delete hard-removes the agent row (v2.7 #197). The worker binding lives on
+	// the agent row (worker_id column), so deleting the row releases it — the
+	// worker is untouched and free to bind a new agent. Idempotent: absent id =
+	// no-op. Lifecycle / active-work guards are the service's responsibility.
+	Delete(ctx context.Context, id AgentID) error
+}
+
+// WorkItemRepository persists AgentWorkItem ARs (C2). ExecutorFromCtx-aware so
+// the B2 outbox projector can supersede-old + create-new in one transaction.
+type WorkItemRepository interface {
+	Save(ctx context.Context, w *AgentWorkItem) error
+	Update(ctx context.Context, w *AgentWorkItem) error
+	FindByID(ctx context.Context, id string) (*AgentWorkItem, error)
+	// ListByAgent returns an agent's work items (queue + history).
+	ListByAgent(ctx context.Context, agentID AgentID) ([]*AgentWorkItem, error)
+	// ListByTask returns the work items for a Task across reassignments
+	// (the superseded chain).
+	ListByTask(ctx context.Context, taskRef string) ([]*AgentWorkItem, error)
+	// ListByStatus returns all work items in the given status, stable-ordered
+	// (created_at, id). The D2-e-iii poll-fallback sweep uses it to enumerate
+	// every waiting_input item independent of any wake event.
+	ListByStatus(ctx context.Context, status WorkItemStatus) ([]*AgentWorkItem, error)
+	// HasActiveWorkItem reports whether the agent has an active/waiting_input
+	// item — the input to availability derivation (OQ2).
+	HasActiveWorkItem(ctx context.Context, agentID AgentID) (bool, error)
+}
+
+// ActivityEventRepository persists the append-only AgentActivityEvent stream.
+type ActivityEventRepository interface {
+	Append(ctx context.Context, e *AgentActivityEvent) error
+	// ListByAgent returns recent events for an agent, newest first, up to limit.
+	ListByAgent(ctx context.Context, agentID AgentID, limit int) ([]*AgentActivityEvent, error)
+	// ListByWorkItem returns events for one WorkItem segment, oldest first.
+	ListByWorkItem(ctx context.Context, workItemRef string) ([]*AgentActivityEvent, error)
+}

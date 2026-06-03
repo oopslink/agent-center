@@ -4,31 +4,32 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
+	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
-	disservice "github.com/oopslink/agent-center/internal/discussion/service"
-	disqlite "github.com/oopslink/agent-center/internal/discussion/sqlite"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
-	trservice "github.com/oopslink/agent-center/internal/taskruntime/service"
-	trsqlite "github.com/oopslink/agent-center/internal/taskruntime/sqlite"
-	"github.com/oopslink/agent-center/internal/taskruntime/task"
-	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
@@ -56,21 +57,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	coSvc := convservice.NewCarryOverService(db, convRepo, msgRepo, refRepo, sink, gen, clk)
 	rsRepo := convsqlite.NewReadStateRepo(db)
 	rsSvc := convservice.NewReadStateService(db, rsRepo, msgRepo, sink, clk)
-	// Query svc with minimal deps; covers /api/tasks/{id}/trace endpoint.
-	querySvc := query.NewService(query.Deps{Events: er})
 	fleetSvc := query.NewFleetSnapshotService(query.Deps{Events: er})
-	irRepo := trsqlite.NewInputRequestRepo(db)
-	taskRepo := trsqlite.NewTaskRepo(db)
-	execRepo := trsqlite.NewTaskExecutionRepo(db)
-	irSvc := trservice.NewInputRequestService(db, irRepo, execRepo, taskRepo, convRepo, msgRepo,
-		sink, gen, clk, "")
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
-	issueRepo := disqlite.NewIssueRepo(db)
-	// v2.5.x #61 — IssueLifecycleSvc backs the Web Console "Open Issue"
-	// + "Conclude" handlers. Spawner is left nil here (covers no_action
-	// + withdrawn paths); tests that need closed_with_tasks must wire it.
-	convOpener := disservice.NewIssueConversationOpener(convRepo, sink, gen, clk)
-	issueLifecycle := disservice.NewIssueLifecycleService(db, issueRepo, convOpener, writer, sink, gen, clk)
 	// Wire UserSecret with a test master key.
 	userSecretRepo := secretsqlite.NewUserSecretRepo(db)
 	mk, err := secretmgmt.GenerateMasterKey()
@@ -79,6 +67,7 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	}
 	userSecretSvc := secretservice.NewUserSecretService(db, userSecretRepo, gen, sink, clk, mk)
 	deps := HandlerDeps{
+		DB:                 db,
 		Actor:              observability.Actor("user:hayang"),
 		ConvRepo:           convRepo,
 		MsgRepo:            msgRepo,
@@ -86,36 +75,61 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		ChannelMgmtSvc:     chSvc,
 		ParticipantMgmtSvc: pSvc,
 		CarryOverSvc:       coSvc,
-		QuerySvc:           querySvc,
 		FleetSvc:           fleetSvc,
-		IRRepo:             irRepo,
-		ExecRepo:           execRepo,
-		IRSvc:              irSvc,
 		UserSecretRepo:     userSecretRepo,
 		UserSecretSvc:      userSecretSvc,
 		AgentInstanceRepo:  aiRepo,
 		ReadStateRepo:      rsRepo,
 		ReadStateSvc:       rsSvc,
-		IssueRepo:          issueRepo,
-		TaskRepo:           taskRepo,
-		IssueLifecycleSvc:  issueLifecycle,
-		TaskSvc:            trservice.NewTaskService(db, taskRepo, convRepo, execRepo, msgRepo, sink, gen, clk),
 	}
 	return deps, db
 }
 
 // setupAPIWithAuth returns deps with identity (AuthSvc/OrgRepo/MemberRepo) wired
-// using the fixed test signing key, plus a real ProjectRepo so org-scoped
-// issue/task/IR/fleet endpoints can resolve the org's project set. Pair with
-// setupTestSession for a valid cookie + org, and seedOrgProject to put a
-// project in that org.
+// using the fixed test signing key. Pair with setupTestSession for a valid
+// cookie + org.
 func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	t.Helper()
 	deps, db := setupAPI(t)
 	deps.AuthSvc = identity.NewAuthService(identity.NewSQLiteIdentityRepo(db), testSigningKey)
+	deps.IdentityRepo = identity.NewSQLiteIdentityRepo(db)
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
-	deps.ProjectRepo = wfsqlite.NewProjectRepo(db)
+	// v2.7 B3: wire the ProjectManager service for the nested /api/projects/...
+	// routes (the pm handlers in handlers_pm.go).
+	deps.PM = pmservice.New(pmservice.Deps{
+		DB:           db,
+		Projects:     pmsql.NewProjectRepo(db),
+		Members:      pmsql.NewProjectMemberRepo(db),
+		Issues:       pmsql.NewIssueRepo(db),
+		Tasks:        pmsql.NewTaskRepo(db),
+		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
+		Outbox:       outboxsql.NewOutboxRepo(db),
+		IDGen:        idgen.NewGenerator(clock.SystemClock{}),
+		Clock:        clock.SystemClock{},
+		// #5a: assigning a Task to an agent grants it project membership, which is
+		// cross-org-guarded via the AgentDirectory (and fail-closed when nil). Wire
+		// the real directory over the test agent repo so agent assignment works.
+		AgentDir: agentpkg.NewOrgDirectory(agentsql.NewAgentRepo(db)),
+	})
+	// v2.7 C3: wire the Agent BC AppService for the /api/agents... routes
+	// (handlers_agent.go). Mirrors deps.PM: sqlite repos over the test DB + the
+	// workforce WorkerRepo for the worker-in-org check & availability derivation.
+	deps.AgentSvc = agentsvc.New(agentsvc.Deps{
+		DB:        db,
+		Agents:    agentsql.NewAgentRepo(db),
+		WorkItems: agentsql.NewWorkItemRepo(db),
+		Activity:  agentsql.NewActivityEventRepo(db),
+		Workers:   wfsqlite.NewWorkerRepo(db),
+		Outbox:    outboxsql.NewOutboxRepo(db),
+		IDGen:     idgen.NewGenerator(clock.SystemClock{}),
+		Clock:     clock.SystemClock{},
+	})
+	// v2.7 #157: agent identity-member provisioning (Members→Add Agent), incl. the
+	// unified one-step create that also spins up the execution Agent.
+	deps.AgentProvisionSvc = identity.NewAgentIdentityProvisionService(db, deps.IdentityRepo, deps.MemberRepo)
 	return deps, db
 }
 
@@ -131,25 +145,6 @@ func seedOrgChannel(t *testing.T, deps HandlerDeps, orgID, name string) string {
 		t.Fatal(err)
 	}
 	return string(res.ConversationID)
-}
-
-// seedOrgProject creates a project belonging to orgID with the given id so
-// org-scoped issue/task/IR/fleet reads (which resolve via ProjectRepo) pass.
-func seedOrgProject(t *testing.T, db *sql.DB, orgID, projectID, name string) {
-	t.Helper()
-	p, err := workforce.NewProject(workforce.NewProjectInput{
-		ID:                  workforce.ProjectID(projectID),
-		Name:                name,
-		OrganizationID:      orgID,
-		CreatedByIdentityID: "user:hayang",
-		CreatedAt:           time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := wfsqlite.NewProjectRepo(db).Save(context.Background(), p); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // testSession holds a signed-in identity + org + cookie for v2.6 org-scoped tests.
@@ -450,17 +445,6 @@ func TestAPI_FleetWithoutSvc(t *testing.T) {
 	}
 }
 
-func TestAPI_TaskTraceWithoutSvc(t *testing.T) {
-	deps, _ := setupAPI(t)
-	deps.QuerySvc = nil
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/tasks/t-1/trace")
-	if resp.StatusCode != 501 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-}
-
 func TestAPI_FleetSnapshot(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -474,28 +458,6 @@ func TestAPI_FleetSnapshot(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&snap)
 	if snap["generated_at"] == nil {
 		t.Fatalf("expected generated_at: %v", snap)
-	}
-}
-
-func TestAPI_TaskTrace(t *testing.T) {
-	deps, db := setupAPIWithAuth(t)
-	sess := setupTestSession(t, db, deps)
-	seedOrgProject(t, db, sess.OrgID, "p-1", "P1")
-	// Seed task t-1 in the org's project so the trace gate (task→project→org) passes.
-	tk, _ := task.New(task.NewInput{ID: "t-1", ProjectID: "p-1", Title: "x", CreatedBy: "user:hayang", Now: time.Now()})
-	if err := deps.TaskRepo.Save(context.Background(), tk); err != nil {
-		t.Fatal(err)
-	}
-	s := newTestServer(t, deps)
-	defer s.Close()
-	resp := orgScopedGet(t, s.URL+"/api/tasks/t-1/trace", sess)
-	if resp.StatusCode != 200 {
-		t.Fatalf("got %d", resp.StatusCode)
-	}
-	var res map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&res)
-	if res["resource"] != "events" {
-		t.Fatalf("expected resource=events: %v", res)
 	}
 }
 
@@ -526,4 +488,129 @@ func TestServer_DecodeJSON_BadJSON(t *testing.T) {
 	if err := decodeJSON(req, &got); err == nil {
 		t.Fatal("expected parse error")
 	}
+}
+
+// stubSPA is a minimal embedded-SPA stand-in for routing tests: it 200s every
+// path so we can assert the auth middleware lets non-/api requests through.
+func stubSPA() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("SPA:" + r.URL.Path))
+	})
+}
+
+// v2.7 #145: the auth middleware must guard ONLY /api/* — the embedded SPA
+// (/, /signin, /signup, /assets/*) must be served to a fresh/unauth visitor,
+// not answered with a JSON 401. /api/* (non-public) stays gated; health +
+// auth/* (incl. bootstrap) stay public.
+func TestAPI_AuthMiddleware_OnlyGuardsAPI(t *testing.T) {
+	deps, _ := setupAPIWithAuth(t)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	for _, p := range []string{"/", "/signin", "/signup", "/assets/app.js"} {
+		resp, err := http.Get(s.URL + p)
+		if err != nil {
+			t.Fatalf("GET %s: %v", p, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized {
+			t.Errorf("GET %s (no cookie): got 401, want SPA passthrough", p)
+		}
+	}
+	resp, err := http.Get(s.URL + "/api/orgs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("GET /api/orgs (no cookie): got %d, want 401", resp.StatusCode)
+	}
+	for _, p := range []string{"/api/health", "/api/auth/bootstrap"} {
+		resp, err := http.Get(s.URL + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized {
+			t.Errorf("GET %s: got 401, want public", p)
+		}
+	}
+}
+
+// v2.7 #196 / FINDING-M: an unmatched or wrong-method /api/* path must return a
+// JSON 4xx, NOT fall through to the SPA HTML catch-all. Before the fix, POST
+// /api/agents (removed in #185) and any unknown /api path returned 200 + the SPA
+// index.html, misleading programmatic clients. A non-/api path must still serve
+// the SPA.
+func TestAPI_UnmatchedAPIPath_JSON404NotSPA(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	// Authenticated so the request passes the /api/* auth guard and reaches routing.
+	for _, resp := range []*http.Response{
+		orgScopedPost(t, s.URL+"/api/agents", `{}`, sess),      // route removed in #185
+		orgScopedGet(t, s.URL+"/api/does-not-exist-xyz", sess), // never registered
+	} {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			t.Fatalf("unmatched /api path: got 200 (fell to SPA), want 4xx; body=%s", body)
+		}
+		if strings.HasPrefix(string(body), "SPA:") {
+			t.Fatalf("unmatched /api path served SPA body %q, want JSON API error", body)
+		}
+	}
+
+	// A non-/api path still serves the SPA (unaffected).
+	resp, err := http.Get(s.URL + "/some/client/route")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(string(body), "SPA:") {
+		t.Fatalf("non-/api path must still serve SPA, got %d %q", resp.StatusCode, body)
+	}
+}
+
+// v2.7 #145: GET /api/auth/bootstrap reports initialized=false on a fresh
+// install (no users) and initialized=true once any user exists — letting the
+// SPA route to /signup vs /signin without an authenticated /api/orgs bounce.
+func TestAPI_Bootstrap_ReflectsUserExistence(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	if got := bootstrapInitialized(t, s.URL); got {
+		t.Errorf("fresh install: initialized=true, want false")
+	}
+	setupTestSession(t, db, deps) // provisions a user identity
+	if got := bootstrapInitialized(t, s.URL); !got {
+		t.Errorf("after user provisioned: initialized=false, want true")
+	}
+}
+
+func bootstrapInitialized(t *testing.T, base string) bool {
+	t.Helper()
+	resp, err := http.Get(base + "/api/auth/bootstrap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("bootstrap: status %d", resp.StatusCode)
+	}
+	var body struct {
+		Initialized bool `json:"initialized"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	return body.Initialized
 }

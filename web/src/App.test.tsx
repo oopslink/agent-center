@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type React from 'react';
@@ -50,22 +50,20 @@ describe('App shell + route tree', () => {
     });
   });
 
-  it('renders DMs / Issues / IssueDetail / Tasks / TaskDetail / TaskTrace / Agents / AgentDetail / Projects / ProjectDetail / InputRequests / Secrets / Fleet / Settings', async () => {
+  it('renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Secrets / Fleet / Settings', async () => {
     const cases: Array<[string, string]> = [
       [`${ORG_BASE}/dms`, 'page-DMs'],
       [`${ORG_BASE}/dms/01HXXX`, 'page-DMDetail'],
-      [`${ORG_BASE}/issues`, 'page-Issues'],
-      [`${ORG_BASE}/issues/01HXXX`, 'page-IssueDetail'],
-      [`${ORG_BASE}/tasks`, 'page-Tasks'],
-      [`${ORG_BASE}/tasks/01HXXX`, 'page-TaskDetail'],
-      [`${ORG_BASE}/tasks/01HXXX/trace`, 'page-TaskTrace'],
+      [`${ORG_BASE}/projects/proj-a/issues/01HXXX`, 'page-IssueDetail'],
+      [`${ORG_BASE}/projects/proj-a/tasks/01HXXX`, 'page-TaskDetail'],
       [`${ORG_BASE}/agents`, 'page-Agents'],
       [`${ORG_BASE}/agents/worker-1`, 'page-AgentDetail'],
       [`${ORG_BASE}/projects`, 'page-Projects'],
       [`${ORG_BASE}/projects/proj-a`, 'page-ProjectDetail'],
-      [`${ORG_BASE}/inputrequests`, 'page-InputRequests'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
-      [`${ORG_BASE}/fleet`, 'page-Fleet'],
+      [`${ORG_BASE}/environment`, 'page-Environment'],
+      // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
+      [`${ORG_BASE}/fleet`, 'page-Environment'],
       [`${ORG_BASE}/settings`, 'page-Settings'],
     ];
     for (const [path, testId] of cases) {
@@ -77,6 +75,23 @@ describe('App shell + route tree', () => {
     }
   });
 
+  it('opens per-org settings as a modal from the switcher gear, no standalone entry (#186-6)', async () => {
+    await renderAt(`${ORG_BASE}`);
+    await waitFor(() => expect(screen.getByTestId('page-Home')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('org-switcher'));
+    // The old single "Organization Settings" dropdown entry is gone.
+    expect(screen.queryByTestId('org-dropdown-settings')).not.toBeInTheDocument();
+    // Each org row has its own gear → opens the per-org settings modal.
+    const gear = await screen.findByTestId('org-settings-gear');
+    expect(gear).toHaveAttribute('data-org-id', 'org-test');
+    fireEvent.click(gear);
+    const modal = await screen.findByTestId('org-settings-modal');
+    expect(modal).toBeInTheDocument();
+    await waitFor(() =>
+      expect((screen.getByTestId('org-settings-name') as HTMLInputElement).value).toBe('Test Org'),
+    );
+  });
+
   it('falls back to the 404 page with a nav link home', async () => {
     await renderAt(`${ORG_BASE}/definitely-not-a-route`);
     await waitFor(() => {
@@ -86,7 +101,7 @@ describe('App shell + route tree', () => {
     expect(home).toHaveAttribute('href', '/');
   });
 
-  it('renders the sidebar nav with the 7 sections', async () => {
+  it('renders the sidebar nav sections', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => {
       expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
@@ -95,14 +110,30 @@ describe('App shell + route tree', () => {
     for (const label of [
       'Channels',
       'DMs',
-      'Issues',
-      'Tasks',
-      'Input Requests',
+      'Projects',
       'Agents',
       'Settings',
+      // v2.7 #166: org people group is "Members" (Humans + single "Agents").
+      'Members',
+      'Humans',
+      // v2.7 #164: Fleet merged into Environment — single "Environment" entry.
+      'Environment',
     ]) {
       expect(nav).toHaveTextContent(label);
     }
+    // v2.7 #166-1: org group renamed Organization → Members.
+    expect(nav).not.toHaveTextContent('Organization');
+    // v2.7 #166-2: Organization Settings moved off the sidebar into the org switcher.
+    expect(nav).not.toHaveTextContent('Organization Settings');
+    expect(nav).not.toHaveTextContent('Org Settings');
+    expect(nav).not.toHaveTextContent('Agents (org)');
+    // v2.7 #164: Fleet entry removed (merged into Environment).
+    expect(nav).not.toHaveTextContent('Fleet');
+    // Input Requests nav entry removed (#131 PR-4).
+    expect(nav).not.toHaveTextContent('Input Requests');
+    // Issues / Tasks no longer have global nav entries (v2.7).
+    expect(nav).not.toHaveTextContent('Issues');
+    expect(nav).not.toHaveTextContent('Tasks');
   });
 });
 

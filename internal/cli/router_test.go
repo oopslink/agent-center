@@ -44,14 +44,14 @@ func TestRouter_AddAndDispatch(t *testing.T) {
 func TestRouter_NestedSubcommand(t *testing.T) {
 	r := NewRouter("agent-center")
 	called := false
-	_ = r.Add([]string{"worker", "proposal"}, &Command{
-		Name: "accept",
+	_ = r.Add([]string{"group", "sub"}, &Command{
+		Name: "leaf",
 		Run: func(ctx context.Context, args []string, out, err io.Writer) ExitCode {
 			called = true
 			return ExitOK
 		},
 	})
-	code := r.Run(context.Background(), []string{"worker", "proposal", "accept"})
+	code := r.Run(context.Background(), []string{"group", "sub", "leaf"})
 	if code != ExitOK {
 		t.Fatalf("code: %d", code)
 	}
@@ -201,11 +201,11 @@ func TestPrintError_JSON(t *testing.T) {
 
 func TestParseFormat(t *testing.T) {
 	for in, want := range map[string]string{
-		"":       "human",
-		"human":  "human",
-		"json":   "json",
-		"yaml":   "yaml",
-		"JSON":   "json",
+		"":        "human",
+		"human":   "human",
+		"json":    "json",
+		"yaml":    "yaml",
+		"JSON":    "json",
 		"unknown": "unknown",
 	} {
 		if got := ParseFormat(in); got != want {
@@ -231,4 +231,3 @@ func TestQuoteJSON_Specials(t *testing.T) {
 		}
 	}
 }
-

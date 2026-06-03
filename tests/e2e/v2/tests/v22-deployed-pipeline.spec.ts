@@ -33,7 +33,11 @@ import { pickFreePort } from "../helpers/ports.js";
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(__filename, "../../../../..");
 const SERVER_BIN = resolve(REPO_ROOT, "bin/agent-center");
-const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center-worker-daemon");
+// v2.7 (b) cutover: the worker runs as the unified `agent-center` binary
+// (`agent-center worker run ...`); the standalone agent-center-worker-daemon is
+// retired. os.Executable()=agent-center so the daemon routes the worker
+// agent-supervisor / mcp-host subcommands it spawns.
+const WORKER_BIN = resolve(REPO_ROOT, "bin/agent-center");
 const FAKEAGENT_BIN = resolve(REPO_ROOT, "bin/fakeagent");
 
 // adminPOST issues an HTTP POST over the admin unix socket and resolves
@@ -278,6 +282,8 @@ identity:
       worker = spawn(
         WORKER_BIN,
         [
+          "worker",
+          "run",
           "--config",
           configPath,
           "--worker-id",
@@ -373,9 +379,19 @@ identity:
       ).toBe("completed");
       expect(lastTaskStatus).toBe("done");
 
-      // Smoke the fleet snapshot via webconsole API (read-path sanity).
-      const fleet = await fetch(`http://127.0.0.1:${webPort}/api/fleet`);
-      expect(fleet.ok).toBe(true);
+      // Smoke the post-pipeline fleet/worker read-path via the TOKEN-based admin
+      // read. This deployed-pipeline test is admin-token-only (no web session); the
+      // webconsole `GET /api/fleet` is org-scoped and requires a JWT session
+      // (v2.6 X1 §3 / #101 `8c3bad9`) → a cookieless fetch is correctly 401. The
+      // webconsole UI read-path is covered by the dedicated web-console specs; here
+      // we confirm the enrolled worker is queryable post-pipeline via the auth this
+      // test already holds. (Assertion form per Tester msg 4405010b.)
+      const fleet = await adminGET(
+        sockPath,
+        "/admin/workforce/worker/find-all",
+        adminToken,
+      );
+      expect(fleet.status, "fleet read: " + fleet.body).toBe(200);
     } finally {
       // Attach diagnostics on failure for easier triage.
       if (testInfo.status !== testInfo.expectedStatus) {

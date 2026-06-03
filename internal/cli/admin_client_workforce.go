@@ -27,24 +27,16 @@ type WorkerDTO struct {
 	LastHeartbeatAt string   `json:"last_heartbeat_at,omitempty"`
 }
 
-// ProposalDTO mirrors admin api proposalMap.
-type ProposalDTO struct {
-	ProposalID         string `json:"proposal_id"`
-	WorkerID           string `json:"worker_id"`
-	Status             string `json:"status"`
-	CandidatePath      string `json:"candidate_path"`
-	SuggestedProjectID string `json:"suggested_project_id"`
-	Version            int    `json:"version"`
-}
-
-// ProjectDTO mirrors admin api projectMap (v2.5.5 shape).
+// ProjectDTO mirrors admin api projectMap. v2.7 #131 PR-3: repointed to the
+// pm.Project model — tags dropped (pm.Project has none), organization_id
+// surfaced.
 type ProjectDTO struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-	Version     int      `json:"version"`
-	CreatedAt   string   `json:"created_at"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	OrganizationID string `json:"organization_id"`
+	Version        int    `json:"version"`
+	CreatedAt      string `json:"created_at"`
 }
 
 // AgentInstanceDTO mirrors admin api agentInstanceMap.
@@ -79,77 +71,10 @@ type WorkerEnrollResponse struct {
 	Version  int    `json:"version"`
 }
 
-// ProposalProposeRequest mirrors the api proposeReq.
-type ProposalProposeRequest struct {
-	WorkerID           string `json:"worker_id"`
-	CandidatePath      string `json:"candidate_path"`
-	SuggestedProjectID string `json:"suggested_project_id"`
-}
-
-// ProposalProposeResponse mirrors the projection emitted on success.
-type ProposalProposeResponse struct {
-	ProposalID    string `json:"proposal_id"`
-	EventID       string `json:"event_id"`
-	AlreadyExists bool   `json:"already_exists"`
-}
-
-// ProposalAcceptRequest mirrors the api proposalAcceptReq.
-type ProposalAcceptRequest struct {
-	ProposalID          string `json:"proposal_id"`
-	OverrideProjectID   string `json:"override_project_id"`
-	OverrideProjectName string `json:"override_project_name"`
-}
-
-// ProposalAcceptResponse mirrors the api success projection.
-type ProposalAcceptResponse struct {
-	ProposalID     string   `json:"proposal_id"`
-	MappingID      string   `json:"mapping_id"`
-	ProjectID      string   `json:"project_id"`
-	ProjectCreated bool     `json:"project_created"`
-	EventIDs       []string `json:"event_ids"`
-}
-
-// ProposalIgnoreRequest mirrors api proposalIgnoreReq.
-type ProposalIgnoreRequest struct {
-	ProposalID string `json:"proposal_id"`
-}
-
 // EventIDResponse is the generic single-event-id success shape used by
 // many admin write endpoints (`{"event_id": "..."}`).
 type EventIDResponse struct {
 	EventID string `json:"event_id"`
-}
-
-// ProjectAddRequest mirrors api projectAddReq (v2.5.5 shape — no
-// kind / default_agent_cli). The ID field is normally empty so the
-// server generates a `proj-<8hex>` id; CLI scripts that pin a specific
-// id can supply it via the positional `project add <id>` arg.
-type ProjectAddRequest struct {
-	ID          string   `json:"id,omitempty"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
-}
-
-// ProjectMutateResponse is the response shape for add/update (both return
-// the project + an event id).
-type ProjectMutateResponse struct {
-	Project  ProjectDTO `json:"project"`
-	EventID  string     `json:"event_id"`
-}
-
-// ProjectUpdateRequest mirrors api projectUpdateReq.
-type ProjectUpdateRequest struct {
-	ID          string    `json:"id"`
-	Version     int       `json:"version"`
-	Name        *string   `json:"name,omitempty"`
-	Description *string   `json:"description,omitempty"`
-	Tags        *[]string `json:"tags,omitempty"`
-}
-
-// ProjectRemoveRequest mirrors api projectRemoveReq.
-type ProjectRemoveRequest struct {
-	ID string `json:"id"`
 }
 
 // AgentCreateRequest mirrors api agentCreateReq.
@@ -211,60 +136,6 @@ func (c *Client) WorkerFindByStatus(ctx context.Context, status string) ([]Worke
 }
 
 // =============================================================================
-// Proposals — Propose / Accept / Ignore / Unignore + reads
-// =============================================================================
-
-// ProposalPropose POSTs /admin/workforce/proposal/propose.
-func (c *Client) ProposalPropose(ctx context.Context, req ProposalProposeRequest) (ProposalProposeResponse, error) {
-	var res ProposalProposeResponse
-	err := c.postJSON(ctx, "/admin/workforce/proposal/propose", req, &res)
-	return res, err
-}
-
-// ProposalAccept POSTs /admin/workforce/proposal/accept.
-func (c *Client) ProposalAccept(ctx context.Context, req ProposalAcceptRequest) (ProposalAcceptResponse, error) {
-	var res ProposalAcceptResponse
-	err := c.postJSON(ctx, "/admin/workforce/proposal/accept", req, &res)
-	return res, err
-}
-
-// ProposalIgnore POSTs /admin/workforce/proposal/ignore.
-func (c *Client) ProposalIgnore(ctx context.Context, req ProposalIgnoreRequest) (EventIDResponse, error) {
-	var res EventIDResponse
-	err := c.postJSON(ctx, "/admin/workforce/proposal/ignore", req, &res)
-	return res, err
-}
-
-// ProposalUnignore POSTs /admin/workforce/proposal/unignore.
-func (c *Client) ProposalUnignore(ctx context.Context, req ProposalIgnoreRequest) (EventIDResponse, error) {
-	var res EventIDResponse
-	err := c.postJSON(ctx, "/admin/workforce/proposal/unignore", req, &res)
-	return res, err
-}
-
-// ProposalFindByID GETs /admin/workforce/proposal/find-by-id?id=…
-func (c *Client) ProposalFindByID(ctx context.Context, id string) (ProposalDTO, error) {
-	var out ProposalDTO
-	err := c.getJSON(ctx, "/admin/workforce/proposal/find-by-id"+buildQuery("id", id), &out)
-	return out, err
-}
-
-// ProposalFindByWorkerID GETs /admin/workforce/proposal/find-by-worker-id?worker_id=…&status=…
-func (c *Client) ProposalFindByWorkerID(ctx context.Context, workerID, status string) ([]ProposalDTO, error) {
-	var out []ProposalDTO
-	err := c.getJSON(ctx, "/admin/workforce/proposal/find-by-worker-id"+
-		buildQuery("worker_id", workerID, "status", status), &out)
-	return out, err
-}
-
-// ProposalFindPending GETs /admin/workforce/proposal/find-pending.
-func (c *Client) ProposalFindPending(ctx context.Context) ([]ProposalDTO, error) {
-	var out []ProposalDTO
-	err := c.getJSON(ctx, "/admin/workforce/proposal/find-pending", &out)
-	return out, err
-}
-
-// =============================================================================
 // AgentInstance — Create / Archive + reads
 // =============================================================================
 
@@ -305,29 +176,10 @@ func (c *Client) AgentInstanceFindByName(ctx context.Context, name string) (Agen
 }
 
 // =============================================================================
-// Project — Add / Remove / Update + reads
+// Project — reads (find-all / find-by-id). The write routes (add / remove /
+// update) were retired with the workforce project-write surface; only the
+// repointed (PR-3) read methods remain.
 // =============================================================================
-
-// ProjectAdd POSTs /admin/workforce/project/add.
-func (c *Client) ProjectAdd(ctx context.Context, req ProjectAddRequest) (ProjectMutateResponse, error) {
-	var res ProjectMutateResponse
-	err := c.postJSON(ctx, "/admin/workforce/project/add", req, &res)
-	return res, err
-}
-
-// ProjectRemove POSTs /admin/workforce/project/remove.
-func (c *Client) ProjectRemove(ctx context.Context, req ProjectRemoveRequest) (EventIDResponse, error) {
-	var res EventIDResponse
-	err := c.postJSON(ctx, "/admin/workforce/project/remove", req, &res)
-	return res, err
-}
-
-// ProjectUpdate POSTs /admin/workforce/project/update.
-func (c *Client) ProjectUpdate(ctx context.Context, req ProjectUpdateRequest) (ProjectMutateResponse, error) {
-	var res ProjectMutateResponse
-	err := c.postJSON(ctx, "/admin/workforce/project/update", req, &res)
-	return res, err
-}
 
 // ProjectFindAll GETs /admin/workforce/project/find-all. v2.5.5 dropped
 // the by-kind filter; the param is kept on the signature for callers

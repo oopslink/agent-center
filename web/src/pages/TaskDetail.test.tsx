@@ -17,172 +17,256 @@ function wrap(path: string) {
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/tasks/:id" element={<TaskDetail />} />
+          <Route path="/projects/:projectId/tasks/:id" element={<TaskDetail />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-// v2.3-5b: route param is now the TASK_ID (TaskRuntime BC), not the
-// conversation_id. Detail page fetches the Task projection first then
-// uses its conversation_id to fetch the message thread.
+// v2.7 #186-3a: lifecycle transitions live behind the status badge, which is
+// a dropdown trigger. Open it before asserting/clicking an action item.
+async function openStatusMenu() {
+  fireEvent.click(await screen.findByTestId('task-status'));
+  await screen.findByTestId('task-status-menu');
+}
+
+// v2.7 ProjectManager BC: TaskDetail is nested under a project and is
+// driven entirely by the Task projection. The new state-machine actions
+// each POST to a sub-route and return the refreshed task.
+
+const taskAt = (status: string, extra: Record<string, unknown> = {}) => ({
+  id: 'TS-1',
+  project_id: 'proj-a',
+  title: 'rebuild docs',
+  description: 'regenerate the site',
+  status,
+  version: 1,
+  created_at: '2026-05-24T01:00:00Z',
+  updated_at: '2026-05-24T01:00:00Z',
+  ...extra,
+});
 
 describe('TaskDetail page', () => {
   afterEach(() => cleanup());
 
-  it('renders header from the Task projection + messages + trace link', async () => {
+  it('renders header + description from the Task projection', async () => {
     server.use(
-      http.get('/api/tasks/:id', ({ params }) =>
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    // Title appears in the page heading and is echoed by the #137 conversation
+    // owner banner — scope to the heading so the assertion stays unambiguous.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'rebuild docs' })).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('task-description')).toHaveTextContent('regenerate the site');
+    expect(screen.getByTestId('task-status')).toHaveTextContent('open');
+    expect(screen.getByTestId('task-project-link')).toHaveAttribute('href', '/projects/proj-a');
+    // open → Assign available behind the status dropdown.
+    await openStatusMenu();
+    expect(screen.getByTestId('task-assign-button')).toBeInTheDocument();
+  });
+
+  it('opens a transition menu from the status badge and closes it again (#186-3a)', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    const trigger = await screen.findByTestId('task-status');
+    // Closed by default — items hidden.
+    expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(screen.getByTestId('task-status-menu')).toBeInTheDocument();
+    // Toggling again closes it.
+    fireEvent.click(trigger);
+    expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
+  });
+
+  it('shows a breadcrumb with the project display name, not its ULID (#186-1/2)', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      http.get('/api/projects/proj-a', () =>
         HttpResponse.json({
-          id: String(params.id),
-          project_id: 'proj-a',
-          conversation_id: 'T-conv-1',
-          title: 'rebuild docs',
-          status: 'open',
-          priority: 'high',
-          created_at: '2026-05-24T01:00:00Z',
-        }),
-      ),
-      http.get('/api/conversations/T-conv-1', () =>
-        HttpResponse.json({
-          id: 'T-conv-1',
-          kind: 'task',
-          name: 'rebuild docs',
+          id: 'proj-a',
+          organization_id: 'O-1',
+          name: 'Alpha Project',
+          description: '',
           status: 'active',
-          participants: [
-            { identity_id: 'agent:bot-1', role: 'owner', joined_at: 'x', joined_by: 'agent:bot-1' },
-          ],
+          created_by: 'user:x',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
         }),
       ),
-      http.get('/api/conversations/T-conv-1/messages', () =>
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    const crumb = await screen.findByTestId('task-breadcrumb');
+    expect(crumb).toHaveTextContent('Tasks');
+    expect(crumb).toHaveTextContent('rebuild docs');
+    // project name (not the proj-a ULID) renders + links to the project.
+    await waitFor(() =>
+      expect(screen.getByTestId('task-breadcrumb-project')).toHaveTextContent('Alpha Project'),
+    );
+    expect(screen.getByTestId('task-breadcrumb-project')).toHaveAttribute('href', '/projects/proj-a');
+  });
+
+  it('assigns via the searchable picker — agent → agent:<member-id> ref (#186-5b)', async () => {
+    let received: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      // Picker sources agents (→ agent:<identity_member_id>) + human members.
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [{ id: 'agent-bld1', identity_member_id: 'agent-bld1', name: 'builder', worker_id: 'w-1', lifecycle: 'stopped' }],
+        }),
+      ),
+      http.get('/api/members', () =>
         HttpResponse.json([
-          {
-            id: 'M-1',
-            conversation_id: 'T-conv-1',
-            sender_identity_id: 'agent:bot-1',
-            content_kind: 'text',
-            content: 'starting work',
-            direction: 'inbound',
-            posted_at: '2026-05-24T01:00:00Z',
-          },
+          { id: 'mem-h1', organization_id: 'O-1', identity_id: 'user-h1', kind: 'user', role: 'member', status: 'joined', display_name: 'Alice' },
         ]),
       ),
+      http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
+        received = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(taskAt('assigned', { assignee: 'agent:agent-bld1' }));
+      }),
     );
-    wrap('/tasks/TS-1');
-    await waitFor(() => expect(screen.getByText('starting work')).toBeInTheDocument());
-    expect(screen.getByText('rebuild docs')).toBeInTheDocument();
-    expect(screen.getByTestId('task-view-trace')).toHaveAttribute('href', '/tasks/TS-1/trace');
-    expect(screen.getByTestId('task-project-link')).toHaveAttribute(
-      'href',
-      '/projects/proj-a',
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    fireEvent.click(screen.getByTestId('task-assign-button'));
+    // Candidates load (agent + human); filter then pick the agent.
+    await waitFor(() => expect(screen.getAllByTestId('task-assign-candidate').length).toBeGreaterThan(0));
+    fireEvent.change(screen.getByTestId('task-assign-search'), { target: { value: 'builder' } });
+    const agentCandidate = await screen.findByTestId('task-assign-candidate');
+    expect(agentCandidate).toHaveAttribute('data-assignee-ref', 'agent:agent-bld1');
+    await act(async () => {
+      fireEvent.click(agentCandidate);
+    });
+    await waitFor(() => expect(received).toMatchObject({ assignee: 'agent:agent-bld1' }));
+  });
+
+  it('can assign a human (PM tracking) → user:<identity_id> ref (#186-5a)', async () => {
+    let received: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-h1', organization_id: 'O-1', identity_id: 'user-h1', kind: 'user', role: 'member', status: 'joined', display_name: 'Alice' },
+        ]),
+      ),
+      http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
+        received = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(taskAt('assigned', { assignee: 'user:user-h1' }));
+      }),
     );
-    expect(screen.getByTestId('message-composer')).toBeInTheDocument();
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    fireEvent.click(screen.getByTestId('task-assign-button'));
+    const human = await screen.findByTestId('task-assign-candidate');
+    expect(human).toHaveAttribute('data-assignee-ref', 'user:user-h1');
+    expect(human).toHaveAttribute('data-kind', 'human');
+    await act(async () => {
+      fireEvent.click(human);
+    });
+    await waitFor(() => expect(received).toMatchObject({ assignee: 'user:user-h1' }));
+  });
+
+  it('shows running actions (block + complete) and posts complete', async () => {
+    let completed = false;
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),
+      http.post('/api/projects/proj-a/tasks/TS-1/complete', () => {
+        completed = true;
+        return HttpResponse.json(taskAt('completed', { completed_by: 'agent:builder' }));
+      }),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    expect(screen.getByTestId('task-block-button')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('task-complete-button'));
+    await waitFor(() => expect(completed).toBe(true));
+  });
+
+  it('requires a reason when blocking', async () => {
+    let received: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),
+      http.post('/api/projects/proj-a/tasks/TS-1/block', async ({ request }) => {
+        received = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(taskAt('blocked', { blocked_reason: 'waiting on infra' }));
+      }),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    fireEvent.click(screen.getByTestId('task-block-button'));
+    // submit disabled until reason filled
+    expect((screen.getByTestId('task-block-submit') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByTestId('task-block-input'), {
+      target: { value: 'waiting on infra' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('task-block-submit'));
+    });
+    await waitFor(() => expect(received).toMatchObject({ reason: 'waiting on infra' }));
+  });
+
+  it('completed tasks expose Verify + Reopen, not Cancel', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('completed'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    expect(screen.getByTestId('task-verify-button')).toBeInTheDocument();
+    // completed → {verified, reopened}: no cancel edge.
+    expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+  });
+
+  it('verified tasks expose only Reopen', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('verified'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+  });
+
+  it('assigned tasks expose Start + Unassign', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('assigned'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await openStatusMenu();
+    expect(screen.getByTestId('task-start-button')).toBeInTheDocument();
+    expect(screen.getByTestId('task-unassign-button')).toBeInTheDocument();
+  });
+
+  it('canceled tasks hide all lifecycle actions — status badge is not a menu', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('canceled'))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await waitFor(() => expect(screen.getByTestId('task-status')).toHaveTextContent('canceled'));
+    // No transitions available → clicking the badge opens nothing.
+    fireEvent.click(screen.getByTestId('task-status'));
+    expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-reopen-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
   });
 
   it('surfaces task lookup error', async () => {
     server.use(
-      http.get('/api/tasks/:id', () =>
+      http.get('/api/projects/proj-a/tasks/:id', () =>
         HttpResponse.json({ error: 'not_found', message: 'no such task' }, { status: 404 }),
       ),
     );
-    wrap('/tasks/missing');
+    wrap('/projects/proj-a/tasks/missing');
     await waitFor(() =>
       expect(screen.getByTestId('task-not-found')).toHaveTextContent(/no such task/),
     );
-  });
-
-  // v2.5.16 (#69): legacy tasks created without a bound Conversation
-  // showed only metadata + action buttons — no message panel, no
-  // composer. TaskDetail now surfaces an explicit empty-state with a
-  // "Start discussion" CTA wired to POST /api/tasks/{id}/bind-conversation
-  // (auto mode). After binding the task projection refresh re-renders
-  // the message panel.
-  it('offers Start discussion CTA when the task has no conversation', async () => {
-    let bound = false;
-    server.use(
-      http.get('/api/tasks/:id', ({ params }) =>
-        HttpResponse.json({
-          id: String(params.id),
-          project_id: 'proj-a',
-          conversation_id: bound ? 'T-new-conv' : '',
-          title: 'feat abc',
-          status: 'open',
-          priority: 'medium',
-          created_at: '2026-05-24T01:00:00Z',
-        }),
-      ),
-      http.post('/api/tasks/:id/bind-conversation', () => {
-        bound = true;
-        return HttpResponse.json({
-          task_id: 'TS-legacy',
-          conversation_id: 'T-new-conv',
-        });
-      }),
-      http.get('/api/conversations/T-new-conv', () =>
-        HttpResponse.json({
-          id: 'T-new-conv',
-          kind: 'task',
-          name: 'feat abc',
-          status: 'active',
-          participants: [],
-        }),
-      ),
-      http.get('/api/conversations/T-new-conv/messages', () =>
-        HttpResponse.json([]),
-      ),
-    );
-    wrap('/tasks/TS-legacy');
-    // Empty-state CTA visible until the task gets a conversation.
-    await waitFor(() =>
-      expect(screen.getByTestId('task-no-conversation')).toBeInTheDocument(),
-    );
-    expect(screen.queryByTestId('message-composer')).not.toBeInTheDocument();
-    const cta = screen.getByTestId('task-start-discussion');
-    await act(async () => {
-      fireEvent.click(cta);
-    });
-    // After bind, the projection invalidation refreshes the task with
-    // a conversation_id; the message composer + list now render.
-    await waitFor(() =>
-      expect(screen.getByTestId('message-composer')).toBeInTheDocument(),
-    );
-    expect(screen.queryByTestId('task-no-conversation')).not.toBeInTheDocument();
-  });
-
-  it('renders the priority chip and exercises the select-mode toggle', async () => {
-    server.use(
-      http.get('/api/tasks/:id', ({ params }) =>
-        HttpResponse.json({
-          id: String(params.id),
-          project_id: 'proj-a',
-          conversation_id: 'T-conv-2',
-          title: 'investigate auth',
-          status: 'open',
-          priority: 'low',
-          created_at: '2026-05-24T01:00:00Z',
-          current_execution_id: 'E-7',
-        }),
-      ),
-      http.get('/api/conversations/T-conv-2', () =>
-        HttpResponse.json({
-          id: 'T-conv-2',
-          kind: 'task',
-          name: 'investigate auth',
-          status: 'active',
-          participants: [
-            { identity_id: 'agent:bot-1', role: 'owner', joined_at: 'x', joined_by: 'agent:bot-1' },
-          ],
-        }),
-      ),
-      http.get('/api/conversations/T-conv-2/messages', () => HttpResponse.json([])),
-    );
-    wrap('/tasks/TS-2');
-    await waitFor(() => expect(screen.getByText('investigate auth')).toBeInTheDocument());
-    expect(screen.getByText(/exec · E-7/)).toBeInTheDocument();
-    expect(screen.getByText('low')).toBeInTheDocument();
-    const toggle = screen.getByTestId('select-mode-toggle');
-    fireEvent.click(toggle);
-    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
   });
 });

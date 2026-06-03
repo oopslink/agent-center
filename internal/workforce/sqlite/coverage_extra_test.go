@@ -208,13 +208,6 @@ func TestAgentInstanceRepo_ExecutorFromCtx_ClosedDB(t *testing.T) {
 		workforce.AgentInstanceArchivedReasonManual, "msg", 1); err == nil {
 		t.Fatal()
 	}
-	if _, err := repo.CountActiveExecutions(context.Background(), "01HA"); err == nil {
-		t.Fatal()
-	}
-	if _, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1",
-		workforce.AgentInstanceIdle, workforce.AgentInstanceSleeping); err == nil {
-		t.Fatal()
-	}
 }
 
 // =============================================================================
@@ -611,19 +604,6 @@ func TestAgentInstanceRepo_UpdateState_InvalidStateEnum(t *testing.T) {
 	}
 }
 
-func TestAgentInstanceRepo_BulkUpdate_InvalidStateEnum(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewAgentInstanceRepo(db)
-	if _, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1",
-		workforce.AgentInstanceState("bogus"), workforce.AgentInstanceSleeping); err == nil {
-		t.Fatal()
-	}
-	if _, err := repo.BulkUpdateStateByWorker(context.Background(), "W-1",
-		workforce.AgentInstanceIdle, workforce.AgentInstanceState("bogus")); err == nil {
-		t.Fatal()
-	}
-}
-
 // AgentInstanceRepo.Archive — invalid (built-in) at runtime check path
 // (currently only AR-level Archive method tests this; repo Archive sql guard
 // returns ErrAgentInstanceIsBuiltin from the diagnose branch).
@@ -664,142 +644,6 @@ func TestAgentInstanceRepo_Save_PKConflict(t *testing.T) {
 	err := repo.Save(context.Background(), newAI(t, "01HA", "second", "W-2"))
 	if !errors.Is(err, workforce.ErrAgentInstanceAlreadyExists) {
 		t.Fatalf("expected already exists, got %v", err)
-	}
-}
-
-// CountActiveExecutions error: closed DB exercised; also test the SQL returns
-// a count for the right WHERE clause (covered indirectly; ensure non-zero
-// branch works by inserting a task_executions row).
-func TestAgentInstanceRepo_CountActiveExecutions_NonZero(t *testing.T) {
-	db := openTestDB(t)
-	repo := NewAgentInstanceRepo(db)
-	_ = repo.Save(context.Background(), newAI(t, "01HA", "ai", "W-1"))
-	// Insert a task_executions row referencing this agent_instance_id.
-	_, err := db.ExecContext(context.Background(), `INSERT INTO task_executions
-		(id, task_id, worker_id, agent_cli, workspace_mode, priority, status,
-		 dispatch_state, started_at, created_at, updated_at, agent_instance_id)
-		VALUES ('01HE-1', 'T-1', 'W-1', 'claude-code', 'worktree', 'medium',
-		        'working', 'acked', '2026-05-22T00:00:00Z',
-		        '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', '01HA')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := repo.CountActiveExecutions(context.Background(), "01HA")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c != 1 {
-		t.Fatalf("count: %d", c)
-	}
-}
-
-// =============================================================================
-// v1 baseline scan-bad-timestamp coverage (mapping_repo / project_repo /
-// proposal_repo scanMapping/scanProject/scanProposal helpers).
-// =============================================================================
-
-func TestMappingRepo_Scan_BadAddedAt(t *testing.T) {
-	db := openTestDB(t)
-	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_mappings
-		(id, worker_id, project_id, base_path, status, added_at, created_at, updated_at, version)
-		VALUES ('M-BAD', 'W-1', 'p-1', '/x', 'active', 'not-a-time',
-		        '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', 1)`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewMappingRepo(db)
-	if _, err := repo.FindByID(context.Background(), "M-BAD"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestMappingRepo_Scan_BadCreatedAt(t *testing.T) {
-	db := openTestDB(t)
-	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_mappings
-		(id, worker_id, project_id, base_path, status, added_at, created_at, updated_at, version)
-		VALUES ('M-BC', 'W-1', 'p-1', '/x', 'active', '2026-05-22T00:00:00Z',
-		        'not-a-time', '2026-05-22T00:00:00Z', 1)`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewMappingRepo(db)
-	if _, err := repo.FindByID(context.Background(), "M-BC"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestMappingRepo_Scan_BadUpdatedAt(t *testing.T) {
-	db := openTestDB(t)
-	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_mappings
-		(id, worker_id, project_id, base_path, status, added_at, created_at, updated_at, version)
-		VALUES ('M-BU', 'W-1', 'p-1', '/x', 'active', '2026-05-22T00:00:00Z',
-		        '2026-05-22T00:00:00Z', 'not-a-time', 1)`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewMappingRepo(db)
-	if _, err := repo.FindByID(context.Background(), "M-BU"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestProjectRepo_Scan_BadCreatedAt(t *testing.T) {
-	db := openTestDB(t)
-	_, err := db.ExecContext(context.Background(), `INSERT INTO projects
-		(id, name, created_at, updated_at, created_by_identity_id)
-		VALUES ('p-BC', 'P', 'not-a-time', '2026-05-22T00:00:00Z', 'user:hayang')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewProjectRepo(db)
-	if _, err := repo.FindByID(context.Background(), "p-BC"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestProjectRepo_Scan_BadUpdatedAt(t *testing.T) {
-	db := openTestDB(t)
-	_, err := db.ExecContext(context.Background(), `INSERT INTO projects
-		(id, name, created_at, updated_at, created_by_identity_id)
-		VALUES ('p-BU', 'P', '2026-05-22T00:00:00Z', 'not-a-time', 'user:hayang')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewProjectRepo(db)
-	if _, err := repo.FindByID(context.Background(), "p-BU"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestProposalRepo_Scan_BadCreatedAt(t *testing.T) {
-	db := openTestDB(t)
-	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_proposals
-		(id, worker_id, candidate_path, suggested_project_id, status,
-		 proposed_at, created_at, updated_at, version)
-		VALUES ('PR-BC', 'W-1', '/x', 'p', 'pending',
-		        '2026-05-22T00:00:00Z', 'not-a-time', '2026-05-22T00:00:00Z', 1)`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewProposalRepo(db)
-	if _, err := repo.FindByID(context.Background(), "PR-BC"); err == nil {
-		t.Fatal()
-	}
-}
-
-func TestProposalRepo_Scan_BadProposedAt(t *testing.T) {
-	db := openTestDB(t)
-	_, err := db.ExecContext(context.Background(), `INSERT INTO worker_project_proposals
-		(id, worker_id, candidate_path, suggested_project_id, status,
-		 proposed_at, created_at, updated_at, version)
-		VALUES ('PR-BF', 'W-1', '/x', 'p', 'pending',
-		        'not-a-time', '2026-05-22T00:00:00Z', '2026-05-22T00:00:00Z', 1)`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewProposalRepo(db)
-	if _, err := repo.FindByID(context.Background(), "PR-BF"); err == nil {
-		t.Fatal()
 	}
 }
 
