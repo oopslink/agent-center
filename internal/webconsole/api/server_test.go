@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -535,6 +536,45 @@ func TestAPI_AuthMiddleware_OnlyGuardsAPI(t *testing.T) {
 		if resp.StatusCode == http.StatusUnauthorized {
 			t.Errorf("GET %s: got 401, want public", p)
 		}
+	}
+}
+
+// v2.7 #196 / FINDING-M: an unmatched or wrong-method /api/* path must return a
+// JSON 4xx, NOT fall through to the SPA HTML catch-all. Before the fix, POST
+// /api/agents (removed in #185) and any unknown /api path returned 200 + the SPA
+// index.html, misleading programmatic clients. A non-/api path must still serve
+// the SPA.
+func TestAPI_UnmatchedAPIPath_JSON404NotSPA(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
+	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
+	defer s.Close()
+
+	// Authenticated so the request passes the /api/* auth guard and reaches routing.
+	for _, resp := range []*http.Response{
+		orgScopedPost(t, s.URL+"/api/agents", `{}`, sess),      // route removed in #185
+		orgScopedGet(t, s.URL+"/api/does-not-exist-xyz", sess), // never registered
+	} {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			t.Fatalf("unmatched /api path: got 200 (fell to SPA), want 4xx; body=%s", body)
+		}
+		if strings.HasPrefix(string(body), "SPA:") {
+			t.Fatalf("unmatched /api path served SPA body %q, want JSON API error", body)
+		}
+	}
+
+	// A non-/api path still serves the SPA (unaffected).
+	resp, err := http.Get(s.URL + "/some/client/route")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(string(body), "SPA:") {
+		t.Fatalf("non-/api path must still serve SPA, got %d %q", resp.StatusCode, body)
 	}
 }
 
