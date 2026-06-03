@@ -44,6 +44,27 @@ describe('ParticipantsPanel', () => {
     expect(screen.getAllByTestId('participant-row')).toHaveLength(2);
   });
 
+  it('renders "(deleted)" for a participant whose member no longer resolves (#192/E1)', async () => {
+    // No members resolve → a deleted-agent participant must read "(deleted)",
+    // never the raw agent: ref.
+    server.use(http.get('/api/members', () => HttpResponse.json([])));
+    const gone: Participant = {
+      identity_id: 'agent:gone-1',
+      role: 'member',
+      joined_at: '2026-05-24T00:02:00Z',
+      joined_by: 'user:hayang',
+    };
+    wrap(<ParticipantsPanel conversationId="C1" participants={[owner, gone]} />);
+    await waitFor(() => {
+      const goneEl = screen
+        .getAllByTestId('participant-name')
+        .find((n) => n.getAttribute('data-entity-id') === 'agent:gone-1');
+      expect(goneEl).toBeDefined();
+      expect(goneEl).toHaveTextContent('(deleted)');
+      expect(goneEl).toHaveAttribute('data-deleted', 'true');
+    });
+  });
+
   it('hides Invite button + remove buttons when caller is not the owner', () => {
     useAppStore.setState({ currentUserId: 'user:someone-else' });
     wrap(<ParticipantsPanel conversationId="C1" participants={[owner, member]} />);
