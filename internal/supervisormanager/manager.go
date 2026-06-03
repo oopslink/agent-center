@@ -183,7 +183,10 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 	if timeout <= 0 {
 		timeout = defaultComeUpTimeout
 	}
-	sockPath := filepath.Join(cfg.HomeDir, agentsupervisor.DefaultSocketName)
+	// v2.7 #178: the supervisor now binds a short temp-dir socket (deterministic
+	// from agent-id) instead of one under the deep agent home that overflowed
+	// macOS's 104B sun_path limit. Both sides derive it via the same helper.
+	sockPath := agentsupervisor.SockPath(cfg.AgentID)
 
 	ref, err := waitComeUp(ctx, cfg.AgentID, cfg.HomeDir, sockPath, timeout)
 	if err != nil {
@@ -321,6 +324,11 @@ type ProbeResult struct {
 
 	// NegotiatedVersion is set on Reattachable (min of ours/remote).
 	NegotiatedVersion int
+
+	// SockPath is the resolved socket path the probe connected on (v2.7 #178);
+	// RefFromProbe carries it onto the SupervisorRef so stop/reap target the
+	// same path rather than recomputing.
+	SockPath string
 }
 
 // instanceRecord mirrors the supervisor.instance document written by s1
@@ -331,7 +339,19 @@ type instanceRecord struct {
 	AgentID       string `json:"agent_id"`
 	SupervisorPID int    `json:"supervisor_pid"`
 	ChildPID      int    `json:"child_pid"`
-	StartedAt     string `json:"started_at"` // RFC3339Nano
+	StartedAt     string `json:"started_at"`          // RFC3339Nano
+	SockPath      string `json:"sock_path,omitempty"` // v2.7 #178: live socket (outside HomeDir)
+}
+
+// sockPathFor resolves a supervisor's socket path from its instance record:
+// prefer the recorded sock_path (robust across $TMPDIR contexts / restarts),
+// falling back to the deterministic helper for pre-#178 records that lack the
+// field. v2.7 #178.
+func sockPathFor(rec instanceRecord) string {
+	if rec.SockPath != "" {
+		return rec.SockPath
+	}
+	return agentsupervisor.SockPath(rec.AgentID)
 }
 
 // readInstance reads + decodes <home>/supervisor.instance. A missing/unreadable
@@ -370,7 +390,7 @@ func ProbeAgent(ctx context.Context, home string) (ProbeResult, error) {
 		return ProbeResult{State: Unavailable, Reason: ReasonMissing}, nil
 	}
 
-	sockPath := filepath.Join(home, agentsupervisor.DefaultSocketName)
+	sockPath := sockPathFor(rec) // v2.7 #178: prefer recorded sock_path, fallback helper
 	dialCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	client, err := agentsupervisor.Connect(dialCtx, sockPath)
 	cancel()
@@ -408,6 +428,7 @@ func ProbeAgent(ctx context.Context, home string) (ProbeResult, error) {
 		Client:            client,
 		Hello:             hello,
 		NegotiatedVersion: negotiate(hello.ProtocolVersion),
+		SockPath:          sockPath,
 	}, nil
 }
 
@@ -420,7 +441,7 @@ func RefFromProbe(home string, pr ProbeResult) *SupervisorRef {
 	return &SupervisorRef{
 		AgentID:           pr.Hello.AgentID,
 		HomeDir:           home,
-		SockPath:          filepath.Join(home, agentsupervisor.DefaultSocketName),
+		SockPath:          pr.SockPath, // v2.7 #178: the path the probe connected on
 		InstanceID:        pr.Hello.InstanceID,
 		ChildPID:          pr.Hello.ChildPID,
 		NegotiatedVersion: pr.NegotiatedVersion,

@@ -69,6 +69,13 @@ type Config struct {
 	// daemon resolves it via agent_controller.agentPaths; tests pass a tempdir.
 	HomeDir string
 
+	// SockPath is the unix socket the supervisor serves on. v2.7 #178: it lives
+	// OUTSIDE HomeDir (under the OS temp dir, see agentsupervisor.SockPath) so it
+	// stays under macOS's 104-byte sun_path limit. Recorded into
+	// supervisor.instance so a returning daemon can re-attach. Empty = derive via
+	// SockPath(AgentID) at use (defensive fallback).
+	SockPath string
+
 	// ChildCmd is the FULL argv of the child to launch: [binary, args...]. In
 	// production this is the claude streaming argv assembled via
 	// claudestream.BuildStreamingArgv (binary + flags + --session-id +

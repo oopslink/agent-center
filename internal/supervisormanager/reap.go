@@ -106,6 +106,9 @@ func ReapResidual(home string) error {
 
 	// Remove the now-stale socket + instance file so a stale ProbeAgent cannot
 	// false-positive on them before the relaunch writes fresh ones. Best-effort.
+	// v2.7 #178: the live socket lives outside the home (sockPathFor); also clean
+	// any legacy pre-#178 socket that used to sit under the home.
+	_ = os.Remove(sockPathFor(rec))
 	_ = os.Remove(filepath.Join(home, agentsupervisor.DefaultSocketName))
 
 	if len(killErrs) > 0 {

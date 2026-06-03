@@ -90,6 +90,7 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	sup, err := agentsupervisor.New(agentsupervisor.Config{
 		AgentID:      agentID,
 		HomeDir:      homeDir,
+		SockPath:     agentsupervisor.SockPath(agentID),
 		ChildCmd:     childCmd,
 		WorkspaceDir: strings.TrimSpace(workspaceDir),
 		Logger: func(msg string) {
@@ -124,7 +125,11 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	// NOT bring down the survival core (s1 behavior stays intact).
 	serveCtx, cancelServe := context.WithCancel(ctx)
 	defer cancelServe()
-	sockPath := filepath.Join(homeDir, agentsupervisor.DefaultSocketName)
+	// v2.7 #178: serve on the short temp-dir socket (not under the deeply-nested
+	// agent home, which overflowed macOS's 104B sun_path limit). Best-effort
+	// clean a stale pre-#178 socket left in the home on upgrade.
+	sockPath := agentsupervisor.SockPath(agentID)
+	_ = os.Remove(filepath.Join(homeDir, agentsupervisor.DefaultSocketName))
 	go func() {
 		if err := sup.Serve(serveCtx, sockPath); err != nil {
 			fmt.Fprintf(errw, "[agent-supervisor] serve: %v\n", err)
