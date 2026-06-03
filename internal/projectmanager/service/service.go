@@ -184,6 +184,16 @@ func sortedKeys(set map[string]struct{}) []string {
 // member of the project to write in it. ErrNotMember on failure.
 var ErrNotMember = errors.New("projectmanager: actor is not a member of this project")
 
+// v2.7 #207/#208 (RemoveProjectMember): owner-only authz + owner-protection.
+var (
+	// ErrNotOwner is returned when a non-owner member attempts an owner-only
+	// action (e.g. removing a project member). Maps to 403.
+	ErrNotOwner = errors.New("projectmanager: actor must be a project owner")
+	// ErrCannotRemoveOwner blocks removing an owner member so a project always
+	// retains an owner. Maps to 409.
+	ErrCannotRemoveOwner = errors.New("projectmanager: cannot remove an owner member")
+)
+
 func (s *Service) requireProjectMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef) error {
 	if _, err := s.members.FindByProjectAndIdentity(ctx, projectID, actor); err != nil {
 		if errors.Is(err, pm.ErrMemberNotFound) {

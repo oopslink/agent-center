@@ -184,6 +184,73 @@ func TestPM_FlatProjectLifecycle(t *testing.T) {
 	}
 }
 
+// TestPM_RemoveProjectMember covers DELETE /api/projects/{id}/members/{identity_id}
+// (v2.7 #207/#208): add a member, remove it (with the %3A-encoded identity ref to
+// prove the ServeMux wildcard decode round-trips the colon, matching the
+// frontend's encodeURIComponent), then the owner-protection (409) + not-member
+// (404) error paths.
+func TestPM_RemoveProjectMember(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+	pid, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "Acme", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := s.URL + "/api/projects/" + string(pid)
+
+	// Add a plain member via HTTP.
+	if resp := orgScopedPost(t, base+"/members", `{"identity_id":"user:bob","role":"member"}`, sess); resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("add member status=%d body=%s", resp.StatusCode, b)
+	}
+
+	// Remove it — identity_id sent %3A-encoded (encodeURIComponent style).
+	if resp := orgScopedDelete(t, base+"/members/user%3Abob", sess); resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("remove member status=%d body=%s", resp.StatusCode, b)
+	}
+	// Gone: list returns only the owner.
+	resp := orgScopedGet(t, base+"/members", sess)
+	var listed struct {
+		Members []map[string]any `json:"members"`
+	}
+	json.NewDecoder(resp.Body).Decode(&listed)
+	if len(listed.Members) != 1 || listed.Members[0]["identity_id"] != string(caller) {
+		t.Fatalf("after remove, want only owner, got %+v", listed.Members)
+	}
+
+	// Owner cannot be removed → 409 cannot_remove_owner (code the UI keys on).
+	if resp := orgScopedDelete(t, base+"/members/user%3A"+sess.IdentityID, sess); resp.StatusCode != 409 {
+		t.Fatalf("remove owner → want 409, got %d", resp.StatusCode)
+	} else if code := errorCode(t, resp.Body); code != "cannot_remove_owner" {
+		t.Fatalf("remove owner → want code cannot_remove_owner, got %q", code)
+	}
+	// Non-member target → 404 not_member (code the UI keys on).
+	if resp := orgScopedDelete(t, base+"/members/user%3Aghost", sess); resp.StatusCode != 404 {
+		t.Fatalf("remove non-member → want 404, got %d", resp.StatusCode)
+	} else if code := errorCode(t, resp.Body); code != "not_member" {
+		t.Fatalf("remove non-member → want code not_member, got %q", code)
+	}
+}
+
+// errorCode decodes the {"error":"<code>","message":...} body writeError emits
+// and returns the error code string ("" if absent).
+func errorCode(t *testing.T, body io.Reader) string {
+	t.Helper()
+	var m map[string]any
+	if err := json.NewDecoder(body).Decode(&m); err != nil {
+		return ""
+	}
+	if c, ok := m["error"].(string); ok {
+		return c
+	}
+	return ""
+}
+
 // TestPM_IssueGetAndMetadataEdit exercises the B3-b prerequisite endpoints:
 // GET single issue (the new symmetric route) + PATCH metadata edit on both
 // Issue and Task (title/description, not a state transition).

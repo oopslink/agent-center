@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -89,6 +90,55 @@ func (s *Service) AddProjectMember(ctx context.Context, cmd AddProjectMemberComm
 		return "", err
 	}
 	return m.ID(), nil
+}
+
+// RemoveProjectMemberCommand removes a member from a project (v2.7 #207/#208).
+type RemoveProjectMemberCommand struct {
+	ProjectID  pm.ProjectID
+	IdentityID pm.IdentityRef
+	Actor      pm.IdentityRef
+}
+
+// RemoveProjectMember deletes the member row + emits pm.member.removed in one tx.
+// authz (PD contract): the actor must be an OWNER of the project, and an owner
+// member can NOT be removed (a project must always retain an owner). Returns
+// ErrNotOwner (actor not owner → 403), ErrCannotRemoveOwner (target is owner →
+// 409), or pm.ErrMemberNotFound (target not a member → 404).
+func (s *Service) RemoveProjectMember(ctx context.Context, cmd RemoveProjectMemberCommand) error {
+	if err := cmd.Actor.Validate(); err != nil {
+		return err
+	}
+	if err := cmd.IdentityID.Validate(); err != nil {
+		return err
+	}
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		// Owner-only gate (stricter than requireProjectMember): the actor must be
+		// a member AND hold the owner role.
+		actorM, err := s.members.FindByProjectAndIdentity(txCtx, cmd.ProjectID, cmd.Actor)
+		if err != nil {
+			if errors.Is(err, pm.ErrMemberNotFound) {
+				return ErrNotMember
+			}
+			return err
+		}
+		if actorM.Role() != pm.RoleOwner {
+			return ErrNotOwner
+		}
+		// Target must be a member; owners are protected (no ownerless project).
+		target, err := s.members.FindByProjectAndIdentity(txCtx, cmd.ProjectID, cmd.IdentityID)
+		if err != nil {
+			return err // pm.ErrMemberNotFound → 404
+		}
+		if target.Role() == pm.RoleOwner {
+			return ErrCannotRemoveOwner
+		}
+		if err := s.members.Delete(txCtx, target.ID()); err != nil {
+			return err
+		}
+		return s.emit(txCtx, EvtMemberRemoved,
+			refsJSON(map[string]string{"project_id": string(cmd.ProjectID)}),
+			map[string]string{"project_id": string(cmd.ProjectID), "identity_id": string(cmd.IdentityID)})
+	})
 }
 
 // CreateIssueCommand creates an Issue.
