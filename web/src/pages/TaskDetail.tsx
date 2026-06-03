@@ -14,6 +14,7 @@ import {
   useUnblockTask,
   useVerifyTask,
 } from '@/api/tasks';
+import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 
@@ -24,6 +25,9 @@ import { WorkItemConversation } from '@/components/WorkItemConversation';
 export default function TaskDetail(): React.ReactElement {
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const task = useTask(projectId, id);
+  // v2.7 #186-2: show the project's display name (not its ULID) in the
+  // breadcrumb + project link.
+  const project = useProject(projectId);
   const [editOpen, setEditOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
@@ -81,6 +85,26 @@ export default function TaskDetail(): React.ReactElement {
     <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
       <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
+          {/* v2.7 #186-1: breadcrumb [project name] › Tasks › [task title]. */}
+          <nav
+            className="flex flex-wrap items-center gap-1.5 text-xs text-text-muted"
+            aria-label="Breadcrumb"
+            data-testid="task-breadcrumb"
+          >
+            <OrgLink
+              to={`/projects/${encodeURIComponent(tk.project_id)}`}
+              className="hover:underline"
+              data-testid="task-breadcrumb-project"
+            >
+              {project.data?.name || tk.project_id}
+            </OrgLink>
+            <span aria-hidden="true">›</span>
+            <span>Tasks</span>
+            <span aria-hidden="true">›</span>
+            <span className="text-text-secondary" data-testid="task-breadcrumb-title">
+              {tk.title || tk.id}
+            </span>
+          </nav>
           <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
             <span
@@ -105,7 +129,7 @@ export default function TaskDetail(): React.ReactElement {
                 className="text-accent hover:underline"
                 data-testid="task-project-link"
               >
-                project · {tk.project_id}
+                project · {project.data?.name || tk.project_id}
               </OrgLink>
             )}
           </div>

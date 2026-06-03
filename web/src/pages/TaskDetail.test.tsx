@@ -60,6 +60,34 @@ describe('TaskDetail page', () => {
     expect(screen.getByTestId('task-assign-button')).toBeInTheDocument();
   });
 
+  it('shows a breadcrumb with the project display name, not its ULID (#186-1/2)', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
+      http.get('/api/projects/proj-a', () =>
+        HttpResponse.json({
+          id: 'proj-a',
+          organization_id: 'O-1',
+          name: 'Alpha Project',
+          description: '',
+          status: 'active',
+          created_by: 'user:x',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
+        }),
+      ),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    const crumb = await screen.findByTestId('task-breadcrumb');
+    expect(crumb).toHaveTextContent('Tasks');
+    expect(crumb).toHaveTextContent('rebuild docs');
+    // project name (not the proj-a ULID) renders + links to the project.
+    await waitFor(() =>
+      expect(screen.getByTestId('task-breadcrumb-project')).toHaveTextContent('Alpha Project'),
+    );
+    expect(screen.getByTestId('task-breadcrumb-project')).toHaveAttribute('href', '/projects/proj-a');
+  });
+
   it('assigns an agent via the assign modal', async () => {
     let received: Record<string, unknown> | undefined;
     server.use(
