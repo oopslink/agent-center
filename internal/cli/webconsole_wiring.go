@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
+	"github.com/oopslink/agent-center/internal/conversation"
+	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
@@ -272,6 +275,39 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		ConvRepo:  a.ConvRepo,
 		MsgRepo:   a.MsgRepo,
 		ReadState: a.ReadStateRepo,
+		// v2.7 #185 (FINDING-H): conversational wake. DisplayName resolves an
+		// identity ref → display_name for channel @mention matching; SystemNotify
+		// posts a "not running" system message when a DM/channel targets a stopped
+		// agent (visible signal, no silent black hole). Both gate the DM/channel→
+		// agent path on (control loop off → still DORMANT until cutover).
+		DisplayName: func(ctx context.Context, identityRef string) (string, bool) {
+			if a.IdentityRepo == nil {
+				return "", false
+			}
+			id := identityRef
+			if i := strings.IndexByte(id, ':'); i >= 0 {
+				id = id[i+1:] // strip the agent:/user: scheme → bare identity id
+			}
+			idn, err := a.IdentityRepo.GetByID(ctx, id)
+			if err != nil || idn == nil {
+				return "", false
+			}
+			return idn.DisplayName(), true
+		},
+		SystemNotify: func(ctx context.Context, convID, text string) error {
+			if a.MessageWriter == nil {
+				return nil
+			}
+			_, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+				ConversationID:   conversation.ConversationID(convID),
+				SenderIdentityID: conversation.IdentityRef("system"),
+				ContentKind:      conversation.MessageContentSystem,
+				Direction:        conversation.DirectionOutbound,
+				Content:          text,
+				Actor:            observability.Actor("system"),
+			})
+			return err
+		},
 	})
 	// v2.7 #111 Phase-1: the agent-work-item PROJECTOR (transition-driven /
 	// "Opt1"). It consumes agent.work_item_transitioned and fills the

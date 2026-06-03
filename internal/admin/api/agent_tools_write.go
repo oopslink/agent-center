@@ -160,6 +160,79 @@ func (s *Server) postTaskMessageHandler(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"message_id": string(msgID)})
 }
 
+// --- post_message (v2.7 #185) ------------------------------------------------
+
+type postMessageReq struct {
+	AgentID        string `json:"agent_id"`
+	ConversationID string `json:"conversation_id"`
+	Content        string `json:"content"`
+}
+
+// postMessageHandler appends a message, as the agent, to ANY conversation
+// (DM/channel/task) the agent is an ACTIVE participant of — resolved by
+// conversation_id. v2.7 #185: this is the agent's reply path for DM/channel
+// conversations (post_task_message is task-owner-scoped + requires a WorkItem;
+// this is participant-scoped, no WorkItem needed). Authz = active participant.
+func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req postMessageReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.MessageWriter == nil || d.ConvRepo == nil {
+		writeError(w, http.StatusNotImplemented, "conversation_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ConversationID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_conversation_id", "")
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		writeError(w, http.StatusBadRequest, "missing_content", "")
+		return
+	}
+	conv, err := d.ConvRepo.FindByID(r.Context(), conversation.ConversationID(req.ConversationID))
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	if !agentIsActiveParticipant(conv, a) {
+		writeError(w, http.StatusForbidden, "not_a_participant",
+			"agent is not an active participant of this conversation")
+		return
+	}
+	res, err := d.MessageWriter.AddMessage(r.Context(), convservice.AddMessageCommand{
+		ConversationID:   conv.ID(),
+		SenderIdentityID: conversation.IdentityRef(agentActor(a)),
+		ContentKind:      conversation.MessageContentText,
+		Direction:        conversation.DirectionOutbound,
+		Content:          req.Content,
+		Actor:            observability.Actor(agentActor(a)),
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"message_id": string(res.MessageID)})
+}
+
+// agentIsActiveParticipant reports whether agent a is an active (non-left)
+// participant of conv (v2.7 #185 post_message authz).
+func agentIsActiveParticipant(conv *conversation.Conversation, a *agent.Agent) bool {
+	want := conversation.IdentityRef(agentActor(a))
+	for _, p := range conv.Participants() {
+		if p.IdentityID == want && p.IsActive() {
+			return true
+		}
+	}
+	return false
+}
+
 // --- request_input -----------------------------------------------------------
 
 type requestInputReq struct {

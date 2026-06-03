@@ -26,6 +26,23 @@ import (
 // fully additive, the control loop stays DORMANT (ControlClient nil).
 const commandTypeAgentWake = "agent.wake"
 
+// commandTypeAgentConverse is the v2.7 #185 (FINDING-H) conversational-wake
+// command: a HUMAN posts a message into a DM or Channel where an agent is a
+// participant (DM: directed at the agent; Channel: @mentions the agent's
+// display_name) → the WakeProjector enqueues this onto the agent's Worker
+// control stream. The daemon AgentController injects the message into the
+// agent's running session WITHOUT a WorkItem (DM/channel have no WorkItem) and
+// advances the agent's read-state cursor. Distinct from agent.wake (which is
+// task-WorkItem-keyed). LOOP-BREAK: only HUMAN (`user:`) senders trigger it, so
+// an agent's own reply never wakes any agent.
+const commandTypeAgentConverse = "agent.converse"
+
+// userParticipantPrefix is the IdentityRef scheme for a human participant. v2.7
+// #185 wakes agents ONLY on messages from a human sender — this is the
+// structural loop-break (an agent-sender or system message never wakes an
+// agent) and the "agents reply to humans only" rule.
+const userParticipantPrefix = "user:"
+
 // EvtAgentAwaitingInput is the D2-e-ii (OQ5 method 甲) outbox event emitted by
 // the request_input admin handler IN THE SAME TX as the agent's WorkItem moving
 // active→waiting_input. The WakeProjector consumes it to flush ALL of the
@@ -74,6 +91,14 @@ type WakeProjector struct {
 	convRepo  conversation.ConversationRepository
 	msgRepo   conversation.MessageRepository
 	readState conversation.UserConversationReadStateRepository
+
+	// v2.7 #185 conversational-wake deps (nil → DM/channel→agent path is a
+	// no-op, like the other optional deps). displayName resolves an agent
+	// participant's identity_id → display_name for channel @mention matching;
+	// systemNotify posts a system message into a conversation (the
+	// "agent not running" signal when a DM/channel targets a stopped agent).
+	displayName  func(ctx context.Context, identityID string) (string, bool)
+	systemNotify func(ctx context.Context, conversationID, text string) error
 }
 
 // WakeProjectorDeps bundles the projector's dependencies.
@@ -89,6 +114,10 @@ type WakeProjectorDeps struct {
 	ConvRepo  conversation.ConversationRepository
 	MsgRepo   conversation.MessageRepository
 	ReadState conversation.UserConversationReadStateRepository
+
+	// v2.7 #185 conversational-wake deps (optional; nil → DM/channel→agent no-op).
+	DisplayName  func(ctx context.Context, identityID string) (string, bool)
+	SystemNotify func(ctx context.Context, conversationID, text string) error
 }
 
 // NewWakeProjector constructs the projector.
@@ -98,15 +127,17 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		clk = clock.SystemClock{}
 	}
 	return &WakeProjector{
-		db:         d.DB,
-		workItems:  d.WorkItems,
-		agents:     d.Agents,
-		controlLog: d.ControlLog,
-		applied:    d.Applied,
-		clock:      clk,
-		convRepo:   d.ConvRepo,
-		msgRepo:    d.MsgRepo,
-		readState:  d.ReadState,
+		db:           d.DB,
+		workItems:    d.WorkItems,
+		agents:       d.Agents,
+		controlLog:   d.ControlLog,
+		applied:      d.Applied,
+		clock:        clk,
+		convRepo:     d.ConvRepo,
+		msgRepo:      d.MsgRepo,
+		readState:    d.ReadState,
+		displayName:  d.DisplayName,
+		systemNotify: d.SystemNotify,
 	}
 }
 
@@ -136,6 +167,23 @@ type wakeCommandPayload struct {
 	WorkItemID     string `json:"work_item_id"`
 	TaskRef        string `json:"task_ref"`
 	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	MessageText    string `json:"message_text"`
+}
+
+// converseCommandPayload is the agent.converse command payload (v2.7 #185). It
+// carries everything the daemon needs to inject a DM/channel message into the
+// agent's running session and let the agent reply — WITHOUT a WorkItem. ConvKind
+// is "dm"/"channel" so the injected brief reads naturally; SenderDisplay is the
+// human's display name for the brief; ConversationID is where the agent replies
+// (via the post_message MCP tool) and the cursor to advance after inject.
+type converseCommandPayload struct {
+	AgentID        string `json:"agent_id"`
+	ConversationID string `json:"conversation_id"`
+	ConvKind       string `json:"conv_kind"`
+	ConvName       string `json:"conv_name,omitempty"`
+	SenderRef      string `json:"sender_ref"`
+	SenderDisplay  string `json:"sender_display"`
 	MessageID      string `json:"message_id"`
 	MessageText    string `json:"message_text"`
 }
@@ -177,10 +225,10 @@ func (p *WakeProjector) projectMessageAdded(ctx context.Context, e outbox.Event)
 	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
 		return err
 	}
-	// Defensive: the producer only emits for task conversations, but guard here
-	// too so a stray non-task event is a clean no-op.
+	// Task conversations → the WorkItem-keyed wake below. Everything else
+	// (DM / Channel) → the v2.7 #185 conversational-wake path.
 	if !strings.HasPrefix(pl.OwnerRef, ownerRefTasksPrefix) {
-		return nil
+		return p.projectConversationMessage(ctx, e, pl)
 	}
 	taskRef := pl.OwnerRef
 
@@ -258,6 +306,151 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 		IdempotencyKey: "agent.wake:" + wi.ID() + ":" + pl.MessageID,
 	})
 	return err
+}
+
+// projectConversationMessage is the v2.7 #185 (FINDING-H) conversational-wake
+// path: a HUMAN posts a message into a DM or Channel where an agent is a
+// participant. DM → wake the agent participant(s); Channel → wake the agent
+// participants whose display_name is @mentioned. A running agent gets an
+// agent.converse command (non-WorkItem inject); a stopped agent gets a visible
+// "not running" system message (no silent black hole). LOOP-BREAK: only a human
+// (user:) sender triggers this, so an agent's own reply never wakes any agent.
+func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox.Event, pl messageAddedPayload) error {
+	if p.controlLog == nil || p.agents == nil || p.convRepo == nil {
+		return nil // conversational-wake deps not wired → clean no-op
+	}
+	// LOOP-BREAK + human-only: only a user: sender wakes agents. An agent reply
+	// (agent:) or a system message never triggers — structurally no ping-pong.
+	if !strings.HasPrefix(pl.Sender, userParticipantPrefix) {
+		return nil
+	}
+	conv, err := p.convRepo.FindByID(ctx, conversation.ConversationID(pl.ConversationID))
+	if err != nil {
+		return nil // conversation gone/unreadable → nothing to wake (don't fail)
+	}
+	kind := conv.Kind()
+	if kind != conversation.ConversationKindDM && kind != conversation.ConversationKindChannel {
+		return nil // only DM/channel here (task handled above; other kinds ignored)
+	}
+
+	now := p.clock.Now()
+	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+		if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
+			return err
+		} else if done {
+			return nil
+		}
+		for _, part := range conv.Participants() {
+			if !part.IsActive() || !strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
+				continue
+			}
+			// Channel: only wake agents explicitly @mentioned by display_name.
+			if kind == conversation.ConversationKindChannel && !p.mentions(txCtx, string(part.IdentityID), pl.Text) {
+				continue
+			}
+			agentID := strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix)
+			if err := p.deliverConverse(txCtx, conv, agentID, pl); err != nil {
+				return err
+			}
+		}
+		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+	})
+}
+
+// mentions reports whether text @mentions the agent's display_name
+// (case-insensitive, token-bounded so @Bot ≠ @Bottom). Channel gating (#185).
+func (p *WakeProjector) mentions(ctx context.Context, agentIdentityID, text string) bool {
+	if p.displayName == nil {
+		return false
+	}
+	name, ok := p.displayName(ctx, agentIdentityID)
+	if !ok || strings.TrimSpace(name) == "" {
+		return false
+	}
+	return mentionTokenPresent(strings.ToLower(text), "@"+strings.ToLower(strings.TrimSpace(name)))
+}
+
+// mentionTokenPresent reports whether needle ("@name", lowercased) appears in
+// text (lowercased) as a bounded token: the char after the match must be end-of
+// -string or a non-word char, so "@bot" does not match "@bottom". The leading
+// "@" is itself the start boundary.
+func mentionTokenPresent(text, needle string) bool {
+	from := 0
+	for {
+		i := strings.Index(text[from:], needle)
+		if i < 0 {
+			return false
+		}
+		end := from + i + len(needle)
+		if end >= len(text) || !isMentionWordChar(text[end]) {
+			return true
+		}
+		from = from + i + 1
+	}
+}
+
+func isMentionWordChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
+}
+
+// deliverConverse enqueues an agent.converse command for a RUNNING agent, or
+// posts a visible "not running" system message for a stopped one (avoid the
+// silent black hole). Runs in the caller's tx.
+func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.Conversation, agentID string, pl messageAddedPayload) error {
+	a, err := p.agents.FindByID(ctx, agent.AgentID(agentID))
+	if err != nil {
+		slog.Warn("wake projector: agent.converse skipped (agent lookup failed)",
+			"agent_id", agentID, "conversation_id", pl.ConversationID, "err", err)
+		return nil
+	}
+	if a.Lifecycle() != agent.LifecycleRunning {
+		// Visible signal instead of silence (#185 Tester refinement).
+		if p.systemNotify != nil {
+			name, _ := p.displayNameOr(ctx, agentParticipantPrefix+agentID, agentID)
+			return p.systemNotify(ctx, pl.ConversationID,
+				"@"+name+" is not running and won't reply until it is started.")
+		}
+		return nil
+	}
+	workerID := a.WorkerID()
+	if strings.TrimSpace(workerID) == "" {
+		slog.Info("wake projector: agent.converse skipped (agent has no worker binding)",
+			"agent_id", agentID)
+		return nil
+	}
+	senderDisplay, _ := p.displayNameOr(ctx, pl.Sender, pl.Sender)
+	payload, err := json.Marshal(converseCommandPayload{
+		AgentID:        agentID,
+		ConversationID: pl.ConversationID,
+		ConvKind:       string(conv.Kind()),
+		ConvName:       conv.Name(),
+		SenderRef:      pl.Sender,
+		SenderDisplay:  senderDisplay,
+		MessageID:      pl.MessageID,
+		MessageText:    pl.Text,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(workerID),
+		CommandType:    commandTypeAgentConverse,
+		Payload:        string(payload),
+		IdempotencyKey: "agent.converse:" + pl.ConversationID + ":" + pl.MessageID + ":" + agentID,
+	})
+	return err
+}
+
+// displayNameOr resolves identityID → display_name, falling back to the given
+// string when no resolver is wired or no name is found.
+func (p *WakeProjector) displayNameOr(ctx context.Context, identityID, fallback string) (string, bool) {
+	if p.displayName == nil {
+		return fallback, false
+	}
+	if n, ok := p.displayName(ctx, identityID); ok && strings.TrimSpace(n) != "" {
+		return n, true
+	}
+	return fallback, false
 }
 
 // projectAwaitingInput is the D2-e-ii batch-flush path: when an agent ENTERS
