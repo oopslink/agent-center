@@ -9,6 +9,14 @@ type Repository interface {
 	Save(ctx context.Context, a *Agent) error
 	Update(ctx context.Context, a *Agent) error
 	FindByID(ctx context.Context, id AgentID) (*Agent, error)
+	// FindByIdentityMemberID resolves the execution Agent whose identity_member_id
+	// equals the given id ("agent-<ulid>", v2.7 #157) — the identity-member ref a
+	// conversation carries for an agent participant. Returns ErrAgentNotFound when
+	// no agent carries that identity-member binding (or id is empty). The
+	// conversational-wake projector (#185 FINDING-J) uses it to resolve a
+	// participant referenced by its identity-member id back to the worker-bound
+	// execution entity (FindByID keys on the entity id, a different value).
+	FindByIdentityMemberID(ctx context.Context, identityMemberID string) (*Agent, error)
 	// ListByOrg returns all agents in an Organization.
 	ListByOrg(ctx context.Context, orgID string) ([]*Agent, error)
 	// ListByWorker returns agents bound to a Worker (one Worker controls many

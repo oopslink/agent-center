@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
@@ -188,6 +189,19 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden", "admin cannot add owner-role agents")
 		return
 	}
+	// v2.7 business-layer policy (#185 / no-middle-state): agent provision REQUIRES
+	// worker_id — validated up front so no identity/member is provisioned for a
+	// request that can't yield a runnable agent. This is an API-LAYER implementation
+	// choice, deliberately NOT baked into the domain as a new invariant (@oopslink:
+	// don't push an implementation constraint across the model boundary). When cloud
+	// agents land (v2.8+), this check relaxes HERE (deferred-with-trigger). NOTE: the
+	// agent AR also requires a worker today (ADR-0049 §5); that pre-existing domain
+	// invariant relaxes together with this in the cloud-agent work.
+	if strings.TrimSpace(body.WorkerID) == "" {
+		writeError(w, http.StatusBadRequest, "worker_id_required",
+			"worker_id is required (v2.7: an execution agent must bind a worker)")
+		return
+	}
 
 	// v2.7 #157: unified one-step create. The agent identity + Member (identity BC)
 	// and the execution Agent (agent BC) are created in ONE outer transaction.
@@ -212,9 +226,8 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			return perr
 		}
 		member, idn = provRes.Member, provRes.Identity
-		if body.WorkerID == "" {
-			return nil // identity-member only (legacy path)
-		}
+		// worker_id is guaranteed non-empty (validated before the tx) — agent
+		// provision always creates the execution agent now (no identity-only path).
 		if d.AgentSvc == nil {
 			writeError(w, http.StatusNotImplemented, "agent_not_wired", "")
 			return errAbortHandled
@@ -251,9 +264,10 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	result := memberPublicMap(member)
 	result["display_name"] = idn.DisplayName()
-	if agentID != "" {
-		result["agent_id"] = string(agentID)
-	}
+	// v2.7 #185: the member id (result["id"], == idn.ID()) IS the business-layer
+	// agent id. The execution-entity id (agentID) is internal and must NOT be
+	// exposed; callers that need the created agent use the member id.
+	_ = agentID
 	writeJSON(w, http.StatusCreated, result)
 }
 

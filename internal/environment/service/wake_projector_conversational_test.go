@@ -60,6 +60,35 @@ func (f *wakeFixture) saveRunningAgent(t *testing.T, agentID, workerID string) {
 	}
 }
 
+// saveAgentMember persists an agent carrying an identity-member id (v2.7 #157 /
+// #185 FINDING-J) so the member-id↔entity-id bridge can be exercised. The agent's
+// execution-entity id is entityID; its identity-member id is memberID. When
+// running is true it is Start()ed (converse enqueues), else it stays Stopped
+// (system-notice path).
+func (f *wakeFixture) saveAgentMember(t *testing.T, entityID, workerID, memberID string, running bool) {
+	t.Helper()
+	a, err := agent.NewAgent(agent.NewAgentInput{
+		ID:               agent.AgentID(entityID),
+		OrganizationID:   "org-1",
+		Profile:          agent.Profile{Name: "A " + entityID},
+		WorkerID:         workerID,
+		CreatedBy:        agent.IdentityRef("user:alice"),
+		IdentityMemberID: memberID,
+		CreatedAt:        f.clk.Now(),
+	})
+	if err != nil {
+		t.Fatalf("new agent: %v", err)
+	}
+	if running {
+		if err := a.Start(f.clk.Now()); err != nil {
+			t.Fatalf("start agent: %v", err)
+		}
+	}
+	if err := f.agents.Save(f.ctx, a); err != nil {
+		t.Fatalf("save agent: %v", err)
+	}
+}
+
 // saveConv persists a DM/Channel conversation with the given participants.
 func (f *wakeFixture) saveConv(t *testing.T, convID string, kind conversation.ConversationKind, name string, participants ...conversation.ParticipantElement) {
 	t.Helper()
@@ -182,6 +211,60 @@ func TestWakeProjector_Channel_NoMention_NoWake(t *testing.T) {
 	}
 	if cmds := f.commandsFor(t, "W1"); len(cmds) != 0 {
 		t.Fatalf("un-mentioned channel message must not wake, got %d", len(cmds))
+	}
+}
+
+// --- FINDING-J: member-id participant ref ↔ entity-id bridge ----------------
+
+// A channel participant referenced by its identity-MEMBER id (the canonical
+// business ref, agent:<member-id>) must still resolve: the entity comes via the
+// member→entity bridge (FindByIdentityMemberID), the @mention name via the
+// member id, and the enqueued converse command carries the EXECUTION-ENTITY id
+// (the worker daemon keys sessions by it — entity id must not leak to users but
+// IS the internal control-stream id).
+func TestWakeProjector_Channel_Mention_MemberIDRef_EnqueuesConverse(t *testing.T) {
+	f := newWakeFixture(t)
+	// entity id "01ENTITY", member id "agent-mem1" (different values, FINDING-J).
+	f.saveAgentMember(t, "01ENTITY", "W1", "agent-mem1", true /*running*/)
+	// participant ref uses the MEMBER id (business-layer canonical).
+	f.saveConv(t, "chan-1", conversation.ConversationKindChannel, "general",
+		agentPart("agent-mem1"), userPart("bob"))
+	p := f.projWith(map[string]string{"agent:agent-mem1": "Helper"}, nil)
+
+	if err := p.Project(f.ctx, convMessageEvent("EV1", "chan-1", "m1", "user:bob", "hey @Helper look")); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 || cmds[0].CommandType() != "agent.converse" {
+		t.Fatalf("want 1 agent.converse via member-id ref, got %d", len(cmds))
+	}
+	// The control command must carry the ENTITY id, not the member id.
+	if pl := cmds[0].Payload(); !strings.Contains(pl, `"agent_id":"01ENTITY"`) {
+		t.Fatalf("converse payload must carry entity id 01ENTITY (internal), got %s", pl)
+	}
+}
+
+// FINDING-J / Rule 2: a stopped agent whose participant ref is the ENTITY id
+// must still render the display NAME in the "not running" notice (the name lives
+// on the identity member; resolving via identityMemberID avoids the raw-id leak
+// Tester saw as "@01KT…").
+func TestWakeProjector_DM_StoppedAgent_EntityRef_NoticeShowsName(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveAgentMember(t, "01ENTITY2", "W2", "agent-mem2", false /*stopped*/)
+	// participant ref uses the ENTITY id; display_name only resolves via member id.
+	f.saveConv(t, "dm-1", conversation.ConversationKindDM, "",
+		agentPart("01ENTITY2"), userPart("bob"))
+	var notes []string
+	p := f.projWith(map[string]string{"agent:agent-mem2": "AgentBeta"}, &notes)
+
+	if err := p.Project(f.ctx, convMessageEvent("EV1", "dm-1", "m1", "user:bob", "you there?")); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "AgentBeta") || !strings.Contains(notes[0], "not running") {
+		t.Fatalf("notice must show display name 'AgentBeta' (not raw entity id), got %v", notes)
+	}
+	if strings.Contains(notes[0], "01ENTITY2") {
+		t.Fatalf("notice leaked the raw entity id: %v", notes)
 	}
 }
 

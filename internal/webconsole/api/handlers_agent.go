@@ -3,12 +3,25 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/identity"
 )
+
+// agentFacingID returns the business-layer id for an agent: its identity-member
+// id ("agent-<ulid>"), the ONLY agent id that crosses the BC boundary (v2.7 #185
+// — the execution-entity ULID is internal). Falls back to the entity id only for
+// a standalone agent with no member (should not occur after no-middle-state;
+// defensive so a response never carries an empty id).
+func agentFacingID(a *agentbc.Agent) string {
+	if m := strings.TrimSpace(a.IdentityMemberID()); m != "" {
+		return m
+	}
+	return string(a.ID())
+}
 
 // v2.7 C3 Agent HTTP surface (ADR-0049). The new Agent BC is ORG-scoped (an
 // Agent belongs to an Org and can take tasks across projects — it is NOT
@@ -71,14 +84,15 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		envVars = map[string]string{}
 	}
 	m := map[string]any{
-		"id": string(a.ID()), "organization_id": a.OrganizationID(),
+		// v2.7 #185: the business-layer id is the identity-member id; the
+		// execution-entity ULID is internal and must NOT appear in API responses.
+		"id": agentFacingID(a), "organization_id": a.OrganizationID(),
 		"name": p.Name, "description": p.Description, "model": p.Model, "cli": p.CLI,
 		"env_vars": envVars, "skills": skills, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
-		// v2.7 #157: the agent identity-member this execution Agent represents
-		// (empty for standalone agents). Lets the Members page navigate an agent
-		// member → AgentDetail (member.identity_id == agent.identity_member_id).
+		// v2.7 #157: kept for back-compat (equals id now). Lets the Members page
+		// navigate an agent member → AgentDetail.
 		"identity_member_id": a.IdentityMemberID(),
 		"created_at":         a.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at":         a.UpdatedAt().Format(time.RFC3339Nano),
@@ -89,18 +103,24 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 	return m
 }
 
-func agentWorkItemMap(wi *agentbc.AgentWorkItem) map[string]any {
+// agentWorkItemMap renders a work item. agentFacingID is the business-layer id
+// of the owning agent (v2.7 #185) — the records are always for one agent, so the
+// caller passes it rather than leaking the entity wi.AgentID().
+func agentWorkItemMap(wi *agentbc.AgentWorkItem, agentFacingID string) map[string]any {
 	return map[string]any{
-		"id": wi.ID(), "agent_id": string(wi.AgentID()), "task_ref": wi.TaskRef(),
+		"id": wi.ID(), "agent_id": agentFacingID, "task_ref": wi.TaskRef(),
 		"status": string(wi.Status()), "interactions": wi.Interactions(), "version": wi.Version(),
 		"created_at": wi.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": wi.UpdatedAt().Format(time.RFC3339Nano),
 	}
 }
 
-func agentActivityMap(e *agentbc.AgentActivityEvent) map[string]any {
+// agentActivityMap renders an activity event. agentFacingID is the owning
+// agent's business-layer id (v2.7 #185), passed by the caller (single-agent
+// listing) so the entity e.AgentID() never leaks.
+func agentActivityMap(e *agentbc.AgentActivityEvent, agentFacingID string) map[string]any {
 	m := map[string]any{
-		"id": e.ID(), "agent_id": string(e.AgentID()), "event_type": e.EventType(),
+		"id": e.ID(), "agent_id": agentFacingID, "event_type": e.EventType(),
 		"payload": e.Payload(), "occurred_at": e.OccurredAt().Format(time.RFC3339Nano),
 	}
 	if r := e.WorkItemRef(); r != "" {
@@ -125,7 +145,9 @@ func (s *Server) agentRequireInOrg(w http.ResponseWriter, r *http.Request, d Han
 	if !ok {
 		return nil, "", false
 	}
-	a, err := d.AgentSvc.GetAgent(r.Context(), agentbc.AgentID(r.PathValue("id")))
+	// v2.7 #185: {id} is the business-layer member id; ResolveAgent bridges it to
+	// the execution entity (also accepts a raw entity id for back-compat).
+	a, err := d.AgentSvc.ResolveAgent(r.Context(), r.PathValue("id"))
 	if err != nil || a.OrganizationID() != orgID {
 		writeError(w, http.StatusNotFound, "not_found", "agent not found in this organization")
 		return nil, "", false
@@ -172,41 +194,10 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
 }
 
-func (s *Server) agentCreateHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	if d.AgentSvc == nil {
-		writeError(w, http.StatusNotImplemented, "agent_not_wired", "")
-		return
-	}
-	caller, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	var req struct {
-		Name        string            `json:"name"`
-		Description string            `json:"description"`
-		Model       string            `json:"model"`
-		CLI         string            `json:"cli"`
-		EnvVars     map[string]string `json:"env_vars"`
-		Skills      []string          `json:"skills"`
-		WorkerID    string            `json:"worker_id"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	id, err := d.AgentSvc.CreateAgent(r.Context(), agentsvc.CreateAgentCommand{
-		OrganizationID: orgID, Name: req.Name, Description: req.Description, Model: req.Model,
-		CLI: req.CLI, EnvVars: req.EnvVars, Skills: req.Skills, WorkerID: req.WorkerID,
-		CreatedBy: agentCallerRef(caller),
-	})
-	if err != nil {
-		mapAgentError(w, err)
-		return
-	}
-	a, _ := d.AgentSvc.GetAgent(r.Context(), id)
-	s.agentWriteJSON(w, r, d, a)
-}
+// NOTE: agentCreateHandler (POST /api/agents) was removed in v2.7 (#185 /
+// no-middle-state). Agents are created ONLY via POST /api/members/agent
+// (addAgentMemberHandler), which atomically provisions the identity member AND
+// the execution agent (#157) so every agent carries a member id.
 
 func (s *Server) agentGetHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -273,9 +264,10 @@ func (s *Server) agentWorkItemsHandler(w http.ResponseWriter, r *http.Request) {
 		mapAgentError(w, err)
 		return
 	}
+	facing := agentFacingID(a)
 	out := make([]map[string]any, 0, len(items))
 	for _, wi := range items {
-		out = append(out, agentWorkItemMap(wi))
+		out = append(out, agentWorkItemMap(wi, facing))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"work_items": out})
 }
@@ -291,9 +283,10 @@ func (s *Server) agentActivityHandler(w http.ResponseWriter, r *http.Request) {
 		mapAgentError(w, err)
 		return
 	}
+	facing := agentFacingID(a)
 	out := make([]map[string]any, 0, len(events))
 	for _, e := range events {
-		out = append(out, agentActivityMap(e))
+		out = append(out, agentActivityMap(e, facing))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"activity": out})
 }

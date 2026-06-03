@@ -265,12 +265,6 @@ func (p *WakeProjector) projectMessageAdded(ctx context.Context, e outbox.Event)
 func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem, taskRef string, pl messageAddedPayload) error {
 	agentID := wi.AgentID()
 
-	// Self-exclusion: the agent's own message (sender == "agent:<id>") never wakes
-	// it — this keeps request_input's same-tx question from re-waking the asker.
-	if pl.Sender == "agent:"+string(agentID) {
-		return nil
-	}
-
 	if p.controlLog == nil || p.agents == nil {
 		return nil // wake delivery not wired (e.g. test fixtures)
 	}
@@ -280,6 +274,15 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 		// projection (the WorkItem state is unaffected by skipping the signal).
 		slog.Warn("wake projector: agent.wake enqueue skipped (agent lookup failed)",
 			"agent_id", string(agentID), "work_item_id", wi.ID(), "err", err)
+		return nil
+	}
+
+	// Self-exclusion: the agent's own message never wakes it (keeps
+	// request_input's same-tx question from re-waking the asker). The sender ref
+	// may be the entity id OR the identity-member id (#185 — task participants now
+	// carry the member ref), so exclude on EITHER form.
+	if pl.Sender == agentParticipantPrefix+string(agentID) ||
+		(a.IdentityMemberID() != "" && pl.Sender == agentParticipantPrefix+a.IdentityMemberID()) {
 		return nil
 	}
 	workerID := a.WorkerID()
@@ -344,12 +347,24 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 			if !part.IsActive() || !strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
 				continue
 			}
-			// Channel: only wake agents explicitly @mentioned by display_name.
-			if kind == conversation.ConversationKindChannel && !p.mentions(txCtx, string(part.IdentityID), pl.Text) {
+			// FINDING-J: the participant ref may carry EITHER the agent's
+			// execution-entity id OR its identity-member id ("agent-<ulid>", #157),
+			// depending on how it was added. Resolve to the entity tolerantly so
+			// both the @mention lookup (display_name lives on the identity member)
+			// and the deliver path (worker binding lives on the entity) work
+			// regardless of which id the ref holds.
+			rawID := strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix)
+			a, ok := p.resolveAgent(txCtx, rawID)
+			if !ok {
+				slog.Warn("wake projector: agent.converse skipped (agent participant unresolved)",
+					"participant", string(part.IdentityID), "conversation_id", pl.ConversationID)
 				continue
 			}
-			agentID := strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix)
-			if err := p.deliverConverse(txCtx, conv, agentID, pl); err != nil {
+			// Channel: only wake agents explicitly @mentioned by display_name.
+			if kind == conversation.ConversationKindChannel && !p.mentionsAgent(txCtx, a, rawID, pl.Text) {
+				continue
+			}
+			if err := p.deliverConverse(txCtx, conv, a, rawID, pl); err != nil {
 				return err
 			}
 		}
@@ -357,17 +372,74 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 	})
 }
 
-// mentions reports whether text @mentions the agent's display_name
-// (case-insensitive, token-bounded so @Bot ≠ @Bottom). Channel gating (#185).
-func (p *WakeProjector) mentions(ctx context.Context, agentIdentityID, text string) bool {
-	if p.displayName == nil {
-		return false
+// resolveAgent resolves an agent participant's stripped ref (the part after
+// "agent:") to the execution-entity Agent, tolerating EITHER id form (#185
+// FINDING-J): it tries the execution-entity id first, then the identity-member
+// id ("agent-<ulid>", #157). Returns false when neither resolves.
+func (p *WakeProjector) resolveAgent(ctx context.Context, rawID string) (*agent.Agent, bool) {
+	a, err := p.agents.FindByID(ctx, agent.AgentID(rawID))
+	if err == nil {
+		return a, true
 	}
-	name, ok := p.displayName(ctx, agentIdentityID)
+	if !errors.Is(err, agent.ErrAgentNotFound) {
+		// A real lookup error (not "absent") — log + fall through to the
+		// identity-member branch rather than masking it.
+		slog.Warn("wake projector: agent FindByID failed", "raw_id", rawID, "err", err)
+	}
+	if a, err := p.agents.FindByIdentityMemberID(ctx, rawID); err == nil {
+		return a, true
+	}
+	return nil, false
+}
+
+// mentionsAgent reports whether text @mentions the agent's display_name
+// (case-insensitive, token-bounded so @Bot ≠ @Bottom). The name is resolved via
+// agentDisplayName (identity display_name preferred, profile name fallback); when
+// only the raw id is available there is nothing meaningful to @mention, so it
+// returns false. Channel gating (#185 / FINDING-J).
+func (p *WakeProjector) mentionsAgent(ctx context.Context, a *agent.Agent, rawID, text string) bool {
+	name, ok := p.agentDisplayName(ctx, a, rawID)
 	if !ok || strings.TrimSpace(name) == "" {
 		return false
 	}
 	return mentionTokenPresent(strings.ToLower(text), "@"+strings.ToLower(strings.TrimSpace(name)))
+}
+
+// agentDisplayName resolves an agent's user-facing name for @mention matching and
+// system-message rendering (#185 / FINDING-J + Rule 2 — never show a raw id when a
+// name exists). Preference order:
+//  1. identity display_name via the identity-member id (#157, the canonical name)
+//     — this is the (a) fix: it resolves the name even when the participant ref
+//     carried the EXECUTION-ENTITY id (DisplayName can't resolve an entity id);
+//  2. identity display_name via the raw participant ref (ref already a member id);
+//  3. the agent's profile name (standalone execution agents with no member);
+//  4. the raw id (last resort, avoids empty) — ok=false signals this fallback.
+func (p *WakeProjector) agentDisplayName(ctx context.Context, a *agent.Agent, rawID string) (string, bool) {
+	if m := strings.TrimSpace(a.IdentityMemberID()); m != "" {
+		if n, ok := p.lookupDisplayName(ctx, agentParticipantPrefix+m); ok {
+			return n, true
+		}
+	}
+	if n, ok := p.lookupDisplayName(ctx, agentParticipantPrefix+rawID); ok {
+		return n, true
+	}
+	if pn := strings.TrimSpace(a.Profile().Name); pn != "" {
+		return pn, true
+	}
+	return rawID, false
+}
+
+// lookupDisplayName safely calls the optional displayName resolver, returning the
+// trimmed name and ok=false when the resolver is unwired or yields nothing.
+func (p *WakeProjector) lookupDisplayName(ctx context.Context, ref string) (string, bool) {
+	if p.displayName == nil {
+		return "", false
+	}
+	n, ok := p.displayName(ctx, ref)
+	if !ok || strings.TrimSpace(n) == "" {
+		return "", false
+	}
+	return strings.TrimSpace(n), true
 }
 
 // mentionTokenPresent reports whether needle ("@name", lowercased) appears in
@@ -395,18 +467,20 @@ func isMentionWordChar(b byte) bool {
 
 // deliverConverse enqueues an agent.converse command for a RUNNING agent, or
 // posts a visible "not running" system message for a stopped one (avoid the
-// silent black hole). Runs in the caller's tx.
-func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.Conversation, agentID string, pl messageAddedPayload) error {
-	a, err := p.agents.FindByID(ctx, agent.AgentID(agentID))
-	if err != nil {
-		slog.Warn("wake projector: agent.converse skipped (agent lookup failed)",
-			"agent_id", agentID, "conversation_id", pl.ConversationID, "err", err)
-		return nil
-	}
+// silent black hole). The agent is already resolved by the caller (resolveAgent,
+// FINDING-J); rawID is the participant ref's stripped id used only as the
+// display-name fallback. The enqueued AgentID is the EXECUTION-ENTITY id
+// (a.ID()) — the worker daemon keys its running sessions by it, so an
+// identity-member ref must NOT leak into the command. Runs in the caller's tx.
+func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.Conversation, a *agent.Agent, rawID string, pl messageAddedPayload) error {
+	entityID := string(a.ID())
 	if a.Lifecycle() != agent.LifecycleRunning {
-		// Visible signal instead of silence (#185 Tester refinement).
+		// Visible signal instead of silence (#185 Tester refinement). The name
+		// resolves via agentDisplayName so the notice reads "@AgentBeta", not the
+		// raw entity id, even when the participant ref carried the entity id
+		// (FINDING-J / Rule 2).
 		if p.systemNotify != nil {
-			name, _ := p.displayNameOr(ctx, agentParticipantPrefix+agentID, agentID)
+			name, _ := p.agentDisplayName(ctx, a, rawID)
 			return p.systemNotify(ctx, pl.ConversationID,
 				"@"+name+" is not running and won't reply until it is started.")
 		}
@@ -415,12 +489,12 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 	workerID := a.WorkerID()
 	if strings.TrimSpace(workerID) == "" {
 		slog.Info("wake projector: agent.converse skipped (agent has no worker binding)",
-			"agent_id", agentID)
+			"agent_id", entityID)
 		return nil
 	}
 	senderDisplay, _ := p.displayNameOr(ctx, pl.Sender, pl.Sender)
 	payload, err := json.Marshal(converseCommandPayload{
-		AgentID:        agentID,
+		AgentID:        entityID,
 		ConversationID: pl.ConversationID,
 		ConvKind:       string(conv.Kind()),
 		ConvName:       conv.Name(),
@@ -436,7 +510,7 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		WorkerID:       environment.WorkerID(workerID),
 		CommandType:    commandTypeAgentConverse,
 		Payload:        string(payload),
-		IdempotencyKey: "agent.converse:" + pl.ConversationID + ":" + pl.MessageID + ":" + agentID,
+		IdempotencyKey: "agent.converse:" + pl.ConversationID + ":" + pl.MessageID + ":" + entityID,
 	})
 	return err
 }
