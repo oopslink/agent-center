@@ -26,10 +26,10 @@ end-to-end usage said otherwise.
 **T-1 — Real-usage path is what counts.** Acceptance runs against the real
 `install` / `upgrade` path (real launchd / systemd unit, real generated
 `config.yaml`, no hand-rolled config), a real browser, the real target
-environment (this cycle: macOS — AirPlay holds `:7000`, `launchctl
-bootout/bootstrap` only on Darwin 24+, multi-instance coexistence), and a
-real agent / worker running the exact command a user would copy from the
-Web Console. By-parity reasoning, code reads, `--dry-run`, and shared
+environment (this cycle: macOS — AirPlay holds `:7000`, modern macOS uses
+`launchctl bootout`/`bootstrap` after the legacy `load`/`unload` was
+deprecated, multi-instance coexistence), and a real agent / worker
+running the exact command a user would copy from the Web Console. By-parity reasoning, code reads, `--dry-run`, and shared
 predicate inference do **not** count as acceptance evidence.
 
 **T-2 — Path / discovery / layout features must run under the product's
@@ -58,10 +58,11 @@ this cycle is fundamentally pointing at.
 must be committed into the same commit being tagged. Before signing
 "evidence is commit-aligned", run `git ls-tree -r <tag> <path>` and
 confirm the files are in the tagged tree. "It's on disk" / "I just
-wrote it" / "untracked in worktree" do **not** count — v2.7.1's first
-tag (`bdc9818`) shipped without the acceptance report or screenshots in
-its tree, and every role's ship post (including PD's) echoed
-"commit-aligned" without verifying. Acknowledged and corrected.
+wrote it" / "untracked in worktree" do **not** count — v2.7.1's
+final (re-tagged) tag (`bdc9818`) shipped without the acceptance
+report or screenshots in its tree, and every role's ship post
+(including PD's) echoed "commit-aligned" without verifying.
+Acknowledged and corrected.
 
 **T-6 — Release-gate verification commands.** Ship verification must
 include `make lint` and a `make release` dry-run (frontend `tsc` truly
