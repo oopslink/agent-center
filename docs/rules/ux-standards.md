@@ -81,6 +81,68 @@ For a hypothetical 1-on-1 DM where the viewer is the only remaining
 participant (the other party left), fall back to "Empty DM" rather than
 the raw ID.
 
+### 2b — The raw-ID boundary: chrome vs content vs id-as-content
+
+**Sub-rule.** Rule 2's "display names, refs behind hover" governs
+**chrome** — not content the user or an agent authored, and not a surface
+whose whole purpose is to *be* an identifier. Three categories, ruled
+during the v2.7.1 retrospective (see
+`docs/rules/v271-retrospective.md` § 6):
+
+- **Chrome** — entity references rendered as part of the page frame
+  (message-sender labels, sidebar items, breadcrumb leaves, participant
+  lists, assignees, "by &lt;creator&gt;"). **Strict**: the user sees the
+  display name; the raw ID appears only on hover (`title`). Deleted
+  entities render `(deleted)`.
+- **Content** — material the user authored or an agent produced (message
+  bodies, `tool_use` arguments, expandable JSON payload viewers, agent
+  thinking text). **Exempt**: if a user typed `task-abc12` into a
+  message, the message shows exactly that. The acceptance sweep skips the
+  JSON-viewer subtree by its testid (`agent-activity-payload-json`).
+- **Id-as-content** — a surface whose rendered value *is* the identifier
+  (the table `ID` column, a short hash handle, the URL segment).
+  **Chrome by design**: show a short form with the full ID on hover.
+  This is the git-short-SHA / GitHub-`#123` idiom.
+
+**Why.** Rule 2 read literally would forbid an ID anywhere, which is
+wrong: a chat message quoting an ID, a debug JSON viewer, and a table's
+ID column are all legitimate. Naming the three categories keeps the
+strict rule strict — no quietly broadening "chrome" to excuse a real
+leak — while not flagging content or id-as-content as violations.
+
+**How to apply.**
+
+- Chrome references use the `EntityRef` component (`id` + resolved
+  `name`, optional `to` link); never hand-assemble a `<span>` around a
+  raw ID.
+- An id-as-content handle uses the ULID **tail** segment
+  (`id.slice(-6)`), not the head — the ULID head is a millisecond
+  timestamp, so entities created in the same window collide on the
+  prefix (`#126`: three work-items all rendered `#01KT8Q`). The full ID
+  goes on hover (`title`). When a real human-facing sequence exists
+  (`org_ref` `T<n>` / `I<n>`, `#245`), show that instead.
+- Detail-page URLs use the entity hash ID as the path segment
+  (`/projects/:id`, `/channels/:channelId` — the latter unified from
+  by-name in `#247`); chrome on the page still renders the name.
+- API writes that carry an **identity** reference send the prefixed
+  form (`agent:<id>` / `user:<id>`); a bare business ID is rejected
+  `400` by the backend. Entity IDs (project / task / issue / channel)
+  are sent bare. **Target state**: every identity-ref producer routes
+  through one shared helper (`identityRef(kind, id)`) so no call site can
+  forget the prefix. **Current status**: the prefix is still assembled
+  per-component (`DMStartModal` / `ProjectMemberAddModal` have local
+  helpers; `AssignModal` and the AgentDetail Message button inline
+  `agent:${id}`) — that duplication is the root cause of `#240` (the new
+  Message button re-inlined and dropped the prefix → `400`). Converging
+  on the shared helper is tracked as `#254` (v2.8). The
+  identity-ref-vs-entity-ID rule itself is canonical in
+  `docs/rules/conventions.md` § 12.x (ADR-0033).
+- The `#192` acceptance sweep encodes exactly this split: it walks
+  `inner_text`, treats the JSON-viewer subtree as content-exempt, and
+  accepts id-as-content table cells. When a genuinely new category
+  appears, name it, document it here, and add its testid to the sweep —
+  do not silently broaden "chrome" or "content".
+
 ## 3 — In-app modals; never native browser dialogs
 
 **Rule.** Confirmation, alert, and prompt UIs are in-app components
@@ -266,6 +328,32 @@ A rule in lint cannot be forgotten by a hurried PR.
 introducing them, "can this be linted?" If yes, the lint rule lands in
 the same PR. The lint rule + the prose rule cite each other, so the
 test failure points the reader at the rationale.
+
+## 12 — Icon-only controls carry a tooltip and an aria-label
+
+**Rule.** A control rendered as an icon (no visible text label) uses an
+inline single-stroke SVG glyph — never an emoji — and always carries
+both a `title` tooltip and an `aria-label`. A destructive icon keeps a
+`text-danger` colour. An icon whose meaning depends on state flips its
+glyph **and** its `title` / `aria-label` together with the state.
+
+**Why.** An icon with no accessible name is invisible to screen readers
+and ambiguous to sighted users; an emoji renders inconsistently across
+platforms and fonts. v2.7.1 icon-ised the AgentDetail header (`#240`
+Message, `#250` Stop / Restart / Reset) and the sidebar collapse toggle
+(`#253`); each has to say what it does without a visible label.
+
+**How to apply.** The control is `<button aria-label="Stop agent"
+title="Stop">` wrapping an inline `<svg>` (one `path`, no `<rect>`
+chrome). Destructive actions (Reset) carry the `text-danger` token, so
+the *computed* colour is the danger red (`rgb(239,68,68)`); acceptance
+verifies the computed colour, not a guessed class string (see
+`docs/rules/acceptance-methodology.md`). A state-toggle control (sidebar
+collapse) swaps both the glyph (`‹` ⇄ `›`) and the
+`title` / `aria-label` ("Collapse sidebar" ⇄ "Expand sidebar") on
+toggle. When an icon sits in a control group, the primary call-to-action
+keeps its text label (the AgentDetail `Start` button stayed text while
+its siblings became icons).
 
 ---
 
