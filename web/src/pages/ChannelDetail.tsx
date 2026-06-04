@@ -10,6 +10,7 @@ import {
 import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { MessageList } from '@/components/MessageList';
+import { TypeChip } from '@/components/TypeChip';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 
@@ -83,7 +84,10 @@ export default function ChannelDetail(): React.ReactElement {
     >
       <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
-          <h2 className="text-xl font-semibold">{channel.name}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold">{channel.name}</h2>
+            <TypeChip kind="channel" />
+          </div>
           {channel.description && (
             <p className="text-sm text-text-muted">{channel.description}</p>
           )}
