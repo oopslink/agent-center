@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   useAgent,
   useAgentActivity,
@@ -15,7 +15,18 @@ import {
 import { useWorkers } from '@/api/workers';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { EntityRef } from '@/components/EntityRef';
+import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow } from '@/components/AgentActivityRow';
+
+// v2.7.1 #228: AgentDetail is a 4-tab surface. Workspace is a v2.8 placeholder;
+// Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
+const AGENT_TABS = [
+  { key: 'profile', label: 'Profile' },
+  { key: 'activity', label: 'Activity' },
+  { key: 'workspace', label: 'Workspace' },
+  { key: 'workitems', label: 'Work items' },
+] as const;
+type AgentTab = (typeof AGENT_TABS)[number]['key'];
 
 // AgentDetail (/agents/:id). Agent BC (v2.7 #101). Header (name, lifecycle,
 // availability, worker) + lifecycle controls gated by state, a Reset modal
@@ -35,6 +46,19 @@ export default function AgentDetail(): React.ReactElement {
   const reset = useResetAgent(id);
 
   const [resetOpen, setResetOpen] = useState(false);
+  // v2.7.1 #228: active tab synced to ?tab= so a tab is shareable/bookmarkable.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const tab: AgentTab = (AGENT_TABS.some((t) => t.key === tabParam) ? tabParam : 'profile') as AgentTab;
+  const setTab = (t: AgentTab) =>
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set('tab', t);
+        return p;
+      },
+      { replace: true },
+    );
 
   if (agent.isLoading) {
     return (
@@ -175,19 +199,47 @@ export default function AgentDetail(): React.ReactElement {
         </p>
       )}
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded border border-border-base bg-bg-elevated p-4 text-sm text-text-primary">
-        <dt className="text-text-muted">Description</dt>
-        <dd>{a.description || <span className="italic text-text-muted">none</span>}</dd>
-        <dt className="text-text-muted">Model</dt>
-        <dd className="font-mono text-xs">{a.model || '—'}</dd>
-        <dt className="text-text-muted">CLI</dt>
-        <dd className="font-mono text-xs">{a.cli || '—'}</dd>
-        <dt className="text-text-muted">Skills</dt>
-        <dd className="font-mono text-xs">{a.skills && a.skills.length > 0 ? a.skills.join(', ') : '—'}</dd>
-      </dl>
+      {/* v2.7.1 #228: tab bar. */}
+      <nav className="flex gap-1 border-b border-border-base" role="tablist" data-testid="agent-tabs">
+        {AGENT_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            data-testid={`agent-tab-${t.key}`}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              tab === t.key
+                ? 'border-brand text-text-primary'
+                : 'border-transparent text-text-muted hover:text-text-primary'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'profile' && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded border border-border-base bg-bg-elevated p-4 text-sm text-text-primary" data-testid="agent-tabpanel-profile">
+          <dt className="text-text-muted">Description</dt>
+          <dd>{a.description || <span className="italic text-text-muted">none</span>}</dd>
+          <dt className="text-text-muted">Model</dt>
+          <dd className="font-mono text-xs">{a.model || '—'}</dd>
+          <dt className="text-text-muted">CLI</dt>
+          <dd className="font-mono text-xs">{a.cli || '—'}</dd>
+          <dt className="text-text-muted">Skills</dt>
+          <dd className="font-mono text-xs">{a.skills && a.skills.length > 0 ? a.skills.join(', ') : '—'}</dd>
+        </dl>
+      )}
+
+      {tab === 'workspace' && (
+        <EmptyState testId="agent-tabpanel-workspace" title="Workspace" body="Coming in v2.8." />
+      )}
 
       {/* WorkItem queue */}
-      <section className="rounded border border-border-base bg-bg-elevated p-4">
+      {tab === 'workitems' && (
+      <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-workitems">
         <h3 className="mb-2 text-sm font-semibold text-text-primary">Work items</h3>
         {workItems.isLoading && (
           <p className="text-xs text-text-muted" data-testid="agent-workitems-loading">
@@ -242,8 +294,11 @@ export default function AgentDetail(): React.ReactElement {
         )}
       </section>
 
+      )}
+
       {/* Activity stream */}
-      <section className="rounded border border-border-base bg-bg-elevated p-4">
+      {tab === 'activity' && (
+      <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-activity">
         <h3 className="mb-2 text-sm font-semibold text-text-primary">Activity</h3>
         {activity.isLoading && (
           <p className="text-xs text-text-muted" data-testid="agent-activity-loading">
@@ -268,6 +323,7 @@ export default function AgentDetail(): React.ReactElement {
           </ul>
         )}
       </section>
+      )}
 
       {resetOpen && (
         <ResetModal

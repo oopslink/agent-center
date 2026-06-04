@@ -91,13 +91,28 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-lifecycle-badge')).toHaveAttribute('data-lifecycle', 'stopped');
     expect(screen.getByTestId('agent-availability-badge')).toHaveAttribute('data-availability', 'available');
 
+    // v2.7.1 #228: work items + activity live behind their tabs.
+    fireEvent.click(screen.getByTestId('agent-tab-workitems'));
     await waitFor(() => expect(screen.getByTestId('agent-workitem-row')).toBeInTheDocument());
     expect(screen.getByTestId('agent-workitem-row')).toHaveAttribute('data-status', 'queued');
     // No task_title on this fixture → falls back to "Work item" (no link).
     expect(screen.getByTestId('agent-workitem-row')).toHaveTextContent('Work item');
     expect(screen.queryByTestId('agent-workitem-task')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('agent-tab-activity'));
     await waitFor(() => expect(screen.getByTestId('agent-activity-row')).toBeInTheDocument());
     expect(screen.getByTestId('agent-activity-row')).toHaveAttribute('data-event-type', 'agent.started');
+  });
+
+  it('switches tabs (Profile default) + Workspace shows the v2.8 placeholder (#228)', async () => {
+    stubAgent();
+    wrap('/agents/A1');
+    // Profile is the default tab.
+    await waitFor(() => expect(screen.getByTestId('agent-tabpanel-profile')).toBeInTheDocument());
+    expect(screen.queryByTestId('agent-tabpanel-workitems')).not.toBeInTheDocument();
+    // Workspace = "Coming in v2.8" placeholder.
+    fireEvent.click(screen.getByTestId('agent-tab-workspace'));
+    await waitFor(() => expect(screen.getByTestId('agent-tabpanel-workspace')).toBeInTheDocument());
+    expect(screen.getByTestId('agent-tabpanel-workspace')).toHaveTextContent(/Coming in v2.8/i);
   });
 
   it('links a work item to its task by title when resolved (#206)', async () => {
@@ -113,6 +128,8 @@ describe('AgentDetail page', () => {
       http.get('/api/agents/:id/activity', () => HttpResponse.json({ activity: [] })),
     );
     wrap('/agents/A1');
+    // v2.7.1 #228: work items behind the Work items tab.
+    fireEvent.click(await screen.findByTestId('agent-tab-workitems'));
     const link = await screen.findByTestId('agent-workitem-task');
     expect(link).toHaveTextContent('Build login flow');
     expect(link.getAttribute('href')).toContain('/projects/proj-x/tasks/task-9');
