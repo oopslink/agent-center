@@ -149,23 +149,23 @@ func TestAPI_CreateConversation_DM_BadMemberIdentity(t *testing.T) {
 	}
 }
 
-func TestAPI_CreateConversation_DM_DedupesCallerInMembers(t *testing.T) {
+// v2.7.1 #215: DM is strictly 1:1 — more than one member (e.g. caller + a peer, or
+// two peers) is rejected (use a channel for group). Supersedes the old
+// "dedup caller in members" behavior.
+func TestAPI_CreateConversation_DM_StrictOneToOne(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	// Caller is user:hayang; supplying user:hayang explicitly in members
-	// shouldn't add a duplicate participant.
 	resp, _ := http.Post(s.URL+"/api/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"dm","members":["user:hayang","agent:s-1"]}`))
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("got %d (want 400 — DM is strictly 1:1)", resp.StatusCode)
 	}
 	var body map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&body)
-	conv, _ := deps.ConvRepo.FindByID(context.Background(), conversation.ConversationID(body["conversation_id"].(string)))
-	if got := len(conv.Participants()); got != 2 {
-		t.Fatalf("expected 2 participants (dedup caller); got %d", got)
+	if body["error"] != "invalid_input" {
+		t.Fatalf("err shape: %v", body)
 	}
 }
 
