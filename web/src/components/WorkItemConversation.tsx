@@ -55,7 +55,7 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
               Loading messages…
             </p>
           ) : (
-            <MessageList messages={messages.data ?? []} segmentByWorkItem />
+            <MessageList messages={messages.data ?? []} />
           )}
           {/* v2.7 #186-4: send a message into the task/issue conversation. */}
           <div className="border-t border-border-base p-2" data-testid="conversation-composer">
