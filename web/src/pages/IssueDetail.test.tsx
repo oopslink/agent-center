@@ -133,4 +133,27 @@ describe('IssueDetail page', () => {
       expect(screen.getByTestId('issue-not-found')).toHaveTextContent(/no such issue/),
     );
   });
+
+  it('shows org_ref (I<n>) in the header + breadcrumb leaf when present (#245)', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/issues/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          project_id: 'proj-a',
+          title: 'login bug',
+          description: 'x',
+          status: 'open',
+          org_ref: 'I42',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T01:00:00Z',
+        }),
+      ),
+    );
+    wrap('/projects/proj-a/issues/issue-01KT8DABCDEF');
+    await waitFor(() => expect(screen.getByTestId('issue-org-ref')).toHaveTextContent('I42'));
+    expect(screen.getByRole('heading', { name: /I42 · login bug/ })).toBeInTheDocument();
+    expect(screen.getByTestId('breadcrumb')).toHaveTextContent('I42 - login bug');
+  });
 });

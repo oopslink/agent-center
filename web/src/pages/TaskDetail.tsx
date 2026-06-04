@@ -129,14 +129,17 @@ export default function TaskDetail(): React.ReactElement {
             { label: 'Projects', to: '/projects' },
             { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(tk.project_id)}` },
             { label: 'Tasks' },
-            { label: tk.title || tk.id },
+            { label: tk.org_ref ? `${tk.org_ref} - ${tk.title || tk.id}` : tk.title || tk.id },
           ]}
         />
       </div>
       <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
+            <h2 className="text-xl font-semibold">
+              {tk.org_ref && <span className="text-text-muted" data-testid="task-org-ref">{tk.org_ref} · </span>}
+              {tk.title || tk.id}
+            </h2>
             <TypeChip kind="task" />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">

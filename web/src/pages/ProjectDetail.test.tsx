@@ -135,6 +135,35 @@ describe('ProjectDetail page', () => {
     expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'blocked');
   });
 
+  it('shows org_ref (T<n>/I<n>) in the ID column when present, hash id on hover (#245)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/issues', () =>
+        HttpResponse.json({
+          issues: [
+            { id: 'issue-01KT8DABCDEF', project_id: 'proj-a', title: 'login bug', description: '', status: 'open', org_ref: 'I42', created_by: 'user:hayang', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+          ],
+        }),
+      ),
+      http.get('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'open', org_ref: 'T7', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+          ],
+        }),
+      ),
+    );
+    wrap('/projects/proj-a');
+    const issueHandle = await screen.findByTestId('issue-id-handle');
+    expect(issueHandle).toHaveTextContent('I42');
+    expect(issueHandle).not.toHaveTextContent('#'); // org_ref replaces the tail handle
+    expect(issueHandle).toHaveAttribute('title', 'issue-01KT8DABCDEF'); // hash id on hover (#192)
+    fireEvent.click(screen.getByTestId('project-tab-tasks'));
+    const taskHandle = await screen.findByTestId('task-id-handle');
+    expect(taskHandle).toHaveTextContent('T7');
+    expect(taskHandle).toHaveAttribute('title', 'task-01KT8DXYZ123');
+  });
+
   it('shows the per-project empty hint when both panels return []', async () => {
     server.use(
       http.get('/api/projects/:id', () =>

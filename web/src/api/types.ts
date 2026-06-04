@@ -318,6 +318,10 @@ export interface Issue {
   description: string;
   status: IssueStatus;
   created_by: string;
+  // v2.7.1 #245: org-internal display/reference token ("I1234"). The hash `id`
+  // (issue-xxx) stays the stable internal ref (URL/API). Absent until the
+  // backend DTO carries it (migration 0049) → UI falls back to the id handle.
+  org_ref?: string;
   version: number;
   created_at: string;
   updated_at: string;
@@ -346,6 +350,9 @@ export interface Task {
   derived_from_issue?: string;
   completed_by?: string;
   blocked_reason?: string;
+  // v2.7.1 #245: org-internal display/reference token ("T1234"); hash `id`
+  // (task-xxx) stays the stable internal ref. Absent → UI falls back to handle.
+  org_ref?: string;
   version: number;
   created_at: string;
   updated_at: string;
