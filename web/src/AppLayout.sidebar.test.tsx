@@ -50,19 +50,15 @@ beforeEach(() => {
             id: 'D1',
             kind: 'dm',
             status: 'active',
-            participants: [
-              { identity_id: 'user:hayang' },
-              { identity_id: 'user:other' },
-            ],
+            peer_identity_id: 'user:other',
+            peer_display_name: 'Other',
           },
           {
             id: 'D2',
             kind: 'dm',
             status: 'active',
-            participants: [
-              { identity_id: 'user:hayang' },
-              { identity_id: 'agent:Sam' },
-            ],
+            peer_identity_id: 'agent:Sam',
+            peer_display_name: 'Sam',
           },
         ]);
       }
@@ -164,9 +160,9 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
     renderShell();
     await waitFor(() => {
       const list = screen.getByTestId('sidebar-subitem-list-/dms');
-      // Peer label is the other participant's identity id since we don't
-      // populate currentUserId in the test store.
-      expect(list.textContent).toMatch(/@ /);
+      // v2.7.1 #215: DM sidebar labels are the backend-resolved peer as @name.
+      expect(list.textContent).toContain('@Sam');
+      expect(list.textContent).toContain('@Other');
     });
   });
 

@@ -23,6 +23,10 @@ export interface Conversation {
   description?: string;
   status: ConversationStatus;
   participants?: Participant[];
+  // v2.7.1 #215: for DM kind, the resolved other party (participants - self).
+  // Absent on channels / malformed DMs → UI falls back to "Direct message".
+  peer_identity_id?: string;
+  peer_display_name?: string;
   parent_conversation_id?: string;
   // owner_ref pins a task/issue conversation to its pm owner
   // (pm://tasks|issues/{id}); empty/absent for channels and DMs. v2.7 #137.
