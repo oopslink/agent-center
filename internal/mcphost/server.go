@@ -119,7 +119,7 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "find_org_agent",
-		Description: "Find agents in your organization by name (substring match; empty name lists all). Returns [{id, name}] — use an id as the assignee for assign_task.",
+		Description: "Find agents in your organization by name (substring match; empty name lists all). Returns [{id, name, assignee_ref}] — pass an entry's assignee_ref straight to assign_task's assignee (it is the ready-to-use \"agent:<id>\" form; do not hand-build it).",
 	}, makeFindOrgAgent(cfg))
 
 	// --- read tools (own-scope) ----------------------------------------------

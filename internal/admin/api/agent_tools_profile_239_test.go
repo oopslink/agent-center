@@ -36,6 +36,15 @@ func TestFindOrgAgent_NameFilter_OK(t *testing.T) {
 	if row["id"] != atAgent2 || row["name"] != atAgent2 {
 		t.Fatalf("row=%v, want id/name AG2", row)
 	}
+	// v2.7.1 #241: assignee_ref is the ready-to-use "agent:<id>" form for assign_task.
+	if row["assignee_ref"] != "agent:"+atAgent2 {
+		t.Fatalf("assignee_ref=%v, want agent:%s", row["assignee_ref"], atAgent2)
+	}
+	// It must pass the SAME validation assign_task applies to its assignee, so the
+	// agent can feed it straight in (no bare-id-vs-prefixed-ref footgun).
+	if err := pm.IdentityRef(row["assignee_ref"].(string)).Validate(); err != nil {
+		t.Fatalf("assignee_ref %q must be a valid assign_task assignee: %v", row["assignee_ref"], err)
+	}
 }
 
 func TestFindOrgAgent_EmptyName_ListsAll(t *testing.T) {
