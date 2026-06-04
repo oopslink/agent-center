@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -115,6 +116,41 @@ func TestOrgIssueRow_260_AssigneeNullProjectNoSlug(t *testing.T) {
 	}
 	if _, hasSlug := projMap["slug"]; hasSlug {
 		t.Errorf("project map must not contain slug")
+	}
+}
+
+// TestEnrichAssignee_260 covers the task assignee enrichment path (a prefixed
+// ref → complete-consumable {ref, display_name, member_id}) that the org-tasks
+// DTO relies on. Tester's black-box de-risk left this to Dev unit coverage
+// (their seeded tasks were all unassigned), so it is pinned here against a real
+// IdentityRepo.
+func TestEnrichAssignee_260(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	_ = db
+	s := &Server{}
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks", nil)
+
+	// Unassigned → nil (UI renders "—").
+	if got := s.enrichAssignee(req, deps, ""); got != nil {
+		t.Errorf("empty assignee should enrich to nil, got %v", got)
+	}
+
+	// Assigned to the session user (a real identity with a display name) →
+	// {ref, member_id, display_name} all populated; member_id is the bare id.
+	ref := "user:" + sess.IdentityID
+	got := s.enrichAssignee(req, deps, ref)
+	if got == nil {
+		t.Fatal("assigned ref should enrich to a non-nil map")
+	}
+	if got["ref"] != ref {
+		t.Errorf("ref = %v, want %q (full prefixed ref preserved)", got["ref"], ref)
+	}
+	if got["member_id"] != sess.IdentityID {
+		t.Errorf("member_id = %v, want %q (bare id)", got["member_id"], sess.IdentityID)
+	}
+	if dn, _ := got["display_name"].(string); dn == "" {
+		t.Errorf("display_name should be resolved (non-empty) for a real identity")
 	}
 }
 
