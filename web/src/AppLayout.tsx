@@ -349,7 +349,8 @@ function Sidebar({
   const projects = useProjects();
   const channelChildren = (channels.data ?? [])
     .filter((c) => c.status !== 'archived')
-    .map((c) => ({ to: `${orgBase}/channels/${encodeURIComponent(c.name ?? '')}`, label: `# ${c.name}` }));
+    // v2.7.1 #247: link by channel id (hash) — display still shows "# name".
+    .map((c) => ({ to: `${orgBase}/channels/${encodeURIComponent(c.id)}`, label: `# ${c.name}` }));
   // v2.7.1 #215/Rule 2a: DM sidebar label = @peer_name (backend resolves the
   // other party); deleted peer → "(deleted)"; malformed DM → "Direct message".
   const dmChildren = (dms.data ?? []).map((d) => {

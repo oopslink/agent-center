@@ -48,7 +48,7 @@ export function CommandPalette({
     for (const c of channels.data ?? []) {
       out.push({
         label: `# ${c.name}`,
-        href: `/channels/${encodeURIComponent(c.name)}`,
+        href: `/channels/${encodeURIComponent(c.id)}`,
         hint: 'channel',
       });
     }

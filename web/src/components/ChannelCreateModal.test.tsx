@@ -43,7 +43,8 @@ describe('ChannelCreateModal', () => {
     wrap(<ChannelCreateModal open onClose={onClose} onCreated={onCreated} />);
     await userEvent.type(screen.getByTestId('create-channel-name'), 'alpha');
     fireEvent.click(screen.getByTestId('create-channel-submit'));
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('alpha'));
+    // v2.7.1 #247: onCreated yields the new channel's id (for the id-based URL).
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('C-NEW'));
     expect(onClose).toHaveBeenCalled();
   });
 
