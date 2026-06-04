@@ -90,6 +90,51 @@ describe('ProjectDetail page', () => {
     expect(screen.getByTestId('project-fleet-link')).toBeInTheDocument();
   });
 
+  it('renders Issues/Tasks as tables: id-tail handle (+hover) / status chip / title link / task assignee+priority (#242)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/issues', () =>
+        HttpResponse.json({
+          issues: [
+            { id: 'issue-01KT8DABCDEF', project_id: 'proj-a', title: 'login bug', description: '', status: 'in_progress', created_by: 'user:hayang', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+          ],
+        }),
+      ),
+      http.get('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'blocked', assignee: 'agent:bot-9', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+          ],
+        }),
+      ),
+      http.get('/api/members', () =>
+        HttpResponse.json([{ identity_id: 'bot-9', display_name: 'Bot Nine', kind: 'agent', status: 'joined' }]),
+      ),
+    );
+    wrap('/projects/proj-a');
+
+    // Issues table: id-tail handle + full id on hover (#192); colored status chip.
+    const issueHandle = await screen.findByTestId('issue-id-handle');
+    expect(issueHandle).toHaveTextContent('#ABCDEF');
+    expect(issueHandle).toHaveAttribute('title', 'issue-01KT8DABCDEF');
+    expect(issueHandle).not.toHaveTextContent('01KT8D');
+    const issueChip = screen.getByTestId('status-chip');
+    expect(issueChip).toHaveAttribute('data-status', 'in_progress');
+    expect(issueChip.className).toContain('text-brand');
+    // Title links into the issue detail.
+    const issueLink = screen.getByText('login bug').closest('a');
+    expect(issueLink?.getAttribute('href')).toContain('/projects/proj-a/issues/issue-01KT8DABCDEF');
+
+    // Tasks tab: id handle + assignee name (raw ref on hover) + priority fallback.
+    fireEvent.click(screen.getByTestId('project-tab-tasks'));
+    const taskHandle = await screen.findByTestId('task-id-handle');
+    expect(taskHandle).toHaveTextContent('#XYZ123');
+    expect(taskHandle).toHaveAttribute('title', 'task-01KT8DXYZ123');
+    expect(screen.getByTestId('task-assignee')).toHaveTextContent('Bot Nine');
+    expect(screen.getByTestId('task-priority')).toHaveTextContent('—');
+    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'blocked');
+  });
+
   it('shows the per-project empty hint when both panels return []', async () => {
     server.use(
       http.get('/api/projects/:id', () =>

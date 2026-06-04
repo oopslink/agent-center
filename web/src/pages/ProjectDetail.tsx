@@ -539,26 +539,43 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
       ) : data.length === 0 ? (
         <p className="py-4 text-center text-xs text-text-muted">No issues yet</p>
       ) : (
-        <ul className="divide-y divide-border-base">
-          {data.map((iss) => (
-            <li
-              key={iss.id}
-              data-testid="issue-row"
-              data-issue-id={iss.id}
-              className="flex items-center justify-between gap-3 py-1.5"
-            >
-              <OrgLink
-                to={`/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(iss.id)}`}
-                className="truncate text-sm text-text-primary hover:text-accent"
-              >
-                {iss.title || iss.id}
-              </OrgLink>
-              <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                {iss.status.replace(/_/g, ' ')}
-              </span>
-            </li>
-          ))}
-        </ul>
+        // v2.7.1 #242: table layout (ID / Title / Status / Updated). ID-first so
+        // issues are easy to reference; ULID-tail handle (#126) + full id hover.
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs" data-testid="project-issues-table">
+            <thead>
+              <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
+                <th className="py-1.5 pr-3 font-medium">ID</th>
+                <th className="py-1.5 pr-3 font-medium">Title</th>
+                <th className="py-1.5 pr-3 font-medium">Status</th>
+                <th className="py-1.5 font-medium">Updated</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-base">
+              {data.map((iss) => (
+                <tr key={iss.id} data-testid="issue-row" data-issue-id={iss.id}>
+                  <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="issue-id-handle" title={iss.id}>
+                    #{idHandle(iss.id)}
+                  </td>
+                  <td className="max-w-[18rem] truncate py-1.5 pr-3">
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(iss.id)}`}
+                      className="text-text-primary hover:text-accent"
+                    >
+                      {iss.title || iss.id}
+                    </OrgLink>
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    <StatusChip status={iss.status} />
+                  </td>
+                  <td className="py-1.5 tabular-nums text-text-muted" title={iss.updated_at}>
+                    {shortDate(iss.updated_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -567,6 +584,8 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
 function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   const tasks = useTasksList(projectId);
   const [createOpen, setCreateOpen] = useState(false);
+  // v2.7.1 #242: resolve the assignee ref → display name (raw ref on hover, #192).
+  const resolveName = useDisplayNameResolver();
   const data = tasks.data ?? [];
   return (
     <div
@@ -599,28 +618,104 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
       ) : data.length === 0 ? (
         <p className="py-4 text-center text-xs text-text-muted">No tasks yet</p>
       ) : (
-        <ul className="divide-y divide-border-base">
-          {data.map((tk) => (
-            <li
-              key={tk.id}
-              data-testid="task-row"
-              data-task-id={tk.id}
-              className="flex items-center justify-between gap-3 py-1.5"
-            >
-              <OrgLink
-                to={`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(tk.id)}`}
-                className="truncate text-sm text-text-primary hover:text-accent"
-              >
-                {tk.title || tk.id}
-              </OrgLink>
-              <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                {tk.status}
-              </span>
-            </li>
-          ))}
-        </ul>
+        // v2.7.1 #242: table (ID / Title / Status / Assigned to / Priority / Updated).
+        // Priority has no schema yet → "—" fallback (v2.8 #231).
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs" data-testid="project-tasks-table">
+            <thead>
+              <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
+                <th className="py-1.5 pr-3 font-medium">ID</th>
+                <th className="py-1.5 pr-3 font-medium">Title</th>
+                <th className="py-1.5 pr-3 font-medium">Status</th>
+                <th className="py-1.5 pr-3 font-medium">Assigned to</th>
+                <th className="py-1.5 pr-3 font-medium">Priority</th>
+                <th className="py-1.5 font-medium">Updated</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-base">
+              {data.map((tk) => (
+                <tr key={tk.id} data-testid="task-row" data-task-id={tk.id}>
+                  <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="task-id-handle" title={tk.id}>
+                    #{idHandle(tk.id)}
+                  </td>
+                  <td className="max-w-[16rem] truncate py-1.5 pr-3">
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(tk.id)}`}
+                      className="text-text-primary hover:text-accent"
+                    >
+                      {tk.title || tk.id}
+                    </OrgLink>
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    <StatusChip status={tk.status} />
+                  </td>
+                  <td className="py-1.5 pr-3 text-text-secondary" data-testid="task-assignee">
+                    {tk.assignee ? (
+                      <EntityRef
+                        id={tk.assignee}
+                        name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
+                        fallback={tk.assignee}
+                      />
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="py-1.5 pr-3 text-text-muted" data-testid="task-priority">—</td>
+                  <td className="py-1.5 tabular-nums text-text-muted" title={tk.updated_at}>
+                    {shortDate(tk.updated_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
+  );
+}
+
+// v2.7.1 #242: short id handle = the ULID TAIL (the leading timestamp is shared
+// by items created in the same window; the trailing random segment distinguishes
+// rows — same rationale as #126). Full id stays on hover (#192 id-as-content).
+function idHandle(id: string): string {
+  return id.slice(-6);
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString();
+}
+
+// StatusChip — colored status pill shared by the Issue + Task tables. Maps the
+// (different) status machines into in-progress=blue / done=green / blocked=red /
+// reopened=orange / terminal-or-new=neutral. Unknown → neutral.
+const STATUS_CLS: Record<string, string> = {
+  in_progress: 'bg-brand/10 text-brand',
+  running: 'bg-brand/10 text-brand',
+  assigned: 'bg-brand/10 text-brand',
+  resolved: 'bg-success/10 text-success',
+  closed: 'bg-success/10 text-success',
+  completed: 'bg-success/10 text-success',
+  verified: 'bg-success/10 text-success',
+  blocked: 'bg-danger/10 text-danger',
+  reopened: 'bg-orange-500/10 text-orange-600',
+};
+function StatusChip({ status }: { status: string }): React.ReactElement {
+  const cls = STATUS_CLS[status] ?? 'bg-bg-subtle text-text-muted';
+  return (
+    <span
+      className={`rounded px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide ${cls}`}
+      data-testid="status-chip"
+      data-status={status}
+    >
+      {status.replace(/_/g, ' ')}
+    </span>
   );
 }
 
