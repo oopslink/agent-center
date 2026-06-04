@@ -5,6 +5,7 @@ import { useWorkers } from '@/api/workers';
 import { ApiError } from '@/api/client';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { EntitySelect } from '@/components/EntitySelect';
+import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
 
 // MemberNew backs /organizations/{slug}/members/new?kind=agent|user.
 // Acceptance plan §3 references /members/new?kind=agent as the Add Agent entry.
@@ -20,7 +21,10 @@ export default function MemberNew(): React.ReactElement {
   const [role, setRole] = useState('member');
   // v2.7 #157: Members→Add Agent is one step — also create the execution Agent
   // (model/cli + the worker it runs on). worker_id is required for an agent.
-  const [model, setModel] = useState('');
+  // v2.7.1 #232: prefill the explicit default model (this Members→Agents→Add
+  // path was missed by #232's AgentCreateModal-only fix — leaving it empty
+  // stored a null model → blank Profile, the original dogfood pain).
+  const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
   // v2.7 #181 / FINDING-F: only claude-code is executable — single-option
   // select (codex/opencode become selectable in v2.8 #180).
   const [cli, setCli] = useState('claude-code');
@@ -148,7 +152,6 @@ export default function MemberNew(): React.ReactElement {
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="e.g. claude-opus-4"
                 className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
               />
             </div>
