@@ -210,10 +210,27 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	conv, err := d.ConvRepo.FindByID(r.Context(), conversation.ConversationID(req.ConversationID))
 	if err != nil {
+		// v2.7.1 #246 (a): a missing/typo'd conversation_id gets a clear, actionable
+		// 404 (not an opaque error) — point the agent at find_org_channel to get a
+		// valid id rather than hallucinate one.
+		if errors.Is(err, conversation.ErrConversationNotFound) {
+			writeError(w, http.StatusNotFound, "conversation_not_found",
+				"conversation "+req.ConversationID+" not found — use find_org_channel to resolve a channel name to its id")
+			return
+		}
 		mapDomainError(w, err)
 		return
 	}
 	if !agentIsActiveParticipant(conv, a) {
+		// v2.7.1 #246 (3): precise not-member message for channels (the write-gate is
+		// unchanged — #224/#227 participant gate still 403s; only the wording is
+		// actionable). β boundary HELD: visibility via find_org_channel does NOT grant
+		// write — a non-member must still be added.
+		if conv.Kind() == conversation.ConversationKindChannel {
+			writeError(w, http.StatusForbidden, "not_a_channel_member",
+				"not a member of channel "+conv.Name()+" — ask an owner to add you before posting")
+			return
+		}
 		writeError(w, http.StatusForbidden, "not_a_participant",
 			"agent is not an active participant of this conversation")
 		return

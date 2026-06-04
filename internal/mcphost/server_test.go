@@ -86,6 +86,8 @@ var wantTools = []string{
 	"post_message",
 	// v2.7.1 #239: self / org discovery
 	"get_my_profile", "find_org_agent",
+	// v2.7.1 #246: channel name → id discovery
+	"find_org_channel",
 	// reads
 	"get_task", "get_issue",
 	// pm writes / passthrough

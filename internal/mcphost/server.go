@@ -122,6 +122,11 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Find agents in your organization by name (substring match; empty name lists all). Returns [{id, name, assignee_ref}] — pass an entry's assignee_ref straight to assign_task's assignee (it is the ready-to-use \"agent:<id>\" form; do not hand-build it).",
 	}, makeFindOrgAgent(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "find_org_channel",
+		Description: "Find channels in your organization by name (substring match; empty name lists all = available channels). Returns [{id, name}]. Use an entry's id directly as post_message's conversation_id (it is a plain channel id — do NOT add a prefix). An empty result means no such channel exists.",
+	}, makeFindOrgChannel(cfg))
+
 	// --- read tools (own-scope) ----------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_task",
@@ -238,6 +243,20 @@ func makeFindOrgAgent(cfg Config) mcp.ToolHandlerFor[findOrgAgentArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args findOrgAgentArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{"agent_id": cfg.AgentID, "name": args.Name}
 		return callAdmin(ctx, cfg, "find_org_agent", body)
+	}
+}
+
+// findOrgChannelArgs is the typed input for find_org_channel (v2.7.1 #246).
+// agent_id is process-fixed (org scope derived center-side, not spoofable).
+type findOrgChannelArgs struct {
+	Name string `json:"name" jsonschema:"channel name to search for (substring, case-insensitive; empty lists all org channels)"`
+}
+
+// makeFindOrgChannel returns the find_org_channel handler bound to cfg.
+func makeFindOrgChannel(cfg Config) mcp.ToolHandlerFor[findOrgChannelArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args findOrgChannelArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "name": args.Name}
+		return callAdmin(ctx, cfg, "find_org_channel", body)
 	}
 }
 
