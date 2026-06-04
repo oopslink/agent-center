@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -68,35 +70,12 @@ func (s *Server) getMyProfileHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// my_projects — org projects this agent is a member of. The agent's
-	// project-member ref is "agent:<identity-member-id>" (mirrors the #224
-	// project-member wake path). Best-effort: a nil PMService yields [].
-	myProjects := []map[string]any{}
-	if d.PMService != nil {
-		agentRef := "agent:" + a.IdentityMemberID()
-		projects, err := d.PMService.ListProjects(r.Context(), orgID)
-		if err != nil {
-			mapDomainError(w, err)
-			return
-		}
-		for _, p := range projects {
-			members, merr := d.PMService.ListMembers(r.Context(), p.ID())
-			if merr != nil {
-				mapDomainError(w, merr)
-				return
-			}
-			for _, m := range members {
-				if string(m.IdentityID()) == agentRef {
-					myProjects = append(myProjects, map[string]any{
-						"id":              string(p.ID()),
-						"name":            p.Name(),
-						"role":            string(m.Role()),
-						"my_capabilities": projectMemberCapabilities,
-					})
-					break
-				}
-			}
-		}
+	// my_projects — org projects this agent is a member of (best-effort: a nil
+	// PMService yields []).
+	myProjects, err := agentMemberProjects(r.Context(), d, orgID, a.IdentityMemberID())
+	if err != nil {
+		mapDomainError(w, err)
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -105,6 +84,57 @@ func (s *Server) getMyProfileHandler(w http.ResponseWriter, r *http.Request) {
 		"my_projects":     myProjects,
 		"my_capabilities": orgAgentCapabilities,
 	})
+}
+
+// agentMemberProjects returns the org projects the agent (by identity-member id)
+// is a member of, as [{id, name, role, my_capabilities}]. The agent's project-
+// member ref is "agent:<identity-member-id>" (mirrors the #224 wake path). A nil
+// PMService or empty member id yields an empty (never nil) slice. Shared by
+// get_my_profile and the create_task "available projects" error hint (#239).
+func agentMemberProjects(ctx context.Context, d HandlerDeps, orgID, identityMemberID string) ([]map[string]any, error) {
+	out := []map[string]any{}
+	if d.PMService == nil {
+		return out, nil
+	}
+	agentRef := "agent:" + identityMemberID
+	projects, err := d.PMService.ListProjects(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range projects {
+		members, merr := d.PMService.ListMembers(ctx, p.ID())
+		if merr != nil {
+			return nil, merr
+		}
+		for _, m := range members {
+			if string(m.IdentityID()) == agentRef {
+				out = append(out, map[string]any{
+					"id":              string(p.ID()),
+					"name":            p.Name(),
+					"role":            string(m.Role()),
+					"my_capabilities": projectMemberCapabilities,
+				})
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// availableProjectsHint renders ", available: [name (id), ...]" listing the
+// agent's own projects — appended to a "project not found" message so the agent
+// can self-correct (v2.7.1 #239). Empty string when there are none / on error
+// (the base message stands alone).
+func availableProjectsHint(ctx context.Context, d HandlerDeps, orgID, identityMemberID string) string {
+	projects, err := agentMemberProjects(ctx, d, orgID, identityMemberID)
+	if err != nil || len(projects) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(projects))
+	for _, p := range projects {
+		names = append(names, fmt.Sprintf("%v (%v)", p["name"], p["id"]))
+	}
+	return ", available: [" + strings.Join(names, ", ") + "]"
 }
 
 // findOrgAgentReq is the body for POST /admin/agent-tools/find_org_agent.

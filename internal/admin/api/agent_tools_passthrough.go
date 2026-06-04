@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -76,6 +77,20 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:        pm.IdentityRef(agentActor(a)),
 	})
 	if err != nil {
+		// v2.7.1 #239: precise, distinct messages — a missing project is "not
+		// found" (with the agent's available projects as a hint), NOT the
+		// misleading "not a member" (@oopslink screenshot pain). The domain now
+		// returns ErrProjectNotFound vs ErrNotMember distinctly (requireProjectMember).
+		switch {
+		case errors.Is(err, pm.ErrProjectNotFound):
+			writeError(w, http.StatusNotFound, "project_not_found",
+				"project "+req.ProjectID+" not found"+availableProjectsHint(r.Context(), d, a.OrganizationID(), a.IdentityMemberID()))
+			return
+		case errors.Is(err, pmservice.ErrNotMember):
+			writeError(w, http.StatusForbidden, "not_a_project_member",
+				"not a member of project "+req.ProjectID+", please ask an owner to add you")
+			return
+		}
 		mapDomainError(w, err)
 		return
 	}

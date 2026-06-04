@@ -195,6 +195,15 @@ var (
 )
 
 func (s *Service) requireProjectMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef) error {
+	// v2.7.1 #239: distinguish "project does not exist" from "not a member" — a
+	// membership miss alone can't tell them apart, so a bad/guessed project id
+	// surfaced the misleading ErrNotMember (@oopslink screenshot pain). Check
+	// existence FIRST: a missing project yields ErrProjectNotFound (404), and
+	// ErrNotMember (403) is reserved for a project that exists but the actor isn't
+	// a member of.
+	if _, err := s.projects.FindByID(ctx, projectID); err != nil {
+		return err // pm.ErrProjectNotFound when missing
+	}
 	if _, err := s.members.FindByProjectAndIdentity(ctx, projectID, actor); err != nil {
 		if errors.Is(err, pm.ErrMemberNotFound) {
 			return ErrNotMember
