@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
+import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
 import { EntitySelect } from './EntitySelect';
 
 interface Props {
@@ -16,7 +17,10 @@ interface Props {
 export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [model, setModel] = useState('');
+  // v2.7.1 #232: prefill the explicit default model (not a placeholder) so an
+  // untouched form still submits a concrete value — store = Profile = runtime
+  // stay consistent instead of persisting an empty model.
+  const [model, setModel] = useState(DEFAULT_AGENT_MODEL);
   // v2.7 #181 / FINDING-F: only claude-code is executable. cli is a single-
   // option select (no free text) so the form can't create an agent bound to a
   // CLI the runtime won't run; codex/opencode open up in v2.8 (#180).
@@ -105,7 +109,6 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             data-testid="agent-create-model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder="claude-opus"
             className={inputClass}
           />
         </Field>

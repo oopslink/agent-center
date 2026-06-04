@@ -121,6 +121,9 @@ describe('Agents page', () => {
     fireEvent.click(screen.getByTestId('agents-add-btn'));
 
     await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
+    // v2.7.1 #232: Model is pre-filled with the explicit default (not a
+    // placeholder) so leaving it untouched still submits a concrete value.
+    expect((screen.getByTestId('agent-create-model') as HTMLInputElement).value).toBe('claude-opus-4-8');
     // v2.7 #191: pick the worker via the EntitySelect (open → click option).
     fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
     await waitFor(() =>
@@ -135,7 +138,7 @@ describe('Agents page', () => {
 
     await waitFor(() => expect(posted).not.toBeNull());
     // Unified create payload: display_name (not name) + role + worker_id + cli.
-    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code' });
+    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8' });
     await waitFor(() =>
       expect(screen.queryByTestId('agent-create-modal')).not.toBeInTheDocument(),
     );
