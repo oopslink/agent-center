@@ -103,6 +103,23 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-activity-row')).toHaveAttribute('data-event-type', 'agent.started');
   });
 
+  it('Activity tab Refresh button refetches the activity stream (#228)', async () => {
+    let hits = 0;
+    server.use(
+      http.get('/api/agents/:id', () => HttpResponse.json(agent())),
+      http.get('/api/agents/:id/work-items', () => HttpResponse.json({ work_items: [] })),
+      http.get('/api/agents/:id/activity', () => {
+        hits += 1;
+        return HttpResponse.json({ activity: [] });
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-tab-activity'));
+    await waitFor(() => expect(hits).toBe(1));
+    fireEvent.click(screen.getByTestId('agent-activity-refresh'));
+    await waitFor(() => expect(hits).toBe(2));
+  });
+
   it('switches tabs (Profile default) + Workspace shows the v2.8 placeholder (#228)', async () => {
     stubAgent();
     wrap('/agents/A1');

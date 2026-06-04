@@ -2,20 +2,37 @@ import type React from 'react';
 import { useState } from 'react';
 import type { AgentActivityEvent } from '@/api/types';
 
-// v2.7.1 #216: per-event-type presentation (badge color + label). Unknown
-// types fall through to a neutral badge + JSON preview.
-const SUBTYPES: Record<string, { label: string; cls: string }> = {
-  system_init: { label: 'System', cls: 'bg-bg-subtle text-text-muted' },
-  assistant_text: { label: 'Assistant', cls: 'bg-brand/10 text-brand' },
-  thinking: { label: 'Thinking', cls: 'bg-bg-subtle text-text-secondary' },
-  tool_use: { label: 'Tool', cls: 'bg-accent/10 text-accent' },
-  tool_result: { label: 'Result', cls: 'bg-bg-subtle text-text-secondary' },
-  // result = end-of-turn aggregate (tokens/cost); colored by ok like tool_result.
-  result: { label: 'Turn', cls: 'bg-bg-subtle text-text-secondary' },
-  rate_limit: { label: 'Rate limit', cls: 'bg-danger/10 text-danger' },
-  status_change: { label: 'Status', cls: 'bg-bg-subtle text-text-secondary' },
-  lifecycle: { label: 'Lifecycle', cls: 'bg-bg-subtle text-text-muted' },
-};
+// v2.7.1 #228 PR(c): the activity timeline labels each event by a user-facing
+// CATEGORY ("what is the agent doing") rather than the raw event type. The raw
+// 8 event_types stay visible in the expanded JSON viewer (#216). Mapping per PD.
+type Category = { label: string; cls: string };
+const CAT_OUTPUT: Category = { label: 'Output', cls: 'bg-success/10 text-success' };
+const CAT_THINKING: Category = { label: 'Thinking', cls: 'bg-bg-subtle italic text-text-muted' };
+const CAT_RUNNING: Category = { label: 'Running command', cls: 'bg-brand/10 text-brand' };
+const CAT_SEARCHING: Category = { label: 'Searching code', cls: 'bg-purple-500/10 text-purple-600' };
+const CAT_CHECKING: Category = { label: 'Checking messages', cls: 'bg-orange-500/10 text-orange-600' };
+
+// search-y tool names (lowercased) → "Searching code"; otherwise tool events are
+// "Running command". v2.7.1 hardcoded; v2.8 driven by backend tool metadata.
+const SEARCH_TOOLS = new Set(['grep', 'glob', 'read', 'globsearch', 'filesearch', 'ripgrep', 'rg', 'find', 'ag', 'ack']);
+
+function categoryOf(eventType: string, p: Record<string, unknown>): Category {
+  switch (eventType) {
+    case 'assistant_text':
+    case 'result':
+      return CAT_OUTPUT;
+    case 'thinking':
+      return CAT_THINKING;
+    case 'tool_use':
+    case 'tool_result': {
+      const tn = str(p.tool_name).toLowerCase();
+      return tn && SEARCH_TOOLS.has(tn) ? CAT_SEARCHING : CAT_RUNNING;
+    }
+    default:
+      // system_init, lifecycle, rate_limit, generic system, unknown → Checking.
+      return CAT_CHECKING;
+  }
+}
 
 function parsePayload(raw: string): Record<string, unknown> {
   if (!raw) return {};
@@ -101,15 +118,14 @@ function preview(eventType: string, p: Record<string, unknown>): string {
 export function AgentActivityRow({ event }: { event: AgentActivityEvent }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const payload = parsePayload(event.payload);
-  const meta = SUBTYPES[event.event_type] ?? { label: event.event_type, cls: 'bg-bg-subtle text-text-muted' };
-  // tool_result + result (end-of-turn) color by outcome (ok / is_error).
-  const errored = payload.ok === false || payload.is_error === true;
-  const cls =
-    event.event_type === 'tool_result' || event.event_type === 'result'
-      ? errored
-        ? 'bg-danger/10 text-danger'
-        : 'bg-success/10 text-success'
-      : meta.cls;
+  // v2.7.1 #228 PR(c): main badge shows the user-facing category; the raw
+  // event_type stays on data-event-type + inside the expanded JSON viewer.
+  const cat = categoryOf(event.event_type, payload);
+  // A failed tool_result / result keeps its category but flags the failure
+  // inline so the error signal isn't buried in the JSON viewer.
+  const errored =
+    (event.event_type === 'tool_result' || event.event_type === 'result') &&
+    (payload.ok === false || payload.is_error === true);
 
   return (
     <li
@@ -127,11 +143,20 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <span
-            className={`shrink-0 rounded px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide ${cls}`}
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide ${cat.cls}`}
             data-testid="agent-activity-badge"
+            data-category={cat.label}
           >
-            {meta.label}
+            {cat.label}
           </span>
+          {errored && (
+            <span
+              className="shrink-0 rounded bg-danger/10 px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-danger"
+              data-testid="agent-activity-failed"
+            >
+              failed
+            </span>
+          )}
           <span className="min-w-0 truncate text-text-secondary" data-testid="agent-activity-preview">
             {preview(event.event_type, payload)}
           </span>
