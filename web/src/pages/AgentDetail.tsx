@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow } from '@/components/AgentActivityRow';
 import { AgentProfile } from '@/components/AgentProfile';
 import { AgentWorkItems } from '@/components/AgentWorkItems';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 // v2.7.1 #228: AgentDetail is a 4-tab surface. Workspace is a v2.8 placeholder;
 // Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
@@ -111,6 +112,9 @@ export default function AgentDetail(): React.ReactElement {
       data-agent-id={a.id}
       data-lifecycle={a.lifecycle}
     >
+      <Breadcrumb
+        items={[{ label: 'Members' }, { label: 'Agents', to: '/members/agents' }, { label: a.name }]}
+      />
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base pb-3">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">

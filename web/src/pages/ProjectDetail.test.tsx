@@ -78,7 +78,8 @@ describe('ProjectDetail page', () => {
       ),
     );
     wrap('/projects/proj-a');
-    await waitFor(() => expect(screen.getByText('Project Alpha')).toBeInTheDocument());
+    // #238: name appears in both the breadcrumb leaf and the header → scope to heading.
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Project Alpha' })).toBeInTheDocument());
     expect(screen.getByTestId('project-description')).toHaveTextContent('the alpha project');
     expect(screen.getByTestId('project-status-active')).toBeInTheDocument();
     // Issues tab is the default; the issue row shows.
@@ -98,7 +99,7 @@ describe('ProjectDetail page', () => {
       http.get('/api/projects/proj-empty/tasks', () => HttpResponse.json({ tasks: [] })),
     );
     wrap('/projects/proj-empty');
-    await waitFor(() => expect(screen.getByText('Empty Project')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Empty Project' })).toBeInTheDocument());
     await waitFor(() =>
       expect(screen.getByTestId('project-issues-panel')).toHaveTextContent(/No issues yet/),
     );

@@ -13,6 +13,7 @@ import { MessageList } from '@/components/MessageList';
 import { TypeChip } from '@/components/TypeChip';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 // ChannelDetail page (/channels/:name).
 //
@@ -82,6 +83,9 @@ export default function ChannelDetail(): React.ReactElement {
       data-testid="page-ChannelDetail"
       data-channel-id={channel.id}
     >
+      <div className="mb-2">
+        <Breadcrumb items={[{ label: 'Channels', to: '/channels' }, { label: channel.name }]} />
+      </div>
       <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

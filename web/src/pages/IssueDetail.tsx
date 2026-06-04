@@ -12,6 +12,7 @@ import { IssueEditModal } from '@/components/IssueEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { EntityRef } from '@/components/EntityRef';
 import { TypeChip } from '@/components/TypeChip';
+import { Breadcrumb } from '@/components/Breadcrumb';
 import { useDisplayNameResolver } from '@/api/members';
 import type { IssueStatus } from '@/api/types';
 
@@ -63,6 +64,16 @@ export default function IssueDetail(): React.ReactElement {
 
   return (
     <section className="flex h-full flex-col" data-testid="page-IssueDetail" data-issue-id={iss.id}>
+      <div className="mb-2">
+        <Breadcrumb
+          items={[
+            { label: 'Projects', to: '/projects' },
+            { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(iss.project_id)}` },
+            { label: 'Issues' },
+            { label: iss.title || iss.id },
+          ]}
+        />
+      </div>
       <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">

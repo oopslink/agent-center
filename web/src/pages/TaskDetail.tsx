@@ -21,6 +21,7 @@ import {
 import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
 // the task is project-scoped and driven entirely by its projection.
@@ -122,28 +123,18 @@ export default function TaskDetail(): React.ReactElement {
 
   return (
     <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
+      <div className="mb-2">
+        <Breadcrumb
+          items={[
+            { label: 'Projects', to: '/projects' },
+            { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(tk.project_id)}` },
+            { label: 'Tasks' },
+            { label: tk.title || tk.id },
+          ]}
+        />
+      </div>
       <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
-          {/* v2.7 #186-1: breadcrumb [project name] › Tasks › [task title]. */}
-          <nav
-            className="flex flex-wrap items-center gap-1.5 text-xs text-text-muted"
-            aria-label="Breadcrumb"
-            data-testid="task-breadcrumb"
-          >
-            <OrgLink
-              to={`/projects/${encodeURIComponent(tk.project_id)}`}
-              className="hover:underline"
-              data-testid="task-breadcrumb-project"
-            >
-              {project.data?.name || tk.project_id}
-            </OrgLink>
-            <span aria-hidden="true">›</span>
-            <span>Tasks</span>
-            <span aria-hidden="true">›</span>
-            <span className="text-text-secondary" data-testid="task-breadcrumb-title">
-              {tk.title || tk.id}
-            </span>
-          </nav>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
             <TypeChip kind="task" />
