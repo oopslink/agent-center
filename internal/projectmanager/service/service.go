@@ -60,6 +60,10 @@ type Service struct {
 	// agentDir is OPTIONAL (nil-safe). nil ⇒ AssignTask skips the
 	// agent-membership step entirely (preserves pre-#5a behavior).
 	agentDir AgentDirectory
+	// orgSeq is OPTIONAL (nil-safe, v2.7.1 #245). nil ⇒ CreateTask/CreateIssue
+	// skip org-number allocation (org_number stays 0, org_ref omitted) — keeps
+	// pre-#245 service constructions (tests) working unchanged.
+	orgSeq pm.OrgSequenceRepository
 }
 
 // Deps bundles the Service dependencies.
@@ -78,6 +82,9 @@ type Deps struct {
 	// AgentDir is OPTIONAL: when set, AssignTask grants an assignee agent
 	// project membership (cross-org-guarded). When nil, that step is skipped.
 	AgentDir AgentDirectory
+	// OrgSeq is OPTIONAL (v2.7.1 #245): when set, CreateTask/CreateIssue allocate
+	// a per-org T<n>/I<n> number. nil ⇒ allocation skipped (org_number 0).
+	OrgSeq pm.OrgSequenceRepository
 }
 
 // New constructs the Service.
@@ -90,7 +97,7 @@ func New(d Deps) *Service {
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
-		agentDir: d.AgentDir,
+		agentDir: d.AgentDir, orgSeq: d.OrgSeq,
 	}
 }
 

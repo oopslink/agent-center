@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/identity"
@@ -69,22 +70,40 @@ func pmMemberMap(m *pm.ProjectMember) map[string]any {
 }
 
 func pmIssueMap(i *pm.Issue) map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"id": string(i.ID()), "project_id": string(i.ProjectID()), "title": i.Title(),
 		"description": i.Description(), "status": string(i.Status()), "created_by": string(i.CreatedBy()),
 		"version": i.Version(), "created_at": i.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": i.UpdatedAt().Format(time.RFC3339Nano),
 	}
+	if ref := orgRefToken("I", i.OrgNumber()); ref != "" {
+		m["org_ref"] = ref
+	}
+	return m
 }
 
 func pmTaskMap(t *pm.Task) map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"id": string(t.ID()), "project_id": string(t.ProjectID()), "title": t.Title(),
 		"description": t.Description(), "status": string(t.Status()), "assignee": string(t.Assignee()),
 		"derived_from_issue": string(t.DerivedFromIssue()), "completed_by": string(t.CompletedBy()),
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 	}
+	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
+		m["org_ref"] = ref
+	}
+	return m
+}
+
+// orgRefToken renders the v2.7.1 #245 display/reference token ("T<n>"/"I<n>"),
+// or "" when no number is allocated (rows predating the migration backfill) so
+// the DTO omits org_ref and the UI gracefully falls back to the hash handle.
+func orgRefToken(prefix string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return prefix + strconv.Itoa(n)
 }
 
 func pmCodeRepoMap(c *pm.CodeRepoRef) map[string]any {

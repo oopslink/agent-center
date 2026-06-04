@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -353,22 +354,30 @@ func readAgentTool2(w http.ResponseWriter, r *http.Request, idKey string) (agent
 // agentTaskMap projects a pm.Task to the wire shape used elsewhere (mirrors
 // webconsole's pmTaskMap).
 func agentTaskMap(t *pm.Task) map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"id": string(t.ID()), "project_id": string(t.ProjectID()), "title": t.Title(),
 		"description": t.Description(), "status": string(t.Status()), "assignee": string(t.Assignee()),
 		"derived_from_issue": string(t.DerivedFromIssue()), "completed_by": string(t.CompletedBy()),
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 	}
+	if t.OrgNumber() > 0 { // v2.7.1 #245: T<n> display/ref token (omitted when unallocated)
+		m["org_ref"] = "T" + strconv.Itoa(t.OrgNumber())
+	}
+	return m
 }
 
 // agentIssueMap projects a pm.Issue to the wire shape used elsewhere (mirrors
 // webconsole's pmIssueMap).
 func agentIssueMap(i *pm.Issue) map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"id": string(i.ID()), "project_id": string(i.ProjectID()), "title": i.Title(),
 		"description": i.Description(), "status": string(i.Status()), "created_by": string(i.CreatedBy()),
 		"version": i.Version(), "created_at": i.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": i.UpdatedAt().Format(time.RFC3339Nano),
 	}
+	if i.OrgNumber() > 0 { // v2.7.1 #245: I<n> display/ref token
+		m["org_ref"] = "I" + strconv.Itoa(i.OrgNumber())
+	}
+	return m
 }
