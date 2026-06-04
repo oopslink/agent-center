@@ -12,9 +12,13 @@ const CAT_RUNNING: Category = { label: 'Running command', cls: 'bg-brand/10 text
 const CAT_SEARCHING: Category = { label: 'Searching code', cls: 'bg-purple-500/10 text-purple-600' };
 const CAT_CHECKING: Category = { label: 'Checking messages', cls: 'bg-orange-500/10 text-orange-600' };
 
-// search-y tool names (lowercased) → "Searching code"; otherwise tool events are
-// "Running command". v2.7.1 hardcoded; v2.8 driven by backend tool metadata.
-const SEARCH_TOOLS = new Set(['grep', 'glob', 'read', 'globsearch', 'filesearch', 'ripgrep', 'rg', 'find', 'ag', 'ack']);
+// search-y tool names (lowercased) → "Searching code"; otherwise tool events
+// are "Running command". These are claude's real content-block tool names
+// (Dev #228 core verified). Shell-level searches (rg/grep/find via the Bash
+// tool) carry tool_name="Bash" — the command lives in tool_input, not tool_name
+// — so they degrade to Running command in v2.7.1; deeper tool_input heuristics
+// are v2.8 work (PD-accepted degradation).
+const SEARCH_TOOLS = new Set(['grep', 'glob', 'read', 'websearch', 'webfetch']);
 
 function categoryOf(eventType: string, p: Record<string, unknown>): Category {
   switch (eventType) {

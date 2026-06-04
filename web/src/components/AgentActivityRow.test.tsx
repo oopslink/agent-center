@@ -81,6 +81,21 @@ describe('AgentActivityRow (#228 categories)', () => {
     expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching code');
   });
 
+  it('tool_use WebSearch / WebFetch → Searching code', () => {
+    row(ev('tool_use', { tool_name: 'WebSearch', args: { query: 'foo' } }));
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching code');
+    cleanup();
+    row(ev('tool_use', { tool_name: 'WebFetch', args: { url: 'http://x' } }));
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching code');
+  });
+
+  it('Bash shell search (rg/find) is NOT Searching code — tool_name=Bash → Running command', () => {
+    // Shell searches carry tool_name="Bash"; the command is in tool_input, not
+    // tool_name, so they degrade to Running command (PD-accepted, v2.8 deeper).
+    row(ev('tool_use', { tool_name: 'Bash', args: { command: 'rg foo' } }));
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Running command');
+  });
+
   it('failed tool_result → Running command badge + a "failed" marker + preview', () => {
     row(ev('tool_result', { tool_name: 'run', duration_ms: 120, tokens: 50, ok: false }));
     // Category badge is unchanged; the error shows as a separate red marker.
