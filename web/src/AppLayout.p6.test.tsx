@@ -66,6 +66,21 @@ describe('AppLayout v3 — P6 (theme + collapse + palette + shortcuts)', () => {
     expect(localStorage.getItem('ac.sidebar.collapsed')).toBe('1');
   });
 
+  it('collapse toggle: state-based tooltip + aria + a clean single-chevron icon (#253)', () => {
+    renderShell();
+    const btn = screen.getByTestId('sidebar-collapse-toggle');
+    // expanded → "Collapse sidebar"; the icon is a single stroke path (no rect).
+    expect(btn).toHaveAttribute('title', 'Collapse sidebar');
+    expect(btn).toHaveAttribute('aria-label', 'Collapse sidebar');
+    const svg = btn.querySelector('svg');
+    expect(svg?.querySelector('rect')).toBeNull();
+    expect(svg?.querySelectorAll('path')).toHaveLength(1);
+    // collapsed → tooltip + aria flip to "Expand sidebar".
+    fireEvent.click(btn);
+    expect(btn).toHaveAttribute('title', 'Expand sidebar');
+    expect(btn).toHaveAttribute('aria-label', 'Expand sidebar');
+  });
+
   it('Cmd+K opens command palette; Esc closes it', () => {
     renderShell();
     expect(screen.queryByTestId('command-palette')).not.toBeInTheDocument();

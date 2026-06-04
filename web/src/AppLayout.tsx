@@ -520,7 +520,7 @@ function Sidebar({
           aria-pressed={collapsed}
           data-testid="sidebar-collapse-toggle"
           onClick={onToggleCollapsed}
-          title="Toggle sidebar (⌘B)"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className="absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary shadow-sm hover:bg-bg-subtle hover:text-text-primary motion-safe:transition-colors"
         >
           <SidebarToggleIcon collapsed={collapsed} />
@@ -736,12 +736,12 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
 // color. Inlining avoids pulling a whole icon library for ~7 glyphs.
 // ============================================================================
 
+// v2.7.1 #253: a clean single chevron (was a rectangle + inner divider + arrow).
+// Points right "›" when collapsed (expand), left "‹" when expanded (collapse).
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }): React.ReactElement {
   return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <rect x="3" y="4" width="14" height="12" rx="1.5" />
-      <path d="M8 4v12" />
-      <path d={collapsed ? 'M11 8l2 2-2 2' : 'M13 8l-2 2 2 2'} strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d={collapsed ? 'M8 5l5 5-5 5' : 'M12 5l-5 5 5 5'} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
