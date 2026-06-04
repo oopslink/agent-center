@@ -9,6 +9,13 @@ function validateDisplayName(v: string): string {
   return '';
 }
 
+function validateEmail(v: string): string {
+  if (!v.trim()) return 'Please enter an email';
+  // Lightweight format check (backend stores without verifying).
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim())) return 'Please enter a valid email';
+  return '';
+}
+
 function validatePasscode(v: string): string {
   if (!/^\d{6}$/.test(v)) return 'Please enter a 6-digit passcode';
   return '';
@@ -76,6 +83,7 @@ function Field({ id, label, type = 'text', value, error, placeholder, maxLength,
 export default function Signup(): React.ReactElement {
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
   const [passcode, setPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
   const [orgName, setOrgName] = useState('');
@@ -102,6 +110,8 @@ export default function Signup(): React.ReactElement {
     const errs: Record<string, string> = {};
     const e1 = validateDisplayName(displayName);
     if (e1) errs.displayName = e1;
+    const eEmail = validateEmail(email);
+    if (eEmail) errs.email = eEmail;
     const e2 = validatePasscode(passcode);
     if (e2) errs.passcode = e2;
     const e3 = validateConfirm(passcode, confirmPasscode);
@@ -128,6 +138,7 @@ export default function Signup(): React.ReactElement {
     try {
       await authApi.signup({
         display_name: displayName.trim(),
+        email: email.trim(),
         passcode,
         organization_name: orgName.trim(),
         organization_slug: orgSlug,
@@ -137,6 +148,8 @@ export default function Signup(): React.ReactElement {
       if (err instanceof ApiError) {
         if (err.code === 'display_name_taken') {
           setErrors((prev) => ({ ...prev, displayName: 'That display name is already taken' }));
+        } else if (err.code === 'email_taken' || err.code === 'already_exists') {
+          setErrors((prev) => ({ ...prev, email: 'That email is already in use' }));
         } else if (err.code === 'slug_taken') {
           setErrors((prev) => ({ ...prev, orgSlug: 'That slug is already taken' }));
         } else {
@@ -172,6 +185,16 @@ export default function Signup(): React.ReactElement {
               placeholder="Your name"
               maxLength={40}
               onChange={setDisplayName}
+            />
+            <Field
+              id="email"
+              label="Email"
+              type="email"
+              value={email}
+              error={errors.email ?? ''}
+              placeholder="you@example.com"
+              maxLength={200}
+              onChange={setEmail}
             />
             <Field
               id="passcode"

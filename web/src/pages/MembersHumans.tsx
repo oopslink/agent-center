@@ -5,10 +5,18 @@ import {
   useChangeMemberRole,
   useDisableMember,
   useReEnableMember,
+  normalizeIdentityRef,
   type MemberResult,
 } from '@/api/members';
 import { ApiError } from '@/api/client';
 import { EntityRef } from '@/components/EntityRef';
+
+// v2.7.1 #193: short date for the Humans list columns (empty → em dash).
+function fmtDate(v?: string): string {
+  if (!v) return '—';
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+}
 
 function RoleBadge({ role }: { role: string }): React.ReactElement {
   const colors: Record<string, string> = {
@@ -40,9 +48,16 @@ function MemberRow({
 
   return (
     <tr className="border-b border-border last:border-0">
-      {/* v2.7 #192: show the member's display name, raw identity id on hover. */}
+      {/* v2.7 #192: display name, raw id on hover. v2.7.1 #193: links to UserDetail
+          by member-id (rename-safe). */}
       <td className="py-2 px-3 text-sm text-text-primary">
-        <EntityRef id={member.identity_id} name={member.display_name} fallback={member.identity_id} />
+        <EntityRef
+          id={member.identity_id}
+          name={member.display_name}
+          fallback={member.identity_id}
+          to={`/users/${encodeURIComponent(normalizeIdentityRef(member.identity_id))}`}
+          testId="human-member-link"
+        />
       </td>
       <td className="py-2 px-3">
         <RoleBadge role={member.role} />
@@ -53,6 +68,16 @@ function MemberRow({
         >
           {member.status === 'joined' ? 'Joined' : 'Disabled'}
         </span>
+      </td>
+      {/* v2.7.1 #193: email / created / last-active columns (nullable → em dash). */}
+      <td className="py-2 px-3 text-sm text-text-secondary" data-testid="human-email">
+        {member.email || '—'}
+      </td>
+      <td className="py-2 px-3 text-sm text-text-muted" data-testid="human-created">
+        {fmtDate(member.created_at)}
+      </td>
+      <td className="py-2 px-3 text-sm text-text-muted" data-testid="human-last-session">
+        {fmtDate(member.last_session_at)}
       </td>
       <td className="py-2 px-3 text-right">
         {!isSelf && (
@@ -321,6 +346,9 @@ export default function MembersHumans(): React.ReactElement {
                 <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Identity</th>
                 <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Role</th>
                 <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Email</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Created</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Last active</th>
                 <th className="py-2 px-3 w-12" />
               </tr>
             </thead>

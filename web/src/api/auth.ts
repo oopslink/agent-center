@@ -3,6 +3,8 @@ import { api } from './client';
 
 export interface SignupPayload {
   display_name: string;
+  // v2.7.1 #193: required for new signups (stored, not verified — no email sent).
+  email: string;
   passcode: string;
   organization_name: string;
   organization_slug: string;
