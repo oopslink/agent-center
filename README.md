@@ -94,6 +94,14 @@ A worker can run on the same machine as the center or any other machine. In the 
 
 Like the center, `install worker` is **foreground by default**: it drops files + config and prints the `agent-center worker run …` command to run yourself (logs to stdout). Add `--service` to register a managed LaunchAgent/systemd unit that auto-starts on boot.
 
+**v2.7.1 change — config is the single source of truth.** `install worker` now writes all enroll fields (worker_id / name / bootstrap / token / server_fingerprint) into `<prefix>/etc/config.yaml` (mode `0600`), and the printed/managed `worker run` command is just:
+
+```bash
+agent-center worker run --config=<prefix>/etc/config.yaml
+```
+
+The legacy `--worker-id` / `--bootstrap` / `--token` / `--server-fingerprint` / `--worker-name` flags are still accepted as overrides (a flag value wins over the config value), so existing scripts keep working — but the token no longer appears in `ps`, in your launchd plist, or in the printed install command. Upgrading from a pre-v2.7.1 install automatically migrates the older `config.yaml` so the new launch command works without re-supplying flags.
+
 `--worker-id` is **required** — there is no hostname default, so a missing id is a hard error that points you back to the Web Console's Add Worker flow (which mints a unique id). This keeps two workers on one machine from silently colliding.
 
 **Multiple workers per machine** are supported: each worker installs under its own subtree (`<prefix>/workers/<worker-id>/`); with `--service`, each gets its own LaunchAgent/systemd label (`com.agent-center.worker.<worker-id>`), so distinct `--worker-id`s coexist with zero overlap. (Re-running with the *same* `--worker-id` is treated as a re-enroll/upgrade of that worker.) `--server-fingerprint` is required when `--bootstrap` is `tcp://`.
