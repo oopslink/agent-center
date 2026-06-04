@@ -282,6 +282,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// find-* read endpoints. v2.7 #131 PR-3.
 		PMProjectRepo: a.PMProjectRepo,
 
+		// identity org repo — org-name resolution for get_my_profile (v2.7.1 #239).
+		IdentityOrgRepo: a.IdentityOrgRepo,
+
 		// Files module (v2.7 post-D3, task #104) — agent file MCP tools. Reuses
 		// the shared buildFilesService helper (same as the webconsole FilesSvc +
 		// GC loop); nil when the blobstore root is unset → file endpoints 501.

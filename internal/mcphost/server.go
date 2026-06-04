@@ -111,6 +111,17 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given.",
 	}, makePostMessage(cfg))
 
+	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_my_profile",
+		Description: "Get the calling agent's own profile: organization, the projects it belongs to (with role + what it can do in each), and its capabilities. Call this at the start to learn who you are and where you can act — no need to ask a human.",
+	}, makeGetMyProfile(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "find_org_agent",
+		Description: "Find agents in your organization by name (substring match; empty name lists all). Returns [{id, name}] — use an id as the assignee for assign_task.",
+	}, makeFindOrgAgent(cfg))
+
 	// --- read tools (own-scope) ----------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_task",
@@ -198,6 +209,35 @@ func makeGetMyWork(cfg Config) mcp.ToolHandlerFor[getMyWorkArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, _ getMyWorkArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{"agent_id": cfg.AgentID}
 		return callAdmin(ctx, cfg, "get_my_work", body)
+	}
+}
+
+// getMyProfileArgs is argless: get_my_profile is inherently self-scoped (the
+// agent reads only its own org/projects/capabilities), and agent_id is
+// process-fixed — nothing for the model to supply (v2.7.1 #239).
+type getMyProfileArgs struct{}
+
+// makeGetMyProfile returns the get_my_profile handler bound to cfg. The
+// forwarded body carries ONLY the process-fixed agent_id (self-only scope).
+func makeGetMyProfile(cfg Config) mcp.ToolHandlerFor[getMyProfileArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ getMyProfileArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID}
+		return callAdmin(ctx, cfg, "get_my_profile", body)
+	}
+}
+
+// findOrgAgentArgs is the typed input for find_org_agent. agent_id is process-
+// fixed (injected from cfg, never the model) so the org scope can't be spoofed.
+type findOrgAgentArgs struct {
+	Name string `json:"name" jsonschema:"agent name to search for (substring, case-insensitive; empty lists all org agents)"`
+}
+
+// makeFindOrgAgent returns the find_org_agent handler bound to cfg. agent_id is
+// injected from cfg; the org scope is derived center-side from that agent.
+func makeFindOrgAgent(cfg Config) mcp.ToolHandlerFor[findOrgAgentArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args findOrgAgentArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "name": args.Name}
+		return callAdmin(ctx, cfg, "find_org_agent", body)
 	}
 }
 

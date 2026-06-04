@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/environment/controlstream"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -126,6 +127,10 @@ type HandlerDeps struct {
 	// repointed off the retired workforce.Project model. Operator-scoped —
 	// projectFindAllHandler uses its operator-global ListAll.
 	PMProjectRepo projectmanager.ProjectRepository
+
+	// IdentityOrgRepo resolves the org name for the get_my_profile agent tool
+	// (v2.7.1 #239) — read-only GetByID(org_id). Same repo the webconsole uses.
+	IdentityOrgRepo identity.OrganizationRepository
 
 	// SecretManagement BC
 	UserSecretRepo secretmgmt.UserSecretRepository

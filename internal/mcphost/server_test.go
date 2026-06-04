@@ -84,6 +84,8 @@ var wantTools = []string{
 	"get_my_work", "post_task_message",
 	// v2.7 #185: DM/channel reply
 	"post_message",
+	// v2.7.1 #239: self / org discovery
+	"get_my_profile", "find_org_agent",
 	// reads
 	"get_task", "get_issue",
 	// pm writes / passthrough
