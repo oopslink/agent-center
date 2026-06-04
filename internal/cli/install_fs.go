@@ -244,11 +244,17 @@ func copyFileMode0755(src, dst string) error {
 	return os.Rename(tmp, dst)
 }
 
-// writeVersionFile writes the VERSION marker that detectExistingInstall
-// reads on next invocation.
+// writeVersionFile writes the VERSION + COMMIT markers that
+// detectExistingInstall reads on next invocation. v2.7.1 #234: the
+// COMMIT marker (build git sha) lets a same-version rebuild be told
+// apart from a true no-op so the binary swap is not silently skipped.
 func writeVersionFile(layout installLayout) error {
-	return os.WriteFile(filepath.Join(layout.VersionedDir, "VERSION"),
-		[]byte(layout.Version+"\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(layout.VersionedDir, "VERSION"),
+		[]byte(layout.Version+"\n"), 0o644); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(layout.VersionedDir, "COMMIT"),
+		[]byte(installerCommit()+"\n"), 0o644)
 }
 
 // atomicSymlinkSwap creates <prefix>/current → versionedDir using a

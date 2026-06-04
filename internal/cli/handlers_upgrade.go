@@ -66,6 +66,7 @@ func upgradeCenterHandler(fs *flag.FlagSet) Handler {
 	userMode := fs.Bool("user-mode", isMacRuntime(), "user-mode service paths (default: same as install center)")
 	port := fs.Int("port", 7100, "Web Console listen port (reserved; existing config is preserved on upgrade)")
 	tcpListen := fs.String("tcp-listen", "0.0.0.0:7300", "admin TCP listener address (reserved; existing config preserved)")
+	force := fs.Bool("force", false, "force the binary swap even when the installed version+commit match this build (v2.7.1 #234)")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = args
@@ -82,6 +83,7 @@ func upgradeCenterHandler(fs *flag.FlagSet) Handler {
 		if err := requireUpgradeState(state, resolved, errw); err != nil {
 			return ExitBusinessError
 		}
+		state = applyForceState(state, *force)
 		fmt.Fprintf(out, "agent-center upgrade center:\n")
 		fmt.Fprintf(out, "  prefix:    %s\n", resolved)
 		fmt.Fprintf(out, "  state:     %s (current=%s, this=%s)\n", state, currentVersion, version)
@@ -111,6 +113,7 @@ func upgradeWorkerHandler(fs *flag.FlagSet) Handler {
 	bootstrap := fs.String("bootstrap", "", "admin endpoint URL (preserved across upgrade; only honoured on Fresh, which upgrade refuses)")
 	token := fs.String("token", "", "enroll token (preserved across upgrade)")
 	fingerprint := fs.String("server-fingerprint", "", "pinned server fingerprint (preserved across upgrade)")
+	force := fs.Bool("force", false, "force the binary swap even when the installed version+commit match this build (v2.7.1 #234)")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = args
@@ -132,6 +135,7 @@ func upgradeWorkerHandler(fs *flag.FlagSet) Handler {
 		if err := requireUpgradeState(state, resolved, errw); err != nil {
 			return ExitBusinessError
 		}
+		state = applyForceState(state, *force)
 		fmt.Fprintf(out, "agent-center upgrade worker:\n")
 		fmt.Fprintf(out, "  prefix:    %s\n", resolved)
 		fmt.Fprintf(out, "  worker-id: %s\n", *workerID)

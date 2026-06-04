@@ -40,6 +40,9 @@ func main() {
 	// command so it prints "AgentCenter v2.4.0 installed" instead of
 	// the "dev" sentinel for tagged builds.
 	cli.SetInstallBuildVersion(buildVersion)
+	// v2.7.1 #234: thread the linker-injected commit so `install/upgrade`
+	// can swap on a same-version-different-commit rebuild.
+	cli.SetInstallBuildCommit(buildCommit)
 	router, configPath, err := cli.BuildRouter(buildVersion, buildCommit, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: build_router: %v\n", err)
