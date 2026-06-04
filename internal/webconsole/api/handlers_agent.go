@@ -12,6 +12,7 @@ import (
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // agentFacingID returns the business-layer id for an agent: its identity-member
@@ -109,6 +110,66 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		m["lifecycle_error"] = le
 	}
 	return m
+}
+
+// bareRefID strips the "user:"/"agent:" kind prefix from an ADR-0033 actor ref
+// → the bare identity-member id (mirrors refBareID in handlers.go, kept local to
+// avoid importing the conversation BC just for the string op).
+func bareRefID(s string) string {
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		return s[i+1:]
+	}
+	return s
+}
+
+// agentDetailEnrich adds the AgentDetail-only Profile fields (v2.7.1 #228) onto
+// the base agentMap: the creator's display name, the bound worker's computer
+// info, and the agents this agent created. Read-time + best-effort — a miss
+// omits the field so the UI falls back. Kept OUT of agentMap so the list
+// endpoint stays lean (no per-row worker/identity/org-list fan-out); only the
+// single-agent detail load pays for it.
+//
+// NOTE the deliberate v2.7.1 omissions (frontend shows static/fallback, real
+// values are v2.8 schema work): runtime config reasoning_level/mode/provider
+// (#229 — Profile only models Model+CLI), skills global/local indicator + path
+// (#230 — skills is a name list, origin is a worker FS property), and the
+// worker's daemon version (no Worker BC field). We never fabricate these here.
+func (s *Server) agentDetailEnrich(ctx context.Context, d HandlerDeps, a *agentbc.Agent, m map[string]any) {
+	// Creator display name (created_by is a "user:"/"agent:" actor ref → bare id).
+	if d.IdentityRepo != nil {
+		if id := bareRefID(string(a.CreatedBy())); id != "" {
+			if ident, err := d.IdentityRepo.GetByID(ctx, id); err == nil && ident != nil {
+				m["created_by_display_name"] = ident.DisplayName()
+			}
+		}
+	}
+	// Computer: the bound worker's label + connected state. daemon version is NOT
+	// a Worker BC field → omitted (the UI does not fabricate it).
+	if wid := a.WorkerID(); wid != "" && d.WorkerRepo != nil {
+		if wk, err := d.WorkerRepo.FindByID(ctx, workforce.WorkerID(wid)); err == nil && wk != nil {
+			m["computer"] = map[string]any{
+				"worker_id": wid,
+				"name":      wk.Name(),
+				"status":    string(wk.Status()),
+				"connected": wk.Status() == workforce.WorkerOnline,
+			}
+		}
+	}
+	// Created agents: the sub-agents this agent created (created_by == "agent:"+self).
+	// Always a slice, never null (#183 contract); empty → "No created agents" in UI.
+	created := []map[string]any{}
+	if d.AgentSvc != nil {
+		if siblings, err := d.AgentSvc.ListAgents(ctx, a.OrganizationID()); err == nil {
+			self := agentFacingID(a)
+			for _, c := range siblings {
+				ref := string(c.CreatedBy())
+				if strings.HasPrefix(ref, "agent:") && bareRefID(ref) == self {
+					created = append(created, map[string]any{"id": agentFacingID(c), "name": c.Profile().Name})
+				}
+			}
+		}
+	}
+	m["created_agents"] = created
 }
 
 // agentWorkItemMap renders a work item. agentFacingID is the business-layer id
@@ -261,7 +322,17 @@ func (s *Server) agentGetHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	s.agentWriteJSON(w, r, d, a)
+	// v2.7.1 #228: AgentDetail loads the single agent here — enrich with the
+	// Profile-only fields (creator name / computer / created agents). The list
+	// + lifecycle paths keep using agentWriteJSON (lean agentMap).
+	avail, err := d.AgentSvc.Availability(r.Context(), a)
+	if err != nil {
+		mapAgentError(w, err)
+		return
+	}
+	m := agentMap(a, avail)
+	s.agentDetailEnrich(r.Context(), d, a, m)
+	writeJSON(w, http.StatusOK, m)
 }
 
 // agentDeleteHandler hard-deletes an agent (v2.7 #197). Guards (in the service):
