@@ -176,7 +176,16 @@ func (s *Server) findOrgAgentHandler(w http.ResponseWriter, r *http.Request) {
 		if id == "" {
 			id = string(ag.ID())
 		}
-		out = append(out, map[string]any{"id": id, "name": name})
+		// v2.7.1 #241: also emit a ready-to-use assignee_ref ("agent:<id>", the
+		// ADR-0033 actor-ref form). assign_task validates the assignee as a
+		// prefixed ref, so the agent feeds assignee_ref straight in — no manual
+		// "agent:"+id concatenation (which is a bare-id-vs-prefixed-ref footgun,
+		// the same class as the #240 createDm bug). id stays bare for display/#192.
+		out = append(out, map[string]any{
+			"id":           id,
+			"name":         name,
+			"assignee_ref": "agent:" + id,
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
 }
