@@ -372,9 +372,25 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
+	self := conversation.IdentityRef(d.Actor)
 	arr := make([]map[string]any, len(convs))
 	for i, c := range convs {
-		arr[i] = convPublicMap(c)
+		row := convPublicMap(c)
+		// v2.7.1 #215: enrich each DM with the peer (participants − self) so the
+		// sidebar/DMs list can show "@peer_name" instead of "Direct message". Omit
+		// the peer fields when the DM isn't a clean 1:1 (UI falls back).
+		if c.Kind() == conversation.ConversationKindDM {
+			if peer, ok := dmPeerOf(c, self); ok {
+				bare := refBareID(peer)
+				row["peer_identity_id"] = bare
+				if d.IdentityRepo != nil {
+					if ident, err := d.IdentityRepo.GetByID(r.Context(), bare); err == nil && ident != nil {
+						row["peer_display_name"] = ident.DisplayName()
+					}
+				}
+			}
+		}
+		arr[i] = row
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -466,9 +482,11 @@ func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps,
 		writeError(w, http.StatusNotImplemented, "not_wired", "message writer not wired")
 		return
 	}
-	if len(req.Members) == 0 {
+	// v2.7.1 #215: DM is strictly 1:1 (exactly one peer; group conversations use a
+	// channel). Reject 0 or >1 members.
+	if len(req.Members) != 1 {
 		writeError(w, http.StatusBadRequest, "invalid_input",
-			"kind=dm requires at least one entry in members")
+			"DM requires exactly 1 peer (use channel for group)")
 		return
 	}
 	// v2.6 X1 §1: require org membership; stamp the DM with the caller's org.
@@ -484,26 +502,34 @@ func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps,
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	owner := conversation.IdentityRef(d.Actor)
-	parts := []conversation.ParticipantElement{{
-		IdentityID: owner, Role: "owner",
-		JoinedAt: now, JoinedBy: owner,
-	}}
-	seen := map[conversation.IdentityRef]bool{owner: true}
-	for _, m := range req.Members {
-		ref := conversation.IdentityRef(m)
-		if err := ref.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_input",
-				"member identity invalid: "+m)
-			return
+	peer := conversation.IdentityRef(req.Members[0])
+	if err := peer.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "member identity invalid: "+req.Members[0])
+		return
+	}
+	// v2.7.1 #215: a self-DM is meaningless.
+	if peer == owner {
+		writeError(w, http.StatusBadRequest, "invalid_input", "cannot open a DM with yourself")
+		return
+	}
+	// v2.7.1 #215: dedup — one DM per (org, {caller, peer}) unordered. An existing
+	// (non-archived) DM is reused (200 + its id) instead of opening a duplicate.
+	dmKind := conversation.ConversationKindDM
+	if existing, ferr := d.ConvRepo.Find(r.Context(), conversation.ConversationFilter{OrganizationID: orgID, Kind: &dmKind}); ferr == nil {
+		for _, c := range existing {
+			if c.ArchivedAt() == nil && dmMatchesPair(c, owner, peer) {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"conversation_id": string(c.ID()),
+					"kind":            string(conversation.ConversationKindDM),
+					"existing":        true,
+				})
+				return
+			}
 		}
-		if seen[ref] {
-			continue
-		}
-		seen[ref] = true
-		parts = append(parts, conversation.ParticipantElement{
-			IdentityID: ref, Role: "member",
-			JoinedAt: now, JoinedBy: owner,
-		})
+	}
+	parts := []conversation.ParticipantElement{
+		{IdentityID: owner, Role: "owner", JoinedAt: now, JoinedBy: owner},
+		{IdentityID: peer, Role: "member", JoinedAt: now, JoinedBy: owner},
 	}
 	res, err := d.MessageWriter.OpenConversation(r.Context(), convservice.OpenCommand{
 		Kind:           conversation.ConversationKindDM,
@@ -523,6 +549,47 @@ func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps,
 		"event_id":        string(res.EventID),
 		"kind":            string(conversation.ConversationKindDM),
 	})
+}
+
+// dmMatchesPair reports whether a DM's active participant set is exactly {a, b}
+// (order-independent) — the v2.7.1 #215 dedup key.
+func dmMatchesPair(c *conversation.Conversation, a, b conversation.IdentityRef) bool {
+	active := map[conversation.IdentityRef]bool{}
+	for _, p := range c.Participants() {
+		if p.IsActive() {
+			active[p.IdentityID] = true
+		}
+	}
+	return len(active) == 2 && active[a] && active[b]
+}
+
+// dmPeerOf returns the single active participant of a DM other than self (v2.7.1
+// #215). ok=false when the DM does not have exactly one such peer (e.g. a legacy
+// multi-party or self-only DM) — callers then omit the peer fields (UI fallback).
+func dmPeerOf(c *conversation.Conversation, self conversation.IdentityRef) (conversation.IdentityRef, bool) {
+	var peer conversation.IdentityRef
+	n := 0
+	for _, p := range c.Participants() {
+		if !p.IsActive() || p.IdentityID == self {
+			continue
+		}
+		peer = p.IdentityID
+		n++
+	}
+	if n != 1 {
+		return "", false
+	}
+	return peer, true
+}
+
+// refBareID strips the "user:"/"agent:" kind prefix → the bare member-id (v2.7.1
+// #215 / #192: the UI shows the name, hover reveals this id).
+func refBareID(ref conversation.IdentityRef) string {
+	s := string(ref)
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		return s[i+1:]
+	}
+	return s
 }
 
 // listRefsHandler returns the carry-over references that landed into a
