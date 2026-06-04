@@ -109,6 +109,11 @@ export interface AgentWorkItem {
   id: string;
   agent_id: string;
   task_ref: string;
+  // v2.7.1 #206: bare task id + resolved title + parent project for display +
+  // linking (read-side join; absent until the DTO carries them → UI falls back).
+  task_id?: string;
+  task_title?: string;
+  project_id?: string;
   status: WorkItemStatus;
   interactions: number;
   version: number;
@@ -162,6 +167,9 @@ export interface WorkItemRow {
   work_item_id: string;
   agent_id: string;
   task_id?: string;
+  // v2.7.1 #206: resolved task title + parent project for display + linking.
+  task_title?: string;
+  project_id?: string;
   status: string;
   current_activity?: string;
   total_tool_calls: number;

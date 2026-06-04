@@ -61,6 +61,25 @@ describe('Home / Overview (v2.3 P3)', () => {
     });
   });
 
+  it('shows the task title linked to task detail when the work item carries it (#206)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json({
+          work_items: [
+            { work_item_id: 'WI-2', agent_id: 'AG-1', task_id: 'T1', task_title: 'Build login flow', project_id: 'proj-x', status: 'active', current_activity: 'edit', total_tool_calls: 0, total_tokens_input: 0, total_tokens_output: 0, working_seconds: 0, last_activity_at: 't' },
+          ],
+          workers: [],
+          pending_issues: [],
+        }),
+      ),
+      http.get('/api/conversations', () => HttpResponse.json([])),
+    );
+    renderHome();
+    const link = await screen.findByTestId('home-wi-task');
+    expect(link).toHaveTextContent('Build login flow');
+    expect(link.getAttribute('href')).toContain('/projects/proj-x/tasks/T1');
+  });
+
   it('shows empty-state copy when nothing is running', async () => {
     server.use(
       http.get('/api/fleet', () =>
