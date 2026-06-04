@@ -299,7 +299,19 @@ export default function AgentDetail(): React.ReactElement {
       {/* Activity stream */}
       {tab === 'activity' && (
       <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-activity">
-        <h3 className="mb-2 text-sm font-semibold text-text-primary">Activity</h3>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-text-primary">Activity</h3>
+          <button
+            type="button"
+            className="rounded border border-border-strong px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
+            data-testid="agent-activity-refresh"
+            onClick={() => void activity.refetch()}
+            disabled={activity.isFetching}
+            aria-busy={activity.isFetching}
+          >
+            {activity.isFetching ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
         {activity.isLoading && (
           <p className="text-xs text-text-muted" data-testid="agent-activity-loading">
             Loading activity…
