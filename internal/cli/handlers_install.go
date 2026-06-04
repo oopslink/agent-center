@@ -640,6 +640,14 @@ func installWorkerUpgrade(out, errw io.Writer, ic installContext) ExitCode {
 		fmt.Fprintln(out, "  (restart your foreground `worker run` process to pick up the new binary; or use --service for a managed service)")
 		return ExitOK
 	}
+	// v2.7.1 #251: an old (pre-#141) worker keeps its enrollment identity in the
+	// unit args (token leaking via ps/plist). Before the restart, backfill the
+	// config's worker: section + rewrite the unit to the #249 --config-only form
+	// so the token leaves the plist. No-op when config already has a worker:
+	// section (#141+ install — preserves #141 "don't clobber").
+	if err := migrateWorkerConfigOnUpgrade(layout, sp, ic, home); err != nil {
+		return PrintError(errw, FormatText, "worker_config_migrate_failed", err.Error(), ExitBusinessError)
+	}
 	if err := upgradeService(out, errw, layout, sp, sp.WorkerServiceID, workerHealthProbe(sp, sp.WorkerServiceID)); err != nil {
 		return PrintError(errw, FormatText, "install_upgrade_failed", err.Error(), ExitBusinessError)
 	}
@@ -647,6 +655,115 @@ func installWorkerUpgrade(out, errw io.Writer, ic installContext) ExitCode {
 	fmt.Fprintf(out, "\n✓ Upgrade complete: %s → %s\n", ic.CurrentVersion, ic.Version)
 	fmt.Fprintf(out, "  service:   %s (%s)\n", sp.WorkerServiceID, sp.ServiceManager)
 	return ExitOK
+}
+
+// migrateWorkerConfigOnUpgrade backfills the worker config's `worker:` section
+// and rewrites the service unit to the #249 --config-only form when upgrading a
+// pre-#141 worker (identity in the unit args; token leaking via ps/plist).
+// Fill-missing / no-clobber (#141): a config that already has a worker: section
+// is left untouched. v2.7.1 #251.
+func migrateWorkerConfigOnUpgrade(layout installLayout, sp servicePaths, ic installContext, home string) error {
+	raw, err := os.ReadFile(layout.ConfigPath)
+	if err != nil {
+		return nil // no config to migrate (foreground/zero-install) — nothing to do
+	}
+	if hasWorkerSection(string(raw)) {
+		return nil // already config-single-source (#141+) — don't clobber
+	}
+	// Recover the enrollment identity: prefer the upgrade command's ic, fall back
+	// to the OLD unit's args; the token comes from the persisted long-term token.
+	unitArgs := map[string]string{}
+	if b, rerr := os.ReadFile(sp.WorkerUnitPath); rerr == nil {
+		unitArgs = parseWorkerUnitArgs(string(b))
+	}
+	pick := func(icVal, key string) string {
+		if v := strings.TrimSpace(icVal); v != "" {
+			return v
+		}
+		return unitArgs[key]
+	}
+	mig := installContext{
+		WorkerID:    pick(ic.WorkerID, "--worker-id"),
+		WorkerName:  pick(ic.WorkerName, "--worker-name"),
+		Bootstrap:   pick(ic.Bootstrap, "--admin-target"),
+		Fingerprint: pick(ic.Fingerprint, "--server-fingerprint"),
+		Token:       migrateWorkerToken(layout, ic.Token, unitArgs["--admin-token"]),
+	}
+	// (1) Append the worker: block (existing content + perms preserved → 0600).
+	appended := string(raw)
+	if !strings.HasSuffix(appended, "\n") {
+		appended += "\n"
+	}
+	appended += "\n# v2.7.1 #251: worker enrollment identity migrated from the service unit on upgrade.\n" +
+		workerConfigBlock(mig)
+	if err := os.WriteFile(layout.ConfigPath, []byte(appended), 0o600); err != nil {
+		return err
+	}
+	// WriteFile keeps an EXISTING file's mode (the old config was 0644), so chmod
+	// explicitly — the file now holds the token (PD: "提升 0600").
+	if err := os.Chmod(layout.ConfigPath, 0o600); err != nil {
+		return err
+	}
+	// (2) Rewrite the unit to --config-only so the token leaves the plist (the
+	// #249 security goal for upgraded installs).
+	if unitFileExists(sp.WorkerUnitPath) {
+		currentBin := filepath.Join(layout.CurrentBinDir, "agent-center")
+		unit := renderWorkerServiceUnit(sp, currentBin, layout.ConfigPath, layout.LogsDir, resolveWorkerPATH(home))
+		if err := writeUnitFile(sp.WorkerUnitPath, unit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// hasWorkerSection reports whether the config text already declares a top-level
+// `worker:` key (v2.7.1 #251 no-clobber guard).
+func hasWorkerSection(cfg string) bool {
+	for _, line := range strings.Split(cfg, "\n") {
+		if strings.HasPrefix(strings.TrimRight(line, " \t"), "worker:") {
+			return true
+		}
+	}
+	return false
+}
+
+// parseWorkerUnitArgs extracts "--key=value" tokens from a launchd plist or
+// systemd unit (both embed the worker run args as --key=value; the plist wraps
+// each in <string>...</string>). Best-effort: reads each value up to the next
+// delimiter. v2.7.1 #251.
+func parseWorkerUnitArgs(unit string) map[string]string {
+	out := map[string]string{}
+	for _, key := range []string{"--worker-id", "--admin-target", "--admin-token", "--server-fingerprint", "--worker-name"} {
+		needle := key + "="
+		i := strings.Index(unit, needle)
+		if i < 0 {
+			continue
+		}
+		v := unit[i+len(needle):]
+		if end := strings.IndexAny(v, "<\" \t\n"); end >= 0 {
+			v = v[:end]
+		}
+		if v != "" {
+			out[key] = v
+		}
+	}
+	return out
+}
+
+// migrateWorkerToken picks the token for the migrated config: the persisted
+// long-term token (var/worker-token, 0600 — what an enrolled worker actually
+// uses) first, then the upgrade command's token, then the old unit's
+// --admin-token. v2.7.1 #251 (PD: "token 从 var/worker-token read-in").
+func migrateWorkerToken(layout installLayout, icToken, unitToken string) string {
+	if b, err := os.ReadFile(workerTokenFile(layout)); err == nil {
+		if t := strings.TrimSpace(string(b)); t != "" {
+			return t
+		}
+	}
+	if t := strings.TrimSpace(icToken); t != "" {
+		return t
+	}
+	return strings.TrimSpace(unitToken)
 }
 
 // --- helpers ---------------------------------------------------------
