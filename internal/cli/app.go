@@ -321,6 +321,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:        gen,
 		Clock:        clk,
 		AgentDir:     agentpkg.NewOrgDirectory(agentRepo),
+		OrgSeq:       pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
 	})
 
 	// Shared agent WorkItem repo: the Agent BC AppService owns it, and the

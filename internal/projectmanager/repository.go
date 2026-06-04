@@ -91,3 +91,13 @@ type CodeRepoRefRepository interface {
 	ListByProject(ctx context.Context, projectID ProjectID) ([]*CodeRepoRef, error)
 	Delete(ctx context.Context, id string) error
 }
+
+// OrgSequenceRepository allocates per-organization, per-entity-type monotonic
+// numbers (v2.7.1 #245 — the T<n>/I<n> display/reference tokens). Allocate is
+// atomic + race-safe (one SQL UPSERT...RETURNING; SQLite serializes per-row
+// writes), so concurrent CreateTask/CreateIssue never collide or skip.
+type OrgSequenceRepository interface {
+	// Allocate returns the next number for (orgID, entityType) and advances the
+	// counter, in the caller's tx. entityType is "issue" or "task".
+	Allocate(ctx context.Context, orgID, entityType string) (int, error)
+}

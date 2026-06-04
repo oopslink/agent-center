@@ -156,20 +156,27 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 		return "", err
 	}
 	now := s.clock.Now()
-	i, err := pm.NewIssue(pm.NewIssueInput{
-		ID: pm.IssueID(s.idgen.NewEntityID("issue")), ProjectID: cmd.ProjectID, Title: cmd.Title,
-		Description: cmd.Description, CreatedBy: cmd.CreatedBy, CreatedAt: now,
-	})
-	if err != nil {
-		return "", err
-	}
-	err = s.runInTx(ctx, func(txCtx context.Context) error {
+	issueID := pm.IssueID(s.idgen.NewEntityID("issue"))
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
 			return err
 		}
 		proj, perr := s.projects.FindByID(txCtx, cmd.ProjectID)
 		if perr != nil {
 			return perr
+		}
+		// v2.7.1 #245: allocate the per-org I<n> number in this tx (race-safe), so
+		// the issue insert + counter advance commit atomically. nil orgSeq ⇒ 0.
+		orgNumber, aerr := s.allocOrgNumber(txCtx, proj.OrganizationID(), "issue")
+		if aerr != nil {
+			return aerr
+		}
+		i, ierr := pm.NewIssue(pm.NewIssueInput{
+			ID: issueID, ProjectID: cmd.ProjectID, Title: cmd.Title,
+			Description: cmd.Description, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
+		})
+		if ierr != nil {
+			return ierr
 		}
 		if err := s.issues.Save(txCtx, i); err != nil {
 			return err
@@ -186,7 +193,7 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 	if err != nil {
 		return "", err
 	}
-	return i.ID(), nil
+	return issueID, nil
 }
 
 // CreateTaskCommand creates a Task (independent or derived from an Issue).
@@ -206,14 +213,8 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 		return "", err
 	}
 	now := s.clock.Now()
-	t, err := pm.NewTask(pm.NewTaskInput{
-		ID: pm.TaskID(s.idgen.NewEntityID("task")), ProjectID: cmd.ProjectID, Title: cmd.Title,
-		Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now,
-	})
-	if err != nil {
-		return "", err
-	}
-	err = s.runInTx(ctx, func(txCtx context.Context) error {
+	taskID := pm.TaskID(s.idgen.NewEntityID("task"))
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
 			return err
 		}
@@ -222,6 +223,18 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 		proj, perr := s.projects.FindByID(txCtx, cmd.ProjectID)
 		if perr != nil {
 			return perr
+		}
+		// v2.7.1 #245: allocate the per-org T<n> number in this tx (race-safe). nil orgSeq ⇒ 0.
+		orgNumber, aerr := s.allocOrgNumber(txCtx, proj.OrganizationID(), "task")
+		if aerr != nil {
+			return aerr
+		}
+		t, terr := pm.NewTask(pm.NewTaskInput{
+			ID: taskID, ProjectID: cmd.ProjectID, Title: cmd.Title,
+			Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
+		})
+		if terr != nil {
+			return terr
 		}
 		if err := s.tasks.Save(txCtx, t); err != nil {
 			return err
@@ -238,7 +251,17 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 	if err != nil {
 		return "", err
 	}
-	return t.ID(), nil
+	return taskID, nil
+}
+
+// allocOrgNumber returns the next per-org T<n>/I<n> number for entityType
+// ("task"|"issue"), or 0 when no org sequence is wired (nil-safe — keeps
+// pre-#245 service constructions working). v2.7.1 #245.
+func (s *Service) allocOrgNumber(ctx context.Context, orgID, entityType string) (int, error) {
+	if s.orgSeq == nil {
+		return 0, nil
+	}
+	return s.orgSeq.Allocate(ctx, orgID, entityType)
 }
 
 // SubscribeTask adds a MANUAL subscriber to a Task and re-emits the effective

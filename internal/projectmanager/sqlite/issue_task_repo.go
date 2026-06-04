@@ -22,10 +22,10 @@ func NewIssueRepo(db *sql.DB) *IssueRepo { return &IssueRepo{db: db} }
 func (r *IssueRepo) Save(ctx context.Context, i *pm.Issue) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO pm_issues (id, project_id, title, description, status, created_by, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO pm_issues (id, project_id, title, description, status, created_by, created_at, updated_at, version, org_number)
+		 VALUES (?,?,?,?,?,?,?,?,?,?)`,
 		string(i.ID()), string(i.ProjectID()), i.Title(), nullString(i.Description()),
-		string(i.Status()), string(i.CreatedBy()), ts(i.CreatedAt()), ts(i.UpdatedAt()), i.Version())
+		string(i.Status()), string(i.CreatedBy()), ts(i.CreatedAt()), ts(i.UpdatedAt()), i.Version(), nullInt(i.OrgNumber()))
 	if isUnique(err) {
 		return pm.ErrIssueExists
 	}
@@ -110,21 +110,23 @@ func (r *IssueRepo) FindByStatuses(ctx context.Context, statuses []pm.IssueStatu
 	return out, rows.Err()
 }
 
-const issueSelect = `SELECT id, project_id, title, description, status, created_by, created_at, updated_at, version FROM pm_issues`
+const issueSelect = `SELECT id, project_id, title, description, status, created_by, created_at, updated_at, version, org_number FROM pm_issues`
 
 func scanIssue(scan func(...any) error) (*pm.Issue, error) {
 	var (
 		id, projectID, title, status, createdBy, createdAt, updatedAt string
 		desc                                                          sql.NullString
 		version                                                       int
+		orgNumber                                                     sql.NullInt64
 	)
-	if err := scan(&id, &projectID, &title, &desc, &status, &createdBy, &createdAt, &updatedAt, &version); err != nil {
+	if err := scan(&id, &projectID, &title, &desc, &status, &createdBy, &createdAt, &updatedAt, &version, &orgNumber); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateIssue(pm.RehydrateIssueInput{
 		ID: pm.IssueID(id), ProjectID: pm.ProjectID(projectID), Title: title, Description: desc.String,
 		Status: pm.IssueStatus(status), CreatedBy: pm.IdentityRef(createdBy),
 		CreatedAt: parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
+		OrgNumber: int(orgNumber.Int64),
 	})
 }
 
@@ -140,12 +142,12 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
-		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version())
+		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version(), nullInt(t.OrgNumber()))
 	if isUnique(err) {
 		return pm.ErrTaskExists
 	}
@@ -270,16 +272,17 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version FROM pm_tasks`
+	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
 		id, projectID, title, status, createdBy, createdAt, updatedAt string
 		desc, assignee, derived, completedBy, blockedReason           sql.NullString
 		version                                                       int
+		orgNumber                                                     sql.NullInt64
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version); err != nil {
+		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateTask(pm.RehydrateTaskInput{
@@ -288,6 +291,7 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		DerivedFromIssue: pm.IssueID(derived.String), CompletedBy: pm.IdentityRef(completedBy.String),
 		BlockedReason: blockedReason.String, CreatedBy: pm.IdentityRef(createdBy),
 		CreatedAt: parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
+		OrgNumber: int(orgNumber.Int64),
 	})
 }
 

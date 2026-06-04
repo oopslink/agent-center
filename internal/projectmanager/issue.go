@@ -66,6 +66,9 @@ type Issue struct {
 	createdAt   time.Time
 	updatedAt   time.Time
 	version     int
+	// orgNumber — per-org, per-type monotonic display/reference number (v2.7.1
+	// #245, rendered "I<n>"); 0 when not yet allocated/backfilled.
+	orgNumber int
 }
 
 // NewIssueInput captures constructor args.
@@ -76,6 +79,7 @@ type NewIssueInput struct {
 	Description string
 	CreatedBy   IdentityRef
 	CreatedAt   time.Time
+	OrgNumber   int
 }
 
 // NewIssue constructs a fresh open Issue. An Issue must belong to a Project
@@ -107,6 +111,7 @@ func NewIssue(in NewIssueInput) (*Issue, error) {
 		createdAt:   at,
 		updatedAt:   at,
 		version:     1,
+		orgNumber:   in.OrgNumber,
 	}, nil
 }
 
@@ -121,6 +126,7 @@ type RehydrateIssueInput struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Version     int
+	OrgNumber   int
 }
 
 // RehydrateIssue reconstructs without invariant checks.
@@ -141,6 +147,7 @@ func RehydrateIssue(in RehydrateIssueInput) (*Issue, error) {
 		createdAt:   in.CreatedAt.UTC(),
 		updatedAt:   in.UpdatedAt.UTC(),
 		version:     in.Version,
+		orgNumber:   in.OrgNumber,
 	}, nil
 }
 
@@ -151,6 +158,7 @@ func (i *Issue) Title() string          { return i.title }
 func (i *Issue) Description() string    { return i.description }
 func (i *Issue) Status() IssueStatus    { return i.status }
 func (i *Issue) CreatedBy() IdentityRef { return i.createdBy }
+func (i *Issue) OrgNumber() int         { return i.orgNumber }
 func (i *Issue) CreatedAt() time.Time   { return i.createdAt }
 func (i *Issue) UpdatedAt() time.Time   { return i.updatedAt }
 func (i *Issue) Version() int           { return i.version }

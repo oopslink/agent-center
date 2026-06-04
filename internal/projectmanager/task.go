@@ -90,6 +90,10 @@ type Task struct {
 	createdAt        time.Time
 	updatedAt        time.Time
 	version          int
+	// orgNumber is the per-org, per-type monotonic display/reference number
+	// (v2.7.1 #245, rendered "T<n>"). Allocated at create by the org sequence; 0
+	// for rows predating the allocator / not yet backfilled (DTO omits org_ref then).
+	orgNumber int
 }
 
 // NewTaskInput captures constructor args.
@@ -101,6 +105,9 @@ type NewTaskInput struct {
 	DerivedFromIssue IssueID
 	CreatedBy        IdentityRef
 	CreatedAt        time.Time
+	// OrgNumber is the allocated per-org task number (v2.7.1 #245), supplied by
+	// the service from the org sequence within the create tx.
+	OrgNumber int
 }
 
 // NewTask constructs a fresh open Task. A Task must belong to a Project (no
@@ -133,6 +140,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		createdAt:        at,
 		updatedAt:        at,
 		version:          1,
+		orgNumber:        in.OrgNumber,
 	}, nil
 }
 
@@ -151,6 +159,7 @@ type RehydrateTaskInput struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	Version          int
+	OrgNumber        int
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -175,6 +184,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		createdAt:        in.CreatedAt.UTC(),
 		updatedAt:        in.UpdatedAt.UTC(),
 		version:          in.Version,
+		orgNumber:        in.OrgNumber,
 	}, nil
 }
 
@@ -189,6 +199,7 @@ func (t *Task) DerivedFromIssue() IssueID { return t.derivedFromIssue }
 func (t *Task) CompletedBy() IdentityRef  { return t.completedBy }
 func (t *Task) BlockedReason() string     { return t.blockedReason }
 func (t *Task) CreatedBy() IdentityRef    { return t.createdBy }
+func (t *Task) OrgNumber() int            { return t.orgNumber }
 func (t *Task) CreatedAt() time.Time      { return t.createdAt }
 func (t *Task) UpdatedAt() time.Time      { return t.updatedAt }
 func (t *Task) Version() int              { return t.version }
