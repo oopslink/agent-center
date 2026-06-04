@@ -380,6 +380,8 @@ export interface OrgWorkItem {
   title: string;
   status: string;
   assignee: OrgWorkItemRef | null;
+  // pm domain has no priority field → always null today (DTO keeps the slot for
+  // forward-compat); the UI does not render it.
   priority?: string | null;
   updated_at: string;
   created_at: string;

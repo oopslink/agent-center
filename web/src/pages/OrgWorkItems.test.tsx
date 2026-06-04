@@ -56,7 +56,7 @@ describe('OrgWorkItems page (#258)', () => {
   it('issues: cross-project table (org_ref / project link / title link / status / unassigned)', async () => {
     let gotQuery = '';
     server.use(
-      http.get('/api/orgs/:slug/issues', ({ request }) => {
+      http.get('/api/issues', ({ request }) => {
         gotQuery = new URL(request.url).search;
         return HttpResponse.json({ items: [issueRow()], total: 1 });
       }),
@@ -83,7 +83,7 @@ describe('OrgWorkItems page (#258)', () => {
 
   it('tasks: enriched assignee — name visible + member-id on hover (#192), title → tasks path', async () => {
     server.use(
-      http.get('/api/orgs/:slug/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })),
+      http.get('/api/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })),
     );
     wrap('task', '/organizations/acme/tasks');
     await waitFor(() => expect(screen.getByTestId('org-workitem-row')).toBeInTheDocument());
@@ -99,7 +99,7 @@ describe('OrgWorkItems page (#258)', () => {
 
   it('falls back to id-tail handle when org_ref absent', async () => {
     server.use(
-      http.get('/api/orgs/:slug/issues', () =>
+      http.get('/api/issues', () =>
         HttpResponse.json({ items: [issueRow({ org_ref: undefined })], total: 1 }),
       ),
     );
@@ -111,7 +111,7 @@ describe('OrgWorkItems page (#258)', () => {
   it('"Open only" toggle off passes the full status set (include terminal)', async () => {
     let gotQuery = '';
     server.use(
-      http.get('/api/orgs/:slug/issues', ({ request }) => {
+      http.get('/api/issues', ({ request }) => {
         gotQuery = new URL(request.url).search;
         return HttpResponse.json({ items: [issueRow()], total: 1 });
       }),
@@ -127,7 +127,7 @@ describe('OrgWorkItems page (#258)', () => {
   it('tasks: hits the tasks endpoint + empty state', async () => {
     let hit = false;
     server.use(
-      http.get('/api/orgs/:slug/tasks', () => {
+      http.get('/api/tasks', () => {
         hit = true;
         return HttpResponse.json({ items: [], total: 0 });
       }),

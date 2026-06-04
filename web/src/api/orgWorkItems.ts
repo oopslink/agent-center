@@ -4,9 +4,11 @@ import { qk } from './queryKeys';
 import type { OrgWorkItem } from './types';
 
 // v2.8 #258: org-scoped cross-project Issues/Tasks aggregation.
-// GET /api/orgs/:slug/issues|tasks → { items: OrgWorkItem[], total }.
-// `/orgs` is exempt from the client's org_slug auto-injection (the slug is the
-// explicit path segment here), so no double-scoping.
+// GET /api/issues?org_slug=<slug> | GET /api/tasks?org_slug=<slug>
+//   → { items: OrgWorkItem[], total }.
+// org scope follows the /api/projects convention: org_slug is auto-injected by
+// the api client from the current /organizations/:slug/* URL (these paths are
+// NOT in ORG_INJECT_EXEMPT), so the hook just calls /issues|/tasks.
 
 export type OrgWorkItemKind = 'issue' | 'task';
 
@@ -39,11 +41,13 @@ export function useOrgWorkItems(
   slug: string | undefined,
   filters?: OrgWorkItemFilters,
 ) {
-  const path = kind === 'issue' ? 'issues' : 'tasks';
+  const path = kind === 'issue' ? '/issues' : '/tasks';
   const key = kind === 'issue' ? qk.orgIssues({ slug, filters }) : qk.orgTasks({ slug, filters });
   return useQuery({
     queryKey: key,
-    queryFn: () => api.get<OrgWorkItemList>(`/orgs/${slug}/${path}${buildQuery(filters)}`),
+    // org_slug is auto-injected by the client (/api/projects convention); slug is
+    // kept only to scope the query-cache key + gate the fetch to an org route.
+    queryFn: () => api.get<OrgWorkItemList>(`${path}${buildQuery(filters)}`),
     enabled: !!slug,
   });
 }
