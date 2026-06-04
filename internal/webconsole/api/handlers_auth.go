@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/identity"
@@ -43,9 +44,16 @@ func (s *Server) signupHandler(w http.ResponseWriter, r *http.Request) {
 		Passcode         string `json:"passcode"`
 		OrganizationName string `json:"organization_name"`
 		OrganizationSlug string `json:"organization_slug"`
+		Email            string `json:"email"` // v2.7.1 #214: required for new signups
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
+		return
+	}
+	// v2.7.1 #214: email is REQUIRED for new signups (a v2.7.1 API policy enforced
+	// here, not in the signup domain flow). Pre-v2.7.1 users keep NULL email.
+	if strings.TrimSpace(body.Email) == "" {
+		writeError(w, http.StatusBadRequest, "email_required", "email is required")
 		return
 	}
 	form := identity.SignupForm{
@@ -53,6 +61,7 @@ func (s *Server) signupHandler(w http.ResponseWriter, r *http.Request) {
 		PasscodePlain:    body.Passcode,
 		OrganizationName: body.OrganizationName,
 		OrganizationSlug: body.OrganizationSlug,
+		Email:            body.Email,
 	}
 	res, err := d.SignupSvc.Execute(r.Context(), form)
 	if err != nil {
@@ -252,6 +261,7 @@ func mapIdentityError(err error) int {
 		return http.StatusUnauthorized
 	case errors.Is(err, identity.ErrIdentityDisplayNameTaken),
 		errors.Is(err, identity.ErrOrganizationSlugTaken),
+		errors.Is(err, identity.ErrIdentityEmailTaken),
 		errors.Is(err, identity.ErrIdentityAlreadyExists):
 		return http.StatusConflict
 	case errors.Is(err, identity.ErrIdentityNotFound),
@@ -270,6 +280,8 @@ func identityErrCode(err error) string {
 		return "unauthenticated"
 	case errors.Is(err, identity.ErrIdentityDisplayNameTaken):
 		return "display_name_taken"
+	case errors.Is(err, identity.ErrIdentityEmailTaken):
+		return "email_taken"
 	case errors.Is(err, identity.ErrOrganizationSlugTaken):
 		return "slug_taken"
 	case errors.Is(err, identity.ErrIdentityAlreadyExists):

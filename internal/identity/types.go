@@ -107,10 +107,11 @@ func ValidateSlug(slug string) error {
 
 // Sentinel domain errors.
 var (
-	ErrIdentityNotFound          = errors.New("identity: not found")
-	ErrIdentityDisplayNameTaken  = errors.New("identity: display_name already taken")
-	ErrIdentityInvalidKind       = errors.New("identity: invalid kind")
-	ErrIdentityAlreadyExists     = errors.New("identity: already exists")
+	ErrIdentityNotFound         = errors.New("identity: not found")
+	ErrIdentityDisplayNameTaken = errors.New("identity: display_name already taken")
+	ErrIdentityInvalidKind      = errors.New("identity: invalid kind")
+	ErrIdentityAlreadyExists    = errors.New("identity: already exists")
+	ErrIdentityEmailTaken       = errors.New("identity: email already taken") // v2.7.1 #214
 
 	ErrOrganizationNotFound    = errors.New("organization: not found")
 	ErrOrganizationSlugTaken   = errors.New("organization: slug already taken")
@@ -124,7 +125,7 @@ var (
 	ErrInvitationNotFound = errors.New("invitation: not found")
 	ErrInvitationExpired  = errors.New("invitation: expired")
 
-	ErrPasscodeInvalid       = errors.New("auth: passcode incorrect")
-	ErrForbidden             = errors.New("auth: forbidden")
-	ErrUnauthenticated       = errors.New("auth: unauthenticated")
+	ErrPasscodeInvalid = errors.New("auth: passcode incorrect")
+	ErrForbidden       = errors.New("auth: forbidden")
+	ErrUnauthenticated = errors.New("auth: unauthenticated")
 )

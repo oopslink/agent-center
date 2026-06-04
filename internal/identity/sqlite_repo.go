@@ -19,6 +19,13 @@ func isUniqueConstraint(err error) bool {
 	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
+// isEmailUniqueConstraint reports whether the unique violation is on the
+// identities.email index (v2.7.1 #214) vs display_name — SQLite names the column
+// in the message ("UNIQUE constraint failed: identities.email").
+func isEmailUniqueConstraint(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "identities.email")
+}
+
 // parseTime parses an RFC3339Nano string from SQLite.
 func parseTime(s string) (time.Time, error) {
 	return time.Parse(time.RFC3339Nano, s)
@@ -66,8 +73,16 @@ func NewSQLiteIdentityRepo(db *sql.DB) *SQLiteIdentityRepo {
 
 const identityInsertSQL = `
 INSERT INTO identities
-  (id, kind, display_name, description, account_status, passcode_hash, passcode_set_at, created_at, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?)`
+  (id, kind, display_name, description, account_status, passcode_hash, passcode_set_at, created_at, updated_at, email, last_session_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+
+// nullableStr maps a *string to a DB arg (NULL when nil) — v2.7.1 #214 email.
+func nullableStr(s *string) any {
+	if s == nil {
+		return nil
+	}
+	return *s
+}
 
 // Save inserts a new Identity row.
 func (r *SQLiteIdentityRepo) Save(ctx context.Context, id *Identity) error {
@@ -81,9 +96,14 @@ func (r *SQLiteIdentityRepo) Save(ctx context.Context, id *Identity) error {
 		nullTimeStr(id.PasscodeSetAt()),
 		id.CreatedAt().Format(time.RFC3339Nano),
 		id.UpdatedAt().Format(time.RFC3339Nano),
+		nullableStr(id.Email()), nullTimeStr(id.LastSessionAt()),
 	)
 	if err != nil {
 		if isUniqueConstraint(err) {
+			// v2.7.1 #214: distinguish the email unique index from display_name.
+			if isEmailUniqueConstraint(err) {
+				return ErrIdentityEmailTaken
+			}
 			return ErrIdentityAlreadyExists
 		}
 		return err
@@ -100,14 +120,18 @@ func (r *SQLiteIdentityRepo) Update(ctx context.Context, id *Identity) error {
 	const q = `
 UPDATE identities SET
   display_name=?, description=?, account_status=?, passcode_hash=?,
-  passcode_set_at=?, updated_at=?
+  passcode_set_at=?, updated_at=?, email=?, last_session_at=?
 WHERE id=?`
 	res, err := exec.ExecContext(ctx, q,
 		id.DisplayName(), id.Description(), string(id.AccountStatus()),
 		id.PasscodeHash(), nullTimeStr(id.PasscodeSetAt()),
-		id.UpdatedAt().Format(time.RFC3339Nano), id.ID(),
+		id.UpdatedAt().Format(time.RFC3339Nano),
+		nullableStr(id.Email()), nullTimeStr(id.LastSessionAt()), id.ID(),
 	)
 	if err != nil {
+		if isUniqueConstraint(err) && isEmailUniqueConstraint(err) {
+			return ErrIdentityEmailTaken
+		}
 		return err
 	}
 	n, _ := res.RowsAffected()
@@ -124,7 +148,7 @@ func (r *SQLiteIdentityRepo) GetByID(ctx context.Context, id string) (*Identity,
 		return nil, err
 	}
 	const q = `SELECT id, kind, display_name, description, account_status,
-		passcode_hash, passcode_set_at, created_at, updated_at
+		passcode_hash, passcode_set_at, created_at, updated_at, email, last_session_at
 		FROM identities WHERE id=?`
 	row := exec.QueryRowContext(ctx, q, id)
 	return scanIdentity(row)
@@ -148,7 +172,7 @@ func (r *SQLiteIdentityRepo) GetByDisplayName(ctx context.Context, name string) 
 		return nil, err
 	}
 	const q = `SELECT id, kind, display_name, description, account_status,
-		passcode_hash, passcode_set_at, created_at, updated_at
+		passcode_hash, passcode_set_at, created_at, updated_at, email, last_session_at
 		FROM identities WHERE display_name=? AND kind='user'`
 	row := exec.QueryRowContext(ctx, q, name)
 	return scanIdentity(row)
@@ -161,7 +185,7 @@ func (r *SQLiteIdentityRepo) List(ctx context.Context) ([]*Identity, error) {
 		return nil, err
 	}
 	const q = `SELECT id, kind, display_name, description, account_status,
-		passcode_hash, passcode_set_at, created_at, updated_at
+		passcode_hash, passcode_set_at, created_at, updated_at, email, last_session_at
 		FROM identities ORDER BY created_at`
 	rows, err := exec.QueryContext(ctx, q)
 	if err != nil {
@@ -182,35 +206,35 @@ func (r *SQLiteIdentityRepo) List(ctx context.Context) ([]*Identity, error) {
 func scanIdentity(row *sql.Row) (*Identity, error) {
 	var (
 		id, kind, displayName, description, accountStatus, passcodeHash string
-		passcodeSetAtStr                                                sql.NullString
+		passcodeSetAtStr, emailStr, lastSessionAtStr                    sql.NullString
 		createdAtStr, updatedAtStr                                      string
 	)
 	err := row.Scan(&id, &kind, &displayName, &description, &accountStatus,
-		&passcodeHash, &passcodeSetAtStr, &createdAtStr, &updatedAtStr)
+		&passcodeHash, &passcodeSetAtStr, &createdAtStr, &updatedAtStr, &emailStr, &lastSessionAtStr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrIdentityNotFound
 		}
 		return nil, err
 	}
-	return buildIdentity(id, kind, displayName, description, accountStatus, passcodeHash, passcodeSetAtStr, createdAtStr, updatedAtStr)
+	return buildIdentity(id, kind, displayName, description, accountStatus, passcodeHash, passcodeSetAtStr, createdAtStr, updatedAtStr, emailStr, lastSessionAtStr)
 }
 
 func scanIdentityRow(rows *sql.Rows) (*Identity, error) {
 	var (
 		id, kind, displayName, description, accountStatus, passcodeHash string
-		passcodeSetAtStr                                                sql.NullString
+		passcodeSetAtStr, emailStr, lastSessionAtStr                    sql.NullString
 		createdAtStr, updatedAtStr                                      string
 	)
 	err := rows.Scan(&id, &kind, &displayName, &description, &accountStatus,
-		&passcodeHash, &passcodeSetAtStr, &createdAtStr, &updatedAtStr)
+		&passcodeHash, &passcodeSetAtStr, &createdAtStr, &updatedAtStr, &emailStr, &lastSessionAtStr)
 	if err != nil {
 		return nil, err
 	}
-	return buildIdentity(id, kind, displayName, description, accountStatus, passcodeHash, passcodeSetAtStr, createdAtStr, updatedAtStr)
+	return buildIdentity(id, kind, displayName, description, accountStatus, passcodeHash, passcodeSetAtStr, createdAtStr, updatedAtStr, emailStr, lastSessionAtStr)
 }
 
-func buildIdentity(id, kind, displayName, description, accountStatus, passcodeHash string, passcodeSetAtStr sql.NullString, createdAtStr, updatedAtStr string) (*Identity, error) {
+func buildIdentity(id, kind, displayName, description, accountStatus, passcodeHash string, passcodeSetAtStr sql.NullString, createdAtStr, updatedAtStr string, emailStr, lastSessionAtStr sql.NullString) (*Identity, error) {
 	createdAt, err := parseTime(createdAtStr)
 	if err != nil {
 		return nil, err
@@ -223,11 +247,23 @@ func buildIdentity(id, kind, displayName, description, accountStatus, passcodeHa
 	if err != nil {
 		return nil, err
 	}
-	return RehydrateIdentity(
+	lastSessionAt, err := parseTimePtr(lastSessionAtStr)
+	if err != nil {
+		return nil, err
+	}
+	out := RehydrateIdentity(
 		id, IdentityKind(kind), displayName, description,
 		AccountStatus(accountStatus), passcodeHash, passcodeSetAt,
 		createdAt, updatedAt,
-	), nil
+	)
+	// v2.7.1 #214: restore nullable email + last_session_at.
+	var emailPtr *string
+	if emailStr.Valid {
+		v := emailStr.String
+		emailPtr = &v
+	}
+	out.RehydrateExtras(emailPtr, lastSessionAt)
+	return out, nil
 }
 
 // CountIdentities returns the total number of identities (used for bootstrap detection).
