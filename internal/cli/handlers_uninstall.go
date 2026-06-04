@@ -65,26 +65,39 @@ func UninstallWorkerCommand() *Command {
 }
 
 func uninstallCenterHandler(fs *flag.FlagSet) Handler {
-	prefix := fs.String("prefix", "", "install prefix (default: same as install center)")
+	prefix := fs.String("prefix", "", "install prefix (default: same as install center for this instance)")
 	userMode := fs.Bool("user-mode", isMacRuntime(), "if true, target user-mode service paths (default: same as install center)")
+	// v2.7.1 #211: which center deployment to remove. Defaults to "default"
+	// (symmetric with install center + back-compat for the singleton install); pass
+	// --instance=<name> to remove a named instance only (its own prefix + label).
+	instanceF := fs.String("instance", DefaultInstance, "center deployment to uninstall (kebab-case). default = the singleton/back-compat install")
 	purge := fs.Bool("purge", false, "ALSO delete the data directory (var/) + logs/ + the whole prefix. NOT REVERSIBLE.")
 	yes := fs.Bool("yes", false, "skip the interactive confirm prompt when --purge is set")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = args
+		instance := strings.TrimSpace(*instanceF)
+		if instance == "" {
+			instance = DefaultInstance
+		}
+		if !validInstanceName(instance) {
+			return PrintError(errw, FormatText, "uninstall_invalid_instance",
+				"--instance must be kebab-case (a-z, 0-9, single interior dashes), 1-32 chars", ExitUsage)
+		}
 		resolved := *prefix
 		if resolved == "" {
-			resolved = defaultInstallPrefix(*userMode)
+			resolved = defaultCenterInstallPrefix(*userMode, instance)
 		}
 		home, _ := os.UserHomeDir()
 		sp, perr := platformPaths(runtimeOS(), *userMode, home)
 		if perr != nil {
 			return PrintError(errw, FormatText, "install_platform_unsupported", perr.Error(), ExitBusinessError)
 		}
+		sp = applyInstanceToServicePaths(sp, instance) // v2.7.1 #211: tear down THIS instance's service only
 		layout := newInstallLayout(resolved, "")
 		plan := newUninstallPlan(layout, *purge)
 		plan.addServiceTeardown(sp, sp.CenterUnitPath, sp.CenterServiceID)
-		return runUninstall(ctx, plan, *purge, *yes, *dryRun, out, errw, "center")
+		return runUninstall(ctx, plan, *purge, *yes, *dryRun, out, errw, "center ("+instance+")")
 	}
 }
 

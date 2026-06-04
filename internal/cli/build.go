@@ -80,6 +80,10 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"uninstall"}, UninstallWorkerCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.7.1 #211: list all center deployments on this machine (multi-instance).
+	if err := router.Add(nil, ListLocalCentersCommand()); err != nil {
+		return nil, "", err
+	}
 	// v2.5.2 (@oopslink msg=8e5ea457): explicit `upgrade center|worker`
 	// entry — wraps the same upgrade path `install center` auto-detects
 	// but refuses to walk the fresh path when no install exists.

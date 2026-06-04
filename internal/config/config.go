@@ -87,6 +87,11 @@ type ServerConfig struct {
 	// .fingerprint). Auto-generated on boot if missing.
 	AdminTLSCertPath string `yaml:"admin_tls_cert_path"`
 	AdminTLSKeyPath  string `yaml:"admin_tls_key_path"`
+	// Instance (v2.7.1 #211) names the local center deployment so multiple centers
+	// can coexist on one machine (distinct install prefix + launchd/systemd label).
+	// "default" (or empty) = the singleton / back-compat deployment. Set by
+	// `install center --instance <name>`; surfaced by `list-local-centers`.
+	Instance string `yaml:"instance"`
 }
 
 // NotificationConfig: 04-configuration § 7.4.
@@ -325,12 +330,14 @@ func collectKnownKeys(cfg Config) keyTree {
 	// avoids reflection in a security-sensitive layer (config validation).
 	return keyTree{
 		"server": keyTree{
-			"listen_addr":         nil,
-			"sqlite_path":         nil,
-			"admin_socket_path":   nil,
-			"admin_tcp_listen":    nil,
-			"admin_tls_cert_path": nil,
-			"admin_tls_key_path":  nil,
+			"listen_addr":          nil,
+			"sqlite_path":          nil,
+			"admin_socket_path":    nil,
+			"admin_tcp_listen":     nil,
+			"bootstrap_public_url": nil, // v2.7 #200 (was missing from the allowlist)
+			"admin_tls_cert_path":  nil,
+			"admin_tls_key_path":   nil,
+			"instance":             nil, // v2.7.1 #211 multi-instance center
 		},
 		"notification": keyTree{
 			"default_channel": nil,

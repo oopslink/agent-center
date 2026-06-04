@@ -76,6 +76,51 @@ func applyWorkerIDToServicePaths(sp servicePaths, workerID string) servicePaths 
 	return sp
 }
 
+// DefaultInstance is the singleton / back-compat center deployment name (v2.7.1
+// #211). `install center` with no --instance = this; it keeps the legacy prefix
+// (~/.agent-center) + launchd label (com.agent-center.center) so existing
+// operators are unaffected.
+const DefaultInstance = "default"
+
+// validInstanceName enforces the v2.7.1 #211 constraint: kebab-case, 1-32 chars,
+// [a-z0-9] with single interior dashes — safe as both a path-segment suffix and a
+// launchd label / systemd unit component (ASCII + dots + dashes).
+func validInstanceName(name string) bool {
+	if len(name) < 1 || len(name) > 32 {
+		return false
+	}
+	for i, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			// ok
+		case r == '-' && i != 0 && i != len(name)-1:
+			// interior dash ok
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// applyInstanceToServicePaths scopes the CENTER label + unit path by instance so
+// multiple centers coexist on one machine (v2.7.1 #211) — symmetric to
+// applyWorkerIDToServicePaths. The "default" instance keeps the legacy label /
+// path (back-compat); worker paths are untouched (already per-worker-id scoped).
+func applyInstanceToServicePaths(sp servicePaths, instance string) servicePaths {
+	if instance == "" || instance == DefaultInstance {
+		return sp
+	}
+	switch sp.ServiceManager {
+	case "launchd":
+		sp.CenterServiceID = "com.agent-center.center." + instance
+		sp.CenterUnitPath = strings.Replace(sp.CenterUnitPath, "com.agent-center.center.plist", sp.CenterServiceID+".plist", 1)
+	case "systemd":
+		sp.CenterServiceID = "agent-center-" + instance + ".service"
+		sp.CenterUnitPath = strings.Replace(sp.CenterUnitPath, "agent-center.service", sp.CenterServiceID, 1)
+	}
+	return sp
+}
+
 // platformPaths picks the install target dirs for a given OS + mode.
 // homeDir is needed for user-mode paths; pass os.UserHomeDir().
 func platformPaths(osName string, userMode bool, homeDir string) (servicePaths, error) {

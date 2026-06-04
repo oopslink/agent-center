@@ -13,6 +13,24 @@ ADR / phase plan landscape, see
 
 ## [Unreleased]
 
+### Added
+
+- **Multiple center deployments on one machine — `install center --instance <name>` (v2.7.1 #211).**
+  A named instance gets its own install prefix (`~/.agent-center.<name>`, the
+  `default` instance keeps the legacy `~/.agent-center`) and its own launchd /
+  systemd label (`com.agent-center.center.<name>` / `agent-center-<name>.service`;
+  `default` keeps the legacy label), so two centers no longer trample each other's
+  prefix, ports, or service registration. Ports are explicit (no auto-assign):
+  `--web-port` / `--server-port` / `--admin-port` (the legacy `--port` /
+  `--tcp-listen` remain as aliases; `--server-port` newly exposes the previously
+  hardcoded `:7050`). The config records `server.instance`. New `list-local-centers`
+  lists every deployment (instance / prefix / ports / service-vs-foreground /
+  online). `uninstall center --instance <name>` removes one instance only (defaults
+  to `default` for back-compat). Bare `install center` / `uninstall center` =
+  implicit `default` (existing operators unaffected). Fresh-install only — no
+  migration. Also fixes a latent gap where `server.bootstrap_public_url` (#200) was
+  missing from the config known-keys allowlist.
+
 ### Notes / Compatibility
 
 - **Agent-supervisor RPC protocol — backward-compatibility contract
