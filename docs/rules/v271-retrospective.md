@@ -29,7 +29,13 @@ end-to-end usage said otherwise.
 environment (this cycle: macOS — AirPlay holds `:7000`, modern macOS uses
 `launchctl bootout`/`bootstrap` after the legacy `load`/`unload` was
 deprecated, multi-instance coexistence), and a real agent / worker
-running the exact command a user would copy from the Web Console. By-parity reasoning, code reads, `--dry-run`, and shared
+running the exact command a user would copy from the Web Console. UI
+assertions inside a real browser anchor on rendered / computed truth
+(`getComputedStyle` for color, `.value` property for controlled inputs,
+rendered DOM for presence), not on class-name guesses; this avoided
+false negatives like the `#250` Reset-button red check where the class
+token was `danger` rather than `red`. The full how-to lives in the
+acceptance-methodology document (see follow-up). By-parity reasoning, code reads, `--dry-run`, and shared
 predicate inference do **not** count as acceptance evidence.
 
 **T-2 — Path / discovery / layout features must run under the product's
