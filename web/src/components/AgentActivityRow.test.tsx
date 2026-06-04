@@ -61,6 +61,33 @@ describe('AgentActivityRow (#216)', () => {
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('queued → active');
   });
 
+  it('thinking → Thinking badge + truncated text preview', () => {
+    row(ev('thinking', { text: 'pondering '.repeat(30) }));
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Thinking');
+    const preview = screen.getByTestId('agent-activity-preview').textContent ?? '';
+    expect(preview.endsWith('…')).toBe(true);
+  });
+
+  it('result → Turn badge with total tokens + cost; danger color on error', () => {
+    row(ev('result', { tokens_in: 100, tokens_out: 40, cost_usd: '0.012', is_error: false }));
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Turn');
+    expect(screen.getByTestId('agent-activity-badge').className).toContain('text-success');
+    const preview = screen.getByTestId('agent-activity-preview');
+    expect(preview).toHaveTextContent('140 tok');
+    expect(preview).toHaveTextContent('$0.012');
+    cleanup();
+    row(ev('result', { tokens_in: 10, tokens_out: 0, is_error: true }));
+    expect(screen.getByTestId('agent-activity-badge').className).toContain('text-danger');
+  });
+
+  it('rate_limit → Rate limit (danger) badge + message preview', () => {
+    row(ev('rate_limit', { message: 'slow down' }));
+    const badge = screen.getByTestId('agent-activity-badge');
+    expect(badge).toHaveTextContent('Rate limit');
+    expect(badge.className).toContain('text-danger');
+    expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('slow down');
+  });
+
   it('unknown event type → falls back to its type as the badge + JSON preview', () => {
     row(ev('weird.event', { foo: 'bar' }));
     expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('weird.event');

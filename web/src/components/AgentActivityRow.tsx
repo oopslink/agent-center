@@ -7,8 +7,12 @@ import type { AgentActivityEvent } from '@/api/types';
 const SUBTYPES: Record<string, { label: string; cls: string }> = {
   system_init: { label: 'System', cls: 'bg-bg-subtle text-text-muted' },
   assistant_text: { label: 'Assistant', cls: 'bg-brand/10 text-brand' },
+  thinking: { label: 'Thinking', cls: 'bg-bg-subtle text-text-secondary' },
   tool_use: { label: 'Tool', cls: 'bg-accent/10 text-accent' },
   tool_result: { label: 'Result', cls: 'bg-bg-subtle text-text-secondary' },
+  // result = end-of-turn aggregate (tokens/cost); colored by ok like tool_result.
+  result: { label: 'Turn', cls: 'bg-bg-subtle text-text-secondary' },
+  rate_limit: { label: 'Rate limit', cls: 'bg-danger/10 text-danger' },
   status_change: { label: 'Status', cls: 'bg-bg-subtle text-text-secondary' },
   lifecycle: { label: 'Lifecycle', cls: 'bg-bg-subtle text-text-muted' },
 };
@@ -47,7 +51,20 @@ function summarizeArgs(args: unknown): string {
 function preview(eventType: string, p: Record<string, unknown>): string {
   switch (eventType) {
     case 'assistant_text':
+    case 'thinking':
       return truncate(str(p.text), 120);
+    case 'result': {
+      // End-of-turn aggregate: total tokens + cost (claude `result` row).
+      const tokens =
+        (typeof p.tokens_in === 'number' ? p.tokens_in : 0) +
+        (typeof p.tokens_out === 'number' ? p.tokens_out : 0);
+      const parts: string[] = [];
+      if (tokens > 0) parts.push(`${tokens} tok`);
+      if (p.cost_usd != null) parts.push(`$${str(p.cost_usd)}`);
+      return parts.join(' · ') || str(p.subtype);
+    }
+    case 'rate_limit':
+      return str(p.message) || 'rate limited';
     case 'tool_use':
       return `${str(p.tool_name)}(${summarizeArgs(p.args)})`;
     case 'tool_result': {
@@ -81,10 +98,11 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   const [open, setOpen] = useState(false);
   const payload = parsePayload(event.payload);
   const meta = SUBTYPES[event.event_type] ?? { label: event.event_type, cls: 'bg-bg-subtle text-text-muted' };
-  // tool_result colors by outcome.
+  // tool_result + result (end-of-turn) color by outcome (ok / is_error).
+  const errored = payload.ok === false || payload.is_error === true;
   const cls =
-    event.event_type === 'tool_result'
-      ? payload.ok === false
+    event.event_type === 'tool_result' || event.event_type === 'result'
+      ? errored
         ? 'bg-danger/10 text-danger'
         : 'bg-success/10 text-success'
       : meta.cls;
