@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 // ListLocalCentersCommand surfaces all local center deployments (v2.7.1 #211).
@@ -92,8 +93,17 @@ func discoverLocalCenters(userMode bool) ([]localCenter, error) {
 		}
 		prefix := filepath.Join(parent, name)
 		cfgPath := filepath.Join(prefix, "etc", "config.yaml")
-		if _, statErr := os.Stat(cfgPath); statErr != nil {
-			continue // a sibling dir that isn't actually a center install
+		raw, rerr := os.ReadFile(cfgPath)
+		if rerr != nil {
+			continue // no config.yaml — not an install at all
+		}
+		// v2.7.1 #212: a sibling dir with a config.yaml isn't necessarily a CENTER —
+		// `install worker --prefix ~/.agent-center.<x>` writes a worker config.yaml too
+		// (no web_console section, sqlite worker.db). config.Load would backfill default
+		// ports and list it as a bogus center row. Require the center marker (a
+		// web_console section, which workers never write) so worker prefixes are excluded.
+		if !rawConfigIsCenter(raw) {
+			continue
 		}
 		lc := localCenter{Prefix: prefix, Instance: DefaultInstance, WebPort: "-", ServerPort: "-", AdminPort: "-"}
 		// Derive the instance from the dir suffix as a fallback; the config's
@@ -123,6 +133,29 @@ func discoverLocalCenters(userMode bool) ([]localCenter, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Instance < out[j].Instance })
 	return out, nil
+}
+
+// rawConfigIsCenter reports whether a config.yaml is a CENTER config (vs a worker
+// config). v2.7.1 #212: a center declares a web_console section (writeCenterConfig)
+// + sqlite agent-center.db; a worker (writeWorkerConfig) writes neither (no
+// web_console, sqlite worker.db). We inspect the RAW yaml — config.Load backfills
+// web_console + ports with defaults, which would mask the difference and list a
+// worker prefix as a bogus center row.
+func rawConfigIsCenter(raw []byte) bool {
+	var m map[string]any
+	if err := yaml.Unmarshal(raw, &m); err != nil {
+		return false
+	}
+	if _, ok := m["web_console"]; ok {
+		return true // the definitive center marker (workers never write it)
+	}
+	// Belt-and-suspenders for a hand-edited center config without web_console.
+	if srv, ok := m["server"].(map[string]any); ok {
+		if sp, ok := srv["sqlite_path"].(string); ok && strings.HasSuffix(sp, "agent-center.db") {
+			return true
+		}
+	}
+	return false
 }
 
 // portOf extracts the port from a "host:port" / ":port" listen address.

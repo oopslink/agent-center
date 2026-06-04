@@ -135,13 +135,28 @@ func TestDiscoverLocalCenters(t *testing.T) {
 	if err := os.MkdirAll(base+".bogus", 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// v2.7.1 #212: a WORKER install (config.yaml with NO web_console section + sqlite
+	// worker.db) sharing the same parent+base must NOT be listed as a center.
+	workerPrefix := base + ".t2-worker"
+	if err := os.MkdirAll(filepath.Join(workerPrefix, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	workerCfg := "server:\n  sqlite_path: \"" + filepath.Join(workerPrefix, "var", "worker.db") + "\"\n"
+	if err := os.WriteFile(filepath.Join(workerPrefix, "etc", "config.yaml"), []byte(workerCfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	centers, err := discoverLocalCenters(true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(centers) != 2 {
-		t.Fatalf("found %d centers, want 2: %+v", len(centers), centers)
+		t.Fatalf("found %d centers, want 2 (worker prefix must be excluded): %+v", len(centers), centers)
+	}
+	for _, c := range centers {
+		if strings.Contains(c.Prefix, "t2-worker") {
+			t.Fatalf("worker install leaked into center list: %+v", c)
+		}
 	}
 	byInst := map[string]localCenter{}
 	for _, c := range centers {
