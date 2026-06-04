@@ -231,6 +231,13 @@ func (p *WakeProjector) projectMessageAdded(ctx context.Context, e outbox.Event)
 		return p.projectConversationMessage(ctx, e, pl)
 	}
 	taskRef := pl.OwnerRef
+	// v2.7.1 #220: a task conversation is also a conversation — besides the WorkItem
+	// request_input wake below, @mentioned agent participants get the conversational
+	// wake (same applied-mark). Load the conv best-effort (nil → only WorkItem wake).
+	var taskConv *conversation.Conversation
+	if p.convRepo != nil {
+		taskConv, _ = p.convRepo.FindByID(ctx, conversation.ConversationID(pl.ConversationID))
+	}
 
 	now := p.clock.Now()
 	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
@@ -250,6 +257,14 @@ func (p *WakeProjector) projectMessageAdded(ctx context.Context, e outbox.Event)
 				continue
 			}
 			if err := p.enqueueWake(txCtx, wi, taskRef, pl); err != nil {
+				return err
+			}
+		}
+		// v2.7.1 #220: also wake @mentioned agent participants of the task conversation
+		// (conversational path), human-only + loop-break (an agent/system message never
+		// triggers it) — mirrors projectConversationMessage's sender gate.
+		if taskConv != nil && strings.HasPrefix(pl.Sender, userParticipantPrefix) {
+			if err := p.wakeConversationParticipants(txCtx, taskConv, pl); err != nil {
 				return err
 			}
 		}
@@ -332,8 +347,15 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 		return nil // conversation gone/unreadable → nothing to wake (don't fail)
 	}
 	kind := conv.Kind()
-	if kind != conversation.ConversationKindDM && kind != conversation.ConversationKindChannel {
-		return nil // only DM/channel here (task handled above; other kinds ignored)
+	// v2.7.1 #220: DM / Channel / Issue are handled here (conversational @mention
+	// wake). TASK is handled in projectMessageAdded — it ALSO runs the WorkItem
+	// request_input wake, so both wakes share one applied-mark there (the applied
+	// idempotency key is (projector, event), so they cannot run as two separate
+	// passes). Other kinds: ignore.
+	if kind != conversation.ConversationKindDM &&
+		kind != conversation.ConversationKindChannel &&
+		kind != conversation.ConversationKindIssue {
+		return nil
 	}
 
 	now := p.clock.Now()
@@ -343,33 +365,47 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 		} else if done {
 			return nil
 		}
-		for _, part := range conv.Participants() {
-			if !part.IsActive() || !strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
-				continue
-			}
-			// FINDING-J: the participant ref may carry EITHER the agent's
-			// execution-entity id OR its identity-member id ("agent-<ulid>", #157),
-			// depending on how it was added. Resolve to the entity tolerantly so
-			// both the @mention lookup (display_name lives on the identity member)
-			// and the deliver path (worker binding lives on the entity) work
-			// regardless of which id the ref holds.
-			rawID := strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix)
-			a, ok := p.resolveAgent(txCtx, rawID)
-			if !ok {
-				slog.Warn("wake projector: agent.converse skipped (agent participant unresolved)",
-					"participant", string(part.IdentityID), "conversation_id", pl.ConversationID)
-				continue
-			}
-			// Channel: only wake agents explicitly @mentioned by display_name.
-			if kind == conversation.ConversationKindChannel && !p.mentionsAgent(txCtx, a, rawID, pl.Text) {
-				continue
-			}
-			if err := p.deliverConverse(txCtx, conv, a, rawID, pl); err != nil {
-				return err
-			}
+		if err := p.wakeConversationParticipants(txCtx, conv, pl); err != nil {
+			return err
 		}
 		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
 	})
+}
+
+// wakeConversationParticipants wakes each active agent participant of conv that the
+// kind's @mention policy selects (v2.7 #185 + v2.7.1 #220): a DM wakes its single
+// peer directly; group-like kinds (channel / issue / task) wake ONLY agents
+// explicitly @mentioned by display_name. The caller owns the tx + applied
+// idempotency — shared by projectConversationMessage (DM/Channel/Issue) and the
+// task branch of projectMessageAdded (which also runs the WorkItem wake under the
+// same applied-mark).
+func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *conversation.Conversation, pl messageAddedPayload) error {
+	kind := conv.Kind()
+	for _, part := range conv.Participants() {
+		if !part.IsActive() || !strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
+			continue
+		}
+		// FINDING-J: the participant ref may carry EITHER the agent's execution-entity
+		// id OR its identity-member id ("agent-<ulid>", #157). Resolve tolerantly so
+		// both the @mention lookup (display_name on the member) and the deliver path
+		// (worker binding on the entity) work regardless of which id the ref holds.
+		rawID := strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix)
+		a, ok := p.resolveAgent(ctx, rawID)
+		if !ok {
+			slog.Warn("wake projector: agent.converse skipped (agent participant unresolved)",
+				"participant", string(part.IdentityID), "conversation_id", pl.ConversationID)
+			continue
+		}
+		// Group-like kinds (channel/issue/task): only wake agents explicitly
+		// @mentioned by display_name. DM (1:1): wake the peer directly.
+		if kind != conversation.ConversationKindDM && !p.mentionsAgent(ctx, a, rawID, pl.Text) {
+			continue
+		}
+		if err := p.deliverConverse(ctx, conv, a, rawID, pl); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // resolveAgent resolves an agent participant's stripped ref (the part after
