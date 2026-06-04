@@ -6,15 +6,16 @@
 <title>用户手册 · agent-center</title>
 <meta name="description" content="agent-center 用户手册：安装、单机 / 多机部署、CLI 命令参考、worker run --config、MCP 工具、Web Console 使用与命名约定。所有命令均按当前代码校验，可直接复制使用。">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <style>
 /* page-specific: TOC sidebar layout for the manual */
 .manual-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
 .toc { position: sticky; top: 76px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px 14px; box-shadow: var(--shadow); font-size: 13px; }
-.toc .toc-h { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-mute); font-weight: 700; margin: 0 0 10px 4px; }
+.toc .toc-h { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-mute); font-weight: 600; font-family: var(--mono); margin: 0 0 10px 4px; }
 .toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
 .toc li { margin: 0; }
 .toc a { display: block; text-decoration: none; color: var(--ink-soft); padding: 6px 10px; border-radius: var(--r-sm); border-left: 2px solid transparent; transition: background .12s, color .12s, border-color .12s; }
-.toc a:hover { background: #eef2f9; color: var(--primary); border-left-color: #74c0fc; }
+.toc a:hover { background: var(--surface-2); color: var(--primary); border-left-color: var(--primary); }
 .manual-body { min-width: 0; }
 .manual-body .prose { scroll-margin-top: 70px; }
 .manual-body .prose + .prose { margin-top: 22px; }
@@ -24,7 +25,7 @@
   .toc { position: static; top: auto; }
   .toc ol { display: flex; flex-wrap: wrap; gap: 4px; }
   .toc a { padding: 5px 10px; border-left: none; border: 1px solid var(--border); border-radius: var(--r-pill); }
-  .toc a:hover { border-left: 1px solid #74c0fc; }
+  .toc a:hover { border-color: var(--primary); }
 }
 </style>
 </head>

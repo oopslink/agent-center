@@ -7,10 +7,22 @@
 <link rel="canonical" href="../../dev/v2.7/index.html">
 <meta http-equiv="refresh" content="0; url=../../dev/v2.7/index.html">
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
-         background: #f4f6fb; color: #2b2b2b; display: flex; min-height: 100vh; margin: 0;
+  :root { --bg:#eef1ea; --ink:#14181d; --mut:#6a7480; --pri:#0b6e7d;
+          --line:rgba(20,52,68,.06); }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0b0e12; --ink:#d6dee7; --mut:#78828f; --pri:#2bc4da;
+            --line:rgba(120,190,210,.06); }
+  }
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+         background-color: var(--bg); color: var(--ink);
+         background-image: linear-gradient(var(--line) 1px, transparent 1px),
+                           linear-gradient(90deg, var(--line) 1px, transparent 1px);
+         background-size: 26px 26px;
+         display: flex; min-height: 100vh; margin: 0;
          align-items: center; justify-content: center; text-align: center; }
-  a { color: #1864ab; }
+  p:first-child::before { content: ">_ "; color: var(--pri); }
+  p { color: var(--mut); }
+  a { color: var(--pri); }
 </style>
 </head>
 <body>

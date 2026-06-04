@@ -6,6 +6,7 @@
 <title>产品介绍 · agent-center</title>
 <meta name="description" content="agent-center 是一个个人 AI 智能体调度中心：跑一个 server，从任意机器接入 worker，智能体在任意位置运行，每一次对话与决策都落在可追溯的线程上。了解它是什么、解决什么问题、核心能力与整体架构。">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <style>
   /* page-specific: runtime structure diagram for the architecture overview */
   .arch { margin: 8px 0 4px; }
@@ -17,11 +18,11 @@
   .arch-server > .node-h { color: var(--primary); }
   .node {
     border: 1px solid var(--border); border-radius: var(--r-md);
-    background: #f7f9fd; padding: 12px 14px;
+    background: var(--surface-2); padding: 12px 14px;
   }
-  .node .node-h { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+  .node .node-h { margin: 0 0 4px; font-size: 14px; font-weight: 700; font-family: var(--mono); }
   .node .node-sub { margin: 0; font-size: 13px; color: var(--ink-soft); }
-  .node code { font-family: var(--mono); font-size: 12px; background: #eef2f7; color: #364fc7; padding: 1px 5px; border-radius: 4px; }
+  .node code { font-family: var(--mono); font-size: 12px; background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; }
   .node-row { display: flex; flex-wrap: wrap; gap: 12px; }
   .node-row > .node { flex: 1 1 220px; min-width: 200px; }
   .arch-conn { text-align: center; color: var(--ink-mute); font-size: 13px; margin: 6px 0; }

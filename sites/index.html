@@ -6,6 +6,7 @@
 <title>agent-center · 多智能体编排平台</title>
 <meta name="description" content="agent-center —— 一个个人 AI 智能体调度中心：跑一个 server，从任意机器接入 worker，智能体在任意位置运行，每一次对话与决策都落在可追溯的线程上。">
 <link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js" defer></script>
 </head>
 <body>
 
@@ -31,6 +32,17 @@
       <a class="btn ghost" href="manual/index.html">快速上手</a>
       <a class="btn ghost" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
     </div>
+    <div class="wires">
+      <span class="w-node">server</span>
+      <span class="w-link">──┬──</span>
+      <span class="w-node">worker</span>
+      <span class="w-link">─→</span>
+      <span class="w-tag"><b>◇</b> thread</span>
+      <span class="w-tag"><b>◇</b> 派单</span>
+      <span class="w-tag"><b>◇</b> 决策</span>
+      <span class="w-link">─→</span>
+      <span class="w-node ok">可回溯</span>
+    </div>
   </div>
 </section>
 
@@ -39,18 +51,21 @@
   <div class="section-title">文档板块</div>
   <div class="grid">
     <a class="card" href="product/index.html">
+      <span class="idx">01</span>
       <div class="ico">📦</div>
       <h3>产品介绍</h3>
       <div class="desc">agent-center 是什么、解决什么问题、核心能力与整体架构概览。第一次了解项目从这里开始。</div>
       <div class="tags"><span class="tag">是什么</span><span class="tag">核心能力</span><span class="tag">架构概览</span></div>
     </a>
     <a class="card" href="manual/index.html">
+      <span class="idx">02</span>
       <div class="ico">📖</div>
       <h3>用户手册</h3>
       <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具、Web Console 使用与约定。</div>
       <div class="tags"><span class="tag">安装部署</span><span class="tag">CLI</span><span class="tag">MCP 工具</span><span class="tag">Web Console</span></div>
     </a>
     <a class="card" href="dev/v2.7.1/index.html">
+      <span class="idx">03</span>
       <div class="ico">🏗️</div>
       <h3>开发指引</h3>
       <div class="desc">技术架构、主要机制设计与 DDD 设计（限界上下文 / 战术 / Event Storming），按版本归档以便回溯演进。</div>
