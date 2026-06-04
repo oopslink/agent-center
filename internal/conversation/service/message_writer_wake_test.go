@@ -124,6 +124,29 @@ func TestAddMessage_TaskConversation_EmitsWakeOutbox(t *testing.T) {
 	}
 }
 
+// v2.7.1 #227: an issue conversation emits the wake event even with NO agent
+// participant, so the WakeProjector runs + can auto-join an @mentioned project
+// member (chicken-and-egg: without this, the first issue @mention never emits).
+func TestAddMessage_IssueConversation_EmitsWakeOutbox(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-issue-1")
+	f.saveConv(t, convID, conversation.ConversationKindIssue, conversation.OwnerRef("pm://issues/I1"), "")
+
+	if _, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID:   convID,
+		SenderIdentityID: conversation.IdentityRef("user:bob"),
+		ContentKind:      conversation.MessageContentText,
+		Content:          "hey @agent please look",
+		Direction:        conversation.DirectionInbound,
+		Actor:            observability.Actor("user:bob"),
+	}); err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+	if evs := f.messageAddedEvents(t); len(evs) != 1 {
+		t.Fatalf("issue conversation must emit a wake event (#227), got %d", len(evs))
+	}
+}
+
 func TestAddMessage_ChannelConversation_NoWakeOutbox(t *testing.T) {
 	f := newWakeFixture(t)
 	convID := conversation.ConversationID("conv-chan-1")
