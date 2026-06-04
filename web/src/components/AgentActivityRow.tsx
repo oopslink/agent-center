@@ -5,12 +5,14 @@ import type { AgentActivityEvent } from '@/api/types';
 // v2.7.1 #228 PR(c): the activity timeline labels each event by a user-facing
 // CATEGORY ("what is the agent doing") rather than the raw event type. The raw
 // 8 event_types stay visible in the expanded JSON viewer (#216). Mapping per PD.
-type Category = { label: string; cls: string };
-const CAT_OUTPUT: Category = { label: 'Output', cls: 'bg-success/10 text-success' };
-const CAT_THINKING: Category = { label: 'Thinking', cls: 'bg-bg-subtle italic text-text-muted' };
-const CAT_RUNNING: Category = { label: 'Running command', cls: 'bg-brand/10 text-brand' };
-const CAT_SEARCHING: Category = { label: 'Searching code', cls: 'bg-purple-500/10 text-purple-600' };
-const CAT_CHECKING: Category = { label: 'Checking messages', cls: 'bg-orange-500/10 text-orange-600' };
+// PR(e): rendered as a timeline — a category-colored dot + colored label (per
+// design2), so `cls` is the label text color and `dot` the rail bullet color.
+type Category = { label: string; cls: string; dot: string };
+const CAT_OUTPUT: Category = { label: 'Output', cls: 'text-success', dot: 'bg-success' };
+const CAT_THINKING: Category = { label: 'Thinking', cls: 'italic text-text-muted', dot: 'bg-text-muted' };
+const CAT_RUNNING: Category = { label: 'Running command', cls: 'text-brand', dot: 'bg-brand' };
+const CAT_SEARCHING: Category = { label: 'Searching code', cls: 'text-purple-600', dot: 'bg-purple-500' };
+const CAT_CHECKING: Category = { label: 'Checking messages', cls: 'text-orange-600', dot: 'bg-orange-500' };
 
 // search-y tool names (lowercased) → "Searching code"; otherwise tool events
 // are "Running command". These are claude's real content-block tool names
@@ -54,6 +56,14 @@ function str(v: unknown): string {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+// PR(e): the timeline shows a compact wall-clock time; the full ISO timestamp
+// stays on hover (title) for operators.
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 }
 
 function summarizeArgs(args: unknown): string {
@@ -133,7 +143,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
 
   return (
     <li
-      className="py-2 text-xs"
+      className="text-xs"
       data-testid="agent-activity-row"
       data-activity-id={event.id}
       data-event-type={event.event_type}
@@ -142,12 +152,24 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-start justify-between gap-3 text-left"
+        className="flex w-full items-start gap-2 py-2 text-left"
         data-testid="agent-activity-toggle"
       >
+        {/* timeline: timestamp (left) + category-colored rail dot (design2). */}
+        <time
+          className="w-14 shrink-0 pt-px tabular-nums text-text-muted"
+          dateTime={event.occurred_at}
+          title={event.occurred_at}
+        >
+          {formatTime(event.occurred_at)}
+        </time>
+        <span className="relative flex w-3 shrink-0 justify-center pt-1" aria-hidden="true">
+          <span className="absolute bottom-[-1rem] left-1/2 top-1.5 w-px -translate-x-1/2 bg-border-base" />
+          <span className={`relative z-10 h-2 w-2 rounded-full ${cat.dot}`} />
+        </span>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <span
-            className={`shrink-0 rounded px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide ${cat.cls}`}
+            className={`shrink-0 text-[0.6875rem] font-semibold uppercase tracking-wide ${cat.cls}`}
             data-testid="agent-activity-badge"
             data-category={cat.label}
           >
@@ -155,7 +177,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
           </span>
           {errored && (
             <span
-              className="shrink-0 rounded bg-danger/10 px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-danger"
+              className="shrink-0 rounded bg-danger/10 px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide text-danger"
               data-testid="agent-activity-failed"
             >
               failed
@@ -165,11 +187,10 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
             {preview(event.event_type, payload)}
           </span>
         </span>
-        <span className="shrink-0 tabular-nums text-text-muted">{event.occurred_at}</span>
       </button>
 
       {open && (
-        <div className="mt-2 space-y-2" data-testid="agent-activity-detail">
+        <div className="mb-2 ml-[4.75rem] space-y-2" data-testid="agent-activity-detail">
           {(event.work_item_ref || event.interaction_ref) && (
             <dl className="grid grid-cols-[7rem_1fr] gap-x-2 text-[0.6875rem] text-text-muted">
               {event.work_item_ref && (

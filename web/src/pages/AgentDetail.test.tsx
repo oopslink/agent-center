@@ -87,7 +87,7 @@ describe('AgentDetail page', () => {
   it('renders header with lifecycle + availability badges, worker, work items + activity', async () => {
     stubAgent();
     wrap('/agents/A1');
-    await waitFor(() => expect(screen.getByText('bot-1')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'bot-1' })).toBeInTheDocument());
     expect(screen.getByTestId('agent-lifecycle-badge')).toHaveAttribute('data-lifecycle', 'stopped');
     expect(screen.getByTestId('agent-availability-badge')).toHaveAttribute('data-availability', 'available');
 
@@ -157,8 +157,8 @@ describe('AgentDetail page', () => {
     // AgentDetail read a.skills.length → TypeError crashed the whole page.
     stubAgent({ skills: null });
     wrap('/agents/A1');
-    await waitFor(() => expect(screen.getByText('bot-1')).toBeInTheDocument());
-    expect(screen.getByText('Skills')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'bot-1' })).toBeInTheDocument());
+    expect(screen.getByText(/Skills/)).toBeInTheDocument();
   });
 
   it('stopped agent shows Start (no Stop/Restart) and can start', async () => {
