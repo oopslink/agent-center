@@ -75,15 +75,19 @@ export default function DMs(): React.ReactElement {
                 className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
                 <span className="flex items-center gap-3">
-                  {/* v2.7 #192 / Rule 2a: show the DM's peer name, never the raw
-                      conversation id; unnamed DMs read "Direct message". */}
-                  <EntityRef
-                    id={c.id}
-                    name={c.name}
-                    fallback="Direct message"
-                    testId="dm-name"
-                    className="font-medium"
-                  />
+                  {/* v2.7.1 #215 / Rule 2a: show the DM peer as @name (hover peer id,
+                      #192); a deleted peer → "(deleted)"; a malformed DM (no peer)
+                      → "Direct message". Never the raw conversation id. */}
+                  {c.peer_identity_id ? (
+                    <EntityRef
+                      id={c.peer_identity_id}
+                      name={c.peer_display_name ? `@${c.peer_display_name}` : undefined}
+                      testId="dm-name"
+                      className="font-medium"
+                    />
+                  ) : (
+                    <span className="font-medium" data-testid="dm-name">Direct message</span>
+                  )}
                   <UnreadBadge conversationId={c.id} />
                   <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {c.status}

@@ -152,8 +152,17 @@ export default function Home(): React.ReactElement {
                 <OrgLink to={href} className="truncate text-sm text-text-primary hover:text-accent">
                   <span className="text-text-muted">{c.kind === 'dm' ? '◐' : '#'}</span>{' '}
                   {c.kind === 'dm' ? (
-                    // v2.7 #192/Rule 2a: DM peer name, never the raw conversation id.
-                    <EntityRef id={c.id} name={c.name} fallback="Direct message" testId="home-conv-name" />
+                    // v2.7.1 #215/Rule 2a: DM peer as @name (hover peer id); deleted
+                    // peer → "(deleted)"; malformed DM → "Direct message".
+                    c.peer_identity_id ? (
+                      <EntityRef
+                        id={c.peer_identity_id}
+                        name={c.peer_display_name ? `@${c.peer_display_name}` : undefined}
+                        testId="home-conv-name"
+                      />
+                    ) : (
+                      'Direct message'
+                    )
                   ) : (
                     c.name || c.id
                   )}

@@ -3,10 +3,8 @@ import { OrgLink } from '@/OrgContext';
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
-import { useDisplayNameResolver } from '@/api/members';
 import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
-import { useAppStore } from '@/store/app';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 
@@ -19,9 +17,6 @@ import { MessageComposer } from '@/components/MessageComposer';
 // query.
 export default function DMDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
-  const me = useAppStore((s) => s.currentUserId);
-  // v2.7 #192/Rule 2a: DM heading = peer display name(s), never a raw ref/id.
-  const displayName = useDisplayNameResolver();
   const conv = useConversation(id);
   const messages = useMessages(id);
   const markSeen = useMarkSeen();
@@ -64,12 +59,13 @@ export default function DMDetail(): React.ReactElement {
     );
   }
 
-  // Peer label = active participants other than the current user, joined
-  // by " · ". For group DMs this lists everyone.
-  const peers = (conv.data.participants ?? [])
-    .filter((p) => !p.left_at && p.identity_id !== me)
-    .map((p) => displayName(p.identity_id));
-  const heading = conv.data.name || peers.join(' · ') || 'Direct message';
+  // v2.7.1 #215: DMs are strict 1:1; heading = the resolved peer as @name
+  // (deleted peer → "(deleted)", malformed DM → "Direct message").
+  const heading = conv.data.peer_display_name
+    ? `@${conv.data.peer_display_name}`
+    : conv.data.peer_identity_id
+      ? '(deleted)'
+      : 'Direct message';
 
   return (
     <section
@@ -79,14 +75,10 @@ export default function DMDetail(): React.ReactElement {
     >
       <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
-          <h2 className="text-xl font-semibold" data-testid="dm-heading">
+          <h2 className="text-xl font-semibold" data-testid="dm-heading" title={conv.data.peer_identity_id}>
             {heading}
           </h2>
-          <p className="text-xs text-text-muted">
-            {peers.length === 0
-              ? 'You — solo DM'
-              : `with ${peers.length} ${peers.length === 1 ? 'peer' : 'peers'}`}
-          </p>
+          <p className="text-xs text-text-muted">Direct message</p>
         </div>
       </header>
 

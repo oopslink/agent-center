@@ -39,10 +39,8 @@ describe('DMDetail page', () => {
           kind: 'dm',
           name: '',
           status: 'active',
-          participants: [
-            { identity_id: 'user:hayang', role: 'owner', joined_at: '2026-05-24T00:00:00Z', joined_by: 'user:hayang' },
-            { identity_id: 'agent:bot-1', role: 'member', joined_at: '2026-05-24T00:00:01Z', joined_by: 'user:hayang' },
-          ],
+          peer_identity_id: 'agent:bot-1',
+          peer_display_name: 'Bot One',
         }),
       ),
       http.get('/api/conversations/:id/messages', () =>
@@ -61,31 +59,30 @@ describe('DMDetail page', () => {
     );
     wrap('/dms/C-DM');
     await waitFor(() => expect(screen.getByText('hi from bot')).toBeInTheDocument());
-    // Heading shows peer identity (current user excluded).
-    expect(screen.getByTestId('dm-heading')).toHaveTextContent('agent:bot-1');
+    // v2.7.1 #215: heading shows the resolved peer as @name (raw id on hover).
+    expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Bot One');
+    expect(screen.getByTestId('dm-heading')).toHaveAttribute('title', 'agent:bot-1');
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     // No participants panel for DM.
     expect(screen.queryByTestId('participants-panel')).not.toBeInTheDocument();
   });
 
-  it('uses the conversation name when set', async () => {
+  it('shows "(deleted)" heading when the peer no longer resolves (#215/E1)', async () => {
     server.use(
       http.get('/api/conversations/:id', () =>
         HttpResponse.json({
           id: 'C-DM2',
           kind: 'dm',
-          name: 'design huddle',
+          name: '',
           status: 'active',
-          participants: [
-            { identity_id: 'user:hayang', role: 'owner', joined_at: 'x', joined_by: 'user:hayang' },
-            { identity_id: 'agent:bot-1', role: 'member', joined_at: 'y', joined_by: 'user:hayang' },
-          ],
+          peer_identity_id: 'agent:gone',
+          // peer_display_name omitted → deleted peer.
         }),
       ),
       http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
     );
     wrap('/dms/C-DM2');
-    await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('design huddle'));
+    await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('(deleted)'));
   });
 
   it('surfaces conversation lookup error', async () => {
@@ -119,10 +116,8 @@ describe('DMDetail page', () => {
     await waitFor(() => expect(screen.getByTestId('dm-messages-error')).toHaveTextContent(/db down/));
   });
 
-  // v2.1-B: cover the "solo DM" branch of DMDetail.tsx (lines 70-72)
-  // where peers.length === 0 because the only participant is the
-  // current user. F14 audit logged as "🟡 worth covering".
-  it('renders "solo DM" heading when current user is the only participant', async () => {
+  // v2.7.1 #215: a malformed DM with no resolved peer falls back to "Direct message".
+  it('falls back to "Direct message" heading when there is no peer', async () => {
     server.use(
       http.get('/api/conversations/:id', () =>
         HttpResponse.json({
@@ -130,19 +125,12 @@ describe('DMDetail page', () => {
           kind: 'dm',
           name: '',
           status: 'active',
-          participants: [
-            {
-              identity_id: 'user:hayang',
-              role: 'owner',
-              joined_at: '2026-05-24T00:00:00Z',
-              joined_by: 'user:hayang',
-            },
-          ],
+          // no peer_identity_id → malformed/solo DM.
         }),
       ),
       http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
     );
     wrap('/dms/C-SOLO');
-    await waitFor(() => expect(screen.getByText(/solo DM/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('Direct message'));
   });
 });

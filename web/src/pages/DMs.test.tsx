@@ -28,15 +28,15 @@ describe('DMs page', () => {
     server.use(
       http.get('/api/conversations', () =>
         HttpResponse.json([
-          { id: 'C-D1', kind: 'dm', name: 'with bot-1', status: 'active' },
+          { id: 'C-D1', kind: 'dm', name: '', status: 'active', peer_identity_id: 'agent:bot-1', peer_display_name: 'Bot One' },
           { id: 'C-D2', kind: 'dm', name: '', status: 'active' },
         ]),
       ),
     );
     wrap(<DMs />);
     await waitFor(() => expect(screen.getAllByTestId('dm-row')).toHaveLength(2));
-    expect(screen.getByText('with bot-1')).toBeInTheDocument();
-    // v2.7 #192/Rule 2a: an unnamed DM reads "Direct message", never the raw id.
+    // v2.7.1 #215/Rule 2a: peer as @name; a peer-less DM reads "Direct message".
+    expect(screen.getByText('@Bot One')).toBeInTheDocument();
     expect(screen.getByText('Direct message')).toBeInTheDocument();
     expect(screen.queryByText('C-D2')).not.toBeInTheDocument();
   });
