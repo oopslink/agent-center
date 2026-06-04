@@ -1,9 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { server } from '@/test/mswServer';
 import { AgentProfile } from './AgentProfile';
 import type { Agent } from '@/api/types';
 
@@ -95,27 +93,6 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(screen.getByTestId('agent-profile-created-agents-empty')).toBeInTheDocument();
   });
 
-  describe('Message button', () => {
-    beforeEach(() => {
-      server.use(
-        http.post('/api/conversations', () =>
-          HttpResponse.json({ conversation_id: 'C-9', event_id: 'E-1', kind: 'dm' }, { status: 201 }),
-        ),
-      );
-    });
-
-    it('opens a DM with the agent on click', async () => {
-      let posted: Record<string, unknown> | null = null;
-      server.use(
-        http.post('/api/conversations', async ({ request }) => {
-          posted = (await request.json()) as Record<string, unknown>;
-          return HttpResponse.json({ conversation_id: 'C-9', event_id: 'E-1', kind: 'dm' }, { status: 201 });
-        }),
-      );
-      wrap(base);
-      fireEvent.click(screen.getByTestId('agent-profile-message-btn'));
-      await waitFor(() => expect(posted).not.toBeNull());
-      expect(posted).toMatchObject({ kind: 'dm', members: ['A1'] });
-    });
-  });
+  // v2.7.1 #240: the Message action moved out of the Profile body into the
+  // AgentDetail header — covered by AgentDetail.test now.
 });
