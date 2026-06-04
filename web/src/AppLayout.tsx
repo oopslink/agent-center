@@ -267,6 +267,9 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
       label: 'Workspace',
       items: [
         { to: p('projects'), label: 'Projects', Icon: FolderIcon },
+        // v2.8 #258: org-scope cross-project aggregation, Project 同级.
+        { to: p('issues'), label: 'Issues', Icon: IssueIcon },
+        { to: p('tasks'), label: 'Tasks', Icon: TaskIcon },
       ],
     },
     {
@@ -778,6 +781,23 @@ function FolderIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h6.5A1.5 1.5 0 0 1 17 8.5v6A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-8z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+// v2.8 #258: Issues nav (circle-dot) + Tasks nav (checklist) — inline single-stroke SVG, no-emoji.
+function IssueIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="10" cy="10" r="6.5" />
+      <circle cx="10" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function TaskIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M4 6h6M4 10h6M4 14h4" strokeLinecap="round" />
+      <path d="M13 6.5l1.5 1.5 2.5-3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

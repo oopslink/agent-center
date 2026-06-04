@@ -22,6 +22,7 @@ const Agents = lazy(() => import('./pages/Agents'));
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
+const OrgWorkItems = lazy(() => import('./pages/OrgWorkItems'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -63,6 +64,9 @@ export function App(): React.ReactElement {
           <Route path="projects/:id" element={<ProjectDetail />} />
           <Route path="projects/:projectId/issues/:id" element={<IssueDetail />} />
           <Route path="projects/:projectId/tasks/:id" element={<TaskDetail />} />
+          {/* v2.8 #258: org-scope cross-project Issues/Tasks aggregation. */}
+          <Route path="issues" element={<OrgWorkItems kind="issue" />} />
+          <Route path="tasks" element={<OrgWorkItems kind="task" />} />
           <Route path="secrets" element={<Secrets />} />
           {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
           <Route path="fleet" element={<Navigate to="../environment" replace />} />

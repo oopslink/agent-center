@@ -22,6 +22,7 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { ProjectMemberAddModal } from '@/components/ProjectMemberAddModal';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { StatusChip, idHandle, shortDate } from '@/components/workItemDisplay';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
 // project hosts its Issues and Tasks as tabs/sections — there is no
@@ -673,51 +674,6 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
         </div>
       )}
     </div>
-  );
-}
-
-// v2.7.1 #242: short id handle = the ULID TAIL (the leading timestamp is shared
-// by items created in the same window; the trailing random segment distinguishes
-// rows — same rationale as #126). Full id stays on hover (#192 id-as-content).
-function idHandle(id: string): string {
-  return id.slice(-6);
-}
-
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const now = new Date();
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString();
-}
-
-// StatusChip — colored status pill shared by the Issue + Task tables. Maps the
-// (different) status machines into in-progress=blue / done=green / blocked=red /
-// reopened=orange / terminal-or-new=neutral. Unknown → neutral.
-const STATUS_CLS: Record<string, string> = {
-  in_progress: 'bg-brand/10 text-brand',
-  running: 'bg-brand/10 text-brand',
-  assigned: 'bg-brand/10 text-brand',
-  resolved: 'bg-success/10 text-success',
-  closed: 'bg-success/10 text-success',
-  completed: 'bg-success/10 text-success',
-  verified: 'bg-success/10 text-success',
-  blocked: 'bg-danger/10 text-danger',
-  reopened: 'bg-orange-500/10 text-orange-600',
-};
-function StatusChip({ status }: { status: string }): React.ReactElement {
-  const cls = STATUS_CLS[status] ?? 'bg-bg-subtle text-text-muted';
-  return (
-    <span
-      className={`rounded px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide ${cls}`}
-      data-testid="status-chip"
-      data-status={status}
-    >
-      {status.replace(/_/g, ' ')}
-    </span>
   );
 }
 

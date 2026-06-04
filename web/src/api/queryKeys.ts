@@ -54,4 +54,7 @@ export const qk = {
   // compiling — it invalidates these after a derive-from-message POST.
   issues: () => o('issues'),
   tasksList: () => o('tasksList'),
+  // v2.8 #258: org-scope cross-project aggregation, keyed by the filter set.
+  orgIssues: (filters?: unknown) => o('orgIssues', filters ?? null),
+  orgTasks: (filters?: unknown) => o('orgTasks', filters ?? null),
 };
