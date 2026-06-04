@@ -397,8 +397,9 @@ func TestAgentController_ReconcileRunning_StartsAndStreamsActivity(t *testing.T)
 	} else if !strings.Contains(a.payload, "success") {
 		t.Fatalf("result payload missing subtype: %s", a.payload)
 	}
-	if _, ok := byType["system"]; !ok {
-		t.Fatalf("no system activity: %+v", acts)
+	// v2.7.1 #216: the claude session-init system line is reported as "system_init".
+	if _, ok := byType["system_init"]; !ok {
+		t.Fatalf("no system_init activity: %+v", acts)
 	}
 	if a, ok := byType["tool_use"]; !ok {
 		t.Fatalf("no tool_use activity: %+v", acts)
