@@ -70,14 +70,17 @@ export default function IssueDetail(): React.ReactElement {
             { label: 'Projects', to: '/projects' },
             { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(iss.project_id)}` },
             { label: 'Issues' },
-            { label: iss.title || iss.id },
+            { label: iss.org_ref ? `${iss.org_ref} - ${iss.title || iss.id}` : iss.title || iss.id },
           ]}
         />
       </div>
       <header className="flex items-start justify-between border-b border-border-base pb-3">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{iss.title || iss.id}</h2>
+            <h2 className="text-xl font-semibold">
+              {iss.org_ref && <span className="text-text-muted" data-testid="issue-org-ref">{iss.org_ref} · </span>}
+              {iss.title || iss.id}
+            </h2>
             <TypeChip kind="issue" />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">

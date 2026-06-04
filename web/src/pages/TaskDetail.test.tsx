@@ -270,4 +270,14 @@ describe('TaskDetail page', () => {
       expect(screen.getByTestId('task-not-found')).toHaveTextContent(/no such task/),
     );
   });
+
+  it('shows org_ref (T<n>) in the header + breadcrumb leaf when present (#245)', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open', { org_ref: 'T7' }))),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await waitFor(() => expect(screen.getByTestId('task-org-ref')).toHaveTextContent('T7'));
+    expect(screen.getByRole('heading', { name: /T7 · rebuild docs/ })).toBeInTheDocument();
+    expect(screen.getByTestId('breadcrumb')).toHaveTextContent('T7 - rebuild docs');
+  });
 });

@@ -555,7 +555,8 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
               {data.map((iss) => (
                 <tr key={iss.id} data-testid="issue-row" data-issue-id={iss.id}>
                   <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="issue-id-handle" title={iss.id}>
-                    #{idHandle(iss.id)}
+                    {/* v2.7.1 #245: org ref (I1234) when present; hash id on hover. */}
+                    {iss.org_ref || `#${idHandle(iss.id)}`}
                   </td>
                   <td className="max-w-[18rem] truncate py-1.5 pr-3">
                     <OrgLink
@@ -636,7 +637,8 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
               {data.map((tk) => (
                 <tr key={tk.id} data-testid="task-row" data-task-id={tk.id}>
                   <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="task-id-handle" title={tk.id}>
-                    #{idHandle(tk.id)}
+                    {/* v2.7.1 #245: org ref (T1234) when present; hash id on hover. */}
+                    {tk.org_ref || `#${idHandle(tk.id)}`}
                   </td>
                   <td className="max-w-[16rem] truncate py-1.5 pr-3">
                     <OrgLink
