@@ -367,6 +367,8 @@ func (s *Server) routes() {
 	// own profile (org/projects/capabilities) + find peer org agents by name.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_profile", s.getMyProfileHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/find_org_agent", s.findOrgAgentHandler)
+	// v2.7.1 #246: resolve a channel name → id (for post_message); empty name lists all.
+	s.mux.HandleFunc("POST /admin/agent-tools/find_org_channel", s.findOrgChannelHandler)
 	// v2.7 D2-b2 — explicit human-visible communication write tools. The agent
 	// posts to the task it is working; composite tools are atomic (one outer tx).
 	s.mux.HandleFunc("POST /admin/agent-tools/post_task_message", s.postTaskMessageHandler)

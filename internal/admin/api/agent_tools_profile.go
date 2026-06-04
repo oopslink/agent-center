@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/oopslink/agent-center/internal/conversation"
 )
 
 // =============================================================================
@@ -188,4 +190,56 @@ func (s *Server) findOrgAgentHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
+}
+
+// findOrgChannelReq is the body for POST /admin/agent-tools/find_org_channel.
+type findOrgChannelReq struct {
+	AgentID string `json:"agent_id"`
+	Name    string `json:"name"`
+}
+
+// findOrgChannelHandler returns the channels in the operating agent's org whose
+// name matches the substring (case-insensitive; empty name lists all = the
+// "available channels" list). This is the channel name→id resolution the agent
+// needs before post_message (@oopslink "cha1" screenshot pain): an empty result
+// IS the "no such channel" signal — there is no name-based send path, so no
+// separate name-not-found error endpoint (v2.7.1 #246, the #239 pattern for
+// channels). Read-only, org-confined (org from the guardrail-resolved agent).
+//
+// channel_id is an ENTITY id (bare, directly usable as post_message's
+// conversation_id) — NOT an ADR-0033 actor ref, so no "agent:"/"user:" prefix
+// (per the #241 ref-vs-id boundary).
+func (s *Server) findOrgChannelHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req findOrgChannelReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.ConvRepo == nil {
+		writeError(w, http.StatusNotImplemented, "conversation_not_wired", "")
+		return
+	}
+	kind := conversation.ConversationKindChannel
+	convs, err := d.ConvRepo.Find(r.Context(), conversation.ConversationFilter{
+		Kind: &kind, OrganizationID: a.OrganizationID(), Limit: 500,
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	needle := strings.ToLower(strings.TrimSpace(req.Name))
+	out := []map[string]any{}
+	for _, c := range convs {
+		name := c.Name()
+		if needle != "" && !strings.Contains(strings.ToLower(name), needle) {
+			continue
+		}
+		out = append(out, map[string]any{"id": string(c.ID()), "name": name})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channels": out})
 }
