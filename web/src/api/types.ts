@@ -98,6 +98,28 @@ export interface Agent {
   created_at: string;
   updated_at: string;
   lifecycle_error?: string;
+  // v2.7.1 #228/#120 — Profile-only enrichment, present ONLY on the single-agent
+  // detail load (GET /api/agents/{id}), never on the list. Each is omitted when
+  // unresolvable; created_agents is always an array (never null, #183 contract).
+  created_by_display_name?: string;
+  computer?: AgentComputer;
+  created_agents?: AgentRef[];
+}
+
+// v2.7.1 #120: the bound worker's label + connected state. daemon version is
+// deliberately NOT included (no Worker BC field — the UI never fabricates it).
+export interface AgentComputer {
+  worker_id: string;
+  name: string;
+  status: string;
+  connected: boolean;
+}
+
+// v2.7.1 #120: a minimal {id,name} reference to another agent (the sub-agents
+// this agent created).
+export interface AgentRef {
+  id: string;
+  name: string;
 }
 
 export type WorkItemStatus =
