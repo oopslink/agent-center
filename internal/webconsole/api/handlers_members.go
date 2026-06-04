@@ -61,6 +61,12 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 		if d.IdentityRepo != nil {
 			if ident, err := d.IdentityRepo.GetByID(r.Context(), m.IdentityID()); err == nil && ident != nil {
 				row["display_name"] = ident.DisplayName()
+				// v2.7.1 #214: the Humans page shows email / created / last-active for
+				// human members. Emit explicit null (not "" / omitted) for the nullable
+				// fields so the UI's null-handling is unambiguous (Tester seam contract).
+				if ident.Kind() == identity.KindUser {
+					addUserProfileFields(row, ident)
+				}
 			}
 		}
 		arr = append(arr, row)

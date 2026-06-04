@@ -137,6 +137,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PATCH /api/members/{id}/role", s.changeMemberRoleHandler)
 	s.mux.HandleFunc("POST /api/members/{id}/disable", s.disableMemberHandler)
 	s.mux.HandleFunc("POST /api/members/{id}/reenable", s.reEnableMemberHandler)
+	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
+	s.mux.HandleFunc("GET /api/users/{user_id}", s.userDetailHandler)
 
 	// Conversations.
 	s.mux.HandleFunc("GET /api/conversations", s.listConversationsHandler)

@@ -3,6 +3,7 @@ package identity
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -18,12 +19,24 @@ type SignupForm struct {
 	PasscodePlain    string
 	OrganizationName string
 	OrganizationSlug string
+	// Email (v2.7.1 #214) is required for new signups (NOT verified). Uniqueness is
+	// enforced at the DB → mapped to ErrIdentityEmailTaken (409).
+	Email string
 }
 
 // Validate checks all field constraints before execution.
 func (f SignupForm) Validate() error {
 	if err := validateDisplayName(f.DisplayName); err != nil {
 		return err
+	}
+	// v2.7.1 #214: email is OPTIONAL at the service layer (only its shape is checked
+	// when present) — "required for new signups" is a v2.7.1 API policy enforced at
+	// the HTTP handler, not baked into the signup domain flow (which other callers /
+	// tests use without an email). Mirrors the worker_id-required-at-handler choice.
+	if f.Email != "" {
+		if err := validateEmail(f.Email); err != nil {
+			return err
+		}
 	}
 	if err := ValidatePasscodePlain(f.PasscodePlain); err != nil {
 		return err
@@ -94,6 +107,14 @@ func (s *SignupService) Execute(ctx context.Context, form SignupForm) (*SignupRe
 		identity, err := IdentityFactory{}.NewUser(form.DisplayName, hash)
 		if err != nil {
 			return err
+		}
+		// v2.7.1 #214: attach the (validated) email before Save so it is in the
+		// INSERT; the DB unique index → ErrIdentityEmailTaken on a dup. Optional at
+		// this layer (handler enforces required for new signups).
+		if form.Email != "" {
+			if err := identity.SetEmail(form.Email); err != nil {
+				return err
+			}
 		}
 		if err := s.identities.Save(txCtx, identity); err != nil {
 			return err
@@ -188,6 +209,11 @@ func (s *SigninService) Execute(ctx context.Context, displayName, passcodePlain 
 	}
 	actor := observability.Actor("user:" + identity.ID())
 	_ = emitEvent(ctx, s.sink, EvtAuthSignedIn, observability.EventRefs{IdentityID: identity.ID()}, actor, map[string]any{"jti": jti})
+	// v2.7.1 #214: stamp the last successful-signin time (powers Humans list +
+	// UserDetail last_session_at). Best-effort — a stamp write failure must NOT
+	// fail an otherwise-valid signin.
+	identity.RecordSession(time.Now())
+	_ = s.identities.Update(ctx, identity)
 	return &SigninResult{IdentityID: identity.ID(), JWT: token, Jti: jti}, nil
 }
 
