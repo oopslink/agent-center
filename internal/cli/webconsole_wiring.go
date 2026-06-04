@@ -23,6 +23,7 @@ import (
 	obssql "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
@@ -307,6 +308,40 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 				Actor:            observability.Actor("system"),
 			})
 			return err
+		},
+		// v2.7.1 #224: an issue/task conversation's @mention can target an agent that
+		// is a MEMBER of the owning project (not only an explicit participant). Resolve
+		// owner_ref (pm://issues|tasks/<id>) → owning project → its agent member-ids
+		// (stripped of "agent:"). channel/dm owner_refs → no project → empty.
+		ProjectAgentMembers: func(ctx context.Context, ownerRef string) ([]string, error) {
+			var projectID pm.ProjectID
+			switch {
+			case strings.HasPrefix(ownerRef, "pm://tasks/"):
+				tk, err := pmsql.NewTaskRepo(a.DB).FindByID(ctx, pm.TaskID(strings.TrimPrefix(ownerRef, "pm://tasks/")))
+				if err != nil || tk == nil {
+					return nil, err
+				}
+				projectID = tk.ProjectID()
+			case strings.HasPrefix(ownerRef, "pm://issues/"):
+				is, err := pmsql.NewIssueRepo(a.DB).FindByID(ctx, pm.IssueID(strings.TrimPrefix(ownerRef, "pm://issues/")))
+				if err != nil || is == nil {
+					return nil, err
+				}
+				projectID = is.ProjectID()
+			default:
+				return nil, nil // not a project-owned conversation
+			}
+			members, err := pmsql.NewProjectMemberRepo(a.DB).ListByProject(ctx, projectID)
+			if err != nil {
+				return nil, err
+			}
+			var out []string
+			for _, m := range members {
+				if ref := string(m.IdentityID()); strings.HasPrefix(ref, "agent:") {
+					out = append(out, strings.TrimPrefix(ref, "agent:"))
+				}
+			}
+			return out, nil
 		},
 	})
 	// v2.7 #111 Phase-1: the agent-work-item PROJECTOR (transition-driven /

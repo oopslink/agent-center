@@ -99,6 +99,13 @@ type WakeProjector struct {
 	// "agent not running" signal when a DM/channel targets a stopped agent).
 	displayName  func(ctx context.Context, identityID string) (string, bool)
 	systemNotify func(ctx context.Context, conversationID, text string) error
+
+	// v2.7.1 #224: resolves an issue/task conversation's owner_ref → the owning
+	// project's AGENT member-ids (stripped of the "agent:" prefix), so an agent
+	// that is a PROJECT MEMBER (not necessarily a conversation participant) is a
+	// valid @mention wake target. nil → only explicit participants are candidates
+	// (the pre-#224 behavior). Channel/DM owner_refs resolve to no project → empty.
+	projectAgentMembers func(ctx context.Context, ownerRef string) ([]string, error)
 }
 
 // WakeProjectorDeps bundles the projector's dependencies.
@@ -118,6 +125,10 @@ type WakeProjectorDeps struct {
 	// v2.7 #185 conversational-wake deps (optional; nil → DM/channel→agent no-op).
 	DisplayName  func(ctx context.Context, identityID string) (string, bool)
 	SystemNotify func(ctx context.Context, conversationID, text string) error
+
+	// v2.7.1 #224 (optional; nil → only conversation participants are @mention wake
+	// candidates). owner_ref → owning project's agent member-ids.
+	ProjectAgentMembers func(ctx context.Context, ownerRef string) ([]string, error)
 }
 
 // NewWakeProjector constructs the projector.
@@ -127,17 +138,18 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		clk = clock.SystemClock{}
 	}
 	return &WakeProjector{
-		db:           d.DB,
-		workItems:    d.WorkItems,
-		agents:       d.Agents,
-		controlLog:   d.ControlLog,
-		applied:      d.Applied,
-		clock:        clk,
-		convRepo:     d.ConvRepo,
-		msgRepo:      d.MsgRepo,
-		readState:    d.ReadState,
-		displayName:  d.DisplayName,
-		systemNotify: d.SystemNotify,
+		db:                  d.DB,
+		workItems:           d.WorkItems,
+		agents:              d.Agents,
+		controlLog:          d.ControlLog,
+		applied:             d.Applied,
+		clock:               clk,
+		convRepo:            d.ConvRepo,
+		msgRepo:             d.MsgRepo,
+		readState:           d.ReadState,
+		displayName:         d.DisplayName,
+		systemNotify:        d.SystemNotify,
+		projectAgentMembers: d.ProjectAgentMembers,
 	}
 }
 
@@ -381,19 +393,41 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 // same applied-mark).
 func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *conversation.Conversation, pl messageAddedPayload) error {
 	kind := conv.Kind()
+
+	// Candidate agent rawIDs = active agent PARTICIPANTS + (v2.7.1 #224, issue/task
+	// only) the owning project's agent MEMBERS — so an agent that is a project member
+	// is a valid @mention wake target even when not an explicit participant.
+	var rawIDs []string
 	for _, part := range conv.Participants() {
-		if !part.IsActive() || !strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
-			continue
+		if part.IsActive() && strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
+			rawIDs = append(rawIDs, strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix))
 		}
-		// FINDING-J: the participant ref may carry EITHER the agent's execution-entity
-		// id OR its identity-member id ("agent-<ulid>", #157). Resolve tolerantly so
-		// both the @mention lookup (display_name on the member) and the deliver path
-		// (worker binding on the entity) work regardless of which id the ref holds.
-		rawID := strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix)
+	}
+	if p.projectAgentMembers != nil &&
+		(kind == conversation.ConversationKindIssue || kind == conversation.ConversationKindTask) {
+		if memberIDs, err := p.projectAgentMembers(ctx, pl.OwnerRef); err != nil {
+			slog.Warn("wake projector: project-member lookup failed",
+				"owner_ref", pl.OwnerRef, "conversation_id", pl.ConversationID, "err", err)
+		} else {
+			rawIDs = append(rawIDs, memberIDs...)
+		}
+	}
+
+	// Resolve + @mention-gate + deliver, deduped by the resolved execution-entity id
+	// (an agent may be BOTH a participant and a project member — wake it once).
+	delivered := map[agent.AgentID]bool{}
+	for _, rawID := range rawIDs {
+		// FINDING-J: the ref may carry EITHER the execution-entity id OR the
+		// identity-member id ("agent-<ulid>", #157). Resolve tolerantly so both the
+		// @mention lookup (display_name on the member) and the deliver path (worker
+		// binding on the entity) work regardless of which id the ref holds.
 		a, ok := p.resolveAgent(ctx, rawID)
 		if !ok {
-			slog.Warn("wake projector: agent.converse skipped (agent participant unresolved)",
-				"participant", string(part.IdentityID), "conversation_id", pl.ConversationID)
+			slog.Warn("wake projector: agent.converse skipped (agent candidate unresolved)",
+				"raw_id", rawID, "conversation_id", pl.ConversationID)
+			continue
+		}
+		if delivered[a.ID()] {
 			continue
 		}
 		// Group-like kinds (channel/issue/task): only wake agents explicitly
@@ -404,6 +438,7 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 		if err := p.deliverConverse(ctx, conv, a, rawID, pl); err != nil {
 			return err
 		}
+		delivered[a.ID()] = true
 	}
 	return nil
 }
