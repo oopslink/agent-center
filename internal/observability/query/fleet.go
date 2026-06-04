@@ -158,7 +158,7 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 	memberIDOf := s.agentMemberIDResolver(ctx)
 	out := make([]WorkItemRow, 0, len(projs))
 	for _, p := range projs {
-		taskID, projectID, orgID := s.workItemTaskProjectOrg(ctx, p.WorkItemID)
+		taskID, taskTitle, projectID, orgID := s.workItemTaskProjectOrg(ctx, p.WorkItemID)
 		if filter.ProjectID != "" && projectID != filter.ProjectID {
 			continue
 		}
@@ -166,6 +166,10 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 			continue // fail-closed: never leak a work item whose org can't be confirmed
 		}
 		row := workItemRowFromProjection(p, taskID)
+		// v2.7.1 #206: read-time enrichment for the Home work-item rows (task title +
+		// owning project for the click-through link). Empty when unresolved → UI falls back.
+		row.TaskTitle = taskTitle
+		row.ProjectID = projectID
 		// v2.7 #185: the work-item projection stores the execution-entity agent id
 		// (internal). The fleet snapshot is user-facing (Web Console), so expose
 		// the business-layer member id instead — no entity-ULID leak.
@@ -208,33 +212,38 @@ func (s *FleetSnapshotService) agentMemberIDResolver(ctx context.Context) func(s
 // v2.7 #107: org is resolved from the pm project (same source as project), NOT
 // the retired workforce `projects` table — mixing the two made org-scope fail
 // closed on every work item at runtime (workforce projects are empty).
-func (s *FleetSnapshotService) workItemTaskProjectOrg(ctx context.Context, workItemID string) (taskID, projectID, orgID string) {
+// v2.7.1 #206: also returns the task title (read-time enrichment for the
+// user-facing Home/Overview work-item rows). taskTitle is "" when the task can't
+// be resolved (callers omit it → UI falls back). No extra query: the task entity
+// is already loaded here for org scoping.
+func (s *FleetSnapshotService) workItemTaskProjectOrg(ctx context.Context, workItemID string) (taskID, taskTitle, projectID, orgID string) {
 	if s.deps.WorkItems == nil {
-		return "", "", ""
+		return "", "", "", ""
 	}
 	wi, err := s.deps.WorkItems.FindByID(ctx, workItemID)
 	if err != nil || wi == nil {
-		return "", "", ""
+		return "", "", "", ""
 	}
 	id, ok := fleetTaskIDFromRef(wi.TaskRef())
 	if !ok {
-		return "", "", ""
+		return "", "", "", ""
 	}
 	taskID = id
 	if s.deps.PMTasks == nil {
-		return taskID, "", ""
+		return taskID, "", "", ""
 	}
 	tk, terr := s.deps.PMTasks.FindByID(ctx, pm.TaskID(id))
 	if terr != nil || tk == nil {
-		return taskID, "", ""
+		return taskID, "", "", ""
 	}
+	taskTitle = tk.Title()
 	projectID = string(tk.ProjectID())
 	if s.deps.PMProjects != nil && projectID != "" {
 		if pr, perr := s.deps.PMProjects.FindByID(ctx, pm.ProjectID(projectID)); perr == nil && pr != nil {
 			orgID = pr.OrganizationID()
 		}
 	}
-	return taskID, projectID, orgID
+	return taskID, taskTitle, projectID, orgID
 }
 
 // fleetTaskIDFromRef extracts {id} from a "pm://tasks/{id}" work-item task ref.
@@ -319,7 +328,7 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 						// excluded there. Mirror that here: only count when the org
 						// resolves to this worker's org. (A bare wiOrg!=worker.org skip
 						// would still count the unresolvable case → count>list.)
-						_, _, wiOrg := s.workItemTaskProjectOrg(ctx, wi.ID())
+						_, _, _, wiOrg := s.workItemTaskProjectOrg(ctx, wi.ID())
 						if wiOrg != w.OrganizationID() {
 							if wiOrg != "" {
 								// Positive divergence (resolved to a DIFFERENT org) = the

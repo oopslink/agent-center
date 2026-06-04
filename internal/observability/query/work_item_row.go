@@ -13,9 +13,16 @@ import (
 // repoint). Keeping one definition + one formatter guarantees the three surfaces
 // stay byte-identical (no copy-drift).
 type WorkItemRow struct {
-	WorkItemID        string `json:"work_item_id"`
-	AgentID           string `json:"agent_id"`
-	TaskID            string `json:"task_id,omitempty"`
+	WorkItemID string `json:"work_item_id"`
+	AgentID    string `json:"agent_id"`
+	TaskID     string `json:"task_id,omitempty"`
+	// TaskTitle + ProjectID are v2.7.1 #206 read-time enrichments (Home/AgentDetail
+	// show the real task title + link to /projects/{project_id}/tasks/{task_id}).
+	// Populated only by the user-facing fleet snapshot (which already loads the pm
+	// task + project to resolve org scope); the admin inspect/query verbs leave them
+	// empty (omitempty). Empty when the task can't be resolved → UI falls back.
+	TaskTitle         string `json:"task_title,omitempty"`
+	ProjectID         string `json:"project_id,omitempty"`
 	Status            string `json:"status"`
 	CurrentActivity   string `json:"current_activity,omitempty"`
 	TotalToolCalls    int64  `json:"total_tool_calls"`
