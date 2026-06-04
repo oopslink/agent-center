@@ -363,6 +363,10 @@ func (s *Server) routes() {
 	// the TOKEN OWNER and verifies the target agent is bound to it (guardrail)
 	// before any tool runs. b1 ships one representative read tool.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
+	// v2.7.1 #239 — agent self/org-discovery reads (0 round-trip self-awareness):
+	// own profile (org/projects/capabilities) + find peer org agents by name.
+	s.mux.HandleFunc("POST /admin/agent-tools/get_my_profile", s.getMyProfileHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/find_org_agent", s.findOrgAgentHandler)
 	// v2.7 D2-b2 — explicit human-visible communication write tools. The agent
 	// posts to the task it is working; composite tools are atomic (one outer tx).
 	s.mux.HandleFunc("POST /admin/agent-tools/post_task_message", s.postTaskMessageHandler)

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +47,7 @@ type agentToolsFixture struct {
 	workItems *agentsql.WorkItemRepo
 	agents    *agentsql.AgentRepo
 	clk       *clock.FakeClock
+	db        *sql.DB // exposed so #239 profile tests can wire PMService + IdentityOrgRepo
 }
 
 // newAgentToolsFixture seeds two workers (W1, W2) and two agents (AG1→W1,
@@ -129,7 +131,7 @@ func newAgentToolsFixture(t *testing.T) *agentToolsFixture {
 		WorkerRepo: workers,
 	}
 	return &agentToolsFixture{
-		deps: deps, verifier: verifier, workItems: workItems, agents: agents, clk: clk,
+		deps: deps, verifier: verifier, workItems: workItems, agents: agents, clk: clk, db: db,
 	}
 }
 
