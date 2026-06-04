@@ -104,14 +104,24 @@ func InstallWorkerCommand() *Command {
 // installCenterHandler binds flags + dispatches the install center
 // action by InstallState.
 func installCenterHandler(fs *flag.FlagSet) Handler {
-	prefix := fs.String("prefix", "", "install prefix (default: ~/.agent-center on Mac + Linux user mode; /opt/agent-center on Linux system mode)")
+	prefix := fs.String("prefix", "", "install prefix (default: ~/.agent-center[.<instance>] on Mac + Linux user mode; /opt/agent-center[.<instance>] on Linux system mode)")
 	userMode := fs.Bool("user-mode", isMacRuntime(), "install under the current user (no sudo). Mac default true, linux default false (use system mode + sudo).")
-	port := fs.Int("port", 7100, "Web Console listen port (loopback only)")
+	// v2.7.1 #211: name this center deployment so multiple centers coexist on one
+	// machine. "default" keeps the legacy prefix + launchd label (back-compat).
+	instanceF := fs.String("instance", DefaultInstance, "center deployment name (kebab-case, 1-32 chars). default = legacy prefix + launchd label; a named instance gets its own prefix (~/.agent-center.<name>) + launchd label")
+	// v2.7.1 #211: explicit per-listener ports (no auto-assign) so instances don't
+	// collide. --port / --tcp-listen kept as back-compat aliases of --web-port /
+	// --admin-port. The legacy server port (:7050) was hardcoded; --server-port now
+	// exposes it.
+	webPortF := fs.Int("web-port", 7100, "Web Console listen port (loopback only)")
+	serverPortF := fs.Int("server-port", 7050, "server listen port (the agent/admin API; was hardcoded :7050)")
+	adminPortF := fs.Int("admin-port", 7300, "admin TCP listener port (bound 0.0.0.0). Use --tcp-listen for a full host:port or to disable")
+	port := fs.Int("port", 7100, "DEPRECATED alias of --web-port")
 	// v2.4-D-F4 fix: default-on so the Web Console's Add Worker Modal
 	// can mint a usable install command without requiring the operator
-	// to know they have to enable TCP. Pass --tcp-listen="" to disable
+	// to know they have to enable TCP. Pass --tcp-listen= to disable
 	// (unix-socket-only deployments).
-	tcpListen := fs.String("tcp-listen", "0.0.0.0:7300", "admin TCP listener address (e.g. 0.0.0.0:7300). Pass --tcp-listen= to disable (unix-only).")
+	tcpListen := fs.String("tcp-listen", "0.0.0.0:7300", "admin TCP listener address (e.g. 0.0.0.0:7300). Pass --tcp-listen= to disable (unix-only). Overrides --admin-port.")
 	service := fs.Bool("service", false, "register + start a launchd/systemd background service that auto-starts on boot. Default: foreground — install only drops files + config; run `agent-center server --config=<path>` yourself (logs to stdout).")
 	bootstrapPublicURL := fs.String("bootstrap-public-url", "", "externally-reachable admin host:port for the Web Console Add Worker command (v2.7 #200), independent of --tcp-listen. Set when remote workers must dial a public DNS/LB/NAT address. Empty = derive from the bind address.")
 	dryRun := fs.Bool("dry-run", false, "print planned actions without mutating state")
@@ -119,9 +129,33 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = args // install center takes no positional args
 
+		// v2.7.1 #211: which flags the operator actually set (for back-compat coalescing).
+		set := map[string]bool{}
+		fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+
+		instance := strings.TrimSpace(*instanceF)
+		if instance == "" {
+			instance = DefaultInstance
+		}
+		if !validInstanceName(instance) {
+			return PrintError(errw, FormatText, "install_invalid_instance",
+				"--instance must be kebab-case (a-z, 0-9, single interior dashes), 1-32 chars", ExitUsage)
+		}
+
+		// Port coalescing: explicit new flag > legacy alias > default.
+		webPort := *webPortF
+		if !set["web-port"] && set["port"] {
+			webPort = *port
+		}
+		serverPort := *serverPortF
+		adminTCP := *tcpListen // default "0.0.0.0:7300"; --tcp-listen= disables
+		if !set["tcp-listen"] && set["admin-port"] {
+			adminTCP = fmt.Sprintf("0.0.0.0:%d", *adminPortF)
+		}
+
 		resolvedPrefix := *prefix
 		if resolvedPrefix == "" {
-			resolvedPrefix = defaultInstallPrefix(*userMode)
+			resolvedPrefix = defaultCenterInstallPrefix(*userMode, instance)
 		}
 		version := installerVersion()
 
@@ -131,11 +165,13 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 		}
 
 		fmt.Fprintf(out, "agent-center install center:\n")
+		fmt.Fprintf(out, "  instance:      %s\n", instance)
 		fmt.Fprintf(out, "  prefix:        %s\n", resolvedPrefix)
 		fmt.Fprintf(out, "  user-mode:     %v\n", *userMode)
-		fmt.Fprintf(out, "  web port:      %d\n", *port)
-		if *tcpListen != "" {
-			fmt.Fprintf(out, "  admin tcp:     %s\n", *tcpListen)
+		fmt.Fprintf(out, "  web port:      %d\n", webPort)
+		fmt.Fprintf(out, "  server port:   %d\n", serverPort)
+		if adminTCP != "" {
+			fmt.Fprintf(out, "  admin tcp:     %s\n", adminTCP)
 		}
 		fmt.Fprintf(out, "  state:         %s", state)
 		if currentVersion != "" {
@@ -156,8 +192,10 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 			return installCenterFresh(out, errw, installContext{
 				Prefix:             resolvedPrefix,
 				UserMode:           *userMode,
-				Port:               *port,
-				TCPListen:          *tcpListen,
+				Instance:           instance,
+				Port:               webPort,
+				ServerPort:         serverPort,
+				TCPListen:          adminTCP,
 				BootstrapPublicURL: strings.TrimSpace(*bootstrapPublicURL),
 				Version:            version,
 				Service:            *service,
@@ -166,8 +204,10 @@ func installCenterHandler(fs *flag.FlagSet) Handler {
 			return installCenterUpgrade(out, errw, installContext{
 				Prefix:         resolvedPrefix,
 				UserMode:       *userMode,
-				Port:           *port,
-				TCPListen:      *tcpListen,
+				Instance:       instance,
+				Port:           webPort,
+				ServerPort:     serverPort,
+				TCPListen:      adminTCP,
 				Version:        version,
 				CurrentVersion: currentVersion,
 				Service:        *service,
@@ -294,10 +334,15 @@ func installWorkerHandler(fs *flag.FlagSet) Handler {
 // installContext bundles the resolved flag values for the install/
 // upgrade implementations (filled in by A2 / A5).
 type installContext struct {
-	Prefix    string
-	UserMode  bool
-	Port      int
-	TCPListen string
+	Prefix   string
+	UserMode bool
+	// Instance (v2.7.1 #211, center only) names this center deployment so multiple
+	// centers coexist on one machine. "default" = legacy prefix + launchd label.
+	Instance string
+	Port     int // web console port
+	// ServerPort (v2.7.1 #211) is the server.listen_addr port (was hardcoded :7050).
+	ServerPort int
+	TCPListen  string
 	// BootstrapPublicURL (v2.7 #200, center only) — externally-reachable admin
 	// host:port the Web Console Add Worker command advertises, written into the
 	// center config. Empty → enroll wiring derives the host from admin_tcp_listen.
@@ -326,12 +371,23 @@ func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err != nil {
 		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
 	}
+	sp = applyInstanceToServicePaths(sp, ic.Instance) // v2.7.1 #211: per-instance label/unit
 	// v2.4-D-A6: pre-flight port check for the Web Console port.
 	webAddr := fmt.Sprintf("127.0.0.1:%d", ic.Port)
 	if err := preflightPortAvailable(webAddr); err != nil {
 		return PrintError(errw, FormatText, "install_port_in_use",
 			renderInstallError(err, installErrorContext{Operation: "bind_port", Port: webAddr}),
 			ExitBusinessError)
+	}
+	// v2.7.1 #211: server-port preflight (was hardcoded :7050, now configurable so
+	// instances don't collide).
+	if ic.ServerPort != 0 {
+		serverAddr := fmt.Sprintf("127.0.0.1:%d", ic.ServerPort)
+		if err := preflightPortAvailable(serverAddr); err != nil {
+			return PrintError(errw, FormatText, "install_port_in_use",
+				renderInstallError(err, installErrorContext{Operation: "bind_port", Port: serverAddr}),
+				ExitBusinessError)
+		}
 	}
 	if ic.TCPListen != "" {
 		if err := preflightPortAvailable(ic.TCPListen); err != nil {
@@ -349,7 +405,7 @@ func installCenterFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err := writeVersionFile(layout); err != nil {
 		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
 	}
-	if err := writeCenterConfig(layout, ic.Port, ic.TCPListen, ic.BootstrapPublicURL); err != nil {
+	if err := writeCenterConfig(layout, ic.Port, ic.ServerPort, ic.TCPListen, ic.BootstrapPublicURL, ic.Instance); err != nil {
 		return PrintError(errw, FormatText, "install_write_config_failed", err.Error(), ExitBusinessError)
 	}
 	if err := atomicSymlinkSwap(layout); err != nil {
@@ -401,6 +457,7 @@ func installCenterUpgrade(out, errw io.Writer, ic installContext) ExitCode {
 	if err != nil {
 		return PrintError(errw, FormatText, "install_platform_unsupported", err.Error(), ExitBusinessError)
 	}
+	sp = applyInstanceToServicePaths(sp, ic.Instance) // v2.7.1 #211: upgrade the instance's own service
 	fmt.Fprintf(out, "\nUpgrading center: %s → %s\n", ic.CurrentVersion, ic.Version)
 
 	// Steps 1-3: copy binaries + write VERSION. Config + unit file NOT
@@ -654,6 +711,18 @@ func defaultInstallPrefix(userMode bool) string {
 	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".agent-center")
+}
+
+// defaultCenterInstallPrefix is the instance-aware center prefix (v2.7.1 #211).
+// The "default" instance keeps the legacy path (~/.agent-center or
+// /opt/agent-center) for back-compat; a named instance appends ".<instance>"
+// (e.g. ~/.agent-center.t1) so multiple centers coexist on one machine.
+func defaultCenterInstallPrefix(userMode bool, instance string) string {
+	base := defaultInstallPrefix(userMode)
+	if instance == "" || instance == DefaultInstance {
+		return base
+	}
+	return base + "." + instance
 }
 
 // defaultWorkerInstallPrefix is the worker-equivalent of

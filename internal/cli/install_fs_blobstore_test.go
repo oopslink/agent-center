@@ -16,7 +16,7 @@ import (
 // that the YAML loads with no unknown-key rejection).
 func TestCenterConfigYAML_WiresBlobStoreRoot(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "var")
-	yaml := centerConfigYAML(dataDir, 7100, "", "", filepath.Join(dataDir, "master.key"))
+	yaml := centerConfigYAML(dataDir, 7100, 7050, "", "", filepath.Join(dataDir, "master.key"), "default")
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
 		t.Fatal(err)

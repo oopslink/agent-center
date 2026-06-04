@@ -125,7 +125,7 @@ func TestRenderLaunchdPlist_EmptyLogsDirFallsBackToTmp(t *testing.T) {
 }
 
 func TestCenterConfigYAML_HasFields(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "", "", "/var/data/master.key")
+	yaml := centerConfigYAML("/var/data", 7100, 7050, "", "", "/var/data/master.key", "default")
 	for _, want := range []string{
 		"sqlite_path:",
 		"admin_socket_path:",
@@ -145,7 +145,7 @@ func TestCenterConfigYAML_HasFields(t *testing.T) {
 }
 
 func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
-	yaml := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "", "/var/data/master.key")
+	yaml := centerConfigYAML("/var/data", 7100, 7050, "0.0.0.0:7300", "", "/var/data/master.key", "default")
 	if !strings.Contains(yaml, `admin_tcp_listen: "0.0.0.0:7300"`) {
 		t.Errorf("missing admin_tcp_listen:\n%s", yaml)
 	}
@@ -153,11 +153,11 @@ func TestCenterConfigYAML_WithTCPListen(t *testing.T) {
 
 // v2.7 #200: bootstrap_public_url is written when set, omitted when empty.
 func TestCenterConfigYAML_BootstrapPublicURL(t *testing.T) {
-	with := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "center.example.com:7300", "/var/data/master.key")
+	with := centerConfigYAML("/var/data", 7100, 7050, "0.0.0.0:7300", "center.example.com:7300", "/var/data/master.key", "default")
 	if !strings.Contains(with, `bootstrap_public_url: "center.example.com:7300"`) {
 		t.Errorf("missing bootstrap_public_url:\n%s", with)
 	}
-	without := centerConfigYAML("/var/data", 7100, "0.0.0.0:7300", "", "/var/data/master.key")
+	without := centerConfigYAML("/var/data", 7100, 7050, "0.0.0.0:7300", "", "/var/data/master.key", "default")
 	if strings.Contains(without, "bootstrap_public_url:") {
 		t.Errorf("bootstrap_public_url must be omitted when empty:\n%s", without)
 	}
@@ -170,7 +170,7 @@ func TestCenterConfigYAML_BootstrapPublicURL(t *testing.T) {
 func TestWriteCenterConfig_AutoProvisionsMasterKey(t *testing.T) {
 	prefix := t.TempDir()
 	layout := newInstallLayout(prefix, "v2.5.0")
-	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300", ""); err != nil {
+	if err := writeCenterConfig(layout, 7100, 7050, "0.0.0.0:7300", "", "default"); err != nil {
 		t.Fatalf("writeCenterConfig: %v", err)
 	}
 	keyPath := filepath.Join(layout.DataDir, "master.key")
@@ -190,7 +190,7 @@ func TestWriteCenterConfig_AutoProvisionsMasterKey(t *testing.T) {
 	}
 	// Re-install should preserve the existing key (otherwise every
 	// upgrade would orphan all encrypted UserSecret payloads).
-	if err := writeCenterConfig(layout, 7100, "0.0.0.0:7300", ""); err != nil {
+	if err := writeCenterConfig(layout, 7100, 7050, "0.0.0.0:7300", "", "default"); err != nil {
 		t.Fatalf("re-install: %v", err)
 	}
 	preserved, err := os.ReadFile(keyPath)

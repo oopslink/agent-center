@@ -286,7 +286,7 @@ func atomicSymlinkSwap(layout installLayout) error {
 // until the operator manually provisions one. Auto-provisioning
 // matches v2.4-D-A2's bootstrap_token approach: opinionated
 // defaults so the happy path works out of the box.
-func writeCenterConfig(layout installLayout, port int, tcpListen, bootstrapPublicURL string) error {
+func writeCenterConfig(layout installLayout, port, serverPort int, tcpListen, bootstrapPublicURL, instance string) error {
 	if err := os.MkdirAll(layout.ConfigDir, 0o755); err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func writeCenterConfig(layout installLayout, port int, tcpListen, bootstrapPubli
 	if err := ensureMasterKeyFile(masterKeyPath); err != nil {
 		return err
 	}
-	yaml := centerConfigYAML(layout.DataDir, port, tcpListen, bootstrapPublicURL, masterKeyPath)
+	yaml := centerConfigYAML(layout.DataDir, port, serverPort, tcpListen, bootstrapPublicURL, masterKeyPath, instance)
 	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o644)
 }
 
@@ -325,17 +325,25 @@ func ensureMasterKeyFile(path string) error {
 
 // centerConfigYAML returns the YAML body for the default center config.
 // Kept as a pure function so tests can assert content.
-func centerConfigYAML(dataDir string, port int, tcpListen, bootstrapPublicURL, masterKeyPath string) string {
+func centerConfigYAML(dataDir string, port, serverPort int, tcpListen, bootstrapPublicURL, masterKeyPath, instance string) string {
+	if serverPort == 0 {
+		serverPort = 7050
+	}
+	if instance == "" {
+		instance = "default"
+	}
 	yaml := `# agent-center — installed by v2.4-D-A2 install command.
 # Edit this file then ` + "`systemctl --user restart agent-center`" + ` (or launchctl) to apply.
 
 server:
+  # v2.7.1 #211: names this center deployment (multi-center coexistence on one host).
+  instance: "` + instance + `"
   # v2.7 #161: default off :7000 — macOS AirPlay Receiver (AirTunes) listens on
   # 7000 by default, so :7000 fails to bind on a fresh Mac install and the center
   # never starts. :7050 avoids AirPlay (7000) and the web console (7100), and
   # keeps the 70xx/73xx numbering. (server and web_console are separate listeners
-  # and must not share a port.)
-  listen_addr: ":7050"
+  # and must not share a port.) v2.7.1 #211: --server-port makes this configurable.
+  listen_addr: "` + fmt.Sprintf(":%d", serverPort) + `"
   sqlite_path: "` + dataDir + `/agent-center.db"
   admin_socket_path: "` + dataDir + `/admin.sock"
 `
