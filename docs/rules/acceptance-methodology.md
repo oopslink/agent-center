@@ -42,6 +42,15 @@ UI 断言锚定**产品 rendered / computed 真值**，不靠 class 名 / 属性
 - **存在 / 行为** → rendered DOM 态 / 真实 navigation / HTTP 码 / 字节断言。
 - class 名"暗示"某属性 = **假设，不是证据**；report 或 clear 之前都要核实真值（防假阳 / 假阴）。
 
+**False-alarm rule-out（机制对 ≠ 实测过；单次实测红 ≠ 真 finding）**：一次红 / 失败的观测是**假设，不是结论**——传出去之前先**证伪**两类噪声，定位到**具体真因**再定性：
+
+- **① harness error（我自己的命令/脚本/逻辑）**：shell 退出码陷阱（如 `find -exec grep -l X && echo WARN` 永远打印 WARN，因为是 *find* 的退出码不是 grep 的匹配）、错路径、错 endpoint 格式、stale selector。
+- **② 环境噪声（无关的真实状态/活动）**：共享机上别的 live 进程、预置状态、随时间变的文件（日志、SQLite `-wal` sidecar）、并发活动。
+- 这是「verify before claiming PASS」的镜像 —— 这里是 **verify before claiming FAIL**。两者同理：**绝不报一个自己没证实的状态**。
+- **对称适用 UI sweep**：一条 "raw-id leak" 或 "console error" 同样可能是自己的 script bug / stale selector / 无关进程，先复现 + inspect 真因再传。
+- 实例（#255 验收，见 `docs/release/evidence/v28-255-test-instance-acceptance-report.md`）：D1 整树 byte-hash "FAIL" 实为本机一个 **live prod 实例在写自己的 SQLite DB**（churn ≠ test 污染，靠"零 test 引用 / 文件数不变 / 结构内容字节稳定"证伪）；E4 "token in plist" 实为上面那条 `find -exec grep -l` 退出码 bug。两条若闻报必传 = 假安全警报误锁 PR。
+- 警告：rule-out ≠ explain-away —— 必须查到**具体真因**（那个退出码 bug、那个持有 DB 的 PID），不是挥手"大概是噪声"。
+
 > #192 零-raw-id 的 chrome / content / id-as-content 三层边界（验收 sweep 怎么扫）见 [`ux-standards.md`](ux-standards.md) 的 raw-ID 边界节，本文不复制。
 
 ### § 1.2 路径 / 发现 / 布局类，跑产品默认 prefix
@@ -153,6 +162,7 @@ v2.7.1 多轮并行验收用的协议，固化下来：
 
 - [ ] 跑在真 `install` / `upgrade` 生成的 config 上，不是手搓 config（§ 1）
 - [ ] 真浏览器断言锚 computed/rendered 真值，不靠 class 名猜（§ 1.1）
+- [ ] 每条红 / 失败观测都 rule out 了 harness error + 环境噪声、定位到具体真因再定性，没传未证实的假警报（§ 1.1 false-alarm rule-out）
 - [ ] 路径 / 发现 / 布局类跑了产品默认 prefix（§ 1.2）
 - [ ] CLI / worker 跑的是用户真实 copy 的字面命令（§ 1.3）
 - [ ] 多工具流程串了真实链路；finding 暴露的类扫全了（§ 2）
