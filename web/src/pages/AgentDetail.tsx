@@ -15,6 +15,7 @@ import {
 import { useWorkers } from '@/api/workers';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { EntityRef } from '@/components/EntityRef';
+import { AgentActivityRow } from '@/components/AgentActivityRow';
 
 // AgentDetail (/agents/:id). Agent BC (v2.7 #101). Header (name, lifecycle,
 // availability, worker) + lifecycle controls gated by state, a Reset modal
@@ -262,16 +263,7 @@ export default function AgentDetail(): React.ReactElement {
         {activity.isSuccess && activity.data.length > 0 && (
           <ul className="divide-y divide-border-base" data-testid="agent-activity-list">
             {activity.data.map((ev) => (
-              <li
-                key={ev.id}
-                className="flex items-center justify-between py-2 text-xs"
-                data-testid="agent-activity-row"
-                data-activity-id={ev.id}
-                data-event-type={ev.event_type}
-              >
-                <span className="font-mono">{ev.event_type}</span>
-                <span className="tabular-nums text-text-muted">{ev.occurred_at}</span>
-              </li>
+              <AgentActivityRow key={ev.id} event={ev} />
             ))}
           </ul>
         )}
