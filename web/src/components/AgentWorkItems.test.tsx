@@ -68,14 +68,15 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(summary).toHaveTextContent('2 Blocked');
   });
 
-  it('renders the columns: short id (full on hover), Task type, "—" priority, mapped status', async () => {
+  it('renders the columns: short id TAIL (full on hover), Task type, "—" priority, mapped status', async () => {
     stub([wi('abcdef123456', 'active')]);
     wrap();
     const row = await screen.findByTestId('agent-workitem-row');
     expect(row).toHaveAttribute('data-status', 'active');
-    // ID: short handle + full id on hover (#192 — no full raw id as chrome).
+    // ID handle uses the id TAIL (ULID prefix is a shared timestamp) + full id
+    // on hover (#192 — no full raw id as chrome).
     const id = screen.getByTestId('agent-workitem-id');
-    expect(id).toHaveTextContent('#abcdef');
+    expect(id).toHaveTextContent('#123456');
     expect(id).toHaveAttribute('title', 'abcdef123456');
     expect(id).not.toHaveTextContent('abcdef123456');
     // Type fallback chip + Priority fallback.
@@ -83,6 +84,16 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(screen.getByTestId('agent-workitem-priority')).toHaveTextContent('—');
     // active → "In Progress".
     expect(screen.getByTestId('agent-workitem-status')).toHaveTextContent('In Progress');
+  });
+
+  it('gives near-simultaneous ULIDs distinct handles (tail, not shared timestamp prefix)', async () => {
+    // Two ULIDs created in the same ms share the leading timestamp; only the
+    // trailing random segment differs — the handle must reflect that.
+    stub([wi('01KT8DABCD0001', 'active'), wi('01KT8DABCD0002', 'queued')]);
+    wrap();
+    await waitFor(() => expect(screen.getAllByTestId('agent-workitem-id')).toHaveLength(2));
+    const handles = screen.getAllByTestId('agent-workitem-id').map((n) => n.textContent);
+    expect(new Set(handles).size).toBe(2); // distinct
   });
 
   it('links the title to its task when resolved (#206)', async () => {
