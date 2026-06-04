@@ -21,6 +21,7 @@ import { EntityRef } from '@/components/EntityRef';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ProjectMemberAddModal } from '@/components/ProjectMemberAddModal';
 import { Skeleton } from '@/components/Skeleton';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
 // project hosts its Issues and Tasks as tabs/sections — there is no
@@ -65,6 +66,7 @@ export default function ProjectDetail(): React.ReactElement {
   const p = project.data;
   return (
     <section className="space-y-4" data-testid="page-ProjectDetail" data-project-id={p.id}>
+      <Breadcrumb items={[{ label: 'Projects', to: '/projects' }, { label: p.name }]} />
       <ProjectHeader project={p} />
       <ProjectWorkTabs projectId={p.id} />
       <FleetLinkSection />

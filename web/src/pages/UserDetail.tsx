@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useUser } from '@/api/users';
 import { useOrgs } from '@/api/auth';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 function fmtDate(v?: string): string {
   if (!v) return '—';
@@ -45,6 +46,13 @@ export default function UserDetail(): React.ReactElement {
 
   return (
     <section className="flex h-full flex-col gap-6" data-testid="page-UserDetail" data-user-id={u.user_id}>
+      <Breadcrumb
+        items={[
+          { label: 'Members' },
+          { label: 'Humans', to: '/members/humans' },
+          { label: u.display_name || u.user_id },
+        ]}
+      />
       <header className="border-b border-border-base pb-3">
         {/* member-id on hover (#192). */}
         <h2 className="text-xl font-semibold" data-testid="user-detail-name" title={u.user_id}>

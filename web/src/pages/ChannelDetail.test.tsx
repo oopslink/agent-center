@@ -69,7 +69,8 @@ describe('ChannelDetail page', () => {
     await waitFor(() =>
       expect(screen.getByText('hello world')).toBeInTheDocument(),
     );
-    expect(screen.getByText('alpha')).toBeInTheDocument();
+    // #238: channel name appears in both the breadcrumb leaf and the header → scope to heading.
+    expect(screen.getByRole('heading', { name: 'alpha' })).toBeInTheDocument();
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     expect(screen.getByTestId('participants-panel')).toBeInTheDocument();
     expect(screen.getByText(/1 participant/)).toBeInTheDocument();

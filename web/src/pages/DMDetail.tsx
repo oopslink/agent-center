@@ -8,6 +8,7 @@ import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { TypeChip } from '@/components/TypeChip';
+import { Breadcrumb } from '@/components/Breadcrumb';
 
 // DMDetail page (/dms/:id). Mirrors ChannelDetail layout but skips the
 // ParticipantsPanel — DM membership is fixed at create time (per
@@ -74,6 +75,9 @@ export default function DMDetail(): React.ReactElement {
       data-testid="page-DMDetail"
       data-dm-id={conv.data.id}
     >
+      <div className="mb-2">
+        <Breadcrumb items={[{ label: 'DMs', to: '/dms' }, { label: heading }]} />
+      </div>
       <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

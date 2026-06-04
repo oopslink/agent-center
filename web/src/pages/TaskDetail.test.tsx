@@ -101,14 +101,15 @@ describe('TaskDetail page', () => {
       ),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    const crumb = await screen.findByTestId('task-breadcrumb');
+    // v2.7.1 #238: standardized <Breadcrumb> — Projects / <proj> / Tasks / <task>.
+    const crumb = await screen.findByTestId('breadcrumb');
     expect(crumb).toHaveTextContent('Tasks');
     expect(crumb).toHaveTextContent('rebuild docs');
-    // project name (not the proj-a ULID) renders + links to the project.
+    // project name (not the proj-a ULID) renders + links to the project (seg 1).
     await waitFor(() =>
-      expect(screen.getByTestId('task-breadcrumb-project')).toHaveTextContent('Alpha Project'),
+      expect(screen.getByTestId('breadcrumb-segment-1')).toHaveTextContent('Alpha Project'),
     );
-    expect(screen.getByTestId('task-breadcrumb-project')).toHaveAttribute('href', '/projects/proj-a');
+    expect(screen.getByTestId('breadcrumb-segment-1')).toHaveAttribute('href', '/projects/proj-a');
   });
 
   it('assigns via the searchable picker — agent → agent:<member-id> ref (#186-5b)', async () => {
