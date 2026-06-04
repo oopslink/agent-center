@@ -108,18 +108,29 @@ export default function Home(): React.ReactElement {
           {workItems.slice(0, 5).map((wi) => (
             <li
               key={wi.work_item_id}
-              // v2.7 #192: agent name is the visible handle; the task/work-item
-              // id stays on hover (no client-side task title on the fleet DTO).
+              // v2.7.1 #206: task title is the visible handle (links to the task);
+              // the task/work-item id stays on hover (#192). Falls back to the
+              // agent name until the projection carries task_title/project_id.
               title={wi.task_id || wi.work_item_id}
               className="flex items-center justify-between gap-3 py-1.5"
             >
-              <EntityRef
-                id={wi.agent_id}
-                name={agentName(wi.agent_id)}
-                fallback={wi.agent_id}
-                testId="home-wi-agent"
-                className="truncate text-xs text-text-secondary"
-              />
+              {wi.task_title && wi.project_id && wi.task_id ? (
+                <OrgLink
+                  to={`/projects/${encodeURIComponent(wi.project_id)}/tasks/${encodeURIComponent(wi.task_id)}`}
+                  className="truncate text-xs text-text-secondary hover:text-accent"
+                  data-testid="home-wi-task"
+                >
+                  {wi.task_title}
+                </OrgLink>
+              ) : (
+                <EntityRef
+                  id={wi.agent_id}
+                  name={agentName(wi.agent_id)}
+                  fallback={wi.agent_id}
+                  testId="home-wi-agent"
+                  className="truncate text-xs text-text-secondary"
+                />
+              )}
               <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
                 {wi.status}
               </span>

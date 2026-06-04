@@ -93,8 +93,29 @@ describe('AgentDetail page', () => {
 
     await waitFor(() => expect(screen.getByTestId('agent-workitem-row')).toBeInTheDocument());
     expect(screen.getByTestId('agent-workitem-row')).toHaveAttribute('data-status', 'queued');
+    // No task_title on this fixture → falls back to "Work item" (no link).
+    expect(screen.getByTestId('agent-workitem-row')).toHaveTextContent('Work item');
+    expect(screen.queryByTestId('agent-workitem-task')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('agent-activity-row')).toBeInTheDocument());
     expect(screen.getByTestId('agent-activity-row')).toHaveAttribute('data-event-type', 'agent.started');
+  });
+
+  it('links a work item to its task by title when resolved (#206)', async () => {
+    server.use(
+      http.get('/api/agents/:id', () => HttpResponse.json(agent())),
+      http.get('/api/agents/:id/work-items', () =>
+        HttpResponse.json({
+          work_items: [
+            { id: 'WI-9', agent_id: 'A1', task_ref: 'pm://tasks/task-9', task_id: 'task-9', task_title: 'Build login flow', project_id: 'proj-x', status: 'active', interactions: 0, version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+          ],
+        }),
+      ),
+      http.get('/api/agents/:id/activity', () => HttpResponse.json({ activity: [] })),
+    );
+    wrap('/agents/A1');
+    const link = await screen.findByTestId('agent-workitem-task');
+    expect(link).toHaveTextContent('Build login flow');
+    expect(link.getAttribute('href')).toContain('/projects/proj-x/tasks/task-9');
   });
 
   it('renders without crashing when skills is null (FINDING #183: fresh agent, no skills)', async () => {

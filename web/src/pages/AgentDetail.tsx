@@ -205,23 +205,38 @@ export default function AgentDetail(): React.ReactElement {
         )}
         {workItems.isSuccess && workItems.data.length > 0 && (
           <ul className="divide-y divide-border-base" data-testid="agent-workitems-list">
-            {workItems.data.map((w) => (
-              <li
-                key={w.id}
-                className="flex items-center justify-between py-2 text-xs"
-                data-testid="agent-workitem-row"
-                data-workitem-id={w.id}
-                data-status={w.status}
-                // v2.7 #192: the raw pm task ref stays on hover (the work-item
-                // DTO carries no task title; full task name needs a backend field).
-                title={w.task_ref}
-              >
-                <span className="text-text-secondary">Work item</span>
-                <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
-                  {w.status}
-                </span>
-              </li>
-            ))}
+            {workItems.data.map((w) => {
+              // v2.7.1 #206: show the task title (links to task detail); the raw
+              // pm task ref stays on hover (#192). Prefer the bare task_id field;
+              // fall back to parsing task_ref (pm://tasks/<task-id>).
+              const taskId = w.task_id || w.task_ref?.replace(/^pm:\/\/tasks\//, '') || '';
+              const linkable = Boolean(w.task_title && w.project_id && taskId);
+              return (
+                <li
+                  key={w.id}
+                  className="flex items-center justify-between py-2 text-xs"
+                  data-testid="agent-workitem-row"
+                  data-workitem-id={w.id}
+                  data-status={w.status}
+                  title={w.task_ref}
+                >
+                  {linkable ? (
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(w.project_id as string)}/tasks/${encodeURIComponent(taskId)}`}
+                      className="truncate text-text-secondary hover:text-accent"
+                      data-testid="agent-workitem-task"
+                    >
+                      {w.task_title}
+                    </OrgLink>
+                  ) : (
+                    <span className="text-text-secondary">{w.task_title || 'Work item'}</span>
+                  )}
+                  <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
+                    {w.status}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
