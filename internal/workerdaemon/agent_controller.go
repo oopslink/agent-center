@@ -303,6 +303,13 @@ type managedAgent struct {
 	// deferred-with-trigger caveat as currentWorkItemID. Guarded by mu.
 	currentConversationID string
 
+	// toolNames correlates a claude tool_use_id → tool_name within a turn (v2.7.1
+	// #216): the claude tool_result event carries only the tool_use_id, but the
+	// Activity stream wants the tool_name on the tool_result row. Populated on each
+	// tool_use, read on the matching tool_result. Reset at session-init / result so
+	// it never grows unbounded across turns. Guarded by mu.
+	toolNames map[string]string
+
 	// model is the agent's configured claude --model (Profile.Model, threaded from the
 	// reconcile command). Held here so a mid-run self-heal relaunch — which gets NO
 	// fresh reconcile and deletes this managedAgent on crash — can carry it across the
@@ -979,19 +986,35 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// the agents map + currentWorkItemID are mutex-guarded. Empty when idle (no
 	// in-flight work), which is the pre-#111 behaviour.
 	c.mu.Lock()
-	var workItemRef string
+	var workItemRef, toolName string
 	if ma := c.agents[agentID]; ma != nil {
 		workItemRef = ma.currentWorkItemID
+		// v2.7.1 #216: maintain the per-turn tool_use_id→tool_name correlation so the
+		// tool_result activity can carry the tool_name (the claude tool_result event
+		// only has the id). Reset at turn boundaries (system-init / result).
+		switch ev.Type {
+		case "tool_use":
+			if ev.ToolUseID != "" {
+				if ma.toolNames == nil {
+					ma.toolNames = map[string]string{}
+				}
+				ma.toolNames[ev.ToolUseID] = ev.ToolName
+			}
+		case "tool_result":
+			toolName = ma.toolNames[ev.ToolUseID]
+		case "system", "result":
+			ma.toolNames = nil
+		}
 	}
 	c.mu.Unlock()
 
-	payload, err := json.Marshal(streamActivityPayload(ev))
+	payload, err := json.Marshal(streamActivityPayload(ev, toolName))
 	if err != nil {
 		c.log("activity agent=%s marshal event: %v", agentID, err)
 		// Still attempt the L2 failure surface below — the activity record is
 		// best-effort, but a failed turn must not be swallowed by a marshal error.
 	} else if err := c.cfg.Reporter.ReportAgentActivity(
-		context.Background(), agentID, ev.Type, string(payload),
+		context.Background(), agentID, activityEventType(ev), string(payload),
 		workItemRef, "" /*interactionRef*/, time.Now(),
 	); err != nil {
 		c.log("activity agent=%s report: %v", agentID, err)
@@ -1096,7 +1119,7 @@ func converseErrorSummary(ev StreamEvent) string {
 // streamActivityPayload builds the JSON activity payload for a StreamEvent,
 // emitting only the fields relevant to its Type so the activity record is a
 // meaningful, compact object (omitempty drops the rest).
-func streamActivityPayload(ev StreamEvent) map[string]any {
+func streamActivityPayload(ev StreamEvent, toolName string) map[string]any {
 	p := map[string]any{"type": ev.Type}
 	switch ev.Type {
 	case "assistant_text", "thinking":
@@ -1104,16 +1127,34 @@ func streamActivityPayload(ev StreamEvent) map[string]any {
 	case "tool_use":
 		p["tool_name"] = ev.ToolName
 		p["tool_use_id"] = ev.ToolUseID
+		// v2.7.1 #216: `args` is the standardized field the Activity stream reads
+		// (frontend truncates it for the tool_use preview). Keep tool_input too for
+		// back-compat with any existing consumer.
 		if len(ev.ToolInput) > 0 {
+			p["args"] = ev.ToolInput
 			p["tool_input"] = ev.ToolInput
 		}
 	case "tool_result":
 		p["tool_use_id"] = ev.ToolUseID
+		// v2.7.1 #216: tool_name correlated from the matching tool_use (the claude
+		// tool_result event only carries the id). Omitted when unresolved.
+		if toolName != "" {
+			p["tool_name"] = toolName
+		}
+		// `ok` = NOT is_error, parsed from the claude tool_result block content
+		// (which carries an is_error flag); defaults true when absent.
+		p["ok"] = !toolResultIsError(ev.ToolResult)
 		if len(ev.ToolResult) > 0 {
 			p["tool_result"] = ev.ToolResult
 		}
 	case "system":
 		p["subtype"] = ev.Subtype
+		// v2.7.1 #216: the session-init system line carries {model, session_id,
+		// mcp_servers} — surface them as standardized fields for the system_init
+		// activity (parsed from the raw line; absent fields omitted).
+		if ev.Subtype == "init" {
+			mergeSystemInitFields(p, ev.Raw)
+		}
 	case "result":
 		p["subtype"] = ev.Subtype
 		p["result"] = ev.Result
@@ -1127,6 +1168,58 @@ func streamActivityPayload(ev StreamEvent) map[string]any {
 		p["raw"] = ev.Raw
 	}
 	return p
+}
+
+// activityEventType maps a StreamEvent to the standardized activity event_type
+// (v2.7.1 #216). The claude session-init system line becomes "system_init"; every
+// other type keeps its stream value (which already matches the agent BC's
+// EventType* constants). The worker stays decoupled from the agent BC (§ 0.4) — it
+// emits the event_type as a STRING; these literals MUST match agent.EventType*.
+func activityEventType(ev StreamEvent) string {
+	if ev.Type == "system" && ev.Subtype == "init" {
+		return "system_init"
+	}
+	return ev.Type
+}
+
+// toolResultIsError reports whether a claude tool_result content block carries an
+// is_error flag (v2.7.1 #216 → payload.ok = !is_error). Best-effort: empty /
+// unparseable → false (treated as ok).
+func toolResultIsError(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var probe struct {
+		IsError bool `json:"is_error"`
+	}
+	_ = json.Unmarshal(raw, &probe)
+	return probe.IsError
+}
+
+// mergeSystemInitFields extracts {model, session_id, mcp_servers} from the raw
+// claude system-init line into the system_init activity payload (v2.7.1 #216).
+// Absent fields are omitted; a parse failure leaves p unchanged.
+func mergeSystemInitFields(p map[string]any, raw json.RawMessage) {
+	if len(raw) == 0 {
+		return
+	}
+	var probe struct {
+		Model      string          `json:"model"`
+		SessionID  string          `json:"session_id"`
+		MCPServers json.RawMessage `json:"mcp_servers"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return
+	}
+	if probe.Model != "" {
+		p["model"] = probe.Model
+	}
+	if probe.SessionID != "" {
+		p["session_id"] = probe.SessionID
+	}
+	if len(probe.MCPServers) > 0 {
+		p["mcp_servers"] = probe.MCPServers
+	}
 }
 
 // onExit coordinates the EXACTLY-ONE lifecycle report on session exit, across the

@@ -6,6 +6,37 @@ import (
 	"time"
 )
 
+// Activity event_type values (v2.7.1 #216). Standardized subtypes the Web Console
+// AgentDetail Activity stream renders (badge + content preview); the worker daemon
+// emitter (agent_controller.go streamActivityPayload) uses these instead of string
+// literals so producer + consumer agree. Payload schema per subtype (omitempty —
+// a field is absent when the claude stream doesn't carry it):
+//
+//	EventTypeSystemInit    {model?, session_id?, mcp_servers?}
+//	EventTypeAssistantText {text}
+//	EventTypeThinking      {text}
+//	EventTypeToolUse       {tool_name, args?, tool_use_id?}
+//	EventTypeToolResult    {tool_name?, ok, tool_use_id?, tool_result?}
+//	EventTypeResult        {subtype, is_error, result?, stop_reason?, cost_usd?, tokens_in?, tokens_out?}
+//	EventTypeLifecycle     {event, ...}
+//
+// NOTE (v2.7.1 #216): no "status_change" constant — WorkItem lifecycle is already
+// shown via the work-item row status badge; duplicating it into the activity stream
+// would be two paths for one source (no-middle-state). A "defined but never emitted"
+// constant is itself misleading, so it is intentionally absent until a future task
+// actually emits it.
+const (
+	EventTypeSystemInit    = "system_init"
+	EventTypeAssistantText = "assistant_text"
+	EventTypeThinking      = "thinking"
+	EventTypeToolUse       = "tool_use"
+	EventTypeToolResult    = "tool_result"
+	EventTypeResult        = "result"
+	EventTypeLifecycle     = "lifecycle"
+	EventTypeRateLimit     = "rate_limit"
+	EventTypeUnknown       = "unknown"
+)
+
 // AgentActivityEvent is one entry in the append-only observation stream
 // (ADR-0049 §2). Because there is no AgentRun, "what the agent did" is
 // reconstructed from this stream. The verbose ClaudeCode stdout (assistant
