@@ -142,7 +142,9 @@ describe('AgentDetail page', () => {
 
     fireEvent.click(btn);
     await waitFor(() => expect(posted).not.toBeNull());
-    expect(posted).toMatchObject({ kind: 'dm', members: ['A1'] });
+    // #240 fix: members must be a PREFIXED identity ref (agent:<id>), not a bare
+    // business id — the backend ref validator rejects bare ids (400).
+    expect(posted).toMatchObject({ kind: 'dm', members: ['agent:A1'] });
   });
 
   it('switches tabs (Profile default) + Workspace shows the v2.8 placeholder (#228)', async () => {

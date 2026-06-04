@@ -56,7 +56,11 @@ export default function AgentDetail(): React.ReactElement {
   const messageAgent = async () => {
     if (createDm.isPending) return;
     try {
-      const res = await createDm.mutateAsync({ kind: 'dm', members: [id] });
+      // v2.7.1 #240 fix: DM members are PREFIXED identity refs (`agent:<id>` /
+      // `user:<id>`, same as #215 / DMStartModal). A bare business id is rejected
+      // by the backend ref validator (400 invalid_input). This is an agent page,
+      // so the peer is always `agent:<id>`.
+      const res = await createDm.mutateAsync({ kind: 'dm', members: [`agent:${id}`] });
       const slug = org?.slug;
       navigate(slug ? `/organizations/${slug}/dms/${res.conversation_id}` : `/dms/${res.conversation_id}`);
     } catch {

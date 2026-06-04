@@ -85,6 +85,36 @@ describe('DMDetail page', () => {
     await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('(deleted)'));
   });
 
+  it('resolves the peer from participants − self on a direct load (#238)', async () => {
+    // The detail GET does NOT enrich peer_display_name (only the list does), so a
+    // direct DM URL load must derive the peer from participants + resolve its name.
+    server.use(
+      http.get('/api/members', () =>
+        HttpResponse.json([{ identity_id: 'bot-9', display_name: 'Bot Nine', kind: 'agent', status: 'joined' }]),
+      ),
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-DIRECT',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          // no peer_display_name / peer_identity_id — only participants (detail GET).
+          participants: [
+            { identity_id: 'user:hayang', role: 'member', joined_at: 'x', joined_by: 'user:hayang' },
+            { identity_id: 'agent:bot-9', role: 'member', joined_at: 'x', joined_by: 'user:hayang' },
+          ],
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+    );
+    wrap('/dms/C-DIRECT');
+    // heading + breadcrumb leaf both show @Bot Nine (not "Direct message").
+    await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Bot Nine'));
+    expect(screen.getByTestId('breadcrumb')).toHaveTextContent('@Bot Nine');
+    // raw peer ref on hover (#192).
+    expect(screen.getByTestId('dm-heading')).toHaveAttribute('title', 'agent:bot-9');
+  });
+
   it('surfaces conversation lookup error', async () => {
     server.use(
       http.get('/api/conversations/:id', () =>
