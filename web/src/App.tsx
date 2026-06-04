@@ -54,7 +54,7 @@ export function App(): React.ReactElement {
         >
           <Route index element={<Home />} />
           <Route path="channels" element={<Channels />} />
-          <Route path="channels/:name" element={<ChannelDetail />} />
+          <Route path="channels/:channelId" element={<ChannelDetail />} />
           <Route path="dms" element={<DMs />} />
           <Route path="dms/:id" element={<DMDetail />} />
           <Route path="agents" element={<Agents />} />

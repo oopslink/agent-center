@@ -146,7 +146,7 @@ export default function Home(): React.ReactElement {
           data-testid="home-recent-convs"
         >
           {recentConvs.map((c) => {
-            const href = c.kind === 'dm' ? `/dms/${encodeURIComponent(c.id)}` : `/channels/${encodeURIComponent(c.name)}`;
+            const href = c.kind === 'dm' ? `/dms/${encodeURIComponent(c.id)}` : `/channels/${encodeURIComponent(c.id)}`;
             return (
               <li key={c.id} className="flex items-center justify-between gap-3 py-1.5">
                 <OrgLink to={href} className="truncate text-sm text-text-primary hover:text-accent">

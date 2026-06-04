@@ -17,7 +17,9 @@ function channelCreateErrorMessage(err: unknown, name: string): string {
 interface Props {
   open: boolean;
   onClose: () => void;
-  onCreated?: (name: string) => void;
+  // v2.7.1 #247: yields the new channel's id (conversation_id) so callers can
+  // navigate to the id-based URL (/channels/{id}); was the name pre-#247.
+  onCreated?: (id: string) => void;
 }
 
 // ChannelCreateModal — minimal dialog (not headlessui yet; M2 keeps deps
@@ -39,8 +41,8 @@ export function ChannelCreateModal({
     const trimmed = name.trim();
     if (!trimmed) return;
     try {
-      await create.mutateAsync({ kind: 'channel', name: trimmed, description });
-      onCreated?.(trimmed);
+      const res = await create.mutateAsync({ kind: 'channel', name: trimmed, description });
+      onCreated?.(res.conversation_id);
       setName('');
       setDescription('');
       onClose();

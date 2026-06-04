@@ -17,18 +17,15 @@ function wrap(path: string) {
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/channels/:name" element={<ChannelDetail />} />
+          <Route path="/channels/:channelId" element={<ChannelDetail />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-const channelListHandler = http.get('/api/conversations', () =>
-  HttpResponse.json([
-    { id: 'C-alpha', kind: 'channel', name: 'alpha', status: 'active', description: 'plan' },
-  ]),
-);
+// v2.7.1 #247: ChannelDetail loads by channel_id (URL segment) via the detail
+// GET — no more by-name list lookup.
 const channelShowHandler = http.get('/api/conversations/:id', ({ params }) =>
   HttpResponse.json({
     id: params.id,
@@ -63,36 +60,41 @@ const messagesHandler = http.get('/api/conversations/:id/messages', () =>
 describe('ChannelDetail page', () => {
   afterEach(() => cleanup());
 
-  it('renders header + messages + composer when found', async () => {
-    server.use(channelListHandler, channelShowHandler, messagesHandler);
-    wrap('/channels/alpha');
+  it('loads the channel by id (URL = hash) + renders name in chrome (#247)', async () => {
+    server.use(channelShowHandler, messagesHandler);
+    wrap('/channels/C-alpha');
     await waitFor(() =>
       expect(screen.getByText('hello world')).toBeInTheDocument(),
     );
-    // #238: channel name appears in both the breadcrumb leaf and the header → scope to heading.
+    // URL carries the id; the channel NAME still shows as chrome (heading + breadcrumb leaf).
     expect(screen.getByRole('heading', { name: 'alpha' })).toBeInTheDocument();
+    expect(screen.getByTestId('breadcrumb')).toHaveTextContent('alpha');
+    expect(screen.getByTestId('page-ChannelDetail')).toHaveAttribute('data-channel-id', 'C-alpha');
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     expect(screen.getByTestId('participants-panel')).toBeInTheDocument();
     expect(screen.getByText(/1 participant/)).toBeInTheDocument();
   });
 
-  it('shows not-found state for an unknown channel name', async () => {
-    server.use(http.get('/api/conversations', () => HttpResponse.json([])));
-    wrap('/channels/ghost');
+  it('shows not-found state when the channel id does not resolve', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({ error: 'not_found', message: 'no such channel' }, { status: 404 }),
+      ),
+    );
+    wrap('/channels/channel-ghost');
     await waitFor(() =>
-      expect(screen.getByTestId('channel-not-found')).toBeInTheDocument(),
+      expect(screen.getByTestId('channel-not-found')).toHaveTextContent(/no such channel/),
     );
   });
 
   it('surfaces messages-error when the messages query fails', async () => {
     server.use(
-      channelListHandler,
       channelShowHandler,
       http.get('/api/conversations/:id/messages', () =>
         HttpResponse.json({ error: 'find_failed', message: 'db down' }, { status: 500 }),
       ),
     );
-    wrap('/channels/alpha');
+    wrap('/channels/C-alpha');
     await waitFor(() =>
       expect(screen.getByTestId('messages-error')).toHaveTextContent(/db down/),
     );

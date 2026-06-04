@@ -1,6 +1,7 @@
 import type React from 'react';
-import { OrgLink } from '@/OrgContext';
+import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useConversations } from '@/api/conversations';
 import { ChannelCreateModal } from '@/components/ChannelCreateModal';
@@ -14,6 +15,9 @@ import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 export default function Channels(): React.ReactElement {
   const channels = useConversations({ kind: 'channel' });
   const [createOpen, setCreateOpen] = useState(false);
+  // v2.7.1 #247: after create, navigate to the new channel by id.
+  const navigate = useNavigate();
+  const org = useOptionalOrgContext();
   // Subscribe to every visible channel so badge auto-ticks via SSE.
   useSSEConversationSubscribe(channels.data?.map((c) => c.id));
 
@@ -54,9 +58,9 @@ export default function Channels(): React.ReactElement {
       {channels.isSuccess && channels.data.length > 0 && (
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {channels.data.map((c) => (
-            <li key={c.id} data-testid="channel-row" data-channel-name={c.name}>
+            <li key={c.id} data-testid="channel-row" data-channel-name={c.name} data-channel-id={c.id}>
               <OrgLink
-                to={`/channels/${encodeURIComponent(c.name)}`}
+                to={`/channels/${encodeURIComponent(c.id)}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-bg-subtle"
               >
                 <span className="flex items-center gap-3">
@@ -75,7 +79,11 @@ export default function Channels(): React.ReactElement {
         </ul>
       )}
 
-      <ChannelCreateModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ChannelCreateModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(id) => navigate(`${org ? `/organizations/${org.slug}` : ''}/channels/${encodeURIComponent(id)}`)}
+      />
     </section>
   );
 }
