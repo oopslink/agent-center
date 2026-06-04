@@ -60,7 +60,11 @@ function preview(eventType: string, p: Record<string, unknown>): string {
         (typeof p.tokens_out === 'number' ? p.tokens_out : 0);
       const parts: string[] = [];
       if (tokens > 0) parts.push(`${tokens} tok`);
-      if (p.cost_usd != null) parts.push(`$${str(p.cost_usd)}`);
+      if (p.cost_usd != null) {
+        // Format the summary cost (the raw float stays in the expanded JSON).
+        const c = Number(p.cost_usd);
+        parts.push(Number.isFinite(c) ? `$${c.toFixed(4)}` : `$${str(p.cost_usd)}`);
+      }
       return parts.join(' · ') || str(p.subtype);
     }
     case 'rate_limit':

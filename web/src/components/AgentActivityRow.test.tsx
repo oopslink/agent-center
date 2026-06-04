@@ -68,13 +68,15 @@ describe('AgentActivityRow (#216)', () => {
     expect(preview.endsWith('…')).toBe(true);
   });
 
-  it('result → Turn badge with total tokens + cost; danger color on error', () => {
-    row(ev('result', { tokens_in: 100, tokens_out: 40, cost_usd: '0.012', is_error: false }));
+  it('result → Turn badge with total tokens + rounded cost; danger color on error', () => {
+    // Raw float cost must be rounded in the summary (not $0.27182375…).
+    row(ev('result', { tokens_in: 100, tokens_out: 40, cost_usd: 0.27182375000000003, is_error: false }));
     expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Turn');
     expect(screen.getByTestId('agent-activity-badge').className).toContain('text-success');
     const preview = screen.getByTestId('agent-activity-preview');
     expect(preview).toHaveTextContent('140 tok');
-    expect(preview).toHaveTextContent('$0.012');
+    expect(preview).toHaveTextContent('$0.2718');
+    expect(preview.textContent).not.toContain('0.27182375');
     cleanup();
     row(ev('result', { tokens_in: 10, tokens_out: 0, is_error: true }));
     expect(screen.getByTestId('agent-activity-badge').className).toContain('text-danger');
