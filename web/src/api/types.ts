@@ -362,7 +362,9 @@ export interface Task {
 // (GET /api/orgs/:slug/issues|tasks). The backend enriches project + assignee
 // to complete-consumable forms (no frontend resolution). `status` carries the
 // raw issue/task domain status string; `org_ref` is "I12"/"T34" (omitted when 0
-// → UI falls back to the id-tail handle).
+// → UI falls back to the id-tail handle). Issues are not assignable in the pm
+// domain (only created_by), so `assignee` is always null for issue rows; only
+// task rows carry an enriched assignee.
 export interface OrgWorkItemRef {
   /** prefixed identity ref (agent:/user:) — complete-consumable. */
   ref: string;
@@ -374,7 +376,7 @@ export interface OrgWorkItemRef {
 export interface OrgWorkItem {
   id: string;
   org_ref?: string;
-  project: { id: string; name: string; slug: string };
+  project: { id: string; name: string };
   title: string;
   status: string;
   assignee: OrgWorkItemRef | null;

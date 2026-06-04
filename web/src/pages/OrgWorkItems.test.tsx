@@ -7,7 +7,7 @@ import { server } from '@/test/mswServer';
 import OrgWorkItemsPage from './OrgWorkItems';
 import type { OrgWorkItemKind } from '@/api/orgWorkItems';
 
-function wrap(kind: OrgWorkItemKind, path: string) {
+function wrap(_kind: OrgWorkItemKind, path: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -21,23 +21,39 @@ function wrap(kind: OrgWorkItemKind, path: string) {
   );
 }
 
+// #258 DTO lock (thread #ce549176): project = {id, name} (pm.Project has no slug);
+// issues are NOT assignable in the pm domain → issue.assignee is always null. Only
+// task rows carry an enriched assignee. Fixtures mirror that contract (mock=契约).
 const issueRow = (extra: Record<string, unknown> = {}) => ({
   id: 'issue-01KT8DABCDEF',
   org_ref: 'I12',
-  project: { id: 'proj-a', name: 'Apollo', slug: 'apollo' },
+  project: { id: 'proj-a', name: 'Apollo' },
   title: 'login bug',
   status: 'in_progress',
-  assignee: { ref: 'agent:agent-bot9', display_name: 'Bot Nine', member_id: 'agent-bot9' },
+  assignee: null,
   priority: 'high',
   updated_at: '2026-06-04T01:00:00Z',
   created_at: '2026-06-01T01:00:00Z',
   ...extra,
 });
 
+const taskRow = (extra: Record<string, unknown> = {}) => ({
+  id: 'task-01KT8DXYZ789',
+  org_ref: 'T34',
+  project: { id: 'proj-b', name: 'Beacon' },
+  title: 'ship docs',
+  status: 'running',
+  assignee: { ref: 'agent:agent-bot9', display_name: 'Bot Nine', member_id: 'agent-bot9' },
+  priority: null,
+  updated_at: '2026-06-04T02:00:00Z',
+  created_at: '2026-06-01T02:00:00Z',
+  ...extra,
+});
+
 describe('OrgWorkItems page (#258)', () => {
   afterEach(() => cleanup());
 
-  it('issues: renders the cross-project table (org_ref / project link / title link / status / assignee name+hover / updated)', async () => {
+  it('issues: cross-project table (org_ref / project link / title link / status / unassigned)', async () => {
     let gotQuery = '';
     server.use(
       http.get('/api/orgs/:slug/issues', ({ request }) => {
@@ -61,7 +77,20 @@ describe('OrgWorkItems page (#258)', () => {
     expect(title.getAttribute('href')).toContain('/projects/proj-a/issues/issue-01KT8DABCDEF');
     // Status chip colored.
     expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'in_progress');
-    // Assignee: display name visible + member-id on hover (#192).
+    // Issues are not assignable (pm domain) → "—".
+    expect(screen.getByTestId('org-workitem-assignee')).toHaveTextContent('—');
+  });
+
+  it('tasks: enriched assignee — name visible + member-id on hover (#192), title → tasks path', async () => {
+    server.use(
+      http.get('/api/orgs/:slug/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    await waitFor(() => expect(screen.getByTestId('org-workitem-row')).toBeInTheDocument());
+    expect(screen.getByTestId('org-workitem-id')).toHaveTextContent('T34');
+    const title = screen.getByTestId('org-workitem-title');
+    expect(title.getAttribute('href')).toContain('/projects/proj-b/tasks/task-01KT8DXYZ789');
+    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'running');
     const assignee = screen.getByTestId('org-workitem-assignee');
     expect(assignee).toHaveTextContent('Bot Nine');
     expect(assignee.querySelector('[title="agent-bot9"]')).not.toBeNull();
@@ -77,16 +106,6 @@ describe('OrgWorkItems page (#258)', () => {
     wrap('issue', '/organizations/acme/issues');
     const id = await screen.findByTestId('org-workitem-id');
     expect(id).toHaveTextContent('#ABCDEF'); // ULID tail, not head
-  });
-
-  it('unassigned row shows "—"', async () => {
-    server.use(
-      http.get('/api/orgs/:slug/issues', () =>
-        HttpResponse.json({ items: [issueRow({ assignee: null })], total: 1 }),
-      ),
-    );
-    wrap('issue', '/organizations/acme/issues');
-    expect(await screen.findByTestId('org-workitem-assignee')).toHaveTextContent('—');
   });
 
   it('"Open only" toggle off passes the full status set (include terminal)', async () => {
