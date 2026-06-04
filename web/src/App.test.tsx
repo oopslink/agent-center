@@ -111,6 +111,9 @@ describe('App shell + route tree', () => {
       'Channels',
       'DMs',
       'Projects',
+      // v2.8 #258: org-scope cross-project Issues/Tasks aggregation nav (Workspace).
+      'Issues',
+      'Tasks',
       'Agents',
       'Settings',
       // v2.7 #166: org people group is "Members" (Humans + single "Agents").
@@ -131,9 +134,8 @@ describe('App shell + route tree', () => {
     expect(nav).not.toHaveTextContent('Fleet');
     // Input Requests nav entry removed (#131 PR-4).
     expect(nav).not.toHaveTextContent('Input Requests');
-    // Issues / Tasks no longer have global nav entries (v2.7).
-    expect(nav).not.toHaveTextContent('Issues');
-    expect(nav).not.toHaveTextContent('Tasks');
+    // v2.8 #258: Issues / Tasks reintroduced as org-scope cross-project nav
+    // (asserted present in the loop above).
   });
 });
 

@@ -358,6 +358,35 @@ export interface Task {
   updated_at: string;
 }
 
+// v2.8 #258: a row in the org-scoped cross-project Issues/Tasks aggregation
+// (GET /api/orgs/:slug/issues|tasks). The backend enriches project + assignee
+// to complete-consumable forms (no frontend resolution). `status` carries the
+// raw issue/task domain status string; `org_ref` is "I12"/"T34" (omitted when 0
+// → UI falls back to the id-tail handle). Issues are not assignable in the pm
+// domain (only created_by), so `assignee` is always null for issue rows; only
+// task rows carry an enriched assignee.
+export interface OrgWorkItemRef {
+  /** prefixed identity ref (agent:/user:) — complete-consumable. */
+  ref: string;
+  /** chrome display name. */
+  display_name: string;
+  /** member-id for hover (#192 id-as-content). */
+  member_id: string;
+}
+export interface OrgWorkItem {
+  id: string;
+  org_ref?: string;
+  project: { id: string; name: string };
+  title: string;
+  status: string;
+  assignee: OrgWorkItemRef | null;
+  // pm domain has no priority field → always null today (DTO keeps the slot for
+  // forward-compat); the UI does not render it.
+  priority?: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
 // CodeRepoMap — read-only project code repo entry (v2.7).
 export interface CodeRepo {
   id: string;
