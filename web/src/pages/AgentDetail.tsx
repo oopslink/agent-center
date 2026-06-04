@@ -17,6 +17,7 @@ import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { EntityRef } from '@/components/EntityRef';
 import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow } from '@/components/AgentActivityRow';
+import { AgentProfile } from '@/components/AgentProfile';
 
 // v2.7.1 #228: AgentDetail is a 4-tab surface. Workspace is a v2.8 placeholder;
 // Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
@@ -220,18 +221,7 @@ export default function AgentDetail(): React.ReactElement {
         ))}
       </nav>
 
-      {tab === 'profile' && (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded border border-border-base bg-bg-elevated p-4 text-sm text-text-primary" data-testid="agent-tabpanel-profile">
-          <dt className="text-text-muted">Description</dt>
-          <dd>{a.description || <span className="italic text-text-muted">none</span>}</dd>
-          <dt className="text-text-muted">Model</dt>
-          <dd className="font-mono text-xs">{a.model || '—'}</dd>
-          <dt className="text-text-muted">CLI</dt>
-          <dd className="font-mono text-xs">{a.cli || '—'}</dd>
-          <dt className="text-text-muted">Skills</dt>
-          <dd className="font-mono text-xs">{a.skills && a.skills.length > 0 ? a.skills.join(', ') : '—'}</dd>
-        </dl>
-      )}
+      {tab === 'profile' && <AgentProfile agent={a} />}
 
       {tab === 'workspace' && (
         <EmptyState testId="agent-tabpanel-workspace" title="Workspace" body="Coming in v2.8." />
