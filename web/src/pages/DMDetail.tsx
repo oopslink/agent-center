@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useConversation, useMessages } from '@/api/conversations';
 import { useMarkSeen } from '@/api/readState';
+import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
+import { useAppStore } from '@/store/app';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
@@ -22,6 +24,10 @@ export default function DMDetail(): React.ReactElement {
   const conv = useConversation(id);
   const messages = useMessages(id);
   const markSeen = useMarkSeen();
+  // v2.7.1 #238 fix: the DM detail GET doesn't enrich peer_display_name (only the
+  // list does), so resolve the peer from participants − self for direct loads.
+  const me = useAppStore((s) => s.currentUserId);
+  const resolveName = useDisplayNameResolver();
   useSSEConversationSubscribe(id ? [id] : undefined);
 
   // See ChannelDetail for rationale: fire-and-forget auto-mark-seen
@@ -61,13 +67,23 @@ export default function DMDetail(): React.ReactElement {
     );
   }
 
-  // v2.7.1 #215: DMs are strict 1:1; heading = the resolved peer as @name
-  // (deleted peer → "(deleted)", malformed DM → "Direct message").
-  const heading = conv.data.peer_display_name
-    ? `@${conv.data.peer_display_name}`
-    : conv.data.peer_identity_id
-      ? '(deleted)'
-      : 'Direct message';
+  // v2.7.1 #215 + #238 fix: DMs are strict 1:1; heading = the resolved peer as
+  // @name. Prefer the backend-enriched peer fields (present when navigated from
+  // the list), else derive the peer from participants − self and resolve its
+  // display name — so a DIRECT load (detail GET, no peer enrichment) still shows
+  // @peer instead of the generic "Direct message". Deleted/unresolved → fallback.
+  const meBare = me ? normalizeIdentityRef(me) : '';
+  const peerRef =
+    conv.data.peer_identity_id ||
+    (conv.data.participants ?? [])
+      .filter((p) => !p.left_at)
+      .map((p) => p.identity_id)
+      .find((pid) => normalizeIdentityRef(pid) !== meBare) ||
+    '';
+  const resolvedPeer = conv.data.peer_display_name || (peerRef ? resolveName(peerRef) : '');
+  // resolveName returns the ref itself on a miss → treat that as unresolved.
+  const peerName = resolvedPeer && resolvedPeer !== peerRef ? resolvedPeer : '';
+  const heading = peerName ? `@${peerName}` : peerRef ? '(deleted)' : 'Direct message';
 
   return (
     <section
@@ -81,7 +97,7 @@ export default function DMDetail(): React.ReactElement {
       <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold" data-testid="dm-heading" title={conv.data.peer_identity_id}>
+            <h2 className="text-xl font-semibold" data-testid="dm-heading" title={peerRef || undefined}>
               {heading}
             </h2>
             <TypeChip kind="dm" />
