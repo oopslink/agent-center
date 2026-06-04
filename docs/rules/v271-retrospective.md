@@ -346,6 +346,10 @@ confirm the files are actually there. Working-directory copies,
 just-written-files, and `git stash` entries are **not** evidence. The
 v2.7.1 evidence-archive gap caught five separate roles echoing
 "commit-aligned" when no one had actually verified; we don't repeat that.
+IntegrationDev also verifies at PR-merge time that any "added
+evidence" or "screenshots commit" PR description matches the PR's
+actual change set — a PR claiming to add evidence must have the
+evidence files in its diff.
 
 These rules belong in `docs/rules/v2.7-delivery-process.md` (which
 already exists for v2.7's release cycle and should be extended).
@@ -362,8 +366,10 @@ explicitly want to keep:
   AirPlay) under a `/tmp/<round>` prefix or the product default;
   Tester2 piggy-backs on the same instance for UI / UX coverage. The
   rule "announce the instance + ports + expected duration in
-  `#agent-center` before starting; announce release when done" came
-  out of v2.7.1's parallel rounds and worked through round-3 with no
+  `#agent-center` (the main channel, not a thread — so Dev / Dev2
+  also see it and can avoid port collisions if they need to bring up
+  a sandbox) before starting; announce release when done" came out of
+  v2.7.1's parallel rounds and worked through round-3 with no
   conflict. Dev and Dev2 confirmed zero-contention on the same machine
   (their unit suites don't bind those ports).
 - **(a) / (b) / (c) option framing for owner decisions.** PD never
