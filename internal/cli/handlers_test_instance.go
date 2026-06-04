@@ -100,10 +100,12 @@ func InstallTestInstanceCommand() *Command {
 			"~/.agent-center-test/<id>/ with dynamically-allocated free ports and " +
 			"per-instance launchd labels, reusing the real install + enroll codepath. " +
 			"Workers auto-enroll on start. Prints a machine-readable access pack " +
-			"(--output=json, default). Tenant seeding (signin user / entities / agent) " +
-			"is the #257 follow-up (--with-seed / --with-agent).",
+			"(--output=json, default). With --with-seed it also seeds a usable tenant " +
+			"(signup owner+org + 1 project + 1 channel) and emits signin + entity ids. " +
+			"(--with-agent — real agent producing tool events — is the #257 phase-2 follow-up.)",
 		Examples: []string{
 			"agent-center install test-instance --workers 2",
+			"agent-center install test-instance --with-seed",
 			"agent-center install test-instance --id t9 --workers 1 --output=text",
 		},
 		Flags: installTestInstanceHandler,
@@ -115,6 +117,7 @@ func installTestInstanceHandler(fs *flag.FlagSet) Handler {
 	workersF := fs.Int("workers", 1, "number of workers to install + auto-enroll")
 	outputF := fs.String("output", "json", "output format for the access pack: json|text")
 	timeoutF := fs.Int("ready-timeout", 30, "seconds to wait for the center to become healthy")
+	withSeedF := fs.Bool("with-seed", false, "seed a usable tenant after install (signup user+org + 1 project + 1 channel) and emit signin + entity_ids in the access pack (#257)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = args
 		if *workersF < 0 || *workersF > 32 {
@@ -168,6 +171,16 @@ func installTestInstanceHandler(fs *flag.FlagSet) Handler {
 			_ = teardownTestInstance(layout, errw)
 			return PrintError(errw, FormatText, "test_instance_provision_failed", ierr.Error(), ExitBusinessError)
 		}
+		// #257 --with-seed: drive a usable tenant via the REAL center API
+		// (signup → project → channel) so the access pack carries signin +
+		// entity_ids for 0-round-trip UI consumption. A seed failure tears the
+		// instance down (don't leave a half-seeded sandbox).
+		if *withSeedF {
+			if serr := seedTestInstanceTenant(ctx, &pack); serr != nil {
+				_ = teardownTestInstance(layout, errw)
+				return PrintError(errw, FormatText, "test_instance_seed_failed", serr.Error(), ExitBusinessError)
+			}
+		}
 		return emitAccessPack(out, errw, pack, format)
 	}
 }
@@ -211,12 +224,30 @@ type accessPack struct {
 	WebLogin    string `json:"web_login"`
 	EntityIDs   string `json:"entity_ids"`
 	WorkersNote string `json:"workers_note"`
+	// Populated only by --with-seed (#257): a usable signin + the seeded entity
+	// ids, so a consumer (human or agent) can log in + navigate with zero
+	// round-trips. Omitted when not seeded (the hints above explain why).
+	Signin   *seedSignin   `json:"signin,omitempty"`
+	Entities *seedEntities `json:"entity_refs,omitempty"`
 }
 
 type accessPackWorker struct {
 	ID        string `json:"id"`
 	Prefix    string `json:"prefix"`
 	HealthURL string `json:"health_url,omitempty"`
+}
+
+type seedSignin struct {
+	OrgSlug     string `json:"org_slug"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Passcode    string `json:"passcode"`
+}
+
+type seedEntities struct {
+	OrgID     string `json:"org_id"`
+	ProjectID string `json:"project_id"`
+	ChannelID string `json:"channel_id"`
 }
 
 // provisionTestInstance installs + starts the center, waits for health, reads
