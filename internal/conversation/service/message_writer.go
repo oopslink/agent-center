@@ -31,6 +31,15 @@ const EvtConversationMessageAdded = "conversation.message_added"
 // posted into such a conversation is the OQ5 wake trigger.
 const ownerRefTasksPrefix = "pm://tasks/"
 
+// ownerRefIssuesPrefix is the issue-owned conversation owner_ref scheme (v2.7.1
+// #227). Issue conversations belong to a project, so an @mention of a project
+// member must reach the WakeProjector — but a project member is not (yet) a
+// conversation participant, so the conversationHasAgentParticipant emit gate alone
+// would never fire (chicken-and-egg: no emit → no projector → no auto-join). Emit
+// for issue conversations unconditionally (symmetric to tasks) so the projector
+// runs + can auto-join the @mentioned project member.
+const ownerRefIssuesPrefix = "pm://issues/"
+
 // MessageWriter combines Conversation lifecycle (Open / Close / Archive)
 // and AddMessage (v2 per ADR-0014 same-tx double-write).
 type MessageWriter struct {
@@ -273,7 +282,9 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 		// dead code → DM/channel→agent never fired.)
 		if w.outbox != nil {
 			ownerRef := string(conv.OwnerRef())
-			if strings.HasPrefix(ownerRef, ownerRefTasksPrefix) || conversationHasAgentParticipant(conv) {
+			if strings.HasPrefix(ownerRef, ownerRefTasksPrefix) ||
+				strings.HasPrefix(ownerRef, ownerRefIssuesPrefix) || // v2.7.1 #227: issue @mention → project-member auto-join
+				conversationHasAgentParticipant(conv) {
 				if emitErr := w.emitMessageAddedOutbox(txCtx, conv, m); emitErr != nil {
 					return emitErr
 				}

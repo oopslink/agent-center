@@ -397,10 +397,18 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 	// Candidate agent rawIDs = active agent PARTICIPANTS + (v2.7.1 #224, issue/task
 	// only) the owning project's agent MEMBERS — so an agent that is a project member
 	// is a valid @mention wake target even when not an explicit participant.
+	// participantEntity tracks which resolved agents are ALREADY active participants
+	// (in either ref form) so the #227 auto-join below doesn't double-join one.
+	participantEntity := map[agent.AgentID]bool{}
 	var rawIDs []string
 	for _, part := range conv.Participants() {
-		if part.IsActive() && strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
-			rawIDs = append(rawIDs, strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix))
+		if !part.IsActive() || !strings.HasPrefix(string(part.IdentityID), agentParticipantPrefix) {
+			continue
+		}
+		r := strings.TrimPrefix(string(part.IdentityID), agentParticipantPrefix)
+		rawIDs = append(rawIDs, r)
+		if a, ok := p.resolveAgent(ctx, r); ok {
+			participantEntity[a.ID()] = true
 		}
 	}
 	if p.projectAgentMembers != nil &&
@@ -416,6 +424,8 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 	// Resolve + @mention-gate + deliver, deduped by the resolved execution-entity id
 	// (an agent may be BOTH a participant and a project member — wake it once).
 	delivered := map[agent.AgentID]bool{}
+	var toJoin []conversation.ParticipantElement // v2.7.1 #227 auto-join batch
+	joinedAt := p.clock.Now().UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 	for _, rawID := range rawIDs {
 		// FINDING-J: the ref may carry EITHER the execution-entity id OR the
 		// identity-member id ("agent-<ulid>", #157). Resolve tolerantly so both the
@@ -435,10 +445,32 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 		if kind != conversation.ConversationKindDM && !p.mentionsAgent(ctx, a, rawID, pl.Text) {
 			continue
 		}
+		// v2.7.1 #227: a woken agent that is NOT yet an active participant (a project
+		// member, #224) is auto-joined as a participant so the DOWNSTREAM gates that
+		// require participancy pass: the emit gate (future messages) + the post gate
+		// (agent_tools_write.go agentIsActiveParticipant — else its reply 403s). Single
+		// source of truth: the agent becomes a real participant, all gates use the
+		// standard path. Idempotent (deduped by entity).
+		if !participantEntity[a.ID()] {
+			toJoin = append(toJoin, conversation.ParticipantElement{
+				IdentityID: conversation.IdentityRef(agentParticipantPrefix + rawID),
+				Role:       "member", JoinedAt: joinedAt, JoinedBy: conversation.IdentityRef("system"),
+			})
+			participantEntity[a.ID()] = true
+		}
 		if err := p.deliverConverse(ctx, conv, a, rawID, pl); err != nil {
 			return err
 		}
 		delivered[a.ID()] = true
+	}
+	// v2.7.1 #227: persist the auto-joins once (one UpdateParticipants = one version
+	// bump). Same tx as deliver + the caller's applied-mark, so the agent is a
+	// participant the moment its converse reply lands.
+	if len(toJoin) > 0 && p.convRepo != nil {
+		updated := append(conv.Participants(), toJoin...)
+		if err := p.convRepo.UpdateParticipants(ctx, conv.ID(), updated, conv.Version(), p.clock.Now()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
