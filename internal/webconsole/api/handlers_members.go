@@ -66,6 +66,18 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 				// fields so the UI's null-handling is unambiguous (Tester seam contract).
 				if ident.Kind() == identity.KindUser {
 					addUserProfileFields(row, ident)
+				} else if ident.Kind() == identity.KindAgent && d.AgentSvc != nil {
+					// v2.7.1 #226: the worker binding lives on the Agent AR (the unified
+					// CreateAgent sets WorkerID but does NOT create a legacy AgentInstance),
+					// so the agentWorker map above is empty for unified-create agents and the
+					// Members→Agents "Running on" column showed "Not bound" forever. Resolve
+					// worker_id read-time from the Agent BC (the source of truth), overriding
+					// the legacy-map value. Best-effort — unresolved leaves the prior value.
+					if ag, aerr := d.AgentSvc.ResolveAgent(r.Context(), m.IdentityID()); aerr == nil && ag != nil {
+						if wid := ag.WorkerID(); wid != "" {
+							row["worker_id"] = wid
+						}
+					}
 				}
 			}
 		}
