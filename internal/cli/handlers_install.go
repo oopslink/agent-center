@@ -530,7 +530,7 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	if err := writeVersionFile(layout); err != nil {
 		return PrintError(errw, FormatText, "install_write_version_failed", err.Error(), ExitBusinessError)
 	}
-	if err := writeWorkerConfig(layout); err != nil {
+	if err := writeWorkerConfig(layout, ic); err != nil {
 		return PrintError(errw, FormatText, "install_write_config_failed", err.Error(), ExitBusinessError)
 	}
 	if err := atomicSymlinkSwap(layout); err != nil {
@@ -556,8 +556,9 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	// `worker run` themselves → stdout logs). Unit-file presence is the
 	// service-vs-foreground source of truth for uninstall/upgrade.
 	if ic.Service {
-		unitBody := renderWorkerServiceUnit(sp, currentBin, layout.ConfigPath,
-			ic.WorkerID, ic.WorkerName, ic.Bootstrap, ic.Token, ic.Fingerprint, layout.LogsDir,
+		// v2.7.1 #249: the unit carries ONLY --config (worker identity + token are
+		// in config.yaml, 0600) — no secrets in the plist/unit or `ps`.
+		unitBody := renderWorkerServiceUnit(sp, currentBin, layout.ConfigPath, layout.LogsDir,
 			resolveWorkerPATH(home))
 		if err := writeUnitFile(sp.WorkerUnitPath, unitBody); err != nil {
 			return PrintError(errw, FormatText, "install_write_unit_failed", err.Error(), ExitBusinessError)
@@ -593,7 +594,7 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 	fmt.Fprintf(out, "  worker-id: %s\n", ic.WorkerID)
 	fmt.Fprintf(out, "  bootstrap: %s\n", ic.Bootstrap)
 	fmt.Fprintf(out, "  config:    %s\n", layout.ConfigPath)
-	fmt.Fprintf(out, "  run (foreground): %s\n", workerRunCommand(currentBin, layout.ConfigPath, ic))
+	fmt.Fprintf(out, "  run (foreground): %s\n", workerRunCommand(currentBin, layout.ConfigPath))
 	fmt.Fprintln(out, "  (or re-run with --service to register a launchd/systemd background service)")
 	fmt.Fprintln(out, "  (the worker appears in the Web Console Fleet view once it connects)")
 	return ExitOK
@@ -604,16 +605,11 @@ func installWorkerFresh(out, errw io.Writer, ic installContext) ExitCode {
 // (#204): emit the friendly --bootstrap/--token spelling so the whole chain
 // (Web Console Add-Worker → install worker → worker run) shares ONE vocabulary;
 // `worker run` accepts these as aliases of --admin-target/--admin-token.
-func workerRunCommand(bin, configPath string, ic installContext) string {
-	cmd := fmt.Sprintf("%s worker run --config=%s --worker-id=%s --bootstrap=%s --token=%s",
-		bin, configPath, ic.WorkerID, ic.Bootstrap, ic.Token)
-	if ic.WorkerName != "" {
-		cmd += " --worker-name=" + ic.WorkerName
-	}
-	if ic.Fingerprint != "" {
-		cmd += " --server-fingerprint=" + ic.Fingerprint
-	}
-	return cmd
+func workerRunCommand(bin, configPath string) string {
+	// v2.7.1 #249: config is the single source of truth — worker_id/bootstrap/
+	// token/fingerprint live in config.yaml, so the run command is just --config
+	// (no secrets on the command line / in `ps`).
+	return fmt.Sprintf("%s worker run --config=%s", bin, configPath)
 }
 
 func installWorkerUpgrade(out, errw io.Writer, ic installContext) ExitCode {

@@ -31,6 +31,22 @@ type Config struct {
 	Peek             PeekConfig             `yaml:"peek"`
 	SecretManagement SecretManagementConfig `yaml:"secret_management"`
 	WebConsole       WebConsoleConfig       `yaml:"web_console"`
+	Worker           WorkerConfig           `yaml:"worker"`
+}
+
+// WorkerConfig holds the worker daemon's enrollment identity (v2.7.1 #249,
+// @oopslink: config as single source of truth). The installer writes these into
+// config.yaml (0600) instead of passing them as `worker run` flags, so the token
+// no longer appears in `ps` / the launchd plist / the systemd unit. `worker run`
+// reads them from config; an explicit CLI flag still overrides (back-compat +
+// advanced use). worker_id is immutable post-enroll (a vim edit is allowed but
+// unsupported — same caveat as sqlite_path).
+type WorkerConfig struct {
+	WorkerID          string `yaml:"worker_id"`
+	WorkerName        string `yaml:"worker_name"`
+	Bootstrap         string `yaml:"bootstrap"`
+	Token             string `yaml:"token"`
+	ServerFingerprint string `yaml:"server_fingerprint"`
 }
 
 // WebConsoleConfig holds Web Console settings (P11 § 3.2).
@@ -356,6 +372,13 @@ func collectKnownKeys(cfg Config) keyTree {
 		"web_console": keyTree{
 			"enabled":     nil,
 			"listen_addr": nil,
+		},
+		"worker": keyTree{ // v2.7.1 #249: worker enrollment identity (config single-source)
+			"worker_id":          nil,
+			"worker_name":        nil,
+			"bootstrap":          nil,
+			"token":              nil,
+			"server_fingerprint": nil,
 		},
 		"execution": keyTree{
 			"submitted_timeout_seconds":      nil,

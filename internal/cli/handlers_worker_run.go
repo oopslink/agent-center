@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/workerdaemon"
 )
 
@@ -63,20 +64,28 @@ func WorkerRunCommand() *Command {
 			disableControlStream := fs.Bool("disable-control-stream", false,
 				"force the pure-poll control path (the SSE down-push stream is default-on for v2.7; poll keeps the identical delivery contract)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-				if strings.TrimSpace(*workerID) == "" {
-					fmt.Fprintln(errw, "Error: worker run: --worker-id is required")
+				// v2.7.1 #249: config.yaml is the single source of truth for the
+				// worker's enrollment identity. Resolve each field flag-first,
+				// falling back to the worker: section — so `worker run --config=<p>`
+				// (the installed command) needs no secrets on the CLI, while an
+				// explicit flag still overrides (back-compat + advanced use).
+				cfgPath := resolveWorkerConfigPath(*cfgPath, *workerID)
+				cfg, _ := config.Load(config.LoadOptions{Path: cfgPath}) // best-effort; RunDaemon re-loads + validates
+				workerIDv := firstNonEmptyWorker(*workerID, cfg.Worker.WorkerID)
+				if strings.TrimSpace(workerIDv) == "" {
+					fmt.Fprintln(errw, "Error: worker run: worker_id is required (pass --worker-id or set worker.worker_id in --config)")
 					return ExitUsage
 				}
 				logf := func(msg string) { fmt.Fprintf(errw, "[worker] %s\n", msg) }
 				err := workerdaemon.RunDaemon(ctx, workerdaemon.RunOptions{
-					ConfigPath:           resolveWorkerConfigPath(*cfgPath, *workerID),
-					WorkerID:             *workerID,
-					WorkerName:           *workerName,
+					ConfigPath:           cfgPath,
+					WorkerID:             workerIDv,
+					WorkerName:           firstNonEmptyWorker(*workerName, cfg.Worker.WorkerName),
 					FakeAgent:            *fakeAgent,
 					PollInterval:         *pollInterval,
-					AdminToken:           coalesceWorkerFlag(*token, *adminToken),
-					AdminTarget:          coalesceWorkerFlag(*bootstrap, *adminTarget),
-					ServerFingerprint:    *serverFingerprint,
+					AdminToken:           firstNonEmptyWorker(coalesceWorkerFlag(*token, *adminToken), cfg.Worker.Token),
+					AdminTarget:          firstNonEmptyWorker(coalesceWorkerFlag(*bootstrap, *adminTarget), cfg.Worker.Bootstrap),
+					ServerFingerprint:    firstNonEmptyWorker(*serverFingerprint, cfg.Worker.ServerFingerprint),
 					SkillsDir:            *skillsDir,
 					DisableControlStream: *disableControlStream,
 				}, logf)
@@ -141,4 +150,13 @@ func coalesceWorkerFlag(friendly, legacy string) string {
 		return v
 	}
 	return strings.TrimSpace(legacy)
+}
+
+// firstNonEmptyWorker returns the flag value when set, else the config value
+// (v2.7.1 #249: flag overrides config, config is the fallback source of truth).
+func firstNonEmptyWorker(flagVal, cfgVal string) string {
+	if v := strings.TrimSpace(flagVal); v != "" {
+		return v
+	}
+	return strings.TrimSpace(cfgVal)
 }

@@ -315,33 +315,17 @@ func TestUnitFileExists(t *testing.T) {
 	}
 }
 
+// v2.7.1 #249: config is the single source of truth — the foreground run command
+// is just `worker run --config=<path>`, with NO worker_id/bootstrap/token/
+// fingerprint on the CLI (they live in config.yaml; token stays out of `ps`).
 func TestWorkerRunCommand(t *testing.T) {
-	got := workerRunCommand("/bin/agent-center", "/cfg.yaml", installContext{
-		WorkerID: "w1", Bootstrap: "tcp://h:7300", Token: "tok",
-	})
-	for _, want := range []string{
-		"/bin/agent-center worker run", "--config=/cfg.yaml", "--worker-id=w1",
-		// v2.7 FINDING-P (#204): foreground command emits the friendly
-		// --bootstrap/--token spelling, identical to `install worker` + the UI.
-		"--bootstrap=tcp://h:7300", "--token=tok",
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("workerRunCommand missing %q in %q", want, got)
+	got := workerRunCommand("/bin/agent-center", "/cfg.yaml")
+	if got != "/bin/agent-center worker run --config=/cfg.yaml" {
+		t.Fatalf("workerRunCommand = %q, want exactly the --config-only form", got)
+	}
+	for _, mustNot := range []string{"--worker-id", "--bootstrap", "--token", "--admin-target", "--admin-token", "--server-fingerprint", "--worker-name"} {
+		if strings.Contains(got, mustNot) {
+			t.Errorf("foreground command must NOT carry %q (config single-source #249): %q", mustNot, got)
 		}
-	}
-	// The foreground command must NOT use the legacy spelling (the whole point of
-	// #204 is one vocabulary across UI/install/worker run).
-	if strings.Contains(got, "--admin-target=") || strings.Contains(got, "--admin-token=") {
-		t.Errorf("foreground command must use --bootstrap/--token, not legacy admin-*: %q", got)
-	}
-	if strings.Contains(got, "--worker-name") || strings.Contains(got, "--server-fingerprint") {
-		t.Errorf("optional flags must be omitted when empty: %q", got)
-	}
-	got2 := workerRunCommand("/bin/agent-center", "/cfg.yaml", installContext{
-		WorkerID: "w1", Bootstrap: "tcp://h:7300", Token: "tok",
-		WorkerName: "My W", Fingerprint: "sha256:AA",
-	})
-	if !strings.Contains(got2, "--worker-name=My W") || !strings.Contains(got2, "--server-fingerprint=sha256:AA") {
-		t.Errorf("optional flags must appear when set: %q", got2)
 	}
 }
