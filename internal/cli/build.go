@@ -70,6 +70,10 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"install"}, InstallWorkerCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.8 #255: one-command isolated test sandbox (1 center + N workers).
+	if err := router.Add([]string{"install"}, InstallTestInstanceCommand()); err != nil {
+		return nil, "", err
+	}
 	// v2.5.1 (#agent-center:5f6288e6): uninstall — inverse of install.
 	if err := router.Add(nil, UninstallCommand()); err != nil {
 		return nil, "", err
@@ -80,8 +84,20 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"uninstall"}, UninstallWorkerCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.8 #255: tear down a test sandbox (inverse of install test-instance).
+	if err := router.Add([]string{"uninstall"}, UninstallTestInstanceCommand()); err != nil {
+		return nil, "", err
+	}
 	// v2.7.1 #211: list all center deployments on this machine (multi-instance).
 	if err := router.Add(nil, ListLocalCentersCommand()); err != nil {
+		return nil, "", err
+	}
+	// v2.8 #170: list all worker deployments (prod + test) on this machine.
+	if err := router.Add(nil, ListLocalWorkersCommand()); err != nil {
+		return nil, "", err
+	}
+	// v2.8 #255: list test sandboxes under ~/.agent-center-test.
+	if err := router.Add(nil, ListTestInstancesCommand()); err != nil {
 		return nil, "", err
 	}
 	// v2.5.2 (@oopslink msg=8e5ea457): explicit `upgrade center|worker`
