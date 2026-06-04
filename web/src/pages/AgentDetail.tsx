@@ -5,7 +5,6 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import {
   useAgent,
   useAgentActivity,
-  useAgentWorkItems,
   useResetAgent,
   useRestartAgent,
   useStartAgent,
@@ -18,6 +17,7 @@ import { EntityRef } from '@/components/EntityRef';
 import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow } from '@/components/AgentActivityRow';
 import { AgentProfile } from '@/components/AgentProfile';
+import { AgentWorkItems } from '@/components/AgentWorkItems';
 
 // v2.7.1 #228: AgentDetail is a 4-tab surface. Workspace is a v2.8 placeholder;
 // Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
@@ -36,7 +36,6 @@ type AgentTab = (typeof AGENT_TABS)[number]['key'];
 export default function AgentDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const agent = useAgent(id);
-  const workItems = useAgentWorkItems(id);
   const activity = useAgentActivity(id);
   // v2.7 #192: resolve the bound worker_id to its name (raw id on hover).
   const workers = useWorkers();
@@ -227,64 +226,8 @@ export default function AgentDetail(): React.ReactElement {
         <EmptyState testId="agent-tabpanel-workspace" title="Workspace" body="Coming in v2.8." />
       )}
 
-      {/* WorkItem queue */}
-      {tab === 'workitems' && (
-      <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-workitems">
-        <h3 className="mb-2 text-sm font-semibold text-text-primary">Work items</h3>
-        {workItems.isLoading && (
-          <p className="text-xs text-text-muted" data-testid="agent-workitems-loading">
-            Loading work items…
-          </p>
-        )}
-        {workItems.isError && (
-          <p className="text-xs text-danger" data-testid="agent-workitems-error">
-            {(workItems.error as Error).message}
-          </p>
-        )}
-        {workItems.isSuccess && workItems.data.length === 0 && (
-          <p className="text-xs text-text-muted" data-testid="agent-workitems-empty">
-            No work items in the queue.
-          </p>
-        )}
-        {workItems.isSuccess && workItems.data.length > 0 && (
-          <ul className="divide-y divide-border-base" data-testid="agent-workitems-list">
-            {workItems.data.map((w) => {
-              // v2.7.1 #206: show the task title (links to task detail); the raw
-              // pm task ref stays on hover (#192). Prefer the bare task_id field;
-              // fall back to parsing task_ref (pm://tasks/<task-id>).
-              const taskId = w.task_id || w.task_ref?.replace(/^pm:\/\/tasks\//, '') || '';
-              const linkable = Boolean(w.task_title && w.project_id && taskId);
-              return (
-                <li
-                  key={w.id}
-                  className="flex items-center justify-between py-2 text-xs"
-                  data-testid="agent-workitem-row"
-                  data-workitem-id={w.id}
-                  data-status={w.status}
-                  title={w.task_ref}
-                >
-                  {linkable ? (
-                    <OrgLink
-                      to={`/projects/${encodeURIComponent(w.project_id as string)}/tasks/${encodeURIComponent(taskId)}`}
-                      className="truncate text-text-secondary hover:text-accent"
-                      data-testid="agent-workitem-task"
-                    >
-                      {w.task_title}
-                    </OrgLink>
-                  ) : (
-                    <span className="text-text-secondary">{w.task_title || 'Work item'}</span>
-                  )}
-                  <span className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
-                    {w.status}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      )}
+      {/* WorkItem queue (v2.7.1 #228 PR(d): read-only table). */}
+      {tab === 'workitems' && <AgentWorkItems agentId={id} />}
 
       {/* Activity stream */}
       {tab === 'activity' && (
