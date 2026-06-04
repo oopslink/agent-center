@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, useDisplayNameResolver } from '@/api/members';
 import { EntityRef } from '@/components/EntityRef';
+import { TypeChip } from '@/components/TypeChip';
 import {
   useAssignTask,
   useBlockTask,
@@ -143,7 +144,10 @@ export default function TaskDetail(): React.ReactElement {
               {tk.title || tk.id}
             </span>
           </nav>
-          <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold">{tk.title || tk.id}</h2>
+            <TypeChip kind="task" />
+          </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
             {/* v2.7 #186-3a: the status badge is the transition dropdown trigger. */}
             <div className="relative">
