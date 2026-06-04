@@ -11,6 +11,7 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
 // agentFacingID returns the business-layer id for an agent: its identity-member
@@ -113,12 +114,60 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 // agentWorkItemMap renders a work item. agentFacingID is the business-layer id
 // of the owning agent (v2.7 #185) — the records are always for one agent, so the
 // caller passes it rather than leaking the entity wi.AgentID().
-func agentWorkItemMap(wi *agentbc.AgentWorkItem, agentFacingID string) map[string]any {
-	return map[string]any{
+func agentWorkItemMap(wi *agentbc.AgentWorkItem, agentFacingID, taskID, taskTitle, projectID string) map[string]any {
+	m := map[string]any{
 		"id": wi.ID(), "agent_id": agentFacingID, "task_ref": wi.TaskRef(),
 		"status": string(wi.Status()), "interactions": wi.Interactions(), "version": wi.Version(),
 		"created_at": wi.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": wi.UpdatedAt().Format(time.RFC3339Nano),
+	}
+	// v2.7.1 #206 read-time task enrichment: bare task_id (hover/#192), task_title
+	// (display), project_id (the /projects/{project_id}/tasks/{task_id} link). Each
+	// omitted when empty so the UI falls back (zero-raw-id invariant preserved).
+	if taskID != "" {
+		m["task_id"] = taskID
+	}
+	if taskTitle != "" {
+		m["task_title"] = taskTitle
+	}
+	if projectID != "" {
+		m["project_id"] = projectID
+	}
+	return m
+}
+
+// taskMetaResolver returns a memoized resolver: work-item task ref
+// ("pm://tasks/{id}") → (taskID, title, projectID), read-time via pm GetTask
+// (v2.7.1 #206). Cached by task id (work items can share a task). Missing pm or an
+// unresolvable task yields empty title/project (the caller omits them → UI falls
+// back), and a non-matching ref yields all-empty.
+func (s *Server) taskMetaResolver(ctx context.Context, d HandlerDeps) func(taskRef string) (taskID, title, projectID string) {
+	type meta struct{ title, project string }
+	cache := map[string]meta{}
+	return func(taskRef string) (string, string, string) {
+		ref := strings.TrimSpace(taskRef)
+		const prefix = "pm://tasks/"
+		if !strings.HasPrefix(ref, prefix) {
+			return "", "", ""
+		}
+		id := strings.TrimPrefix(ref, prefix)
+		if id == "" {
+			return "", "", ""
+		}
+		if d.PM == nil {
+			return id, "", ""
+		}
+		if m, ok := cache[id]; ok {
+			return id, m.title, m.project
+		}
+		tk, err := d.PM.GetTask(ctx, pm.TaskID(id))
+		if err != nil || tk == nil {
+			cache[id] = meta{} // negative-cache so a repeated bad ref doesn't re-query
+			return id, "", ""
+		}
+		m := meta{title: tk.Title(), project: string(tk.ProjectID())}
+		cache[id] = m
+		return id, m.title, m.project
 	}
 }
 
@@ -311,9 +360,11 @@ func (s *Server) agentWorkItemsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	facing := agentFacingID(a)
+	resolve := s.taskMetaResolver(r.Context(), d) // v2.7.1 #206: batch task title/project
 	out := make([]map[string]any, 0, len(items))
 	for _, wi := range items {
-		out = append(out, agentWorkItemMap(wi, facing))
+		taskID, title, projectID := resolve(wi.TaskRef())
+		out = append(out, agentWorkItemMap(wi, facing, taskID, title, projectID))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"work_items": out})
 }

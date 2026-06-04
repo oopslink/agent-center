@@ -44,6 +44,34 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 	}
 }
 
+// v2.7.1 #206: the fleet work-item row carries the real task title + owning
+// project id (read-time, resolved from the pm task already loaded for org scope)
+// so Home/Overview can show "Build login flow" + link to the task — not a blank
+// name. Unresolvable → empty (UI falls back; covered by the org-scope tests where
+// the task is absent).
+func TestFleetSnapshot_WorkItemCarriesTaskTitleAndProject(t *testing.T) {
+	env := newQEnv(t)
+	env.seedOrgProject(t, "proj-x", "org-1")
+	env.seedTask(t, "task-abc12345", "proj-x", "Build login flow")
+	env.seedWorkItem(t, "WI-1", "AG-1", "task-abc12345")
+	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
+	svc := query.NewFleetSnapshotService(env.deps)
+	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{})
+	if len(snap.WorkItems) != 1 {
+		t.Fatalf("work_items: %d", len(snap.WorkItems))
+	}
+	wi := snap.WorkItems[0]
+	if wi.TaskID != "task-abc12345" {
+		t.Errorf("task_id=%q want task-abc12345", wi.TaskID)
+	}
+	if wi.TaskTitle != "Build login flow" {
+		t.Errorf("task_title=%q want \"Build login flow\"", wi.TaskTitle)
+	}
+	if wi.ProjectID != "proj-x" {
+		t.Errorf("project_id=%q want proj-x", wi.ProjectID)
+	}
+}
+
 // v2.7 #176 (FINDING-C visibility): the fleet worker row must surface the
 // worker's probed CLI capabilities (agent_cli + detected + enabled) so the
 // Web Console Environment page can show what each worker discovered — the
