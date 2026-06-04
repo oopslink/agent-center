@@ -71,7 +71,10 @@ describe('WorkItemConversation (#137)', () => {
     );
   });
 
-  it('splits messages into work-item segments with an "Unassociated work item" bucket before the first WI segment', async () => {
+  // v2.7.1 #219: flat chronological stream (no segment grouping headers); a
+  // message carrying a work_item_ref shows a per-message "Work item" tag
+  // (raw ref on hover), a message without one shows no tag.
+  it('renders flat messages with a per-message work-item tag, no grouping headers', async () => {
     server.use(
       http.get('/api/conversations', () => HttpResponse.json([conv])),
       http.get('/api/conversations/conv-1/messages', () =>
@@ -82,11 +85,16 @@ describe('WorkItemConversation (#137)', () => {
       ),
     );
     wrap('pm://tasks/TS-1', 'rebuild docs');
-    await waitFor(() => expect(screen.getAllByTestId('message-segment')).toHaveLength(2));
-    const segments = screen.getAllByTestId('message-segment');
-    expect(segments[0]).toHaveAttribute('data-work-item-ref', '');
-    expect(segments[0]).toHaveTextContent('Unassociated work item');
-    expect(segments[1]).toHaveAttribute('data-work-item-ref', 'agent://WI-1');
-    expect(segments[1]).toHaveTextContent('Work item agent://WI-1');
+    await waitFor(() => expect(screen.getAllByTestId('message-row')).toHaveLength(2));
+    // No grouping segment headers (implementation detail removed) + no "Unassociated…".
+    expect(screen.queryByTestId('message-segment')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unassociated work item/)).not.toBeInTheDocument();
+    // Exactly one message carries a work-item tag; raw ref only on hover.
+    const tags = screen.getAllByTestId('message-workitem-tag');
+    expect(tags).toHaveLength(1);
+    expect(tags[0]).toHaveAttribute('data-work-item-ref', 'agent://WI-1');
+    expect(tags[0]).toHaveTextContent('Work item');
+    expect(tags[0]).not.toHaveTextContent('agent://WI-1');
+    expect(tags[0]).toHaveAttribute('title', 'agent://WI-1');
   });
 });

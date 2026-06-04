@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver } from '@/api/members';
-import { groupMessagesByWorkItem } from './messageSegments';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -42,10 +41,6 @@ export function attachmentHref(uri: string): string {
 
 interface Props {
   messages: Message[];
-  // v2.7 #137: when true (task/issue conversations) the list is split into
-  // labeled segments by work_item_ref. Off for channels/DMs, which carry no
-  // work-item provenance and render as a flat list.
-  segmentByWorkItem?: boolean;
 }
 
 // MessageList — render messages chronologically. Sender id + posted_at
@@ -55,10 +50,7 @@ interface Props {
 // Auto-scroll behavior (v2.5.6 #60): when a new message arrives, scroll
 // to bottom — but only if the user is already near the bottom. If they
 // scrolled up to read history, we don't yank them back.
-export function MessageList({
-  messages,
-  segmentByWorkItem = false,
-}: Props): React.ReactElement {
+export function MessageList({ messages }: Props): React.ReactElement {
   const displayName = useDisplayNameResolver();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
@@ -128,7 +120,21 @@ export function MessageList({
       >
         <div className="flex-1">
           <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
-            <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
+            <span className="flex items-center gap-2">
+              <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
+              {/* v2.7.1 #219: per-message work-item tag (only when the message
+                  carries one); the raw ref stays on hover (#192 chrome rule). */}
+              {m.context_refs?.work_item_ref && (
+                <span
+                  className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-secondary"
+                  data-testid="message-workitem-tag"
+                  data-work-item-ref={m.context_refs.work_item_ref}
+                  title={m.context_refs.work_item_ref}
+                >
+                  Work item
+                </span>
+              )}
+            </span>
             <time>{m.posted_at}</time>
           </header>
           <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
@@ -178,8 +184,6 @@ export function MessageList({
     );
   };
 
-  const segments = segmentByWorkItem ? groupMessagesByWorkItem(messages) : null;
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
@@ -188,24 +192,9 @@ export function MessageList({
         className="flex-1 space-y-3 overflow-y-auto p-4"
         data-testid="message-list"
       >
-        {segments
-          ? segments.map((seg) => (
-              <section
-                key={seg.key}
-                className="space-y-3"
-                data-testid="message-segment"
-                data-work-item-ref={seg.workItemRef}
-              >
-                <h3
-                  className="sticky top-0 z-10 bg-bg-base/95 py-1 text-xs font-semibold uppercase tracking-wide text-text-muted"
-                  data-testid="message-segment-header"
-                >
-                  {seg.label}
-                </h3>
-                {seg.messages.map(renderRow)}
-              </section>
-            ))
-          : messages.map(renderRow)}
+        {/* v2.7.1 #219: flat chronological stream (Slack-like); work-item
+            provenance shows as a per-message tag, not a grouping header. */}
+        {messages.map(renderRow)}
       </div>
       {hasNewBelow && (
         <button
