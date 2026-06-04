@@ -18,6 +18,11 @@ export interface MemberResult {
   // v2.7 #160: resolved from the Identity so the UI can show a human name
   // instead of the raw identity ref. May be absent for legacy/unresolvable rows.
   display_name?: string;
+  // v2.7.1 #193: Humans list columns. email/last_session_at nullable (v2.7.0
+  // upgrade users have no email; a user who never signed in has no session).
+  email?: string;
+  created_at?: string;
+  last_session_at?: string;
 }
 
 // normalizeIdentityRef strips the "user:"/"agent:" prefix so a prefixed ref
