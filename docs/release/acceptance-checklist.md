@@ -50,7 +50,7 @@
 - [ ] "Add Worker" 生成安装命令
 - [ ] Worker 通过 install command 安装并上线，延迟 <2s（不需等 30s 心跳）
 - [ ] Worker 从 offline 变 online 实时反映在 Fleet 页（SSE 推送）
-- [ ] Worker CLI 自动发现（ProbeAllAdapters：上线时 capabilities 自动上报，`GET /api/workers/:id/capabilities` 可见）
+- [ ] Worker CLI 自动发现（ProbeAllAdapters：上线时 capabilities 自动上报，`GET /api/fleet` 含 worker capabilities 可见）
 - [ ] Fleet 页 Remove Worker 正常（token revoke + 行消失）
 - [ ] Worker 重启后 Agent 继续执行（survive-reattach，daemon 重启不杀 agent 进程）
 
@@ -199,7 +199,7 @@ curl -s -c jar -H 'content-type: application/json' -X POST $WEB/api/auth/signup 
 - Fleet 显示（org-scoped，数据=workforce.Worker）。Add Worker 出 install command。
 - 上线**<2s**：worker run 后掐表，Fleet 该 worker 转 online ≤2s（#154 立即心跳，非等 30s）。
 - offline→online 实时：停 worker→Fleet 转 offline；重启→秒回 online（SSE 推送）。
-- CLI 自动发现：worker 上线后 `GET /api/workers/:id`（或 capabilities）含探测到的 CLI（claude-code/codex/opencode 中已装的），detected=true。
+- CLI 自动发现：worker 上线后 `GET /api/fleet` 含探测到的 CLI（claude-code/codex/opencode 中已装的），detected=true。
 - Remove Worker→token revoke、行消失。
 - survive-reattach：worker 跑着 agent 时重启 daemon→agent 进程不被杀、继续。
 
