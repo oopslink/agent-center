@@ -14,6 +14,9 @@ interface Props {
 export function MessageComposer({ conversationId }: Props): React.ReactElement {
   const [draft, setDraft] = useState('');
   const [files, setFiles] = useState<Array<{ file: File; previewUrl: string | null }>>([]);
+  // v2.7.1 #222: track IME composition so Enter that confirms a composition
+  // (e.g. Chinese/Japanese input) doesn't fire send.
+  const composingRef = useRef(false);
   const send = useSendMessage();
   const disabled = (!draft.trim() && files.length === 0) || send.isPending;
 
@@ -51,6 +54,9 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      // v2.7.1 #222: while an IME composition is active, Enter confirms the
+      // candidate — never send. Shift+Enter (newline) is unaffected.
+      if (composingRef.current || e.nativeEvent.isComposing) return;
       e.preventDefault();
       void submit();
     }
@@ -73,14 +79,18 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={handleKey}
+        onCompositionStart={() => { composingRef.current = true; }}
+        onCompositionEnd={() => { composingRef.current = false; }}
         data-testid="composer-textarea"
         disabled={send.isPending}
       />
       <label
-        className="rounded border border-border-strong px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
+        className="flex cursor-pointer items-center rounded border border-border-strong px-3 py-2 text-text-primary hover:bg-bg-subtle"
         title="Attach file"
+        aria-label="Attach file"
+        data-testid="composer-attach"
       >
-        Attach
+        <PaperclipIcon />
         <input
           type="file"
           className="sr-only"
@@ -102,10 +112,13 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
       <button
         type="submit"
         disabled={disabled}
-        className="rounded bg-text-primary px-4 py-2 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+        className="flex items-center rounded bg-text-primary px-4 py-2 text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
         data-testid="composer-send"
+        title="Send (Enter)"
+        aria-label="Send"
+        aria-busy={send.isPending}
       >
-        {send.isPending ? 'Sending…' : 'Send'}
+        <SendIcon />
       </button>
       {send.isError && (
         <span className="text-xs text-danger" data-testid="composer-error">
@@ -147,5 +160,26 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
         </ul>
       )}
     </form>
+  );
+}
+
+// v2.7.1 #222: inline icons (no-emoji UX rule — single-stroke 20×20 SVGs).
+function PaperclipIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path
+        d="M14.5 9.5l-4.8 4.8a3 3 0 0 1-4.2-4.2l5.5-5.5a2 2 0 0 1 2.8 2.8L8.3 12.7a1 1 0 0 1-1.4-1.4l4.6-4.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SendIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M3 10l14-6-6 14-2.5-5.5L3 10z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

@@ -53,6 +53,35 @@ describe('MessageComposer', () => {
     expect(ta.value).toBe('line1');
   });
 
+  it('does not send on Enter during an IME composition; sends after it ends (#222)', async () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    const ta = screen.getByTestId('composer-textarea') as HTMLTextAreaElement;
+    await userEvent.type(ta, '你好');
+    // Composition active: the Enter that confirms the IME candidate must NOT send.
+    fireEvent.compositionStart(ta);
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    expect(ta.value).toBe('你好'); // not cleared → not sent
+    // Composition ends → a real Enter sends.
+    fireEvent.compositionEnd(ta);
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    await waitFor(() => expect(ta.value).toBe(''));
+  });
+
+  it('does not send when the keydown reports isComposing (#222)', async () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    const ta = screen.getByTestId('composer-textarea') as HTMLTextAreaElement;
+    await userEvent.type(ta, 'abc');
+    fireEvent.keyDown(ta, { key: 'Enter', isComposing: true });
+    expect(ta.value).toBe('abc'); // guarded by e.nativeEvent.isComposing
+  });
+
+  it('renders icon attach + send buttons with tooltips (#222)', () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    expect(screen.getByTestId('composer-attach')).toHaveAttribute('aria-label', 'Attach file');
+    expect(screen.getByTestId('composer-send')).toHaveAttribute('title', 'Send (Enter)');
+    expect(screen.getByTestId('composer-send')).toHaveAttribute('aria-label', 'Send');
+  });
+
   it('surfaces send errors and keeps the draft intact', async () => {
     server.use(
       http.post('/api/conversations/:id/messages', () =>
