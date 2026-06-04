@@ -170,6 +170,10 @@ func (s *Server) routes() {
 	// Worker). Project is the work-management truth; CRUD is org-scoped.
 	s.mux.HandleFunc("GET /api/projects", s.pmListProjectsHandler)
 	s.mux.HandleFunc("POST /api/projects", s.pmCreateProjectHandler)
+	// v2.8 #258/#260: org-scoped cross-project work-item aggregation (Sidebar >
+	// Workspace > Issues/Tasks). Org via requireOrgMember (?org_slug=/?org_id=).
+	s.mux.HandleFunc("GET /api/issues", s.pmListOrgIssuesHandler)
+	s.mux.HandleFunc("GET /api/tasks", s.pmListOrgTasksHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}", s.pmGetProjectHandler)
 	s.mux.HandleFunc("PATCH /api/projects/{project_id}", s.pmUpdateProjectHandler)
 	s.mux.HandleFunc("DELETE /api/projects/{project_id}", s.pmArchiveProjectHandler)
