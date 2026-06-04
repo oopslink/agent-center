@@ -305,8 +305,7 @@ func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 		UserMode:        true,
 	}
 	body := renderWorkerServiceUnit(sp, "/opt/agent-center/current/bin/agent-center",
-		"/opt/agent-center/config.yaml",
-		"my-worker", "My Test Worker", "tcp://host:7300", "tok-abc", "sha256:AA", "/opt/agent-center/logs",
+		"/opt/agent-center/config.yaml", "/opt/agent-center/logs",
 		"/opt/homebrew/bin:/usr/bin")
 	// The `worker run` sub-command path must be present (as ordered plist args).
 	if !strings.Contains(body, "<string>worker</string>") {
@@ -315,15 +314,16 @@ func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 	if !strings.Contains(body, "<string>run</string>") {
 		t.Errorf("plist missing 'run' sub-command prefix:\n%s", body)
 	}
-	// All required flags present.
-	for _, want := range []string{
-		"--worker-id=my-worker",
-		"--admin-target=tcp://host:7300",
-		"--admin-token=tok-abc",
-		"--server-fingerprint=sha256:AA",
+	if !strings.Contains(body, "--config=/opt/agent-center/config.yaml") {
+		t.Errorf("plist missing --config arg:\n%s", body)
+	}
+	// v2.7.1 #249: the unit carries ONLY --config — worker identity + token live
+	// in config.yaml (0600), so NO secrets/identity appear in the plist (nor ps).
+	for _, mustNot := range []string{
+		"--worker-id", "--admin-target", "--admin-token", "--server-fingerprint", "--worker-name",
 	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("plist missing %q:\n%s", want, body)
+		if strings.Contains(body, mustNot) {
+			t.Errorf("plist must NOT carry %q (config single-source #249):\n%s", mustNot, body)
 		}
 	}
 	// v2.7 #147: the unit must NOT bake in --capabilities — the daemon
@@ -342,22 +342,23 @@ func TestRenderWorkerServiceUnit_HasWorkerRunPrefix(t *testing.T) {
 	}
 }
 
-func TestRenderWorkerServiceUnit_OmitsEmptyOptionals(t *testing.T) {
+// v2.7.1 #249: the systemd worker unit's ExecStart is exactly the --config-only
+// form — no worker identity or token on the command line (so it never leaks via
+// the unit file or `ps`).
+func TestRenderWorkerServiceUnit_ConfigOnlyExecStart(t *testing.T) {
 	sp := servicePaths{
-		ServiceManager:  "launchd",
-		WorkerServiceID: "com.agent-center.worker",
-		WorkerUnitPath:  "/tmp/test.plist",
+		ServiceManager:  "systemd",
+		WorkerServiceID: "agent-center-worker-w.service",
+		UserMode:        true,
 	}
-	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
-		"w", "" /* no name */, "unix:/run/admin.sock", "tok", "" /* no fingerprint */, "/opt/logs", "")
-	if strings.Contains(body, "--server-fingerprint=") {
-		t.Errorf("empty fingerprint should be omitted:\n%s", body)
+	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml", "/opt/logs", "")
+	if !strings.Contains(body, "ExecStart=/opt/x worker run --config=/opt/cfg.yaml") {
+		t.Errorf("systemd ExecStart must be the --config-only form:\n%s", body)
 	}
-	if strings.Contains(body, "--capabilities=") {
-		t.Errorf("empty capabilities should be omitted:\n%s", body)
-	}
-	if strings.Contains(body, "--worker-name=") {
-		t.Errorf("empty worker-name should be omitted:\n%s", body)
+	for _, mustNot := range []string{"--worker-id", "--admin-token", "--token", "--admin-target", "--bootstrap", "--server-fingerprint"} {
+		if strings.Contains(body, mustNot) {
+			t.Errorf("systemd unit must NOT carry %q (#249):\n%s", mustNot, body)
+		}
 	}
 }
 
@@ -369,8 +370,7 @@ func TestRenderWorkerServiceUnit_SystemdHasPathEnv(t *testing.T) {
 		WorkerServiceID: "agent-center-worker-w.service",
 		UserMode:        true,
 	}
-	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml",
-		"w", "", "unix:/run/admin.sock", "tok", "", "/opt/logs",
+	body := renderWorkerServiceUnit(sp, "/opt/x", "/opt/cfg.yaml", "/opt/logs",
 		"/home/u/.local/bin:/usr/bin")
 	if !strings.Contains(body, "Environment=PATH=/home/u/.local/bin:/usr/bin") {
 		t.Errorf("systemd worker unit missing Environment=PATH:\n%s", body)

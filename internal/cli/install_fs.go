@@ -389,23 +389,39 @@ blob_store:
 	return yaml
 }
 
-// writeWorkerConfig writes a minimal default config.yaml for a worker.
-func writeWorkerConfig(layout installLayout) error {
+// writeWorkerConfig writes the worker config.yaml. v2.7.1 #249: config is the
+// single source of truth for the worker's enrollment identity — worker_id /
+// bootstrap / token / fingerprint live here (not on the `worker run` command
+// line), so the token never appears in `ps` / the launchd plist / the systemd
+// unit. The file is 0600 because it contains the token (same protection model
+// as the center's bootstrap_token file).
+func writeWorkerConfig(layout installLayout, ic installContext) error {
 	if err := os.MkdirAll(layout.ConfigDir, 0o755); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(layout.DataDir, 0o755); err != nil {
 		return err
 	}
-	yaml := `# agent-center worker — installed by v2.4-D-A2 install worker command.
-# The worker daemon's flags (--admin-target / --server-fingerprint /
-# --admin-token / --worker-id) live in the service unit, not this file;
-# this file holds local-only paths.
-
-server:
-  sqlite_path: "` + layout.DataDir + `/worker.db"
-`
-	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o644)
+	// %q quotes each value safely for a YAML double-quoted scalar (bootstrap
+	// "tcp://...", token, fingerprint "sha256:..." all contain ':' / '/').
+	yaml := "# agent-center worker config (v2.7.1 #249: single source of truth).\n" +
+		"# Holds the worker's enrollment identity so `agent-center worker run --config=<this>`\n" +
+		"# needs no secrets on the command line. File mode 0600 — it contains the token.\n\n" +
+		"server:\n" +
+		fmt.Sprintf("  sqlite_path: %q\n", layout.DataDir+"/worker.db") +
+		"worker:\n" +
+		fmt.Sprintf("  worker_id: %q\n", ic.WorkerID) +
+		fmt.Sprintf("  bootstrap: %q\n", ic.Bootstrap)
+	if ic.WorkerName != "" {
+		yaml += fmt.Sprintf("  worker_name: %q\n", ic.WorkerName)
+	}
+	if ic.Token != "" {
+		yaml += fmt.Sprintf("  token: %q\n", ic.Token)
+	}
+	if ic.Fingerprint != "" {
+		yaml += fmt.Sprintf("  server_fingerprint: %q\n", ic.Fingerprint)
+	}
+	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o600)
 }
 
 // writeUnitFile writes the systemd unit / launchd plist content to the

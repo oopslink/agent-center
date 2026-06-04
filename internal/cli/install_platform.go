@@ -209,20 +209,12 @@ func renderCenterServiceUnit(sp servicePaths, binaryPath, configPath, logsDir st
 // non-flag terminator): the unified CLI router consumes the sub-command path
 // first, then `worker run` flag-parses the remainder — so the prefix is correct
 // and required.
-func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, workerID, workerName, bootstrap, token, fingerprint, logsDir, pathEnv string) string {
-	args := []string{
-		"worker", "run",
-		"--config=" + configPath,
-		"--worker-id=" + workerID,
-		"--admin-target=" + bootstrap,
-		"--admin-token=" + token,
-	}
-	if workerName != "" {
-		args = append(args, "--worker-name="+workerName)
-	}
-	if fingerprint != "" {
-		args = append(args, "--server-fingerprint="+fingerprint)
-	}
+func renderWorkerServiceUnit(sp servicePaths, binaryPath, configPath, logsDir, pathEnv string) string {
+	// v2.7.1 #249: config.yaml (0600) is the single source of truth for the
+	// worker's enrollment identity (worker_id / bootstrap / token / fingerprint),
+	// so the service unit carries ONLY --config. The token therefore never
+	// appears in the launchd plist / systemd unit / `ps`.
+	args := []string{"worker", "run", "--config=" + configPath}
 	// v2.7 #147: no --capabilities — the daemon auto-probes installed CLIs on
 	// every online and reports them to center.
 	switch sp.ServiceManager {

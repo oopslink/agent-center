@@ -384,8 +384,10 @@ func TestWorkerRunCommand_RequiresWorkerID(t *testing.T) {
 	if code != ExitUsage {
 		t.Fatalf("missing --worker-id: code=%d want ExitUsage", code)
 	}
-	if !strings.Contains(errOut, "--worker-id is required") {
-		t.Fatalf("stderr=%q, want the --worker-id required message", errOut)
+	// v2.7.1 #249: worker_id may come from --worker-id OR config; with neither,
+	// the error names both sources.
+	if !strings.Contains(errOut, "worker_id is required") {
+		t.Fatalf("stderr=%q, want the worker_id required message", errOut)
 	}
 }
 
