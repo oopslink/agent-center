@@ -187,23 +187,28 @@ export default function AgentDetail(): React.ReactElement {
           )}
           {canStopRestart && (
             <>
+              {/* v2.7.1 #250: lifecycle controls icon-ified (same as #240 Message). */}
               <button
                 type="button"
                 onClick={() => stop.mutate()}
                 disabled={lifecyclePending}
-                className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-stop-btn"
+                title="Stop"
+                aria-label="Stop agent"
               >
-                Stop
+                <StopIcon />
               </button>
               <button
                 type="button"
                 onClick={() => restart.mutate()}
                 disabled={lifecyclePending}
-                className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+                className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-restart-btn"
+                title="Restart"
+                aria-label="Restart agent"
               >
-                Restart
+                <RestartIcon />
               </button>
             </>
           )}
@@ -212,10 +217,12 @@ export default function AgentDetail(): React.ReactElement {
               type="button"
               onClick={() => setResetOpen(true)}
               disabled={transient || reset.isPending}
-              className="rounded border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
+              className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
               data-testid="agent-reset-btn"
+              title="Reset"
+              aria-label="Reset agent"
             >
-              Reset
+              <ResetIcon />
             </button>
           )}
           {transient && (
@@ -414,6 +421,34 @@ function ChatBubbleIcon(): React.ReactElement {
         d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H8l-3.5 3v-3H5.5A1.5 1.5 0 0 1 4 11.5v-6z"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+// v2.7.1 #250: lifecycle control icons (no-emoji UX rule — inline single-stroke
+// 20×20 SVGs, matching ChatBubbleIcon / the composer icons).
+function StopIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="5.5" y="5.5" width="9" height="9" rx="1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RestartIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M15.5 6.5a6 6 0 1 0 1.2 4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 3.5v3.2h-3.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ResetIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M4.5 6.5a6 6 0 1 1-1.2 4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 3.5v3.2h3.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

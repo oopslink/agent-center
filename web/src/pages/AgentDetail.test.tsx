@@ -213,6 +213,27 @@ describe('AgentDetail page', () => {
     expect(screen.queryByTestId('agent-start-btn')).not.toBeInTheDocument();
   });
 
+  it('lifecycle controls are icon-ified with tooltip + aria-label (#250)', async () => {
+    stubAgent({ lifecycle: 'running' });
+    wrap('/agents/A1');
+    const stop = await screen.findByTestId('agent-stop-btn');
+    const restart = screen.getByTestId('agent-restart-btn');
+    const reset = screen.getByTestId('agent-reset-btn');
+    // icon-only (SVG, no text label) + tooltip + aria-label.
+    for (const [btn, tip, aria] of [
+      [stop, 'Stop', 'Stop agent'],
+      [restart, 'Restart', 'Restart agent'],
+      [reset, 'Reset', 'Reset agent'],
+    ] as const) {
+      expect(btn.querySelector('svg')).not.toBeNull();
+      expect(btn).toHaveAttribute('title', tip);
+      expect(btn).toHaveAttribute('aria-label', aria);
+      expect(btn).not.toHaveTextContent(tip);
+    }
+    // Reset keeps the destructive (red) color.
+    expect(reset.className).toContain('text-danger');
+  });
+
   it('error agent shows Start', async () => {
     stubAgent({ lifecycle: 'error', lifecycle_error: 'boom' });
     wrap('/agents/A1');
