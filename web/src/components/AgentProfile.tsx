@@ -1,7 +1,5 @@
 import type React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
-import { useCreateConversation } from '@/api/conversations';
+import { OrgLink } from '@/OrgContext';
 import { EntityRef } from '@/components/EntityRef';
 import type { Agent } from '@/api/types';
 
@@ -16,46 +14,14 @@ import type { Agent } from '@/api/types';
 //      is v2.8 #230) + Created-agents list (#120) + a Message button that opens
 //      a DM with the agent.
 export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
-  const navigate = useNavigate();
-  const org = useOptionalOrgContext();
-  const createDm = useCreateConversation();
-
-  const messageAgent = async () => {
-    if (createDm.isPending) return;
-    try {
-      const res = await createDm.mutateAsync({ kind: 'dm', members: [agent.id] });
-      const slug = org?.slug;
-      navigate(slug ? `/organizations/${slug}/dms/${res.conversation_id}` : `/dms/${res.conversation_id}`);
-    } catch {
-      // error surfaces via createDm.error below
-    }
-  };
-
   const skills = agent.skills ?? [];
   const createdAgents = agent.created_agents ?? [];
   const computer = agent.computer;
 
   return (
     <div className="space-y-4" data-testid="agent-tabpanel-profile">
-      {/* Message action (design1 places it top-right of the profile surface). */}
-      <div className="flex items-center justify-end gap-3">
-        {createDm.isError && (
-          <span className="text-xs text-danger" data-testid="agent-profile-message-error">
-            {(createDm.error as Error).message}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => void messageAgent()}
-          disabled={createDm.isPending}
-          className="rounded border border-border-strong px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-subtle disabled:opacity-50"
-          data-testid="agent-profile-message-btn"
-        >
-          {createDm.isPending ? 'Opening…' : 'Message'}
-        </button>
-      </div>
-
-      {/* design1: two columns — left identity/config, right relationships. */}
+      {/* design1: two columns — left identity/config, right relationships.
+          (v2.7.1 #240: the Message action moved to the page header.) */}
       <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
         {/* LEFT */}
         <div className="space-y-4">

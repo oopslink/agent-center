@@ -120,6 +120,31 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(hits).toBe(2));
   });
 
+  it('header Message button: icon + tooltip/aria, opens (deduped) DM with the agent (#240)', async () => {
+    stubAgent();
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      // backend dedups (#215) → returns the existing or a new DM id; the UI
+      // just navigates to it, so no duplicate DM is ever created here.
+      http.post('/api/conversations', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ conversation_id: 'C-9', event_id: 'E-1', kind: 'dm' }, { status: 201 });
+      }),
+    );
+    wrap('/agents/A1');
+    const btn = await screen.findByTestId('agent-message-btn');
+    // Lives in the header controls row (with Start/Stop/Reset), icon-only.
+    expect(screen.getByTestId('agent-controls')).toContainElement(btn);
+    expect(btn).toHaveAttribute('title', 'Send message');
+    expect(btn).toHaveAttribute('aria-label', 'Send a direct message');
+    expect(btn.querySelector('svg')).not.toBeNull();
+    expect(btn).not.toHaveTextContent('Message');
+
+    fireEvent.click(btn);
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ kind: 'dm', members: ['A1'] });
+  });
+
   it('switches tabs (Profile default) + Workspace shows the v2.8 placeholder (#228)', async () => {
     stubAgent();
     wrap('/agents/A1');

@@ -1,7 +1,8 @@
 import type React from 'react';
 import { useState } from 'react';
-import { OrgLink } from '@/OrgContext';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useCreateConversation } from '@/api/conversations';
 import {
   useAgent,
   useAgentActivity,
@@ -45,6 +46,23 @@ export default function AgentDetail(): React.ReactElement {
   const stop = useStopAgent(id);
   const restart = useRestartAgent(id);
   const reset = useResetAgent(id);
+
+  // v2.7.1 #240: header "Send message" → open (or reuse) the 1:1 DM with this
+  // agent. The backend dedups (#215), so createConversation returns the existing
+  // DM id when one already exists — no duplicate DM is ever created.
+  const navigate = useNavigate();
+  const org = useOptionalOrgContext();
+  const createDm = useCreateConversation();
+  const messageAgent = async () => {
+    if (createDm.isPending) return;
+    try {
+      const res = await createDm.mutateAsync({ kind: 'dm', members: [id] });
+      const slug = org?.slug;
+      navigate(slug ? `/organizations/${slug}/dms/${res.conversation_id}` : `/dms/${res.conversation_id}`);
+    } catch {
+      // surfaced via the action-error line below
+    }
+  };
 
   const [resetOpen, setResetOpen] = useState(false);
   // v2.7.1 #228: active tab synced to ?tab= so a tab is shareable/bookmarkable.
@@ -140,6 +158,18 @@ export default function AgentDetail(): React.ReactElement {
         </div>
 
         <div className="flex flex-wrap items-center gap-2" data-testid="agent-controls">
+          <button
+            type="button"
+            onClick={() => void messageAgent()}
+            disabled={createDm.isPending}
+            className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+            data-testid="agent-message-btn"
+            title="Send message"
+            aria-label="Send a direct message"
+            aria-busy={createDm.isPending}
+          >
+            <ChatBubbleIcon />
+          </button>
           {canStart && (
             <button
               type="button"
@@ -200,6 +230,11 @@ export default function AgentDetail(): React.ReactElement {
       {lifecycleError && (
         <p className="text-xs text-danger" data-testid="agent-action-error">
           {lifecycleError}
+        </p>
+      )}
+      {createDm.isError && (
+        <p className="text-xs text-danger" data-testid="agent-message-error">
+          {(createDm.error as Error).message}
         </p>
       )}
 
@@ -363,5 +398,18 @@ function ResetModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// v2.7.1 #240: chat-bubble icon for the header "Send message" action
+// (no-emoji UX rule — inline single-stroke SVG, matching the composer icons).
+function ChatBubbleIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path
+        d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H8l-3.5 3v-3H5.5A1.5 1.5 0 0 1 4 11.5v-6z"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
