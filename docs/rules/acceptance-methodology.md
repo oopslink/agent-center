@@ -47,7 +47,7 @@ UI 断言锚定**产品 rendered / computed 真值**，不靠 class 名 / 属性
 - **① harness error（我自己的命令/脚本/逻辑）**：shell 退出码陷阱（如 `find -exec grep -l X && echo WARN` 永远打印 WARN，因为是 *find* 的退出码不是 grep 的匹配）、错路径、错 endpoint 格式、stale selector。
 - **② 环境噪声（无关的真实状态/活动）**：共享机上别的 live 进程、预置状态、随时间变的文件（日志、SQLite `-wal` sidecar）、并发活动。
 - 这是「verify before claiming PASS」的镜像 —— 这里是 **verify before claiming FAIL**。两者同理：**绝不报一个自己没证实的状态**。
-- **对称适用 UI sweep**：一条 "raw-id leak" 或 "console error" 同样可能是自己的 script bug / stale selector / 无关进程，先复现 + inspect 真因再传。
+- **对称适用 UI sweep**：一条 "raw-id leak" 或 "console error" 同样可能是自己的 script bug / stale selector / 无关进程，先复现 + inspect 真因再传。UI 反例（与后端 D1/E4 对仗）：sweep 报 "raw-id leak" 实为 testid selector 命中了 **#192 content-豁免的 JSON-viewer 子节点**（见 [`ux-standards.md`](ux-standards.md) raw-ID 边界）；"console error" 实为浏览器扩展 / 无关 404，非被测页产生。
 - 实例（#255 验收，见 `docs/release/evidence/v28-255-test-instance-acceptance-report.md`）：D1 整树 byte-hash "FAIL" 实为本机一个 **live prod 实例在写自己的 SQLite DB**（churn ≠ test 污染，靠"零 test 引用 / 文件数不变 / 结构内容字节稳定"证伪）；E4 "token in plist" 实为上面那条 `find -exec grep -l` 退出码 bug。两条若闻报必传 = 假安全警报误锁 PR。
 - 警告：rule-out ≠ explain-away —— 必须查到**具体真因**（那个退出码 bug、那个持有 DB 的 PID），不是挥手"大概是噪声"。
 
