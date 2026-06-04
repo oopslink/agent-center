@@ -54,7 +54,7 @@ WEB := web
 # `VERSION=v2.4.1 make build`); COMMIT is auto-discovered from the
 # working tree (falls back to "unknown" outside a checkout). Kept in
 # sync with CHANGELOG's top section.
-VERSION ?= v2.7.0
+VERSION ?= v2.7.1
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 
 build: build-frontend build-backend build-fakeagent
