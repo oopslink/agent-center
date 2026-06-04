@@ -414,6 +414,29 @@ forward, the IntegrationDev ship post owns the `git ls-tree` /
 `git log` verification, and other roles' celebratory acks do not
 substitute for it.
 
+### Doc honesty — target state vs current state
+
+When a rule in `docs/rules/` states "should X", the rule must also state
+the current implementation status: either "(implemented as `<reference>`)"
+or "(target state; current state Y, cleanup task #N)". This prevents
+documentation from drifting into wishful thinking — a target presented as
+if it were current state lets new code re-introduce the very gap the rule
+was trying to prevent.
+
+`PR #150`'s `conventions.md` §12.x fix is the canonical example: the
+original wording said "the frontend goes through a unified `refOf` helper",
+but the actual frontend has per-component `refOf` copies, which is exactly
+the root cause of `#240` (an `AgentDetail` Message button was added that
+inlined the prefix and forgot it). The fix separates the rule into a
+**target** (single shared `identityRef(kind, id)` helper, cleanup `#254`
+v2.8) and the **current state** (per-component copies, known cleanup
+debt), so a future reader cannot mistake the aspiration for the
+implementation.
+
+The other lane follow-ups (`ux-standards.md`, `acceptance-methodology.md`,
+`v2.7-delivery-process.md`) should reference this principle rather than
+restating it; the canonical statement lives here.
+
 ---
 
 ## 11. Product completeness — CRUD enumeration before ship
