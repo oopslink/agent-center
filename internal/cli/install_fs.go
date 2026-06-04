@@ -402,26 +402,33 @@ func writeWorkerConfig(layout installLayout, ic installContext) error {
 	if err := os.MkdirAll(layout.DataDir, 0o755); err != nil {
 		return err
 	}
-	// %q quotes each value safely for a YAML double-quoted scalar (bootstrap
-	// "tcp://...", token, fingerprint "sha256:..." all contain ':' / '/').
 	yaml := "# agent-center worker config (v2.7.1 #249: single source of truth).\n" +
 		"# Holds the worker's enrollment identity so `agent-center worker run --config=<this>`\n" +
 		"# needs no secrets on the command line. File mode 0600 — it contains the token.\n\n" +
 		"server:\n" +
 		fmt.Sprintf("  sqlite_path: %q\n", layout.DataDir+"/worker.db") +
-		"worker:\n" +
+		workerConfigBlock(ic)
+	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o600)
+}
+
+// workerConfigBlock renders the `worker:` YAML section (v2.7.1 #249). Shared by
+// the fresh install (writeWorkerConfig) and the #251 upgrade migration (appended
+// to a pre-#141 config). %q quotes each value safely for a YAML double-quoted
+// scalar (bootstrap "tcp://...", token, fingerprint "sha256:..." all carry ':'/'/').
+func workerConfigBlock(ic installContext) string {
+	b := "worker:\n" +
 		fmt.Sprintf("  worker_id: %q\n", ic.WorkerID) +
 		fmt.Sprintf("  bootstrap: %q\n", ic.Bootstrap)
 	if ic.WorkerName != "" {
-		yaml += fmt.Sprintf("  worker_name: %q\n", ic.WorkerName)
+		b += fmt.Sprintf("  worker_name: %q\n", ic.WorkerName)
 	}
 	if ic.Token != "" {
-		yaml += fmt.Sprintf("  token: %q\n", ic.Token)
+		b += fmt.Sprintf("  token: %q\n", ic.Token)
 	}
 	if ic.Fingerprint != "" {
-		yaml += fmt.Sprintf("  server_fingerprint: %q\n", ic.Fingerprint)
+		b += fmt.Sprintf("  server_fingerprint: %q\n", ic.Fingerprint)
 	}
-	return os.WriteFile(layout.ConfigPath, []byte(yaml), 0o600)
+	return b
 }
 
 // writeUnitFile writes the systemd unit / launchd plist content to the
