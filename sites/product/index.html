@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>产品介绍 · agent-center</title>
+<meta name="description" content="agent-center 是一个个人 AI 智能体调度中心：跑一个 server，从任意机器接入 worker，智能体在任意位置运行，每一次对话与决策都落在可追溯的线程上。了解它是什么、解决什么问题、核心能力与整体架构。">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+  /* page-specific: runtime structure diagram for the architecture overview */
+  .arch { margin: 8px 0 4px; }
+  .arch-server {
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    background: var(--surface); box-shadow: var(--shadow);
+    padding: 16px 18px; margin: 0 0 6px;
+  }
+  .arch-server > .node-h { color: var(--primary); }
+  .node {
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    background: #f7f9fd; padding: 12px 14px;
+  }
+  .node .node-h { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+  .node .node-sub { margin: 0; font-size: 13px; color: var(--ink-soft); }
+  .node code { font-family: var(--mono); font-size: 12px; background: #eef2f7; color: #364fc7; padding: 1px 5px; border-radius: 4px; }
+  .node-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .node-row > .node { flex: 1 1 220px; min-width: 200px; }
+  .arch-conn { text-align: center; color: var(--ink-mute); font-size: 13px; margin: 6px 0; }
+  .arch-conn b { color: var(--ink-soft); }
+  .arch-worker {
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    background: var(--surface); box-shadow: var(--shadow);
+    padding: 16px 18px; margin: 6px 0 0;
+  }
+  .arch-worker > .node-h { color: var(--accent); }
+  .arch-block-h { margin: 0 0 10px; font-size: 15px; font-weight: 800; }
+</style>
+</head>
+<body>
+
+<header class="site-hd">
+  <div class="hd-inner">
+    <a class="brand" href="../index.html">agent-center<span class="dot">·</span></a>
+    <nav class="hd-nav">
+      <a class="active" href="../product/index.html">产品介绍</a>
+      <a href="../manual/index.html">用户手册</a>
+      <a href="../dev/v2.7.1/index.html">开发指引</a>
+      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="crumb"><a href="../index.html">首页</a> › 产品介绍</div>
+
+<section class="hero sm">
+  <div class="inner">
+    <span class="eyebrow">产品介绍 · 多智能体编排平台</span>
+    <h1>一个个人 AI 智能体调度中心</h1>
+    <p class="lede">跑一个 server，从任意机器接入 worker。智能体在任意位置运行 —— 每一次对话与决策，都落在一个你能回溯的线程上。</p>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <div class="section-title">agent-center 是什么</div>
+  <div class="prose">
+    <p>agent-center 是一个<b>个人 AI 智能体调度中心</b>：你跑一个 server，从任意机器接入 worker，智能体在任意位置运行，而每一次派单、每一次输入请求、每一条决策与产物，都落在一个可追溯的会话线程上。</p>
+    <p>它的核心论点是 —— <b>会话（Conversation）是产品的脊梁，而不只是日志</b>。Task、Issue、决策、进度全部挂在会话线程上；每一次 dispatch、每一个 InputRequest、每一份 Artifact 都能在它原本的线程里被找回。</p>
+    <p>实现上，agent-center 是一个多智能体编排平台：Go 后端 + React/Vite 编写的 Web Console，通过 <code>go:embed</code> 打包进<b>同一个二进制</b>分发。</p>
+  </div>
+
+  <div class="section-title">解决什么问题</div>
+  <div class="prose">
+    <p>当多个智能体跑在多台机器上时，常见的痛点与 agent-center 的应对方式：</p>
+    <table>
+      <thead>
+        <tr><th>痛点</th><th>agent-center 如何应对</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>多个智能体散落在多台机器、状态分散在 N 个终端里</td>
+          <td>一个 server 汇聚一切；<code>/fleet</code> 实时呈现每个 worker × 执行 × 待处理 IR</td>
+        </tr>
+        <tr>
+          <td>智能体执行到一半停下来问你（"要不要提交？"）</td>
+          <td>InputRequest 是一等概念 —— 在 Web Console 的卡片里作答，智能体随即恢复</td>
+        </tr>
+        <tr>
+          <td>很难追溯智能体做了什么、为什么做、奉谁之命</td>
+          <td>每个 Task / Issue 都有一条会话线程；派单、决策、进度与产物全部落在其中</td>
+        </tr>
+        <tr>
+          <td>Skill / MCP 配置散落在每个智能体各自的仓库里</td>
+          <td>AgentInstance 是一等聚合根：指令 + MCP servers + skill 挂载都绑定到智能体身份</td>
+        </tr>
+        <tr>
+          <td>凭据管理</td>
+          <td>UserSecret 限界上下文，AES-256，明文永不回显；智能体以 <code>secret:&lt;name&gt;</code> 引用密钥</td>
+        </tr>
+        <tr>
+          <td>多机部署</td>
+          <td>多主机 TCP+TLS（SSH 式指纹固定）+ 一条命令完成首跳接入</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title">核心能力 / 特性</div>
+  <div class="features">
+    <div class="feature">
+      <h4>一中心，多 worker，任意位置运行</h4>
+      <p>跑一个 server，从任意机器接入 worker。智能体在任意位置运行 —— 每一次对话与决策都落在一个你能回溯的线程上。</p>
+    </div>
+    <div class="feature">
+      <h4>装好即用</h4>
+      <p>一条命令装好中心，一条命令装好每个 worker；一对配套的 <code>upgrade</code> 命令向前推进既有安装（原子 symlink 切换 + 健康探针 + 自动回滚）。</p>
+    </div>
+    <div class="feature">
+      <h4>会话是脊梁</h4>
+      <p>每一次派单、每一个 InputRequest、每一份产物，都能在它原本的会话线程里被找回。</p>
+    </div>
+    <div class="feature">
+      <h4>InputRequest 一等公民</h4>
+      <p>智能体执行到一半阻塞、向你请求决策；你在 Web Console 作答，智能体随即恢复执行。</p>
+    </div>
+    <div class="feature">
+      <h4>Fleet 实时视图</h4>
+      <p><code>/fleet</code> 实时呈现每一个 worker × 执行 × 待处理的 InputRequest。</p>
+    </div>
+    <div class="feature">
+      <h4>开箱即用的鉴权</h4>
+      <p>订阅版 <code>/login</code> 开箱即用；智能体的 claude 复用同一份登录 —— 无需额外配置。</p>
+    </div>
+    <div class="feature">
+      <h4>单机多 worker · 跨主机 TCP+TLS</h4>
+      <p>同一台机器可跑多个 worker，并支持多主机 TCP+TLS 连接，采用 SSH 式的指纹固定（pinning）。</p>
+    </div>
+  </div>
+
+  <div class="section-title">整体架构概览</div>
+  <p class="lead">单个 <code>agent-center</code> 二进制以多种模式运行。以下只描绘代码中真实存在的运行时组件。</p>
+  <div class="arch">
+
+    <div class="arch-server">
+      <div class="arch-block-h" style="color:var(--primary)">中心服务 · <code>agent-center server</code></div>
+      <p class="node-sub" style="margin:0 0 12px">汇聚全部状态，独占 SQLite 数据库，对外暴露以下端点：</p>
+      <div class="node-row">
+        <div class="node">
+          <p class="node-h">Web Console</p>
+          <p class="node-sub">内嵌的 React SPA（<code>go:embed</code>），仅监听回环 <code>127.0.0.1:7100</code>。</p>
+        </div>
+        <div class="node">
+          <p class="node-h">Admin 端点</p>
+          <p class="node-sub">本地 unix socket，及/或供跨主机 worker 使用的 TCP+TLS <code>:7300</code>。</p>
+        </div>
+        <div class="node">
+          <p class="node-h">Center 监听</p>
+          <p class="node-sub">默认监听端口 <code>:7050</code>（避开被 macOS AirPlay 占用的 7000）。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-conn">▲ ▼ &nbsp;<b>仅经由 admin 端点通信（worker 从不直接打开 SQLite）</b></div>
+
+    <div class="arch-worker">
+      <div class="arch-block-h" style="color:var(--accent)">Worker 守护进程 · <code>agent-center worker run --config=…</code></div>
+      <p class="node-sub" style="margin:0 0 12px">运行在同一台或任意其他机器上的控制流执行器，负责拉起智能体 CLI。自 v2.7 起，worker 守护进程随统一的 <code>agent-center</code> 二进制一并分发。其下还包含：</p>
+      <div class="node-row">
+        <div class="node">
+          <p class="node-h">MCP host</p>
+          <p class="node-sub"><code>agent-center worker mcp-host</code> —— 由守护进程为每个智能体拉起的 stdio MCP server，向智能体的 claude 进程暴露 agent-center 工具集。</p>
+        </div>
+        <div class="node">
+          <p class="node-h">Agent supervisor</p>
+          <p class="node-sub"><code>agent-center worker agent-supervisor</code> —— 每智能体一个的常驻 supervisor 进程（增量能力，尚未接入守护进程的拉起路径）。</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="callout info">
+    <b>Supervisor（领域概念）</b>是一个内置的 AgentInstance：它读取会话上下文，决定下一步该派发什么 —— "不是一个'大脑'，只是另一个带日志的智能体"。
+  </div>
+
+  <div class="section-title">快速链接</div>
+  <div class="grid">
+    <a class="card" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">
+      <div class="ico">🐙</div>
+      <h3>GitHub</h3>
+      <div class="desc">源码仓库 <code>oopslink/agent-center</code> —— 安装脚本、CHANGELOG 与路线图都在这里。</div>
+    </a>
+    <a class="card" href="../manual/index.html">
+      <div class="ico">📖</div>
+      <h3>用户手册</h3>
+      <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具与 Web Console 使用。</div>
+    </a>
+    <a class="card" href="../dev/v2.7.1/index.html">
+      <div class="ico">🏗️</div>
+      <h3>开发指引</h3>
+      <div class="desc">技术架构、核心机制设计与 DDD 设计（限界上下文 / 战术 / Event Storming）。</div>
+    </a>
+  </div>
+
+</main>
+
+<footer class="foot">
+  agent-center · 多智能体编排平台 ·
+  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
+  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
+</footer>
+
+</body>
+</html>

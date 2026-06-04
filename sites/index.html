@@ -3,70 +3,84 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>agent-center · DDD 设计</title>
-<style>
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    color: #2b2b2b; background: #f4f6fb; line-height: 1.6;
-  }
-  .hero {
-    background: linear-gradient(135deg, #1864ab 0%, #4a1a8c 100%);
-    color: #fff; padding: 64px 24px 56px;
-  }
-  .hero .inner { max-width: 900px; margin: 0 auto; }
-  .hero h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: .5px; }
-  .hero p { margin: 0; font-size: 16px; opacity: .92; }
-  .wrap { max-width: 900px; margin: -28px auto 64px; padding: 0 24px; }
-  .section-title { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #868e96; margin: 32px 4px 14px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
-  .card {
-    display: block; text-decoration: none; color: inherit;
-    background: #fff; border: 1px solid #e3e8f0; border-radius: 14px;
-    padding: 22px 22px 20px; box-shadow: 0 4px 18px rgba(24,100,171,.06);
-    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
-  }
-  .card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(24,100,171,.14); border-color: #74c0fc; }
-  .card .ver { display: inline-block; font-weight: 700; font-size: 20px; color: #1864ab; }
-  .card .badge { float: right; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: #e7f5ff; color: #1864ab; }
-  .card .badge.current { background: #ebfbee; color: #1b7d34; }
-  .card .desc { margin: 10px 0 14px; font-size: 14px; color: #555; }
-  .card .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #f3f0ff; color: #6b3fb0; border: 1px solid #e0d6f7; }
-  .foot { max-width: 900px; margin: 0 auto; padding: 0 24px 48px; color: #98a2b3; font-size: 13px; }
-  .foot a { color: #1864ab; text-decoration: none; }
-</style>
+<title>agent-center · 多智能体编排平台</title>
+<meta name="description" content="agent-center —— 一个个人 AI 智能体调度中心：跑一个 server，从任意机器接入 worker，智能体在任意位置运行，每一次对话与决策都落在可追溯的线程上。">
+<link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
-  <header class="hero">
-    <div class="inner">
-      <h1>agent-center · DDD 设计</h1>
-      <p>领域驱动设计（战略 / 战术 / Event Storming）的可视化设计稿，按版本归档以便对照演进。</p>
-    </div>
-  </header>
 
-  <main class="wrap">
-    <div class="section-title">设计版本</div>
-    <div class="grid">
-      <a class="card" href="designs/v2.7/index.html">
-        <span class="badge current">当前</span>
-        <span class="ver">v2.7</span>
-        <div class="desc">领域重构：以 项目管理 / 智能体 / 环境 / 会话 / 可观测性 五个限界上下文重新划分，退役旧的 任务执行域与讨论域。</div>
-        <div class="tags">
-          <span class="tag">项目管理</span>
-          <span class="tag">智能体</span>
-          <span class="tag">环境</span>
-          <span class="tag">会话</span>
-          <span class="tag">可观测性</span>
-        </div>
-      </a>
-    </div>
-  </main>
+<header class="site-hd">
+  <div class="hd-inner">
+    <a class="brand" href="index.html">agent-center<span class="dot">·</span></a>
+    <nav class="hd-nav">
+      <a href="product/index.html">产品介绍</a>
+      <a href="manual/index.html">用户手册</a>
+      <a href="dev/v2.7.1/index.html">开发指引</a>
+      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
 
-  <footer class="foot">
-    绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code> ·
-    <a href="https://github.com/oopslink/agent-center">GitHub: oopslink/agent-center</a>
-  </footer>
+<section class="hero">
+  <div class="inner">
+    <span class="eyebrow">多智能体编排平台 · Go + Web Console</span>
+    <h1>一个个人 AI 智能体调度中心</h1>
+    <p class="lede">跑一个 server，从任意机器接入 worker。智能体在任意位置运行 —— 每一次派单、每一次输入请求、每一条决策，都落在一个你能回溯的线程上。</p>
+    <div class="cta">
+      <a class="btn primary" href="product/index.html">了解 agent-center →</a>
+      <a class="btn ghost" href="manual/index.html">快速上手</a>
+      <a class="btn ghost" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</section>
+
+<main class="wrap wide">
+
+  <div class="section-title">文档板块</div>
+  <div class="grid">
+    <a class="card" href="product/index.html">
+      <div class="ico">📦</div>
+      <h3>产品介绍</h3>
+      <div class="desc">agent-center 是什么、解决什么问题、核心能力与整体架构概览。第一次了解项目从这里开始。</div>
+      <div class="tags"><span class="tag">是什么</span><span class="tag">核心能力</span><span class="tag">架构概览</span></div>
+    </a>
+    <a class="card" href="manual/index.html">
+      <div class="ico">📖</div>
+      <h3>用户手册</h3>
+      <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具、Web Console 使用与约定。</div>
+      <div class="tags"><span class="tag">安装部署</span><span class="tag">CLI</span><span class="tag">MCP 工具</span><span class="tag">Web Console</span></div>
+    </a>
+    <a class="card" href="dev/v2.7.1/index.html">
+      <div class="ico">🏗️</div>
+      <h3>开发指引</h3>
+      <div class="desc">技术架构、主要机制设计与 DDD 设计（限界上下文 / 战术 / Event Storming），按版本归档以便回溯演进。</div>
+      <div class="tags"><span class="tag">技术架构</span><span class="tag">核心机制</span><span class="tag">DDD 设计</span></div>
+    </a>
+  </div>
+
+  <div class="section-title">开发指引 · 设计版本</div>
+  <div class="grid two">
+    <a class="card" href="dev/v2.7.1/index.html">
+      <span class="badge current">当前</span>
+      <span class="ver">v2.7.1</span>
+      <div class="desc">当前架构视图：以现行代码 <code>internal/*</code> 为准的限界上下文地图与战术设计。相对 v2.7 为增量演进（序列号 T&lt;n&gt;/I&lt;n&gt;、身份邮箱、MCP 发现工具、worker 配置单一来源等），领域模型不变。</div>
+      <div class="tags"><span class="tag">项目管理</span><span class="tag">智能体</span><span class="tag">环境</span><span class="tag">会话</span><span class="tag">可观测性</span><span class="tag">身份</span></div>
+    </a>
+    <a class="card" href="dev/v2.7/index.html">
+      <span class="badge hist">历史</span>
+      <span class="ver">v2.7</span>
+      <div class="desc">历史架构快照：v2.7 当时的领域重构设计，标注为历史版本，便于与 v2.7.1 对照回溯。</div>
+      <div class="tags"><span class="tag">领域重构</span><span class="tag">快照</span></div>
+    </a>
+  </div>
+
+</main>
+
+<footer class="foot">
+  agent-center · 多智能体编排平台 ·
+  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
+  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
+</footer>
+
 </body>
 </html>

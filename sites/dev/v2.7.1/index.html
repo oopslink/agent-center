@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>开发指引 · v2.7.1（当前版本） · agent-center</title>
+<meta name="description" content="agent-center 开发指引 v2.7.1：技术架构总览、主要机制设计，以及以现行代码 internal/* 校准的 DDD 设计视图（限界上下文地图 / 战术设计 / Event Storming）。">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+  /* ---- page-specific (dev guide) additions only; shared primitives in site.css ---- */
+  .wrap.wide { max-width: 1100px; }
+
+  /* runtime/layered architecture boxes (Section A) */
+  .arch { display: grid; gap: 14px; margin: 14px 0 8px; }
+  .arch-layer { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: 12px 14px; box-shadow: var(--shadow); }
+  .arch-layer > .lh { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--ink-mute); font-weight: 700; margin: 0 0 10px; }
+  .arch-boxes { display: flex; flex-wrap: wrap; gap: 10px; }
+  .abox { flex: 1 1 150px; min-width: 140px; border-radius: 8px; padding: 10px 12px; font-size: 13px; border: 1px solid var(--border); background: #f8fafd; }
+  .abox b { display: block; font-size: 13.5px; color: var(--ink); margin-bottom: 2px; }
+  .abox small { color: var(--ink-mute); font-size: 11.5px; }
+  .abox.server  { background: #fff5f5; border-color: #ffc9c9; }
+  .abox.web     { background: #e7f5ff; border-color: #a5d8ff; }
+  .abox.worker  { background: #fff4e6; border-color: #ffd8a8; }
+  .abox.runtime { background: #f3f0ff; border-color: #d0bfff; }
+  .abox.infra   { background: #ebfbee; border-color: #b2f2bb; }
+  .arch-flow { text-align: center; color: var(--ink-mute); font-size: 12px; margin: 2px 0; font-family: var(--mono); }
+
+  /* small mechanism diagram strip */
+  .mech { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; font-size: 12.5px; }
+  .mech .box { padding: 5px 11px; border-radius: 7px; background: #eef2f9; border: 1px solid var(--border); font-weight: 600; color: var(--ink-soft); }
+  .mech .box.hl { background: #fff4e6; border-color: #ffd8a8; color: #b54708; }
+  .mech .box.term { background: #f1f3f5; border-color: #ced4da; color: #495057; }
+  .mech .ar { color: var(--ink-mute); font-weight: 700; }
+
+  /* tactical state-machine strip + field line (reuse .chip / .chip.state from site.css) */
+  .smrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; font-size: 12px; }
+  .smrow .lbl { color: var(--ink-mute); }
+  .smrow .smarrow { color: #ffa94d; font-weight: 700; }
+  .chip.term { background: #f1f3f5; color: #495057; border-color: #ced4da; }
+  .chip.kind { background: #f3f0ff; color: #6b3fb0; border-color: #e0d6f7; }
+  .agg-fields { font-family: var(--mono); font-size: 12px; color: #6a4a25; margin: 6px 0 8px; line-height: 1.5; }
+  .agg-sub { font-size: 12px; color: var(--ink-soft); margin: 4px 0 6px; }
+  .evt { display: inline-block; background: var(--ar); color: #fff; border-radius: 4px; padding: 2px 8px; font-size: 11px; margin: 0 5px 5px 0; font-family: var(--mono); }
+  .repo-line { font-family: var(--mono); font-size: 11.5px; color: #806600; background: #fff3bf; border: 1px solid #ffd43b; border-radius: 6px; padding: 5px 9px; margin: 6px 0; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } }
+  .colh { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-mute); margin: 2px 0 6px; }
+
+  /* relation tags for context map (mono pills, color coded) */
+  .rel { font-family: var(--mono); font-size: 11px; font-weight: 700; color: #fff; background: #868e96; padding: 2px 7px; border-radius: 6px; }
+  .rel.ohs { background: #2f9e44; }
+  .rel.acl { background: #e8590c; }
+  .rel.cf  { background: #9775fa; }
+  .rel.ud  { background: #1971c2; }
+  .rel.sk  { background: #495057; }
+  .maprow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; box-shadow: var(--shadow); }
+  .maprow .node { font-weight: 600; padding: 3px 10px; border-radius: 7px; background: #f1f3f9; }
+  .maprow .node.core { background: #fff0f0; color: #c92a2a; }
+  .maprow .node.support { background: #e7f5ff; color: #1864ab; }
+  .maprow .node.generic { background: #f1f3f5; color: #495057; }
+  .maprow .ar { color: #adb5bd; font-weight: 700; }
+  .maprow .relnote { color: var(--ink-mute); font-size: 12px; margin-left: auto; }
+  .ctx .role { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: var(--r-pill); background: rgba(255,255,255,.25); margin: 4px 0; }
+  .ctx .pkg { font-family: var(--mono); font-size: 11px; opacity: .9; }
+</style>
+</head>
+<body>
+
+<header class="site-hd"><div class="hd-inner">
+  <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
+  <nav class="hd-nav">
+    <a href="../../product/index.html">产品介绍</a>
+    <a href="../../manual/index.html">用户手册</a>
+    <a class="active" href="../../dev/v2.7.1/index.html">开发指引</a>
+    <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</div></header>
+
+<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.7.1/index.html">开发指引</a> › v2.7.1</div>
+
+<section class="hero sm">
+  <div class="inner">
+    <span class="eyebrow">开发指引 · 当前版本</span>
+    <h1>开发指引 · v2.7.1（当前版本）</h1>
+    <p class="lede">技术架构总览、主要机制设计，以及以现行代码 <code style="color:#fff">internal/*</code> 校准的 DDD 设计视图。本页内容以代码为唯一真相，所有状态机、字段名与事件名均与仓库实际实现一致。</p>
+  </div>
+</section>
+
+<main class="wrap wide">
+
+  <div class="verswitch"><a class="on" href="../../dev/v2.7.1/index.html">v2.7.1 当前</a><a href="../../dev/v2.7/index.html">v2.7 历史</a></div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION A — 技术架构总览 -->
+  <!-- ============================================================ -->
+  <div class="section-title">A · 技术架构总览</div>
+  <div class="prose">
+    <p>agent-center 是一个用 <b>Go</b> 编写的多智能体编排平台，整体为「<b>一个 server + N 个 worker</b>」的拓扑：server 持有全部业务真相与读模型，worker 在任意机器上托管真正执行任务的智能体进程。所有跨进程通信走 server 暴露的 HTTP/SSE 控制信道；持久化默认落 <b>SQLite</b>，二进制内容落本地内容寻址 <b>blob store</b>。组合根（composition root）在 <code>cmd/agent-center/main.go</code> → <code>internal/cli</code>，并由 <code>internal/cli</code> + <code>internal/webconsole/api</code> + <code>internal/workerdaemon</code> 三处装配。</p>
+
+    <h3>运行时分层</h3>
+    <div class="arch">
+      <div class="arch-layer">
+        <p class="lh">控制面 · Server（单点真相）</p>
+        <div class="arch-boxes">
+          <div class="abox server"><b>Server / HTTP API</b><small>内部 BC 服务编排、SSE 推送、轮询回退</small></div>
+          <div class="abox web"><b>Web Console（SPA）</b><small>webconsole/api 托管前端 + SSE 实时流</small></div>
+          <div class="abox infra"><b>Identity / Auth</b><small>identity BC：组织/成员/邀请 + admintoken</small></div>
+        </div>
+      </div>
+      <div class="arch-flow">▲ HTTP / SSE 控制信道（offset ack + 心跳；SSE 优先、轮询回退）▼</div>
+      <div class="arch-layer">
+        <p class="lh">执行面 · Worker（任意机器，可多台）</p>
+        <div class="arch-boxes">
+          <div class="abox worker"><b>worker daemon</b><small>workerdaemon：拉控制事件、上报心跳/能力</small></div>
+          <div class="abox runtime"><b>supervisor manager</b><small>supervisormanager：每个智能体一个常驻 supervisor</small></div>
+          <div class="abox runtime"><b>agent supervisor</b><small>agentsupervisor：detached 进程，断连可重附</small></div>
+          <div class="abox runtime"><b>per-execution shim + adapter</b><small>claudestream 解析 / agentadapter（ACL）隔离 CLI 协议</small></div>
+          <div class="abox runtime"><b>MCP host</b><small>mcphost：向智能体暴露 agent-center 工具集</small></div>
+        </div>
+      </div>
+      <div class="arch-flow">▲ 同一 server 进程内的持久化与对象存储 ▼</div>
+      <div class="arch-layer">
+        <p class="lh">基础设施 · Persistence &amp; Storage</p>
+        <div class="arch-boxes">
+          <div class="abox infra"><b>SQLite（persistence）</b><small>migrations + 事务管道，127 处引用</small></div>
+          <div class="abox infra"><b>blob store（blobstore）</b><small>LocalDir 内容寻址（sha256）+ 引用计数 GC</small></div>
+          <div class="abox infra"><b>transactional outbox</b><small>outbox.Relay/Pump：可靠事件发布</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <b>worker 进程模型</b>：每个智能体由一个独立、<b>detached</b> 的 supervisor 托管（agentsupervisor）。worker daemon 重启或控制信道断连后，supervisor 不被杀死，重连后<b>重新附着（survive-reattach）</b>到既有执行，不丢失进行中的工作。外部 CLI（如 claude-code）的协议由 <code>agentadapter</code> 作为防腐层（ACL）隔离，<code>claudestream</code> 解析其流式输出。
+    </div>
+
+    <h3>v2.7.1 相对 v2.7 的增量</h3>
+    <p>v2.7.1 在领域模型上与 v2.7 <b>等价</b>——五大限界上下文、detached supervisor + survive-reattach、SSE 优先/轮询回退控制流、会话与文件附件模型均未变动。变化均为<b>叠加在 v2.7 架构之上的增量特性</b>（155 文件、+7,265 / −1,276），不重画任何上下文边界或聚合：</p>
+    <ul>
+      <li><b>组织内序列号 <code>T&lt;n&gt;</code> / <code>I&lt;n&gt;</code>（#245）</b>：新增 migration <code>0049_v271_pm_org_sequence</code>，按 <code>(org,type)</code> 的单调计数表，竞态安全分配 + 回填，DTO 增 <code>org_ref</code>，让议题/任务有人类友好引用。</li>
+      <li><b>身份邮箱 + 最近会话（migration <code>0048_v271_identity_email_last_session</code>）</b>：identity 增 email/last-session 列。</li>
+      <li><b>MCP 智能体自我/组织发现工具（#239/#241/#246）</b>：新增 <code>get_my_profile</code>、<code>find_org_agent</code>（返回可直接使用的 <code>assignee_ref</code>）、<code>find_org_channel</code>；精确的 404/403 错误区分。β 只读，不改授权。</li>
+      <li><b>worker 配置单一来源（#249/#251）</b>：<code>install worker</code> 把全部 enroll 字段写入 <code>config.yaml</code>（<code>0600</code>），<code>worker run</code> 收敛为单个 <code>--config=</code>；token 不再出现在 <code>ps</code> / launchd / systemd 中。新增 <code>WorkerConfig</code> 结构。</li>
+      <li><b>单机多 center（#211）</b>：<code>install center --instance &lt;name&gt;</code> → 独立前缀 + 独立 launchd/systemd 标签 + 显式端口；新增 <code>list-local-centers</code>、<code>server.instance</code> 配置字段。</li>
+      <li><b>升级比对 git commit 而非版本串 + <code>--force</code>（#234）</b>；<b>默认模型加固为 <code>claude-opus-4-8</code>（#232/#236）</b>，前端预填 + 后端创建处兜底强制。</li>
+      <li>Web Console UX 抛光（文件改动主体）：7 个详情页 <b>Breadcrumb</b> 导航 + 通用组件（#238）；AgentDetail Stop/Restart/Reset 与 Message 按钮 <b>图标化</b>（#240/#250）；侧栏折叠图标简化（#253）；频道 URL 改 hash id（#247）；表格化 Issues/Tasks/WorkItems（#242/#228）。</li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION B — 主要机制设计 -->
+  <!-- ============================================================ -->
+  <div class="section-title">B · 主要机制设计</div>
+  <div class="prose">
+
+    <h3>1 · 任务 / 议题流转（Task / Issue lifecycle）</h3>
+    <p>项目管理（<code>projectmanager</code>）是工作真相源。<b>议题 Issue</b> 承载问题/讨论，<b>任务 Task</b> 承载可执行单元；两者各按 1:1 绑定一条会话（由 Conversation 的 <code>ownerRef</code> 持有，议题不存绑定字段）。v2.7.1 起，每个议题/任务在组织内分配单调的 <code>I&lt;n&gt;</code> / <code>T&lt;n&gt;</code> 引用号（<code>orgNumber</code>，#245）。</p>
+    <div class="mech">
+      <span class="lbl" style="color:#868e96">Issue：</span>
+      <span class="box">open</span><span class="ar">→</span>
+      <span class="box">in_progress</span><span class="ar">→</span>
+      <span class="box">resolved</span><span class="ar">→</span>
+      <span class="box">closed</span>
+      <span class="ar">|</span>
+      <span class="box">reopened</span>
+      <span class="ar">|</span>
+      <span class="box term">withdrawn（终态）</span>
+    </div>
+    <div class="mech">
+      <span class="lbl" style="color:#868e96">Task：</span>
+      <span class="box">open</span><span class="ar">→</span>
+      <span class="box">assigned</span><span class="ar">→</span>
+      <span class="box">running</span><span class="ar">→</span>
+      <span class="box">blocked</span> / <span class="box">reopened</span><span class="ar">→</span>
+      <span class="box term">completed</span> · <span class="box term">verified</span> · <span class="box term">canceled（终态）</span>
+    </div>
+    <p>状态迁移由聚合内 <code>CanTransitionTo</code> 强制（<code>issue.go:37</code> / <code>task.go:40</code>）；Task 的终态集合恰为 <code>{completed, verified, canceled}</code>（<code>IsTerminal task.go:67</code>），非终态集合即可观测性默认的「在飞工作」查询集。</p>
+
+    <h3>2 · 智能体调度与 work item 派发</h3>
+    <p>任务派给智能体后，智能体侧（<code>agent</code>）建立一条 <b>AgentWorkItem</b>，以 <code>taskRef = pm://tasks/{id}</code> 非拥有引用任务（ACL，不导入 pm 结构）。核心不变式：<b>同一智能体同时只有一条活跃工作项</b>（<code>repository.go:49 HasActiveWorkItem</code>）；重新派发会把旧工作项置 <code>superseded</code>、新建 <code>queued</code>。</p>
+    <div class="mech">
+      <span class="box">queued</span><span class="ar">→</span>
+      <span class="box hl">active</span><span class="ar">⇄</span>
+      <span class="box">waiting_input</span><span class="ar">→</span>
+      <span class="box term">done</span> · <span class="box term">failed</span> · <span class="box term">canceled</span> · <span class="box term">superseded</span>
+    </div>
+    <p>智能体本身的运行时生命周期与工作项<b>是两个不同聚合</b>：智能体生命周期 = <code>stopped / running / stopping / resetting / error / failed</code>（<code>agent.go:52</code>，<code>failed</code> 为崩溃熔断终态，需人工 Start/Reset 恢复）。</p>
+
+    <h3>3 · 事件与可观测性（append-only events）</h3>
+    <p>每个核心 BC 在状态变更的<b>同一事务</b>内追加领域事件，经 transactional outbox 可靠发布；可观测性（<code>observability</code>）是纯下游消费者（61 处引用），仅持有单一追加写聚合 <code>Event</code> 与投影读模型，对前端/运维以只读 OHS 暴露。真实事件名（点分小写）举例：</p>
+    <p style="margin:6px 0">
+      <span class="evt">pm.task.created</span><span class="evt">pm.task.state_changed</span><span class="evt">pm.task.assigned</span><span class="evt">pm.issue.created</span><span class="evt">pm.issue.state_changed</span><span class="evt">agent.lifecycle_changed</span><span class="evt">agent.work_item_transitioned</span><span class="evt">conversation.message_added</span><span class="evt">workforce.worker.online</span>
+    </p>
+
+    <h3>4 · 会话作为统一线程（Conversation）</h3>
+    <p>会话（<code>conversation</code>）是统一的消息流 + 参与者。<code>ConversationKind</code> <b>恰为 4 个值</b>：<code>dm / channel / task / issue</code>（<code>types.go:56</code>；旧的 <code>adhoc/notification</code> 已移除）。任务/议题各绑定一条会话（<code>ownerRef = pm://tasks|issues/{id}</code>，1:1）；参与者镜像项目管理的订阅真相（Conformist），由 <code>participant_projector</code> 投影。消息只在<b>显式发布</b>时入会话；智能体冗长的中间输出落 <code>AgentActivityEvent</code> 观测流，不污染会话线程。</p>
+
+    <h3>5 · InputRequest 作为一等公民</h3>
+    <p>当智能体需要人介入时，工作项进入 <code>waiting_input</code>，并产生一条携带 <code>inputRequestRef</code> 的消息（<b>Message 没有 <code>work_item_ref</code> 字段，是 <code>inputRequestRef</code></b>，<code>message.go:13</code>）。人在会话线程中回应即解除阻塞，工作项回到 <code>active</code>。输入请求因此是会话线程上的一等结构，而非旁路通道。</p>
+
+    <h3>6 · detached agent + survive-reattach</h3>
+    <p>每个智能体由独立 detached supervisor 托管。worker daemon 重启或控制信道断连，supervisor 不退出；重连后重新附着到既有执行（survive-reattach）。控制信道为有序可重放日志：worker 主动消费并 ack offset（<code>environment.Worker.lastAckedOffset</code>），配合执行层幂等键实现<b>双层去重</b>；SSE 优先推送、轮询回退保证最终送达。</p>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION C — DDD 设计（校准三 Tab） -->
+  <!-- ============================================================ -->
+  <div class="section-title">C · DDD 设计（以现行代码校准）</div>
+  <p class="lead" style="margin:8px 4px 14px">下列三个视图对应 DDD 的三个层次，并以现行 <code>internal/*</code> 代码逐项校准（修正了 v2.7 设计页中已记录的事实错误）。所有图均为纯 HTML+CSS 元素绘制，无 SVG / mermaid。</p>
+
+  <div class="legend">
+    <span><span class="swatch" style="background:#e03131"></span>核心域 Core</span>
+    <span><span class="swatch" style="background:#1971c2"></span>支撑域 Supporting</span>
+    <span><span class="swatch" style="background:#868e96"></span>通用域 Generic</span>
+    <span><span class="swatch" style="background:#f76707"></span>聚合根 AR</span>
+    <span><span class="swatch" style="background:#74c0fc"></span>实体 Entity</span>
+    <span><span class="swatch" style="background:#9775fa"></span>值对象 VO（虚线）</span>
+    <span><span class="swatch" style="background:#ffd43b"></span>Repository</span>
+    <span><span class="swatch" style="background:#f76707"></span>领域事件 Event</span>
+  </div>
+
+  <div class="tabbar">
+    <button class="on" onclick="showTab(0, this)">① 限界上下文地图</button>
+    <button onclick="showTab(1, this)">② 战术设计</button>
+    <button onclick="showTab(2, this)">③ Event Storming</button>
+  </div>
+
+  <!-- ===== TAB ① 限界上下文地图 ===== -->
+  <div class="tabpane on">
+    <div class="prose" style="padding-top:14px">
+      <p>以现行代码的组合根（cli + webconsole + workerdaemon）所装配的上下文为准。<b>核心域</b>承载业务真相，<b>支撑域</b>提供横向能力，<b>身份 Identity</b> 是一个<b>真实的 4 聚合 BC</b>（而非仅共享内核 VO），<code>SecretManagement</code> 为小型支撑域。已退役：<b>TaskRuntime + Discussion</b> 合入 <code>projectmanager</code>，<b>Workforce-as-BC</b> 折入 <code>environment</code>，<b>Cognition</b>（supervisor 表已在 <code>0036_supervisor_cut</code> 删除）与空目录 <code>discussion</code> 均为<b>死代码</b>。</p>
+    </div>
+
+    <div class="legend" style="margin-top:8px">
+      <span><b class="rel ud">U/D</b> 上游/下游</span>
+      <span><b class="rel ohs">OHS</b> 开放主机服务</span>
+      <span><b class="rel acl">ACL</b> 防腐层</span>
+      <span><b class="rel cf">CF</b> 遵从者</span>
+      <span><b class="rel sk">SK</b> 共享内核</span>
+    </div>
+
+    <h2 class="section-title" style="margin:18px 4px 10px">上下文划分</h2>
+    <div class="ctx-row">
+      <div class="ctx core">
+        <h4>项目管理 ProjectManager</h4>
+        <div class="sub pkg">internal/projectmanager</div>
+        <span class="role">核心域 CORE</span>
+        <ul>
+          <li>Project / Issue / Task / Member</li>
+          <li>订阅真相 + OrgSequence（T&lt;n&gt;/I&lt;n&gt;）</li>
+        </ul>
+      </div>
+      <div class="ctx core">
+        <h4>智能体 Agent</h4>
+        <div class="sub pkg">internal/agent</div>
+        <span class="role">核心域 CORE</span>
+        <ul>
+          <li>Agent / AgentWorkItem / ActivityEvent</li>
+          <li>单活工作项；pm://tasks/{id} 引用</li>
+        </ul>
+      </div>
+      <div class="ctx core">
+        <h4>环境 Environment</h4>
+        <div class="sub pkg">environment + workforce + files + blobstore</div>
+        <span class="role">核心域 CORE</span>
+        <ul>
+          <li>Worker / AgentInstance / BootstrapToken</li>
+          <li>FileTransferSession / BlobStore</li>
+        </ul>
+      </div>
+    </div>
+    <div class="ctx-row">
+      <div class="ctx core">
+        <h4>会话 Conversation</h4>
+        <div class="sub pkg">internal/conversation</div>
+        <span class="role">核心域 CORE</span>
+        <ul>
+          <li>Conversation / Message（追加写）</li>
+          <li>kind：dm / channel / task / issue</li>
+        </ul>
+      </div>
+      <div class="ctx support">
+        <h4>可观测性 Observability</h4>
+        <div class="sub pkg">observability (+ outbox)</div>
+        <span class="role">支撑域 · 只读</span>
+        <ul>
+          <li>Event 追加写 + 投影读模型</li>
+          <li>纯下游消费者（OHS）</li>
+        </ul>
+      </div>
+      <div class="ctx support">
+        <h4>身份 Identity</h4>
+        <div class="sub pkg">internal/identity</div>
+        <span class="role">支撑域 · 真实 BC + SK</span>
+        <ul>
+          <li>Identity / Organization / Member / Invitation</li>
+          <li>另供 IdentityRef 共享内核词汇</li>
+        </ul>
+      </div>
+      <div class="ctx generic">
+        <h4>SecretManagement</h4>
+        <div class="sub pkg">internal/secretmgmt</div>
+        <span class="role">支撑域</span>
+        <ul>
+          <li>UserSecret（每用户 API key）</li>
+          <li>migration 0012</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="section-title" style="margin:22px 4px 10px">集成关系</h2>
+    <div class="maprow">
+      <span class="node core">智能体</span><span class="ar">→</span><span class="rel acl">ACL</span><span class="ar">→</span><span class="node core">项目管理</span>
+      <span class="relnote">工作项以 <code>pm://tasks/{id}</code> 非拥有引用任务</span>
+    </div>
+    <div class="maprow">
+      <span class="node core">智能体</span><span class="ar">→</span><span class="rel ud">D</span><span class="ar">→</span><span class="node core">环境</span>
+      <span class="relnote">由 Worker 状态派生 Agent.availability（环境优先）</span>
+    </div>
+    <div class="maprow">
+      <span class="node core">会话</span><span class="ar">→</span><span class="rel cf">CF</span><span class="ar">→</span><span class="node core">项目管理</span>
+      <span class="relnote">参与者镜像订阅真相（participant_projector）</span>
+    </div>
+    <div class="maprow">
+      <span class="node core">项目管理</span><span class="ar">→</span><span class="rel ud">U/D</span><span class="ar">→</span><span class="node core">会话</span>
+      <span class="relnote">每 Task/Issue 创建并绑定一条会话（1:1，ADR-0047）</span>
+    </div>
+    <div class="maprow">
+      <span class="node core">各核心域</span><span class="ar">→</span><span class="rel ud">U/D</span><span class="ar">→</span><span class="node support">可观测性</span>
+      <span class="relnote">同事务追加领域事件，可观测性为纯下游</span>
+    </div>
+    <div class="maprow">
+      <span class="node support">可观测性</span><span class="ar">→</span><span class="rel ohs">OHS</span><span class="ar">→</span><span class="node">前端 / 运维</span>
+      <span class="relnote">机队/检视/查询 只读 API</span>
+    </div>
+    <div class="maprow">
+      <span class="node support">身份</span><span class="ar">→</span><span class="rel sk">SK</span><span class="ar">→</span><span class="node">全部域</span>
+      <span class="relnote">IdentityRef + organizationID 跨域多租户词汇</span>
+    </div>
+    <div class="maprow">
+      <span class="node core">环境</span><span class="ar">→</span><span class="rel acl">ACL</span><span class="ar">→</span><span class="node generic">外部 Agent CLI</span>
+      <span class="relnote">agentadapter 隔离 CLI 协议（ADR-0030）；files→blobstore 供应关系</span>
+    </div>
+  </div>
+
+  <!-- ===== TAB ② 战术设计 ===== -->
+  <div class="tabpane">
+    <div class="prose" style="padding-top:14px">
+      <p>逐 BC 拆解聚合根（<b style="color:#b54708">AR</b>）、实体、值对象（虚线）、Repository 与领域事件，状态机以代码枚举与迁移表为准；橙色为该聚合发出的领域事件（点分小写真实名）。</p>
+    </div>
+
+    <!-- 项目管理 -->
+    <div class="bc-block">
+      <h4>项目管理 · ProjectManager <span style="color:#868e96;font-weight:400">internal/projectmanager</span></h4>
+
+      <div class="agg">
+        <div class="agg-h">Task 任务 <span class="tag ar">AR</span></div>
+        <div class="agg-fields">id · projectID · title · description · status(TaskStatus) · assignee(IdentityRef) · derivedFromIssue · completedBy · blockedReason · createdBy · createdAt · updatedAt · version · orgNumber(T&lt;n&gt;)</div>
+        <div class="smrow"><span class="lbl">状态机：</span>
+          <span class="chip state">open</span><span class="smarrow">→</span>
+          <span class="chip state">assigned</span><span class="smarrow">→</span>
+          <span class="chip state">running</span><span class="smarrow">→</span>
+          <span class="chip state">blocked</span> / <span class="chip state">reopened</span><span class="smarrow">→</span>
+          <span class="chip term">completed</span> · <span class="chip term">verified</span> · <span class="chip term">canceled</span>
+        </div>
+        <div class="cols">
+          <div>
+            <div class="colh">值对象</div>
+            <span class="tag vo">TaskStatus（8 态 · 5 活跃 + 3 终态）</span>
+            <span class="tag vo">IdentityRef</span>
+          </div>
+          <div>
+            <div class="colh">Repository · 事件</div>
+            <div class="repo-line">TaskRepository · FindByID · ListByStatus · Save · Update</div>
+            <span class="evt">pm.task.created</span><span class="evt">pm.task.assigned</span><span class="evt">pm.task.reassigned</span><span class="evt">pm.task.state_changed</span><span class="evt">pm.task.subscribers_changed</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="agg">
+        <div class="agg-h">Issue 议题 <span class="tag ar">AR</span></div>
+        <div class="agg-fields">id · projectID · title · description · status(IssueStatus) · createdBy · createdAt · updatedAt · version · orgNumber(I&lt;n&gt;)</div>
+        <div class="agg-sub">注：会话绑定由 Conversation.ownerRef 持有，<b>Issue 不存</b> origin/concludedAt/conclusionSummary/conversationID。</div>
+        <div class="smrow"><span class="lbl">状态机：</span>
+          <span class="chip state">open</span><span class="smarrow">→</span>
+          <span class="chip state">in_progress</span><span class="smarrow">→</span>
+          <span class="chip state">resolved</span><span class="smarrow">→</span>
+          <span class="chip state">closed</span><span class="smarrow">→</span>
+          <span class="chip state">reopened</span>
+          <span class="lbl" style="margin-left:8px">+</span>
+          <span class="chip term">withdrawn（终态）</span>
+        </div>
+        <div class="cols">
+          <div>
+            <div class="colh">值对象</div>
+            <span class="tag vo">IssueStatus（6 态）</span>
+            <span class="tag vo">IdentityRef</span>
+          </div>
+          <div>
+            <div class="colh">Repository · 事件</div>
+            <div class="repo-line">IssueRepository · FindByID · ListByStatus · Save · Update</div>
+            <span class="evt">pm.issue.created</span><span class="evt">pm.issue.state_changed</span><span class="evt">pm.issue.subscribers_changed</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div class="agg">
+          <div class="agg-h">Project 项目 <span class="tag ar">AR</span></div>
+          <div class="agg-fields">id(proj-) · name · description · tags[] · organizationID · createdBy · version</div>
+          <div class="repo-line">ProjectRepository · FindByID · ListByOrg · Save</div>
+          <span class="evt">pm.project.created</span>
+        </div>
+        <div class="agg">
+          <div class="agg-h">ProjectMember 成员 <span class="tag ar">AR</span></div>
+          <div class="agg-fields">id(MemberID) · projectID · identityID · role · addedBy</div>
+          <div class="agg-sub">订阅是<b>两个独立类型</b>：TaskSubscriber + IssueSubscriber（两 repo）。另有 CodeRepoRef（AR）与 OrgSequence 分配器。</div>
+          <div class="repo-line">ProjectMemberRepository · TaskSubscriberRepository · IssueSubscriberRepository · CodeRepoRefRepository · OrgSequenceRepository.Allocate</div>
+          <span class="evt">pm.member.added</span><span class="evt">pm.member.removed</span>
+        </div>
+      </div>
+
+      <div class="svc">领域服务 · 任务/议题生命周期：校验状态机合法迁移 → 同事务写聚合 + 追加事件 → 触发工作项分派与会话参与者投影（跨聚合/跨上下文，故为领域服务）。</div>
+    </div>
+
+    <!-- 智能体 -->
+    <div class="bc-block">
+      <h4>智能体 · Agent <span style="color:#868e96;font-weight:400">internal/agent</span></h4>
+
+      <div class="agg">
+        <div class="agg-h">Agent 智能体 <span class="tag ar">AR</span></div>
+        <div class="agg-fields">id · organizationID · profile(Profile VO：Name/Description/Model/CLI/EnvVars) · skills[] · workerID(不可变) · lifecycle · lifecycleError · createdBy(IdentityRef) · identityMemberID · createdAt · updatedAt · version</div>
+        <div class="agg-sub">注：<b>无顶层 name/agentCLI/state/isBuiltin</b>，name 在 Profile 内。</div>
+        <div class="smrow"><span class="lbl">lifecycle：</span>
+          <span class="chip state">stopped</span><span class="smarrow">→</span>
+          <span class="chip state">running</span><span class="smarrow">→</span>
+          <span class="chip state">stopping</span>
+          <span class="lbl">·</span>
+          <span class="chip state">resetting</span>
+          <span class="lbl">·</span>
+          <span class="chip state">error（瞬态）</span>
+          <span class="lbl">·</span>
+          <span class="chip term">failed（崩溃熔断终态）</span>
+        </div>
+        <div class="cols">
+          <div>
+            <div class="colh">值对象</div>
+            <span class="tag vo">Profile</span>
+            <span class="tag vo">Availability（派生·不存储）</span>
+          </div>
+          <div>
+            <div class="colh">Repository · 事件</div>
+            <div class="repo-line">Repository · FindByID · ListByWorker · ListByOrg · Save · Update · Delete</div>
+            <span class="evt">agent.created</span><span class="evt">agent.lifecycle_changed</span><span class="evt">agent.work_item_transitioned</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="agg">
+        <div class="agg-h">AgentWorkItem 工作项 <span class="tag ar">AR</span></div>
+        <div class="agg-fields">id · agentID · taskRef(pm://tasks/{id} · 非拥有引用) · status(WorkItemStatus) · …</div>
+        <div class="smrow"><span class="lbl">状态机：</span>
+          <span class="chip state">queued</span><span class="smarrow">→</span>
+          <span class="chip state">active</span><span class="smarrow">⇄</span>
+          <span class="chip state">waiting_input</span><span class="smarrow">→</span>
+          <span class="chip term">done</span> · <span class="chip term">failed</span> · <span class="chip term">canceled</span> · <span class="chip term">superseded</span>
+        </div>
+        <div class="cols">
+          <div>
+            <div class="colh">值对象 / 不变式</div>
+            <span class="tag vo">WorkItemStatus（7 态）</span>
+            <span class="tag vo">TaskRef（pm://tasks/{id}）</span>
+            <div class="agg-sub">单智能体同时仅 1 条活跃工作项（HasActiveWorkItem）。</div>
+          </div>
+          <div>
+            <div class="colh">Repository</div>
+            <div class="repo-line">WorkItemRepository · FindByID · ListByAgent · ListByTask · ListByStatus · HasActiveWorkItem · Save · Update</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="agg">
+        <div class="agg-h">AgentActivityEvent 活动事件 <span class="tag ar">AR · 追加写</span></div>
+        <div class="agg-fields">append-only 观测流：智能体冗长中间输出落此，不进会话线程。</div>
+        <div class="repo-line">ActivityEventRepository · Append · ListByAgent · ListByWorkItem</div>
+      </div>
+
+      <div class="svc">领域服务 · 工作项分派：任务派给 Agent → 建 queued 工作项；重派 → 旧 superseded + 新 queued（跨聚合协调，强制单活工作项）。可用性投影：由 Worker 状态 + Agent lifecycle 派生 availability（跨上下文，环境优先）。</div>
+    </div>
+
+    <!-- 环境 -->
+    <div class="bc-block">
+      <h4>环境 · Environment <span style="color:#868e96;font-weight:400">environment + workforce + files + blobstore</span></h4>
+      <div class="agg-sub" style="margin:0 0 8px">这是 4 个包的<b>文档合并</b>：丰富的 Worker 字段在 <code>workforce</code>，瘦控制信道 AR 在 <code>environment</code>，文件在 <code>files</code>，blob 在 <code>blobstore</code>。</div>
+
+      <div class="cols">
+        <div class="agg">
+          <div class="agg-h">Worker（规范/丰富 AR） <span class="tag ar">AR · workforce</span></div>
+          <div class="agg-fields">id · name · status · capabilities[]Capability · concurrency · discovery · lastHeartbeatAt · workingSeconds · enrolledAt · onlineAt · offlineAt · offlineReason · offlineMessage · organizationID · version</div>
+          <div class="repo-line">WorkerRepository · FindByID · ListByOrg · Save · Update</div>
+        </div>
+        <div class="agg">
+          <div class="agg-h">Worker（控制信道 AR） <span class="tag ar">AR · environment</span></div>
+          <div class="agg-fields">id · name · status(offline⇄online) · lastAckedOffset · lastHeartbeatAt · createdAt · updatedAt · version</div>
+          <div class="agg-sub">瘦 AR，不存 org；承载 offset ack + 心跳。</div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div class="agg">
+          <div class="agg-h">AgentInstance · BootstrapToken <span class="tag ar">AR · workforce</span></div>
+          <div class="agg-fields">智能体实例 + 入网引导令牌</div>
+          <div class="repo-line">AgentInstanceRepository · BootstrapTokenRepository</div>
+          <span class="evt">workforce.worker.enrolled</span><span class="evt">workforce.worker.online</span><span class="evt">workforce.worker.offline</span><span class="evt">workforce.worker.bootstrap_token.issued</span><span class="evt">workforce.agent_instance.created</span>
+        </div>
+        <div class="agg">
+          <div class="agg-h">FileTransferSession 传输会话 <span class="tag ar">AR · files</span></div>
+          <div class="agg-fields">id · fileURI(FileURI) · transferURI(ac://transfers/{id}) · direction(TransferDirection) · status · contentType · size · sha256 · scope(FileScope) · scopeID · createdBy · createdAt · expiresAt</div>
+          <div class="smrow"><span class="lbl">状态机：</span>
+            <span class="chip state">open</span><span class="smarrow">→</span>
+            <span class="chip term">completed</span> · <span class="chip term">canceled</span> · <span class="chip term">expired</span>
+          </div>
+          <div class="cols">
+            <div>
+              <div class="colh">值对象 / 实体</div>
+              <span class="tag vo">FileURI（ac://files/{ulid}）</span>
+              <span class="tag entity">FileReference</span>
+            </div>
+            <div>
+              <div class="colh">Repository</div>
+              <div class="repo-line">FileTransferSessionRepository · FileReferenceRepository</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="agg">
+        <div class="agg-h">BlobStore 对象存储 <span class="tag ar">通用基础设施 · blobstore</span></div>
+        <div class="agg-fields">LocalDir 内容寻址（sha256）· 引用计数 GC（files/service/gc.go：ref_count=0 + 宽限 → 回收）。</div>
+      </div>
+
+      <div class="svc">领域服务 · 控制信道：worker 主动消费有序可重放日志（offset ack）+ 执行层幂等键双层去重；SSE 优先、轮询回退。文件传输：建会话即铸 fileURI → 完成进 GC 宽限 → 下载先校验可达性。</div>
+    </div>
+
+    <!-- 会话 -->
+    <div class="bc-block">
+      <h4>会话 · Conversation <span style="color:#868e96;font-weight:400">internal/conversation</span></h4>
+
+      <div class="agg">
+        <div class="agg-h">Conversation 会话 <span class="tag ar">AR</span></div>
+        <div class="agg-fields">id · kind(ConversationKind) · ownerRef(OwnerRef) · projectRef · name · description · parentConversationID · participants[]ParticipantElement · createdBy(IdentityRef) · status(active/closed/archived) · openedAt · closedAt · closedReason · closedMessage · archivedAt · archivedBy · organizationID · version</div>
+        <div class="smrow"><span class="lbl">kind（恰 4 值）：</span>
+          <span class="chip kind">dm</span><span class="chip kind">channel</span><span class="chip kind">task</span><span class="chip kind">issue</span>
+          <span class="lbl" style="margin-left:8px">status：</span>
+          <span class="chip state">active</span><span class="smarrow">→</span><span class="chip state">closed</span><span class="smarrow">→</span><span class="chip term">archived</span>
+        </div>
+        <div class="cols">
+          <div>
+            <div class="colh">实体 · 值对象</div>
+            <span class="tag entity">Message（追加写）</span>
+            <span class="tag vo">ParticipantElement</span>
+            <span class="tag vo">OwnerRef · ContextRefs · MessageAttachment</span>
+            <span class="tag vo">ConversationMessageReference（carry-over）</span>
+            <div class="agg-sub">Message 字段：id · conversationID · senderIdentityID(IdentityRef) · contentKind · content · direction · <b>inputRequestRef</b>（非 work_item_ref） · contextRefs · attachments[] · postedAt。</div>
+          </div>
+          <div>
+            <div class="colh">Repository · 事件</div>
+            <div class="repo-line">ConversationRepository · MessageRepository · ConversationMessageReferenceRepository · UserConversationReadStateRepository</div>
+            <span class="evt">conversation.opened</span><span class="evt">conversation.message_added</span><span class="evt">conversation.closed</span><span class="evt">conversation.archived</span><span class="evt">conversation.participant_joined</span><span class="evt">conversation.participant_left</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="svc">领域服务 · 参与者管理：把项目管理订阅真相投影为会话参与者（Conformist，乐观锁 R-M-W）。消息写入：校验仅 active 可写 + 参与者准入 → 追加消息 → 发 conversation.message_added。</div>
+    </div>
+
+    <!-- 可观测性 -->
+    <div class="bc-block">
+      <h4>可观测性 · Observability <span style="color:#1864ab;font-weight:400">（支撑域 · 只读）internal/observability</span></h4>
+
+      <div class="agg">
+        <div class="agg-h">Event 事件 <span class="tag ar">AR · 追加写</span></div>
+        <div class="agg-fields">ID(EventID) · OccurredAt · Seq · EventType · Refs(EventRefs) · Actor · Payload(map[string]any) · CorrelationID</div>
+        <div class="cols">
+          <div>
+            <div class="colh">值对象 / 不变式</div>
+            <span class="tag vo">EventType（点分小写）</span>
+            <span class="tag vo">Actor（system / user: / worker: / agent:）</span>
+            <span class="tag vo">EventRefs（omitempty）</span>
+            <div class="agg-sub">状态变更与事件追加共用同一事务（reason→message 成对）。</div>
+          </div>
+          <div>
+            <div class="colh">Repository</div>
+            <div class="repo-line">EventRepository · Append · Find(filter) · FindSinceSeq · FindByActorSince · FindByRefSince</div>
+            <div class="agg-sub">投影读模型见 observability/projection/。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="svc">领域服务 · 查询与投影：按类型/actor/refs/时间过滤物化时间线；机队/检视读模型 + 订阅者投影，事件回放重建。纯下游，对前端/运维以 OHS 只读暴露。</div>
+    </div>
+
+    <!-- 身份 + SecretManagement -->
+    <div class="bc-block">
+      <h4>身份 · Identity <span style="color:#1864ab;font-weight:400">（真实 4 聚合 BC + 共享内核）internal/identity</span></h4>
+      <div class="cols">
+        <div class="agg">
+          <div class="agg-h">Identity / Organization <span class="tag ar">AR ×2</span></div>
+          <div class="agg-fields">Identity（identity.go:18）· Organization（organization.go:16，多租户 organizationID 来源）</div>
+          <div class="repo-line">IdentityRepository · OrganizationRepository</div>
+        </div>
+        <div class="agg">
+          <div class="agg-h">Member / Invitation <span class="tag ar">AR ×2</span></div>
+          <div class="agg-fields">Member（member.go:17）· Invitation（invitation.go:9）</div>
+          <div class="repo-line">MemberRepository · InvitationRepository</div>
+        </div>
+      </div>
+      <div class="svc">另以 <b>IdentityRef</b> VO 作为跨域共享内核词汇（user:/agent:/system），并由 Organization/Member 提供多租户 organizationID 范围。v2.7.1 增 email + last-session 列。</div>
+    </div>
+
+    <div class="bc-block">
+      <h4>SecretManagement <span style="color:#868e96;font-weight:400">（支撑域）internal/secretmgmt</span></h4>
+      <div class="agg">
+        <div class="agg-h">UserSecret <span class="tag ar">AR</span></div>
+        <div class="agg-fields">每用户 API key（user_secret.go:21；migration 0012）</div>
+        <div class="repo-line">UserSecretRepository</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB ③ Event Storming ===== -->
+  <div class="tabpane">
+    <div class="prose" style="padding-top:14px">
+      <p>按真实业务流梳理 <b>Actor → Command → Aggregate → Event → Policy</b> 链路，事件名为代码实际发出的点分小写名。颜色遵循社区标准。</p>
+    </div>
+
+    <div class="legend" style="margin-top:8px">
+      <span><span class="es actor">Actor 触发者</span></span>
+      <span><span class="es cmd">Command 命令</span></span>
+      <span><span class="es ar">Aggregate 聚合</span></span>
+      <span><span class="es event">Event 领域事件</span></span>
+      <span><span class="es policy">Policy 策略</span></span>
+    </div>
+
+    <h2 class="section-title" style="margin:18px 4px 10px">🆕 创建并派发任务（项目管理 → 智能体 → 会话）</h2>
+    <div class="es-flow">
+      <span class="es actor">用户（控制台/CLI/MCP）</span><span class="es-arrow">→</span>
+      <span class="es cmd">create_task</span><span class="es-arrow">→</span>
+      <span class="es ar">Task</span><span class="es-arrow">→</span>
+      <span class="es event">pm.task.created</span>
+    </div>
+    <div class="es-flow">
+      <span class="es policy">策略：派发</span><span class="es-arrow">→</span>
+      <span class="es cmd">assign_task</span><span class="es-arrow">→</span>
+      <span class="es ar">Task · AgentWorkItem</span><span class="es-arrow">→</span>
+      <span class="es event">pm.task.assigned</span><span class="es event">agent.work_item_transitioned</span>
+    </div>
+    <div class="es-flow">
+      <span class="es actor">控制信道（worker）</span><span class="es-arrow">→</span>
+      <span class="es cmd">activate_work_item</span><span class="es-arrow">→</span>
+      <span class="es ar">AgentWorkItem（queued→active）</span><span class="es-arrow">→</span>
+      <span class="es event">agent.work_item_transitioned</span>
+    </div>
+    <div class="es-flow">
+      <span class="es actor">智能体</span><span class="es-arrow">→</span>
+      <span class="es cmd">post_task_message</span><span class="es-arrow">→</span>
+      <span class="es ar">Message</span><span class="es-arrow">→</span>
+      <span class="es event">conversation.message_added</span>
+    </div>
+    <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：单智能体同时仅 1 条活跃工作项；冗长中间输出落 AgentActivityEvent 观测流，不进会话。</span></div>
+
+    <h2 class="section-title" style="margin:18px 4px 10px">✅ 完成与验收（智能体 → 项目管理 → 会话）</h2>
+    <div class="es-flow">
+      <span class="es actor">智能体</span><span class="es-arrow">→</span>
+      <span class="es cmd">complete_task</span><span class="es-arrow">→</span>
+      <span class="es ar">Task（running→completed）</span><span class="es-arrow">→</span>
+      <span class="es event">pm.task.state_changed</span><span class="es event">agent.work_item_transitioned</span>
+    </div>
+    <div class="es-flow">
+      <span class="es policy">策略：待验收</span><span class="es-arrow">→</span>
+      <span class="es actor">用户 / 同侪 Agent</span><span class="es-arrow">→</span>
+      <span class="es cmd">verify_task</span><span class="es-arrow">→</span>
+      <span class="es ar">Task（completed→verified）</span><span class="es-arrow">→</span>
+      <span class="es event">pm.task.state_changed</span>
+    </div>
+    <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：验收者 ≠ 完成者（禁止自验，支持同侪评审）。</span></div>
+
+    <h2 class="section-title" style="margin:18px 4px 10px">💬 议题生命周期（会话 → 项目管理）</h2>
+    <div class="es-flow">
+      <span class="es actor">用户</span><span class="es-arrow">→</span>
+      <span class="es cmd">create_issue</span><span class="es-arrow">→</span>
+      <span class="es ar">Issue + Conversation（1:1）</span><span class="es-arrow">→</span>
+      <span class="es event">pm.issue.created</span><span class="es event">conversation.opened</span>
+    </div>
+    <div class="es-flow">
+      <span class="es actor">用户</span><span class="es-arrow">→</span>
+      <span class="es cmd">resolve_issue / close_issue</span><span class="es-arrow">→</span>
+      <span class="es ar">Issue（in_progress→resolved→closed）</span><span class="es-arrow">→</span>
+      <span class="es event">pm.issue.state_changed</span>
+    </div>
+    <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">状态机：open→in_progress→resolved→closed（+reopened / withdrawn 终态）；议题↔会话 1:1 由 ownerRef 绑定。</span></div>
+
+    <h2 class="section-title" style="margin:18px 4px 10px">📁 文件上传与引用（环境 → 会话）</h2>
+    <div class="es-flow">
+      <span class="es actor">智能体 / 用户</span><span class="es-arrow">→</span>
+      <span class="es cmd">upload_file(scope=task)</span><span class="es-arrow">→</span>
+      <span class="es ar">FileTransferSession（open）+ BlobStore</span><span class="es-arrow">→</span>
+      <span class="es event">files：session open → completed</span>
+    </div>
+    <div class="es-flow">
+      <span class="es policy">策略：附件入会话</span><span class="es-arrow">→</span>
+      <span class="es cmd">post_message + attach_file</span><span class="es-arrow">→</span>
+      <span class="es ar">Message + FileReference</span><span class="es-arrow">→</span>
+      <span class="es event">conversation.message_added</span>
+    </div>
+    <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">一 blob 多 scope 引用；ref_count=0 + 宽限期后 GC 回收（files/service/gc.go）。</span></div>
+
+    <h2 class="section-title" style="margin:18px 4px 10px">💓 Worker 心跳与 Agent 可用性（环境 → 智能体）</h2>
+    <div class="es-flow">
+      <span class="es actor">worker 守护进程</span><span class="es-arrow">→</span>
+      <span class="es cmd">heartbeat / ack offset</span><span class="es-arrow">→</span>
+      <span class="es ar">Worker</span><span class="es-arrow">→</span>
+      <span class="es event">workforce.worker.online</span>
+    </div>
+    <div class="es-flow">
+      <span class="es policy">策略：派生可用性（环境优先）</span><span class="es-arrow">→</span>
+      <span class="es ar">Agent.availability（投影·不落库）</span>
+    </div>
+    <div class="es-flow">
+      <span class="es policy">心跳超时</span><span class="es-arrow">→</span>
+      <span class="es ar">Worker</span><span class="es-arrow">→</span>
+      <span class="es event">workforce.worker.offline</span><span class="es-arrow">→</span>
+      <span class="es policy">级联</span><span class="es-arrow">→</span>
+      <span class="es event">agent → unavailable</span>
+    </div>
+    <div class="es-flow" style="margin-bottom:8px"><span style="font-size:12px;color:#868e96">Agent.availability 为只读派生；Worker 状态优先。supervisor detached，断连可 survive-reattach。</span></div>
+  </div>
+
+</main>
+
+<footer class="foot">
+  agent-center · 多智能体编排平台 ·
+  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
+  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
+</footer>
+
+<script>
+  function showTab(n, btn) {
+    var panes = document.querySelectorAll('.tabpane');
+    var btns = document.querySelectorAll('.tabbar button');
+    for (var i = 0; i < panes.length; i++) panes[i].classList.remove('on');
+    for (var j = 0; j < btns.length; j++) btns[j].classList.remove('on');
+    panes[n].classList.add('on');
+    btn.classList.add('on');
+  }
+</script>
+
+</body>
+</html>

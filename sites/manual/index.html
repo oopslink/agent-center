@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户手册 · agent-center</title>
+<meta name="description" content="agent-center 用户手册：安装、单机 / 多机部署、CLI 命令参考、worker run --config、MCP 工具、Web Console 使用与命名约定。所有命令均按当前代码校验，可直接复制使用。">
+<link rel="stylesheet" href="../assets/site.css">
+<style>
+/* page-specific: TOC sidebar layout for the manual */
+.manual-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+.toc { position: sticky; top: 76px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px 14px; box-shadow: var(--shadow); font-size: 13px; }
+.toc .toc-h { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-mute); font-weight: 700; margin: 0 0 10px 4px; }
+.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+.toc li { margin: 0; }
+.toc a { display: block; text-decoration: none; color: var(--ink-soft); padding: 6px 10px; border-radius: var(--r-sm); border-left: 2px solid transparent; transition: background .12s, color .12s, border-color .12s; }
+.toc a:hover { background: #eef2f9; color: var(--primary); border-left-color: #74c0fc; }
+.manual-body { min-width: 0; }
+.manual-body .prose { scroll-margin-top: 70px; }
+.manual-body .prose + .prose { margin-top: 22px; }
+.manual-body h2:first-child { margin-top: 14px; }
+@media (max-width: 920px) {
+  .manual-layout { grid-template-columns: 1fr; }
+  .toc { position: static; top: auto; }
+  .toc ol { display: flex; flex-wrap: wrap; gap: 4px; }
+  .toc a { padding: 5px 10px; border-left: none; border: 1px solid var(--border); border-radius: var(--r-pill); }
+  .toc a:hover { border-left: 1px solid #74c0fc; }
+}
+</style>
+</head>
+<body>
+
+<header class="site-hd">
+  <div class="hd-inner">
+    <a class="brand" href="../index.html">agent-center<span class="dot">·</span></a>
+    <nav class="hd-nav">
+      <a href="../product/index.html">产品介绍</a>
+      <a class="active" href="../manual/index.html">用户手册</a>
+      <a href="../dev/v2.7.1/index.html">开发指引</a>
+      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="crumb"><a href="../index.html">首页</a> › 用户手册</div>
+
+<section class="hero sm">
+  <div class="inner">
+    <span class="eyebrow">用户手册 · 安装 / 部署 / CLI / MCP</span>
+    <h1>用户手册</h1>
+    <p class="lede">从零安装一个 center，从任意机器接入 worker，再到 CLI 命令、worker 配置、MCP 工具与 Web Console 使用。本页所有命令、端口、标志、工具名均按当前代码校验，可直接复制运行。</p>
+  </div>
+</section>
+
+<main class="wrap wide" style="margin-top: 28px;">
+<div class="manual-layout">
+
+  <nav class="toc" aria-label="目录">
+    <div class="toc-h">本页目录</div>
+    <ol>
+      <li><a href="#install">1. 安装</a></li>
+      <li><a href="#deploy">2. 部署</a></li>
+      <li><a href="#cli">3. CLI 命令参考</a></li>
+      <li><a href="#worker-run">4. worker run --config</a></li>
+      <li><a href="#mcp">5. MCP 工具</a></li>
+      <li><a href="#console">6. Web Console 使用</a></li>
+      <li><a href="#conventions">7. 约定</a></li>
+    </ol>
+  </nav>
+
+  <div class="manual-body">
+
+  <!-- ============ 1. 安装 ============ -->
+  <article class="prose" id="install">
+    <h2>1. 安装</h2>
+    <p>
+      agent-center 是<strong>单个二进制</strong> <code>agent-center</code>，以不同模式运行（center server、worker 守护进程、MCP host、agent-supervisor）。安装通过随发行包一起分发的 <code>./install</code> 脚本完成：一条命令装 center，一条命令装 worker。
+    </p>
+
+    <h3>默认端口</h3>
+    <table>
+      <thead><tr><th>端点</th><th>地址</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>Web Console</td><td><code>127.0.0.1:7100</code></td><td>仅回环；安装后在浏览器打开</td></tr>
+        <tr><td>Center server</td><td><code>:7050</code></td><td>从 <code>:7000</code> 移开，因为 macOS AirPlay Receiver 占用 7000</td></tr>
+        <tr><td>Admin TCP（worker 接入）</td><td><code>0.0.0.0:7300</code></td><td>worker 拨号 <code>tcp://&lt;host&gt;:7300</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <b>macOS AirPlay 提醒：</b> Ventura 及更高版本的 AirPlay Receiver 监听 7000 端口；当前安装配置默认 center 监听 <code>:7050</code>，无需手动避让。
+    </div>
+
+    <h3>安装 center（发行包方式）</h3>
+    <pre><code>cd agent-center-v2.7.x-&lt;os&gt;-&lt;arch&gt;/
+./install center
+# v2.7 默认前台：install center 只落地二进制 + 配置，不注册后台服务。
+# 它会打印出运行命令：
+agent-center server --config=&lt;prefix&gt;/etc/config.yaml    # 日志输出到 stdout
+# 然后打开 http://127.0.0.1:7100 —— 首次设置会在浏览器里铸出 bootstrap admin token。</code></pre>
+    <ul>
+      <li><strong>默认前台运行（v2.7）：</strong><code>install center</code> 不注册后台服务。需要开机自启的托管服务时加 <code>--service</code>（macOS 用 LaunchAgent，Linux 用 systemd）。</li>
+      <li>幂等且支持升级。默认前缀 <code>~/.agent-center</code>（macOS / Linux 用户模式）或 <code>/opt/agent-center</code>（Linux 系统模式）；用 <code>--prefix=&lt;dir&gt;</code> 覆盖。</li>
+    </ul>
+    <p><strong><code>install center</code> 常用标志：</strong></p>
+    <table>
+      <thead><tr><th>标志</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>--prefix=&lt;path&gt;</code></td><td>安装前缀</td></tr>
+        <tr><td><code>--service</code></td><td>注册托管服务（LaunchAgent / systemd），开机自启</td></tr>
+        <tr><td><code>--port=&lt;n&gt;</code></td><td>Web Console 端口（默认 7100，回环）</td></tr>
+        <tr><td><code>--tcp-listen=&lt;host:port&gt;</code></td><td>开放 admin TCP 供跨机 worker 接入，例如 <code>0.0.0.0:7300</code>；单机部署留空即可</td></tr>
+        <tr><td><code>--bootstrap-public-url=&lt;host:port&gt;</code></td><td>当 center 绑定在私有地址时，对外公布的接入地址</td></tr>
+        <tr><td><code>--dry-run</code></td><td>仅打印计划动作，不改动任何东西</td></tr>
+      </tbody>
+    </table>
+
+    <h3>安装 worker</h3>
+    <p>
+      推荐从 Web Console 的 <strong>Fleet → + Add Worker</strong> 获取完整命令（已带 bootstrap URL、一次性 enroll token、固定指纹、唯一 <code>--worker-id</code>）：
+    </p>
+    <pre><code>./install worker \
+  --bootstrap=tcp://HOST:7300 \
+  --server-fingerprint=sha256:... \
+  --worker-id=worker-f3c04c1d \
+  --worker-name='test-1' \
+  --token=acat_xxxxxxxxx</code></pre>
+    <ul>
+      <li>默认前台运行；加 <code>--service</code> 注册托管 LaunchAgent / systemd 单元。</li>
+      <li><strong>v2.7.1：</strong><code>install worker</code> 会把所有接入字段写入 <code>&lt;prefix&gt;/etc/config.yaml</code>（权限 <code>0600</code>），随后打印的启动命令简化为 <code>agent-center worker run --config=&lt;prefix&gt;/etc/config.yaml</code>，命令行上不再带任何密钥。</li>
+      <li><code>--worker-id</code> <strong>必填</strong>（无主机名默认值）；当 <code>--bootstrap</code> 为 <code>tcp://</code> 时 <code>--server-fingerprint</code> 必填。</li>
+      <li>同机多 worker：每个落在 <code>&lt;prefix&gt;/workers/&lt;worker-id&gt;/</code> 下；用 <code>--service</code> 时每个得到标签 <code>com.agent-center.worker.&lt;worker-id&gt;</code>。</li>
+    </ul>
+    <div class="callout info">
+      <b>接入端点的标志名注意：</b> <code>./install worker</code> 与 Web Console 用的是 <code>--bootstrap</code>。而引导脚本 <code>install.sh</code> 的 worker 模式用的是 <code>--center</code>（见下文“从源码安装”）。两者指向同一个 admin 端点 URL，只是命令不同、拼写不同 —— 复制时认准你正在用的那条命令。
+    </div>
+
+    <h3>从源码安装（引导脚本 <code>install.sh</code>）</h3>
+    <p>仓库根目录的 <code>install.sh</code> 是一个薄引导器：克隆 / 拉取一份托管源码到 <code>~/.agent-center/src/agent-center</code>，解析 ref，构建后交给同样的 <code>./install center|worker</code> 路径。</p>
+    <pre><code># 交互式向导：
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh | bash
+
+# 固定 tag 安装 center：
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh \
+  | bash -s -- center --version v2.7.1
+
+# worker（注意：install.sh 用 --center，不是 --bootstrap）：
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh \
+  | bash -s -- worker \
+    --version v2.7.1 \
+    --center tcp://HOST:7300 \
+    --server-fingerprint sha256:... \
+    --token enroll_... \
+    --worker-name my-box
+
+# 仅预览，不改动任何东西：
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh \
+  | bash -s -- center --dry-run</code></pre>
+    <ul>
+      <li>模式：<code>center</code> / <code>worker</code> / <code>dev</code>。</li>
+      <li>ref 解析：<code>--version</code> 优先；否则 <code>--channel stable|main|dev</code>（<code>stable</code> = 最高 <code>vX.Y.Z</code> tag，<code>main</code> = 不稳定默认）。可选 <code>--expected-commit</code> 做完整性校验。</li>
+      <li>worker 模式标志：<code>--center &lt;url&gt;</code>、<code>--server-fingerprint</code>、<code>--token</code>、<code>--worker-name</code>。密钥（<code>--token</code> / <code>--server-fingerprint</code>）只转发、不打印；<code>--dry-run</code> 不改动任何东西。</li>
+    </ul>
+    <div class="callout warn">
+      <b>源码安装的 worker 标志与 release 路径不一致：</b> <code>install.sh worker</code> 用 <code>--center</code> 指定 center 地址，且没有 <code>--worker-id</code>（id 在接入时由 center 分配 / 回填）。如果你走的是 release 包里的 <code>./install worker</code>，请用 <code>--bootstrap</code> 并显式传 <code>--worker-id</code>。
+    </div>
+
+    <h3>升级</h3>
+    <pre><code># center（源码检出方式）：
+git pull && make build              # 产出 ./bin/agent-center
+./bin/agent-center upgrade center
+
+# worker（指定子树）：
+./bin/agent-center upgrade worker --worker-id=worker-f3c04c1d</code></pre>
+    <ul>
+      <li>从 release 包升级：直接重跑 <code>./install center</code>（会检测到已有安装，走同一条原子 symlink 交换路径）。</li>
+      <li><code>upgrade center</code> 若前缀下没有现有安装会拒绝执行；升级过程保留配置。原子交换 <code>current</code> → 新版本，跑健康探针，探针失败自动回滚（5s 超时）；旧版本保留在 <code>&lt;prefix&gt;/versions/&lt;old&gt;/</code>。</li>
+    </ul>
+
+    <h3>智能体认证</h3>
+    <ul>
+      <li>worker 拉起智能体的 CLI（<code>claude</code>）；智能体复用 <strong>worker 用户自己的 Claude Code 所用的同一凭据</strong> —— 无需单独 API key。</li>
+      <li>订阅 <code>/login</code> 开箱即用（macOS keychain）；<code>ANTHROPIC_API_KEY</code> 同样可用。</li>
+      <li>智能体以 <code>--setting-sources user,project</code> 和 <code>--strict-mcp-config</code> 运行 claude（只加载它自己的 agent-center MCP）。</li>
+    </ul>
+    <div class="callout warn">
+      <b>安全注意：</b> 智能体会在 <code>bypassPermissions</code> 下继承 worker 用户的 <code>~/.claude</code> hooks。完整的用户级隔离计划在 v2.8 落地。
+    </div>
+
+    <h3>从源码构建（开发）</h3>
+    <p>前置：Go 1.22+、Node 20+（含 pnpm）、macOS 或 Linux。</p>
+    <pre><code>make build                  # 前端（vite）+ 后端（go），产出 ./bin/agent-center
+VERSION=v2.7.1 make build   # 指定版本
+pnpm --dir web run dev      # SPA 开发服务器 http://localhost:5173，代理 → 127.0.0.1:7100</code></pre>
+  </article>
+
+  <!-- ============ 2. 部署 ============ -->
+  <article class="prose" id="deploy">
+    <h2>2. 部署</h2>
+
+    <h3>单机部署</h3>
+    <p>把 center server + worker 守护进程 + Web Console 跑在同一台机器上。当前推荐流程只需两条命令：</p>
+    <pre><code>./install center                 # 单机默认 --tcp-listen=""，worker 走本地 unix socket
+./install worker --worker-id=... --bootstrap=... --token=... --server-fingerprint=...</code></pre>
+    <ul>
+      <li>单机只需默认 <code>--tcp-listen=""</code>：worker 通过本地 unix socket 连 center，无需开放 TCP。</li>
+      <li>center 安装示例输出：前缀 <code>~/.agent-center</code>、web 端口 <code>7100</code>、DB 在 <code>~/.agent-center/var/agent-center.db</code>、bootstrap token 在 <code>~/.agent-center/var/bootstrap_token</code>、Web Console 在 <code>http://127.0.0.1:7100</code>。</li>
+    </ul>
+    <div class="callout info">
+      <b>历史文档提醒：</b> 旧的单机部署文档（<code>docs/deployment/v2.2-mac-single-host.md</code>）使用旧的 <code>:7000</code> 监听端口和已停用的 CLI 命令（<code>project add</code>、<code>task new</code>、<code>dispatch</code>、<code>ps</code>）。这些命令在 v2.7 已全部退役 —— 请以本页与 v2.4 first-mile 流程为准。
+    </div>
+
+    <h3>多机部署（TCP + TLS，指纹固定）</h3>
+    <p>架构：center（主机 A）<code>←TCP+TLS→</code> worker（主机 B），采用 SSH 风格的指纹固定（fingerprint pinning），无 CA、无 mTLS。</p>
+    <p><strong>1. center 端开放 admin TCP：</strong></p>
+    <pre><code># 安装时开放跨机接入端口：
+./install center --tcp-listen=0.0.0.0:7300
+
+# 等价的配置键：
+# server:
+#   admin_tcp_listen: "0.0.0.0:7300"</code></pre>
+    <ul>
+      <li>TLS 证书 <code>admin-tls.{crt,key,fingerprint}</code> 在首次启动时自动生成。</li>
+      <li>从 <code>&lt;prefix&gt;/var/admin-tls.fingerprint</code> 读取指纹（worker 接入时需要）。</li>
+      <li>从 worker 主机方向放通 TCP <strong>7300</strong>。</li>
+    </ul>
+    <p><strong>2. worker 端接入并固定指纹：</strong></p>
+    <pre><code>./install worker \
+  --bootstrap=tcp://host-a.example.com:7300 \
+  --server-fingerprint='sha256:HH:HH:...' \
+  --worker-id=worker-... \
+  --token=acat_... \
+  --worker-name='remote-1'</code></pre>
+    <div class="callout info">
+      <b>关于 <code>--admin-target</code>：</b> 旧的多机文档（<code>v2.3-multi-host.md</code>）在 <code>worker run</code> 里用 <code>--admin-target=tcp://...</code>，并引用了已退役的独立 <code>agent-center-worker-daemon</code> 二进制与旧的 <code>:7000</code> 端口。当前 worker 守护进程已合并进统一的 <code>agent-center</code> 二进制（<code>agent-center worker run</code>）；<code>--bootstrap</code> 是 <code>--admin-target</code> 的友好别名，两者都可用，<code>--bootstrap</code> 是推荐拼写。
+    </div>
+    <p><strong>远程 worker 在私有绑定后面时：</strong>设置 <code>server.bootstrap_public_url</code>，或安装时 <code>install center --bootstrap-public-url=center.example.com:7300</code>。</p>
+
+    <h3>卸载</h3>
+    <pre><code>agent-center uninstall center [--prefix=...] [--purge] [--yes] [--dry-run]
+agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [--yes]</code></pre>
+    <p>默认保留 <code>&lt;prefix&gt;/var/</code>（sqlite + master.key + tokens）与 <code>logs/</code>。<code>--purge</code> 清除一切（除非加 <code>--yes</code>，否则会提示确认）。</p>
+
+    <h3>安装目录结构</h3>
+    <pre><code>~/.agent-center/
+├── current → versions/v2.7.1/
+├── versions/v2.7.1/{bin/, ...}
+├── etc/config.yaml
+├── var/{agent-center.db, admin.sock, bootstrap_token, admin-tls.{crt,key,fingerprint}}
+├── logs/{stdout.log, stderr.log}
+└── workers/&lt;worker-id&gt;/{current, var/{worker.db, worker-token}, logs/}</code></pre>
+  </article>
+
+  <!-- ============ 3. CLI 命令参考 ============ -->
+  <article class="prose" id="cli">
+    <h2>3. CLI 命令参考</h2>
+    <p>
+      v2.7 的 CLI 刻意收窄到 <strong>安装 / 升级 / 卸载 / 运行 + 运维命令</strong>。数据管理类子命令（<code>task create</code>、<code>issue open</code>、<code>ps</code>、<code>inspect</code> 等）已<strong>全部退役</strong> —— 日常工作在 Web Console 里完成。下表以代码 <code>internal/cli/build.go</code> 中的实际注册为准。
+    </p>
+    <table>
+      <thead><tr><th>命令</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>agent-center server</code></td><td>前台运行 center（开发）</td></tr>
+        <tr><td><code>agent-center migrate up</code></td><td>DB 迁移</td></tr>
+        <tr><td><code>agent-center migrate v1-to-v2</code></td><td>遗留数据迁移</td></tr>
+        <tr><td><code>agent-center install center</code></td><td>幂等、支持升级</td></tr>
+        <tr><td><code>agent-center install worker</code></td><td>对运行中的 center 完成接入</td></tr>
+        <tr><td><code>agent-center uninstall center</code></td><td>默认保留数据，除非 <code>--purge</code></td></tr>
+        <tr><td><code>agent-center uninstall worker --worker-id=&lt;id&gt;</code></td><td>单个 worker 子树</td></tr>
+        <tr><td><code>agent-center upgrade center</code></td><td>原子交换 + 自动回滚；无现有安装则拒绝</td></tr>
+        <tr><td><code>agent-center upgrade worker --worker-id=&lt;id&gt;</code></td><td>升级指定 worker</td></tr>
+        <tr><td><code>agent-center worker enroll</code> / <code>list</code> / <code>status</code></td><td>DB 支撑的 worker 子命令（运维可见）</td></tr>
+        <tr><td><code>agent-center worker run</code></td><td>worker 守护进程（见 §4）</td></tr>
+        <tr><td><code>agent-center worker mcp-host</code></td><td>每智能体 stdio MCP server（系统级；由守护进程拉起）</td></tr>
+        <tr><td><code>agent-center worker agent-supervisor</code></td><td>每智能体常驻 supervisor（增量，尚未接入守护进程启动路径）</td></tr>
+        <tr><td><code>agent-center admin backup</code></td><td>备份</td></tr>
+        <tr><td><code>agent-center admin token create|list|revoke</code></td><td>admin 端点的 bearer token 管理</td></tr>
+        <tr><td><code>agent-center bootstrap check-systemd</code></td><td>安装期使用，不开 DB</td></tr>
+        <tr><td><code>agent-center version</code> / <code>help</code></td><td><code>help</code> = 分组命令树</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <b>命令拼写以代码为准：</b> 管理 token 的 CLI 命令是 <code>admin token create|list|revoke</code>（中间有空格的分组子命令），<strong>不是</strong>某些旧文档里的 <code>admintoken create</code> 或 <code>admintoken mint-enroll</code>。代码里只注册了 <code>create</code> / <code>list</code> / <code>revoke</code>，没有 <code>mint-enroll</code> 子命令。（底层 HTTP 端点路径仍是 <code>/admin/admintoken/...</code>，但那不是你在命令行里输入的。）
+    </div>
+    <p>
+      退出码：OK 0、BusinessError 1、Usage 2、VersionConflict 16、NotFound 17、InvalidTransition 18、InvariantViolation 19、NotImplemented 64、SIGINT 130。<br>
+      全局标志：<code>--config</code> / <code>-c</code>（也读 <code>AGENT_CENTER_CONFIG</code> 环境变量），在子命令解析前被剥离。
+    </p>
+  </article>
+
+  <!-- ============ 4. worker run --config ============ -->
+  <article class="prose" id="worker-run">
+    <h2>4. <code>worker run --config</code></h2>
+    <pre><code>agent-center worker run --config=&lt;prefix&gt;/etc/config.yaml</code></pre>
+    <p>
+      自 v2.7.1 起，配置文件是接入身份（worker_id / name / bootstrap / token / server_fingerprint）的<strong>单一可信来源</strong> —— 安装后打印的启动命令不需要在 CLI 上带任何密钥。守护进程<strong>只通过 admin 端点</strong>与 center 通信，<strong>从不直接打开 SQLite</strong>。
+    </p>
+    <p><strong>标志</strong>（每个都是「标志优先、配置兜底」）：</p>
+    <table>
+      <thead><tr><th>标志</th><th>默认</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>--config</code></td><td>""</td><td>agent-center.yaml 路径（全局 <code>--config</code> 也生效）</td></tr>
+        <tr><td><code>--worker-id</code></td><td>""</td><td>worker 身份 —— <strong>必填</strong>（或在配置里设 <code>worker.worker_id</code>）</td></tr>
+        <tr><td><code>--worker-name</code></td><td>""</td><td>运维可见标签；留空则服务端用 worker-id 兜底</td></tr>
+        <tr><td><code>--bootstrap</code></td><td>""</td><td>admin 端点 URL，如 <code>tcp://host:7300</code>（<strong><code>--admin-target</code> 的别名</strong>，与 <code>install worker</code> 一致）</td></tr>
+        <tr><td><code>--token</code></td><td>""</td><td>admin bearer / enroll token（<strong><code>--admin-token</code> 的别名</strong>）</td></tr>
+        <tr><td><code>--admin-target</code></td><td>""</td><td>遗留写法：<code>unix:/run/admin.sock</code> 或 <code>tcp://host:7300</code></td></tr>
+        <tr><td><code>--admin-token</code></td><td>""</td><td>遗留 bearer（兜底 <code>AGENT_CENTER_ADMIN_TOKEN</code> 环境变量）</td></tr>
+        <tr><td><code>--server-fingerprint</code></td><td>""</td><td><code>sha256:HH:HH:...</code> 固定的证书指纹（tcp 必填；兜底 <code>AGENT_CENTER_SERVER_FINGERPRINT</code>）</td></tr>
+        <tr><td><code>--poll-interval</code></td><td><code>1s</code></td><td>队列轮询间隔</td></tr>
+        <tr><td><code>--fake-agent</code></td><td>""</td><td>覆盖 <code>fakeagent</code> agent_cli 路径（e2e 测试）</td></tr>
+        <tr><td><code>--skills-dir</code></td><td>""</td><td>含 <code>worker-agent.md</code> + 额外 skills 的目录</td></tr>
+        <tr><td><code>--disable-control-stream</code></td><td><code>false</code></td><td>强制纯轮询路径（v2.7 默认开启 SSE 下推流）</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>友好标志（<code>--bootstrap</code> / <code>--token</code>）与遗留别名（<code>--admin-target</code> / <code>--admin-token</code>）同时设置时，友好标志胜出 —— 因为那是你从 UI 复制来的那条。</li>
+      <li>裸跑 <code>worker run --worker-id=X</code>（不带 <code>--config</code>）会自动发现 <code>~/.agent-center/workers/&lt;X&gt;/etc/config.yaml</code>。</li>
+      <li>缺少 worker_id 会以 <code>ExitUsage</code> 硬失败。</li>
+    </ul>
+  </article>
+
+  <!-- ============ 5. MCP 工具 ============ -->
+  <article class="prose" id="mcp">
+    <h2>5. MCP 工具</h2>
+    <p>
+      MCP server 标识：<code>agent-center-mcp-host</code> v0.1.0。智能体的 <code>claude</code> 进程通过它访问 agent-center 的工具集。所有工具均<strong>限定在调用方智能体自身的作用域</strong>（own-scope）。下表按用途分组（描述取自代码）。
+    </p>
+
+    <h3>任务 / 议题（Task / Issue）</h3>
+    <table>
+      <thead><tr><th>工具</th><th>描述</th></tr></thead>
+      <tbody>
+        <tr><td><code>get_my_work</code></td><td>列出调用方智能体自己的工作项（任务队列 + 历史）。</td></tr>
+        <tr><td><code>get_task</code></td><td>获取调用方智能体拥有的任务（须持有该任务的工作项）。</td></tr>
+        <tr><td><code>get_issue</code></td><td>获取调用方智能体自身任务所派生自的议题（own-scope）。</td></tr>
+        <tr><td><code>create_task</code></td><td>在调用方智能体所属的 project 中创建任务。</td></tr>
+        <tr><td><code>assign_task</code></td><td>把任务指派给某个身份（如 <code>agent:X</code> 或 <code>user:Y</code>）。</td></tr>
+        <tr><td><code>reassign_task</code></td><td>把任务改派给另一个身份。</td></tr>
+        <tr><td><code>subscribe</code></td><td>把某身份（默认调用方智能体）订阅到某任务。</td></tr>
+        <tr><td><code>unsubscribe</code></td><td>把某身份从某任务取消订阅。</td></tr>
+        <tr><td><code>block_task</code></td><td>贴出原因并把任务移到 blocked。</td></tr>
+        <tr><td><code>complete_task</code></td><td>可选贴出总结并把任务移到 completed。</td></tr>
+        <tr><td><code>verify_task</code></td><td>验证一个已完成的任务（不能验证自己的完成）。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>消息（Messaging）</h3>
+    <table>
+      <thead><tr><th>工具</th><th>描述</th></tr></thead>
+      <tbody>
+        <tr><td><code>post_task_message</code></td><td>在调用方智能体参与的任务里贴一条消息。</td></tr>
+        <tr><td><code>post_message</code></td><td>在调用方智能体参与的 DM 或 channel 里回复。用你收到的消息里的 <code>conversation_id</code>。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>文件（Files）</h3>
+    <table>
+      <thead><tr><th>工具</th><th>描述</th></tr></thead>
+      <tbody>
+        <tr><td><code>upload_file</code></td><td>把智能体工作区里的文件上传到 center，可选放入某 scope。</td></tr>
+        <tr><td><code>download_file</code></td><td>把 center 文件（<code>ac://files/{ulid}</code> 或裸 ulid）下载到智能体工作区。</td></tr>
+        <tr><td><code>attach_file</code></td><td>把一个已存在的 center 文件挂到调用方智能体自身域内的某个 scope。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>发现（Discovery）</h3>
+    <table>
+      <thead><tr><th>工具</th><th>描述</th></tr></thead>
+      <tbody>
+        <tr><td><code>get_my_profile</code></td><td>获取调用方智能体自己的 profile：组织、projects（含角色 + 能力）……开局先调它弄清「我是谁」。</td></tr>
+        <tr><td><code>find_org_agent</code></td><td>按名字（子串；空则列全部）在你的组织里找智能体。返回 <code>[{id, name, assignee_ref}]</code>；把 <code>assignee_ref</code> 传给 <code>assign_task</code>。</td></tr>
+        <tr><td><code>find_org_channel</code></td><td>按名字在你的组织里找 channel。返回 <code>[{id, name}]</code>；把 <code>id</code> 作为 <code>post_message</code> 的 <code>conversation_id</code>（纯 id，无前缀）。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>输入请求（Input）</h3>
+    <table>
+      <thead><tr><th>工具</th><th>描述</th></tr></thead>
+      <tbody>
+        <tr><td><code>request_input</code></td><td>向某任务贴一个问题，并把调用方智能体的工作项停泊在等待输入状态。</td></tr>
+      </tbody>
+    </table>
+    <div class="callout info">
+      <b>文件引用 URL 形式：</b> <code>ac://files/{ulid}</code>（或裸 ulid）。
+    </div>
+  </article>
+
+  <!-- ============ 6. Web Console 使用 ============ -->
+  <article class="prose" id="console">
+    <h2>6. Web Console 使用</h2>
+    <p>
+      Web Console 嵌在 <code>agent-center server</code> 进程里（同一个二进制，<code>go:embed</code> 的 SPA），用独立端口暴露。
+    </p>
+    <div class="callout warn">
+      <b>仅回环（loopback only）：</b> 默认 <code>127.0.0.1:7100</code>，服务端拒绝任何非 <code>127.0.0.1</code> 的绑定（ADR-0037）。要远程访问，请用你自己的 <strong>SSH 隧道</strong>。无鉴权（回环 = 受信的单用户域）、无 TLS。配置键：<code>web_console.enabled</code> + <code>web_console.listen_addr</code>（<code>:7100</code>）。
+    </div>
+
+    <h3>页面 / 路由</h3>
+    <table>
+      <thead><tr><th>区域</th><th>路径</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>会话</td><td><code>/channels</code>、<code>/channels/:name</code></td><td>channel 列表 / 新建 / 详情（时间线 + 输入框 + 参与者）</td></tr>
+        <tr><td>会话</td><td><code>/dms</code>、<code>/dms/:id</code></td><td>DM 列表 / 发起 DM / 详情</td></tr>
+        <tr><td>派生</td><td>任意会话详情</td><td>选中若干消息 → Open Issue / Open Task</td></tr>
+        <tr><td>追踪</td><td><code>/issues</code>、<code>/issues/:id</code></td><td>议题列表 + 状态筛选 + 详情</td></tr>
+        <tr><td>追踪</td><td><code>/tasks</code>、<code>/tasks/:id</code>、<code>/tasks/:id/trace</code></td><td>任务列表 + 详情 + trace 时间线</td></tr>
+        <tr><td>响应</td><td><code>/inputrequests</code></td><td>待处理 InputRequest 收件箱 + 响应弹窗 + 实时角标</td></tr>
+        <tr><td>管理</td><td><code>/secrets</code></td><td>Secret 列表 / 新建（不回显明文）/ 撤销</td></tr>
+        <tr><td>观测</td><td><code>/agents</code>、<code>/agents/:name</code></td><td>智能体列表 + profile（只读）</td></tr>
+        <tr><td>观测</td><td><code>/fleet</code></td><td>workers / 活跃执行 / 待处理 IR / 待处理议题 + 告警横幅</td></tr>
+      </tbody>
+    </table>
+
+    <h3>UX 约定</h3>
+    <ul>
+      <li><strong>实体选择 = 下拉 + 搜索过滤，绝不手敲自由文本</strong>（禁止 <code>type agent:&lt;id&gt;</code> 这种）。</li>
+      <li><strong>处处显示展示名；身份引用</strong>（<code>user:&lt;id&gt;</code> / <code>agent:&lt;id&gt;</code> / <code>T123</code>）<strong>藏在 hover / Copy ID 后面。</strong></li>
+      <li><strong>DM 渲染对方的名字，而不是 DM 自己的 ID。</strong></li>
+      <li><strong>不做误导性可点项</strong> —— 只展示真正能用的（当前仅 <code>claude-code</code> 真正执行）。</li>
+      <li><strong>不静默失败</strong>，状态变化必须可见（toast / pill / 系统消息）；表单校验返回干净的 4xx，而非 5xx。</li>
+    </ul>
+  </article>
+
+  <!-- ============ 7. 约定 ============ -->
+  <article class="prose" id="conventions">
+    <h2>7. 约定</h2>
+
+    <h3>T&lt;n&gt; / I&lt;n&gt; —— 组织作用域的展示引用</h3>
+    <ul>
+      <li>任务得到展示引用 <strong><code>T&lt;n&gt;</code></strong>，议题得到 <strong><code>I&lt;n&gt;</code></strong> —— 一个组织作用域的连续序号（<code>org_ref</code>，v2.7.1 #245）。未分配时省略。</li>
+      <li>它们是面向人的身份引用，可出现在 hover / Copy ID 处，但<strong>绝不作为主标签</strong>（见 UX 约定）。</li>
+    </ul>
+
+    <h3>面包屑（breadcrumb）格式</h3>
+    <ul>
+      <li><strong>规则：</strong>每个详情页都有面包屑 / 页面身份头，指明 (a) 是什么类型的东西、(b) 它在层级里的位置。</li>
+      <li><strong>格式：</strong><code>[Project name] › Tasks › [task title]</code>。对没有天然父级的页面（Fleet / Environment / Settings）退化为单段标签，如 <code>Environment</code>。</li>
+      <li>使用展示名解析 —— <strong>面包屑本身绝不出现原始 ID</strong>。</li>
+    </ul>
+
+    <h3>channel / 实体 URL 约定</h3>
+    <ul>
+      <li>channel 以<strong>名字</strong>寻址：<code>/channels/:name</code>。</li>
+      <li>议题 / 任务 / DM / 智能体以 <strong>id 或 name</strong> 寻址：<code>/issues/:id</code>、<code>/tasks/:id</code>、<code>/tasks/:id/trace</code>、<code>/dms/:id</code>、<code>/agents/:name</code>。</li>
+    </ul>
+    <div class="callout info">
+      <b>说明：</b> README 没有显式定义一条「channel URL 约定」字符串；该约定由上面的 Web Console 路由隐含确立（channel 按名字、其余按 id/name）。
+    </div>
+  </article>
+
+  </div><!-- /.manual-body -->
+</div><!-- /.manual-layout -->
+</main>
+
+<footer class="foot">
+  agent-center · 多智能体编排平台 ·
+  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
+  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
+</footer>
+
+</body>
+</html>

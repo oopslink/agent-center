@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>开发指引 · v2.7（历史版本，归档） · agent-center</title>
+<meta name="description" content="agent-center 开发指引 v2.7 历史版本快照：v2.7 领域重构概述与架构快照。当前架构以 v2.7.1 为准；本页仅作归档，并附 v2.7 → v2.7.1 增量变化对照。">
+<link rel="stylesheet" href="../../assets/site.css">
+</head>
+<body>
+
+<header class="site-hd"><div class="hd-inner">
+  <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
+  <nav class="hd-nav">
+    <a href="../../product/index.html">产品介绍</a>
+    <a href="../../manual/index.html">用户手册</a>
+    <a class="active" href="../../dev/v2.7.1/index.html">开发指引</a>
+    <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</div></header>
+
+<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.7.1/index.html">开发指引</a> › v2.7（历史）</div>
+
+<section class="hero sm">
+  <div class="inner">
+    <span class="eyebrow">开发指引 · 历史版本（归档）</span>
+    <h1>开发指引 · v2.7（历史版本）</h1>
+    <p class="lede">这是 v2.7 的历史快照，仅作归档保留。v2.7 的领域模型与<b>当前 v2.7.1 完全一致</b>——两版之间 DDD 架构未发生迁移，v2.7.1 仅叠加了增量特性与 UX 抛光。完整、权威的架构视图请见当前版本页。</p>
+  </div>
+</section>
+
+<main class="wrap wide">
+
+  <div class="callout warn">
+    <b>这是历史版本快照。</b>当前架构以 v2.7.1 为准 →
+    <a href="../../dev/v2.7.1/index.html">前往「开发指引 · v2.7.1（当前版本）」</a>。本页不重复完整的 DDD 设计，只保留 v2.7 概述、架构快照与 v2.7 → v2.7.1 变化对照。
+  </div>
+
+  <div class="verswitch"><a href="../../dev/v2.7.1/index.html">v2.7.1 当前</a><a class="on" href="../../dev/v2.7/index.html">v2.7 历史</a></div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION A — v2.7 概述 -->
+  <!-- ============================================================ -->
+  <div class="section-title">A · v2.7 概述</div>
+  <div class="prose">
+    <p>v2.7（发布于 2026-06-03）落地了一次<b>完整的领域重构</b>：退役旧的 <b>任务执行域（task-runtime）</b>与<b>讨论域（discussion）</b>以及陈旧的 tasks/issues/projects schema，改以一组清晰的限界上下文重新划分整个系统。这是一次<b>清库（clean-schema）发布</b>——v2.6 → v2.7 不支持原地升级，需全新安装；carve-out 中移除了约 26,000 行历史代码。</p>
+
+    <h3>重新划分的上下文</h3>
+    <ul>
+      <li><b>项目管理 ProjectManager</b>——Project / Issue / Task，工作真相源。</li>
+      <li><b>智能体 Agent</b>——Agent + 生命周期 + AgentWorkItem 控制流，真正执行任务的智能体端到端走专用工作项流。</li>
+      <li><b>环境 Environment</b>——Worker / Agent supervisor / 文件传输会话（含 files / blobstore）。</li>
+      <li><b>会话 Conversation</b>——统一的一套 URI 方案，贯穿 channel / DM / task / issue 四类会话。</li>
+      <li><b>可观测性 Observability</b>（支撑域 · 只读）与 <b>身份 Identity</b>（共享内核）。</li>
+    </ul>
+
+    <h3>v2.7 同时交付的主要能力</h3>
+    <ul>
+      <li><b>智能体跨 worker 守护进程重启存活</b>：每个智能体由 per-agent、detached 的 supervisor 托管；worker daemon 升级/重启不再打断运行中的智能体，断连后<b>重新附着（survive-reattach）</b>，输出持久缓冲、ack-offset 状态跨重启保留；claude 进程真死则回退 Mode-B（reap-then-relaunch + session resume）。</li>
+      <li><b>实时控制：stream-first，poll fallback</b>：start / stop / reset / work 控制命令走长连 SSE 控制流，喂同一条单调的 <code>WorkerControlEvent</code> 日志；断连/心跳超时回退到按 offset 游标轮询，无重复无丢失（ADR-0050）。</li>
+      <li><b>Worker 能力自动发现</b>：每次 <code>online</code> 探测本机已装的 agent CLI（claude-code / codex / opencode）并上报；<code>--capabilities</code> 标志移除。运行时仅 claude-code 真正派发，codex / opencode 为 discovery-only。</li>
+      <li><b>会话附件</b>：消息可端到端携带文件附件（经 files BC 上传、原子校验后 attach、按消息路由下载）；跨组织/不存在的 URI 在 attach 与 download 上返回字节级一致的 <code>403</code>，无存在性预言。</li>
+      <li><b>Web Console 重设计</b>与<b>可用的身份流</b>：侧栏信息架构调整、Fleet 合入 Environment、首屏路由修正（未初始化 → <code>/signup</code>）、每请求读取真实会话身份、消息发送者显示真实名称等。</li>
+    </ul>
+    <div class="callout info">
+      详细发布说明见仓库 <code>docs/release/v2.7.md</code>（含升级注意事项、macOS 26 安装修复、被移除的 CLI 命令、以及「What's not in v2.7」的 v2.8 延期清单）。
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION B — 架构快照 -->
+  <!-- ============================================================ -->
+  <div class="section-title">B · 架构快照</div>
+  <div class="prose">
+    <p>v2.7 的领域模型与<b>当前 v2.7.1 视图完全一致</b>：五大限界上下文、detached supervisor + survive-reattach、SSE 优先 / 轮询回退的控制流、Conversation BC 与文件附件模型，在两版之间<b>均未变动</b>。因此本页<b>不重绘</b>完整的三 Tab 设计图（限界上下文地图 / 战术设计 / Event Storming）。</p>
+
+    <div class="callout info">
+      <b>权威架构视图请见当前页：</b>
+      <a href="../../dev/v2.7.1/index.html">开发指引 · v2.7.1（当前版本）</a> 中的
+      <b>C · DDD 设计（以现行代码校准）</b> 三 Tab 图，以及 <b>B · 主要机制设计</b>。这些视图同样适用于 v2.7——领域模型并未迁移。
+    </div>
+
+    <h3>限界上下文一览</h3>
+    <ul>
+      <li><b>项目管理 ProjectManager</b>（核心域 · <code>internal/projectmanager</code>）——Project / Issue / Task / Member，订阅真相。</li>
+      <li><b>智能体 Agent</b>（核心域 · <code>internal/agent</code>）——Agent / AgentWorkItem / ActivityEvent，单活工作项不变式。</li>
+      <li><b>环境 Environment</b>（核心域 · environment + workforce + files + blobstore）——Worker / AgentInstance / BootstrapToken / FileTransferSession / BlobStore。</li>
+      <li><b>会话 Conversation</b>（核心域 · <code>internal/conversation</code>）——Conversation / Message（追加写），kind 恰 4 值：dm / channel / task / issue。</li>
+      <li><b>可观测性 Observability</b>（支撑域 · 只读 · + outbox）——Event 追加写 + 投影读模型，纯下游消费者（OHS）。</li>
+      <li><b>身份 Identity</b>（支撑域 · 真实 BC + 共享内核 · <code>internal/identity</code>）——Identity / Organization / Member / Invitation，另供 IdentityRef 共享词汇。</li>
+      <li><b>SecretManagement</b>（支撑域 · <code>internal/secretmgmt</code>）——UserSecret（每用户 API key）。</li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION C — v2.7 → v2.7.1 变化 -->
+  <!-- ============================================================ -->
+  <div class="section-title">C · v2.7 → v2.7.1 变化</div>
+  <div class="prose">
+    <div class="callout warn">
+      <b>架构 / 领域模型无变化。</b>v2.7 → v2.7.1 的 tag-to-tag 代码 diff 真实且不小（155 文件，+7,265 / −1,276），但<b>每一项都是叠加在 v2.7 架构之上的增量特性、可运维性与 UX 抛光</b>——没有任何限界上下文边界、聚合或核心机制被重画。文档层面 diff 极小：<code>docs/release/v2.7.md</code> 是 v2.7.0 文档、未为 v2.7.1 改动，CHANGELOG 也<b>没有独立的 <code>[v2.7.1]</code> 小节</b>（两版同处单一 <code>[Unreleased]</code> 块，唯一 CHANGELOG delta 是 #211 多 center 安装的一条 <code>Added</code>）。
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>变化项</th><th>说明（均为增量 · 不改架构）</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>组织内序列号 <code>T&lt;n&gt;</code> / <code>I&lt;n&gt;</code></b><br><small>#245</small></td>
+          <td>新增 migration <code>0049_v271_pm_org_sequence</code>，按 <code>(org,type)</code> 的单调计数表（<code>pm_org_sequence</code>），竞态安全分配 + 回填，DTO 增 <code>org_ref</code>；让议题/任务有人类友好引用，取代 ULID 尾巴。</td>
+        </tr>
+        <tr>
+          <td><b>身份邮箱 + 最近会话</b></td>
+          <td>migration <code>0048_v271_identity_email_last_session</code>，为 identity 增 email / last-session 列。</td>
+        </tr>
+        <tr>
+          <td><b>MCP 智能体自我 / 组织发现工具</b><br><small>#239 / #241 / #246</small></td>
+          <td>新增 <code>get_my_profile</code>、<code>find_org_agent</code>（返回可直接使用的 <code>assignee_ref</code>）、<code>find_org_channel</code>；精确区分 404 not-found / 403 not-a-member。β 只读，不改授权。</td>
+        </tr>
+        <tr>
+          <td><b>worker 配置单一来源</b><br><small>#249 / #251</small></td>
+          <td><code>install worker</code> 把全部 enroll 字段写入 <code>config.yaml</code>（<code>0600</code>），<code>worker run</code> 收敛为单个 <code>--config=</code>；token 不再出现在 <code>ps</code> / launchd plist / systemd unit 中。新增 <code>WorkerConfig</code> 结构；旧 flag 仍作覆盖，升级时迁移改写旧配置/单元。</td>
+        </tr>
+        <tr>
+          <td><b>单机多 center</b><br><small>#211（CHANGELOG Added）</small></td>
+          <td><code>install center --instance &lt;name&gt;</code> → 独立前缀（<code>~/.agent-center.&lt;name&gt;</code>）+ 独立 launchd/systemd 标签 + 显式端口；新增 <code>list-local-centers</code> 与 <code>server.instance</code> 配置字段。仅全新安装。</td>
+        </tr>
+        <tr>
+          <td><b>升级比对 git commit 而非版本串 + <code>--force</code></b><br><small>#234</small></td>
+          <td>根因修复：同版本不同 commit 的重建也会重新安装。<code>cli.SetInstallBuildCommit(buildCommit)</code> 在 <code>main.go</code> 中贯通。</td>
+        </tr>
+        <tr>
+          <td><b>默认模型加固为 <code>claude-opus-4-8</code></b><br><small>#232 / #236</small></td>
+          <td>创建弹窗前端预填，后端创建处兜底强制（bulletproof floor）。</td>
+        </tr>
+        <tr>
+          <td><b>Web Console UX 抛光</b><br><small>#238 / #240 / #250 / #253 / #247 / #242 / #228（文件改动主体）</small></td>
+          <td>7 个详情页 <b>Breadcrumb</b> 导航 + 通用 <code>&lt;Breadcrumb&gt;</code> 组件；AgentDetail Stop/Restart/Reset 与 Message 按钮<b>图标化</b>（Reset 保留红色破坏性样式）；侧栏折叠图标简化为单笔 chevron（⌘B 不变）；频道 URL 改 hash id <code>/channels/:channelId</code>；表格化 ProjectDetail Issues/Tasks 与 AgentDetail WorkItems，Profile 模块 + Activity 时间线重做；在表格/详情/面包屑展示 <code>T&lt;n&gt;</code>/<code>I&lt;n&gt;</code> 引用。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>结论：v2.7.1 是 v2.7 的<b>纯增量演进</b>。要查看与两版均一致的完整 DDD 架构、机制设计与三 Tab 图，请以
+    <a href="../../dev/v2.7.1/index.html">v2.7.1（当前版本）</a> 页为准。</p>
+  </div>
+
+</main>
+
+<footer class="foot">
+  agent-center · 多智能体编排平台 ·
+  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
+  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
+</footer>
+
+</body>
+</html>

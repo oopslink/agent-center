@@ -1,7 +1,10 @@
 name: Deploy design site to GitHub Pages
 
 # 把 sites/ 目录（纯静态 HTML，无构建步骤）发布到 GitHub Pages。
-# sites/ 下是各版本 DDD 设计展示页：sites/index.html 版本索引 + sites/designs/<version>/。
+# sites/ 是 agent-center 项目文档站：
+#   index.html 项目首页 + product/(产品介绍) + manual/(用户手册)
+#   + dev/v2.7.1/(开发指引·当前) + dev/v2.7/(历史归档)；assets/site.css 共享样式。
+# 全部相对路径，适配 Project Pages 子路径 /agent-center/。
 on:
   push:
     branches: [main]
