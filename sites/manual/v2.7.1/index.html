@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>用户手册 · agent-center</title>
 <meta name="description" content="agent-center 用户手册：安装、单机 / 多机部署、CLI 命令参考、worker run --config、MCP 工具、Web Console 使用与命名约定。所有命令均按当前代码校验，可直接复制使用。">
-<link rel="stylesheet" href="../assets/site.css">
-<script src="../assets/site.js" defer></script>
+<link rel="stylesheet" href="../../assets/site.css">
+<script src="../../assets/site.js" defer></script>
 <style>
 /* page-specific: TOC sidebar layout for the manual */
 .manual-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
@@ -33,25 +33,32 @@
 
 <header class="site-hd">
   <div class="hd-inner">
-    <a class="brand" href="../index.html">agent-center<span class="dot">·</span></a>
+    <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
     <nav class="hd-nav">
-      <a href="../product/index.html">产品介绍</a>
-      <a class="active" href="../manual/index.html">用户手册</a>
-      <a href="../dev/v2.7.1/index.html">开发指引</a>
-      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+      <a href="../../product/index.html">产品介绍</a>
+      <a class="active" href="../../manual/v2.7.1/index.html">用户手册</a>
+      <a href="../../dev/v2.7.1/index.html">开发指引</a>
+      <a href="../../roadmap/index.html">路线图</a>
+      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
     </nav>
   </div>
 </header>
 
-<div class="crumb"><a href="../index.html">首页</a> › 用户手册</div>
+<div class="crumb"><a href="../../index.html">首页</a> › 用户手册 › v2.7.1</div>
 
 <section class="hero sm">
   <div class="inner">
     <span class="eyebrow">用户手册 · 安装 / 部署 / CLI / MCP</span>
-    <h1>用户手册</h1>
+    <h1>用户手册 <span style="font-family:var(--mono);font-size:.55em;font-weight:600;color:var(--panel-cyan);vertical-align:middle;">v2.7.1</span></h1>
     <p class="lede">从零安装一个 center，从任意机器接入 worker，再到 CLI 命令、worker 配置、MCP 工具与 Web Console 使用。本页所有命令、端口、标志、工具名均按当前代码校验，可直接复制运行。</p>
   </div>
 </section>
+
+<div class="wrap wide" style="margin-top:18px;">
+  <div class="verswitch" role="group" aria-label="用户手册版本">
+    <a class="on" href="../../manual/v2.7.1/index.html" aria-current="page">v2.7.1 当前</a>
+  </div>
+</div>
 
 <main class="wrap wide" style="margin-top: 28px;">
 <div class="manual-layout">

@@ -3,10 +3,81 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>agent-center · 多智能体编排平台</title>
-<meta name="description" content="agent-center —— 一个个人 AI 智能体调度中心：跑一个 server，从任意机器接入 worker，智能体在任意位置运行，每一次对话与决策都落在可追溯的线程上。">
+<title>agent-center · 和 Agent 数字员工并肩工作</title>
+<meta name="description" content="agent-center —— 和 Agent 数字员工并肩工作的调度中心。Center 统一调度，Worker 在任意机器运行，Agent 数字员工承接每一次派单，你与他们在同一条可追溯的线程上协作。">
 <link rel="stylesheet" href="assets/site.css">
 <script src="assets/site.js" defer></script>
+<style>
+/* ============ home: centered dynamic architecture diagram ============ */
+.hero.home { padding: 70px 24px 30px; text-align: center; }
+.hero.home .inner { max-width: 880px; }
+.hero.home h1 { font-size: 44px; line-height: 1.12; }
+.hero.home p.lede { margin: 0 auto; }
+.hero.home .cta { justify-content: center; }
+@media (max-width: 820px){ .hero.home h1 { font-size: 30px; } }
+
+.arch {
+  --c-down: var(--panel-cyan); --c-up: var(--panel-amber);
+  max-width: 460px; margin: 40px auto 8px; position: relative;
+}
+.node {
+  position: relative; margin: 0 auto; width: 100%; max-width: 360px;
+  background: rgba(20,30,40,.55); border: 1px solid var(--panel-line);
+  border-radius: var(--r-md); padding: 13px 16px; text-align: center;
+  font-family: var(--mono); color: var(--panel-ink);
+  transition: border-color .2s, box-shadow .2s;
+}
+.node .nm { font-weight: 700; font-size: 14px; letter-spacing: .4px; display: block; }
+.node small { display: block; font-size: 11px; color: var(--panel-soft); margin-top: 3px; font-weight: 400; }
+.node .pin { position: absolute; top: 8px; right: 11px; font-size: 9px; color: var(--panel-soft); opacity: .7; letter-spacing: 1px; }
+/* stacked = "many" (worker / agent) */
+.node.stack::before, .node.stack::after {
+  content: ""; position: absolute; inset: 0; border: 1px solid var(--panel-line);
+  border-radius: var(--r-md); z-index: -1;
+}
+.node.stack::before { transform: translate(6px, 6px); opacity: .55; }
+.node.stack::after  { transform: translate(12px, 12px); opacity: .28; }
+.node.center { border-color: var(--c-down); box-shadow: 0 0 0 1px rgba(52,208,230,.25), 0 0 22px -6px rgba(52,208,230,.5); }
+.node.center .nm { color: var(--c-down); font-size: 16px; }
+.node.agent  { border-color: rgba(244,183,64,.55); }
+.node.agent .nm { color: var(--c-up); }
+.node.human .nm { color: #fff; }
+
+/* connector: dashed spine + traveling pulses (bidirectional) */
+.link { position: relative; height: 50px; }
+.link::before {
+  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%);
+  background: repeating-linear-gradient(var(--panel-line) 0 5px, transparent 5px 11px);
+}
+.link .dot { position: absolute; left: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translateX(-50%); }
+.link .dot.dn { background: var(--c-down); box-shadow: 0 0 9px var(--c-down); animation: ac-dn 2.4s linear infinite; }
+.link .dot.up { background: var(--c-up);   box-shadow: 0 0 9px var(--c-up);   animation: ac-up 2.4s linear infinite; }
+.link .lbl {
+  position: absolute; left: calc(50% + 18px); top: 50%; transform: translateY(-50%);
+  white-space: nowrap; font-family: var(--mono); font-size: 11px; color: var(--panel-soft); text-align: left;
+}
+.link .lbl b { color: var(--c-down); font-weight: 600; }
+.link .lbl i { color: var(--c-up); font-style: normal; }
+@keyframes ac-dn { 0%{top:2px;opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:calc(100% - 4px);opacity:0} }
+@keyframes ac-up { 0%{top:calc(100% - 4px);opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:2px;opacity:0} }
+
+.arch-cap {
+  margin: 16px auto 0; max-width: 380px; font-family: var(--mono); font-size: 11.5px;
+  color: var(--panel-soft); border-top: 1px dashed var(--panel-line); padding-top: 12px;
+}
+.arch-cap b { color: var(--c-up); font-weight: 600; }
+.arch-cap .thread { color: var(--c-down); }
+
+@media (max-width: 560px){
+  .arch { max-width: 320px; }
+  .link .lbl { position: static; transform: none; display: block; margin-top: 4px; text-align: center;
+    left: auto; }
+  .link { height: auto; padding: 22px 0 8px; }
+  .link::before { bottom: auto; height: 22px; }
+  .link .dot { display: none; }
+}
+@media (prefers-reduced-motion: reduce){ .link .dot { animation: none; opacity: .9; top: 50%; } }
+</style>
 </head>
 <body>
 
@@ -15,33 +86,63 @@
     <a class="brand" href="index.html">agent-center<span class="dot">·</span></a>
     <nav class="hd-nav">
       <a href="product/index.html">产品介绍</a>
-      <a href="manual/index.html">用户手册</a>
+      <a href="manual/v2.7.1/index.html">用户手册</a>
       <a href="dev/v2.7.1/index.html">开发指引</a>
-      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+      <a href="roadmap/index.html">路线图</a>
+      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
     </nav>
   </div>
 </header>
 
-<section class="hero">
+<section class="hero home">
   <div class="inner">
     <span class="eyebrow">多智能体编排平台 · Go + Web Console</span>
-    <h1>一个个人 AI 智能体调度中心</h1>
-    <p class="lede">跑一个 server，从任意机器接入 worker。智能体在任意位置运行 —— 每一次派单、每一次输入请求、每一条决策，都落在一个你能回溯的线程上。</p>
+    <h1>和 Agent 数字员工并肩工作</h1>
+    <p class="lede">Center 统一调度，Worker 在任意机器运行，Agent 数字员工承接每一次派单 —— 你与他们在同一条可追溯的线程上协作。</p>
+
+    <!-- 居中 · 动态架构图：Center ↔ Worker ↔ Agent -->
+    <div class="arch" role="img" aria-label="架构图：你 / 团队 通过 Web Console 与 Center 协作；Center 经 admin transport 调度任意机器上的 Worker；Worker 拉起并监督 Agent 数字员工；Agent 通过 MCP 直连 Center 发消息、建任务、请求输入，全部落在可追溯线程。">
+      <div class="node human">
+        <span class="pin">HUMAN</span>
+        <span class="nm">你 / 团队</span>
+        <small>Web Console（回环）</small>
+      </div>
+      <div class="link">
+        <span class="dot dn"></span><span class="dot up"></span>
+        <span class="lbl"><b>派单 · 追问 ↓</b> &nbsp; <i>↑ 消息 · 决策</i></span>
+      </div>
+      <div class="node center">
+        <span class="pin">CENTER</span>
+        <span class="nm">Center</span>
+        <small>server · Web Console · SQLite · Supervisor</small>
+      </div>
+      <div class="link">
+        <span class="dot dn"></span><span class="dot up"></span>
+        <span class="lbl"><b>派单 · 控制流 ↓</b> &nbsp; <i>↑ enroll · 心跳</i></span>
+      </div>
+      <div class="node worker stack">
+        <span class="pin">WORKER ×N</span>
+        <span class="nm">Worker</span>
+        <small>任意机器 · daemon</small>
+      </div>
+      <div class="link">
+        <span class="dot dn"></span>
+        <span class="lbl"><b>拉起 · 监督 ↓</b></span>
+      </div>
+      <div class="node agent stack">
+        <span class="pin">AGENT ×N</span>
+        <span class="nm">Agent 数字员工</span>
+        <small>claude / codex / opencode</small>
+      </div>
+      <div class="arch-cap">
+        <b>MCP 直连 Center ↗</b> 发消息 · 建任务 · 请求输入 —— 每一步都落在<span class="thread"> 可追溯线程 </span>上。
+      </div>
+    </div>
+
     <div class="cta">
       <a class="btn primary" href="product/index.html">了解 agent-center →</a>
-      <a class="btn ghost" href="manual/index.html">快速上手</a>
+      <a class="btn ghost" href="manual/v2.7.1/index.html">快速上手</a>
       <a class="btn ghost" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
-    </div>
-    <div class="wires">
-      <span class="w-node">server</span>
-      <span class="w-link">──┬──</span>
-      <span class="w-node">worker</span>
-      <span class="w-link">─→</span>
-      <span class="w-tag"><b>◇</b> thread</span>
-      <span class="w-tag"><b>◇</b> 派单</span>
-      <span class="w-tag"><b>◇</b> 决策</span>
-      <span class="w-link">─→</span>
-      <span class="w-node ok">可回溯</span>
     </div>
   </div>
 </section>
@@ -57,11 +158,11 @@
       <div class="desc">agent-center 是什么、解决什么问题、核心能力与整体架构概览。第一次了解项目从这里开始。</div>
       <div class="tags"><span class="tag">是什么</span><span class="tag">核心能力</span><span class="tag">架构概览</span></div>
     </a>
-    <a class="card" href="manual/index.html">
+    <a class="card" href="manual/v2.7.1/index.html">
       <span class="idx">02</span>
       <div class="ico">📖</div>
       <h3>用户手册</h3>
-      <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具、Web Console 使用与约定。</div>
+      <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具、Web Console 使用与约定。<strong>按版本归档</strong>。</div>
       <div class="tags"><span class="tag">安装部署</span><span class="tag">CLI</span><span class="tag">MCP 工具</span><span class="tag">Web Console</span></div>
     </a>
     <a class="card" href="dev/v2.7.1/index.html">
@@ -70,6 +171,13 @@
       <h3>开发指引</h3>
       <div class="desc">技术架构、主要机制设计与 DDD 设计（限界上下文 / 战术 / Event Storming），按版本归档以便回溯演进。</div>
       <div class="tags"><span class="tag">技术架构</span><span class="tag">核心机制</span><span class="tag">DDD 设计</span></div>
+    </a>
+    <a class="card" href="roadmap/index.html">
+      <span class="idx">04</span>
+      <div class="ico">🧭</div>
+      <h3>路线图</h3>
+      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。v2 已 GA，v2.7+ 身份/认证进阶，v3 推迟项与边界。</div>
+      <div class="tags"><span class="tag">已完成</span><span class="tag">backlog</span><span class="tag">v3 推迟</span></div>
     </a>
   </div>
 
@@ -92,7 +200,7 @@
 </main>
 
 <footer class="foot">
-  agent-center · 多智能体编排平台 ·
+  agent-center · 和 Agent 数字员工并肩工作 ·
   <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
   DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
 </footer>

@@ -187,7 +187,7 @@ agent-center/
 │   ├── deployment/                 # 各版本部署指南
 │   ├── operations/                 # 运维 runbook
 │   └── rules/conventions.md        # 跨切设计规则 —— 必读
-├── sites/                          # VitePress 文档站点（源直指 docs/）
+├── sites/                          # 手写静态文档站（零构建，GitHub Pages 发布）
 ├── tests/                          # E2E 套件
 ├── contrib/                        # 老版 install 脚本（保留 reference）
 └── Makefile
@@ -219,14 +219,17 @@ make release        # → dist/agent-center-v<ver>-<os>-<arch>.tar.gz + sha256
 
 ### 本地文档站点
 
-仓内 [`sites/`](./sites/) 是 VitePress 静态站点脚手架，源 markdown 直接来自 [`docs/`](./docs/)：
+仓内 [`sites/`](./sites/) 是**手写静态站**（纯 HTML + 一份共享 `assets/site.css` /
+`site.js`，**无构建步骤**），是 `docs/` 的对外**精选门面**——`docs/` 始终是权威源。
+站点结构与「页 ↔ 源」对照见 [`sites/README.md`](./sites/README.md)。
 
 ```bash
-cd sites/
-npm install
-npm run dev      # http://localhost:5173，markdown 热重载
-npm run build    # → sites/.vitepress/dist/ 静态产物，拷哪都能跑
+# 本地预览 —— 直接开文件，或起个静态服务：
+open sites/index.html                 # 或：python3 -m http.server -d sites 5173
 ```
+
+部署是自动的：`.github/workflows/pages.yml` 在每次 push 到 `main` 时把 `sites/**`
+发布到 GitHub Pages（项目子路径 `/agent-center/`，全相对链接）。没有任何要构建的东西。
 
 <br/>
 
@@ -238,4 +241,4 @@ npm run build    # → sites/.vitepress/dist/ 静态产物，拷哪都能跑
 - **代码贡献** —— 先扫一遍 [`docs/rules/conventions.md`](./docs/rules/conventions.md)（§ 0.4 AppService 唯一入口 + § 0.6 不越界推断设计意图最容易踩）
 - **路线图反馈** —— 在 [Roadmap](./docs/design/roadmap.md) 找对应条目或开 Discussion
 
-文档站点 `sites/`（部署到 GitHub Pages 后）将作为统一入口；当前请直接看仓内 `docs/`。
+静态站点 `sites/` 是对外入口（已发布到 GitHub Pages）；完整细节请直接看仓内 `docs/`。

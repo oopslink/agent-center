@@ -300,7 +300,7 @@ agent-center/
 │   ├── deployment/                 # deploy guides per version
 │   ├── operations/                 # runbooks
 │   └── rules/conventions.md        # cross-cutting design rules — read this
-├── sites/                          # VitePress docs site (sources from docs/)
+├── sites/                          # hand-written static docs site (no build; GitHub Pages)
 ├── tests/                          # E2E suites
 ├── contrib/                        # legacy install scripts (kept for reference)
 └── Makefile
@@ -334,14 +334,19 @@ The **source guided installer** (top-level `install.sh` → `scripts/install/`) 
 
 ### Local docs site
 
-The `sites/` directory is a VitePress scaffold whose markdown sources point straight at `docs/`:
+The `sites/` directory is a **hand-written static site** (plain HTML + one shared
+`assets/site.css` / `site.js`, **no build step**). It's a curated, public-facing
+*showcase* of the docs — `docs/` stays the authoritative source. See
+[`sites/README.md`](./sites/README.md) for the structure and the page ↔ source map.
 
 ```bash
-cd sites/
-npm install
-npm run dev      # http://localhost:5173 with markdown hot-reload
-npm run build    # static output → sites/.vitepress/dist/, copy anywhere
+# preview locally — just open the file, or serve the folder:
+open sites/index.html                 # or: python3 -m http.server -d sites 5173
 ```
+
+Deployment is automatic: `.github/workflows/pages.yml` publishes `sites/**` to
+GitHub Pages on every push to `main` (project sub-path `/agent-center/`, all links
+relative). There is nothing to build.
 
 <br/>
 
@@ -353,4 +358,4 @@ This is currently a single-author project. If you'd like to contribute:
 - **Code contributions** — read [`docs/rules/conventions.md`](./docs/rules/conventions.md) first (§ 0.4 AppService discipline + § 0.6 layer discipline catch most issues)
 - **Roadmap input** — point to a row in [Roadmap](./docs/design/roadmap.md) or open a Discussion
 
-The VitePress site under `sites/` will be the canonical entry point once deployed; for now please browse `docs/` directly in the repo.
+The static site under `sites/` is the public entry point (published to GitHub Pages); for the full detail browse `docs/` directly in the repo.
