@@ -1,12 +1,25 @@
 import type React from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
+import { FakeEventSource } from '@/sse/fakeEventSource';
 import { ConversationView } from './ConversationView';
 import type { Message } from '@/api/types';
+
+// ConversationView SSE-subscribes + bumps the read cursor (mark-seen) — stub
+// EventSource so the subscribe doesn't hit the network in jsdom.
+beforeAll(() => {
+  (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
+});
+
+// The shell fires mark-seen on the latest message; default a 200 so the
+// fire-and-forget POST doesn't surface as an unhandled request.
+const seenOk = http.post('/api/conversations/:id/seen', () =>
+  HttpResponse.json({ last_seen_message_id: 'm2', version: 1, bumped: true, event_id: 'e1' }),
+);
 
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -35,6 +48,7 @@ describe('ConversationView (#264 surface-agnostic shell)', () => {
       http.get('/api/conversations/C1/messages', () =>
         HttpResponse.json([msg('m1', 'hello world'), msg('m2', 'second')]),
       ),
+      seenOk,
     );
     wrap(
       <ConversationView
