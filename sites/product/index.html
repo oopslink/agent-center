@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>产品介绍 · agent-center</title>
-<meta name="description" content="agent-center 是一个个人 AI 智能体调度中心：跑一个 server，从任意机器接入 worker，智能体在任意位置运行，每一次对话与决策都落在可追溯的线程上。了解它是什么、解决什么问题、核心能力与整体架构。">
+<meta name="description" content="agent-center 是一个 AI 智能体调度中心：一个 server，worker 接入任意机器，智能体在任意位置运行，每一次决策都落在可追溯的线程上。了解它是什么、解决什么问题、核心能力与整体架构。">
 <link rel="stylesheet" href="../assets/site.css">
 <script src="../assets/site.js" defer></script>
 <style>
@@ -34,6 +34,39 @@
   }
   .arch-worker > .node-h { color: var(--accent); }
   .arch-block-h { margin: 0 0 10px; font-size: 15px; font-weight: 800; }
+
+  /* 会话脊梁图（是什么） */
+  .spine { margin: 12px 0 4px; }
+  .spine-bar { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; background: var(--panel); color: var(--panel-ink); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 15px 18px; font-family: var(--mono); font-weight: 700; font-size: 14px; box-shadow: var(--shadow); }
+  .spine-bar .tag-thread { color: var(--panel-cyan); }
+  .spine-bar small { font-weight: 400; color: var(--panel-soft); font-size: 12px; }
+  .spine-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; position: relative; }
+  .spine-cols::before { content: "▲"; position: absolute; left: 50%; top: -4px; transform: translateX(-50%); color: var(--ink-faint); font-size: 11px; }
+  @media (max-width: 720px) { .spine-cols { grid-template-columns: 1fr; } }
+  .spine-col { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: 12px 14px; box-shadow: var(--shadow); }
+  .spine-col h4 { margin: 0 0 8px; font-size: 12px; font-family: var(--mono); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+  .spine-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .schip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); }
+  .schip.hot { border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+  .impl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 0; font-family: var(--mono); font-size: 12px; color: var(--ink-mute); }
+  .impl-row .schip { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+
+  /* 痛点 → 应对（解决什么问题） */
+  .pa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 12px; margin: 10px 0; }
+  @media (max-width: 560px) { .pa-grid { grid-template-columns: 1fr; } }
+  .pa { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 8px; }
+  .pa .pain, .pa .fix { border: 1px solid var(--border); border-radius: var(--r-md); padding: 11px 13px; font-size: 13px; box-shadow: var(--shadow); line-height: 1.5; }
+  .pa .pain { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); color: var(--ink-soft); }
+  .pa .fix { border-left: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); color: var(--ink-soft); }
+  .pa .arrow { align-self: center; font-family: var(--mono); color: var(--primary); font-weight: 700; }
+  .pa b { color: var(--ink); }
+  @media (max-width: 480px) { .pa { grid-template-columns: 1fr; } .pa .arrow { transform: rotate(90deg); } }
+
+  /* arch connector motion */
+  .arch-conn { position: relative; overflow: hidden; }
+  .js .arch-conn::after { content: ""; position: absolute; left: -40px; top: 50%; height: 2px; width: 40px; background: linear-gradient(90deg, transparent, var(--primary), transparent); animation: pa-run 3s linear infinite; opacity: .5; }
+  @keyframes pa-run { from { left: -40px; } to { left: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .js .arch-conn::after { display: none; } }
 </style>
 </head>
 <body>
@@ -43,9 +76,10 @@
     <a class="brand" href="../index.html">agent-center<span class="dot">·</span></a>
     <nav class="hd-nav">
       <a class="active" href="../product/index.html">产品介绍</a>
-      <a href="../manual/index.html">用户手册</a>
+      <a href="../manual/v2.7.1/index.html">用户手册</a>
       <a href="../dev/v2.7.1/index.html">开发指引</a>
-      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+      <a href="../roadmap/index.html">路线图</a>
+      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
     </nav>
   </div>
 </header>
@@ -55,85 +89,88 @@
 <section class="hero sm">
   <div class="inner">
     <span class="eyebrow">产品介绍 · 多智能体编排平台</span>
-    <h1>一个个人 AI 智能体调度中心</h1>
-    <p class="lede">跑一个 server，从任意机器接入 worker。智能体在任意位置运行 —— 每一次对话与决策，都落在一个你能回溯的线程上。</p>
+    <h1>AI 智能体调度中心</h1>
+    <p class="lede">智能体在任意位置运行，每一次决策都落在可追溯的线程上。</p>
   </div>
 </section>
 
 <main class="wrap">
 
-  <div class="section-title">agent-center 是什么</div>
-  <div class="prose">
-    <p>agent-center 是一个<b>个人 AI 智能体调度中心</b>：你跑一个 server，从任意机器接入 worker，智能体在任意位置运行，而每一次派单、每一次输入请求、每一条决策与产物，都落在一个可追溯的会话线程上。</p>
-    <p>它的核心论点是 —— <b>会话（Conversation）是产品的脊梁，而不只是日志</b>。Task、Issue、决策、进度全部挂在会话线程上；每一次 dispatch、每一个 InputRequest、每一份 Artifact 都能在它原本的线程里被找回。</p>
-    <p>实现上，agent-center 是一个多智能体编排平台：Go 后端 + React/Vite 编写的 Web Console，通过 <code>go:embed</code> 打包进<b>同一个二进制</b>分发。</p>
+  <div class="section-title">agent-center 是什么 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 会话是脊梁，不只是日志</span></div>
+  <div class="spine">
+    <div class="spine-bar">
+      <span class="tag-thread">◇ Conversation</span> 会话线程 <small>· 一条可追溯的脊梁</small>
+    </div>
+    <div class="spine-cols">
+      <div class="spine-col">
+        <h4>挂在线程上的业务对象</h4>
+        <div class="spine-chips">
+          <span class="schip">Task 任务</span><span class="schip">Issue 议题</span><span class="schip">Channel 频道</span><span class="schip">DM 私信</span>
+        </div>
+      </div>
+      <div class="spine-col">
+        <h4>落在线程上的每一步</h4>
+        <div class="spine-chips">
+          <span class="schip hot">派单 Dispatch</span><span class="schip hot">InputRequest</span><span class="schip hot">决策 Decision</span><span class="schip hot">进度</span><span class="schip hot">产物 Artifact</span>
+        </div>
+      </div>
+    </div>
+    <div class="impl-row">
+      实现 ＝ <span class="schip">Go 后端</span><span class="schip">React/Vite Web Console</span><span class="schip">go:embed</span> → <b style="color:var(--ink)">同一个二进制</b>
+    </div>
   </div>
 
-  <div class="section-title">解决什么问题</div>
-  <div class="prose">
-    <p>当多个智能体跑在多台机器上时，常见的痛点与 agent-center 的应对方式：</p>
-    <table>
-      <thead>
-        <tr><th>痛点</th><th>agent-center 如何应对</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>多个智能体散落在多台机器、状态分散在 N 个终端里</td>
-          <td>一个 server 汇聚一切；<code>/fleet</code> 实时呈现每个 worker × 执行 × 待处理 IR</td>
-        </tr>
-        <tr>
-          <td>智能体执行到一半停下来问你（"要不要提交？"）</td>
-          <td>InputRequest 是一等概念 —— 在 Web Console 的卡片里作答，智能体随即恢复</td>
-        </tr>
-        <tr>
-          <td>很难追溯智能体做了什么、为什么做、奉谁之命</td>
-          <td>每个 Task / Issue 都有一条会话线程；派单、决策、进度与产物全部落在其中</td>
-        </tr>
-        <tr>
-          <td>Skill / MCP 配置散落在每个智能体各自的仓库里</td>
-          <td>AgentInstance 是一等聚合根：指令 + MCP servers + skill 挂载都绑定到智能体身份</td>
-        </tr>
-        <tr>
-          <td>凭据管理</td>
-          <td>UserSecret 限界上下文，AES-256，明文永不回显；智能体以 <code>secret:&lt;name&gt;</code> 引用密钥</td>
-        </tr>
-        <tr>
-          <td>多机部署</td>
-          <td>多主机 TCP+TLS（SSH 式指纹固定）+ 一条命令完成首跳接入</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="section-title">解决什么问题 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 痛点 → 应对</span></div>
+  <div class="pa-grid">
+    <div class="pa">
+      <div class="pain">智能体散落多机，<b>状态分散在 N 个终端</b></div>
+      <div class="arrow">→</div>
+      <div class="fix">一个 server 汇聚；<code>/fleet</code> 实时呈现 worker × 执行 × 待处理 IR</div>
+    </div>
+    <div class="pa">
+      <div class="pain">执行到一半<b>停下来问你</b>（"要不要提交？"）</div>
+      <div class="arrow">→</div>
+      <div class="fix"><b>InputRequest 一等概念</b>：Web Console 卡片作答，随即恢复</div>
+    </div>
+    <div class="pa">
+      <div class="pain">难追溯<b>做了什么、为什么、奉谁之命</b></div>
+      <div class="arrow">→</div>
+      <div class="fix">每个 Task/Issue 一条<b>会话线程</b>，派单/决策/进度/产物全在其中</div>
+    </div>
+    <div class="pa">
+      <div class="pain">Skill / MCP 配置<b>散落各仓</b></div>
+      <div class="arrow">→</div>
+      <div class="fix"><b>AgentInstance 一等聚合根</b>：指令 + MCP + skill 绑定到智能体身份</div>
+    </div>
+    <div class="pa">
+      <div class="pain"><b>凭据管理</b>散乱、易泄露</div>
+      <div class="arrow">→</div>
+      <div class="fix"><b>UserSecret</b> BC · AES-256 · 明文永不回显 · <code>secret:&lt;name&gt;</code> 引用</div>
+    </div>
+    <div class="pa">
+      <div class="pain"><b>多机部署</b>繁琐</div>
+      <div class="arrow">→</div>
+      <div class="fix">多主机 TCP+TLS（SSH 式指纹固定）+ <b>一条命令</b>完成首跳接入</div>
+    </div>
   </div>
 
   <div class="section-title">核心能力 / 特性</div>
   <div class="features">
     <div class="feature">
-      <h4>一中心，多 worker，任意位置运行</h4>
-      <p>跑一个 server，从任意机器接入 worker。智能体在任意位置运行 —— 每一次对话与决策都落在一个你能回溯的线程上。</p>
+      <h4>📦 装好即用</h4>
+      <p>一条命令装中心、一条命令装 worker；<code>upgrade</code> 原子切换 + 健康探针 + 自动回滚。</p>
     </div>
     <div class="feature">
-      <h4>装好即用</h4>
-      <p>一条命令装好中心，一条命令装好每个 worker；一对配套的 <code>upgrade</code> 命令向前推进既有安装（原子 symlink 切换 + 健康探针 + 自动回滚）。</p>
+      <h4>🔑 开箱即用鉴权</h4>
+      <p>订阅版 <code>/login</code> 即用；智能体 claude 复用同一份登录，无需额外配置。</p>
     </div>
     <div class="feature">
-      <h4>会话是脊梁</h4>
-      <p>每一次派单、每一个 InputRequest、每一份产物，都能在它原本的会话线程里被找回。</p>
+      <h4>🧩 AgentInstance 一等公民</h4>
+      <p>指令 + MCP servers + skill 挂载，全部绑定到智能体身份。</p>
     </div>
     <div class="feature">
-      <h4>InputRequest 一等公民</h4>
-      <p>智能体执行到一半阻塞、向你请求决策；你在 Web Console 作答，智能体随即恢复执行。</p>
-    </div>
-    <div class="feature">
-      <h4>Fleet 实时视图</h4>
-      <p><code>/fleet</code> 实时呈现每一个 worker × 执行 × 待处理的 InputRequest。</p>
-    </div>
-    <div class="feature">
-      <h4>开箱即用的鉴权</h4>
-      <p>订阅版 <code>/login</code> 开箱即用；智能体的 claude 复用同一份登录 —— 无需额外配置。</p>
-    </div>
-    <div class="feature">
-      <h4>单机多 worker · 跨主机 TCP+TLS</h4>
-      <p>同一台机器可跑多个 worker，并支持多主机 TCP+TLS 连接，采用 SSH 式的指纹固定（pinning）。</p>
+      <h4>🌐 单机多 worker · 跨主机 TCP+TLS</h4>
+      <p>同机多 worker；多主机 SSH 式指纹固定（pinning）。</p>
     </div>
   </div>
 
@@ -189,7 +226,7 @@
       <h3>GitHub</h3>
       <div class="desc">源码仓库 <code>oopslink/agent-center</code> —— 安装脚本、CHANGELOG 与路线图都在这里。</div>
     </a>
-    <a class="card" href="../manual/index.html">
+    <a class="card" href="../manual/v2.7.1/index.html">
       <div class="ico">📖</div>
       <h3>用户手册</h3>
       <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具与 Web Console 使用。</div>
