@@ -94,6 +94,30 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client
 	return client, slug, nil
 }
 
+// seedGetJSON GETs a URL (carrying the session cookie) and decodes a 2xx JSON
+// response into out. A non-2xx status is an error carrying the response body.
+func seedGetJSON(ctx context.Context, client *http.Client, url string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	if out != nil {
+		if err := json.Unmarshal(raw, out); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
+	}
+	return nil
+}
+
 // seedPostJSON POSTs a JSON body and decodes a 2xx JSON response into out (out
 // may be nil). A non-2xx status is an error carrying the response body so a
 // seed failure is diagnosable.

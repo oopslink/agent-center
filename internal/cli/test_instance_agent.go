@@ -75,33 +75,60 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 	}
 	pack.WorkersNote = fmt.Sprintf("%d worker(s) org-enrolled into the seeded org via org-scoped mint-enroll — control-connected (no worker_not_org_enrolled 409; resolves the #255 finding)", workers)
 
-	// 3. Create a real agent bound to the first org-connected worker. The owner
-	//    session (admin) authorizes agent creation; cli=claude + model=
-	//    claude-opus-4-8 (runtime present on this host per Tester).
+	// 3. Create a real agent bound to the first org-connected worker (cli=
+	//    claude-code, model=claude-opus-4-8). The owner session (admin)
+	//    authorizes creation.
 	connectedWorker := pack.Workers[len(pack.Workers)-workers].ID
-	var agentResp struct {
-		ID         string `json:"id"`
-		IdentityID string `json:"identity_id"`
-	}
+	agentName := "Sandbox Agent " + pack.ID
 	if err := seedPostJSON(ctx, client, base+"/api/members/agent?org_slug="+slug, map[string]any{
-		"display_name": "Sandbox Agent " + pack.ID,
+		"display_name": agentName,
 		"role":         "member",
 		"cli":          "claude-code",
 		"model":        "claude-opus-4-8",
 		"worker_id":    connectedWorker,
-	}, &agentResp); err != nil {
+	}, nil); err != nil {
 		return fmt.Errorf("create agent: %w", err)
 	}
-	pack.Agent = &seedAgent{ID: agentResp.ID, CLI: "claude-code", Model: "claude-opus-4-8", WorkerID: connectedWorker}
+	// Resolve the EXECUTION agent's real id + member-id (the members/agent create
+	// response carries the org-member id, not the execution agent id) by reading
+	// it back. The agent's id == its identity_member_id (the assignable ref id).
+	var agentsList struct {
+		Agents []struct {
+			ID               string `json:"id"`
+			IdentityMemberID string `json:"identity_member_id"`
+			Name             string `json:"name"`
+		} `json:"agents"`
+	}
+	if err := seedGetJSON(ctx, client, base+"/api/agents?org_slug="+slug, &agentsList); err != nil {
+		return fmt.Errorf("list agents: %w", err)
+	}
+	var agentID, agentMemberID string
+	for _, a := range agentsList.Agents {
+		if a.Name == agentName {
+			agentID, agentMemberID = a.ID, a.IdentityMemberID
+			break
+		}
+	}
+	if agentID == "" {
+		return fmt.Errorf("created agent %q not found in list", agentName)
+	}
+	if agentMemberID == "" {
+		agentMemberID = agentID
+	}
+	pack.Agent = &seedAgent{ID: agentID, CLI: "claude-code", Model: "claude-opus-4-8", WorkerID: connectedWorker}
 
-	// 4. Dispatch a simple, explicit task to the agent so it runs and produces
+	// 4. START the agent — a freshly-created agent is lifecycle=stopped; it must
+	//    be started so the worker reconciles it and it can execute dispatched
+	//    work (otherwise the task stays queued and no tool events are produced).
+	if err := seedPostJSON(ctx, client, base+"/api/agents/"+agentID+"/start?org_slug="+slug, map[string]any{}, nil); err != nil {
+		return fmt.Errorf("start agent: %w", err)
+	}
+
+	// 5. Dispatch a simple, explicit task to the agent so it runs and produces
 	//    tool_use/result events. Concrete prompt (Tester #255 A5: agents are
 	//    cautious with vague "acceptance test" wording → a clear task elicits
-	//    real tool use). The task queues and runs once the worker control-connects.
-	assignee := "agent:" + agentResp.IdentityID
-	if agentResp.IdentityID == "" {
-		assignee = "agent:" + agentResp.ID
-	}
+	//    real tool use). Assignee uses the agent's member-id (agent:<member-id>).
+	assignee := "agent:" + agentMemberID
 	projectID := ""
 	if pack.Entities != nil {
 		projectID = pack.Entities.ProjectID
