@@ -152,6 +152,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/conversations/{id}/refs", s.listRefsHandler)
 	s.mux.HandleFunc("GET /api/conversations/{id}/unread", s.unreadHandler)
 	s.mux.HandleFunc("POST /api/conversations/{id}/seen", s.markSeenHandler)
+	// v2.8 #268: follow / unfollow (badge model). POST = follow,
+	// DELETE = unfollow; auto-follow happens on participate / @mention.
+	s.mux.HandleFunc("POST /api/conversations/{id}/follow", s.followConversationHandler)
+	s.mux.HandleFunc("DELETE /api/conversations/{id}/follow", s.unfollowConversationHandler)
 
 	// Participants (channel kind only — service enforces).
 	s.mux.HandleFunc("POST /api/conversations/{id}/participants", s.inviteParticipantHandler)

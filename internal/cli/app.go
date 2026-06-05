@@ -127,6 +127,8 @@ type App struct {
 	ConvRefRepo        conversation.ConversationMessageReferenceRepository
 	ReadStateRepo      conversation.UserConversationReadStateRepository
 	ReadStateSvc       *convservice.ReadStateService
+	FollowStateRepo    conversation.UserConversationFollowStateRepository
+	FollowStateSvc     *convservice.FollowStateService
 
 	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). The admin
 	// request_input handler uses it to emit `agent.awaiting_input` in the same tx
@@ -213,6 +215,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	carryOver := convservice.NewCarryOverService(db, cr, mgRepo, convRefRepo, sink, gen, clk)
 	readStateRepo := convsqlite.NewReadStateRepo(db)
 	readStateSvc := convservice.NewReadStateService(db, readStateRepo, mgRepo, sink, clk)
+	followStateRepo := convsqlite.NewFollowStateRepo(db)
+	followStateSvc := convservice.NewFollowStateService(followStateRepo, cr, clk)
 
 	// Observability Phase 4
 	deps := query.Deps{
@@ -389,6 +393,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		ConvRefRepo:        convRefRepo,
 		ReadStateRepo:      readStateRepo,
 		ReadStateSvc:       readStateSvc,
+		FollowStateRepo:    followStateRepo,
+		FollowStateSvc:     followStateSvc,
 		OutboxRepo:         outboxRepo,
 
 		AgentInstanceRepo: aiRepo,

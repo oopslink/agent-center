@@ -57,6 +57,8 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 	coSvc := convservice.NewCarryOverService(db, convRepo, msgRepo, refRepo, sink, gen, clk)
 	rsRepo := convsqlite.NewReadStateRepo(db)
 	rsSvc := convservice.NewReadStateService(db, rsRepo, msgRepo, sink, clk)
+	fsRepo := convsqlite.NewFollowStateRepo(db)
+	fsSvc := convservice.NewFollowStateService(fsRepo, convRepo, clk)
 	fleetSvc := query.NewFleetSnapshotService(query.Deps{Events: er})
 	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
 	// Wire UserSecret with a test master key.
@@ -81,6 +83,7 @@ func setupAPI(t *testing.T) (HandlerDeps, *sql.DB) {
 		AgentInstanceRepo:  aiRepo,
 		ReadStateRepo:      rsRepo,
 		ReadStateSvc:       rsSvc,
+		FollowStateSvc:     fsSvc,
 	}
 	return deps, db
 }
