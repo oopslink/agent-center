@@ -267,16 +267,22 @@ func TestE2E9_SupervisorRemoved(t *testing.T) {
 }
 
 // TestE2E9_WorkerRunRequiresWorkerID verifies `worker run` now routes to the real
-// daemon handler (v2.7 (b) unified binary) and requires --worker-id, replacing the
-// old not-implemented stub. Assertion owned by Tester (msg 2ce24698): no
-// --worker-id → exit 2 (ExitUsage) + stderr "--worker-id is required".
+// daemon handler (v2.7 (b) unified binary) and requires a worker id, replacing the
+// old not-implemented stub. Assertion owned by Tester (msg 2ce24698): no worker id
+// → exit 2 (ExitUsage) + stderr containing "worker_id is required".
+//
+// v2.7.1 #249/#251 (worker config single source) generalized the message so the id
+// can come from the --worker-id flag OR worker.worker_id in --config; the full text
+// is now `worker run: worker_id is required (pass --worker-id or set worker.worker_id
+// in --config)`. Assert the stable substring "worker_id is required" (the prior
+// literal "--worker-id is required" became stale after that generalization).
 func TestE2E9_WorkerRunRequiresWorkerID(t *testing.T) {
 	h := newHarness(t)
 	_, errOut, code := h.run("worker", "run")
 	if code != 2 {
 		t.Fatalf("expected exit 2 (ExitUsage), got %d", code)
 	}
-	if !strings.Contains(errOut, "--worker-id is required") {
+	if !strings.Contains(errOut, "worker_id is required") {
 		t.Fatalf("stderr: %s", errOut)
 	}
 }
