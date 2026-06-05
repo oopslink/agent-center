@@ -45,6 +45,14 @@ func (r IdentityRef) Validate() error {
 	return errors.New("identity ref: must be 'system' or 'user:<id>' / 'agent:<id>' (ADR-0033)")
 }
 
+// IsHuman reports whether the ref denotes a human identity (`user:<id>`).
+// Agents (`agent:<id>`) and `system` are not human. Used by the v2.8 #268
+// unread/follow model to enforce Q-T1 human-only: agents never accumulate
+// read- or follow-state and are zeroed in the badge DTO (directed-wake D3).
+func (r IdentityRef) IsHuman() bool {
+	return strings.HasPrefix(string(r), "user:") && len(string(r)) > len("user:")
+}
+
 // ConversationKind is the v2.7 four-value enum (ADR-0047 §1, finalized in
 // plan §10 OQ10): channel / issue / task / dm. `channel` is retained as a
 // generic Org-level group chat (owner_ref id://organizations/{org_id}, NOT

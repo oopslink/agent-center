@@ -9,6 +9,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/mention"
 	"github.com/oopslink/agent-center/internal/outbox"
 )
 
@@ -29,8 +30,8 @@ func TestMentionTokenPresent(t *testing.T) {
 		{"@bot-2 deploy", "@bot-2", true},        // hyphen in name
 	}
 	for _, c := range cases {
-		if got := mentionTokenPresent(c.text, c.needle); got != c.want {
-			t.Errorf("mentionTokenPresent(%q,%q)=%v want %v", c.text, c.needle, got, c.want)
+		if got := mention.TokenPresent(c.text, c.needle); got != c.want {
+			t.Errorf("mention.TokenPresent(%q,%q)=%v want %v", c.text, c.needle, got, c.want)
 		}
 	}
 }

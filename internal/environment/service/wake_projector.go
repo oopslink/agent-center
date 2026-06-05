@@ -14,6 +14,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
+	"github.com/oopslink/agent-center/internal/mention"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
@@ -505,7 +506,7 @@ func (p *WakeProjector) mentionsAgent(ctx context.Context, a *agent.Agent, rawID
 	if !ok || strings.TrimSpace(name) == "" {
 		return false
 	}
-	return mentionTokenPresent(strings.ToLower(text), "@"+strings.ToLower(strings.TrimSpace(name)))
+	return mention.Present(text, name)
 }
 
 // agentDisplayName resolves an agent's user-facing name for @mention matching and
@@ -545,28 +546,9 @@ func (p *WakeProjector) lookupDisplayName(ctx context.Context, ref string) (stri
 	return strings.TrimSpace(n), true
 }
 
-// mentionTokenPresent reports whether needle ("@name", lowercased) appears in
-// text (lowercased) as a bounded token: the char after the match must be end-of
-// -string or a non-word char, so "@bot" does not match "@bottom". The leading
-// "@" is itself the start boundary.
-func mentionTokenPresent(text, needle string) bool {
-	from := 0
-	for {
-		i := strings.Index(text[from:], needle)
-		if i < 0 {
-			return false
-		}
-		end := from + i + len(needle)
-		if end >= len(text) || !isMentionWordChar(text[end]) {
-			return true
-		}
-		from = from + i + 1
-	}
-}
-
-func isMentionWordChar(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
-}
+// @mention token matching lives in internal/mention (single source shared
+// with the v2.8 #268 unread mention_count) so a mention badge counts exactly
+// the messages that would wake the user.
 
 // deliverConverse enqueues an agent.converse command for a RUNNING agent, or
 // posts a visible "not running" system message for a stopped one (avoid the

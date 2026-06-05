@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/mention"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
@@ -212,6 +214,92 @@ func (s *ReadStateService) countUnread(ctx context.Context,
 	}
 	if n > MaxUnreadCount {
 		return MaxUnreadCount, nil
+	}
+	return n, nil
+}
+
+// MentionSummary extends the unread summary with the mention count used by
+// the v2.8 #268 badge model.
+type MentionSummary struct {
+	LastSeenMessageID conversation.MessageID
+	UnreadCount       int
+	MentionCount      int
+}
+
+// UnreadWithMentions computes both unread_count and mention_count for
+// (user, conv) in one pass over the read-state row.
+//
+// mention_count is v2.8 #268 path A (best-effort, no new schema): a bounded
+// scan of the UNREAD tail (id > last_seen, capped at MaxUnreadCount+1) for
+// @mentions of displayName, using the SAME matcher as the wake projector
+// (internal/mention) — so a mention badge counts exactly the messages that
+// would wake the user. mention_count <= unread_count by construction (the
+// mention set is a subset of the unread set scanned under the same cap).
+// An empty displayName yields mention_count 0 (nothing to match). The
+// precise-mention model (a write-time projection) is deferred to v2.9.
+func (s *ReadStateService) UnreadWithMentions(ctx context.Context,
+	userID conversation.IdentityRef, convID conversation.ConversationID, displayName string,
+) (MentionSummary, error) {
+	if err := userID.Validate(); err != nil {
+		return MentionSummary{}, fmt.Errorf("unread mentions: user_id: %w", err)
+	}
+	var lastSeen conversation.MessageID
+	existing, err := s.rsRepo.FindByUserAndConv(ctx, userID, convID)
+	if err != nil && !errors.Is(err, conversation.ErrReadStateNotFound) {
+		return MentionSummary{}, err
+	}
+	if existing != nil {
+		lastSeen = existing.LastSeenMessageID
+	}
+	unread, err := s.countUnread(ctx, convID, lastSeen)
+	if err != nil {
+		return MentionSummary{}, err
+	}
+	mentions, err := s.countMentions(ctx, convID, lastSeen, displayName)
+	if err != nil {
+		return MentionSummary{}, err
+	}
+	return MentionSummary{
+		LastSeenMessageID: lastSeen,
+		UnreadCount:       unread,
+		MentionCount:      mentions,
+	}, nil
+}
+
+// countMentions scans the unread tail (id > lastSeen, capped) and counts
+// messages whose content @mentions displayName. Bounded by MaxUnreadCount+1
+// rows; result capped at MaxUnreadCount so it never exceeds the unread cap.
+func (s *ReadStateService) countMentions(ctx context.Context,
+	convID conversation.ConversationID, lastSeen conversation.MessageID, displayName string,
+) (int, error) {
+	if strings.TrimSpace(displayName) == "" {
+		return 0, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, s.db)
+	const stmt = `SELECT content FROM messages
+		WHERE conversation_id = ? AND id > ?
+		LIMIT ?`
+	rows, err := exec.QueryContext(ctx, stmt,
+		string(convID), string(lastSeen), MaxUnreadCount+1)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var content string
+		if err := rows.Scan(&content); err != nil {
+			return 0, err
+		}
+		if mention.Present(content, displayName) {
+			n++
+			if n >= MaxUnreadCount {
+				break
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
 	}
 	return n, nil
 }

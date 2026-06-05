@@ -47,6 +47,7 @@ type HandlerDeps struct {
 	FleetSvc           *query.FleetSnapshotService
 	ReadStateRepo      conversation.UserConversationReadStateRepository
 	ReadStateSvc       *convservice.ReadStateService
+	FollowStateSvc     *convservice.FollowStateService
 
 	// v2.4-D-X1 (@oopslink ask): workers.name editing surface in the
 	// Fleet view. WorkerRenameSvc is the workforce service that wraps
@@ -373,6 +374,16 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	self := conversation.IdentityRef(d.Actor)
+	// v2.8 #268: per-row unread/mention/followed badges for the sidebar.
+	// followed is batch-resolved (one repo round-trip); mention_count needs
+	// the requesting user's display name. Both are agent-aware (Q-T1).
+	selfDisplayName := resolveDisplayName(r, d, self)
+	followedMap := map[conversation.ConversationID]bool{}
+	if d.FollowStateSvc != nil {
+		if m, ferr := d.FollowStateSvc.ResolveFollowed(r.Context(), self, convs); ferr == nil {
+			followedMap = m
+		}
+	}
 	arr := make([]map[string]any, len(convs))
 	for i, c := range convs {
 		row := convPublicMap(c)
@@ -390,6 +401,7 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 				}
 			}
 		}
+		s.embedBadges(r, d, self, selfDisplayName, c, row, followedMap[c.ID()])
 		arr[i] = row
 	}
 	writeJSON(w, http.StatusOK, arr)
@@ -701,12 +713,24 @@ func (s *Server) markSeenHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	// v2.8 #268: return the recomputed unread/mention counts so the client
+	// updates the badge without a second round-trip (partial-read shows the
+	// precise N−K, not a hardcoded 0). Fail-soft: a count error doesn't fail
+	// the mark-read itself.
+	resp := map[string]any{
 		"last_seen_message_id": string(res.LastSeenMessageID),
 		"version":              res.Version,
 		"bumped":               res.Bumped,
 		"event_id":             string(res.EventID),
-	})
+		"unread_count":         0,
+		"mention_count":        0,
+	}
+	if sum, serr := d.ReadStateSvc.UnreadWithMentions(r.Context(), userID, convID,
+		resolveDisplayName(r, d, userID)); serr == nil {
+		resp["unread_count"] = sum.UnreadCount
+		resp["mention_count"] = sum.MentionCount
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // readStateUserID picks the user id from the query string and falls
@@ -733,7 +757,18 @@ func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, convPublicMapWithParticipants(c))
+	// v2.8 #268: embed unread/mention/followed for the opened conversation
+	// (detail surface), mirroring the sidebar list. Agent-aware (Q-T1).
+	self := conversation.IdentityRef(d.Actor)
+	row := convPublicMapWithParticipants(c)
+	followed := false
+	if d.FollowStateSvc != nil {
+		if f, ferr := d.FollowStateSvc.IsFollowed(r.Context(), self, c.ID()); ferr == nil {
+			followed = f
+		}
+	}
+	s.embedBadges(r, d, self, resolveDisplayName(r, d, self), c, row, followed)
+	writeJSON(w, http.StatusOK, row)
 }
 
 func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
@@ -901,6 +936,26 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
+	// v2.8 #268 (Q1): auto-advance the human sender's read cursor to their
+	// own just-sent message — sending = fully caught up (Slack-standard:
+	// overhead unread is intentionally cleared, NOT a regression). MarkSeen
+	// is only-forward + idempotent. Also auto-follow on participate so a
+	// thread the sender just joined starts contributing to their badges.
+	// Both are fail-soft: a read/follow-state hiccup must not fail a message
+	// that is already persisted.
+	if senderRef := conversation.IdentityRef(sender); senderRef.IsHuman() {
+		if d.ReadStateSvc != nil {
+			_, _ = d.ReadStateSvc.MarkSeen(r.Context(), convservice.MarkSeenCommand{
+				UserID:            senderRef,
+				ConversationID:    id,
+				LastSeenMessageID: conversation.MessageID(res.MessageID),
+				Actor:             d.Actor,
+			})
+		}
+		if d.FollowStateSvc != nil {
+			_ = d.FollowStateSvc.AutoFollow(r.Context(), senderRef, id)
+		}
+	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"message_id": string(res.MessageID),
 		"event_id":   string(res.EventID),
@@ -989,6 +1044,12 @@ func (s *Server) deleteConversationHandler(w http.ResponseWriter, r *http.Reques
 		}
 		if derr := d.ReadStateRepo.DeleteByConversationID(txCtx, id); derr != nil {
 			return derr
+		}
+		// v2.8 #268: cascade follow-state too (symmetric with read-state).
+		if d.FollowStateSvc != nil {
+			if derr := d.FollowStateSvc.DeleteByConversationID(txCtx, id); derr != nil {
+				return derr
+			}
 		}
 		return d.ConvRepo.Delete(txCtx, id)
 	}); err != nil {

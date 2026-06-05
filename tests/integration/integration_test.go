@@ -126,7 +126,7 @@ func TestINT2_MigrationIdempotent(t *testing.T) {
 		t.Fatalf("second Up: %v", err)
 	}
 	v, _ := m.Version(context.Background())
-	if v != 49 {
+	if v != 50 {
 		t.Fatalf("version: %d", v)
 	}
 	if err := m.Down(context.Background(), 0); err != nil {
