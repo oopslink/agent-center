@@ -29,10 +29,13 @@ import (
 // seedTestInstanceTenant signs up an owner + org, then creates one project and
 // one channel, populating pack.Signin + pack.Entities. The HTTP client carries
 // the signup's session cookie (cookiejar) to the authenticated create calls.
-func seedTestInstanceTenant(ctx context.Context, pack *accessPack) error {
+// Returns the authenticated client (session cookie in its jar) + the org slug
+// so callers (#261 --with-agent) can reuse the session for org-scoped
+// mint-enroll. seedOnly callers ignore the returned client/slug.
+func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client, string, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	client := &http.Client{Timeout: 15 * time.Second, Jar: jar}
 	base := strings.TrimRight(pack.WebURL, "/")
@@ -57,7 +60,7 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) error {
 		"organization_slug": slug,
 		"email":             signin.Email,
 	}, &signupResp); err != nil {
-		return fmt.Errorf("signup: %w", err)
+		return nil, "", fmt.Errorf("signup: %w", err)
 	}
 
 	// 2. create a project (org resolved via ?org_slug=, same as the UI).
@@ -67,7 +70,7 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) error {
 	if err := seedPostJSON(ctx, client, base+"/api/projects?org_slug="+slug, map[string]any{
 		"name": "Alpha", "description": "seeded by install test-instance --with-seed",
 	}, &projResp); err != nil {
-		return fmt.Errorf("create project: %w", err)
+		return nil, "", fmt.Errorf("create project: %w", err)
 	}
 
 	// 3. create a channel (response id field is conversation_id).
@@ -77,7 +80,7 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) error {
 	if err := seedPostJSON(ctx, client, base+"/api/conversations?org_slug="+slug, map[string]any{
 		"kind": "channel", "name": "general",
 	}, &chanResp); err != nil {
-		return fmt.Errorf("create channel: %w", err)
+		return nil, "", fmt.Errorf("create channel: %w", err)
 	}
 
 	pack.Signin = &signin
@@ -88,6 +91,30 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) error {
 	}
 	pack.WebLogin = "seeded ✓ — sign in at web_url with the credentials in `signin`"
 	pack.EntityIDs = "seeded ✓ — see `entity_refs` (org/project/channel)"
+	return client, slug, nil
+}
+
+// seedGetJSON GETs a URL (carrying the session cookie) and decodes a 2xx JSON
+// response into out. A non-2xx status is an error carrying the response body.
+func seedGetJSON(ctx context.Context, client *http.Client, url string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	if out != nil {
+		if err := json.Unmarshal(raw, out); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
+	}
 	return nil
 }
 

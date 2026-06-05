@@ -100,13 +100,15 @@ func InstallTestInstanceCommand() *Command {
 			"~/.agent-center-test/<id>/ with dynamically-allocated free ports and " +
 			"per-instance launchd labels, reusing the real install + enroll codepath. " +
 			"Workers auto-enroll on start. Prints a machine-readable access pack " +
-			"(--output=json, default). With --with-seed it also seeds a usable tenant " +
-			"(signup owner+org + 1 project + 1 channel) and emits signin + entity ids. " +
-			"(--with-agent — real agent producing tool events — is the #257 phase-2 follow-up.)",
+			"(--output=json, default). --with-seed also seeds a usable tenant " +
+			"(signup owner+org + 1 project + 1 channel) → signin + entity ids. " +
+			"--with-agent (implies --with-seed) org-enrolls the workers into the seeded " +
+			"org (control-connected), creates a real agent, and dispatches a task so it " +
+			"produces tool events.",
 		Examples: []string{
 			"agent-center install test-instance --workers 2",
 			"agent-center install test-instance --with-seed",
-			"agent-center install test-instance --id t9 --workers 1 --output=text",
+			"agent-center install test-instance --with-agent --workers 1",
 		},
 		Flags: installTestInstanceHandler,
 	}
@@ -118,6 +120,7 @@ func installTestInstanceHandler(fs *flag.FlagSet) Handler {
 	outputF := fs.String("output", "json", "output format for the access pack: json|text")
 	timeoutF := fs.Int("ready-timeout", 30, "seconds to wait for the center to become healthy")
 	withSeedF := fs.Bool("with-seed", false, "seed a usable tenant after install (signup user+org + 1 project + 1 channel) and emit signin + entity_ids in the access pack (#257)")
+	withAgentF := fs.Bool("with-agent", false, "implies --with-seed; org-enroll the workers into the seeded org (control-connected, no 409), create 1 real agent, and dispatch a simple task so it produces tool events (#261)")
 	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
 		_ = args
 		if *workersF < 0 || *workersF > 32 {
@@ -164,21 +167,37 @@ func installTestInstanceHandler(fs *flag.FlagSet) Handler {
 		}
 
 		layout := newTestInstanceLayout(root, id)
-		pack, ierr := provisionTestInstance(ctx, layout, *workersF, time.Duration(*timeoutF)*time.Second)
+		timeout := time.Duration(*timeoutF) * time.Second
+		// #261 --with-agent REORDERS: the center is provisioned alone first; the
+		// workers are installed later (org-bound, after the tenant org is seeded)
+		// so they enroll INTO the org and control-connect (no 409). Without
+		// --with-agent, provision the center + N bootstrap-token workers (#255).
+		provisionWorkers := *workersF
+		if *withAgentF {
+			provisionWorkers = 0
+		}
+		pack, ierr := provisionTestInstance(ctx, layout, provisionWorkers, timeout)
 		if ierr != nil {
 			// Best-effort rollback so a failed provision doesn't strand a half-built
 			// namespace (D5). Confined to this instance's subtree + labels.
 			_ = teardownTestInstance(layout, errw)
 			return PrintError(errw, FormatText, "test_instance_provision_failed", ierr.Error(), ExitBusinessError)
 		}
-		// #257 --with-seed: drive a usable tenant via the REAL center API
-		// (signup → project → channel) so the access pack carries signin +
-		// entity_ids for 0-round-trip UI consumption. A seed failure tears the
-		// instance down (don't leave a half-seeded sandbox).
-		if *withSeedF {
-			if serr := seedTestInstanceTenant(ctx, &pack); serr != nil {
+		// #257 --with-seed (tenant only): drive a usable tenant via the REAL center
+		// API (signup → project → channel) so the access pack carries signin +
+		// entity_ids for 0-round-trip UI consumption.
+		if *withSeedF && !*withAgentF {
+			if _, _, serr := seedTestInstanceTenant(ctx, &pack); serr != nil {
 				_ = teardownTestInstance(layout, errw)
 				return PrintError(errw, FormatText, "test_instance_seed_failed", serr.Error(), ExitBusinessError)
+			}
+		}
+		// #261 --with-agent: seed tenant + org-enroll workers (control-connected) +
+		// create a real agent + dispatch a simple task so it produces tool events.
+		if *withAgentF {
+			if serr := seedAndEnrollWithAgent(ctx, &pack, layout, *workersF, timeout); serr != nil {
+				_ = teardownTestInstance(layout, errw)
+				return PrintError(errw, FormatText, "test_instance_with_agent_failed", serr.Error(), ExitBusinessError)
 			}
 		}
 		return emitAccessPack(out, errw, pack, format)
@@ -229,12 +248,23 @@ type accessPack struct {
 	// round-trips. Omitted when not seeded (the hints above explain why).
 	Signin   *seedSignin   `json:"signin,omitempty"`
 	Entities *seedEntities `json:"entity_refs,omitempty"`
+	// Populated only by --with-agent (#261): the real agent created + the task
+	// dispatched to it (so it produces tool events on a control-connected worker).
+	Agent *seedAgent `json:"agent,omitempty"`
 }
 
 type accessPackWorker struct {
 	ID        string `json:"id"`
 	Prefix    string `json:"prefix"`
 	HealthURL string `json:"health_url,omitempty"`
+}
+
+type seedAgent struct {
+	ID               string `json:"id"`
+	CLI              string `json:"cli"`
+	Model            string `json:"model"`
+	WorkerID         string `json:"worker_id"`
+	DispatchedTaskID string `json:"dispatched_task_id,omitempty"`
 }
 
 type seedSignin struct {
@@ -515,6 +545,17 @@ func uninstallTestInstanceHandler(fs *flag.FlagSet) Handler {
 // teardownTestInstance boots out every launchd/systemd label belonging to the
 // instance (center + any worker-N present on disk) then removes the namespace
 // subtree. Confined to layout.Root — it never touches the prod prefix.
+// workerIDFromConfig reads the installed worker's real worker_id from its
+// config (worker.worker_id). Empty when the config is absent/unreadable.
+func workerIDFromConfig(workerPrefix string) string {
+	cfgPath := newInstallLayout(workerPrefix, "").ConfigPath
+	cfg, err := config.Load(config.LoadOptions{Path: cfgPath})
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(cfg.Worker.WorkerID)
+}
+
 func teardownTestInstance(layout testInstanceLayout, out io.Writer) error {
 	home, _ := os.UserHomeDir()
 	sp, perr := platformPaths(runtimeOS(), isMacRuntime(), home)
@@ -522,9 +563,16 @@ func teardownTestInstance(layout testInstanceLayout, out io.Writer) error {
 		// Center label (com.agent-center.center.test-<id>).
 		centerSP := applyInstanceToServicePaths(sp, layout.Instance)
 		bootoutUnit(centerSP, centerSP.CenterServiceID, centerSP.CenterUnitPath, out)
-		// Worker labels — discover worker-N subdirs that exist on disk.
+		// Worker labels — discover worker-N subdirs on disk and bootout each by
+		// its REAL worker_id read from its config (#261: --with-agent workers carry
+		// a server-assigned worker-<hex> id from mint-enroll, not test-<id>-w<n>;
+		// reading the config covers both that and the #255 computed id).
 		for _, n := range discoverWorkerIndexes(layout.Root) {
-			wsp := applyWorkerIDToServicePaths(sp, layout.workerID(n))
+			wid := workerIDFromConfig(layout.workerPrefix(n))
+			if wid == "" {
+				wid = layout.workerID(n) // fallback to the computed id
+			}
+			wsp := applyWorkerIDToServicePaths(sp, wid)
 			bootoutUnit(wsp, wsp.WorkerServiceID, wsp.WorkerUnitPath, out)
 		}
 	}

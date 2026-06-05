@@ -41,7 +41,7 @@ func TestSeedTestInstanceTenant_257_PopulatesAccessPack(t *testing.T) {
 	defer srv.Close()
 
 	pack := accessPack{ID: "t1", WebURL: srv.URL}
-	if err := seedTestInstanceTenant(context.Background(), &pack); err != nil {
+	if _, _, err := seedTestInstanceTenant(context.Background(), &pack); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
@@ -73,7 +73,7 @@ func TestSeedTestInstanceTenant_257_SignupFailureSurfaces(t *testing.T) {
 	defer srv.Close()
 
 	pack := accessPack{ID: "t1", WebURL: srv.URL}
-	err := seedTestInstanceTenant(context.Background(), &pack)
+	_, _, err := seedTestInstanceTenant(context.Background(), &pack)
 	if err == nil {
 		t.Fatal("expected signup failure to surface as an error")
 	}
