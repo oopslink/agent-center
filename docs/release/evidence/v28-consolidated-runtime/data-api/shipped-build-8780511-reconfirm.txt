@@ -1,0 +1,11 @@
+=== SHIPPED-BUILD 8780511 data/API re-confirm (acme-t3 @58687, direct-on-shipped) ===
+signin owner=200 bob=200
+[PASS] #182 badges (shipped 8780511): unread>=1 & mention>=1 & followed=True :: unread=1 mention=1 followed=True
+[PASS] #185 archived chip data (shipped): task-0cc6520c assignee.assignee_lifecycle='archived' :: assignee_lifecycle='archived'
+[PASS] #188 cursor mechanism (shipped): limit=10 multi-page chain reassembles full no-gap/dup + null末页 :: agent=agent-aef0229d N=21 walked=21 pages=3
+[PASS] #190 dangling-binding (shipped): DELETE worker -> agent GET 200 + worker_id dangling + availability=unavailable :: st=200 worker_id='worker-f3a0b973' avail='unavailable' (DELETE=204)
+[PASS] #190 main worker-a2f93cc3 intact :: remaining=['worker-a2f93cc3']
+[PASS] #192 wake (shipped): @Peer Bob -> Bob mention++ :: 0->1
+[PASS] #192 word-boundary neg (shipped): @Peer Bobxyz -> unchanged :: 1->1
+
+*** SHIPPED-BUILD 8780511 data/API: 7/7 PASS ***

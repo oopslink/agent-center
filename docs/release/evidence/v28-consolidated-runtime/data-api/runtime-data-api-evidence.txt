@@ -1,0 +1,42 @@
+=== #28 CONSOLIDATED RUNTIME — data/API §-data (instance acme-t1 @50265, build ae4697a) ===
+[PASS] #185 archived-chip data: task.assignee.assignee_lifecycle='archived' :: assignee={'assignee_lifecycle': 'archived', 'display_name': 'ArchivedBot', 'member_id': 'agent-a1fa32b6', 'ref': 'agent:agent-a1fa32b6'}
+[FAIL] #182 P1 badges API: unread_count=1 / mention_count=1 / followed=true :: unread=0 mention=0 followed=True
+  pre: DanglingBot worker_id='worker-b5cbc1d4' availability='unavailable'
+  DELETE worker-b5cbc1d4 -> 204
+[PASS] #190 dangling-binding: agent GET still 200 after worker delete (graceful no-crash) :: st=200
+[PASS] #190 dangling-binding: worker_id dangling-retained + availability=unavailable :: worker_id='worker-b5cbc1d4' availability='unavailable'
+[PASS] #190/#273: other worker-16e42ca7 intact (Bound Agents normal) :: remaining workers=['worker-16e42ca7']
+  new channel for #192: None
+  Bob member_id=mem-e1ba9b2c
+
+*** consolidated data/API: 4/5 PASS (#188 Load-older pending >50 events) ***
+  FAIL: #182 P1 badges API: unread_count=1 / mention_count=1 / followed=true
+=== #182 RE-VERIFY FRESH (rule out consumed-pre-seed) + #192 wake round-trip ===
+  owner CH baseline: unread=0 mention=0 followed=True
+[FAIL] #182 FRESH badges: owner unread++ AND mention++ after Bob's @Owner (multi-word name match) :: unread 0->0 mention 0->0
+[PASS] #182 followed flag persists True :: followed=True
+[PASS] #182 mention<=unread invariant (#268) :: mention=0 unread=0
+[FAIL] #192 wake round-trip: @Bob (trailing space) -> Bob mention++ :: None->None
+[PASS] #192 word-boundary neg: @Bobxyz (word char) -> Bob mention UNCHANGED :: None->None
+
+*** #182/#192 re-verify: 3/5 PASS ***
+  FAIL: #182 FRESH badges: owner unread++ AND mention++ after Bob's @Owner (multi-word name match)
+  FAIL: #192 wake round-trip: @Bob (trailing space) -> Bob mention++
+Peer Bob signin: 200
+=== #182 FRESH (correct creds + ordering) + #192 (@Peer Bob) ===
+[PASS] #182 badges: owner unread++ & mention++ after Peer Bob's @Owner t1 (multi-word wake) :: unread 0->1 mention 0->1
+[PASS] #182 followed=True persists :: followed=True
+[PASS] #182 mention<=unread (#268 invariant) :: m=1 u=1
+[PASS] #192 wake round-trip: @Peer Bob (trailing space) -> Bob mention++ :: 0->1
+[PASS] #192 word-boundary neg: @Peer Bobxyz (word char) -> mention UNCHANGED :: 1->1
+
+*** #182/#192 corrected: 5/5 PASS ***
+=== #188 cursor MECHANISM live-verify (small limit multi-page over consolidated events) ===
+  agent has 27 events
+[PASS] #188 ULID-DESC monotonic no-dup :: N=27
+[PASS] #188 cursor multi-page chain reassembles full no-gap/dup :: walked 27/27 in 3 pages (limit=10)
+[PASS] #188 末页 next_cursor=null (chain terminates) :: pages=3
+[PASS] #188 limit=1 -> 1 + next_cursor present (N>1) :: 
+[PASS] #188 limit=50 over <=50 events -> all + next_cursor null (correct ≤50 single-page = Load-older末页态) :: got 27/27 nc=None
+
+*** #188 cursor mechanism: 5/5 PASS (live multi-page via small limit; >50 Load-older UI = fakeagent-bounded per PD) ***
