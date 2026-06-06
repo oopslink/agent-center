@@ -6,6 +6,7 @@ import { useCreateConversation } from '@/api/conversations';
 import {
   useAgent,
   useAgentActivity,
+  useArchiveAgent,
   useResetAgent,
   useRestartAgent,
   useStartAgent,
@@ -14,6 +15,7 @@ import {
 } from '@/api/agents';
 import { useWorkers } from '@/api/workers';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
 import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow } from '@/components/AgentActivityRow';
@@ -46,6 +48,7 @@ export default function AgentDetail(): React.ReactElement {
   const stop = useStopAgent(id);
   const restart = useRestartAgent(id);
   const reset = useResetAgent(id);
+  const archive = useArchiveAgent(id);
 
   // v2.7.1 #240: header "Send message" → open (or reuse) the 1:1 DM with this
   // agent. The backend dedups (#215), so createConversation returns the existing
@@ -69,6 +72,10 @@ export default function AgentDetail(): React.ReactElement {
   };
 
   const [resetOpen, setResetOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  // v2.8 #270: stop/restart are disruptive → confirm before firing. (start is
+  // non-destructive and stays direct; reset has its own scope modal.)
+  const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
   // v2.7.1 #228: active tab synced to ?tab= so a tab is shareable/bookmarkable.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -112,11 +119,17 @@ export default function AgentDetail(): React.ReactElement {
 
   const a = agent.data;
   const lc = a.lifecycle;
+  // v2.8 #270: archived is a terminal soft-delete state → the detail page is
+  // read-only history (no lifecycle actions); the LifecycleBadge shows it.
+  const isArchived = lc === 'archived';
   const transient = lc === 'stopping' || lc === 'resetting';
   const canStart = lc === 'stopped' || lc === 'error';
   const canStopRestart = lc === 'running';
-  // Reset is available unless the agent is already resetting.
-  const canReset = lc !== 'resetting';
+  // Reset is available unless the agent is already resetting (or archived).
+  const canReset = lc !== 'resetting' && !isArchived;
+  // v2.8 #270/#272 (b strict-two-step): archive only a settled (stopped/error)
+  // agent — a running agent must be stopped first (backend also 409-guards).
+  const canArchive = lc === 'stopped' || lc === 'error';
 
   const lifecyclePending =
     start.isPending || stop.isPending || restart.isPending;
@@ -162,27 +175,34 @@ export default function AgentDetail(): React.ReactElement {
         </div>
 
         <div className="flex flex-wrap items-center gap-2" data-testid="agent-controls">
-          <button
-            type="button"
-            onClick={() => void messageAgent()}
-            disabled={createDm.isPending}
-            className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
-            data-testid="agent-message-btn"
-            title="Send message"
-            aria-label="Send a direct message"
-            aria-busy={createDm.isPending}
-          >
-            <ChatBubbleIcon />
-          </button>
+          {/* #270: archived agents are read-only — no message/lifecycle actions. */}
+          {!isArchived && (
+            <button
+              type="button"
+              onClick={() => void messageAgent()}
+              disabled={createDm.isPending}
+              className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
+              data-testid="agent-message-btn"
+              title="Send message"
+              aria-label="Send a direct message"
+              aria-busy={createDm.isPending}
+            >
+              <ChatBubbleIcon />
+            </button>
+          )}
           {canStart && (
+            // v2.8 #271: Start is now an icon button (was the only text action —
+            // #250 missed it), consistent with Stop/Restart/Reset/Message.
             <button
               type="button"
               onClick={() => start.mutate()}
               disabled={lifecyclePending}
-              className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              className="flex items-center rounded bg-brand px-2 py-1.5 text-white hover:bg-brand-hover disabled:opacity-50"
               data-testid="agent-start-btn"
+              title="Start"
+              aria-label="Start agent"
             >
-              Start
+              <PlayIcon />
             </button>
           )}
           {canStopRestart && (
@@ -190,7 +210,7 @@ export default function AgentDetail(): React.ReactElement {
               {/* v2.7.1 #250: lifecycle controls icon-ified (same as #240 Message). */}
               <button
                 type="button"
-                onClick={() => stop.mutate()}
+                onClick={() => setConfirmAction('stop')}
                 disabled={lifecyclePending}
                 className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-stop-btn"
@@ -201,7 +221,7 @@ export default function AgentDetail(): React.ReactElement {
               </button>
               <button
                 type="button"
-                onClick={() => restart.mutate()}
+                onClick={() => setConfirmAction('restart')}
                 disabled={lifecyclePending}
                 className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-restart-btn"
@@ -223,6 +243,20 @@ export default function AgentDetail(): React.ReactElement {
               aria-label="Reset agent"
             >
               <ResetIcon />
+            </button>
+          )}
+          {canArchive && (
+            // v2.8 #270/#272: soft-archive (user-facing delete path) → ConfirmModal.
+            <button
+              type="button"
+              onClick={() => setArchiveOpen(true)}
+              disabled={archive.isPending}
+              className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
+              data-testid="agent-archive-btn"
+              title="Archive"
+              aria-label="Archive agent"
+            >
+              <ArchiveIcon />
             </button>
           )}
           {transient && (
@@ -332,6 +366,53 @@ export default function AgentDetail(): React.ReactElement {
           }}
         />
       )}
+
+      {/* #270: stop/restart二次确认 (disruptive — interrupts a running agent). */}
+      <ConfirmModal
+        open={confirmAction !== null}
+        title={confirmAction === 'restart' ? 'Restart agent?' : 'Stop agent?'}
+        message={
+          confirmAction === 'restart' ? (
+            <>
+              Restart <strong>{a.name}</strong>? Its current run is interrupted and
+              the agent is started again.
+            </>
+          ) : (
+            <>
+              Stop <strong>{a.name}</strong>? Any in-progress work is interrupted
+              until it is started again.
+            </>
+          )
+        }
+        confirmLabel={confirmAction === 'restart' ? 'Restart' : 'Stop'}
+        busy={stop.isPending || restart.isPending}
+        onConfirm={() => {
+          const m = confirmAction === 'restart' ? restart : stop;
+          m.mutate(undefined, { onSuccess: () => setConfirmAction(null) });
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
+
+      {/* #270/#272: archive二次确认. Soft-delete — terminal, releases the worker,
+          preserves history (tasks/conversations); shown as "(archived)". */}
+      <ConfirmModal
+        open={archiveOpen}
+        title="Archive agent?"
+        message={
+          <>
+            Archiving <strong>{a.name}</strong> removes it from the active agent
+            list and releases its worker. Its history (tasks, conversations) is
+            preserved and it will show as “(archived)”. This cannot be undone.
+          </>
+        }
+        confirmLabel="Archive"
+        danger
+        busy={archive.isPending}
+        onConfirm={() =>
+          archive.mutate(undefined, { onSuccess: () => setArchiveOpen(false) })
+        }
+        onCancel={() => setArchiveOpen(false)}
+      />
     </section>
   );
 }
@@ -421,6 +502,26 @@ function ChatBubbleIcon(): React.ReactElement {
         d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H8l-3.5 3v-3H5.5A1.5 1.5 0 0 1 4 11.5v-6z"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+// v2.8 #271: the Start control icon (a triangular play glyph) — #250 icon-ified
+// Stop/Restart/Reset/Message but left Start as text; this completes the set.
+function PlayIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+      <path d="M6 4.5v11l9-5.5-9-5.5z" />
+    </svg>
+  );
+}
+
+// v2.8 #270: the Archive control icon (a box with a slot) for soft-archive.
+function ArchiveIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M3 5.5h14v3H3v-3z" strokeLinejoin="round" />
+      <path d="M4.5 8.5v6h11v-6M8 11h4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

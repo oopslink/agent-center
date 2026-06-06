@@ -82,7 +82,11 @@ export type AgentLifecycle =
   | 'running'
   | 'stopping'
   | 'resetting'
-  | 'error';
+  | 'error'
+  // v2.8 #272: terminal soft-archive state. Archived agents are excluded from
+  // the default list (GET ?include_archived=true to include) but GET-by-id
+  // still resolves (history/detail). No un-archive in v2.8.
+  | 'archived';
 
 export type Availability = 'available' | 'busy' | 'unavailable';
 

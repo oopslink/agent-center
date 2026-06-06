@@ -285,4 +285,110 @@ describe('AgentDetail page', () => {
     wrap('/agents/ghost');
     await waitFor(() => expect(screen.getByTestId('agent-not-found')).toHaveTextContent(/no such agent/));
   });
+
+  // v2.8 #271: the Start button is icon-ified (was the only text action button —
+  // #250 missed it), consistent with Stop/Restart/Reset/Message. Icon + a11y.
+  it('renders the Start control as an icon button with title + aria (#271)', async () => {
+    stubAgent({ lifecycle: 'stopped' });
+    wrap('/agents/A1');
+    const startBtn = await screen.findByTestId('agent-start-btn');
+    expect(startBtn.querySelector('svg')).toBeInTheDocument();
+    expect(startBtn).toHaveAttribute('title', 'Start');
+    expect(startBtn).toHaveAttribute('aria-label', 'Start agent');
+    // no longer a plain-text "Start" label
+    expect(startBtn).not.toHaveTextContent('Start');
+  });
+
+  // v2.8 #270/#272: soft-archive — the user-facing delete path. Icon button on a
+  // settled (stopped/error) agent → ConfirmModal二次确认 → POST /archive.
+  it('archives a stopped agent via the confirm modal (#270)', async () => {
+    let archived = false;
+    stubAgent({ lifecycle: 'stopped' });
+    server.use(
+      http.post('/api/agents/:id/archive', () => {
+        archived = true;
+        return HttpResponse.json(agent({ lifecycle: 'archived', worker_id: '' }));
+      }),
+    );
+    wrap('/agents/A1');
+    const archiveBtn = await screen.findByTestId('agent-archive-btn');
+    expect(archiveBtn.querySelector('svg')).toBeInTheDocument();
+    expect(archiveBtn).toHaveAttribute('aria-label', 'Archive agent');
+    fireEvent.click(archiveBtn);
+    // confirm modal appears; confirm button triggers the POST.
+    const modal = await screen.findByTestId('confirm-modal');
+    expect(modal).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(archived).toBe(true));
+  });
+
+  // running agent (b strict-two-step): archive NOT offered — must stop first.
+  it('does not offer archive on a running agent (b strict-two-step)', async () => {
+    stubAgent({ lifecycle: 'running' });
+    wrap('/agents/A1');
+    await screen.findByTestId('agent-stop-btn');
+    expect(screen.queryByTestId('agent-archive-btn')).toBeNull();
+  });
+
+  // v2.8 #270: stop + restart are disruptive (interrupt a running agent) → each
+  // is gated behind a ConfirmModal二次确认 (start stays direct — non-destructive).
+  it('confirms before stopping a running agent (#270)', async () => {
+    let stopped = false;
+    stubAgent({ lifecycle: 'running' });
+    server.use(
+      http.post('/api/agents/:id/stop', () => {
+        stopped = true;
+        return HttpResponse.json(agent({ lifecycle: 'stopping' }));
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-stop-btn'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(stopped).toBe(true));
+  });
+
+  it('confirms before restarting a running agent (#270)', async () => {
+    let restarted = false;
+    stubAgent({ lifecycle: 'running' });
+    server.use(
+      http.post('/api/agents/:id/restart', () => {
+        restarted = true;
+        return HttpResponse.json(agent({ lifecycle: 'running' }));
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-restart-btn'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(restarted).toBe(true));
+  });
+
+  // start is NOT gated (non-destructive — no confirm friction).
+  it('starts a stopped agent directly without a confirm modal (#270)', async () => {
+    let started = false;
+    stubAgent({ lifecycle: 'stopped' });
+    server.use(
+      http.post('/api/agents/:id/start', () => {
+        started = true;
+        return HttpResponse.json(agent({ lifecycle: 'running' }));
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-start-btn'));
+    // no confirm modal — fires immediately.
+    await waitFor(() => expect(started).toBe(true));
+    expect(screen.queryByTestId('confirm-modal')).toBeNull();
+  });
+
+  // archived agent detail = read-only history: no lifecycle action buttons.
+  it('renders an archived agent as read-only (no action buttons) (#270)', async () => {
+    stubAgent({ lifecycle: 'archived', worker_id: '' });
+    wrap('/agents/A1');
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-lifecycle-badge')).toHaveAttribute('data-lifecycle', 'archived'),
+    );
+    expect(screen.queryByTestId('agent-start-btn')).toBeNull();
+    expect(screen.queryByTestId('agent-stop-btn')).toBeNull();
+    expect(screen.queryByTestId('agent-reset-btn')).toBeNull();
+    expect(screen.queryByTestId('agent-archive-btn')).toBeNull();
+  });
 });
