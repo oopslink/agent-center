@@ -88,7 +88,7 @@ export default function DMs(): React.ReactElement {
                   ) : (
                     <span className="font-medium" data-testid="dm-name">Direct message</span>
                   )}
-                  <UnreadBadge conversationId={c.id} />
+                  <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
                   <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {c.status}
                   </span>

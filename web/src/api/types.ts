@@ -32,6 +32,14 @@ export interface Conversation {
   // (pm://tasks|issues/{id}); empty/absent for channels and DMs. v2.7 #137.
   owner_ref?: string;
   opened_at?: string;
+  // v2.8 #264 P1 / #268 (unread/badge/follow contract §2) — computed for the
+  // requesting HUMAN user, embedded per-row in GET /conversations + GET /:id.
+  // human-only (Q-T1): agent sessions always get 0/0/false (backend skip-writes
+  // the read/follow rows, so they don't exist). mention_count ≤ unread_count.
+  // Optional on the type because legacy/older payloads may omit them (treat as 0/false).
+  unread_count?: number; // messages with id > my last_seen_message_id (999+ cap); 0 when caught up.
+  mention_count?: number; // subset of unread that @-mention me; 0 when none.
+  followed?: boolean; // am I following this conversation/thread (§4).
 }
 
 // ContextRefs (v2.7 #137) — the pm/agent work-item provenance a message

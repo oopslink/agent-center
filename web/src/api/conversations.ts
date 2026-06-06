@@ -150,6 +150,25 @@ export function useArchiveConversation() {
   });
 }
 
+// v2.8 #264 P1 / #176 §4: thread follow / unfollow. `follow=true` →
+// POST /:id/follow, `follow=false` → DELETE /:id/follow; both return the
+// resulting `{ followed }`. Invalidate the conversation (header toggle) +
+// the list (sidebar badges suppress/resume with follow-state) so the UI
+// reflects the new state. human-only (agents skip-write).
+export function useFollowConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, follow }: { conversationId: string; follow: boolean }) =>
+      follow
+        ? api.post<{ followed: boolean }>(`/conversations/${conversationId}/follow`, {})
+        : api.del<{ followed: boolean }>(`/conversations/${conversationId}/follow`),
+    onSuccess: (_, vars) => {
+      void qc.invalidateQueries({ queryKey: qk.conversation(vars.conversationId) });
+      void qc.invalidateQueries({ queryKey: qk.conversations() });
+    },
+  });
+}
+
 export function useInviteParticipant() {
   const qc = useQueryClient();
   return useMutation({

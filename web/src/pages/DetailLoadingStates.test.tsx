@@ -72,8 +72,9 @@ describe('Detail pages — loading + error branches', () => {
       }),
     );
     wrap('/dms/C-DM', '/dms/:id', <DMDetail />);
+    // #264 P1: inner messages-loading now renders via the shared shell.
     await waitFor(() =>
-      expect(screen.getByTestId('dm-messages-loading')).toBeInTheDocument(),
+      expect(screen.getByTestId('conversation-loading')).toBeInTheDocument(),
     );
   });
 

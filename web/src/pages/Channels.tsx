@@ -65,7 +65,7 @@ export default function Channels(): React.ReactElement {
               >
                 <span className="flex items-center gap-3">
                   <span className="font-medium">{c.name}</span>
-                  <UnreadBadge conversationId={c.id} />
+                  <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
                   <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                     {c.status}
                   </span>

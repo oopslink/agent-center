@@ -1,76 +1,59 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
-import { makeWrapper } from '../test/renderWith';
-import { server } from '../test/mswServer';
+import { cleanup, render, screen } from '@testing-library/react';
 import { UnreadBadge } from './UnreadBadge';
 
-function renderBadge(convId: string) {
-  return render(<UnreadBadge conversationId={convId} />, { wrapper: makeWrapper() });
-}
-
-describe('UnreadBadge', () => {
+// v2.8 #264 P1 / #176 contract: the badge is now PROP-DRIVEN from the
+// Conversation row's embedded counts (unread_count / mention_count), not an
+// N-times standalone /unread fetch. Render rules (#176 §5):
+//   - 0 unread + 0 mention → nothing (no element).
+//   - mention > 0 → red badge with the PRECISE mention number (99+ cap).
+//   - unread > 0, no mention → neutral dot (no number, bold row elsewhere).
+//   - not color-only: SR aria-label "(N unread, M mention(s))".
+describe('UnreadBadge (prop-driven, #176)', () => {
   afterEach(() => cleanup());
 
-  it('renders nothing while loading + when count == 0', async () => {
-    server.use(
-      http.get('/api/conversations/:id/unread', () =>
-        HttpResponse.json(
-          { conversation_id: 'C1', user_id: 'user:hayang', last_seen_message_id: '', unread_count: 0 },
-          { status: 200 },
-        ),
-      ),
-    );
-    renderBadge('C1');
-    // Initially loading → null.
-    expect(screen.queryByTestId('unread-badge')).toBeNull();
-    // After the query resolves with 0, still null. Flush the resolution
-    // inside act() so the state update is captured (no act warning).
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 30));
-    });
-    expect(screen.queryByTestId('unread-badge')).toBeNull();
+  it('renders nothing when caught up (0 unread, 0 mention)', () => {
+    render(<UnreadBadge unreadCount={0} mentionCount={0} />);
+    expect(screen.queryByTestId('conversation-mention-badge')).toBeNull();
+    expect(screen.queryByTestId('conversation-unread-dot')).toBeNull();
   });
 
-  it('renders pill with numeric count', async () => {
-    server.use(
-      http.get('/api/conversations/:id/unread', () =>
-        HttpResponse.json(
-          { conversation_id: 'C1', user_id: 'user:hayang', last_seen_message_id: 'M0', unread_count: 7 },
-          { status: 200 },
-        ),
-      ),
-    );
-    renderBadge('C1');
-    const badge = await screen.findByTestId('unread-badge');
-    expect(badge).toHaveTextContent('7');
-    expect(badge.getAttribute('data-unread-count')).toBe('7');
+  it('treats undefined counts as 0 (legacy payload) → nothing', () => {
+    render(<UnreadBadge />);
+    expect(screen.queryByTestId('conversation-mention-badge')).toBeNull();
+    expect(screen.queryByTestId('conversation-unread-dot')).toBeNull();
   });
 
-  it('renders "999+" overflow label at the cap', async () => {
-    server.use(
-      http.get('/api/conversations/:id/unread', () =>
-        HttpResponse.json(
-          { conversation_id: 'C1', user_id: 'user:hayang', last_seen_message_id: 'M0', unread_count: 999 },
-          { status: 200 },
-        ),
-      ),
-    );
-    renderBadge('C1');
-    const badge = await screen.findByTestId('unread-badge');
-    expect(badge).toHaveTextContent('999+');
+  it('unread-only (no mention) → neutral dot, no number, SR says N unread', () => {
+    render(<UnreadBadge unreadCount={5} mentionCount={0} />);
+    const dot = screen.getByTestId('conversation-unread-dot');
+    expect(dot).toHaveAttribute('data-unread-count', '5');
+    // a dot, not a number
+    expect(dot).not.toHaveTextContent('5');
+    expect(dot).toHaveAttribute('aria-label', '5 unread');
+    expect(screen.queryByTestId('conversation-mention-badge')).toBeNull();
   });
 
-  it('renders nothing when the query errors', async () => {
-    server.use(
-      http.get('/api/conversations/:id/unread', () =>
-        HttpResponse.json({ error: 'find_failed', message: 'db' }, { status: 500 }),
-      ),
+  it('mention → red badge with precise mention number; SR announces both', () => {
+    render(<UnreadBadge unreadCount={8} mentionCount={3} />);
+    const badge = screen.getByTestId('conversation-mention-badge');
+    expect(badge).toHaveTextContent('3');
+    expect(badge).toHaveAttribute('data-mention-count', '3');
+    expect(badge).toHaveAttribute('aria-label', '8 unread, 3 mentions');
+    // mention supersedes the plain unread dot
+    expect(screen.queryByTestId('conversation-unread-dot')).toBeNull();
+  });
+
+  it('uses singular "mention" in the SR label when mention_count === 1', () => {
+    render(<UnreadBadge unreadCount={1} mentionCount={1} />);
+    expect(screen.getByTestId('conversation-mention-badge')).toHaveAttribute(
+      'aria-label',
+      '1 unread, 1 mention',
     );
-    renderBadge('C1');
-    await waitFor(() => {
-      // Either still loading or errored — both render null.
-      expect(screen.queryByTestId('unread-badge')).toBeNull();
-    });
+  });
+
+  it('caps mention overflow at 99+', () => {
+    render(<UnreadBadge unreadCount={999} mentionCount={150} />);
+    expect(screen.getByTestId('conversation-mention-badge')).toHaveTextContent('99+');
   });
 });
