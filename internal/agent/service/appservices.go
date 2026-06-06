@@ -255,6 +255,63 @@ func (s *Service) MarkWorkItemState(ctx context.Context, agentID agent.AgentID, 
 	})
 }
 
+// StartWork is the agent-PULL activation (v2.8.1 #278, @oopslink's pull model):
+// the agent — via the MCP start_work tool — selects one of its OWN queued work
+// items and marks it running (queued→active). It enforces the single-active
+// invariant (the agent processes one work item at a time): if the agent already
+// has an active/waiting_input item, this returns ErrAgentHasActiveWork and the
+// selected item stays queued. The HasActiveWorkItem pre-check gives a clean error
+// in the common case; the DB UNIQUE partial index (migration 0051) is the ATOMIC
+// backstop — under concurrent start_work the second Update violates the unique
+// constraint and rolls back, so at most one work item ever becomes active per
+// agent (race closed). Ownership-guarded: the work item must belong to agentID.
+func (s *Service) StartWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		active, err := s.workItems.HasActiveWorkItem(txCtx, agentID)
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork // already running one; pick after it settles
+		}
+		if err := wi.Activate(now); err != nil { // queued→active
+			return err
+		}
+		// Update hits the UNIQUE partial index; a concurrent start_work that passed
+		// the pre-check fails here (only one wins) → its tx rolls back, item stays queued.
+		return s.workItems.Update(txCtx, wi)
+	})
+}
+
+// FailWork is the agent-PULL failure report (v2.8.1 #278): the agent marks its
+// own in-flight work item failed (active|waiting_input → failed) — the symmetric
+// terminal to complete. Freeing the active slot lets the next queued item be
+// drained (agent pulls next / reconciler advances). Ownership-guarded.
+func (s *Service) FailWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		if err := wi.Fail(now); err != nil {
+			return err
+		}
+		return s.workItems.Update(txCtx, wi)
+	})
+}
+
 // AppendActivity appends an observation event to the Agent's append-only
 // activity stream (D2-c-i stdout→activity sink). It records an observation only
 // — it does NOT post to any Conversation. Returns the new event id.

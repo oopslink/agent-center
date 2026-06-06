@@ -405,7 +405,11 @@ func TestMarkAgentFailed_CascadesInflightWorkItems(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mkWI("wi-active", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow) })
+	// v2.8.1 #278: single-active invariant (DB UNIQUE 0051) — an agent has AT MOST
+	// ONE in-flight (active|waiting_input) WI. So this uses one in-flight WI
+	// (waiting_input — the harder edge: exercises the structural guard below + the
+	// special FailFromAgentDeath waiting_input→failed cascade) + one terminal
+	// (done, must stay untouched).
 	mkWI("wi-wait", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow); _ = w.WaitInput(tNow) })
 	mkWI("wi-done", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow); _ = w.Done(tNow) })
 
@@ -415,7 +419,7 @@ func TestMarkAgentFailed_CascadesInflightWorkItems(t *testing.T) {
 		t.Fatalf("general MarkWorkItemState(failed) on waiting_input must stay illegal, got %v", err)
 	}
 
-	// Terminal: agent → failed cascades ALL in-flight WIs → failed.
+	// Terminal: agent → failed cascades the in-flight WI → failed.
 	if err := f.svc.MarkAgentFailed(ctx, id, "crash-loop", tNow); err != nil {
 		t.Fatal(err)
 	}
@@ -427,9 +431,6 @@ func TestMarkAgentFailed_CascadesInflightWorkItems(t *testing.T) {
 	got := map[string]agent.WorkItemStatus{}
 	for _, wi := range items {
 		got[wi.ID()] = wi.Status()
-	}
-	if got["wi-active"] != agent.WorkItemFailed {
-		t.Fatalf("active WI must cascade → failed, got %s", got["wi-active"])
 	}
 	if got["wi-wait"] != agent.WorkItemFailed {
 		t.Fatalf("waiting_input WI must cascade → failed, got %s", got["wi-wait"])
