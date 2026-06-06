@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
+import { useTablistKeyboard } from '@/components/useTablistKeyboard';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCreateConversation } from '@/api/conversations';
 import {
@@ -94,6 +95,12 @@ export default function AgentDetail(): React.ReactElement {
       },
       { replace: true },
     );
+  // v2.8 #273: shared WAI-ARIA tablist keyboard nav (arrow keys + roving tabindex
+  // + Home/End). Back-write of #228 — these tabs were previously click-only.
+  const tablist = useTablistKeyboard({
+    keys: AGENT_TABS.map((t) => t.key),
+    active: tab,
+  });
 
   if (agent.isLoading) {
     return (
@@ -289,13 +296,22 @@ export default function AgentDetail(): React.ReactElement {
       )}
 
       {/* v2.7.1 #228: tab bar. */}
-      <nav className="flex gap-1 border-b border-border-base" role="tablist" data-testid="agent-tabs">
+      <nav
+        className="flex gap-1 border-b border-border-base"
+        role="tablist"
+        aria-orientation="horizontal"
+        ref={tablist.tablistRef}
+        onKeyDown={tablist.onKeyDown}
+        onBlur={tablist.onBlur}
+        data-testid="agent-tabs"
+      >
         {AGENT_TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             role="tab"
             aria-selected={tab === t.key}
+            tabIndex={tablist.tabIndexFor(t.key)}
             onClick={() => setTab(t.key)}
             data-testid={`agent-tab-${t.key}`}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${

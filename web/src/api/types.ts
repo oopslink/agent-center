@@ -229,6 +229,7 @@ export interface EnvWorker {
   status: string; // 'online' | 'offline' (control-connection state)
   last_acked_offset: number;
   last_heartbeat_at?: string;
+  enrolled_at?: string; // #273: registration time (envWorkerMap emits it; ≠ created_at)
   created_at: string;
   updated_at: string;
   version: number;

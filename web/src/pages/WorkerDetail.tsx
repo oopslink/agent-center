@@ -1,0 +1,163 @@
+import { useParams, useSearchParams } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { EmptyState } from '@/components/EmptyState';
+import { useWorker } from '@/api/workers';
+import { useTablistKeyboard } from '@/components/useTablistKeyboard';
+import { WorkerProfile } from '@/components/WorkerProfile';
+import { BoundAgents } from '@/components/BoundAgents';
+import { WorkerManagement } from '@/components/WorkerManagement';
+
+// WorkerDetail (/workers/:id). Environment BC. A dedicated worker page (v2.8 #273)
+// mirroring AgentDetail's 4-tab framework (#228) + the shared manual-activation
+// keyboard hook (#273 increment 1). Backend reuses existing endpoints (no new):
+// GET /api/workers/{id} (Profile) + GET /api/agents?worker_id= (Bound Agents) +
+// re-mint / rename / remove (Management). Activity is a v2.9 placeholder.
+const WORKER_TABS = [
+  { key: 'profile', label: 'Profile' },
+  { key: 'agents', label: 'Bound Agents' },
+  { key: 'management', label: 'Management' },
+  { key: 'activity', label: 'Activity' },
+] as const;
+type WorkerTab = (typeof WORKER_TABS)[number]['key'];
+
+export default function WorkerDetail(): React.ReactElement {
+  const { id = '' } = useParams<{ id: string }>();
+  const worker = useWorker(id);
+
+  // Active tab synced to ?tab= so a tab is shareable/bookmarkable (#228 pattern).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const tab: WorkerTab = (
+    WORKER_TABS.some((t) => t.key === tabParam) ? tabParam : 'profile'
+  ) as WorkerTab;
+  const setTab = (t: WorkerTab) =>
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set('tab', t);
+        return p;
+      },
+      { replace: true },
+    );
+  // v2.8 #273: shared WAI-ARIA manual-activation tablist keyboard nav.
+  const tablist = useTablistKeyboard({ keys: WORKER_TABS.map((t) => t.key), active: tab });
+
+  if (worker.isLoading) {
+    return (
+      <section className="text-sm text-text-muted" data-testid="page-WorkerDetail">
+        Loading worker…
+      </section>
+    );
+  }
+  if (worker.isError) {
+    return (
+      <section className="space-y-3" data-testid="page-WorkerDetail">
+        <p className="text-sm text-danger" data-testid="worker-not-found">
+          {(worker.error as Error).message}
+        </p>
+        <OrgLink to="/environment" className="text-accent hover:underline">
+          Back to Environment
+        </OrgLink>
+      </section>
+    );
+  }
+  if (!worker.data) {
+    return (
+      <section className="text-sm text-danger" data-testid="page-WorkerDetail">
+        Worker lookup failed.
+      </section>
+    );
+  }
+
+  const w = worker.data;
+  const online = w.status === 'online';
+
+  return (
+    <section className="space-y-4" data-testid="page-WorkerDetail" data-worker-id={w.worker_id}>
+      <Breadcrumb
+        items={[
+          { label: 'Environment', to: '/environment' },
+          { label: 'Workers' },
+          { label: w.name || w.worker_id },
+        ]}
+      />
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base pb-3">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold">{w.name || w.worker_id}</h2>
+            {/* status badge — not-color-only: dot + text label (#273 a11y). */}
+            <span
+              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs text-text-muted"
+              data-testid="worker-status-badge"
+              data-status={w.status}
+            >
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${online ? 'bg-success' : 'bg-text-muted'}`}
+                aria-hidden="true"
+              />
+              {online ? 'Online' : 'Offline'}
+            </span>
+          </div>
+          {/* #192: worker_id as a handle, full id on hover (chrome, no raw-id leak). */}
+          <p className="text-xs text-text-muted">
+            <span title={w.worker_id} data-testid="worker-id-handle">
+              {w.worker_id}
+            </span>
+          </p>
+        </div>
+      </header>
+
+      <nav
+        className="flex gap-1 border-b border-border-base"
+        role="tablist"
+        aria-orientation="horizontal"
+        ref={tablist.tablistRef}
+        onKeyDown={tablist.onKeyDown}
+        onBlur={tablist.onBlur}
+        data-testid="worker-tabs"
+      >
+        {WORKER_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            id={`worker-tab-${t.key}`}
+            aria-selected={tab === t.key}
+            aria-controls={`worker-panel-${t.key}`}
+            tabIndex={tablist.tabIndexFor(t.key)}
+            onClick={() => setTab(t.key)}
+            data-testid={`worker-tab-${t.key}`}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              tab === t.key
+                ? 'border-brand text-text-primary'
+                : 'border-transparent text-text-muted hover:text-text-primary'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <div
+        role="tabpanel"
+        id={`worker-panel-${tab}`}
+        aria-labelledby={`worker-tab-${tab}`}
+        tabIndex={0}
+        data-testid={`worker-tabpanel-${tab}`}
+      >
+        {/* Tab contents land in subsequent increments; Activity is v2.9. */}
+        {tab === 'profile' && <WorkerProfile worker={w} />}
+        {tab === 'agents' && <BoundAgents workerId={w.worker_id} />}
+        {tab === 'management' && <WorkerManagement worker={w} />}
+        {tab === 'activity' && (
+          <EmptyState
+            testId="worker-activity-stub"
+            title="Activity"
+            body="Coming in v2.9."
+          />
+        )}
+      </div>
+    </section>
+  );
+}

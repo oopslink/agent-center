@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { useFleet } from '@/api/fleet';
 import { useAgents } from '@/api/agents';
 import { useTransferSessions } from '@/api/workers';
-import { qk } from '@/api/queryKeys';
 import { withOrgSlug } from '@/api/client';
 import { useOptionalOrgContext, OrgLink } from '@/OrgContext';
 import type { Agent, FleetWorkerRow } from '@/api/types';
@@ -349,99 +347,28 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-// WorkerNameCell: friendly name + worker id with inline rename (PATCH
-// /api/workers/{id}/name). Ported from the retired Fleet page (#164).
+// WorkerNameCell: name + worker id, both linking into WorkerDetail. v2.8 #273:
+// rename moved to the detail Management tab (single-directional convergence per
+// PD — no inline-rename here, no duplicate-rename middle state).
 function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
   const displayName = worker.name || worker.worker_id;
-  const [draft, setDraft] = useState(displayName);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const save = async () => {
-    const next = draft.trim();
-    if (!next || next === displayName) {
-      setEditing(false);
-      setDraft(displayName);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const resp = await fetch(withOrgSlug(`/api/workers/${encodeURIComponent(worker.worker_id)}/name`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: next }),
-      });
-      if (!resp.ok) {
-        const body = (await resp.json().catch(() => ({}))) as { error?: string; message?: string };
-        throw new Error(body.message || body.error || `HTTP ${resp.status}`);
-      }
-      setEditing(false);
-      void qc.invalidateQueries({ queryKey: qk.fleet() });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (editing) {
-    return (
-      <form
-        className="flex items-center gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-      >
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          disabled={busy}
-          className="w-40 rounded border border-border-base bg-bg-elevated px-2 py-0.5 text-sm text-text-primary focus:border-accent"
-          data-testid="environment-worker-name-input"
-        />
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded bg-brand px-2 py-0.5 text-xs text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
-          data-testid="environment-worker-name-save"
-        >
-          Save
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            setEditing(false);
-            setDraft(displayName);
-            setError(null);
-          }}
-          className="text-xs text-text-muted hover:text-text-primary"
-        >
-          Cancel
-        </button>
-        {error && <span className="text-xs text-danger">{error}</span>}
-      </form>
-    );
-  }
   return (
     <div className="flex flex-col">
-      <button
-        type="button"
-        className="text-left text-sm font-medium text-text-primary hover:text-accent"
-        onClick={() => setEditing(true)}
-        title="Click to rename"
+      <OrgLink
+        to={`/workers/${worker.worker_id}`}
+        className="text-left text-sm font-medium text-text-primary hover:text-accent hover:underline"
+        title={`Open ${displayName} details`}
         data-testid="environment-worker-name"
       >
         {displayName}
-      </button>
-      <span className="font-mono text-[0.6875rem] text-text-muted" data-testid="environment-worker-id">
+      </OrgLink>
+      <OrgLink
+        to={`/workers/${worker.worker_id}`}
+        className="font-mono text-[0.6875rem] text-text-muted hover:text-accent hover:underline"
+        data-testid="environment-worker-id"
+      >
         {worker.worker_id}
-      </span>
+      </OrgLink>
     </div>
   );
 }

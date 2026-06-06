@@ -25,6 +25,7 @@ const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const OrgWorkItems = lazy(() => import('./pages/OrgWorkItems'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
+const WorkerDetail = lazy(() => import('./pages/WorkerDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
@@ -71,6 +72,7 @@ export function App(): React.ReactElement {
           {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
           <Route path="fleet" element={<Navigate to="../environment" replace />} />
           <Route path="environment" element={<Environment />} />
+          <Route path="workers/:id" element={<WorkerDetail />} />
           <Route path="settings" element={<Settings />} />
           <Route path="me" element={<Me />} />
           <Route path="members/humans" element={<MembersHumans />} />
