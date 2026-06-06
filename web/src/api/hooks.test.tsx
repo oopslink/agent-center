@@ -178,9 +178,10 @@ describe('react-query hooks', () => {
     await waitFor(() => expect(wi.result.current.isSuccess).toBe(true));
     expect(wi.result.current.data?.[0].task_ref).toBe('task:T-1');
 
+    // #274: useAgentActivity is now cursor-paginated (useInfiniteQuery) → pages.
     const act2 = renderHook(() => useAgentActivity('A-1'), { wrapper });
     await waitFor(() => expect(act2.result.current.isSuccess).toBe(true));
-    expect(act2.result.current.data?.[0].event_type).toBe('agent.started');
+    expect(act2.result.current.data?.pages[0].activity[0].event_type).toBe('agent.started');
   });
 
   it('useSecrets + useCreateSecret + useRevokeSecret', async () => {
