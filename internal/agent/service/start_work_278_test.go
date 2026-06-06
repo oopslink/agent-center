@@ -124,6 +124,30 @@ func TestStartWork_ConcurrentOnlyOneWins(t *testing.T) {
 	}
 }
 
+// PR1 ACTUAL activation path (Tester #194 finding): the controller push
+// report-active (MarkWorkItemState active) must also map the single-active race
+// to the clean ErrAgentHasActiveWork (→ 409, not a raw 500/UNIQUE) — this is the
+// path in use until PR4's pull-loop.
+func TestMarkWorkItemState_ReportActive_SingleActive(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	f.seedQueuedWI(t, id, "wi-1")
+	f.seedQueuedWI(t, id, "wi-2")
+	if err := f.svc.MarkWorkItemState(ctx, id, "wi-1", WorkItemFeedbackActive, tNow); err != nil {
+		t.Fatalf("report active wi-1: %v", err)
+	}
+	// excess report-active for wi-2 → clean ErrAgentHasActiveWork (not raw UNIQUE)
+	err := f.svc.MarkWorkItemState(ctx, id, "wi-2", WorkItemFeedbackActive, tNow)
+	if !errors.Is(err, agent.ErrAgentHasActiveWork) {
+		t.Fatalf("excess report-active err=%v, want clean ErrAgentHasActiveWork", err)
+	}
+	if got := f.countActive(t, id); got != 1 {
+		t.Fatalf("active=%d want 1", got)
+	}
+}
+
 func TestStartWork_OwnershipGuard(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

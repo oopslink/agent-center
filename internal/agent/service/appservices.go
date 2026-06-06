@@ -252,7 +252,19 @@ func (s *Service) MarkWorkItemState(ctx context.Context, agentID agent.AgentID, 
 		if err != nil {
 			return err
 		}
-		return s.workItems.Update(txCtx, wi)
+		// v2.8.1 #278 PR1 (Tester finding): the controller-push report-active path
+		// (the ACTUAL activation path until PR4's pull-loop) can race the single-
+		// active UNIQUE index when concurrent assigns deliver multiple work
+		// commands. Map the loser's UNIQUE violation to the clean
+		// ErrAgentHasActiveWork (→ 409, not a raw 500) so the daemon's feedback
+		// log is benign and the invariant (1 active) still holds.
+		if uerr := s.workItems.Update(txCtx, wi); uerr != nil {
+			if persistence.IsUniqueViolation(uerr) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return uerr
+		}
+		return nil
 	})
 }
 
