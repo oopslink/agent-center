@@ -1,18 +1,23 @@
 import type React from 'react';
 import { useId, useState } from 'react';
 import type { AgentActivityEvent } from '@/api/types';
+import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 
 // v2.7.1 #228 PR(c): the activity timeline labels each event by a user-facing
 // CATEGORY ("what is the agent doing") rather than the raw event type. The raw
 // 8 event_types stay visible in the expanded JSON viewer (#216). Mapping per PD.
 // PR(e): rendered as a timeline — a category-colored dot + colored label (per
 // design2), so `cls` is the label text color and `dot` the rail bullet color.
-type Category = { label: string; cls: string; dot: string };
-const CAT_OUTPUT: Category = { label: 'Output', cls: 'text-success', dot: 'bg-success' };
-const CAT_THINKING: Category = { label: 'Thinking', cls: 'italic text-text-muted', dot: 'bg-text-muted' };
-const CAT_RUNNING: Category = { label: 'Running command', cls: 'text-brand', dot: 'bg-brand' };
-const CAT_SEARCHING: Category = { label: 'Searching code', cls: 'text-purple-600', dot: 'bg-purple-500' };
-const CAT_CHECKING: Category = { label: 'Checking messages', cls: 'text-orange-600', dot: 'bg-orange-500' };
+type Category = { key: string; label: string; cls: string; dot: string };
+const CAT_OUTPUT: Category = { key: 'output', label: 'Output', cls: 'text-success', dot: 'bg-success' };
+const CAT_THINKING: Category = { key: 'thinking', label: 'Thinking', cls: 'italic text-text-muted', dot: 'bg-text-muted' };
+const CAT_CHECKING: Category = { key: 'checking', label: 'Checking messages', cls: 'text-orange-600', dot: 'bg-orange-500' };
+// v2.8 #274 increment 4: tool_use / tool_result get their own categories
+// (replacing the broad Running command / Searching code labels — Q1). The badge
+// label + icon are computed dynamically at render time (search-vs-run icon via
+// SEARCH_TOOLS — Q2; tool_result ok/error via payload.ok — Q3).
+const CAT_TOOL_USE: Category = { key: 'tool_use', label: 'Tool', cls: 'text-brand', dot: 'bg-brand' };
+const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', cls: 'text-text-secondary', dot: 'bg-text-secondary' };
 
 // search-y tool names (lowercased) → "Searching code"; otherwise tool events
 // are "Running command". These are claude's real content-block tool names
@@ -22,7 +27,7 @@ const CAT_CHECKING: Category = { label: 'Checking messages', cls: 'text-orange-6
 // are v2.8 work (PD-accepted degradation).
 const SEARCH_TOOLS = new Set(['grep', 'glob', 'read', 'websearch', 'webfetch']);
 
-function categoryOf(eventType: string, p: Record<string, unknown>): Category {
+function categoryOf(eventType: string): Category {
   switch (eventType) {
     case 'assistant_text':
     case 'result':
@@ -30,10 +35,9 @@ function categoryOf(eventType: string, p: Record<string, unknown>): Category {
     case 'thinking':
       return CAT_THINKING;
     case 'tool_use':
-    case 'tool_result': {
-      const tn = str(p.tool_name).toLowerCase();
-      return tn && SEARCH_TOOLS.has(tn) ? CAT_SEARCHING : CAT_RUNNING;
-    }
+      return CAT_TOOL_USE;
+    case 'tool_result':
+      return CAT_TOOL_RESULT;
     default:
       // system_init, lifecycle, rate_limit, generic system, unknown → Checking.
       return CAT_CHECKING;
@@ -54,11 +58,86 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v : v == null ? '' : String(v);
 }
 
+// #274: the displayable tool_result output — prefer the nested tool_result's
+// human-readable `.content`, else pretty-print the nested JSON (Lock 12). The
+// extraction lives in the consumer (here), keeping CollapsibleCodeBlock a pure
+// `{code}` component.
+function extractToolOutput(p: Record<string, unknown>): string {
+  const tr = p.tool_result;
+  if (tr && typeof tr === 'object') {
+    const c = (tr as Record<string, unknown>).content;
+    if (typeof c === 'string') return c;
+  }
+  try {
+    return JSON.stringify(tr ?? p, null, 2);
+  } catch {
+    return '';
+  }
+}
+
+// #274 increment 4: the dynamic tool badge — an SVG icon-component (never emoji,
+// ux-standards red-line) + a label. tool_use distinguishes search vs run (Q2);
+// tool_result distinguishes ok vs error from payload.ok (Q3). not-color-only:
+// the icon + label carry the meaning, color is supplementary.
+interface ToolBadge {
+  Icon: () => React.ReactElement;
+  label: string;
+  cls: string;
+  aria: string;
+  status?: 'ok' | 'error';
+}
+function toolBadge(key: string, p: Record<string, unknown>): ToolBadge | null {
+  if (key === 'tool_use') {
+    const search = SEARCH_TOOLS.has(str(p.tool_name).toLowerCase());
+    return search
+      ? { Icon: SearchIcon, label: 'Searching', cls: 'text-purple-600', aria: 'Searching (tool use)' }
+      : { Icon: WrenchIcon, label: 'Running', cls: 'text-brand', aria: 'Running (tool use)' };
+  }
+  if (key === 'tool_result') {
+    const ok = p.ok !== false && p.is_error !== true;
+    return ok
+      ? { Icon: CheckIcon, label: 'Result', cls: 'text-success', aria: 'Result, ok', status: 'ok' }
+      : { Icon: XIcon, label: 'Result', cls: 'text-danger', aria: 'Result, error', status: 'error' };
+  }
+  return null;
+}
+
+// Inline single-stroke SVGs (no-emoji UX rule, matching #240/#250/#270).
+function SearchIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-full w-full stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="9" cy="9" r="5" />
+      <path d="M13 13l4 4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function WrenchIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-full w-full stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M13 3a4 4 0 0 0-3.5 6L4 14.5 5.5 16l5.5-5.5A4 4 0 1 0 13 3Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function CheckIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-full w-full stroke-current" strokeWidth="2" aria-hidden="true">
+      <path d="M4 10l4 4 8-8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function XIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-full w-full stroke-current" strokeWidth="2" aria-hidden="true">
+      <path d="M5 5l10 10M15 5L5 15" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // v2.8 #274: an event is a "Checking" event when it falls through to CAT_CHECKING
 // (system_init / lifecycle / rate_limit / unknown). Consecutive runs of these are
 // folded into one "Checking messages × N" group in the timeline.
 export function isCheckingEvent(event: AgentActivityEvent): boolean {
-  return categoryOf(event.event_type, parsePayload(event.payload)) === CAT_CHECKING;
+  return categoryOf(event.event_type) === CAT_CHECKING;
 }
 
 function truncate(s: string, n: number): string {
@@ -141,12 +220,21 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   const payload = parsePayload(event.payload);
   // v2.7.1 #228 PR(c): main badge shows the user-facing category; the raw
   // event_type stays on data-event-type + inside the expanded JSON viewer.
-  const cat = categoryOf(event.event_type, payload);
+  const cat = categoryOf(event.event_type);
   // A failed tool_result / result keeps its category but flags the failure
   // inline so the error signal isn't buried in the JSON viewer.
   const errored =
     (event.event_type === 'tool_result' || event.event_type === 'result') &&
     (payload.ok === false || payload.is_error === true);
+
+  // #274 increment 4: tool_use / tool_result badges are computed dynamically —
+  // an SVG icon (NOT emoji, ux-standards red-line) + a label that distinguishes
+  // search vs run (Q2) / ok vs error (Q3).
+  const tool = toolBadge(cat.key, payload);
+  // tool_result inline output → the shared CollapsibleCodeBlock (contextLabel
+  // 'output'): prefer the human-readable .content, else the pretty-printed
+  // nested tool_result JSON (Lock 12). #192: output body is content-exempt.
+  const toolOutput = cat.key === 'tool_result' ? extractToolOutput(payload) : '';
 
   return (
     <li
@@ -175,13 +263,28 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
           <span className={`relative z-10 h-2 w-2 rounded-full ${cat.dot}`} />
         </span>
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          <span
-            className={`shrink-0 text-[0.6875rem] font-semibold uppercase tracking-wide ${cat.cls}`}
-            data-testid="agent-activity-badge"
-            data-category={cat.label}
-          >
-            {cat.label}
-          </span>
+          {tool ? (
+            <span
+              className={`flex shrink-0 items-center gap-1 text-[0.6875rem] font-semibold uppercase tracking-wide ${tool.cls}`}
+              data-testid="agent-activity-badge"
+              data-category={cat.label}
+              data-tool-status={tool.status ?? undefined}
+              aria-label={tool.aria}
+            >
+              <span aria-hidden="true" className="inline-flex h-3 w-3">
+                <tool.Icon />
+              </span>
+              {tool.label}
+            </span>
+          ) : (
+            <span
+              className={`shrink-0 text-[0.6875rem] font-semibold uppercase tracking-wide ${cat.cls}`}
+              data-testid="agent-activity-badge"
+              data-category={cat.label}
+            >
+              {cat.label}
+            </span>
+          )}
           {errored && (
             <span
               className="shrink-0 rounded bg-danger/10 px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide text-danger"
@@ -213,6 +316,13 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
                 </>
               )}
             </dl>
+          )}
+          {/* #274: tool_result output rendered via the shared collapsible block
+              (long output auto-collapses; copy/expand a11y from #187). */}
+          {cat.key === 'tool_result' && toolOutput && (
+            <div data-testid="agent-activity-tool-output">
+              <CollapsibleCodeBlock code={toolOutput} contextLabel="output" />
+            </div>
           )}
           {/* #192 EXEMPT: raw payload debug view (opt-in expand = debug surface). */}
           <pre
