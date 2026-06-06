@@ -57,6 +57,13 @@ func mapAgentError(w http.ResponseWriter, err error) {
 	case errors.Is(err, agentbc.ErrAgentNotStopped):
 		// v2.7 #197: must stop the agent before deleting it.
 		writeError(w, http.StatusConflict, "agent_running", err.Error())
+	case errors.Is(err, agentbc.ErrAgentNotStoppedForArchive):
+		// v2.8 #272 (b) strict: must stop the agent before archiving it.
+		writeError(w, http.StatusConflict, "invalid_state", err.Error())
+	case errors.Is(err, agentbc.ErrAgentArchived):
+		// v2.8 #272: archived is terminal — e.g. cannot Start an archived agent.
+		// 400 (fundamentally invalid), not 409 (transient conflict).
+		writeError(w, http.StatusBadRequest, "agent_archived", err.Error())
 	case errors.Is(err, agentbc.ErrAgentHasActiveWork):
 		writeError(w, http.StatusConflict, "agent_has_active_work", err.Error())
 	case errors.Is(err, agentsvc.ErrWorkerNotInOrg):
@@ -299,8 +306,14 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 		mapAgentError(w, err)
 		return
 	}
+	// v2.8 #272: the list excludes archived agents by default (they are retired
+	// from the user surface); pass ?include_archived=true to include them.
+	includeArchived := r.URL.Query().Get("include_archived") == "true"
 	out := make([]map[string]any, 0, len(as))
 	for _, a := range as {
+		if a.Lifecycle() == agentbc.LifecycleArchived && !includeArchived {
+			continue
+		}
 		avail, aerr := d.AgentSvc.Availability(r.Context(), a)
 		if aerr != nil {
 			mapAgentError(w, aerr)
@@ -343,11 +356,28 @@ func (s *Server) agentGetHandler(w http.ResponseWriter, r *http.Request) {
 // pm/conversation refs to the deleted agent render as "(deleted)" + a v2.8 sweep.
 func (s *Server) agentDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	a, orgID, ok := s.agentRequireInOrg(w, r, d)
+	if d.AgentSvc == nil {
+		writeError(w, http.StatusNotImplemented, "agent_not_wired", "Agent service not wired")
+		return
+	}
+	// v2.8 #272: hard-delete is ADMIN-ONLY. The user-facing delete is archive
+	// (soft, POST /api/agents/{id}/archive); the destructive hard-delete cascade is
+	// retained only as an admin backdoor (GDPR / test cleanup), unreachable by
+	// ordinary members (= "no user-reachable hard-delete path", Tester gate).
+	_, member, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	if d.AgentSvc == nil || d.IdentityRepo == nil || d.MemberRepo == nil || d.DB == nil {
+	if member == nil || !member.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "forbidden", "hard delete is admin-only; use archive instead")
+		return
+	}
+	a, err := d.AgentSvc.ResolveAgent(r.Context(), r.PathValue("id"))
+	if err != nil || a.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "agent not found in this organization")
+		return
+	}
+	if d.IdentityRepo == nil || d.MemberRepo == nil || d.DB == nil {
 		writeError(w, http.StatusNotImplemented, "not_wired", "agent delete deps not wired")
 		return
 	}
@@ -397,6 +427,16 @@ func (s *Server) agentStartHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) agentStopHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	s.agentLifecycleAction(w, r, func(id agentbc.AgentID) error { return d.AgentSvc.StopAgent(r.Context(), id) })
+}
+
+// agentArchiveHandler soft-deletes (archives) an agent (v2.8 #272) — the sole
+// user-facing delete. Guard (b strict): running/transitioning → 409 invalid_state.
+// Idempotent: re-archiving an already-archived agent → 200 no-op. Clears the
+// worker binding (worker freed to re-bind); the agent row is retained (history).
+// The second confirmation (ConfirmModal) is enforced by the frontend (#270).
+func (s *Server) agentArchiveHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	s.agentLifecycleAction(w, r, func(id agentbc.AgentID) error { return d.AgentSvc.ArchiveAgent(r.Context(), id) })
 }
 
 func (s *Server) agentRestartHandler(w http.ResponseWriter, r *http.Request) {

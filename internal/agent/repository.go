@@ -8,6 +8,10 @@ import "context"
 type Repository interface {
 	Save(ctx context.Context, a *Agent) error
 	Update(ctx context.Context, a *Agent) error
+	// Archive persists the v2.8 #272 soft-delete (lifecycle→archived) AND clears
+	// the worker_id binding — the one place worker_id changes (Update keeps it
+	// immutable). The worker is freed to re-bind; the agent row is retained.
+	Archive(ctx context.Context, a *Agent) error
 	FindByID(ctx context.Context, id AgentID) (*Agent, error)
 	// FindByIdentityMemberID resolves the execution Agent whose identity_member_id
 	// equals the given id ("agent-<ulid>", v2.7 #157) — the identity-member ref a

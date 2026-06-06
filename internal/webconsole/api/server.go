@@ -228,6 +228,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/agents/{id}/stop", s.agentStopHandler)
 	s.mux.HandleFunc("POST /api/agents/{id}/restart", s.agentRestartHandler)
 	s.mux.HandleFunc("POST /api/agents/{id}/reset", s.agentResetHandler)
+	// v2.8 #272: soft-delete (archive) — the sole user-facing delete path
+	// (hard DELETE above is admin-only). Idempotent; running → 409 must-stop-first.
+	s.mux.HandleFunc("POST /api/agents/{id}/archive", s.agentArchiveHandler)
 	s.mux.HandleFunc("GET /api/agents/{id}/work-items", s.agentWorkItemsHandler)
 	s.mux.HandleFunc("GET /api/agents/{id}/activity", s.agentActivityHandler)
 
