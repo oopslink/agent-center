@@ -384,6 +384,11 @@ export interface OrgWorkItemRef {
   display_name: string;
   /** member-id for hover (#192 id-as-content). */
   member_id: string;
+  // v2.8 #270/#272 (#184): the assignee's agent lifecycle, so the UI can show a
+  // "(archived)" chip on a soft-archived agent (the history ref is preserved).
+  // Generic string (PD pick) — only agent: refs carry it; user: refs → "".
+  // Optional → older payloads omit it (no chip).
+  assignee_lifecycle?: string;
 }
 export interface OrgWorkItem {
   id: string;

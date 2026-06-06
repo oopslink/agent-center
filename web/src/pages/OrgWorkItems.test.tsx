@@ -97,6 +97,60 @@ describe('OrgWorkItems page (#258)', () => {
     expect(assignee).not.toHaveTextContent('agent-bot9');
   });
 
+  // v2.8 #270/#272: an archived agent assignee shows a "(archived)" chip (#215
+  // deleted-peer pattern). The task's assignee ref/history is preserved; the chip
+  // is driven by the backend assignee_lifecycle (#184), no raw-id leak (#192).
+  it('tasks: an archived assignee shows a "(archived)" chip (#270)', async () => {
+    server.use(
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [
+            taskRow({
+              assignee: {
+                ref: 'agent:agent-bot9',
+                display_name: 'Bot Nine',
+                member_id: 'agent-bot9',
+                assignee_lifecycle: 'archived',
+              },
+            }),
+          ],
+          total: 1,
+        }),
+      ),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    await waitFor(() => expect(screen.getByTestId('org-workitem-row')).toBeInTheDocument());
+    const assignee = screen.getByTestId('org-workitem-assignee');
+    expect(assignee).toHaveTextContent('Bot Nine');
+    expect(screen.getByTestId('org-workitem-assignee-archived')).toHaveTextContent('(archived)');
+    // #192: still name + hover id, never a raw id in the text.
+    expect(assignee).not.toHaveTextContent('agent-bot9');
+    expect(assignee.querySelector('[title="agent-bot9"]')).not.toBeNull();
+  });
+
+  it('tasks: a non-archived (running) assignee shows NO archived chip', async () => {
+    server.use(
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [
+            taskRow({
+              assignee: {
+                ref: 'agent:agent-bot9',
+                display_name: 'Bot Nine',
+                member_id: 'agent-bot9',
+                assignee_lifecycle: 'running',
+              },
+            }),
+          ],
+          total: 1,
+        }),
+      ),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    await waitFor(() => expect(screen.getByTestId('org-workitem-row')).toBeInTheDocument());
+    expect(screen.queryByTestId('org-workitem-assignee-archived')).toBeNull();
+  });
+
   it('falls back to id-tail handle when org_ref absent', async () => {
     server.use(
       http.get('/api/issues', () =>
