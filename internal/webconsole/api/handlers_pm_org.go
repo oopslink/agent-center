@@ -165,10 +165,20 @@ func (s *Server) enrichAssignee(r *http.Request, d HandlerDeps, ref string) map[
 		return nil
 	}
 	memberID := bareRefID(ref)
-	out := map[string]any{"ref": ref, "member_id": memberID, "display_name": ""}
+	out := map[string]any{"ref": ref, "member_id": memberID, "display_name": "", "assignee_lifecycle": ""}
 	if d.IdentityRepo != nil && memberID != "" {
 		if ident, err := d.IdentityRepo.GetByID(r.Context(), memberID); err == nil && ident != nil {
 			out["display_name"] = ident.DisplayName()
+		}
+	}
+	// v2.8 #272 (archived)-chip data: expose the agent lifecycle for an agent
+	// assignee so the UI can render "(archived)" (#215 deleted-peer pattern) — and
+	// later (error)/(stopped) etc. (generic string, not an archived bool, PD pick).
+	// Only agent refs have a lifecycle; user refs leave it "". Best-effort: a
+	// resolve miss leaves it "" (UI falls back to no chip).
+	if d.AgentSvc != nil && strings.HasPrefix(ref, "agent:") && memberID != "" {
+		if a, err := d.AgentSvc.ResolveAgent(r.Context(), memberID); err == nil && a != nil {
+			out["assignee_lifecycle"] = string(a.Lifecycle())
 		}
 	}
 	return out
