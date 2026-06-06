@@ -121,6 +121,23 @@ describe('AgentActivityRow (#228 categories)', () => {
     expect(screen.queryByTestId('agent-activity-failed')).not.toBeInTheDocument();
   });
 
+  // #274: tool_result output renders through the shared CollapsibleCodeBlock.
+  it('tool_result expands to its output via CollapsibleCodeBlock (.content)', () => {
+    const longOut = Array.from({ length: 25 }, (_, i) => `out ${i + 1}`).join('\n');
+    row(ev('tool_result', { tool_name: 'run', ok: true, tool_result: { content: longOut } }));
+    fireEvent.click(screen.getByTestId('agent-activity-toggle'));
+    const out = screen.getByTestId('agent-activity-tool-output');
+    expect(out.querySelector('[data-testid="collapsible-code-block"]')).toBeInTheDocument();
+    // long output (>20 lines) → collapsed with the disclosure.
+    expect(screen.getByTestId('code-disclosure-btn')).toBeInTheDocument();
+  });
+
+  it('tool_result with no .content falls back to pretty-printed JSON (Lock 12)', () => {
+    row(ev('tool_result', { tool_name: 'run', ok: true, tool_result: { count: 5 } }));
+    fireEvent.click(screen.getByTestId('agent-activity-toggle'));
+    expect(screen.getByTestId('agent-activity-tool-output')).toHaveTextContent('"count": 5');
+  });
+
   it('errored result → Output badge + failed marker', () => {
     row(ev('result', { tokens_in: 10, tokens_out: 0, is_error: true }));
     expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Output');

@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useId, useState } from 'react';
 import type { AgentActivityEvent } from '@/api/types';
+import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 
 // v2.7.1 #228 PR(c): the activity timeline labels each event by a user-facing
 // CATEGORY ("what is the agent doing") rather than the raw event type. The raw
@@ -14,7 +15,7 @@ const CAT_CHECKING: Category = { key: 'checking', label: 'Checking messages', cl
 // v2.8 #274 increment 4: tool_use / tool_result get their own categories
 // (replacing the broad Running command / Searching code labels — Q1). The badge
 // label + icon are computed dynamically at render time (search-vs-run icon via
-// SEARCH_TOOLS — Q2; tool_result ✓/✗ via payload.ok — Q3).
+// SEARCH_TOOLS — Q2; tool_result ok/error via payload.ok — Q3).
 const CAT_TOOL_USE: Category = { key: 'tool_use', label: 'Tool', cls: 'text-brand', dot: 'bg-brand' };
 const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', cls: 'text-text-secondary', dot: 'bg-text-secondary' };
 
@@ -26,7 +27,7 @@ const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', cls: 't
 // are v2.8 work (PD-accepted degradation).
 const SEARCH_TOOLS = new Set(['grep', 'glob', 'read', 'websearch', 'webfetch']);
 
-function categoryOf(eventType: string, p: Record<string, unknown>): Category {
+function categoryOf(eventType: string): Category {
   switch (eventType) {
     case 'assistant_text':
     case 'result':
@@ -55,6 +56,23 @@ function parsePayload(raw: string): Record<string, unknown> {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : v == null ? '' : String(v);
+}
+
+// #274: the displayable tool_result output — prefer the nested tool_result's
+// human-readable `.content`, else pretty-print the nested JSON (Lock 12). The
+// extraction lives in the consumer (here), keeping CollapsibleCodeBlock a pure
+// `{code}` component.
+function extractToolOutput(p: Record<string, unknown>): string {
+  const tr = p.tool_result;
+  if (tr && typeof tr === 'object') {
+    const c = (tr as Record<string, unknown>).content;
+    if (typeof c === 'string') return c;
+  }
+  try {
+    return JSON.stringify(tr ?? p, null, 2);
+  } catch {
+    return '';
+  }
 }
 
 // #274 increment 4: the dynamic tool badge — an SVG icon-component (never emoji,
@@ -119,7 +137,7 @@ function XIcon(): React.ReactElement {
 // (system_init / lifecycle / rate_limit / unknown). Consecutive runs of these are
 // folded into one "Checking messages × N" group in the timeline.
 export function isCheckingEvent(event: AgentActivityEvent): boolean {
-  return categoryOf(event.event_type, parsePayload(event.payload)) === CAT_CHECKING;
+  return categoryOf(event.event_type) === CAT_CHECKING;
 }
 
 function truncate(s: string, n: number): string {
@@ -202,7 +220,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   const payload = parsePayload(event.payload);
   // v2.7.1 #228 PR(c): main badge shows the user-facing category; the raw
   // event_type stays on data-event-type + inside the expanded JSON viewer.
-  const cat = categoryOf(event.event_type, payload);
+  const cat = categoryOf(event.event_type);
   // A failed tool_result / result keeps its category but flags the failure
   // inline so the error signal isn't buried in the JSON viewer.
   const errored =
@@ -213,6 +231,10 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   // an SVG icon (NOT emoji, ux-standards red-line) + a label that distinguishes
   // search vs run (Q2) / ok vs error (Q3).
   const tool = toolBadge(cat.key, payload);
+  // tool_result inline output → the shared CollapsibleCodeBlock (contextLabel
+  // 'output'): prefer the human-readable .content, else the pretty-printed
+  // nested tool_result JSON (Lock 12). #192: output body is content-exempt.
+  const toolOutput = cat.key === 'tool_result' ? extractToolOutput(payload) : '';
 
   return (
     <li
@@ -294,6 +316,13 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
                 </>
               )}
             </dl>
+          )}
+          {/* #274: tool_result output rendered via the shared collapsible block
+              (long output auto-collapses; copy/expand a11y from #187). */}
+          {cat.key === 'tool_result' && toolOutput && (
+            <div data-testid="agent-activity-tool-output">
+              <CollapsibleCodeBlock code={toolOutput} contextLabel="output" />
+            </div>
           )}
           {/* #192 EXEMPT: raw payload debug view (opt-in expand = debug surface). */}
           <pre
