@@ -95,16 +95,16 @@
 
   <div class="rm-toolbar">
     <div class="legend rm-legend">
-      <span><i class="swatch" style="background:var(--green-fg)"></i> v2 已完成</span>
+      <span><i class="swatch" style="background:var(--green-fg)"></i> v2 / v2.8 已完成</span>
       <span><i class="swatch" style="background:var(--blue-fg)"></i> v2.1 backlog</span>
-      <span><i class="swatch" style="background:var(--vo)"></i> v2.7+ 进阶</span>
+      <span><i class="swatch" style="background:var(--vo)"></i> v2.7+ 进阶 / v2.9 待做</span>
       <span><i class="swatch" style="background:var(--accent)"></i> v3 推迟</span>
     </div>
     <div class="tabbar" id="rm-filter" role="tablist" aria-label="按阶段筛选" style="border:0;margin:0;">
       <button class="on" data-f="all" role="tab" aria-selected="true">全部</button>
       <button data-f="done" role="tab" aria-selected="false">已完成</button>
       <button data-f="backlog" role="tab" aria-selected="false">v2.1</button>
-      <button data-f="next" role="tab" aria-selected="false">v2.7+</button>
+      <button data-f="next" role="tab" aria-selected="false">v2.7+ / v2.9</button>
       <button data-f="later" role="tab" aria-selected="false">v3</button>
     </div>
   </div>
@@ -169,8 +169,74 @@
       </div>
       <p class="phase-sub">显式 defer 到 v2.1 的小项；权威清单见 <code>docs/plans/v2.1-backlog.md</code>。</p>
       <div class="rm-grid">
-        <div class="rm-item"><h4>Unread message tracking</h4><p>channel / DM 列表显示未读角标；需 <code>user_conversation_read_state</code> 表 + endpoints + SSE 事件。<span class="trig">估算 <b>~6h</b></span></p></div>
+        <div class="rm-item"><h4>Unread message tracking</h4><p>channel / DM 列表显示未读角标；需 <code>user_conversation_read_state</code> 表 + endpoints + SSE 事件。<span class="trig">估算 <b>~6h</b> · <b>v2.8 已实现</b>（#268/#264 P1）</span></p></div>
         <div class="rm-item"><h4>SPA 覆盖率收尾</h4><p>web 行覆盖 98.6% → 100%。<span class="trig">估算 <b>~1h</b> · post-GA hardening</span></p></div>
+      </div>
+    </section>
+
+    <!-- ============ v2.8 已完成 ============ -->
+    <section class="tl-phase done" data-phase="done">
+      <div class="phase-hd">
+        <h2>v2.8 已完成 · 会话页 UX + 工具显示 + 富文本</h2>
+        <span class="st">✓ SHIPPED</span>
+        <span class="when">v2.8 · 2026-06-06 · 12 PR ship chain (0 production-affecting finding)</span>
+      </div>
+      <p class="phase-sub">v2.8 周期一日交付：(1) 会话页 UX 主体 + (2) 全局工作项侧栏 + (3) 测试实例工具 + 5 piggyback 件（agent 归档 epic / Worker 详情页 / Activity epic / markdown 渲染 / #/@ picker）。验收报告 <code>docs/release/v2.8-acceptance-report.md</code> + consolidated runtime evidence。</p>
+
+      <div class="cluster">(1) 会话页 UX 主体（P1 #264）</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>4-surface 统一架构</h4><p>channel / DM / task 线程 / issue 线程 4 个会话面统一切到 <code>ConversationView</code> 外壳 + 已读游标 + SSE。<span class="trig">PR #182 · e8f9b5c</span></p></div>
+        <div class="rm-item"><h4>未读 badge + @mention 红数字</h4><p>侧栏会话名旁显未读数 + 红 mention badge（≤99+）+ aria-label SR 可读 · 非纯色。<span class="trig">PR #182 / #268 后端</span></p></div>
+        <div class="rm-item"><h4>关注 toggle (Follow)</h4><p>频道 / DM 头 + 工单 banner 可关注 / 取消关注。<span class="trig">PR #182</span></p></div>
+      </div>
+
+      <div class="cluster">(2) 全局 Issues+Tasks 侧栏</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>跨频道工作项一处看</h4><p>左侧全局 sidebar 含 Issues + Tasks + assignee 列 + 跨频道聚合。<span class="trig">PR #156 / #258</span></p></div>
+      </div>
+
+      <div class="cluster">(3) 测试实例工具</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>install test-instance --with-agent</h4><p>一键起含真 claude-opus-4-8 agent 的测试 instance（prod 零足迹 · 同机 dev 友好）。<span class="trig">#261 / #257 phase 1</span></p></div>
+      </div>
+
+      <div class="cluster">Piggyback · Agent 归档 epic（#270 + #272）</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>agent 归档后端</h4><p>soft archive 软删 + agent 行保留 + 释放 worker binding + hard-delete 改 admin-only + 严格两步（running → 409 must-stop-first）。<span class="trig">PR #181 · #272</span></p></div>
+        <div class="rm-item"><h4>agent 4 button 全图标 + 二次确认</h4><p>start / stop / restart / archive 全 SVG icon + 破坏性操作 ConfirmModal + #271 Start 偶发回文字 bug 修 + ESLint guard 防回退。<span class="trig">PR #183 · #270</span></p></div>
+        <div class="rm-item"><h4>(archived) chip 渲染</h4><p>agent 归档后任务列表显 "(archived)" 标识 · 嵌套字段 <code>assignee.assignee_lifecycle</code>。<span class="trig">PR #184/#185 后端 DTO + 前端 chip</span></p></div>
+      </div>
+
+      <div class="cluster">Piggyback · Worker 详情页（#273）</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>WorkerDetail 4-tab</h4><p>Profile（5 真字段 + 5 v2.9 占位）+ Bound Agents（重启 + Open + in-UI hint）+ Management（rename / Install / Re-mint / Remove + bound-agent 警示）+ Activity placeholder。<span class="trig">PR #190 · #273</span></p></div>
+        <div class="rm-item"><h4>useTablistKeyboard 共享 hook</h4><p>WAI-ARIA tab 键盘导航：箭头键 roving-tabindex + Enter/Space 激活（manual activation 防 async tab 触发风暴）+ 回写 #228 AgentDetail。<span class="trig">institutional</span></p></div>
+      </div>
+
+      <div class="cluster">Piggyback · Activity epic（#274）</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>Activity 翻页后端</h4><p>cursor-based pagination + (a) presence-check + 并发 append 闸 + ULID DESC 稳定单调。<span class="trig">PR #186 · #274 backend</span></p></div>
+        <div class="rm-item"><h4>Load older + Checking 折叠</h4><p>"Load older" 按钮翻历史 + 连续 "Checking messages" 自动折叠 + 跨 Load-older 页边界 re-group 不裂。<span class="trig">PR #188 · #274 frontend part 1</span></p></div>
+        <div class="rm-item"><h4>Tool 富渲染 SVG icon</h4><p>CAT_TOOL_USE / CAT_TOOL_RESULT 显工具名 + 参数 + ✓/✗ 状态 + 内联输出折叠（复用 CollapsibleCodeBlock）+ SVG icon（非 emoji）+ not-color-only。<span class="trig">PR #189 · #274 frontend part 2</span></p></div>
+      </div>
+
+      <div class="cluster">Piggyback · 富文本渲染（#276）</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>完整 markdown + GFM</h4><p>react-markdown + remark-gfm（表格 / task list / strikethrough / autolink）。<span class="trig">PR #187 · #276</span></p></div>
+        <div class="rm-item"><h4>XSS 严格 escape</h4><p>no rehype-raw 原始 HTML 不渲染 + urlTransform 拦 <code>javascript:</code>/<code>data:</code> scheme + link rel="noopener noreferrer"。Tester2 真注入 <code>&lt;script&gt;</code>/<code>onerror</code>/<code>javascript:</code> 全 neutralize。<span class="trig">安全 red-line · @oopslink 拍 Q-A1=(i)</span></p></div>
+        <div class="rm-item"><h4>CollapsibleCodeBlock 共组件 13 a11y locks</h4><p>code &gt;20 行自动折叠 + 前 5 行预览 + "Show N more lines" + copy 复全量 + 语言 badge + 双向 expand/collapse + aria-controls by useId（多实例不碰撞）+ aria-live="off" 防 SR 念全文 + WCAG 兄弟非嵌套 disclosure。<span class="trig">PR #187 · 13 lock institutional</span></p></div>
+      </div>
+
+      <div class="cluster">Piggyback · 输入框 #/@ picker（#275）</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>ARIA combobox 写消息补全</h4><p>输 @ 弹人 / 输 # 弹频道 + ↑↓ active + Enter 插 + Esc 关 + email 不误触发 + 全键盘 + aria-activedescendant by stable option-id。<span class="trig">PR #192 · #275</span></p></div>
+        <div class="rm-item"><h4>插入 token + trailing space</h4><p>选完插 <code>@&lt;name&gt;</code> / <code>#&lt;channel-name&gt;</code> + 尾随空格 + cursor 落空格后 = wake word-boundary 真触（<code>@Bob</code> ✓ / <code>@Bobxyz</code> ✗）+ 零后端改。<span class="trig">PR #192 · word-boundary lock</span></p></div>
+        <div class="rm-item"><h4>选项 hover-only id</h4><p>option 可见 = 仅名字 + full id 仅 hover/title 显（#192 chrome 对齐）。<span class="trig">PR #193 · runtime fix</span></p></div>
+      </div>
+
+      <div class="cluster">质量</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>0 production-affecting finding</h4><p>跨 12 PR ship chain + 2 follow-up（cleanup + runtime fix），全程零 production finding · 15 instances pattern proven · consolidated runtime 7/7 + 7/7 PASS direct on shipped。<span class="trig">institutional discipline</span></p></div>
       </div>
     </section>
 
@@ -195,6 +261,24 @@
         <div class="rm-item"><h4>Events organization_id 反范式列</h4><p>events 表加直接列加速跨 Org 审计查询。<span class="trig"><b>触发：</b>事件量增长、审计查询慢</span></p></div>
         <div class="rm-item"><h4>Organization 硬删除（Purge）</h4><p>UI 永久删除 Org 并清空数据。<span class="trig"><b>触发：</b>UI 自助永久清理 / 合规"被遗忘权"</span></p></div>
         <div class="rm-item"><h4>Identity 自助注销</h4><p><code>/me</code> 页 "Delete my account"，受最小 owner invariant 守门。<span class="trig"><b>触发：</b>主动注销 + transfer ownership 完整</span></p></div>
+      </div>
+    </section>
+
+    <!-- ============ v2.9 待做 (deferred-with-pointer) ============ -->
+    <section class="tl-phase next" data-phase="next">
+      <div class="phase-hd">
+        <h2>v2.9 待做（deferred-with-pointer）</h2>
+        <span class="st">→ PLANNED</span>
+        <span class="when">post v2.8 · 源于 v2.8 周期显式 defer 的 epic</span>
+      </div>
+      <p class="phase-sub">v2.8 周期为遵守 epic 不切碎纪律 + T-9 不空挂原则，将以下能力显式 defer 到 v2.9，每条已在 v2.8 ship code 中标注 "Coming v2.9" 占位 + ADR/PR pointer。</p>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>Worker info reporting</h4><p>Worker 详情页 Profile 缺 5 字段（hostname / OS / arch / agent-center binary version / install path）无后端源；workforce.Worker 实体 + worker 端上报路径未做。<span class="trig"><b>v2.8 占位：</b>Profile 5 真字段 + 5 "Coming v2.9" · <b>v2.9 epic：</b>worker enroll 时上报 + workforce schema + DTO 扩</span></p></div>
+        <div class="rm-item"><h4>Worker removal cascade / unbind</h4><p>v2.8 DELETE /workers/{id} = silent orphan（bound agent worker_id 悬空保留，availability 降 unavailable 不崩）；无 unbind/rebind endpoint。<span class="trig"><b>v2.8 替代：</b>Restart + Archive-via-AgentDetail + in-UI hint · <b>v2.9 epic：</b>cascade（worker 删 → bound-agent auto-archive / unbind/rebind option）</span></p></div>
+        <div class="rm-item"><h4>富块 blocks[] + P2 #265 artifacts</h4><p>v2.8 评估后 @oopslink 拍 "block 不引入"（agent 工具调用走 Activity 路径 / 长 code 折叠靠 markdown 派生 + CollapsibleCodeBlock）。<span class="trig"><b>v2.9 status：</b>开放讨论，Artifact promote 方向（a/b/c/d）待选</span></p></div>
+        <div class="rm-item"><h4>Mention id-based format (option B)</h4><p>v2.8 picker 插的 <code>@&lt;name&gt;</code> 文本 token rename-fragile（改名后旧消息显 stale name，同 Slack/Discord）。<span class="trig"><b>v2.9 epic：</b>id-bearing token <code>@&lt;id&gt;</code> + 改 mention.Present matcher（read_state.go:294 + wake_projector.go:509）</span></p></div>
+        <div class="rm-item"><h4>Worker Activity tab</h4><p>v2.8 占位 "Coming v2.9"（无 <code>GET /api/workers/{id}/activity</code> endpoint）。<span class="trig"><b>v2.9 epic：</b>worker 端事件流（与 worker-info-reporting 同 epic candidate）</span></p></div>
+        <div class="rm-item"><h4>Mention friendly-handle @username</h4><p>v2.8 picker 选项 hover-only 裸 id 对齐 #192 chrome standard；MemberResult 无保证 handle。<span class="trig"><b>v2.9 epic：</b>从 email 或 user-set 派生 stable @handle 作可见 secondary</span></p></div>
       </div>
     </section>
 
@@ -229,6 +313,7 @@
         <div class="rm-item"><h4>Per-project 自定义观测维度</h4><p>项目按"扩展点规范"声明额外 trace 维度 / metric，不侵入观测层代码。<span class="trig"><b>触发：</b>多项目共性额外维度</span></p></div>
         <div class="rm-item"><h4>Deployment as Product</h4><p>把部署从 ops 脚本升级为一级产品主题：DDD 框架 / ADR / phase plan / Linux guide / Docker / CI·release / diagnose 工具。<span class="trig">v3 既定主题（2026-05-25 决策）</span></p></div>
         <div class="rm-item"><h4>多用户 / SaaS</h4><p>多用户共享实例 / SaaS 运营 —— 基本是重做认证·权限·隔离·计费·运维。<span class="trig"><b>触发：</b>极远 · 个人工具被验证后</span></p></div>
+        <div class="rm-item"><h4>团队模版功能</h4><p>预定义"标准团队配置"（含哪几种 agent + channel + role + 关系），用户一键 instantiate 完整团队 setup，不必逐个 agent / channel 手动创建。<span class="trig"><b>触发：</b>用户多次手动创建相似 team / 多项目共享标准 team · 2026-06-06 @oopslink 提出</span></p></div>
       </div>
     </section>
 
