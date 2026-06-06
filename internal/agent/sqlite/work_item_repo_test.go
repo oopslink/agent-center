@@ -131,7 +131,7 @@ func TestActivityEventRepo_AppendAndList(t *testing.T) {
 	_ = ar.Append(ctx, mk("E2", "WI1"))
 	_ = ar.Append(ctx, mk("E3", "WI2"))
 
-	byAgent, _ := ar.ListByAgent(ctx, "A1", 10)
+	byAgent, _ := ar.ListByAgent(ctx, "A1", 10, "")
 	if len(byAgent) != 3 {
 		t.Fatalf("ListByAgent = %d, want 3", len(byAgent))
 	}

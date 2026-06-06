@@ -478,7 +478,7 @@ func TestReads(t *testing.T) {
 	if err := agentsql.NewActivityEventRepo(f.db).Append(ctx, ev); err != nil {
 		t.Fatal(err)
 	}
-	acts, err := f.svc.ListActivity(ctx, id, 0) // limit<=0 defaults to 100
+	acts, err := f.svc.ListActivity(ctx, id, 0, "") // limit<=0 = unlimited (#274), before="" = newest
 	if err != nil || len(acts) != 1 || acts[0].ID() != "ev-1" {
 		t.Fatalf("ListActivity = %+v, %v", acts, err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -486,15 +487,48 @@ func (s *Server) agentActivityHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	events, err := d.AgentSvc.ListActivity(r.Context(), a.ID(), 0)
+	// v2.8 #274 cursor pagination (a-presence-check, day-0 locked):
+	//   - limit omitted   → default 50 (the frontend always passes explicit 50)
+	//   - limit=0 present  → unlimited (admin/debug/test full history)
+	//   - limit>0 present  → that value
+	//   - negative/non-int → 400 invalid_limit
+	//   - before=<event-id> → only events older than that cursor (id < before)
+	// next_cursor = the last (oldest) event id of this page when a further page
+	// exists, else null. (We over-fetch limit+1 to detect "more".)
+	const defaultActivityLimit = 50
+	limit := defaultActivityLimit
+	unlimited := false
+	if r.URL.Query().Has("limit") {
+		n, perr := strconv.Atoi(r.URL.Query().Get("limit"))
+		if perr != nil || n < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_limit", "limit must be a non-negative integer")
+			return
+		}
+		if n == 0 {
+			unlimited, limit = true, 0
+		} else {
+			limit = n
+		}
+	}
+	before := r.URL.Query().Get("before")
+	fetch := limit + 1 // over-fetch to detect a next page
+	if unlimited {
+		fetch = 0 // no cap
+	}
+	events, err := d.AgentSvc.ListActivity(r.Context(), a.ID(), fetch, before)
 	if err != nil {
 		mapAgentError(w, err)
 		return
+	}
+	var nextCursor any // nil → JSON null (no more pages)
+	if !unlimited && len(events) > limit {
+		nextCursor = events[limit-1].ID() // oldest event on this page = next `before`
+		events = events[:limit]
 	}
 	facing := agentFacingID(a)
 	out := make([]map[string]any, 0, len(events))
 	for _, e := range events {
 		out = append(out, agentActivityMap(e, facing))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"activity": out})
+	writeJSON(w, http.StatusOK, map[string]any{"activity": out, "next_cursor": nextCursor})
 }

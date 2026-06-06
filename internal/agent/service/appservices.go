@@ -360,10 +360,10 @@ func (s *Service) ListWorkItems(ctx context.Context, id agent.AgentID) ([]*agent
 	return s.workItems.ListByAgent(ctx, id)
 }
 
-// ListActivity returns an Agent's recent activity events (newest first).
-func (s *Service) ListActivity(ctx context.Context, id agent.AgentID, limit int) ([]*agent.AgentActivityEvent, error) {
-	if limit <= 0 {
-		limit = 100
-	}
-	return s.activity.ListByAgent(ctx, id, limit)
+// ListActivity returns an Agent's activity events newest-first (id DESC). v2.8
+// #274 cursor pagination: before="" = newest page, before=<event-id> = older
+// than that cursor; limit>0 caps, limit<=0 = unlimited. The handler resolves the
+// default (omitted → 50) and the next_cursor; the service/repo pass it through.
+func (s *Service) ListActivity(ctx context.Context, id agent.AgentID, limit int, before string) ([]*agent.AgentActivityEvent, error) {
+	return s.activity.ListByAgent(ctx, id, limit, before)
 }

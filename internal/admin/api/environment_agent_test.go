@@ -250,7 +250,7 @@ func TestEnvAgentActivity_Appends(t *testing.T) {
 	if body["ok"] != true || body["id"] == "" || body["id"] == nil {
 		t.Fatalf("want ok + id, got %v", body)
 	}
-	evts, err := f.activity.ListByAgent(f.ctx, agent.AgentID(atAgent1), 10)
+	evts, err := f.activity.ListByAgent(f.ctx, agent.AgentID(atAgent1), 10, "")
 	if err != nil {
 		t.Fatal(err)
 	}

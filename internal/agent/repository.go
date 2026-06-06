@@ -56,8 +56,10 @@ type WorkItemRepository interface {
 // ActivityEventRepository persists the append-only AgentActivityEvent stream.
 type ActivityEventRepository interface {
 	Append(ctx context.Context, e *AgentActivityEvent) error
-	// ListByAgent returns recent events for an agent, newest first, up to limit.
-	ListByAgent(ctx context.Context, agentID AgentID, limit int) ([]*AgentActivityEvent, error)
+	// ListByAgent returns an agent's events newest-first (id DESC). v2.8 #274
+	// cursor pagination: before="" = newest page, before=<event-id> = only events
+	// with id < before; limit>0 caps, limit<=0 = unlimited (no cap).
+	ListByAgent(ctx context.Context, agentID AgentID, limit int, before string) ([]*AgentActivityEvent, error)
 	// ListByWorkItem returns events for one WorkItem segment, oldest first.
 	ListByWorkItem(ctx context.Context, workItemRef string) ([]*AgentActivityEvent, error)
 }
