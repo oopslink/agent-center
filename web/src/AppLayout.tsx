@@ -7,6 +7,7 @@ import { useConversations } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
+import { UnreadBadge } from '@/components/UnreadBadge';
 import { CommandPalette } from '@/components/CommandPalette';
 import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
 import { OrgSettingsModal } from '@/components/OrgSettingsModal';
@@ -253,6 +254,16 @@ interface NavSection {
   items: ReadonlyArray<NavItem>;
 }
 
+// v2.8 #264 P1 / #176: an expandable sidebar sub-item (a channel/DM/project).
+// channel/DM rows carry the per-conversation unread/mention counts for their
+// <UnreadBadge>; projects leave them undefined (no conversation badge).
+interface SidebarChild {
+  to: string;
+  label: string;
+  unreadCount?: number;
+  mentionCount?: number;
+}
+
 // v2.6-FE-6: nav sections are org-slug-prefixed.
 function buildNavSections(base: string): ReadonlyArray<NavSection> {
   const p = (path: string) => `${base}/${path}`;
@@ -350,24 +361,36 @@ function Sidebar({
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
   const projects = useProjects();
-  const channelChildren = (channels.data ?? [])
+  // v2.8 #264 P1 / #176: channel/DM sidebar children carry the per-row unread/
+  // mention counts so each renders its own <UnreadBadge>; projects carry none.
+  const channelChildren: SidebarChild[] = (channels.data ?? [])
     .filter((c) => c.status !== 'archived')
     // v2.7.1 #247: link by channel id (hash) — display still shows "# name".
-    .map((c) => ({ to: `${orgBase}/channels/${encodeURIComponent(c.id)}`, label: `# ${c.name}` }));
+    .map((c) => ({
+      to: `${orgBase}/channels/${encodeURIComponent(c.id)}`,
+      label: `# ${c.name}`,
+      unreadCount: c.unread_count,
+      mentionCount: c.mention_count,
+    }));
   // v2.7.1 #215/Rule 2a: DM sidebar label = @peer_name (backend resolves the
   // other party); deleted peer → "(deleted)"; malformed DM → "Direct message".
-  const dmChildren = (dms.data ?? []).map((d) => {
+  const dmChildren: SidebarChild[] = (dms.data ?? []).map((d) => {
     const label = d.peer_display_name
       ? `@${d.peer_display_name}`
       : d.peer_identity_id
         ? '(deleted)'
         : 'Direct message';
-    return { to: `${orgBase}/dms/${encodeURIComponent(d.id)}`, label };
+    return {
+      to: `${orgBase}/dms/${encodeURIComponent(d.id)}`,
+      label,
+      unreadCount: d.unread_count,
+      mentionCount: d.mention_count,
+    };
   });
   // v2.5.x #67 — Projects expand to the project list, mirroring the
   // Channels/DMs pattern so the Workspace group is consistent with
-  // Conversations. Link target: /projects/<id>.
-  const projectChildren = (projects.data ?? []).map((p) => ({
+  // Conversations. Link target: /projects/<id>. (No conversation counts.)
+  const projectChildren: SidebarChild[] = (projects.data ?? []).map((p) => ({
     to: `${orgBase}/projects/${encodeURIComponent(p.id)}`,
     label: p.name || p.id,
   }));
@@ -484,7 +507,13 @@ function Sidebar({
                                 }
                                 data-testid="sidebar-subitem-link"
                               >
-                                {child.label}
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="truncate">{child.label}</span>
+                                  <UnreadBadge
+                                    unreadCount={child.unreadCount}
+                                    mentionCount={child.mentionCount}
+                                  />
+                                </span>
                               </NavLink>
                             </li>
                           ))}

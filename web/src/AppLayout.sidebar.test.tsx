@@ -227,4 +227,36 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
       expect(parsed['/channels']).toBe(false);
     });
   });
+
+  // v2.8 #264 P1 / #176: channel/DM sidebar sub-items badge off the per-row
+  // unread_count/mention_count embedded in GET /conversations (no N /unread).
+  it('renders unread/mention badges in the channel sub-list from row counts', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'channel') {
+          return HttpResponse.json([
+            // mention → red number badge
+            { id: 'C1', kind: 'channel', name: 'alerts', status: 'active', unread_count: 9, mention_count: 2 },
+            // unread-only → neutral dot
+            { id: 'C2', kind: 'channel', name: 'general', status: 'active', unread_count: 4, mention_count: 0 },
+            // caught up → no badge
+            { id: 'C3', kind: 'channel', name: 'quiet', status: 'active', unread_count: 0, mention_count: 0 },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+    );
+    renderShell();
+    const list = await screen.findByTestId('sidebar-subitem-list-/channels');
+    await waitFor(() => expect(list.textContent).toContain('# alerts'));
+    // mention badge shows the precise mention number, SR announces both counts.
+    const mention = screen.getByTestId('conversation-mention-badge');
+    expect(mention).toHaveTextContent('2');
+    expect(mention).toHaveAttribute('aria-label', '9 unread, 2 mentions');
+    // exactly one unread-only dot (the unread-but-no-mention channel).
+    const dots = screen.getAllByTestId('conversation-unread-dot');
+    expect(dots).toHaveLength(1);
+    expect(dots[0]).toHaveAttribute('aria-label', '4 unread');
+  });
 });
