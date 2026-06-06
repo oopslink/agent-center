@@ -439,9 +439,14 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
       >
         {displayName}
       </button>
-      <span className="font-mono text-[0.6875rem] text-text-muted" data-testid="environment-worker-id">
+      <OrgLink
+        to={`/workers/${worker.worker_id}`}
+        className="font-mono text-[0.6875rem] text-text-muted hover:text-accent hover:underline"
+        title={`Open ${worker.name || worker.worker_id} details`}
+        data-testid="environment-worker-id"
+      >
         {worker.worker_id}
-      </span>
+      </OrgLink>
     </div>
   );
 }
