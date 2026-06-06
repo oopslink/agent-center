@@ -1,6 +1,8 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { uploadMessageAttachment, useSendMessage } from '@/api/conversations';
+import { useMentionAutocomplete } from './useMentionAutocomplete';
+import { MentionPicker } from './MentionPicker';
 
 interface Props {
   conversationId: string;
@@ -17,7 +19,10 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
   // v2.7.1 #222: track IME composition so Enter that confirms a composition
   // (e.g. Chinese/Japanese input) doesn't fire send.
   const composingRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const send = useSendMessage();
+  // v2.8 #275: #/@ mention picker wired to the textarea.
+  const mention = useMentionAutocomplete({ setValue: setDraft, textareaRef });
   const disabled = (!draft.trim() && files.length === 0) || send.isPending;
 
   // Revoke any outstanding object URLs only on unmount. Per-item revokes happen
@@ -53,6 +58,8 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // v2.8 #275: while the mention picker is open it owns ↑↓/Enter/Tab/Esc.
+    if (mention.onKeyDown(e)) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       // v2.7.1 #222: while an IME composition is active, Enter confirms the
       // candidate — never send. Shift+Enter (newline) is unaffected.
@@ -71,19 +78,47 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
         void submit();
       }}
     >
-      <textarea
-        className="min-h-[2.5rem] flex-1 resize-none rounded border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
-        rows={1}
-        aria-label="Message"
-        placeholder="Type a message — Enter to send, Shift+Enter for newline"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={handleKey}
-        onCompositionStart={() => { composingRef.current = true; }}
-        onCompositionEnd={() => { composingRef.current = false; }}
-        data-testid="composer-textarea"
-        disabled={send.isPending}
-      />
+      <div className="relative flex-1">
+        {mention.open && (
+          <div className="absolute bottom-full left-0 z-10 mb-1 w-72" data-testid="mention-popup">
+            <MentionPicker
+              options={mention.options}
+              activeId={mention.activeId}
+              listboxId={mention.listboxId}
+              onSelect={mention.onSelect}
+              onHoverActivate={mention.onHoverActivate}
+            />
+          </div>
+        )}
+        <textarea
+          ref={textareaRef}
+          className="min-h-[2.5rem] w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
+          rows={1}
+          aria-label="Message"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={mention.open}
+          aria-controls={mention.open ? mention.listboxId : undefined}
+          aria-activedescendant={mention.activeOptionId}
+          placeholder="Type a message — Enter to send, Shift+Enter for newline"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            mention.sync();
+          }}
+          onKeyDown={handleKey}
+          onKeyUp={() => mention.sync()}
+          onClick={() => mention.sync()}
+          onCompositionStart={() => {
+            composingRef.current = true;
+          }}
+          onCompositionEnd={() => {
+            composingRef.current = false;
+          }}
+          data-testid="composer-textarea"
+          disabled={send.isPending}
+        />
+      </div>
       <label
         className="flex cursor-pointer items-center rounded border border-border-strong px-3 py-2 text-text-primary hover:bg-bg-subtle"
         title="Attach file"
