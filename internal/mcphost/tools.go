@@ -139,6 +139,36 @@ func makeRequestInput(cfg Config) mcp.ToolHandlerFor[requestInputArgs, any] {
 	}
 }
 
+// --- start_work / fail_work (v2.8.1 #278 D pull model) -----------------------
+
+type startWorkArgs struct {
+	WorkItemID string `json:"work_item_id" jsonschema:"the id of one of YOUR queued work items (from get_my_work) to start working on now"`
+}
+
+func makeStartWork(cfg Config) mcp.ToolHandlerFor[startWorkArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args startWorkArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"work_item_id": args.WorkItemID,
+		}
+		return callAdmin(ctx, cfg, "start_work", body)
+	}
+}
+
+type failWorkArgs struct {
+	WorkItemID string `json:"work_item_id" jsonschema:"the id of the work item you are currently running that has failed"`
+}
+
+func makeFailWork(cfg Config) mcp.ToolHandlerFor[failWorkArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args failWorkArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"work_item_id": args.WorkItemID,
+		}
+		return callAdmin(ctx, cfg, "fail_work", body)
+	}
+}
+
 // --- block_task --------------------------------------------------------------
 
 type blockTaskArgs struct {

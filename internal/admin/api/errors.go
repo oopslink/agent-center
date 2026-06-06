@@ -47,6 +47,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, agent.ErrWorkItemBadStatus):
 		writeError(w, http.StatusConflict, "illegal_transition", err.Error())
 
+	// ---- agent_busy (409) — v2.8.1 #278 single-active: an activate (push
+	// report-active or pull start_work) lost to the single-active UNIQUE index /
+	// pre-check; the agent already has an in-flight work item. Benign conflict
+	// (not a 500); the work item stays queued. ----
+	case errors.Is(err, agent.ErrAgentHasActiveWork):
+		writeError(w, http.StatusConflict, "agent_busy", err.Error())
+
 	// ---- already_exists (409) -------------------------------------------
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),
 		errors.Is(err, convservice.ErrParticipantAlreadyActive),

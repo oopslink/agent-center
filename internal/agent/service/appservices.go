@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -249,6 +250,84 @@ func (s *Service) MarkWorkItemState(ctx context.Context, agentID agent.AgentID, 
 			return agent.ErrWorkItemBadStatus
 		}
 		if err != nil {
+			return err
+		}
+		// v2.8.1 #278 PR1 (Tester finding): the controller-push report-active path
+		// (the ACTUAL activation path until PR4's pull-loop) can race the single-
+		// active UNIQUE index when concurrent assigns deliver multiple work
+		// commands. Map the loser's UNIQUE violation to the clean
+		// ErrAgentHasActiveWork (→ 409, not a raw 500) so the daemon's feedback
+		// log is benign and the invariant (1 active) still holds.
+		if uerr := s.workItems.Update(txCtx, wi); uerr != nil {
+			if persistence.IsUniqueViolation(uerr) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return uerr
+		}
+		return nil
+	})
+}
+
+// StartWork is the agent-PULL activation (v2.8.1 #278, @oopslink's pull model):
+// the agent — via the MCP start_work tool — selects one of its OWN queued work
+// items and marks it running (queued→active). It enforces the single-active
+// invariant (the agent processes one work item at a time): if the agent already
+// has an active/waiting_input item, this returns ErrAgentHasActiveWork and the
+// selected item stays queued. The HasActiveWorkItem pre-check gives a clean error
+// in the common case; the DB UNIQUE partial index (migration 0051) is the ATOMIC
+// backstop — under concurrent start_work the second Update violates the unique
+// constraint and rolls back, so at most one work item ever becomes active per
+// agent (race closed). Ownership-guarded: the work item must belong to agentID.
+func (s *Service) StartWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		active, err := s.workItems.HasActiveWorkItem(txCtx, agentID)
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork // already running one; pick after it settles
+		}
+		if err := wi.Activate(now); err != nil { // queued→active
+			return err
+		}
+		// Update hits the UNIQUE partial index; a concurrent start_work that passed
+		// the pre-check fails here (only one wins) → its tx rolls back, item stays
+		// queued. Map that race-loss to the SAME clean error as the pre-check path
+		// so the agent handles both consistently (benign "slot taken, try later"),
+		// not a raw driver error (Dev2 #194 review).
+		if err := s.workItems.Update(txCtx, wi); err != nil {
+			if persistence.IsUniqueViolation(err) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return err
+		}
+		return nil
+	})
+}
+
+// FailWork is the agent-PULL failure report (v2.8.1 #278): the agent marks its
+// own in-flight work item failed (active|waiting_input → failed) — the symmetric
+// terminal to complete. Freeing the active slot lets the next queued item be
+// drained (agent pulls next / reconciler advances). Ownership-guarded.
+func (s *Service) FailWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		if err := wi.Fail(now); err != nil {
 			return err
 		}
 		return s.workItems.Update(txCtx, wi)

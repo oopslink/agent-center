@@ -359,18 +359,22 @@ func TestEnvAgentWorkItemState_ActiveDoneFailed(t *testing.T) {
 	f := newFBFixture(t)
 	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
 	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
-	f.seedWorkItem(t, "wi-act", atAgent1, "pm://tasks/T1", agent.WorkItemQueued)
-	f.seedWorkItem(t, "wi-done", atAgent1, "pm://tasks/T2", agent.WorkItemActive)
-	f.seedWorkItem(t, "wi-fail", atAgent1, "pm://tasks/T3", agent.WorkItemActive)
+	// v2.8.1 #278 single-active invariant (DB UNIQUE 0051): an agent has at most
+	// ONE active work item, so active/done/failed are exercised SEQUENTIALLY
+	// (never two active at once): wi-1 queued→active→done frees the slot, then
+	// wi-2 queued→active→failed.
+	f.seedWorkItem(t, "wi-1", atAgent1, "pm://tasks/T1", agent.WorkItemQueued)
+	f.seedWorkItem(t, "wi-2", atAgent1, "pm://tasks/T2", agent.WorkItemQueued)
 	srv := f.server(t)
 
 	cases := []struct {
 		id, state string
 		want      agent.WorkItemStatus
 	}{
-		{"wi-act", "active", agent.WorkItemActive},
-		{"wi-done", "done", agent.WorkItemDone},
-		{"wi-fail", "failed", agent.WorkItemFailed},
+		{"wi-1", "active", agent.WorkItemActive},
+		{"wi-1", "done", agent.WorkItemDone},
+		{"wi-2", "active", agent.WorkItemActive}, // wi-1 done → agent idle → wi-2 may activate
+		{"wi-2", "failed", agent.WorkItemFailed},
 	}
 	for _, c := range cases {
 		status, body := postBearer(t, srv.URL, "/admin/environment/agent/work-item-state", "acat_fb_w1", map[string]any{
