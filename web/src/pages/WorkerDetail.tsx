@@ -4,6 +4,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { EmptyState } from '@/components/EmptyState';
 import { useWorker } from '@/api/workers';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
+import { WorkerProfile } from '@/components/WorkerProfile';
 
 // WorkerDetail (/workers/:id). Environment BC. A dedicated worker page (v2.8 #273)
 // mirroring AgentDetail's 4-tab framework (#228) + the shared manual-activation
@@ -144,9 +145,7 @@ export default function WorkerDetail(): React.ReactElement {
         data-testid={`worker-tabpanel-${tab}`}
       >
         {/* Tab contents land in subsequent increments; Activity is v2.9. */}
-        {tab === 'profile' && (
-          <EmptyState testId="worker-profile-stub" title="Profile" body="Loading…" />
-        )}
+        {tab === 'profile' && <WorkerProfile worker={w} />}
         {tab === 'agents' && (
           <EmptyState testId="worker-agents-stub" title="Bound Agents" body="Loading…" />
         )}
