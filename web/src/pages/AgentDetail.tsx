@@ -18,7 +18,8 @@ import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
 import { EmptyState } from '@/components/EmptyState';
-import { AgentActivityRow } from '@/components/AgentActivityRow';
+import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
+import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentProfile } from '@/components/AgentProfile';
 import { AgentWorkItems } from '@/components/AgentWorkItems';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -351,9 +352,14 @@ export default function AgentDetail(): React.ReactElement {
         {activity.isSuccess && activityEvents.length > 0 && (
           <>
             <ul className="divide-y divide-border-base" data-testid="agent-activity-list">
-              {activityEvents.map((ev) => (
-                <AgentActivityRow key={ev.id} event={ev} />
-              ))}
+              {/* #274: fold consecutive Checking events over the full accumulated set. */}
+              {groupActivity(activityEvents).map((item) =>
+                item.kind === 'checking-group' ? (
+                  <CheckingGroup key={item.events[0].id} events={item.events} />
+                ) : (
+                  <AgentActivityRow key={item.event.id} event={item.event} />
+                ),
+              )}
             </ul>
             {/* #274: cursor-paginated "Load older" (oldest events fetched on demand);
                 terminal state when next_cursor=null (末页). */}

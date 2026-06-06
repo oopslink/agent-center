@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { AgentActivityEvent } from '@/api/types';
 
 // v2.7.1 #228 PR(c): the activity timeline labels each event by a user-facing
@@ -52,6 +52,13 @@ function parsePayload(raw: string): Record<string, unknown> {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v : v == null ? '' : String(v);
+}
+
+// v2.8 #274: an event is a "Checking" event when it falls through to CAT_CHECKING
+// (system_init / lifecycle / rate_limit / unknown). Consecutive runs of these are
+// folded into one "Checking messages × N" group in the timeline.
+export function isCheckingEvent(event: AgentActivityEvent): boolean {
+  return categoryOf(event.event_type, parsePayload(event.payload)) === CAT_CHECKING;
 }
 
 function truncate(s: string, n: number): string {
@@ -215,6 +222,56 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
             {JSON.stringify(payload, null, 2)}
           </pre>
         </div>
+      )}
+    </li>
+  );
+}
+
+// "2026-05-24T01:00:00Z" → "01:00" (stable, locale-independent).
+function timeOf(iso: string): string {
+  return iso.length >= 16 ? iso.slice(11, 16) : iso;
+}
+
+// v2.8 #274: a folded run of consecutive "Checking" events — "Checking messages
+// × N" + the run's time range + a disclosure to reveal each raw event. The
+// disclosure (button, aria-expanded + aria-controls→the region's useId() id) is
+// NOT the list container; expanding is lossless (every original event shown).
+export function CheckingGroup({ events }: { events: AgentActivityEvent[] }): React.ReactElement {
+  const [expanded, setExpanded] = useState(false);
+  const regionId = useId();
+  const n = events.length;
+  // events are newest-first (ULID DESC) → [0] = latest, [n-1] = earliest.
+  const latest = events[0]?.occurred_at ?? '';
+  const earliest = events[n - 1]?.occurred_at ?? '';
+  return (
+    <li data-testid="agent-activity-checking-group" data-count={n}>
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 py-2 text-left text-xs text-orange-600 hover:bg-bg-subtle"
+        data-testid="agent-activity-checking-toggle"
+        aria-expanded={expanded}
+        aria-controls={regionId}
+        aria-label={`Checking messages, ${n} events, ${expanded ? 'expanded' : 'collapsed'}`}
+        onClick={() => setExpanded((e) => !e)}
+      >
+        <span className="flex items-center gap-2">
+          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-orange-500" />
+          Checking messages × {n}
+        </span>
+        <span className="tabular-nums text-text-muted">
+          {timeOf(earliest)}–{timeOf(latest)}
+        </span>
+      </button>
+      {expanded && (
+        <ul
+          id={regionId}
+          className="ml-4 border-l border-border-base pl-2"
+          data-testid="agent-activity-checking-expanded"
+        >
+          {events.map((ev) => (
+            <AgentActivityRow key={ev.id} event={ev} />
+          ))}
+        </ul>
       )}
     </li>
   );
