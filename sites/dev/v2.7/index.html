@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>开发指引 · v2.7（历史版本，归档） · agent-center</title>
-<meta name="description" content="agent-center 开发指引 v2.7 历史版本快照：v2.7 领域重构概述与架构快照。当前架构以 v2.7.1 为准；本页仅作归档，并附 v2.7 → v2.7.1 增量变化对照。">
+<meta name="description" content="agent-center 开发指引 v2.7 历史版本快照：v2.7 领域重构概述与架构快照。当前架构以 v2.8 为准；本页仅作归档，并附 v2.7 → v2.7.1 增量变化对照。">
 <link rel="stylesheet" href="../../assets/site.css">
 <script src="../../assets/site.js" defer></script>
 </head>
@@ -14,31 +14,31 @@
   <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
   <nav class="hd-nav">
     <a href="../../product/index.html">产品介绍</a>
-    <a href="../../manual/v2.7.1/index.html">用户手册</a>
-    <a class="active" href="../../dev/v2.7.1/index.html">开发指引</a>
+    <a href="../../manual/v2.8/index.html">用户手册</a>
+    <a class="active" href="../../dev/v2.8/index.html">开发指引</a>
     <a href="../../roadmap/index.html">路线图</a>
     <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
   </nav>
 </div></header>
 
-<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.7.1/index.html">开发指引</a> › v2.7（历史）</div>
+<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.8/index.html">开发指引</a> › v2.7（历史）</div>
 
 <section class="hero sm">
   <div class="inner">
     <span class="eyebrow">开发指引 · 历史版本（归档）</span>
     <h1>开发指引 · v2.7（历史版本）</h1>
-    <p class="lede">这是 v2.7 的历史快照，仅作归档保留。v2.7 的领域模型与<b>当前 v2.7.1 完全一致</b>——两版之间 DDD 架构未发生迁移，v2.7.1 仅叠加了增量特性与 UX 抛光。完整、权威的架构视图请见当前版本页。</p>
+    <p class="lede">这是 v2.7 的历史快照，仅作归档保留。v2.7 的领域模型与 v2.7.1 / v2.8 完全一致——领域模型在 v2.7→v2.7.1→v2.8 之间均未发生迁移，v2.7.1 / v2.8 仅叠加了增量特性与 UX 抛光（v2.8 在 v2.7.1 上又增了会话页 4-surface 统一、agent 软归档、Worker 详情页、markdown 渲染等）。完整、权威的架构视图请见 v2.8 当前版本页。</p>
   </div>
 </section>
 
 <main class="wrap wide">
 
   <div class="callout warn">
-    <b>这是历史版本快照。</b>当前架构以 v2.7.1 为准 →
-    <a href="../../dev/v2.7.1/index.html">前往「开发指引 · v2.7.1（当前版本）」</a>。本页不重复完整的 DDD 设计，只保留 v2.7 概述、架构快照与 v2.7 → v2.7.1 变化对照。
+    <b>这是历史版本快照。</b>当前架构以 v2.8 为准 →
+    <a href="../../dev/v2.8/index.html">前往「开发指引 · v2.8（当前版本）」</a>。本页不重复完整的 DDD 设计，只保留 v2.7 概述、架构快照与 v2.7 → v2.7.1 变化对照（v2.7.1 → v2.8 演进见 v2.8 页 "v2.8 相对 v2.7.1 主要演进" 区块）。
   </div>
 
-  <div class="verswitch"><a href="../../dev/v2.7.1/index.html">v2.7.1 当前</a><a class="on" href="../../dev/v2.7/index.html">v2.7 历史</a></div>
+  <div class="verswitch"><a href="../../dev/v2.8/index.html">v2.8 当前</a><a href="../../dev/v2.7.1/index.html">v2.7.1 历史</a><a class="on" href="../../dev/v2.7/index.html">v2.7 历史</a></div>
 
   <!-- ============================================================ -->
   <!-- SECTION A — v2.7 概述 -->
@@ -74,11 +74,11 @@
   <!-- ============================================================ -->
   <div class="section-title">B · 架构快照</div>
   <div class="prose">
-    <p>v2.7 的领域模型与<b>当前 v2.7.1 视图完全一致</b>：五大限界上下文、detached supervisor + survive-reattach、SSE 优先 / 轮询回退的控制流、Conversation BC 与文件附件模型，在两版之间<b>均未变动</b>。因此本页<b>不重绘</b>完整的三 Tab 设计图（限界上下文地图 / 战术设计 / Event Storming）。</p>
+    <p>v2.7 的领域模型与 v2.7.1 / v2.8 视图<b>完全一致</b>：五大限界上下文、detached supervisor + survive-reattach、SSE 优先 / 轮询回退的控制流、Conversation BC 与文件附件模型，跨 v2.7→v2.7.1→v2.8 均<b>未变动</b>（v2.8 在 v2.7.1 上叠加的会话页 4-surface 统一 / agent 软归档 / Worker 详情页 / markdown 渲染等是 UX + 战术层增量, 领域模型不变）。因此本页<b>不重绘</b>完整的三 Tab 设计图（限界上下文地图 / 战术设计 / Event Storming）。</p>
 
     <div class="callout info">
       <b>权威架构视图请见当前页：</b>
-      <a href="../../dev/v2.7.1/index.html">开发指引 · v2.7.1（当前版本）</a> 中的
+      <a href="../../dev/v2.8/index.html">开发指引 · v2.8（当前版本）</a> 中的
       <b>C · DDD 设计（以现行代码校准）</b> 三 Tab 图，以及 <b>B · 主要机制设计</b>。这些视图同样适用于 v2.7——领域模型并未迁移。
     </div>
 
@@ -144,7 +144,7 @@
     </table>
 
     <p>结论：v2.7.1 是 v2.7 的<b>纯增量演进</b>。要查看与两版均一致的完整 DDD 架构、机制设计与三 Tab 图，请以
-    <a href="../../dev/v2.7.1/index.html">v2.7.1（当前版本）</a> 页为准。</p>
+    <a href="../../dev/v2.8/index.html">v2.8（当前版本）</a> 页为准（v2.8 在 v2.7.1 基础上又演进了会话页 4-surface 统一、agent 软归档、Worker 详情页、markdown 渲染等，详见 v2.8 页演进 highlight 区块）。</p>
   </div>
 
 </main>
