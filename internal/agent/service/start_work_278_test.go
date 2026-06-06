@@ -93,17 +93,34 @@ func TestStartWork_ConcurrentOnlyOneWins(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+	errs := make([]error, n)
 	for i := 0; i < n; i++ {
 		wg.Add(1)
-		go func(wiID string) {
+		go func(idx int, wiID string) {
 			defer wg.Done()
-			_ = f.svc.StartWork(ctx, id, wiID) // losers: ErrAgentHasActiveWork / unique conflict
-		}(ids[i])
+			errs[idx] = f.svc.StartWork(ctx, id, wiID)
+		}(i, ids[i])
 	}
 	wg.Wait()
 
 	if got := f.countActive(t, id); got != 1 {
 		t.Fatalf("after %d concurrent start_work: active=%d want exactly 1 (race not closed)", n, got)
+	}
+	// exactly one winner; every loser gets the CLEAN domain error (not a raw
+	// driver UNIQUE error) — both the pre-check path and the race path (Update
+	// hit the unique index) map to ErrAgentHasActiveWork (Dev2 #194 review).
+	wins := 0
+	for _, e := range errs {
+		if e == nil {
+			wins++
+			continue
+		}
+		if !errors.Is(e, agent.ErrAgentHasActiveWork) {
+			t.Fatalf("race-loser got non-clean error %v, want ErrAgentHasActiveWork", e)
+		}
+	}
+	if wins != 1 {
+		t.Fatalf("concurrent start_work winners=%d want exactly 1", wins)
 	}
 }
 

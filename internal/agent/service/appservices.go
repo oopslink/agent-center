@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -286,8 +287,17 @@ func (s *Service) StartWork(ctx context.Context, agentID agent.AgentID, workItem
 			return err
 		}
 		// Update hits the UNIQUE partial index; a concurrent start_work that passed
-		// the pre-check fails here (only one wins) → its tx rolls back, item stays queued.
-		return s.workItems.Update(txCtx, wi)
+		// the pre-check fails here (only one wins) → its tx rolls back, item stays
+		// queued. Map that race-loss to the SAME clean error as the pre-check path
+		// so the agent handles both consistently (benign "slot taken, try later"),
+		// not a raw driver error (Dev2 #194 review).
+		if err := s.workItems.Update(txCtx, wi); err != nil {
+			if persistence.IsUniqueViolation(err) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return err
+		}
+		return nil
 	})
 }
 
