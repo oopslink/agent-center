@@ -61,12 +61,20 @@ const (
 	// recovery (Start/Reset) to leave. (Distinct aggregate from AgentWorkItem's
 	// "failed" status — that is a unit of WORK; this is the AGENT runtime lifecycle.)
 	LifecycleFailed AgentLifecycle = "failed"
+	// LifecycleArchived is the TERMINAL soft-delete state (v2.8 #272): the agent is
+	// retired from the user-facing surface but its row is RETAINED, so historical
+	// task assignees / "(archived)" chips / GET-by-id still resolve (Tester hard
+	// constraint, #215 deleted-peer pattern). No un-archive in v2.8 (deferred
+	// follow-up). Archiving clears the worker binding so the worker is freed to
+	// re-bind. Reachable only from a settled non-running state (stopped/error/
+	// failed) — running/transitioning agents must stop first (#272 (b) strict).
+	LifecycleArchived AgentLifecycle = "archived"
 )
 
 // IsValid reports enum membership.
 func (l AgentLifecycle) IsValid() bool {
 	switch l {
-	case LifecycleStopped, LifecycleRunning, LifecycleStopping, LifecycleResetting, LifecycleError, LifecycleFailed:
+	case LifecycleStopped, LifecycleRunning, LifecycleStopping, LifecycleResetting, LifecycleError, LifecycleFailed, LifecycleArchived:
 		return true
 	}
 	return false
@@ -107,6 +115,16 @@ var (
 	// cannot execute (v2.7 #181 / FINDING-F). v2.7 supports only "claude-code";
 	// empty / codex / opencode / unknown are rejected.
 	ErrUnsupportedCLI = errors.New("agent: unsupported cli (v2.7 supports claude-code only)")
+	// ErrAgentNotStoppedForArchive rejects archiving a running/transitioning agent
+	// (v2.8 #272 (b) strict two-step) — the operator must stop it first. Maps to 409.
+	ErrAgentNotStoppedForArchive = errors.New("agent: agent must be stopped before archive")
+	// ErrAgentAlreadyArchived signals an idempotent re-archive (already archived).
+	// The service treats it as a no-op success (200), not an error to the caller.
+	ErrAgentAlreadyArchived = errors.New("agent: agent already archived")
+	// ErrAgentArchived rejects an operation on a terminally-archived agent (e.g.
+	// Start). Archived is terminal in v2.8 (no un-archive) — maps to 400, not 409,
+	// because it is a fundamentally invalid request, not a transient state conflict.
+	ErrAgentArchived = errors.New("agent: agent is archived (terminal)")
 )
 
 // Profile is the Agent product profile.
@@ -279,6 +297,11 @@ func (a *Agent) DefaultWorkspaceRel() string {
 // Start moves stopped/error/failed → running. Starting a terminal-FAILED agent is
 // the operator's MANUAL recovery out of the crash-loop circuit-breaker.
 func (a *Agent) Start(at time.Time) error {
+	// Archived is terminal (v2.8 #272): you cannot start an archived agent. Distinct
+	// error → 400 (fundamentally invalid), not 409 (transient conflict).
+	if a.lifecycle == LifecycleArchived {
+		return ErrAgentArchived
+	}
 	if a.lifecycle != LifecycleStopped && a.lifecycle != LifecycleError && a.lifecycle != LifecycleFailed {
 		return ErrIllegalLifecycle
 	}
@@ -320,6 +343,36 @@ func (a *Agent) Reset(scope ResetScope, at time.Time) error {
 		return ErrIllegalLifecycle
 	}
 	a.lifecycle = LifecycleResetting
+	a.touch(at)
+	return nil
+}
+
+// Archive soft-deletes the Agent (v2.8 #272): a terminal transition that retires
+// it from the user surface while RETAINING the row (history). It is the sole
+// user-facing delete path; the second confirmation is enforced by the
+// AppService/UI (ConfirmModal), not here.
+//
+//   - (b) strict two-step: only a SETTLED non-running agent may be archived
+//     (stopped / error / failed). A running/stopping/resetting agent →
+//     ErrAgentNotStoppedForArchive (409) — the operator stops it first.
+//   - Idempotent: archiving an already-archived agent → ErrAgentAlreadyArchived,
+//     which the service maps to a 200 no-op (no re-persist, no double version bump).
+//   - Clears the worker binding (workerID="") — the worker is freed to re-bind.
+//     The agent is already stopped, so its control channel is already torn down;
+//     archive just releases the binding (persisted via the dedicated repo Archive).
+func (a *Agent) Archive(at time.Time) error {
+	if a.lifecycle == LifecycleArchived {
+		return ErrAgentAlreadyArchived
+	}
+	switch a.lifecycle {
+	case LifecycleStopped, LifecycleError, LifecycleFailed:
+		// settled, non-running → archivable
+	default: // running, stopping, resetting
+		return ErrAgentNotStoppedForArchive
+	}
+	a.lifecycle = LifecycleArchived
+	a.lifecycleError = ""
+	a.workerID = "" // release the binding; the worker becomes re-bindable
 	a.touch(at)
 	return nil
 }

@@ -304,6 +304,33 @@ func (s *Service) ResolveAgent(ctx context.Context, idOrMemberID string) (*agent
 	return s.agents.FindByIdentityMemberID(ctx, idOrMemberID)
 }
 
+// ArchiveAgent soft-deletes an agent (v2.8 #272) — the SOLE user-facing delete
+// path. Guard (b strict): only a settled non-running agent (stopped/error/failed)
+// may be archived; running/transitioning → ErrAgentNotStoppedForArchive (409).
+// Idempotent: re-archiving an already-archived agent is a 200 no-op (no
+// re-persist, no double version bump). Archiving sets lifecycle=archived + clears
+// the worker binding (worker_id="") via the dedicated repo.Archive, so the worker
+// is freed to re-bind while the agent row is RETAINED (history — #215 chip /
+// assignee / GET-by-id). Persist-only (no reconcile emit): the agent is already
+// stopped, so there is no running process to reconcile — only the binding is
+// released.
+func (s *Service) ArchiveAgent(ctx context.Context, id agent.AgentID) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		a, err := s.agents.FindByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if err := a.Archive(now); err != nil {
+			if errors.Is(err, agent.ErrAgentAlreadyArchived) {
+				return nil // idempotent no-op
+			}
+			return err
+		}
+		return s.agents.Archive(txCtx, a)
+	})
+}
+
 // DeleteAgent hard-deletes a Stopped, idle agent (v2.7 #197). Guards: the agent
 // must be Stopped (else ErrAgentNotStopped — operator stops it first) and have no
 // active/waiting_input work item (else ErrAgentHasActiveWork). Deletes the agent

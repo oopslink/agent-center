@@ -72,6 +72,25 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	return nil
 }
 
+// Archive persists the v2.8 #272 soft-delete: lifecycle→archived AND clears the
+// worker_id binding. This is the ONE legitimate place worker_id changes (the
+// generic Update keeps it immutable, agent_repo.go above) — archive is a terminal
+// release, so the worker is freed to re-bind. Idempotent at the row level
+// (absent id → ErrAgentNotFound; the service guards already-archived upstream).
+func (r *AgentRepo) Archive(ctx context.Context, a *agent.Agent) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE agents SET lifecycle=?, lifecycle_error='', worker_id='', updated_at=?, version=? WHERE id=?`,
+		string(a.Lifecycle()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return agent.ErrAgentNotFound
+	}
+	return nil
+}
+
 func (r *AgentRepo) FindByID(ctx context.Context, id agent.AgentID) (*agent.Agent, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, agentSelect+` WHERE id = ?`, string(id))
