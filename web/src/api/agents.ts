@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 import type { Agent, AgentActivityEvent, AgentWorkItem } from './types';
@@ -115,15 +120,26 @@ export function useAgentWorkItems(id: string | undefined) {
   });
 }
 
+// v2.8 #274: the Activity feed is cursor-paginated. Each page is
+// GET /agents/:id/activity?limit=50[&before=<event_id>] → { activity, next_cursor }.
+// We always send an explicit limit=50 (self-documenting — never the absent→default
+// path) and follow next_cursor (null = 末页). The "Load older" control calls
+// fetchNextPage; the consumer flattens data.pages → events and re-groups over the
+// FULL accumulated set (so a Checking run spanning a page boundary merges, #274).
+export interface AgentActivityPage {
+  activity: AgentActivityEvent[];
+  next_cursor: string | null;
+}
+
 export function useAgentActivity(id: string | undefined) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: qk.agentActivity(id ?? ''),
-    queryFn: async () => {
-      const resp = await api.get<{ activity: AgentActivityEvent[] }>(
-        `/agents/${id}/activity`,
-      );
-      return resp.activity;
+    queryFn: ({ pageParam }) => {
+      const before = pageParam ? `&before=${encodeURIComponent(pageParam)}` : '';
+      return api.get<AgentActivityPage>(`/agents/${id}/activity?limit=50${before}`);
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     enabled: !!id,
   });
 }
