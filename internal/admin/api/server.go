@@ -363,6 +363,11 @@ func (s *Server) routes() {
 	// the TOKEN OWNER and verifies the target agent is bound to it (guardrail)
 	// before any tool runs. b1 ships one representative read tool.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
+	// v2.8.1 #278 D (pull model): the agent drives its own work-item queue —
+	// start_work (select a queued item → running, single-active-enforced) +
+	// fail_work (report the in-flight item failed → frees the slot to drain).
+	s.mux.HandleFunc("POST /admin/agent-tools/start_work", s.startWorkHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/fail_work", s.failWorkHandler)
 	// v2.7.1 #239 — agent self/org-discovery reads (0 round-trip self-awareness):
 	// own profile (org/projects/capabilities) + find peer org agents by name.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_profile", s.getMyProfileHandler)

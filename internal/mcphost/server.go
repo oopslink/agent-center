@@ -101,6 +101,21 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "List the calling agent's own work items (its task queue + history).",
 	}, makeGetMyWork(cfg))
 
+	// v2.8.1 #278 D (pull model): the agent works its OWN queue one item at a
+	// time — pick a queued item from get_my_work, start_work it (mark running),
+	// do it, complete_task it, then start_work the next. Only one work item may
+	// be running at a time (start_work returns agent_busy if one is already
+	// active). fail_work reports the running item as failed.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "start_work",
+		Description: "Start working on one of your queued work items (mark it running). Pick a work_item_id from get_my_work. Only ONE work item can be running at a time — finish (complete_task) or fail (fail_work) the current one before starting the next. Returns agent_busy if you already have a running item.",
+	}, makeStartWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "fail_work",
+		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
+	}, makeFailWork(cfg))
+
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_task_message",
 		Description: "Post a message into a task the calling agent participates in.",
