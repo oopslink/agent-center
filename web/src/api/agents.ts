@@ -64,6 +64,16 @@ export function useRestartAgent(id: string) {
   return useLifecycleMutation(id, 'restart');
 }
 
+// v2.8 #270/#272: soft-archive — the ONLY user-facing delete path. POSTs the
+// #272 endpoint (not DELETE; soft, REST-strict). Backend guards: only a settled
+// agent (stopped/error) archives — running → 409 invalid_state "must be stopped
+// first" (b strict-two-step); idempotent (already-archived → 200 no-op); worker
+// binding cleared. Returns the refreshed (lifecycle=archived) agent. Hard
+// DeleteAgent (above) is admin-only and intentionally has NO UI surface.
+export function useArchiveAgent(id: string) {
+  return useLifecycleMutation(id, 'archive');
+}
+
 export function useResetAgent(id: string) {
   const qc = useQueryClient();
   return useMutation({
