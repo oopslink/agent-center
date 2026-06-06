@@ -1,67 +1,97 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type React from 'react';
 
-// useTablistKeyboard adds WAI-ARIA keyboard support to a `role="tablist"` whose
-// tabs are controlled (a key per tab + an active key). It powers AgentDetail
-// (#228 back-write — it previously had click-only tabs) and WorkerDetail (#273),
-// so arrow-nav is implemented once and correct in both (institutional, v2.8 #273
-// Q1 lock). Unit-testing this hook once covers both surfaces.
+// useTablistKeyboard adds WAI-ARIA **manual-activation** keyboard support to a
+// `role="tablist"` whose tabs are controlled (a key per tab + an active key). It
+// powers AgentDetail (#228 back-write — tabs were click-only) and WorkerDetail
+// (#273), so arrow-nav is implemented once and correct in both (v2.8 #273 Q1
+// lock). Unit-testing this hook once covers both surfaces.
 //
-// WAI-ARIA Tabs pattern:
-//   - Roving tabindex: only the active tab is in the Tab order (tabIndex 0);
-//     the rest are tabIndex -1. So Tab moves INTO the tablist once, then arrows
-//     move BETWEEN tabs (not Tab through every tab).
+// MANUAL activation (PD + Dev2 locked, WAI-ARIA APG for async/heavy panels):
+// arrow keys only MOVE FOCUS (roving), they do NOT switch the active tab — so
+// arrow-scanning a tablist never fires the async fetches behind heavy tabs
+// (WorkerDetail "Bound Agents" GET /api/agents?worker_id=, AgentDetail Activity
+// #274 cursor). Activation is the tab `<button>`'s NATIVE behavior: Enter / Space
+// / click fire its onClick → the consumer's setTab. So this hook is pure roving
+// focus; the consumer keeps onClick for activation.
+//
+//   - Roving tabindex: the roving tab (focusedKey ?? active) is tabIndex 0, the
+//     rest -1. Tab enters the tablist at the active tab; arrows move focus within.
 //   - ArrowRight/Down → next, ArrowLeft/Up → previous (wraps); Home → first,
-//     End → last. Each moves selection AND focus to that tab.
+//     End → last. Each moves FOCUS only (not selection).
+//   - On blur (focus leaves the tablist) the roving resets to the active tab, so
+//     re-entering with Tab lands on the active tab, not the last-scanned one.
 //
 // Usage:
-//   const { tablistRef, onKeyDown, tabIndexFor } = useTablistKeyboard({
-//     keys: TAB_KEYS, active: tab, onActivate: setTab,
-//   });
-//   <nav role="tablist" aria-orientation="horizontal" ref={tablistRef} onKeyDown={onKeyDown}>
-//     {TABS.map(t => <button role="tab" aria-selected={tab===t.key} tabIndex={tabIndexFor(t.key)} ...>)}
+//   const tl = useTablistKeyboard({ keys: TAB_KEYS, active: tab });
+//   <nav role="tablist" aria-orientation="horizontal" ref={tl.tablistRef}
+//        onKeyDown={tl.onKeyDown} onBlur={tl.onBlur}>
+//     {TABS.map(t => (
+//       <button role="tab" aria-selected={tab===t.key} tabIndex={tl.tabIndexFor(t.key)}
+//               aria-controls={`panel-${t.key}`} id={`tab-${t.key}`}
+//               onClick={() => setTab(t.key)}>{t.label}</button>
+//     ))}
 //   </nav>
+//   <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={0}>…</div>
 export function useTablistKeyboard<K extends string>({
   keys,
   active,
-  onActivate,
 }: {
   keys: readonly K[];
   active: K;
-  onActivate: (k: K) => void;
 }) {
   const tablistRef = useRef<HTMLElement>(null);
+  // Which tab currently owns roving focus. null = follow `active` (the default /
+  // post-blur state), so Tab always re-enters at the active tab.
+  const [focusedKey, setFocusedKey] = useState<K | null>(null);
+  const roving: K = focusedKey ?? active;
+
+  const focusTab = (k: K) => {
+    setFocusedKey(k);
+    const i = keys.indexOf(k);
+    if (i >= 0) {
+      // tabIndex=-1 tabs are still programmatically focusable.
+      tablistRef.current?.querySelectorAll<HTMLElement>('[role="tab"]')[i]?.focus();
+    }
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    const idx = keys.indexOf(active);
+    const idx = keys.indexOf(roving);
     if (idx < 0) return;
-    let next: number;
+    const n = keys.length;
     switch (e.key) {
       case 'ArrowRight':
       case 'ArrowDown':
-        next = (idx + 1) % keys.length;
+        e.preventDefault();
+        focusTab(keys[(idx + 1) % n]);
         break;
       case 'ArrowLeft':
       case 'ArrowUp':
-        next = (idx - 1 + keys.length) % keys.length;
+        e.preventDefault();
+        focusTab(keys[(idx - 1 + n) % n]);
         break;
       case 'Home':
-        next = 0;
+        e.preventDefault();
+        focusTab(keys[0]);
         break;
       case 'End':
-        next = keys.length - 1;
+        e.preventDefault();
+        focusTab(keys[n - 1]);
         break;
       default:
-        return; // not a tablist nav key — let it through
+        // Enter / Space / other keys: let the native <button> handle activation.
+        return;
     }
-    e.preventDefault();
-    onActivate(keys[next]);
-    // Move focus to the newly-selected tab (roving). Tabs render in `keys` order.
-    const tabs = tablistRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
-    tabs?.[next]?.focus();
   };
 
-  const tabIndexFor = (k: K): 0 | -1 => (k === active ? 0 : -1);
+  // Reset roving to the active tab when focus leaves the tablist entirely.
+  const onBlur = (e: React.FocusEvent) => {
+    if (!tablistRef.current?.contains(e.relatedTarget as Node | null)) {
+      setFocusedKey(null);
+    }
+  };
 
-  return { tablistRef, onKeyDown, tabIndexFor };
+  const tabIndexFor = (k: K): 0 | -1 => (k === roving ? 0 : -1);
+
+  return { tablistRef, onKeyDown, onBlur, tabIndexFor };
 }

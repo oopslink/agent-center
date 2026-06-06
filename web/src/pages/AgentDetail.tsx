@@ -100,7 +100,6 @@ export default function AgentDetail(): React.ReactElement {
   const tablist = useTablistKeyboard({
     keys: AGENT_TABS.map((t) => t.key),
     active: tab,
-    onActivate: setTab,
   });
 
   if (agent.isLoading) {
@@ -303,6 +302,7 @@ export default function AgentDetail(): React.ReactElement {
         aria-orientation="horizontal"
         ref={tablist.tablistRef}
         onKeyDown={tablist.onKeyDown}
+        onBlur={tablist.onBlur}
         data-testid="agent-tabs"
       >
         {AGENT_TABS.map((t) => (
