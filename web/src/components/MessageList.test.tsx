@@ -53,6 +53,17 @@ describe('MessageList', () => {
     expect(rows[0]).toHaveAttribute('data-message-id', 'M1');
   });
 
+  // #276: message content renders as markdown — a long fenced code block
+  // collapses through the shared CollapsibleCodeBlock.
+  it('renders message content as markdown with collapsible code blocks (#276)', () => {
+    const code = Array.from({ length: 25 }, (_, i) => `row ${i + 1}`).join('\n');
+    render(<MessageList messages={[sample('M1', '## hi\n\n```ts\n' + code + '\n```')]} />);
+    const row = screen.getByTestId('message-row');
+    expect(row.querySelector('h2')).toHaveTextContent('hi');
+    expect(screen.getByTestId('collapsible-code-block')).toBeInTheDocument();
+    expect(screen.getByTestId('code-disclosure-btn')).toBeInTheDocument();
+  });
+
   it('snaps initial scroll to bottom when there are messages', () => {
     const { container } = render(<MessageList messages={[sample('M1', 'a'), sample('M2', 'b')]} />);
     const list = screen.getByTestId('message-list');

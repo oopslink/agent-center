@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver } from '@/api/members';
+import { MarkdownMessage } from './MarkdownMessage';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -137,7 +138,9 @@ export function MessageList({ messages }: Props): React.ReactElement {
             </span>
             <time>{m.posted_at}</time>
           </header>
-          <div className="whitespace-pre-wrap text-text-primary">{m.content}</div>
+          {/* #276: message content renders as markdown (GFM + strict-escape);
+              long fenced code collapses via the shared CollapsibleCodeBlock. */}
+          <MarkdownMessage content={m.content} />
           {/* v2.7 #142: attachments download through the same gated /api/files/{id}
               endpoint used by the backend reachability checks. */}
           {m.attachments && m.attachments.length > 0 && (
