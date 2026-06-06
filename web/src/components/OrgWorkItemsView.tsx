@@ -105,7 +105,19 @@ export function OrgWorkItemsView({
                   <td className="py-1.5 pr-3 text-text-secondary" data-testid="org-workitem-assignee">
                     {it.assignee ? (
                       // #192: display name visible; member-id on hover (id-as-content).
-                      <span title={it.assignee.member_id}>{it.assignee.display_name}</span>
+                      <span title={it.assignee.member_id}>
+                        {it.assignee.display_name}
+                        {/* #270/#272: archived agent assignee → "(archived)" chip
+                            (#215 deleted-peer pattern; ref/history preserved). */}
+                        {it.assignee.assignee_lifecycle === 'archived' && (
+                          <span
+                            className="ml-1 text-xs italic text-text-muted"
+                            data-testid="org-workitem-assignee-archived"
+                          >
+                            (archived)
+                          </span>
+                        )}
+                      </span>
                     ) : (
                       '—'
                     )}
