@@ -330,6 +330,55 @@ describe('AgentDetail page', () => {
     expect(screen.queryByTestId('agent-archive-btn')).toBeNull();
   });
 
+  // v2.8 #270: stop + restart are disruptive (interrupt a running agent) → each
+  // is gated behind a ConfirmModal二次确认 (start stays direct — non-destructive).
+  it('confirms before stopping a running agent (#270)', async () => {
+    let stopped = false;
+    stubAgent({ lifecycle: 'running' });
+    server.use(
+      http.post('/api/agents/:id/stop', () => {
+        stopped = true;
+        return HttpResponse.json(agent({ lifecycle: 'stopping' }));
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-stop-btn'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(stopped).toBe(true));
+  });
+
+  it('confirms before restarting a running agent (#270)', async () => {
+    let restarted = false;
+    stubAgent({ lifecycle: 'running' });
+    server.use(
+      http.post('/api/agents/:id/restart', () => {
+        restarted = true;
+        return HttpResponse.json(agent({ lifecycle: 'running' }));
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-restart-btn'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(restarted).toBe(true));
+  });
+
+  // start is NOT gated (non-destructive — no confirm friction).
+  it('starts a stopped agent directly without a confirm modal (#270)', async () => {
+    let started = false;
+    stubAgent({ lifecycle: 'stopped' });
+    server.use(
+      http.post('/api/agents/:id/start', () => {
+        started = true;
+        return HttpResponse.json(agent({ lifecycle: 'running' }));
+      }),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-start-btn'));
+    // no confirm modal — fires immediately.
+    await waitFor(() => expect(started).toBe(true));
+    expect(screen.queryByTestId('confirm-modal')).toBeNull();
+  });
+
   // archived agent detail = read-only history: no lifecycle action buttons.
   it('renders an archived agent as read-only (no action buttons) (#270)', async () => {
     stubAgent({ lifecycle: 'archived', worker_id: '' });

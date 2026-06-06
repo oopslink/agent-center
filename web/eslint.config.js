@@ -1,12 +1,17 @@
 import tsParser from '@typescript-eslint/parser';
 
-// Minimal, intentionally narrow ESLint config (task #169).
+// Narrow, lint-enforceable red-line suite (mechanism > memory — #259 §5 /
+// #168 a11y institutionalization). The web console has no general lint suite;
+// these rules exist solely to PREVENT REGRESSIONS of specific UX/a11y red lines:
 //
-// The web console has no general lint suite — this config exists solely to
-// PREVENT REGRESSIONS of native browser dialogs. window.confirm / alert /
-// prompt are blocking, unstyled, and inaccessible; all confirmation UX must
-// use ConfirmModal (or an equivalent modal/toast). Both the bare-global form
-// (`confirm(...)`) and the member form (`window.confirm(...)`) are banned.
+//   1. #169 — no native browser dialogs (window.confirm/alert/prompt); use
+//      ConfirmModal. Native dialogs are blocking, unstyled, inaccessible.
+//   2. #270/#271 — agent lifecycle action buttons must render an ICON component,
+//      never raw text. #250 icon-ified Stop/Restart/Reset/Message but left Start
+//      as text "Start"; that inconsistency is the "icon reverts to text" report
+//      (#271). The rule below flags any <button data-testid="agent-*-btn"> with a
+//      direct non-whitespace text child. The lone legitimate progress text
+//      (`{lc}…`) is a <span>, not a button, so it is naturally exempt.
 //
 // Run with `pnpm lint`.
 const banned = [
@@ -54,6 +59,19 @@ export default [
           property: name,
           message: message(name, replacement),
         })),
+      ],
+      // #270/#271: agent action buttons must be icon-component, not text. Flags a
+      // <button data-testid="agent-*-btn"> with a direct non-whitespace JSXText
+      // child (e.g. the old text `Start`). Icon buttons (a child JSXElement like
+      // <PlayIcon/>) pass; the `{lc}…` progress note is a <span>, not a button.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'JSXElement[openingElement.name.name="button"]:has(JSXAttribute[name.name="data-testid"][value.value=/^agent-[a-z]+-btn$/]):has(JSXText[value=/\\S/])',
+          message:
+            'Agent action buttons (data-testid="agent-*-btn") must render an icon component, not text (#270/#271). Wrap the glyph in an <Icon/> component with title + aria-label; never inline a text label.',
+        },
       ],
     },
   },

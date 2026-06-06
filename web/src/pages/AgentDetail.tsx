@@ -73,6 +73,9 @@ export default function AgentDetail(): React.ReactElement {
 
   const [resetOpen, setResetOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // v2.8 #270: stop/restart are disruptive → confirm before firing. (start is
+  // non-destructive and stays direct; reset has its own scope modal.)
+  const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
   // v2.7.1 #228: active tab synced to ?tab= so a tab is shareable/bookmarkable.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -207,7 +210,7 @@ export default function AgentDetail(): React.ReactElement {
               {/* v2.7.1 #250: lifecycle controls icon-ified (same as #240 Message). */}
               <button
                 type="button"
-                onClick={() => stop.mutate()}
+                onClick={() => setConfirmAction('stop')}
                 disabled={lifecyclePending}
                 className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-stop-btn"
@@ -218,7 +221,7 @@ export default function AgentDetail(): React.ReactElement {
               </button>
               <button
                 type="button"
-                onClick={() => restart.mutate()}
+                onClick={() => setConfirmAction('restart')}
                 disabled={lifecyclePending}
                 className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-restart-btn"
@@ -363,6 +366,32 @@ export default function AgentDetail(): React.ReactElement {
           }}
         />
       )}
+
+      {/* #270: stop/restart二次确认 (disruptive — interrupts a running agent). */}
+      <ConfirmModal
+        open={confirmAction !== null}
+        title={confirmAction === 'restart' ? 'Restart agent?' : 'Stop agent?'}
+        message={
+          confirmAction === 'restart' ? (
+            <>
+              Restart <strong>{a.name}</strong>? Its current run is interrupted and
+              the agent is started again.
+            </>
+          ) : (
+            <>
+              Stop <strong>{a.name}</strong>? Any in-progress work is interrupted
+              until it is started again.
+            </>
+          )
+        }
+        confirmLabel={confirmAction === 'restart' ? 'Restart' : 'Stop'}
+        busy={stop.isPending || restart.isPending}
+        onConfirm={() => {
+          const m = confirmAction === 'restart' ? restart : stop;
+          m.mutate(undefined, { onSuccess: () => setConfirmAction(null) });
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
 
       {/* #270/#272: archive二次确认. Soft-delete — terminal, releases the worker,
           preserves history (tasks/conversations); shown as "(archived)". */}
