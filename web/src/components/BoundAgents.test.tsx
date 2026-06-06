@@ -46,6 +46,8 @@ describe('BoundAgents', () => {
     expect(await screen.findByText('bot-1')).toBeInTheDocument();
     expect(screen.queryByText('bot-2')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('bound-agent-row')).toHaveLength(1);
+    // in-UI hint: no unbind → archive via AgentDetail (PD lock)
+    expect(screen.getByTestId('bound-agents-remove-hint')).toHaveTextContent('Archive');
   });
 
   it('empty state when no agents are bound', async () => {

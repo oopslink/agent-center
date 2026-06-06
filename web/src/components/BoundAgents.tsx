@@ -81,7 +81,13 @@ export function BoundAgents({ workerId }: { workerId: string }): React.ReactElem
     );
   }
   return (
-    <table className="w-full border-collapse" data-testid="bound-agents-table">
+    <div className="space-y-2">
+      {/* In-UI discoverability hint (PD lock): there is no unbind — to remove an
+          agent from this worker, archive it from its detail page. */}
+      <p className="text-xs text-text-muted" data-testid="bound-agents-remove-hint">
+        To remove an agent from this worker, open it and Archive it (there is no unbind).
+      </p>
+      <table className="w-full border-collapse" data-testid="bound-agents-table">
       <thead>
         <tr className="text-left text-xs text-text-muted">
           <th className="border-b border-border-base px-3 py-2">Name</th>
@@ -95,6 +101,7 @@ export function BoundAgents({ workerId }: { workerId: string }): React.ReactElem
           <BoundAgentRow key={a.id} agent={a} />
         ))}
       </tbody>
-    </table>
+      </table>
+    </div>
   );
 }
