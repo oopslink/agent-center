@@ -78,8 +78,26 @@ describe('MessageComposer + #275 mention picker', () => {
     wrap(<MessageComposer conversationId="C1" />);
     await userEvent.type(ta(), '@a');
     await waitFor(() => expect(screen.getByTestId('mention-picker')).toBeInTheDocument());
+    // Esc keydown closes; the trailing keyUp fires sync() — which must NOT reopen
+    // the still-present "@a" trigger (FINDING-1 Esc runtime no-op regression).
     fireEvent.keyDown(ta(), { key: 'Escape' });
+    fireEvent.keyUp(ta(), { key: 'Escape' });
     await waitFor(() => expect(screen.queryByTestId('mention-picker')).not.toBeInTheDocument());
     expect(ta().value).toBe('@a'); // unchanged
+    // stays dismissed across further keyups (caret unchanged) ...
+    fireEvent.keyUp(ta(), { key: 'Escape' });
+    expect(screen.queryByTestId('mention-picker')).not.toBeInTheDocument();
+  });
+
+  it('typing after Esc reopens the picker (dismissal expires on trigger change)', async () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    await userEvent.type(ta(), '@a');
+    await waitFor(() => expect(screen.getByTestId('mention-picker')).toBeInTheDocument());
+    fireEvent.keyDown(ta(), { key: 'Escape' });
+    fireEvent.keyUp(ta(), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByTestId('mention-picker')).not.toBeInTheDocument());
+    // typing changes the query → dismissal expires → picker reopens
+    await userEvent.type(ta(), 'l');
+    await waitFor(() => expect(screen.getByTestId('mention-picker')).toBeInTheDocument());
   });
 });

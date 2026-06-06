@@ -29,9 +29,12 @@ describe('MentionPicker', () => {
     expect(b).toHaveAttribute('data-active', 'true');
   });
 
-  it('shows secondary text with full-id title (#192 hover)', () => {
+  it('exposes the full id on hover only (option title), never as visible chrome (#192, FINDING-2)', () => {
     render(<MentionPicker options={opts} activeId="a" listboxId="lb" onSelect={() => {}} />);
-    expect(screen.getByText('agent:a1')).toHaveAttribute('title', 'agent:a1');
+    const [aliceOpt] = screen.getAllByTestId('mention-option');
+    expect(aliceOpt).toHaveAttribute('title', 'agent:a1'); // hover only
+    expect(aliceOpt).toHaveTextContent('Alice'); // friendly name visible
+    expect(screen.queryByText('agent:a1')).not.toBeInTheDocument(); // bare id NOT visible
   });
 
   it('selects on mousedown (avoids textarea blur)', () => {
