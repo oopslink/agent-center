@@ -18,7 +18,8 @@ import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
 import { EmptyState } from '@/components/EmptyState';
-import { AgentActivityRow } from '@/components/AgentActivityRow';
+import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
+import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentProfile } from '@/components/AgentProfile';
 import { AgentWorkItems } from '@/components/AgentWorkItems';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -41,6 +42,10 @@ export default function AgentDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const agent = useAgent(id);
   const activity = useAgentActivity(id);
+  // #274: flatten the cursor-paginated pages into one chronological event list
+  // (newest-first). Grouping/folding runs over this FULL accumulated set so a
+  // Checking run spanning a page boundary merges rather than fragmenting.
+  const activityEvents = activity.data?.pages.flatMap((p) => p.activity) ?? [];
   // v2.7 #192: resolve the bound worker_id to its name (raw id on hover).
   const workers = useWorkers();
 
@@ -339,17 +344,42 @@ export default function AgentDetail(): React.ReactElement {
             {(activity.error as Error).message}
           </p>
         )}
-        {activity.isSuccess && activity.data.length === 0 && (
+        {activity.isSuccess && activityEvents.length === 0 && (
           <p className="text-xs text-text-muted" data-testid="agent-activity-empty">
             No activity yet.
           </p>
         )}
-        {activity.isSuccess && activity.data.length > 0 && (
-          <ul className="divide-y divide-border-base" data-testid="agent-activity-list">
-            {activity.data.map((ev) => (
-              <AgentActivityRow key={ev.id} event={ev} />
-            ))}
-          </ul>
+        {activity.isSuccess && activityEvents.length > 0 && (
+          <>
+            <ul className="divide-y divide-border-base" data-testid="agent-activity-list">
+              {/* #274: fold consecutive Checking events over the full accumulated set. */}
+              {groupActivity(activityEvents).map((item) =>
+                item.kind === 'checking-group' ? (
+                  <CheckingGroup key={item.events[0].id} events={item.events} />
+                ) : (
+                  <AgentActivityRow key={item.event.id} event={item.event} />
+                ),
+              )}
+            </ul>
+            {/* #274: cursor-paginated "Load older" (oldest events fetched on demand);
+                terminal state when next_cursor=null (末页). */}
+            {activity.hasNextPage ? (
+              <button
+                type="button"
+                className="mt-2 w-full rounded border border-border-base px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
+                data-testid="agent-activity-load-older"
+                onClick={() => void activity.fetchNextPage()}
+                disabled={activity.isFetchingNextPage}
+                aria-busy={activity.isFetchingNextPage}
+              >
+                {activity.isFetchingNextPage ? 'Loading…' : 'Load older'}
+              </button>
+            ) : (
+              <p className="mt-2 text-center text-xs text-text-muted" data-testid="agent-activity-end">
+                No more activity
+              </p>
+            )}
+          </>
         )}
       </section>
       )}

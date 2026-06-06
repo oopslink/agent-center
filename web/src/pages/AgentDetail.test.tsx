@@ -391,4 +391,35 @@ describe('AgentDetail page', () => {
     expect(screen.queryByTestId('agent-reset-btn')).toBeNull();
     expect(screen.queryByTestId('agent-archive-btn')).toBeNull();
   });
+
+  // v2.8 #274: the Activity feed paginates via "Load older" until next_cursor=null.
+  it('paginates activity via "Load older" until the end (#274)', async () => {
+    stubAgent();
+    server.use(
+      http.get('/api/agents/:id/activity', ({ request }) => {
+        const before = new URL(request.url).searchParams.get('before');
+        const ev = (id: string) => ({
+          id,
+          agent_id: 'A1',
+          event_type: 'result',
+          payload: '{}',
+          occurred_at: '2026-05-24T01:00:00Z',
+        });
+        return before
+          ? HttpResponse.json({ activity: [ev('AC-old')], next_cursor: null })
+          : HttpResponse.json({ activity: [ev('AC-new')], next_cursor: 'AC-new' });
+      }),
+    );
+    wrap('/agents/A1?tab=activity');
+    // page 1 → one row + a "Load older" affordance (next_cursor present).
+    const loadOlder = await screen.findByTestId('agent-activity-load-older');
+    expect(screen.getAllByTestId('agent-activity-row')).toHaveLength(1);
+    // load the older page → second row appended + terminal state, no more button.
+    fireEvent.click(loadOlder);
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-activity-end')).toHaveTextContent('No more activity'),
+    );
+    expect(screen.getAllByTestId('agent-activity-row')).toHaveLength(2);
+    expect(screen.queryByTestId('agent-activity-load-older')).toBeNull();
+  });
 });
