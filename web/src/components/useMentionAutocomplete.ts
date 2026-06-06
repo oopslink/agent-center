@@ -21,6 +21,9 @@ export function useMentionAutocomplete({
   const listboxId = useId();
   const [active, setActive] = useState<ActiveTrigger | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // The trigger the user dismissed with Esc — kept closed until the trigger
+  // context (position/query) changes, so the keyup after Esc can't reopen it.
+  const [dismissed, setDismissed] = useState<ActiveTrigger | null>(null);
 
   const members = useMembers();
   const conversations = useConversations();
@@ -60,10 +63,29 @@ export function useMentionAutocomplete({
   const sync = () => {
     const ta = textareaRef.current;
     if (!ta) return;
-    setActive(detectTrigger(ta.value, ta.selectionStart ?? ta.value.length));
+    const t = detectTrigger(ta.value, ta.selectionStart ?? ta.value.length);
+    // Stay closed if the user Esc-dismissed this exact trigger (same position +
+    // query) — otherwise the keyup that follows Escape re-detects the still-
+    // present trigger and reopens the picker (Esc runtime no-op, Tester2 §4.3).
+    if (
+      t &&
+      dismissed &&
+      t.trigger === dismissed.trigger &&
+      t.start === dismissed.start &&
+      t.query === dismissed.query
+    ) {
+      setActive(null);
+      return;
+    }
+    if (dismissed) setDismissed(null); // trigger changed / gone → dismissal expires
+    setActive(t);
   };
 
-  const close = () => setActive(null);
+  // Close + remember the dismissed trigger so the trailing keyup can't reopen it.
+  const close = () => {
+    setDismissed(active);
+    setActive(null);
+  };
 
   const onSelect = (o: MentionOption) => {
     const ta = textareaRef.current;

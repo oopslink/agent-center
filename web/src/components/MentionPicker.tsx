@@ -53,6 +53,9 @@ export function MentionPicker({
               aria-selected={active}
               data-testid="mention-option"
               data-active={active}
+              // #192: the full id is hover-only (title), never visible chrome —
+              // visible text is just the friendly name (Tester2 runtime FINDING-2).
+              title={o.secondary}
               // mousedown (not click) so selecting doesn't blur the textarea first
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -65,11 +68,6 @@ export function MentionPicker({
               }`}
             >
               <span className="font-medium text-text-primary">{o.name}</span>
-              {o.secondary && (
-                <span className="text-xs text-text-muted" title={o.secondary}>
-                  {o.secondary}
-                </span>
-              )}
             </li>
           );
         })
