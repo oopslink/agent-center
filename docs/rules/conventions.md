@@ -84,6 +84,37 @@
 - 我提议的"简化路径"是不是把 transport 这一层省了？省 transport ≠ 简化 ≠ 可接受。
 - 我看到 `dispatch.NoopSender{} / kill.NoopKillSender{} / SetSupervisorSpawner == nil` 这类 mock-as-default 在 production wiring path 上——是不是有 `// FIXME(prod-wiring)` tag？没有就是漏。
 
+#### 跨域边界破坏必先确认（@oopslink 确认门）
+
+> **凡是可能打破实体或服务的领域边界的技术方案，都需要和 @oopslink 确认后方可推进。**
+
+适用范围（任一中即触发）：
+
+| 触发条件 | 例子 |
+|---|---|
+| 跨 BC 直接调用聚合根 / 直读对方 BC 的 Repository | Agent BC 代码直接 `pm.TaskRepo.FindByID()`（应走 Customer-Supplier / ACL / Shared Kernel 明示） |
+| 跨聚合写 same-tx double-write 的方案 | 一个 transaction 内同时改 ProjectManager.Task + Agent.WorkItem 不走 outbox/projector |
+| 引入跨 BC 的共享 schema / 共享表 / 共享数据 | 新建表被 2+ BC 直接读写 |
+| 把一个 BC 的 invariant 下放到 DB 约束之外的位置 | "靠 service 层串行化代替 DB UNIQUE" → DB+service 双层防御已是 minimum，单层不允许 |
+| 修改 ADR 已定的 BC 边界 / Aggregate 结构 / 集成关系（CF/CS/ACL/SK/OHS）| 重画 Context Map / 拆合聚合根 / 改变 BC 间通信模式 |
+| Repository / AppService 表面变更（删/改/新方法 with cross-BC semantics）| 新增 Repository method 让外部 BC 直访本聚合的内部状态 |
+| "我的方案是 XX, 暂时绕过 YY 边界, 等 vN+1 再修" | 任何把违规升格为 architecture-of-record 的措辞（参考 § 0.4 反面教材） |
+
+**确认流程**:
+
+1. 提议人（Dev / Dev2 / PD / 任何角色）在 PR / task / 设计文档**显式标记** "跨域边界破坏" 标签
+2. 在 PR 描述 / task 描述里**列出**: 触发了哪一条 / 影响哪些 BC / 替代方案 / 为什么选这个方案
+3. **@mention @oopslink** 等待 explicit confirm（"OK" / "拍" / "同意" / 或直接 "do X instead"）
+4. 拿到 confirm 之前**不能** merge / 不能 push 到 main / 不能进入 implementation phase
+5. 如果是已实施代码触发了这条规则（review 阶段发现），暂停 merge / revert + 走流程
+
+**判断不清楚时的默认**: 倾向于"需要确认"，宁可多一次同步也别累 architecture-of-record 债。
+
+**已观察到的 case**:
+
+- v2.0 GA 多 process 直读 sqlite 文件 = 跨进程绕 AppService = 触发本规则的过去版本（2026-05-24 @oopslink firsthand 部署验证识别 + 直接驳回 "Option A 现状最小化改动"）
+- 2026-06-06 @oopslink 立此规则，作为 v2.0 → v2.7 → v2.8 一系列架构整改经验沉淀
+
 #### Enforce 机制
 
 1. **Arch test**: `internal/cli/handlers_*.go` 出现 `persistence.Open` = CI fail（白名单：`handlers_migrate.go` schema 迁移工具 + `handlers_system.go` server 启动）
