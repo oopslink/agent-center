@@ -6,6 +6,7 @@ import { useWorker } from '@/api/workers';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
 import { WorkerProfile } from '@/components/WorkerProfile';
 import { BoundAgents } from '@/components/BoundAgents';
+import { WorkerManagement } from '@/components/WorkerManagement';
 
 // WorkerDetail (/workers/:id). Environment BC. A dedicated worker page (v2.8 #273)
 // mirroring AgentDetail's 4-tab framework (#228) + the shared manual-activation
@@ -148,9 +149,7 @@ export default function WorkerDetail(): React.ReactElement {
         {/* Tab contents land in subsequent increments; Activity is v2.9. */}
         {tab === 'profile' && <WorkerProfile worker={w} />}
         {tab === 'agents' && <BoundAgents workerId={w.worker_id} />}
-        {tab === 'management' && (
-          <EmptyState testId="worker-management-stub" title="Management" body="Loading…" />
-        )}
+        {tab === 'management' && <WorkerManagement worker={w} />}
         {tab === 'activity' && (
           <EmptyState
             testId="worker-activity-stub"
