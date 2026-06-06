@@ -60,55 +60,64 @@ describe('AgentActivityRow (#228 categories)', () => {
     expect(preview.endsWith('…')).toBe(true);
   });
 
-  it('tool_use with a non-search tool → Running command badge + ToolName(args)', () => {
+  // v2.8 #274 increment 4: tool_use → CAT_TOOL_USE (replaces Running command /
+  // Searching code, Q1) — a "Running"/"Searching" label + an SVG icon (NOT emoji,
+  // Q2 search-vs-run distinction kept for the icon + sub-label).
+  it('tool_use (non-search) → "Running" badge + wrench SVG icon + ToolName(args)', () => {
     row(ev('tool_use', { tool_name: 'run_shell', args: { cmd: 'ls' } }));
     const badge = screen.getByTestId('agent-activity-badge');
-    expect(badge).toHaveTextContent('Running command');
+    expect(badge).toHaveTextContent('Running');
     expect(badge.className).toContain('text-brand');
+    // SVG icon component, never an emoji character (ux-standards).
+    expect(badge.querySelector('svg')).toBeInTheDocument();
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('run_shell(');
   });
 
-  it('tool_use with a search tool (Grep) → Searching code badge', () => {
-    // Allowlist matches case-insensitively (Grep / read / GlobSearch …).
+  it('tool_use (search tool Grep) → "Searching" badge + magnifier SVG icon', () => {
     row(ev('tool_use', { tool_name: 'Grep', args: { pattern: 'foo' } }));
     const badge = screen.getByTestId('agent-activity-badge');
-    expect(badge).toHaveTextContent('Searching code');
+    expect(badge).toHaveTextContent('Searching');
     expect(badge.className).toContain('text-purple-600');
+    expect(badge.querySelector('svg')).toBeInTheDocument();
   });
 
-  it('tool_use Read → Searching code (allowlist is case-insensitive)', () => {
+  it('tool_use Read → "Searching" (allowlist is case-insensitive)', () => {
     row(ev('tool_use', { tool_name: 'Read', args: { path: '/x' } }));
-    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching code');
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching');
   });
 
-  it('tool_use WebSearch / WebFetch → Searching code', () => {
+  it('tool_use WebSearch / WebFetch → "Searching"', () => {
     row(ev('tool_use', { tool_name: 'WebSearch', args: { query: 'foo' } }));
-    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching code');
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching');
     cleanup();
     row(ev('tool_use', { tool_name: 'WebFetch', args: { url: 'http://x' } }));
-    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching code');
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Searching');
   });
 
-  it('Bash shell search (rg/find) is NOT Searching code — tool_name=Bash → Running command', () => {
-    // Shell searches carry tool_name="Bash"; the command is in tool_input, not
-    // tool_name, so they degrade to Running command (PD-accepted, v2.8 deeper).
+  it('Bash shell search (rg/find) is NOT a search tool — tool_name=Bash → "Running"', () => {
     row(ev('tool_use', { tool_name: 'Bash', args: { command: 'rg foo' } }));
-    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Running command');
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Running');
   });
 
-  it('failed tool_result → Running command badge + a "failed" marker + preview', () => {
+  // tool_result → CAT_TOOL_RESULT with a ✓/✗ SVG status icon from payload.ok (Q3).
+  it('failed tool_result → "Result" badge + ✗ status (error) + SVG icon + failed marker', () => {
     row(ev('tool_result', { tool_name: 'run', duration_ms: 120, tokens: 50, ok: false }));
-    // Category badge is unchanged; the error shows as a separate red marker.
-    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Running command');
-    const failed = screen.getByTestId('agent-activity-failed');
-    expect(failed).toHaveTextContent('failed');
-    expect(failed.className).toContain('text-danger');
+    const badge = screen.getByTestId('agent-activity-badge');
+    expect(badge).toHaveTextContent('Result');
+    expect(badge).toHaveAttribute('data-tool-status', 'error');
+    expect(badge.className).toContain('text-danger');
+    expect(badge.querySelector('svg')).toBeInTheDocument(); // ✗ SVG, not emoji
+    expect(badge).toHaveAttribute('aria-label', 'Result, error');
+    expect(screen.getByTestId('agent-activity-failed')).toHaveTextContent('failed');
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('120ms');
-    expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('50 tok');
   });
 
-  it('successful tool_result → no failed marker', () => {
+  it('successful tool_result → "Result" badge + ✓ status (ok) + no failed marker', () => {
     row(ev('tool_result', { tool_name: 'run', duration_ms: 5, ok: true }));
+    const badge = screen.getByTestId('agent-activity-badge');
+    expect(badge).toHaveTextContent('Result');
+    expect(badge).toHaveAttribute('data-tool-status', 'ok');
+    expect(badge).toHaveAttribute('aria-label', 'Result, ok');
     expect(screen.queryByTestId('agent-activity-failed')).not.toBeInTheDocument();
   });
 
