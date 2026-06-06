@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>开发指引 · v2.8 · 战略设计 · agent-center</title>
+<meta name="description" content="agent-center 开发指引 v2.8 战略设计：物理运行时分层、限界上下文地图（点开任一域进入战术设计）、上下文集成关系、跨域 Event Storming。以现行代码 internal/* 校准，用 DDD 语言展示系统设计。">
+<link rel="stylesheet" href="../../assets/site.css">
+<script src="../../assets/site.js" defer></script>
+<style>
+  .wrap.wide { max-width: 1100px; }
+
+  /* runtime/layered architecture boxes */
+  .arch { display: grid; gap: 14px; margin: 14px 0 8px; }
+  .arch-layer { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: 12px 14px; box-shadow: var(--shadow); }
+  .arch-layer > .lh { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--ink-mute); font-weight: 600; font-family: var(--mono); margin: 0 0 10px; }
+  .arch-boxes { display: flex; flex-wrap: wrap; gap: 10px; }
+  .abox { flex: 1 1 150px; min-width: 140px; border-radius: var(--r-md); padding: 10px 12px; font-size: 13px; border: 1px solid var(--border); border-top: 2px solid var(--generic); background: var(--surface-2); }
+  .abox b { display: block; font-size: 13.5px; color: var(--ink); margin-bottom: 2px; font-family: var(--mono); }
+  .abox small { color: var(--ink-mute); font-size: 11.5px; }
+  .abox.server  { background: color-mix(in srgb, var(--core) 10%, var(--surface));    border-color: color-mix(in srgb, var(--core) 30%, transparent);    border-top-color: var(--core); }
+  .abox.web     { background: color-mix(in srgb, var(--support) 10%, var(--surface)); border-color: color-mix(in srgb, var(--support) 30%, transparent); border-top-color: var(--support); }
+  .abox.worker  { background: color-mix(in srgb, var(--ar) 10%, var(--surface));      border-color: color-mix(in srgb, var(--ar) 30%, transparent);      border-top-color: var(--ar); }
+  .abox.runtime { background: color-mix(in srgb, var(--vo) 10%, var(--surface));      border-color: color-mix(in srgb, var(--vo) 30%, transparent);      border-top-color: var(--vo); }
+  .abox.infra   { background: color-mix(in srgb, var(--green-fg) 10%, var(--surface));border-color: color-mix(in srgb, var(--green-fg) 30%, transparent);border-top-color: var(--green-fg); }
+  .arch-flow { text-align: center; color: var(--ink-mute); font-size: 12px; margin: 2px 0; font-family: var(--mono); position: relative; overflow: hidden; }
+
+  /* clickable context-map cards (drill into tactical pages) */
+  a.ctx { text-decoration: none; color: inherit; cursor: pointer; transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+  a.ctx:hover { transform: translateY(-3px); box-shadow: var(--shadow-hi); }
+  a.ctx:hover h4 { text-decoration: underline; }
+  .ctx .role { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); margin: 4px 0; }
+  .ctx .pkg { font-family: var(--mono); font-size: 11px; color: var(--ink-mute); }
+  .ctx .drill { display: block; margin-top: 8px; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--primary); }
+  a.ctx:hover .drill { letter-spacing: .3px; }
+
+  /* integration relationship rows */
+  .rel { font-family: var(--mono); font-size: 11px; font-weight: 700; color: #fff; background: var(--generic); padding: 2px 7px; border-radius: var(--r-sm); }
+  .rel.ohs { background: #2f9e44; } .rel.acl { background: #e8590c; } .rel.cf { background: var(--vo); } .rel.ud { background: var(--support); } .rel.sk { background: #5a6470; }
+  .maprow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 14px; margin-bottom: 8px; font-size: 13px; box-shadow: var(--shadow); transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+  .maprow:hover { transform: translateX(3px); box-shadow: var(--shadow-hi); border-color: var(--primary); }
+  .maprow .node { font-weight: 600; font-family: var(--mono); padding: 3px 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); }
+  .maprow .node.core { background: color-mix(in srgb, var(--core) 12%, var(--surface)); color: var(--core); border-color: color-mix(in srgb, var(--core) 30%, transparent); }
+  .maprow .node.support { background: color-mix(in srgb, var(--support) 12%, var(--surface)); color: var(--support); border-color: color-mix(in srgb, var(--support) 30%, transparent); }
+  .maprow .node.generic { background: var(--surface-2); color: var(--ink-mute); border-color: var(--border-strong); }
+  .maprow .ar { color: var(--ink-faint); font-weight: 700; }
+  .maprow .relnote { color: var(--ink-mute); font-size: 12px; margin-left: auto; }
+
+  /* dynamic flows */
+  .js .arch-flow::after { content: ""; position: absolute; left: -44px; top: 50%; height: 2px; width: 44px; background: linear-gradient(90deg, transparent, var(--primary), transparent); animation: ac-run 3s linear infinite; opacity: .5; }
+  .es-flow { position: relative; }
+  .js .es-flow::after { content: ""; position: absolute; left: -34px; bottom: -3px; height: 2px; width: 34px; background: linear-gradient(90deg, transparent, var(--ar), transparent); animation: ac-run 2.6s linear infinite; opacity: .55; }
+  @keyframes ac-run { from { left: -44px; } to { left: 100%; } }
+  .js .abox.server, .js .abox.worker, .js .abox.runtime { animation: ac-breathe 4s ease-in-out infinite; }
+  .js .abox.worker { animation-delay: .8s; } .js .abox.runtime { animation-delay: 1.6s; }
+  @keyframes ac-breathe { 0%,100% { box-shadow: var(--shadow); } 50% { box-shadow: var(--shadow-hi); } }
+  @media (prefers-reduced-motion: reduce) { .js .arch-flow::after, .js .es-flow::after { display: none; } .js .abox { animation: none !important; } }
+
+  /* ===== context-mapping topology graph (inline SVG) ===== */
+  .topo-wrap { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow); padding: 12px 10px 6px; margin: 8px 0 4px; overflow-x: auto; }
+  .topo { width: 100%; min-width: 700px; height: auto; display: block; font-family: var(--mono); }
+  .topo .node rect { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1.4; }
+  .topo .node.core rect { fill: color-mix(in srgb, var(--core) 12%, var(--surface)); stroke: color-mix(in srgb, var(--core) 50%, transparent); }
+  .topo .node.support rect { fill: color-mix(in srgb, var(--support) 12%, var(--surface)); stroke: color-mix(in srgb, var(--support) 50%, transparent); }
+  .topo .node.generic rect { fill: var(--surface-2); stroke: var(--border-strong); }
+  .topo .node .nm { font-size: 15px; font-weight: 700; fill: var(--ink); }
+  .topo .node.core .nm { fill: var(--core); } .topo .node.support .nm { fill: var(--support); } .topo .node.generic .nm { fill: var(--ink-mute); }
+  .topo .node .sub { font-size: 10px; font-weight: 400; fill: var(--ink-mute); }
+  .topo .edge { stroke: var(--ink-faint); stroke-width: 1.6; fill: none; }
+  .topo .edge.dash { stroke-dasharray: 5 4; opacity: .6; }
+  .topo .edge.sk { stroke: var(--generic); stroke-dasharray: 3 5; opacity: .5; }
+  .topo .ah { fill: var(--ink-mute); }
+  .topo .rl .t { fill: #fff; font-size: 11px; font-weight: 700; }
+  .topo .rl.acl rect { fill: #e8590c; } .topo .rl.ud rect { fill: var(--support); } .topo .rl.cf rect { fill: var(--vo); } .topo .rl.sk rect { fill: #5a6470; } .topo .rl.ohs rect { fill: #2f9e44; } .topo .rl.d rect { fill: var(--support); }
+  /* traveling data pulses along edges */
+  .topo .pulse { fill: var(--primary); opacity: 0; offset-rotate: 0deg; }
+  .topo .pulse.evt { fill: var(--accent); }
+  .topo .pulse.sk { fill: var(--generic); }
+  .js .topo .pulse { animation: topo-pulse 2.8s linear infinite; }
+  @keyframes topo-pulse { 0% { offset-distance: 0%; opacity: 0; } 12% { opacity: .95; } 85% { opacity: .95; } 100% { offset-distance: 100%; opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .js .topo .pulse { animation: none; opacity: 0; } }
+  .topo-cap { font-family: var(--mono); font-size: 11.5px; color: var(--ink-mute); margin: 8px 2px 0; }
+  .topo-cap b { color: var(--core); }
+</style>
+</head>
+<body>
+
+<header class="site-hd"><div class="hd-inner">
+  <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
+  <nav class="hd-nav">
+    <a href="../../product/index.html">产品介绍</a>
+    <a href="../../manual/v2.8/index.html">用户手册</a>
+    <a class="active" href="../../dev/v2.8/index.html">开发指引</a>
+    <a href="../../roadmap/index.html">路线图</a>
+    <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
+  </nav>
+</div></header>
+
+<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.8/index.html">开发指引</a> › v2.8 · 战略设计</div>
+
+<section class="hero sm">
+  <div class="inner">
+    <span class="eyebrow">开发指引 · v2.8 · 战略设计</span>
+    <h1>用 DDD 语言看系统设计</h1>
+    <p class="lede">先看<b>战略设计</b>——物理分层与限界上下文地图；<b>点开任一个域</b>进入它的<b>战术设计</b>（聚合 / 实体 / 服务 / 事件的关系与具体技术方案）。所有图以现行代码 <code style="color:#fff">internal/*</code> 校准。</p>
+  </div>
+</section>
+
+<main class="wrap wide">
+
+  <div class="verswitch"><a class="on" href="../../dev/v2.8/index.html">v2.8 当前</a><a href="../../dev/v2.7.1/index.html">v2.7.1 历史</a><a href="../../dev/v2.7/index.html">v2.7 历史</a></div>
+
+  <!-- ============ v2.8 新增 highlight ============ -->
+  <div class="section-title">v2.8 相对 v2.7.1 主要演进 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 会话页 UX + 工具显示 + 富文本</span></div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin:8px 0 20px;font-size:13px;line-height:1.6">
+    <p style="margin:0 0 8px"><b>会话域</b>：4-surface（channel / DM / task 线程 / issue 线程）统一切到 <code>ConversationView</code> 外壳（surface-agnostic）+ 已读游标 + SSE 实时；侧栏未读 badge + @mention 红数字 + Follow toggle；<code>#</code>/<code>@</code> picker（ARIA combobox + 文本 token + trailing-space wake 真触发）；完整 markdown 渲染（react-markdown + remark-gfm + 严格 escape · XSS red-line）+ CollapsibleCodeBlock 共组件（>20 行自动折叠 · 13 a11y locks · 复用 Activity tool_result）。</p>
+    <p style="margin:0 0 8px"><b>智能体域</b>：agent 软归档（soft archive）— lifecycle 加 <code>archived</code> 终态 + 释放 worker binding + 严格两步（running → 409 must-stop-first）+ hard-delete 改 admin-only；agent 操作按钮全 SVG icon + 破坏性操作 ConfirmModal + ESLint guard（agent action buttons 必 icon-component · lint-enforceable red-line）；(archived) chip 渲（assignee 嵌套字段 <code>assignee_lifecycle</code>）。</p>
+    <p style="margin:0 0 8px"><b>环境域</b>：新建 Worker 详情页 <code>/workers/:id</code> 4-tab（Profile · Bound Agents · Management · Activity 占位）+ 共享 <code>useTablistKeyboard</code> hook（WAI-ARIA tab manual activation · 回写 #228 AgentDetail）。</p>
+    <p style="margin:0 0 8px"><b>可观测域</b>：Agent Activity cursor-based 翻页（(a) presence-check + 并发 append 闸 + ULID DESC 稳定单调）；前端 Load older + "Checking messages" 自动折叠（跨页 re-group 不裂）+ tool_use/tool_result 富渲染（SVG icon 非 emoji + tool 名 + 参数 + ✓/✗ 状态 + 内联输出复用 CollapsibleCodeBlock）。</p>
+    <p style="margin:0"><b>领域模型不变</b>（聚合 / 边界 / 集成关系沿用 v2.7.1）；变化集中在战术与 UX 层。详情见 <a href="../../../docs/release/v2.8-acceptance-report.md"><code>docs/release/v2.8-acceptance-report.md</code></a>。</p>
+  </div>
+
+  <!-- ============ 物理运行时分层 ============ -->
+  <div class="section-title">物理架构 · 运行时分层 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 一个 server + N 个 worker</span></div>
+  <div class="arch">
+    <div class="arch-layer">
+      <p class="lh">控制面 · Server（单点真相）</p>
+      <div class="arch-boxes">
+        <div class="abox server"><b>Server / HTTP API</b><small>内部 BC 服务编排、SSE 推送、轮询回退</small></div>
+        <div class="abox web"><b>Web Console（SPA）</b><small>webconsole/api 托管前端 + SSE 实时流</small></div>
+        <div class="abox infra"><b>Identity / Auth</b><small>identity BC：组织/成员/邀请 + admintoken</small></div>
+      </div>
+    </div>
+    <div class="arch-flow">▲ HTTP / SSE 控制信道（offset ack + 心跳；SSE 优先、轮询回退）▼</div>
+    <div class="arch-layer">
+      <p class="lh">执行面 · Worker（任意机器，可多台）</p>
+      <div class="arch-boxes">
+        <div class="abox worker"><b>worker daemon</b><small>workerdaemon：拉控制事件、上报心跳/能力</small></div>
+        <div class="abox runtime"><b>supervisor manager</b><small>每个智能体一个常驻 supervisor</small></div>
+        <div class="abox runtime"><b>agent supervisor</b><small>detached 进程，断连可重附</small></div>
+        <div class="abox runtime"><b>shim + adapter</b><small>claudestream 解析 / agentadapter（ACL）</small></div>
+        <div class="abox runtime"><b>MCP host</b><small>向智能体暴露 agent-center 工具集</small></div>
+      </div>
+    </div>
+    <div class="arch-flow">▲ 同一 server 进程内的持久化与对象存储 ▼</div>
+    <div class="arch-layer">
+      <p class="lh">基础设施 · Persistence &amp; Storage</p>
+      <div class="arch-boxes">
+        <div class="abox infra"><b>SQLite</b><small>migrations + 事务管道</small></div>
+        <div class="abox infra"><b>blob store</b><small>内容寻址（sha256）+ 引用计数 GC</small></div>
+        <div class="abox infra"><b>transactional outbox</b><small>Relay/Pump：可靠事件发布</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="callout info" style="margin-top:6px">
+    <b>worker 进程模型</b>：每个智能体由独立 <b>detached</b> supervisor 托管；worker daemon 重启或信道断连后 supervisor 不被杀死，重连<b>重新附着（survive-reattach）</b>到既有执行。外部 CLI 协议由 <code>agentadapter</code>（ACL）隔离，<code>claudestream</code> 解析流式输出。
+  </div>
+
+  <!-- ============ 战略设计：限界上下文地图（可点开） ============ -->
+  <div class="section-title">战略设计 · 限界上下文地图 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 点开任一域进入战术设计</span></div>
+
+  <div class="legend">
+    <span><span class="swatch" style="background:#e03131"></span>核心域 Core</span>
+    <span><span class="swatch" style="background:#1971c2"></span>支撑域 Supporting</span>
+    <span><span class="swatch" style="background:#868e96"></span>通用域 Generic</span>
+    <span style="margin-left:auto;color:var(--ink-mute)">已退役：TaskRuntime/Discussion 合入 projectmanager · Workforce 折入 environment · Cognition/discussion 为死代码</span>
+  </div>
+
+  <div class="ctx-row">
+    <a class="ctx core" href="projectmanager/index.html">
+      <h4>项目管理 ProjectManager</h4>
+      <div class="sub pkg">internal/projectmanager</div>
+      <span class="role">核心域 CORE</span>
+      <ul><li>Project / Issue / Task / Member</li><li>订阅真相 + OrgSequence（T&lt;n&gt;/I&lt;n&gt;）</li></ul>
+      <span class="drill">→ 战术设计：Task/Issue 生命周期</span>
+    </a>
+    <a class="ctx core" href="agent/index.html">
+      <h4>智能体 Agent</h4>
+      <div class="sub pkg">internal/agent</div>
+      <span class="role">核心域 CORE</span>
+      <ul><li>Agent / AgentWorkItem / ActivityEvent</li><li>单活工作项；pm://tasks/{id} 引用</li></ul>
+      <span class="drill">→ 战术设计：调度与单活工作项</span>
+    </a>
+    <a class="ctx core" href="environment/index.html">
+      <h4>环境 Environment</h4>
+      <div class="sub pkg">environment + workforce + files + blobstore</div>
+      <span class="role">核心域 CORE</span>
+      <ul><li>Worker / AgentInstance / BootstrapToken</li><li>FileTransferSession / BlobStore</li></ul>
+      <span class="drill">→ 战术设计：控制信道 + 文件传输</span>
+    </a>
+  </div>
+  <div class="ctx-row">
+    <a class="ctx core" href="conversation/index.html">
+      <h4>会话 Conversation</h4>
+      <div class="sub pkg">internal/conversation</div>
+      <span class="role">核心域 CORE</span>
+      <ul><li>Conversation / Message（追加写）</li><li>kind：dm / channel / task / issue</li></ul>
+      <span class="drill">→ 战术设计：统一线程 + InputRequest</span>
+    </a>
+    <a class="ctx support" href="observability/index.html">
+      <h4>可观测性 Observability</h4>
+      <div class="sub pkg">observability (+ outbox)</div>
+      <span class="role">支撑域 · 只读</span>
+      <ul><li>Event 追加写 + 投影读模型</li><li>纯下游消费者（OHS）</li></ul>
+      <span class="drill">→ 战术设计：事件与投影</span>
+    </a>
+    <a class="ctx support" href="identity/index.html">
+      <h4>身份 Identity</h4>
+      <div class="sub pkg">internal/identity</div>
+      <span class="role">支撑域 · 真实 BC + SK</span>
+      <ul><li>Identity / Organization / Member / Invitation</li><li>另供 IdentityRef 共享内核词汇</li></ul>
+      <span class="drill">→ 战术设计：4 聚合 + 共享内核</span>
+    </a>
+    <a class="ctx generic" href="secretmgmt/index.html">
+      <h4>SecretManagement</h4>
+      <div class="sub pkg">internal/secretmgmt</div>
+      <span class="role">支撑域</span>
+      <ul><li>UserSecret（每用户 API key）</li><li>migration 0012</li></ul>
+      <span class="drill">→ 战术设计：UserSecret</span>
+    </a>
+  </div>
+
+  <!-- ============ 集成关系（Context Mapping） ============ -->
+  <div class="section-title">上下文集成关系 · Context Mapping</div>
+  <div class="legend" style="margin-top:0">
+    <span><b class="rel ud">U/D</b> 上游/下游</span>
+    <span><b class="rel ohs">OHS</b> 开放主机服务</span>
+    <span><b class="rel acl">ACL</b> 防腐层</span>
+    <span><b class="rel cf">CF</b> 遵从者</span>
+    <span><b class="rel sk">SK</b> 共享内核</span>
+  </div>
+  <div class="topo-wrap">
+    <svg class="topo" viewBox="0 0 1000 650" role="img" aria-label="限界上下文拓扑图：身份(SK)横切全部域；智能体以 ACL 引用项目管理、以 D 依赖环境；会话与项目管理双向(CF / U-D)；各核心域向可观测性发事件(U/D)，可观测性以 OHS 向前端运维只读暴露；环境以 ACL 隔离外部 Agent CLI。">
+      <defs>
+        <marker id="topo-ah" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path class="ah" d="M0,0 L8.5,4 L0,8 z"/></marker>
+      </defs>
+
+      <!-- edges (drawn first, under nodes) -->
+      <line class="edge" x1="229" y1="235" x2="420" y2="235" marker-end="url(#topo-ah)"/>
+      <line class="edge" x1="150" y1="260" x2="150" y2="394" marker-end="url(#topo-ah)"/>
+      <line class="edge" x1="771" y1="222" x2="580" y2="222" marker-end="url(#topo-ah)"/>
+      <line class="edge" x1="579" y1="248" x2="770" y2="248" marker-end="url(#topo-ah)"/>
+      <line class="edge" x1="500" y1="260" x2="500" y2="404" marker-end="url(#topo-ah)"/>
+      <line class="edge dash" x1="205" y1="260" x2="430" y2="404" marker-end="url(#topo-ah)"/>
+      <line class="edge dash" x1="795" y1="260" x2="570" y2="404" marker-end="url(#topo-ah)"/>
+      <line class="edge dash" x1="229" y1="423" x2="419" y2="429" marker-end="url(#topo-ah)"/>
+      <line class="edge" x1="500" y1="456" x2="500" y2="564" marker-end="url(#topo-ah)"/>
+      <line class="edge" x1="150" y1="446" x2="150" y2="564" marker-end="url(#topo-ah)"/>
+      <line class="edge sk" x1="455" y1="74" x2="195" y2="208" marker-end="url(#topo-ah)"/>
+      <line class="edge sk" x1="500" y1="74" x2="500" y2="208" marker-end="url(#topo-ah)"/>
+      <line class="edge sk" x1="545" y1="74" x2="805" y2="208" marker-end="url(#topo-ah)"/>
+
+      <!-- traveling data pulses (one per edge) -->
+      <circle class="pulse" r="3.6" cx="229" cy="235" style="offset-path:path('M 229 235 L 420 235');animation-delay:0s"/>
+      <circle class="pulse" r="3.6" cx="150" cy="260" style="offset-path:path('M 150 260 L 150 394');animation-delay:.4s"/>
+      <circle class="pulse" r="3.6" cx="771" cy="222" style="offset-path:path('M 771 222 L 580 222');animation-delay:.9s"/>
+      <circle class="pulse" r="3.6" cx="579" cy="248" style="offset-path:path('M 579 248 L 770 248');animation-delay:1.3s"/>
+      <circle class="pulse" r="3.6" cx="500" cy="260" style="offset-path:path('M 500 260 L 500 404');animation-delay:.2s"/>
+      <circle class="pulse evt" r="3.2" cx="205" cy="260" style="offset-path:path('M 205 260 L 430 404');animation-delay:1.6s"/>
+      <circle class="pulse evt" r="3.2" cx="795" cy="260" style="offset-path:path('M 795 260 L 570 404');animation-delay:2.0s"/>
+      <circle class="pulse evt" r="3.2" cx="229" cy="423" style="offset-path:path('M 229 423 L 419 429');animation-delay:.7s"/>
+      <circle class="pulse" r="3.6" cx="500" cy="456" style="offset-path:path('M 500 456 L 500 564');animation-delay:1.0s"/>
+      <circle class="pulse" r="3.6" cx="150" cy="446" style="offset-path:path('M 150 446 L 150 564');animation-delay:1.5s"/>
+      <circle class="pulse sk" r="3" cx="455" cy="74" style="offset-path:path('M 455 74 L 195 208');animation-delay:.3s"/>
+      <circle class="pulse sk" r="3" cx="500" cy="74" style="offset-path:path('M 500 74 L 500 208');animation-delay:.9s"/>
+      <circle class="pulse sk" r="3" cx="545" cy="74" style="offset-path:path('M 545 74 L 805 208');animation-delay:1.5s"/>
+
+      <!-- nodes -->
+      <g class="node support"><rect x="421" y="23" width="158" height="50" rx="5"/><text class="nm" x="500" y="44" text-anchor="middle">身份 Identity</text><text class="sub" x="500" y="60" text-anchor="middle">支撑域 · 共享内核</text></g>
+      <g class="node core"><rect x="71" y="210" width="158" height="50" rx="5"/><text class="nm" x="150" y="231" text-anchor="middle">智能体 Agent</text><text class="sub" x="150" y="247" text-anchor="middle">核心域</text></g>
+      <g class="node core"><rect x="421" y="210" width="158" height="50" rx="5"/><text class="nm" x="500" y="231" text-anchor="middle">项目管理</text><text class="sub" x="500" y="247" text-anchor="middle">ProjectManager · 核心</text></g>
+      <g class="node core"><rect x="771" y="210" width="158" height="50" rx="5"/><text class="nm" x="850" y="231" text-anchor="middle">会话 Conversation</text><text class="sub" x="850" y="247" text-anchor="middle">核心域</text></g>
+      <g class="node core"><rect x="71" y="395" width="158" height="50" rx="5"/><text class="nm" x="150" y="416" text-anchor="middle">环境 Environment</text><text class="sub" x="150" y="432" text-anchor="middle">核心域</text></g>
+      <g class="node support"><rect x="421" y="405" width="158" height="50" rx="5"/><text class="nm" x="500" y="426" text-anchor="middle">可观测性</text><text class="sub" x="500" y="442" text-anchor="middle">Observability · 只读</text></g>
+      <g class="node generic"><rect x="71" y="565" width="158" height="50" rx="5"/><text class="nm" x="150" y="586" text-anchor="middle">外部 Agent CLI</text><text class="sub" x="150" y="602" text-anchor="middle">claude · codex</text></g>
+      <g class="node generic"><rect x="421" y="565" width="158" height="50" rx="5"/><text class="nm" x="500" y="586" text-anchor="middle">前端 / 运维</text><text class="sub" x="500" y="602" text-anchor="middle">只读消费者</text></g>
+
+      <!-- relationship labels (on top) -->
+      <g class="rl acl"><rect x="303" y="224" width="44" height="22" rx="3"/><text class="t" x="325" y="239" text-anchor="middle">ACL</text></g>
+      <g class="rl d"><rect x="135" y="316" width="30" height="22" rx="3"/><text class="t" x="150" y="331" text-anchor="middle">D</text></g>
+      <g class="rl cf"><rect x="660" y="200" width="30" height="22" rx="3"/><text class="t" x="675" y="215" text-anchor="middle">CF</text></g>
+      <g class="rl ud"><rect x="655" y="259" width="40" height="22" rx="3"/><text class="t" x="675" y="274" text-anchor="middle">U/D</text></g>
+      <g class="rl ud"><rect x="455" y="321" width="90" height="22" rx="3"/><text class="t" x="500" y="336" text-anchor="middle">U/D · 事件</text></g>
+      <g class="rl ohs"><rect x="480" y="499" width="40" height="22" rx="3"/><text class="t" x="500" y="514" text-anchor="middle">OHS</text></g>
+      <g class="rl acl"><rect x="128" y="494" width="44" height="22" rx="3"/><text class="t" x="150" y="509" text-anchor="middle">ACL</text></g>
+      <g class="rl sk"><rect x="485" y="129" width="30" height="22" rx="3"/><text class="t" x="500" y="144" text-anchor="middle">SK</text></g>
+    </svg>
+  </div>
+  <p class="topo-cap">// <b>红＝核心域</b> 间为业务协作（ACL 防腐 / CF 遵从 / U·D 上下游）；<b style="color:var(--support)">身份(SK)</b> 与 <b style="color:var(--support)">可观测性(OHS)</b> 横切全域；虚线为「各核心域 → 可观测性」同事务发事件。点上方域卡进入战术设计。</p>
+
+  <!-- ============ 跨域业务流 · Event Storming ============ -->
+  <div class="section-title">跨域业务流 · Event Storming <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 域之间如何协作（事件名为代码真实名）</span></div>
+  <div class="legend" style="margin-top:0">
+    <span><span class="es actor">Actor</span></span><span><span class="es cmd">Command</span></span><span><span class="es ar">Aggregate</span></span><span><span class="es event">Event</span></span><span><span class="es policy">Policy</span></span>
+  </div>
+
+  <h2 class="section-title" style="margin:16px 4px 8px">🆕 创建并派发任务 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">项目管理 → 智能体 → 会话</span></h2>
+  <div class="es-flow"><span class="es actor">用户（控制台/CLI/MCP）</span><span class="es-arrow">→</span><span class="es cmd">create_task</span><span class="es-arrow">→</span><span class="es ar">Task</span><span class="es-arrow">→</span><span class="es event">pm.task.created</span></div>
+  <div class="es-flow"><span class="es policy">策略：派发</span><span class="es-arrow">→</span><span class="es cmd">assign_task</span><span class="es-arrow">→</span><span class="es ar">Task · AgentWorkItem</span><span class="es-arrow">→</span><span class="es event">pm.task.assigned</span><span class="es event">agent.work_item_transitioned</span></div>
+  <div class="es-flow"><span class="es actor">控制信道（worker）</span><span class="es-arrow">→</span><span class="es cmd">activate_work_item</span><span class="es-arrow">→</span><span class="es ar">AgentWorkItem（queued→active）</span><span class="es-arrow">→</span><span class="es event">agent.work_item_transitioned</span></div>
+  <div class="es-flow"><span class="es actor">智能体</span><span class="es-arrow">→</span><span class="es cmd">post_task_message</span><span class="es-arrow">→</span><span class="es ar">Message</span><span class="es-arrow">→</span><span class="es event">conversation.message_added</span></div>
+  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：单智能体同时仅 1 条活跃工作项；冗长中间输出落 AgentActivityEvent 观测流，不进会话。</span></div>
+
+  <h2 class="section-title" style="margin:16px 4px 8px">✅ 完成与验收 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">智能体 → 项目管理</span></h2>
+  <div class="es-flow"><span class="es actor">智能体</span><span class="es-arrow">→</span><span class="es cmd">complete_task</span><span class="es-arrow">→</span><span class="es ar">Task（running→completed）</span><span class="es-arrow">→</span><span class="es event">pm.task.state_changed</span></div>
+  <div class="es-flow"><span class="es policy">策略：待验收</span><span class="es-arrow">→</span><span class="es actor">用户 / 同侪 Agent</span><span class="es-arrow">→</span><span class="es cmd">verify_task</span><span class="es-arrow">→</span><span class="es ar">Task（completed→verified）</span><span class="es-arrow">→</span><span class="es event">pm.task.state_changed</span></div>
+  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：验收者 ≠ 完成者（禁止自验，支持同侪评审）。</span></div>
+
+  <h2 class="section-title" style="margin:16px 4px 8px">📁 文件上传与引用 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">环境 → 会话</span></h2>
+  <div class="es-flow"><span class="es actor">智能体 / 用户</span><span class="es-arrow">→</span><span class="es cmd">upload_file(scope=task)</span><span class="es-arrow">→</span><span class="es ar">FileTransferSession + BlobStore</span><span class="es-arrow">→</span><span class="es event">session open → completed</span></div>
+  <div class="es-flow"><span class="es policy">策略：附件入会话</span><span class="es-arrow">→</span><span class="es cmd">post_message + attach_file</span><span class="es-arrow">→</span><span class="es ar">Message + FileReference</span><span class="es-arrow">→</span><span class="es event">conversation.message_added</span></div>
+  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">一 blob 多 scope 引用；ref_count=0 + 宽限期后 GC 回收。</span></div>
+
+  <h2 class="section-title" style="margin:16px 4px 8px">💓 Worker 心跳与 Agent 可用性 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">环境 → 智能体</span></h2>
+  <div class="es-flow"><span class="es actor">worker 守护进程</span><span class="es-arrow">→</span><span class="es cmd">heartbeat / ack offset</span><span class="es-arrow">→</span><span class="es ar">Worker</span><span class="es-arrow">→</span><span class="es event">workforce.worker.online</span></div>
+  <div class="es-flow"><span class="es policy">心跳超时</span><span class="es-arrow">→</span><span class="es ar">Worker</span><span class="es-arrow">→</span><span class="es event">workforce.worker.offline</span><span class="es-arrow">→</span><span class="es policy">级联</span><span class="es-arrow">→</span><span class="es event">agent → unavailable</span></div>
+  <div class="es-flow" style="margin-bottom:8px"><span style="font-size:12px;color:#868e96">Agent.availability 为只读派生（不落库），Worker 状态优先。supervisor detached，断连可 survive-reattach。</span></div>
+
+</main>
+
+<footer class="foot">
+  agent-center · 多智能体编排平台 ·
+  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
+  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
+</footer>
+
+</body>
+</html>
