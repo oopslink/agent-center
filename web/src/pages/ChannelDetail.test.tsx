@@ -70,6 +70,8 @@ describe('ChannelDetail page', () => {
     expect(screen.getByRole('heading', { name: 'alpha' })).toBeInTheDocument();
     expect(screen.getByTestId('breadcrumb')).toHaveTextContent('alpha');
     expect(screen.getByTestId('page-ChannelDetail')).toHaveAttribute('data-channel-id', 'C-alpha');
+    // #264 P1: the message body now renders through the surface-agnostic shell.
+    expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'channel');
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     expect(screen.getByTestId('participants-panel')).toBeInTheDocument();
     expect(screen.getByText(/1 participant/)).toBeInTheDocument();
@@ -87,7 +89,7 @@ describe('ChannelDetail page', () => {
     );
   });
 
-  it('surfaces messages-error when the messages query fails', async () => {
+  it('surfaces a messages error via the shared shell when the messages query fails', async () => {
     server.use(
       channelShowHandler,
       http.get('/api/conversations/:id/messages', () =>
@@ -95,8 +97,9 @@ describe('ChannelDetail page', () => {
       ),
     );
     wrap('/channels/C-alpha');
+    // #264 P1: error now renders inside ConversationView (shared `conversation-error`).
     await waitFor(() =>
-      expect(screen.getByTestId('messages-error')).toHaveTextContent(/db down/),
+      expect(screen.getByTestId('conversation-error')).toHaveTextContent(/db down/),
     );
   });
 });

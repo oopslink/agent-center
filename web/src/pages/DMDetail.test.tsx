@@ -62,6 +62,8 @@ describe('DMDetail page', () => {
     // v2.7.1 #215: heading shows the resolved peer as @name (raw id on hover).
     expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Bot One');
     expect(screen.getByTestId('dm-heading')).toHaveAttribute('title', 'agent:bot-1');
+    // #264 P1: the message body now renders through the surface-agnostic shell.
+    expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'dm');
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     // No participants panel for DM.
     expect(screen.queryByTestId('participants-panel')).not.toBeInTheDocument();
@@ -143,7 +145,8 @@ describe('DMDetail page', () => {
       ),
     );
     wrap('/dms/C-DM');
-    await waitFor(() => expect(screen.getByTestId('dm-messages-error')).toHaveTextContent(/db down/));
+    // #264 P1: error now renders inside ConversationView (shared `conversation-error`).
+    await waitFor(() => expect(screen.getByTestId('conversation-error')).toHaveTextContent(/db down/));
   });
 
   // v2.7.1 #215: a malformed DM with no resolved peer falls back to "Direct message".

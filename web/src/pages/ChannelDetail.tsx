@@ -1,13 +1,9 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useConversation, useMessages } from '@/api/conversations';
-import { useMarkSeen } from '@/api/readState';
-import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
-import { MessageList } from '@/components/MessageList';
+import { useConversation } from '@/api/conversations';
+import { ConversationView } from '@/components/ConversationView';
 import { TypeChip } from '@/components/TypeChip';
-import { MessageComposer } from '@/components/MessageComposer';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
@@ -19,20 +15,6 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 export default function ChannelDetail(): React.ReactElement {
   const { channelId = '' } = useParams<{ channelId: string }>();
   const conv = useConversation(channelId);
-  const messages = useMessages(channelId);
-  const markSeen = useMarkSeen();
-  useSSEConversationSubscribe(channelId ? [channelId] : undefined);
-
-  // Fire-and-forget: bump read cursor to the latest message whenever a
-  // new message list arrives (mount + SSE-driven refetch). Server-side
-  // only-forward guard makes redundant POSTs cheap (no event, no row
-  // write past the conditional UPSERT early-return).
-  const latestMessageId = messages.data?.[messages.data.length - 1]?.id;
-  useEffect(() => {
-    if (!channelId || !latestMessageId) return;
-    markSeen.mutate({ conversationId: channelId, lastSeenMessageId: latestMessageId });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, latestMessageId]);
 
   if (conv.isLoading) {
     return (
@@ -92,23 +74,14 @@ export default function ChannelDetail(): React.ReactElement {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {messages.isLoading && (
-            <p className="p-4 text-sm text-text-muted" data-testid="messages-loading">
-              Loading messages…
-            </p>
-          )}
-          {messages.isError && (
-            <p className="p-4 text-sm text-danger" data-testid="messages-error">
-              {(messages.error as Error).message}
-            </p>
-          )}
-          {messages.isSuccess && <MessageList messages={messages.data} />}
-          <MessageComposer conversationId={ch.id} />
-        </div>
-        <ParticipantsPanel conversationId={ch.id} participants={participants} />
-      </div>
+      {/* #264 P1: message body + read-cursor + SSE live updates all flow
+          through the surface-agnostic shell; the channel ParticipantsPanel
+          is injected as the side panel. */}
+      <ConversationView
+        surface="channel"
+        conversationId={ch.id}
+        sidePanel={<ParticipantsPanel conversationId={ch.id} participants={participants} />}
+      />
     </section>
   );
 }

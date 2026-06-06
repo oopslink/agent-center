@@ -60,7 +60,10 @@ describe('WorkItemConversation (#137)', () => {
       http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
     );
     wrap('pm://tasks/TS-1', 'rebuild docs');
-    await waitFor(() => expect(screen.getByTestId('conversation-composer')).toBeInTheDocument());
+    // #264 P1: the bound conversation body now renders through the surface-agnostic
+    // shell (task-thread surface) — so task/issue threads gain markSeen + SSE too.
+    await waitFor(() => expect(screen.getByTestId('message-composer')).toBeInTheDocument());
+    expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'task-thread');
   });
 
   it('shows an empty hint (not an error) when no conversation is bound to the owner_ref', async () => {

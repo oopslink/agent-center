@@ -1,7 +1,6 @@
 import type React from 'react';
-import { useConversationByOwnerRef, useMessages } from '@/api/conversations';
-import { MessageList } from './MessageList';
-import { MessageComposer } from './MessageComposer';
+import { useConversationByOwnerRef } from '@/api/conversations';
+import { ConversationView } from './ConversationView';
 
 interface Props {
   // The expected pm owner_ref for the embedding page (pm://tasks|issues/{id}).
@@ -13,13 +12,17 @@ interface Props {
 // WorkItemConversation (#137) — embeds the task/issue conversation inside
 // TaskDetail / IssueDetail. It fetches the conversation BY owner_ref (the
 // list endpoint is org-scoped, so a cross-org owner_ref yields nothing —
-// fail-closed). An owner banner names the bound task/issue, and the message
-// list is split into work-item segments. v2.7 #186-4: a MessageComposer at
-// the bottom makes the task/issue conversation interactive — a human can
-// send a message into it (the agent replies via #185 wake + post_message).
+// fail-closed). An owner banner names the bound task/issue.
+//
+// #264 P1: once the conversation is resolved, the message body renders
+// through the surface-agnostic <ConversationView> — so the task/issue thread
+// gains the same read-cursor (markSeen) + SSE live-update behavior as
+// channels/DMs, uniformly. The surface (task-thread vs issue-thread) is
+// derived from the owner_ref. v2.7 #186-4: the shell's composer keeps the
+// thread interactive (a human can send in; the agent replies via #185 wake).
 export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.ReactElement {
   const conv = useConversationByOwnerRef(ownerRef);
-  const messages = useMessages(conv.data?.id);
+  const surface = ownerRef.includes('/issues/') ? 'issue-thread' : 'task-thread';
 
   return (
     <section className="mt-6 flex min-h-0 flex-1 flex-col" data-testid="work-item-conversation">
@@ -44,23 +47,10 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
         >
           No linked conversation yet.
         </p>
-      ) : messages.isError ? (
-        <p className="rounded-b border border-t-0 border-border-base p-4 text-sm text-danger" data-testid="conversation-messages-error">
-          {(messages.error as Error).message}
-        </p>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col rounded-b border border-t-0 border-border-base">
-          {messages.isLoading ? (
-            <p className="p-4 text-sm text-text-muted" data-testid="conversation-messages-loading">
-              Loading messages…
-            </p>
-          ) : (
-            <MessageList messages={messages.data ?? []} />
-          )}
-          {/* v2.7 #186-4: send a message into the task/issue conversation. */}
-          <div className="border-t border-border-base p-2" data-testid="conversation-composer">
-            <MessageComposer conversationId={conv.data.id} />
-          </div>
+          {/* #264 P1: message body + read-cursor + SSE flow through the shared shell. */}
+          <ConversationView surface={surface} conversationId={conv.data.id} />
         </div>
       )}
     </section>

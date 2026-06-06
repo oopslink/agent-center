@@ -1,14 +1,10 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useConversation, useMessages } from '@/api/conversations';
-import { useMarkSeen } from '@/api/readState';
+import { useConversation } from '@/api/conversations';
 import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import { useAppStore } from '@/store/app';
-import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
-import { MessageList } from '@/components/MessageList';
-import { MessageComposer } from '@/components/MessageComposer';
+import { ConversationView } from '@/components/ConversationView';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
@@ -22,23 +18,10 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 export default function DMDetail(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const conv = useConversation(id);
-  const messages = useMessages(id);
-  const markSeen = useMarkSeen();
   // v2.7.1 #238 fix: the DM detail GET doesn't enrich peer_display_name (only the
   // list does), so resolve the peer from participants − self for direct loads.
   const me = useAppStore((s) => s.currentUserId);
   const resolveName = useDisplayNameResolver();
-  useSSEConversationSubscribe(id ? [id] : undefined);
-
-  // See ChannelDetail for rationale: fire-and-forget auto-mark-seen
-  // bumps the cursor whenever a fresh message list lands (mount or SSE
-  // refetch). Server-side only-forward guard keeps this cheap.
-  const latestMessageId = messages.data?.[messages.data.length - 1]?.id;
-  useEffect(() => {
-    if (!id || !latestMessageId) return;
-    markSeen.mutate({ conversationId: id, lastSeenMessageId: latestMessageId });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, latestMessageId]);
 
   if (conv.isLoading) {
     return (
@@ -106,20 +89,9 @@ export default function DMDetail(): React.ReactElement {
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {messages.isLoading && (
-          <p className="p-4 text-sm text-text-muted" data-testid="dm-messages-loading">
-            Loading messages…
-          </p>
-        )}
-        {messages.isError && (
-          <p className="p-4 text-sm text-danger" data-testid="dm-messages-error">
-            {(messages.error as Error).message}
-          </p>
-        )}
-        {messages.isSuccess && <MessageList messages={messages.data} />}
-        <MessageComposer conversationId={conv.data.id} />
-      </div>
+      {/* #264 P1: message body + read-cursor + SSE live updates flow through
+          the surface-agnostic shell (no ParticipantsPanel for DMs). */}
+      <ConversationView surface="dm" conversationId={conv.data.id} />
     </section>
   );
 }
