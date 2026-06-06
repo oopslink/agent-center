@@ -24,13 +24,33 @@ func (r *ActivityEventRepo) Append(ctx context.Context, e *agent.AgentActivityEv
 	return err
 }
 
-func (r *ActivityEventRepo) ListByAgent(ctx context.Context, agentID agent.AgentID, limit int) ([]*agent.AgentActivityEvent, error) {
-	if limit <= 0 {
-		limit = 100
-	}
+// ListByAgent returns an agent's activity events newest-first. v2.8 #274 adds
+// cursor pagination:
+//   - before == "": newest page. before != "": only events older than that
+//     event id (the cursor) — `id < before`.
+//   - limit > 0: cap at limit. limit <= 0: UNLIMITED (no LIMIT clause) — the
+//     explicit admin/debug full-history path (handler resolves the default).
+//
+// Ordering is `id DESC` — ids are ULIDs minted at append on an append-only table,
+// so id order is the stable, monotonic time order. This is what makes the cursor
+// gap/dup/reorder-free across pages even when new events arrive mid-pagination
+// (a new event has a larger id, lands on the newest page, never shifts an older
+// `id < before` window) — the contract invariant the frontend cross-page
+// re-group + concurrent-append gates rely on (#274 day-0 lock).
+func (r *ActivityEventRepo) ListByAgent(ctx context.Context, agentID agent.AgentID, limit int, before string) ([]*agent.AgentActivityEvent, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	rows, err := exec.QueryContext(ctx,
-		activitySelect+` WHERE agent_id = ? ORDER BY occurred_at DESC, id DESC LIMIT ?`, string(agentID), limit)
+	q := activitySelect + ` WHERE agent_id = ?`
+	args := []any{string(agentID)}
+	if before != "" {
+		q += ` AND id < ?`
+		args = append(args, before)
+	}
+	q += ` ORDER BY id DESC`
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := exec.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
