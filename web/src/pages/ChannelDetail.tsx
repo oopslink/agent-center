@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useConversation } from '@/api/conversations';
 import { ConversationView } from '@/components/ConversationView';
+import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -71,6 +72,8 @@ export default function ChannelDetail(): React.ReactElement {
           <span className="text-xs text-text-muted">
             {activeCount} {activeCount === 1 ? 'participant' : 'participants'}
           </span>
+          {/* #264 P1 / #176 §4: follow/unfollow this channel. */}
+          <FollowToggle conversationId={ch.id} followed={ch.followed ?? false} />
         </div>
       </header>
 

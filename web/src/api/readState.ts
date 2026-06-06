@@ -20,6 +20,11 @@ export interface MarkSeenResult {
   version: number;
   bumped: boolean;
   event_id: string;
+  // v2.8 #268 (#176 §3): the /seen response now also returns the RECOMPUTED
+  // counts (precise N−K partial-read, not a forced 0), so a caller can reflect
+  // the new badge state without a refetch. Optional — older payloads omit them.
+  unread_count?: number;
+  mention_count?: number;
 }
 
 export function useUnread(conversationId: string | undefined) {
@@ -46,6 +51,11 @@ export function useMarkSeen() {
       }),
     onSuccess: (_, vars) => {
       void qc.invalidateQueries({ queryKey: qk.unread(vars.conversationId) });
+      // v2.8 #264 P1 / #176 §3: counts are now embedded per-row in the
+      // conversation list + detail, so refresh both → the sidebar/list badge
+      // clears once the read cursor advances (the user views a conversation).
+      void qc.invalidateQueries({ queryKey: qk.conversations() });
+      void qc.invalidateQueries({ queryKey: qk.conversation(vars.conversationId) });
     },
   });
 }

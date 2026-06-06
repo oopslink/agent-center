@@ -5,6 +5,7 @@ import { useConversation } from '@/api/conversations';
 import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { ConversationView } from '@/components/ConversationView';
+import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
@@ -87,6 +88,8 @@ export default function DMDetail(): React.ReactElement {
           </div>
           <p className="text-xs text-text-muted">Direct message</p>
         </div>
+        {/* #264 P1 / #176 §4: follow/unfollow this DM. */}
+        <FollowToggle conversationId={conv.data.id} followed={conv.data.followed ?? false} />
       </header>
 
       {/* #264 P1: message body + read-cursor + SSE live updates flow through

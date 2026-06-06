@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
+import { FollowToggle } from './FollowToggle';
 
 interface Props {
   // The expected pm owner_ref for the embedding page (pm://tasks|issues/{id}).
@@ -34,6 +35,12 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
         <span className="font-semibold uppercase tracking-wide text-text-muted">Conversation</span>
         <span>· linked</span>
         <span className="font-mono text-text-primary">{bannerLabel}</span>
+        {/* #264 P1 / #176 §4: follow this task/issue thread (threads default unfollowed). */}
+        {conv.data && (
+          <span className="ml-auto">
+            <FollowToggle conversationId={conv.data.id} followed={conv.data.followed ?? false} />
+          </span>
+        )}
       </div>
 
       {conv.isLoading ? (
