@@ -60,13 +60,16 @@ export function CollapsibleCodeBlock({
 
   return (
     <div
-      className="my-1 overflow-hidden rounded border border-border-base bg-bg-subtle text-sm"
+      className="my-1 overflow-hidden rounded border border-white/15 text-sm"
+      style={{ backgroundColor: '#003247' }}
       data-testid="collapsible-code-block"
     >
-      {/* chrome row — language badge (non-interactive) + copy (sibling button). */}
-      <div className="flex items-center justify-between gap-2 border-b border-border-base px-2 py-1">
+      {/* chrome row — language badge (non-interactive) + copy (sibling button).
+          v2.8.1 (@oopslink): fixed dark (#003247) block in both themes; all
+          chrome text uses light, WCAG-AA-on-#003247 colors (slate-200/300). */}
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-1">
         {language ? (
-          <span className="font-mono text-xs text-text-muted" data-testid="code-lang-badge">
+          <span className="font-mono text-xs text-slate-300" data-testid="code-lang-badge">
             {language}
           </span>
         ) : (
@@ -74,7 +77,7 @@ export function CollapsibleCodeBlock({
         )}
         <span className="flex items-center gap-2">
           <span
-            className="text-xs text-text-muted"
+            className="text-xs text-slate-300"
             data-testid="code-copy-status"
             aria-live="polite"
           >
@@ -82,12 +85,15 @@ export function CollapsibleCodeBlock({
           </span>
           <button
             type="button"
-            className="rounded px-1.5 py-0.5 text-xs text-text-secondary hover:bg-bg-elevated"
+            className="flex items-center rounded p-1 text-slate-300 hover:bg-white/10 hover:text-slate-100"
             data-testid="code-copy-btn"
             aria-label={`Copy ${contextLabel}`}
+            title={`Copy ${contextLabel}`}
             onClick={copy}
           >
-            Copy
+            {/* v2.8.1 UX (@oopslink): icon-only copy; briefly swaps to a check on
+                success (the aria-live "Copied" status above is the SR feedback). */}
+            {copied ? <CheckIcon /> : <CopyIcon />}
           </button>
         </span>
       </div>
@@ -96,7 +102,7 @@ export function CollapsibleCodeBlock({
         <code
           id={regionId}
           aria-live="off"
-          className="font-mono text-text-primary"
+          className="font-mono text-slate-100"
           data-testid="code-region"
         >
           {shown}
@@ -106,7 +112,7 @@ export function CollapsibleCodeBlock({
       {collapsible && (
         <button
           type="button"
-          className="w-full border-t border-border-base px-3 py-1 text-left text-xs text-accent hover:bg-bg-elevated"
+          className="w-full border-t border-white/10 px-3 py-1 text-left text-xs text-sky-300 hover:bg-white/5"
           data-testid="code-disclosure-btn"
           aria-expanded={expanded}
           aria-controls={regionId}
@@ -117,5 +123,23 @@ export function CollapsibleCodeBlock({
         </button>
       )}
     </div>
+  );
+}
+
+// v2.8.1 (@oopslink): copy affordance icons (swap on success).
+function CopyIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="7" y="7" width="9" height="9" rx="1.5" strokeLinejoin="round" />
+      <path d="M13 4.5H5.5A1.5 1.5 0 0 0 4 6v7.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="2" aria-hidden="true">
+      <path d="M4.5 10.5l3.5 3.5 7.5-8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

@@ -68,6 +68,18 @@ describe('CollapsibleCodeBlock (#276/#274)', () => {
     await waitFor(() => expect(status).toHaveTextContent('Copied'));
   });
 
+  it('renders copy as an icon (no "Copy" text), keeping the aria-label, and swaps to a check on success (v2.8.1)', () => {
+    render(<CollapsibleCodeBlock code={lines(3)} />);
+    const copy = screen.getByTestId('code-copy-btn');
+    // icon-only: an <svg>, no visible "Copy" text — semantic stays on aria-label.
+    expect(copy.querySelector('svg')).not.toBeNull();
+    expect(copy).not.toHaveTextContent('Copy');
+    expect(copy).toHaveAttribute('aria-label', 'Copy code');
+    fireEvent.click(copy);
+    // still an icon after copy (the success check); SR feedback is the aria-live status.
+    expect(copy.querySelector('svg')).not.toBeNull();
+  });
+
   it('shows a language badge when a language is given', () => {
     render(<CollapsibleCodeBlock code={lines(3)} language="ts" />);
     expect(screen.getByTestId('code-lang-badge')).toHaveTextContent('ts');
