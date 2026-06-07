@@ -18,10 +18,13 @@ import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
 
 // Status → user-facing bucket (the 4 summary buckets + a catch-all). The raw
 // WorkItemStatus is kept on the row (data-status) for operators / tests.
-type Bucket = 'in_progress' | 'pending' | 'done' | 'blocked' | 'other';
+type Bucket = 'in_progress' | 'paused' | 'pending' | 'done' | 'blocked' | 'other';
 
 const STATUS_DISPLAY: Record<WorkItemStatus, { label: string; cls: string; bucket: Bucket }> = {
   active: { label: 'In Progress', cls: 'bg-brand/10 text-brand', bucket: 'in_progress' },
+  // v2.8.1 #278 D: agent-paused (scheduling autonomy) — a distinct bucket, not
+  // "pending" (queued, waiting to be picked) nor "blocked" (system/reconciler).
+  paused: { label: 'Paused', cls: 'bg-violet-500/10 text-violet-600', bucket: 'paused' },
   queued: { label: 'Pending', cls: 'bg-orange-500/10 text-orange-600', bucket: 'pending' },
   waiting_input: { label: 'Blocked', cls: 'bg-danger/10 text-danger', bucket: 'blocked' },
   failed: { label: 'Blocked', cls: 'bg-danger/10 text-danger', bucket: 'blocked' },
@@ -33,9 +36,10 @@ const STATUS_DISPLAY: Record<WorkItemStatus, { label: string; cls: string; bucke
 const STATUS_FILTERS: Array<{ value: Bucket | 'all'; label: string }> = [
   { value: 'all', label: 'All Status' },
   { value: 'in_progress', label: 'In Progress' },
+  { value: 'paused', label: 'Paused' },
   { value: 'pending', label: 'Pending' },
-  { value: 'done', label: 'Done' },
   { value: 'blocked', label: 'Blocked' },
+  { value: 'done', label: 'Done' },
 ];
 
 export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactElement {
@@ -48,10 +52,11 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
   const items = useMemo(() => workItems.data ?? [], [workItems.data]);
 
   const counts = useMemo(() => {
-    const c = { total: items.length, in_progress: 0, pending: 0, done: 0, blocked: 0 };
+    const c = { total: items.length, in_progress: 0, paused: 0, pending: 0, done: 0, blocked: 0 };
     for (const w of items) {
       const b = STATUS_DISPLAY[w.status]?.bucket;
       if (b === 'in_progress') c.in_progress += 1;
+      else if (b === 'paused') c.paused += 1;
       else if (b === 'pending') c.pending += 1;
       else if (b === 'done') c.done += 1;
       else if (b === 'blocked') c.blocked += 1;
@@ -120,13 +125,15 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
 
       {workItems.isSuccess && items.length > 0 && (
         <>
-          {/* Summary strip — matches design4 (N Total · In Progress · Pending · Done · Blocked). */}
+          {/* Summary strip (v2.8.1 #278: + Paused). Order: Total · In Progress ·
+              Paused · Pending · Blocked · Done. */}
           <dl className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" data-testid="agent-workitems-summary">
             <span className="font-medium text-text-primary">{counts.total} Total</span>
             <span className="text-brand">{counts.in_progress} In Progress</span>
+            <span className="text-violet-600">{counts.paused} Paused</span>
             <span className="text-orange-600">{counts.pending} Pending</span>
-            <span className="text-success">{counts.done} Done</span>
             <span className="text-danger">{counts.blocked} Blocked</span>
+            <span className="text-success">{counts.done} Done</span>
           </dl>
 
           <div className="overflow-x-auto">
