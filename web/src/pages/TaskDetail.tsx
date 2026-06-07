@@ -21,6 +21,7 @@ import {
 import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
+import { IssueTaskSidebar, type SidebarMetaRow } from '@/components/IssueTaskSidebar';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
@@ -121,6 +122,111 @@ export default function TaskDetail(): React.ReactElement {
       complete.error ?? verify.error ?? cancel.error ?? unassign.error ??
       reopen.error) as Error | null;
 
+  // 5th task: the status-transition control moves into the sidebar beside the
+  // prominent StatusBlock. The dropdown trigger is relabeled ("Change status")
+  // since the StatusBlock already shows the current status — no redundancy.
+  const statusControl = (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setMenuOpen((v) => !v)}
+        className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base disabled:opacity-50"
+        data-testid="task-status"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen && actions.length > 0}
+        disabled={actions.length === 0}
+      >
+        Change status ▾
+      </button>
+      {menuOpen && actions.length > 0 && (
+        <ul
+          className="absolute left-0 z-10 mt-1 min-w-[10rem] rounded border border-border-base bg-bg-elevated py-1 shadow-lg"
+          data-testid="task-status-menu"
+          role="menu"
+        >
+          {actions.map((a) => (
+            <li key={a.testId} role="none">
+              <button
+                type="button"
+                role="menuitem"
+                disabled={a.pending}
+                onClick={() => {
+                  setMenuOpen(false);
+                  a.onClick();
+                }}
+                data-testid={a.testId}
+                className={`block w-full px-3 py-1.5 text-left text-xs font-medium normal-case hover:bg-bg-subtle disabled:opacity-50 ${a.danger ? 'text-danger' : 'text-text-primary'}`}
+              >
+                {a.pending ? `${a.label}…` : a.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  const sidebarActions = (
+    <>
+      {statusControl}
+      {!isTerminal && (
+        <button
+          type="button"
+          onClick={() => setEditOpen(true)}
+          className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
+          data-testid="task-edit-button"
+        >
+          Edit
+        </button>
+      )}
+    </>
+  );
+
+  const meta: SidebarMetaRow[] = [
+    ...(tk.assignee
+      ? [
+          {
+            label: 'Assignee',
+            value: (
+              <EntityRef
+                id={tk.assignee}
+                name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
+                testId="task-assignee"
+              />
+            ),
+          } satisfies SidebarMetaRow,
+        ]
+      : []),
+    ...(tk.blocked_reason && status === 'blocked'
+      ? [
+          {
+            label: 'Blocked',
+            value: (
+              <span className="text-danger" data-testid="task-blocked-reason">
+                {tk.blocked_reason}
+              </span>
+            ),
+          } satisfies SidebarMetaRow,
+        ]
+      : []),
+    ...(tk.project_id
+      ? [
+          {
+            label: 'Project',
+            value: (
+              <OrgLink
+                to={`/projects/${encodeURIComponent(tk.project_id)}`}
+                className="text-accent hover:underline"
+                data-testid="task-project-link"
+              >
+                {project.data?.name || tk.project_id}
+              </OrgLink>
+            ),
+          } satisfies SidebarMetaRow,
+        ]
+      : []),
+  ];
+
   return (
     <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
       <div className="mb-2">
@@ -133,106 +239,41 @@ export default function TaskDetail(): React.ReactElement {
           ]}
         />
       </div>
-      <header className="flex items-start justify-between border-b border-border-base pb-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">
-              {tk.org_ref && <span className="text-text-muted" data-testid="task-org-ref">{tk.org_ref} · </span>}
-              {tk.title || tk.id}
-            </h2>
-            <TypeChip kind="task" />
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            {/* v2.7 #186-3a: the status badge is the transition dropdown trigger. */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setMenuOpen((v) => !v)}
-                className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary hover:bg-border-base"
-                data-testid="task-status"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen && actions.length > 0}
-              >
-                {status}
-              </button>
-              {menuOpen && actions.length > 0 && (
-                <ul
-                  className="absolute left-0 z-10 mt-1 min-w-[10rem] rounded border border-border-base bg-bg-elevated py-1 shadow-lg"
-                  data-testid="task-status-menu"
-                  role="menu"
-                >
-                  {actions.map((a) => (
-                    <li key={a.testId} role="none">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        disabled={a.pending}
-                        onClick={() => {
-                          setMenuOpen(false);
-                          a.onClick();
-                        }}
-                        data-testid={a.testId}
-                        className={`block w-full px-3 py-1.5 text-left text-xs font-medium normal-case hover:bg-bg-subtle disabled:opacity-50 ${a.danger ? 'text-danger' : 'text-text-primary'}`}
-                      >
-                        {a.pending ? `${a.label}…` : a.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row">
+        {/* main column — title + description + conversation */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="border-b border-border-base pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-semibold">
+                {tk.org_ref && <span className="text-text-muted" data-testid="task-org-ref">{tk.org_ref} · </span>}
+                {tk.title || tk.id}
+              </h2>
+              <TypeChip kind="task" />
             </div>
-            {tk.assignee && (
-              <EntityRef
-                id={tk.assignee}
-                name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
-                testId="task-assignee"
-              />
-            )}
-            {tk.blocked_reason && status === 'blocked' && (
-              <span className="text-danger" data-testid="task-blocked-reason">
-                blocked: {tk.blocked_reason}
-              </span>
-            )}
-            {tk.project_id && (
-              <OrgLink
-                to={`/projects/${encodeURIComponent(tk.project_id)}`}
-                className="text-accent hover:underline"
-                data-testid="task-project-link"
-              >
-                project · {project.data?.name || tk.project_id}
-              </OrgLink>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!isTerminal && (
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
-              data-testid="task-edit-button"
-            >
-              Edit
-            </button>
+          </header>
+
+          {actionError && (
+            <p className="mt-2 text-xs text-danger" data-testid="task-action-error">
+              {actionError.message}
+            </p>
           )}
+
+          {tk.description ? (
+            <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="task-description">
+              {tk.description}
+            </p>
+          ) : (
+            <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+          )}
+
+          <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
         </div>
-      </header>
 
-      {actionError && (
-        <p className="mt-2 text-xs text-danger" data-testid="task-action-error">
-          {actionError.message}
-        </p>
-      )}
-
-      {tk.description ? (
-        <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="task-description">
-          {tk.description}
-        </p>
-      ) : (
-        <p className="mt-4 text-sm italic text-text-muted">No description.</p>
-      )}
-
-      <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
+        {/* right sidebar — status block + transitions + metadata */}
+        <div className="shrink-0 overflow-y-auto lg:w-72">
+          <IssueTaskSidebar status={status} actions={sidebarActions} meta={meta} />
+        </div>
+      </div>
 
       {editOpen && (
         <TaskEditModal projectId={projectId} task={tk} onClose={() => setEditOpen(false)} />

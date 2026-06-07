@@ -61,7 +61,9 @@ describe('TaskDetail page', () => {
       expect(screen.getByRole('heading', { name: 'rebuild docs' })).toBeInTheDocument(),
     );
     expect(screen.getByTestId('task-description')).toHaveTextContent('regenerate the site');
-    expect(screen.getByTestId('task-status')).toHaveTextContent('open');
+    // 5th task: status now drives the prominent StatusBlock in the sidebar
+    // (the task-status trigger is relabeled "Change status").
+    expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'open');
     expect(screen.getByTestId('task-project-link')).toHaveAttribute('href', '/projects/proj-a');
     // open → Assign available behind the status dropdown.
     await openStatusMenu();
@@ -250,8 +252,10 @@ describe('TaskDetail page', () => {
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('canceled'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('task-status')).toHaveTextContent('canceled'));
-    // No transitions available → clicking the badge opens nothing.
+    await waitFor(() =>
+      expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'canceled'),
+    );
+    // No transitions available → the disabled "Change status" trigger opens nothing.
     fireEvent.click(screen.getByTestId('task-status'));
     expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
