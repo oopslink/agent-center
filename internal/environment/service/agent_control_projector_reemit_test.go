@@ -121,9 +121,13 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	// none (→ just "title"). An empty brief made claude greet generically = lost work.
 	f.seedTask(t, "t1", "Fix login bug", "Users cannot log in after the v2.7 deploy.")
 	f.seedTask(t, "t2", "Write release notes", "")
+	// v2.8.1 #278 single-active (DB UNIQUE 0051): an agent has at most ONE in-flight
+	// (active|waiting_input) item, so AG1 carries queued + active (both ready-to-
+	// dispatch); the waiting_input-skip case uses a SEPARATE agent AG2 below
+	// (active + waiting_input can't coexist on one agent).
 	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
 	f.seedWorkItem(t, "wi-queued", "AG1", "pm://tasks/t2", agentpkg.WorkItemQueued)
-	f.seedWorkItem(t, "wi-waiting", "AG1", "pm://tasks/t3", agentpkg.WorkItemWaitingInput)
+	f.seedWorkItem(t, "wi-waiting", "AG2", "pm://tasks/t3", agentpkg.WorkItemWaitingInput)
 
 	e := lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")
 	if err := f.proj.Project(f.ctx, e); err != nil {
@@ -158,9 +162,6 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	if !workKeys["agent.work:wi-active"] || !workKeys["agent.work:wi-queued"] {
 		t.Fatalf("re-emit must cover BOTH queued + active (ready-to-dispatch), got keys %v", workKeys)
 	}
-	if workKeys["agent.work:wi-waiting"] {
-		t.Fatalf("waiting_input must NOT be re-emitted, got it in %v", workKeys)
-	}
 	// #115 CORE assertion: the re-emitted brief must be NON-EMPTY and equal the SAME
 	// title\n\ndesc that pm enqueueWork.brief produces for the task (NOT "").
 	const wantActiveBrief = "Fix login bug\n\nUsers cannot log in after the v2.7 deploy."
@@ -170,6 +171,19 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	const wantQueuedBrief = "Write release notes" // desc empty → title only
 	if got := briefByKey["agent.work:wi-queued"]; got != wantQueuedBrief {
 		t.Fatalf("re-emitted brief (no desc) = %q, want %q (title only)", got, wantQueuedBrief)
+	}
+
+	// waiting_input is NOT re-emitted as work (it is the wake path). AG2's only
+	// in-flight item is waiting_input → on →running the re-emit appends ONLY the
+	// reconcile, no agent.work. (Separate agent because single-active forbids
+	// active + waiting_input on AG1.)
+	e2 := lifecycleEvent("EV2", "AG2", "W2", "running", 2, "")
+	if err := f.proj.Project(f.ctx, e2); err != nil {
+		t.Fatalf("Project AG2: %v", err)
+	}
+	cmds2 := f.commandsFor(t, "W2")
+	if len(cmds2) != 1 || cmds2[0].CommandType() != "agent.reconcile" {
+		t.Fatalf("waiting_input agent re-emit must be reconcile-only (no work), got %+v", cmds2)
 	}
 }
 
