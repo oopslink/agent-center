@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useProjects } from '@/api/projects';
+import { useModalA11y } from './useModalA11y';
 import { IssueCreateModal } from './IssueCreateModal';
 import { TaskCreateModal } from './TaskCreateModal';
 
@@ -16,6 +17,9 @@ interface Props {
 export function OrgWorkItemCreateModal({ kind, onClose }: Props): React.ReactElement {
   const projects = useProjects();
   const [projectId, setProjectId] = useState('');
+  // a11y: Escape closes + focus-trap on the project-picker phase. Active only
+  // while the picker is shown; once delegated, the per-project modal owns it.
+  const containerRef = useModalA11y({ open: !projectId, onClose });
 
   // Once a project is chosen, hand off to the existing per-project create modal.
   if (projectId) {
@@ -28,8 +32,11 @@ export function OrgWorkItemCreateModal({ kind, onClose }: Props): React.ReactEle
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       data-testid="org-create-modal"
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
         <div className="mb-4 flex items-center justify-between">

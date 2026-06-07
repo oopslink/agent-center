@@ -20,6 +20,13 @@ describe('IssueCreateModal', () => {
     expect(screen.getByTestId('issue-create-description')).toBeInTheDocument();
   });
 
+  it('closes on Escape (WAI-ARIA dialog — useModalA11y)', () => {
+    const onClose = vi.fn();
+    wrap(<IssueCreateModal projectId="proj-a" onClose={onClose} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('submit is disabled until title is set', () => {
     wrap(<IssueCreateModal projectId="proj-a" onClose={() => undefined} />);
     const submit = screen.getByTestId('issue-create-submit') as HTMLButtonElement;
