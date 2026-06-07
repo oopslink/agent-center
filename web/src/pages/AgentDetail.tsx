@@ -382,13 +382,25 @@ export default function AgentDetail(): React.ReactElement {
             {activity.hasNextPage ? (
               <button
                 type="button"
-                className="mt-2 w-full rounded border border-border-base px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
+                className="mt-2 flex w-full items-center justify-center rounded border border-border-base px-2 py-1.5 text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-activity-load-older"
                 onClick={() => void activity.fetchNextPage()}
                 disabled={activity.isFetchingNextPage}
                 aria-busy={activity.isFetchingNextPage}
+                aria-label="Load older events"
+                title="Load older events"
               >
-                {activity.isFetchingNextPage ? 'Loading…' : 'Load older'}
+                {/* v2.8.1 UX (@oopslink): icon-only — chevron-up = "load earlier
+                    from the top"; swaps to a spinner while fetching. The semantic
+                    label stays on aria-label/title for screen readers + hover. */}
+                {activity.isFetchingNextPage ? (
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-border-base border-t-brand"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ChevronUpIcon />
+                )}
               </button>
             ) : (
               <p className="mt-2 text-center text-xs text-text-muted" data-testid="agent-activity-end">
@@ -596,6 +608,15 @@ function ResetIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M4.5 6.5a6 6 0 1 1-1.2 4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M4 3.5v3.2h3.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// v2.8.1 #274: chevron-up = "load older/earlier events from the top".
+function ChevronUpIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M5 12.5l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

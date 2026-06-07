@@ -413,6 +413,10 @@ describe('AgentDetail page', () => {
     wrap('/agents/A1?tab=activity');
     // page 1 → one row + a "Load older" affordance (next_cursor present).
     const loadOlder = await screen.findByTestId('agent-activity-load-older');
+    // v2.8.1 UX (@oopslink): icon-only chevron-up button — no visible text, but
+    // the semantic label is kept for screen readers (a11y not-text-only).
+    expect(loadOlder).toHaveAccessibleName('Load older events');
+    expect(loadOlder).not.toHaveTextContent(/Load older/);
     expect(screen.getAllByTestId('agent-activity-row')).toHaveLength(1);
     // load the older page → second row appended + terminal state, no more button.
     fireEvent.click(loadOlder);
