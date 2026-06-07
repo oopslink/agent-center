@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
@@ -170,5 +171,18 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     fireEvent.change(screen.getByTestId('agent-workitems-filter-status'), { target: { value: 'blocked' } });
     await waitFor(() => expect(screen.getByTestId('agent-workitems-no-match')).toBeInTheDocument());
     expect(screen.queryByTestId('agent-workitem-row')).not.toBeInTheDocument();
+  });
+});
+
+describe('tailwind dark mode config', () => {
+  it('is class-based so dark: variants align with the :root.dark token trigger', () => {
+    // The chip dark: variants (above) only work if Tailwind gates dark: by the
+    // `.dark` CLASS (matching index.css :root.dark / <html class="dark">), NOT
+    // the prefers-color-scheme media default. Without darkMode:'class' the dark:
+    // variants misfire on OS-dark+app-light and won't fire under the dual-theme
+    // toggle (10th). Load-bearing for every dark: variant — guard it.
+    // vitest runs with cwd = web/, where tailwind.config.js lives.
+    const cfg = readFileSync('tailwind.config.js', 'utf8');
+    expect(cfg).toMatch(/darkMode:\s*['"](class|selector)['"]/);
   });
 });
