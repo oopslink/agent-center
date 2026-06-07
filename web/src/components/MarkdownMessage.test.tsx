@@ -36,11 +36,13 @@ describe('MarkdownMessage (#276)', () => {
     expect(screen.getByTestId('markdown-message').querySelector('code')).toHaveTextContent('npm install');
   });
 
-  it('renders GFM tables (remark-gfm enabled)', () => {
+  it('renders GFM tables as real table/th/td (remark-gfm; v2.8.1 .markdown-body CSS targets these)', () => {
     render(<MarkdownMessage content={'| a | b |\n|---|---|\n| 1 | 2 |'} />);
     const table = screen.getByTestId('markdown-message').querySelector('table');
     expect(table).toBeInTheDocument();
     expect(table?.querySelectorAll('th')).toHaveLength(2);
+    // v2.8.1 polish styles th + td; assert the body cells render so the CSS has a target.
+    expect(table?.querySelectorAll('td')).toHaveLength(2);
   });
 
   it('adds rel="noopener noreferrer" to links', () => {
