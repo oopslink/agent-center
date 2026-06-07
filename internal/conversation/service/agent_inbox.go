@@ -55,15 +55,24 @@ func NewAgentInboxService(
 	return &AgentInboxService{db: db, convRepo: convRepo, rsRepo: rsRepo}
 }
 
-// ListUnreadForIdentity returns the unread messages directed at identityRef in
-// org orgID. displayName is the agent's @-handle used to match channel mentions.
-// DMs surface ALL unread messages; channels surface only @mentions of the agent.
-// The agent's own messages are skipped. Bounded by MaxUnreadItems.
+// ListUnreadForIdentity returns the unread messages directed at the agent in org
+// orgID. refs are the agent's identity refs that may appear as a conversation
+// participant / read-state cursor / message sender — an agent can be referenced
+// by EITHER "agent:<execution-id>" OR "agent:<identity-member-id>" depending on
+// the path (the wake projector matches both, env wake_projector.go), so the
+// caller passes both. displayName is the agent's @-handle used to match channel
+// mentions. DMs surface ALL unread messages; channels surface only @mentions.
+// The agent's own messages (sender ∈ refs) are skipped. Bounded by MaxUnreadItems.
 func (s *AgentInboxService) ListUnreadForIdentity(
-	ctx context.Context, identityRef conversation.IdentityRef, orgID, displayName string,
+	ctx context.Context, refs []conversation.IdentityRef, orgID, displayName string,
 ) ([]UnreadItem, error) {
-	if err := identityRef.Validate(); err != nil {
-		return nil, fmt.Errorf("list unread: identity: %w", err)
+	if len(refs) == 0 {
+		return nil, errors.New("list unread: at least one identity ref required")
+	}
+	for _, ref := range refs {
+		if err := ref.Validate(); err != nil {
+			return nil, fmt.Errorf("list unread: identity: %w", err)
+		}
 	}
 	if orgID == "" {
 		return nil, errors.New("list unread: org id required")
@@ -79,8 +88,11 @@ func (s *AgentInboxService) ListUnreadForIdentity(
 	}
 	out := make([]UnreadItem, 0, 16)
 	for _, c := range convs {
-		// Only conversations the agent actively participates in.
-		if !participantActive(c.Participants(), identityRef) {
+		// The ref the agent ACTUALLY participates as in this conversation (so the
+		// read-state cursor + own-message exclusion use the matching ref). Skip
+		// conversations the agent does not actively participate in.
+		selfRef, ok := participantRef(c.Participants(), refs)
+		if !ok {
 			continue
 		}
 		// Only DMs (all unread) and channels (@mentions). task/issue conversations
@@ -90,14 +102,14 @@ func (s *AgentInboxService) ListUnreadForIdentity(
 			continue
 		}
 		var lastSeen conversation.MessageID
-		rs, err := s.rsRepo.FindByUserAndConv(ctx, identityRef, c.ID())
+		rs, err := s.rsRepo.FindByUserAndConv(ctx, selfRef, c.ID())
 		if err != nil && !errors.Is(err, conversation.ErrReadStateNotFound) {
 			return nil, fmt.Errorf("list unread: read-state %s: %w", c.ID(), err)
 		}
 		if rs != nil {
 			lastSeen = rs.LastSeenMessageID
 		}
-		items, err := s.scanUnread(ctx, c, lastSeen, identityRef, displayName)
+		items, err := s.scanUnread(ctx, c, lastSeen, refs, displayName)
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +126,7 @@ func (s *AgentInboxService) ListUnreadForIdentity(
 // a channel; never the agent's own messages.
 func (s *AgentInboxService) scanUnread(
 	ctx context.Context, c *conversation.Conversation, lastSeen conversation.MessageID,
-	identityRef conversation.IdentityRef, displayName string,
+	refs []conversation.IdentityRef, displayName string,
 ) ([]UnreadItem, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, s.db)
 	const stmt = `SELECT id, sender_identity_id, content, posted_at
@@ -134,8 +146,8 @@ func (s *AgentInboxService) scanUnread(
 		if err := rows.Scan(&id, &sender, &content, &postedAt); err != nil {
 			return nil, err
 		}
-		// Never surface the agent's own messages back to it.
-		if conversation.IdentityRef(sender) == identityRef {
+		// Never surface the agent's own messages back to it (sender ∈ any of refs).
+		if refContains(refs, conversation.IdentityRef(sender)) {
 			continue
 		}
 		// Channels: only @mentions of the agent. DMs: all messages (direct).
@@ -159,10 +171,25 @@ func (s *AgentInboxService) scanUnread(
 	return items, rows.Err()
 }
 
-// participantActive reports whether ref is an active (not-left) participant.
-func participantActive(parts []conversation.ParticipantElement, ref conversation.IdentityRef) bool {
+// participantRef returns the IdentityID under which the agent (any of refs) is an
+// active (not-left) participant, plus ok=false if it is not a participant. The
+// matched ref is the one to key read-state + own-message exclusion on.
+func participantRef(parts []conversation.ParticipantElement, refs []conversation.IdentityRef) (conversation.IdentityRef, bool) {
 	for _, p := range parts {
-		if p.IdentityID == ref && p.LeftAt == "" {
+		if p.LeftAt != "" {
+			continue
+		}
+		if refContains(refs, p.IdentityID) {
+			return p.IdentityID, true
+		}
+	}
+	return "", false
+}
+
+// refContains reports whether ref is in refs.
+func refContains(refs []conversation.IdentityRef, ref conversation.IdentityRef) bool {
+	for _, r := range refs {
+		if r == ref {
 			return true
 		}
 	}

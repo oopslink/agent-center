@@ -116,7 +116,15 @@ func TestAgentInbox_ListUnreadForIdentity(t *testing.T) {
 	f.seedConv(t, "dm-x", conversation.ConversationKindDM, "org-2", agent, "user:eve")
 	f.seedMsg(t, "dm-x-msg-1", "dm-x", "user:eve", "cross-org ping")
 
-	got, err := f.inbox.ListUnreadForIdentity(ctx, agent, "org-1", "Bot")
+	// Dual-ref: a DM where the agent participates under its IDENTITY-MEMBER ref
+	// (not the execution ref) — must still surface (wake projector matches both).
+	const agentMember = conversation.IdentityRef("agent:bot-member-1")
+	f.seedConv(t, "dm-2", conversation.ConversationKindDM, "org-1", agentMember, "user:alice")
+	f.seedMsg(t, "dm-2-msg-1", "dm-2", "user:alice", "via member ref")
+	f.seedMsg(t, "dm-2-msg-2", "dm-2", agentMember, "own via member ref") // own → excluded
+
+	refs := []conversation.IdentityRef{agent, agentMember}
+	got, err := f.inbox.ListUnreadForIdentity(ctx, refs, "org-1", "Bot")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,8 +132,9 @@ func TestAgentInbox_ListUnreadForIdentity(t *testing.T) {
 	for _, it := range got {
 		gotIDs[it.MessageID] = true
 	}
-	// Expect: dm-1-msg-1, dm-1-msg-3 (DM all, own excluded), ch-1-msg-2 (mention).
-	want := []conversation.MessageID{"dm-1-msg-1", "dm-1-msg-3", "ch-1-msg-2"}
+	// Expect: dm-1-msg-1, dm-1-msg-3 (DM all, own excluded), ch-1-msg-2 (mention),
+	// dm-2-msg-1 (DM via identity-member ref; own dm-2-msg-2 excluded).
+	want := []conversation.MessageID{"dm-1-msg-1", "dm-1-msg-3", "ch-1-msg-2", "dm-2-msg-1"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d items %v, want %d %v", len(got), keysOf(gotIDs), len(want), want)
 	}
@@ -135,7 +144,7 @@ func TestAgentInbox_ListUnreadForIdentity(t *testing.T) {
 		}
 	}
 	// Negative: own / non-mention / non-participant / cross-org never appear.
-	for _, bad := range []conversation.MessageID{"dm-1-msg-2", "ch-1-msg-1", "ch-2-msg-1", "dm-x-msg-1"} {
+	for _, bad := range []conversation.MessageID{"dm-1-msg-2", "ch-1-msg-1", "ch-2-msg-1", "dm-x-msg-1", "dm-2-msg-2"} {
 		if gotIDs[bad] {
 			t.Errorf("unexpected unread %s should be excluded", bad)
 		}
@@ -147,7 +156,7 @@ func TestAgentInbox_ListUnreadForIdentity(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	got2, err := f.inbox.ListUnreadForIdentity(ctx, agent, "org-1", "Bot")
+	got2, err := f.inbox.ListUnreadForIdentity(ctx, refs, "org-1", "Bot")
 	if err != nil {
 		t.Fatal(err)
 	}
