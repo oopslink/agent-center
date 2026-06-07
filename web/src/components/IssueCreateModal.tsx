@@ -1,6 +1,7 @@
 // IssueCreateModal — v2.7 create an Issue inside a project.
 import React, { useState } from 'react';
 import { useCreateIssue } from '@/api/issues';
+import { useModalA11y } from './useModalA11y';
 
 interface Props {
   projectId: string;
@@ -16,6 +17,8 @@ export function IssueCreateModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const create = useCreateIssue(projectId);
+  // a11y: Escape closes + focus-trap (rendered = open).
+  const containerRef = useModalA11y({ open: true, onClose });
 
   const trimmedTitle = title.trim();
   const canSubmit = trimmedTitle.length > 0 && !create.isPending;
@@ -37,6 +40,7 @@ export function IssueCreateModal({
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       data-testid="issue-create-modal"
       role="dialog"
