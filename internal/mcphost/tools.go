@@ -169,6 +169,54 @@ func makeFailWork(cfg Config) mcp.ToolHandlerFor[failWorkArgs, any] {
 	}
 }
 
+// --- pause_work / resume_paused_work (v2.8.1 #278 D PR4 scheduling) -----------
+
+type pauseWorkArgs struct {
+	WorkItemID string `json:"work_item_id" jsonschema:"the id of your currently-running work item to pause (set aside)"`
+	Reason     string `json:"reason" jsonschema:"a short reason you are pausing (for observability)"`
+}
+
+func makePauseWork(cfg Config) mcp.ToolHandlerFor[pauseWorkArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args pauseWorkArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"work_item_id": args.WorkItemID,
+			"reason":       args.Reason,
+		}
+		return callAdmin(ctx, cfg, "pause_work", body)
+	}
+}
+
+type resumeWorkArgs struct {
+	WorkItemID string `json:"work_item_id" jsonschema:"the id of a paused work item (from list_my_paused_work) to resume"`
+}
+
+func makeResumeWork(cfg Config) mcp.ToolHandlerFor[resumeWorkArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args resumeWorkArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"work_item_id": args.WorkItemID,
+		}
+		return callAdmin(ctx, cfg, "resume_paused_work", body)
+	}
+}
+
+type getMyActiveWorkArgs struct{}
+
+func makeGetMyActiveWork(cfg Config) mcp.ToolHandlerFor[getMyActiveWorkArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ getMyActiveWorkArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "get_my_active_work", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
+type listMyPausedWorkArgs struct{}
+
+func makeListMyPausedWork(cfg Config) mcp.ToolHandlerFor[listMyPausedWorkArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listMyPausedWorkArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "list_my_paused_work", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
 // --- block_task --------------------------------------------------------------
 
 type blockTaskArgs struct {

@@ -126,7 +126,11 @@ func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation
 	req := agentadapter.SpawnRequest{
 		ExecutionID: SessionUUIDGen(agentID, epoch, generation),
 		Prompt:      longLivedSentinelPrompt,
-		Env:         env,
+		// v2.8.1 #278 D PR4a: the pull-model work-queue operating instructions as a
+		// persistent --append-system-prompt — re-applied every launch, idempotent
+		// (not conversation history). See agent_system_prompt.go.
+		SystemPrompt: AgentWorkQueueSystemPrompt,
+		Env:          env,
 	}
 	cmdSpec, err := adapter.BuildCommand(req)
 	if err != nil {

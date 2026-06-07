@@ -873,18 +873,44 @@ func (c *AgentController) recordWorkAvail(agentID, workItemID string) bool {
 // noise that would muddy PR4's run-real pull-loop verification). The actual nudge
 // inject + the agent's pull-driven loop land together in PR4 (clean cut). Acking
 // (return nil) keeps the control-stream cursor advancing — never wedges the loop.
-func (c *AgentController) workAvailable(_ context.Context, pl workAvailablePayload) error {
+func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePayload) error {
 	if strings.TrimSpace(pl.AgentID) == "" {
 		c.log("work_available missing agent_id — skipping")
 		return nil
 	}
-	if c.recordWorkAvail(pl.AgentID, pl.WorkItemID) {
-		c.log("work_available agent=%s work_item=%s — noted (pull nudge deferred to PR4; old push still drives)",
-			pl.AgentID, pl.WorkItemID)
+	// Coalesce per work_item_id (mirror wake dedup) so reemit/flap/replay don't
+	// spam nudges. A coalesced re-emit is a silent no-op.
+	if !c.recordWorkAvail(pl.AgentID, pl.WorkItemID) {
+		return nil
 	}
-	// else: coalesced re-emit/replay — silent no-op.
+	// v2.8.1 #278 D PR4a: NUDGE the agent to run its pull loop. The loop
+	// instructions live in the agent's persistent system prompt
+	// (claudestream.AgentWorkQueueSystemPrompt), so this is just a short wake — the
+	// agent reacts per its system prompt (finish current task, then get_my_active_work
+	// → get_my_work/start_work). If no running session, skip (the item stays queued;
+	// the agent pulls it on its next boot/wake) — never wedge the cursor.
+	c.mu.Lock()
+	ma := c.agents[pl.AgentID]
+	var sess agentSession
+	if ma != nil {
+		sess = ma.session
+	}
+	c.mu.Unlock()
+	if sess == nil {
+		c.log("work_available agent=%s work_item=%s — no running session; queued, agent pulls on next wake", pl.AgentID, pl.WorkItemID)
+		return nil
+	}
+	if err := sess.Inject(ctx, workAvailableNudge); err != nil {
+		// Benign: the work stays queued; the agent pulls on its next loop. Log + ack.
+		c.log("work_available agent=%s nudge inject: %v", pl.AgentID, err)
+	}
 	return nil
 }
+
+// workAvailableNudge is the short wake injected on agent.work_available (v2.8.1
+// #278 D PR4a). The full pull-loop behavior is the persistent system prompt; this
+// only nudges the agent to run that loop when new work arrives.
+const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: get_my_active_work, then get_my_work / start_work the next item."
 
 // startSession generates the per-agent mcp-config (written to a FILE the
 // supervisor reads by path — minimal key surface), resolves the agent home +

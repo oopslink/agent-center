@@ -54,6 +54,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, agent.ErrAgentHasActiveWork):
 		writeError(w, http.StatusConflict, "agent_busy", err.Error())
 
+	// ---- work_item_reassigned (409) — v2.8.1 #278 PR4: an agent-facing write
+	// (complete/fail/pause/resume) lost the optimistic-lock (version CAS) race —
+	// the item moved since the agent loaded it (e.g. the reconciler released it).
+	// Benign: the agent goes back to step A (pulls fresh). ----
+	case errors.Is(err, agent.ErrWorkItemReassigned):
+		writeError(w, http.StatusConflict, "work_item_reassigned", err.Error())
+
 	// ---- already_exists (409) -------------------------------------------
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),
 		errors.Is(err, convservice.ErrParticipantAlreadyActive),

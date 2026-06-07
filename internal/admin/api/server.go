@@ -368,6 +368,13 @@ func (s *Server) routes() {
 	// fail_work (report the in-flight item failed → frees the slot to drain).
 	s.mux.HandleFunc("POST /admin/agent-tools/start_work", s.startWorkHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/fail_work", s.failWorkHandler)
+	// v2.8.1 #278 PR4 scheduling autonomy: pause the active item (→paused, release
+	// slot) + resume a paused item (→active, re-acquire slot, single-active-gated).
+	s.mux.HandleFunc("POST /admin/agent-tools/pause_work", s.pauseWorkHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/resume_paused_work", s.resumeWorkHandler)
+	// read tools: the agent's active item (loop-boundary check) + paused-resume candidates.
+	s.mux.HandleFunc("POST /admin/agent-tools/get_my_active_work", s.getMyActiveWorkHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_my_paused_work", s.listMyPausedWorkHandler)
 	// v2.7.1 #239 — agent self/org-discovery reads (0 round-trip self-awareness):
 	// own profile (org/projects/capabilities) + find peer org agents by name.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_profile", s.getMyProfileHandler)
