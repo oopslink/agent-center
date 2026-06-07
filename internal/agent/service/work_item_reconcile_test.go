@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -79,5 +80,47 @@ func TestWorkItemReconciler_NoFalseKill_RecentActivity(t *testing.T) {
 	}
 	if f.countActive(t, id) != 1 {
 		t.Fatal("a working agent's item must not be released")
+	}
+}
+
+// v2.8.1 #278 D PR5 7a-iii: the complete-vs-release true race. Two writers load
+// the same active WorkItem; whoever commits first wins via version-CAS, the other
+// loses with ErrWorkItemReassigned. Here the reconciler's release commits first →
+// a concurrent (stale) complete loses → final state is the reconciler's release.
+func TestWorkItemReconciler_CompleteVsReleaseRace_CASGuarded(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	f.seedQueuedWI(t, id, "wi-1")
+	if err := f.svc.StartWork(ctx, id, "wi-1"); err != nil { // active, version 1
+		t.Fatal(err)
+	}
+	// Two independent loads at the SAME version (the race setup).
+	wiRelease, _ := f.workItems.FindByID(ctx, "wi-1")
+	wiComplete, _ := f.workItems.FindByID(ctx, "wi-1")
+	preRelease, preComplete := wiRelease.Version(), wiComplete.Version()
+
+	// Reconciler releases first (active→failed) under CAS → wins.
+	if err := wiRelease.FailFromAgentDeath(f.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.workItems.UpdateCAS(ctx, wiRelease, preRelease); err != nil {
+		t.Fatalf("reconciler release CAS must win, got %v", err)
+	}
+	// Concurrent complete from the now-stale copy → loses cleanly.
+	if err := wiComplete.Done(f.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.workItems.UpdateCAS(ctx, wiComplete, preComplete); !errors.Is(err, agent.ErrWorkItemReassigned) {
+		t.Fatalf("stale complete must lose → ErrWorkItemReassigned, got %v", err)
+	}
+	// Final state = reconciler's release (failed), single-active slot freed.
+	cur, _ := f.workItems.FindByID(ctx, "wi-1")
+	if cur.Status() != agent.WorkItemFailed {
+		t.Fatalf("final status=%s, want failed (reconciler won the race)", cur.Status())
+	}
+	if f.countActive(t, id) != 0 {
+		t.Fatal("slot must be freed")
 	}
 }
