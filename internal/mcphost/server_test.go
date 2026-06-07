@@ -88,8 +88,8 @@ var wantTools = []string{
 	"pause_work", "resume_paused_work",
 	// v2.8.1 #278 PR4 read tools (loop-boundary active + paused candidates)
 	"get_my_active_work", "list_my_paused_work",
-	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention)
-	"get_my_unread",
+	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen
+	"get_my_unread", "mark_seen",
 	// v2.7 #185: DM/channel reply
 	"post_message",
 	// v2.7.1 #239: self / org discovery
