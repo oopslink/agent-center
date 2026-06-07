@@ -135,32 +135,42 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	}
 
 	cmds := f.commandsFor(t, "W1")
-	// 1 reconcile + 2 work (queued + active); waiting_input skipped.
-	if len(cmds) != 3 {
-		t.Fatalf("want 3 commands (reconcile + queued + active work), got %d: %+v", len(cmds), cmds)
+	// 1 reconcile + 2 work (queued + active) + 2 wake (v2.8.1 #278 PR2:
+	// agent.work_available per ready WI); waiting_input skipped (no work, no wake).
+	if len(cmds) != 5 {
+		t.Fatalf("want 5 commands (reconcile + 2 work + 2 wake), got %d: %+v", len(cmds), cmds)
 	}
 	if cmds[0].CommandType() != "agent.reconcile" {
 		t.Fatalf("cmds[0] type = %q, want agent.reconcile (must precede work)", cmds[0].CommandType())
 	}
 	reconcileOff := cmds[0].Offset()
 	workKeys := map[string]bool{}
+	wakeKeys := map[string]bool{}
 	briefByKey := map[string]string{}
 	for _, c := range cmds[1:] {
-		if c.CommandType() != "agent.work" {
-			t.Fatalf("commands after reconcile must be agent.work, got %q", c.CommandType())
-		}
 		if c.Offset() <= reconcileOff {
-			t.Fatalf("work offset %d must be > reconcile offset %d (session before work)", c.Offset(), reconcileOff)
+			t.Fatalf("command offset %d must be > reconcile offset %d (session before work)", c.Offset(), reconcileOff)
 		}
-		workKeys[c.IdempotencyKey()] = true
-		var pl workCommandPayload
-		if err := json.Unmarshal([]byte(c.Payload()), &pl); err != nil {
-			t.Fatalf("unmarshal work payload: %v", err)
+		switch c.CommandType() {
+		case "agent.work":
+			workKeys[c.IdempotencyKey()] = true
+			var pl workCommandPayload
+			if err := json.Unmarshal([]byte(c.Payload()), &pl); err != nil {
+				t.Fatalf("unmarshal work payload: %v", err)
+			}
+			briefByKey[c.IdempotencyKey()] = pl.Brief
+		case "agent.work_available":
+			wakeKeys[c.IdempotencyKey()] = true
+		default:
+			t.Fatalf("commands after reconcile must be agent.work / agent.work_available, got %q", c.CommandType())
 		}
-		briefByKey[c.IdempotencyKey()] = pl.Brief
 	}
 	if !workKeys["agent.work:wi-active"] || !workKeys["agent.work:wi-queued"] {
 		t.Fatalf("re-emit must cover BOTH queued + active (ready-to-dispatch), got keys %v", workKeys)
+	}
+	// PR2 wake: each ready-to-dispatch WI also gets an agent.work_available wake.
+	if !wakeKeys["agent.work_available:wi-active"] || !wakeKeys["agent.work_available:wi-queued"] {
+		t.Fatalf("re-emit must emit a wake per ready WI, got wake keys %v", wakeKeys)
 	}
 	// #115 CORE assertion: the re-emitted brief must be NON-EMPTY and equal the SAME
 	// title\n\ndesc that pm enqueueWork.brief produces for the task (NOT "").
@@ -217,7 +227,8 @@ func TestReemit_IdempotentOnReplay(t *testing.T) {
 		t.Fatalf("Project 2 (replay): %v", err)
 	}
 	cmds := f.commandsFor(t, "W1")
-	if len(cmds) != 2 {
+	// reconcile + work + wake (v2.8.1 #278 PR2) = 3; replay must not duplicate.
+	if len(cmds) != 3 {
 		t.Fatalf("replay of same event must not duplicate, got %d commands", len(cmds))
 	}
 }

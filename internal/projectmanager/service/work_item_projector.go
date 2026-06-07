@@ -24,6 +24,15 @@ import (
 // effect yet.
 const commandTypeAgentWork = "agent.work"
 
+// commandTypeWorkAvailable is the v2.8.1 #278 D (pull model) WAKE signal: a
+// lightweight per-agent "you have new work — pull your queue" notification
+// emitted alongside agent.work when a WorkItem is enqueued. ADDITIVE in PR2 —
+// the old agent.work push still fires (DB-UNIQUE-gated to single-active) and the
+// daemon log+skips this unknown type until PR3 wires the wake handler (agent
+// pulls via get_my_work + start_work). The PR6 cutover removes agent.work and
+// keeps this as the sole activation trigger.
+const commandTypeWorkAvailable = "agent.work_available"
+
 // WorkItemProjector is the B2-c projector that turns Task assignment into Agent
 // work (ADR-0049 §3, plan §4.2). It consumes pm.task.assigned / pm.task.reassigned
 // and, when the assignee is an Agent, supersedes any prior live AgentWorkItem
@@ -226,6 +235,15 @@ type workCommandPayload struct {
 	Brief      string `json:"brief"`
 }
 
+// workAvailablePayload is the agent.work_available (wake) command payload. It is
+// deliberately per-AGENT (not per-WorkItem): the wake just tells the agent "your
+// queue changed — pull it (get_my_work) and start_work the next item". The
+// WorkItemID is carried only for idempotency-key determinism + observability.
+type workAvailablePayload struct {
+	AgentID    string `json:"agent_id"`
+	WorkItemID string `json:"work_item_id"`
+}
+
 // enqueueWork appends the agent.work command for a freshly-queued WorkItem onto
 // the assignee Agent's Worker control stream (same tx as the caller). It is a
 // best-effort SIGNAL: if work delivery is not wired (nil controlLog/agents), or
@@ -270,11 +288,31 @@ func (p *WorkItemProjector) enqueueWork(ctx context.Context, wi *agent.AgentWork
 	if err != nil {
 		return err
 	}
-	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+	if _, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
 		WorkerID:       environment.WorkerID(workerID),
 		CommandType:    commandTypeAgentWork,
 		Payload:        string(payload),
 		IdempotencyKey: "agent.work:" + wi.ID(),
+	}); err != nil {
+		return err
+	}
+	// v2.8.1 #278 D PR2 (ADDITIVE): also emit the per-agent wake so the agent can
+	// pull its queue (pull model). Same tx + same lifecycle/binding guards above.
+	// The old agent.work push above is unchanged (kept until the PR6 cutover); the
+	// daemon log+skips this wake until PR3 wires the handler — so this is a pure
+	// additive signal that never wedges the control stream.
+	wakePayload, err := json.Marshal(workAvailablePayload{
+		AgentID:    string(agentID),
+		WorkItemID: wi.ID(),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(workerID),
+		CommandType:    commandTypeWorkAvailable,
+		Payload:        string(wakePayload),
+		IdempotencyKey: "agent.work_available:" + wi.ID(),
 	})
 	return err
 }
