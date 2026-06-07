@@ -24,8 +24,14 @@ const STATUS_DISPLAY: Record<WorkItemStatus, { label: string; cls: string; bucke
   active: { label: 'In Progress', cls: 'bg-brand/10 text-brand', bucket: 'in_progress' },
   // v2.8.1 #278 D: agent-paused (scheduling autonomy) — a distinct bucket, not
   // "pending" (queued, waiting to be picked) nor "blocked" (system/reconciler).
-  paused: { label: 'Paused', cls: 'bg-violet-500/10 text-violet-600', bucket: 'paused' },
-  queued: { label: 'Pending', cls: 'bg-orange-500/10 text-orange-600', bucket: 'pending' },
+  // dark: lighter text — the fixed mid-tone (violet/orange-600) on an alpha-tint
+  // over the dark page bg is dark-on-dark (FAILs AA in dark mode); the lighter
+  // -400 variant restores AA (violet-400 ~5.9:1, the token-based chips below
+  // already adapt via --color-* dark variants). Light mode unchanged.
+  paused: { label: 'Paused', cls: 'bg-violet-500/10 text-violet-600 dark:text-violet-400', bucket: 'paused' },
+  // queued: double fix — orange-600 FAILed even in LIGHT (3.21:1, pre-existing
+  // #228) → orange-700 (4.68 AA); + dark:orange-400 (7.03 AA) for dark mode.
+  queued: { label: 'Pending', cls: 'bg-orange-500/10 text-orange-700 dark:text-orange-400', bucket: 'pending' },
   waiting_input: { label: 'Blocked', cls: 'bg-danger/10 text-danger', bucket: 'blocked' },
   failed: { label: 'Blocked', cls: 'bg-danger/10 text-danger', bucket: 'blocked' },
   done: { label: 'Done', cls: 'bg-success/10 text-success', bucket: 'done' },
@@ -130,8 +136,8 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
           <dl className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" data-testid="agent-workitems-summary">
             <span className="font-medium text-text-primary">{counts.total} Total</span>
             <span className="text-brand">{counts.in_progress} In Progress</span>
-            <span className="text-violet-600">{counts.paused} Paused</span>
-            <span className="text-orange-600">{counts.pending} Pending</span>
+            <span className="text-violet-600 dark:text-violet-400">{counts.paused} Paused</span>
+            <span className="text-orange-700 dark:text-orange-400">{counts.pending} Pending</span>
             <span className="text-danger">{counts.blocked} Blocked</span>
             <span className="text-success">{counts.done} Done</span>
           </dl>
