@@ -18,35 +18,78 @@ interface QueryShape {
   error: unknown;
 }
 
+// Status options per kind, in lifecycle order — drive the FilterBar chips.
+export const STATUS_OPTIONS: Record<'issue' | 'task', string[]> = {
+  issue: ['open', 'in_progress', 'resolved', 'closed', 'withdrawn', 'reopened'],
+  task: ['open', 'assigned', 'running', 'blocked', 'completed', 'verified', 'canceled', 'reopened'],
+};
+
 export function OrgWorkItemsView({
   kind,
   query,
-  openOnly,
-  onOpenOnlyChange,
+  selectedStatuses,
+  onStatusesChange,
+  onCreate,
 }: {
   kind: 'issue' | 'task';
   query: QueryShape;
-  openOnly: boolean;
-  onOpenOnlyChange: (v: boolean) => void;
+  // selected status filter (multi). Empty = backend default (all open, terminal
+  // states excluded) — same default as the old "open only" view.
+  selectedStatuses: string[];
+  onStatusesChange: (s: string[]) => void;
+  // opens the cross-project create modal.
+  onCreate: () => void;
 }): React.ReactElement {
   const title = kind === 'issue' ? 'Issues' : 'Tasks';
   const seg = kind === 'issue' ? 'issues' : 'tasks';
   const items = query.data?.items ?? [];
+  const defaultView = selectedStatuses.length === 0;
+  const toggleStatus = (s: string) =>
+    onStatusesChange(selectedStatuses.includes(s) ? selectedStatuses.filter((x) => x !== s) : [...selectedStatuses, s]);
 
   return (
     <section className="space-y-4" data-testid={`page-Org${title}`}>
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base pb-3">
-        <h2 className="text-xl font-semibold text-text-primary">{title}</h2>
-        {/* default = open only; toggle to include terminal states. */}
-        <label className="flex items-center gap-1.5 text-xs text-text-muted">
-          <input
-            type="checkbox"
-            data-testid="org-workitems-openonly"
-            checked={openOnly}
-            onChange={(e) => onOpenOnlyChange(e.target.checked)}
-          />
-          Open only
-        </label>
+      <header className="space-y-2 border-b border-border-base pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-text-primary">{title}</h2>
+          <button
+            type="button"
+            data-testid="org-workitems-create"
+            onClick={onCreate}
+            className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+          >
+            + New {kind === 'issue' ? 'Issue' : 'Task'}
+          </button>
+        </div>
+        {/* FilterBar — status multi-select; empty = default (all open, terminal excluded). */}
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="org-workitems-filterbar">
+          <span className="text-[0.625rem] uppercase tracking-wide text-text-muted">Status</span>
+          {STATUS_OPTIONS[kind].map((s) => {
+            const on = selectedStatuses.includes(s);
+            return (
+              <button
+                key={s}
+                type="button"
+                data-testid={`org-filter-status-${s}`}
+                aria-pressed={on}
+                onClick={() => toggleStatus(s)}
+                className={`rounded px-2 py-0.5 text-xs ${on ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-border-base'}`}
+              >
+                {s.replace(/_/g, ' ')}
+              </button>
+            );
+          })}
+          {!defaultView && (
+            <button
+              type="button"
+              data-testid="org-filter-clear"
+              onClick={() => onStatusesChange([])}
+              className="text-xs text-accent hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </header>
 
       {query.isLoading && (
@@ -57,7 +100,7 @@ export function OrgWorkItemsView({
       )}
       {query.data && items.length === 0 && (
         <p className="text-xs text-text-muted" data-testid="org-workitems-empty">
-          {openOnly ? `No open ${title.toLowerCase()}.` : `No ${title.toLowerCase()}.`}
+          {defaultView ? `No open ${title.toLowerCase()}.` : `No matching ${title.toLowerCase()}.`}
         </p>
       )}
 
@@ -71,6 +114,7 @@ export function OrgWorkItemsView({
                 <th className="py-1.5 pr-3 font-medium">Title</th>
                 <th className="py-1.5 pr-3 font-medium">Status</th>
                 <th className="py-1.5 pr-3 font-medium">Assigned to</th>
+                <th className="py-1.5 pr-3 font-medium">Created</th>
                 <th className="py-1.5 font-medium">Updated</th>
               </tr>
             </thead>
@@ -121,6 +165,9 @@ export function OrgWorkItemsView({
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="org-workitem-created" title={it.created_at}>
+                    {shortDate(it.created_at)}
                   </td>
                   <td className="py-1.5 tabular-nums text-text-muted" data-testid="org-workitem-updated" title={it.updated_at}>
                     {shortDate(it.updated_at)}

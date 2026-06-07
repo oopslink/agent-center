@@ -162,7 +162,7 @@ describe('OrgWorkItems page (#258)', () => {
     expect(id).toHaveTextContent('#ABCDEF'); // ULID tail, not head
   });
 
-  it('"Open only" toggle off passes the full status set (include terminal)', async () => {
+  it('FilterBar: selecting statuses passes them as the multi status filter', async () => {
     let gotQuery = '';
     server.use(
       http.get('/api/issues', ({ request }) => {
@@ -172,10 +172,34 @@ describe('OrgWorkItems page (#258)', () => {
     );
     wrap('issue', '/organizations/acme/issues');
     await screen.findByTestId('org-workitem-row');
-    fireEvent.click(screen.getByTestId('org-workitems-openonly')); // uncheck
+    // default = empty selection = no status param (backend default all-open).
+    // pick terminal statuses via the FilterBar chips → they become the filter.
+    fireEvent.click(screen.getByTestId('org-filter-status-resolved'));
+    fireEvent.click(screen.getByTestId('org-filter-status-closed'));
+    fireEvent.click(screen.getByTestId('org-filter-status-withdrawn'));
     await waitFor(() => expect(gotQuery).toContain('status=resolved'));
     expect(gotQuery).toContain('status=closed');
     expect(gotQuery).toContain('status=withdrawn');
+  });
+
+  it('renders a Created column with the created date', async () => {
+    server.use(http.get('/api/issues', () => HttpResponse.json({ items: [issueRow()], total: 1 })));
+    wrap('issue', '/organizations/acme/issues');
+    await screen.findByTestId('org-workitem-row');
+    expect(screen.getByTestId('org-workitem-created')).toBeInTheDocument();
+  });
+
+  it('Create button opens the cross-project create modal with a project picker', async () => {
+    server.use(
+      http.get('/api/issues', () => HttpResponse.json({ items: [issueRow()], total: 1 })),
+      http.get('/api/projects', () => HttpResponse.json({ projects: [{ id: 'proj-a', name: 'Alpha' }] })),
+    );
+    wrap('issue', '/organizations/acme/issues');
+    await screen.findByTestId('org-workitem-row');
+    expect(screen.queryByTestId('org-create-modal')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('org-workitems-create'));
+    expect(screen.getByTestId('org-create-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('org-create-project-select')).toBeInTheDocument();
   });
 
   it('tasks: hits the tasks endpoint + empty state', async () => {
