@@ -89,10 +89,11 @@ func MigrateV1ToV2Command() *Command {
 // v2.7-#107 added 0046 (agent_work_item_projections); v2.7-#195 added 0047
 // (channel name org-scoped unique); v2.7.1-#214 added 0048 (identity email +
 // last_session_at); v2.7.1-#49 added 0049 (pm org sequence); v2.8-#268 added
-// 0050 (user_conversation_follow_state). Update this constant when any future
-// migration lands so `migrate v1-to-v2` always carries the install to the
-// latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 50
+// 0050 (user_conversation_follow_state); v2.8.1-#278 added 0051 (agent_work_items
+// single-active UNIQUE index). Update this constant when any future migration
+// lands so `migrate v1-to-v2` always carries the install to the latest schema
+// instead of leaving it mid-version.
+const targetSchemaVersion = 51
 
 func runMigrateV1ToV2(
 	ctx context.Context,
