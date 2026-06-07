@@ -254,6 +254,7 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		ParticipantMgmtSvc: a.ParticipantMgmtSvc,
 		CarryOverSvc:       a.CarryOverSvc,
 		ReadStateSvc:       a.ReadStateSvc,
+		InboxSvc:           a.InboxSvc,
 
 		// Workforce BC
 		WorkerRepo:        a.WorkerRepo,

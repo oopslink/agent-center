@@ -217,6 +217,16 @@ func makeListMyPausedWork(cfg Config) mcp.ToolHandlerFor[listMyPausedWorkArgs, a
 	}
 }
 
+// --- get_my_unread (v2.8.1 #278 D PR4b dual-stream) ------------------------
+
+type getMyUnreadArgs struct{}
+
+func makeGetMyUnread(cfg Config) mcp.ToolHandlerFor[getMyUnreadArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ getMyUnreadArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "get_my_unread", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
 // --- block_task --------------------------------------------------------------
 
 type blockTaskArgs struct {

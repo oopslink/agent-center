@@ -139,6 +139,11 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeListMyPausedWork(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_my_unread",
+		Description: "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages). Check this periodically and when you reach a stopping point. You MUST reply to each one (acknowledge + defer, handle now, or decline with a reason) — your reply IS your decision.",
+	}, makeGetMyUnread(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_task_message",
 		Description: "Post a message into a task the calling agent participates in.",
 	}, makePostTaskMessage(cfg))

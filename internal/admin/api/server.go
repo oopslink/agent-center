@@ -375,6 +375,8 @@ func (s *Server) routes() {
 	// read tools: the agent's active item (loop-boundary check) + paused-resume candidates.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_active_work", s.getMyActiveWorkHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_paused_work", s.listMyPausedWorkHandler)
+	// v2.8.1 #278 D PR4b dual-stream: the agent's unread messages (DM + @mention).
+	s.mux.HandleFunc("POST /admin/agent-tools/get_my_unread", s.getMyUnreadHandler)
 	// v2.7.1 #239 — agent self/org-discovery reads (0 round-trip self-awareness):
 	// own profile (org/projects/capabilities) + find peer org agents by name.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_profile", s.getMyProfileHandler)
