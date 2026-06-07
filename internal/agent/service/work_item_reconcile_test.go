@@ -124,3 +124,41 @@ func TestWorkItemReconciler_CompleteVsReleaseRace_CASGuarded(t *testing.T) {
 		t.Fatal("slot must be freed")
 	}
 }
+
+// v2.8.1 #278 D PR5 7a-iii (other direction): the AGENT wins. Within the window
+// the agent completes its active item first (active→done) under CAS; a concurrent
+// reconciler release from the now-stale copy loses with ErrWorkItemReassigned and
+// is skipped — no double-process, final state = the agent's completion.
+func TestWorkItemReconciler_AgentCompletesFirst_ReconcilerSkipsClean(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	f.seedQueuedWI(t, id, "wi-1")
+	if err := f.svc.StartWork(ctx, id, "wi-1"); err != nil { // active, version 1
+		t.Fatal(err)
+	}
+	wiComplete, _ := f.workItems.FindByID(ctx, "wi-1")
+	wiRelease, _ := f.workItems.FindByID(ctx, "wi-1")
+	preComplete, preRelease := wiComplete.Version(), wiRelease.Version()
+
+	// Agent completes first (active→done) under CAS → wins.
+	if err := wiComplete.Done(f.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.workItems.UpdateCAS(ctx, wiComplete, preComplete); err != nil {
+		t.Fatalf("agent complete CAS must win, got %v", err)
+	}
+	// Reconciler's stale release → loses cleanly → Tick skips it (no double-process).
+	if err := wiRelease.FailFromAgentDeath(f.clk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.workItems.UpdateCAS(ctx, wiRelease, preRelease); !errors.Is(err, agent.ErrWorkItemReassigned) {
+		t.Fatalf("stale reconciler release must lose → ErrWorkItemReassigned, got %v", err)
+	}
+	// Final state = the agent's completion (done), NOT failed.
+	cur, _ := f.workItems.FindByID(ctx, "wi-1")
+	if cur.Status() != agent.WorkItemDone {
+		t.Fatalf("final status=%s, want done (agent won the race)", cur.Status())
+	}
+}
