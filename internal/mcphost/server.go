@@ -139,13 +139,23 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeListMyPausedWork(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_my_unread",
+		Description: "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages). Check this periodically and when you reach a stopping point. You MUST reply to each one (acknowledge + defer, handle now, or decline with a reason) — your reply IS your decision. After you handle a message, call mark_seen so it does not come back.",
+	}, makeGetMyUnread(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "mark_seen",
+		Description: "Mark a conversation read up to a message id — call this AFTER you reply to (or decide on) a message from get_my_unread, so it is not surfaced again. Pass the conversation_id and the id of the latest message you handled.",
+	}, makeMarkSeen(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_task_message",
 		Description: "Post a message into a task the calling agent participates in.",
 	}, makePostTaskMessage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
-		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given.",
+		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, attach it with attach_file (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
