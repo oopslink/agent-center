@@ -3,6 +3,13 @@
 // Semantic colors map to CSS vars defined in src/index.css so a
 // future dark-mode pass only needs a parallel `:root.dark` block.
 export default {
+  // Class-based dark mode so Tailwind `dark:` variants activate under
+  // `<html class="dark">` — the SAME trigger as the `:root.dark` token block
+  // in src/index.css. Without this, `dark:` defaults to `prefers-color-scheme`
+  // (media), which would (a) misfire on OS-dark + app-light and (b) NOT fire
+  // when the dual-theme toggle sets `.dark` (10th task). Keeps dark: aligned
+  // with the token theme on one trigger.
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
