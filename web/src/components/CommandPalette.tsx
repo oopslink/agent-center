@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
+import { orgPath, useOptionalOrgContext } from '@/OrgContext';
 
 // CommandPalette — Cmd/Ctrl-K quick-switcher (v2.3 P6). Searches
 // channels + DMs client-side (substring match on name/id;
@@ -25,6 +26,10 @@ export function CommandPalette({
   onClose: () => void;
 }): React.ReactElement | null {
   const navigate = useNavigate();
+  // v2.8.1 fix: items hold app-absolute paths (/channels, …) but real routes
+  // live under /organizations/{slug}; rewrite via orgPath so clicks navigate
+  // instead of hitting a non-route → OrgRedirect → "nothing happened".
+  const org = useOptionalOrgContext();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -88,7 +93,7 @@ export function CommandPalette({
   const commit = (idx: number) => {
     const item = filtered[idx];
     if (!item) return;
-    navigate(item.href);
+    navigate(orgPath(item.href, org?.slug));
     onClose();
   };
 
