@@ -93,4 +93,42 @@ describe('CollapsibleCodeBlock (#276/#274)', () => {
     const disc = screen.getByTestId('code-disclosure-btn');
     expect(disc.querySelector('[data-testid="code-copy-btn"]')).toBeNull();
   });
+
+  // v2.8.1 (@oopslink) — lazy syntax highlighting (highlight.js, code context only).
+  it('lazily syntax-highlights a known language in code context (loading → tokens)', async () => {
+    render(<CollapsibleCodeBlock code={'const x = 1;'} language="javascript" />);
+    const region = screen.getByTestId('code-region');
+    // loading state is plain text; the highlighter chunk resolves async → tokens.
+    await waitFor(() => expect(region.querySelector('.hljs-keyword')).not.toBeNull());
+    expect(region.textContent).toContain('const x = 1;'); // text preserved
+  });
+
+  it('does NOT highlight output context (#274 tool_result stays plain)', async () => {
+    render(<CollapsibleCodeBlock code={'const x = 1;'} language="javascript" contextLabel="output" />);
+    const region = screen.getByTestId('code-region');
+    await new Promise((r) => setTimeout(r, 30)); // give any (wrong) async highlight a chance
+    expect(region.querySelector('[class^="hljs-"]')).toBeNull();
+    expect(region.textContent).toContain('const x = 1;');
+  });
+
+  it('does NOT highlight an unknown language (falls back to plain, React-escaped)', async () => {
+    render(<CollapsibleCodeBlock code={'foo bar baz'} language="not-a-real-lang" />);
+    const region = screen.getByTestId('code-region');
+    await new Promise((r) => setTimeout(r, 30));
+    expect(region.querySelector('[class^="hljs-"]')).toBeNull();
+    expect(region.textContent).toContain('foo bar baz');
+  });
+
+  it('SECURITY: escapes injected markup inside a highlighted fence (#187 not regressed)', async () => {
+    delete (window as unknown as Record<string, unknown>).__pwn;
+    render(
+      <CollapsibleCodeBlock code={'<script>window.__pwn=1</script>\nconst y = 2;'} language="javascript" />,
+    );
+    const region = screen.getByTestId('code-region');
+    await waitFor(() => expect(region.querySelector('.hljs-keyword')).not.toBeNull());
+    // the <script> is inert text (hljs escapes), never a real element; nothing ran.
+    expect(region.querySelector('script')).toBeNull();
+    expect((window as unknown as Record<string, unknown>).__pwn).toBeUndefined();
+    expect(region.textContent).toContain('window.__pwn=1');
+  });
 });

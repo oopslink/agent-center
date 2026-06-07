@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 // v2.8 #276/#274 — the shared collapsible code/output block. Pure prop-driven so
 // it is reused by BOTH the markdown code renderer (#276, react-markdown custom
@@ -58,6 +58,26 @@ export function CollapsibleCodeBlock({
     window.setTimeout(() => setCopied(false), 2000);
   };
 
+  // v2.8.1: lazy syntax highlighting for KNOWN languages, CODE context only.
+  // Until the highlighter chunk loads (and for output/#274 or unknown langs),
+  // we render plain text — the "loading" state. hljs escapes its input, so the
+  // resulting HTML is XSS-safe to inject (see codeHighlight.ts).
+  const highlightable = contextLabel === 'code' && !!language;
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightable || !language) {
+      setHighlighted(null);
+      return;
+    }
+    let cancelled = false;
+    void import('./codeHighlight').then(({ highlightCode }) => {
+      if (!cancelled) setHighlighted(highlightCode(shown, language));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [shown, language, highlightable]);
+
   return (
     <div
       className="my-1 overflow-hidden rounded border border-white/15 text-sm"
@@ -99,14 +119,25 @@ export function CollapsibleCodeBlock({
       </div>
 
       <pre className="overflow-x-auto px-3 py-2">
-        <code
-          id={regionId}
-          aria-live="off"
-          className="font-mono text-slate-100"
-          data-testid="code-region"
-        >
-          {shown}
-        </code>
+        {/* highlighted: hljs-escaped HTML (XSS-safe); else plain (React-escaped). */}
+        {highlighted !== null ? (
+          <code
+            id={regionId}
+            aria-live="off"
+            className="hljs font-mono text-slate-100"
+            data-testid="code-region"
+            dangerouslySetInnerHTML={{ __html: highlighted }}
+          />
+        ) : (
+          <code
+            id={regionId}
+            aria-live="off"
+            className="hljs font-mono text-slate-100"
+            data-testid="code-region"
+          >
+            {shown}
+          </code>
+        )}
       </pre>
 
       {collapsible && (
