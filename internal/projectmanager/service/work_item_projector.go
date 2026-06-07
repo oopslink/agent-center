@@ -164,6 +164,11 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 			if w.Status().IsTerminal() {
 				continue
 			}
+			// v2.8.1 #278 PR5: capture the loaded version for the CAS below — guards
+			// this projection against the WorkItemReconciler concurrently releasing
+			// the SAME active item (the 7a-iii complete/cancel/supersede-vs-release
+			// race; the reconciler is the "releaser" that makes this race real).
+			preV := w.Version()
 			switch {
 			case dispatch:
 				if err := w.Supersede(now); err != nil { // reassignment ends the prior attempt
@@ -184,7 +189,14 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 					return err
 				}
 			}
-			if err := p.workItems.Update(txCtx, w); err != nil {
+			// UpdateCAS: if the reconciler released this item first (active→failed,
+			// version bumped), the CAS conflicts → skip it. The reconciler's terminal
+			// release wins; this projection is moot for that item (the task-level
+			// status still settles at the pm layer).
+			if err := p.workItems.UpdateCAS(txCtx, w, preV); err != nil {
+				if errors.Is(err, agent.ErrWorkItemReassigned) {
+					continue
+				}
 				return err
 			}
 		}
