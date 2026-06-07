@@ -8,7 +8,7 @@ interface OrgContextValue {
   orgName: string;
 }
 
-const OrgContext = createContext<OrgContextValue | null>(null);
+export const OrgContext = createContext<OrgContextValue | null>(null);
 
 // useOrgContext returns the current organization context.
 // Must be used within an OrgGuard route.
@@ -26,7 +26,7 @@ export function useOptionalOrgContext(): OrgContextValue | null {
 // orgPath prefixes an app-absolute path (e.g. "/tasks/x") with the current
 // org base so navigation stays under /organizations/{slug}. Paths that are
 // already org-scoped, external, or non-absolute are returned unchanged.
-function orgPath(to: string, slug: string | undefined): string {
+export function orgPath(to: string, slug: string | undefined): string {
   if (!slug) return to;
   if (!to.startsWith('/')) return to; // relative / hash — leave as-is
   if (to.startsWith('/organizations/')) return to;
