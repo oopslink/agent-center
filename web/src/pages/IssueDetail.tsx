@@ -10,6 +10,7 @@ import {
 import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
+import { IssueTaskSidebar, type SidebarMetaRow } from '@/components/IssueTaskSidebar';
 import { EntityRef } from '@/components/EntityRef';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -20,6 +21,10 @@ import type { IssueStatus } from '@/api/types';
 // ProjectManager BC: the issue is project-scoped and driven entirely by
 // its projection. State changes go through the single transition
 // endpoint; metadata edits via PATCH.
+//
+// 5th task (Phabricator-style): two-column responsive layout — the main column
+// holds the title + description + conversation; the right IssueTaskSidebar
+// holds the prominent status block + actions (Edit / transitions) + metadata.
 export default function IssueDetail(): React.ReactElement {
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const issue = useIssue(projectId, id);
@@ -62,6 +67,63 @@ export default function IssueDetail(): React.ReactElement {
   const targets = ISSUE_TRANSITIONS[iss.status] ?? [];
   const isTerminal = iss.status === 'withdrawn';
 
+  const actions = (
+    <>
+      {!isTerminal && (
+        <button
+          type="button"
+          onClick={() => setEditOpen(true)}
+          className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
+          data-testid="issue-edit-button"
+        >
+          Edit
+        </button>
+      )}
+      {targets.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => transition.mutate(t)}
+          disabled={transition.isPending}
+          className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          data-testid={`issue-transition-${t}`}
+        >
+          {transitionLabel(t)}
+        </button>
+      ))}
+    </>
+  );
+
+  const meta: SidebarMetaRow[] = [
+    {
+      label: 'Created by',
+      value: (
+        <EntityRef
+          id={iss.created_by}
+          name={resolveName(iss.created_by) === iss.created_by ? undefined : resolveName(iss.created_by)}
+          testId="issue-created-by"
+        />
+      ),
+    },
+    ...(iss.project_id
+      ? [
+          {
+            label: 'Project',
+            value: (
+              <OrgLink
+                to={`/projects/${encodeURIComponent(iss.project_id)}`}
+                className="text-accent hover:underline"
+                data-testid="issue-project-link"
+                title={iss.project_id}
+              >
+                {project.data?.name || iss.project_id}
+              </OrgLink>
+            ),
+          } satisfies SidebarMetaRow,
+        ]
+      : []),
+  ];
+
   return (
     <section className="flex h-full flex-col" data-testid="page-IssueDetail" data-issue-id={iss.id}>
       <div className="mb-2">
@@ -74,83 +136,42 @@ export default function IssueDetail(): React.ReactElement {
           ]}
         />
       </div>
-      <header className="flex items-start justify-between border-b border-border-base pb-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">
-              {iss.org_ref && <span className="text-text-muted" data-testid="issue-org-ref">{iss.org_ref} · </span>}
-              {iss.title || iss.id}
-            </h2>
-            <TypeChip kind="issue" />
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            <span
-              className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary"
-              data-testid="issue-status"
-            >
-              {iss.status.replace(/_/g, ' ')}
-            </span>
-            <span>
-              by{' '}
-              <EntityRef
-                id={iss.created_by}
-                name={resolveName(iss.created_by) === iss.created_by ? undefined : resolveName(iss.created_by)}
-                testId="issue-created-by"
-              />
-            </span>
-            {iss.project_id && (
-              <OrgLink
-                to={`/projects/${encodeURIComponent(iss.project_id)}`}
-                className="text-accent hover:underline"
-                data-testid="issue-project-link"
-                title={iss.project_id}
-              >
-                project · {project.data?.name || iss.project_id}
-              </OrgLink>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!isTerminal && (
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
-              data-testid="issue-edit-button"
-            >
-              Edit
-            </button>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row">
+        {/* main column — title + description + conversation */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="border-b border-border-base pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-semibold">
+                {iss.org_ref && <span className="text-text-muted" data-testid="issue-org-ref">{iss.org_ref} · </span>}
+                {iss.title || iss.id}
+              </h2>
+              <TypeChip kind="issue" />
+            </div>
+          </header>
+
+          {transition.isError && (
+            <p className="mt-2 text-xs text-danger" data-testid="issue-transition-error">
+              {(transition.error as Error).message}
+            </p>
           )}
-          {targets.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => transition.mutate(t)}
-              disabled={transition.isPending}
-              className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-              data-testid={`issue-transition-${t}`}
-            >
-              {transitionLabel(t)}
-            </button>
-          ))}
+
+          {iss.description ? (
+            <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="issue-description">
+              {iss.description}
+            </p>
+          ) : (
+            <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+          )}
+
+          <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
         </div>
-      </header>
 
-      {transition.isError && (
-        <p className="mt-2 text-xs text-danger" data-testid="issue-transition-error">
-          {(transition.error as Error).message}
-        </p>
-      )}
-
-      {iss.description ? (
-        <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="issue-description">
-          {iss.description}
-        </p>
-      ) : (
-        <p className="mt-4 text-sm italic text-text-muted">No description.</p>
-      )}
-
-      <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
+        {/* right sidebar — status block + actions + metadata */}
+        <div className="shrink-0 overflow-y-auto lg:w-72">
+          <IssueTaskSidebar status={iss.status} actions={actions} meta={meta} />
+        </div>
+      </div>
 
       {editOpen && (
         <IssueEditModal projectId={projectId} issue={iss} onClose={() => setEditOpen(false)} />

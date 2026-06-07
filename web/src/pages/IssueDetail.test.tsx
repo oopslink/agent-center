@@ -53,7 +53,12 @@ describe('IssueDetail page', () => {
       expect(screen.getByRole('heading', { name: 'login bug' })).toBeInTheDocument(),
     );
     expect(screen.getByTestId('issue-description')).toHaveTextContent('cannot sign in');
-    expect(screen.getByTestId('issue-status')).toHaveTextContent('open');
+    // 5th task: status now drives the prominent StatusBlock in the sidebar.
+    const statusBlock = screen.getByTestId('status-block');
+    expect(statusBlock).toHaveAttribute('data-status', 'open');
+    expect(statusBlock).toHaveTextContent(/open/i);
+    // project + actions live in the right IssueTaskSidebar.
+    expect(screen.getByTestId('issuetask-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('issue-project-link')).toHaveAttribute(
       'href',
       '/projects/proj-a',
