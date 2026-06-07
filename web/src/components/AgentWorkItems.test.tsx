@@ -82,6 +82,24 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(chips).toContain('Paused');
   });
 
+  it('paused/queued chips carry both-mode AA classes (dark: variant + queued light fix)', async () => {
+    // v2.8.1 dark-mode AA fix: fixed mid-tone text on alpha-tint is dark-on-dark
+    // in dark mode (FAIL); add lighter dark: variants. queued also FAILed light
+    // (orange-600 3.21:1, pre-existing #228) → orange-700.
+    stub([wi('p1', 'paused'), wi('q1', 'queued')]);
+    wrap();
+    await screen.findByTestId('agent-workitems-summary');
+    const cls = (label: string) =>
+      screen
+        .getAllByTestId('agent-workitem-status')
+        .find((el) => el.textContent === label)
+        ?.querySelector('span')?.className ?? '';
+    expect(cls('Paused')).toContain('dark:text-violet-400');
+    expect(cls('Pending')).toContain('text-orange-700'); // light fix (not 600)
+    expect(cls('Pending')).toContain('dark:text-orange-400');
+    expect(cls('Pending')).not.toContain('text-orange-600');
+  });
+
   it('filters rows to the Paused bucket', async () => {
     stub([wi('a1', 'active'), wi('p1', 'paused'), wi('q1', 'queued')]);
     wrap();
