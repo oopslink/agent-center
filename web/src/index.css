@@ -93,3 +93,58 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * v2.8.1 UX polish (@oopslink): .markdown-body element styles. react-markdown +
+ * remark-gfm (#276) emit semantic <table>/<th>/<td>, <blockquote>, headings and
+ * inline <code> with no styling → browser defaults look flat (esp. borderless
+ * tables that read as plain text). These give tables visible structure and lift
+ * headings / quotes / inline code. Fenced code blocks are NOT affected — they
+ * render through <CollapsibleCodeBlock> (<pre><code>), excluded below.
+ */
+.markdown-body table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  margin: 0.5em 0;
+  font-size: 0.95em;
+}
+.markdown-body th {
+  background: var(--color-bg-subtle);
+  font-weight: 600;
+  padding: 0.4em 0.7em;
+  text-align: left;
+  border-bottom: 2px solid var(--color-border);
+}
+.markdown-body td {
+  padding: 0.4em 0.7em;
+  border-bottom: 1px solid var(--color-border);
+}
+.markdown-body tbody tr:nth-child(even) td {
+  background: var(--color-bg-subtle);
+}
+.markdown-body tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Restrained typographic polish — headings, blockquote, inline code. */
+.markdown-body h1 { font-size: 1.3em; font-weight: 700; margin: 0.6em 0 0.3em; }
+.markdown-body h2 { font-size: 1.15em; font-weight: 700; margin: 0.6em 0 0.3em; }
+.markdown-body h3 { font-size: 1.05em; font-weight: 600; margin: 0.5em 0 0.25em; }
+.markdown-body blockquote {
+  border-left: 3px solid var(--color-border-strong);
+  padding-left: 0.75em;
+  margin: 0.5em 0;
+  color: var(--color-text-secondary);
+}
+/* Inline code only — fenced blocks are <pre><code> (CollapsibleCodeBlock), excluded. */
+.markdown-body :not(pre) > code {
+  background: var(--color-bg-subtle);
+  padding: 0.1em 0.3em;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
