@@ -116,6 +116,28 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
 	}, makeFailWork(cfg))
 
+	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
+	// optionally resume it later.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "pause_work",
+		Description: "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_work a different item). Resume it later with resume_paused_work. Use only when scheduling needs it — by default finish your current task first.",
+	}, makePauseWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "resume_paused_work",
+		Description: "Resume a previously paused work item (pick its id from list_my_paused_work) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
+	}, makeResumeWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_my_active_work",
+		Description: "List your currently-RUNNING work item(s). Call this at the start of your loop (on wake / after finishing a task): if you have an active item, resume/continue it (do NOT start a new one); if empty, call get_my_work to pick the next queued item.",
+	}, makeGetMyActiveWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_my_paused_work",
+		Description: "List your paused work items — the candidates you can resume_paused_work later.",
+	}, makeListMyPausedWork(cfg))
+
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_task_message",
 		Description: "Post a message into a task the calling agent participates in.",

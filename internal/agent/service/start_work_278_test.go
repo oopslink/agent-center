@@ -183,3 +183,72 @@ func TestFailWork_FreesActiveSlot(t *testing.T) {
 		t.Fatalf("after wi-2: active=%d want 1", got)
 	}
 }
+
+// v2.8.1 #278 PR4 scheduling: pause frees the single-active slot so the agent can
+// switch; resume re-acquires it (single-active-gated).
+func TestPauseWork_FreesSlotForSwitch(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	f.seedQueuedWI(t, id, "wi-1")
+	f.seedQueuedWI(t, id, "wi-2")
+
+	if err := f.svc.StartWork(ctx, id, "wi-1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.countActive(t, id); got != 1 {
+		t.Fatalf("after start wi-1: active=%d want 1", got)
+	}
+	// single-active: can't start wi-2 while wi-1 active
+	if err := f.svc.StartWork(ctx, id, "wi-2"); !errors.Is(err, agent.ErrAgentHasActiveWork) {
+		t.Fatalf("start wi-2 while busy err=%v want ErrAgentHasActiveWork", err)
+	}
+	// pause wi-1 → slot freed (paused not in single-active set)
+	if err := f.svc.PauseWork(ctx, id, "wi-1", "switching to wi-2"); err != nil {
+		t.Fatalf("pause wi-1: %v", err)
+	}
+	if got := f.countActive(t, id); got != 0 {
+		t.Fatalf("after pause: active=%d want 0 (slot freed)", got)
+	}
+	// now wi-2 can start
+	if err := f.svc.StartWork(ctx, id, "wi-2"); err != nil {
+		t.Fatalf("start wi-2 after pause: %v", err)
+	}
+	if got := f.countActive(t, id); got != 1 {
+		t.Fatalf("after start wi-2: active=%d want 1", got)
+	}
+}
+
+func TestResumeWork_SingleActiveGated(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	f.seedQueuedWI(t, id, "wi-1")
+	f.seedQueuedWI(t, id, "wi-2")
+
+	// wi-1 active → pause → wi-2 active; resume wi-1 must be gated (wi-2 active)
+	if err := f.svc.StartWork(ctx, id, "wi-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.PauseWork(ctx, id, "wi-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.StartWork(ctx, id, "wi-2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.ResumeWork(ctx, id, "wi-1"); !errors.Is(err, agent.ErrAgentHasActiveWork) {
+		t.Fatalf("resume wi-1 while wi-2 active err=%v want ErrAgentHasActiveWork", err)
+	}
+	// pause wi-2 → now resume wi-1 succeeds
+	if err := f.svc.PauseWork(ctx, id, "wi-2", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.ResumeWork(ctx, id, "wi-1"); err != nil {
+		t.Fatalf("resume wi-1 after pausing wi-2: %v", err)
+	}
+	if got := f.countActive(t, id); got != 1 {
+		t.Fatalf("after resume wi-1: active=%d want 1", got)
+	}
+}

@@ -14,8 +14,14 @@ import (
 // SpawnRequest is the daemon → adapter request describing how to invoke
 // the agent CLI (05-agent-adapters § 2).
 type SpawnRequest struct {
-	ExecutionID  string
-	Prompt       string
+	ExecutionID string
+	Prompt      string
+	// SystemPrompt (v2.8.1 #278 D PR4a) is an optional persistent system
+	// instruction appended at launch (claude --append-system-prompt). Unlike
+	// Prompt (the initial conversation turn), it is re-applied on EVERY launch
+	// (fresh/resume/crash-relaunch) and is NOT part of conversation history — so
+	// it is idempotent (never duplicated). Empty → no system prompt added.
+	SystemPrompt string
 	WorkingDir   string
 	SkillFiles   []string
 	AgentLogPath string

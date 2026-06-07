@@ -38,6 +38,11 @@ type Repository interface {
 type WorkItemRepository interface {
 	Save(ctx context.Context, w *AgentWorkItem) error
 	Update(ctx context.Context, w *AgentWorkItem) error
+	// UpdateCAS persists w only if its stored version still equals expectedVersion
+	// (optimistic lock). On a version conflict (a concurrent writer committed
+	// first, e.g. the reconciler released the item) → ErrWorkItemReassigned; a
+	// missing row → ErrWorkItemNotFound. v2.8.1 #278 PR4 race guard.
+	UpdateCAS(ctx context.Context, w *AgentWorkItem, expectedVersion int) error
 	FindByID(ctx context.Context, id string) (*AgentWorkItem, error)
 	// ListByAgent returns an agent's work items (queue + history).
 	ListByAgent(ctx context.Context, agentID AgentID) ([]*AgentWorkItem, error)

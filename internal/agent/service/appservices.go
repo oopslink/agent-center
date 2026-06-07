@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
@@ -170,8 +171,10 @@ func (s *Service) MarkAgentFailed(ctx context.Context, id agent.AgentID, msg str
 			return err
 		}
 		for _, wi := range wis {
-			if st := wi.Status(); st != agent.WorkItemActive && st != agent.WorkItemWaitingInput {
-				// Only IN-FLIGHT WorkItems cascade. A QUEUED WorkItem is deliberately
+			if st := wi.Status(); st != agent.WorkItemActive && st != agent.WorkItemWaitingInput && st != agent.WorkItemPaused {
+				// Only IN-FLIGHT WorkItems cascade (active / waiting_input / v2.8.1 #278
+				// paused — a paused item on a terminally-dead agent can't resume). A
+				// QUEUED WorkItem is deliberately
 				// LEFT queued (DEFERRED-WITH-TRIGGER, PM): it is unstarted + not
 				// session-bound, so its work is recoverable — failing it would wrongly
 				// kill work that could still run, and the owning agent is itself visibly
@@ -327,10 +330,74 @@ func (s *Service) FailWork(ctx context.Context, agentID agent.AgentID, workItemI
 		if wi.AgentID() != agentID {
 			return ErrWorkItemNotForAgent
 		}
+		expectedV := wi.Version()
 		if err := wi.Fail(now); err != nil {
 			return err
 		}
-		return s.workItems.Update(txCtx, wi)
+		// CAS race-guard (v2.8.1 #278 PR4): if the reconciler released this active
+		// item concurrently (version moved), the agent's fail loses cleanly →
+		// ErrWorkItemReassigned (agent pulls fresh) instead of a stale double-write.
+		return s.workItems.UpdateCAS(txCtx, wi, expectedV)
+	})
+}
+
+// PauseWork (v2.8.1 #278 D PR4 scheduling autonomy): the agent sets its active
+// work item aside (active→paused) to switch to another, RELEASING the single-
+// active slot so it can start_work/resume another. CAS-guarded: a concurrent
+// reconciler-release of the (active) item moves the version → ErrWorkItemReassigned
+// (agent pulls fresh). reason is recorded for observability. Ownership-guarded.
+func (s *Service) PauseWork(ctx context.Context, agentID agent.AgentID, workItemID, reason string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		expectedV := wi.Version()
+		if err := wi.Pause(now); err != nil { // active→paused
+			return err
+		}
+		slog.Info("agent paused work item",
+			"agent_id", string(agentID), "work_item_id", workItemID, "reason", reason)
+		return s.workItems.UpdateCAS(txCtx, wi, expectedV)
+	})
+}
+
+// ResumeWork (v2.8.1 #278 D PR4 scheduling autonomy): the agent resumes a paused
+// work item (paused→active), RE-ACQUIRING the single-active slot — single-active-
+// enforced like StartWork (HasActiveWorkItem pre-check → clean ErrAgentHasActiveWork
+// + DB UNIQUE atomic backstop). The agent must pause/finish its current active item
+// first. Ownership-guarded.
+func (s *Service) ResumeWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		active, err := s.workItems.HasActiveWorkItem(txCtx, agentID)
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork // finish/pause the current one first
+		}
+		if err := wi.Resume(now); err != nil { // paused→active
+			return err
+		}
+		if err := s.workItems.Update(txCtx, wi); err != nil {
+			if persistence.IsUniqueViolation(err) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return err
+		}
+		return nil
 	})
 }
 
@@ -437,6 +504,43 @@ func (s *Service) DeleteAgent(ctx context.Context, id agent.AgentID) error {
 // ListWorkItems returns an Agent's work items (queue + history).
 func (s *Service) ListWorkItems(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
 	return s.workItems.ListByAgent(ctx, id)
+}
+
+// GetMyActiveWork returns the agent's currently-ACTIVE work items (status active)
+// — the loop-boundary "do I already have a task in progress?" query the agent
+// calls (get_my_active_work MCP) before pulling new work (resume-first, v2.8.1
+// #278 D PR4). Single-active means ≤1; returned as a slice. waiting_input (parked
+// for a human) is intentionally NOT included — it is not a resumable in-progress
+// task.
+func (s *Service) GetMyActiveWork(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
+	all, err := s.workItems.ListByAgent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agent.AgentWorkItem, 0, 1)
+	for _, wi := range all {
+		if wi.Status() == agent.WorkItemActive {
+			out = append(out, wi)
+		}
+	}
+	return out, nil
+}
+
+// ListMyPausedWork returns the agent's PAUSED work items — the resume candidates
+// the agent lists (list_my_paused_work MCP) to pick one for resume_paused_work
+// (v2.8.1 #278 D PR4 scheduling autonomy).
+func (s *Service) ListMyPausedWork(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
+	all, err := s.workItems.ListByAgent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agent.AgentWorkItem, 0)
+	for _, wi := range all {
+		if wi.Status() == agent.WorkItemPaused {
+			out = append(out, wi)
+		}
+	}
+	return out, nil
 }
 
 // ListActivity returns an Agent's activity events newest-first (id DESC). v2.8
