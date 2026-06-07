@@ -68,6 +68,30 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(summary).toHaveTextContent('2 Blocked');
   });
 
+  it('maps paused → its own "Paused" bucket, count and chip (v2.8.1 #278 D scheduling)', async () => {
+    stub([wi('a1', 'active'), wi('p1', 'paused'), wi('p2', 'paused'), wi('q1', 'queued')]);
+    wrap();
+    const summary = await screen.findByTestId('agent-workitems-summary');
+    expect(summary).toHaveTextContent('4 Total');
+    expect(summary).toHaveTextContent('1 In Progress');
+    // paused is a distinct, visible bucket — NOT collapsed into pending/blocked.
+    expect(summary).toHaveTextContent('2 Paused');
+    expect(summary).toHaveTextContent('1 Pending');
+    // the row status chip shows the "Paused" label (not a bare "paused" fallback).
+    const chips = screen.getAllByTestId('agent-workitem-status').map((el) => el.textContent);
+    expect(chips).toContain('Paused');
+  });
+
+  it('filters rows to the Paused bucket', async () => {
+    stub([wi('a1', 'active'), wi('p1', 'paused'), wi('q1', 'queued')]);
+    wrap();
+    await screen.findByTestId('agent-workitems-summary');
+    fireEvent.change(screen.getByTestId('agent-workitems-filter-status'), { target: { value: 'paused' } });
+    const rows = screen.getAllByTestId('agent-workitem-row');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].getAttribute('data-status')).toBe('paused');
+  });
+
   it('renders the columns: short id TAIL (full on hover), Task type, "—" priority, mapped status', async () => {
     stub([wi('abcdef123456', 'active')]);
     wrap();

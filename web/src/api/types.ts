@@ -137,6 +137,7 @@ export interface AgentRef {
 export type WorkItemStatus =
   | 'queued'
   | 'active'
+  | 'paused' // v2.8.1 #278 D: agent paused this item to switch to another (scheduling autonomy)
   | 'waiting_input'
   | 'done'
   | 'failed'
