@@ -120,7 +120,9 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     );
   });
 
-  it('renders work items + pending issues from the fleet snapshot', async () => {
+  // v2.8.1 #281: work items + issues now live behind the Activity tablist. The
+  // default "All" tab shows the union; the dedicated tabs show one stream each.
+  it('renders work items + pending issues from the fleet snapshot in the Activity All tab', async () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json(
@@ -136,12 +138,24 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
       http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
     );
     wrap(<Environment />);
+    // Default tab = All → union of work items + issues shows immediately.
+    await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
+    expect(screen.getByText('task-1')).toBeInTheDocument();
+    expect(screen.getByText('Fix login')).toBeInTheDocument();
+    expect(screen.getAllByTestId('environment-activity-all-row')).toHaveLength(2);
+
+    // The dedicated Work Items tab shows the work-item rows.
+    fireEvent.click(screen.getByTestId('environment-activity-tab-work_items'));
     await waitFor(() => expect(screen.getByTestId('environment-workitem-row')).toBeInTheDocument());
     expect(screen.getByText('task-1')).toBeInTheDocument();
+
+    // The dedicated Issues tab shows the issue rows.
+    fireEvent.click(screen.getByTestId('environment-activity-tab-issues'));
+    await waitFor(() => expect(screen.getByTestId('environment-issue-row')).toBeInTheDocument());
     expect(screen.getByText('Fix login')).toBeInTheDocument();
   });
 
-  it('renders in-flight transfer sessions in the transfers section', async () => {
+  it('renders in-flight transfer sessions in the Activity Transfers tab', async () => {
     server.use(
       http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([]))),
       http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
@@ -167,11 +181,137 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
       ),
     );
     wrap(<Environment />);
+    // Transfers also appear in the default All stream.
+    await waitFor(() =>
+      expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument(),
+    );
+    // The dedicated Transfers tab shows the table.
+    fireEvent.click(screen.getByTestId('environment-activity-tab-transfers'));
     await waitFor(() => expect(screen.getByTestId('transfer-row')).toBeInTheDocument());
     const row = screen.getByTestId('transfer-row');
     expect(row).toHaveAttribute('data-scope', 'project');
     expect(row).toHaveTextContent('upload');
     expect(row).toHaveTextContent('project/p-1');
+  });
+
+  // v2.8.1 #281: stats strip — four big-number cells derived from the snapshots.
+  it('renders the four stats cells with derived counts', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          fleetSnapshot(
+            [
+              fleetWorker('w-1', { status: 'online' }),
+              fleetWorker('w-2', { status: 'offline' }),
+            ],
+            {
+              work_items: [
+                { work_item_id: 'wi-1', agent_id: 'bot-a', status: 'active' },
+                { work_item_id: 'wi-2', agent_id: 'bot-a', status: 'active' },
+              ],
+              pending_issues: [{ issue_id: 'iss-1', title: 'Fix login' }],
+            },
+          ),
+        ),
+      ),
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [
+            agent('bot-a', 'w-1', { lifecycle: 'running' }),
+            agent('bot-b', 'w-1', { lifecycle: 'stopped' }),
+          ],
+        }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() =>
+      expect(screen.getByTestId('environment-stat-workers-online-value')).toHaveTextContent('1'),
+    );
+    // Agents-Running counts only lifecycle==='running' and goes green when >0.
+    const running = screen.getByTestId('environment-stat-agents-running-value');
+    expect(running).toHaveTextContent('1');
+    expect(running.className).toContain('text-success');
+    expect(screen.getByTestId('environment-stat-work-items-value')).toHaveTextContent('2');
+    expect(screen.getByTestId('environment-stat-pending-issues-value')).toHaveTextContent('1');
+  });
+
+  it('renders 0 (gray) for Agents Running when none are running', async () => {
+    server.use(
+      http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([fleetWorker('w-1')]))),
+      http.get('/api/agents', () =>
+        HttpResponse.json({ agents: [agent('bot-a', 'w-1', { lifecycle: 'stopped' })] }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() =>
+      expect(screen.getByTestId('environment-stat-agents-running-value')).toHaveTextContent('0'),
+    );
+    const running = screen.getByTestId('environment-stat-agents-running-value');
+    expect(running.className).toContain('text-text-muted');
+  });
+
+  // v2.8.1 #281: worker card has three sub-sections (header / CLI / Agents) and
+  // a status dot; agent rows carry CLI + model badges.
+  it('renders the worker status dot and per-agent CLI + model badges', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'online' })])),
+      ),
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent('bot-a', 'w-1', { cli: 'claude-code', model: 'claude-sonnet-4' })],
+        }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-agent')).toBeInTheDocument());
+    const cli = screen.getByTestId('environment-agent-cli');
+    expect(cli).toHaveAttribute('data-cli', 'claude-code');
+    expect(cli).toHaveTextContent('claude-code');
+    const model = screen.getByTestId('environment-agent-model');
+    expect(model).toHaveAttribute('data-model', 'claude-sonnet-4');
+    expect(model).toHaveTextContent('claude-sonnet-4');
+    // status surface still present (dot + uppercase text).
+    expect(screen.getByTestId('environment-worker-status')).toHaveAttribute('data-status', 'online');
+  });
+
+  // v2.8.1 #281: Activity empty state — clock icon + copy when the active tab's
+  // stream is empty.
+  it('shows the Activity empty state when every stream is empty', async () => {
+    server.use(
+      http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([fleetWorker('w-1')]))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() =>
+      expect(screen.getByTestId('environment-activity-empty')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('environment-activity-empty')).toHaveTextContent('No active operations');
+  });
+
+  // WAI-ARIA tablist contract (#273 pattern reused).
+  it('exposes the Activity tablist with aria-selected and arrow-key roving', async () => {
+    server.use(
+      http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([fleetWorker('w-1')]))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-activity-tabs')).toBeInTheDocument());
+    const all = screen.getByTestId('environment-activity-tab-all');
+    expect(all).toHaveAttribute('role', 'tab');
+    expect(all).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByTestId('environment-activity-tab-issues'));
+    await waitFor(() =>
+      expect(screen.getByTestId('environment-activity-tab-issues')).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    );
   });
 
   // #169: native window.confirm → ConfirmModal for worker remove + install re-mint.
