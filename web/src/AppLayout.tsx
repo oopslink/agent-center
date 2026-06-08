@@ -451,7 +451,7 @@ function Sidebar({
                               'flex flex-1 items-center rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
                               isCollapsed ? 'justify-center' : 'justify-between',
                               isActive
-                                ? 'bg-brand text-white'
+                                ? 'bg-brand-hover text-white'
                                 : 'text-text-primary hover:bg-bg-subtle',
                             ].join(' ')
                           }
@@ -510,7 +510,7 @@ function Sidebar({
                                   [
                                     'block truncate rounded px-2 py-0.5 text-xs',
                                     isActive
-                                      ? 'bg-brand text-white'
+                                      ? 'bg-brand-hover text-white'
                                       : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
                                   ].join(' ')
                                 }
@@ -643,7 +643,7 @@ function SidebarTop({
         >
           <span
             aria-hidden="true"
-            className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-brand text-white"
+            className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-brand-hover text-white"
           >
             <OrgIcon />
           </span>
@@ -1063,7 +1063,7 @@ function SidebarFooter({
               'flex items-center rounded px-2 py-1.5 text-sm',
               collapsed ? 'justify-center' : 'gap-2',
               isActive
-                ? 'bg-brand text-white'
+                ? 'bg-brand-hover text-white'
                 : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
             ].join(' ')
           }
@@ -1171,7 +1171,7 @@ function ThemeSegmented({
             className={[
               'flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-xs font-medium motion-safe:transition-colors',
               selected
-                ? 'bg-brand text-white shadow-sm'
+                ? 'bg-brand-hover text-white shadow-sm'
                 : 'text-text-secondary hover:text-text-primary',
             ].join(' ')}
           >
