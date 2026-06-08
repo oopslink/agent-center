@@ -577,6 +577,59 @@ func (s *Server) pmDiscardTaskHandler(w http.ResponseWriter, r *http.Request) {
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.DiscardTask(r.Context(), id, c) })
 }
 
+// pmSetTaskStatusHandler — POST /tasks/{task_id}/status {status}: free status set
+// (v2.8.1 @oopslink: any VALID target, NO adjacency — the Change-status menu
+// offers the full enum). 400 on an invalid enum value; 404/403 via the resolver.
+func (s *Server) pmSetTaskStatusHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.SetTaskStatus(r.Context(), t.ID(), pm.TaskStatus(req.Status), caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetTask(r.Context(), t.ID())
+	writeJSON(w, http.StatusOK, pmTaskMap(got))
+}
+
+// pmSetIssueStatusHandler — POST /issues/{issue_id}/status {status}: free status
+// set (v2.8.1, any VALID target, NO adjacency). Symmetric with the task path.
+func (s *Server) pmSetIssueStatusHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	issueID := pm.IssueID(r.PathValue("issue_id"))
+	i, err := d.PM.GetIssue(r.Context(), issueID)
+	if err != nil || i.ProjectID() != p.ID() {
+		writeError(w, http.StatusNotFound, "not_found", "issue not found in this project")
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.SetIssueStatus(r.Context(), issueID, pm.IssueStatus(req.Status), caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetIssue(r.Context(), issueID)
+	writeJSON(w, http.StatusOK, pmIssueMap(got))
+}
+
 func (s *Server) pmUnassignTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.UnassignTask(r.Context(), id, c) })

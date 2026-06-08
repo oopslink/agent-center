@@ -283,6 +283,18 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 	})
 }
 
+// SetTaskStatus sets the Task to any VALID status with NO adjacency enforcement
+// (v2.8.1 @oopslink: task state = the agent's self-reported progress; the center
+// does not gate workflow transitions — the Change-status menu offers the full
+// enum). Project-member gated; emits pm.task.state_changed (generic) so the
+// participant projector + downstream stay in sync. The typed transitions
+// (Start/Complete/Block/...) remain for the agent's structured self-reports.
+func (s *Service) SetTaskStatus(ctx context.Context, taskID pm.TaskID, target pm.TaskStatus, actor pm.IdentityRef) error {
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+		return t.SetStatus(target, now)
+	}, "")
+}
+
 // emitTaskAssignEvent emits an assign/reassign event carrying the current
 // assignee, previous assignee, and the recomputed effective subscriber set.
 func (s *Service) emitTaskAssignEvent(ctx context.Context, t *pm.Task, evt, previous string) error {

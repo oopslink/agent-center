@@ -180,7 +180,8 @@ func (i *Issue) SetDescription(desc string, at time.Time) {
 	i.touch(at)
 }
 
-// Transition moves the Issue to a new status, enforcing the state machine.
+// Transition moves the Issue to a new status, enforcing the state machine
+// (adjacency). Retained for any caller that wants the enforced graph.
 func (i *Issue) Transition(to IssueStatus, at time.Time) error {
 	if !to.IsValid() {
 		return ErrInvalidStatus
@@ -192,6 +193,22 @@ func (i *Issue) Transition(to IssueStatus, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	i.status = to
+	i.touch(at)
+	return nil
+}
+
+// SetStatus sets the status to any VALID target with NO adjacency enforcement
+// (v2.8.1 @oopslink: state = self-reported progress, the center does not enforce
+// workflow rules). Only enum validity is checked; the Change-status menu offers
+// the full enum and any state is reachable.
+func (i *Issue) SetStatus(target IssueStatus, at time.Time) error {
+	if !target.IsValid() {
+		return ErrInvalidStatus
+	}
+	if target == i.status {
+		return nil
+	}
+	i.status = target
 	i.touch(at)
 	return nil
 }

@@ -316,6 +316,25 @@ func (t *Task) Verify(by IdentityRef, at time.Time) error {
 // Discard moves open/running/blocked→discarded (terminal; was "Cancel" pre-v2.8.1).
 func (t *Task) Discard(at time.Time) error { return t.simpleTransition(TaskDiscarded, at) }
 
+// SetStatus sets the status to any VALID target with NO adjacency enforcement
+// (v2.8.1 @oopslink: "task state = agent's self-reported progress, the center does
+// not enforce workflow rules"). The only check is enum validity; any valid state
+// is reachable from any state (the Change-status menu offers the full enum). The
+// typed transitions (Start/Block/Complete/Verify/Discard/Reopen) remain for the
+// agent's structured self-reports + the system projector, which carry their own
+// side-effects (blocked reason, completedBy); SetStatus is the free user override.
+func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
+	if !target.IsValid() {
+		return ErrInvalidStatus
+	}
+	if target == t.status {
+		return nil // no-op (idempotent); avoids a spurious version bump
+	}
+	t.status = target
+	t.touch(at)
+	return nil
+}
+
 // Reopen moves completed/verified→reopened.
 func (t *Task) Reopen(at time.Time) error { return t.simpleTransition(TaskReopened, at) }
 
