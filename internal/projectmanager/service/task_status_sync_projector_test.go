@@ -172,16 +172,21 @@ func TestTaskStatusSync_B3AgentDeathBlocksRunningTask(t *testing.T) {
 	}
 }
 
-func TestTaskStatusSync_L2FailedDoesNotBlock(t *testing.T) {
+// v2.8.1 #278 (b) fix: an L2 single-turn failure (failed WITHOUT cause, e.g.
+// rate_limit) on a RUNNING task now ALSO blocks it — closing the limbo gap where
+// the task stayed running while its WorkItem was failed (UI lied "running"). Both
+// fail sources (agent_death AND no-cause) → Task.Block, since the projector keys
+// on the WI failed transition, not a specific cause.
+func TestTaskStatusSync_L2FailedBlocksRunningTask(t *testing.T) {
 	svc, proj, _, ctx := taskSyncSetup(t)
 	tid := assignedTask(t, svc, ctx)
 	_ = proj.Project(ctx, transitionEvent(t, "E-1", tid, "active")) // →running
-	// L2 single-turn failure = failed WITHOUT cause → task must NOT flip.
+	// L2 single-turn failure = failed WITHOUT cause → must block (no more limbo).
 	if err := proj.Project(ctx, transitionEventCause(t, "E-2", tid, "failed", "")); err != nil {
 		t.Fatal(err)
 	}
-	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskRunning {
-		t.Fatalf("L2 single-turn failure must NOT block (stays running), got %s", got)
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskBlocked {
+		t.Fatalf("L2 single-turn failure on a running task must block (no limbo), got %s", got)
 	}
 }
 
