@@ -11,6 +11,7 @@ import (
 	agentbc "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/identity"
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -405,6 +406,16 @@ func (s *Server) agentDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		mapAgentError(w, err)
 		return
+	}
+	// v2.8.1: audit a force-delete (the original force-delete spec's "emit
+	// force_deleted event"). Best-effort — never fails the request.
+	if force && d.EventSink != nil {
+		_, _ = d.EventSink.Emit(r.Context(), observability.EmitCommand{
+			EventType: observability.EventType("agent.force_deleted"),
+			Refs:      observability.EventRefs{AgentID: string(a.ID()), OrganizationID: orgID, MemberID: memberID},
+			Actor:     d.Actor,
+			Payload:   map[string]any{"force": true},
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": agentFacingID(a)})
 }

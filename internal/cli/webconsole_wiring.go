@@ -69,6 +69,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 	deps := api.HandlerDeps{
 		DB:                  a.DB,
 		Actor:               a.operatorActor(),
+		EventSink:           a.Sink,
 		ConvRepo:            a.ConvRepo,
 		MsgRepo:             a.MsgRepo,
 		MessageWriter:       a.MessageWriter,
@@ -144,6 +145,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	deps := api.HandlerDeps{
 		DB:                  a.DB,
 		Actor:               a.operatorActor(),
+		EventSink:           a.Sink,
 		ConvRepo:            a.ConvRepo,
 		MsgRepo:             a.MsgRepo,
 		MessageWriter:       a.MessageWriter,

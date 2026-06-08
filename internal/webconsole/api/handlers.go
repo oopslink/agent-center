@@ -35,6 +35,9 @@ import (
 type HandlerDeps struct {
 	DB                 *sql.DB
 	Actor              observability.Actor
+	// EventSink emits observability/audit events (v2.8.1: agent/worker
+	// force_deleted). Optional — nil in headless/test wirings → emit is skipped.
+	EventSink          *observability.EventSink
 	ConvRepo           conversation.ConversationRepository
 	MsgRepo            conversation.MessageRepository
 	MessageWriter      *convservice.MessageWriter
@@ -2037,6 +2040,15 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "remove_worker_failed", err.Error())
 		return
+	}
+	// v2.8.1: audit a force-delete (spec's "emit force_deleted event"). Best-effort.
+	if force && d.EventSink != nil {
+		_, _ = d.EventSink.Emit(r.Context(), observability.EmitCommand{
+			EventType: observability.EventType("worker.force_deleted"),
+			Refs:      observability.EventRefs{WorkerID: id},
+			Actor:     d.Actor,
+			Payload:   map[string]any{"force": true, "unbound_agents": unboundAgents},
+		})
 	}
 	// v2.8.1: 200 with {ok, unbound_agents} (was 204) so the force-delete FE can
 	// surface "N agent(s) unbound". A plain (non-force, no bound agents) remove
