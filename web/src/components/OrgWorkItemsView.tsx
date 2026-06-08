@@ -1,6 +1,6 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
-import { StatusChip, idHandle, shortDate } from '@/components/workItemDisplay';
+import { StatusChip, idHandle, shortDate, statusSolidClass, statusDotClass } from '@/components/workItemDisplay';
 import { useProjects } from '@/api/projects';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import type { OrgWorkItem } from '@/api/types';
@@ -43,13 +43,73 @@ const EMPTY_DATE_RANGE: DateRange = {
   updated_before: '',
 };
 
-// The four date pickers, in display order. label = a11y text; testid = stable hook.
-const DATE_FIELDS: { key: keyof DateRange; label: string; testid: string }[] = [
-  { key: 'created_after', label: 'Created after', testid: 'org-filter-created-after' },
-  { key: 'created_before', label: 'Created before', testid: 'org-filter-created-before' },
-  { key: 'updated_after', label: 'Updated after', testid: 'org-filter-updated-after' },
-  { key: 'updated_before', label: 'Updated before', testid: 'org-filter-updated-before' },
+// The four date-range keys (used to detect "any date set").
+const DATE_KEYS: (keyof DateRange)[] = [
+  'created_after',
+  'created_before',
+  'updated_after',
+  'updated_before',
 ];
+
+// Per-field a11y label + stable testid (kept identical to the old layout so the
+// existing date hooks/tests don't churn).
+const DATE_META: Record<keyof DateRange, { label: string; testid: string }> = {
+  created_after: { label: 'Created after', testid: 'org-filter-created-after' },
+  created_before: { label: 'Created before', testid: 'org-filter-created-before' },
+  updated_after: { label: 'Updated after', testid: 'org-filter-updated-after' },
+  updated_before: { label: 'Updated before', testid: 'org-filter-updated-before' },
+};
+
+// One native date input. lang="en" → the browser shows the `yyyy-mm-dd`
+// placeholder, NOT the viewer's locale (e.g. the Chinese 年/月/日). The raw
+// value stays "YYYY-MM-DD"; the local→RFC3339-offset conversion (the tz 命门)
+// happens in the parent page via localDateToRFC3339, untouched here.
+function DateInput({
+  field,
+  dateRange,
+  onDateRangeChange,
+}: {
+  field: keyof DateRange;
+  dateRange: DateRange;
+  onDateRangeChange: (d: DateRange) => void;
+}): React.ReactElement {
+  const meta = DATE_META[field];
+  return (
+    <input
+      type="date"
+      lang="en"
+      data-testid={meta.testid}
+      aria-label={meta.label}
+      value={dateRange[field]}
+      onChange={(e) => onDateRangeChange({ ...dateRange, [field]: e.target.value })}
+      className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
+    />
+  );
+}
+
+// An inline "Label [start] → [end]" date pair (Created or Updated).
+function DatePair({
+  groupLabel,
+  startKey,
+  endKey,
+  dateRange,
+  onDateRangeChange,
+}: {
+  groupLabel: string;
+  startKey: keyof DateRange;
+  endKey: keyof DateRange;
+  dateRange: DateRange;
+  onDateRangeChange: (d: DateRange) => void;
+}): React.ReactElement {
+  return (
+    <span role="group" aria-label={groupLabel} className="inline-flex items-center gap-1.5">
+      <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">{groupLabel}</span>
+      <DateInput field={startKey} dateRange={dateRange} onDateRangeChange={onDateRangeChange} />
+      <span aria-hidden="true" className="text-text-muted">→</span>
+      <DateInput field={endKey} dateRange={dateRange} onDateRangeChange={onDateRangeChange} />
+    </span>
+  );
+}
 
 export function OrgWorkItemsView({
   kind,
@@ -93,7 +153,7 @@ export function OrgWorkItemsView({
   // Assignee picker source (single-select) — org members (users + agents).
   const members = useMembers();
   const memberList = members.data ?? [];
-  const anyDateSet = DATE_FIELDS.some((f) => dateRange[f.key] !== '');
+  const anyDateSet = DATE_KEYS.some((k) => dateRange[k] !== '');
   // "default view" (empty-state copy) = no status, project, assignee OR date filter.
   const defaultView =
     selectedStatuses.length === 0 && selectedProjects.length === 0 && assignee === '' && !anyDateSet;
@@ -108,10 +168,12 @@ export function OrgWorkItemsView({
   };
   const toggleStatus = (s: string) =>
     onStatusesChange(selectedStatuses.includes(s) ? selectedStatuses.filter((x) => x !== s) : [...selectedStatuses, s]);
-  const toggleProject = (id: string) =>
-    onProjectsChange(
-      selectedProjects.includes(id) ? selectedProjects.filter((x) => x !== id) : [...selectedProjects, id],
-    );
+  // Project picker is now a SINGLE <select> (mockup) but the parent still holds a
+  // string[] (so the API param contract — repeated `project=<id>` — is unchanged).
+  // We surface the lone selected id and wrap a single pick back into a 1- or
+  // 0-element array. '' = All projects (no param).
+  const selectedProject = selectedProjects[0] ?? '';
+  const onProjectChange = (id: string) => onProjectsChange(id ? [id] : []);
   // Build the prefixed identity ref for an assignee option. identity_id may arrive
   // bare ("user-ab12") or already prefixed ("user:user-ab12"); normalize then
   // re-prefix with the member's kind so the backend gets a stable "<kind>:<id>".
@@ -135,102 +197,127 @@ export function OrgWorkItemsView({
             + New {kind === 'issue' ? 'Issue' : 'Task'}
           </button>
         </div>
-        {/* FilterBar — status multi-select; empty = default (all open, terminal excluded). */}
-        <div className="flex flex-wrap items-center gap-1.5" data-testid="org-workitems-filterbar">
-          <span className="text-[0.625rem] uppercase tracking-wide text-text-muted">Status</span>
-          {STATUS_OPTIONS[kind].map((s) => {
-            const on = selectedStatuses.includes(s);
-            return (
-              <button
-                key={s}
-                type="button"
-                data-testid={`org-filter-status-${s}`}
-                aria-pressed={on}
-                onClick={() => toggleStatus(s)}
-                className={`rounded px-2 py-0.5 text-xs ${on ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-border-base'}`}
-              >
-                {s.replace(/_/g, ' ')}
-              </button>
-            );
-          })}
-          {/* Project picker — MULTI-select chip toggles (same idiom as status).
-              Selected = array of project ids; sent as repeated `project=<id>`. */}
-          <span
-            role="group"
-            aria-label="Project"
-            className="flex flex-wrap items-center gap-1.5"
-            data-testid="org-filter-project"
-          >
-            <span className="text-[0.625rem] uppercase tracking-wide text-text-muted">Project</span>
-            {projectList.map((p) => {
-              const on = selectedProjects.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  data-testid={`org-filter-project-${p.id}`}
-                  aria-pressed={on}
-                  onClick={() => toggleProject(p.id)}
-                  className={`rounded px-2 py-0.5 text-xs ${on ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-border-base'}`}
-                >
-                  {p.name}
-                </button>
-              );
-            })}
-          </span>
-          {/* Assignee picker — SINGLE-select <select> (keyboard-accessible). Each
-              option carries a textual kind cue ("· agent" / "· user") so agents vs
-              users are distinguishable without color (Avatar #211 discipline).
-              Value = the prefixed identity ref ("<kind>:<id>"); '' = Any. */}
-          <label className="flex items-center gap-1 text-[0.625rem] uppercase tracking-wide text-text-muted">
-            <span>Assignee</span>
-            <select
-              data-testid="org-filter-assignee"
-              aria-label="Assignee"
-              value={assignee}
-              onChange={(e) => onAssigneeChange(e.target.value)}
-              className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
-            >
-              <option value="">Any</option>
-              {memberList.map((m) => {
-                const ref = memberRef(m);
-                const name = m.display_name || normalizeIdentityRef(m.identity_id);
+        {/* FilterBar (@oopslink REV4 mockup) — a clean 3-region card:
+            Row 1: STATUS toggle chips + PROJECT single-select + ASSIGNEE single-select.
+            Row 2: DATE RANGE = Created/Updated inline start→end pairs + always-on Clear. */}
+        <div
+          className="space-y-2 rounded-md border border-border-base bg-bg-subtle/40 p-2.5"
+          data-testid="org-workitems-filterbar"
+        >
+          {/* Row 1 — status chips, then the two single-selects (right-aligned). */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">Status</span>
+              {STATUS_OPTIONS[kind].map((s) => {
+                const on = selectedStatuses.includes(s);
+                // SELECTED = solid REV4 fill + white text; UNSELECTED = light bg +
+                // a REV4 color DOT + dark text + border. Distinguished by FILL +
+                // aria-pressed + the dot — never color alone.
                 return (
-                  <option key={ref} value={ref}>
-                    {name} · {memberKind(m)}
-                  </option>
+                  <button
+                    key={s}
+                    type="button"
+                    data-testid={`org-filter-status-${s}`}
+                    aria-pressed={on}
+                    onClick={() => toggleStatus(s)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs ${
+                      on
+                        ? statusSolidClass(s)
+                        : 'border border-border-base bg-bg-base text-text-secondary hover:bg-bg-subtle'
+                    }`}
+                  >
+                    {!on && (
+                      <span
+                        aria-hidden="true"
+                        className={`h-2 w-2 rounded-full ${statusDotClass(s)}`}
+                      />
+                    )}
+                    {s.replace(/_/g, ' ')}
+                  </button>
                 );
               })}
-            </select>
-          </label>
-          {/* #258 date-range pickers — Created/Updated after/before. Each optional
-              and independent; any combination may be set. */}
-          {DATE_FIELDS.map((f) => (
-            <label
-              key={f.key}
-              className="flex items-center gap-1 text-[0.625rem] uppercase tracking-wide text-text-muted"
-            >
-              <span>{f.label}</span>
-              <input
-                type="date"
-                data-testid={f.testid}
-                aria-label={f.label}
-                value={dateRange[f.key]}
-                onChange={(e) => onDateRangeChange({ ...dateRange, [f.key]: e.target.value })}
-                className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
-              />
+            </div>
+            {/* Project picker — SINGLE <select> per mockup (was multi-chip). Value =
+                lone project id ('' = All); parent still keeps a string[] so the
+                repeated `project=<id>` API param is unchanged. */}
+            <label className="flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
+              <span>Project</span>
+              <select
+                data-testid="org-filter-project"
+                aria-label="Project"
+                value={selectedProject}
+                onChange={(e) => onProjectChange(e.target.value)}
+                className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
+              >
+                <option value="">All projects</option>
+                {projectList.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
             </label>
-          ))}
-          {anyFilter && (
+            {/* Assignee picker — SINGLE-select <select> (keyboard-accessible). Each
+                option carries a textual kind cue ("· agent" / "· user") so agents vs
+                users are distinguishable without color (Avatar #211 discipline).
+                Value = the prefixed identity ref ("<kind>:<id>"); '' = Any. */}
+            <label className="flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
+              <span>Assignee</span>
+              <select
+                data-testid="org-filter-assignee"
+                aria-label="Assignee"
+                value={assignee}
+                onChange={(e) => onAssigneeChange(e.target.value)}
+                className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
+              >
+                <option value="">Any</option>
+                {memberList.map((m) => {
+                  const ref = memberRef(m);
+                  const name = m.display_name || normalizeIdentityRef(m.identity_id);
+                  return (
+                    <option key={ref} value={ref}>
+                      {name} · {memberKind(m)}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          </div>
+          {/* Row 2 — DATE RANGE: two inline start→end pairs (Created / Updated),
+              then the always-visible Clear pushed to the right. All 4 pickers stay
+              functional + lang="en" (native yyyy-mm-dd placeholder, not 年/月/日). */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">Date range</span>
+            <DatePair
+              groupLabel="Created"
+              startKey="created_after"
+              endKey="created_before"
+              dateRange={dateRange}
+              onDateRangeChange={onDateRangeChange}
+            />
+            <span aria-hidden="true" className="text-text-muted">|</span>
+            <DatePair
+              groupLabel="Updated"
+              startKey="updated_after"
+              endKey="updated_before"
+              dateRange={dateRange}
+              onDateRangeChange={onDateRangeChange}
+            />
+            {/* Clear — ASCII x glyph (multiplication sign ×, aria-hidden) + text;
+                ALWAYS rendered (not conditionally hidden). Disabled when nothing
+                is active so it never misleads, but stays in the DOM. NOT an emoji
+                (no-emoji-icons guardrail). */}
             <button
               type="button"
               data-testid="org-filter-clear"
               onClick={clearAll}
-              className="text-xs text-accent hover:underline"
+              disabled={!anyFilter}
+              className="ml-auto inline-flex items-center gap-1 text-xs text-accent hover:underline disabled:text-text-muted disabled:no-underline disabled:opacity-60"
             >
-              Clear
+              <span aria-hidden="true">&times;</span>
+              Clear filters
             </button>
-          )}
+          </div>
         </div>
       </header>
 

@@ -20,21 +20,40 @@ import type React from 'react';
 //   reopened              → amber (back in play)
 // blocked uses the custom `blockedred` token so the a11y guardrail's raw
 // bg-red-/text-red- ban stays green.
-const STATUS_CLS: Record<string, string> = {
-  open: 'bg-sky-600 text-white',
-  in_progress: 'bg-blue-600 text-white',
-  running: 'bg-blue-600 text-white',
-  blocked: 'bg-blockedred text-white',
-  resolved: 'bg-green-600 text-white',
-  completed: 'bg-green-600 text-white',
-  verified: 'bg-teal-600 text-white',
-  closed: 'bg-slate-500 text-white',
-  discarded: 'bg-zinc-700 text-white',
-  reopened: 'bg-amber-600 text-white',
+//
+// SINGLE SOURCE of the REV4 status→color mapping. `STATUS_BG_CLS` is the bare
+// background-color class for each status (literal strings so Tailwind's content
+// scan keeps them). The solid StatusChip layers `text-white` on top via
+// `statusSolidClass`; the FilterBar status chips reuse `STATUS_BG_CLS` for both
+// the solid-selected fill AND the unselected color dot (●) — no hex duplication.
+export const STATUS_BG_CLS: Record<string, string> = {
+  open: 'bg-sky-600',
+  in_progress: 'bg-blue-600',
+  running: 'bg-blue-600',
+  blocked: 'bg-blockedred',
+  resolved: 'bg-green-600',
+  completed: 'bg-green-600',
+  verified: 'bg-teal-600',
+  closed: 'bg-slate-500',
+  discarded: 'bg-zinc-700',
+  reopened: 'bg-amber-600',
 };
 
+// statusSolidClass — the saturated REV4 fill + white text for a status (the
+// StatusChip / selected-FilterBar-chip look). Unknown → neutral subtle.
+export function statusSolidClass(status: string): string {
+  const bg = STATUS_BG_CLS[status];
+  return bg ? `${bg} text-white` : 'bg-bg-subtle text-text-muted';
+}
+
+// statusDotClass — the bare background-color for a status used as a small color
+// dot (●) on an unselected/light chip. Unknown → neutral muted.
+export function statusDotClass(status: string): string {
+  return STATUS_BG_CLS[status] ?? 'bg-text-muted';
+}
+
 export function StatusChip({ status }: { status: string }): React.ReactElement {
-  const cls = STATUS_CLS[status] ?? 'bg-bg-subtle text-text-muted';
+  const cls = statusSolidClass(status);
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide ${cls}`}
