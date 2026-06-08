@@ -219,7 +219,7 @@ func (s *StatsService) aggregateIssues(ctx context.Context, res StatsResult, sin
 	// this file). pm.Issue has no OpenedAt → the `since` window uses CreatedAt.
 	statuses := []pm.IssueStatus{
 		pm.IssueOpen, pm.IssueInProgress, pm.IssueReopened,
-		pm.IssueResolved, pm.IssueClosed, pm.IssueWithdrawn,
+		pm.IssueResolved, pm.IssueClosed, pm.IssueDiscarded,
 	}
 	items, err := s.deps.PMIssues.FindByStatuses(ctx, statuses, 1000)
 	if err != nil {

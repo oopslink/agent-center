@@ -80,14 +80,14 @@ func taskStatus(t *testing.T, svc *Service, ctx context.Context, tid pm.TaskID) 
 func TestTaskStatusSync_ActiveStartsAssignedTask(t *testing.T) {
 	svc, proj, _, ctx := taskSyncSetup(t)
 	tid := assignedTask(t, svc, ctx)
-	if taskStatus(t, svc, ctx, tid) != pm.TaskAssigned {
-		t.Fatalf("precondition: task should be assigned, got %s", taskStatus(t, svc, ctx, tid))
+	if taskStatus(t, svc, ctx, tid) != pm.TaskOpen {
+		t.Fatalf("precondition: task should be open (assignee is metadata), got %s", taskStatus(t, svc, ctx, tid))
 	}
 	if err := proj.Project(ctx, transitionEvent(t, "E-1", tid, "active")); err != nil {
 		t.Fatal(err)
 	}
 	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskRunning {
-		t.Fatalf("active transition must move assigned task → running, got %s", got)
+		t.Fatalf("active transition must move open task → running, got %s", got)
 	}
 }
 
@@ -126,15 +126,15 @@ func TestTaskStatusSync_WakeAlreadyRunningNoop(t *testing.T) {
 func TestTaskStatusSync_NonActiveIgnored(t *testing.T) {
 	svc, proj, _, ctx := taskSyncSetup(t)
 	tid := assignedTask(t, svc, ctx)
-	// done/failed/etc are not the active→Start trigger → task stays assigned (#2
+	// done/failed/etc are not the active→Start trigger → task stays open (#2
 	// active→Start scope; done is owned by complete_task, B3 handled separately).
 	for _, st := range []string{"done", "failed", "queued", "canceled", "superseded", "waiting_input"} {
 		if err := proj.Project(ctx, transitionEvent(t, "E-"+st, tid, st)); err != nil {
 			t.Fatalf("status %s: %v", st, err)
 		}
 	}
-	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskAssigned {
-		t.Fatalf("non-active transitions must not change task status; want assigned, got %s", got)
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskOpen {
+		t.Fatalf("non-active transitions must not change task status; want open, got %s", got)
 	}
 }
 
@@ -144,7 +144,7 @@ func TestTaskStatusSync_NonMatchingEventIgnored(t *testing.T) {
 	if err := proj.Project(ctx, outbox.Event{ID: "E-x", EventType: "pm.task.assigned", Payload: "{}"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskAssigned {
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskOpen {
 		t.Fatalf("unrelated event must be ignored, got %s", got)
 	}
 }
@@ -190,15 +190,15 @@ func TestTaskStatusSync_L2FailedBlocksRunningTask(t *testing.T) {
 	}
 }
 
-func TestTaskStatusSync_B3OnAssignedTaskLeavesAssigned(t *testing.T) {
+func TestTaskStatusSync_B3OnOpenTaskLeavesOpen(t *testing.T) {
 	svc, proj, _, ctx := taskSyncSetup(t)
-	tid := assignedTask(t, svc, ctx) // never activated → task still assigned
-	// Agent dies before activation: assigned→blocked is illegal → leave assigned
+	tid := assignedTask(t, svc, ctx) // never activated → task still open
+	// Agent dies before activation: open→blocked is illegal → leave open
 	// (edge per 口径; agent-level failed already surfaces, user reassigns).
 	if err := proj.Project(ctx, transitionEventCause(t, "E-1", tid, "failed", agentpkg.WorkItemCauseAgentDeath)); err != nil {
 		t.Fatal(err)
 	}
-	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskAssigned {
-		t.Fatalf("B3 on a not-yet-running task must leave it assigned (no illegal block), got %s", got)
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskOpen {
+		t.Fatalf("B3 on a not-yet-running task must leave it open (no illegal block), got %s", got)
 	}
 }

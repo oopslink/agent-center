@@ -572,9 +572,9 @@ func (s *Server) pmVerifyTaskHandler(w http.ResponseWriter, r *http.Request) {
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.VerifyTask(r.Context(), id, c) })
 }
 
-func (s *Server) pmCancelTaskHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) pmDiscardTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.CancelTask(r.Context(), id, c) })
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.DiscardTask(r.Context(), id, c) })
 }
 
 func (s *Server) pmUnassignTaskHandler(w http.ResponseWriter, r *http.Request) {

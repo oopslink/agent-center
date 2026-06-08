@@ -6,45 +6,50 @@ import (
 	"time"
 )
 
-// TaskStatus enum + state machine (plan §2.2):
+// TaskStatus enum + state machine (v2.8.1 model fix — @oopslink: "assigned 和
+// open 不是一个层级的状态，assigned 还没开始做，还是 open 状态"):
 //
-//	open → assigned → running → blocked → running
+//	open → running → blocked → running
 //	running → completed → verified
-//	open/assigned/running/blocked → canceled
+//	open/running/blocked → discarded (terminal)
 //	completed/verified → reopened → open
-//	assigned → open  (unassign)
+//
+// The former "assigned" STATE is removed: assignee is PURE METADATA (set/cleared
+// in any non-terminal state via Assign/Unassign), not a workflow state. A task
+// with an assignee is still "open" until the agent starts it (open→running). The
+// former "canceled" state is renamed "discarded" (uniform 废弃 semantic with
+// Issue's discarded).
 type TaskStatus string
 
 const (
 	TaskOpen      TaskStatus = "open"
-	TaskAssigned  TaskStatus = "assigned"
 	TaskRunning   TaskStatus = "running"
 	TaskBlocked   TaskStatus = "blocked"
 	TaskCompleted TaskStatus = "completed"
 	TaskVerified  TaskStatus = "verified"
-	TaskCanceled  TaskStatus = "canceled"
+	TaskDiscarded TaskStatus = "discarded" // was "canceled" (v2.8.1 rename)
 	TaskReopened  TaskStatus = "reopened"
 )
 
 // IsValid reports enum membership.
 func (s TaskStatus) IsValid() bool {
 	switch s {
-	case TaskOpen, TaskAssigned, TaskRunning, TaskBlocked,
-		TaskCompleted, TaskVerified, TaskCanceled, TaskReopened:
+	case TaskOpen, TaskRunning, TaskBlocked,
+		TaskCompleted, TaskVerified, TaskDiscarded, TaskReopened:
 		return true
 	}
 	return false
 }
 
-// taskTransitions is the allowed-transition adjacency (plan §2.2).
+// taskTransitions is the allowed-transition adjacency. Start moves open→running
+// directly (assignment is metadata, not a precondition state).
 var taskTransitions = map[TaskStatus][]TaskStatus{
-	TaskOpen:      {TaskAssigned, TaskCanceled},
-	TaskAssigned:  {TaskRunning, TaskOpen, TaskCanceled}, // TaskOpen = unassign
-	TaskRunning:   {TaskBlocked, TaskCompleted, TaskCanceled},
-	TaskBlocked:   {TaskRunning, TaskCanceled},
+	TaskOpen:      {TaskRunning, TaskDiscarded},
+	TaskRunning:   {TaskBlocked, TaskCompleted, TaskDiscarded},
+	TaskBlocked:   {TaskRunning, TaskDiscarded},
 	TaskCompleted: {TaskVerified, TaskReopened},
 	TaskVerified:  {TaskReopened},
-	TaskCanceled:  {}, // terminal
+	TaskDiscarded: {}, // terminal
 	TaskReopened:  {TaskOpen},
 }
 
@@ -59,14 +64,14 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 }
 
 // IsTerminal reports whether the task has reached a concluded state: work is
-// done (completed/verified) or abandoned (canceled). A Reopen can re-activate a
+// done (completed/verified) or abandoned (discarded). A Reopen can re-activate a
 // completed/verified task, but in any concluded state the task is not "active
 // work in flight". The complement (the active / non-terminal set) is exactly
-// {open, assigned, running, blocked, reopened}. v2.7 #107 Phase-2 (proj-B):
-// the observability default task-query set is the non-terminal set.
+// {open, running, blocked, reopened}. v2.7 #107 Phase-2 (proj-B): the
+// observability default task-query set is the non-terminal set.
 func (s TaskStatus) IsTerminal() bool {
 	switch s {
-	case TaskCompleted, TaskVerified, TaskCanceled:
+	case TaskCompleted, TaskVerified, TaskDiscarded:
 		return true
 	}
 	return false
@@ -220,22 +225,16 @@ func (t *Task) SetDescription(desc string, at time.Time) {
 	t.touch(at)
 }
 
-// Assign sets the assignee and moves open→assigned (or re-targets an already
-// assigned task — the AppService orchestrates the AgentWorkItem supersede in
-// B2; here we update assignment truth).
+// Assign sets the assignee as METADATA — it does NOT change the task's workflow
+// state (v2.8.1 model fix: there is no "assigned" state; an assigned task is
+// still "open" until started). Allowed in any non-terminal state; re-targets an
+// already-assigned task. The AppService still emits pm.task.assigned so the
+// WorkItemProjector dispatches the agent WorkItem.
 func (t *Task) Assign(assignee IdentityRef, at time.Time) error {
 	if err := assignee.Validate(); err != nil {
 		return err
 	}
-	switch t.status {
-	case TaskOpen:
-		if !t.status.CanTransitionTo(TaskAssigned) {
-			return ErrIllegalTransition
-		}
-		t.status = TaskAssigned
-	case TaskAssigned:
-		// re-assignment keeps status assigned, changes assignee
-	default:
+	if t.status.IsTerminal() {
 		return ErrIllegalTransition
 	}
 	t.assignee = assignee
@@ -243,18 +242,19 @@ func (t *Task) Assign(assignee IdentityRef, at time.Time) error {
 	return nil
 }
 
-// Unassign clears the assignee, moving assigned→open.
+// Unassign clears the assignee (metadata edit; no state change). Allowed in any
+// non-terminal state.
 func (t *Task) Unassign(at time.Time) error {
-	if t.status != TaskAssigned {
+	if t.status.IsTerminal() {
 		return ErrIllegalTransition
 	}
 	t.assignee = ""
-	t.status = TaskOpen
 	t.touch(at)
 	return nil
 }
 
-// Start moves assigned→running.
+// Start moves open→running (the agent picked up the work; assignment is metadata,
+// not a precondition state).
 func (t *Task) Start(at time.Time) error { return t.simpleTransition(TaskRunning, at) }
 
 // Block moves running→blocked with a required reason (plan §2.2).
@@ -313,8 +313,8 @@ func (t *Task) Verify(by IdentityRef, at time.Time) error {
 	return nil
 }
 
-// Cancel moves open/assigned/running/blocked→canceled (terminal).
-func (t *Task) Cancel(at time.Time) error { return t.simpleTransition(TaskCanceled, at) }
+// Discard moves open/running/blocked→discarded (terminal; was "Cancel" pre-v2.8.1).
+func (t *Task) Discard(at time.Time) error { return t.simpleTransition(TaskDiscarded, at) }
 
 // Reopen moves completed/verified→reopened.
 func (t *Task) Reopen(at time.Time) error { return t.simpleTransition(TaskReopened, at) }

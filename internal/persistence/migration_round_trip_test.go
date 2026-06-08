@@ -55,8 +55,8 @@ func TestMigrations_FullRoundTrip(t *testing.T) {
 	v2, _ := mig.Version(ctx)
 	snap2 := snapshotSchema(t, db)
 
-	if v1 != 51 || v2 != 51 {
-		t.Fatalf("Version after Up: got (%d, %d) want (51, 51)", v1, v2)
+	if v1 != 52 || v2 != 52 {
+		t.Fatalf("Version after Up: got (%d, %d) want (52, 52)", v1, v2)
 	}
 
 	// v2.1-E: idx_messages_conv_id must be usable as a range seek for
@@ -560,4 +560,66 @@ func scanStringSet(t *testing.T, db *sql.DB, query string) map[string]bool {
 		out[s] = true
 	}
 	return out
+}
+
+// TestMigration_0052_TaskIssueStateModelFix — v2.8.1 state model fix data rewrite:
+// Task assigned→open (assignee PRESERVED as metadata), Task canceled→discarded,
+// Issue withdrawn→discarded. Seeds OLD-model rows after a full Up and re-runs the
+// idempotent 0052 UP statements, then asserts the rewrite + no residual old states.
+func TestMigration_0052_TaskIssueStateModelFix(t *testing.T) {
+	db, err := Open(t.TempDir() + "/m52.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	now := "2026-06-08T00:00:00Z"
+	seed := []string{
+		`INSERT INTO pm_tasks (id,project_id,title,status,assignee,created_by,created_at,updated_at) VALUES ('T-asn','P','t','assigned','agent:x','user:a','` + now + `','` + now + `')`,
+		`INSERT INTO pm_tasks (id,project_id,title,status,created_by,created_at,updated_at) VALUES ('T-can','P','t','canceled','user:a','` + now + `','` + now + `')`,
+		`INSERT INTO pm_issues (id,project_id,title,status,created_by,created_at,updated_at) VALUES ('I-wd','P','i','withdrawn','user:a','` + now + `','` + now + `')`,
+	}
+	for _, s := range seed {
+		if _, err := db.ExecContext(ctx, s); err != nil {
+			t.Fatalf("seed %q: %v", s, err)
+		}
+	}
+	// Re-run the idempotent 0052 UP (WHERE status=<old> → no-op on migrated data).
+	for _, stmt := range []string{
+		`UPDATE pm_tasks  SET status = 'open'      WHERE status = 'assigned'`,
+		`UPDATE pm_tasks  SET status = 'discarded' WHERE status = 'canceled'`,
+		`UPDATE pm_issues SET status = 'discarded' WHERE status = 'withdrawn'`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("migrate %q: %v", stmt, err)
+		}
+	}
+	scalar := func(q string) string {
+		var v string
+		if err := db.QueryRowContext(ctx, q).Scan(&v); err != nil {
+			t.Fatalf("query %q: %v", q, err)
+		}
+		return v
+	}
+	if got := scalar(`SELECT status FROM pm_tasks WHERE id='T-asn'`); got != "open" {
+		t.Errorf("assigned task → status=%q, want open", got)
+	}
+	if got := scalar(`SELECT assignee FROM pm_tasks WHERE id='T-asn'`); got != "agent:x" {
+		t.Errorf("assignee must be preserved across assigned→open, got %q", got)
+	}
+	if got := scalar(`SELECT status FROM pm_tasks WHERE id='T-can'`); got != "discarded" {
+		t.Errorf("canceled task → status=%q, want discarded", got)
+	}
+	if got := scalar(`SELECT status FROM pm_issues WHERE id='I-wd'`); got != "discarded" {
+		t.Errorf("withdrawn issue → status=%q, want discarded", got)
+	}
+	if got := scalar(`SELECT COUNT(*) FROM pm_tasks WHERE status IN ('assigned','canceled')`); got != "0" {
+		t.Errorf("residual old pm_tasks states = %s, want 0", got)
+	}
+	if got := scalar(`SELECT COUNT(*) FROM pm_issues WHERE status='withdrawn'`); got != "0" {
+		t.Errorf("residual old pm_issues state = %s, want 0", got)
+	}
 }
