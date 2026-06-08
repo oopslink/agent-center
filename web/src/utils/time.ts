@@ -17,6 +17,41 @@ export function formatLocalTime(iso: string): string {
   }).format(d);
 }
 
+// formatChatTime — chat-only timestamp helper (Chat UX 2 #4). Renders an
+// ISO-8601 (UTC) timestamp in the viewer's LOCAL timezone with the FULL date,
+// seconds, and a tz abbreviation/offset, e.g. "2026-06-08 20:01:02 GMT+8".
+// This longer "YYYY-MM-DD HH:MM:SS GMT+N" form is intentionally chat-ONLY — do
+// NOT reuse it for site-wide displays (those keep formatLocalTime's short form).
+// Built from Intl.DateTimeFormat parts (local tz) so the date/time digits and
+// the tz name come from the SAME local-tz computation. Invalid or empty input is
+// returned unchanged (fail-safe — never throw on bad data, like formatLocalTime).
+export function formatChatTime(iso: string): string {
+  if (!iso) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZoneName: 'short',
+  });
+  const parts = fmt.formatToParts(d);
+  const get = (t: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((p) => p.type === t)?.value ?? '';
+  // en-CA gives YYYY-MM-DD for the date order and 24h time; assemble explicitly
+  // so the shape is stable across engines (no locale-dependent separators).
+  let hour = get('hour');
+  if (hour === '24') hour = '00'; // some engines emit 24 for midnight
+  const date = `${get('year')}-${get('month')}-${get('day')}`;
+  const time = `${hour}:${get('minute')}:${get('second')}`;
+  const tz = get('timeZoneName') || 'GMT'; // e.g. "GMT+8"
+  return `${date} ${time} ${tz}`;
+}
+
 // localDateToRFC3339 — convert a `<input type="date">` value ("YYYY-MM-DD") into
 // an RFC3339 ABSOLUTE instant in the viewer's LOCAL timezone (#258 date-range
 // filter, PR #224 backend). This is the off-by-one 命门: the backend compares
