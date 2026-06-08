@@ -67,6 +67,32 @@ export function formatChatDate(iso: string): string {
   return `${year}年${month}月${day}日`;
 }
 
+// formatStatusDuration — how long the item has been in its current status,
+// computed FE-side as (now − sinceIso). Renders the LARGEST TWO non-zero units
+// (d/h/m), e.g. "3d 5h", "2h 14m", "5m". Under a minute → "<1m". Invalid/empty
+// input → null (caller omits the duration gracefully). Pure compute on render —
+// no ticking timer; it refreshes whenever the component re-renders.
+//   "3d 5h"  (days + hours)   · "2h 14m" (hours + minutes)
+//   "45m"    (minutes only)   · "<1m"    (under a minute)
+export function formatStatusDuration(
+  sinceIso: string | undefined | null,
+  now: number = Date.now(),
+): string | null {
+  if (!sinceIso) return null;
+  const start = new Date(sinceIso).getTime();
+  if (Number.isNaN(start)) return null;
+  let secs = Math.floor((now - start) / 1000);
+  if (secs < 0) secs = 0; // clock skew → clamp (never show a negative duration)
+  if (secs < 60) return '<1m';
+  const days = Math.floor(secs / 86400);
+  const hours = Math.floor((secs % 86400) / 3600);
+  const mins = Math.floor((secs % 3600) / 60);
+  // Largest two units: pick the top non-zero unit, then the next one down.
+  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return `${mins}m`;
+}
+
 // localDateToRFC3339 — convert a `<input type="date">` value ("YYYY-MM-DD") into
 // an RFC3339 ABSOLUTE instant in the viewer's LOCAL timezone (#258 date-range
 // filter, PR #224 backend). This is the off-by-one 命门: the backend compares
