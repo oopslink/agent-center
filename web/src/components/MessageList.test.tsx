@@ -123,6 +123,34 @@ describe('MessageList', () => {
     expect(screen.queryByTestId('message-list-new-pill')).not.toBeInTheDocument();
   });
 
+  // v2.8.1 chat-rightalign: the viewer's own messages (sender === store
+  // currentUserId, default 'user:hayang') render right-aligned (accent bubble,
+  // no avatar); other people's stay left (avatar + elevated bubble).
+  it('renders the viewer\'s OWN message right-aligned (accent bubble, no avatar)', () => {
+    // sample() defaults sender_identity_id to 'user:hayang' === store currentUserId.
+    render(<MessageList messages={[sample('M1', 'mine')]} />);
+    const row = screen.getByTestId('message-row');
+    expect(row).toHaveAttribute('data-own', 'true');
+    expect(row.className).toContain('justify-end');
+    // accent bubble present (brand-hover, AA in both themes).
+    expect(row.querySelector('.bg-brand-hover')).not.toBeNull();
+    // no avatar for own messages.
+    expect(row.querySelector('[data-testid="avatar"]')).toBeNull();
+    expect(row).toHaveTextContent('mine');
+  });
+
+  it('renders a NON-own message left-aligned with an avatar (data-own false)', () => {
+    const other: Message = { ...sample('M2', 'theirs'), sender_identity_id: 'agent:arch1' };
+    render(<MessageList messages={[other]} />);
+    const row = screen.getByTestId('message-row');
+    expect(row).toHaveAttribute('data-own', 'false');
+    expect(row.className).not.toContain('justify-end');
+    expect(row.className).toContain('bg-bg-elevated');
+    // avatar rendered for other people's messages.
+    expect(row.querySelector('[data-testid="avatar"]')).not.toBeNull();
+    expect(row).toHaveTextContent('theirs');
+  });
+
   it('clicking the "New messages" pill scrolls to bottom + dismisses the pill', () => {
     const { rerender } = render(<MessageList messages={[sample('M1', 'a')]} />);
     const list = screen.getByTestId('message-list');
