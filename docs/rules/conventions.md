@@ -650,3 +650,38 @@ override 也仍带 commit hash 是最佳实践（`v2.8.1-9908825`），仅在外
 - `make build` 产出的二进制 `--version` 显示 branch + hash 吗？
 - Release tarball 文件名 含 branch + hash 吗？
 - 我手动改 VERSION 时, 是否仍保留 commit hash 后缀？
+
+## § 19. 测试 Ownership 按 scope 分（不按语言/目录/PR 系列）
+
+**规约**（@oopslink 2026-06-08 拍 — PR7 e2e 误派事件后立）：
+
+测试任务的 ownership 由**测试 scope** 决定, 不由**语言/目录/PR 系列名**决定。
+
+| 测试 scope | Ownership | 例子 |
+|---|---|---|
+| 单模块单测（unit）| **Dev / Dev2**（写实现者）| `internal/agent/work_item_test.go` 测 WorkItem AR 行为 |
+| 跨模块集成（integration）| **Tester** | `tests/integration/d_pull_flow_test.go` 串 D 全流程 |
+| 端到端 acceptance（e2e）| **Tester** | "assign → queue → wake → start_work → complete → done" 全链 |
+| Runtime / 真-LLM 行为（real-LLM behavioral）| **Tester2** | 真 claude agent 按 prompt 决策、必复 mention、真 pause |
+| UI/UX run-real | **Tester2** | 浏览器渲染 + computed-truth + 多模态 / 时区 emulation |
+
+**不决定 ownership 的因素**：
+
+- **语言**：Go integration test 不归 Dev（PR7 e2e 是 Go 但 scope 是 integration → Tester）
+- **目录**：`internal/...` 下的测试也可能是 integration scope（看断言跨模块还是单模块）
+- **PR 系列名**：D rollout PR1-PR7 是 Dev 主导，但 PR7 = e2e 是 Tester scope，**series 不决定 ownership**
+
+**为什么这条规则**：
+
+- 之前误以为 "PR7 是 D 系列 → Dev 写" → @oopslink 立即指出错配
+- 根因：默认 **by-series** 而非 **by-scope**（应 by-scope）
+- 后果：Dev 揽过多 lane（impl + integration），Tester acceptance lane 被削弱
+- Fix：每个 PR 的测试任务派人，先看 **scope**，再决定 ownership
+
+**自检（PD 派任务时）：**
+
+- 这个 PR 的测试是 **单模块单测** vs **跨模块集成** vs **e2e/acceptance** vs **真-LLM behavioral** vs **UI run-real**？
+- 按 scope 派给对应 owner（Dev / Tester / Tester2），不按谁写实现 / 在什么目录 / 哪个 PR 系列。
+- 如果一个 PR 包含多 scope（罕见），按 scope 拆成多 PR / 多任务派给各自 owner。
+
+**与 § 14 测试规约 互补**：§ 14 讲测试**怎么写**（TDD、覆盖率、不 mock 等），§ 19 讲测试**谁来写**（ownership by scope）。
