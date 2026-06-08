@@ -150,6 +150,7 @@ func orgIssueRow(i *pm.Issue, p *pm.Project) map[string]any {
 		"priority":   nil, // issues have no priority field
 		"created_at": i.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": i.UpdatedAt().Format(time.RFC3339Nano),
+		"tags":       orEmptyTags(i.Tags()), "status_changed_at": rfc3339OrEmpty(i.StatusChangedAt()),
 	}
 	if ref := orgRefToken("I", i.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
@@ -169,6 +170,7 @@ func (s *Server) orgTaskRow(r *http.Request, d HandlerDeps, t *pm.Task, p *pm.Pr
 		"priority":   nil, // pm domain has no task priority field (kept in DTO for forward-compat)
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
+		"tags":       orEmptyTags(t.Tags()), "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
