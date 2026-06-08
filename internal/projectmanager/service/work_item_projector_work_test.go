@@ -121,42 +121,21 @@ func TestWorkDelivery_EnqueuesAgentWork(t *testing.T) {
 	}
 	wiID := items[0].ID()
 
-	// Two commands were enqueued on W1 (in append order): the (old) agent.work
-	// push + the (v2.8.1 #278 PR2, additive) agent.work_available wake.
+	// v2.8.1 #278 PR6 CUTOVER: ONLY the agent.work_available wake is enqueued on W1
+	// — the old agent.work PUSH is removed. The agent pulls its queue (get_my_work /
+	// start_work) and is the sole activation path; the center only signals "you have
+	// work" (no pushed brief — the agent reads task detail via its tools).
 	cmds, err := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cmds) != 2 {
-		t.Fatalf("want 2 control commands on W1 (agent.work + agent.work_available), got %d", len(cmds))
-	}
-	cmd := cmds[0]
-	if cmd.CommandType() != "agent.work" {
-		t.Fatalf("command_type = %q, want agent.work", cmd.CommandType())
-	}
-	if cmd.IdempotencyKey() != "agent.work:"+wiID {
-		t.Fatalf("idempotency_key = %q, want agent.work:%s", cmd.IdempotencyKey(), wiID)
-	}
-	var pl struct {
-		AgentID    string `json:"agent_id"`
-		WorkItemID string `json:"work_item_id"`
-		TaskRef    string `json:"task_ref"`
-		Brief      string `json:"brief"`
-	}
-	if err := json.Unmarshal([]byte(cmd.Payload()), &pl); err != nil {
-		t.Fatalf("payload not JSON: %v", err)
-	}
-	if pl.AgentID != "AG1" || pl.WorkItemID != wiID || pl.TaskRef != taskRef {
-		t.Fatalf("payload mismatch: %+v (wiID=%s, taskRef=%s)", pl, wiID, taskRef)
-	}
-	if pl.Brief != "Fix the bug\n\nIt crashes on boot." {
-		t.Fatalf("brief = %q, want title+description", pl.Brief)
+	if len(cmds) != 1 {
+		t.Fatalf("want 1 control command on W1 (agent.work_available only, post-cutover), got %d", len(cmds))
 	}
 
-	// v2.8.1 #278 PR2: the additive agent.work_available WAKE command (per-agent
-	// "pull your queue"), idempotency_key "agent.work_available:<wiID>", payload
-	// agent_id/work_item_id.
-	wake := cmds[1]
+	// The agent.work_available WAKE command (per-agent "pull your queue"),
+	// idempotency_key "agent.work_available:<wiID>", payload agent_id/work_item_id.
+	wake := cmds[0]
 	if wake.CommandType() != "agent.work_available" {
 		t.Fatalf("command_type[1] = %q, want agent.work_available", wake.CommandType())
 	}
@@ -184,8 +163,8 @@ func TestWorkDelivery_EnqueuesAgentWork(t *testing.T) {
 		t.Fatalf("replay created extra work items: %d", len(items2))
 	}
 	cmds2, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
-	if len(cmds2) != 2 {
-		t.Fatalf("replay double-enqueued commands: got %d, want 2 (agent.work + agent.work_available)", len(cmds2))
+	if len(cmds2) != 1 {
+		t.Fatalf("replay double-enqueued commands: got %d, want 1 (agent.work_available only, post-cutover)", len(cmds2))
 	}
 }
 

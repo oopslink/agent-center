@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -135,52 +134,29 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	}
 
 	cmds := f.commandsFor(t, "W1")
-	// 1 reconcile + 2 work (queued + active) + 2 wake (v2.8.1 #278 PR2:
-	// agent.work_available per ready WI); waiting_input skipped (no work, no wake).
-	if len(cmds) != 5 {
-		t.Fatalf("want 5 commands (reconcile + 2 work + 2 wake), got %d: %+v", len(cmds), cmds)
+	// v2.8.1 #278 PR6 CUTOVER: 1 reconcile + 2 wake (agent.work_available per ready
+	// WI: queued + active). The old agent.work PUSH re-delivery is removed — the agent
+	// pulls. waiting_input skipped (no wake).
+	if len(cmds) != 3 {
+		t.Fatalf("want 3 commands (reconcile + 2 wake), got %d: %+v", len(cmds), cmds)
 	}
 	if cmds[0].CommandType() != "agent.reconcile" {
-		t.Fatalf("cmds[0] type = %q, want agent.reconcile (must precede work)", cmds[0].CommandType())
+		t.Fatalf("cmds[0] type = %q, want agent.reconcile (must precede wake)", cmds[0].CommandType())
 	}
 	reconcileOff := cmds[0].Offset()
-	workKeys := map[string]bool{}
 	wakeKeys := map[string]bool{}
-	briefByKey := map[string]string{}
 	for _, c := range cmds[1:] {
 		if c.Offset() <= reconcileOff {
-			t.Fatalf("command offset %d must be > reconcile offset %d (session before work)", c.Offset(), reconcileOff)
+			t.Fatalf("command offset %d must be > reconcile offset %d (session before wake)", c.Offset(), reconcileOff)
 		}
-		switch c.CommandType() {
-		case "agent.work":
-			workKeys[c.IdempotencyKey()] = true
-			var pl workCommandPayload
-			if err := json.Unmarshal([]byte(c.Payload()), &pl); err != nil {
-				t.Fatalf("unmarshal work payload: %v", err)
-			}
-			briefByKey[c.IdempotencyKey()] = pl.Brief
-		case "agent.work_available":
-			wakeKeys[c.IdempotencyKey()] = true
-		default:
-			t.Fatalf("commands after reconcile must be agent.work / agent.work_available, got %q", c.CommandType())
+		if c.CommandType() != "agent.work_available" {
+			t.Fatalf("commands after reconcile must be agent.work_available (post-cutover), got %q", c.CommandType())
 		}
+		wakeKeys[c.IdempotencyKey()] = true
 	}
-	if !workKeys["agent.work:wi-active"] || !workKeys["agent.work:wi-queued"] {
-		t.Fatalf("re-emit must cover BOTH queued + active (ready-to-dispatch), got keys %v", workKeys)
-	}
-	// PR2 wake: each ready-to-dispatch WI also gets an agent.work_available wake.
+	// Each ready-to-dispatch WI (queued + active) gets a wake so the agent pulls it.
 	if !wakeKeys["agent.work_available:wi-active"] || !wakeKeys["agent.work_available:wi-queued"] {
 		t.Fatalf("re-emit must emit a wake per ready WI, got wake keys %v", wakeKeys)
-	}
-	// #115 CORE assertion: the re-emitted brief must be NON-EMPTY and equal the SAME
-	// title\n\ndesc that pm enqueueWork.brief produces for the task (NOT "").
-	const wantActiveBrief = "Fix login bug\n\nUsers cannot log in after the v2.7 deploy."
-	if got := briefByKey["agent.work:wi-active"]; got != wantActiveBrief {
-		t.Fatalf("re-emitted brief (with desc) = %q, want %q (title\\n\\ndesc, NOT empty — lost-work bug #115)", got, wantActiveBrief)
-	}
-	const wantQueuedBrief = "Write release notes" // desc empty → title only
-	if got := briefByKey["agent.work:wi-queued"]; got != wantQueuedBrief {
-		t.Fatalf("re-emitted brief (no desc) = %q, want %q (title only)", got, wantQueuedBrief)
 	}
 
 	// waiting_input is NOT re-emitted as work (it is the wake path). AG2's only
@@ -227,8 +203,9 @@ func TestReemit_IdempotentOnReplay(t *testing.T) {
 		t.Fatalf("Project 2 (replay): %v", err)
 	}
 	cmds := f.commandsFor(t, "W1")
-	// reconcile + work + wake (v2.8.1 #278 PR2) = 3; replay must not duplicate.
-	if len(cmds) != 3 {
+	// v2.8.1 #278 PR6 CUTOVER: reconcile + wake (agent.work_available) = 2; replay
+	// must not duplicate (agent.work push removed).
+	if len(cmds) != 2 {
 		t.Fatalf("replay of same event must not duplicate, got %d commands", len(cmds))
 	}
 }
@@ -259,17 +236,20 @@ func TestReemit_FlapDoesNotDoubleDeliverWork(t *testing.T) {
 	}
 
 	cmds := f.commandsFor(t, "W1")
-	workCount := 0
+	// v2.8.1 #278 PR6 CUTOVER: the wake (agent.work_available) carries the same flap-
+	// collapse guarantee the old agent.work push had — exactly ONE remains across the
+	// flap (stable idempotency key "agent.work_available:<wi>"); reconciles multiply.
+	wakeCount := 0
 	for _, c := range cmds {
-		if c.CommandType() == "agent.work" {
-			workCount++
-			if c.IdempotencyKey() != "agent.work:wi-active" {
-				t.Fatalf("unexpected work key %q", c.IdempotencyKey())
+		if c.CommandType() == "agent.work_available" {
+			wakeCount++
+			if c.IdempotencyKey() != "agent.work_available:wi-active" {
+				t.Fatalf("unexpected wake key %q", c.IdempotencyKey())
 			}
 		}
 	}
-	if workCount != 1 {
-		t.Fatalf("flap must NOT double-deliver work: got %d agent.work commands, want 1", workCount)
+	if wakeCount != 1 {
+		t.Fatalf("flap must NOT double-deliver wake: got %d agent.work_available commands, want 1", wakeCount)
 	}
 }
 
