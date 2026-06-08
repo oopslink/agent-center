@@ -77,7 +77,7 @@ func TestQuery_Tasks_DefaultActiveSet(t *testing.T) {
 	env.seedTaskStatus(t, "T-running", "p", pm.TaskRunning)
 	env.seedTaskStatus(t, "T-blocked", "p", pm.TaskBlocked)
 	env.seedTaskStatus(t, "T-completed", "p", pm.TaskCompleted)
-	env.seedTaskStatus(t, "T-canceled", "p", pm.TaskCanceled)
+	env.seedTaskStatus(t, "T-canceled", "p", pm.TaskDiscarded)
 	res, err := env.svc.Query(context.Background(), "tasks", query.QueryFilter{})
 	if err != nil {
 		t.Fatal(err)

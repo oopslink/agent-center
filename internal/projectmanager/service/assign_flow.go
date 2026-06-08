@@ -70,9 +70,10 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Start(now) }, "")
 }
 
-// CancelTask cancels a non-terminal Task.
-func (s *Service) CancelTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Cancel(now) }, "")
+// DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask
+// pre-v2.8.1, uniform 废弃 semantic).
+func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Discard(now) }, "")
 }
 
 // BlockTask moves running→blocked with a required reason (plan §2.2).

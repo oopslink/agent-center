@@ -9,10 +9,11 @@ import (
 // IssueStatus enum + state machine (plan §2.2):
 //
 //	open → in_progress → resolved → closed
-//	open/in_progress → withdrawn
+//	open/in_progress → discarded
 //	resolved/closed → reopened → open
 //
-// `triaged` is final-shape only, not v2.7.
+// v2.8.1: the former "withdrawn" state is renamed "discarded" (uniform 废弃
+// semantic with Task's discarded).
 type IssueStatus string
 
 const (
@@ -20,14 +21,14 @@ const (
 	IssueInProgress IssueStatus = "in_progress"
 	IssueResolved   IssueStatus = "resolved"
 	IssueClosed     IssueStatus = "closed"
-	IssueWithdrawn  IssueStatus = "withdrawn"
+	IssueDiscarded  IssueStatus = "discarded" // was "withdrawn" (v2.8.1 rename)
 	IssueReopened   IssueStatus = "reopened"
 )
 
 // IsValid reports enum membership.
 func (s IssueStatus) IsValid() bool {
 	switch s {
-	case IssueOpen, IssueInProgress, IssueResolved, IssueClosed, IssueWithdrawn, IssueReopened:
+	case IssueOpen, IssueInProgress, IssueResolved, IssueClosed, IssueDiscarded, IssueReopened:
 		return true
 	}
 	return false
@@ -35,12 +36,12 @@ func (s IssueStatus) IsValid() bool {
 
 // issueTransitions is the allowed-transition adjacency (plan §2.2).
 var issueTransitions = map[IssueStatus][]IssueStatus{
-	IssueOpen:       {IssueInProgress, IssueWithdrawn},
-	IssueInProgress: {IssueResolved, IssueWithdrawn},
+	IssueOpen:       {IssueInProgress, IssueDiscarded},
+	IssueInProgress: {IssueResolved, IssueDiscarded},
 	IssueResolved:   {IssueClosed, IssueReopened},
 	IssueClosed:     {IssueReopened},
 	IssueReopened:   {IssueOpen},
-	IssueWithdrawn:  {}, // terminal
+	IssueDiscarded:  {}, // terminal
 }
 
 // CanTransitionTo reports whether from→to is a legal Issue transition.

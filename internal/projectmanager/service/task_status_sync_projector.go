@@ -60,7 +60,7 @@ func (p *TaskStatusSyncProjector) Project(ctx context.Context, e outbox.Event) e
 		return nil
 	}
 	// Map the work-item transition to its task-status effect:
-	//   - active          → Task.Start (assigned→running)
+	//   - active          → Task.Start (open→running; v2.8.1: no "assigned" state)
 	//   - failed (ANY cause) → Task.Block (running→blocked) — v2.8.1 #278 (b) fix.
 	//     Covers BOTH WorkItem-failed sources: agent crash/circuit-break (cause=
 	//     agent_death) AND L2 turn errors (no cause, e.g. rate_limit) AND the
@@ -72,7 +72,7 @@ func (p *TaskStatusSyncProjector) Project(ctx context.Context, e outbox.Event) e
 	var apply func(context.Context, pm.TaskID) error
 	switch {
 	case pl.Status == string(agentpkg.WorkItemActive):
-		apply = p.svc.startTaskIfAssigned
+		apply = p.svc.startTaskIfOpen
 	case pl.Status == string(agentpkg.WorkItemFailed):
 		apply = p.svc.blockTaskOnFailure
 	default:
@@ -94,18 +94,19 @@ func (p *TaskStatusSyncProjector) Project(ctx context.Context, e outbox.Event) e
 
 var _ outbox.Projector = (*TaskStatusSyncProjector)(nil)
 
-// startTaskIfAssigned moves an assigned Task to running (system path driven by the
+// startTaskIfOpen moves an open Task to running (system path driven by the
 // work-item active transition — NO project-member check, unlike StartTask which
-// is a user action). A no-op when the Task is not assigned (e.g. already running
-// on a wake re-activation), which keeps the projector idempotent across the
-// multi-interaction wait→wake loop. Same-tx: the row update + state_changed emit
-// join the caller's tx.
-func (s *Service) startTaskIfAssigned(ctx context.Context, taskID pm.TaskID) error {
+// is a user action). v2.8.1: an assigned task is "open" (no "assigned" state), so
+// the active transition starts an OPEN task. A no-op when the Task is not open
+// (e.g. already running on a wake re-activation), which keeps the projector
+// idempotent across the multi-interaction wait→wake loop. Same-tx: the row update
+// + state_changed emit join the caller's tx.
+func (s *Service) startTaskIfOpen(ctx context.Context, taskID pm.TaskID) error {
 	t, err := s.tasks.FindByID(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	if t.Status() != pm.TaskAssigned {
+	if t.Status() != pm.TaskOpen {
 		return nil
 	}
 	if err := t.Start(s.clock.Now()); err != nil {
