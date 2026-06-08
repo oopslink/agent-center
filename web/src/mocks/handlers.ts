@@ -45,7 +45,7 @@ function taskActionHandlers() {
     http.post('/api/projects/:pid/tasks/:id/verify', ({ params }) =>
       ok(baseTask(String(params.pid), String(params.id), 'verified')),
     ),
-    http.post('/api/projects/:pid/tasks/:id/cancel', ({ params }) =>
+    http.post('/api/projects/:pid/tasks/:id/discard', ({ params }) =>
       ok(baseTask(String(params.pid), String(params.id), 'discarded')),
     ),
     http.post('/api/projects/:pid/tasks/:id/unassign', ({ params }) =>

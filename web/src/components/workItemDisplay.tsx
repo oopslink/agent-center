@@ -7,28 +7,30 @@ import type React from 'react';
 
 // StatusChip — colored pill covering the FULL issue + task status machines
 // (v2.7.1 #258: zero fallback-gray, zero bare string). v2.8.1 #5th: UNIFIED to
-// the SAME solid "深字浅底" X-100 bg / X-900 text palette as StatusBlock
-// (IssueTaskSidebar) — one source of truth, theme-independent (the solid light
-// block is AA in BOTH light and dark on any page bg). Palette:
+// the SAME palette as StatusBlock (IssueTaskSidebar) — one source of truth.
+// @oopslink FINAL lock: white text on a saturated color background
+// (bg-<color> text-white). Palette:
 //   open                  → slate (not started)
 //   in_progress/running   → blue (in flight)
 //   blocked               → orange (attention)
 //   resolved/completed    → green (done)
-//   verified              → teal (done + checked, distinct hue from green)
-//   closed (Issue)        → stone (terminal, distinct from open's slate)
+//   verified              → purple (done + checked, distinct hue from green)
+//   closed (Issue)        → cyan (terminal, distinct from open's slate)
 //   discarded (both)      → deep-rust (terminal, replaces canceled/withdrawn)
-//   reopened              → purple (back in play)
+//   reopened              → pink (back in play)
+// @oopslink has explicitly accepted that some pairs (orange-500, slate-500,
+// blue-500, pink-600 vs white) fall below WCAG-AA 4.5:1 — intentional.
 const STATUS_CLS: Record<string, string> = {
-  open: 'bg-slate-100 text-slate-700',
-  in_progress: 'bg-blue-100 text-blue-900',
-  running: 'bg-blue-100 text-blue-900',
-  blocked: 'bg-orange-100 text-orange-900',
-  resolved: 'bg-green-100 text-green-900',
-  completed: 'bg-green-100 text-green-900',
-  verified: 'bg-teal-100 text-teal-900',
-  closed: 'bg-stone-100 text-stone-700',
-  discarded: 'bg-rust-100 text-rust-900',
-  reopened: 'bg-purple-100 text-purple-900',
+  open: 'bg-slate-500 text-white',
+  in_progress: 'bg-blue-500 text-white',
+  running: 'bg-blue-500 text-white',
+  blocked: 'bg-orange-500 text-white',
+  resolved: 'bg-green-600 text-white',
+  completed: 'bg-green-600 text-white',
+  verified: 'bg-purple-600 text-white',
+  closed: 'bg-cyan-600 text-white',
+  discarded: 'bg-rust-700 text-white',
+  reopened: 'bg-pink-600 text-white',
 };
 
 export function StatusChip({ status }: { status: string }): React.ReactElement {

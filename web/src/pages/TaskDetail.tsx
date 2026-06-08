@@ -10,8 +10,8 @@ import { TypeChip } from '@/components/TypeChip';
 import {
   useAssignTask,
   useBlockTask,
-  useCancelTask,
   useCompleteTask,
+  useDiscardTask,
   useReopenTask,
   useStartTask,
   useTask,
@@ -51,7 +51,7 @@ export default function TaskDetail(): React.ReactElement {
   const unblock = useUnblockTask(projectId, id);
   const complete = useCompleteTask(projectId, id);
   const verify = useVerifyTask(projectId, id);
-  const cancel = useCancelTask(projectId, id);
+  const discard = useDiscardTask(projectId, id);
   const unassign = useUnassignTask(projectId, id);
   const reopen = useReopenTask(projectId, id);
 
@@ -114,12 +114,12 @@ export default function TaskDetail(): React.ReactElement {
       break;
   }
   if (canDiscard) {
-    actions.push({ testId: 'task-discard-button', label: 'Discard', onClick: () => cancel.mutate(), danger: true, pending: cancel.isPending });
+    actions.push({ testId: 'task-discard-button', label: 'Discard', onClick: () => discard.mutate(), danger: true, pending: discard.isPending });
   }
 
   const actionError =
     (assign.error ?? start.error ?? block.error ?? unblock.error ??
-      complete.error ?? verify.error ?? cancel.error ?? unassign.error ??
+      complete.error ?? verify.error ?? discard.error ?? unassign.error ??
       reopen.error) as Error | null;
 
   // 5th task: the status-transition control moves into the sidebar beside the
