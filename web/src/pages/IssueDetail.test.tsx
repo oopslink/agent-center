@@ -85,9 +85,13 @@ describe('IssueDetail page', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'open issue' })).toBeInTheDocument(),
     );
-    // open → {in_progress, discarded}
-    expect(screen.getByTestId('issue-transition-in_progress')).toBeInTheDocument();
-    expect(screen.getByTestId('issue-transition-discarded')).toBeInTheDocument();
+    // v2.8.1 free-state model: the menu lists ALL issue states minus the current
+    // one. For an `open` issue: in_progress/resolved/closed/discarded/reopened
+    // (NOT open).
+    expect(screen.queryByTestId('issue-transition-open')).not.toBeInTheDocument();
+    for (const s of ['in_progress', 'resolved', 'closed', 'discarded', 'reopened']) {
+      expect(screen.getByTestId(`issue-transition-${s}`)).toBeInTheDocument();
+    }
   });
 
   it('posts the transition when an action is clicked', async () => {

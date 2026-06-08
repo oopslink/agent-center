@@ -3,7 +3,6 @@ import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  ISSUE_TRANSITIONS,
   useIssue,
   useTransitionIssue,
 } from '@/api/issues';
@@ -17,6 +16,17 @@ import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { useDisplayNameResolver } from '@/api/members';
 import type { IssueStatus } from '@/api/types';
+
+// v2.8.1 free-state model (@oopslink): the canonical full Issue status enum the
+// transition menu iterates (showing all states minus the current one).
+const ISSUE_STATUSES: IssueStatus[] = [
+  'open',
+  'in_progress',
+  'resolved',
+  'closed',
+  'discarded',
+  'reopened',
+];
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
 // ProjectManager BC: the issue is project-scoped and driven entirely by
@@ -65,7 +75,10 @@ export default function IssueDetail(): React.ReactElement {
   }
 
   const iss = issue.data;
-  const targets = ISSUE_TRANSITIONS[iss.status] ?? [];
+  // v2.8.1 free-state model (@oopslink): the Issue status machine is fully free —
+  // any valid state → any valid state (no adjacency constraints). The transition
+  // menu lists ALL issue states EXCEPT the current one.
+  const targets = ISSUE_STATUSES.filter((s) => s !== iss.status);
   const isTerminal = iss.status === 'discarded';
 
   const actions = (

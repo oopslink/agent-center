@@ -9,26 +9,36 @@ import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { TypeChip } from '@/components/TypeChip';
 import {
   useAssignTask,
-  useBlockTask,
-  useCompleteTask,
-  useDiscardTask,
-  useReopenTask,
-  useStartTask,
+  useSetTaskStatus,
   useTask,
   useUnassignTask,
-  useUnblockTask,
-  useVerifyTask,
 } from '@/api/tasks';
+import type { TaskStatus } from '@/api/types';
 import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { IssueTaskSidebar, type SidebarMetaRow } from '@/components/IssueTaskSidebar';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
+// v2.8.1 free-state model (@oopslink): the Task status machine is fully free —
+// any valid state → any valid state. The "Change status" menu lists ALL task
+// states minus the current one. TASK_STATUS_LABEL is the human label per state;
+// TASK_STATUSES is the canonical full enum the menu iterates.
+const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
+  open: 'Open',
+  running: 'Running',
+  blocked: 'Blocked',
+  completed: 'Completed',
+  verified: 'Verified',
+  discarded: 'Discarded',
+  reopened: 'Reopened',
+};
+const TASK_STATUSES = Object.keys(TASK_STATUS_LABEL) as TaskStatus[];
+
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
 // the task is project-scoped and driven entirely by its projection.
-// The new state machine actions each POST to a sub-route and return the
-// refreshed task. Metadata edits via PATCH.
+// v2.8.1: status changes go through one generalized PATCH .../status endpoint
+// (free-state model); metadata edits via PATCH.
 export default function TaskDetail(): React.ReactElement {
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const task = useTask(projectId, id);
@@ -40,20 +50,13 @@ export default function TaskDetail(): React.ReactElement {
   const resolveName = useDisplayNameResolver();
   const [editOpen, setEditOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
-  const [blockOpen, setBlockOpen] = useState(false);
-  // v2.7 #186-3a: lifecycle transitions are presented as a dropdown anchored
+  // v2.7 #186-3a: status changes are presented as a dropdown anchored
   // to the status badge instead of a scattered row of buttons.
   const [menuOpen, setMenuOpen] = useState(false);
 
   const assign = useAssignTask(projectId, id);
-  const start = useStartTask(projectId, id);
-  const block = useBlockTask(projectId, id);
-  const unblock = useUnblockTask(projectId, id);
-  const complete = useCompleteTask(projectId, id);
-  const verify = useVerifyTask(projectId, id);
-  const discard = useDiscardTask(projectId, id);
+  const setStatus = useSetTaskStatus(projectId, id);
   const unassign = useUnassignTask(projectId, id);
-  const reopen = useReopenTask(projectId, id);
 
   if (task.isLoading) {
     return (
@@ -84,43 +87,28 @@ export default function TaskDetail(): React.ReactElement {
 
   const tk = task.data;
   const status = tk.status;
+  // v2.8.1 #5th: assignee is pure METADATA, editable in ANY non-terminal state.
+  // `discarded` is the soft-terminal state that hides the assignee "Change" link
+  // and Edit button (metadata is frozen). The status menu itself is unaffected —
+  // under the free-state model status can always move to any other state.
   const isTerminal = status === 'discarded';
-  const canDiscard = status !== 'discarded' && status !== 'verified' && status !== 'completed';
 
-  // v2.8.1 #5th: assignee is now pure METADATA, settable in ANY state — it is
-  // NOT a lifecycle state. So the Change-status menu only carries true state
-  // transitions; an `open` task offers [Start] (→ running), not [Assign]. The
-  // former `assigned` state is gone. Assigning/unassigning is a meta-row action
-  // (see the Assignee row below) and does NOT change the task status.
-  type TaskAction = { testId: string; label: string; onClick: () => void; danger?: boolean; pending?: boolean };
-  const actions: TaskAction[] = [];
-  switch (status) {
-    case 'open':
-      actions.push({ testId: 'task-start-button', label: 'Start', onClick: () => start.mutate(), pending: start.isPending });
-      break;
-    case 'running':
-      actions.push({ testId: 'task-complete-button', label: 'Complete', onClick: () => complete.mutate(), pending: complete.isPending });
-      actions.push({ testId: 'task-block-button', label: 'Block', onClick: () => setBlockOpen(true) });
-      break;
-    case 'blocked':
-      actions.push({ testId: 'task-unblock-button', label: 'Unblock', onClick: () => unblock.mutate(), pending: unblock.isPending });
-      break;
-    case 'completed':
-      actions.push({ testId: 'task-verify-button', label: 'Verify', onClick: () => verify.mutate(), pending: verify.isPending });
-      actions.push({ testId: 'task-reopen-button', label: 'Reopen', onClick: () => reopen.mutate(), pending: reopen.isPending });
-      break;
-    case 'verified':
-      actions.push({ testId: 'task-reopen-button', label: 'Reopen', onClick: () => reopen.mutate(), pending: reopen.isPending });
-      break;
-  }
-  if (canDiscard) {
-    actions.push({ testId: 'task-discard-button', label: 'Discard', onClick: () => discard.mutate(), danger: true, pending: discard.isPending });
-  }
+  // v2.8.1 free-state model (@oopslink): the status machine is fully free — any
+  // valid state → any valid state. The "Change status" menu therefore lists ALL
+  // task states EXCEPT the current one. Each item PATCHes .../status with the
+  // target via useSetTaskStatus (the generalized endpoint that replaced the
+  // per-action start/block/complete/verify/discard/reopen/unblock sub-routes).
+  // (Assignee is separate metadata, set via the meta-row "Change" link below.)
+  type TaskAction = { testId: string; label: string; onClick: () => void; danger?: boolean };
+  const actions: TaskAction[] = TASK_STATUSES.filter((s) => s !== status).map((s) => ({
+    testId: `task-set-status-${s}`,
+    label: TASK_STATUS_LABEL[s],
+    onClick: () => setStatus.mutate(s),
+    danger: s === 'discarded',
+  }));
 
   const actionError =
-    (assign.error ?? start.error ?? block.error ?? unblock.error ??
-      complete.error ?? verify.error ?? discard.error ?? unassign.error ??
-      reopen.error) as Error | null;
+    (assign.error ?? setStatus.error ?? unassign.error) as Error | null;
 
   // 5th task: the status-transition control moves into the sidebar beside the
   // prominent StatusBlock. The dropdown trigger is relabeled ("Change status")
@@ -149,7 +137,7 @@ export default function TaskDetail(): React.ReactElement {
               <button
                 type="button"
                 role="menuitem"
-                disabled={a.pending}
+                disabled={setStatus.isPending}
                 onClick={() => {
                   setMenuOpen(false);
                   a.onClick();
@@ -157,7 +145,7 @@ export default function TaskDetail(): React.ReactElement {
                 data-testid={a.testId}
                 className={`block w-full px-3 py-1.5 text-left text-xs font-medium normal-case hover:bg-bg-subtle disabled:opacity-50 ${a.danger ? 'text-danger' : 'text-text-primary'}`}
               >
-                {a.pending ? `${a.label}…` : a.label}
+                {a.label}
               </button>
             </li>
           ))}
@@ -336,21 +324,6 @@ export default function TaskDetail(): React.ReactElement {
           }}
         />
       )}
-      {blockOpen && (
-        <BlockModal
-          pending={block.isPending}
-          error={block.error as Error | null}
-          onClose={() => setBlockOpen(false)}
-          onSubmit={async (reason) => {
-            try {
-              await block.mutateAsync({ reason });
-              setBlockOpen(false);
-            } catch {
-              // surfaced
-            }
-          }}
-        />
-      )}
     </section>
   );
 }
@@ -438,49 +411,6 @@ function AssignModal({
   );
 }
 
-function BlockModal({
-  pending,
-  error,
-  onClose,
-  onSubmit,
-}: {
-  pending: boolean;
-  error: Error | null;
-  onClose: () => void;
-  onSubmit: (reason: string) => void;
-}): React.ReactElement {
-  const [reason, setReason] = useState('');
-  const trimmed = reason.trim();
-  const canSubmit = trimmed.length > 0 && !pending;
-  return (
-    <Modal testId="task-block-modal" title="Block task" onClose={onClose}>
-      <label className="mb-1 block text-xs font-medium text-text-primary">
-        Reason<span className="ml-1 text-danger">*</span>
-      </label>
-      <textarea
-        data-testid="task-block-input"
-        className={modalInputClass}
-        rows={3}
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        placeholder="Why is this blocked?"
-      />
-      {error && (
-        <p className="mt-2 text-xs text-danger" data-testid="task-block-error">
-          {error.message}
-        </p>
-      )}
-      <ModalFooter
-        onClose={onClose}
-        submitLabel={pending ? 'Blocking…' : 'Block'}
-        submitTestId="task-block-submit"
-        disabled={!canSubmit}
-        onSubmit={() => canSubmit && onSubmit(trimmed)}
-      />
-    </Modal>
-  );
-}
-
 function Modal({
   testId,
   title,
@@ -513,41 +443,6 @@ function Modal({
         </div>
         {children}
       </div>
-    </div>
-  );
-}
-
-function ModalFooter({
-  onClose,
-  onSubmit,
-  submitLabel,
-  submitTestId,
-  disabled,
-}: {
-  onClose: () => void;
-  onSubmit: () => void;
-  submitLabel: string;
-  submitTestId: string;
-  disabled: boolean;
-}): React.ReactElement {
-  return (
-    <div className="mt-4 flex justify-end gap-2">
-      <button
-        type="button"
-        className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
-        onClick={onClose}
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
-        data-testid={submitTestId}
-        onClick={onSubmit}
-      >
-        {submitLabel}
-      </button>
     </div>
   );
 }

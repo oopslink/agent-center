@@ -5,9 +5,8 @@ import { makeWrapper } from '../test/renderWith';
 import { server } from '../test/mswServer';
 import {
   useAssignTask,
-  useBlockTask,
   useCreateTask,
-  useStartTask,
+  useSetTaskStatus,
   useTask,
   useTasksList,
 } from './tasks';
@@ -110,42 +109,37 @@ describe('tasks hooks', () => {
     expect(result.current.data?.assignee).toBe('agent:builder');
   });
 
-  it('useStartTask transitions to running', async () => {
-    const { result } = renderHook(() => useStartTask('proj-a', 'TS-1'), {
-      wrapper: makeWrapper(),
-    });
-    act(() => {
-      result.current.mutate();
-    });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.status).toBe('running');
-  });
-
-  it('useBlockTask requires a reason payload', async () => {
+  it('useSetTaskStatus PATCHes the target status (free-state model)', async () => {
+    // v2.8.1 free-state model (@oopslink): the per-action start/block/complete/…
+    // sub-routes are replaced by one generalized PATCH .../status taking the
+    // target status in the body. Any valid state → any valid state.
     let received: Record<string, unknown> | undefined;
+    let method: string | undefined;
     server.use(
-      http.post('/api/projects/proj-a/tasks/TS-1/block', async ({ request }) => {
+      http.patch('/api/projects/proj-a/tasks/TS-1/status', async ({ request }) => {
+        method = request.method;
         received = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
           id: 'TS-1',
           project_id: 'proj-a',
           title: 'x',
           description: '',
-          status: 'blocked',
-          blocked_reason: 'waiting',
+          status: 'running',
           version: 2,
           created_at: 'x',
           updated_at: 'x',
         });
       }),
     );
-    const { result } = renderHook(() => useBlockTask('proj-a', 'TS-1'), {
+    const { result } = renderHook(() => useSetTaskStatus('proj-a', 'TS-1'), {
       wrapper: makeWrapper(),
     });
     act(() => {
-      result.current.mutate({ reason: 'waiting' });
+      result.current.mutate('running');
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(received).toMatchObject({ reason: 'waiting' });
+    expect(method).toBe('PATCH');
+    expect(received).toMatchObject({ status: 'running' });
+    expect(result.current.data?.status).toBe('running');
   });
 });

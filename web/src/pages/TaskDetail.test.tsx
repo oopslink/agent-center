@@ -65,10 +65,13 @@ describe('TaskDetail page', () => {
     // (the task-status trigger is relabeled "Change status").
     expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'open');
     expect(screen.getByTestId('task-project-link')).toHaveAttribute('href', '/projects/proj-a');
-    // v2.8.1 #5th: open → [Start] behind the status dropdown (NOT Assign —
-    // assignee is metadata, set via the meta-row Change link, not a transition).
+    // v2.8.1 free-state model: the menu lists ALL task states minus the current
+    // one. For an `open` task that is running/blocked/completed/verified/
+    // discarded/reopened (NOT open, and NOT a self-set). Assignee stays metadata
+    // (meta-row Change link), so no assign item in the status menu.
     await openStatusMenu();
-    expect(screen.getByTestId('task-start-button')).toBeInTheDocument();
+    expect(screen.getByTestId('task-set-status-running')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-set-status-open')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-assign-button')).not.toBeInTheDocument();
   });
 
@@ -196,82 +199,57 @@ describe('TaskDetail page', () => {
     await waitFor(() => expect(received).toMatchObject({ assignee: 'user:user-h1' }));
   });
 
-  it('shows running actions (block + complete) and posts complete', async () => {
-    let completed = false;
+  it('running task menu shows the full enum minus running, and PATCHes the picked status', async () => {
+    // v2.8.1 free-state model: a `running` task can move to ANY other state.
+    // The menu lists open/blocked/completed/verified/discarded/reopened (NOT
+    // running); clicking one PATCHes .../status with that target.
+    let received: Record<string, unknown> | undefined;
+    let method: string | undefined;
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),
-      http.post('/api/projects/proj-a/tasks/TS-1/complete', () => {
-        completed = true;
+      http.patch('/api/projects/proj-a/tasks/TS-1/status', async ({ request }) => {
+        method = request.method;
+        received = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(taskAt('completed', { completed_by: 'agent:builder' }));
       }),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await openStatusMenu();
-    expect(screen.getByTestId('task-block-button')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('task-complete-button'));
-    await waitFor(() => expect(completed).toBe(true));
-  });
-
-  it('requires a reason when blocking', async () => {
-    let received: Record<string, unknown> | undefined;
-    server.use(
-      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),
-      http.post('/api/projects/proj-a/tasks/TS-1/block', async ({ request }) => {
-        received = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(taskAt('blocked', { blocked_reason: 'waiting on infra' }));
-      }),
-    );
-    wrap('/projects/proj-a/tasks/TS-1');
-    await openStatusMenu();
-    fireEvent.click(screen.getByTestId('task-block-button'));
-    // submit disabled until reason filled
-    expect((screen.getByTestId('task-block-submit') as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByTestId('task-block-input'), {
-      target: { value: 'waiting on infra' },
-    });
+    // current state is excluded; every other state is offered.
+    expect(screen.queryByTestId('task-set-status-running')).not.toBeInTheDocument();
+    for (const s of ['open', 'blocked', 'completed', 'verified', 'discarded', 'reopened']) {
+      expect(screen.getByTestId(`task-set-status-${s}`)).toBeInTheDocument();
+    }
     await act(async () => {
-      fireEvent.click(screen.getByTestId('task-block-submit'));
+      fireEvent.click(screen.getByTestId('task-set-status-completed'));
     });
-    await waitFor(() => expect(received).toMatchObject({ reason: 'waiting on infra' }));
+    await waitFor(() => expect(received).toMatchObject({ status: 'completed' }));
+    expect(method).toBe('PATCH');
   });
 
-  it('completed tasks expose Verify + Reopen, not Discard', async () => {
+  it('completed task menu offers every other state (incl. discarded) — free model', async () => {
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('completed'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await openStatusMenu();
-    expect(screen.getByTestId('task-verify-button')).toBeInTheDocument();
-    // completed → {verified, reopened}: no discard edge.
-    expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
-    expect(screen.queryByTestId('task-discard-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-set-status-completed')).not.toBeInTheDocument();
+    // free model: completed can go to verified/reopened AND discarded/open/etc.
+    for (const s of ['open', 'running', 'blocked', 'verified', 'discarded', 'reopened']) {
+      expect(screen.getByTestId(`task-set-status-${s}`)).toBeInTheDocument();
+    }
   });
 
-  it('verified tasks expose only Reopen', async () => {
+  it('verified task menu offers every other state, not just reopen — free model', async () => {
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('verified'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await openStatusMenu();
-    expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
-    expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('task-discard-button')).not.toBeInTheDocument();
-  });
-
-  it('open task: Start is a transition; assignee is metadata (Change link, no assigned state)', async () => {
-    // v2.8.1 #5th: there is no `assigned` state. The status menu for an open
-    // task offers [Start] (→ running). Assignee is set via the meta-row "Change"
-    // link in ANY state and does NOT move the status.
-    server.use(
-      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
-    );
-    wrap('/projects/proj-a/tasks/TS-1');
-    // assignee meta row present + editable even when unassigned.
-    expect(await screen.findByTestId('task-assignee-empty')).toBeInTheDocument();
-    expect(screen.getByTestId('task-assign-change')).toBeInTheDocument();
-    await openStatusMenu();
-    expect(screen.getByTestId('task-start-button')).toBeInTheDocument();
-    expect(screen.queryByTestId('task-assign-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-set-status-verified')).not.toBeInTheDocument();
+    for (const s of ['open', 'running', 'blocked', 'completed', 'discarded', 'reopened']) {
+      expect(screen.getByTestId(`task-set-status-${s}`)).toBeInTheDocument();
+    }
   });
 
   it('assignee is metadata: Unassign appears in the meta row when assigned (running state)', async () => {
@@ -297,7 +275,10 @@ describe('TaskDetail page', () => {
     await waitFor(() => expect(unassigned).toBe(true));
   });
 
-  it('discarded tasks hide all lifecycle actions + the assignee Change link', async () => {
+  it('discarded task: status menu can still move to any other state, but assignee is frozen', async () => {
+    // v2.8.1 free-state model: `discarded` is no longer a status dead-end — the
+    // menu offers every other state (e.g. reopened/open). It IS still the
+    // soft-terminal metadata state, so the assignee "Change" link is hidden.
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('discarded'))),
     );
@@ -305,13 +286,11 @@ describe('TaskDetail page', () => {
     await waitFor(() =>
       expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'discarded'),
     );
-    // No transitions available → the disabled "Change status" trigger opens nothing.
-    fireEvent.click(screen.getByTestId('task-status'));
-    expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('task-discard-button')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('task-reopen-button')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
-    // terminal → assignee is no longer editable (no Change link).
+    await openStatusMenu();
+    expect(screen.queryByTestId('task-set-status-discarded')).not.toBeInTheDocument();
+    expect(screen.getByTestId('task-set-status-reopened')).toBeInTheDocument();
+    expect(screen.getByTestId('task-set-status-open')).toBeInTheDocument();
+    // terminal metadata → assignee is no longer editable (no Change link).
     expect(screen.queryByTestId('task-assign-change')).not.toBeInTheDocument();
   });
 

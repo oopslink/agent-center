@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Task } from './types';
+import type { Task, TaskStatus } from './types';
 
 // Tasks (v2.7 ProjectManager BC). Project-scoped: every read/write is
 // nested under /projects/{project_id}/tasks. The list response is
@@ -88,50 +88,21 @@ export function useAssignTask(projectId: string, taskId: string) {
   );
 }
 
-export function useStartTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/start`),
-  );
-}
-
-export function useBlockTask(projectId: string, taskId: string) {
-  return useTaskAction<{ reason: string }>(projectId, taskId, (vars) =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/block`, vars),
-  );
-}
-
-export function useUnblockTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/unblock`),
-  );
-}
-
-export function useCompleteTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/complete`),
-  );
-}
-
-export function useVerifyTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/verify`),
-  );
-}
-
-export function useDiscardTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/discard`),
-  );
-}
-
 export function useUnassignTask(projectId: string, taskId: string) {
   return useTaskAction<void>(projectId, taskId, () =>
     api.post<Task>(`${taskPath(projectId, taskId)}/unassign`),
   );
 }
 
-export function useReopenTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/reopen`),
+// useSetTaskStatus — v2.8.1 free-state model (@oopslink). The Task status
+// machine is now fully free: status = the agent's self-reported progress, any
+// valid state → any valid state (no adjacency constraints). This single
+// generalized PATCH endpoint replaces the per-action /start,/block,/complete,
+// /verify,/discard,/reopen,/unblock sub-routes for status changes; the server
+// IsValid-checks the target and returns the updated Task. Shares the same
+// task + tasks-by-project invalidation as the other task mutations.
+export function useSetTaskStatus(projectId: string, taskId: string) {
+  return useTaskAction<TaskStatus>(projectId, taskId, (status) =>
+    api.patch<Task>(`${taskPath(projectId, taskId)}/status`, { status }),
   );
 }
