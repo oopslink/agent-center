@@ -70,6 +70,11 @@ type Issue struct {
 	// orgNumber — per-org, per-type monotonic display/reference number (v2.7.1
 	// #245, rendered "I<n>"); 0 when not yet allocated/backfilled.
 	orgNumber int
+	// tags — free-form label set (v2.8.1 edit #278); nil/empty when no tags.
+	tags []string
+	// statusChangedAt — when status last changed (v2.8.1 #278); set to createdAt
+	// at construction, updated on every status mutation (not on metadata edits).
+	statusChangedAt time.Time
 }
 
 // NewIssueInput captures constructor args.
@@ -103,31 +108,34 @@ func NewIssue(in NewIssueInput) (*Issue, error) {
 	}
 	at := in.CreatedAt.UTC()
 	return &Issue{
-		id:          in.ID,
-		projectID:   in.ProjectID,
-		title:       in.Title,
-		description: in.Description,
-		status:      IssueOpen,
-		createdBy:   in.CreatedBy,
-		createdAt:   at,
-		updatedAt:   at,
-		version:     1,
-		orgNumber:   in.OrgNumber,
+		id:              in.ID,
+		projectID:       in.ProjectID,
+		title:           in.Title,
+		description:     in.Description,
+		status:          IssueOpen,
+		createdBy:       in.CreatedBy,
+		createdAt:       at,
+		updatedAt:       at,
+		version:         1,
+		orgNumber:       in.OrgNumber,
+		statusChangedAt: at,
 	}, nil
 }
 
 // RehydrateIssueInput is for repository round-trip.
 type RehydrateIssueInput struct {
-	ID          IssueID
-	ProjectID   ProjectID
-	Title       string
-	Description string
-	Status      IssueStatus
-	CreatedBy   IdentityRef
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Version     int
-	OrgNumber   int
+	ID              IssueID
+	ProjectID       ProjectID
+	Title           string
+	Description     string
+	Status          IssueStatus
+	CreatedBy       IdentityRef
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	Version         int
+	OrgNumber       int
+	Tags            []string
+	StatusChangedAt time.Time
 }
 
 // RehydrateIssue reconstructs without invariant checks.
@@ -138,31 +146,53 @@ func RehydrateIssue(in RehydrateIssueInput) (*Issue, error) {
 	if in.Version < 1 {
 		return nil, errors.New("projectmanager: version must be >= 1")
 	}
+	// statusChangedAt fallback: old rows store '' (zero) → fall back to updated_at.
+	statusChangedAt := in.StatusChangedAt.UTC()
+	if in.StatusChangedAt.IsZero() {
+		statusChangedAt = in.UpdatedAt.UTC()
+	}
 	return &Issue{
-		id:          in.ID,
-		projectID:   in.ProjectID,
-		title:       in.Title,
-		description: in.Description,
-		status:      in.Status,
-		createdBy:   in.CreatedBy,
-		createdAt:   in.CreatedAt.UTC(),
-		updatedAt:   in.UpdatedAt.UTC(),
-		version:     in.Version,
-		orgNumber:   in.OrgNumber,
+		id:              in.ID,
+		projectID:       in.ProjectID,
+		title:           in.Title,
+		description:     in.Description,
+		status:          in.Status,
+		createdBy:       in.CreatedBy,
+		createdAt:       in.CreatedAt.UTC(),
+		updatedAt:       in.UpdatedAt.UTC(),
+		version:         in.Version,
+		orgNumber:       in.OrgNumber,
+		tags:            in.Tags,
+		statusChangedAt: statusChangedAt,
 	}, nil
 }
 
 // Getters.
-func (i *Issue) ID() IssueID            { return i.id }
-func (i *Issue) ProjectID() ProjectID   { return i.projectID }
-func (i *Issue) Title() string          { return i.title }
-func (i *Issue) Description() string    { return i.description }
-func (i *Issue) Status() IssueStatus    { return i.status }
-func (i *Issue) CreatedBy() IdentityRef { return i.createdBy }
-func (i *Issue) OrgNumber() int         { return i.orgNumber }
-func (i *Issue) CreatedAt() time.Time   { return i.createdAt }
-func (i *Issue) UpdatedAt() time.Time   { return i.updatedAt }
-func (i *Issue) Version() int           { return i.version }
+func (i *Issue) ID() IssueID                { return i.id }
+func (i *Issue) ProjectID() ProjectID       { return i.projectID }
+func (i *Issue) Title() string              { return i.title }
+func (i *Issue) Description() string        { return i.description }
+func (i *Issue) Status() IssueStatus        { return i.status }
+func (i *Issue) CreatedBy() IdentityRef     { return i.createdBy }
+func (i *Issue) OrgNumber() int             { return i.orgNumber }
+func (i *Issue) CreatedAt() time.Time       { return i.createdAt }
+func (i *Issue) UpdatedAt() time.Time       { return i.updatedAt }
+func (i *Issue) Version() int               { return i.version }
+func (i *Issue) Tags() []string             { return i.tags }
+func (i *Issue) StatusChangedAt() time.Time { return i.statusChangedAt }
+
+// SetTags replaces the issue's label set (metadata edit, NOT a status change).
+// Validation matches Task.SetTags (1..16 chars each, deduped, <=10). Does NOT
+// touch statusChangedAt.
+func (i *Issue) SetTags(tags []string, at time.Time) error {
+	cleaned, err := cleanTags(tags)
+	if err != nil {
+		return err
+	}
+	i.tags = cleaned
+	i.touch(at)
+	return nil
+}
 
 // Rename updates the display title (metadata edit, not a state transition).
 func (i *Issue) Rename(title string, at time.Time) error {
@@ -193,6 +223,7 @@ func (i *Issue) Transition(to IssueStatus, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	i.status = to
+	i.statusChangedAt = at.UTC()
 	i.touch(at)
 	return nil
 }
@@ -209,6 +240,7 @@ func (i *Issue) SetStatus(target IssueStatus, at time.Time) error {
 		return nil
 	}
 	i.status = target
+	i.statusChangedAt = at.UTC()
 	i.touch(at)
 	return nil
 }

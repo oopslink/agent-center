@@ -70,11 +70,16 @@ func pmMemberMap(m *pm.ProjectMember) map[string]any {
 }
 
 func pmIssueMap(i *pm.Issue) map[string]any {
+	tags := i.Tags()
+	if tags == nil {
+		tags = []string{}
+	}
 	m := map[string]any{
 		"id": string(i.ID()), "project_id": string(i.ProjectID()), "title": i.Title(),
 		"description": i.Description(), "status": string(i.Status()), "created_by": string(i.CreatedBy()),
 		"version": i.Version(), "created_at": i.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": i.UpdatedAt().Format(time.RFC3339Nano),
+		"tags":       tags, "status_changed_at": rfc3339OrEmpty(i.StatusChangedAt()),
 	}
 	if ref := orgRefToken("I", i.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
@@ -83,17 +88,39 @@ func pmIssueMap(i *pm.Issue) map[string]any {
 }
 
 func pmTaskMap(t *pm.Task) map[string]any {
+	tags := t.Tags()
+	if tags == nil {
+		tags = []string{}
+	}
 	m := map[string]any{
 		"id": string(t.ID()), "project_id": string(t.ProjectID()), "title": t.Title(),
 		"description": t.Description(), "status": string(t.Status()), "assignee": string(t.Assignee()),
 		"derived_from_issue": string(t.DerivedFromIssue()), "completed_by": string(t.CompletedBy()),
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
+		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
 	}
 	return m
+}
+
+// orEmptyTags returns the tag slice, or a non-nil empty slice so the DTO emits
+// [] rather than null.
+func orEmptyTags(tags []string) []string {
+	if tags == nil {
+		return []string{}
+	}
+	return tags
+}
+
+// rfc3339OrEmpty formats a timestamp as RFC3339Nano, or "" when zero.
+func rfc3339OrEmpty(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339Nano)
 }
 
 // orgRefToken renders the v2.7.1 #245 display/reference token ("T<n>"/"I<n>"),
@@ -489,6 +516,38 @@ func (s *Server) pmUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if err := d.PM.UpdateTask(r.Context(), pmservice.UpdateTaskCommand{
 		TaskID: t.ID(), Title: req.Title, Description: req.Description, Actor: caller,
 	}); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetTask(r.Context(), t.ID())
+	writeJSON(w, http.StatusOK, pmTaskMap(got))
+}
+
+// pmBatchUpdateTaskHandler applies any subset of {status, assignee, tags} to a
+// task in one atomic tx (v2.8.1 edit-task #278). A field absent from the JSON
+// body (nil pointer) is left unchanged; assignee:"" unassigns. This is the bare
+// PATCH on the task; the typed sub-routes (.../assign, .../status, ...) remain.
+func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status      *string   `json:"status"`
+		Assignee    *string   `json:"assignee"`
+		Tags        *[]string `json:"tags"`
+		Title       *string   `json:"title"`
+		Description *string   `json:"description"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.BatchUpdateTask(r.Context(), t.ID(), pmservice.BatchTaskPatch{
+		Status: req.Status, Assignee: req.Assignee, Tags: req.Tags,
+		Title: req.Title, Description: req.Description,
+	}, caller); err != nil {
 		mapPMError(w, err)
 		return
 	}

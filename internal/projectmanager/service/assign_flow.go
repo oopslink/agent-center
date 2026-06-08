@@ -295,6 +295,68 @@ func (s *Service) SetTaskStatus(ctx context.Context, taskID pm.TaskID, target pm
 	}, "")
 }
 
+// BatchTaskPatch is the set of optionally-updated fields for BatchUpdateTask. A
+// nil pointer means "leave unchanged"; a non-nil pointer applies the field
+// (v2.8.1 edit-task #278). For Assignee, "" means Unassign. Title/Description
+// are also accepted so the bare task PATCH stays a superset of the prior
+// metadata-only PATCH (single atomic tx for the whole edit).
+type BatchTaskPatch struct {
+	Status      *string
+	Assignee    *string
+	Tags        *[]string
+	Title       *string
+	Description *string
+}
+
+// BatchUpdateTask applies any subset of {status, assignee, tags} to a Task in a
+// SINGLE tx — all-or-none (if any field's mutation errors, the tx rolls back and
+// nothing is applied). Project-member gated. Emits pm.task.state_changed so the
+// participant projector + downstream stay in sync (a tags-only edit still bumps
+// version + re-emits, which is harmless/idempotent for the effective set).
+func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch BatchTaskPatch, actor pm.IdentityRef) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		if patch.Title != nil {
+			if err := t.Rename(*patch.Title, now); err != nil {
+				return err
+			}
+		}
+		if patch.Description != nil {
+			t.SetDescription(*patch.Description, now)
+		}
+		if patch.Status != nil {
+			if err := t.SetStatus(pm.TaskStatus(*patch.Status), now); err != nil {
+				return err
+			}
+		}
+		if patch.Assignee != nil {
+			if *patch.Assignee == "" {
+				if err := t.Unassign(now); err != nil {
+					return err
+				}
+			} else if err := t.Assign(pm.IdentityRef(*patch.Assignee), now); err != nil {
+				return err
+			}
+		}
+		if patch.Tags != nil {
+			if err := t.SetTags(*patch.Tags, now); err != nil {
+				return err
+			}
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		return s.emitTaskStateChanged(txCtx, t, "")
+	})
+}
+
 // emitTaskAssignEvent emits an assign/reassign event carrying the current
 // assignee, previous assignee, and the recomputed effective subscriber set.
 func (s *Service) emitTaskAssignEvent(ctx context.Context, t *pm.Task, evt, previous string) error {

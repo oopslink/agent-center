@@ -91,10 +91,11 @@ func MigrateV1ToV2Command() *Command {
 // last_session_at); v2.7.1-#49 added 0049 (pm org sequence); v2.8-#268 added
 // 0050 (user_conversation_follow_state); v2.8.1-#278 added 0051 (agent_work_items
 // single-active UNIQUE index); v2.8.1 state-model-fix added 0052 (Task assigned→
-// open + Task/Issue canceled/withdrawn→discarded). Update this constant when any
+// open + Task/Issue canceled/withdrawn→discarded); v2.8.1 Edit-Task added 0053
+// (Task/Issue tags + status_changed_at columns). Update this constant when any
 // future migration lands so `migrate v1-to-v2` always carries the install to the
 // latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 52
+const targetSchemaVersion = 53
 
 func runMigrateV1ToV2(
 	ctx context.Context,

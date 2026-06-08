@@ -210,7 +210,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks", s.pmListTasksHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks", s.pmCreateTaskHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks/{task_id}", s.pmGetTaskHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{project_id}/tasks/{task_id}", s.pmUpdateTaskHandler)
+	s.mux.HandleFunc("PATCH /api/projects/{project_id}/tasks/{task_id}", s.pmBatchUpdateTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/assign", s.pmAssignTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/start", s.pmStartTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/block", s.pmBlockTaskHandler)

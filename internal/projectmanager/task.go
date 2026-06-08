@@ -99,6 +99,13 @@ type Task struct {
 	// (v2.7.1 #245, rendered "T<n>"). Allocated at create by the org sequence; 0
 	// for rows predating the allocator / not yet backfilled (DTO omits org_ref then).
 	orgNumber int
+	// tags is the free-form label set (v2.8.1 edit-task #278). nil/empty when no
+	// tags; cleaned + deduped + bounded (1..16 chars each, <=10 entries) by SetTags.
+	tags []string
+	// statusChangedAt records when status last changed (v2.8.1 #278). Set to
+	// createdAt at construction; updated to `at` on every status mutation (NOT on
+	// metadata edits like rename/assign/tags).
+	statusChangedAt time.Time
 }
 
 // NewTaskInput captures constructor args.
@@ -146,6 +153,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		updatedAt:        at,
 		version:          1,
 		orgNumber:        in.OrgNumber,
+		statusChangedAt:  at,
 	}, nil
 }
 
@@ -165,6 +173,8 @@ type RehydrateTaskInput struct {
 	UpdatedAt        time.Time
 	Version          int
 	OrgNumber        int
+	Tags             []string
+	StatusChangedAt  time.Time
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -174,6 +184,12 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 	}
 	if in.Version < 1 {
 		return nil, errors.New("projectmanager: version must be >= 1")
+	}
+	// statusChangedAt fallback: old rows predating the column store '' (zero) →
+	// fall back to updated_at so the field is never zero for a valid row.
+	statusChangedAt := in.StatusChangedAt.UTC()
+	if in.StatusChangedAt.IsZero() {
+		statusChangedAt = in.UpdatedAt.UTC()
 	}
 	return &Task{
 		id:               in.ID,
@@ -190,24 +206,42 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		updatedAt:        in.UpdatedAt.UTC(),
 		version:          in.Version,
 		orgNumber:        in.OrgNumber,
+		tags:             in.Tags,
+		statusChangedAt:  statusChangedAt,
 	}, nil
 }
 
 // Getters.
-func (t *Task) ID() TaskID                { return t.id }
-func (t *Task) ProjectID() ProjectID      { return t.projectID }
-func (t *Task) Title() string             { return t.title }
-func (t *Task) Description() string       { return t.description }
-func (t *Task) Status() TaskStatus        { return t.status }
-func (t *Task) Assignee() IdentityRef     { return t.assignee }
-func (t *Task) DerivedFromIssue() IssueID { return t.derivedFromIssue }
-func (t *Task) CompletedBy() IdentityRef  { return t.completedBy }
-func (t *Task) BlockedReason() string     { return t.blockedReason }
-func (t *Task) CreatedBy() IdentityRef    { return t.createdBy }
-func (t *Task) OrgNumber() int            { return t.orgNumber }
-func (t *Task) CreatedAt() time.Time      { return t.createdAt }
-func (t *Task) UpdatedAt() time.Time      { return t.updatedAt }
-func (t *Task) Version() int              { return t.version }
+func (t *Task) ID() TaskID                 { return t.id }
+func (t *Task) ProjectID() ProjectID       { return t.projectID }
+func (t *Task) Title() string              { return t.title }
+func (t *Task) Description() string        { return t.description }
+func (t *Task) Status() TaskStatus         { return t.status }
+func (t *Task) Assignee() IdentityRef      { return t.assignee }
+func (t *Task) DerivedFromIssue() IssueID  { return t.derivedFromIssue }
+func (t *Task) CompletedBy() IdentityRef   { return t.completedBy }
+func (t *Task) BlockedReason() string      { return t.blockedReason }
+func (t *Task) CreatedBy() IdentityRef     { return t.createdBy }
+func (t *Task) OrgNumber() int             { return t.orgNumber }
+func (t *Task) CreatedAt() time.Time       { return t.createdAt }
+func (t *Task) UpdatedAt() time.Time       { return t.updatedAt }
+func (t *Task) Version() int               { return t.version }
+func (t *Task) Tags() []string             { return t.tags }
+func (t *Task) StatusChangedAt() time.Time { return t.statusChangedAt }
+
+// SetTags replaces the task's label set (metadata edit, NOT a status change).
+// Each tag is trimmed; blank tags and tags longer than 16 chars are rejected;
+// exact duplicates are dropped; more than 10 distinct tags is rejected. The
+// cleaned/deduped slice is stored. Does NOT touch statusChangedAt.
+func (t *Task) SetTags(tags []string, at time.Time) error {
+	cleaned, err := cleanTags(tags)
+	if err != nil {
+		return err
+	}
+	t.tags = cleaned
+	t.touch(at)
+	return nil
+}
 
 // Rename updates the display title (metadata edit, not a state transition).
 func (t *Task) Rename(title string, at time.Time) error {
@@ -266,6 +300,7 @@ func (t *Task) Block(reason string, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	t.status = TaskBlocked
+	t.statusChangedAt = at.UTC()
 	t.blockedReason = reason
 	t.touch(at)
 	return nil
@@ -290,6 +325,7 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	t.status = TaskCompleted
+	t.statusChangedAt = at.UTC()
 	t.completedBy = by
 	t.touch(at)
 	return nil
@@ -309,6 +345,7 @@ func (t *Task) Verify(by IdentityRef, at time.Time) error {
 		return ErrSelfVerify
 	}
 	t.status = TaskVerified
+	t.statusChangedAt = at.UTC()
 	t.touch(at)
 	return nil
 }
@@ -331,6 +368,7 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 		return nil // no-op (idempotent); avoids a spurious version bump
 	}
 	t.status = target
+	t.statusChangedAt = at.UTC()
 	t.touch(at)
 	return nil
 }
@@ -359,6 +397,7 @@ func (t *Task) simpleTransition(to TaskStatus, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	t.status = to
+	t.statusChangedAt = at.UTC()
 	t.touch(at)
 	return nil
 }
@@ -369,4 +408,37 @@ func (t *Task) touch(at time.Time) {
 	}
 	t.updatedAt = at.UTC()
 	t.version++
+}
+
+// cleanTags trims, validates, and dedups a tag set shared by Task.SetTags and
+// Issue.SetTags (v2.8.1 edit #278): each tag must be 1..16 chars after trimming;
+// exact duplicates are dropped (first occurrence kept); at most 10 distinct tags.
+// Returns nil for an empty input (no tags).
+func cleanTags(tags []string) ([]string, error) {
+	if len(tags) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, raw := range tags {
+		tag := strings.TrimSpace(raw)
+		if tag == "" {
+			return nil, errors.New("projectmanager: tag must be 1..16 chars")
+		}
+		if len([]rune(tag)) > 16 {
+			return nil, errors.New("projectmanager: tag must be 1..16 chars")
+		}
+		if _, dup := seen[tag]; dup {
+			continue
+		}
+		seen[tag] = struct{}{}
+		out = append(out, tag)
+	}
+	if len(out) > 10 {
+		return nil, errors.New("projectmanager: at most 10 tags allowed")
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
