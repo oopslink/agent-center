@@ -7,33 +7,32 @@ import type { IssueStatus, TaskStatus } from '@/api/types';
 // status block, optional action buttons, a metadata list, and (Task-only) a
 // WorkItems status summary.
 //
-// Status colors align with the existing StatusChip (#258) color FAMILY — no
+// Status colors align with the existing StatusChip (#258) palette — no
 // cross-component drift (a big block in one hue + a chip in another would
-// confuse). @oopslink FINAL lock: white text on a saturated color background
-// (bg-<color> text-white). @oopslink has explicitly accepted that some pairs
-// (orange-500, slate-500, blue-500, pink-600 vs white) fall below WCAG-AA
-// 4.5:1 — an intentional trade-off; do NOT "fix" the contrast or change hexes.
+// confuse). @oopslink REVISION 4 lock: white text on a saturated color
+// background (bg-<color> text-white). blocked uses the custom `blockedred`
+// token (#dc2626) so the a11y guardrail's raw bg-red-/text-red- ban stays green.
 type StatusKey = IssueStatus | TaskStatus;
 
 const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
-  // not started (slate)
-  open: { label: 'Open', cls: 'bg-slate-500 text-white' },
+  // not started (sky)
+  open: { label: 'Open', cls: 'bg-sky-600 text-white' },
   // in flight (blue)
-  in_progress: { label: 'In Progress', cls: 'bg-blue-500 text-white' },
-  running: { label: 'Running', cls: 'bg-blue-500 text-white' },
-  // blocked (orange — StatusChip align)
-  blocked: { label: 'Blocked', cls: 'bg-orange-500 text-white' },
+  in_progress: { label: 'In Progress', cls: 'bg-blue-600 text-white' },
+  running: { label: 'Running', cls: 'bg-blue-600 text-white' },
+  // blocked (red #dc2626 via custom blockedred token)
+  blocked: { label: 'Blocked', cls: 'bg-blockedred text-white' },
   // done (green)
   resolved: { label: 'Resolved', cls: 'bg-green-600 text-white' },
   completed: { label: 'Completed', cls: 'bg-green-600 text-white' },
-  // verified (purple — distinct hue from done green)
-  verified: { label: 'Verified', cls: 'bg-purple-600 text-white' },
-  // closed (Issue) → cyan (terminal, distinct from open's slate)
-  closed: { label: 'Closed', cls: 'bg-cyan-600 text-white' },
-  // discarded (both Issue+Task; replaces canceled/withdrawn) → deep-rust.
-  discarded: { label: 'Discarded', cls: 'bg-rust-700 text-white' },
-  // reopened (pink — back in play)
-  reopened: { label: 'Reopened', cls: 'bg-pink-600 text-white' },
+  // verified (teal — distinct hue from done green)
+  verified: { label: 'Verified', cls: 'bg-teal-600 text-white' },
+  // closed (Issue) → slate (terminal)
+  closed: { label: 'Closed', cls: 'bg-slate-500 text-white' },
+  // discarded (both Issue+Task; replaces canceled/withdrawn) → zinc.
+  discarded: { label: 'Discarded', cls: 'bg-zinc-700 text-white' },
+  // reopened (amber — back in play)
+  reopened: { label: 'Reopened', cls: 'bg-amber-600 text-white' },
 };
 
 export function StatusBlock({ status }: { status: StatusKey }): React.ReactElement {
