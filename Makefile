@@ -50,12 +50,15 @@ help:
 BIN := agent-center
 WEB := web
 
-# Build identity. VERSION can be overridden at build time (e.g.
-# `VERSION=v2.4.1 make build`); COMMIT is auto-discovered from the
-# working tree (falls back to "unknown" outside a checkout). Kept in
-# sync with CHANGELOG's top section.
-VERSION ?= v2.7.1
+# Build identity. Per docs/rules/conventions.md § 18 (version format):
+# version = ${branch}-${git-hash}  (e.g. v2.8.1-9908825).
+# Default VERSION is auto-computed; release tag override via env
+# (e.g. `VERSION=v2.8.1 make build` at ship ceremony). COMMIT
+# auto-discovers from working tree, falls back to "unknown" outside
+# a checkout.
+BRANCH  := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+VERSION ?= $(BRANCH)-$(COMMIT)
 
 build: build-frontend build-backend build-fakeagent
 

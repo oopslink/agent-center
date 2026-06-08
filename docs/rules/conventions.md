@@ -612,3 +612,41 @@ backend 规约（§11 产品力 / CRUD enumeration 的 backend 对偶）：
 - 我每个 `if err != nil` 分支做了什么？符合上表"算处理"哪一行？
 - 我的解析 / 协议层遇到未知字段 / 未知类型 / 未知 reason 时上报了吗？
 - 我有没有 silently 返回默认值掩盖错误？
+
+## § 18. 版本号格式
+
+**规约**（@oopslink 2026-06-08 拍）：
+
+```
+version = ${branch}-${git-hash}
+```
+
+例如 `v2.8.1-9908825`（当前 v2.8.1 分支 commit 9908825）/ `main-d92a211` / `fix-some-feature-abc1234`。
+
+**默认 build** = 当前 git branch + 短 commit hash（自动派生，无需手动维护）。
+
+**Release tag override**（仅在打 release tag 时显式）：
+```bash
+make build VERSION=v2.8.1      # 仅在 release ceremony 时用
+```
+override 也仍带 commit hash 是最佳实践（`v2.8.1-9908825`），仅在外部 ship/标识需要 clean tag 时省略.
+
+**不可省略 branch**：单 `v2.8.1` 不算合规（缺 branch 上下文不知是哪个 commit / 哪个 fork）。
+
+**为什么**：
+- 部署到客户/test instance 时 `agent-center --version` 输出含 branch 自然反映 "这是哪条线 / 哪个 commit"
+- v2.7.1 ship-gap 教训：仅靠 tag 名验证落地易出 evidence-binding 错（同 tag 不同 commit）
+- branch-hash 是 unambiguous identity
+- 与 [§ 19 worktree isolation](#-19-worktree-isolation) + [§ 20 content-delta verify](#-20-content-delta-verify) 同精神：identity 必须 unambiguous + verifiable
+
+**落实**：
+
+- `Makefile`：`VERSION ?= $(BRANCH)-$(COMMIT)`（自动），覆盖通过 env 传 `VERSION=tag-name`
+- 所有打包/编译/install 脚本 inherit Makefile VERSION
+- `agent-center --version` / banner / 安装包文件名 用同一 VERSION
+
+**自检：**
+
+- `make build` 产出的二进制 `--version` 显示 branch + hash 吗？
+- Release tarball 文件名 含 branch + hash 吗？
+- 我手动改 VERSION 时, 是否仍保留 commit hash 后缀？
