@@ -51,14 +51,15 @@ BIN := agent-center
 WEB := web
 
 # Build identity. Per docs/rules/conventions.md § 18 (version format):
-# version = ${branch}-${git-hash}  (e.g. v2.8.1-9908825).
-# Default VERSION is auto-computed; release tag override via env
-# (e.g. `VERSION=v2.8.1 make build` at ship ceremony). COMMIT
-# auto-discovers from working tree, falls back to "unknown" outside
-# a checkout.
-BRANCH  := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
-COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
-VERSION ?= $(BRANCH)-$(COMMIT)
+# version = ${branch}-${git-hash}  (e.g. v2.8.1-9908825) — the branch is never
+# omitted and a commit hash is always included, so any dev build self-identifies
+# its source. A tagged release overrides it explicitly:
+# VERSION=v2.8.1 make build. COMMIT/BRANCH/BUILT_AT auto-discover from the
+# working tree (fall back to unknown outside a checkout).
+COMMIT   := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BRANCH   := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
+BUILT_AT := $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)
+VERSION  ?= $(BRANCH)-$(COMMIT)
 
 build: build-frontend build-backend build-fakeagent
 
@@ -71,7 +72,7 @@ build-frontend:
 	echo "Populated by 'make build-frontend' (vite build outDir)." > ./internal/webconsole/spa/dist/.gitkeep
 
 build-backend:
-	go build -ldflags "-X main.buildVersion=$(VERSION) -X main.buildCommit=$(COMMIT)" \
+	go build -ldflags "-X main.buildVersion=$(VERSION) -X main.buildCommit=$(COMMIT) -X main.buildBranch=$(BRANCH) -X main.buildBuiltAt=$(BUILT_AT)" \
 	    -o ./bin/$(BIN) ./cmd/agent-center
 
 # v2.2-D fakeagent — LLM-free agent stub used by e2e tests. Without

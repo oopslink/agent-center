@@ -617,3 +617,51 @@ func bootstrapInitialized(t *testing.T, base string) bool {
 	}
 	return body.Initialized
 }
+
+// v2.8.1: GET /api/system/version returns the full build identity (version /
+// branch / commit / built_at) for the Settings version panel; public (auth-exempt
+// like /api/health), with sentinels for unversioned builds.
+func TestAPI_SystemVersion(t *testing.T) {
+	srv := NewServer("127.0.0.1:0", Deps{
+		Version: "v2.8.1-9908825", Branch: "v2.8.1", Commit: "9908825", BuiltAt: "2026-06-08T02:20:16Z",
+	})
+	s := httptest.NewServer(srv.Handler())
+	defer s.Close()
+	resp, err := http.Get(s.URL + "/api/system/version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("got %d, want 200 (public, auth-exempt)", resp.StatusCode)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{
+		"version": "v2.8.1-9908825", "branch": "v2.8.1", "commit": "9908825", "built_at": "2026-06-08T02:20:16Z",
+	} {
+		if body[k] != want {
+			t.Errorf("%s = %v, want %q", k, body[k], want)
+		}
+	}
+}
+
+func TestAPI_SystemVersion_Fallbacks(t *testing.T) {
+	srv := NewServer("127.0.0.1:0", Deps{}) // unversioned go-run path
+	s := httptest.NewServer(srv.Handler())
+	defer s.Close()
+	resp, err := http.Get(s.URL + "/api/system/version")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["version"] != "dev" || body["branch"] != "unknown" || body["commit"] != "unknown" || body["built_at"] != "unknown" {
+		t.Fatalf("unversioned fallbacks mismatch: %+v", body)
+	}
+}
