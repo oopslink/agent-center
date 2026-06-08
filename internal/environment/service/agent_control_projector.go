@@ -255,32 +255,10 @@ func (p *AgentControlProjector) reemitWorkOnRunning(ctx context.Context, pl agen
 		if s := wi.Status(); s != agent.WorkItemQueued && s != agent.WorkItemActive {
 			continue
 		}
-		payload, err := json.Marshal(workCommandPayload{
-			AgentID:    pl.AgentID,
-			WorkItemID: wi.ID(),
-			TaskRef:    wi.TaskRef(),
-			// #115 backfill: resolve the SAME brief (title\n\ndesc) that pm
-			// enqueueWork captures so the re-delivered work carries the original
-			// task content. nil tasks repo / lookup-fail / bad ref → "" (degraded,
-			// matching enqueueWork.brief).
-			Brief: p.briefForTask(ctx, wi.TaskRef()),
-		})
-		if err != nil {
-			return err
-		}
-		if _, err := p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
-			WorkerID:       environment.WorkerID(pl.WorkerID),
-			CommandType:    commandTypeAgentWork,
-			Payload:        string(payload),
-			IdempotencyKey: "agent.work:" + wi.ID(),
-		}); err != nil {
-			return err
-		}
-		// v2.8.1 #278 D PR2 (ADDITIVE): also emit the per-agent wake so the agent
-		// can pull this work via the pull model. Same per-WorkItem idempotency key
-		// as pm enqueueWork → a wake already emitted on enqueue collapses with this
-		// re-emit. Additive (old agent.work above unchanged until the PR6 cutover);
-		// daemon log+skips it until PR3.
+		// v2.8.1 #278 D PR6 CUTOVER: the old agent.work PUSH re-delivery is removed.
+		// On →running we re-emit ONLY the per-agent wake (agent.work_available); the
+		// agent pulls its queue (get_my_work / start_work) — the sole activation path.
+		// The come-online re-emit un-defers QUEUED items (wake the agent to pull them).
 		wakePayload, err := json.Marshal(workAvailablePayload{
 			AgentID:    pl.AgentID,
 			WorkItemID: wi.ID(),
