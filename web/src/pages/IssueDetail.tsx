@@ -9,6 +9,7 @@ import {
 } from '@/api/issues';
 import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
+import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { IssueTaskSidebar, type SidebarMetaRow } from '@/components/IssueTaskSidebar';
 import { EntityRef } from '@/components/EntityRef';
@@ -157,9 +158,18 @@ export default function IssueDetail(): React.ReactElement {
           )}
 
           {iss.description ? (
-            <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="issue-description">
-              {iss.description}
-            </p>
+            // @oopslink: markdown render + capped height so a long description
+            // scrolls internally rather than pushing the conversation off-screen.
+            // tabIndex keeps the scroll region keyboard-reachable (WCAG 2.1.1).
+            <div
+              className="mt-4 max-h-64 overflow-y-auto text-sm text-text-secondary"
+              data-testid="issue-description"
+              tabIndex={0}
+              role="region"
+              aria-label="Issue description"
+            >
+              <MarkdownMessage content={iss.description} />
+            </div>
           ) : (
             <p className="mt-4 text-sm italic text-text-muted">No description.</p>
           )}
