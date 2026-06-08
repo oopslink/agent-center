@@ -70,6 +70,23 @@ describe('TaskDetail page', () => {
     expect(screen.getByTestId('task-assign-button')).toBeInTheDocument();
   });
 
+  it('renders the description as markdown in a height-capped, keyboard-scrollable region', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () =>
+        HttpResponse.json(taskAt('open', { description: '# Heading\n\n- one\n- two' })),
+      ),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    const desc = await screen.findByTestId('task-description');
+    // height cap + internal scroll so a long description never pushes the
+    // conversation off-screen; tabIndex keeps the region keyboard-scrollable.
+    expect(desc).toHaveClass('max-h-64', 'overflow-y-auto');
+    expect(desc).toHaveAttribute('tabindex', '0');
+    // markdown is actually rendered (heading + list), not raw text.
+    expect(desc.querySelector('h1')).toBeInTheDocument();
+    expect(desc.querySelectorAll('li')).toHaveLength(2);
+  });
+
   it('opens a transition menu from the status badge and closes it again (#186-3a)', async () => {
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),

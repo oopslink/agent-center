@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, useDisplayNameResolver } from '@/api/members';
 import { EntityRef } from '@/components/EntityRef';
+import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { TypeChip } from '@/components/TypeChip';
 import {
   useAssignTask,
@@ -259,9 +260,19 @@ export default function TaskDetail(): React.ReactElement {
           )}
 
           {tk.description ? (
-            <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="task-description">
-              {tk.description}
-            </p>
+            // @oopslink: render the description as markdown (reuse MarkdownMessage)
+            // and cap its height so a long description scrolls internally instead
+            // of pushing the conversation off-screen. tabIndex makes the scroll
+            // region keyboard-reachable (WCAG 2.1.1), per Tester2's a11y flag.
+            <div
+              className="mt-4 max-h-64 overflow-y-auto text-sm text-text-secondary"
+              data-testid="task-description"
+              tabIndex={0}
+              role="region"
+              aria-label="Task description"
+            >
+              <MarkdownMessage content={tk.description} />
+            </div>
           ) : (
             <p className="mt-4 text-sm italic text-text-muted">No description.</p>
           )}
