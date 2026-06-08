@@ -15,6 +15,10 @@ import { localDateToRFC3339 } from '@/utils/time';
 export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): React.ReactElement {
   const { slug } = useParams<{ slug: string }>();
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  // project filter (multi) = array of project ids; assignee filter (single) =
+  // a prefixed identity ref ("user:<id>" / "agent:<id>"), '' = Any.
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [assignee, setAssignee] = useState<string>('');
   // #258 date-range filters: raw "YYYY-MM-DD" picker values (the FilterBar's
   // local state). Converted to RFC3339-with-LOCAL-offset only when calling the
   // hook (see localDateToRFC3339 — the off-by-one 命门: never send naive/UTC).
@@ -31,6 +35,10 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
   // 00:00:00, end/"before" = 23:59:59) and omitted when its picker is empty.
   const filters: OrgWorkItemFilters = {};
   if (selectedStatuses.length > 0) filters.status = selectedStatuses;
+  // project = multi (repeated `project=<id>`, OR semantics backend-side);
+  // assignee = single (prefixed identity ref). Omitted when unset.
+  if (selectedProjects.length > 0) filters.project = selectedProjects;
+  if (assignee) filters.assignee = assignee;
   const createdAfter = localDateToRFC3339(dateRange.created_after, 'start');
   const createdBefore = localDateToRFC3339(dateRange.created_before, 'end');
   const updatedAfter = localDateToRFC3339(dateRange.updated_after, 'start');
@@ -49,6 +57,10 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
         query={query}
         selectedStatuses={selectedStatuses}
         onStatusesChange={setSelectedStatuses}
+        selectedProjects={selectedProjects}
+        onProjectsChange={setSelectedProjects}
+        assignee={assignee}
+        onAssigneeChange={setAssignee}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         onCreate={() => setCreateOpen(true)}
