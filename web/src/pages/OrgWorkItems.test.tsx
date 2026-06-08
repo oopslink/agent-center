@@ -176,10 +176,10 @@ describe('OrgWorkItems page (#258)', () => {
     // pick terminal statuses via the FilterBar chips → they become the filter.
     fireEvent.click(screen.getByTestId('org-filter-status-resolved'));
     fireEvent.click(screen.getByTestId('org-filter-status-closed'));
-    fireEvent.click(screen.getByTestId('org-filter-status-withdrawn'));
+    fireEvent.click(screen.getByTestId('org-filter-status-discarded'));
     await waitFor(() => expect(gotQuery).toContain('status=resolved'));
     expect(gotQuery).toContain('status=closed');
-    expect(gotQuery).toContain('status=withdrawn');
+    expect(gotQuery).toContain('status=discarded');
   });
 
   it('renders a Created column with the created date', async () => {

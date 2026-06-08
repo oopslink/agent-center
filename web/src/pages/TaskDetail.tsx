@@ -10,8 +10,8 @@ import { TypeChip } from '@/components/TypeChip';
 import {
   useAssignTask,
   useBlockTask,
-  useCancelTask,
   useCompleteTask,
+  useDiscardTask,
   useReopenTask,
   useStartTask,
   useTask,
@@ -51,7 +51,7 @@ export default function TaskDetail(): React.ReactElement {
   const unblock = useUnblockTask(projectId, id);
   const complete = useCompleteTask(projectId, id);
   const verify = useVerifyTask(projectId, id);
-  const cancel = useCancelTask(projectId, id);
+  const discard = useDiscardTask(projectId, id);
   const unassign = useUnassignTask(projectId, id);
   const reopen = useReopenTask(projectId, id);
 
@@ -84,20 +84,19 @@ export default function TaskDetail(): React.ReactElement {
 
   const tk = task.data;
   const status = tk.status;
-  const isTerminal = status === 'canceled';
-  const canCancel = status !== 'canceled' && status !== 'verified' && status !== 'completed';
+  const isTerminal = status === 'discarded';
+  const canDiscard = status !== 'discarded' && status !== 'verified' && status !== 'completed';
 
-  // v2.7 #186-3a: the lifecycle transitions valid for the current status.
-  // Each becomes a dropdown item; the status badge is the trigger.
+  // v2.8.1 #5th: assignee is now pure METADATA, settable in ANY state — it is
+  // NOT a lifecycle state. So the Change-status menu only carries true state
+  // transitions; an `open` task offers [Start] (→ running), not [Assign]. The
+  // former `assigned` state is gone. Assigning/unassigning is a meta-row action
+  // (see the Assignee row below) and does NOT change the task status.
   type TaskAction = { testId: string; label: string; onClick: () => void; danger?: boolean; pending?: boolean };
   const actions: TaskAction[] = [];
   switch (status) {
     case 'open':
-      actions.push({ testId: 'task-assign-button', label: 'Assign', onClick: () => setAssignOpen(true) });
-      break;
-    case 'assigned':
       actions.push({ testId: 'task-start-button', label: 'Start', onClick: () => start.mutate(), pending: start.isPending });
-      actions.push({ testId: 'task-unassign-button', label: 'Unassign', onClick: () => unassign.mutate(), pending: unassign.isPending });
       break;
     case 'running':
       actions.push({ testId: 'task-complete-button', label: 'Complete', onClick: () => complete.mutate(), pending: complete.isPending });
@@ -114,13 +113,13 @@ export default function TaskDetail(): React.ReactElement {
       actions.push({ testId: 'task-reopen-button', label: 'Reopen', onClick: () => reopen.mutate(), pending: reopen.isPending });
       break;
   }
-  if (canCancel) {
-    actions.push({ testId: 'task-cancel-button', label: 'Cancel', onClick: () => cancel.mutate(), danger: true, pending: cancel.isPending });
+  if (canDiscard) {
+    actions.push({ testId: 'task-discard-button', label: 'Discard', onClick: () => discard.mutate(), danger: true, pending: discard.isPending });
   }
 
   const actionError =
     (assign.error ?? start.error ?? block.error ?? unblock.error ??
-      complete.error ?? verify.error ?? cancel.error ?? unassign.error ??
+      complete.error ?? verify.error ?? discard.error ?? unassign.error ??
       reopen.error) as Error | null;
 
   // 5th task: the status-transition control moves into the sidebar beside the
@@ -183,21 +182,54 @@ export default function TaskDetail(): React.ReactElement {
     </>
   );
 
+  // v2.8.1 #5th: Assignee is metadata, editable in ANY non-terminal state via a
+  // "Change" link (opens the existing assign picker). Changing the assignee does
+  // NOT change the task status — it reuses useAssignTask/useUnassignTask, which
+  // the backend resolves as a pure metadata write. The row is ALWAYS present so
+  // an unassigned task can still be assigned; "Unassign" appears only when set.
+  const assigneeEditable = !isTerminal;
   const meta: SidebarMetaRow[] = [
-    ...(tk.assignee
-      ? [
-          {
-            label: 'Assignee',
-            value: (
-              <EntityRef
-                id={tk.assignee}
-                name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
-                testId="task-assignee"
-              />
-            ),
-          } satisfies SidebarMetaRow,
-        ]
-      : []),
+    {
+      label: 'Assignee',
+      value: (
+        <div className="flex flex-wrap items-center gap-2">
+          {tk.assignee ? (
+            <EntityRef
+              id={tk.assignee}
+              name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
+              testId="task-assignee"
+            />
+          ) : (
+            <span className="text-text-muted" data-testid="task-assignee-empty">
+              Unassigned
+            </span>
+          )}
+          {assigneeEditable && (
+            <>
+              <button
+                type="button"
+                onClick={() => setAssignOpen(true)}
+                className="text-xs text-accent hover:underline"
+                data-testid="task-assign-change"
+              >
+                Change
+              </button>
+              {tk.assignee && (
+                <button
+                  type="button"
+                  onClick={() => unassign.mutate()}
+                  disabled={unassign.isPending}
+                  className="text-xs text-accent hover:underline disabled:opacity-50"
+                  data-testid="task-unassign-button"
+                >
+                  {unassign.isPending ? 'Unassigning…' : 'Unassign'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      ),
+    } satisfies SidebarMetaRow,
     ...(tk.blocked_reason && status === 'blocked'
       ? [
           {

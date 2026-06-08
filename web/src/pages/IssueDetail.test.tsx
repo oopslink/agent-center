@@ -85,9 +85,9 @@ describe('IssueDetail page', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'open issue' })).toBeInTheDocument(),
     );
-    // open → {in_progress, withdrawn}
+    // open → {in_progress, discarded}
     expect(screen.getByTestId('issue-transition-in_progress')).toBeInTheDocument();
-    expect(screen.getByTestId('issue-transition-withdrawn')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-transition-discarded')).toBeInTheDocument();
   });
 
   it('posts the transition when an action is clicked', async () => {

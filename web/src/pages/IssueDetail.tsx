@@ -66,7 +66,7 @@ export default function IssueDetail(): React.ReactElement {
 
   const iss = issue.data;
   const targets = ISSUE_TRANSITIONS[iss.status] ?? [];
-  const isTerminal = iss.status === 'withdrawn';
+  const isTerminal = iss.status === 'discarded';
 
   const actions = (
     <>
@@ -200,8 +200,8 @@ function transitionLabel(status: IssueStatus): string {
       return 'Close';
     case 'reopened':
       return 'Reopen';
-    case 'withdrawn':
-      return 'Withdraw';
+    case 'discarded':
+      return 'Discard';
     case 'open':
       return 'Move to Open';
     default:

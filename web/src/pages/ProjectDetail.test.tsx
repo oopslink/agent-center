@@ -120,7 +120,9 @@ describe('ProjectDetail page', () => {
     expect(issueHandle).not.toHaveTextContent('01KT8D');
     const issueChip = screen.getByTestId('status-chip');
     expect(issueChip).toHaveAttribute('data-status', 'in_progress');
-    expect(issueChip.className).toContain('text-brand');
+    // v2.8.1 #5th: StatusChip unified to @oopslink's FINAL white-on-saturated palette (matches StatusBlock).
+    expect(issueChip.className).toContain('bg-blue-500');
+    expect(issueChip.className).toContain('text-white');
     // Title links into the issue detail.
     const issueLink = screen.getByText('login bug').closest('a');
     expect(issueLink?.getAttribute('href')).toContain('/projects/proj-a/issues/issue-01KT8DABCDEF');

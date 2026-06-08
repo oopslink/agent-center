@@ -32,6 +32,10 @@ export default {
         'success':       'var(--color-success)',
         'warning':       'var(--color-warning)',
         'danger':        'var(--color-danger)',
+        // Custom: deep-rust for the `discarded` terminal state (replaces
+        // canceled/withdrawn). rust-700 #b45309 is the saturated background under
+        // white text (@oopslink FINAL palette lock — bg-rust-700 text-white).
+        rust: { 700: '#b45309' },
       },
       fontFamily: {
         // Body (skill: `font-pairing` Tech Startup pair — recommended

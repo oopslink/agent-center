@@ -314,15 +314,15 @@ export interface Project {
 
 // Issue mirrors the v2.7 ProjectManager BC Issue projection. Issues are
 // project-scoped (nested under /projects/{pid}/issues). The status
-// machine: open→{in_progress,withdrawn}; in_progress→{resolved,withdrawn};
+// machine: open→{in_progress,discarded}; in_progress→{resolved,discarded};
 // resolved→{closed,reopened}; closed→{reopened}; reopened→{open};
-// withdrawn=terminal.
+// discarded=terminal.
 export type IssueStatus =
   | 'open'
   | 'in_progress'
   | 'resolved'
   | 'closed'
-  | 'withdrawn'
+  | 'discarded'
   | 'reopened';
 
 export interface Issue {
@@ -346,12 +346,11 @@ export interface Issue {
 // status machine driven by POST sub-route actions.
 export type TaskStatus =
   | 'open'
-  | 'assigned'
   | 'running'
   | 'blocked'
   | 'completed'
   | 'verified'
-  | 'canceled'
+  | 'discarded'
   | 'reopened';
 
 export interface Task {

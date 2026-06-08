@@ -118,9 +118,9 @@ export function useVerifyTask(projectId: string, taskId: string) {
   );
 }
 
-export function useCancelTask(projectId: string, taskId: string) {
+export function useDiscardTask(projectId: string, taskId: string) {
   return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/cancel`),
+    api.post<Task>(`${taskPath(projectId, taskId)}/discard`),
   );
 }
 

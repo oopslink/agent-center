@@ -80,10 +80,10 @@ export function useTransitionIssue(projectId: string, issueId: string) {
 
 // ISSUE_TRANSITIONS — valid target states keyed by current status.
 export const ISSUE_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
-  open: ['in_progress', 'withdrawn'],
-  in_progress: ['resolved', 'withdrawn'],
+  open: ['in_progress', 'discarded'],
+  in_progress: ['resolved', 'discarded'],
   resolved: ['closed', 'reopened'],
   closed: ['reopened'],
   reopened: ['open'],
-  withdrawn: [],
+  discarded: [],
 };
