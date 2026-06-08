@@ -22,7 +22,6 @@ const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
   open: { label: 'Open', cls: 'bg-slate-100 text-slate-700' },
   // in flight (blue)
   in_progress: { label: 'In Progress', cls: 'bg-blue-100 text-blue-900' },
-  assigned: { label: 'Assigned', cls: 'bg-blue-100 text-blue-900' },
   running: { label: 'Running', cls: 'bg-blue-100 text-blue-900' },
   // blocked (orange — StatusChip align)
   blocked: { label: 'Blocked', cls: 'bg-orange-100 text-orange-900' },
@@ -31,13 +30,11 @@ const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
   completed: { label: 'Completed', cls: 'bg-green-100 text-green-900' },
   // verified (teal — distinct hue from done green, a11y)
   verified: { label: 'Verified', cls: 'bg-teal-100 text-teal-900' },
-  // terminal neutral (slate)
-  closed: { label: 'Closed', cls: 'bg-slate-100 text-slate-700' },
-  canceled: { label: 'Canceled', cls: 'bg-slate-100 text-slate-700' },
-  // withdrawn → slate (terminal, grouped with closed/canceled). Consistency-wins
-  // with StatusChip (#258 maps withdrawn → muted, NOT red); AA-clean (~9:1) and
-  // guardrail-clean (no raw red-*; the danger token #ef4444 couldn't hit 4.5:1).
-  withdrawn: { label: 'Withdrawn', cls: 'bg-slate-100 text-slate-700' },
+  // closed (Issue) → stone (terminal, distinct from open's slate)
+  closed: { label: 'Closed', cls: 'bg-stone-100 text-stone-700' },
+  // discarded (both Issue+Task; replaces canceled/withdrawn) → deep-rust.
+  // Custom rust-100/rust-900 pair (~14.5:1 AAA), guardrail-clean (no raw red-*).
+  discarded: { label: 'Discarded', cls: 'bg-rust-100 text-rust-900' },
   // reopened (purple — StatusChip align)
   reopened: { label: 'Reopened', cls: 'bg-purple-100 text-purple-900' },
 };

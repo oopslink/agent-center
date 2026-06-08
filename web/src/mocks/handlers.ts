@@ -25,8 +25,9 @@ function taskActionHandlers() {
   });
   return [
     http.post('/api/projects/:pid/tasks/:id/assign', async ({ params, request }) => {
+      // v2.8.1 #5th: assign is a metadata write — status stays unchanged (open).
       const body = (await request.json()) as { assignee?: string };
-      return ok(baseTask(String(params.pid), String(params.id), 'assigned', { assignee: body.assignee }));
+      return ok(baseTask(String(params.pid), String(params.id), 'open', { assignee: body.assignee }));
     }),
     http.post('/api/projects/:pid/tasks/:id/start', ({ params }) =>
       ok(baseTask(String(params.pid), String(params.id), 'running')),
@@ -45,7 +46,11 @@ function taskActionHandlers() {
       ok(baseTask(String(params.pid), String(params.id), 'verified')),
     ),
     http.post('/api/projects/:pid/tasks/:id/cancel', ({ params }) =>
-      ok(baseTask(String(params.pid), String(params.id), 'canceled')),
+      ok(baseTask(String(params.pid), String(params.id), 'discarded')),
+    ),
+    http.post('/api/projects/:pid/tasks/:id/unassign', ({ params }) =>
+      // v2.8.1 #5th: unassign clears the assignee (metadata) — status unchanged.
+      ok(baseTask(String(params.pid), String(params.id), 'open', { assignee: null })),
     ),
   ];
 }

@@ -14,15 +14,13 @@ describe('IssueTaskSidebar + StatusBlock (#5th)', () => {
     const cases: Array<[SK, string, string]> = [
       ['open', 'Open', 'bg-slate-100'],
       ['in_progress', 'In Progress', 'bg-blue-100'],
-      ['assigned', 'Assigned', 'bg-blue-100'],
       ['running', 'Running', 'bg-blue-100'],
       ['blocked', 'Blocked', 'bg-orange-100'],
       ['resolved', 'Resolved', 'bg-green-100'],
       ['completed', 'Completed', 'bg-green-100'],
       ['verified', 'Verified', 'bg-teal-100'],
-      ['closed', 'Closed', 'bg-slate-100'],
-      ['canceled', 'Canceled', 'bg-slate-100'],
-      ['withdrawn', 'Withdrawn', 'bg-slate-100'], // slate (terminal, StatusChip-aligned; not red)
+      ['closed', 'Closed', 'bg-stone-100'], // stone (terminal Issue, distinct from open's slate)
+      ['discarded', 'Discarded', 'bg-rust-100'], // deep-rust (terminal, replaces canceled/withdrawn)
       ['reopened', 'Reopened', 'bg-purple-100'],
     ];
     for (const [status, label, bg] of cases) {

@@ -65,9 +65,11 @@ describe('TaskDetail page', () => {
     // (the task-status trigger is relabeled "Change status").
     expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'open');
     expect(screen.getByTestId('task-project-link')).toHaveAttribute('href', '/projects/proj-a');
-    // open → Assign available behind the status dropdown.
+    // v2.8.1 #5th: open → [Start] behind the status dropdown (NOT Assign —
+    // assignee is metadata, set via the meta-row Change link, not a transition).
     await openStatusMenu();
-    expect(screen.getByTestId('task-assign-button')).toBeInTheDocument();
+    expect(screen.getByTestId('task-start-button')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-assign-button')).not.toBeInTheDocument();
   });
 
   it('renders the description as markdown in a height-capped, keyboard-scrollable region', async () => {
@@ -148,12 +150,13 @@ describe('TaskDetail page', () => {
       ),
       http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(taskAt('assigned', { assignee: 'agent:agent-bld1' }));
+        // metadata-only: status unchanged (stays open).
+        return HttpResponse.json(taskAt('open', { assignee: 'agent:agent-bld1' }));
       }),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await openStatusMenu();
-    fireEvent.click(screen.getByTestId('task-assign-button'));
+    // v2.8.1 #5th: assign opens from the meta-row "Change" link, not the status menu.
+    fireEvent.click(await screen.findByTestId('task-assign-change'));
     // Candidates load (agent + human); filter then pick the agent.
     await waitFor(() => expect(screen.getAllByTestId('task-assign-candidate').length).toBeGreaterThan(0));
     fireEvent.change(screen.getByTestId('task-assign-search'), { target: { value: 'builder' } });
@@ -177,12 +180,13 @@ describe('TaskDetail page', () => {
       ),
       http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(taskAt('assigned', { assignee: 'user:user-h1' }));
+        // metadata-only: status unchanged (stays open).
+        return HttpResponse.json(taskAt('open', { assignee: 'user:user-h1' }));
       }),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await openStatusMenu();
-    fireEvent.click(screen.getByTestId('task-assign-button'));
+    // v2.8.1 #5th: assign opens from the meta-row "Change" link, not the status menu.
+    fireEvent.click(await screen.findByTestId('task-assign-change'));
     const human = await screen.findByTestId('task-assign-candidate');
     expect(human).toHaveAttribute('data-assignee-ref', 'user:user-h1');
     expect(human).toHaveAttribute('data-kind', 'human');
@@ -231,16 +235,16 @@ describe('TaskDetail page', () => {
     await waitFor(() => expect(received).toMatchObject({ reason: 'waiting on infra' }));
   });
 
-  it('completed tasks expose Verify + Reopen, not Cancel', async () => {
+  it('completed tasks expose Verify + Reopen, not Discard', async () => {
     server.use(
       http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('completed'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await openStatusMenu();
     expect(screen.getByTestId('task-verify-button')).toBeInTheDocument();
-    // completed → {verified, reopened}: no cancel edge.
+    // completed → {verified, reopened}: no discard edge.
     expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
-    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-discard-button')).not.toBeInTheDocument();
   });
 
   it('verified tasks expose only Reopen', async () => {
@@ -251,33 +255,64 @@ describe('TaskDetail page', () => {
     await openStatusMenu();
     expect(screen.getByTestId('task-reopen-button')).toBeInTheDocument();
     expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-discard-button')).not.toBeInTheDocument();
   });
 
-  it('assigned tasks expose Start + Unassign', async () => {
+  it('open task: Start is a transition; assignee is metadata (Change link, no assigned state)', async () => {
+    // v2.8.1 #5th: there is no `assigned` state. The status menu for an open
+    // task offers [Start] (→ running). Assignee is set via the meta-row "Change"
+    // link in ANY state and does NOT move the status.
     server.use(
-      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('assigned'))),
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('open'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
+    // assignee meta row present + editable even when unassigned.
+    expect(await screen.findByTestId('task-assignee-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('task-assign-change')).toBeInTheDocument();
     await openStatusMenu();
     expect(screen.getByTestId('task-start-button')).toBeInTheDocument();
-    expect(screen.getByTestId('task-unassign-button')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-assign-button')).not.toBeInTheDocument();
   });
 
-  it('canceled tasks hide all lifecycle actions — status badge is not a menu', async () => {
+  it('assignee is metadata: Unassign appears in the meta row when assigned (running state)', async () => {
+    // Assignee is shown + Unassign-able in ANY non-terminal state — proves it is
+    // metadata, decoupled from the lifecycle (here the task is `running`).
+    let unassigned = false;
     server.use(
-      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('canceled'))),
+      http.get('/api/projects/proj-a/tasks/:id', () =>
+        HttpResponse.json(taskAt('running', { assignee: 'agent:builder' })),
+      ),
+      http.post('/api/projects/proj-a/tasks/TS-1/unassign', () => {
+        unassigned = true;
+        return HttpResponse.json(taskAt('running'));
+      }),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    expect(await screen.findByTestId('task-assignee')).toBeInTheDocument();
+    const unassignBtn = screen.getByTestId('task-unassign-button');
+    expect(unassignBtn).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(unassignBtn);
+    });
+    await waitFor(() => expect(unassigned).toBe(true));
+  });
+
+  it('discarded tasks hide all lifecycle actions + the assignee Change link', async () => {
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('discarded'))),
     );
     wrap('/projects/proj-a/tasks/TS-1');
     await waitFor(() =>
-      expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'canceled'),
+      expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'discarded'),
     );
     // No transitions available → the disabled "Change status" trigger opens nothing.
     fireEvent.click(screen.getByTestId('task-status'));
     expect(screen.queryByTestId('task-status-menu')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('task-cancel-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('task-discard-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-reopen-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('task-verify-button')).not.toBeInTheDocument();
+    // terminal → assignee is no longer editable (no Change link).
+    expect(screen.queryByTestId('task-assign-change')).not.toBeInTheDocument();
   });
 
   it('surfaces task lookup error', async () => {

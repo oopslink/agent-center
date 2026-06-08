@@ -32,6 +32,10 @@ export default {
         'success':       'var(--color-success)',
         'warning':       'var(--color-warning)',
         'danger':        'var(--color-danger)',
+        // Custom: deep-rust for the `discarded` terminal state (replaces
+        // canceled/withdrawn). rust-900 #2e0d05 is @oopslink's locked deep-rust;
+        // rust-100 #f5e7e1 is the light tint (depth字浅底 pattern, ~14.5:1 AAA).
+        rust: { 100: '#f5e7e1', 900: '#2e0d05' },
       },
       fontFamily: {
         // Body (skill: `font-pairing` Tech Startup pair — recommended

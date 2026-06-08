@@ -20,8 +20,8 @@ interface QueryShape {
 
 // Status options per kind, in lifecycle order — drive the FilterBar chips.
 export const STATUS_OPTIONS: Record<'issue' | 'task', string[]> = {
-  issue: ['open', 'in_progress', 'resolved', 'closed', 'withdrawn', 'reopened'],
-  task: ['open', 'assigned', 'running', 'blocked', 'completed', 'verified', 'canceled', 'reopened'],
+  issue: ['open', 'in_progress', 'resolved', 'closed', 'discarded', 'reopened'],
+  task: ['open', 'running', 'blocked', 'completed', 'verified', 'discarded', 'reopened'],
 };
 
 export function OrgWorkItemsView({

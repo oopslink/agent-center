@@ -6,33 +6,29 @@ import type React from 'react';
 // (v2.7.1 retro: single source, no per-page drift).
 
 // StatusChip — colored pill covering the FULL issue + task status machines
-// (v2.7.1 #258: zero fallback-gray, zero bare string). Palette per PD ruling:
-//   open                         → neutral
-//   in_progress/assigned/running → blue (in flight)
-//   blocked                      → orange (attention)
-//   resolved/completed           → green (done)
-//   verified                     → deep green (done + checked)
-//   closed/canceled/withdrawn    → muted (terminal, not a win)
-//   reopened                     → purple (back in play)
+// (v2.7.1 #258: zero fallback-gray, zero bare string). v2.8.1 #5th: UNIFIED to
+// the SAME solid "深字浅底" X-100 bg / X-900 text palette as StatusBlock
+// (IssueTaskSidebar) — one source of truth, theme-independent (the solid light
+// block is AA in BOTH light and dark on any page bg). Palette:
+//   open                  → slate (not started)
+//   in_progress/running   → blue (in flight)
+//   blocked               → orange (attention)
+//   resolved/completed    → green (done)
+//   verified              → teal (done + checked, distinct hue from green)
+//   closed (Issue)        → stone (terminal, distinct from open's slate)
+//   discarded (both)      → deep-rust (terminal, replaces canceled/withdrawn)
+//   reopened              → purple (back in play)
 const STATUS_CLS: Record<string, string> = {
-  // in flight
-  in_progress: 'bg-brand/10 text-brand',
-  assigned: 'bg-brand/10 text-brand',
-  running: 'bg-brand/10 text-brand',
-  // attention
-  blocked: 'bg-orange-500/10 text-orange-600',
-  // done
-  resolved: 'bg-success/10 text-success',
-  completed: 'bg-success/10 text-success',
-  verified: 'bg-success/20 text-success',
-  // terminal, not a win
-  closed: 'bg-bg-subtle text-text-secondary',
-  canceled: 'bg-bg-subtle text-text-secondary',
-  withdrawn: 'bg-bg-subtle text-text-secondary',
-  // back in play
-  reopened: 'bg-purple-500/10 text-purple-600',
-  // new / not started
-  open: 'bg-bg-subtle text-text-muted',
+  open: 'bg-slate-100 text-slate-700',
+  in_progress: 'bg-blue-100 text-blue-900',
+  running: 'bg-blue-100 text-blue-900',
+  blocked: 'bg-orange-100 text-orange-900',
+  resolved: 'bg-green-100 text-green-900',
+  completed: 'bg-green-100 text-green-900',
+  verified: 'bg-teal-100 text-teal-900',
+  closed: 'bg-stone-100 text-stone-700',
+  discarded: 'bg-rust-100 text-rust-900',
+  reopened: 'bg-purple-100 text-purple-900',
 };
 
 export function StatusChip({ status }: { status: string }): React.ReactElement {
