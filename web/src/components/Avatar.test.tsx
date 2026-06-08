@@ -15,6 +15,24 @@ describe('Avatar', () => {
     expect(screen.getByTestId('avatar')).toHaveTextContent('B');
   });
 
+  // v2.8.1 7th-bubbles: the palette is INDIGO-family only (matches the chat
+  // indigo accent). Sample a spread of names; every gradient stop must be an
+  // indigo/violet hue (no blue/green/teal/amber/rose/slate).
+  it('uses an indigo-family gradient (indigo/violet only)', () => {
+    const names = ['Alice Smith', 'bob', 'arch1', 'Builder', 'Zoe', 'Q', 'mallory jones', 'ci-bot'];
+    for (const name of names) {
+      render(<Avatar name={name} />);
+      const cls = screen.getByTestId('avatar').className;
+      // a from-* and to-* gradient stop are present, both indigo or violet.
+      const stops = cls.split(/\s+/).filter((c) => c.startsWith('from-') || c.startsWith('to-'));
+      expect(stops.length).toBeGreaterThanOrEqual(2);
+      for (const s of stops) {
+        expect(s).toMatch(/^(from|to)-(indigo|violet)-\d{3}$/);
+      }
+      cleanup();
+    }
+  });
+
   it('is deterministic: the same name maps to the same gradient', () => {
     render(<Avatar name="Alice Smith" />);
     const a = screen.getByTestId('avatar').className;

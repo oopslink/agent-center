@@ -126,15 +126,17 @@ describe('MessageList', () => {
   // v2.8.1 chat-rightalign: the viewer's own messages (sender === store
   // currentUserId, default 'user:hayang') render right-aligned (accent bubble,
   // no avatar); other people's stay left (avatar + elevated bubble).
-  it('renders the viewer\'s OWN message right-aligned (accent bubble, no avatar)', () => {
+  it('renders the viewer\'s OWN message right-aligned (indigo bubble, no avatar)', () => {
     // sample() defaults sender_identity_id to 'user:hayang' === store currentUserId.
     render(<MessageList messages={[sample('M1', 'mine')]} />);
     const row = screen.getByTestId('message-row');
     expect(row).toHaveAttribute('data-own', 'true');
     expect(row.className).toContain('justify-end');
-    // accent bubble present (brand-hover, AA in both themes).
-    expect(row.querySelector('.bg-brand-hover')).not.toBeNull();
-    // no avatar for own messages.
+    // v2.8.1 7th-bubbles: @oopslink-locked indigo accent bubble (#6366f1), adaptive max-w.
+    const bubble = row.querySelector('.bg-indigo-500');
+    expect(bubble).not.toBeNull();
+    expect(bubble?.className).toContain('max-w-[75%]');
+    // no avatar for own messages (#225).
     expect(row.querySelector('[data-testid="avatar"]')).toBeNull();
     expect(row).toHaveTextContent('mine');
   });
@@ -145,7 +147,11 @@ describe('MessageList', () => {
     const row = screen.getByTestId('message-row');
     expect(row).toHaveAttribute('data-own', 'false');
     expect(row.className).not.toContain('justify-end');
-    expect(row.className).toContain('bg-bg-elevated');
+    // v2.8.1 7th-bubbles: other side is now a bubble too — bg-bg-subtle (浅灰,
+    // both-mode token), adaptive max-w, no border card.
+    const bubble = row.querySelector('.bg-bg-subtle');
+    expect(bubble).not.toBeNull();
+    expect(bubble?.className).toContain('max-w-[75%]');
     // avatar rendered for other people's messages.
     expect(row.querySelector('[data-testid="avatar"]')).not.toBeNull();
     expect(row).toHaveTextContent('theirs');
