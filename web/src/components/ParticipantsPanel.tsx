@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/app';
 import type { Participant } from '@/api/types';
 import { MemberInviteModal } from './MemberInviteModal';
 import { EntityRef } from './EntityRef';
+import { Avatar } from './Avatar';
 
 interface Props {
   conversationId: string;
@@ -81,8 +82,15 @@ export function ParticipantsPanel({
       data-collapsed="false"
     >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text-primary">
-          Participants ({active.length})
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          Participants
+          {/* 8th channel redesign: a small count pill (bg-subtle). */}
+          <span
+            className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary"
+            data-testid="participants-count-chip"
+          >
+            {active.length}
+          </span>
         </h3>
         <button
           type="button"
@@ -94,37 +102,47 @@ export function ParticipantsPanel({
           ›
         </button>
       </div>
-      <ul className="space-y-2">
-        {active.map((p) => (
-          <li
-            key={p.identity_id}
-            className="flex items-center justify-between text-sm"
-            data-testid="participant-row"
-            data-identity={p.identity_id}
-          >
-            <span>
-              {/* v2.7 #192/E1: a participant whose member was deleted (ref no
-                  longer resolves) renders "(deleted)", never the raw agent:/user: ref. */}
-              <EntityRef
-                id={p.identity_id}
-                name={displayName(p.identity_id) === p.identity_id ? undefined : displayName(p.identity_id)}
-                testId="participant-name"
-                className="text-xs"
+      <ul className="space-y-1">
+        {active.map((p) => {
+          const resolved = displayName(p.identity_id);
+          const isResolved = resolved !== p.identity_id;
+          return (
+            <li
+              key={p.identity_id}
+              className="group flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-bg-base"
+              data-testid="participant-row"
+              data-identity={p.identity_id}
+            >
+              {/* Avatar (#211): kind from the identity-ref prefix (agent:/user:). */}
+              <Avatar
+                name={isResolved ? resolved : '?'}
+                kind={p.identity_id.startsWith('agent:') ? 'agent' : 'human'}
+                size="sm"
               />
-              <span className="ml-2 text-xs uppercase text-text-muted">{p.role}</span>
-            </span>
-            {isOwner && p.role !== 'owner' && (
-              <button
-                type="button"
-                className="text-xs text-danger hover:underline"
-                onClick={() => remove.mutate({ conversationId, identityId: p.identity_id })}
-                data-testid="participant-remove"
-              >
-                remove
-              </button>
-            )}
-          </li>
-        ))}
+              <span className="min-w-0 flex-1 truncate">
+                {/* v2.7 #192/E1: a participant whose member was deleted (ref no
+                    longer resolves) renders "(deleted)", never the raw agent:/user: ref. */}
+                <EntityRef
+                  id={p.identity_id}
+                  name={isResolved ? resolved : undefined}
+                  testId="participant-name"
+                  className="text-xs"
+                />
+              </span>
+              <RoleBadge role={p.role} />
+              {isOwner && p.role !== 'owner' && (
+                <button
+                  type="button"
+                  className="text-xs text-danger opacity-0 hover:underline focus:opacity-100 group-hover:opacity-100"
+                  onClick={() => remove.mutate({ conversationId, identityId: p.identity_id })}
+                  data-testid="participant-remove"
+                >
+                  remove
+                </button>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {isOwner && (
@@ -132,9 +150,19 @@ export function ParticipantsPanel({
           <button
             type="button"
             onClick={() => setInviteOpen(true)}
-            className="mt-4 w-full rounded bg-text-primary px-2 py-1 text-xs font-medium text-bg-elevated hover:opacity-90"
+            className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-text-primary px-3 py-2 text-xs font-semibold text-bg-elevated hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand"
             data-testid="invite-open"
           >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-3.5 w-3.5"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 4v12M4 10h12" />
+            </svg>
             Invite
           </button>
           {inviteOpen && (
@@ -147,5 +175,26 @@ export function ParticipantsPanel({
         </>
       )}
     </aside>
+  );
+}
+
+// RoleBadge — OWNER / MEMBER pill (8th channel redesign, §3.3 not-color-only).
+// owner → amber/warning semantic token; everyone else → muted. Crucially the
+// LITERAL text ("OWNER"/"MEMBER") carries the meaning, NOT color alone — amber
+// and gray are adjacent enough that color must not be the sole signal. Uses
+// only semantic design tokens so both light + dark read AA (no raw colors).
+function RoleBadge({ role }: { role: string }): React.ReactElement {
+  const isOwner = role === 'owner';
+  const cls = isOwner
+    ? 'bg-warning/10 text-warning'
+    : 'bg-bg-subtle text-text-muted';
+  return (
+    <span
+      data-testid="participant-role-badge"
+      data-role={role}
+      className={`shrink-0 rounded px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide ${cls}`}
+    >
+      {isOwner ? 'OWNER' : 'MEMBER'}
+    </span>
   );
 }

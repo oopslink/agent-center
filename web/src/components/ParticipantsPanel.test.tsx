@@ -38,10 +38,21 @@ describe('ParticipantsPanel', () => {
   });
   afterEach(() => cleanup());
 
-  it('shows participant count + each active participant', () => {
+  it('shows participant count chip + each active participant', () => {
     wrap(<ParticipantsPanel conversationId="C1" participants={[owner, member]} />);
-    expect(screen.getByText(/Participants \(2\)/)).toBeInTheDocument();
+    // 8th channel redesign: count now lives in a dedicated pill.
+    expect(screen.getByTestId('participants-count-chip')).toHaveTextContent('2');
     expect(screen.getAllByTestId('participant-row')).toHaveLength(2);
+  });
+
+  it('shows OWNER / MEMBER role badges (not-color-only: literal text)', () => {
+    wrap(<ParticipantsPanel conversationId="C1" participants={[owner, member]} />);
+    const badges = screen.getAllByTestId('participant-role-badge');
+    expect(badges).toHaveLength(2);
+    const ownerBadge = badges.find((b) => b.getAttribute('data-role') === 'owner');
+    const memberBadge = badges.find((b) => b.getAttribute('data-role') === 'member');
+    expect(ownerBadge).toHaveTextContent('OWNER');
+    expect(memberBadge).toHaveTextContent('MEMBER');
   });
 
   it('renders "(deleted)" for a participant whose member no longer resolves (#192/E1)', async () => {
