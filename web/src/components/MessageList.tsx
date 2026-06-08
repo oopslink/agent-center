@@ -131,35 +131,36 @@ export function MessageList({ messages }: Props): React.ReactElement {
     // sides so the user:/agent: prefix never breaks the compare.
     const isOwn = meKey !== '' && normalizeIdentityRef(m.sender_identity_id) === meKey;
 
-    // Shared inner content (header name/time + work-item tag, markdown body,
-    // attachments). `align` flips the header justification and tag/link colors
-    // so the own bubble reads correctly on the accent background.
+    // Shared inner content. v2.8.1 7th-bubbles: the sender NAME is its own small
+    // element ABOVE the content; the TIME is a separate tiny muted element at the
+    // bubble's bottom corner (no more justify-between header cramming name+time).
+    // `isOwn` flips alignment (right) + name/tag/time/link colors so they read
+    // correctly on the indigo bubble.
     const innerBody = (
       <div className="min-w-0 flex-1">
-        <header
-          className={`mb-1 flex items-center justify-between text-xs ${
-            isOwn ? 'flex-row-reverse text-white/80' : 'text-text-muted'
+        {/* Name row: sender name + per-message work-item tag. Right-aligned for
+            own messages. (#219 work-item tag; raw ref on hover per #192.) */}
+        <div
+          className={`mb-0.5 flex items-center gap-2 text-xs font-medium ${
+            isOwn ? 'flex-row-reverse text-white/90' : 'text-text-secondary'
           }`}
         >
-          <span className={`flex items-center gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
-            <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
-            {/* v2.7.1 #219: per-message work-item tag (only when the message
-                carries one); the raw ref stays on hover (#192 chrome rule). */}
-            {m.context_refs?.work_item_ref && (
-              <span
-                className={`rounded px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide ${
-                  isOwn ? 'bg-white/20 text-white' : 'bg-bg-subtle text-text-secondary'
-                }`}
-                data-testid="message-workitem-tag"
-                data-work-item-ref={m.context_refs.work_item_ref}
-                title={m.context_refs.work_item_ref}
-              >
-                Work item
-              </span>
-            )}
-          </span>
-          <time dateTime={m.posted_at} title={m.posted_at}>{formatLocalTime(m.posted_at)}</time>
-        </header>
+          <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
+          {/* v2.7.1 #219: per-message work-item tag (only when the message
+              carries one); the raw ref stays on hover (#192 chrome rule). */}
+          {m.context_refs?.work_item_ref && (
+            <span
+              className={`rounded px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide ${
+                isOwn ? 'bg-white/20 text-white' : 'bg-bg-subtle text-text-secondary'
+              }`}
+              data-testid="message-workitem-tag"
+              data-work-item-ref={m.context_refs.work_item_ref}
+              title={m.context_refs.work_item_ref}
+            >
+              Work item
+            </span>
+          )}
+        </div>
         {/* #276: message content renders as markdown (GFM + strict-escape);
             long fenced code collapses via the shared CollapsibleCodeBlock. */}
         <MarkdownMessage content={m.content} />
@@ -200,7 +201,7 @@ export function MessageList({ messages }: Props): React.ReactElement {
                 >
                   <span
                     className={`rounded px-1 font-mono uppercase ${
-                      isOwn ? 'bg-white/20 text-white/90' : 'bg-bg-elevated text-text-muted'
+                      isOwn ? 'bg-white/20 text-white/90' : 'bg-bg-base text-text-muted'
                     }`}
                     data-testid="attachment-type"
                   >
@@ -213,13 +214,21 @@ export function MessageList({ messages }: Props): React.ReactElement {
             ))}
           </ul>
         )}
+        {/* v2.8.1 7th-bubbles: timestamp is its own tiny muted element at the
+            bubble's bottom corner (no longer crammed into a justify-between
+            header). Right-aligned for own messages; muted-on-indigo via
+            white-alpha. Keeps <time dateTime title> + formatLocalTime. */}
+        <div className={`mt-1 flex text-[0.625rem] ${isOwn ? 'justify-end text-white/70' : 'justify-start text-text-muted'}`}>
+          <time dateTime={m.posted_at} title={m.posted_at}>{formatLocalTime(m.posted_at)}</time>
+        </div>
       </div>
     );
 
-    // Own message: right-aligned accent bubble, no avatar. Accent is
-    // `bg-brand-hover text-white` — AA in BOTH themes (light #1d4ed8 = 6.7:1,
-    // dark #2563eb = 5.17:1 against white; plain `bg-brand` would FAIL dark at
-    // 3.68:1). No raw red tokens, no emoji (a11y guardrails).
+    // v2.8.1 7th-bubbles: own = right-aligned INDIGO bubble, no avatar (#225).
+    // @oopslink-locked accent: `bg-indigo-500 text-white` (indigo #6366f1).
+    // White-on-indigo-500 is a marginal 4.47:1 — @oopslink ACCEPTED, do NOT
+    // change. The bubble is max-w-[75%] so short messages stay short (adaptive
+    // width); the row stays flex justify-end. No emoji/raw-red (a11y guardrails).
     if (isOwn) {
       return (
         <article
@@ -229,18 +238,21 @@ export function MessageList({ messages }: Props): React.ReactElement {
           data-message-id={m.id}
           data-own="true"
         >
-          <div className="max-w-[80%] rounded bg-brand-hover p-3 text-white shadow-sm">
+          <div className="max-w-[75%] rounded-2xl bg-indigo-500 px-3 py-2 text-white shadow-sm">
             {innerBody}
           </div>
         </article>
       );
     }
 
-    // Other people's messages: unchanged left layout (avatar + elevated bubble).
+    // v2.8.1 7th-bubbles: other people's messages — left-aligned bubble (NOT a
+    // bordered card) after the avatar. `bg-bg-subtle` (浅灰, both-mode theme
+    // token) + `text-text-primary`; max-w-[75%] for adaptive width. Drop the
+    // border — it's a bubble, mirroring the own side, differing only by side+color.
     return (
       <article
         key={m.id}
-        className="flex gap-3 rounded border border-border-base bg-bg-elevated p-3 text-sm shadow-sm"
+        className="flex items-start gap-3 text-sm"
         data-testid="message-row"
         data-message-id={m.id}
         data-own="false"
@@ -251,7 +263,9 @@ export function MessageList({ messages }: Props): React.ReactElement {
           name={displayName(m.sender_identity_id)}
           kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
         />
-        {innerBody}
+        <div className="max-w-[75%] rounded-2xl bg-bg-subtle px-3 py-2 text-text-primary shadow-sm">
+          {innerBody}
+        </div>
       </article>
     );
   };

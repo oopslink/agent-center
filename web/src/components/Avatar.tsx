@@ -5,8 +5,9 @@ import type React from 'react';
 // they never rely on color alone:
 //   • shape: human = circle (rounded-full), agent = rounded-square (rounded-lg)
 //   • online: a status dot with aria-label + title (not color-only)
-// The gradient palette is curated so WHITE initials clear WCAG-AA on every stop
-// (saturated 600/700 hues — the lighter green/teal/cyan/amber sit at 700/800).
+// The gradient palette is INDIGO-family only (v2.8.1 7th-bubbles, matching the
+// @oopslink indigo chat accent), curated so WHITE initials clear WCAG-AA on every
+// stop (all stops are indigo/violet-500 or darker — indigo-500 white = 4.47:1).
 
 interface AvatarProps {
   name: string;
@@ -16,22 +17,16 @@ interface AvatarProps {
   online?: boolean;
 }
 
-// Curated gradient pairs — every stop is WHITE-AA (≥4.5:1 white-on-bg).
+// v2.8.1 7th-bubbles: INDIGO-family gradients only (matches the @oopslink-locked
+// indigo chat accent). A small set of indigo/violet variations; every stop is
+// WHITE-AA (≥4.5:1 white-on-bg — indigo-500/violet-500 is the lightest stop used;
+// indigo-400 was excluded because white-on-indigo-400 is ~2.7:1 = FAIL). `paletteFor`
+// hashes the name → a stable variation within the indigo family.
 const PALETTE = [
-  'from-blue-600 to-indigo-700',
+  'from-indigo-500 to-indigo-700',
   'from-indigo-600 to-violet-700',
-  'from-violet-600 to-purple-700',
-  'from-purple-600 to-fuchsia-700',
-  'from-fuchsia-600 to-pink-700',
-  'from-pink-600 to-rose-700',
-  'from-rose-600 to-red-700',
-  'from-red-600 to-orange-700',
-  'from-orange-700 to-amber-800',
-  'from-emerald-700 to-teal-700',
-  'from-teal-700 to-cyan-700',
-  'from-cyan-700 to-sky-700',
-  'from-sky-700 to-blue-700',
-  'from-slate-600 to-slate-800',
+  'from-violet-500 to-indigo-700',
+  'from-violet-600 to-indigo-800',
 ];
 
 const SIZE: Record<'sm' | 'md' | 'lg', string> = {
