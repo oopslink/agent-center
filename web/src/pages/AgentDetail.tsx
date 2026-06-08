@@ -14,10 +14,8 @@ import {
   useStopAgent,
   type ResetScope,
 } from '@/api/agents';
-import { useWorkers } from '@/api/workers';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { EntityRef } from '@/components/EntityRef';
 import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
@@ -47,8 +45,6 @@ export default function AgentDetail(): React.ReactElement {
   // (newest-first). Grouping/folding runs over this FULL accumulated set so a
   // Checking run spanning a page boundary merges rather than fragmenting.
   const activityEvents = activity.data?.pages.flatMap((p) => p.activity) ?? [];
-  // v2.7 #192: resolve the bound worker_id to its name (raw id on hover).
-  const workers = useWorkers();
 
   const start = useStartAgent(id);
   const stop = useStopAgent(id);
@@ -163,27 +159,13 @@ export default function AgentDetail(): React.ReactElement {
         items={[{ label: 'Members' }, { label: 'Agents', to: '/members/agents' }, { label: a.name }]}
       />
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base pb-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{a.name}</h2>
-            <LifecycleBadge lifecycle={a.lifecycle} />
-            <AvailabilityBadge availability={a.availability} />
-          </div>
-          <p className="text-xs text-text-muted">
-            {a.worker_id ? (
-              <>
-                worker{' '}
-                <EntityRef
-                  id={a.worker_id}
-                  name={(workers.data ?? []).find((w) => w.worker_id === a.worker_id)?.name || undefined}
-                  fallback={a.worker_id}
-                  testId="agent-detail-worker"
-                />
-              </>
-            ) : (
-              'no worker'
-            )}
-          </p>
+        {/* @oopslink: worker subtitle removed — it duplicated the Profile
+            section's "Computer <name> OFFLINE/ONLINE" row. Header keeps just
+            the name + lifecycle + availability. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold">{a.name}</h2>
+          <LifecycleBadge lifecycle={a.lifecycle} />
+          <AvailabilityBadge availability={a.availability} />
         </div>
 
         <div className="flex flex-wrap items-center gap-2" data-testid="agent-controls">
