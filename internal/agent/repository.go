@@ -1,6 +1,9 @@
 package agent
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Repository persists Agent ARs (C1, task #99). The implementation lives in the
 // sqlite subpackage and honors persistence.ExecutorFromCtx so C2's
@@ -26,6 +29,12 @@ type Repository interface {
 	// ListByWorker returns agents bound to a Worker (one Worker controls many
 	// Agents — Environment availability derivation walks this).
 	ListByWorker(ctx context.Context, workerID string) ([]*Agent, error)
+	// ClearWorkerBindings unbinds every agent of a Worker (worker_id → "") WITHOUT
+	// archiving them — the second legitimate place worker_id changes (v2.8.1
+	// force-delete: a force-removed Worker's agents become worker-less, retained &
+	// re-bindable). Bulk row update (admin destructive op); returns the count
+	// unbound. `at` stamps updated_at.
+	ClearWorkerBindings(ctx context.Context, workerID string, at time.Time) (int, error)
 	// Delete hard-removes the agent row (v2.7 #197). The worker binding lives on
 	// the agent row (worker_id column), so deleting the row releases it — the
 	// worker is untouched and free to bind a new agent. Idempotent: absent id =

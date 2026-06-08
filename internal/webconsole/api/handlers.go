@@ -1986,6 +1986,33 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
 		return
 	}
+	// v2.8.1 force-delete (@oopslink): ?force=true unbinds the worker's bound agents
+	// (worker-less, retained) before removal, returning unbound_agents:N. Without
+	// force, a worker with bound agents is "busy" → 409 (use force to unbind). The
+	// cross-BC unbind is composed here at the api layer (agent BC owns the write via
+	// AgentSvc), keeping each service pure.
+	force := r.URL.Query().Get("force") == "true"
+	unboundAgents := 0
+	if d.AgentSvc != nil {
+		bound, berr := d.AgentSvc.AgentsByWorker(r.Context(), id)
+		if berr != nil {
+			writeError(w, http.StatusInternalServerError, "remove_worker_failed", berr.Error())
+			return
+		}
+		if len(bound) > 0 && !force {
+			writeError(w, http.StatusConflict, "worker_busy",
+				"worker has bound agents; force-delete to unbind them")
+			return
+		}
+		if len(bound) > 0 {
+			n, uerr := d.AgentSvc.UnbindAgentsFromWorker(r.Context(), id)
+			if uerr != nil {
+				writeError(w, http.StatusInternalServerError, "remove_worker_failed", uerr.Error())
+				return
+			}
+			unboundAgents = n
+		}
+	}
 	// Revoke first. Non-fatal: if the admin token side errors we
 	// keep going — the operator's explicit intent is "this worker is
 	// gone", and a dangling Worker row with revoke-failed tokens is
@@ -2011,7 +2038,10 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "remove_worker_failed", err.Error())
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	// v2.8.1: 200 with {ok, unbound_agents} (was 204) so the force-delete FE can
+	// surface "N agent(s) unbound". A plain (non-force, no bound agents) remove
+	// reports unbound_agents: 0.
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "unbound_agents": unboundAgents})
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {
