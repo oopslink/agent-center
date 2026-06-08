@@ -48,11 +48,42 @@ export default {
         chatuserbubble: '#D1E3FF',
       },
       fontFamily: {
-        // Body (skill: `font-pairing` Tech Startup pair — recommended
-        // for SaaS / developer tools / AI products).
-        sans:    ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Display / brand
-        heading: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // @oopslink (locked): dropped the custom DM Sans + Space Grotesk pairing;
+        // both `sans` and `heading` now point at Tailwind's DEFAULT system stack
+        // (no web-font download). `heading` is kept so existing `font-heading`
+        // users still resolve — it just resolves to the same default stack.
+        sans: [
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          '"Noto Sans"',
+          'sans-serif',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          '"Noto Color Emoji"',
+        ],
+        heading: [
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          '"Noto Sans"',
+          'sans-serif',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          '"Noto Color Emoji"',
+        ],
         // IDs, timestamps, code blocks (skill: `number-tabular`).
         mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },

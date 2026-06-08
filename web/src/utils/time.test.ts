@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatChatTime, formatLocalTime, localDateToRFC3339 } from './time';
+import { formatChatDate, formatChatTime, formatLocalTime, localDateToRFC3339 } from './time';
 
 describe('formatLocalTime', () => {
   const iso = '2026-06-04T07:34:21.874846Z';
@@ -25,19 +25,21 @@ describe('formatLocalTime', () => {
   });
 });
 
-// Chat UX 2 #4: formatChatTime renders the full local "YYYY-MM-DD HH:MM:SS GMT+N"
-// form (chat-only). tz-tolerant: assert the shape via regex, not a fixed offset.
+// @oopslink locked (DM mockup): per-message formatChatTime renders 24-hr local
+// "HH:MM" (e.g. "13:00"). tz-tolerant: assert the shape via regex, not a fixed
+// wall-clock value (the actual digits depend on the runner's local tz).
 describe('formatChatTime', () => {
   const iso = '2026-06-08T12:01:02.500Z';
 
-  it('formats a known ISO into "YYYY-MM-DD HH:MM:SS GMT..." (full date + seconds + tz)', () => {
-    expect(formatChatTime(iso)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} GMT/);
+  it('formats a known ISO into 24-hr local "HH:MM" (e.g. "13:00")', () => {
+    expect(formatChatTime(iso)).toMatch(/^\d{2}:\d{2}$/);
   });
 
-  it('is the longer chat-only form — NOT the short formatLocalTime form', () => {
-    // formatLocalTime has no seconds / no YYYY-MM-DD lead; assert they differ.
-    expect(formatChatTime(iso)).not.toBe(formatLocalTime(iso));
-    expect(formatChatTime(iso)).not.toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/); // tz present
+  it('is the short HH:MM form — NOT the long formatLocalTime form (no date / no tz)', () => {
+    const out = formatChatTime(iso);
+    expect(out).not.toBe(formatLocalTime(iso));
+    expect(out).not.toMatch(/\d{4}/); // no year
+    expect(out).not.toMatch(/GMT|UTC/); // no tz label
   });
 
   it('returns invalid / empty input unchanged (fail-safe)', () => {
@@ -47,6 +49,26 @@ describe('formatChatTime', () => {
 
   it('is stable for the same input', () => {
     expect(formatChatTime(iso)).toBe(formatChatTime(iso));
+  });
+});
+
+// @oopslink locked (DM mockup): formatChatDate renders the Chinese local date
+// "YYYY年MM月DD日" (e.g. "2026年6月4日"). Used for the chat date separators.
+// tz-tolerant: assert the shape via regex (month/day may be 1 or 2 digits).
+describe('formatChatDate', () => {
+  const iso = '2026-06-04T12:01:02.500Z';
+
+  it('formats a known ISO into Chinese local "YYYY年MM月DD日"', () => {
+    expect(formatChatDate(iso)).toMatch(/^\d{4}年\d{1,2}月\d{1,2}日$/);
+  });
+
+  it('returns invalid / empty input unchanged (fail-safe)', () => {
+    expect(formatChatDate('not-a-date')).toBe('not-a-date');
+    expect(formatChatDate('')).toBe('');
+  });
+
+  it('is stable for the same input', () => {
+    expect(formatChatDate(iso)).toBe(formatChatDate(iso));
   });
 });
 

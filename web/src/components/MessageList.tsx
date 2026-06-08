@@ -175,7 +175,8 @@ export function MessageList({ messages }: Props): React.ReactElement {
           </span>
         )}
         {/* Chat UX 2 #4: timestamp in the header line (outside the bubble), as a
-            <time dateTime title> using the chat-only full-date formatChatTime. */}
+            <time dateTime title>. @oopslink locked: visible text is 24-hr local
+            "HH:MM" (formatChatTime); the dateTime attr keeps the raw ISO. */}
         <time
           className="text-[0.625rem] font-normal text-text-muted"
           dateTime={m.posted_at}
