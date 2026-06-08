@@ -90,9 +90,9 @@ export function SenderDetailSidebar({
             aria-label="Close sender detail"
             className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
           >
-            {/* plain ASCII "X" close glyph (per the #208 lesson — not ✕/U+2715,
-                which is in the a11y guardrail's pictograph range). aria-hidden;
-                the button's aria-label carries the accessible name. */}
+            {/* plain ASCII "X" close glyph (per the #208 lesson — NOT the U+2715
+                multiplication-x, which is in the a11y guardrail's pictograph
+                range). aria-hidden; the button's aria-label is the accessible name. */}
             <span aria-hidden="true">X</span>
           </button>
         </div>

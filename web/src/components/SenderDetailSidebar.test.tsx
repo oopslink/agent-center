@@ -106,8 +106,10 @@ describe('SenderDetailSidebar', () => {
   it('close button uses an ASCII glyph, not an emoji (a11y guardrail)', () => {
     render(<SenderDetailSidebar open senderRef={'agent:A-1'} onClose={noop} />);
     const close = screen.getByTestId('sender-sidebar-close');
-    // The glyph is U+2715 MULTIPLICATION X (an ASCII-style icon, not an emoji).
-    expect(close.textContent).toBe('✕');
+    // The glyph is a plain ASCII "X" (per the #208 lesson — NOT ✕/U+2715, which
+    // is in the a11y guardrail's pictograph range; the component was corrected to
+    // ASCII but this assertion was left stale and merged in #233).
+    expect(close.textContent).toBe('X');
     // No pictographic/emoji codepoints (Misc Symbols & Pictographs, Emoticons,
     // Transport, Supplemental Symbols, regional indicators, variation selectors).
     expect(

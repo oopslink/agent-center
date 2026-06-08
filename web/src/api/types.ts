@@ -363,6 +363,13 @@ export interface Task {
   derived_from_issue?: string;
   completed_by?: string;
   blocked_reason?: string;
+  // v2.8.1 edit-task #278: free-form label set (cleaned + deduped + bounded to
+  // ≤16 runes each, ≤10 entries by the backend). The DTO always emits a non-nil
+  // array ([] when none) — pmTaskMap normalizes nil→[]. Optional on the type so
+  // older/legacy payloads (pre-#278) that omit it are treated as no tags.
+  tags?: string[];
+  // v2.8.1 #278: RFC3339 timestamp of the last status change; "" when never set.
+  status_changed_at?: string;
   // v2.7.1 #245: org-internal display/reference token ("T1234"); hash `id`
   // (task-xxx) stays the stable internal ref. Absent → UI falls back to handle.
   org_ref?: string;
