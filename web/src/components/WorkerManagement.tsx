@@ -5,7 +5,9 @@ import { useOptionalOrgContext } from '@/OrgContext';
 import { withOrgSlug } from '@/api/client';
 import { qk } from '@/api/queryKeys';
 import { useAgents } from '@/api/agents';
+import { useForceDeleteWorker } from '@/api/workers';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { ForceDeleteModal } from '@/components/ForceDeleteModal';
 import { InstallCommandModal } from '@/components/InstallCommandModal';
 import type { EnvWorker } from '@/api/types';
 
@@ -58,6 +60,26 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
 
   // --- Install / Re-mint (InstallCommandModal) ---
   const [installMode, setInstallMode] = useState<'show' | 'remint' | null>(null);
+
+  // --- Force delete (admin escape hatch + typed-name confirm) ---
+  // Cleans the center's records regardless of the worker's busy/online state
+  // (skips the soft-remove guards) and unbinds its agents; the 200 body reports
+  // how many were unbound. Kept open on 409/error (fed into the modal's `error`).
+  const forceDelete = useForceDeleteWorker();
+  const [forceOpen, setForceOpen] = useState(false);
+  const [forceError, setForceError] = useState<string | null>(null);
+  const [unboundNote, setUnboundNote] = useState<number | null>(null);
+  const handleForceDelete = () => {
+    setForceError(null);
+    forceDelete.mutate(worker.worker_id, {
+      onSuccess: (res) => {
+        setForceOpen(false);
+        setUnboundNote(res.unbound_agents);
+        navigate(org?.slug ? `/organizations/${org.slug}/environment` : '/environment');
+      },
+      onError: (e) => setForceError(e instanceof Error ? e.message : String(e)),
+    });
+  };
 
   // --- Remove worker (hard DELETE + ConfirmModal + bound-agent warning) ---
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -192,7 +214,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
         <p className="text-xs text-text-muted">
           Hard-removes this worker. Re-enroll a machine to register it again.
         </p>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             disabled={removeBusy}
@@ -202,9 +224,29 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
           >
             {removeBusy ? 'Removing…' : 'Remove worker'}
           </button>
+          {/* v2.8.1: force-delete — admin escape hatch that bypasses the
+              busy/online guards, removes the center's records and unbinds the
+              worker's agents (typed-name confirm). */}
+          <button
+            type="button"
+            disabled={forceDelete.isPending}
+            onClick={() => {
+              setForceError(null);
+              setForceOpen(true);
+            }}
+            className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:text-text-muted"
+            data-testid="worker-force-delete"
+          >
+            {forceDelete.isPending ? 'Deleting…' : 'Force delete'}
+          </button>
           {removeError && (
             <span className="text-xs text-danger" data-testid="worker-remove-error">
               {removeError}
+            </span>
+          )}
+          {unboundNote != null && (
+            <span className="text-xs text-text-muted" data-testid="worker-force-delete-note">
+              {unboundNote} agent(s) unbound.
             </span>
           )}
         </div>
@@ -226,6 +268,15 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
         busy={removeBusy}
         onConfirm={() => void handleRemove()}
         onCancel={() => setConfirmOpen(false)}
+      />
+      <ForceDeleteModal
+        open={forceOpen}
+        entityKind="worker"
+        entityName={displayName}
+        busy={forceDelete.isPending}
+        error={forceError}
+        onConfirm={handleForceDelete}
+        onCancel={() => setForceOpen(false)}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import {
   useAgent,
   useAgentActivity,
   useArchiveAgent,
+  useForceDeleteAgent,
   useResetAgent,
   useRestartAgent,
   useStartAgent,
@@ -16,6 +17,7 @@ import {
 } from '@/api/agents';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { ForceDeleteModal } from '@/components/ForceDeleteModal';
 import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
@@ -51,6 +53,7 @@ export default function AgentDetail(): React.ReactElement {
   const restart = useRestartAgent(id);
   const reset = useResetAgent(id);
   const archive = useArchiveAgent(id);
+  const forceDelete = useForceDeleteAgent();
 
   // v2.7.1 #240: header "Send message" → open (or reuse) the 1:1 DM with this
   // agent. The backend dedups (#215), so createConversation returns the existing
@@ -75,6 +78,10 @@ export default function AgentDetail(): React.ReactElement {
 
   const [resetOpen, setResetOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // v2.8.1: force-delete (admin escape hatch) — typed-name confirm. Kept open on
+  // 409/error; the error is fed into the modal's `error` prop.
+  const [forceDeleteOpen, setForceDeleteOpen] = useState(false);
+  const [forceDeleteError, setForceDeleteError] = useState<string | null>(null);
   // v2.8 #270: stop/restart are disruptive → confirm before firing. (start is
   // non-destructive and stays direct; reset has its own scope modal.)
   const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
@@ -253,6 +260,24 @@ export default function AgentDetail(): React.ReactElement {
               <ArchiveIcon />
             </button>
           )}
+          {/* v2.8.1: force-delete is an admin escape hatch — it cleans the
+              center's records regardless of lifecycle (it skips the stop/active
+              guards), so unlike the soft archive/lifecycle controls it is shown
+              unconditionally (the backend is org-admin gated). */}
+          <button
+            type="button"
+            onClick={() => {
+              setForceDeleteError(null);
+              setForceDeleteOpen(true);
+            }}
+            disabled={forceDelete.isPending}
+            className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
+            data-testid="agent-force-delete"
+            title="Force delete"
+            aria-label="Force delete agent"
+          >
+            <TrashIcon />
+          </button>
           {transient && (
             <span className="text-xs text-text-muted" data-testid="agent-transient-note">
               {lc}…
@@ -453,6 +478,29 @@ export default function AgentDetail(): React.ReactElement {
         }
         onCancel={() => setArchiveOpen(false)}
       />
+
+      {/* v2.8.1: force-delete (admin) — GitHub-style typed-name confirm. On 200
+          navigate back to the agents list; on 409/error keep the modal open and
+          surface the message via the `error` prop. */}
+      <ForceDeleteModal
+        open={forceDeleteOpen}
+        entityKind="agent"
+        entityName={a.name}
+        busy={forceDelete.isPending}
+        error={forceDeleteError}
+        onConfirm={() => {
+          setForceDeleteError(null);
+          forceDelete.mutate(a.id, {
+            onSuccess: () => {
+              setForceDeleteOpen(false);
+              const slug = org?.slug;
+              navigate(slug ? `/organizations/${slug}/agents` : '/agents');
+            },
+            onError: (e) => setForceDeleteError((e as Error).message),
+          });
+        }}
+        onCancel={() => setForceDeleteOpen(false)}
+      />
     </section>
   );
 }
@@ -562,6 +610,16 @@ function ArchiveIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M3 5.5h14v3H3v-3z" strokeLinejoin="round" />
       <path d="M4.5 8.5v6h11v-6M8 11h4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// v2.8.1: the Force-delete control icon (a trash can) — admin escape hatch.
+function TrashIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M4 6h12M8 6V4.5h4V6m-6 0v9.5h8V6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 9v4M11 9v4" strokeLinecap="round" />
     </svg>
   );
 }

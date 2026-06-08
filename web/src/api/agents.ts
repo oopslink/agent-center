@@ -107,6 +107,23 @@ export function useDeleteAgent() {
   });
 }
 
+// v2.8.1 force-delete (admin): DELETE /api/agents/{id}?force=true cleans the
+// center's metadata only — the backend skips the stop/active guards that the
+// soft path enforces (no-force + active → 409 `agent_active`) and does NOT kill
+// the process; the worker binding is released. Returns the bare `{ok:true}` body.
+// Org-admin gated server-side. ApiError surfaces 404/403/409 for the caller.
+export function useForceDeleteAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.del<{ ok: boolean }>(`/agents/${id}?force=true`),
+    onSuccess: (_, id) => {
+      void qc.invalidateQueries({ queryKey: qk.agents() });
+      void qc.removeQueries({ queryKey: qk.agent(id) });
+    },
+  });
+}
+
 export function useAgentWorkItems(id: string | undefined) {
   return useQuery({
     queryKey: qk.agentWorkItems(id ?? ''),

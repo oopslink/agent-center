@@ -322,6 +322,62 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(archived).toBe(true));
   });
 
+  // v2.8.1: force-delete (admin) — typed-name confirm → DELETE ?force=true → 200
+  // → navigate to the agents list.
+  it('force-deletes an agent via the typed-name modal and navigates to the list', async () => {
+    let forceQuery: string | null = null;
+    stubAgent({ lifecycle: 'running' });
+    server.use(
+      http.delete('/api/agents/:id', ({ request }) => {
+        forceQuery = new URL(request.url).searchParams.get('force');
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+          })
+        }
+      >
+        <MemoryRouter initialEntries={['/agents/A1']}>
+          <Routes>
+            <Route path="/agents/:id" element={<AgentDetail />} />
+            <Route path="/agents" element={<div data-testid="agents-list">Agents list</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByTestId('agent-force-delete'));
+    const confirm = screen.getByTestId('force-delete-confirm');
+    // gated until the typed name matches exactly
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByTestId('force-delete-input'), { target: { value: 'bot-1' } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(forceQuery).toBe('true'));
+    expect(await screen.findByTestId('agents-list')).toBeInTheDocument();
+  });
+
+  // 409 → keep the modal open and surface the server error.
+  it('keeps the force-delete modal open and shows the error on a 409', async () => {
+    stubAgent({ lifecycle: 'running' });
+    server.use(
+      http.delete('/api/agents/:id', () =>
+        HttpResponse.json({ error: 'agent_active', message: 'agent is active' }, { status: 409 }),
+      ),
+    );
+    wrap('/agents/A1');
+    fireEvent.click(await screen.findByTestId('agent-force-delete'));
+    fireEvent.change(screen.getByTestId('force-delete-input'), { target: { value: 'bot-1' } });
+    fireEvent.click(screen.getByTestId('force-delete-confirm'));
+    expect(await screen.findByTestId('force-delete-error')).toHaveTextContent('agent is active');
+    // modal stays open
+    expect(screen.getByTestId('force-delete-modal')).toBeInTheDocument();
+  });
+
   // running agent (b strict-two-step): archive NOT offered — must stop first.
   it('does not offer archive on a running agent (b strict-two-step)', async () => {
     stubAgent({ lifecycle: 'running' });
