@@ -36,3 +36,32 @@ func (s *Service) TransitionIssue(ctx context.Context, issueID pm.IssueID, to pm
 			})
 	})
 }
+
+// SetIssueStatus sets the Issue to any VALID status with NO adjacency enforcement
+// (v2.8.1 @oopslink: state = self-reported progress; the center does not gate
+// transitions — the Change-status menu offers the full enum). Project-member
+// gated; emits pm.issue.state_changed (generic).
+func (s *Service) SetIssueStatus(ctx context.Context, issueID pm.IssueID, target pm.IssueStatus, actor pm.IdentityRef) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		i, err := s.issues.FindByID(txCtx, issueID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, i.ProjectID(), actor); err != nil {
+			return err
+		}
+		if err := i.SetStatus(target, now); err != nil {
+			return err
+		}
+		if err := s.issues.Update(txCtx, i); err != nil {
+			return err
+		}
+		return s.emit(txCtx, EvtIssueStateChanged,
+			refsJSON(map[string]string{"issue_id": string(i.ID()), "project_id": string(i.ProjectID())}),
+			issueEventPayload{
+				IssueID: string(i.ID()), ProjectID: string(i.ProjectID()),
+				OwnerRef: "pm://issues/" + string(i.ID()), Status: string(i.Status()),
+			})
+	})
+}

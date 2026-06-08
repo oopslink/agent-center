@@ -236,3 +236,46 @@ func TestProject_LifecycleAndRehydrate(t *testing.T) {
 		t.Fatal("project without org should fail")
 	}
 }
+
+// TestTaskSetStatus_FreeAnyValid — v2.8.1 @oopslink: SetStatus is FREE (any valid
+// target, no adjacency). Validates only enum membership; idempotent on no-op.
+func TestTaskSetStatus_FreeAnyValid(t *testing.T) {
+	tk := newTask(t) // open
+	// Any valid target reachable from any state, regardless of the adjacency graph.
+	for _, target := range []TaskStatus{TaskCompleted, TaskOpen, TaskDiscarded, TaskRunning, TaskVerified, TaskBlocked, TaskReopened} {
+		if err := tk.SetStatus(target, t0); err != nil {
+			t.Fatalf("SetStatus(%s) free transition failed: %v", target, err)
+		}
+		if tk.Status() != target {
+			t.Fatalf("status=%s want %s", tk.Status(), target)
+		}
+	}
+	// Invalid enum value rejected.
+	if err := tk.SetStatus(TaskStatus("bogus"), t0); err != ErrInvalidStatus {
+		t.Fatalf("invalid status: want ErrInvalidStatus, got %v", err)
+	}
+	// No-op (same status) is idempotent + no version bump.
+	v := tk.Version()
+	if err := tk.SetStatus(tk.Status(), t0); err != nil {
+		t.Fatal(err)
+	}
+	if tk.Version() != v {
+		t.Fatalf("no-op SetStatus must not bump version: %d→%d", v, tk.Version())
+	}
+}
+
+// TestIssueSetStatus_FreeAnyValid — same for Issue.
+func TestIssueSetStatus_FreeAnyValid(t *testing.T) {
+	i, _ := NewIssue(NewIssueInput{ID: "I1", ProjectID: "P1", Title: "x", CreatedBy: "user:a", CreatedAt: t0})
+	for _, target := range []IssueStatus{IssueClosed, IssueOpen, IssueDiscarded, IssueInProgress, IssueResolved, IssueReopened} {
+		if err := i.SetStatus(target, t0); err != nil {
+			t.Fatalf("SetStatus(%s) failed: %v", target, err)
+		}
+		if i.Status() != target {
+			t.Fatalf("status=%s want %s", i.Status(), target)
+		}
+	}
+	if err := i.SetStatus(IssueStatus("bogus"), t0); err != ErrInvalidStatus {
+		t.Fatalf("want ErrInvalidStatus, got %v", err)
+	}
+}

@@ -204,6 +204,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/projects/{project_id}/issues/{issue_id}", s.pmGetIssueHandler)
 	s.mux.HandleFunc("PATCH /api/projects/{project_id}/issues/{issue_id}", s.pmUpdateIssueHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/transition", s.pmTransitionIssueHandler)
+	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
+	// Change-status menu. Symmetric task + issue.
+	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/status", s.pmSetIssueStatusHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks", s.pmListTasksHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks", s.pmCreateTaskHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks/{task_id}", s.pmGetTaskHandler)
@@ -217,6 +220,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/discard", s.pmDiscardTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unassign", s.pmUnassignTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/reopen", s.pmReopenTaskHandler)
+	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
+	// Change-status menu. The typed endpoints above remain for the agent's
+	// structured self-reports.
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/status", s.pmSetTaskStatusHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
 
