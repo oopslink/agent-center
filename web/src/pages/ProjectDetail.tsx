@@ -11,6 +11,7 @@ import {
   type Project,
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
+import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
 import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import { ApiError } from '@/api/client';
@@ -570,7 +571,7 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
                   <td className="py-1.5 pr-3">
                     <StatusChip status={iss.status} />
                   </td>
-                  <td className="py-1.5 tabular-nums text-text-muted" title={iss.updated_at}>
+                  <td className="py-1.5 tabular-nums text-text-muted" title={formatLocalTime(iss.updated_at)}>
                     {shortDate(iss.updated_at)}
                   </td>
                 </tr>
@@ -664,7 +665,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                     )}
                   </td>
                   <td className="py-1.5 pr-3 text-text-muted" data-testid="task-priority">—</td>
-                  <td className="py-1.5 tabular-nums text-text-muted" title={tk.updated_at}>
+                  <td className="py-1.5 tabular-nums text-text-muted" title={formatLocalTime(tk.updated_at)}>
                     {shortDate(tk.updated_at)}
                   </td>
                 </tr>

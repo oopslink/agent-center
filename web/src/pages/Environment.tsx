@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFleet } from '@/api/fleet';
+import { formatLocalTime } from '@/utils/time';
 import { useAgents } from '@/api/agents';
 import { useTransferSessions } from '@/api/workers';
 import { withOrgSlug } from '@/api/client';
@@ -164,7 +165,7 @@ export default function Environment(): React.ReactElement {
                             {wk.active_count} active
                           </span>
                           <span className="text-xs text-text-muted">
-                            {wk.last_heartbeat_at ? `hb ${wk.last_heartbeat_at}` : 'hb —'}
+                            {wk.last_heartbeat_at ? `hb ${formatLocalTime(wk.last_heartbeat_at)}` : 'hb —'}
                           </span>
                         </div>
                       </div>
