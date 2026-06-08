@@ -745,3 +745,76 @@ func TestRevokeEnroll_RealID(t *testing.T) {
 		t.Errorf("token not revoked")
 	}
 }
+
+// TestRemoveWorker_ForceDeleteAuditEvent — v2.8.1 #234 fast-follow (Tester
+// residual): a force worker-delete emits worker.force_deleted with the WorkerID
+// ref + {force:true, unbound_agents:N} payload. No agents bound here →
+// unbound_agents:0 (the N>0 count is service-tested in TestUnbindAgentsFromWorker);
+// this locks the worker emit + WorkerID ref + payload keys at the handler layer.
+func TestRemoveWorker_ForceDeleteAuditEvent(t *testing.T) {
+	// Inline the fixture with a SINGLE shared EventSink for both enroll and the
+	// force-delete emit — two EventRepos would each init their in-memory seq from
+	// MAX(seq) and collide on Append (the enroll events would steal the seqs the
+	// force_deleted emit then re-uses), silently dropping the audit event.
+	ctx := context.Background()
+	dir := t.TempDir()
+	db, err := persistence.Open(dir + "/wforce.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	clk := clock.NewFakeClock(time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC))
+	gen := idgen.NewGenerator(clk)
+	er, err := obsqlite.NewEventRepo(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := observability.NewEventSink(er, er, gen, clk)
+	tokenSvc := admintokensvc.New(atsqlite.New(db), gen, clk)
+	withMasterKey(t, tokenSvc)
+	workerRepo := wfsqlite.NewWorkerRepo(db)
+	enrollSvc := wfservice.NewWorkerEnrollService(db, workerRepo, sink, clk)
+	deps := HandlerDeps{
+		Actor:               observability.Actor("user:hayang"),
+		AdminTokenSvc:       tokenSvc,
+		WorkerAddSvc:        enrollSvc,
+		WorkerRemoveSvc:     enrollSvc,
+		WorkerRepo:          workerRepo,
+		EventSink:           sink,
+		EnrollFingerprint:   "sha256:AA",
+		EnrollBootstrapHost: "h:7300",
+	}
+	sess := wireWorkerAuth(t, db, &deps)
+	srv := mintEnrollServer(t, deps)
+	defer srv.Close()
+	mintResp := orgScopedPost(t, srv.URL+"/api/admintoken/mint-enroll", "", sess)
+	var minted mintEnrollResp
+	_ = json.NewDecoder(mintResp.Body).Decode(&minted)
+	mintResp.Body.Close()
+
+	resp := orgScopedDelete(t, srv.URL+"/api/workers/"+minted.WorkerID+"?force=true", sess)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("force worker-delete: got %d, want 200", resp.StatusCode)
+	}
+	typ := observability.EventType("worker.force_deleted")
+	evs, err := er.Find(ctx, observability.EventQueryFilter{EventType: &typ})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 {
+		t.Fatalf("force worker-delete must emit exactly 1 worker.force_deleted, got %d", len(evs))
+	}
+	if evs[0].Refs().WorkerID != minted.WorkerID {
+		t.Errorf("worker.force_deleted WorkerID ref = %q, want %q", evs[0].Refs().WorkerID, minted.WorkerID)
+	}
+	if evs[0].Payload()["force"] != true {
+		t.Errorf("payload force = %v, want true", evs[0].Payload()["force"])
+	}
+	if _, ok := evs[0].Payload()["unbound_agents"]; !ok {
+		t.Errorf("payload must carry unbound_agents key, got %+v", evs[0].Payload())
+	}
+}
