@@ -27,9 +27,22 @@ function PreBlock({ children }: { children?: React.ReactNode }): React.ReactElem
   return <CollapsibleCodeBlock code={code} language={match?.[1]} contextLabel="code" />;
 }
 
-export function MarkdownMessage({ content }: { content: string }): React.ReactElement {
+// `textClass` overrides the body text color. Default `text-text-primary` (theme
+// token, adapts both modes) is correct on theme-adaptive backgrounds. On a FIXED
+// light surface (e.g. the own chat bubble's #D1E3FF, which does NOT flip per theme),
+// pass a FIXED dark class (text-slate-900) so the body stays dark in BOTH modes —
+// a theme token would flip light in dark mode = light-on-light-blue FAIL.
+export function MarkdownMessage({
+  content,
+  textClass = 'text-text-primary',
+  linkClass = 'text-accent',
+}: {
+  content: string;
+  textClass?: string;
+  linkClass?: string;
+}): React.ReactElement {
   return (
-    <div className="markdown-body space-y-2 leading-relaxed text-text-primary" data-testid="markdown-message">
+    <div className={`markdown-body space-y-2 leading-relaxed ${textClass}`} data-testid="markdown-message">
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -42,7 +55,7 @@ export function MarkdownMessage({ content }: { content: string }): React.ReactEl
                 href={href}
                 rel="noopener noreferrer"
                 target="_blank"
-                className="text-accent underline"
+                className={`${linkClass} underline`}
               >
                 {children}
               </a>

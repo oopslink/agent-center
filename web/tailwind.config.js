@@ -39,6 +39,13 @@ export default {
         // regex — class is bg-blockedred (white text on saturated red bg).
         // (Replaces the now-unused `rust` token; `discarded` moved to zinc-700.)
         blockedred: '#dc2626',
+        // Chat UX 2 (@oopslink, locked): the viewer's OWN message bubble is a
+        // FIXED light blue (#D1E3FF), replacing the old bg-indigo-500. Because
+        // it's a fixed light surface in BOTH modes, the bubble's text must be a
+        // FIXED dark color (text-slate-900), NOT a theme token that flips light
+        // in dark mode — see the own-bubble render. Tester2: #D1E3FF + dark text
+        // = 13.72 AAA. Mirrors the blockedred custom-hex-token pattern.
+        chatuserbubble: '#D1E3FF',
       },
       fontFamily: {
         // Body (skill: `font-pairing` Tech Startup pair — recommended

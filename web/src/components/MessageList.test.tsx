@@ -126,18 +126,30 @@ describe('MessageList', () => {
   // v2.8.1 chat-rightalign: the viewer's own messages (sender === store
   // currentUserId, default 'user:hayang') render right-aligned (accent bubble,
   // no avatar); other people's stay left (avatar + elevated bubble).
-  it('renders the viewer\'s OWN message right-aligned (indigo bubble, no avatar)', () => {
+  it('renders the viewer\'s OWN message right-aligned (light-blue bubble, dark text, no avatar)', () => {
     // sample() defaults sender_identity_id to 'user:hayang' === store currentUserId.
     render(<MessageList messages={[sample('M1', 'mine')]} />);
     const row = screen.getByTestId('message-row');
     expect(row).toHaveAttribute('data-own', 'true');
-    expect(row.className).toContain('justify-end');
-    // v2.8.1 7th-bubbles: @oopslink-locked indigo accent bubble (#6366f1), adaptive max-w.
-    const bubble = row.querySelector('.bg-indigo-500');
+    expect(row.className).toContain('items-end');
+    // Chat UX 2 (#1+#2): own bubble is bg-chatuserbubble (#D1E3FF), NOT the old
+    // bg-indigo-500; adaptive max-w; FIXED dark text (text-slate-900) so it stays
+    // dark on the fixed light-blue in BOTH light + dark mode (NOT a theme token).
+    const bubble = row.querySelector('.bg-chatuserbubble');
     expect(bubble).not.toBeNull();
+    expect(row.querySelector('.bg-indigo-500')).toBeNull();
     expect(bubble?.className).toContain('max-w-[75%]');
+    expect(bubble?.className).toContain('text-slate-900');
+    // text-text-primary flips light in dark mode → must NOT be the bubble's text.
+    expect(bubble?.className).not.toContain('text-text-primary');
     // no avatar for own messages (#225).
     expect(row.querySelector('[data-testid="avatar"]')).toBeNull();
+    // Chat UX 2 (#3+#5): name + time live in a header line OUTSIDE the bubble.
+    const header = screen.getByTestId('message-header');
+    expect(bubble?.contains(header)).toBe(false);
+    expect(header.className).toContain('flex-row-reverse'); // right-aligned for own
+    expect(screen.getByTestId('message-sender-button')).toBeInTheDocument();
+    expect(screen.getByTestId('message-time')).toBeInTheDocument();
     expect(row).toHaveTextContent('mine');
   });
 
@@ -146,15 +158,28 @@ describe('MessageList', () => {
     render(<MessageList messages={[other]} />);
     const row = screen.getByTestId('message-row');
     expect(row).toHaveAttribute('data-own', 'false');
-    expect(row.className).not.toContain('justify-end');
-    // v2.8.1 7th-bubbles: other side is now a bubble too — bg-bg-subtle (浅灰,
-    // both-mode token), adaptive max-w, no border card.
+    expect(row.className).not.toContain('items-end');
+    // other side is a bubble too — bg-bg-subtle (浅灰, both-mode token), adaptive
+    // max-w, no border card; theme-adaptive text-text-primary (both flip together).
     const bubble = row.querySelector('.bg-bg-subtle');
     expect(bubble).not.toBeNull();
     expect(bubble?.className).toContain('max-w-[75%]');
     // avatar rendered for other people's messages.
     expect(row.querySelector('[data-testid="avatar"]')).not.toBeNull();
+    // Chat UX 2 (#3+#5): name + time in a header line OUTSIDE the bubble, left-aligned.
+    const header = screen.getByTestId('message-header');
+    expect(bubble?.contains(header)).toBe(false);
+    expect(header.className).not.toContain('flex-row-reverse');
     expect(row).toHaveTextContent('theirs');
+  });
+
+  // Chat UX 2 #4: the header timestamp uses formatChatTime — the full
+  // "YYYY-MM-DD HH:MM:SS GMT+N" form (tz-tolerant assertion).
+  it('renders the header timestamp in the full chat-time format (YYYY-MM-DD HH:MM:SS GMT)', () => {
+    render(<MessageList messages={[sample('M1', 'mine')]} />);
+    const time = screen.getByTestId('message-time');
+    expect(time).toHaveAttribute('dateTime', '2026-05-24T01:00:00Z');
+    expect(time.textContent).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} GMT/);
   });
 
   it('clicking the "New messages" pill scrolls to bottom + dismisses the pill', () => {

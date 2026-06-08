@@ -5,7 +5,7 @@ import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
-import { formatLocalTime } from '@/utils/time';
+import { formatChatTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
 
@@ -135,53 +135,77 @@ export function MessageList({ messages }: Props): React.ReactElement {
     // sides so the user:/agent: prefix never breaks the compare.
     const isOwn = meKey !== '' && normalizeIdentityRef(m.sender_identity_id) === meKey;
 
-    // Shared inner content. v2.8.1 7th-bubbles: the sender NAME is its own small
-    // element ABOVE the content; the TIME is a separate tiny muted element at the
-    // bubble's bottom corner (no more justify-between header cramming name+time).
-    // `isOwn` flips alignment (right) + name/tag/time/link colors so they read
-    // correctly on the indigo bubble.
-    const innerBody = (
-      <div className="min-w-0 flex-1">
-        {/* Name row: sender name + per-message work-item tag. Right-aligned for
-            own messages. (#219 work-item tag; raw ref on hover per #192.) */}
-        <div
-          className={`mb-0.5 flex items-center gap-2 text-xs font-medium ${
-            isOwn ? 'flex-row-reverse text-white/90' : 'text-text-secondary'
-          }`}
+    // Chat UX 2 (#3 + #5): the sender NAME (+ work-item tag) and the TIME move
+    // OUT of the bubble into a small header line ABOVE the bubble; the bubble is
+    // now content-ONLY (markdown body + attachments). The header line is right-
+    // aligned for own messages, left-aligned for others. Header is muted theme-
+    // adaptive text on BOTH sides (it sits on the page surface, never inside the
+    // fixed light-blue bubble) — so it uses normal theme tokens.
+    const headerLine = (
+      <div
+        className={`mb-0.5 flex items-center gap-2 text-xs font-medium text-text-secondary ${
+          isOwn ? 'flex-row-reverse' : ''
+        }`}
+        data-testid="message-header"
+      >
+        {/* increment 2: the sender name opens the sender-detail sidebar. A real
+            <button> (Tab + Enter/Space) with an aria-label; own messages stay
+            clickable too (own = the viewer's own profile). */}
+        <button
+          type="button"
+          onClick={() => setSidebarSender(m.sender_identity_id)}
+          aria-label={`View ${displayName(m.sender_identity_id)} detail`}
+          title={m.sender_identity_id}
+          data-testid="message-sender-button"
+          className="rounded font-medium hover:underline focus-visible:ring-2 focus-visible:ring-accent"
         >
-          {/* v2.8.1 increment 2: the sender name opens the sender-detail
-              sidebar. A real <button> (Tab + Enter/Space) with an aria-label;
-              own messages stay clickable too (own = the viewer's own profile).
-              Inherits the surrounding name-row color, underlines on hover. */}
-          <button
-            type="button"
-            onClick={() => setSidebarSender(m.sender_identity_id)}
-            aria-label={`View ${displayName(m.sender_identity_id)} detail`}
-            title={m.sender_identity_id}
-            data-testid="message-sender-button"
-            className="rounded font-medium hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+          {displayName(m.sender_identity_id)}
+        </button>
+        {/* #219: per-message work-item tag (only when the message carries one);
+            the raw ref stays on hover (#192 chrome rule). Now always on the page
+            surface (header is outside the bubble), so one both-mode treatment. */}
+        {m.context_refs?.work_item_ref && (
+          <span
+            className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-secondary"
+            data-testid="message-workitem-tag"
+            data-work-item-ref={m.context_refs.work_item_ref}
+            title={m.context_refs.work_item_ref}
           >
-            {displayName(m.sender_identity_id)}
-          </button>
-          {/* v2.7.1 #219: per-message work-item tag (only when the message
-              carries one); the raw ref stays on hover (#192 chrome rule). */}
-          {m.context_refs?.work_item_ref && (
-            <span
-              className={`rounded px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide ${
-                isOwn ? 'bg-white/20 text-white' : 'bg-bg-subtle text-text-secondary'
-              }`}
-              data-testid="message-workitem-tag"
-              data-work-item-ref={m.context_refs.work_item_ref}
-              title={m.context_refs.work_item_ref}
-            >
-              Work item
-            </span>
-          )}
-        </div>
+            Work item
+          </span>
+        )}
+        {/* Chat UX 2 #4: timestamp in the header line (outside the bubble), as a
+            <time dateTime title> using the chat-only full-date formatChatTime. */}
+        <time
+          className="text-[0.625rem] font-normal text-text-muted"
+          dateTime={m.posted_at}
+          title={m.posted_at}
+          data-testid="message-time"
+        >
+          {formatChatTime(m.posted_at)}
+        </time>
+      </div>
+    );
+
+    // Content-only bubble body: markdown + attachments (no name/time). On the OWN
+    // bubble the surface is the FIXED light-blue #D1E3FF with FIXED dark text, so
+    // the attachment chrome uses the SAME both-mode treatment as the non-own side
+    // (theme tokens) — no more white-alpha-on-indigo variants.
+    const bubbleBody = (
+      <div className="min-w-0">
         {/* #276: message content renders as markdown (GFM + strict-escape);
             long fenced code collapses via the shared CollapsibleCodeBlock. */}
-        <MarkdownMessage content={m.content} />
-        {/* v2.7 #142: attachments download through the same gated /api/files/{id}
+        {/* both-mode命门: the own bubble is a FIXED light #D1E3FF that does NOT
+            flip per theme, so its markdown body must use FIXED dark text
+            (text-slate-900) in both modes — the default theme token would flip
+            light in dark mode = light-on-light-blue FAIL. Other bubble is
+            theme-adaptive (bg-bg-subtle), so it keeps the default token. */}
+        <MarkdownMessage
+          content={m.content}
+          textClass={isOwn ? 'text-slate-900' : 'text-text-primary'}
+          linkClass={isOwn ? 'text-blue-700' : 'text-accent'}
+        />
+        {/* #142: attachments download through the same gated /api/files/{id}
             endpoint used by the backend reachability checks. */}
         {m.attachments && m.attachments.length > 0 && (
           <ul
@@ -191,9 +215,7 @@ export function MessageList({ messages }: Props): React.ReactElement {
             {m.attachments.map((att) => (
               <li
                 key={att.uri}
-                className={`flex items-center gap-2 rounded border px-2 py-1 text-xs ${
-                  isOwn ? 'border-white/30 bg-white/10' : 'border-border-base bg-bg-base'
-                }`}
+                className="flex items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
                 data-testid="message-attachment"
                 data-mime={att.mime_type}
               >
@@ -211,61 +233,54 @@ export function MessageList({ messages }: Props): React.ReactElement {
                   href={attachmentHref(att.uri)}
                   target="_blank"
                   rel="noreferrer"
-                  className={`flex items-center gap-2 hover:underline ${
-                    isOwn ? 'text-white' : 'text-text-primary'
-                  }`}
+                  className="flex items-center gap-2 text-text-primary hover:underline"
                   data-testid="attachment-link"
                 >
                   <span
-                    className={`rounded px-1 font-mono uppercase ${
-                      isOwn ? 'bg-white/20 text-white/90' : 'bg-bg-base text-text-muted'
-                    }`}
+                    className="rounded bg-bg-base px-1 font-mono uppercase text-text-muted"
                     data-testid="attachment-type"
                   >
                     {attachmentKind(att.mime_type)}
                   </span>
                   <span>{att.filename}</span>
                 </a>
-                <span className={isOwn ? 'text-white/70' : 'text-text-muted'}>{formatBytes(att.size)}</span>
+                <span className="text-text-muted">{formatBytes(att.size)}</span>
               </li>
             ))}
           </ul>
         )}
-        {/* v2.8.1 7th-bubbles: timestamp is its own tiny muted element at the
-            bubble's bottom corner (no longer crammed into a justify-between
-            header). Right-aligned for own messages; muted-on-indigo via
-            white-alpha. Keeps <time dateTime title> + formatLocalTime. */}
-        <div className={`mt-1 flex text-[0.625rem] ${isOwn ? 'justify-end text-white/70' : 'justify-start text-text-muted'}`}>
-          <time dateTime={m.posted_at} title={m.posted_at}>{formatLocalTime(m.posted_at)}</time>
-        </div>
       </div>
     );
 
-    // v2.8.1 7th-bubbles: own = right-aligned INDIGO bubble, no avatar (#225).
-    // @oopslink-locked accent: `bg-indigo-500 text-white` (indigo #6366f1).
-    // White-on-indigo-500 is a marginal 4.47:1 — @oopslink ACCEPTED, do NOT
-    // change. The bubble is max-w-[75%] so short messages stay short (adaptive
-    // width); the row stays flex justify-end. No emoji/raw-red (a11y guardrails).
+    // Chat UX 2 (#1+#2): own = right-aligned LIGHT-BLUE bubble (#D1E3FF), no
+    // avatar (#225). bg-chatuserbubble + FIXED dark text (text-slate-900) — NOT a
+    // theme token. The bubble surface is a fixed light color in BOTH modes, so
+    // text-text-primary (which flips light in dark mode) would be light-on-light-
+    // blue = FAIL. text-slate-900 stays dark on #D1E3FF in both modes (Tester2
+    // 13.72 AAA). The header line (name + work-item tag + time) sits ABOVE the
+    // bubble, right-aligned; the bubble itself is content-only.
     if (isOwn) {
       return (
         <article
           key={m.id}
-          className="flex justify-end text-sm"
+          className="flex flex-col items-end text-sm"
           data-testid="message-row"
           data-message-id={m.id}
           data-own="true"
         >
-          <div className="max-w-[75%] rounded-2xl bg-indigo-500 px-3 py-2 text-white shadow-sm">
-            {innerBody}
+          {headerLine}
+          <div className="max-w-[75%] rounded-2xl bg-chatuserbubble px-3 py-2 text-slate-900 shadow-sm">
+            {bubbleBody}
           </div>
         </article>
       );
     }
 
-    // v2.8.1 7th-bubbles: other people's messages — left-aligned bubble (NOT a
-    // bordered card) after the avatar. `bg-bg-subtle` (浅灰, both-mode theme
-    // token) + `text-text-primary`; max-w-[75%] for adaptive width. Drop the
-    // border — it's a bubble, mirroring the own side, differing only by side+color.
+    // Chat UX 2: other people's messages — avatar + a left-aligned content-only
+    // bubble. `bg-bg-subtle` (浅灰, both-mode theme token) + `text-text-primary`
+    // stay theme-adaptive (fine — both flip together). The header line (name +
+    // work-item tag + time) sits ABOVE the bubble, left-aligned (sharing the
+    // avatar column gutter via the same gap).
     return (
       <article
         key={m.id}
@@ -283,15 +298,18 @@ export function MessageList({ messages }: Props): React.ReactElement {
           onClick={() => setSidebarSender(m.sender_identity_id)}
           aria-label={`View ${displayName(m.sender_identity_id)} detail`}
           data-testid="message-sender-avatar-button"
-          className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-accent"
+          className="mt-5 shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-accent"
         >
           <Avatar
             name={displayName(m.sender_identity_id)}
             kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
           />
         </button>
-        <div className="max-w-[75%] rounded-2xl bg-bg-subtle px-3 py-2 text-text-primary shadow-sm">
-          {innerBody}
+        <div className="flex min-w-0 flex-col items-start">
+          {headerLine}
+          <div className="max-w-[75%] rounded-2xl bg-bg-subtle px-3 py-2 text-text-primary shadow-sm">
+            {bubbleBody}
+          </div>
         </div>
       </article>
     );
