@@ -24,11 +24,38 @@ export const STATUS_OPTIONS: Record<'issue' | 'task', string[]> = {
   task: ['open', 'running', 'blocked', 'completed', 'verified', 'discarded', 'reopened'],
 };
 
+// #258 date-range filter state — raw "YYYY-MM-DD" `<input type="date">` values
+// (empty = unset). Converted to RFC3339-with-local-offset by the parent before
+// hitting the hook (the off-by-one 命门 lives there, not here).
+export interface DateRange {
+  created_after: string;
+  created_before: string;
+  updated_after: string;
+  updated_before: string;
+}
+
+const EMPTY_DATE_RANGE: DateRange = {
+  created_after: '',
+  created_before: '',
+  updated_after: '',
+  updated_before: '',
+};
+
+// The four date pickers, in display order. label = a11y text; testid = stable hook.
+const DATE_FIELDS: { key: keyof DateRange; label: string; testid: string }[] = [
+  { key: 'created_after', label: 'Created after', testid: 'org-filter-created-after' },
+  { key: 'created_before', label: 'Created before', testid: 'org-filter-created-before' },
+  { key: 'updated_after', label: 'Updated after', testid: 'org-filter-updated-after' },
+  { key: 'updated_before', label: 'Updated before', testid: 'org-filter-updated-before' },
+];
+
 export function OrgWorkItemsView({
   kind,
   query,
   selectedStatuses,
   onStatusesChange,
+  dateRange,
+  onDateRangeChange,
   onCreate,
 }: {
   kind: 'issue' | 'task';
@@ -37,13 +64,24 @@ export function OrgWorkItemsView({
   // states excluded) — same default as the old "open only" view.
   selectedStatuses: string[];
   onStatusesChange: (s: string[]) => void;
+  // #258 raw date-picker values (YYYY-MM-DD; '' = unset).
+  dateRange: DateRange;
+  onDateRangeChange: (d: DateRange) => void;
   // opens the cross-project create modal.
   onCreate: () => void;
 }): React.ReactElement {
   const title = kind === 'issue' ? 'Issues' : 'Tasks';
   const seg = kind === 'issue' ? 'issues' : 'tasks';
   const items = query.data?.items ?? [];
-  const defaultView = selectedStatuses.length === 0;
+  const anyDateSet = DATE_FIELDS.some((f) => dateRange[f.key] !== '');
+  // "default view" (empty-state copy) = no status AND no date filters active.
+  const defaultView = selectedStatuses.length === 0 && !anyDateSet;
+  // Clear is offered whenever ANY filter (status or date) is active.
+  const anyFilter = selectedStatuses.length > 0 || anyDateSet;
+  const clearAll = () => {
+    onStatusesChange([]);
+    onDateRangeChange(EMPTY_DATE_RANGE);
+  };
   const toggleStatus = (s: string) =>
     onStatusesChange(selectedStatuses.includes(s) ? selectedStatuses.filter((x) => x !== s) : [...selectedStatuses, s]);
 
@@ -79,11 +117,29 @@ export function OrgWorkItemsView({
               </button>
             );
           })}
-          {!defaultView && (
+          {/* #258 date-range pickers — Created/Updated after/before. Each optional
+              and independent; any combination may be set. */}
+          {DATE_FIELDS.map((f) => (
+            <label
+              key={f.key}
+              className="flex items-center gap-1 text-[0.625rem] uppercase tracking-wide text-text-muted"
+            >
+              <span>{f.label}</span>
+              <input
+                type="date"
+                data-testid={f.testid}
+                aria-label={f.label}
+                value={dateRange[f.key]}
+                onChange={(e) => onDateRangeChange({ ...dateRange, [f.key]: e.target.value })}
+                className="rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
+              />
+            </label>
+          ))}
+          {anyFilter && (
             <button
               type="button"
               data-testid="org-filter-clear"
-              onClick={() => onStatusesChange([])}
+              onClick={clearAll}
               className="text-xs text-accent hover:underline"
             >
               Clear

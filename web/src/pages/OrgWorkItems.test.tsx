@@ -182,6 +182,44 @@ describe('OrgWorkItems page (#258)', () => {
     expect(gotQuery).toContain('status=discarded');
   });
 
+  // #258 date-range filter (PR #224): setting a Created-after date must refetch
+  // with created_after carrying the viewer's LOCAL offset — NOT a bare date, NOT
+  // UTC midnight (the off-by-one 命门). Clear resets it.
+  it('FilterBar: a Created-after date sends created_after as an RFC3339 LOCAL-offset instant; Clear resets it', async () => {
+    let gotQuery = '';
+    server.use(
+      http.get('/api/issues', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        return HttpResponse.json({ items: [issueRow()], total: 1 });
+      }),
+    );
+    wrap('issue', '/organizations/acme/issues');
+    await screen.findByTestId('org-workitem-row');
+    expect(gotQuery).toBe(''); // default: no params
+
+    fireEvent.change(screen.getByTestId('org-filter-created-after'), {
+      target: { value: '2026-06-08' },
+    });
+
+    await waitFor(() => expect(gotQuery).toContain('created_after='));
+    const created = new URLSearchParams(gotQuery).get('created_after')!;
+    // local start-of-day with a [+-]HH:MM offset — NOT a bare date, NOT Z.
+    expect(created).toMatch(/^2026-06-08T00:00:00[+-]\d{2}:\d{2}$/);
+    expect(created).not.toMatch(/Z$/);
+    expect(created).not.toBe('2026-06-08');
+    // matches the runtime local offset.
+    const offMin = -new Date(2026, 5, 8, 0, 0, 0).getTimezoneOffset();
+    const sign = offMin >= 0 ? '+' : '-';
+    const abs = Math.abs(offMin);
+    const expectedOffset = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    expect(created.endsWith(expectedOffset)).toBe(true);
+
+    // Clear resets the date → param dropped on refetch.
+    fireEvent.click(screen.getByTestId('org-filter-clear'));
+    await waitFor(() => expect(gotQuery).not.toContain('created_after'));
+    expect((screen.getByTestId('org-filter-created-after') as HTMLInputElement).value).toBe('');
+  });
+
   it('renders a Created column with the created date', async () => {
     server.use(http.get('/api/issues', () => HttpResponse.json({ items: [issueRow()], total: 1 })));
     wrap('issue', '/organizations/acme/issues');
