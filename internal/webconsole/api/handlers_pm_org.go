@@ -9,13 +9,18 @@
 //
 // Filters (query params): status (repeated or comma-separated; default = "all
 // open" = exclude terminal states), project (repeated/comma; default all),
-// assignee (member-id or ref; tasks only — issues are never assignable).
+// assignee (member-id or ref; tasks only — issues are never assignable), and
+// time-range (v2.8.1): created_after / created_before / updated_after /
+// updated_before, all optional RFC3339 instants. The FE sends ABSOLUTE instants
+// (local date-picker selection + tz offset) so the comparison against the
+// UTC-stored timestamps is tz-safe with no off-by-one (see timeFilter).
 // Sorted updated_at DESC. Each row is complete-consumable (mock=契约): bare
 // entity id + org_ref (#245 I12/T34) + project{id,name} + enriched task
 // assignee {ref, display_name, member_id} | null.
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -48,6 +53,11 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 	projectFilter := parseSetParam(r, "project")
 	// Issues are never assignable; an explicit assignee filter excludes them all.
 	assigneeSet := strings.TrimSpace(r.URL.Query().Get("assignee")) != ""
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+		return
+	}
 
 	items := make([]map[string]any, 0)
 	for _, p := range projects {
@@ -65,6 +75,9 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 			}
 			if assigneeSet {
 				continue // issues have no assignee
+			}
+			if !tf.passes(i.CreatedAt(), i.UpdatedAt()) {
+				continue
 			}
 			items = append(items, orgIssueRow(i, p))
 		}
@@ -91,6 +104,11 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 	statusFilter := parseSetParam(r, "status")
 	projectFilter := parseSetParam(r, "project")
 	assigneeFilter := strings.TrimSpace(r.URL.Query().Get("assignee"))
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+		return
+	}
 
 	items := make([]map[string]any, 0)
 	for _, p := range projects {
@@ -108,6 +126,9 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			ref := string(t.Assignee())
 			if assigneeFilter != "" && !assigneeMatches(ref, assigneeFilter) {
+				continue
+			}
+			if !tf.passes(t.CreatedAt(), t.UpdatedAt()) {
 				continue
 			}
 			items = append(items, s.orgTaskRow(r, d, t, p))
@@ -217,6 +238,70 @@ func assigneeMatches(ref, filter string) bool {
 		return false
 	}
 	return ref == filter || bareRefID(ref) == bareRefID(filter)
+}
+
+// timeFilter holds optional created/updated lower+upper bounds (v2.8.1 work-items
+// time-range filter). The FE sends ABSOLUTE RFC3339 instants — it converts the
+// user's local date-picker selection to RFC3339 WITH the local tz offset (e.g.
+// "today" in GMT+8 → created_after=2026-06-08T00:00:00+08:00 &
+// created_before=2026-06-08T23:59:59+08:00). The backend parses to UTC and
+// compares against the UTC-stored created_at/updated_at, so there is NO
+// server-side timezone guesswork and NO off-by-one at the day boundary (the FE,
+// which knows the user's tz, owns the local-date→instant conversion).
+type timeFilter struct {
+	createdAfter, createdBefore time.Time
+	updatedAfter, updatedBefore time.Time
+	hasCA, hasCB, hasUA, hasUB  bool
+}
+
+// parseTimeFilter reads created_after/created_before/updated_after/updated_before
+// (all optional RFC3339). A malformed value is a 400 (invalid_filter) so a bad
+// param is never silently ignored (which would over-return rows).
+func parseTimeFilter(r *http.Request) (timeFilter, error) {
+	var f timeFilter
+	parse := func(name string, dst *time.Time, has *bool) error {
+		raw := strings.TrimSpace(r.URL.Query().Get(name))
+		if raw == "" {
+			return nil
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return fmt.Errorf("%s must be RFC3339 (e.g. 2026-06-08T00:00:00+08:00): %w", name, err)
+		}
+		*dst, *has = t.UTC(), true
+		return nil
+	}
+	if err := parse("created_after", &f.createdAfter, &f.hasCA); err != nil {
+		return f, err
+	}
+	if err := parse("created_before", &f.createdBefore, &f.hasCB); err != nil {
+		return f, err
+	}
+	if err := parse("updated_after", &f.updatedAfter, &f.hasUA); err != nil {
+		return f, err
+	}
+	if err := parse("updated_before", &f.updatedBefore, &f.hasUB); err != nil {
+		return f, err
+	}
+	return f, nil
+}
+
+// passes reports whether a row's (created_at, updated_at) fall within every
+// specified bound. Bounds are inclusive; an unset bound is unconstrained.
+func (f timeFilter) passes(createdAt, updatedAt time.Time) bool {
+	if f.hasCA && createdAt.Before(f.createdAfter) {
+		return false
+	}
+	if f.hasCB && createdAt.After(f.createdBefore) {
+		return false
+	}
+	if f.hasUA && updatedAt.Before(f.updatedAfter) {
+		return false
+	}
+	if f.hasUB && updatedAt.After(f.updatedBefore) {
+		return false
+	}
+	return true
 }
 
 // sortItemsUpdatedDesc orders rows by updated_at descending (newest first),
