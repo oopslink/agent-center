@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatLocalTime } from './time';
+import { formatLocalTime, localDateToRFC3339 } from './time';
 
 describe('formatLocalTime', () => {
   const iso = '2026-06-04T07:34:21.874846Z';
@@ -22,5 +22,49 @@ describe('formatLocalTime', () => {
 
   it('is stable for the same input', () => {
     expect(formatLocalTime(iso)).toBe(formatLocalTime(iso));
+  });
+});
+
+// The off-by-one 命门: a date-picker value "YYYY-MM-DD" must become an RFC3339
+// ABSOLUTE instant carrying the viewer's LOCAL timezone offset — never a naive
+// date, never UTC midnight (Z). start = local 00:00:00, end = local 23:59:59.
+describe('localDateToRFC3339', () => {
+  it('empty input → undefined (param omitted)', () => {
+    expect(localDateToRFC3339('', 'start')).toBeUndefined();
+    expect(localDateToRFC3339('', 'end')).toBeUndefined();
+  });
+
+  it('start edge = local start-of-day with a [+-]HH:MM offset (NOT Z, NOT bare date)', () => {
+    const out = localDateToRFC3339('2026-06-08', 'start');
+    expect(out).toBeDefined();
+    expect(out).toMatch(/^2026-06-08T00:00:00[+-]\d{2}:\d{2}$/);
+    // explicitly NOT UTC Z, NOT a naive/bare date
+    expect(out).not.toMatch(/Z$/);
+    expect(out).not.toBe('2026-06-08');
+  });
+
+  it('end edge = local end-of-day (23:59:59) with a [+-]HH:MM offset', () => {
+    const out = localDateToRFC3339('2026-06-08', 'end');
+    expect(out).toMatch(/^2026-06-08T23:59:59[+-]\d{2}:\d{2}$/);
+    expect(out).not.toMatch(/Z$/);
+  });
+
+  it('start vs end differ only in the time-of-day (00:00:00 vs 23:59:59), same offset', () => {
+    const start = localDateToRFC3339('2026-06-08', 'start')!;
+    const end = localDateToRFC3339('2026-06-08', 'end')!;
+    expect(start).toContain('T00:00:00');
+    expect(end).toContain('T23:59:59');
+    expect(start.slice(0, 10)).toBe(end.slice(0, 10)); // same date
+    expect(start.slice(19)).toBe(end.slice(19)); // same offset suffix
+  });
+
+  it('the offset matches the runtime local offset derived from getTimezoneOffset', () => {
+    const out = localDateToRFC3339('2026-06-08', 'start')!;
+    const offMin = -new Date(2026, 5, 8, 0, 0, 0).getTimezoneOffset();
+    const sign = offMin >= 0 ? '+' : '-';
+    const abs = Math.abs(offMin);
+    const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+    const mm = String(abs % 60).padStart(2, '0');
+    expect(out.slice(19)).toBe(`${sign}${hh}:${mm}`);
   });
 });

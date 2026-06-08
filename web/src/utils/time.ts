@@ -16,3 +16,40 @@ export function formatLocalTime(iso: string): string {
     timeZoneName: 'short',
   }).format(d);
 }
+
+// localDateToRFC3339 — convert a `<input type="date">` value ("YYYY-MM-DD") into
+// an RFC3339 ABSOLUTE instant in the viewer's LOCAL timezone (#258 date-range
+// filter, PR #224 backend). This is the off-by-one 命门: the backend compares
+// absolute instants and does NOT guess a timezone, so we must emit the LOCAL
+// offset — never a naive date, never UTC midnight (Z).
+//
+//   edge 'start' → local 00:00:00 (start-of-day)
+//   edge 'end'   → local 23:59:59 (end-of-day)
+//
+// e.g. for a GMT+8 viewer: "2026-06-08" → "2026-06-08T00:00:00+08:00" (start) /
+// "2026-06-08T23:59:59+08:00" (end). Empty input → undefined (omit the param).
+//
+// We build a LOCAL Date and format the offset from -getTimezoneOffset(); we do
+// NOT use Date.toISOString() (that converts to UTC and emits "Z").
+export function localDateToRFC3339(value: string, edge: 'start' | 'end'): string | undefined {
+  if (!value) return undefined;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return undefined;
+  const [, ys, ms, ds] = m;
+  const y = Number(ys);
+  const mo = Number(ms);
+  const d = Number(ds);
+  const [hh, mm, ss] = edge === 'start' ? [0, 0, 0] : [23, 59, 59];
+  // LOCAL Date — getTimezoneOffset() then reflects this wall-clock's offset
+  // (correct across DST for the picked day, not just "now").
+  const local = new Date(y, mo - 1, d, hh, mm, ss, 0);
+  if (Number.isNaN(local.getTime())) return undefined;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  // getTimezoneOffset() is minutes to ADD to local to get UTC (e.g. GMT+8 → -480);
+  // negate so +480 → "+08:00".
+  const offMin = -local.getTimezoneOffset();
+  const sign = offMin >= 0 ? '+' : '-';
+  const absMin = Math.abs(offMin);
+  const offset = `${sign}${pad(Math.floor(absMin / 60))}:${pad(absMin % 60)}`;
+  return `${ys}-${ms}-${ds}T${pad(hh)}:${pad(mm)}:${pad(ss)}${offset}`;
+}

@@ -182,6 +182,158 @@ describe('OrgWorkItems page (#258)', () => {
     expect(gotQuery).toContain('status=discarded');
   });
 
+  // #258 date-range filter (PR #224): setting a Created-after date must refetch
+  // with created_after carrying the viewer's LOCAL offset — NOT a bare date, NOT
+  // UTC midnight (the off-by-one 命门). Clear resets it.
+  it('FilterBar: a Created-after date sends created_after as an RFC3339 LOCAL-offset instant; Clear resets it', async () => {
+    let gotQuery = '';
+    server.use(
+      http.get('/api/issues', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        return HttpResponse.json({ items: [issueRow()], total: 1 });
+      }),
+    );
+    wrap('issue', '/organizations/acme/issues');
+    await screen.findByTestId('org-workitem-row');
+    expect(gotQuery).toBe(''); // default: no params
+
+    fireEvent.change(screen.getByTestId('org-filter-created-after'), {
+      target: { value: '2026-06-08' },
+    });
+
+    await waitFor(() => expect(gotQuery).toContain('created_after='));
+    const created = new URLSearchParams(gotQuery).get('created_after')!;
+    // local start-of-day with a [+-]HH:MM offset — NOT a bare date, NOT Z.
+    expect(created).toMatch(/^2026-06-08T00:00:00[+-]\d{2}:\d{2}$/);
+    expect(created).not.toMatch(/Z$/);
+    expect(created).not.toBe('2026-06-08');
+    // matches the runtime local offset.
+    const offMin = -new Date(2026, 5, 8, 0, 0, 0).getTimezoneOffset();
+    const sign = offMin >= 0 ? '+' : '-';
+    const abs = Math.abs(offMin);
+    const expectedOffset = `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    expect(created.endsWith(expectedOffset)).toBe(true);
+
+    // Clear resets the date → param dropped on refetch.
+    fireEvent.click(screen.getByTestId('org-filter-clear'));
+    await waitFor(() => expect(gotQuery).not.toContain('created_after'));
+    expect((screen.getByTestId('org-filter-created-after') as HTMLInputElement).value).toBe('');
+  });
+
+  // Project picker (multi) — mirrors the status multi-param test: each selected
+  // project id is appended as a repeated `project=<id>` param (OR backend-side).
+  it('FilterBar: selecting projects passes them as the multi project filter', async () => {
+    let gotQuery = '';
+    server.use(
+      http.get('/api/issues', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        return HttpResponse.json({ items: [issueRow()], total: 1 });
+      }),
+      http.get('/api/projects', () =>
+        HttpResponse.json({
+          projects: [
+            { id: 'proj-a', name: 'Apollo' },
+            { id: 'proj-b', name: 'Beacon' },
+          ],
+        }),
+      ),
+    );
+    wrap('issue', '/organizations/acme/issues');
+    await screen.findByTestId('org-workitem-row');
+    expect(gotQuery).toBe(''); // default: no params
+    // group label + per-option testids present.
+    expect(screen.getByTestId('org-filter-project')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('org-filter-project-proj-a'));
+    fireEvent.click(screen.getByTestId('org-filter-project-proj-b'));
+    await waitFor(() => expect(gotQuery).toContain('project=proj-a'));
+    expect(gotQuery).toContain('project=proj-b');
+    // repeated multi-value param shape (same as status).
+    expect(new URLSearchParams(gotQuery).getAll('project')).toEqual(['proj-a', 'proj-b']);
+  });
+
+  // Assignee picker (single) — sends the prefixed identity ref ("<kind>:<id>").
+  // The member fixture carries a BARE identity_id + kind; the picker builds the ref.
+  it('FilterBar: selecting an assignee sends assignee=<prefixed-ref>; options show the kind cue', async () => {
+    let gotQuery = '';
+    server.use(
+      http.get('/api/issues', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        return HttpResponse.json({ items: [issueRow()], total: 1 });
+      }),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          {
+            id: 'mem-1', organization_id: 'org-test', identity_id: 'user-ann',
+            kind: 'user', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+            display_name: 'Ann',
+          },
+          {
+            id: 'mem-2', organization_id: 'org-test', identity_id: 'agent-bot9',
+            kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+            display_name: 'Bot Nine',
+          },
+        ]),
+      ),
+    );
+    wrap('issue', '/organizations/acme/issues');
+    await screen.findByTestId('org-workitem-row');
+    const select = screen.getByTestId('org-filter-assignee') as HTMLSelectElement;
+    // kind cue text (not color-only): agent option reads "· agent", user "· user".
+    const opts = Array.from(select.options).map((o) => o.textContent);
+    expect(opts).toContain('Any');
+    expect(opts).toContain('Ann · user');
+    expect(opts).toContain('Bot Nine · agent');
+    // selecting the agent sends the prefixed ref.
+    fireEvent.change(select, { target: { value: 'agent:agent-bot9' } });
+    await waitFor(() => expect(gotQuery).toContain('assignee=agent%3Aagent-bot9'));
+    expect(new URLSearchParams(gotQuery).get('assignee')).toBe('agent:agent-bot9');
+  });
+
+  // Clear-all must reset EVERY filter (status + project + assignee + dates), not
+  // just one — all params drop and the inputs reset.
+  it('FilterBar: Clear-all resets status + project + assignee + date params and inputs', async () => {
+    let gotQuery = '';
+    server.use(
+      http.get('/api/issues', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        return HttpResponse.json({ items: [issueRow()], total: 1 });
+      }),
+      http.get('/api/projects', () =>
+        HttpResponse.json({ projects: [{ id: 'proj-a', name: 'Apollo' }] }),
+      ),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          {
+            id: 'mem-2', organization_id: 'org-test', identity_id: 'agent-bot9',
+            kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+            display_name: 'Bot Nine',
+          },
+        ]),
+      ),
+    );
+    wrap('issue', '/organizations/acme/issues');
+    await screen.findByTestId('org-workitem-row');
+    // set all four filter kinds.
+    fireEvent.click(screen.getByTestId('org-filter-status-closed'));
+    fireEvent.click(screen.getByTestId('org-filter-project-proj-a'));
+    fireEvent.change(screen.getByTestId('org-filter-assignee'), { target: { value: 'agent:agent-bot9' } });
+    fireEvent.change(screen.getByTestId('org-filter-created-after'), { target: { value: '2026-06-08' } });
+    await waitFor(() => {
+      expect(gotQuery).toContain('status=closed');
+      expect(gotQuery).toContain('project=proj-a');
+      expect(gotQuery).toContain('assignee=');
+      expect(gotQuery).toContain('created_after=');
+    });
+    // Clear-all → every param drops.
+    fireEvent.click(screen.getByTestId('org-filter-clear'));
+    await waitFor(() => expect(gotQuery).toBe(''));
+    // inputs reset.
+    expect((screen.getByTestId('org-filter-assignee') as HTMLSelectElement).value).toBe('');
+    expect((screen.getByTestId('org-filter-created-after') as HTMLInputElement).value).toBe('');
+    expect(screen.getByTestId('org-filter-status-closed')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('org-filter-project-proj-a')).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('renders a Created column with the created date', async () => {
     server.use(http.get('/api/issues', () => HttpResponse.json({ items: [issueRow()], total: 1 })));
     wrap('issue', '/organizations/acme/issues');
