@@ -4,6 +4,7 @@ import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver } from '@/api/members';
 import { Avatar } from './Avatar';
+import { formatLocalTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
@@ -143,7 +144,7 @@ export function MessageList({ messages }: Props): React.ReactElement {
                 </span>
               )}
             </span>
-            <time>{m.posted_at}</time>
+            <time dateTime={m.posted_at} title={m.posted_at}>{formatLocalTime(m.posted_at)}</time>
           </header>
           {/* #276: message content renders as markdown (GFM + strict-escape);
               long fenced code collapses via the shared CollapsibleCodeBlock. */}
