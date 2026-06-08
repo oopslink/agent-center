@@ -43,6 +43,15 @@ func TestTask_SetTags_TooLong(t *testing.T) {
 	if err := tk.SetTags([]string{strings.Repeat("x", 16)}, t0); err != nil {
 		t.Fatalf("16-char tag should be valid: %v", err)
 	}
+	// The 16-limit is RUNE-based (CJK-correct): 16 Chinese chars = 48 bytes but
+	// 16 runes → accepted; 17 → rejected. Critical for our (Chinese) team — a
+	// byte-count would wrongly reject 16-char CJK tags (Tester #232 flag).
+	if err := tk.SetTags([]string{strings.Repeat("中", 16)}, t0); err != nil {
+		t.Fatalf("16-rune CJK tag (48 bytes) must be valid (rune-based, not byte): %v", err)
+	}
+	if err := tk.SetTags([]string{strings.Repeat("中", 17)}, t0); err == nil {
+		t.Fatalf("expected error for 17-rune CJK tag")
+	}
 }
 
 func TestTask_SetTags_EmptyRejected(t *testing.T) {
