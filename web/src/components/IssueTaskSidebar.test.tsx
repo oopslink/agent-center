@@ -9,20 +9,21 @@ type SK = IssueStatus | TaskStatus;
 describe('IssueTaskSidebar + StatusBlock (#5th)', () => {
   afterEach(() => cleanup());
 
-  it('maps every real Issue + Task status to its locked label + class (@oopslink FINAL: white-on-saturated)', () => {
-    // @oopslink FINAL palette lock: bg-<color> text-white. verified=purple,
-    // closed=cyan, discarded=rust-700, reopened=pink.
+  it('maps every real Issue + Task status to its locked label + class (@oopslink REVISION 4: white-on-saturated)', () => {
+    // @oopslink REVISION 4 palette lock: bg-<color> text-white. open=sky,
+    // in_progress/running=blue-600, blocked=blockedred (#dc2626), verified=teal,
+    // closed=slate-500, discarded=zinc-700, reopened=amber.
     const cases: Array<[SK, string, string]> = [
-      ['open', 'Open', 'bg-slate-500 text-white'],
-      ['in_progress', 'In Progress', 'bg-blue-500 text-white'],
-      ['running', 'Running', 'bg-blue-500 text-white'],
-      ['blocked', 'Blocked', 'bg-orange-500 text-white'],
+      ['open', 'Open', 'bg-sky-600 text-white'],
+      ['in_progress', 'In Progress', 'bg-blue-600 text-white'],
+      ['running', 'Running', 'bg-blue-600 text-white'],
+      ['blocked', 'Blocked', 'bg-blockedred text-white'],
       ['resolved', 'Resolved', 'bg-green-600 text-white'],
       ['completed', 'Completed', 'bg-green-600 text-white'],
-      ['verified', 'Verified', 'bg-purple-600 text-white'],
-      ['closed', 'Closed', 'bg-cyan-600 text-white'], // cyan (terminal Issue, distinct from open's slate)
-      ['discarded', 'Discarded', 'bg-rust-700 text-white'], // deep-rust (terminal, replaces canceled/withdrawn)
-      ['reopened', 'Reopened', 'bg-pink-600 text-white'],
+      ['verified', 'Verified', 'bg-teal-600 text-white'],
+      ['closed', 'Closed', 'bg-slate-500 text-white'], // slate (terminal Issue)
+      ['discarded', 'Discarded', 'bg-zinc-700 text-white'], // zinc (terminal, replaces canceled/withdrawn)
+      ['reopened', 'Reopened', 'bg-amber-600 text-white'],
     ];
     for (const [status, label, cls] of cases) {
       cleanup();
@@ -34,9 +35,9 @@ describe('IssueTaskSidebar + StatusBlock (#5th)', () => {
     }
   });
 
-  it('keeps verified (purple) and completed/resolved (green) in DISTINCT color families (a11y, not just label)', () => {
+  it('keeps verified (teal) and completed/resolved (green) in DISTINCT color families (a11y, not just label)', () => {
     render(<StatusBlock status="verified" />);
-    expect(screen.getByTestId('status-block').className).toContain('purple');
+    expect(screen.getByTestId('status-block').className).toContain('teal');
     cleanup();
     render(<StatusBlock status="completed" />);
     expect(screen.getByTestId('status-block').className).toContain('green');

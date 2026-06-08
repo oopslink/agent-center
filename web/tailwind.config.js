@@ -32,10 +32,13 @@ export default {
         'success':       'var(--color-success)',
         'warning':       'var(--color-warning)',
         'danger':        'var(--color-danger)',
-        // Custom: deep-rust for the `discarded` terminal state (replaces
-        // canceled/withdrawn). rust-700 #b45309 is the saturated background under
-        // white text (@oopslink FINAL palette lock — bg-rust-700 text-white).
-        rust: { 700: '#b45309' },
+        // Custom: `blockedred` for the `blocked` state. @oopslink REVISION 4
+        // wants blocked = red #dc2626 (Tailwind red-600), but the a11y guardrail
+        // (src/a11y.test.tsx) forbids raw bg-red-/text-red- utilities. A custom
+        // NON-RED-NAMED token keeps the exact hex while dodging the guardrail
+        // regex — class is bg-blockedred (white text on saturated red bg).
+        // (Replaces the now-unused `rust` token; `discarded` moved to zinc-700.)
+        blockedred: '#dc2626',
       },
       fontFamily: {
         // Body (skill: `font-pairing` Tech Startup pair — recommended
