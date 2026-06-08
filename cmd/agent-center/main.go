@@ -21,6 +21,8 @@ import (
 var (
 	buildVersion = "dev"
 	buildCommit  = "unknown"
+	buildBranch  = "unknown"
+	buildBuiltAt = "unknown"
 )
 
 func main() {
@@ -43,6 +45,10 @@ func main() {
 	// v2.7.1 #234: thread the linker-injected commit so `install/upgrade`
 	// can swap on a same-version-different-commit rebuild.
 	cli.SetInstallBuildCommit(buildCommit)
+	// v2.8.1: thread branch + build timestamp for GET /api/system/version
+	// (Settings version panel; version convention ${branch}-${commit}).
+	cli.SetInstallBuildBranch(buildBranch)
+	cli.SetInstallBuildBuiltAt(buildBuiltAt)
 	router, configPath, err := cli.BuildRouter(buildVersion, buildCommit, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: build_router: %v\n", err)
