@@ -2,7 +2,8 @@ import type React from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
-import { useDisplayNameResolver } from '@/api/members';
+import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
+import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatLocalTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
@@ -55,6 +56,12 @@ interface Props {
 // scrolled up to read history, we don't yank them back.
 export function MessageList({ messages }: Props): React.ReactElement {
   const displayName = useDisplayNameResolver();
+  // v2.8.1 chat-rightalign: the viewer's own messages render right-aligned
+  // (iMessage/Slack style). `currentUserId` is a prefixed identity ref
+  // (e.g. "user:hayang"); normalize BOTH sides so the user:/agent: prefix
+  // never breaks the compare. Empty `me` (not yet bound) => nothing is "own".
+  const me = useAppStore((s) => s.currentUserId);
+  const meKey = me ? normalizeIdentityRef(me) : '';
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
   const latestId = messages[messages.length - 1]?.id;
@@ -120,12 +127,123 @@ export function MessageList({ messages }: Props): React.ReactElement {
     if (m.content_kind === 'system') {
       return <SystemMessageRow key={m.id} content={m.content} />;
     }
+    // v2.8.1 chat-rightalign: own = the viewer's own message. Normalize both
+    // sides so the user:/agent: prefix never breaks the compare.
+    const isOwn = meKey !== '' && normalizeIdentityRef(m.sender_identity_id) === meKey;
+
+    // Shared inner content (header name/time + work-item tag, markdown body,
+    // attachments). `align` flips the header justification and tag/link colors
+    // so the own bubble reads correctly on the accent background.
+    const innerBody = (
+      <div className="min-w-0 flex-1">
+        <header
+          className={`mb-1 flex items-center justify-between text-xs ${
+            isOwn ? 'flex-row-reverse text-white/80' : 'text-text-muted'
+          }`}
+        >
+          <span className={`flex items-center gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
+            <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
+            {/* v2.7.1 #219: per-message work-item tag (only when the message
+                carries one); the raw ref stays on hover (#192 chrome rule). */}
+            {m.context_refs?.work_item_ref && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide ${
+                  isOwn ? 'bg-white/20 text-white' : 'bg-bg-subtle text-text-secondary'
+                }`}
+                data-testid="message-workitem-tag"
+                data-work-item-ref={m.context_refs.work_item_ref}
+                title={m.context_refs.work_item_ref}
+              >
+                Work item
+              </span>
+            )}
+          </span>
+          <time dateTime={m.posted_at} title={m.posted_at}>{formatLocalTime(m.posted_at)}</time>
+        </header>
+        {/* #276: message content renders as markdown (GFM + strict-escape);
+            long fenced code collapses via the shared CollapsibleCodeBlock. */}
+        <MarkdownMessage content={m.content} />
+        {/* v2.7 #142: attachments download through the same gated /api/files/{id}
+            endpoint used by the backend reachability checks. */}
+        {m.attachments && m.attachments.length > 0 && (
+          <ul
+            className={`mt-1 flex flex-wrap gap-2 ${isOwn ? 'justify-end' : ''}`}
+            data-testid="message-attachments"
+          >
+            {m.attachments.map((att) => (
+              <li
+                key={att.uri}
+                className={`flex items-center gap-2 rounded border px-2 py-1 text-xs ${
+                  isOwn ? 'border-white/30 bg-white/10' : 'border-border-base bg-bg-base'
+                }`}
+                data-testid="message-attachment"
+                data-mime={att.mime_type}
+              >
+                {att.mime_type.startsWith('image/') && (
+                  <a href={attachmentHref(att.uri)} target="_blank" rel="noreferrer" aria-label={`Open ${att.filename}`}>
+                    <img
+                      src={attachmentHref(att.uri)}
+                      alt={att.filename}
+                      className="h-10 w-10 rounded object-cover"
+                      data-testid="attachment-preview"
+                    />
+                  </a>
+                )}
+                <a
+                  href={attachmentHref(att.uri)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`flex items-center gap-2 hover:underline ${
+                    isOwn ? 'text-white' : 'text-text-primary'
+                  }`}
+                  data-testid="attachment-link"
+                >
+                  <span
+                    className={`rounded px-1 font-mono uppercase ${
+                      isOwn ? 'bg-white/20 text-white/90' : 'bg-bg-elevated text-text-muted'
+                    }`}
+                    data-testid="attachment-type"
+                  >
+                    {attachmentKind(att.mime_type)}
+                  </span>
+                  <span>{att.filename}</span>
+                </a>
+                <span className={isOwn ? 'text-white/70' : 'text-text-muted'}>{formatBytes(att.size)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+
+    // Own message: right-aligned accent bubble, no avatar. Accent is
+    // `bg-brand-hover text-white` — AA in BOTH themes (light #1d4ed8 = 6.7:1,
+    // dark #2563eb = 5.17:1 against white; plain `bg-brand` would FAIL dark at
+    // 3.68:1). No raw red tokens, no emoji (a11y guardrails).
+    if (isOwn) {
+      return (
+        <article
+          key={m.id}
+          className="flex justify-end text-sm"
+          data-testid="message-row"
+          data-message-id={m.id}
+          data-own="true"
+        >
+          <div className="max-w-[80%] rounded bg-brand-hover p-3 text-white shadow-sm">
+            {innerBody}
+          </div>
+        </article>
+      );
+    }
+
+    // Other people's messages: unchanged left layout (avatar + elevated bubble).
     return (
       <article
         key={m.id}
         className="flex gap-3 rounded border border-border-base bg-bg-elevated p-3 text-sm shadow-sm"
         data-testid="message-row"
         data-message-id={m.id}
+        data-own="false"
       >
         {/* 7th/8th redesign: sender avatar (name-hashed gradient + shape
             discriminator). kind from the identity-ref prefix (agent:/user:). */}
@@ -133,70 +251,7 @@ export function MessageList({ messages }: Props): React.ReactElement {
           name={displayName(m.sender_identity_id)}
           kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
         />
-        <div className="min-w-0 flex-1">
-          <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
-            <span className="flex items-center gap-2">
-              <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
-              {/* v2.7.1 #219: per-message work-item tag (only when the message
-                  carries one); the raw ref stays on hover (#192 chrome rule). */}
-              {m.context_refs?.work_item_ref && (
-                <span
-                  className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-secondary"
-                  data-testid="message-workitem-tag"
-                  data-work-item-ref={m.context_refs.work_item_ref}
-                  title={m.context_refs.work_item_ref}
-                >
-                  Work item
-                </span>
-              )}
-            </span>
-            <time dateTime={m.posted_at} title={m.posted_at}>{formatLocalTime(m.posted_at)}</time>
-          </header>
-          {/* #276: message content renders as markdown (GFM + strict-escape);
-              long fenced code collapses via the shared CollapsibleCodeBlock. */}
-          <MarkdownMessage content={m.content} />
-          {/* v2.7 #142: attachments download through the same gated /api/files/{id}
-              endpoint used by the backend reachability checks. */}
-          {m.attachments && m.attachments.length > 0 && (
-            <ul className="mt-1 flex flex-wrap gap-2" data-testid="message-attachments">
-              {m.attachments.map((att) => (
-                <li
-                  key={att.uri}
-                  className="flex items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
-                  data-testid="message-attachment"
-                  data-mime={att.mime_type}
-                >
-                  {att.mime_type.startsWith('image/') && (
-                    <a href={attachmentHref(att.uri)} target="_blank" rel="noreferrer" aria-label={`Open ${att.filename}`}>
-                      <img
-                        src={attachmentHref(att.uri)}
-                        alt={att.filename}
-                        className="h-10 w-10 rounded object-cover"
-                        data-testid="attachment-preview"
-                      />
-                    </a>
-                  )}
-                  <a
-                    href={attachmentHref(att.uri)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 text-text-primary hover:underline"
-                    data-testid="attachment-link"
-                  >
-                    <span
-                      className="rounded bg-bg-elevated px-1 font-mono uppercase text-text-muted"
-                      data-testid="attachment-type"
-                    >
-                      {attachmentKind(att.mime_type)}
-                    </span>
-                    <span>{att.filename}</span>
-                  </a>
-                  <span className="text-text-muted">{formatBytes(att.size)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {innerBody}
       </article>
     );
   };
