@@ -29,7 +29,7 @@ type RequestInitWithTimeout = RequestInit & { timeoutMs?: number };
 
 // v2.6-FE-6: paths that must NOT receive auto-injected org_slug. /auth/* runs
 // before org context exists; /orgs is the cross-org meta endpoint.
-const ORG_INJECT_EXEMPT = ['/auth/', '/orgs', '/health'];
+const ORG_INJECT_EXEMPT = ['/auth/', '/orgs', '/health', '/system/'];
 
 function shouldInjectOrgSlug(path: string): boolean {
   for (const p of ORG_INJECT_EXEMPT) {
