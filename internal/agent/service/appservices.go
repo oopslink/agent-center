@@ -477,28 +477,86 @@ func (s *Service) ArchiveAgent(ctx context.Context, id agent.AgentID) error {
 	})
 }
 
-// DeleteAgent hard-deletes a Stopped, idle agent (v2.7 #197). Guards: the agent
-// must be Stopped (else ErrAgentNotStopped — operator stops it first) and have no
-// active/waiting_input work item (else ErrAgentHasActiveWork). Deletes the agent
-// row, which releases its worker binding (worker_id column). The webconsole
-// wraps this in one tx with the identity-member delete for an atomic teardown
-// (mirrors #157's atomic create — no orphan member left behind).
-func (s *Service) DeleteAgent(ctx context.Context, id agent.AgentID) error {
+// DeleteAgent hard-deletes an agent (v2.7 #197). When force is false: guards apply
+// — the agent must be Stopped (else ErrAgentNotStopped) and have no active/
+// waiting_input work item (else ErrAgentHasActiveWork). When force is true (v2.8.1
+// force-delete, @oopslink): the process is assumed dead — the guards are skipped
+// and the agent's non-terminal WorkItems are swept so none dangle on the deleted
+// agent_id (orphan-sweep): in-flight (active/waiting_input) → FailFromAgentDeath
+// (cause=agent_death) → Task.Block (reassignable, same path as the reconciler /
+// #278 (b)); queued/paused → Cancel. Deletes the agent row, releasing its worker
+// binding. The webconsole wraps this in one tx with the identity-member delete for
+// an atomic teardown (mirrors #157 — no orphan member left behind).
+func (s *Service) DeleteAgent(ctx context.Context, id agent.AgentID, force bool) error {
 	a, err := s.agents.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	if a.Lifecycle() != agent.LifecycleStopped {
-		return agent.ErrAgentNotStopped
+	if !force {
+		if a.Lifecycle() != agent.LifecycleStopped {
+			return agent.ErrAgentNotStopped
+		}
+		active, err := s.workItems.HasActiveWorkItem(ctx, id)
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork
+		}
+	} else if err := s.sweepWorkItemsForForceDelete(ctx, id); err != nil {
+		return err
 	}
-	active, err := s.workItems.HasActiveWorkItem(ctx, id)
+	return s.agents.Delete(ctx, id)
+}
+
+// sweepWorkItemsForForceDelete terminates every non-terminal WorkItem of an agent
+// being force-deleted so nothing references the now-deleted agent_id. In-flight
+// items fail (→ Task.Block via the (b) fix, reassignable); queued/paused items are
+// canceled (no Task cascade). CAS-guarded: a concurrent agent complete/transition
+// wins cleanly (skipped on ErrWorkItemReassigned).
+func (s *Service) sweepWorkItemsForForceDelete(ctx context.Context, id agent.AgentID) error {
+	items, err := s.workItems.ListByAgent(ctx, id)
 	if err != nil {
 		return err
 	}
-	if active {
-		return agent.ErrAgentHasActiveWork
+	now := s.clock.Now()
+	for _, w := range items {
+		if w.Status().IsTerminal() {
+			continue
+		}
+		preV := w.Version()
+		var terr error
+		switch w.Status() {
+		case agent.WorkItemActive, agent.WorkItemWaitingInput:
+			terr = w.FailFromAgentDeath(now)
+		default: // queued / paused
+			terr = w.Cancel(now)
+		}
+		if terr != nil {
+			continue
+		}
+		if err := s.workItems.UpdateCAS(ctx, w, preV); err != nil {
+			if errors.Is(err, agent.ErrWorkItemReassigned) {
+				continue
+			}
+			return err
+		}
 	}
-	return s.agents.Delete(ctx, id)
+	return nil
+}
+
+// AgentsByWorker returns the agents bound to a worker (worker_id binding). Used by
+// the worker force-delete handler to detect bound agents (busy-guard / unbind).
+func (s *Service) AgentsByWorker(ctx context.Context, workerID string) ([]*agent.Agent, error) {
+	return s.agents.ListByWorker(ctx, workerID)
+}
+
+// UnbindAgentsFromWorker clears the worker binding of every agent bound to a
+// force-deleted worker (v2.8.1), returning the count unbound. The agents become
+// worker-less (retained, NOT archived) — re-bindable later. Called by the worker
+// force-delete handler (composition layer) so the agent BC owns the binding write.
+func (s *Service) UnbindAgentsFromWorker(ctx context.Context, workerID string) (int, error) {
+	return s.agents.ClearWorkerBindings(ctx, workerID, s.clock.Now())
 }
 
 // ListWorkItems returns an Agent's work items (queue + history).

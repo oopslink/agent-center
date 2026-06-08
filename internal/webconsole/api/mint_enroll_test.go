@@ -517,8 +517,9 @@ func TestRemoveWorker_Endpoint(t *testing.T) {
 	// DELETE the worker.
 	resp := orgScopedDelete(t, srv.URL+"/api/workers/"+minted.WorkerID, sess)
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	// v2.8.1: worker remove now returns 200 {ok, unbound_agents} (was 204).
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	// Worker row gone.
 	if _, err := workerRepo.FindByID(context.Background(), workforce.WorkerID(minted.WorkerID)); err == nil {

@@ -383,8 +383,12 @@ func (s *Server) agentDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	memberID := strings.TrimSpace(a.IdentityMemberID())
+	// v2.8.1 force-delete (@oopslink): ?force=true skips the stopped/idle guards and
+	// sweeps the agent's non-terminal WorkItems (orphan-sweep). Without it, an
+	// active/non-stopped agent returns 409 (mapAgentError) so the FE can offer force.
+	force := r.URL.Query().Get("force") == "true"
 	if err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
-		if err := d.AgentSvc.DeleteAgent(txCtx, a.ID()); err != nil {
+		if err := d.AgentSvc.DeleteAgent(txCtx, a.ID(), force); err != nil {
 			return err
 		}
 		if memberID != "" {
