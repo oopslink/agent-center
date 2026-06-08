@@ -1,6 +1,6 @@
 import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render as rtlRender, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageList } from './MessageList';
 import type { Message } from '@/api/types';
@@ -213,5 +213,47 @@ describe('MessageList attachments (#142)', () => {
   it('renders nothing extra for a plain message (no attachments)', () => {
     render(<MessageList messages={[sample('m2', 'plain')]} />);
     expect(screen.queryByTestId('message-attachments')).not.toBeInTheDocument();
+  });
+});
+
+// v2.8.1 7th DM increment 2: clicking a sender name/avatar opens the
+// SenderDetailSidebar. Uses a fresh QueryClient per render so the sidebar's
+// agent query doesn't leak across cases. The default msw /api/agents/:id
+// handler resolves the agent branch.
+describe('MessageList sender-detail sidebar (increment 2)', () => {
+  afterEach(() => cleanup());
+
+  function renderFresh(ui: React.ReactElement) {
+    const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return rtlRender(<QueryClientProvider client={c}>{ui}</QueryClientProvider>);
+  }
+
+  const otherMsg: Message = {
+    ...sample('M1', 'hello'),
+    sender_identity_id: 'agent:A-1',
+  };
+
+  it('clicking the sender name button opens the sidebar', async () => {
+    renderFresh(<MessageList messages={[otherMsg]} />);
+    expect(screen.queryByTestId('sender-sidebar')).toBeNull();
+    fireEvent.click(screen.getByTestId('message-sender-button'));
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+  });
+
+  it('opening via keyboard (Enter on the name button) opens the sidebar', async () => {
+    renderFresh(<MessageList messages={[otherMsg]} />);
+    const btn = screen.getByTestId('message-sender-button');
+    btn.focus();
+    // A native <button> activates onClick for Enter/Space; fireEvent.click is
+    // the canonical RTL way to assert that keyboard-driven activation works.
+    fireEvent.keyDown(btn, { key: 'Enter' });
+    fireEvent.click(btn);
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+  });
+
+  it('clicking the sender avatar button also opens the sidebar', async () => {
+    renderFresh(<MessageList messages={[otherMsg]} />);
+    fireEvent.click(screen.getByTestId('message-sender-avatar-button'));
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
   });
 });

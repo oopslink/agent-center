@@ -7,6 +7,7 @@ import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatLocalTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
+import { SenderDetailSidebar } from './SenderDetailSidebar';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -70,6 +71,9 @@ export function MessageList({ messages }: Props): React.ReactElement {
   // message arrives while the user is scrolled up; cleared on click or
   // when the user scrolls back to the bottom.
   const [hasNewBelow, setHasNewBelow] = useState(false);
+  // v2.8.1 7th DM increment 2: the sender-detail sidebar. Holds the clicked
+  // message's sender identity ref (prefixed, e.g. "agent:A-1"); null = closed.
+  const [sidebarSender, setSidebarSender] = useState<string | null>(null);
 
   useEffect(() => {
     if (latestId === prevLatestIdRef.current) return;
@@ -145,7 +149,20 @@ export function MessageList({ messages }: Props): React.ReactElement {
             isOwn ? 'flex-row-reverse text-white/90' : 'text-text-secondary'
           }`}
         >
-          <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
+          {/* v2.8.1 increment 2: the sender name opens the sender-detail
+              sidebar. A real <button> (Tab + Enter/Space) with an aria-label;
+              own messages stay clickable too (own = the viewer's own profile).
+              Inherits the surrounding name-row color, underlines on hover. */}
+          <button
+            type="button"
+            onClick={() => setSidebarSender(m.sender_identity_id)}
+            aria-label={`View ${displayName(m.sender_identity_id)} detail`}
+            title={m.sender_identity_id}
+            data-testid="message-sender-button"
+            className="rounded font-medium hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {displayName(m.sender_identity_id)}
+          </button>
           {/* v2.7.1 #219: per-message work-item tag (only when the message
               carries one); the raw ref stays on hover (#192 chrome rule). */}
           {m.context_refs?.work_item_ref && (
@@ -258,11 +275,21 @@ export function MessageList({ messages }: Props): React.ReactElement {
         data-own="false"
       >
         {/* 7th/8th redesign: sender avatar (name-hashed gradient + shape
-            discriminator). kind from the identity-ref prefix (agent:/user:). */}
-        <Avatar
-          name={displayName(m.sender_identity_id)}
-          kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
-        />
+            discriminator). kind from the identity-ref prefix (agent:/user:).
+            increment 2: the avatar is a button that opens the sender-detail
+            sidebar (keyboard-accessible; aria-label on the button). */}
+        <button
+          type="button"
+          onClick={() => setSidebarSender(m.sender_identity_id)}
+          aria-label={`View ${displayName(m.sender_identity_id)} detail`}
+          data-testid="message-sender-avatar-button"
+          className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <Avatar
+            name={displayName(m.sender_identity_id)}
+            kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
+          />
+        </button>
         <div className="max-w-[75%] rounded-2xl bg-bg-subtle px-3 py-2 text-text-primary shadow-sm">
           {innerBody}
         </div>
@@ -292,6 +319,12 @@ export function MessageList({ messages }: Props): React.ReactElement {
           New messages ↓
         </button>
       )}
+      {/* v2.8.1 increment 2: a single sidebar instance at the MessageList root. */}
+      <SenderDetailSidebar
+        open={sidebarSender !== null}
+        senderRef={sidebarSender}
+        onClose={() => setSidebarSender(null)}
+      />
     </div>
   );
 }
