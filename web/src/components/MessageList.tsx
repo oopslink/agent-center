@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver } from '@/api/members';
@@ -114,6 +114,12 @@ export function MessageList({ messages }: Props): React.ReactElement {
     );
   }
   const renderRow = (m: Message): React.ReactElement => {
+    // @oopslink: system messages (e.g. agent converse failures) are
+    // de-emphasized — a centered hint with the raw text collapsed behind
+    // [Details], not a full sender bubble dumping the raw API error inline.
+    if (m.content_kind === 'system') {
+      return <SystemMessageRow key={m.id} content={m.content} />;
+    }
     return (
       <article
         key={m.id}
@@ -217,6 +223,58 @@ export function MessageList({ messages }: Props): React.ReactElement {
           New messages ↓
         </button>
       )}
+    </div>
+  );
+}
+
+// SystemMessageRow — de-emphasized rendering for content_kind='system' messages
+// (e.g. agent converse failures). A centered hint; the raw message text (which
+// may carry an API error) is collapsed behind [Details] so it never dumps into
+// the main conversation flow uninvited (@oopslink convention). The warning is an
+// SVG (no emoji-icon per the a11y guardrail) on a both-mode-safe warning token.
+function SystemMessageRow({ content }: { content: string }): React.ReactElement {
+  const [expanded, setExpanded] = useState(false);
+  const detailId = useId();
+  return (
+    <div className="my-2 flex justify-center" data-testid="message-system" data-message-system="true">
+      <div className="max-w-md rounded-md border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs text-text-secondary">
+        <div className="flex items-center justify-center gap-1.5">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-3.5 w-3.5 shrink-0 text-warning"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>Message failed</span>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-accent hover:underline"
+            data-testid="message-system-details-toggle"
+            aria-expanded={expanded}
+            aria-controls={detailId}
+          >
+            {expanded ? 'Hide' : 'Details'}
+          </button>
+        </div>
+        {expanded && (
+          <pre
+            id={detailId}
+            className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words text-left text-[0.625rem] text-text-muted"
+            data-testid="message-system-detail"
+          >
+            {content}
+          </pre>
+        )}
+      </div>
     </div>
   );
 }

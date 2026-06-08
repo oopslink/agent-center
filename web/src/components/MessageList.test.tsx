@@ -44,6 +44,25 @@ describe('MessageList', () => {
     expect(screen.getByTestId('message-list-empty')).toBeInTheDocument();
   });
 
+  it('de-emphasizes a system message — centered hint, raw text collapsed behind [Details]', () => {
+    const sys: Message = {
+      ...sample('S1', "⚠️ @arch1 couldn't process the message: rate_limit exceeded — 429 raw-api-error"),
+      content_kind: 'system',
+    };
+    render(<MessageList messages={[sys]} />);
+    // de-emphasized centered hint, NOT a full sender bubble.
+    expect(screen.getByTestId('message-system')).toBeInTheDocument();
+    expect(screen.queryByTestId('message-row')).not.toBeInTheDocument();
+    // raw error text is NOT in the main flow by default (collapsed).
+    expect(screen.queryByText(/rate_limit exceeded/)).not.toBeInTheDocument();
+    const toggle = screen.getByTestId('message-system-details-toggle');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    // expanding [Details] reveals the full raw content.
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('message-system-detail')).toHaveTextContent('rate_limit exceeded');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('renders one row per message with sender + content', () => {
     render(<MessageList messages={[sample('M1', 'hi'), sample('M2', 'two')]} />);
     const rows = screen.getAllByTestId('message-row');
