@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver } from '@/api/members';
+import { Avatar } from './Avatar';
 import { MarkdownMessage } from './MarkdownMessage';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
@@ -119,7 +120,13 @@ export function MessageList({ messages }: Props): React.ReactElement {
         data-testid="message-row"
         data-message-id={m.id}
       >
-        <div className="flex-1">
+        {/* 7th/8th redesign: sender avatar (name-hashed gradient + shape
+            discriminator). kind from the identity-ref prefix (agent:/user:). */}
+        <Avatar
+          name={displayName(m.sender_identity_id)}
+          kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
+        />
+        <div className="min-w-0 flex-1">
           <header className="mb-1 flex items-center justify-between text-xs text-text-muted">
             <span className="flex items-center gap-2">
               <span title={m.sender_identity_id}>{displayName(m.sender_identity_id)}</span>
