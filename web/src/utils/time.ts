@@ -17,39 +17,54 @@ export function formatLocalTime(iso: string): string {
   }).format(d);
 }
 
-// formatChatTime — chat-only timestamp helper (Chat UX 2 #4). Renders an
-// ISO-8601 (UTC) timestamp in the viewer's LOCAL timezone with the FULL date,
-// seconds, and a tz abbreviation/offset, e.g. "2026-06-08 20:01:02 GMT+8".
-// This longer "YYYY-MM-DD HH:MM:SS GMT+N" form is intentionally chat-ONLY — do
-// NOT reuse it for site-wide displays (those keep formatLocalTime's short form).
-// Built from Intl.DateTimeFormat parts (local tz) so the date/time digits and
-// the tz name come from the SAME local-tz computation. Invalid or empty input is
-// returned unchanged (fail-safe — never throw on bad data, like formatLocalTime).
+// formatChatTime — per-message chat timestamp (@oopslink locked, DM mockup).
+// Renders an ISO-8601 (UTC) timestamp as 24-hr "HH:MM" in the viewer's LOCAL
+// timezone, e.g. "13:00". Overrides the old long "YYYY-MM-DD HH:MM:SS GMT+N"
+// form. Built from Intl.DateTimeFormat parts (local tz, hour12:false, 2-digit
+// hour+minute) so the digits come from the local-tz computation. Invalid or
+// empty input is returned unchanged (fail-safe — never throw on bad data).
 export function formatChatTime(iso: string): string {
   if (!iso) return iso;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  const fmt = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
     hour12: false,
-    timeZoneName: 'short',
   });
   const parts = fmt.formatToParts(d);
   const get = (t: Intl.DateTimeFormatPartTypes): string =>
     parts.find((p) => p.type === t)?.value ?? '';
-  // en-CA gives YYYY-MM-DD for the date order and 24h time; assemble explicitly
-  // so the shape is stable across engines (no locale-dependent separators).
   let hour = get('hour');
   if (hour === '24') hour = '00'; // some engines emit 24 for midnight
-  const date = `${get('year')}-${get('month')}-${get('day')}`;
-  const time = `${hour}:${get('minute')}:${get('second')}`;
-  const tz = get('timeZoneName') || 'GMT'; // e.g. "GMT+8"
-  return `${date} ${time} ${tz}`;
+  const minute = get('minute');
+  return `${hour}:${minute}`;
+}
+
+// formatChatDate — chat date-separator label (@oopslink locked, DM mockup).
+// Renders an ISO-8601 (UTC) timestamp as a Chinese "YYYY年MM月DD日" date in the
+// viewer's LOCAL timezone, e.g. "2026年6月4日". Used by the 7th-DM date
+// separators. Built from local-tz date parts so the day matches the viewer's
+// wall clock (NOT UTC). Invalid or empty input is returned unchanged (fail-safe).
+export function formatChatDate(iso: string): string {
+  if (!iso) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  // 'en-CA' yields a stable YYYY-MM-DD shape in the local tz; parse the parts
+  // and reassemble into the Chinese form (month/day NOT zero-padded, matching
+  // the "2026年6月4日" mockup example).
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = fmt.formatToParts(d);
+  const get = (t: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((p) => p.type === t)?.value ?? '';
+  const year = Number(get('year'));
+  const month = Number(get('month'));
+  const day = Number(get('day'));
+  return `${year}年${month}月${day}日`;
 }
 
 // localDateToRFC3339 — convert a `<input type="date">` value ("YYYY-MM-DD") into

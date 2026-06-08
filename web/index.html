@@ -6,15 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>agent-center</title>
     <!--
-      v2.3 P1 (task #23): preconnect to Google Fonts then load the
-      Tech Startup pair (Space Grotesk / DM Sans) + JetBrains Mono
-      for code/IDs. Font weights are limited to what the design
-      system uses to keep the bundle slim.
+      Fonts: the body/heading stacks now use Tailwind's DEFAULT system
+      stack (@oopslink locked — dropped the custom DM Sans + Space Grotesk
+      pairing), so no web font is downloaded for them. Only JetBrains Mono
+      (used by `font-mono` for IDs / timestamps / code) is still loaded.
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
   </head>

@@ -173,13 +173,14 @@ describe('MessageList', () => {
     expect(row).toHaveTextContent('theirs');
   });
 
-  // Chat UX 2 #4: the header timestamp uses formatChatTime — the full
-  // "YYYY-MM-DD HH:MM:SS GMT+N" form (tz-tolerant assertion).
-  it('renders the header timestamp in the full chat-time format (YYYY-MM-DD HH:MM:SS GMT)', () => {
+  // @oopslink locked (DM mockup): the header timestamp uses formatChatTime —
+  // now the 24-hr local "HH:MM" form (tz-tolerant assertion). The dateTime attr
+  // keeps the raw ISO.
+  it('renders the header timestamp in 24-hr local "HH:MM" form', () => {
     render(<MessageList messages={[sample('M1', 'mine')]} />);
     const time = screen.getByTestId('message-time');
     expect(time).toHaveAttribute('dateTime', '2026-05-24T01:00:00Z');
-    expect(time.textContent).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} GMT/);
+    expect(time.textContent).toMatch(/^\d{2}:\d{2}$/);
   });
 
   it('clicking the "New messages" pill scrolls to bottom + dismisses the pill', () => {
