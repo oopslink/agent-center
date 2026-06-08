@@ -17,9 +17,14 @@ import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOptionalOrgContext } from './OrgContext';
 
-// AppLayout v3 — v2.3 P6 layered on P2's shell + P3's Home wire-in.
+// AppLayout v4 — v2.8.1 #278 "Topbar→sidebar" chrome redesign. The old
+// top header bar is gone: org switcher, the ⌘K search trigger, the
+// Light/Dark theme control, the live (SSE) indicator, the signed-in user
+// and Sign out ALL live inside the single left sidebar now (mockup-locked).
+// A minimal mobile-only top strip keeps the hamburger for the drawer.
 //   - desktop sidebar can collapse to an icon-only strip (persisted)
-//   - dark mode toggle in header (persisted; applied pre-React in main.tsx)
+//   - segmented Light/Dark theme control at the sidebar bottom (persisted;
+//     applied pre-React in main.tsx so there's no FOUC)
 //   - keyboard shortcuts: ⌘K palette, ⌘B sidebar toggle, ⌘D theme,
 //     ⌘1..7 jump to top-level pages
 //   - <CommandPalette> mounts at root so ⌘K works from anywhere
@@ -136,110 +141,91 @@ export default function AppLayout(): React.ReactElement {
   );
   useKeyShortcuts(shortcuts);
 
+  // v2.8.1 #278: org-switcher + ⌘K search + theme + live + user + Sign out
+  // all moved INTO the sidebar. These props wire the sidebar-hosted org
+  // switcher back to the org dropdown / create / settings modals that still
+  // mount at this root level (so they overlay the whole app).
+  const orgSwitcher = {
+    currentOrg,
+    orgs: orgs.data ?? [],
+    currentSlug: orgCtx?.slug,
+    fallbackName: me.data?.display_name,
+    open: orgDropdownOpen,
+    onToggle: () => setOrgDropdownOpen((v) => !v),
+    onClose: () => setOrgDropdownOpen(false),
+    onCreateOrg: () => {
+      setOrgDropdownOpen(false);
+      setCreateOrgModalOpen(true);
+    },
+    onOpenSettings: (id: string) => {
+      setOrgDropdownOpen(false);
+      setSettingsOrgId(id);
+    },
+  };
+
   return (
-    <div className="flex h-screen flex-col bg-bg-base">
-      <header className="flex h-12 flex-shrink-0 items-center justify-between border-b border-border-base bg-bg-elevated px-3 sm:px-4">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-            aria-expanded={drawerOpen}
-            data-testid="nav-toggle"
-            onClick={() => setDrawerOpen((v) => !v)}
-            className="-ml-1 inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors md:hidden"
-          >
-            <HamburgerIcon />
-          </button>
-          {/* v2.7 #186-7a: the desktop collapse toggle moved out of the header
-              into a chevron embedded in the sidebar's right edge (Slack/VSCode
-              pattern, single affordance). ⌘B still toggles it. */}
-          {/* v2.7 #166-4: removed the "agent-center" text label next to the logo. */}
-          {/* v2.6 FE-3: Org Switcher dropdown. */}
-          <div className="relative hidden sm:block">
-            <button
-              type="button"
-              data-testid="org-switcher"
-              onClick={() => setOrgDropdownOpen((v) => !v)}
-              aria-expanded={orgDropdownOpen}
-              aria-haspopup="true"
-              className="flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle"
-            >
-              <OrgIcon />
-              <span className="max-w-[120px] truncate">
-                {currentOrg?.name ?? me.data?.display_name ?? '…'}
-              </span>
-              <span aria-hidden="true">⌄</span>
-            </button>
-            {orgDropdownOpen && (
-              <OrgDropdown
-                orgs={orgs.data ?? []}
-                currentSlug={orgCtx?.slug}
-                onClose={() => setOrgDropdownOpen(false)}
-                onCreateOrg={() => {
-                  setOrgDropdownOpen(false);
-                  setCreateOrgModalOpen(true);
-                }}
-                onOpenSettings={(id) => {
-                  setOrgDropdownOpen(false);
-                  setSettingsOrgId(id);
-                }}
-              />
-            )}
-          </div>
-          {createOrgModalOpen && (
-            <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />
-          )}
-          {settingsOrgId && (
-            <OrgSettingsModal orgId={settingsOrgId} onClose={() => setSettingsOrgId(null)} />
-          )}
-        </div>
-        <div className="flex items-center gap-3 sm:gap-4">
-          <button
-            type="button"
-            onClick={() => setPaletteOpen(true)}
-            aria-label="Open command palette"
-            data-testid="open-palette"
-            className="hidden items-center gap-2 rounded border border-border-base px-2 py-1 text-xs text-text-muted hover:bg-bg-subtle motion-safe:transition-colors sm:inline-flex"
-          >
-            <span>Search</span>
-            <kbd className="font-mono">⌘K</kbd>
-          </button>
-          <SSEIndicator />
-          <button
-            type="button"
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            data-testid="theme-toggle"
-            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors"
-            title="Toggle theme (⌘D)"
-          >
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-          </button>
-          {/* v2.7 #186-7: removed hardcoded "v2 · loopback" placeholder span
-              (misleading fake version/mode; a real injected build-version badge
-              is deferred to v2.8). */}
-        </div>
+    <div className="flex h-screen bg-bg-base">
+      {/* Mobile-only top strip: the sidebar is a left column on desktop, so
+          on small screens we keep a slim bar that just hosts the hamburger
+          for the drawer + the org name for context. */}
+      <header className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-2 border-b border-border-base bg-bg-elevated px-3 md:hidden">
+        <button
+          type="button"
+          aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'}
+          aria-expanded={drawerOpen}
+          data-testid="nav-toggle"
+          onClick={() => setDrawerOpen((v) => !v)}
+          className="-ml-1 inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors"
+        >
+          <HamburgerIcon />
+        </button>
+        <span className="truncate text-sm font-medium text-text-primary">
+          {currentOrg?.name ?? me.data?.display_name ?? '…'}
+        </span>
       </header>
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          drawerOpen={drawerOpen}
-          collapsed={collapsed}
-          onToggleCollapsed={() => setCollapsed((v) => !v)}
-          onDismiss={() => setDrawerOpen(false)}
-          displayName={me.data?.display_name}
-        />
-        <main className="flex flex-1 overflow-hidden">
-          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-y-auto p-4 sm:p-6">
-            <Suspense fallback={<PageSkeleton />}>
-              <Outlet />
-            </Suspense>
-          </div>
-        </main>
-      </div>
+      <Sidebar
+        drawerOpen={drawerOpen}
+        collapsed={collapsed}
+        theme={theme}
+        onSetTheme={setTheme}
+        onToggleCollapsed={() => setCollapsed((v) => !v)}
+        onDismiss={() => setDrawerOpen(false)}
+        onOpenPalette={() => setPaletteOpen(true)}
+        displayName={me.data?.display_name}
+        orgSwitcher={orgSwitcher}
+      />
+      <main className="flex flex-1 overflow-hidden pt-12 md:pt-0">
+        <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-y-auto p-4 sm:p-6">
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
+        </div>
+      </main>
+      {/* Org create / settings modals overlay the whole app from the root. */}
+      {createOrgModalOpen && (
+        <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />
+      )}
+      {settingsOrgId && (
+        <OrgSettingsModal orgId={settingsOrgId} onClose={() => setSettingsOrgId(null)} />
+      )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <WorkerEnrolledToast />
     </div>
   );
+}
+
+// v2.8.1 #278: shape passed from AppLayout into the sidebar-hosted org
+// switcher (the dropdown logic itself is unchanged — see <OrgDropdown>).
+interface OrgSwitcherBinding {
+  currentOrg?: { id: string; slug: string; name: string };
+  orgs: Array<{ id: string; slug: string; name: string }>;
+  currentSlug?: string;
+  fallbackName?: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onCreateOrg: () => void;
+  onOpenSettings: (orgId: string) => void;
 }
 
 interface NavItem {
@@ -317,15 +303,23 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
 function Sidebar({
   drawerOpen,
   collapsed,
+  theme,
+  onSetTheme,
   onToggleCollapsed,
   onDismiss,
+  onOpenPalette,
   displayName,
+  orgSwitcher,
 }: {
   drawerOpen: boolean;
   collapsed: boolean;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
   onToggleCollapsed: () => void;
   onDismiss: () => void;
+  onOpenPalette: () => void;
   displayName?: string;
+  orgSwitcher: OrgSwitcherBinding;
 }): React.ReactElement {
   const signout = useSignout();
   const orgCtx = useOptionalOrgContext();
@@ -405,21 +399,29 @@ function Sidebar({
         return (
           <li key={section.label}>
             {showCollapsibleHeader ? (
-              <button
-                type="button"
-                onClick={() => toggleGroup(section.label)}
-                aria-expanded={open}
-                data-testid={`sidebar-group-toggle-${section.label}`}
-                className="flex w-full items-center justify-between rounded px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted hover:bg-bg-subtle"
-              >
-                <span>{section.label}</span>
-                <span aria-hidden="true" className="text-text-muted">
-                  {open ? '⌄' : '›'}
-                </span>
-              </button>
+              // v2.8.1 #278: CAPS section label is also the collapse toggle.
+              // Wrapped in an <h2> for heading semantics; the button stays the
+              // interactive control (data-testid kept for existing tests).
+              <h2 className="px-1">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(section.label)}
+                  aria-expanded={open}
+                  data-testid={`sidebar-group-toggle-${section.label}`}
+                  className="flex w-full items-center justify-between rounded px-1 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary"
+                >
+                  <span data-testid="section-label">{section.label}</span>
+                  <span aria-hidden="true" className="text-text-muted">
+                    {open ? '⌄' : '›'}
+                  </span>
+                </button>
+              </h2>
             ) : (
               !isCollapsed && (
-                <h2 className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
+                <h2
+                  data-testid="section-label"
+                  className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted"
+                >
                   {section.label}
                 </h2>
               )
@@ -459,10 +461,17 @@ function Sidebar({
                               <item.Icon />
                             </span>
                             {!isCollapsed && (
-                              <span className="flex items-center gap-1.5">
-                                {item.label}
+                              <span className="flex flex-1 items-center justify-between gap-1.5">
+                                <span>{item.label}</span>
                                 {subChildren && (
-                                  <span className="rounded bg-bg-elevated px-1.5 text-[0.6875rem] text-text-muted tabular-nums">
+                                  // v2.8.1 #278: real count from the live hook
+                                  // (channels/DMs/projects length). Accessible
+                                  // text via aria-label, not a bare number.
+                                  <span
+                                    data-testid={`count-badge-${item.label}`}
+                                    aria-label={`${subChildren.length} ${item.label.toLowerCase()}`}
+                                    className="rounded-full bg-bg-elevated px-1.5 text-[0.6875rem] text-text-muted tabular-nums"
+                                  >
                                     {subChildren.length}
                                   </span>
                                 )}
@@ -532,18 +541,28 @@ function Sidebar({
 
   return (
     <>
-      {/* Desktop sidebar — width depends on collapsed flag. relative so the
-          edge collapse chevron (#186-7a) can sit on the right border. */}
+      {/* Desktop sidebar — single left column holding the whole chrome
+          (org switcher → search → nav → live/theme/user/signout). Width
+          depends on collapsed flag. relative so the edge collapse chevron
+          (#186-7a) can sit on the right border. */}
       <nav
         aria-label="primary"
         data-collapsed={collapsed}
         className={[
           'relative hidden flex-col flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:flex',
-          collapsed ? 'w-14' : 'w-52',
+          collapsed ? 'w-14' : 'w-60',
         ].join(' ')}
       >
-        <div className="flex-1 overflow-y-auto">{navTree(collapsed)}</div>
-        <SidebarFooter collapsed={collapsed} displayName={displayName} orgBase={orgBase} onSignout={() => signout.mutate()} />
+        <SidebarTop collapsed={collapsed} onOpenPalette={onOpenPalette} orgSwitcher={orgSwitcher} />
+        <div className="mt-3 flex-1 overflow-y-auto">{navTree(collapsed)}</div>
+        <SidebarFooter
+          collapsed={collapsed}
+          theme={theme}
+          onSetTheme={onSetTheme}
+          displayName={displayName}
+          orgBase={orgBase}
+          onSignout={() => signout.mutate()}
+        />
         {/* v2.7 #186-7a: collapse chevron embedded in the sidebar's right edge
             (Slack/VSCode pattern). → when collapsed, ← when expanded. */}
         <button
@@ -572,12 +591,113 @@ function Sidebar({
             className="w-64 max-w-[80%] flex flex-col flex-shrink-0 border-l border-border-base bg-bg-subtle p-3 shadow-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex-1 overflow-y-auto">{navTree(false)}</div>
-            <SidebarFooter collapsed={false} displayName={displayName} orgBase={orgBase} onSignout={() => signout.mutate()} />
+            <SidebarTop collapsed={false} onOpenPalette={onOpenPalette} orgSwitcher={orgSwitcher} />
+            <div className="mt-3 flex-1 overflow-y-auto">{navTree(false)}</div>
+            <SidebarFooter
+              collapsed={false}
+              theme={theme}
+              onSetTheme={onSetTheme}
+              displayName={displayName}
+              orgBase={orgBase}
+              onSignout={() => signout.mutate()}
+            />
           </nav>
         </div>
       )}
     </>
+  );
+}
+
+// ============================================================================
+// SidebarTop — org switcher + ⌘K search (v2.8.1 #278 "Topbar→sidebar").
+// Both moved out of the old header. The org switcher reuses <OrgDropdown>
+// unchanged; the search input is the ⌘K command-palette trigger.
+// ============================================================================
+function SidebarTop({
+  collapsed,
+  onOpenPalette,
+  orgSwitcher,
+}: {
+  collapsed: boolean;
+  onOpenPalette: () => void;
+  orgSwitcher: OrgSwitcherBinding;
+}): React.ReactElement {
+  const { currentOrg, orgs, currentSlug, fallbackName, open, onToggle, onClose, onCreateOrg, onOpenSettings } =
+    orgSwitcher;
+  const orgName = currentOrg?.name ?? fallbackName ?? '…';
+  return (
+    <div className="flex-shrink-0">
+      {/* Org switcher. Icon-only when collapsed; logo + name + caret otherwise. */}
+      <div className="relative">
+        <button
+          type="button"
+          data-testid="org-switcher"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-haspopup="true"
+          title={collapsed ? orgName : undefined}
+          className={[
+            'flex w-full items-center rounded-md border border-border-base bg-bg-elevated text-sm text-text-primary hover:bg-bg-subtle motion-safe:transition-colors',
+            collapsed ? 'justify-center p-2' : 'gap-2 px-2 py-1.5',
+          ].join(' ')}
+        >
+          <span
+            aria-hidden="true"
+            className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-brand text-white"
+          >
+            <OrgIcon />
+          </span>
+          {!collapsed && (
+            <>
+              <span className="min-w-0 flex-1 truncate text-left font-medium">{orgName}</span>
+              <span aria-hidden="true" className="text-text-muted">
+                <ChevronDownIcon />
+              </span>
+            </>
+          )}
+        </button>
+        {open && (
+          <OrgDropdown
+            orgs={orgs}
+            currentSlug={currentSlug}
+            onClose={onClose}
+            onCreateOrg={onCreateOrg}
+            onOpenSettings={onOpenSettings}
+          />
+        )}
+      </div>
+      {/* ⌘K search trigger — opens the existing CommandPalette. */}
+      {collapsed ? (
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          aria-label="Search (⌘K)"
+          data-testid="open-palette"
+          title="Search (⌘K)"
+          className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-md border border-border-base bg-bg-elevated text-text-muted hover:bg-bg-subtle motion-safe:transition-colors"
+        >
+          <span aria-hidden="true" className="inline-flex h-4 w-4">
+            <SearchIcon />
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          aria-label="Search (⌘K)"
+          data-testid="open-palette"
+          className="mt-2 flex w-full items-center gap-2 rounded-md border border-border-base bg-bg-elevated px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle motion-safe:transition-colors"
+        >
+          <span aria-hidden="true" className="inline-flex h-4 w-4">
+            <SearchIcon />
+          </span>
+          <span className="flex-1 text-left">Search</span>
+          <kbd className="rounded border border-border-base px-1 font-mono text-[0.6875rem] text-text-muted">
+            ⌘K
+          </kbd>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -806,6 +926,22 @@ function HamburgerIcon(): React.ReactElement {
     </svg>
   );
 }
+// v2.8.1 #278: search (magnifier) + caret-down for the sidebar org switcher.
+function SearchIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="8.5" cy="8.5" r="5" />
+      <path d="M12.5 12.5 17 17" strokeLinecap="round" />
+    </svg>
+  );
+}
+function ChevronDownIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 function FolderIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
@@ -888,50 +1024,164 @@ function OrgIcon(): React.ReactElement {
   );
 }
 
+// v2.8.1 #278: the sidebar bottom area (pinned). Top→bottom:
+//   live status • Light/Dark segmented toggle • user • Sign out.
 function SidebarFooter({
   collapsed,
+  theme,
+  onSetTheme,
   displayName,
   orgBase,
   onSignout,
 }: {
   collapsed: boolean;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
   displayName?: string;
   orgBase: string;
   onSignout: () => void;
 }): React.ReactElement {
   return (
-    <div className="mt-2 border-t border-border-base pt-2">
-      {!collapsed && displayName && (
+    <div className="mt-2 flex flex-col gap-1 border-t border-border-base pt-2">
+      {/* Live status — reuse the SSE indicator (green dot + "live" text, so
+          state is conveyed not-by-color-alone). Hidden when collapsed. */}
+      {!collapsed && (
+        <div data-testid="sidebar-live" className="px-2 py-1">
+          <SSEIndicator />
+        </div>
+      )}
+      {/* Segmented Light / Dark theme control. Replaces the old header icon
+          button; wired to theme.ts via onSetTheme. ⌘D still flips it. */}
+      <ThemeSegmented collapsed={collapsed} theme={theme} onSetTheme={onSetTheme} />
+      {/* Signed-in user. Reuses /api/auth/me display_name as the identity. */}
+      {displayName && (
         <NavLink
           to={`${orgBase}/me`}
+          title={collapsed ? displayName : undefined}
           className={({ isActive }) =>
             [
-              'flex items-center gap-2 rounded px-2 py-1.5 text-sm',
+              'flex items-center rounded px-2 py-1.5 text-sm',
+              collapsed ? 'justify-center' : 'gap-2',
               isActive
                 ? 'bg-brand text-white'
                 : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
             ].join(' ')
           }
-          data-testid="nav-me"
+          data-testid="sidebar-user"
         >
-          <span aria-hidden="true" className="inline-flex h-4 w-4">
-            <SettingsIcon />
+          <span
+            aria-hidden="true"
+            className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-bg-elevated text-xs font-medium text-text-secondary"
+          >
+            {displayName.slice(0, 1).toUpperCase()}
           </span>
-          <span className="truncate">{displayName}</span>
+          {!collapsed && <span className="truncate">{displayName}</span>}
         </NavLink>
       )}
+      {/* Sign out — reuses useSignout() (clears query cache → /signin). */}
       <button
         type="button"
         onClick={onSignout}
         title={collapsed ? 'Sign out' : undefined}
-        data-testid="btn-signout"
-        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle hover:text-danger motion-safe:transition-colors"
+        data-testid="sidebar-signout"
+        className={[
+          'flex w-full items-center rounded px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle hover:text-danger motion-safe:transition-colors',
+          collapsed ? 'justify-center' : 'gap-2',
+        ].join(' ')}
       >
         <span aria-hidden="true" className="inline-flex h-4 w-4">
           <SignoutIcon />
         </span>
         {!collapsed && <span>Sign out</span>}
       </button>
+    </div>
+  );
+}
+
+// ThemeSegmented — segmented Light | Dark control (v2.8.1 #278). Replaces
+// the old header icon toggle. Implemented as an ARIA radiogroup: each
+// segment is role="radio" with aria-checked; the selected one carries a
+// filled (not color-only) highlight. Arrow keys + Enter/Space switch the
+// theme; the whole group is reachable with a single Tab stop. Wired to
+// theme.ts via onSetTheme (writeTheme persists + applies html.dark).
+function ThemeSegmented({
+  collapsed,
+  theme,
+  onSetTheme,
+}: {
+  collapsed: boolean;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+}): React.ReactElement {
+  const options: ReadonlyArray<{ value: Theme; label: string; Icon: () => React.ReactElement }> = [
+    { value: 'light', label: 'Light', Icon: SunIcon },
+    { value: 'dark', label: 'Dark', Icon: MoonIcon },
+  ];
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      onSetTheme('dark');
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      onSetTheme('light');
+    }
+  };
+
+  // Collapsed strip: a single icon button that toggles (keeps the affordance
+  // small but still keyboard/aria accessible). data-testid kept stable.
+  if (collapsed) {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    return (
+      <button
+        type="button"
+        data-testid="theme-toggle"
+        aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        title="Toggle theme (⌘D)"
+        onClick={() => onSetTheme(next)}
+        className="inline-flex h-9 w-full items-center justify-center rounded-md text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-4 w-4">
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      data-testid="theme-toggle"
+      onKeyDown={onKeyDown}
+      className="flex gap-1 rounded-md border border-border-base bg-bg-elevated p-0.5"
+    >
+      {options.map((opt) => {
+        const selected = theme === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={`${opt.label} theme`}
+            data-testid={`theme-segment-${opt.value}`}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onSetTheme(opt.value)}
+            className={[
+              'flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-xs font-medium motion-safe:transition-colors',
+              selected
+                ? 'bg-brand text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary',
+            ].join(' ')}
+          >
+            <span aria-hidden="true" className="inline-flex h-3.5 w-3.5">
+              <opt.Icon />
+            </span>
+            <span>{opt.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -46,15 +46,35 @@ function renderShell(initial = '/channels') {
 }
 
 describe('AppLayout v3 — P6 (theme + collapse + palette + shortcuts)', () => {
-  it('theme toggle flips html.dark and persists', () => {
+  // v2.8.1 #278: the header icon toggle is now a Light|Dark segmented
+  // radiogroup in the sidebar bottom. Selecting a segment flips html.dark,
+  // persists to localStorage, and reflects aria-checked.
+  it('segmented theme control flips html.dark + persists + sets aria-checked', () => {
     renderShell();
     expect(document.documentElement.classList.contains('dark')).toBe(false);
-    fireEvent.click(screen.getByTestId('theme-toggle'));
+    const light = screen.getByTestId('theme-segment-light');
+    const dark = screen.getByTestId('theme-segment-dark');
+    expect(light).toHaveAttribute('aria-checked', 'true');
+    expect(dark).toHaveAttribute('aria-checked', 'false');
+
+    fireEvent.click(dark);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(localStorage.getItem('ac.theme')).toBe('dark');
-    fireEvent.click(screen.getByTestId('theme-toggle'));
+    expect(screen.getByTestId('theme-segment-dark')).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(screen.getByTestId('theme-segment-light'));
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(localStorage.getItem('ac.theme')).toBe('light');
+  });
+
+  it('segmented theme control switches via arrow keys (keyboard a11y)', () => {
+    renderShell();
+    const group = screen.getByTestId('theme-toggle');
+    expect(group).toHaveAttribute('role', 'radiogroup');
+    fireEvent.keyDown(group, { key: 'ArrowRight' });
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    fireEvent.keyDown(group, { key: 'ArrowLeft' });
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 
   it('sidebar collapse toggle flips width + persists', () => {

@@ -228,6 +228,43 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
     });
   });
 
+  // v2.8.1 #278: "Topbar→sidebar" chrome — org switcher + ⌘K search live in
+  // the sidebar top; CAPS section labels + right-aligned real-count badges;
+  // bottom area = live + segmented theme + user + Sign out.
+  it('hosts the org switcher + ⌘K search trigger inside the sidebar', () => {
+    renderShell();
+    expect(screen.getByTestId('org-switcher')).toBeInTheDocument();
+    const search = screen.getByTestId('open-palette');
+    expect(search).toHaveAttribute('aria-label', expect.stringMatching(/search/i));
+  });
+
+  it('renders CAPS section labels as headings', () => {
+    renderShell();
+    const labels = screen.getAllByTestId('section-label').map((n) => n.textContent);
+    expect(labels).toContain('Workspace');
+    expect(labels).toContain('Conversations');
+    expect(labels).toContain('System');
+  });
+
+  it('count badges reflect real hook counts with accessible labels', async () => {
+    renderShell();
+    // 3 channels + 2 DMs + 2 projects seeded in beforeEach.
+    await waitFor(() => {
+      expect(screen.getByTestId('count-badge-Channels')).toHaveTextContent('3');
+    });
+    expect(screen.getByTestId('count-badge-Channels')).toHaveAttribute('aria-label', '3 channels');
+    expect(screen.getByTestId('count-badge-DMs')).toHaveAttribute('aria-label', '2 dms');
+    expect(screen.getByTestId('count-badge-Projects')).toHaveAttribute('aria-label', '2 projects');
+  });
+
+  it('renders the bottom area: live + segmented theme + user + sign out', () => {
+    renderShell();
+    expect(screen.getByTestId('sidebar-live')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-segment-light')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-segment-dark')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-signout')).toBeInTheDocument();
+  });
+
   // v2.8 #264 P1 / #176: channel/DM sidebar sub-items badge off the per-row
   // unread_count/mention_count embedded in GET /conversations (no N /unread).
   it('renders unread/mention badges in the channel sub-list from row counts', async () => {
