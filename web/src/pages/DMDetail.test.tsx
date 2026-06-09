@@ -62,6 +62,9 @@ describe('DMDetail page', () => {
     // v2.7.1 #215: heading shows the resolved peer as @name (raw id on hover).
     expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Bot One');
     expect(screen.getByTestId('dm-heading')).toHaveAttribute('title', 'agent:bot-1');
+    // The DM chip already carries the surface type; do not render a redundant
+    // "Direct message" subtitle under the peer name.
+    expect(screen.queryByText('Direct message')).not.toBeInTheDocument();
     // #264 P1: the message body now renders through the surface-agnostic shell.
     expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'dm');
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();

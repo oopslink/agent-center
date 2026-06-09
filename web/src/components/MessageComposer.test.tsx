@@ -77,9 +77,16 @@ describe('MessageComposer', () => {
 
   it('renders icon attach + send buttons with tooltips (#222)', () => {
     wrap(<MessageComposer conversationId="C1" />);
-    expect(screen.getByTestId('composer-attach')).toHaveAttribute('aria-label', 'Attach file');
-    expect(screen.getByTestId('composer-send')).toHaveAttribute('title', 'Send (Enter)');
-    expect(screen.getByTestId('composer-send')).toHaveAttribute('aria-label', 'Send');
+    const attach = screen.getByTestId('composer-attach');
+    const send = screen.getByTestId('composer-send');
+    expect(attach).toHaveAttribute('aria-label', 'Attach file');
+    expect(send).toHaveAttribute('title', 'Send (Enter)');
+    expect(send).toHaveAttribute('aria-label', 'Send');
+    // Keep the two icon controls aligned with the one-line textarea.
+    expect(attach.className).toContain('h-10');
+    expect(attach.className).toContain('w-10');
+    expect(send.className).toContain('h-10');
+    expect(send.className).toContain('w-10');
   });
 
   it('surfaces send errors and keeps the draft intact', async () => {

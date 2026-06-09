@@ -3,7 +3,11 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
-import { useConversations } from '@/api/conversations';
+import {
+  conversationDeleteErrorMessage,
+  useConversations,
+  useDeleteConversation,
+} from '@/api/conversations';
 import { useProjects } from '@/api/projects';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
@@ -11,6 +15,7 @@ import { UnreadBadge } from '@/components/UnreadBadge';
 import { CommandPalette } from '@/components/CommandPalette';
 import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
 import { OrgSettingsModal } from '@/components/OrgSettingsModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { useKeyShortcuts } from '@/useKeyShortcuts';
 import { readTheme, writeTheme, type Theme } from '@/theme';
 import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
@@ -195,7 +200,10 @@ export default function AppLayout(): React.ReactElement {
         orgSwitcher={orgSwitcher}
       />
       <main className="flex flex-1 overflow-hidden pt-12 md:pt-0">
-        <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-y-auto p-4 sm:p-6">
+        <div
+          className="flex h-full w-full flex-col overflow-y-auto p-4 sm:p-6"
+          data-testid="app-content-shell"
+        >
           <Suspense fallback={<PageSkeleton />}>
             <Outlet />
           </Suspense>
@@ -246,6 +254,9 @@ interface NavSection {
 interface SidebarChild {
   to: string;
   label: string;
+  id?: string;
+  kind?: 'channel' | 'dm' | 'project';
+  canDelete?: boolean;
   unreadCount?: number;
   mentionCount?: number;
 }
@@ -325,6 +336,10 @@ function Sidebar({
   const orgCtx = useOptionalOrgContext();
   const orgBase = orgCtx ? `/organizations/${orgCtx.slug}` : '';
   const navSections = buildNavSections(orgBase);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const deleteConversation = useDeleteConversation();
+  const [pendingDeleteDM, setPendingDeleteDM] = useState<SidebarChild | null>(null);
 
   // v2.5.x #63 — per-group + per-expandable-item expand state. Default
   // for unseen keys is true (expanded).
@@ -375,8 +390,11 @@ function Sidebar({
         ? '(deleted)'
         : 'Direct message';
     return {
+      id: d.id,
+      kind: 'dm',
       to: `${orgBase}/dms/${encodeURIComponent(d.id)}`,
       label,
+      canDelete: !!d.peer_identity_id && !d.peer_display_name,
       unreadCount: d.unread_count,
       mentionCount: d.mention_count,
     };
@@ -504,26 +522,43 @@ function Sidebar({
                           )}
                           {subChildren.map((child) => (
                             <li key={child.to}>
-                              <NavLink
-                                to={child.to}
-                                className={({ isActive }) =>
-                                  [
-                                    'block truncate rounded px-2 py-0.5 text-xs',
-                                    isActive
-                                      ? 'bg-brand-hover text-white'
-                                      : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
-                                  ].join(' ')
-                                }
-                                data-testid="sidebar-subitem-link"
-                              >
-                                <span className="flex items-center justify-between gap-2">
-                                  <span className="truncate">{child.label}</span>
-                                  <UnreadBadge
-                                    unreadCount={child.unreadCount}
-                                    mentionCount={child.mentionCount}
-                                  />
-                                </span>
-                              </NavLink>
+                              <div className="flex items-center gap-1">
+                                <NavLink
+                                  to={child.to}
+                                  className={({ isActive }) =>
+                                    [
+                                      'block min-w-0 flex-1 truncate rounded px-2 py-0.5 text-xs',
+                                      isActive
+                                        ? 'bg-brand-hover text-white'
+                                        : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
+                                    ].join(' ')
+                                  }
+                                  data-testid="sidebar-subitem-link"
+                                >
+                                  <span className="flex items-center justify-between gap-2">
+                                    <span className="truncate">{child.label}</span>
+                                    <UnreadBadge
+                                      unreadCount={child.unreadCount}
+                                      mentionCount={child.mentionCount}
+                                    />
+                                  </span>
+                                </NavLink>
+                                {child.kind === 'dm' && child.canDelete && (
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger"
+                                    data-testid="sidebar-dm-delete-button"
+                                    aria-label={`Delete DM ${child.label}`}
+                                    title="Delete DM"
+                                    onClick={() => {
+                                      deleteConversation.reset();
+                                      setPendingDeleteDM(child);
+                                    }}
+                                  >
+                                    <TrashIcon />
+                                  </button>
+                                )}
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -555,6 +590,15 @@ function Sidebar({
       >
         <SidebarTop collapsed={collapsed} onOpenPalette={onOpenPalette} orgSwitcher={orgSwitcher} />
         <div className="mt-3 flex-1 overflow-y-auto">{navTree(collapsed)}</div>
+        {deleteConversation.isError && (
+          <p
+            className="mt-2 px-2 text-xs text-danger"
+            data-testid="sidebar-dm-delete-error"
+            role="alert"
+          >
+            {conversationDeleteErrorMessage(deleteConversation.error)}
+          </p>
+        )}
         <SidebarFooter
           collapsed={collapsed}
           theme={theme}
@@ -593,6 +637,15 @@ function Sidebar({
           >
             <SidebarTop collapsed={false} onOpenPalette={onOpenPalette} orgSwitcher={orgSwitcher} />
             <div className="mt-3 flex-1 overflow-y-auto">{navTree(false)}</div>
+            {deleteConversation.isError && (
+              <p
+                className="mt-2 px-2 text-xs text-danger"
+                data-testid="sidebar-dm-delete-error"
+                role="alert"
+              >
+                {conversationDeleteErrorMessage(deleteConversation.error)}
+              </p>
+            )}
             <SidebarFooter
               collapsed={false}
               theme={theme}
@@ -604,6 +657,35 @@ function Sidebar({
           </nav>
         </div>
       )}
+      <ConfirmModal
+        open={pendingDeleteDM !== null}
+        danger
+        busy={deleteConversation.isPending}
+        title="Delete DM"
+        message={
+          pendingDeleteDM
+            ? `Delete the DM "${pendingDeleteDM.label}"? This permanently removes the conversation and all its messages for everyone. This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        onCancel={() => {
+          if (deleteConversation.isPending) return;
+          setPendingDeleteDM(null);
+          deleteConversation.reset();
+        }}
+        onConfirm={() => {
+          if (!pendingDeleteDM?.id) return;
+          const deletedPath = pendingDeleteDM.to;
+          deleteConversation.mutate(pendingDeleteDM.id, {
+            onSuccess: () => {
+              if (location.pathname === deletedPath) {
+                navigate(`${orgBase}/dms`);
+              }
+            },
+            onSettled: () => setPendingDeleteDM(null),
+          });
+        }}
+      />
     </>
   );
 }
@@ -1011,6 +1093,13 @@ function UsersIcon(): React.ReactElement {
       <circle cx="7.5" cy="7" r="2.5" />
       <path d="M2 16c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" />
       <path d="M13 8.5a2 2 0 1 0 0-4M18 16c0-2.5-2-4-4-4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function TrashIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M4.5 6h11M8 6V4.5h4V6M7 8.5l.5 7h5l.5-7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

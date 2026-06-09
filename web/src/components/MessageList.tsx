@@ -134,6 +134,10 @@ export function MessageList({ messages }: Props): React.ReactElement {
     // v2.8.1 chat-rightalign: own = the viewer's own message. Normalize both
     // sides so the user:/agent: prefix never breaks the compare.
     const isOwn = meKey !== '' && normalizeIdentityRef(m.sender_identity_id) === meKey;
+    const hasCodeBlock = m.content.includes('```');
+    const bubbleWidthClass = hasCodeBlock
+      ? 'w-full max-w-full sm:w-2/3 sm:max-w-[66.666667%]'
+      : 'max-w-[75%]';
 
     // Chat UX 2 (#3 + #5): the sender NAME (+ work-item tag) and the TIME move
     // OUT of the bubble into a small header line ABOVE the bubble; the bubble is
@@ -270,7 +274,7 @@ export function MessageList({ messages }: Props): React.ReactElement {
           data-own="true"
         >
           {headerLine}
-          <div className="max-w-[75%] rounded-2xl bg-chatuserbubble px-3 py-2 text-slate-900 shadow-sm">
+          <div className={`${bubbleWidthClass} rounded-2xl bg-chatuserbubble px-3 py-2 text-slate-900 shadow-sm`}>
             {bubbleBody}
           </div>
         </article>
@@ -306,9 +310,9 @@ export function MessageList({ messages }: Props): React.ReactElement {
             kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
           />
         </button>
-        <div className="flex min-w-0 flex-col items-start">
+        <div className="flex min-w-0 flex-1 flex-col items-start">
           {headerLine}
-          <div className="max-w-[75%] rounded-2xl bg-bg-subtle px-3 py-2 text-text-primary shadow-sm">
+          <div className={`${bubbleWidthClass} rounded-2xl bg-bg-subtle px-3 py-2 text-text-primary shadow-sm`}>
             {bubbleBody}
           </div>
         </div>

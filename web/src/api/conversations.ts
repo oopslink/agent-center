@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, withOrgSlug } from './client';
+import { ApiError, api, withOrgSlug } from './client';
 import { qk } from './queryKeys';
 import type {
   Conversation,
@@ -133,6 +133,17 @@ export function useDeleteConversation() {
       void qc.removeQueries({ queryKey: qk.conversation(id) });
     },
   });
+}
+
+// v2.7 #198 / v2.8.1 deleted-DM cleanup: shared friendly copy for DM hard-delete
+// failures so every delete entry point avoids raw backend codes.
+export function conversationDeleteErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.code === 'not_a_participant') return 'Only a participant can delete this DM.';
+    if (err.code === 'use_archive') return 'Channels are archived, not deleted.';
+    if (err.code === 'not_found') return 'This DM no longer exists.';
+  }
+  return err instanceof Error ? err.message : 'Delete failed, please try again.';
 }
 
 export function useArchiveConversation() {

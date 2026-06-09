@@ -2,8 +2,11 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError } from '@/api/client';
-import { useConversations, useDeleteConversation } from '@/api/conversations';
+import {
+  conversationDeleteErrorMessage,
+  useConversations,
+  useDeleteConversation,
+} from '@/api/conversations';
 import { DMStartModal } from '@/components/DMStartModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
@@ -11,17 +14,6 @@ import { UnreadBadge } from '@/components/UnreadBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
-
-// v2.7 #198: map the backend's delete codes to friendly copy so the UI never
-// shows a raw error code or fails silently (Rule 9).
-function dmDeleteErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.code === 'not_a_participant') return 'Only a participant can delete this DM.';
-    if (err.code === 'use_archive') return 'Channels are archived, not deleted.';
-    if (err.code === 'not_found') return 'This DM no longer exists.';
-  }
-  return err instanceof Error ? err.message : 'Delete failed, please try again.';
-}
 
 // DMList page (/dms). Lists kind=dm conversations + "Start a DM" button.
 export default function DMs(): React.ReactElement {
@@ -115,7 +107,7 @@ export default function DMs(): React.ReactElement {
 
       {del.isError && (
         <p className="text-sm text-danger" data-testid="dm-delete-error" role="alert">
-          {dmDeleteErrorMessage(del.error)}
+          {conversationDeleteErrorMessage(del.error)}
         </p>
       )}
 

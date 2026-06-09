@@ -86,7 +86,6 @@ export default function DMDetail(): React.ReactElement {
             </h2>
             <TypeChip kind="dm" />
           </div>
-          <p className="text-xs text-text-muted">Direct message</p>
         </div>
         {/* #264 P1 / #176 §4: follow/unfollow this DM. */}
         <FollowToggle conversationId={conv.data.id} followed={conv.data.followed ?? false} />

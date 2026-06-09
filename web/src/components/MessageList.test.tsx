@@ -81,6 +81,10 @@ describe('MessageList', () => {
     expect(row.querySelector('h2')).toHaveTextContent('hi');
     expect(screen.getByTestId('collapsible-code-block')).toBeInTheDocument();
     expect(screen.getByTestId('code-disclosure-btn')).toBeInTheDocument();
+    // Code-heavy messages get a wider, stable desktop line length.
+    const bubble = row.querySelector('.bg-chatuserbubble');
+    expect(bubble?.className).toContain('sm:w-2/3');
+    expect(bubble?.className).toContain('sm:max-w-[66.666667%]');
   });
 
   it('snaps initial scroll to bottom when there are messages', () => {
@@ -139,6 +143,7 @@ describe('MessageList', () => {
     expect(bubble).not.toBeNull();
     expect(row.querySelector('.bg-indigo-500')).toBeNull();
     expect(bubble?.className).toContain('max-w-[75%]');
+    expect(bubble?.className).not.toContain('sm:w-2/3');
     expect(bubble?.className).toContain('text-slate-900');
     // text-text-primary flips light in dark mode → must NOT be the bubble's text.
     expect(bubble?.className).not.toContain('text-text-primary');
@@ -164,6 +169,7 @@ describe('MessageList', () => {
     const bubble = row.querySelector('.bg-bg-subtle');
     expect(bubble).not.toBeNull();
     expect(bubble?.className).toContain('max-w-[75%]');
+    expect(bubble?.className).not.toContain('sm:w-2/3');
     // avatar rendered for other people's messages.
     expect(row.querySelector('[data-testid="avatar"]')).not.toBeNull();
     // Chat UX 2 (#3+#5): name + time in a header line OUTSIDE the bubble, left-aligned.
