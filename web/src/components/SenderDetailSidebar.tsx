@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useAgent } from '@/api/agents';
+import { useAgent, useAgentActivity } from '@/api/agents';
 import { useUser } from '@/api/users';
 import {
   normalizeIdentityRef,
@@ -9,6 +9,8 @@ import {
 import { useModalA11y } from './useModalA11y';
 import { Avatar } from './Avatar';
 import { LifecycleBadge, AvailabilityBadge } from './AgentBadges';
+import { AgentActivityRow, CheckingGroup } from './AgentActivityRow';
+import { groupActivity } from './agentActivityGrouping';
 
 // SenderDetailSidebar (v2.8.1 7th DM redesign, increment 2). A right slide-in
 // panel that surfaces a message sender's detail when their avatar/name is
@@ -100,7 +102,7 @@ export function SenderDetailSidebar({
         {/* Body: kind-dispatched detail. */}
         <div className="flex-1 overflow-y-auto p-4">
           {kind === 'agent' ? (
-            <AgentDetailBody query={agentQuery} />
+            <AgentDetailBody agentId={id} query={agentQuery} />
           ) : (
             <UserDetailBody query={userQuery} memberRef={senderRef} />
           )}
@@ -131,10 +133,15 @@ function StateMessage({ children }: { children: React.ReactNode }): React.ReactE
 }
 
 function AgentDetailBody({
+  agentId,
   query,
 }: {
+  agentId: string;
   query: ReturnType<typeof useAgent>;
 }): React.ReactElement {
+  // Activity loads in parallel with the agent detail (both gated on the same id).
+  const activity = useAgentActivity(agentId);
+
   if (query.isLoading) return <StateMessage>Loading agent…</StateMessage>;
   if (query.isError) return <StateMessage>Couldn&apos;t load this agent.</StateMessage>;
   const agent = query.data;
@@ -146,15 +153,96 @@ function AgentDetailBody({
         <LifecycleBadge lifecycle={agent.lifecycle} />
         <AvailabilityBadge availability={agent.availability} />
       </div>
-      <LabelRow label="Name" value={agent.name} />
-      <LabelRow label="Model" value={agent.model || '—'} />
-      <LabelRow label="CLI" value={agent.cli || '—'} />
-      <LabelRow
-        label="Worker"
-        value={agent.computer?.name || agent.worker_id || '—'}
-      />
-      {agent.description && <LabelRow label="Description" value={agent.description} />}
+
+      {/* Compact basic info (v2.8.1 @oopslink: dense dl, name dropped — it's in
+          the header). A two-column label/value grid keeps it tight vs. the old
+          stacked two-line rows. */}
+      <dl
+        className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1 text-sm"
+        data-testid="sender-sidebar-agent-info"
+      >
+        <dt className="text-text-muted">CLI</dt>
+        <dd className="min-w-0 break-words text-text-primary">{agent.cli || '—'}</dd>
+        <dt className="text-text-muted">Model</dt>
+        <dd className="min-w-0 break-words text-text-primary">{agent.model || '—'}</dd>
+        <dt className="text-text-muted">Worker</dt>
+        <dd className="min-w-0 break-words text-text-primary">
+          {agent.computer?.name || agent.worker_id || '—'}
+        </dd>
+        <dt className="text-text-muted">Description</dt>
+        <dd className="min-w-0 break-words text-text-primary">{agent.description || '—'}</dd>
+      </dl>
+
+      <AgentActivitySection activity={activity} />
     </div>
+  );
+}
+
+// AgentActivitySection renders the agent's activity feed inside the sidebar,
+// reusing the same grouping + row components as the AgentDetail page (#274).
+function AgentActivitySection({
+  activity,
+}: {
+  activity: ReturnType<typeof useAgentActivity>;
+}): React.ReactElement {
+  const events = activity.data?.pages.flatMap((p) => p.activity) ?? [];
+
+  return (
+    <section className="border-t border-border-base pt-4" data-testid="sender-sidebar-activity">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Activity</h3>
+        <button
+          type="button"
+          className="rounded border border-border-strong px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
+          data-testid="sender-sidebar-activity-refresh"
+          onClick={() => void activity.refetch()}
+          disabled={activity.isFetching}
+          aria-busy={activity.isFetching}
+        >
+          {activity.isFetching ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      {activity.isLoading && (
+        <p className="text-xs text-text-muted" data-testid="sender-sidebar-activity-loading">
+          Loading activity…
+        </p>
+      )}
+      {activity.isError && (
+        <p className="text-xs text-danger" data-testid="sender-sidebar-activity-error">
+          {(activity.error as Error).message}
+        </p>
+      )}
+      {activity.isSuccess && events.length === 0 && (
+        <p className="text-xs text-text-muted" data-testid="sender-sidebar-activity-empty">
+          No activity yet.
+        </p>
+      )}
+      {activity.isSuccess && events.length > 0 && (
+        <>
+          <ul className="divide-y divide-border-base" data-testid="sender-sidebar-activity-list">
+            {groupActivity(events).map((item) =>
+              item.kind === 'checking-group' ? (
+                <CheckingGroup key={item.events[0].id} events={item.events} />
+              ) : (
+                <AgentActivityRow key={item.event.id} event={item.event} />
+              ),
+            )}
+          </ul>
+          {activity.hasNextPage && (
+            <button
+              type="button"
+              className="mt-2 w-full rounded border border-border-base px-2 py-1.5 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
+              data-testid="sender-sidebar-activity-load-older"
+              onClick={() => void activity.fetchNextPage()}
+              disabled={activity.isFetchingNextPage}
+              aria-busy={activity.isFetchingNextPage}
+            >
+              {activity.isFetchingNextPage ? 'Loading…' : 'Load older'}
+            </button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

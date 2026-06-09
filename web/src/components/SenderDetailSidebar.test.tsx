@@ -54,14 +54,72 @@ describe('SenderDetailSidebar', () => {
     render(<SenderDetailSidebar open senderRef={'agent:A-9'} onClose={noop} />);
     expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('sender-sidebar-agent')).toBeInTheDocument());
-    expect(screen.getByText('builder-bot')).toBeInTheDocument();
+    // Name now lives only in the header (no duplicate body row); the compact
+    // body keeps CLI / Model / Worker / Description.
+    expect(screen.getByTestId('sender-sidebar-agent-info')).toBeInTheDocument();
     expect(screen.getByTestId('agent-lifecycle-badge')).toHaveTextContent('running');
     expect(screen.getByTestId('agent-availability-badge')).toHaveTextContent('busy');
     expect(screen.getByText('claude-opus')).toBeInTheDocument();
+    expect(screen.getByText('claudecode')).toBeInTheDocument();
     // dialog a11y: role + aria-modal.
     const panel = screen.getByTestId('sender-sidebar');
     expect(panel).toHaveAttribute('role', 'dialog');
     expect(panel).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('shows the agent activity feed in the sidebar', async () => {
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'O-1',
+          name: 'builder-bot',
+          description: 'does builds',
+          model: 'claude-opus-4-8',
+          cli: 'claude-code',
+          env_vars: {},
+          skills: [],
+          worker_id: 'worker001',
+          lifecycle: 'running',
+          availability: 'busy',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+      http.get('/api/agents/:id/activity', ({ params }) =>
+        HttpResponse.json({
+          activity: [
+            {
+              id: 'AC-9',
+              agent_id: String(params.id),
+              event_type: 'system_init',
+              payload: '{}',
+              occurred_at: '2026-05-24T01:00:00Z',
+            },
+          ],
+          next_cursor: null,
+        }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:A-9'} onClose={noop} />);
+    // compact basic info dl is present (CLI / Model / Worker / Description).
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-agent-info')).toBeInTheDocument());
+    expect(screen.getByText('does builds')).toBeInTheDocument();
+    expect(screen.getByText('worker001')).toBeInTheDocument();
+    // activity feed renders its events.
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-activity-list')).toBeInTheDocument());
+  });
+
+  it('shows an empty-activity state when the agent has no activity', async () => {
+    server.use(
+      http.get('/api/agents/:id/activity', () =>
+        HttpResponse.json({ activity: [], next_cursor: null }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:A-1'} onClose={noop} />);
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-activity-empty')).toBeInTheDocument());
   });
 
   it('dispatches a user: ref to the user branch (name + User label)', async () => {
