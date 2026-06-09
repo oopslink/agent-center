@@ -89,6 +89,11 @@ describe('AppLayout v3 — P6 (theme + collapse + palette + shortcuts)', () => {
   it('collapse toggle: state-based tooltip + aria + a clean single-chevron icon (#253)', () => {
     renderShell();
     const btn = screen.getByTestId('sidebar-collapse-toggle');
+    // Visual affordance stays quiet until the sidebar is hovered, while focus
+    // still reveals it for keyboard users.
+    expect(btn.className).toContain('opacity-0');
+    expect(btn.className).toContain('group-hover/sidebar:opacity-100');
+    expect(btn.className).toContain('focus-visible:opacity-100');
     // expanded → "Collapse sidebar"; the icon is a single stroke path (no rect).
     expect(btn).toHaveAttribute('title', 'Collapse sidebar');
     expect(btn).toHaveAttribute('aria-label', 'Collapse sidebar');
