@@ -71,7 +71,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
 
   return (
     <form
-      className="flex items-end gap-2 border-t border-border-base bg-bg-elevated p-3"
+      className="flex items-center gap-2 border-t border-border-base bg-bg-elevated p-3"
       data-testid="message-composer"
       onSubmit={(e) => {
         e.preventDefault();
@@ -92,7 +92,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
         )}
         <textarea
           ref={textareaRef}
-          className="min-h-[2.5rem] w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
+          className="h-10 w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-0 text-sm leading-10 text-text-primary placeholder:text-text-muted focus:border-accent"
           rows={1}
           aria-label="Message"
           role="combobox"
