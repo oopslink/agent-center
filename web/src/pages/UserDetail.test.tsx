@@ -49,6 +49,32 @@ describe('UserDetail page (#193)', () => {
     expect(orgRow).toHaveTextContent('owner');
     expect(orgRow).not.toHaveTextContent('org-1');
     expect(orgRow).toHaveAttribute('data-org-id', 'org-1');
+    // Viewing someone else (default /api/auth/me is user-test) → no account controls.
+    expect(screen.queryByTestId('user-detail-account')).not.toBeInTheDocument();
+  });
+
+  it('shows the self-only Account section (change password + sign out) when viewing your own profile', async () => {
+    server.use(
+      http.get('/api/orgs', () =>
+        HttpResponse.json([{ id: 'org-1', slug: 'acme', name: 'Acme', created_at: '2026-01-01T00:00:00Z' }]),
+      ),
+      // default /api/auth/me identity_id is 'user-test' → this is "me".
+      http.get('/api/users/user-test', () =>
+        HttpResponse.json({
+          user_id: 'user-test',
+          display_name: 'Test User',
+          email: 'me@example.com',
+          created_at: '2026-05-20T01:00:00Z',
+          last_session_at: '2026-06-01T09:00:00Z',
+          orgs: [{ org_id: 'org-1', role: 'owner' }],
+        }),
+      ),
+    );
+    wrap('/users/user-test?tab=account');
+    await waitFor(() => expect(screen.getByTestId('user-detail-account')).toBeInTheDocument());
+    expect(screen.getByTestId('account-panel')).toBeInTheDocument();
+    expect(screen.getByLabelText('Current password')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
   });
 
   it('renders an em dash for a null email / last session (v2.7.0 upgrade user)', async () => {

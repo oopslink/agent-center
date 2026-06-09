@@ -1,9 +1,11 @@
+import { useEffect, useRef } from 'react';
 import type React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useUser } from '@/api/users';
-import { useOrgs } from '@/api/auth';
+import { useOrgs, useMe } from '@/api/auth';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import AccountPanel from '@/components/AccountPanel';
 
 function fmtDate(v?: string): string {
   if (!v) return '—';
@@ -17,8 +19,18 @@ function fmtDate(v?: string): string {
 // member-id (not the handle) so it survives display-name renames.
 export default function UserDetail(): React.ReactElement {
   const { userId = '' } = useParams<{ userId: string }>();
+  const [searchParams] = useSearchParams();
   const user = useUser(userId);
   const orgs = useOrgs();
+  const me = useMe();
+  const accountRef = useRef<HTMLElement | null>(null);
+  // When arriving via /me (?tab=account), bring the account controls into view.
+  const focusAccount = searchParams.get('tab') === 'account';
+  useEffect(() => {
+    if (focusAccount && accountRef.current) {
+      accountRef.current.scrollIntoView?.({ block: 'start' });
+    }
+  }, [focusAccount, user.data, me.data]);
   const orgName = (id: string): string | undefined =>
     (orgs.data ?? []).find((o) => o.id === id)?.name || undefined;
 
@@ -43,6 +55,10 @@ export default function UserDetail(): React.ReactElement {
   }
 
   const u = user.data;
+  // self-view: account controls (change password + sign out) only when you are
+  // looking at your own profile. me.identity_id == the member-id used in the
+  // route (verified: GET /api/auth/me identity_id == GET /api/users/{id}.user_id).
+  const isSelf = !!me.data && me.data.identity_id === u.user_id;
 
   return (
     <section className="flex h-full flex-col gap-6" data-testid="page-UserDetail" data-user-id={u.user_id}>
@@ -98,6 +114,13 @@ export default function UserDetail(): React.ReactElement {
           </ul>
         )}
       </section>
+
+      {isSelf && (
+        <section ref={accountRef} className="rounded-lg border border-border-base bg-bg-elevated p-4" data-testid="user-detail-account">
+          <h3 className="mb-3 text-sm font-semibold text-text-primary">Account</h3>
+          <AccountPanel />
+        </section>
+      )}
     </section>
   );
 }
