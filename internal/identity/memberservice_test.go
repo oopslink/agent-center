@@ -18,7 +18,7 @@ func setupSignedUpOrg(t *testing.T) (*sql.DB, *SQLiteIdentityRepo, *SQLiteOrgani
 
 	svc := NewSignupService(d, idR, orgR, memR)
 	result, err := svc.Execute(ctx, SignupForm{
-		DisplayName: "Owner", PasscodePlain: "123456",
+		DisplayName: "Owner", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "Test Org", OrganizationSlug: "test-org",
 	})
 	if err != nil {

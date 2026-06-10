@@ -32,7 +32,7 @@
 - `Member Role`（VO，owner / admin / member）
 - `Member Status`（VO，joined / disabled）
 - `Account Status`（VO，active / disabled）
-- `Passcode`（VO，6 位数字，argon2 hash）
+- `Passcode`（VO，强口令：长度 6–128，且至少含 1 个字母、1 个数字、1 个符号；argon2 hash）
 - `Invitation`（AR，v2.7）
 - 行为动词：`Signup` / `Signin` / `Logout` / `Provision`（Agent Identity）/ `Disable` / `Re-enable`
 

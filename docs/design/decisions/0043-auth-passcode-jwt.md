@@ -35,7 +35,7 @@ v2.6 选最简集合：passcode + JWT cookie + 基础 RBAC。其它项延后 v2.
 
 ### 1. Credential：Passcode
 
-- 6 位数字（`^\d{6}$`）
+- 强口令规则（v2.9 #290 起）：长度 6–128，且至少含 1 个字母（`unicode.IsLetter`）、1 个数字（`unicode.IsDigit`）、1 个符号（既非字母也非数字的字符）。原 v2.6 规则为「6 位数字（`^\d{6}$`）」，已废弃。
 - argon2id hash（OWASP 推荐参数：iterations=3, memory=64MiB, parallelism=4）
 - 仅 `kind=user` Identity 有 passcode；`kind=agent` Identity 无（agent 走 cert-pin + worker-token，由 [ADR-0023](0023-worker-enroll-lightweight.md) 体系承载）
 
@@ -46,7 +46,7 @@ center 启动 → DB 中无任何 Identity → 任意 URL 跳 /signup
 ↓
 表单：
   - your_display_name (1-40)
-  - your_passcode (6 digits) + confirm_passcode
+  - your_passcode (length 6–128, ≥1 letter + ≥1 digit + ≥1 symbol) + confirm_passcode
   - first_organization_name (1-80)
   - first_organization_slug (3-40, regex)
 ↓
@@ -191,7 +191,7 @@ func (s *ChannelAppService) Archive(ctx, channelID) error {
 
 - **每请求 1 DB 查询**：DS-4 fail-safe 不缓存；单机 SQLite 内存索引可接受，远程 SaaS 时再加 cache
 - **master_key 与 auth_signing_key 耦合**：密钥泄露影响范围更大；v2.7+ 解耦
-- **passcode 6 位 = 10^6 = 100w 空间**：本地自用场景 brute-force 风险低；公网暴露时需扩到 8+ 位 + lockout（v2.7+）
+- **passcode 强度**：v2.9 #290 起改为长度 6–128 且至少含字母/数字/符号各一，搜索空间远大于原 6 位数字（10^6）；brute-force 风险显著降低。公网暴露仍建议补 lockout（v2.7+）
 - **无 email / 无 reset**：忘 passcode 只能清库；延后到 v2.7
 - **无 2FA / 无 SSO**：详 roadmap.md `v2.7+ Identity / Auth 进阶`
 
