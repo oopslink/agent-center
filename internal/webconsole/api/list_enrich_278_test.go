@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
 )
@@ -306,5 +308,75 @@ func TestAgentsList_Enrich_LastActivity_278(t *testing.T) {
 	}
 	if v, ok := quiet["last_activity_content"]; !ok || v != nil {
 		t.Errorf("QuietBot last_activity_content = %v, want null", v)
+	}
+}
+
+// v2.8.1 #278 RED-LINE (PD pre-tag): the list enrich (recent_messages / last_activity)
+// adds message + activity CONTENT to the list response — assert it never leaks across
+// the org boundary. org-A's channel list must contain neither org-B's channel nor its
+// message content. The enrich already runs only on the org-scoped page's IDs, but this
+// locks the boundary so a future list-query change can't silently regress it.
+func TestConversationsList_Enrich_NoCrossOrgLeak_278(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps) // org-A (the caller's org)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+	selfRef := conversation.IdentityRef("user:" + sess.IdentityID)
+	selfActor := observability.Actor("user:" + sess.IdentityID)
+
+	// org-A channel.
+	if _, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "alpha", OrganizationID: sess.OrgID, CreatedBy: selfRef, Actor: selfActor,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A SECOND org (org-B) the same user also belongs to, with its own channel + a
+	// secret message. Same user in both orgs makes CreateChannel's membership pass;
+	// the LIST stays scoped to org-A via ?org_slug.
+	orgB, err := identity.OrganizationFactory{}.New("orgb", "Org B", sess.IdentityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewSQLiteOrganizationRepo(db).Save(ctx, orgB); err != nil {
+		t.Fatal(err)
+	}
+	memberB, err := identity.MemberFactory{}.New(orgB.ID(), sess.IdentityID, identity.RoleOwner, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewSQLiteMemberRepo(db).Save(ctx, memberB); err != nil {
+		t.Fatal(err)
+	}
+	resB, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "bravo", OrganizationID: orgB.ID(), CreatedBy: selfRef, Actor: selfActor,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, aerr := deps.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+		ConversationID: resB.ConversationID, SenderIdentityID: selfRef,
+		ContentKind: conversation.MessageContentText, Content: "ORG-B-SECRET-do-not-leak",
+		Direction: conversation.DirectionInbound, Actor: selfActor,
+	}); aerr != nil {
+		t.Fatal(aerr)
+	}
+
+	// List scoped to org-A.
+	resp := orgScopedGet(t, s.URL+"/api/conversations?kind=channel", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	raw := string(body)
+	if strings.Contains(raw, "ORG-B-SECRET-do-not-leak") {
+		t.Fatal("CROSS-ORG LEAK: org-B message content present in org-A list enrich")
+	}
+	if strings.Contains(raw, "bravo") {
+		t.Fatal("CROSS-ORG LEAK: org-B channel present in org-A list")
+	}
+	if !strings.Contains(raw, "alpha") {
+		t.Fatalf("org-A channel missing from its own list: %s", raw)
 	}
 }
