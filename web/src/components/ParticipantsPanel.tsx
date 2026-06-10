@@ -179,15 +179,20 @@ export function ParticipantsPanel({
 }
 
 // RoleBadge — OWNER / MEMBER pill (8th channel redesign, §3.3 not-color-only).
-// owner → amber/warning semantic token; everyone else → muted. Crucially the
-// LITERAL text ("OWNER"/"MEMBER") carries the meaning, NOT color alone — amber
-// and gray are adjacent enough that color must not be the sole signal. Uses
-// only semantic design tokens so both light + dark read AA (no raw colors).
+// owner → amber; everyone else → slate. Crucially the LITERAL text
+// ("OWNER"/"MEMBER") carries the meaning, NOT color alone — amber and gray are
+// adjacent enough that color must not be the sole signal.
+//
+// Uses SOLID theme-independent X-100/X-800 pairs (per Dev2 #245 tag palette), NOT
+// `bg-warning/10` opacity tints: an alpha tint on a hex CSS-var token renders
+// transparent (Tester2 #244 found bg-warning/10 → text-warning on panel = 1.96
+// light / 1.67 dark, FAIL AA). Solid -100 bg + -800 text is AA in BOTH modes
+// (amber-100/amber-800 ≈ 6.37, slate ≈ 8+) and reads identically light + dark.
 function RoleBadge({ role }: { role: string }): React.ReactElement {
   const isOwner = role === 'owner';
   const cls = isOwner
-    ? 'bg-warning/10 text-warning'
-    : 'bg-bg-subtle text-text-muted';
+    ? 'bg-amber-100 text-amber-800' // raw-color-ok: solid OWNER amber, AA both modes
+    : 'bg-slate-100 text-slate-700'; // raw-color-ok: solid MEMBER slate, AA both modes
   return (
     <span
       data-testid="participant-role-badge"
