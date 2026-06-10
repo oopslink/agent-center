@@ -161,7 +161,7 @@ describe('SenderDetailSidebar', () => {
     expect(screen.queryByText(/^Agent not found\.$/i)).toBeNull();
   });
 
-  // F1 consistency: the header for a deleted (unresolved) sender shows a muted
+  // F1 consistency: the header for a deleted (unresolved) sender shows an AA-muted (text-text-secondary)
   // "(deleted)" label, never the raw `agent:agent-xxx` prefixed ref. With no
   // /api/members data the resolver cannot resolve the name.
   it('header degrades to muted "(deleted)" for an unresolved sender (no raw ref)', async () => {
@@ -174,7 +174,7 @@ describe('SenderDetailSidebar', () => {
     const nameEl = screen.getByTestId('sender-sidebar-name');
     expect(nameEl.textContent).toBe('(deleted)');
     expect(nameEl).toHaveAttribute('data-name-resolved', 'false');
-    expect(nameEl.className).toContain('text-text-muted');
+    expect(nameEl.className).toContain('text-text-secondary');
     expect(nameEl.textContent).not.toContain('agent:');
     // raw ref kept on title for debugging (#192 chrome rule).
     expect(nameEl.getAttribute('title')).toContain('agent:agent-8d1126f6');
