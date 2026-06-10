@@ -95,23 +95,20 @@ func TestConversationsList_Enrich_278(t *testing.T) {
 		t.Fatal("general missing created_at")
 	}
 
-	// participants{count, members}.
-	parts, _ := general["participants"].(map[string]any)
-	if parts == nil {
-		t.Fatalf("general missing participants: %+v", general)
-	}
-	if cnt, _ := parts["count"].(float64); cnt != 2 {
-		t.Fatalf("participants.count = %v, want 2", parts["count"])
-	}
-	members, _ := parts["members"].([]any)
+	// participants = ≤5 PREVIEW array + separate participant_count (total). Contract
+	// lock (PD/Dev2): list `participants` is NOT the full set; participant_count is.
+	members, _ := general["participants"].([]any)
 	if len(members) != 2 {
-		t.Fatalf("participants.members len = %d, want 2", len(members))
+		t.Fatalf("participants (preview) len = %d, want 2: %+v", len(members), general["participants"])
+	}
+	if cnt, _ := general["participant_count"].(float64); cnt != 2 {
+		t.Fatalf("participant_count = %v, want 2", general["participant_count"])
 	}
 	// kind label: agent member → "agent".
 	var sawAgent bool
 	for _, mm := range members {
 		m := mm.(map[string]any)
-		if m["identity_ref"] == "agent:agent-bot" {
+		if m["identity_id"] == "agent:agent-bot" {
 			sawAgent = true
 			if m["kind"] != "agent" {
 				t.Errorf("agent member kind = %v, want agent", m["kind"])
@@ -125,18 +122,18 @@ func TestConversationsList_Enrich_278(t *testing.T) {
 		t.Errorf("agent member not in participants: %+v", members)
 	}
 
-	// recent_messages: <=3, newest-first, plain-text preview (fence stripped).
+	// recent_messages: <=3, newest-first, plain-text content (fence stripped).
 	recent, _ := general["recent_messages"].([]any)
 	if len(recent) != 3 {
 		t.Fatalf("recent_messages len = %d, want 3", len(recent))
 	}
 	newest := recent[0].(map[string]any)
-	preview, _ := newest["preview"].(string)
-	if preview == "" {
-		t.Fatal("newest preview empty")
+	content, _ := newest["content"].(string)
+	if content == "" {
+		t.Fatal("newest content empty")
 	}
-	if strings.Contains(preview, "```") || strings.Contains(preview, "fmt.Println") {
-		t.Errorf("preview not plain-text (fence leaked): %q", preview)
+	if strings.Contains(content, "```") || strings.Contains(content, "fmt.Println") {
+		t.Errorf("content not plain-text (fence leaked): %q", content)
 	}
 	if newest["posted_at"] == "" || newest["posted_at"] == nil {
 		t.Error("recent message missing posted_at")
@@ -144,9 +141,9 @@ func TestConversationsList_Enrich_278(t *testing.T) {
 	if newest["sender_display_name"] == "" || newest["sender_display_name"] == nil {
 		t.Error("recent message missing sender_display_name")
 	}
-	// newest-first: first preview is the third (markdown) message.
-	if !strings.Contains(preview, "third") {
-		t.Errorf("recent_messages not newest-first; first preview = %q", preview)
+	// newest-first: first content is the third (markdown) message.
+	if !strings.Contains(content, "third") {
+		t.Errorf("recent_messages not newest-first; first content = %q", content)
 	}
 
 	// Empty channel → recent_messages is [] (present, non-null, empty).

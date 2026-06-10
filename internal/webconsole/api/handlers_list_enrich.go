@@ -143,23 +143,26 @@ func friendlyHandle(ref conversation.IdentityRef) string {
 // true active-participant count + the first participantsCap members as
 // {identity_ref, display_name, kind}. Reuses the same name resolver as the recent-
 // messages enrich so a deleted member degrades to a friendly handle, never a crash.
-func buildParticipants(ctx context.Context, nr *nameResolver, c *conversation.Conversation) map[string]any {
-	members := make([]map[string]any, 0, participantsCap)
-	count := 0
+// v2.8.1 #278 (contract lock w/ PD/Dev2): the list row exposes `participants` as a
+// ≤5 PREVIEW array (NOT the full set — the detail endpoint keeps the full list) plus
+// a separate `participant_count` (the true active total). Returning them split avoids
+// the cross-surface footgun of code assuming `participants` is complete.
+func buildParticipants(ctx context.Context, nr *nameResolver, c *conversation.Conversation) (preview []map[string]any, count int) {
+	preview = make([]map[string]any, 0, participantsCap)
 	for _, p := range c.Participants() {
 		if !p.IsActive() {
 			continue
 		}
 		count++
-		if len(members) < participantsCap {
-			members = append(members, map[string]any{
-				"identity_ref": string(p.IdentityID),
+		if len(preview) < participantsCap {
+			preview = append(preview, map[string]any{
+				"identity_id":  string(p.IdentityID),
 				"display_name": nr.resolve(ctx, p.IdentityID),
 				"kind":         refKindLabel(p.IdentityID),
 			})
 		}
 	}
-	return map[string]any{"count": count, "members": members}
+	return preview, count
 }
 
 // buildRecentMessages renders the channel-row recent_messages DTO (v2.8.1 #278):
@@ -175,9 +178,9 @@ func buildRecentMessages(ctx context.Context, nr *nameResolver, msgs []*conversa
 		}
 		out = append(out, map[string]any{
 			"id":                  string(m.ID()),
-			"sender_identity_ref": string(m.SenderIdentityID()),
+			"sender_identity_id":  string(m.SenderIdentityID()),
 			"sender_display_name": nr.resolve(ctx, m.SenderIdentityID()),
-			"preview":             plainTextPreview(m.Content()),
+			"content":             plainTextPreview(m.Content()),
 			"posted_at":           m.PostedAt().UTC().Format(time.RFC3339Nano),
 		})
 	}

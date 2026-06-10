@@ -425,7 +425,9 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		// preview on every row (most useful on channels, harmless on dm/issue/task —
 		// the FE reads them only where it renders them). created_at (RFC3339Nano) is
 		// already on the row via convPublicMap.
-		row["participants"] = buildParticipants(r.Context(), nr, c)
+		participantsPreview, participantCount := buildParticipants(r.Context(), nr, c)
+		row["participants"] = participantsPreview
+		row["participant_count"] = participantCount
 		row["recent_messages"] = buildRecentMessages(r.Context(), nr, recentByConv[c.ID()])
 		s.embedBadges(r, d, self, selfDisplayName, c, row, followedMap[c.ID()])
 		arr[i] = row
