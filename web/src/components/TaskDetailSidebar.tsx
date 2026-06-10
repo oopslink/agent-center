@@ -1,5 +1,4 @@
 import type React from 'react';
-import { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import type { Task } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
@@ -7,7 +6,6 @@ import { EntityRef } from '@/components/EntityRef';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
 import { idHandle } from '@/components/workItemDisplay';
 import { tagColorFor } from '@/components/tagColors';
-import { validateNewTag } from '@/components/tagValidation';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
 
 // TaskDetailSidebar — the @oopslink mockup's TWO-SECTION Task detail sidebar.
@@ -17,8 +15,14 @@ import { formatLocalTime, formatStatusDuration } from '@/utils/time';
 // bending the shared IssueTaskSidebar — IssueDetail keeps using IssueTaskSidebar
 // untouched.
 //
-//   TOP (editable)   : Edit-Task button · STATUS (+ in-status duration) ·
-//                      ASSIGNEE (avatar + name) · TAGS (hashed chips + "+ Add")
+// v2.8.1 #281 readonly: per @oopslink, a task may ONLY be edited via the Edit
+// Task modal. The top section is now a READ-ONLY DISPLAY of status (+ in-status
+// duration), assignee (avatar + name) and tags (hashed chips) — the ONLY edit
+// entry is the Edit Task button (→ TaskEditModal, the single atomic edit path).
+// No inline status-change menu, no assignee Change/Unassign, no "+ Add" tag input.
+//
+//   TOP (display)    : Edit-Task button · STATUS (+ in-status duration) ·
+//                      ASSIGNEE (avatar + name) · TAGS (hashed chips)
 //   BOTTOM (read-only): PROJECT · TASK ID (handle pill) · CREATED (local time)
 
 // PencilIcon — Edit affordance (SVG, NOT emoji, per the no-emoji-icon rule).
@@ -39,88 +43,27 @@ function PencilIcon(): React.ReactElement {
   );
 }
 
-// PlusIcon — "+ Add" affordance (SVG, NOT emoji).
-function PlusIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-      <path d="M6 1.5v9M1.5 6h9" />
-    </svg>
-  );
-}
-
 interface Props {
   task: Task;
   projectName?: string;
   /** resolved assignee display name ("" / ref-echo when unresolved). */
   assigneeName?: string;
-  /** the status-transition control + (legacy) actions, kept accessible. */
-  statusControl?: React.ReactNode;
-  /** opens the existing TaskEditModal. */
+  /** opens the existing TaskEditModal — the single edit path. */
   onEdit: () => void;
-  /** whether the task is editable (non-terminal). Terminal → no Edit / no +Add. */
+  /** whether the task is editable (non-terminal). Terminal → no Edit button. */
   editable: boolean;
-  /** inline add: PATCH the full replacement tag set via useUpdateTask({tags}). */
-  onAddTag: (next: string[]) => void;
-  addPending?: boolean;
-  /** assignee edit affordances (Change / Unassign) — kept from the prior design. */
-  assigneeControls?: React.ReactNode;
 }
 
 export function TaskDetailSidebar({
   task,
   projectName,
   assigneeName,
-  statusControl,
   onEdit,
   editable,
-  onAddTag,
-  addPending,
-  assigneeControls,
 }: Props): React.ReactElement {
   const tk = task;
   const tags = tk.tags ?? [];
   const duration = formatStatusDuration(tk.status_changed_at);
-
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const commit = () => {
-    const candidate = draft.trim();
-    if (candidate === '') {
-      setDraft('');
-      setAdding(false);
-      return;
-    }
-    const err = validateNewTag(candidate, tags);
-    if (err) {
-      setError(err);
-      return;
-    }
-    if (tags.includes(candidate)) {
-      // dedup — no-op PATCH avoided; just close.
-      setDraft('');
-      setError(null);
-      setAdding(false);
-      return;
-    }
-    onAddTag([...tags, candidate]);
-    setDraft('');
-    setError(null);
-    setAdding(false);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      commit();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setDraft('');
-      setError(null);
-      setAdding(false);
-    }
-  };
 
   return (
     <aside
@@ -128,7 +71,7 @@ export function TaskDetailSidebar({
       data-testid="task-detail-sidebar"
       aria-label="Task details"
     >
-      {/* ───────── TOP: editable ───────── */}
+      {/* ───────── TOP: display (edit only via the modal) ───────── */}
       <section className="space-y-3" data-testid="task-sidebar-editable">
         <div className="flex items-start justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Details</p>
@@ -146,7 +89,7 @@ export function TaskDetailSidebar({
           )}
         </div>
 
-        {/* STATUS + in-status duration */}
+        {/* STATUS + in-status duration — display only */}
         <div data-testid="task-sidebar-status">
           <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Status</p>
           <div className="flex flex-wrap items-center gap-2">
@@ -162,11 +105,9 @@ export function TaskDetailSidebar({
               </span>
             )}
           </div>
-          {/* status-transition control (Change status menu) stays accessible. */}
-          {statusControl && <div className="mt-2 flex flex-wrap gap-2">{statusControl}</div>}
         </div>
 
-        {/* ASSIGNEE — avatar + name */}
+        {/* ASSIGNEE — avatar + name, display only */}
         <div data-testid="task-sidebar-assignee">
           <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Assignee</p>
           <div className="flex flex-wrap items-center gap-2">
@@ -184,11 +125,10 @@ export function TaskDetailSidebar({
                 Unassigned
               </span>
             )}
-            {assigneeControls}
           </div>
         </div>
 
-        {/* TAGS — hashed (both-mode-AA) chips + inline "+ Add" */}
+        {/* TAGS — hashed (both-mode-AA) chips, display only */}
         <div data-testid="task-sidebar-tags">
           <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Tags</p>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -205,55 +145,12 @@ export function TaskDetailSidebar({
                 </span>
               );
             })}
-            {tags.length === 0 && !adding && (
+            {tags.length === 0 && (
               <span className="text-xs text-text-muted" data-testid="task-tags-empty">
                 No tags
               </span>
             )}
-            {editable && !adding && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAdding(true);
-                  setError(null);
-                }}
-                className="inline-flex items-center gap-0.5 rounded border border-dashed border-border-base px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle"
-                data-testid="task-tag-add"
-                aria-label="Add tag"
-              >
-                <PlusIcon />
-                Add
-              </button>
-            )}
-            {editable && adding && (
-              <input
-                autoFocus
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  if (error) setError(null);
-                }}
-                onKeyDown={onKeyDown}
-                onBlur={commit}
-                disabled={addPending}
-                className="w-28 rounded border border-border-base bg-bg-elevated px-2 py-0.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent disabled:opacity-50"
-                placeholder="tag, Enter…"
-                data-testid="task-tag-input"
-                aria-label="New tag"
-                aria-describedby="task-tag-add-hint"
-              />
-            )}
           </div>
-          {adding && (
-            <p id="task-tag-add-hint" className="mt-1 text-[0.6875rem] text-text-muted">
-              Enter or comma to add · max 10 tags, ≤16 chars.
-            </p>
-          )}
-          {error && (
-            <p className="mt-1 text-xs text-danger" data-testid="task-tag-error">
-              {error}
-            </p>
-          )}
         </div>
       </section>
 
