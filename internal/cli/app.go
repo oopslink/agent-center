@@ -127,6 +127,7 @@ type App struct {
 	ConvRefRepo        conversation.ConversationMessageReferenceRepository
 	ReadStateRepo      conversation.UserConversationReadStateRepository
 	ReadStateSvc       *convservice.ReadStateService
+	InboxSvc           *convservice.AgentInboxService
 	FollowStateRepo    conversation.UserConversationFollowStateRepository
 	FollowStateSvc     *convservice.FollowStateService
 
@@ -215,6 +216,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	carryOver := convservice.NewCarryOverService(db, cr, mgRepo, convRefRepo, sink, gen, clk)
 	readStateRepo := convsqlite.NewReadStateRepo(db)
 	readStateSvc := convservice.NewReadStateService(db, readStateRepo, mgRepo, sink, clk)
+	inboxSvc := convservice.NewAgentInboxService(db, cr, readStateRepo)
 	followStateRepo := convsqlite.NewFollowStateRepo(db)
 	followStateSvc := convservice.NewFollowStateService(followStateRepo, cr, clk)
 
@@ -393,6 +395,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		ConvRefRepo:        convRefRepo,
 		ReadStateRepo:      readStateRepo,
 		ReadStateSvc:       readStateSvc,
+		InboxSvc:           inboxSvc,
 		FollowStateRepo:    followStateRepo,
 		FollowStateSvc:     followStateSvc,
 		OutboxRepo:         outboxRepo,

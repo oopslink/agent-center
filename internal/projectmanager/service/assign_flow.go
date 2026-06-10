@@ -70,9 +70,10 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Start(now) }, "")
 }
 
-// CancelTask cancels a non-terminal Task.
-func (s *Service) CancelTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Cancel(now) }, "")
+// DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask
+// pre-v2.8.1, uniform 废弃 semantic).
+func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Discard(now) }, "")
 }
 
 // BlockTask moves running→blocked with a required reason (plan §2.2).
@@ -279,6 +280,80 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			return err
 		}
 		return s.emitTaskStateChanged(txCtx, t, reason)
+	})
+}
+
+// SetTaskStatus sets the Task to any VALID status with NO adjacency enforcement
+// (v2.8.1 @oopslink: task state = the agent's self-reported progress; the center
+// does not gate workflow transitions — the Change-status menu offers the full
+// enum). Project-member gated; emits pm.task.state_changed (generic) so the
+// participant projector + downstream stay in sync. The typed transitions
+// (Start/Complete/Block/...) remain for the agent's structured self-reports.
+func (s *Service) SetTaskStatus(ctx context.Context, taskID pm.TaskID, target pm.TaskStatus, actor pm.IdentityRef) error {
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+		return t.SetStatus(target, now)
+	}, "")
+}
+
+// BatchTaskPatch is the set of optionally-updated fields for BatchUpdateTask. A
+// nil pointer means "leave unchanged"; a non-nil pointer applies the field
+// (v2.8.1 edit-task #278). For Assignee, "" means Unassign. Title/Description
+// are also accepted so the bare task PATCH stays a superset of the prior
+// metadata-only PATCH (single atomic tx for the whole edit).
+type BatchTaskPatch struct {
+	Status      *string
+	Assignee    *string
+	Tags        *[]string
+	Title       *string
+	Description *string
+}
+
+// BatchUpdateTask applies any subset of {status, assignee, tags} to a Task in a
+// SINGLE tx — all-or-none (if any field's mutation errors, the tx rolls back and
+// nothing is applied). Project-member gated. Emits pm.task.state_changed so the
+// participant projector + downstream stay in sync (a tags-only edit still bumps
+// version + re-emits, which is harmless/idempotent for the effective set).
+func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch BatchTaskPatch, actor pm.IdentityRef) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		if patch.Title != nil {
+			if err := t.Rename(*patch.Title, now); err != nil {
+				return err
+			}
+		}
+		if patch.Description != nil {
+			t.SetDescription(*patch.Description, now)
+		}
+		if patch.Status != nil {
+			if err := t.SetStatus(pm.TaskStatus(*patch.Status), now); err != nil {
+				return err
+			}
+		}
+		if patch.Assignee != nil {
+			if *patch.Assignee == "" {
+				if err := t.Unassign(now); err != nil {
+					return err
+				}
+			} else if err := t.Assign(pm.IdentityRef(*patch.Assignee), now); err != nil {
+				return err
+			}
+		}
+		if patch.Tags != nil {
+			if err := t.SetTags(*patch.Tags, now); err != nil {
+				return err
+			}
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		return s.emitTaskStateChanged(txCtx, t, "")
 	})
 }
 

@@ -7,7 +7,7 @@ import {
   useCreateIssue,
   useIssue,
   useIssues,
-  useTransitionIssue,
+  useUpdateIssue,
 } from './issues';
 
 // v2.7 ProjectManager BC — project-scoped Issue hooks.
@@ -90,17 +90,19 @@ describe('issues hooks', () => {
     expect(received).toMatchObject({ title: 'x' });
   });
 
-  it('useTransitionIssue POSTs the target status', async () => {
+  it('useUpdateIssue PATCHes the nested route with the dirty-only body', async () => {
+    // Mirror of #251: {title?, description?, status?, tags?} — NO assignee.
     let received: Record<string, unknown> | undefined;
     server.use(
-      http.post('/api/projects/proj-a/issues/IS-1/transition', async ({ request }) => {
+      http.patch('/api/projects/proj-a/issues/IS-1', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
           id: 'IS-1',
           project_id: 'proj-a',
           title: 'x',
           description: '',
-          status: 'in_progress',
+          status: 'resolved',
+          tags: ['a'],
           created_by: 'user:hayang',
           version: 2,
           created_at: 'x',
@@ -108,13 +110,13 @@ describe('issues hooks', () => {
         });
       }),
     );
-    const { result } = renderHook(() => useTransitionIssue('proj-a', 'IS-1'), {
+    const { result } = renderHook(() => useUpdateIssue('proj-a', 'IS-1'), {
       wrapper: makeWrapper(),
     });
     act(() => {
-      result.current.mutate('in_progress');
+      result.current.mutate({ status: 'resolved', tags: ['a'] });
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(received).toMatchObject({ status: 'in_progress' });
+    expect(received).toEqual({ status: 'resolved', tags: ['a'] });
   });
 });

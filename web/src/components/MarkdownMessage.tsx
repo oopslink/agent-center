@@ -1,7 +1,10 @@
 import type React from 'react';
+import { Children } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
+import { MentionText, useMentionResolver } from './MentionText';
+import { useSenderSidebar } from './SenderSidebarContext';
 
 // v2.8 #276 — render message content as markdown (@oopslink chose A = full
 // react-markdown). Security (Q-A1 = strict escape): NO `rehype-raw`, so raw HTML
@@ -27,14 +30,106 @@ function PreBlock({ children }: { children?: React.ReactNode }): React.ReactElem
   return <CollapsibleCodeBlock code={code} language={match?.[1]} contextLabel="code" />;
 }
 
-export function MarkdownMessage({ content }: { content: string }): React.ReactElement {
+// linkifyMentions walks a rendered node's children and replaces @mention tokens
+// found in raw string children with clickable MentionText buttons (#281 entry ②).
+// Only bare string children are tokenized — nested elements (already-rendered
+// links / inline code / emphasis) are passed through untouched, so we never
+// linkify inside a code span or an existing link. When there's no sidebar
+// provider OR no resolver match, the text renders unchanged.
+function linkifyMentions(
+  children: React.ReactNode,
+  onMention: ((ref: string) => void) | null,
+  resolve: (handle: string) => string | null,
+  linkClass: string,
+): React.ReactNode {
+  if (!onMention) return children;
+  return Children.map(children, (child) => {
+    if (typeof child === 'string') {
+      if (!child.includes('@')) return child;
+      return <MentionText text={child} onMention={onMention} resolve={resolve} linkClass={linkClass} />;
+    }
+    return child;
+  });
+}
+
+// `textClass` overrides the body text color. Default `text-text-primary` (theme
+// token, adapts both modes) is correct on theme-adaptive backgrounds. On a FIXED
+// light surface (e.g. the own chat bubble's #D1E3FF, which does NOT flip per theme),
+// pass a FIXED dark class (text-slate-900) so the body stays dark in BOTH modes —
+// a theme token would flip light in dark mode = light-on-light-blue FAIL.
+export function MarkdownMessage({
+  content,
+  textClass = 'text-text-primary',
+  linkClass = 'text-accent',
+}: {
+  content: string;
+  textClass?: string;
+  linkClass?: string;
+}): React.ReactElement {
+  // #281 entry ②: under a SenderSidebarProvider the @mention tokens become
+  // clickable (resolve handle → identity ref → open the kind-routed sidebar).
+  // With NO provider (e.g. markdown rendered outside a conversation surface, or a
+  // unit test without a QueryClient) we render plain markdown — crucially we do
+  // NOT call the members query at all, so MarkdownMessage stays usable standalone.
+  const onMention = useSenderSidebar();
+  if (onMention) {
+    return (
+      <MentionAwareMarkdown
+        content={content}
+        textClass={textClass}
+        linkClass={linkClass}
+        onMention={onMention}
+      />
+    );
+  }
+  return <MarkdownBody content={content} textClass={textClass} linkClass={linkClass} />;
+}
+
+// MentionAwareMarkdown is only mounted when a sidebar provider is present, so the
+// members-query hook (useMentionResolver) is gated behind that — standalone /
+// no-QueryClient renders go through MarkdownBody and never touch react-query.
+function MentionAwareMarkdown({
+  content,
+  textClass,
+  linkClass,
+  onMention,
+}: {
+  content: string;
+  textClass: string;
+  linkClass: string;
+  onMention: (ref: string) => void;
+}): React.ReactElement {
+  const resolve = useMentionResolver();
+  const linkify = (children: React.ReactNode) => linkifyMentions(children, onMention, resolve, linkClass);
+  return <MarkdownBody content={content} textClass={textClass} linkClass={linkClass} linkify={linkify} />;
+}
+
+function MarkdownBody({
+  content,
+  textClass,
+  linkClass,
+  linkify = (children) => children,
+}: {
+  content: string;
+  textClass: string;
+  linkClass: string;
+  linkify?: (children: React.ReactNode) => React.ReactNode;
+}): React.ReactElement {
   return (
-    <div className="markdown-body space-y-2 leading-relaxed text-text-primary" data-testid="markdown-message">
+    <div className={`markdown-body space-y-2 leading-relaxed ${textClass}`} data-testid="markdown-message">
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
           // fenced code → shared collapsible block (handles with/without language).
           pre: PreBlock,
+          // Prose containers: linkify @mention tokens in their direct text
+          // children (nested elements — links/inline code — pass through). When
+          // there's no provider, `linkify` is identity so these render verbatim.
+          p: ({ children }) => <p>{linkify(children)}</p>,
+          li: ({ children }) => <li>{linkify(children)}</li>,
+          em: ({ children }) => <em>{linkify(children)}</em>,
+          strong: ({ children }) => <strong>{linkify(children)}</strong>,
+          td: ({ children }) => <td>{linkify(children)}</td>,
           // external-safe links: rel guards window.opener + referrer leakage.
           a({ href, children }) {
             return (
@@ -42,7 +137,7 @@ export function MarkdownMessage({ content }: { content: string }): React.ReactEl
                 href={href}
                 rel="noopener noreferrer"
                 target="_blank"
-                className="text-accent underline"
+                className={`${linkClass} underline`}
               >
                 {children}
               </a>

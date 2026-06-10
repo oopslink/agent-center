@@ -82,6 +82,14 @@ func textContent(t *testing.T, res *mcp.CallToolResult) string {
 var wantTools = []string{
 	// b3-i (locked)
 	"get_my_work", "post_task_message",
+	// v2.8.1 #278 D pull model: agent drives its own work-item queue
+	"start_work", "fail_work",
+	// v2.8.1 #278 PR4 scheduling autonomy
+	"pause_work", "resume_paused_work",
+	// v2.8.1 #278 PR4 read tools (loop-boundary active + paused candidates)
+	"get_my_active_work", "list_my_paused_work",
+	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen
+	"get_my_unread", "mark_seen",
 	// v2.7 #185: DM/channel reply
 	"post_message",
 	// v2.7.1 #239: self / org discovery

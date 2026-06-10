@@ -43,6 +43,14 @@ describe('AppLayout v2 shell (v2.3 P2)', () => {
     expect(projectsLink).toHaveAttribute('href', '/projects');
   });
 
+  it('uses the full remaining width instead of centering content away from the sidebar', () => {
+    renderShell();
+    const shell = screen.getByTestId('app-content-shell');
+    expect(shell.className).toContain('w-full');
+    expect(shell.className).not.toContain('mx-auto');
+    expect(shell.className).not.toContain('max-w-');
+  });
+
   it('hamburger toggle exists and toggles aria-expanded', () => {
     renderShell();
     const toggle = screen.getByTestId('nav-toggle');

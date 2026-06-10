@@ -38,6 +38,22 @@ const commandTypeAgentReconcile = "agent.reconcile"
 // so we REPLICATE here and pin the equivalence with a cross-package test.
 const commandTypeAgentWork = "agent.work"
 
+// commandTypeWorkAvailable is the v2.8.1 #278 D (pull model) WAKE signal, emitted
+// ALONGSIDE agent.work for each ready-to-dispatch WorkItem on →running (additive,
+// the come-online parallel of pm WorkItemProjector.enqueueWork). It MUST match pm
+// WorkItemProjector's commandTypeWorkAvailable ("agent.work_available") and shares
+// the SAME per-WorkItem idempotency key "agent.work_available:<workItemID>", so a
+// wake already emitted on enqueue collapses with the re-emit on flap/restart. The
+// daemon log+skips it until PR3 wires the handler (agent pulls its queue).
+const commandTypeWorkAvailable = "agent.work_available"
+
+// workAvailablePayload mirrors pm WorkItemProjector.workAvailablePayload (per-agent
+// "pull your queue" wake; WorkItemID carried for idempotency-key determinism).
+type workAvailablePayload struct {
+	AgentID    string `json:"agent_id"`
+	WorkItemID string `json:"work_item_id"`
+}
+
 // AgentControlProjector turns Agent lifecycle intent changes into reconcile
 // commands on the Worker control stream (ADR-0050 §4 / plan D2-a).
 //
@@ -239,24 +255,22 @@ func (p *AgentControlProjector) reemitWorkOnRunning(ctx context.Context, pl agen
 		if s := wi.Status(); s != agent.WorkItemQueued && s != agent.WorkItemActive {
 			continue
 		}
-		payload, err := json.Marshal(workCommandPayload{
+		// v2.8.1 #278 D PR6 CUTOVER: the old agent.work PUSH re-delivery is removed.
+		// On →running we re-emit ONLY the per-agent wake (agent.work_available); the
+		// agent pulls its queue (get_my_work / start_work) — the sole activation path.
+		// The come-online re-emit un-defers QUEUED items (wake the agent to pull them).
+		wakePayload, err := json.Marshal(workAvailablePayload{
 			AgentID:    pl.AgentID,
 			WorkItemID: wi.ID(),
-			TaskRef:    wi.TaskRef(),
-			// #115 backfill: resolve the SAME brief (title\n\ndesc) that pm
-			// enqueueWork captures so the re-delivered work carries the original
-			// task content. nil tasks repo / lookup-fail / bad ref → "" (degraded,
-			// matching enqueueWork.brief).
-			Brief: p.briefForTask(ctx, wi.TaskRef()),
 		})
 		if err != nil {
 			return err
 		}
 		if _, err := p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
 			WorkerID:       environment.WorkerID(pl.WorkerID),
-			CommandType:    commandTypeAgentWork,
-			Payload:        string(payload),
-			IdempotencyKey: "agent.work:" + wi.ID(),
+			CommandType:    commandTypeWorkAvailable,
+			Payload:        string(wakePayload),
+			IdempotencyKey: "agent.work_available:" + wi.ID(),
 		}); err != nil {
 			return err
 		}

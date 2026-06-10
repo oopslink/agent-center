@@ -8,16 +8,16 @@ import {
   useAgent,
   useAgentActivity,
   useArchiveAgent,
+  useForceDeleteAgent,
   useResetAgent,
   useRestartAgent,
   useStartAgent,
   useStopAgent,
   type ResetScope,
 } from '@/api/agents';
-import { useWorkers } from '@/api/workers';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { EntityRef } from '@/components/EntityRef';
+import { ForceDeleteModal } from '@/components/ForceDeleteModal';
 import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
@@ -47,14 +47,13 @@ export default function AgentDetail(): React.ReactElement {
   // (newest-first). Grouping/folding runs over this FULL accumulated set so a
   // Checking run spanning a page boundary merges rather than fragmenting.
   const activityEvents = activity.data?.pages.flatMap((p) => p.activity) ?? [];
-  // v2.7 #192: resolve the bound worker_id to its name (raw id on hover).
-  const workers = useWorkers();
 
   const start = useStartAgent(id);
   const stop = useStopAgent(id);
   const restart = useRestartAgent(id);
   const reset = useResetAgent(id);
   const archive = useArchiveAgent(id);
+  const forceDelete = useForceDeleteAgent();
 
   // v2.7.1 #240: header "Send message" → open (or reuse) the 1:1 DM with this
   // agent. The backend dedups (#215), so createConversation returns the existing
@@ -79,6 +78,10 @@ export default function AgentDetail(): React.ReactElement {
 
   const [resetOpen, setResetOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // v2.8.1: force-delete (admin escape hatch) — typed-name confirm. Kept open on
+  // 409/error; the error is fed into the modal's `error` prop.
+  const [forceDeleteOpen, setForceDeleteOpen] = useState(false);
+  const [forceDeleteError, setForceDeleteError] = useState<string | null>(null);
   // v2.8 #270: stop/restart are disruptive → confirm before firing. (start is
   // non-destructive and stays direct; reset has its own scope modal.)
   const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
@@ -163,27 +166,13 @@ export default function AgentDetail(): React.ReactElement {
         items={[{ label: 'Members' }, { label: 'Agents', to: '/members/agents' }, { label: a.name }]}
       />
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base pb-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{a.name}</h2>
-            <LifecycleBadge lifecycle={a.lifecycle} />
-            <AvailabilityBadge availability={a.availability} />
-          </div>
-          <p className="text-xs text-text-muted">
-            {a.worker_id ? (
-              <>
-                worker{' '}
-                <EntityRef
-                  id={a.worker_id}
-                  name={(workers.data ?? []).find((w) => w.worker_id === a.worker_id)?.name || undefined}
-                  fallback={a.worker_id}
-                  testId="agent-detail-worker"
-                />
-              </>
-            ) : (
-              'no worker'
-            )}
-          </p>
+        {/* @oopslink: worker subtitle removed — it duplicated the Profile
+            section's "Computer <name> OFFLINE/ONLINE" row. Header keeps just
+            the name + lifecycle + availability. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold">{a.name}</h2>
+          <LifecycleBadge lifecycle={a.lifecycle} />
+          <AvailabilityBadge availability={a.availability} />
         </div>
 
         <div className="flex flex-wrap items-center gap-2" data-testid="agent-controls">
@@ -271,6 +260,24 @@ export default function AgentDetail(): React.ReactElement {
               <ArchiveIcon />
             </button>
           )}
+          {/* v2.8.1: force-delete is an admin escape hatch — it cleans the
+              center's records regardless of lifecycle (it skips the stop/active
+              guards), so unlike the soft archive/lifecycle controls it is shown
+              unconditionally (the backend is org-admin gated). */}
+          <button
+            type="button"
+            onClick={() => {
+              setForceDeleteError(null);
+              setForceDeleteOpen(true);
+            }}
+            disabled={forceDelete.isPending}
+            className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
+            data-testid="agent-force-delete"
+            title="Force delete"
+            aria-label="Force delete agent"
+          >
+            <TrashIcon />
+          </button>
           {transient && (
             <span className="text-xs text-text-muted" data-testid="agent-transient-note">
               {lc}…
@@ -382,13 +389,25 @@ export default function AgentDetail(): React.ReactElement {
             {activity.hasNextPage ? (
               <button
                 type="button"
-                className="mt-2 w-full rounded border border-border-base px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
+                className="mt-2 flex w-full items-center justify-center rounded border border-border-base px-2 py-1.5 text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-activity-load-older"
                 onClick={() => void activity.fetchNextPage()}
                 disabled={activity.isFetchingNextPage}
                 aria-busy={activity.isFetchingNextPage}
+                aria-label="Load older events"
+                title="Load older events"
               >
-                {activity.isFetchingNextPage ? 'Loading…' : 'Load older'}
+                {/* v2.8.1 UX (@oopslink): icon-only — chevron-up = "load earlier
+                    from the top"; swaps to a spinner while fetching. The semantic
+                    label stays on aria-label/title for screen readers + hover. */}
+                {activity.isFetchingNextPage ? (
+                  <span
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-border-base border-t-brand"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ChevronUpIcon />
+                )}
               </button>
             ) : (
               <p className="mt-2 text-center text-xs text-text-muted" data-testid="agent-activity-end">
@@ -458,6 +477,29 @@ export default function AgentDetail(): React.ReactElement {
           archive.mutate(undefined, { onSuccess: () => setArchiveOpen(false) })
         }
         onCancel={() => setArchiveOpen(false)}
+      />
+
+      {/* v2.8.1: force-delete (admin) — GitHub-style typed-name confirm. On 200
+          navigate back to the agents list; on 409/error keep the modal open and
+          surface the message via the `error` prop. */}
+      <ForceDeleteModal
+        open={forceDeleteOpen}
+        entityKind="agent"
+        entityName={a.name}
+        busy={forceDelete.isPending}
+        error={forceDeleteError}
+        onConfirm={() => {
+          setForceDeleteError(null);
+          forceDelete.mutate(a.id, {
+            onSuccess: () => {
+              setForceDeleteOpen(false);
+              const slug = org?.slug;
+              navigate(slug ? `/organizations/${slug}/agents` : '/agents');
+            },
+            onError: (e) => setForceDeleteError((e as Error).message),
+          });
+        }}
+        onCancel={() => setForceDeleteOpen(false)}
       />
     </section>
   );
@@ -572,6 +614,16 @@ function ArchiveIcon(): React.ReactElement {
   );
 }
 
+// v2.8.1: the Force-delete control icon (a trash can) — admin escape hatch.
+function TrashIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M4 6h12M8 6V4.5h4V6m-6 0v9.5h8V6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 9v4M11 9v4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // v2.7.1 #250: lifecycle control icons (no-emoji UX rule — inline single-stroke
 // 20×20 SVGs, matching ChatBubbleIcon / the composer icons).
 function StopIcon(): React.ReactElement {
@@ -596,6 +648,15 @@ function ResetIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M4.5 6.5a6 6 0 1 1-1.2 4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M4 3.5v3.2h3.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// v2.8.1 #274: chevron-up = "load older/earlier events from the top".
+function ChevronUpIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M5 12.5l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

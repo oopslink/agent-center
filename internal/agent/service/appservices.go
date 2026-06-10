@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/persistence"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -169,8 +171,10 @@ func (s *Service) MarkAgentFailed(ctx context.Context, id agent.AgentID, msg str
 			return err
 		}
 		for _, wi := range wis {
-			if st := wi.Status(); st != agent.WorkItemActive && st != agent.WorkItemWaitingInput {
-				// Only IN-FLIGHT WorkItems cascade. A QUEUED WorkItem is deliberately
+			if st := wi.Status(); st != agent.WorkItemActive && st != agent.WorkItemWaitingInput && st != agent.WorkItemPaused {
+				// Only IN-FLIGHT WorkItems cascade (active / waiting_input / v2.8.1 #278
+				// paused — a paused item on a terminally-dead agent can't resume). A
+				// QUEUED WorkItem is deliberately
 				// LEFT queued (DEFERRED-WITH-TRIGGER, PM): it is unstarted + not
 				// session-bound, so its work is recoverable — failing it would wrongly
 				// kill work that could still run, and the owning agent is itself visibly
@@ -251,7 +255,149 @@ func (s *Service) MarkWorkItemState(ctx context.Context, agentID agent.AgentID, 
 		if err != nil {
 			return err
 		}
-		return s.workItems.Update(txCtx, wi)
+		// v2.8.1 #278 PR1 (Tester finding): the controller-push report-active path
+		// (the ACTUAL activation path until PR4's pull-loop) can race the single-
+		// active UNIQUE index when concurrent assigns deliver multiple work
+		// commands. Map the loser's UNIQUE violation to the clean
+		// ErrAgentHasActiveWork (→ 409, not a raw 500) so the daemon's feedback
+		// log is benign and the invariant (1 active) still holds.
+		if uerr := s.workItems.Update(txCtx, wi); uerr != nil {
+			if persistence.IsUniqueViolation(uerr) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return uerr
+		}
+		return nil
+	})
+}
+
+// StartWork is the agent-PULL activation (v2.8.1 #278, @oopslink's pull model):
+// the agent — via the MCP start_work tool — selects one of its OWN queued work
+// items and marks it running (queued→active). It enforces the single-active
+// invariant (the agent processes one work item at a time): if the agent already
+// has an active/waiting_input item, this returns ErrAgentHasActiveWork and the
+// selected item stays queued. The HasActiveWorkItem pre-check gives a clean error
+// in the common case; the DB UNIQUE partial index (migration 0051) is the ATOMIC
+// backstop — under concurrent start_work the second Update violates the unique
+// constraint and rolls back, so at most one work item ever becomes active per
+// agent (race closed). Ownership-guarded: the work item must belong to agentID.
+func (s *Service) StartWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		active, err := s.workItems.HasActiveWorkItem(txCtx, agentID)
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork // already running one; pick after it settles
+		}
+		if err := wi.Activate(now); err != nil { // queued→active
+			return err
+		}
+		// Update hits the UNIQUE partial index; a concurrent start_work that passed
+		// the pre-check fails here (only one wins) → its tx rolls back, item stays
+		// queued. Map that race-loss to the SAME clean error as the pre-check path
+		// so the agent handles both consistently (benign "slot taken, try later"),
+		// not a raw driver error (Dev2 #194 review).
+		if err := s.workItems.Update(txCtx, wi); err != nil {
+			if persistence.IsUniqueViolation(err) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return err
+		}
+		return nil
+	})
+}
+
+// FailWork is the agent-PULL failure report (v2.8.1 #278): the agent marks its
+// own in-flight work item failed (active|waiting_input → failed) — the symmetric
+// terminal to complete. Freeing the active slot lets the next queued item be
+// drained (agent pulls next / reconciler advances). Ownership-guarded.
+func (s *Service) FailWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		expectedV := wi.Version()
+		if err := wi.Fail(now); err != nil {
+			return err
+		}
+		// CAS race-guard (v2.8.1 #278 PR4): if the reconciler released this active
+		// item concurrently (version moved), the agent's fail loses cleanly →
+		// ErrWorkItemReassigned (agent pulls fresh) instead of a stale double-write.
+		return s.workItems.UpdateCAS(txCtx, wi, expectedV)
+	})
+}
+
+// PauseWork (v2.8.1 #278 D PR4 scheduling autonomy): the agent sets its active
+// work item aside (active→paused) to switch to another, RELEASING the single-
+// active slot so it can start_work/resume another. CAS-guarded: a concurrent
+// reconciler-release of the (active) item moves the version → ErrWorkItemReassigned
+// (agent pulls fresh). reason is recorded for observability. Ownership-guarded.
+func (s *Service) PauseWork(ctx context.Context, agentID agent.AgentID, workItemID, reason string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		expectedV := wi.Version()
+		if err := wi.Pause(now); err != nil { // active→paused
+			return err
+		}
+		slog.Info("agent paused work item",
+			"agent_id", string(agentID), "work_item_id", workItemID, "reason", reason)
+		return s.workItems.UpdateCAS(txCtx, wi, expectedV)
+	})
+}
+
+// ResumeWork (v2.8.1 #278 D PR4 scheduling autonomy): the agent resumes a paused
+// work item (paused→active), RE-ACQUIRING the single-active slot — single-active-
+// enforced like StartWork (HasActiveWorkItem pre-check → clean ErrAgentHasActiveWork
+// + DB UNIQUE atomic backstop). The agent must pause/finish its current active item
+// first. Ownership-guarded.
+func (s *Service) ResumeWork(ctx context.Context, agentID agent.AgentID, workItemID string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		if wi.AgentID() != agentID {
+			return ErrWorkItemNotForAgent
+		}
+		active, err := s.workItems.HasActiveWorkItem(txCtx, agentID)
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork // finish/pause the current one first
+		}
+		if err := wi.Resume(now); err != nil { // paused→active
+			return err
+		}
+		if err := s.workItems.Update(txCtx, wi); err != nil {
+			if persistence.IsUniqueViolation(err) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return err
+		}
+		return nil
 	})
 }
 
@@ -331,33 +477,128 @@ func (s *Service) ArchiveAgent(ctx context.Context, id agent.AgentID) error {
 	})
 }
 
-// DeleteAgent hard-deletes a Stopped, idle agent (v2.7 #197). Guards: the agent
-// must be Stopped (else ErrAgentNotStopped — operator stops it first) and have no
-// active/waiting_input work item (else ErrAgentHasActiveWork). Deletes the agent
-// row, which releases its worker binding (worker_id column). The webconsole
-// wraps this in one tx with the identity-member delete for an atomic teardown
-// (mirrors #157's atomic create — no orphan member left behind).
-func (s *Service) DeleteAgent(ctx context.Context, id agent.AgentID) error {
+// DeleteAgent hard-deletes an agent (v2.7 #197). When force is false: guards apply
+// — the agent must be Stopped (else ErrAgentNotStopped) and have no active/
+// waiting_input work item (else ErrAgentHasActiveWork). When force is true (v2.8.1
+// force-delete, @oopslink): the process is assumed dead — the guards are skipped
+// and the agent's non-terminal WorkItems are swept so none dangle on the deleted
+// agent_id (orphan-sweep): in-flight (active/waiting_input) → FailFromAgentDeath
+// (cause=agent_death) → Task.Block (reassignable, same path as the reconciler /
+// #278 (b)); queued/paused → Cancel. Deletes the agent row, releasing its worker
+// binding. The webconsole wraps this in one tx with the identity-member delete for
+// an atomic teardown (mirrors #157 — no orphan member left behind).
+func (s *Service) DeleteAgent(ctx context.Context, id agent.AgentID, force bool) error {
 	a, err := s.agents.FindByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	if a.Lifecycle() != agent.LifecycleStopped {
-		return agent.ErrAgentNotStopped
+	if !force {
+		if a.Lifecycle() != agent.LifecycleStopped {
+			return agent.ErrAgentNotStopped
+		}
+		active, err := s.workItems.HasActiveWorkItem(ctx, id)
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork
+		}
+	} else if err := s.sweepWorkItemsForForceDelete(ctx, id); err != nil {
+		return err
 	}
-	active, err := s.workItems.HasActiveWorkItem(ctx, id)
+	return s.agents.Delete(ctx, id)
+}
+
+// sweepWorkItemsForForceDelete terminates every non-terminal WorkItem of an agent
+// being force-deleted so nothing references the now-deleted agent_id. In-flight
+// items fail (→ Task.Block via the (b) fix, reassignable); queued/paused items are
+// canceled (no Task cascade). CAS-guarded: a concurrent agent complete/transition
+// wins cleanly (skipped on ErrWorkItemReassigned).
+func (s *Service) sweepWorkItemsForForceDelete(ctx context.Context, id agent.AgentID) error {
+	items, err := s.workItems.ListByAgent(ctx, id)
 	if err != nil {
 		return err
 	}
-	if active {
-		return agent.ErrAgentHasActiveWork
+	now := s.clock.Now()
+	for _, w := range items {
+		if w.Status().IsTerminal() {
+			continue
+		}
+		preV := w.Version()
+		var terr error
+		switch w.Status() {
+		case agent.WorkItemActive, agent.WorkItemWaitingInput:
+			terr = w.FailFromAgentDeath(now)
+		default: // queued / paused
+			terr = w.Cancel(now)
+		}
+		if terr != nil {
+			continue
+		}
+		if err := s.workItems.UpdateCAS(ctx, w, preV); err != nil {
+			if errors.Is(err, agent.ErrWorkItemReassigned) {
+				continue
+			}
+			return err
+		}
 	}
-	return s.agents.Delete(ctx, id)
+	return nil
+}
+
+// AgentsByWorker returns the agents bound to a worker (worker_id binding). Used by
+// the worker force-delete handler to detect bound agents (busy-guard / unbind).
+func (s *Service) AgentsByWorker(ctx context.Context, workerID string) ([]*agent.Agent, error) {
+	return s.agents.ListByWorker(ctx, workerID)
+}
+
+// UnbindAgentsFromWorker clears the worker binding of every agent bound to a
+// force-deleted worker (v2.8.1), returning the count unbound. The agents become
+// worker-less (retained, NOT archived) — re-bindable later. Called by the worker
+// force-delete handler (composition layer) so the agent BC owns the binding write.
+func (s *Service) UnbindAgentsFromWorker(ctx context.Context, workerID string) (int, error) {
+	return s.agents.ClearWorkerBindings(ctx, workerID, s.clock.Now())
 }
 
 // ListWorkItems returns an Agent's work items (queue + history).
 func (s *Service) ListWorkItems(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
 	return s.workItems.ListByAgent(ctx, id)
+}
+
+// GetMyActiveWork returns the agent's currently-ACTIVE work items (status active)
+// — the loop-boundary "do I already have a task in progress?" query the agent
+// calls (get_my_active_work MCP) before pulling new work (resume-first, v2.8.1
+// #278 D PR4). Single-active means ≤1; returned as a slice. waiting_input (parked
+// for a human) is intentionally NOT included — it is not a resumable in-progress
+// task.
+func (s *Service) GetMyActiveWork(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
+	all, err := s.workItems.ListByAgent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agent.AgentWorkItem, 0, 1)
+	for _, wi := range all {
+		if wi.Status() == agent.WorkItemActive {
+			out = append(out, wi)
+		}
+	}
+	return out, nil
+}
+
+// ListMyPausedWork returns the agent's PAUSED work items — the resume candidates
+// the agent lists (list_my_paused_work MCP) to pick one for resume_paused_work
+// (v2.8.1 #278 D PR4 scheduling autonomy).
+func (s *Service) ListMyPausedWork(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
+	all, err := s.workItems.ListByAgent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agent.AgentWorkItem, 0)
+	for _, wi := range all {
+		if wi.Status() == agent.WorkItemPaused {
+			out = append(out, wi)
+		}
+	}
+	return out, nil
 }
 
 // ListActivity returns an Agent's activity events newest-first (id DESC). v2.8
@@ -366,4 +607,13 @@ func (s *Service) ListWorkItems(ctx context.Context, id agent.AgentID) ([]*agent
 // default (omitted → 50) and the next_cursor; the service/repo pass it through.
 func (s *Service) ListActivity(ctx context.Context, id agent.AgentID, limit int, before string) ([]*agent.AgentActivityEvent, error) {
 	return s.activity.ListByAgent(ctx, id, limit, before)
+}
+
+// LatestActivityByAgents returns the single most-recent activity event per agent
+// across the whole input set in ONE batch query (NO N+1) — the v2.8.1 agents-list
+// enrich uses it to render last_activity_at/last_activity_content for the whole
+// page without a per-agent round-trip. Pass the execution-entity AgentIDs (the
+// agent_activity_events partition key). Agents with no events have no map entry.
+func (s *Service) LatestActivityByAgents(ctx context.Context, ids []agent.AgentID) (map[agent.AgentID]*agent.AgentActivityEvent, error) {
+	return s.activity.LatestByAgents(ctx, ids)
 }

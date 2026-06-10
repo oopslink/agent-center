@@ -70,11 +70,16 @@ func pmMemberMap(m *pm.ProjectMember) map[string]any {
 }
 
 func pmIssueMap(i *pm.Issue) map[string]any {
+	tags := i.Tags()
+	if tags == nil {
+		tags = []string{}
+	}
 	m := map[string]any{
 		"id": string(i.ID()), "project_id": string(i.ProjectID()), "title": i.Title(),
 		"description": i.Description(), "status": string(i.Status()), "created_by": string(i.CreatedBy()),
 		"version": i.Version(), "created_at": i.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": i.UpdatedAt().Format(time.RFC3339Nano),
+		"tags":       tags, "status_changed_at": rfc3339OrEmpty(i.StatusChangedAt()),
 	}
 	if ref := orgRefToken("I", i.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
@@ -83,17 +88,39 @@ func pmIssueMap(i *pm.Issue) map[string]any {
 }
 
 func pmTaskMap(t *pm.Task) map[string]any {
+	tags := t.Tags()
+	if tags == nil {
+		tags = []string{}
+	}
 	m := map[string]any{
 		"id": string(t.ID()), "project_id": string(t.ProjectID()), "title": t.Title(),
 		"description": t.Description(), "status": string(t.Status()), "assignee": string(t.Assignee()),
 		"derived_from_issue": string(t.DerivedFromIssue()), "completed_by": string(t.CompletedBy()),
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
+		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
 	}
 	return m
+}
+
+// orEmptyTags returns the tag slice, or a non-nil empty slice so the DTO emits
+// [] rather than null.
+func orEmptyTags(tags []string) []string {
+	if tags == nil {
+		return []string{}
+	}
+	return tags
+}
+
+// rfc3339OrEmpty formats a timestamp as RFC3339Nano, or "" when zero.
+func rfc3339OrEmpty(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339Nano)
 }
 
 // orgRefToken renders the v2.7.1 #245 display/reference token ("T<n>"/"I<n>"),
@@ -496,6 +523,38 @@ func (s *Server) pmUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pmTaskMap(got))
 }
 
+// pmBatchUpdateTaskHandler applies any subset of {status, assignee, tags} to a
+// task in one atomic tx (v2.8.1 edit-task #278). A field absent from the JSON
+// body (nil pointer) is left unchanged; assignee:"" unassigns. This is the bare
+// PATCH on the task; the typed sub-routes (.../assign, .../status, ...) remain.
+func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status      *string   `json:"status"`
+		Assignee    *string   `json:"assignee"`
+		Tags        *[]string `json:"tags"`
+		Title       *string   `json:"title"`
+		Description *string   `json:"description"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.BatchUpdateTask(r.Context(), t.ID(), pmservice.BatchTaskPatch{
+		Status: req.Status, Assignee: req.Assignee, Tags: req.Tags,
+		Title: req.Title, Description: req.Description,
+	}, caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetTask(r.Context(), t.ID())
+	writeJSON(w, http.StatusOK, pmTaskMap(got))
+}
+
 // pmRequireTaskInProject resolves {project_id}+{task_id}, verifying both org
 // membership and that the task belongs to the path project.
 func (s *Server) pmRequireTaskInProject(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*pm.Task, pm.IdentityRef, bool) {
@@ -572,9 +631,62 @@ func (s *Server) pmVerifyTaskHandler(w http.ResponseWriter, r *http.Request) {
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.VerifyTask(r.Context(), id, c) })
 }
 
-func (s *Server) pmCancelTaskHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) pmDiscardTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.CancelTask(r.Context(), id, c) })
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.DiscardTask(r.Context(), id, c) })
+}
+
+// pmSetTaskStatusHandler — POST /tasks/{task_id}/status {status}: free status set
+// (v2.8.1 @oopslink: any VALID target, NO adjacency — the Change-status menu
+// offers the full enum). 400 on an invalid enum value; 404/403 via the resolver.
+func (s *Server) pmSetTaskStatusHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.SetTaskStatus(r.Context(), t.ID(), pm.TaskStatus(req.Status), caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetTask(r.Context(), t.ID())
+	writeJSON(w, http.StatusOK, pmTaskMap(got))
+}
+
+// pmSetIssueStatusHandler — POST /issues/{issue_id}/status {status}: free status
+// set (v2.8.1, any VALID target, NO adjacency). Symmetric with the task path.
+func (s *Server) pmSetIssueStatusHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	issueID := pm.IssueID(r.PathValue("issue_id"))
+	i, err := d.PM.GetIssue(r.Context(), issueID)
+	if err != nil || i.ProjectID() != p.ID() {
+		writeError(w, http.StatusNotFound, "not_found", "issue not found in this project")
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.SetIssueStatus(r.Context(), issueID, pm.IssueStatus(req.Status), caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetIssue(r.Context(), issueID)
+	writeJSON(w, http.StatusOK, pmIssueMap(got))
 }
 
 func (s *Server) pmUnassignTaskHandler(w http.ResponseWriter, r *http.Request) {
@@ -638,4 +750,36 @@ func (s *Server) pmListCodeReposHandler(w http.ResponseWriter, r *http.Request) 
 		out = append(out, pmCodeRepoMap(c))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"code_repos": out})
+}
+
+// pmBatchUpdateIssueHandler — the bare PATCH /issues/{id} (v2.8.1 edit-consolidation):
+// an atomic dirty-only multi-field save (title/description/status/tags) so the
+// Edit-Issue modal can replace the issue-detail sidebar's per-field inline editors.
+// The Issue analogue of pmBatchUpdateTaskHandler; issues have NO assignee. Superset
+// of the old title/description-only pmUpdateIssueHandler (left unused), mirroring the
+// #232 task repoint (avoids the Go-mux duplicate-route panic).
+func (s *Server) pmBatchUpdateIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	i, caller, ok := s.pmRequireIssueInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status      *string   `json:"status"`
+		Tags        *[]string `json:"tags"`
+		Title       *string   `json:"title"`
+		Description *string   `json:"description"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.BatchUpdateIssue(r.Context(), i.ID(), pmservice.BatchIssuePatch{
+		Status: req.Status, Tags: req.Tags, Title: req.Title, Description: req.Description,
+	}, caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetIssue(r.Context(), i.ID())
+	writeJSON(w, http.StatusOK, pmIssueMap(got))
 }

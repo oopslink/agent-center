@@ -6,45 +6,50 @@ import (
 	"time"
 )
 
-// TaskStatus enum + state machine (plan §2.2):
+// TaskStatus enum + state machine (v2.8.1 model fix — @oopslink: "assigned 和
+// open 不是一个层级的状态，assigned 还没开始做，还是 open 状态"):
 //
-//	open → assigned → running → blocked → running
+//	open → running → blocked → running
 //	running → completed → verified
-//	open/assigned/running/blocked → canceled
+//	open/running/blocked → discarded (terminal)
 //	completed/verified → reopened → open
-//	assigned → open  (unassign)
+//
+// The former "assigned" STATE is removed: assignee is PURE METADATA (set/cleared
+// in any non-terminal state via Assign/Unassign), not a workflow state. A task
+// with an assignee is still "open" until the agent starts it (open→running). The
+// former "canceled" state is renamed "discarded" (uniform 废弃 semantic with
+// Issue's discarded).
 type TaskStatus string
 
 const (
 	TaskOpen      TaskStatus = "open"
-	TaskAssigned  TaskStatus = "assigned"
 	TaskRunning   TaskStatus = "running"
 	TaskBlocked   TaskStatus = "blocked"
 	TaskCompleted TaskStatus = "completed"
 	TaskVerified  TaskStatus = "verified"
-	TaskCanceled  TaskStatus = "canceled"
+	TaskDiscarded TaskStatus = "discarded" // was "canceled" (v2.8.1 rename)
 	TaskReopened  TaskStatus = "reopened"
 )
 
 // IsValid reports enum membership.
 func (s TaskStatus) IsValid() bool {
 	switch s {
-	case TaskOpen, TaskAssigned, TaskRunning, TaskBlocked,
-		TaskCompleted, TaskVerified, TaskCanceled, TaskReopened:
+	case TaskOpen, TaskRunning, TaskBlocked,
+		TaskCompleted, TaskVerified, TaskDiscarded, TaskReopened:
 		return true
 	}
 	return false
 }
 
-// taskTransitions is the allowed-transition adjacency (plan §2.2).
+// taskTransitions is the allowed-transition adjacency. Start moves open→running
+// directly (assignment is metadata, not a precondition state).
 var taskTransitions = map[TaskStatus][]TaskStatus{
-	TaskOpen:      {TaskAssigned, TaskCanceled},
-	TaskAssigned:  {TaskRunning, TaskOpen, TaskCanceled}, // TaskOpen = unassign
-	TaskRunning:   {TaskBlocked, TaskCompleted, TaskCanceled},
-	TaskBlocked:   {TaskRunning, TaskCanceled},
+	TaskOpen:      {TaskRunning, TaskDiscarded},
+	TaskRunning:   {TaskBlocked, TaskCompleted, TaskDiscarded},
+	TaskBlocked:   {TaskRunning, TaskDiscarded},
 	TaskCompleted: {TaskVerified, TaskReopened},
 	TaskVerified:  {TaskReopened},
-	TaskCanceled:  {}, // terminal
+	TaskDiscarded: {}, // terminal
 	TaskReopened:  {TaskOpen},
 }
 
@@ -59,14 +64,14 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 }
 
 // IsTerminal reports whether the task has reached a concluded state: work is
-// done (completed/verified) or abandoned (canceled). A Reopen can re-activate a
+// done (completed/verified) or abandoned (discarded). A Reopen can re-activate a
 // completed/verified task, but in any concluded state the task is not "active
 // work in flight". The complement (the active / non-terminal set) is exactly
-// {open, assigned, running, blocked, reopened}. v2.7 #107 Phase-2 (proj-B):
-// the observability default task-query set is the non-terminal set.
+// {open, running, blocked, reopened}. v2.7 #107 Phase-2 (proj-B): the
+// observability default task-query set is the non-terminal set.
 func (s TaskStatus) IsTerminal() bool {
 	switch s {
-	case TaskCompleted, TaskVerified, TaskCanceled:
+	case TaskCompleted, TaskVerified, TaskDiscarded:
 		return true
 	}
 	return false
@@ -94,6 +99,13 @@ type Task struct {
 	// (v2.7.1 #245, rendered "T<n>"). Allocated at create by the org sequence; 0
 	// for rows predating the allocator / not yet backfilled (DTO omits org_ref then).
 	orgNumber int
+	// tags is the free-form label set (v2.8.1 edit-task #278). nil/empty when no
+	// tags; cleaned + deduped + bounded (1..16 chars each, <=10 entries) by SetTags.
+	tags []string
+	// statusChangedAt records when status last changed (v2.8.1 #278). Set to
+	// createdAt at construction; updated to `at` on every status mutation (NOT on
+	// metadata edits like rename/assign/tags).
+	statusChangedAt time.Time
 }
 
 // NewTaskInput captures constructor args.
@@ -141,6 +153,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		updatedAt:        at,
 		version:          1,
 		orgNumber:        in.OrgNumber,
+		statusChangedAt:  at,
 	}, nil
 }
 
@@ -160,6 +173,8 @@ type RehydrateTaskInput struct {
 	UpdatedAt        time.Time
 	Version          int
 	OrgNumber        int
+	Tags             []string
+	StatusChangedAt  time.Time
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -169,6 +184,12 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 	}
 	if in.Version < 1 {
 		return nil, errors.New("projectmanager: version must be >= 1")
+	}
+	// statusChangedAt fallback: old rows predating the column store '' (zero) →
+	// fall back to updated_at so the field is never zero for a valid row.
+	statusChangedAt := in.StatusChangedAt.UTC()
+	if in.StatusChangedAt.IsZero() {
+		statusChangedAt = in.UpdatedAt.UTC()
 	}
 	return &Task{
 		id:               in.ID,
@@ -185,24 +206,42 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		updatedAt:        in.UpdatedAt.UTC(),
 		version:          in.Version,
 		orgNumber:        in.OrgNumber,
+		tags:             in.Tags,
+		statusChangedAt:  statusChangedAt,
 	}, nil
 }
 
 // Getters.
-func (t *Task) ID() TaskID                { return t.id }
-func (t *Task) ProjectID() ProjectID      { return t.projectID }
-func (t *Task) Title() string             { return t.title }
-func (t *Task) Description() string       { return t.description }
-func (t *Task) Status() TaskStatus        { return t.status }
-func (t *Task) Assignee() IdentityRef     { return t.assignee }
-func (t *Task) DerivedFromIssue() IssueID { return t.derivedFromIssue }
-func (t *Task) CompletedBy() IdentityRef  { return t.completedBy }
-func (t *Task) BlockedReason() string     { return t.blockedReason }
-func (t *Task) CreatedBy() IdentityRef    { return t.createdBy }
-func (t *Task) OrgNumber() int            { return t.orgNumber }
-func (t *Task) CreatedAt() time.Time      { return t.createdAt }
-func (t *Task) UpdatedAt() time.Time      { return t.updatedAt }
-func (t *Task) Version() int              { return t.version }
+func (t *Task) ID() TaskID                 { return t.id }
+func (t *Task) ProjectID() ProjectID       { return t.projectID }
+func (t *Task) Title() string              { return t.title }
+func (t *Task) Description() string        { return t.description }
+func (t *Task) Status() TaskStatus         { return t.status }
+func (t *Task) Assignee() IdentityRef      { return t.assignee }
+func (t *Task) DerivedFromIssue() IssueID  { return t.derivedFromIssue }
+func (t *Task) CompletedBy() IdentityRef   { return t.completedBy }
+func (t *Task) BlockedReason() string      { return t.blockedReason }
+func (t *Task) CreatedBy() IdentityRef     { return t.createdBy }
+func (t *Task) OrgNumber() int             { return t.orgNumber }
+func (t *Task) CreatedAt() time.Time       { return t.createdAt }
+func (t *Task) UpdatedAt() time.Time       { return t.updatedAt }
+func (t *Task) Version() int               { return t.version }
+func (t *Task) Tags() []string             { return t.tags }
+func (t *Task) StatusChangedAt() time.Time { return t.statusChangedAt }
+
+// SetTags replaces the task's label set (metadata edit, NOT a status change).
+// Each tag is trimmed; blank tags and tags longer than 16 chars are rejected;
+// exact duplicates are dropped; more than 10 distinct tags is rejected. The
+// cleaned/deduped slice is stored. Does NOT touch statusChangedAt.
+func (t *Task) SetTags(tags []string, at time.Time) error {
+	cleaned, err := cleanTags(tags)
+	if err != nil {
+		return err
+	}
+	t.tags = cleaned
+	t.touch(at)
+	return nil
+}
 
 // Rename updates the display title (metadata edit, not a state transition).
 func (t *Task) Rename(title string, at time.Time) error {
@@ -220,22 +259,16 @@ func (t *Task) SetDescription(desc string, at time.Time) {
 	t.touch(at)
 }
 
-// Assign sets the assignee and moves open→assigned (or re-targets an already
-// assigned task — the AppService orchestrates the AgentWorkItem supersede in
-// B2; here we update assignment truth).
+// Assign sets the assignee as METADATA — it does NOT change the task's workflow
+// state (v2.8.1 model fix: there is no "assigned" state; an assigned task is
+// still "open" until started). Allowed in any non-terminal state; re-targets an
+// already-assigned task. The AppService still emits pm.task.assigned so the
+// WorkItemProjector dispatches the agent WorkItem.
 func (t *Task) Assign(assignee IdentityRef, at time.Time) error {
 	if err := assignee.Validate(); err != nil {
 		return err
 	}
-	switch t.status {
-	case TaskOpen:
-		if !t.status.CanTransitionTo(TaskAssigned) {
-			return ErrIllegalTransition
-		}
-		t.status = TaskAssigned
-	case TaskAssigned:
-		// re-assignment keeps status assigned, changes assignee
-	default:
+	if t.status.IsTerminal() {
 		return ErrIllegalTransition
 	}
 	t.assignee = assignee
@@ -243,18 +276,19 @@ func (t *Task) Assign(assignee IdentityRef, at time.Time) error {
 	return nil
 }
 
-// Unassign clears the assignee, moving assigned→open.
+// Unassign clears the assignee (metadata edit; no state change). Allowed in any
+// non-terminal state.
 func (t *Task) Unassign(at time.Time) error {
-	if t.status != TaskAssigned {
+	if t.status.IsTerminal() {
 		return ErrIllegalTransition
 	}
 	t.assignee = ""
-	t.status = TaskOpen
 	t.touch(at)
 	return nil
 }
 
-// Start moves assigned→running.
+// Start moves open→running (the agent picked up the work; assignment is metadata,
+// not a precondition state).
 func (t *Task) Start(at time.Time) error { return t.simpleTransition(TaskRunning, at) }
 
 // Block moves running→blocked with a required reason (plan §2.2).
@@ -266,6 +300,7 @@ func (t *Task) Block(reason string, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	t.status = TaskBlocked
+	t.statusChangedAt = at.UTC()
 	t.blockedReason = reason
 	t.touch(at)
 	return nil
@@ -290,6 +325,7 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	t.status = TaskCompleted
+	t.statusChangedAt = at.UTC()
 	t.completedBy = by
 	t.touch(at)
 	return nil
@@ -309,12 +345,33 @@ func (t *Task) Verify(by IdentityRef, at time.Time) error {
 		return ErrSelfVerify
 	}
 	t.status = TaskVerified
+	t.statusChangedAt = at.UTC()
 	t.touch(at)
 	return nil
 }
 
-// Cancel moves open/assigned/running/blocked→canceled (terminal).
-func (t *Task) Cancel(at time.Time) error { return t.simpleTransition(TaskCanceled, at) }
+// Discard moves open/running/blocked→discarded (terminal; was "Cancel" pre-v2.8.1).
+func (t *Task) Discard(at time.Time) error { return t.simpleTransition(TaskDiscarded, at) }
+
+// SetStatus sets the status to any VALID target with NO adjacency enforcement
+// (v2.8.1 @oopslink: "task state = agent's self-reported progress, the center does
+// not enforce workflow rules"). The only check is enum validity; any valid state
+// is reachable from any state (the Change-status menu offers the full enum). The
+// typed transitions (Start/Block/Complete/Verify/Discard/Reopen) remain for the
+// agent's structured self-reports + the system projector, which carry their own
+// side-effects (blocked reason, completedBy); SetStatus is the free user override.
+func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
+	if !target.IsValid() {
+		return ErrInvalidStatus
+	}
+	if target == t.status {
+		return nil // no-op (idempotent); avoids a spurious version bump
+	}
+	t.status = target
+	t.statusChangedAt = at.UTC()
+	t.touch(at)
+	return nil
+}
 
 // Reopen moves completed/verified→reopened.
 func (t *Task) Reopen(at time.Time) error { return t.simpleTransition(TaskReopened, at) }
@@ -340,6 +397,7 @@ func (t *Task) simpleTransition(to TaskStatus, at time.Time) error {
 		return ErrIllegalTransition
 	}
 	t.status = to
+	t.statusChangedAt = at.UTC()
 	t.touch(at)
 	return nil
 }
@@ -350,4 +408,37 @@ func (t *Task) touch(at time.Time) {
 	}
 	t.updatedAt = at.UTC()
 	t.version++
+}
+
+// cleanTags trims, validates, and dedups a tag set shared by Task.SetTags and
+// Issue.SetTags (v2.8.1 edit #278): each tag must be 1..16 chars after trimming;
+// exact duplicates are dropped (first occurrence kept); at most 10 distinct tags.
+// Returns nil for an empty input (no tags).
+func cleanTags(tags []string) ([]string, error) {
+	if len(tags) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, raw := range tags {
+		tag := strings.TrimSpace(raw)
+		if tag == "" {
+			return nil, errors.New("projectmanager: tag must be 1..16 chars")
+		}
+		if len([]rune(tag)) > 16 {
+			return nil, errors.New("projectmanager: tag must be 1..16 chars")
+		}
+		if _, dup := seen[tag]; dup {
+			continue
+		}
+		seen[tag] = struct{}{}
+		out = append(out, tag)
+	}
+	if len(out) > 10 {
+		return nil, errors.New("projectmanager: at most 10 tags allowed")
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }

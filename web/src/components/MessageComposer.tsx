@@ -71,7 +71,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
 
   return (
     <form
-      className="flex items-end gap-2 border-t border-border-base bg-bg-elevated p-3"
+      className="flex items-center gap-2 border-t border-border-base bg-bg-elevated p-3"
       data-testid="message-composer"
       onSubmit={(e) => {
         e.preventDefault();
@@ -92,7 +92,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
         )}
         <textarea
           ref={textareaRef}
-          className="min-h-[2.5rem] w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
+          className="h-10 w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-0 text-sm leading-10 text-text-primary placeholder:text-text-muted focus:border-accent"
           rows={1}
           aria-label="Message"
           role="combobox"
@@ -120,7 +120,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
         />
       </div>
       <label
-        className="flex cursor-pointer items-center rounded border border-border-strong px-3 py-2 text-text-primary hover:bg-bg-subtle"
+        className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle"
         title="Attach file"
         aria-label="Attach file"
         data-testid="composer-attach"
@@ -147,7 +147,7 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
       <button
         type="submit"
         disabled={disabled}
-        className="flex items-center rounded bg-text-primary px-4 py-2 text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
         data-testid="composer-send"
         title="Send (Enter)"
         aria-label="Send"

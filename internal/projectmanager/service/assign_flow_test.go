@@ -215,19 +215,19 @@ func TestReassign_DropsOldAssigneeFromSubscribers(t *testing.T) {
 	}
 }
 
-func TestCancelTask(t *testing.T) {
+func TestDiscardTask(t *testing.T) {
 	svc, _, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
-	if err := svc.CancelTask(ctx, tid, "user:a"); err != nil {
+	if err := svc.DiscardTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	tk, _ := svc.tasks.FindByID(ctx, tid)
-	if tk.Status() != pm.TaskCanceled {
+	if tk.Status() != pm.TaskDiscarded {
 		t.Fatalf("want canceled, got %s", tk.Status())
 	}
 	// non-member can't cancel another project's task
-	if err := svc.CancelTask(ctx, tid, "user:stranger"); err != ErrNotMember {
+	if err := svc.DiscardTask(ctx, tid, "user:stranger"); err != ErrNotMember {
 		t.Fatalf("non-member cancel want ErrNotMember, got %v", err)
 	}
 }
@@ -484,12 +484,13 @@ func TestUnassignReopen_Gating(t *testing.T) {
 	if err := svc.ReopenTask(ctx, tid, "user:stranger"); err != ErrNotMember {
 		t.Fatalf("reopen by non-member: want ErrNotMember, got %v", err)
 	}
-	// unassign from a non-assigned state is an illegal transition.
+	// v2.8.1: unassign is a metadata clear (no "assigned" state) — allowed in any
+	// non-terminal state and idempotent (a repeat unassign is a no-op, not illegal).
 	if err := svc.UnassignTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.UnassignTask(ctx, tid, "user:a"); err != pm.ErrIllegalTransition {
-		t.Fatalf("unassign from open: want ErrIllegalTransition, got %v", err)
+	if err := svc.UnassignTask(ctx, tid, "user:a"); err != nil {
+		t.Fatalf("repeat unassign (metadata, idempotent): want nil, got %v", err)
 	}
 	// unsubscribe by non-member is gated too.
 	if err := svc.UnsubscribeTask(ctx, tid, "agent:AG1", "user:stranger"); err != ErrNotMember {

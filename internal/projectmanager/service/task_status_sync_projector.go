@@ -59,17 +59,22 @@ func (p *TaskStatusSyncProjector) Project(ctx context.Context, e outbox.Event) e
 	if !ok {
 		return nil
 	}
-	// Map the work-item transition to its task-status effect (v2.7 scope):
-	//   - active                          → Task.Start (assigned→running)
-	//   - failed & cause=agent_death (B3) → Task.Block (running→blocked)
-	// Everything else is a no-op: L2 single-turn failed (no cause), done (owned
-	// by complete_task), canceled/superseded/waiting_input, and creation.
+	// Map the work-item transition to its task-status effect:
+	//   - active          → Task.Start (open→running; v2.8.1: no "assigned" state)
+	//   - failed (ANY cause) → Task.Block (running→blocked) — v2.8.1 #278 (b) fix.
+	//     Covers BOTH WorkItem-failed sources: agent crash/circuit-break (cause=
+	//     agent_death) AND L2 turn errors (no cause, e.g. rate_limit) AND the
+	//     reconciler's stuck-release (FailFromAgentDeath). Driven by the WI status
+	//     transition (not a specific fail path) → both sources covered. Before this,
+	//     L2 single-turn failed (no cause) was a no-op → task stuck running (limbo).
+	// Everything else is a no-op: done (owned by complete_task),
+	// canceled/superseded/waiting_input, and creation.
 	var apply func(context.Context, pm.TaskID) error
 	switch {
 	case pl.Status == string(agentpkg.WorkItemActive):
-		apply = p.svc.startTaskIfAssigned
-	case pl.Status == string(agentpkg.WorkItemFailed) && pl.Cause == agentpkg.WorkItemCauseAgentDeath:
-		apply = p.svc.blockTaskOnAgentDeath
+		apply = p.svc.startTaskIfOpen
+	case pl.Status == string(agentpkg.WorkItemFailed):
+		apply = p.svc.blockTaskOnFailure
 	default:
 		return nil
 	}
@@ -89,18 +94,19 @@ func (p *TaskStatusSyncProjector) Project(ctx context.Context, e outbox.Event) e
 
 var _ outbox.Projector = (*TaskStatusSyncProjector)(nil)
 
-// startTaskIfAssigned moves an assigned Task to running (system path driven by the
+// startTaskIfOpen moves an open Task to running (system path driven by the
 // work-item active transition — NO project-member check, unlike StartTask which
-// is a user action). A no-op when the Task is not assigned (e.g. already running
-// on a wake re-activation), which keeps the projector idempotent across the
-// multi-interaction wait→wake loop. Same-tx: the row update + state_changed emit
-// join the caller's tx.
-func (s *Service) startTaskIfAssigned(ctx context.Context, taskID pm.TaskID) error {
+// is a user action). v2.8.1: an assigned task is "open" (no "assigned" state), so
+// the active transition starts an OPEN task. A no-op when the Task is not open
+// (e.g. already running on a wake re-activation), which keeps the projector
+// idempotent across the multi-interaction wait→wake loop. Same-tx: the row update
+// + state_changed emit join the caller's tx.
+func (s *Service) startTaskIfOpen(ctx context.Context, taskID pm.TaskID) error {
 	t, err := s.tasks.FindByID(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	if t.Status() != pm.TaskAssigned {
+	if t.Status() != pm.TaskOpen {
 		return nil
 	}
 	if err := t.Start(s.clock.Now()); err != nil {
@@ -112,16 +118,19 @@ func (s *Service) startTaskIfAssigned(ctx context.Context, taskID pm.TaskID) err
 	return s.emitTaskStateChanged(ctx, t, "")
 }
 
-// taskBlockedAgentDeathReason is the block reason stamped when a Task is blocked
-// because its agent hit the B3 crash circuit-break.
-const taskBlockedAgentDeathReason = "agent execution failed (circuit-break)"
+// taskBlockedOnFailureReason is the block reason stamped when a Task is blocked
+// because its WorkItem failed (any cause — agent crash/circuit-break, reconciler
+// stuck-release, or an L2 turn error like rate_limit). Generic so it is accurate
+// across all failure sources (v2.8.1 #278 (b) fix).
+const taskBlockedOnFailureReason = "agent execution failed"
 
-// blockTaskOnAgentDeath moves a running Task to blocked when its agent hit the B3
-// crash circuit-break (system path; no project-member check). A no-op when the
-// Task is not running: assigned (the WorkItem never activated → agent died before
-// pickup) is left assigned per the 口径 edge (agent-level failed already surfaces,
-// the user reassigns); already-blocked is idempotent; terminal is skipped.
-func (s *Service) blockTaskOnAgentDeath(ctx context.Context, taskID pm.TaskID) error {
+// blockTaskOnFailure moves a running Task to blocked when its WorkItem failed (any
+// cause; system path, no project-member check). A no-op when the Task is not
+// running: assigned (the WorkItem never activated → failed before pickup) is left
+// assigned per the 口径 edge (agent-level failed already surfaces, the user
+// reassigns); already-blocked is idempotent; terminal is skipped. The user/agent
+// unblocks via reopened or re-dispatch.
+func (s *Service) blockTaskOnFailure(ctx context.Context, taskID pm.TaskID) error {
 	t, err := s.tasks.FindByID(ctx, taskID)
 	if err != nil {
 		return err
@@ -129,11 +138,11 @@ func (s *Service) blockTaskOnAgentDeath(ctx context.Context, taskID pm.TaskID) e
 	if t.Status() != pm.TaskRunning {
 		return nil
 	}
-	if err := t.Block(taskBlockedAgentDeathReason, s.clock.Now()); err != nil {
+	if err := t.Block(taskBlockedOnFailureReason, s.clock.Now()); err != nil {
 		return err
 	}
 	if err := s.tasks.Update(ctx, t); err != nil {
 		return err
 	}
-	return s.emitTaskStateChanged(ctx, t, taskBlockedAgentDeathReason)
+	return s.emitTaskStateChanged(ctx, t, taskBlockedOnFailureReason)
 }

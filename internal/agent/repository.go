@@ -1,6 +1,9 @@
 package agent
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Repository persists Agent ARs (C1, task #99). The implementation lives in the
 // sqlite subpackage and honors persistence.ExecutorFromCtx so C2's
@@ -26,6 +29,12 @@ type Repository interface {
 	// ListByWorker returns agents bound to a Worker (one Worker controls many
 	// Agents — Environment availability derivation walks this).
 	ListByWorker(ctx context.Context, workerID string) ([]*Agent, error)
+	// ClearWorkerBindings unbinds every agent of a Worker (worker_id → "") WITHOUT
+	// archiving them — the second legitimate place worker_id changes (v2.8.1
+	// force-delete: a force-removed Worker's agents become worker-less, retained &
+	// re-bindable). Bulk row update (admin destructive op); returns the count
+	// unbound. `at` stamps updated_at.
+	ClearWorkerBindings(ctx context.Context, workerID string, at time.Time) (int, error)
 	// Delete hard-removes the agent row (v2.7 #197). The worker binding lives on
 	// the agent row (worker_id column), so deleting the row releases it — the
 	// worker is untouched and free to bind a new agent. Idempotent: absent id =
@@ -38,6 +47,11 @@ type Repository interface {
 type WorkItemRepository interface {
 	Save(ctx context.Context, w *AgentWorkItem) error
 	Update(ctx context.Context, w *AgentWorkItem) error
+	// UpdateCAS persists w only if its stored version still equals expectedVersion
+	// (optimistic lock). On a version conflict (a concurrent writer committed
+	// first, e.g. the reconciler released the item) → ErrWorkItemReassigned; a
+	// missing row → ErrWorkItemNotFound. v2.8.1 #278 PR4 race guard.
+	UpdateCAS(ctx context.Context, w *AgentWorkItem, expectedVersion int) error
 	FindByID(ctx context.Context, id string) (*AgentWorkItem, error)
 	// ListByAgent returns an agent's work items (queue + history).
 	ListByAgent(ctx context.Context, agentID AgentID) ([]*AgentWorkItem, error)
@@ -62,4 +76,10 @@ type ActivityEventRepository interface {
 	ListByAgent(ctx context.Context, agentID AgentID, limit int, before string) ([]*AgentActivityEvent, error)
 	// ListByWorkItem returns events for one WorkItem segment, oldest first.
 	ListByWorkItem(ctx context.Context, workItemRef string) ([]*AgentActivityEvent, error)
+	// LatestByAgents batch-fetches the single most-recent activity event per agent
+	// across the whole input set in ONE window-function query (NO N+1) — the v2.8.1
+	// agents-list enrich uses it to render last_activity_at/last_activity_content for
+	// the whole page in one round-trip. Agents with no events have no map entry; empty
+	// input → empty map.
+	LatestByAgents(ctx context.Context, agentIDs []AgentID) (map[AgentID]*AgentActivityEvent, error)
 }

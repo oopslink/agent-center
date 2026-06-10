@@ -101,6 +101,53 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "List the calling agent's own work items (its task queue + history).",
 	}, makeGetMyWork(cfg))
 
+	// v2.8.1 #278 D (pull model): the agent works its OWN queue one item at a
+	// time — pick a queued item from get_my_work, start_work it (mark running),
+	// do it, complete_task it, then start_work the next. Only one work item may
+	// be running at a time (start_work returns agent_busy if one is already
+	// active). fail_work reports the running item as failed.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "start_work",
+		Description: "Start working on one of your queued work items (mark it running). Pick a work_item_id from get_my_work. Only ONE work item can be running at a time — finish (complete_task) or fail (fail_work) the current one before starting the next. Returns agent_busy if you already have a running item.",
+	}, makeStartWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "fail_work",
+		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
+	}, makeFailWork(cfg))
+
+	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
+	// optionally resume it later.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "pause_work",
+		Description: "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_work a different item). Resume it later with resume_paused_work. Use only when scheduling needs it — by default finish your current task first.",
+	}, makePauseWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "resume_paused_work",
+		Description: "Resume a previously paused work item (pick its id from list_my_paused_work) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
+	}, makeResumeWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_my_active_work",
+		Description: "List your currently-RUNNING work item(s). Call this at the start of your loop (on wake / after finishing a task): if you have an active item, resume/continue it (do NOT start a new one); if empty, call get_my_work to pick the next queued item.",
+	}, makeGetMyActiveWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_my_paused_work",
+		Description: "List your paused work items — the candidates you can resume_paused_work later.",
+	}, makeListMyPausedWork(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_my_unread",
+		Description: "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages). Check this periodically and when you reach a stopping point. You MUST reply to each one (acknowledge + defer, handle now, or decline with a reason) — your reply IS your decision. After you handle a message, call mark_seen so it does not come back.",
+	}, makeGetMyUnread(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "mark_seen",
+		Description: "Mark a conversation read up to a message id — call this AFTER you reply to (or decide on) a message from get_my_unread, so it is not surfaced again. Pass the conversation_id and the id of the latest message you handled.",
+	}, makeMarkSeen(cfg))
+
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_task_message",
 		Description: "Post a message into a task the calling agent participates in.",
@@ -108,7 +155,7 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
-		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given.",
+		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, attach it with attach_file (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------

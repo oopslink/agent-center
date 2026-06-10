@@ -1,6 +1,6 @@
 // v2.5.x #63 — Sidebar collapsible groups + Channels/DMs sub-lists.
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -107,6 +107,7 @@ function renderShell(initial = '/channels') {
           <Route element={<AppLayout />}>
             <Route path="/channels" element={<div data-testid="page-Channels">x</div>} />
             <Route path="/dms" element={<div data-testid="page-DMs">x</div>} />
+            <Route path="/dms/:id" element={<div data-testid="page-DMDetail">x</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -164,6 +165,76 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
       expect(list.textContent).toContain('@Sam');
       expect(list.textContent).toContain('@Other');
     });
+  });
+
+  it('shows a manual delete action for deleted-peer DMs in the sidebar', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'dm') {
+          return HttpResponse.json([
+            {
+              id: 'D-DELETED',
+              kind: 'dm',
+              status: 'active',
+              peer_identity_id: 'agent:gone',
+              unread_count: 0,
+              mention_count: 0,
+            },
+            {
+              id: 'D-LIVE',
+              kind: 'dm',
+              status: 'active',
+              peer_identity_id: 'agent:live',
+              peer_display_name: 'Live',
+              unread_count: 0,
+              mention_count: 0,
+            },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+    );
+    renderShell();
+    const list = await screen.findByTestId('sidebar-subitem-list-/dms');
+    await waitFor(() => expect(list.textContent).toContain('(deleted)'));
+    expect(screen.getByText('@Live')).toBeInTheDocument();
+    const deleteButtons = screen.getAllByTestId('sidebar-dm-delete-button');
+    expect(deleteButtons).toHaveLength(1);
+    expect(deleteButtons[0]).toHaveAttribute('aria-label', 'Delete DM (deleted)');
+  });
+
+  it('confirms before deleting a deleted-peer DM from the sidebar', async () => {
+    let deleted: string | null = null;
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'dm') {
+          return HttpResponse.json([
+            {
+              id: 'D-DELETED',
+              kind: 'dm',
+              status: 'active',
+              peer_identity_id: 'agent:gone',
+              unread_count: 0,
+              mention_count: 0,
+            },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+      http.delete('/api/conversations/D-DELETED', () => {
+        deleted = 'D-DELETED';
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderShell('/dms/D-DELETED');
+    fireEvent.click(await screen.findByTestId('sidebar-dm-delete-button'));
+    expect(await screen.findByTestId('confirm-modal')).toHaveTextContent('(deleted)');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    });
+    await waitFor(() => expect(deleted).toBe('D-DELETED'));
   });
 
   it('clicking the sub-item toggle collapses the channel sub-list', async () => {
@@ -226,6 +297,43 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
       const parsed = JSON.parse(stored as string);
       expect(parsed['/channels']).toBe(false);
     });
+  });
+
+  // v2.8.1 #278: "Topbar→sidebar" chrome — org switcher + ⌘K search live in
+  // the sidebar top; CAPS section labels + right-aligned real-count badges;
+  // bottom area = live + segmented theme + user + Sign out.
+  it('hosts the org switcher + ⌘K search trigger inside the sidebar', () => {
+    renderShell();
+    expect(screen.getByTestId('org-switcher')).toBeInTheDocument();
+    const search = screen.getByTestId('open-palette');
+    expect(search).toHaveAttribute('aria-label', expect.stringMatching(/search/i));
+  });
+
+  it('renders CAPS section labels as headings', () => {
+    renderShell();
+    const labels = screen.getAllByTestId('section-label').map((n) => n.textContent);
+    expect(labels).toContain('Workspace');
+    expect(labels).toContain('Conversations');
+    expect(labels).toContain('System');
+  });
+
+  it('count badges reflect real hook counts with accessible labels', async () => {
+    renderShell();
+    // 3 channels + 2 DMs + 2 projects seeded in beforeEach.
+    await waitFor(() => {
+      expect(screen.getByTestId('count-badge-Channels')).toHaveTextContent('3');
+    });
+    expect(screen.getByTestId('count-badge-Channels')).toHaveAttribute('aria-label', '3 channels');
+    expect(screen.getByTestId('count-badge-DMs')).toHaveAttribute('aria-label', '2 dms');
+    expect(screen.getByTestId('count-badge-Projects')).toHaveAttribute('aria-label', '2 projects');
+  });
+
+  it('renders the bottom area: live + segmented theme + user + sign out', () => {
+    renderShell();
+    expect(screen.getByTestId('sidebar-live')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-segment-light')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-segment-dark')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-signout')).toBeInTheDocument();
   });
 
   // v2.8 #264 P1 / #176: channel/DM sidebar sub-items badge off the per-row

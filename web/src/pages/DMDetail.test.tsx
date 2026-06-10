@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -62,11 +62,190 @@ describe('DMDetail page', () => {
     // v2.7.1 #215: heading shows the resolved peer as @name (raw id on hover).
     expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Bot One');
     expect(screen.getByTestId('dm-heading')).toHaveAttribute('title', 'agent:bot-1');
+    // #7thDM richer header: "Direct message" subtitle under the name.
+    expect(screen.getByTestId('dm-subtitle')).toHaveTextContent('Direct message');
     // #264 P1: the message body now renders through the surface-agnostic shell.
     expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'dm');
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     // No participants panel for DM.
     expect(screen.queryByTestId('participants-panel')).not.toBeInTheDocument();
+  });
+
+  it('#7thDM: header renders the back arrow, peer avatar, follow + overflow (no dead search)', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-DM',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          peer_identity_id: 'agent:bot-1',
+          peer_display_name: 'Bot One',
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+    );
+    wrap('/dms/C-DM');
+    await waitFor(() => expect(screen.getByTestId('dm-heading')).toBeInTheDocument());
+    // Back arrow (icon link, aria-label).
+    expect(screen.getByLabelText('Back to DMs')).toBeInTheDocument();
+    // Peer avatar (agent kind → labelled "(agent)").
+    expect(screen.getByTestId('avatar')).toHaveAttribute('aria-label', 'Bot One (agent)');
+    // FollowToggle kept in the right cluster.
+    expect(screen.getByTestId('follow-toggle')).toBeInTheDocument();
+    // No dead search button (per [[no-middle-state]] — message search doesn't exist yet).
+    expect(screen.queryByLabelText('Search messages')).not.toBeInTheDocument();
+    // Overflow menu button (aria-label) + a keyboard-accessible menu item.
+    expect(screen.getByLabelText('More actions')).toBeInTheDocument();
+    expect(screen.getByTestId('dm-overflow-copy')).toBeInTheDocument();
+  });
+
+  it('#7thDM: an available agent peer shows the Bot badge + online dot', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-DM',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          peer_identity_id: 'agent:bot-1',
+          peer_display_name: 'Bot One',
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+      // A running + available agent → online.
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'O-1',
+          name: 'Bot One',
+          description: '',
+          model: 'claude-opus',
+          cli: 'claudecode',
+          env_vars: {},
+          skills: [],
+          worker_id: 'w-1',
+          lifecycle: 'running',
+          availability: 'available',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+    );
+    wrap('/dms/C-DM');
+    await waitFor(() => expect(screen.getByTestId('dm-bot-badge')).toHaveTextContent('Bot'));
+    await waitFor(() => expect(screen.getByTestId('dm-online-dot')).toHaveAttribute('aria-label', 'Online'));
+  });
+
+  it('#7thDM: a stopped agent peer shows the Bot badge but no online dot', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-DM',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          peer_identity_id: 'agent:bot-1',
+          peer_display_name: 'Bot One',
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'O-1',
+          name: 'Bot One',
+          description: '',
+          model: 'claude-opus',
+          cli: 'claudecode',
+          env_vars: {},
+          skills: [],
+          worker_id: 'w-1',
+          lifecycle: 'stopped',
+          availability: 'unavailable',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+    );
+    wrap('/dms/C-DM');
+    await waitFor(() => expect(screen.getByTestId('dm-bot-badge')).toBeInTheDocument());
+    expect(screen.queryByTestId('dm-online-dot')).not.toBeInTheDocument();
+  });
+
+  it('#7thDM: a user peer degrades gracefully — no Bot badge, no online dot', async () => {
+    useAppStore.setState({ currentUserId: 'user:hayang' });
+    server.use(
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { identity_id: 'alice', display_name: 'Alice', kind: 'user', status: 'joined' },
+        ]),
+      ),
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-USER',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          peer_identity_id: 'user:alice',
+          peer_display_name: 'Alice',
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+    );
+    wrap('/dms/C-USER');
+    await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Alice'));
+    expect(screen.queryByTestId('dm-bot-badge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dm-online-dot')).not.toBeInTheDocument();
+    // Human avatar (no "(agent)" suffix).
+    expect(screen.getByTestId('avatar')).toHaveAttribute('aria-label', 'Alice');
+    // Header chrome still present.
+    expect(screen.getByLabelText('Back to DMs')).toBeInTheDocument();
+    expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'dm');
+  });
+
+  it('#7thDM: a deleted agent peer keeps "(deleted)" and shows no online dot', async () => {
+    server.use(
+      http.get('/api/conversations/:id', () =>
+        HttpResponse.json({
+          id: 'C-DEL',
+          kind: 'dm',
+          name: '',
+          status: 'active',
+          peer_identity_id: 'agent:gone',
+          // peer_display_name omitted → deleted peer.
+        }),
+      ),
+      http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+      // Even if the agent row resolves as running, a deleted (unresolved name)
+      // peer must NOT show the online dot.
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'O-1',
+          name: 'gone',
+          description: '',
+          model: 'claude-opus',
+          cli: 'claudecode',
+          env_vars: {},
+          skills: [],
+          worker_id: 'w-1',
+          lifecycle: 'running',
+          availability: 'available',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+    );
+    wrap('/dms/C-DEL');
+    await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('(deleted)'));
+    expect(screen.queryByTestId('dm-online-dot')).not.toBeInTheDocument();
   });
 
   it('shows "(deleted)" heading when the peer no longer resolves (#215/E1)', async () => {
@@ -147,6 +326,116 @@ describe('DMDetail page', () => {
     wrap('/dms/C-DM');
     // #264 P1: error now renders inside ConversationView (shared `conversation-error`).
     await waitFor(() => expect(screen.getByTestId('conversation-error')).toHaveTextContent(/db down/));
+  });
+
+  // #281 entry ①: the DM header peer (avatar + @name) opens the existing
+  // kind-routed SenderDetailSidebar for the peer ref. Reuses the SAME sidebar
+  // (SenderDetailSidebar) as the message-sender clicks — no new sidebar.
+  describe('#281 header peer opens the SenderDetailSidebar (entry ①)', () => {
+    function mockAgentDM() {
+      server.use(
+        http.get('/api/conversations/:id', () =>
+          HttpResponse.json({
+            id: 'C-DM',
+            kind: 'dm',
+            name: '',
+            status: 'active',
+            peer_identity_id: 'agent:bot-1',
+            peer_display_name: 'Bot One',
+          }),
+        ),
+        http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+        http.get('/api/agents/:id', ({ params }) =>
+          HttpResponse.json({
+            id: String(params.id),
+            organization_id: 'O-1',
+            name: 'Bot One',
+            description: 'a bot',
+            model: 'claude-opus',
+            cli: 'claudecode',
+            env_vars: {},
+            skills: [],
+            worker_id: 'w-1',
+            lifecycle: 'running',
+            availability: 'available',
+            created_by: 'user:hayang',
+            version: 1,
+            created_at: '2026-05-24T01:00:00Z',
+            updated_at: '2026-05-24T02:00:00Z',
+          }),
+        ),
+      );
+    }
+
+    it('clicking the peer @name opens the sidebar with the agent body (AgentDetailBody)', async () => {
+      mockAgentDM();
+      wrap('/dms/C-DM');
+      await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Bot One'));
+      expect(screen.queryByTestId('sender-sidebar')).toBeNull();
+      fireEvent.click(screen.getByTestId('dm-heading'));
+      await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+      // kind-routing: an agent peer renders the AgentDetailBody.
+      await waitFor(() => expect(screen.getByTestId('sender-sidebar-agent')).toBeInTheDocument());
+    });
+
+    it('clicking the peer avatar opens the same sidebar; a11y label present', async () => {
+      mockAgentDM();
+      wrap('/dms/C-DM');
+      await waitFor(() => expect(screen.getByTestId('dm-peer-avatar-button')).toBeInTheDocument());
+      const avatarBtn = screen.getByTestId('dm-peer-avatar-button');
+      expect(avatarBtn).toHaveAttribute('aria-label', 'View Bot One details');
+      fireEvent.click(avatarBtn);
+      await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+    });
+
+    it('keyboard (Enter via native button activation) opens the sidebar', async () => {
+      mockAgentDM();
+      wrap('/dms/C-DM');
+      const nameBtn = await screen.findByTestId('dm-heading');
+      nameBtn.focus();
+      fireEvent.keyDown(nameBtn, { key: 'Enter' });
+      // native <button> activates onClick on Enter/Space — fireEvent.click is the
+      // canonical RTL assertion that keyboard activation works.
+      fireEvent.click(nameBtn);
+      await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+    });
+
+    it('a USER peer opens the user body (UserDetailBody) — kind routing', async () => {
+      server.use(
+        http.get('/api/members', () =>
+          HttpResponse.json([
+            { identity_id: 'user:alice', display_name: 'Alice', kind: 'user', status: 'joined' },
+          ]),
+        ),
+        http.get('/api/conversations/:id', () =>
+          HttpResponse.json({
+            id: 'C-USER',
+            kind: 'dm',
+            name: '',
+            status: 'active',
+            peer_identity_id: 'user:alice',
+            peer_display_name: 'Alice',
+          }),
+        ),
+        http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+        http.get('/api/users/:id', ({ params }) =>
+          HttpResponse.json({
+            user_id: String(params.id),
+            display_name: 'Alice',
+            email: 'alice@example.com',
+            created_at: '2026-01-01T00:00:00Z',
+            orgs: [],
+          }),
+        ),
+      );
+      wrap('/dms/C-USER');
+      await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('@Alice'));
+      fireEvent.click(screen.getByTestId('dm-heading'));
+      await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+      // kind-routing: a user peer renders the UserDetailBody (NOT the agent body).
+      await waitFor(() => expect(screen.getByTestId('sender-sidebar-user')).toBeInTheDocument());
+      expect(screen.queryByTestId('sender-sidebar-agent')).toBeNull();
+    });
   });
 
   // v2.7.1 #215: a malformed DM with no resolved peer falls back to "Direct message".

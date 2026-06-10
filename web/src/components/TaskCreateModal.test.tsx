@@ -20,6 +20,13 @@ describe('TaskCreateModal', () => {
     expect(screen.getByTestId('task-create-description')).toBeInTheDocument();
   });
 
+  it('closes on Escape (WAI-ARIA dialog — useModalA11y)', () => {
+    const onClose = vi.fn();
+    wrap(<TaskCreateModal projectId="proj-a" onClose={onClose} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('submit disabled until title set', () => {
     wrap(<TaskCreateModal projectId="proj-a" onClose={() => undefined} />);
     const submit = screen.getByTestId('task-create-submit') as HTMLButtonElement;

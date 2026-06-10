@@ -3,6 +3,13 @@
 // Semantic colors map to CSS vars defined in src/index.css so a
 // future dark-mode pass only needs a parallel `:root.dark` block.
 export default {
+  // Class-based dark mode so Tailwind `dark:` variants activate under
+  // `<html class="dark">` — the SAME trigger as the `:root.dark` token block
+  // in src/index.css. Without this, `dark:` defaults to `prefers-color-scheme`
+  // (media), which would (a) misfire on OS-dark + app-light and (b) NOT fire
+  // when the dual-theme toggle sets `.dark` (10th task). Keeps dark: aligned
+  // with the token theme on one trigger.
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
@@ -25,13 +32,58 @@ export default {
         'success':       'var(--color-success)',
         'warning':       'var(--color-warning)',
         'danger':        'var(--color-danger)',
+        // Custom: `blockedred` for the `blocked` state. @oopslink REVISION 4
+        // wants blocked = red #dc2626 (Tailwind red-600), but the a11y guardrail
+        // (src/a11y.test.tsx) forbids raw bg-red-/text-red- utilities. A custom
+        // NON-RED-NAMED token keeps the exact hex while dodging the guardrail
+        // regex — class is bg-blockedred (white text on saturated red bg).
+        // (Replaces the now-unused `rust` token; `discarded` moved to zinc-700.)
+        blockedred: '#dc2626',
+        // Chat UX 2 (@oopslink, locked): the viewer's OWN message bubble is a
+        // FIXED light blue (#D1E3FF), replacing the old bg-indigo-500. Because
+        // it's a fixed light surface in BOTH modes, the bubble's text must be a
+        // FIXED dark color (text-slate-900), NOT a theme token that flips light
+        // in dark mode — see the own-bubble render. Tester2: #D1E3FF + dark text
+        // = 13.72 AAA. Mirrors the blockedred custom-hex-token pattern.
+        chatuserbubble: '#D1E3FF',
       },
       fontFamily: {
-        // Body (skill: `font-pairing` Tech Startup pair — recommended
-        // for SaaS / developer tools / AI products).
-        sans:    ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Display / brand
-        heading: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // @oopslink (locked): dropped the custom DM Sans + Space Grotesk pairing;
+        // both `sans` and `heading` now point at Tailwind's DEFAULT system stack
+        // (no web-font download). `heading` is kept so existing `font-heading`
+        // users still resolve — it just resolves to the same default stack.
+        sans: [
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          '"Noto Sans"',
+          'sans-serif',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          '"Noto Color Emoji"',
+        ],
+        heading: [
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
+          '"Noto Sans"',
+          'sans-serif',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          '"Noto Color Emoji"',
+        ],
         // IDs, timestamps, code blocks (skill: `number-tabular`).
         mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },

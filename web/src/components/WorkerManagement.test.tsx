@@ -84,4 +84,45 @@ describe('WorkerManagement', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(deleted).toBe(true));
   });
+
+  it('renders the Force delete action', () => {
+    wrap();
+    expect(screen.getByTestId('worker-force-delete')).toBeInTheDocument();
+  });
+
+  // v2.8.1: force-delete — typed-name confirm → DELETE ?force=true → 200 surfaces
+  // the unbound-agents count.
+  it('force-deletes the worker with ?force=true and notes N unbound agents', async () => {
+    let forceQuery: string | null = null;
+    server.use(
+      http.delete('/api/workers/w-1', ({ request }) => {
+        forceQuery = new URL(request.url).searchParams.get('force');
+        return HttpResponse.json({ ok: true, unbound_agents: 2 });
+      }),
+    );
+    wrap();
+    fireEvent.click(screen.getByTestId('worker-force-delete'));
+    const confirm = screen.getByTestId('force-delete-confirm');
+    expect(confirm).toBeDisabled();
+    // displayName falls back to name → "Worker One"
+    fireEvent.change(screen.getByTestId('force-delete-input'), { target: { value: 'Worker One' } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(forceQuery).toBe('true'));
+    expect(await screen.findByTestId('worker-force-delete-note')).toHaveTextContent('2 agent(s) unbound');
+  });
+
+  it('keeps the force-delete modal open and surfaces a 409 error', async () => {
+    server.use(
+      http.delete('/api/workers/w-1', () =>
+        HttpResponse.json({ error: 'worker_busy', message: 'worker is busy' }, { status: 409 }),
+      ),
+    );
+    wrap();
+    fireEvent.click(screen.getByTestId('worker-force-delete'));
+    fireEvent.change(screen.getByTestId('force-delete-input'), { target: { value: 'Worker One' } });
+    fireEvent.click(screen.getByTestId('force-delete-confirm'));
+    expect(await screen.findByTestId('force-delete-error')).toHaveTextContent('worker is busy');
+    expect(screen.getByTestId('force-delete-modal')).toBeInTheDocument();
+  });
 });

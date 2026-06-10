@@ -35,6 +35,9 @@ import (
 type HandlerDeps struct {
 	DB                 *sql.DB
 	Actor              observability.Actor
+	// EventSink emits observability/audit events (v2.8.1: agent/worker
+	// force_deleted). Optional — nil in headless/test wirings → emit is skipped.
+	EventSink          *observability.EventSink
 	ConvRepo           conversation.ConversationRepository
 	MsgRepo            conversation.MessageRepository
 	MessageWriter      *convservice.MessageWriter
@@ -384,6 +387,23 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 			followedMap = m
 		}
 	}
+	// v2.8.1 #278 channels-list enrich: batch-fetch the recent-messages preview for
+	// the WHOLE page in ONE window-function query (NO N+1 — query count is constant
+	// regardless of list size). Fail-soft: a batch error leaves recent_messages [].
+	recentByConv := map[conversation.ConversationID][]*conversation.Message{}
+	if d.MsgRepo != nil && len(convs) > 0 {
+		ids := make([]conversation.ConversationID, len(convs))
+		for i, c := range convs {
+			ids[i] = c.ID()
+		}
+		if m, rerr := d.MsgRepo.RecentByConversations(r.Context(), ids, recentMessagesCap); rerr == nil {
+			recentByConv = m
+		}
+	}
+	// One name resolver per request — caches member→display-name lookups across all
+	// rows + senders + participants so the enrich never N+1s the identity repo, and
+	// degrades a deleted/soft-ref sender to a friendly handle (never crash).
+	nr := newNameResolver(r, d)
 	arr := make([]map[string]any, len(convs))
 	for i, c := range convs {
 		row := convPublicMap(c)
@@ -401,6 +421,14 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 				}
 			}
 		}
+		// v2.8.1 #278: participants{count,members} + the newest-first recent_messages
+		// preview on every row (most useful on channels, harmless on dm/issue/task —
+		// the FE reads them only where it renders them). created_at (RFC3339Nano) is
+		// already on the row via convPublicMap.
+		participantsPreview, participantCount := buildParticipants(r.Context(), nr, c)
+		row["participants"] = participantsPreview
+		row["participant_count"] = participantCount
+		row["recent_messages"] = buildRecentMessages(r.Context(), nr, recentByConv[c.ID()])
 		s.embedBadges(r, d, self, selfDisplayName, c, row, followedMap[c.ID()])
 		arr[i] = row
 	}
@@ -1986,6 +2014,33 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requireWorkerInOrg(w, r, d, id); !ok {
 		return
 	}
+	// v2.8.1 force-delete (@oopslink): ?force=true unbinds the worker's bound agents
+	// (worker-less, retained) before removal, returning unbound_agents:N. Without
+	// force, a worker with bound agents is "busy" → 409 (use force to unbind). The
+	// cross-BC unbind is composed here at the api layer (agent BC owns the write via
+	// AgentSvc), keeping each service pure.
+	force := r.URL.Query().Get("force") == "true"
+	unboundAgents := 0
+	if d.AgentSvc != nil {
+		bound, berr := d.AgentSvc.AgentsByWorker(r.Context(), id)
+		if berr != nil {
+			writeError(w, http.StatusInternalServerError, "remove_worker_failed", berr.Error())
+			return
+		}
+		if len(bound) > 0 && !force {
+			writeError(w, http.StatusConflict, "worker_busy",
+				"worker has bound agents; force-delete to unbind them")
+			return
+		}
+		if len(bound) > 0 {
+			n, uerr := d.AgentSvc.UnbindAgentsFromWorker(r.Context(), id)
+			if uerr != nil {
+				writeError(w, http.StatusInternalServerError, "remove_worker_failed", uerr.Error())
+				return
+			}
+			unboundAgents = n
+		}
+	}
 	// Revoke first. Non-fatal: if the admin token side errors we
 	// keep going — the operator's explicit intent is "this worker is
 	// gone", and a dangling Worker row with revoke-failed tokens is
@@ -2011,7 +2066,19 @@ func (s *Server) removeWorkerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "remove_worker_failed", err.Error())
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	// v2.8.1: audit a force-delete (spec's "emit force_deleted event"). Best-effort.
+	if force && d.EventSink != nil {
+		_, _ = d.EventSink.Emit(r.Context(), observability.EmitCommand{
+			EventType: observability.EventType("worker.force_deleted"),
+			Refs:      observability.EventRefs{WorkerID: id},
+			Actor:     d.Actor,
+			Payload:   map[string]any{"force": true, "unbound_agents": unboundAgents},
+		})
+	}
+	// v2.8.1: 200 with {ok, unbound_agents} (was 204) so the force-delete FE can
+	// surface "N agent(s) unbound". A plain (non-force, no bound agents) remove
+	// reports unbound_agents: 0.
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "unbound_agents": unboundAgents})
 }
 
 func secretPublicMap(s *secretmgmt.UserSecret) map[string]any {

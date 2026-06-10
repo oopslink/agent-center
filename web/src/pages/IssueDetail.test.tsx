@@ -24,9 +24,9 @@ function wrap(path: string) {
   );
 }
 
-// v2.7 ProjectManager BC: IssueDetail is nested under a project and is
-// driven entirely by the Issue projection. No conversation/message
-// thread; state changes go through the single transition endpoint.
+// v2.8.1 (@oopslink directive): IssueDetail status is READ-ONLY display.
+// The inline transition controls are GONE — the SOLE edit entry is the Edit
+// button → IssueEditModal, which batch-PATCHes title/description/status/tags.
 
 describe('IssueDetail page', () => {
   afterEach(() => cleanup());
@@ -53,14 +53,26 @@ describe('IssueDetail page', () => {
       expect(screen.getByRole('heading', { name: 'login bug' })).toBeInTheDocument(),
     );
     expect(screen.getByTestId('issue-description')).toHaveTextContent('cannot sign in');
-    expect(screen.getByTestId('issue-status')).toHaveTextContent('open');
+    // v2.8.1 sidebar-align: status drives the compact StatusBlock under a
+    // "Status" label in the two-section IssueDetailSidebar.
+    const statusBlock = screen.getByTestId('status-block');
+    expect(statusBlock).toHaveAttribute('data-status', 'open');
+    expect(statusBlock).toHaveTextContent(/open/i);
+    // project + edit live in the right IssueDetailSidebar (mirror of TaskDetail).
+    expect(screen.getByTestId('issue-detail-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('issue-project-link')).toHaveAttribute(
       'href',
       '/projects/proj-a',
     );
+    // The bottom read-only section shows the "Details" header + Issue ID pill +
+    // Created, and there is NO assignee section (Issues have none).
+    expect(screen.getByText('Details')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-id-pill')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-created')).toBeInTheDocument();
+    expect(screen.queryByText('Assignee')).toBeNull();
   });
 
-  it('exposes valid transitions for the current status', async () => {
+  it('status is READ-ONLY: no inline transition controls are rendered', async () => {
     server.use(
       http.get('/api/projects/proj-a/issues/:id', ({ params }) =>
         HttpResponse.json({
@@ -80,46 +92,48 @@ describe('IssueDetail page', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'open issue' })).toBeInTheDocument(),
     );
-    // open → {in_progress, withdrawn}
-    expect(screen.getByTestId('issue-transition-in_progress')).toBeInTheDocument();
-    expect(screen.getByTestId('issue-transition-withdrawn')).toBeInTheDocument();
+    // The inline transition buttons (open → in_progress / discarded) are GONE.
+    expect(screen.queryByTestId('issue-transition-in_progress')).toBeNull();
+    expect(screen.queryByTestId('issue-transition-discarded')).toBeNull();
+    expect(screen.queryByTestId('issue-transition-resolved')).toBeNull();
+    // Status survives as read-only display via the StatusBlock.
+    expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'open');
+    // The Edit-Issue pencil button (aria-label "Edit issue") is the sole edit entry.
+    const editBtn = screen.getByTestId('issue-edit-button');
+    expect(editBtn).toBeInTheDocument();
+    expect(editBtn).toHaveAttribute('aria-label', 'Edit issue');
   });
 
-  it('posts the transition when an action is clicked', async () => {
-    let received: Record<string, unknown> | undefined;
+  it('Edit button opens the modal covering all 4 fields (title/desc/status/tags)', async () => {
     server.use(
       http.get('/api/projects/proj-a/issues/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id),
           project_id: 'proj-a',
           title: 'open issue',
-          description: '',
+          description: 'a desc',
           status: 'open',
+          tags: ['alpha'],
           created_by: 'user:hayang',
           version: 1,
           created_at: '2026-05-24T01:00:00Z',
           updated_at: '2026-05-24T01:00:00Z',
         }),
       ),
-      http.post('/api/projects/proj-a/issues/IS-1/transition', async ({ request }) => {
-        received = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({
-          id: 'IS-1',
-          project_id: 'proj-a',
-          title: 'open issue',
-          description: '',
-          status: 'in_progress',
-          created_by: 'user:hayang',
-          version: 2,
-          created_at: '2026-05-24T01:00:00Z',
-          updated_at: '2026-05-24T02:00:00Z',
-        });
-      }),
     );
     wrap('/projects/proj-a/issues/IS-1');
-    await waitFor(() => expect(screen.getByTestId('issue-transition-in_progress')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('issue-transition-in_progress'));
-    await waitFor(() => expect(received).toMatchObject({ status: 'in_progress' }));
+    await waitFor(() => expect(screen.getByTestId('issue-edit-button')).toBeInTheDocument());
+    // Parity with TaskDetail: the sidebar shows the tags read-only (chips) BEFORE
+    // any edit — Issue tags must be visible, not just editable.
+    expect(screen.getByTestId('issue-tag-chip')).toHaveAttribute('data-tag', 'alpha');
+    fireEvent.click(screen.getByTestId('issue-edit-button'));
+    // Modal opens — all 4 editable fields present, NO assignee.
+    expect(screen.getByTestId('issue-edit-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-edit-title')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-edit-description')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-edit-status')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-edit-tags-input')).toBeInTheDocument();
+    expect(screen.queryByTestId('issue-edit-assignee')).toBeNull();
   });
 
   it('surfaces issue lookup error', async () => {

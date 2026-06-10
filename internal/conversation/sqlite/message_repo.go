@@ -161,9 +161,58 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 	return out, nil
 }
 
-const messageSelect = `SELECT id, conversation_id, sender_identity_id, content_kind, content,
-	direction, input_request_ref, context_refs, attachments, posted_at, created_at
-	FROM messages`
+// RecentByConversations returns the last-n messages per conversation across the
+// whole input set in a SINGLE batch query (NO N+1) — used by the v2.8.1 channels
+// list enrich to show a per-row recent-messages preview without a per-conversation
+// round-trip. It wraps `messageSelect` in a ROW_NUMBER() window partitioned by
+// conversation_id, ordered posted_at DESC, id DESC (newest-first, id as a stable
+// tiebreaker for same-instant rows), and keeps rows with rn <= n. Each slice in the
+// returned map is newest-first. n <= 0 is treated as a no-op (empty map). Missing
+// conversation ids simply have no entry.
+func (r *MessageRepo) RecentByConversations(ctx context.Context, convIDs []conversation.ConversationID, n int) (map[conversation.ConversationID][]*conversation.Message, error) {
+	out := make(map[conversation.ConversationID][]*conversation.Message, len(convIDs))
+	if len(convIDs) == 0 || n <= 0 {
+		return out, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	placeholders := make([]byte, 0, len(convIDs)*2)
+	args := make([]any, 0, len(convIDs)+1)
+	for i, id := range convIDs {
+		if i > 0 {
+			placeholders = append(placeholders, ',')
+		}
+		placeholders = append(placeholders, '?')
+		args = append(args, string(id))
+	}
+	args = append(args, n)
+	// Reuse the shared messageCols list (the same columns scanMessage decodes) so
+	// scanMessage stays the single source of truth for row decoding.
+	q := `SELECT ` + messageCols + `
+		FROM (SELECT ` + messageCols + `, ROW_NUMBER() OVER (
+			PARTITION BY conversation_id ORDER BY posted_at DESC, id DESC
+		) AS rn FROM messages WHERE conversation_id IN (` + string(placeholders) + `)) WHERE rn <= ?`
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		m, err := scanMessage(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out[m.ConversationID()] = append(out[m.ConversationID()], m)
+	}
+	return out, rows.Err()
+}
+
+// messageCols is the shared column list (kept in sync with scanMessage).
+// messageSelect wraps it with SELECT + the FROM for the simple queries;
+// RecentByConversations reuses messageCols directly inside its window subquery.
+const messageCols = `id, conversation_id, sender_identity_id, content_kind, content,
+	direction, input_request_ref, context_refs, attachments, posted_at, created_at`
+
+const messageSelect = `SELECT ` + messageCols + ` FROM messages`
 
 func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 	var (

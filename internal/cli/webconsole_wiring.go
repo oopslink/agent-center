@@ -69,6 +69,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 	deps := api.HandlerDeps{
 		DB:                  a.DB,
 		Actor:               a.operatorActor(),
+		EventSink:           a.Sink,
 		ConvRepo:            a.ConvRepo,
 		MsgRepo:             a.MsgRepo,
 		MessageWriter:       a.MessageWriter,
@@ -144,6 +145,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	deps := api.HandlerDeps{
 		DB:                  a.DB,
 		Actor:               a.operatorActor(),
+		EventSink:           a.Sink,
 		ConvRepo:            a.ConvRepo,
 		MsgRepo:             a.MsgRepo,
 		MessageWriter:       a.MessageWriter,
@@ -185,7 +187,13 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
 		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
 	}
-	srv := api.NewServer(addr, api.Deps{SSE: bus, SPA: spa.Handler(), Version: ResolvedBuildVersion()})
+	srv := api.NewServer(addr, api.Deps{
+		SSE: bus, SPA: spa.Handler(),
+		Version: ResolvedBuildVersion(),
+		Branch:  ResolvedBuildBranch(),
+		Commit:  ResolvedBuildCommit(),
+		BuiltAt: ResolvedBuildBuiltAt(),
+	})
 	// Wrap the inner mux with deps middleware; install it as the
 	// server's handler so the loopback guard in api.Server.ListenAndServe
 	// still applies.

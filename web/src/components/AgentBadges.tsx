@@ -29,6 +29,28 @@ export function AvailabilityBadge({
   );
 }
 
+// v2.8.1 list-enrich: provider badges for the Agents list (CLI + model). Reuses
+// the same neutral chip style as Lifecycle/Availability above (solid bg-subtle
+// token + text-secondary, AA in BOTH modes — NOT an alpha-tint-on-token which
+// renders transparent, the recurring trap). Text labels, never color-only. An
+// absent/blank value is omitted by the caller (this just renders the chip).
+export function ProviderBadge({
+  label,
+  testId,
+}: {
+  label: string;
+  testId?: string;
+}): React.ReactElement {
+  return (
+    <span
+      className="rounded bg-bg-subtle px-2 py-0.5 text-[0.6875rem] font-medium tracking-wide text-text-secondary"
+      data-testid={testId}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function LifecycleBadge({
   lifecycle,
 }: {

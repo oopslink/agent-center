@@ -55,6 +55,10 @@ type HandlerDeps struct {
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
 	CarryOverSvc       *convservice.CarryOverService
 	ReadStateSvc       *convservice.ReadStateService
+	// InboxSvc backs the agent get_my_unread tool (v2.8.1 #278 D PR4b dual-stream):
+	// the agent's unread messages directed at it (DM-all + channel-@mention),
+	// org-scoped, across its conversations. nil → get_my_unread returns 501.
+	InboxSvc *convservice.AgentInboxService
 
 	// Workforce BC
 	WorkerRepo        workforce.WorkerRepository

@@ -39,13 +39,21 @@ const (
 	WorkItemFailed       WorkItemStatus = "failed"
 	WorkItemCanceled     WorkItemStatus = "canceled"
 	WorkItemSuperseded   WorkItemStatus = "superseded"
+	// WorkItemPaused (v2.8.1 #278 D PR4 scheduling autonomy): the agent paused an
+	// active task to switch to another. paused RELEASES the single-active slot (it
+	// is NOT in the single-active set — see availability/idx_awi_agent_active, which
+	// stay active|waiting_input only), so the agent can start_work another item.
+	// resume_paused_work moves paused→active (re-acquiring the slot, single-active-
+	// gated). NOT terminal.
+	WorkItemPaused WorkItemStatus = "paused"
 )
 
 // IsValid reports enum membership.
 func (s WorkItemStatus) IsValid() bool {
 	switch s {
 	case WorkItemQueued, WorkItemActive, WorkItemWaitingInput,
-		WorkItemDone, WorkItemFailed, WorkItemCanceled, WorkItemSuperseded:
+		WorkItemDone, WorkItemFailed, WorkItemCanceled, WorkItemSuperseded,
+		WorkItemPaused:
 		return true
 	}
 	return false
@@ -54,8 +62,9 @@ func (s WorkItemStatus) IsValid() bool {
 // workItemTransitions is the allowed-transition adjacency (plan §2.4 / §10 OQ11).
 var workItemTransitions = map[WorkItemStatus][]WorkItemStatus{
 	WorkItemQueued:       {WorkItemActive, WorkItemCanceled, WorkItemSuperseded},
-	WorkItemActive:       {WorkItemWaitingInput, WorkItemDone, WorkItemFailed, WorkItemCanceled, WorkItemSuperseded},
+	WorkItemActive:       {WorkItemWaitingInput, WorkItemDone, WorkItemFailed, WorkItemCanceled, WorkItemSuperseded, WorkItemPaused},
 	WorkItemWaitingInput: {WorkItemActive, WorkItemCanceled, WorkItemSuperseded},
+	WorkItemPaused:       {WorkItemActive, WorkItemCanceled, WorkItemSuperseded}, // resume→active / cancel / supersede
 	WorkItemDone:         {},
 	WorkItemFailed:       {},
 	WorkItemCanceled:     {},
@@ -89,6 +98,13 @@ var (
 	ErrWorkItemIllegalMove   = errors.New("agent: illegal work item transition")
 	ErrWorkItemTaskRequired  = errors.New("agent: work item must reference a task")
 	ErrWorkItemAgentRequired = errors.New("agent: work item must reference an agent")
+	// ErrWorkItemReassigned (v2.8.1 #278 D PR4): an optimistic-lock (version CAS)
+	// write lost the race — the work item's version moved since the caller loaded
+	// it (e.g. the PR5 reconciler released it, or another writer transitioned it),
+	// so this agent-facing write (complete/fail/pause/resume) is rejected. The
+	// agent handles it gracefully (prompt: "back to step A" — pull fresh). Surfaced
+	// as HTTP 409 work_item_reassigned (mirrors ErrAgentHasActiveWork → 409 agent_busy).
+	ErrWorkItemReassigned = errors.New("agent: work item reassigned (version conflict)")
 )
 
 // WorkItemTransition is a status change recorded on an AgentWorkItem at
@@ -263,6 +279,24 @@ func (w *AgentWorkItem) Wake(at time.Time) error {
 	return nil
 }
 
+// Pause moves active→paused (v2.8.1 #278 D PR4 scheduling autonomy): the agent
+// sets the current task aside to switch to another. It RELEASES the single-active
+// slot (paused is not in the single-active set), so the agent may then start_work
+// another item. No new interaction (the task is suspended, not advanced).
+func (w *AgentWorkItem) Pause(at time.Time) error { return w.move(WorkItemPaused, at) }
+
+// Resume moves paused→active, re-acquiring the single-active slot and beginning a
+// NEW AgentInteraction on the same WorkItem (mirrors Wake). Single-active is
+// enforced at the service layer (resume_paused_work, like start_work) + the DB
+// UNIQUE backstop.
+func (w *AgentWorkItem) Resume(at time.Time) error {
+	if err := w.move(WorkItemActive, at); err != nil {
+		return err
+	}
+	w.interactions++
+	return nil
+}
+
 // Done / Fail terminate the WorkItem.
 func (w *AgentWorkItem) Done(at time.Time) error { return w.move(WorkItemDone, at) }
 func (w *AgentWorkItem) Fail(at time.Time) error { return w.move(WorkItemFailed, at) }
@@ -284,7 +318,7 @@ func (w *AgentWorkItem) FailFromAgentDeath(at time.Time) error {
 	if w.status.IsTerminal() {
 		return nil // already done/failed/canceled/superseded — nothing to cascade
 	}
-	if w.status != WorkItemActive && w.status != WorkItemWaitingInput {
+	if w.status != WorkItemActive && w.status != WorkItemWaitingInput && w.status != WorkItemPaused {
 		return ErrWorkItemIllegalMove // not in flight (e.g. queued)
 	}
 	prev := w.status

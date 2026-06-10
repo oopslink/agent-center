@@ -121,39 +121,40 @@ func TestWorkDelivery_EnqueuesAgentWork(t *testing.T) {
 	}
 	wiID := items[0].ID()
 
-	// An agent.work command was enqueued on W1.
+	// v2.8.1 #278 PR6 CUTOVER: ONLY the agent.work_available wake is enqueued on W1
+	// — the old agent.work PUSH is removed. The agent pulls its queue (get_my_work /
+	// start_work) and is the sole activation path; the center only signals "you have
+	// work" (no pushed brief — the agent reads task detail via its tools).
 	cmds, err := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(cmds) != 1 {
-		t.Fatalf("want 1 control command on W1, got %d", len(cmds))
+		t.Fatalf("want 1 control command on W1 (agent.work_available only, post-cutover), got %d", len(cmds))
 	}
-	cmd := cmds[0]
-	if cmd.CommandType() != "agent.work" {
-		t.Fatalf("command_type = %q, want agent.work", cmd.CommandType())
+
+	// The agent.work_available WAKE command (per-agent "pull your queue"),
+	// idempotency_key "agent.work_available:<wiID>", payload agent_id/work_item_id.
+	wake := cmds[0]
+	if wake.CommandType() != "agent.work_available" {
+		t.Fatalf("command_type[1] = %q, want agent.work_available", wake.CommandType())
 	}
-	if cmd.IdempotencyKey() != "agent.work:"+wiID {
-		t.Fatalf("idempotency_key = %q, want agent.work:%s", cmd.IdempotencyKey(), wiID)
+	if wake.IdempotencyKey() != "agent.work_available:"+wiID {
+		t.Fatalf("wake idempotency_key = %q, want agent.work_available:%s", wake.IdempotencyKey(), wiID)
 	}
-	var pl struct {
+	var wpl struct {
 		AgentID    string `json:"agent_id"`
 		WorkItemID string `json:"work_item_id"`
-		TaskRef    string `json:"task_ref"`
-		Brief      string `json:"brief"`
 	}
-	if err := json.Unmarshal([]byte(cmd.Payload()), &pl); err != nil {
-		t.Fatalf("payload not JSON: %v", err)
+	if err := json.Unmarshal([]byte(wake.Payload()), &wpl); err != nil {
+		t.Fatalf("wake payload not JSON: %v", err)
 	}
-	if pl.AgentID != "AG1" || pl.WorkItemID != wiID || pl.TaskRef != taskRef {
-		t.Fatalf("payload mismatch: %+v (wiID=%s, taskRef=%s)", pl, wiID, taskRef)
-	}
-	if pl.Brief != "Fix the bug\n\nIt crashes on boot." {
-		t.Fatalf("brief = %q, want title+description", pl.Brief)
+	if wpl.AgentID != "AG1" || wpl.WorkItemID != wiID {
+		t.Fatalf("wake payload mismatch: %+v (wiID=%s)", wpl, wiID)
 	}
 
 	// Re-projecting the SAME event is idempotent: no extra WorkItem, no extra
-	// command (idempotency key collapses the re-enqueue).
+	// commands (both idempotency keys collapse the re-enqueue).
 	if n, _ := relay.RunOnce(ctx, 100); n != 0 {
 		t.Fatalf("replay processed %d events, want 0", n)
 	}
@@ -163,7 +164,7 @@ func TestWorkDelivery_EnqueuesAgentWork(t *testing.T) {
 	}
 	cmds2, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
 	if len(cmds2) != 1 {
-		t.Fatalf("replay double-enqueued agent.work: %d commands", len(cmds2))
+		t.Fatalf("replay double-enqueued commands: got %d, want 1 (agent.work_available only, post-cutover)", len(cmds2))
 	}
 }
 

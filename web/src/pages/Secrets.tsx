@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useRevokeSecret, useSecrets } from '@/api/secrets';
+import { formatLocalTime } from '@/utils/time';
 import type { Secret } from '@/api/types';
 import { SecretCreateModal } from '@/components/SecretCreateModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -102,8 +103,8 @@ export default function Secrets(): React.ReactElement {
                     {s.state}
                   </span>
                 </td>
-                <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
-                  {s.created_at}
+                <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted" title={s.created_at}>
+                  {formatLocalTime(s.created_at)}
                 </td>
                 <td className="border-b border-border-base px-3 py-2 text-right">
                   {s.state === 'active' && (

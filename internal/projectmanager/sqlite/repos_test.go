@@ -213,7 +213,7 @@ func TestTaskRepo_ListByStatuses(t *testing.T) {
 		t.Fatalf("ListByStatuses(completed) = %+v", l)
 	}
 	// multi status (the non-terminal active set excludes the completed task)
-	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskAssigned, pm.TaskRunning, pm.TaskBlocked, pm.TaskReopened}
+	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskRunning, pm.TaskBlocked, pm.TaskReopened}
 	if l, _ := tr.ListByStatuses(ctx, active); len(l) != 1 || l[0].ID() != "T-open" {
 		t.Fatalf("ListByStatuses(active) = %+v", l)
 	}
@@ -379,7 +379,7 @@ func TestIssueRepo_FindByStatuses_GlobalNonTerminal(t *testing.T) {
 		t.Fatalf("want 3 non-terminal across projects (open/in_progress/reopened), got %d", len(got))
 	}
 	for _, i := range got {
-		if i.Status() == pm.IssueResolved || i.Status() == pm.IssueClosed || i.Status() == pm.IssueWithdrawn {
+		if i.Status() == pm.IssueResolved || i.Status() == pm.IssueClosed || i.Status() == pm.IssueDiscarded {
 			t.Fatalf("terminal issue leaked: %s status=%s", i.ID(), i.Status())
 		}
 	}

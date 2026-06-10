@@ -201,8 +201,9 @@ func authMiddleware(deps HandlerDeps) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			// Exempt public API endpoints (health + auth/*) from the cookie gate.
-			if path == "/api/health" ||
+			// Exempt public API endpoints (health + version + auth/*) from the
+			// cookie gate. /api/system/version is non-sensitive build identity.
+			if path == "/api/health" || path == "/api/system/version" ||
 				len(path) >= 10 && path[:10] == "/api/auth/" {
 				next.ServeHTTP(w, r)
 				return

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -121,9 +120,13 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	// none (→ just "title"). An empty brief made claude greet generically = lost work.
 	f.seedTask(t, "t1", "Fix login bug", "Users cannot log in after the v2.7 deploy.")
 	f.seedTask(t, "t2", "Write release notes", "")
+	// v2.8.1 #278 single-active (DB UNIQUE 0051): an agent has at most ONE in-flight
+	// (active|waiting_input) item, so AG1 carries queued + active (both ready-to-
+	// dispatch); the waiting_input-skip case uses a SEPARATE agent AG2 below
+	// (active + waiting_input can't coexist on one agent).
 	f.seedWorkItem(t, "wi-active", "AG1", "pm://tasks/t1", agentpkg.WorkItemActive)
 	f.seedWorkItem(t, "wi-queued", "AG1", "pm://tasks/t2", agentpkg.WorkItemQueued)
-	f.seedWorkItem(t, "wi-waiting", "AG1", "pm://tasks/t3", agentpkg.WorkItemWaitingInput)
+	f.seedWorkItem(t, "wi-waiting", "AG2", "pm://tasks/t3", agentpkg.WorkItemWaitingInput)
 
 	e := lifecycleEvent("EV1", "AG1", "W1", "running", 2, "")
 	if err := f.proj.Project(f.ctx, e); err != nil {
@@ -131,45 +134,42 @@ func TestReemit_RunningEmitsReconcileThenWorkForReadyToDispatch(t *testing.T) {
 	}
 
 	cmds := f.commandsFor(t, "W1")
-	// 1 reconcile + 2 work (queued + active); waiting_input skipped.
+	// v2.8.1 #278 PR6 CUTOVER: 1 reconcile + 2 wake (agent.work_available per ready
+	// WI: queued + active). The old agent.work PUSH re-delivery is removed — the agent
+	// pulls. waiting_input skipped (no wake).
 	if len(cmds) != 3 {
-		t.Fatalf("want 3 commands (reconcile + queued + active work), got %d: %+v", len(cmds), cmds)
+		t.Fatalf("want 3 commands (reconcile + 2 wake), got %d: %+v", len(cmds), cmds)
 	}
 	if cmds[0].CommandType() != "agent.reconcile" {
-		t.Fatalf("cmds[0] type = %q, want agent.reconcile (must precede work)", cmds[0].CommandType())
+		t.Fatalf("cmds[0] type = %q, want agent.reconcile (must precede wake)", cmds[0].CommandType())
 	}
 	reconcileOff := cmds[0].Offset()
-	workKeys := map[string]bool{}
-	briefByKey := map[string]string{}
+	wakeKeys := map[string]bool{}
 	for _, c := range cmds[1:] {
-		if c.CommandType() != "agent.work" {
-			t.Fatalf("commands after reconcile must be agent.work, got %q", c.CommandType())
-		}
 		if c.Offset() <= reconcileOff {
-			t.Fatalf("work offset %d must be > reconcile offset %d (session before work)", c.Offset(), reconcileOff)
+			t.Fatalf("command offset %d must be > reconcile offset %d (session before wake)", c.Offset(), reconcileOff)
 		}
-		workKeys[c.IdempotencyKey()] = true
-		var pl workCommandPayload
-		if err := json.Unmarshal([]byte(c.Payload()), &pl); err != nil {
-			t.Fatalf("unmarshal work payload: %v", err)
+		if c.CommandType() != "agent.work_available" {
+			t.Fatalf("commands after reconcile must be agent.work_available (post-cutover), got %q", c.CommandType())
 		}
-		briefByKey[c.IdempotencyKey()] = pl.Brief
+		wakeKeys[c.IdempotencyKey()] = true
 	}
-	if !workKeys["agent.work:wi-active"] || !workKeys["agent.work:wi-queued"] {
-		t.Fatalf("re-emit must cover BOTH queued + active (ready-to-dispatch), got keys %v", workKeys)
+	// Each ready-to-dispatch WI (queued + active) gets a wake so the agent pulls it.
+	if !wakeKeys["agent.work_available:wi-active"] || !wakeKeys["agent.work_available:wi-queued"] {
+		t.Fatalf("re-emit must emit a wake per ready WI, got wake keys %v", wakeKeys)
 	}
-	if workKeys["agent.work:wi-waiting"] {
-		t.Fatalf("waiting_input must NOT be re-emitted, got it in %v", workKeys)
+
+	// waiting_input is NOT re-emitted as work (it is the wake path). AG2's only
+	// in-flight item is waiting_input → on →running the re-emit appends ONLY the
+	// reconcile, no agent.work. (Separate agent because single-active forbids
+	// active + waiting_input on AG1.)
+	e2 := lifecycleEvent("EV2", "AG2", "W2", "running", 2, "")
+	if err := f.proj.Project(f.ctx, e2); err != nil {
+		t.Fatalf("Project AG2: %v", err)
 	}
-	// #115 CORE assertion: the re-emitted brief must be NON-EMPTY and equal the SAME
-	// title\n\ndesc that pm enqueueWork.brief produces for the task (NOT "").
-	const wantActiveBrief = "Fix login bug\n\nUsers cannot log in after the v2.7 deploy."
-	if got := briefByKey["agent.work:wi-active"]; got != wantActiveBrief {
-		t.Fatalf("re-emitted brief (with desc) = %q, want %q (title\\n\\ndesc, NOT empty — lost-work bug #115)", got, wantActiveBrief)
-	}
-	const wantQueuedBrief = "Write release notes" // desc empty → title only
-	if got := briefByKey["agent.work:wi-queued"]; got != wantQueuedBrief {
-		t.Fatalf("re-emitted brief (no desc) = %q, want %q (title only)", got, wantQueuedBrief)
+	cmds2 := f.commandsFor(t, "W2")
+	if len(cmds2) != 1 || cmds2[0].CommandType() != "agent.reconcile" {
+		t.Fatalf("waiting_input agent re-emit must be reconcile-only (no work), got %+v", cmds2)
 	}
 }
 
@@ -203,6 +203,8 @@ func TestReemit_IdempotentOnReplay(t *testing.T) {
 		t.Fatalf("Project 2 (replay): %v", err)
 	}
 	cmds := f.commandsFor(t, "W1")
+	// v2.8.1 #278 PR6 CUTOVER: reconcile + wake (agent.work_available) = 2; replay
+	// must not duplicate (agent.work push removed).
 	if len(cmds) != 2 {
 		t.Fatalf("replay of same event must not duplicate, got %d commands", len(cmds))
 	}
@@ -234,17 +236,20 @@ func TestReemit_FlapDoesNotDoubleDeliverWork(t *testing.T) {
 	}
 
 	cmds := f.commandsFor(t, "W1")
-	workCount := 0
+	// v2.8.1 #278 PR6 CUTOVER: the wake (agent.work_available) carries the same flap-
+	// collapse guarantee the old agent.work push had — exactly ONE remains across the
+	// flap (stable idempotency key "agent.work_available:<wi>"); reconciles multiply.
+	wakeCount := 0
 	for _, c := range cmds {
-		if c.CommandType() == "agent.work" {
-			workCount++
-			if c.IdempotencyKey() != "agent.work:wi-active" {
-				t.Fatalf("unexpected work key %q", c.IdempotencyKey())
+		if c.CommandType() == "agent.work_available" {
+			wakeCount++
+			if c.IdempotencyKey() != "agent.work_available:wi-active" {
+				t.Fatalf("unexpected wake key %q", c.IdempotencyKey())
 			}
 		}
 	}
-	if workCount != 1 {
-		t.Fatalf("flap must NOT double-deliver work: got %d agent.work commands, want 1", workCount)
+	if wakeCount != 1 {
+		t.Fatalf("flap must NOT double-deliver wake: got %d agent.work_available commands, want 1", wakeCount)
 	}
 }
 

@@ -6,37 +6,54 @@ import type React from 'react';
 // (v2.7.1 retro: single source, no per-page drift).
 
 // StatusChip — colored pill covering the FULL issue + task status machines
-// (v2.7.1 #258: zero fallback-gray, zero bare string). Palette per PD ruling:
-//   open                         → neutral
-//   in_progress/assigned/running → blue (in flight)
-//   blocked                      → orange (attention)
-//   resolved/completed           → green (done)
-//   verified                     → deep green (done + checked)
-//   closed/canceled/withdrawn    → muted (terminal, not a win)
-//   reopened                     → purple (back in play)
-const STATUS_CLS: Record<string, string> = {
-  // in flight
-  in_progress: 'bg-brand/10 text-brand',
-  assigned: 'bg-brand/10 text-brand',
-  running: 'bg-brand/10 text-brand',
-  // attention
-  blocked: 'bg-orange-500/10 text-orange-600',
-  // done
-  resolved: 'bg-success/10 text-success',
-  completed: 'bg-success/10 text-success',
-  verified: 'bg-success/20 text-success',
-  // terminal, not a win
-  closed: 'bg-bg-subtle text-text-secondary',
-  canceled: 'bg-bg-subtle text-text-secondary',
-  withdrawn: 'bg-bg-subtle text-text-secondary',
-  // back in play
-  reopened: 'bg-purple-500/10 text-purple-600',
-  // new / not started
-  open: 'bg-bg-subtle text-text-muted',
+// (v2.7.1 #258: zero fallback-gray, zero bare string). v2.8.1 #5th: UNIFIED to
+// the SAME palette as StatusBlock (IssueTaskSidebar) — one source of truth.
+// @oopslink REVISION 4 lock: white text on a saturated color background
+// (bg-<color> text-white). Palette:
+//   open                  → sky (not started)
+//   in_progress/running   → blue (in flight)
+//   blocked               → red #dc2626 via custom blockedred token
+//   resolved/completed    → green (done)
+//   verified              → teal (done + checked, distinct hue from green)
+//   closed (Issue)        → slate (terminal)
+//   discarded (both)      → zinc (terminal, replaces canceled/withdrawn)
+//   reopened              → amber (back in play)
+// blocked uses the custom `blockedred` token so the a11y guardrail's raw
+// bg-red-/text-red- ban stays green.
+//
+// SINGLE SOURCE of the REV4 status→color mapping. `STATUS_BG_CLS` is the bare
+// background-color class for each status (literal strings so Tailwind's content
+// scan keeps them). The solid StatusChip layers `text-white` on top via
+// `statusSolidClass`; the FilterBar status chips reuse `STATUS_BG_CLS` for both
+// the solid-selected fill AND the unselected color dot (●) — no hex duplication.
+export const STATUS_BG_CLS: Record<string, string> = {
+  open: 'bg-sky-600',
+  in_progress: 'bg-blue-600',
+  running: 'bg-blue-600',
+  blocked: 'bg-blockedred',
+  resolved: 'bg-green-600',
+  completed: 'bg-green-600',
+  verified: 'bg-teal-600',
+  closed: 'bg-slate-500',
+  discarded: 'bg-zinc-700',
+  reopened: 'bg-amber-600',
 };
 
+// statusSolidClass — the saturated REV4 fill + white text for a status (the
+// StatusChip / selected-FilterBar-chip look). Unknown → neutral subtle.
+export function statusSolidClass(status: string): string {
+  const bg = STATUS_BG_CLS[status];
+  return bg ? `${bg} text-white` : 'bg-bg-subtle text-text-muted';
+}
+
+// statusDotClass — the bare background-color for a status used as a small color
+// dot (●) on an unselected/light chip. Unknown → neutral muted.
+export function statusDotClass(status: string): string {
+  return STATUS_BG_CLS[status] ?? 'bg-text-muted';
+}
+
 export function StatusChip({ status }: { status: string }): React.ReactElement {
-  const cls = STATUS_CLS[status] ?? 'bg-bg-subtle text-text-muted';
+  const cls = statusSolidClass(status);
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide ${cls}`}

@@ -10,9 +10,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"syscall"
 	"time"
 
+	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/escalator"
@@ -218,6 +220,27 @@ func ServerCommand() *Command {
 					_ = reconciler.Run(reconcilerCtx, app.operatorActor())
 				}()
 				defer reconcilerCancel()
+
+				// v2.8.1 #278 D PR5: work-item reconciler. Releases an agent's
+				// active WorkItem once the agent has been inactive for the stale-age
+				// (default 30 min; AGENT_CENTER_WORKITEM_STALE_MINUTES overrides for
+				// testing), freeing the single-active slot so a hung/dead agent's
+				// task can be retried instead of wedging forever.
+				wiStaleAge := agentservice.WorkItemReconcileDefaultStaleAge
+				if v := os.Getenv("AGENT_CENTER_WORKITEM_STALE_MINUTES"); v != "" {
+					if m, perr := strconv.Atoi(v); perr == nil && m > 0 {
+						wiStaleAge = time.Duration(m) * time.Minute
+					}
+				}
+				wiReconciler := agentservice.NewWorkItemReconciler(
+					app.AgentWorkItemRepo, app.AgentActivityRepo, nil, wiStaleAge, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[work-item-reconcile] "+msg+"\n", a...) },
+				)
+				wiReconcilerCtx, wiReconcilerCancel := context.WithCancel(ctx)
+				go func() {
+					_ = wiReconciler.Run(wiReconcilerCtx)
+				}()
+				defer wiReconcilerCancel()
 
 				bannerWeb := "disabled"
 				if webEnabled {

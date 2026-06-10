@@ -71,6 +71,34 @@ func (r *WorkItemRepo) Update(ctx context.Context, w *agent.AgentWorkItem) error
 	return r.emitTransitions(ctx, w)
 }
 
+// UpdateCAS persists the work item with an optimistic-lock (compare-and-set)
+// guard: the row is written ONLY if its current version still equals
+// expectedVersion (the version the caller loaded before transitioning). v2.8.1
+// #278 D PR4 — the agent-write-vs-reconciler-release race guard: if a concurrent
+// writer (e.g. the reconciler releasing a stuck item) committed first, the
+// version has moved → 0 rows match → ErrWorkItemReassigned (row exists, moved) or
+// ErrWorkItemNotFound (row gone). Both the agent-facing race-prone ops and the
+// reconciler use this so whichever commits second loses cleanly.
+func (r *WorkItemRepo) UpdateCAS(ctx context.Context, w *agent.AgentWorkItem, expectedVersion int) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE agent_work_items SET status=?, interactions=?, updated_at=?, version=? WHERE id=? AND version=?`,
+		string(w.Status()), w.Interactions(), ts(w.UpdatedAt()), w.Version(), w.ID(), expectedVersion)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// Distinguish gone vs moved: a still-present row means the version moved
+		// (CAS lost the race) → reassigned; an absent row → not found.
+		var one int
+		if qerr := exec.QueryRowContext(ctx, `SELECT 1 FROM agent_work_items WHERE id=?`, w.ID()).Scan(&one); errors.Is(qerr, sql.ErrNoRows) {
+			return agent.ErrWorkItemNotFound
+		}
+		return agent.ErrWorkItemReassigned
+	}
+	return r.emitTransitions(ctx, w)
+}
+
 func (r *WorkItemRepo) FindByID(ctx context.Context, id string) (*agent.AgentWorkItem, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, workItemSelect+` WHERE id = ?`, id)

@@ -104,6 +104,7 @@ const (
 	cmdTypeAgentWork      = "agent.work"
 	cmdTypeAgentWake      = "agent.wake"
 	cmdTypeAgentConverse  = "agent.converse" // v2.7 #185: DM/channel message → inject (no WorkItem)
+	cmdTypeWorkAvailable  = "agent.work_available" // v2.8.1 #278 D pull-model WAKE (PR2 emit / PR3 handle)
 )
 
 // wakeDedupCap bounds the per-agent set of already-injected wake message IDs
@@ -154,6 +155,18 @@ type wakePayload struct {
 	ConversationID string `json:"conversation_id"`
 	MessageID      string `json:"message_id"`
 	MessageText    string `json:"message_text"`
+}
+
+// workAvailablePayload decodes an "agent.work_available" (wake) command. Matches
+// the projectors' workAvailablePayload (pm WorkItemProjector + env
+// AgentControlProjector). v2.8.1 #278 D pull model: a per-agent "you have new
+// work — pull your queue" signal. PR3 only DEDUPS (per work_item_id, mirroring
+// wake message dedup) + logs + acks — the actual session inject ("check your
+// queue") + the agent's pull-loop land together in PR4. WorkItemID is the
+// per-WI idempotency/dedup key.
+type workAvailablePayload struct {
+	AgentID    string `json:"agent_id"`
+	WorkItemID string `json:"work_item_id"`
 }
 
 // conversePayload decodes an "agent.converse" command (v2.7 #185). Mirrors
@@ -268,6 +281,15 @@ type managedAgent struct {
 	// (empty) on session restart along with the managedAgent.
 	wakeSeen  map[string]struct{}
 	wakeOrder []string
+
+	// workAvailSeen is the bounded per-agent set of agent.work_available
+	// work_item_ids already noted (v2.8.1 #278 D PR3 coalesce). The wake fires
+	// per-WI at two emit points (enqueue + reemit-on-running) + flap/reconnect
+	// replay, so this dedup collapses the re-emits so the daemon does not spam
+	// (and, in PR4, does not re-inject the pull nudge). FIFO eviction at
+	// wakeDedupCap; recreated empty on session restart. Guarded by AgentController.mu.
+	workAvailSeen  map[string]struct{}
+	workAvailOrder []string
 
 	// hadWork records that work was INJECTED into this session (a WorkItem went
 	// active). On an unexpected crash it drives the self-heal relaunch nudge (re-
@@ -396,6 +418,13 @@ func (c *AgentController) Handle(ctx context.Context, cmd ControlCommand) error 
 			return nil
 		}
 		return c.converse(ctx, pl)
+	case cmdTypeWorkAvailable:
+		var pl workAvailablePayload
+		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
+			c.log("work_available decode (offset=%d): %v — skipping", cmd.Offset, err)
+			return nil
+		}
+		return c.workAvailable(ctx, pl)
 	default:
 		// Unknown command type: log + ack (don't wedge the cursor on a command
 		// this controller version doesn't understand).
@@ -803,6 +832,85 @@ func (c *AgentController) recordWake(agentID, messageID string) {
 		delete(ma.wakeSeen, oldest)
 	}
 }
+
+// recordWorkAvail notes a work_item_id under the per-agent agent.work_available
+// coalesce set (v2.8.1 #278 D PR3). Returns true if NEWLY recorded, false if it
+// was already seen (a coalesced re-emit/flap/replay). Mirrors recordWake (lazy
+// managedAgent create + FIFO eviction at wakeDedupCap).
+func (c *AgentController) recordWorkAvail(agentID, workItemID string) bool {
+	if workItemID == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ma := c.agents[agentID]
+	if ma == nil {
+		ma = &managedAgent{agentID: agentID}
+		c.agents[agentID] = ma
+	}
+	if ma.workAvailSeen == nil {
+		ma.workAvailSeen = make(map[string]struct{}, wakeDedupCap)
+	}
+	if _, ok := ma.workAvailSeen[workItemID]; ok {
+		return false
+	}
+	ma.workAvailSeen[workItemID] = struct{}{}
+	ma.workAvailOrder = append(ma.workAvailOrder, workItemID)
+	for len(ma.workAvailOrder) > wakeDedupCap {
+		oldest := ma.workAvailOrder[0]
+		ma.workAvailOrder = ma.workAvailOrder[1:]
+		delete(ma.workAvailSeen, oldest)
+	}
+	return true
+}
+
+// workAvailable handles the agent.work_available WAKE command (v2.8.1 #278 D PR3,
+// PD-locked option b). It ONLY coalesces (per work_item_id) + logs + acks — it
+// does NOT inject. Rationale: in the dual-track window (PR3–PR6) the old
+// agent.work push still injects the brief + reports the WorkItem active, so the
+// agent is already driven; a pull nudge here would be redundant and could nudge a
+// not-yet-pull-driven agent into a premature start_work (benign 409 but activity
+// noise that would muddy PR4's run-real pull-loop verification). The actual nudge
+// inject + the agent's pull-driven loop land together in PR4 (clean cut). Acking
+// (return nil) keeps the control-stream cursor advancing — never wedges the loop.
+func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePayload) error {
+	if strings.TrimSpace(pl.AgentID) == "" {
+		c.log("work_available missing agent_id — skipping")
+		return nil
+	}
+	// Coalesce per work_item_id (mirror wake dedup) so reemit/flap/replay don't
+	// spam nudges. A coalesced re-emit is a silent no-op.
+	if !c.recordWorkAvail(pl.AgentID, pl.WorkItemID) {
+		return nil
+	}
+	// v2.8.1 #278 D PR4a: NUDGE the agent to run its pull loop. The loop
+	// instructions live in the agent's persistent system prompt
+	// (claudestream.AgentWorkQueueSystemPrompt), so this is just a short wake — the
+	// agent reacts per its system prompt (finish current task, then get_my_active_work
+	// → get_my_work/start_work). If no running session, skip (the item stays queued;
+	// the agent pulls it on its next boot/wake) — never wedge the cursor.
+	c.mu.Lock()
+	ma := c.agents[pl.AgentID]
+	var sess agentSession
+	if ma != nil {
+		sess = ma.session
+	}
+	c.mu.Unlock()
+	if sess == nil {
+		c.log("work_available agent=%s work_item=%s — no running session; queued, agent pulls on next wake", pl.AgentID, pl.WorkItemID)
+		return nil
+	}
+	if err := sess.Inject(ctx, workAvailableNudge); err != nil {
+		// Benign: the work stays queued; the agent pulls on its next loop. Log + ack.
+		c.log("work_available agent=%s nudge inject: %v", pl.AgentID, err)
+	}
+	return nil
+}
+
+// workAvailableNudge is the short wake injected on agent.work_available (v2.8.1
+// #278 D PR4a). The full pull-loop behavior is the persistent system prompt; this
+// only nudges the agent to run that loop when new work arrives.
+const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: get_my_active_work, then get_my_work / start_work the next item."
 
 // startSession generates the per-agent mcp-config (written to a FILE the
 // supervisor reads by path — minimal key surface), resolves the agent home +

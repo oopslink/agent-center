@@ -44,6 +44,12 @@ type Deps struct {
 	// back from /api/health. Empty falls back to "dev" for the
 	// `go run` / unversioned path. v2.4-D-X1 fix B10.
 	Version string
+	// Branch / Commit / BuiltAt are the rest of the build identity
+	// (v2.8.1 version convention ${branch}-${commit}) echoed from
+	// GET /api/system/version for the Settings version panel.
+	Branch  string
+	Commit  string
+	BuiltAt string
 }
 
 // AppFacade narrows the cli.App surface that handlers need (we don't
@@ -112,6 +118,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) routes() {
 	// Health + version (utility endpoints, not in plan but useful).
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
+	// v2.8.1: full build identity for the Settings version panel.
+	s.mux.HandleFunc("GET /api/system/version", s.systemVersionHandler)
 
 	// v2.6-FE-1: Auth endpoints — exempt from the JWT middleware.
 	// v2.7 #145: public bootstrap-status probe — lets the SPA decide signup
@@ -194,21 +202,28 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/projects/{project_id}/issues", s.pmListIssuesHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/issues", s.pmCreateIssueHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/issues/{issue_id}", s.pmGetIssueHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{project_id}/issues/{issue_id}", s.pmUpdateIssueHandler)
+	s.mux.HandleFunc("PATCH /api/projects/{project_id}/issues/{issue_id}", s.pmBatchUpdateIssueHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/transition", s.pmTransitionIssueHandler)
+	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
+	// Change-status menu. Symmetric task + issue.
+	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/status", s.pmSetIssueStatusHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks", s.pmListTasksHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks", s.pmCreateTaskHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks/{task_id}", s.pmGetTaskHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{project_id}/tasks/{task_id}", s.pmUpdateTaskHandler)
+	s.mux.HandleFunc("PATCH /api/projects/{project_id}/tasks/{task_id}", s.pmBatchUpdateTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/assign", s.pmAssignTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/start", s.pmStartTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/block", s.pmBlockTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unblock", s.pmUnblockTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/complete", s.pmCompleteTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/verify", s.pmVerifyTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/cancel", s.pmCancelTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/discard", s.pmDiscardTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unassign", s.pmUnassignTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/reopen", s.pmReopenTaskHandler)
+	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
+	// Change-status menu. The typed endpoints above remain for the agent's
+	// structured self-reports.
+	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/status", s.pmSetTaskStatusHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
 
@@ -316,6 +331,24 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":  "ok",
 		"version": v,
+	})
+}
+
+// systemVersionHandler returns the full build identity for the Settings version
+// panel (v2.8.1): version (${branch}-${commit} or a release tag), branch, commit,
+// built_at. Each field falls back to a sentinel for unversioned (`go run`) builds.
+func (s *Server) systemVersionHandler(w http.ResponseWriter, r *http.Request) {
+	fallback := func(v, sentinel string) string {
+		if v == "" {
+			return sentinel
+		}
+		return v
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"version":  fallback(s.deps.Version, "dev"),
+		"branch":   fallback(s.deps.Branch, "unknown"),
+		"commit":   fallback(s.deps.Commit, "unknown"),
+		"built_at": fallback(s.deps.BuiltAt, "unknown"),
 	})
 }
 

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
@@ -68,6 +69,48 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(summary).toHaveTextContent('2 Blocked');
   });
 
+  it('maps paused → its own "Paused" bucket, count and chip (v2.8.1 #278 D scheduling)', async () => {
+    stub([wi('a1', 'active'), wi('p1', 'paused'), wi('p2', 'paused'), wi('q1', 'queued')]);
+    wrap();
+    const summary = await screen.findByTestId('agent-workitems-summary');
+    expect(summary).toHaveTextContent('4 Total');
+    expect(summary).toHaveTextContent('1 In Progress');
+    // paused is a distinct, visible bucket — NOT collapsed into pending/blocked.
+    expect(summary).toHaveTextContent('2 Paused');
+    expect(summary).toHaveTextContent('1 Pending');
+    // the row status chip shows the "Paused" label (not a bare "paused" fallback).
+    const chips = screen.getAllByTestId('agent-workitem-status').map((el) => el.textContent);
+    expect(chips).toContain('Paused');
+  });
+
+  it('paused/queued chips carry both-mode AA classes (dark: variant + queued light fix)', async () => {
+    // v2.8.1 dark-mode AA fix: fixed mid-tone text on alpha-tint is dark-on-dark
+    // in dark mode (FAIL); add lighter dark: variants. queued also FAILed light
+    // (orange-600 3.21:1, pre-existing #228) → orange-700.
+    stub([wi('p1', 'paused'), wi('q1', 'queued')]);
+    wrap();
+    await screen.findByTestId('agent-workitems-summary');
+    const cls = (label: string) =>
+      screen
+        .getAllByTestId('agent-workitem-status')
+        .find((el) => el.textContent === label)
+        ?.querySelector('span')?.className ?? '';
+    expect(cls('Paused')).toContain('dark:text-violet-400');
+    expect(cls('Pending')).toContain('text-orange-700'); // light fix (not 600)
+    expect(cls('Pending')).toContain('dark:text-orange-400');
+    expect(cls('Pending')).not.toContain('text-orange-600');
+  });
+
+  it('filters rows to the Paused bucket', async () => {
+    stub([wi('a1', 'active'), wi('p1', 'paused'), wi('q1', 'queued')]);
+    wrap();
+    await screen.findByTestId('agent-workitems-summary');
+    fireEvent.change(screen.getByTestId('agent-workitems-filter-status'), { target: { value: 'paused' } });
+    const rows = screen.getAllByTestId('agent-workitem-row');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].getAttribute('data-status')).toBe('paused');
+  });
+
   it('renders the columns: short id TAIL (full on hover), Task type, "—" priority, mapped status', async () => {
     stub([wi('abcdef123456', 'active')]);
     wrap();
@@ -128,5 +171,18 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     fireEvent.change(screen.getByTestId('agent-workitems-filter-status'), { target: { value: 'blocked' } });
     await waitFor(() => expect(screen.getByTestId('agent-workitems-no-match')).toBeInTheDocument());
     expect(screen.queryByTestId('agent-workitem-row')).not.toBeInTheDocument();
+  });
+});
+
+describe('tailwind dark mode config', () => {
+  it('is class-based so dark: variants align with the :root.dark token trigger', () => {
+    // The chip dark: variants (above) only work if Tailwind gates dark: by the
+    // `.dark` CLASS (matching index.css :root.dark / <html class="dark">), NOT
+    // the prefers-color-scheme media default. Without darkMode:'class' the dark:
+    // variants misfire on OS-dark+app-light and won't fire under the dual-theme
+    // toggle (10th). Load-bearing for every dark: variant — guard it.
+    // vitest runs with cwd = web/, where tailwind.config.js lives.
+    const cfg = readFileSync('tailwind.config.js', 'utf8');
+    expect(cfg).toMatch(/darkMode:\s*['"](class|selector)['"]/);
   });
 });

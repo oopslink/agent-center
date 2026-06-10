@@ -137,6 +137,26 @@ func (r *AgentRepo) ListByWorker(ctx context.Context, workerID string) ([]*agent
 	return r.list(ctx, agentSelect+` WHERE worker_id = ? ORDER BY created_at, id`, workerID)
 }
 
+// ClearWorkerBindings unbinds every agent of a worker (worker_id → "") in one bulk
+// update, bumping version + updated_at. v2.8.1 force-delete: the worker is
+// force-removed and its agents become worker-less (retained, re-bindable — NOT
+// archived). Returns the number of agents unbound. The second legitimate place
+// worker_id changes (the other is Archive); the generic Update keeps it immutable.
+func (r *AgentRepo) ClearWorkerBindings(ctx context.Context, workerID string, at time.Time) (int, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return 0, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE agents SET worker_id='', updated_at=?, version=version+1 WHERE worker_id=?`,
+		ts(at), workerID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, q, arg)

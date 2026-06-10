@@ -84,6 +84,37 @@
 - 我提议的"简化路径"是不是把 transport 这一层省了？省 transport ≠ 简化 ≠ 可接受。
 - 我看到 `dispatch.NoopSender{} / kill.NoopKillSender{} / SetSupervisorSpawner == nil` 这类 mock-as-default 在 production wiring path 上——是不是有 `// FIXME(prod-wiring)` tag？没有就是漏。
 
+#### 跨域边界破坏必先确认（@oopslink 确认门）
+
+> **凡是可能打破实体或服务的领域边界的技术方案，都需要和 @oopslink 确认后方可推进。**
+
+适用范围（任一中即触发）：
+
+| 触发条件 | 例子 |
+|---|---|
+| 跨 BC 直接调用聚合根 / 直读对方 BC 的 Repository | Agent BC 代码直接 `pm.TaskRepo.FindByID()`（应走 Customer-Supplier / ACL / Shared Kernel 明示） |
+| 跨聚合写 same-tx double-write 的方案 | 一个 transaction 内同时改 ProjectManager.Task + Agent.WorkItem 不走 outbox/projector |
+| 引入跨 BC 的共享 schema / 共享表 / 共享数据 | 新建表被 2+ BC 直接读写 |
+| 把一个 BC 的 invariant 下放到 DB 约束之外的位置 | "靠 service 层串行化代替 DB UNIQUE" → DB+service 双层防御已是 minimum，单层不允许 |
+| 修改 ADR 已定的 BC 边界 / Aggregate 结构 / 集成关系（CF/CS/ACL/SK/OHS）| 重画 Context Map / 拆合聚合根 / 改变 BC 间通信模式 |
+| Repository / AppService 表面变更（删/改/新方法 with cross-BC semantics）| 新增 Repository method 让外部 BC 直访本聚合的内部状态 |
+| "我的方案是 XX, 暂时绕过 YY 边界, 等 vN+1 再修" | 任何把违规升格为 architecture-of-record 的措辞（参考 § 0.4 反面教材） |
+
+**确认流程**:
+
+1. 提议人（Dev / Dev2 / PD / 任何角色）在 PR / task / 设计文档**显式标记** "跨域边界破坏" 标签
+2. 在 PR 描述 / task 描述里**列出**: 触发了哪一条 / 影响哪些 BC / 替代方案 / 为什么选这个方案
+3. **@mention @oopslink** 等待 explicit confirm（"OK" / "拍" / "同意" / 或直接 "do X instead"）
+4. 拿到 confirm 之前**不能** merge / 不能 push 到 main / 不能进入 implementation phase
+5. 如果是已实施代码触发了这条规则（review 阶段发现），暂停 merge / revert + 走流程
+
+**判断不清楚时的默认**: 倾向于"需要确认"，宁可多一次同步也别累 architecture-of-record 债。
+
+**已观察到的 case**:
+
+- v2.0 GA 多 process 直读 sqlite 文件 = 跨进程绕 AppService = 触发本规则的过去版本（2026-05-24 @oopslink firsthand 部署验证识别 + 直接驳回 "Option A 现状最小化改动"）
+- 2026-06-06 @oopslink 立此规则，作为 v2.0 → v2.7 → v2.8 一系列架构整改经验沉淀
+
 #### Enforce 机制
 
 1. **Arch test**: `internal/cli/handlers_*.go` 出现 `persistence.Open` = CI fail（白名单：`handlers_migrate.go` schema 迁移工具 + `handlers_system.go` server 启动）
@@ -581,3 +612,95 @@ backend 规约（§11 产品力 / CRUD enumeration 的 backend 对偶）：
 - 我每个 `if err != nil` 分支做了什么？符合上表"算处理"哪一行？
 - 我的解析 / 协议层遇到未知字段 / 未知类型 / 未知 reason 时上报了吗？
 - 我有没有 silently 返回默认值掩盖错误？
+
+## § 18. 版本号格式
+
+**规约**（@oopslink 2026-06-08 拍）：
+
+```
+version = ${branch}-${git-hash}
+```
+
+例如 `v2.8.1-9908825`（当前 v2.8.1 分支 commit 9908825）/ `main-d92a211` / `fix-some-feature-abc1234`。
+
+**默认 build** = 当前 git branch + 短 commit hash（自动派生，无需手动维护）。
+
+**Release tag override**（仅在打 release tag 时显式）：
+```bash
+make build VERSION=v2.8.1      # 仅在 release ceremony 时用
+```
+override 也仍带 commit hash 是最佳实践（`v2.8.1-9908825`），仅在外部 ship/标识需要 clean tag 时省略.
+
+**不可省略 branch**：单 `v2.8.1` 不算合规（缺 branch 上下文不知是哪个 commit / 哪个 fork）。
+
+**为什么**：
+- 部署到客户/test instance 时 `agent-center --version` 输出含 branch 自然反映 "这是哪条线 / 哪个 commit"
+- v2.7.1 ship-gap 教训：仅靠 tag 名验证落地易出 evidence-binding 错（同 tag 不同 commit）
+- branch-hash 是 unambiguous identity
+- 与 [§ 19 worktree isolation](#-19-worktree-isolation) + [§ 20 content-delta verify](#-20-content-delta-verify) 同精神：identity 必须 unambiguous + verifiable
+
+**落实**：
+
+- `Makefile`：`VERSION ?= $(BRANCH)-$(COMMIT)`（自动），覆盖通过 env 传 `VERSION=tag-name`
+- 所有打包/编译/install 脚本 inherit Makefile VERSION
+- `agent-center --version` / banner / 安装包文件名 用同一 VERSION
+
+**自检：**
+
+- `make build` 产出的二进制 `--version` 显示 branch + hash 吗？
+- Release tarball 文件名 含 branch + hash 吗？
+- 我手动改 VERSION 时, 是否仍保留 commit hash 后缀？
+
+## § 19. 测试 Ownership 按 scope 分（不按语言/目录/PR 系列）
+
+**规约**（@oopslink 2026-06-08 拍 — PR7 e2e 误派事件后立）：
+
+测试任务的 ownership 由**测试 scope** 决定, 不由**语言/目录/PR 系列名**决定。
+
+| 测试 scope | Ownership | 例子 |
+|---|---|---|
+| 单模块单测（unit）| **Dev / Dev2**（写实现者）| `internal/agent/work_item_test.go` 测 WorkItem AR 行为 |
+| 跨模块集成（integration）| **Tester** | `tests/integration/d_pull_flow_test.go` 串 D 全流程 |
+| 端到端 acceptance（e2e）| **Tester** | "assign → queue → wake → start_work → complete → done" 全链 |
+| Runtime / 真-LLM 行为（real-LLM behavioral）| **Tester2** | 真 claude agent 按 prompt 决策、必复 mention、真 pause |
+| UI/UX run-real | **Tester2** | 浏览器渲染 + computed-truth + 多模态 / 时区 emulation |
+
+**不决定 ownership 的因素**：
+
+- **语言**：Go integration test 不归 Dev（PR7 e2e 是 Go 但 scope 是 integration → Tester）
+- **目录**：`internal/...` 下的测试也可能是 integration scope（看断言跨模块还是单模块）
+- **PR 系列名**：D rollout PR1-PR7 是 Dev 主导，但 PR7 = e2e 是 Tester scope，**series 不决定 ownership**
+
+**为什么这条规则**：
+
+- 之前误以为 "PR7 是 D 系列 → Dev 写" → @oopslink 立即指出错配
+- 根因：默认 **by-series** 而非 **by-scope**（应 by-scope）
+- 后果：Dev 揽过多 lane（impl + integration），Tester acceptance lane 被削弱
+- Fix：每个 PR 的测试任务派人，先看 **scope**，再决定 ownership
+
+**自检（PD 派任务时）：**
+
+- 这个 PR 的测试是 **单模块单测** vs **跨模块集成** vs **e2e/acceptance** vs **真-LLM behavioral** vs **UI run-real**？
+- 按 scope 派给对应 owner（Dev / Tester / Tester2），不按谁写实现 / 在什么目录 / 哪个 PR 系列。
+- 如果一个 PR 包含多 scope（罕见），按 scope 拆成多 PR / 多任务派给各自 owner。
+
+**与 § 14 测试规约 互补**：§ 14 讲测试**怎么写**（TDD、覆盖率、不 mock 等），§ 19 讲测试**谁来写**（ownership by scope）。
+
+## § 20. API 无隐含状态（显式上下文进路径）
+
+**API 的返回不能依赖隐含的请求上下文**（session cookie / query 参数推断的当前-org 等）。同一个路径在不同隐含上下文下返不同数据 = **隐含状态**，脆且易踩坑。**上下文要显式进资源路径**。
+
+- **反例（隐含状态）**：`GET /api/members`（org-scoped、但「当前哪个 org」从 session 或 `?org_slug=` query 隐式推断）→ 同路径不同 org 返不同 members；nav 没带 org-slug → 隐式 org 上下文空 → members 空。
+- **正例（显式）**：org-scoped 资源挂在 org 路径下：`GET /api/orgs/{slug}/members`、`/api/orgs/{slug}/...` —— org 是资源路径的一部分、不是隐藏的 query/session 状态；也和前端 URL 已经是 `/<org-slug>/...` 对齐。
+- 红线 org-isolation 仍由路径里的 `{slug}` + membership 校验保证，不靠隐式上下文。
+
+**为什么这条规则**：
+
+- 2026-06-10 v2.8.1 ship review，@oopslink 看到 `/api/members` 指出「这种 api 不太好、有隐含状态」。根因：org 上下文隐式（query/session），导致同路径不同结果、并多次造成 run-real 验收「members 空 / mention 解析不到」的坑。
+- @oopslink 指令：把「API 无隐含状态」加进规约 + 全站 org-scoped 路由显式化作为 **v2.9 架构项**（重构所有 org-scoped 路由为 `/api/orgs/{slug}/...`，非 v2.8.1 范围）。
+
+**自检（设计 / review API 时）：**
+
+- 这个 endpoint 的返回是否依赖隐含上下文（session / query 推断的 org 等）？同路径不同上下文会返不同数据吗？
+- 若是 → 把上下文显式进路径（`/api/orgs/{slug}/...`），消除隐含状态。
+- org-isolation 靠路径 `{slug}` + membership 校验，不靠隐式推断。

@@ -78,7 +78,9 @@ describe('tasks hooks', () => {
     expect(received).toMatchObject({ title: 'x' });
   });
 
-  it('useAssignTask POSTs the assignee to the assign sub-route', async () => {
+  it('useAssignTask POSTs the assignee (metadata only — status unchanged)', async () => {
+    // v2.8.1 #5th: assignee is metadata, not a state. Assigning sets the
+    // assignee and leaves status as-is (here: open, the pre-assign state).
     let received: Record<string, unknown> | undefined;
     server.use(
       http.post('/api/projects/proj-a/tasks/TS-1/assign', async ({ request }) => {
@@ -88,7 +90,7 @@ describe('tasks hooks', () => {
           project_id: 'proj-a',
           title: 'x',
           description: '',
-          status: 'assigned',
+          status: 'open',
           assignee: 'agent:builder',
           version: 2,
           created_at: 'x',
@@ -104,7 +106,8 @@ describe('tasks hooks', () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(received).toMatchObject({ assignee: 'agent:builder' });
-    expect(result.current.data?.status).toBe('assigned');
+    expect(result.current.data?.status).toBe('open');
+    expect(result.current.data?.assignee).toBe('agent:builder');
   });
 
   it('useStartTask transitions to running', async () => {

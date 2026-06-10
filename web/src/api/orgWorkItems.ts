@@ -19,6 +19,14 @@ export interface OrgWorkItemFilters {
   status?: string[];
   /** assignee member-id or prefixed ref. */
   assignee?: string;
+  // #258 date-range filters (PR #224). Each an ABSOLUTE RFC3339 instant carrying
+  // the viewer's LOCAL offset (built via localDateToRFC3339 — NOT a naive date /
+  // UTC midnight). The backend compares absolute instants. Each is optional and
+  // independent; omitted when unset.
+  created_after?: string;
+  created_before?: string;
+  updated_after?: string;
+  updated_before?: string;
 }
 
 function buildQuery(f?: OrgWorkItemFilters): string {
@@ -27,6 +35,11 @@ function buildQuery(f?: OrgWorkItemFilters): string {
   for (const id of f.project ?? []) p.append('project', id);
   for (const s of f.status ?? []) p.append('status', s);
   if (f.assignee) p.set('assignee', f.assignee);
+  // #258 date-range params — only appended when set (already RFC3339-local-offset).
+  if (f.created_after) p.set('created_after', f.created_after);
+  if (f.created_before) p.set('created_before', f.created_before);
+  if (f.updated_after) p.set('updated_after', f.updated_after);
+  if (f.updated_before) p.set('updated_before', f.updated_before);
   const s = p.toString();
   return s ? `?${s}` : '';
 }

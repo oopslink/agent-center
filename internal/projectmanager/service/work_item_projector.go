@@ -24,6 +24,15 @@ import (
 // effect yet.
 const commandTypeAgentWork = "agent.work"
 
+// commandTypeWorkAvailable is the v2.8.1 #278 D (pull model) WAKE signal: a
+// lightweight per-agent "you have new work — pull your queue" notification
+// emitted alongside agent.work when a WorkItem is enqueued. ADDITIVE in PR2 —
+// the old agent.work push still fires (DB-UNIQUE-gated to single-active) and the
+// daemon log+skips this unknown type until PR3 wires the wake handler (agent
+// pulls via get_my_work + start_work). The PR6 cutover removes agent.work and
+// keeps this as the sole activation trigger.
+const commandTypeWorkAvailable = "agent.work_available"
+
 // WorkItemProjector is the B2-c projector that turns Task assignment into Agent
 // work (ADR-0049 §3, plan §4.2). It consumes pm.task.assigned / pm.task.reassigned
 // and, when the assignee is an Agent, supersedes any prior live AgentWorkItem
@@ -122,10 +131,10 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 	}
 	if e.EventType == EvtTaskStateChanged {
 		switch pl.Status {
-		case string(pm.TaskBlocked), string(pm.TaskCanceled), string(pm.TaskOpen):
-			// blocked/canceled end the attempt; →open is unassign (or reopen),
-			// which also drops any live attempt. Reopen has no live WorkItem so
-			// it is a no-op (terminal items are skipped below).
+		case string(pm.TaskBlocked), string(pm.TaskDiscarded), string(pm.TaskOpen):
+			// blocked/discarded end the attempt; →open is reopen, which also drops
+			// any live attempt. Reopen has no live WorkItem so it is a no-op
+			// (terminal items are skipped below).
 			cancelLive = true
 		case string(pm.TaskCompleted):
 			// v2.7 #111 ④ (Q1): the Task is done → FINISH the live WorkItem so it
@@ -155,6 +164,11 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 			if w.Status().IsTerminal() {
 				continue
 			}
+			// v2.8.1 #278 PR5: capture the loaded version for the CAS below — guards
+			// this projection against the WorkItemReconciler concurrently releasing
+			// the SAME active item (the 7a-iii complete/cancel/supersede-vs-release
+			// race; the reconciler is the "releaser" that makes this race real).
+			preV := w.Version()
 			switch {
 			case dispatch:
 				if err := w.Supersede(now); err != nil { // reassignment ends the prior attempt
@@ -175,7 +189,14 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 					return err
 				}
 			}
-			if err := p.workItems.Update(txCtx, w); err != nil {
+			// UpdateCAS: if the reconciler released this item first (active→failed,
+			// version bumped), the CAS conflicts → skip it. The reconciler's terminal
+			// release wins; this projection is moot for that item (the task-level
+			// status still settles at the pm layer).
+			if err := p.workItems.UpdateCAS(txCtx, w, preV); err != nil {
+				if errors.Is(err, agent.ErrWorkItemReassigned) {
+					continue
+				}
 				return err
 			}
 		}
@@ -226,6 +247,15 @@ type workCommandPayload struct {
 	Brief      string `json:"brief"`
 }
 
+// workAvailablePayload is the agent.work_available (wake) command payload. It is
+// deliberately per-AGENT (not per-WorkItem): the wake just tells the agent "your
+// queue changed — pull it (get_my_work) and start_work the next item". The
+// WorkItemID is carried only for idempotency-key determinism + observability.
+type workAvailablePayload struct {
+	AgentID    string `json:"agent_id"`
+	WorkItemID string `json:"work_item_id"`
+}
+
 // enqueueWork appends the agent.work command for a freshly-queued WorkItem onto
 // the assignee Agent's Worker control stream (same tx as the caller). It is a
 // best-effort SIGNAL: if work delivery is not wired (nil controlLog/agents), or
@@ -261,20 +291,23 @@ func (p *WorkItemProjector) enqueueWork(ctx context.Context, wi *agent.AgentWork
 			"agent_id", string(agentID), "work_item_id", wi.ID(), "lifecycle", string(a.Lifecycle()))
 		return nil
 	}
-	payload, err := json.Marshal(workCommandPayload{
+	// v2.8.1 #278 D PR6 CUTOVER: the old agent.work PUSH (auto-activate) is removed.
+	// The center now ONLY emits the per-agent wake (agent.work_available) — the agent
+	// pulls its queue (get_my_active_work / get_my_work / start_work) and is the SOLE
+	// path that marks a WorkItem active (single-active by construction, not by the old
+	// DB-UNIQUE gate on a racing push). Same tx + same lifecycle/binding guards above.
+	wakePayload, err := json.Marshal(workAvailablePayload{
 		AgentID:    string(agentID),
 		WorkItemID: wi.ID(),
-		TaskRef:    taskRef,
-		Brief:      p.brief(ctx, taskRef),
 	})
 	if err != nil {
 		return err
 	}
 	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
 		WorkerID:       environment.WorkerID(workerID),
-		CommandType:    commandTypeAgentWork,
-		Payload:        string(payload),
-		IdempotencyKey: "agent.work:" + wi.ID(),
+		CommandType:    commandTypeWorkAvailable,
+		Payload:        string(wakePayload),
+		IdempotencyKey: "agent.work_available:" + wi.ID(),
 	})
 	return err
 }

@@ -3,10 +3,14 @@ import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useConversation } from '@/api/conversations';
 import { ConversationView } from '@/components/ConversationView';
+import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { Avatar } from '@/components/Avatar';
+import { useDisplayNameResolver } from '@/api/members';
+import type { Participant } from '@/api/types';
 
 // ChannelDetail page (/channels/:channelId). v2.7.1 #247: the URL carries the
 // channel's hash id (conversation_id), consistent with project/task/issue URLs
@@ -16,6 +20,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 export default function ChannelDetail(): React.ReactElement {
   const { channelId = '' } = useParams<{ channelId: string }>();
   const conv = useConversation(channelId);
+  const displayName = useDisplayNameResolver();
 
   if (conv.isLoading) {
     return (
@@ -46,9 +51,14 @@ export default function ChannelDetail(): React.ReactElement {
 
   const ch = conv.data;
   const participants = ch.participants ?? [];
-  const activeCount = participants.filter((p) => !p.left_at).length;
+  const active = participants.filter((p) => !p.left_at);
+  const activeCount = active.length;
 
   return (
+    // #281 entry ②: the channel message surface needs a SenderSidebarProvider so the
+    // @mention tokens in message content become clickable (and message-sender clicks
+    // drive the one provider sidebar). DM has its own; channel/work-item each wrap too.
+    <SenderSidebarProvider>
     <section
       className="flex h-full flex-col"
       data-testid="page-ChannelDetail"
@@ -69,9 +79,14 @@ export default function ChannelDetail(): React.ReactElement {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-text-muted">
-            {activeCount} {activeCount === 1 ? 'participant' : 'participants'}
-          </span>
+          {/* 8th channel redesign: overlapping avatar group of participants
+              (reuses the shared Avatar #211) + the count text. */}
+          <div className="flex items-center gap-2">
+            <AvatarStack participants={active} resolve={displayName} />
+            <span className="text-xs text-text-muted">
+              {activeCount} {activeCount === 1 ? 'participant' : 'participants'}
+            </span>
+          </div>
           {/* #264 P1 / #176 §4: follow/unfollow this channel. */}
           <FollowToggle conversationId={ch.id} followed={ch.followed ?? false} />
         </div>
@@ -86,5 +101,61 @@ export default function ChannelDetail(): React.ReactElement {
         sidePanel={<ParticipantsPanel conversationId={ch.id} participants={participants} />}
       />
     </section>
+    </SenderSidebarProvider>
+  );
+}
+
+// AvatarStack — a stacked/overlapping group of participant avatars for the
+// channel header (8th channel redesign, mockup-locked). Reuses the shared
+// Avatar (#211): up to MAX_SHOWN discs with a negative-overlap (`-space-x-2`)
+// and a bg-token ring so the overlap reads cleanly in both light + dark;
+// a `+N` chip absorbs the overflow. The kind (human/agent) comes from the
+// identity-ref prefix (matches MessageList's avatar wiring).
+const MAX_SHOWN = 3;
+function AvatarStack({
+  participants,
+  resolve,
+}: {
+  participants: Participant[];
+  resolve: (ref: string) => string;
+}): React.ReactElement | null {
+  if (participants.length === 0) return null;
+  const shown = participants.slice(0, MAX_SHOWN);
+  const overflow = participants.length - shown.length;
+  const countLabel = `${participants.length} ${participants.length === 1 ? 'participant' : 'participants'}`;
+  return (
+    <div
+      className="flex items-center -space-x-2"
+      data-testid="channel-avatar-stack"
+      role="group"
+      aria-label={countLabel}
+    >
+      {shown.map((p) => {
+        const resolved = resolve(p.identity_id);
+        const name = resolved === p.identity_id ? '?' : resolved;
+        return (
+          <span
+            key={p.identity_id}
+            className="rounded-full ring-2 ring-bg-elevated"
+            data-testid="channel-avatar-stack-item"
+          >
+            <Avatar
+              name={name}
+              kind={p.identity_id.startsWith('agent:') ? 'agent' : 'human'}
+              size="sm"
+            />
+          </span>
+        );
+      })}
+      {overflow > 0 && (
+        <span
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-subtle text-[0.625rem] font-semibold text-text-secondary ring-2 ring-bg-elevated"
+          data-testid="channel-avatar-stack-overflow"
+          aria-label={`${overflow} more`}
+        >
+          +{overflow}
+        </span>
+      )}
+    </div>
   );
 }

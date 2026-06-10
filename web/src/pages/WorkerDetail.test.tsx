@@ -86,6 +86,20 @@ describe('WorkerDetail (shell)', () => {
     expect(screen.getByTestId('worker-status-badge')).toHaveTextContent('Offline');
   });
 
+  it('Management tab exposes the Force delete action which opens the typed-name modal', async () => {
+    server.use(
+      http.get('/api/workers/:id', () => HttpResponse.json(worker())),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+    );
+    wrap();
+    await screen.findByRole('heading', { name: 'Worker One' });
+    fireEvent.click(screen.getByTestId('worker-tab-management'));
+    fireEvent.click(await screen.findByTestId('worker-force-delete'));
+    expect(screen.getByTestId('force-delete-modal')).toBeInTheDocument();
+    // gated until the worker name is typed exactly
+    expect(screen.getByTestId('force-delete-confirm')).toBeDisabled();
+  });
+
   it('not-found → error + back-to-Environment link', async () => {
     server.use(
       http.get('/api/workers/:id', () =>

@@ -2,31 +2,30 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  ISSUE_TRANSITIONS,
-  useIssue,
-  useTransitionIssue,
-} from '@/api/issues';
+import { useIssue } from '@/api/issues';
 import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
+import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
-import { EntityRef } from '@/components/EntityRef';
+import { IssueDetailSidebar } from '@/components/IssueDetailSidebar';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { useDisplayNameResolver } from '@/api/members';
-import type { IssueStatus } from '@/api/types';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
 // ProjectManager BC: the issue is project-scoped and driven entirely by
-// its projection. State changes go through the single transition
-// endpoint; metadata edits via PATCH.
+// its projection. Status is READ-ONLY display; all metadata edits
+// (title / description / status / tags) go through the single Edit →
+// IssueEditModal PATCH (Dev's #251 contract).
+//
+// 5th task (Phabricator-style): two-column responsive layout — the main column
+// holds the title + description + conversation; the right IssueDetailSidebar
+// holds the two-section read-only layout (Status + duration / Tags, then
+// Project / Issue ID / Created) with the SOLE edit entry being the Edit-Issue
+// pencil → IssueEditModal. v2.8.1 sidebar-align: this mirrors TaskDetailSidebar
+// (minus assignee — Issues have none), symmetric with TaskDetail.
 export default function IssueDetail(): React.ReactElement {
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const issue = useIssue(projectId, id);
-  const transition = useTransitionIssue(projectId, id);
-  // v2.7 #192: resolve created_by ref → display name (raw ref on hover); a
-  // deleted/unresolvable author renders "(deleted)".
-  const resolveName = useDisplayNameResolver();
   // v2.7 #192: parent project shown by name (raw id on hover), not raw project id.
   const project = useProject(issue.data?.project_id);
   const [editOpen, setEditOpen] = useState(false);
@@ -59,8 +58,8 @@ export default function IssueDetail(): React.ReactElement {
   }
 
   const iss = issue.data;
-  const targets = ISSUE_TRANSITIONS[iss.status] ?? [];
-  const isTerminal = iss.status === 'withdrawn';
+  // The Edit-Issue button hides on a terminal (discarded) issue — nothing to edit.
+  const isTerminal = iss.status === 'discarded';
 
   return (
     <section className="flex h-full flex-col" data-testid="page-IssueDetail" data-issue-id={iss.id}>
@@ -74,106 +73,56 @@ export default function IssueDetail(): React.ReactElement {
           ]}
         />
       </div>
-      <header className="flex items-start justify-between border-b border-border-base pb-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">
-              {iss.org_ref && <span className="text-text-muted" data-testid="issue-org-ref">{iss.org_ref} · </span>}
-              {iss.title || iss.id}
-            </h2>
-            <TypeChip kind="issue" />
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            <span
-              className="rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary"
-              data-testid="issue-status"
+
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row">
+        {/* main column — title + description + conversation */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="border-b border-border-base pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-semibold">
+                {iss.org_ref && <span className="text-text-muted" data-testid="issue-org-ref">{iss.org_ref} · </span>}
+                {iss.title || iss.id}
+              </h2>
+              <TypeChip kind="issue" />
+            </div>
+          </header>
+
+          {iss.description ? (
+            // @oopslink: markdown render + capped height so a long description
+            // scrolls internally rather than pushing the conversation off-screen.
+            // tabIndex keeps the scroll region keyboard-reachable (WCAG 2.1.1).
+            <div
+              className="mt-4 max-h-64 overflow-y-auto text-sm text-text-secondary"
+              data-testid="issue-description"
+              tabIndex={0}
+              role="region"
+              aria-label="Issue description"
             >
-              {iss.status.replace(/_/g, ' ')}
-            </span>
-            <span>
-              by{' '}
-              <EntityRef
-                id={iss.created_by}
-                name={resolveName(iss.created_by) === iss.created_by ? undefined : resolveName(iss.created_by)}
-                testId="issue-created-by"
-              />
-            </span>
-            {iss.project_id && (
-              <OrgLink
-                to={`/projects/${encodeURIComponent(iss.project_id)}`}
-                className="text-accent hover:underline"
-                data-testid="issue-project-link"
-                title={iss.project_id}
-              >
-                project · {project.data?.name || iss.project_id}
-              </OrgLink>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!isTerminal && (
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
-              data-testid="issue-edit-button"
-            >
-              Edit
-            </button>
+              <MarkdownMessage content={iss.description} />
+            </div>
+          ) : (
+            <p className="mt-4 text-sm italic text-text-muted">No description.</p>
           )}
-          {targets.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => transition.mutate(t)}
-              disabled={transition.isPending}
-              className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-              data-testid={`issue-transition-${t}`}
-            >
-              {transitionLabel(t)}
-            </button>
-          ))}
+
+          <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
         </div>
-      </header>
 
-      {transition.isError && (
-        <p className="mt-2 text-xs text-danger" data-testid="issue-transition-error">
-          {(transition.error as Error).message}
-        </p>
-      )}
-
-      {iss.description ? (
-        <p className="mt-4 whitespace-pre-wrap text-sm text-text-secondary" data-testid="issue-description">
-          {iss.description}
-        </p>
-      ) : (
-        <p className="mt-4 text-sm italic text-text-muted">No description.</p>
-      )}
-
-      <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
+        {/* right sidebar — 2-section IssueDetail layout (read-only display top /
+            read-only bottom), mirror of TaskDetailSidebar minus assignee. The
+            ONLY edit path is the Edit-Issue pencil → modal. */}
+        <div className="shrink-0 overflow-y-auto lg:w-72">
+          <IssueDetailSidebar
+            issue={iss}
+            projectName={project.data?.name}
+            onEdit={() => setEditOpen(true)}
+            editable={!isTerminal}
+          />
+        </div>
+      </div>
 
       {editOpen && (
         <IssueEditModal projectId={projectId} issue={iss} onClose={() => setEditOpen(false)} />
       )}
     </section>
   );
-}
-
-function transitionLabel(status: IssueStatus): string {
-  switch (status) {
-    case 'in_progress':
-      return 'Start';
-    case 'resolved':
-      return 'Resolve';
-    case 'closed':
-      return 'Close';
-    case 'reopened':
-      return 'Reopen';
-    case 'withdrawn':
-      return 'Withdraw';
-    case 'open':
-      return 'Move to Open';
-    default:
-      return status;
-  }
 }

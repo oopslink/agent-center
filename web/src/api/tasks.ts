@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Task } from './types';
+import type { Task, TaskStatus } from './types';
 
 // Tasks (v2.7 ProjectManager BC). Project-scoped: every read/write is
 // nested under /projects/{project_id}/tasks. The list response is
@@ -45,9 +45,18 @@ export function useCreateTask(projectId: string) {
   });
 }
 
+// UpdateTaskInput is the body of the bare batch PATCH
+// (PATCH /projects/{pid}/tasks/{id} → pmBatchUpdateTaskHandler, v2.8.1 #278).
+// Atomic all-or-none; send ONLY the changed fields (omitted = unchanged). Wire
+// keys match the Go handler exactly: status / assignee / tags / title /
+// description (NOT "desc"). assignee:"" unassigns; status is any valid TaskStatus
+// (free SetStatus, no adjacency); tags is the full replacement label set.
 export interface UpdateTaskInput {
   title?: string;
   description?: string;
+  status?: TaskStatus;
+  assignee?: string;
+  tags?: string[];
 }
 
 export function useUpdateTask(projectId: string, taskId: string) {
@@ -118,9 +127,9 @@ export function useVerifyTask(projectId: string, taskId: string) {
   );
 }
 
-export function useCancelTask(projectId: string, taskId: string) {
+export function useDiscardTask(projectId: string, taskId: string) {
   return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/cancel`),
+    api.post<Task>(`${taskPath(projectId, taskId)}/discard`),
   );
 }
 

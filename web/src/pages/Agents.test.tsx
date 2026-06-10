@@ -155,6 +155,63 @@ describe('Agents page', () => {
   });
 });
 
+// v2.8.1 list-enrich: each agent row shows provider (CLI + model) badges, the
+// last_activity_at (formatLocalTime, local tz) + a truncated content preview,
+// and a friendly placeholder when there's no activity.
+describe('Agents list-enrichment (v2.8.1)', () => {
+  afterEach(() => cleanup());
+
+  it('renders the CLI + model provider badges (text labels, not color-only)', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent('bot-1', { name: 'bot-1', cli: 'claudecode', model: 'claude-opus-4-8' })],
+        }),
+      ),
+    );
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getByTestId('agent-cli-badge')).toBeInTheDocument());
+    expect(screen.getByTestId('agent-cli-badge')).toHaveTextContent('claudecode');
+    expect(screen.getByTestId('agent-model-badge')).toHaveTextContent('claude-opus-4-8');
+  });
+
+  it('renders last_activity_at via formatLocalTime + a truncated content preview', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [
+            agent('bot-1', {
+              name: 'bot-1',
+              last_activity_at: '2026-05-24T01:00:00Z',
+              last_activity_content: 'finished the migration\nand ran tests',
+            }),
+          ],
+        }),
+      ),
+    );
+    wrap(<Agents />);
+    const at = await screen.findByTestId('agent-last-activity-at');
+    // formatLocalTime shape — never the raw ISO with trailing Z.
+    expect(at.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T.*Z/);
+    expect(at.textContent).toMatch(/2026/);
+    const content = screen.getByTestId('agent-last-activity-content');
+    expect(content.className).toContain('truncate');
+    // multi-line flattened to single line + full text on title
+    expect(content.textContent).not.toContain('\n');
+    expect(content).toHaveAttribute('title', expect.stringContaining('finished the migration'));
+  });
+
+  it('shows a friendly placeholder when an agent has no activity', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({ agents: [agent('bot-1', { name: 'bot-1' })] }),
+      ),
+    );
+    wrap(<Agents />);
+    expect(await screen.findByTestId('agent-no-activity')).toHaveTextContent('No recent activity');
+  });
+});
+
 // v2.7 #197: agent rows carry a delete action (hard-delete agent + identity-member);
 // confirmed via the shared ConfirmModal; the 409 guard codes (agent_running /
 // agent_has_active_work) surface as friendly copy, never silent.

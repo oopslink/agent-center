@@ -50,6 +50,12 @@ func (a *Adapter) BuildCommand(req agentadapter.SpawnRequest) (agentadapter.CmdS
 		"--output-format", "stream-json",
 		"--session-id", req.ExecutionID,
 	}
+	// v2.8.1 #278 D PR4a: persistent agent operating instructions (the pull-loop
+	// state machine). --append-system-prompt is re-applied on every launch and is
+	// NOT conversation history → idempotent across fresh/resume/crash-relaunch.
+	if req.SystemPrompt != "" {
+		args = append(args, "--append-system-prompt", req.SystemPrompt)
+	}
 	for _, sf := range req.SkillFiles {
 		args = append(args, "--skill", sf)
 	}

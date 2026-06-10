@@ -14,6 +14,11 @@ export interface Participant {
   joined_by: string;
   left_at?: string;
   left_reason?: string;
+  // v2.8.1 list-enrich (contract LOCK): on the channel-list row summary the
+  // backend embeds the name + kind so the avatar-stack avoids a per-row member
+  // lookup; absent on the detail projection (resolve via the resolver).
+  display_name?: string;
+  kind?: string; // 'agent' | 'human' — drives the Avatar kind on the row summary.
 }
 
 export interface Conversation {
@@ -40,6 +45,33 @@ export interface Conversation {
   unread_count?: number; // messages with id > my last_seen_message_id (999+ cap); 0 when caught up.
   mention_count?: number; // subset of unread that @-mention me; 0 when none.
   followed?: boolean; // am I following this conversation/thread (§4).
+  // v2.8.1 list-enrichment (mock=contract, Dev backend in parallel — VERIFY vs
+  // the real GET /conversations later). These are server-side-enriched summary
+  // fields embedded per channel row so the Channels list renders rich previews
+  // without N+1 client fetches. All optional: older/legacy payloads omit them
+  // and the UI degrades gracefully (omit / placeholder).
+  created_at?: string; // RFC3339; rendered via formatLocalTime (LOCAL tz, not raw Z).
+  // CONTRACT ASSUMPTION: the existing `participants?: Participant[]` field (above)
+  // is reused for the row summary — on a list row the backend embeds the first
+  // few participants (each may carry an inline display_name; the non-summary
+  // Participant fields like role/joined_at may be omitted on this projection).
+  // `participant_count` is the TOTAL (drives the "+N" overflow + the count text).
+  participant_count?: number;
+  recent_messages?: RecentMessageSummary[]; // ≤3, newest-relevant; plain-text previews.
+}
+
+// v2.8.1 list-enrichment: a ≤3 recent-message preview embedded per channel row.
+// `content` is a PLAIN-TEXT preview (the UI renders it as text, never as a
+// markdown block / code / image). `sender_identity_id` is a (possibly deleted)
+// identity ref — resolve via useDisplayNameResolver, render "(deleted)" on a miss.
+export interface RecentMessageSummary {
+  id: string;
+  sender_identity_id: string;
+  // contract LOCK: the backend resolves the sender's display name server-side.
+  // Use it directly; a deleted sender → empty/raw-ref → the UI renders "(deleted)".
+  sender_display_name?: string;
+  content: string;
+  posted_at: string;
 }
 
 // ContextRefs (v2.7 #137) — the pm/agent work-item provenance a message
@@ -116,6 +148,12 @@ export interface Agent {
   created_by_display_name?: string;
   computer?: AgentComputer;
   created_agents?: AgentRef[];
+  // v2.8.1 list-enrichment (mock=contract, Dev backend in parallel — VERIFY vs
+  // the real GET /api/agents later). Embedded per agent row so the Agents list
+  // shows last-activity without a per-row activity fetch (no N+1). Both optional:
+  // an agent with no activity omits them and the UI shows a friendly placeholder.
+  last_activity_at?: string; // RFC3339; rendered via formatLocalTime (LOCAL tz).
+  last_activity_content?: string; // single-line PLAIN-TEXT preview (truncated in UI).
 }
 
 // v2.7.1 #120: the bound worker's label + connected state. daemon version is
@@ -137,6 +175,7 @@ export interface AgentRef {
 export type WorkItemStatus =
   | 'queued'
   | 'active'
+  | 'paused' // v2.8.1 #278 D: agent paused this item to switch to another (scheduling autonomy)
   | 'waiting_input'
   | 'done'
   | 'failed'
@@ -313,15 +352,15 @@ export interface Project {
 
 // Issue mirrors the v2.7 ProjectManager BC Issue projection. Issues are
 // project-scoped (nested under /projects/{pid}/issues). The status
-// machine: open→{in_progress,withdrawn}; in_progress→{resolved,withdrawn};
+// machine: open→{in_progress,discarded}; in_progress→{resolved,discarded};
 // resolved→{closed,reopened}; closed→{reopened}; reopened→{open};
-// withdrawn=terminal.
+// discarded=terminal.
 export type IssueStatus =
   | 'open'
   | 'in_progress'
   | 'resolved'
   | 'closed'
-  | 'withdrawn'
+  | 'discarded'
   | 'reopened';
 
 export interface Issue {
@@ -331,10 +370,19 @@ export interface Issue {
   description: string;
   status: IssueStatus;
   created_by: string;
+  // v2.8.1 issue-edit (#251, mirror of task #278): free-form label set (cleaned +
+  // deduped + bounded to ≤16 runes each, ≤10 entries by the backend). The DTO
+  // emits a non-nil array ([] when none); optional on the type so older payloads
+  // that omit it are treated as no tags.
+  tags?: string[];
   // v2.7.1 #245: org-internal display/reference token ("I1234"). The hash `id`
   // (issue-xxx) stays the stable internal ref (URL/API). Absent until the
   // backend DTO carries it (migration 0049) → UI falls back to the id handle.
   org_ref?: string;
+  // v2.8.1 sidebar-align: when the issue last changed status, emitted by the
+  // Issue DTO (rfc3339OrEmpty(StatusChangedAt)). Drives the in-status duration
+  // text in the sidebar (mirror of Task). Optional — older payloads may omit it.
+  status_changed_at?: string;
   version: number;
   created_at: string;
   updated_at: string;
@@ -345,12 +393,11 @@ export interface Issue {
 // status machine driven by POST sub-route actions.
 export type TaskStatus =
   | 'open'
-  | 'assigned'
   | 'running'
   | 'blocked'
   | 'completed'
   | 'verified'
-  | 'canceled'
+  | 'discarded'
   | 'reopened';
 
 export interface Task {
@@ -363,6 +410,13 @@ export interface Task {
   derived_from_issue?: string;
   completed_by?: string;
   blocked_reason?: string;
+  // v2.8.1 edit-task #278: free-form label set (cleaned + deduped + bounded to
+  // ≤16 runes each, ≤10 entries by the backend). The DTO always emits a non-nil
+  // array ([] when none) — pmTaskMap normalizes nil→[]. Optional on the type so
+  // older/legacy payloads (pre-#278) that omit it are treated as no tags.
+  tags?: string[];
+  // v2.8.1 #278: RFC3339 timestamp of the last status change; "" when never set.
+  status_changed_at?: string;
   // v2.7.1 #245: org-internal display/reference token ("T1234"); hash `id`
   // (task-xxx) stays the stable internal ref. Absent → UI falls back to handle.
   org_ref?: string;

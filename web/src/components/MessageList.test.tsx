@@ -1,6 +1,6 @@
 import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render as rtlRender, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageList } from './MessageList';
 import type { Message } from '@/api/types';
@@ -44,6 +44,25 @@ describe('MessageList', () => {
     expect(screen.getByTestId('message-list-empty')).toBeInTheDocument();
   });
 
+  it('de-emphasizes a system message — centered hint, raw text collapsed behind [Details]', () => {
+    const sys: Message = {
+      ...sample('S1', "⚠️ @arch1 couldn't process the message: rate_limit exceeded — 429 raw-api-error"),
+      content_kind: 'system',
+    };
+    render(<MessageList messages={[sys]} />);
+    // de-emphasized centered hint, NOT a full sender bubble.
+    expect(screen.getByTestId('message-system')).toBeInTheDocument();
+    expect(screen.queryByTestId('message-row')).not.toBeInTheDocument();
+    // raw error text is NOT in the main flow by default (collapsed).
+    expect(screen.queryByText(/rate_limit exceeded/)).not.toBeInTheDocument();
+    const toggle = screen.getByTestId('message-system-details-toggle');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    // expanding [Details] reveals the full raw content.
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('message-system-detail')).toHaveTextContent('rate_limit exceeded');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('renders one row per message with sender + content', () => {
     render(<MessageList messages={[sample('M1', 'hi'), sample('M2', 'two')]} />);
     const rows = screen.getAllByTestId('message-row');
@@ -51,6 +70,26 @@ describe('MessageList', () => {
     expect(rows[0]).toHaveTextContent('hi');
     expect(rows[1]).toHaveTextContent('two');
     expect(rows[0]).toHaveAttribute('data-message-id', 'M1');
+  });
+
+  // v2.8.1 7th-DM increment: the DM surface renders RECEIVED messages as bordered
+  // content cards (per the DM mockup); channel keeps the gray pill bubble; own
+  // bubble (#D1E3FF) + default behaviour are unchanged. The sample sender is the
+  // viewer (user:hayang) = own; use a different sender for a received message.
+  it('renders received messages as bordered cards on the DM surface, pills on channel', () => {
+    const received = { ...sample('M1', 'hi'), sender_identity_id: 'agent:arch1' };
+    const { rerender } = render(<MessageList messages={[received]} surface="dm" />);
+    let row = screen.getByTestId('message-row');
+    expect(row).toHaveAttribute('data-own', 'false');
+    let bubble = row.querySelector('[data-surface="dm"]');
+    expect(bubble?.className).toContain('border-border-base');
+    expect(bubble?.className).toContain('bg-bg-elevated');
+    // channel (default surface) keeps the gray pill bubble — no border card.
+    rerender(<MessageList messages={[received]} />);
+    row = screen.getByTestId('message-row');
+    bubble = row.querySelector('[data-surface="channel"]');
+    expect(bubble?.className).toContain('bg-bg-subtle');
+    expect(bubble?.className).not.toContain('border-border-base');
   });
 
   // #276: message content renders as markdown — a long fenced code block
@@ -62,6 +101,10 @@ describe('MessageList', () => {
     expect(row.querySelector('h2')).toHaveTextContent('hi');
     expect(screen.getByTestId('collapsible-code-block')).toBeInTheDocument();
     expect(screen.getByTestId('code-disclosure-btn')).toBeInTheDocument();
+    // Code-heavy messages get a wider, stable desktop line length.
+    const bubble = row.querySelector('.bg-chatuserbubble');
+    expect(bubble?.className).toContain('sm:w-2/3');
+    expect(bubble?.className).toContain('sm:max-w-[66.666667%]');
   });
 
   it('snaps initial scroll to bottom when there are messages', () => {
@@ -102,6 +145,68 @@ describe('MessageList', () => {
     });
     rerender(<MessageList messages={[sample('M1', 'a'), sample('M2', 'b')]} />);
     expect(screen.queryByTestId('message-list-new-pill')).not.toBeInTheDocument();
+  });
+
+  // v2.8.1 chat-rightalign: the viewer's own messages (sender === store
+  // currentUserId, default 'user:hayang') render right-aligned (accent bubble,
+  // no avatar); other people's stay left (avatar + elevated bubble).
+  it('renders the viewer\'s OWN message right-aligned (light-blue bubble, dark text, no avatar)', () => {
+    // sample() defaults sender_identity_id to 'user:hayang' === store currentUserId.
+    render(<MessageList messages={[sample('M1', 'mine')]} />);
+    const row = screen.getByTestId('message-row');
+    expect(row).toHaveAttribute('data-own', 'true');
+    expect(row.className).toContain('items-end');
+    // Chat UX 2 (#1+#2): own bubble is bg-chatuserbubble (#D1E3FF), NOT the old
+    // bg-indigo-500; adaptive max-w; FIXED dark text (text-slate-900) so it stays
+    // dark on the fixed light-blue in BOTH light + dark mode (NOT a theme token).
+    const bubble = row.querySelector('.bg-chatuserbubble');
+    expect(bubble).not.toBeNull();
+    expect(row.querySelector('.bg-indigo-500')).toBeNull();
+    expect(bubble?.className).toContain('max-w-[75%]');
+    expect(bubble?.className).not.toContain('sm:w-2/3');
+    expect(bubble?.className).toContain('text-slate-900');
+    // text-text-primary flips light in dark mode → must NOT be the bubble's text.
+    expect(bubble?.className).not.toContain('text-text-primary');
+    // no avatar for own messages (#225).
+    expect(row.querySelector('[data-testid="avatar"]')).toBeNull();
+    // Chat UX 2 (#3+#5): name + time live in a header line OUTSIDE the bubble.
+    const header = screen.getByTestId('message-header');
+    expect(bubble?.contains(header)).toBe(false);
+    expect(header.className).toContain('flex-row-reverse'); // right-aligned for own
+    expect(screen.getByTestId('message-sender-button')).toBeInTheDocument();
+    expect(screen.getByTestId('message-time')).toBeInTheDocument();
+    expect(row).toHaveTextContent('mine');
+  });
+
+  it('renders a NON-own message left-aligned with an avatar (data-own false)', () => {
+    const other: Message = { ...sample('M2', 'theirs'), sender_identity_id: 'agent:arch1' };
+    render(<MessageList messages={[other]} />);
+    const row = screen.getByTestId('message-row');
+    expect(row).toHaveAttribute('data-own', 'false');
+    expect(row.className).not.toContain('items-end');
+    // other side is a bubble too — bg-bg-subtle (浅灰, both-mode token), adaptive
+    // max-w, no border card; theme-adaptive text-text-primary (both flip together).
+    const bubble = row.querySelector('.bg-bg-subtle');
+    expect(bubble).not.toBeNull();
+    expect(bubble?.className).toContain('max-w-[75%]');
+    expect(bubble?.className).not.toContain('sm:w-2/3');
+    // avatar rendered for other people's messages.
+    expect(row.querySelector('[data-testid="avatar"]')).not.toBeNull();
+    // Chat UX 2 (#3+#5): name + time in a header line OUTSIDE the bubble, left-aligned.
+    const header = screen.getByTestId('message-header');
+    expect(bubble?.contains(header)).toBe(false);
+    expect(header.className).not.toContain('flex-row-reverse');
+    expect(row).toHaveTextContent('theirs');
+  });
+
+  // @oopslink locked (DM mockup): the header timestamp uses formatChatTime —
+  // now the 24-hr local "HH:MM" form (tz-tolerant assertion). The dateTime attr
+  // keeps the raw ISO.
+  it('renders the header timestamp in 24-hr local "HH:MM" form', () => {
+    render(<MessageList messages={[sample('M1', 'mine')]} />);
+    const time = screen.getByTestId('message-time');
+    expect(time).toHaveAttribute('dateTime', '2026-05-24T01:00:00Z');
+    expect(time.textContent).toMatch(/^\d{2}:\d{2}$/);
   });
 
   it('clicking the "New messages" pill scrolls to bottom + dismisses the pill', () => {
@@ -160,5 +265,88 @@ describe('MessageList attachments (#142)', () => {
   it('renders nothing extra for a plain message (no attachments)', () => {
     render(<MessageList messages={[sample('m2', 'plain')]} />);
     expect(screen.queryByTestId('message-attachments')).not.toBeInTheDocument();
+  });
+});
+
+// v2.8.1 7th DM increment 2: clicking a sender name/avatar opens the
+// SenderDetailSidebar. Uses a fresh QueryClient per render so the sidebar's
+// agent query doesn't leak across cases. The default msw /api/agents/:id
+// handler resolves the agent branch.
+describe('MessageList sender-detail sidebar (increment 2)', () => {
+  afterEach(() => cleanup());
+
+  function renderFresh(ui: React.ReactElement) {
+    const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return rtlRender(<QueryClientProvider client={c}>{ui}</QueryClientProvider>);
+  }
+
+  const otherMsg: Message = {
+    ...sample('M1', 'hello'),
+    sender_identity_id: 'agent:A-1',
+  };
+
+  it('clicking the sender name button opens the sidebar', async () => {
+    renderFresh(<MessageList messages={[otherMsg]} />);
+    expect(screen.queryByTestId('sender-sidebar')).toBeNull();
+    fireEvent.click(screen.getByTestId('message-sender-button'));
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+  });
+
+  it('opening via keyboard (Enter on the name button) opens the sidebar', async () => {
+    renderFresh(<MessageList messages={[otherMsg]} />);
+    const btn = screen.getByTestId('message-sender-button');
+    btn.focus();
+    // A native <button> activates onClick for Enter/Space; fireEvent.click is
+    // the canonical RTL way to assert that keyboard-driven activation works.
+    fireEvent.keyDown(btn, { key: 'Enter' });
+    fireEvent.click(btn);
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+  });
+
+  it('clicking the sender avatar button also opens the sidebar', async () => {
+    renderFresh(<MessageList messages={[otherMsg]} />);
+    fireEvent.click(screen.getByTestId('message-sender-avatar-button'));
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
+  });
+});
+
+// F1 (v2.8.1 #192): a message from an UNRESOLVED sender (e.g. a force-deleted
+// agent — member row gone, messages soft-ref retained) must render a muted
+// "(deleted)" label, NEVER the raw `agent:agent-xxx` prefixed ref. The members
+// list is empty here so the resolver cannot resolve the sender.
+describe('MessageList deleted/unresolved sender (#192 F1)', () => {
+  afterEach(() => cleanup());
+
+  function renderFresh(ui: React.ReactElement) {
+    const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return rtlRender(<QueryClientProvider client={c}>{ui}</QueryClientProvider>);
+  }
+
+  const deletedMsg: Message = {
+    ...sample('M1', 'orphaned message'),
+    sender_identity_id: 'agent:agent-8d1126f6',
+  };
+
+  it('renders "(deleted)" (muted) for an unresolved sender — never the raw ref', () => {
+    renderFresh(<MessageList messages={[deletedMsg]} />);
+    const btn = screen.getByTestId('message-sender-button');
+    // visible label is the muted "(deleted)", NOT the raw prefixed ref.
+    expect(btn.textContent).toBe('(deleted)');
+    expect(btn).toHaveAttribute('data-sender-resolved', 'false');
+    // de-emphasized but AA-safe both modes (text-secondary 7.24 light / 12.02 dark,
+    // vs text-muted slate-400 2.45 FAIL — Tester2 #246 finding), italic to de-emphasize.
+    expect(btn.className).toContain('text-text-secondary');
+    // the load-bearing guarantee: NO raw `agent:agent-xxx` leaks into the slot.
+    expect(btn.textContent).not.toContain('agent:agent-');
+    expect(btn.textContent).not.toContain('agent:');
+    // the raw ref + clean handle stay on title= for debugging (#192 chrome rule).
+    expect(btn.getAttribute('title')).toContain('agent:agent-8d1126f6');
+    expect(btn.getAttribute('title')).toContain('agent-8d1126f6');
+  });
+
+  it('does not leak the raw prefixed ref anywhere in the row text', () => {
+    renderFresh(<MessageList messages={[deletedMsg]} />);
+    const row = screen.getByTestId('message-row');
+    expect(row.textContent).not.toContain('agent:agent-8d1126f6');
   });
 });
