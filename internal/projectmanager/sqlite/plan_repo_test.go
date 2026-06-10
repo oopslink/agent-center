@@ -217,3 +217,50 @@ func TestTaskRepo_PlanMembership(t *testing.T) {
 		t.Fatalf("cleared plan_id should round-trip empty, got %q", re.PlanID())
 	}
 }
+
+// §9.3 dispatch records: RecordDispatch is idempotent on the PK (a re-write for
+// an already-dispatched node is a no-op, never an error nor a second record);
+// ListDispatchRecords is per-plan scoped; ClearDispatch removes one node's record.
+func TestPlanRepo_DispatchRecords(t *testing.T) {
+	ctx, pr, _ := planSetup(t)
+	if err := pr.Save(ctx, newPlanFixture("PL-1", "P-1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := pr.Save(ctx, newPlanFixture("PL-2", "P-1")); err != nil {
+		t.Fatal(err)
+	}
+
+	at := t0
+	if err := pr.RecordDispatch(ctx, "PL-1", "T-1", at, "m-1"); err != nil {
+		t.Fatal(err)
+	}
+	// §9.3 idempotency: a second RecordDispatch for the same {plan,task} is a no-op
+	// (INSERT OR IGNORE) — no error, no second row, keeps the original message id.
+	if err := pr.RecordDispatch(ctx, "PL-1", "T-1", at.Add(time.Hour), "m-2-SHOULD-NOT-WIN"); err != nil {
+		t.Fatalf("idempotent re-record should not error: %v", err)
+	}
+	recs, err := pr.ListDispatchRecords(ctx, "PL-1")
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("ListDispatchRecords = %+v, %v want exactly 1", recs, err)
+	}
+	if recs[0].TaskID != "T-1" || recs[0].DispatchMessageID != "m-1" {
+		t.Fatalf("record = %+v want T-1/m-1 (first write wins)", recs[0])
+	}
+
+	// per-plan scoping (§9.8): PL-2 sees nothing of PL-1's records.
+	if other, _ := pr.ListDispatchRecords(ctx, "PL-2"); len(other) != 0 {
+		t.Fatalf("PL-2 records = %+v want empty (per-plan isolation)", other)
+	}
+
+	// ClearDispatch removes the node's record (re-run path); clearing a missing
+	// record is a no-op.
+	if err := pr.ClearDispatch(ctx, "PL-1", "T-1"); err != nil {
+		t.Fatal(err)
+	}
+	if recs, _ := pr.ListDispatchRecords(ctx, "PL-1"); len(recs) != 0 {
+		t.Fatalf("after clear = %+v want empty", recs)
+	}
+	if err := pr.ClearDispatch(ctx, "PL-1", "missing"); err != nil {
+		t.Fatalf("clear missing should be no-op: %v", err)
+	}
+}

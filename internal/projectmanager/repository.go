@@ -90,6 +90,16 @@ type PlanRepository interface {
 	RemoveDependency(ctx context.Context, dep Dependency) error
 	// ListDependencies returns all depends_on edges scoped to one Plan (§9.8).
 	ListDependencies(ctx context.Context, planID PlanID) ([]Dependency, error)
+
+	// Dispatch records (v2.9 #285, §9.3) — the ONLY orchestrator-owned stored
+	// state. RecordDispatch writes the once-only {plan_id, task_id} record when a
+	// ready node's @mention is posted (idempotent on the PK: a duplicate write for
+	// an already-dispatched node is a no-op, never an error). ListDispatchRecords
+	// returns one Plan's records (§9.8 per-plan scoping). ClearDispatch deletes one
+	// node's record so a creator re-run re-dispatches it on the next advance.
+	RecordDispatch(ctx context.Context, planID PlanID, taskID TaskID, at time.Time, messageID string) error
+	ListDispatchRecords(ctx context.Context, planID PlanID) ([]DispatchRecord, error)
+	ClearDispatch(ctx context.Context, planID PlanID, taskID TaskID) error
 }
 
 // TaskSubscriberRepository persists manual Task subscriber records.

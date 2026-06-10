@@ -227,6 +227,21 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
 
+	// v2.9 Plan Orchestration (#285). Plans nest under the project; node status is
+	// DERIVED in the GET DTO (§9.2). Edits (select/deps/patch) are draft-only (§9.4);
+	// start (§9.6 validation) / stop (§9.4) / advance (§9.3 idempotent dispatch).
+	s.mux.HandleFunc("GET /api/projects/{project_id}/plans", s.pmListPlansHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/plans", s.pmCreatePlanHandler)
+	s.mux.HandleFunc("GET /api/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
+	s.mux.HandleFunc("PATCH /api/projects/{project_id}/plans/{plan_id}", s.pmUpdatePlanHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/tasks", s.pmSelectTaskHandler)
+	s.mux.HandleFunc("DELETE /api/projects/{project_id}/plans/{plan_id}/tasks/{task_id}", s.pmRemoveTaskHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/dependencies", s.pmAddDependencyHandler)
+	s.mux.HandleFunc("DELETE /api/projects/{project_id}/plans/{plan_id}/dependencies", s.pmRemoveDependencyHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/start", s.pmStartPlanHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/stop", s.pmStopPlanHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/advance", s.pmAdvancePlanHandler)
+
 	// Agents (read-only; admin verbs go through CLI).
 	// v2.7 C3 Agent BC (ADR-0049). Org-scoped; replaces the legacy
 	// workforce.AgentInstance /api/agents routes (retired — old handlers are

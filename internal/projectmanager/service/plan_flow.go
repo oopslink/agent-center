@@ -185,3 +185,102 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		return s.tasks.Update(txCtx, t)
 	})
 }
+
+// UpdatePlanCommand renames / re-goals / re-targets a DRAFT Plan (§9.4 — edits
+// only in draft). Absent (nil) fields are left unchanged; TargetDate is a
+// **TargetDateSet** + value so "" can distinguish "clear" from "unchanged".
+type UpdatePlanCommand struct {
+	PlanID        pm.PlanID
+	Name          *string
+	Description   *string
+	TargetDateSet bool
+	TargetDate    *time.Time
+	Actor         pm.IdentityRef
+}
+
+// UpdatePlan applies a dirty-only patch to a draft Plan (§9.4). The actor must be
+// a project member; a non-draft Plan is rejected (ErrPlanNotDraft).
+func (s *Service) UpdatePlan(ctx context.Context, cmd UpdatePlanCommand) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, cmd.PlanID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.Actor); err != nil {
+			return err
+		}
+		if p.Status() != pm.PlanDraft {
+			return pm.ErrPlanNotDraft
+		}
+		if cmd.Name != nil {
+			if err := p.Rename(*cmd.Name, now); err != nil {
+				return err
+			}
+		}
+		if cmd.Description != nil {
+			p.SetDescription(*cmd.Description, now)
+		}
+		if cmd.TargetDateSet {
+			p.SetTargetDate(cmd.TargetDate, now)
+		}
+		return s.plans.Update(txCtx, p)
+	})
+}
+
+// AddPlanDependency adds a depends_on edge (from_task depends_on to_task) to a
+// DRAFT Plan's DAG (§9.4 — edits only in draft). The repo's AddDependency
+// rejects self-edges + cycles (acyclic invariant, §9.6a) before persisting. Both
+// tasks must already be selected into the Plan. The actor must be a project member.
+func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromTaskID, toTaskID pm.TaskID, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+			return err
+		}
+		if p.Status() != pm.PlanDraft {
+			return pm.ErrPlanNotDraft
+		}
+		// Both endpoints must be tasks selected into THIS plan (§9.8 scoping).
+		for _, id := range []pm.TaskID{fromTaskID, toTaskID} {
+			t, terr := s.tasks.FindByID(txCtx, id)
+			if terr != nil {
+				return terr
+			}
+			if t.PlanID() != planID {
+				return pm.ErrPlanProjectMismatch
+			}
+		}
+		return s.plans.AddDependency(txCtx, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID})
+	})
+}
+
+// RemovePlanDependency removes a depends_on edge from a DRAFT Plan's DAG (§9.4).
+// Idempotent: removing a non-existent edge is a no-op. Actor must be a member.
+func (s *Service) RemovePlanDependency(ctx context.Context, planID pm.PlanID, fromTaskID, toTaskID pm.TaskID, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		p, err := s.plans.FindByID(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+			return err
+		}
+		if p.Status() != pm.PlanDraft {
+			return pm.ErrPlanNotDraft
+		}
+		return s.plans.RemoveDependency(txCtx, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID})
+	})
+}

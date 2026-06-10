@@ -1,0 +1,355 @@
+package api
+
+import (
+	"errors"
+	"net/http"
+	"time"
+
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+)
+
+// v2.9 Plan Orchestration HTTP surface (#285, design §3/§9). Plans nest under
+// /api/projects/{project_id}/plans so membership gating is uniform
+// (pmRequireProjectInOrg → requireProjectMember on writes). The Plan DTO carries
+// the DERIVED node read model (§9.2): per-node node_status, the ready-set,
+// has_failed, and {done,total} progress — node status is never stored.
+
+// --- serializers ------------------------------------------------------------
+
+// pmPlanMap renders the bare Plan AR (list view — no derived nodes).
+func pmPlanMap(p *pm.Plan) map[string]any {
+	m := map[string]any{
+		"id": string(p.ID()), "project_id": string(p.ProjectID()), "name": p.Name(),
+		"description": p.Description(), "status": string(p.Status()),
+		"creator_ref": string(p.CreatorRef()), "conversation_id": p.ConversationID(),
+		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
+		"version":    p.Version(),
+	}
+	if d := p.TargetDate(); d != nil {
+		m["target_date"] = d.Format(time.RFC3339Nano)
+	}
+	return m
+}
+
+// pmPlanDetailMap renders the full Plan DTO with the DERIVED node read model
+// (§9.2): nodes[{task_id,title,assignee_ref,task_status,node_status,depends_on,
+// dispatched_at?}] + ready_set + has_failed + progress{done,total}.
+func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
+	p := detail.Plan
+	m := pmPlanMap(p)
+
+	titleOf := make(map[pm.TaskID]string, len(detail.Tasks))
+	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks))
+	for _, t := range detail.Tasks {
+		titleOf[t.ID()] = t.Title()
+		assigneeOf[t.ID()] = t.Assignee()
+	}
+
+	nodes := make([]map[string]any, 0, len(detail.View.Nodes))
+	for _, n := range detail.View.Nodes {
+		depends := make([]string, 0, len(n.DependsOn))
+		for _, d := range n.DependsOn {
+			depends = append(depends, string(d))
+		}
+		node := map[string]any{
+			"task_id":      string(n.TaskID),
+			"title":        titleOf[n.TaskID],
+			"assignee_ref": string(assigneeOf[n.TaskID]),
+			"task_status":  string(n.TaskStatus),
+			"node_status":  string(n.NodeStatus),
+			"depends_on":   depends,
+		}
+		if n.Dispatched && !n.DispatchedAt.IsZero() {
+			node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
+		}
+		nodes = append(nodes, node)
+	}
+	readySet := make([]string, 0, len(detail.View.ReadySet))
+	for _, id := range detail.View.ReadySet {
+		readySet = append(readySet, string(id))
+	}
+
+	m["nodes"] = nodes
+	m["ready_set"] = readySet
+	m["has_failed"] = detail.View.HasFailed
+	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	return m
+}
+
+// mapPlanError extends mapPMError with the Plan-specific status mappings.
+func mapPlanError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, pm.ErrPlanNotFound):
+		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
+	case errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
+		errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
+		errors.Is(err, pm.ErrPlanCycle), errors.Is(err, pm.ErrSelfDependency),
+		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
+		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
+		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
+		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists):
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	default:
+		mapPMError(w, err)
+	}
+}
+
+// --- handlers ---------------------------------------------------------------
+
+func (s *Server) pmListPlansHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	p, _, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	plans, err := d.PM.ListPlans(r.Context(), p.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(plans))
+	for _, pl := range plans {
+		out = append(out, pmPlanMap(pl))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plans": out})
+}
+
+func (s *Server) pmCreatePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		TargetDate  string `json:"target_date"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	var td *time.Time
+	if req.TargetDate != "" {
+		t, perr := time.Parse(time.RFC3339Nano, req.TargetDate)
+		if perr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "target_date must be RFC3339")
+			return
+		}
+		td = &t
+	}
+	id, err := d.PM.CreatePlan(r.Context(), pmservice.CreatePlanCommand{
+		ProjectID: p.ID(), Name: req.Name, Description: req.Description, TargetDate: td, CreatedBy: caller,
+	})
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, derr := d.PM.GetPlanDetail(r.Context(), id)
+	if derr != nil {
+		mapPlanError(w, derr)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+// pmRequirePlanInProject resolves {project_id}+{plan_id}, verifying org
+// membership and that the Plan belongs to the path project. Returns the Plan +
+// caller ref.
+func (s *Server) pmRequirePlanInProject(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*pm.Plan, pm.IdentityRef, bool) {
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return nil, "", false
+	}
+	pl, err := d.PM.GetPlan(r.Context(), pm.PlanID(r.PathValue("plan_id")))
+	if err != nil || pl.ProjectID() != p.ID() {
+		writeError(w, http.StatusNotFound, "not_found", "plan not found in this project")
+		return nil, "", false
+	}
+	return pl, caller, true
+}
+
+func (s *Server) pmGetPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, _, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	detail, err := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmUpdatePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Name        *string `json:"name"`
+		Description *string `json:"description"`
+		TargetDate  *string `json:"target_date"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	cmd := pmservice.UpdatePlanCommand{PlanID: pl.ID(), Name: req.Name, Description: req.Description, Actor: caller}
+	if req.TargetDate != nil {
+		cmd.TargetDateSet = true
+		if *req.TargetDate != "" {
+			t, perr := time.Parse(time.RFC3339Nano, *req.TargetDate)
+			if perr != nil {
+				writeError(w, http.StatusBadRequest, "invalid_request", "target_date must be RFC3339 or empty")
+				return
+			}
+			cmd.TargetDate = &t
+		}
+	}
+	if err := d.PM.UpdatePlan(r.Context(), cmd); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmSelectTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		TaskID string `json:"task_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.SelectTaskIntoPlan(r.Context(), pl.ID(), pm.TaskID(req.TaskID), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmRemoveTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.RemoveTaskFromPlan(r.Context(), pl.ID(), pm.TaskID(r.PathValue("task_id")), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmAddDependencyHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		FromTaskID string `json:"from_task_id"`
+		ToTaskID   string `json:"to_task_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.AddPlanDependency(r.Context(), pl.ID(), pm.TaskID(req.FromTaskID), pm.TaskID(req.ToTaskID), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmRemoveDependencyHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		FromTaskID string `json:"from_task_id"`
+		ToTaskID   string `json:"to_task_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.RemovePlanDependency(r.Context(), pl.ID(), pm.TaskID(req.FromTaskID), pm.TaskID(req.ToTaskID), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmStartPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.StartPlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmStopPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.StopPlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+func (s *Server) pmAdvancePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	dispatchedIDs, err := d.PM.AdvancePlan(r.Context(), pl.ID(), caller)
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	dispatched := make([]string, 0, len(dispatchedIDs))
+	for _, id := range dispatchedIDs {
+		dispatched = append(dispatched, string(id))
+	}
+	detail, derr := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	if derr != nil {
+		mapPlanError(w, derr)
+		return
+	}
+	resp := pmPlanDetailMap(detail)
+	resp["dispatched"] = dispatched
+	writeJSON(w, http.StatusOK, resp)
+}
