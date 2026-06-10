@@ -75,6 +75,10 @@ describe('ChannelDetail page', () => {
     expect(screen.getByTestId('message-composer')).toBeInTheDocument();
     expect(screen.getByTestId('participants-panel')).toBeInTheDocument();
     expect(screen.getByText(/1 participant/)).toBeInTheDocument();
+    // 8th channel redesign: header shows an overlapping participant avatar stack.
+    const stack = screen.getByTestId('channel-avatar-stack');
+    expect(stack).toHaveAttribute('aria-label', '1 participant');
+    expect(screen.getAllByTestId('channel-avatar-stack-item')).toHaveLength(1);
   });
 
   it('shows not-found state when the channel id does not resolve', async () => {
