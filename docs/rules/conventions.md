@@ -685,3 +685,22 @@ override 也仍带 commit hash 是最佳实践（`v2.8.1-9908825`），仅在外
 - 如果一个 PR 包含多 scope（罕见），按 scope 拆成多 PR / 多任务派给各自 owner。
 
 **与 § 14 测试规约 互补**：§ 14 讲测试**怎么写**（TDD、覆盖率、不 mock 等），§ 19 讲测试**谁来写**（ownership by scope）。
+
+## § 20. API 无隐含状态（显式上下文进路径）
+
+**API 的返回不能依赖隐含的请求上下文**（session cookie / query 参数推断的当前-org 等）。同一个路径在不同隐含上下文下返不同数据 = **隐含状态**，脆且易踩坑。**上下文要显式进资源路径**。
+
+- **反例（隐含状态）**：`GET /api/members`（org-scoped、但「当前哪个 org」从 session 或 `?org_slug=` query 隐式推断）→ 同路径不同 org 返不同 members；nav 没带 org-slug → 隐式 org 上下文空 → members 空。
+- **正例（显式）**：org-scoped 资源挂在 org 路径下：`GET /api/orgs/{slug}/members`、`/api/orgs/{slug}/...` —— org 是资源路径的一部分、不是隐藏的 query/session 状态；也和前端 URL 已经是 `/<org-slug>/...` 对齐。
+- 红线 org-isolation 仍由路径里的 `{slug}` + membership 校验保证，不靠隐式上下文。
+
+**为什么这条规则**：
+
+- 2026-06-10 v2.8.1 ship review，@oopslink 看到 `/api/members` 指出「这种 api 不太好、有隐含状态」。根因：org 上下文隐式（query/session），导致同路径不同结果、并多次造成 run-real 验收「members 空 / mention 解析不到」的坑。
+- @oopslink 指令：把「API 无隐含状态」加进规约 + 全站 org-scoped 路由显式化作为 **v2.9 架构项**（重构所有 org-scoped 路由为 `/api/orgs/{slug}/...`，非 v2.8.1 范围）。
+
+**自检（设计 / review API 时）：**
+
+- 这个 endpoint 的返回是否依赖隐含上下文（session / query 推断的 org 等）？同路径不同上下文会返不同数据吗？
+- 若是 → 把上下文显式进路径（`/api/orgs/{slug}/...`），消除隐含状态。
+- org-isolation 靠路径 `{slug}` + membership 校验，不靠隐式推断。
