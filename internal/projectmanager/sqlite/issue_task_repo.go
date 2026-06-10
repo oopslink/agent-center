@@ -229,6 +229,14 @@ func (r *TaskRepo) ListByPlan(ctx context.Context, planID pm.PlanID) ([]*pm.Task
 	return r.list(ctx, taskSelect+` WHERE plan_id = ? ORDER BY created_at, id`, string(planID))
 }
 
+// ListUnplannedByProject returns the project's backlog (v2.9): tasks with an
+// empty plan_id (not yet selected into any Plan), stable-ordered (created_at,
+// id). The IS NULL guard tolerates pre-#283 rows that predate the NOT NULL
+// DEFAULT '' column.
+func (r *TaskRepo) ListUnplannedByProject(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
+	return r.list(ctx, taskSelect+` WHERE project_id = ? AND (plan_id IS NULL OR plan_id = '') ORDER BY created_at, id`, string(projectID))
+}
+
 func (r *TaskRepo) list(ctx context.Context, q string, arg string) ([]*pm.Task, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx, q, arg)

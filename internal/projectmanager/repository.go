@@ -71,6 +71,10 @@ type TaskRepository interface {
 	// ListByPlan returns the tasks selected into a Plan (v2.9 #283), stable-ordered
 	// (created_at, id). A task is in 0..1 Plan (design §2).
 	ListByPlan(ctx context.Context, planID PlanID) ([]*Task, error)
+	// ListUnplannedByProject returns the project's backlog (v2.9): tasks with an
+	// empty plan_id — i.e. not yet selected into any Plan. It is the complement of
+	// ListByPlan, stable-ordered (created_at, id).
+	ListUnplannedByProject(ctx context.Context, projectID ProjectID) ([]*Task, error)
 }
 
 // PlanRepository persists Plan ARs and their execution-DAG edges (v2.9 #283).

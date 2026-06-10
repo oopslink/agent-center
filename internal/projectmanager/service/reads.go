@@ -34,6 +34,13 @@ func (s *Service) ListTasks(ctx context.Context, projectID pm.ProjectID) ([]*pm.
 	return s.tasks.ListByProject(ctx, projectID)
 }
 
+// ListUnplannedTasks returns the project's backlog (v2.9): tasks not yet
+// selected into any Plan (empty plan_id). It is the complement of the Plan's
+// task list, for the Work Board's Backlog column.
+func (s *Service) ListUnplannedTasks(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
+	return s.tasks.ListUnplannedByProject(ctx, projectID)
+}
+
 func (s *Service) GetTask(ctx context.Context, id pm.TaskID) (*pm.Task, error) {
 	return s.tasks.FindByID(ctx, id)
 }
