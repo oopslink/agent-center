@@ -19,7 +19,7 @@ func TestV271_EmailAndLastSession(t *testing.T) {
 	signinSvc := NewSigninService(idRepo, testSigningKey())
 
 	res, err := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Alice", PasscodePlain: "123456",
+		DisplayName: "Alice", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "Org", OrganizationSlug: "org-a", Email: "alice@example.com",
 	})
 	if err != nil {
@@ -37,7 +37,7 @@ func TestV271_EmailAndLastSession(t *testing.T) {
 	}
 
 	// signin stamps last_session_at (NULL → timestamp).
-	if _, err := signinSvc.Execute(ctx, "Alice", "123456"); err != nil {
+	if _, err := signinSvc.Execute(ctx, "Alice", "Passw0rd1!"); err != nil {
 		t.Fatal(err)
 	}
 	got2, _ := idRepo.GetByID(ctx, res.Identity.ID())
@@ -47,7 +47,7 @@ func TestV271_EmailAndLastSession(t *testing.T) {
 
 	// duplicate email → ErrIdentityEmailTaken (not a generic conflict).
 	_, derr := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Bob", PasscodePlain: "123456",
+		DisplayName: "Bob", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "Org2", OrganizationSlug: "org-b", Email: "alice@example.com",
 	})
 	if !errors.Is(derr, ErrIdentityEmailTaken) {
@@ -56,12 +56,12 @@ func TestV271_EmailAndLastSession(t *testing.T) {
 
 	// Upgrade safety: multiple email-less users coexist (multi-NULL, no unique violation).
 	if _, err := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "NoEmail1", PasscodePlain: "123456", OrganizationName: "O3", OrganizationSlug: "org-three",
+		DisplayName: "NoEmail1", PasscodePlain: "Passw0rd1!", OrganizationName: "O3", OrganizationSlug: "org-three",
 	}); err != nil {
 		t.Fatalf("first NULL-email signup: %v", err)
 	}
 	if _, err := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "NoEmail2", PasscodePlain: "123456", OrganizationName: "O4", OrganizationSlug: "org-four",
+		DisplayName: "NoEmail2", PasscodePlain: "Passw0rd1!", OrganizationName: "O4", OrganizationSlug: "org-four",
 	}); err != nil {
 		t.Fatalf("second NULL-email signup must NOT collide on NULL: %v", err)
 	}

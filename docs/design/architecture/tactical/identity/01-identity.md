@@ -81,7 +81,7 @@ CREATE INDEX identity_kind_status_idx
 
 `/me` 页提供（v2.6 必出）：
 - 旧 passcode 校验
-- 新 passcode + confirm（6 位）
+- 新 passcode + confirm（长度 6–128，且至少含 1 个字母、1 个数字、1 个符号）
 - emit `identity.passcode_changed`
 
 ### 3.4 Change Display Name / Description

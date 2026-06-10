@@ -507,12 +507,12 @@ func (s *IdentityAccountService) ReEnable(ctx context.Context, identityID, reEna
 type MemberCreateUserResult struct {
 	Identity      *Identity
 	Member        *Member
-	TempPasscode  string // 6-digit plaintext passcode (returned ONCE; user must change on first signin)
+	TempPasscode  string // plaintext temp passcode (returned ONCE; user must change on first signin)
 }
 
 // MemberCreateUserService creates a new user Identity and adds it as a member
 // of the target organization in a single transaction. Returns a temporary
-// 6-digit passcode that the new user must use to sign in (and should change).
+// passcode that the new user must use to sign in (and should change).
 type MemberCreateUserService struct {
 	db         *sql.DB
 	identities IdentityRepository
@@ -579,15 +579,92 @@ func (s *MemberCreateUserService) Create(ctx context.Context, orgID, displayName
 	return &result, nil
 }
 
-// generateTempPasscode returns a random 6-digit numeric passcode.
+// Character sets used to compose a compliant temp passcode. Each set is
+// non-empty so a generated passcode is guaranteed at least one letter, one
+// digit, and one symbol — satisfying ValidatePasscodePlain.
+const (
+	tempPasscodeLetters = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"
+	tempPasscodeDigits  = "23456789"
+	tempPasscodeSymbols = "!@#$%^&*-_+=?"
+	tempPasscodeLength  = 12
+)
+
+// generateTempPasscode returns a random passcode that satisfies
+// ValidatePasscodePlain: length 12, with at least one letter, one digit, and
+// one symbol. Uses crypto/rand for all selections.
 func generateTempPasscode() (string, error) {
-	b := make([]byte, 4)
-	if _, err := cryptoRand.Read(b); err != nil {
+	all := tempPasscodeLetters + tempPasscodeDigits + tempPasscodeSymbols
+	out := make([]byte, tempPasscodeLength)
+	// Guarantee at least one of each required class up front.
+	if c, err := randChar(tempPasscodeLetters); err != nil {
+		return "", err
+	} else {
+		out[0] = c
+	}
+	if c, err := randChar(tempPasscodeDigits); err != nil {
+		return "", err
+	} else {
+		out[1] = c
+	}
+	if c, err := randChar(tempPasscodeSymbols); err != nil {
+		return "", err
+	} else {
+		out[2] = c
+	}
+	// Fill the remainder from the full alphabet.
+	for i := 3; i < tempPasscodeLength; i++ {
+		c, err := randChar(all)
+		if err != nil {
+			return "", err
+		}
+		out[i] = c
+	}
+	// Shuffle so the guaranteed classes are not always in fixed positions.
+	if err := cryptoShuffle(out); err != nil {
 		return "", err
 	}
-	// Combine 4 bytes into a uint32, then mod 1,000,000 and zero-pad to 6 digits.
-	n := uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
-	return fmt.Sprintf("%06d", n%1000000), nil
+	return string(out), nil
+}
+
+// randChar returns a uniformly random byte from set using crypto/rand.
+func randChar(set string) (byte, error) {
+	n, err := cryptoRandInt(len(set))
+	if err != nil {
+		return 0, err
+	}
+	return set[n], nil
+}
+
+// cryptoShuffle performs an in-place Fisher–Yates shuffle using crypto/rand.
+func cryptoShuffle(b []byte) error {
+	for i := len(b) - 1; i > 0; i-- {
+		j, err := cryptoRandInt(i + 1)
+		if err != nil {
+			return err
+		}
+		b[i], b[j] = b[j], b[i]
+	}
+	return nil
+}
+
+// cryptoRandInt returns a uniform random int in [0, n) using crypto/rand,
+// rejecting values that would introduce modulo bias.
+func cryptoRandInt(n int) (int, error) {
+	if n <= 0 {
+		return 0, fmt.Errorf("passcode: invalid random bound %d", n)
+	}
+	// Largest multiple of n that fits in a uint32, to reject bias.
+	limit := ^uint32(0) - (^uint32(0) % uint32(n))
+	var buf [4]byte
+	for {
+		if _, err := cryptoRand.Read(buf[:]); err != nil {
+			return 0, err
+		}
+		v := uint32(buf[0])<<24 | uint32(buf[1])<<16 | uint32(buf[2])<<8 | uint32(buf[3])
+		if v < limit {
+			return int(v % uint32(n)), nil
+		}
+	}
 }
 
 // ============================================================

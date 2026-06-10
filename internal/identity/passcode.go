@@ -6,20 +6,50 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
 )
 
-// passcode format: 6-digit numeric string.
-var passcodeRegex = regexp.MustCompile(`^\d{6}$`)
+// passcode complexity bounds (length measured in runes).
+const (
+	passcodeMinLen = 6
+	passcodeMaxLen = 128
+)
 
-// ValidatePasscodePlain checks the 6-digit format constraint.
+// ValidatePasscodePlain enforces the passcode complexity rules: at least 6 and
+// at most 128 characters, with at least one letter, one digit, and one symbol
+// (a rune that is neither a letter nor a digit).
 func ValidatePasscodePlain(plain string) error {
-	if !passcodeRegex.MatchString(plain) {
-		return errors.New("passcode: must be exactly 6 digits")
+	n := utf8.RuneCountInString(plain)
+	if n < passcodeMinLen {
+		return errors.New("passcode: must be at least 6 characters")
+	}
+	if n > passcodeMaxLen {
+		return errors.New("passcode: must be at most 128 characters")
+	}
+	var hasLetter, hasDigit, hasSymbol bool
+	for _, r := range plain {
+		switch {
+		case unicode.IsLetter(r):
+			hasLetter = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		case !unicode.IsLetter(r) && !unicode.IsDigit(r):
+			hasSymbol = true
+		}
+	}
+	if !hasLetter {
+		return errors.New("passcode: must contain a letter")
+	}
+	if !hasDigit {
+		return errors.New("passcode: must contain a digit")
+	}
+	if !hasSymbol {
+		return errors.New("passcode: must contain a symbol")
 	}
 	return nil
 }
