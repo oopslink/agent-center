@@ -2,10 +2,12 @@ import type React from 'react';
 import { useAgent, useAgentActivity } from '@/api/agents';
 import { useUser } from '@/api/users';
 import {
+  isResolvedName,
   normalizeIdentityRef,
   useDisplayNameResolver,
   useMembers,
 } from '@/api/members';
+import { ApiError } from '@/api/client';
 import { useModalA11y } from './useModalA11y';
 import { Avatar } from './Avatar';
 import { LifecycleBadge, AvailabilityBadge } from './AgentBadges';
@@ -55,7 +57,15 @@ export function SenderDetailSidebar({
 
   if (!open || !senderRef) return null;
 
-  const name = displayName(senderRef);
+  // F1 consistency (v2.8.1 #192): the resolver returns a CLEAN handle for an
+  // unresolved (e.g. force-deleted) ref — never the raw `agent:agent-xxx`. When
+  // unresolved we render a muted "(deleted)" header label; the clean handle +
+  // raw ref stay on title= for debugging.
+  const resolvedName = displayName(senderRef);
+  const nameResolved = isResolvedName(senderRef, resolvedName);
+  const headerName = nameResolved ? resolvedName : '(deleted)';
+  // Avatar still seeds off the clean handle so it renders a stable glyph.
+  const avatarSeed = nameResolved ? resolvedName : normalizeIdentityRef(senderRef);
 
   return (
     <>
@@ -70,16 +80,21 @@ export function SenderDetailSidebar({
         ref={containerRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${name} detail`}
+        aria-label={`${headerName} detail`}
         data-testid="sender-sidebar"
         className="fixed inset-y-0 right-0 z-40 flex h-full w-80 translate-x-0 transform flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none sm:w-96"
       >
         {/* Header: avatar + resolved display name + close button. */}
         <div className="flex items-start gap-3 border-b border-border-base p-4">
-          <Avatar name={name} kind={kind === 'agent' ? 'agent' : 'human'} size="lg" />
+          <Avatar name={avatarSeed} kind={kind === 'agent' ? 'agent' : 'human'} size="lg" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold" title={senderRef}>
-              {name}
+            <div
+              className={`truncate text-base font-semibold ${nameResolved ? '' : 'italic text-text-muted'}`}
+              title={nameResolved ? senderRef : `${avatarSeed} (${senderRef})`}
+              data-testid="sender-sidebar-name"
+              data-name-resolved={nameResolved ? 'true' : 'false'}
+            >
+              {headerName}
             </div>
             <div className="text-xs uppercase tracking-wide text-text-muted">
               {kind === 'agent' ? 'Agent' : 'User'}
@@ -129,7 +144,19 @@ function LabelRow({
 }
 
 function StateMessage({ children }: { children: React.ReactNode }): React.ReactElement {
-  return <div className="text-sm text-text-muted">{children}</div>;
+  return (
+    <div className="text-sm text-text-muted" data-testid="sender-sidebar-state">
+      {children}
+    </div>
+  );
+}
+
+// is404 reports whether a react-query error is a 404 (resource gone). A
+// force-deleted agent's GET /api/agents/{id} returns 404 → ApiError(status:404).
+// F2 (v2.8.1): used to show the FRIENDLY "unavailable (deleted)" message instead
+// of the generic "couldn't load" / a bare "not found" — and never a blank panel.
+function is404(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404;
 }
 
 function AgentDetailBody({
@@ -143,9 +170,20 @@ function AgentDetailBody({
   const activity = useAgentActivity(agentId);
 
   if (query.isLoading) return <StateMessage>Loading agent…</StateMessage>;
-  if (query.isError) return <StateMessage>Couldn&apos;t load this agent.</StateMessage>;
+  // F2 (v2.8.1): a force-deleted agent's GET 404s. Show a FRIENDLY deleted
+  // message (not a generic "couldn't load", not a bare "not found", never
+  // blank). Other (non-404) errors keep the generic load-failure message.
+  if (query.isError) {
+    return is404(query.error) ? (
+      <StateMessage>This agent is unavailable (deleted).</StateMessage>
+    ) : (
+      <StateMessage>Couldn&apos;t load this agent.</StateMessage>
+    );
+  }
   const agent = query.data;
-  if (!agent) return <StateMessage>Agent not found.</StateMessage>;
+  // Defensive: if the query somehow settles with no data (e.g. a 200 tombstone
+  // body), still render a friendly message rather than a blank panel.
+  if (!agent) return <StateMessage>This agent is unavailable (deleted).</StateMessage>;
 
   return (
     <div className="flex flex-col gap-4" data-testid="sender-sidebar-agent">
@@ -262,9 +300,17 @@ function UserDetailBody({
   )?.role;
 
   if (query.isLoading) return <StateMessage>Loading user…</StateMessage>;
-  if (query.isError) return <StateMessage>Couldn&apos;t load this user.</StateMessage>;
+  // F2 (v2.8.1): same friendly-deleted treatment as the agent branch for a 404
+  // (deleted user). Non-404 errors keep the generic load-failure message.
+  if (query.isError) {
+    return is404(query.error) ? (
+      <StateMessage>This user is unavailable (deleted).</StateMessage>
+    ) : (
+      <StateMessage>Couldn&apos;t load this user.</StateMessage>
+    );
+  }
   const user = query.data;
-  if (!user) return <StateMessage>User not found.</StateMessage>;
+  if (!user) return <StateMessage>This user is unavailable (deleted).</StateMessage>;
 
   return (
     <div className="flex flex-col gap-4" data-testid="sender-sidebar-user">

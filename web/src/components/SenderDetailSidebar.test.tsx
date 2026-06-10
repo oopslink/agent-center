@@ -140,14 +140,71 @@ describe('SenderDetailSidebar', () => {
     expect(screen.getByText('hey@example.com')).toBeInTheDocument();
   });
 
-  it('shows a graceful not-found / error state for an agent that fails to load', async () => {
+  // F2 (v2.8.1): a force-deleted agent's GET /api/agents/{id} returns 404. The
+  // panel must show a FRIENDLY "unavailable (deleted)" message — NOT a blank
+  // panel, NOT a bare "not found", NOT the generic "couldn't load".
+  it('shows a FRIENDLY deleted message (not blank) for an agent that 404s', async () => {
     server.use(
       http.get('/api/agents/:id', () =>
         HttpResponse.json({ error: 'not_found', message: 'gone' }, { status: 404 }),
       ),
     );
-    render(<SenderDetailSidebar open senderRef={'agent:nope'} onClose={noop} />);
+    render(<SenderDetailSidebar open senderRef={'agent:agent-8d1126f6'} onClose={noop} />);
+    // the panel itself renders (never blank) ...
+    expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument();
+    // ... and the body shows the friendly deleted message.
+    await waitFor(() =>
+      expect(screen.getByText(/this agent is unavailable \(deleted\)/i)).toBeInTheDocument(),
+    );
+    // not the generic / bare wording.
+    expect(screen.queryByText(/couldn't load this agent/i)).toBeNull();
+    expect(screen.queryByText(/^Agent not found\.$/i)).toBeNull();
+  });
+
+  // F1 consistency: the header for a deleted (unresolved) sender shows a muted
+  // "(deleted)" label, never the raw `agent:agent-xxx` prefixed ref. With no
+  // /api/members data the resolver cannot resolve the name.
+  it('header degrades to muted "(deleted)" for an unresolved sender (no raw ref)', async () => {
+    server.use(
+      http.get('/api/agents/:id', () =>
+        HttpResponse.json({ error: 'not_found', message: 'gone' }, { status: 404 }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:agent-8d1126f6'} onClose={noop} />);
+    const nameEl = screen.getByTestId('sender-sidebar-name');
+    expect(nameEl.textContent).toBe('(deleted)');
+    expect(nameEl).toHaveAttribute('data-name-resolved', 'false');
+    expect(nameEl.className).toContain('text-text-muted');
+    expect(nameEl.textContent).not.toContain('agent:');
+    // raw ref kept on title for debugging (#192 chrome rule).
+    expect(nameEl.getAttribute('title')).toContain('agent:agent-8d1126f6');
+  });
+
+  // A NON-404 error (e.g. 500) keeps the generic load-failure message — only a
+  // 404 maps to the deleted wording.
+  it('shows the generic load-failure message for a non-404 error', async () => {
+    server.use(
+      http.get('/api/agents/:id', () =>
+        HttpResponse.json({ error: 'server_error', message: 'boom' }, { status: 500 }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:A-9'} onClose={noop} />);
     await waitFor(() => expect(screen.getByText(/couldn't load this agent/i)).toBeInTheDocument());
+    expect(screen.queryByText(/unavailable \(deleted\)/i)).toBeNull();
+  });
+
+  // F2 user branch: a deleted user's GET 404 shows the friendly message too.
+  it('shows a FRIENDLY deleted message for a user that 404s', async () => {
+    server.use(
+      http.get('/api/users/:id', () =>
+        HttpResponse.json({ error: 'not_found', message: 'gone' }, { status: 404 }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'user:user-deleted'} onClose={noop} />);
+    expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/this user is unavailable \(deleted\)/i)).toBeInTheDocument(),
+    );
   });
 
   it('fires onClose from the close button, the overlay, and Escape', async () => {

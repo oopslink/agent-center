@@ -2,7 +2,7 @@ import type React from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
-import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
+import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatChatTime } from '@/utils/time';
@@ -145,6 +145,22 @@ export function MessageList({ messages }: Props): React.ReactElement {
     // aligned for own messages, left-aligned for others. Header is muted theme-
     // adaptive text on BOTH sides (it sits on the page surface, never inside the
     // fixed light-blue bubble) — so it uses normal theme tokens.
+    // F1 (v2.8.1 #192): resolve the sender name. An UNRESOLVED ref (e.g. a
+    // force-deleted agent — member row gone, messages soft-ref retained) must
+    // NEVER show the raw `agent:agent-xxx` prefixed form. We render a muted
+    // "(deleted)" label instead, keeping the clean handle + raw ref on hover
+    // (title=) for debugging per the #192 chrome rule. Tradeoff: an unresolved
+    // ref could also be a not-yet-loaded member, but the members list IS loaded
+    // in the message-list surface (useMembers is org-scoped + cached), so an
+    // unresolved sender here is effectively gone — "(deleted)" is acceptable.
+    const senderName = displayName(m.sender_identity_id);
+    const senderResolved = isResolvedName(m.sender_identity_id, senderName);
+    // Clean handle (prefix stripped) for the title/hover when unresolved.
+    const senderHandle = normalizeIdentityRef(m.sender_identity_id);
+    // Name fed to the Avatar (initials/hash + aria-label): resolved name, else
+    // the CLEAN handle — NEVER the raw prefixed ref (which displayName returns on
+    // a miss). Keeps the avatar's accessible name free of "agent:agent-xxx".
+    const avatarName = senderResolved ? senderName : senderHandle;
     const headerLine = (
       <div
         className={`mb-0.5 flex items-center gap-2 text-xs font-medium text-text-secondary ${
@@ -158,12 +174,19 @@ export function MessageList({ messages }: Props): React.ReactElement {
         <button
           type="button"
           onClick={() => setSidebarSender(m.sender_identity_id)}
-          aria-label={`View ${displayName(m.sender_identity_id)} detail`}
-          title={m.sender_identity_id}
+          aria-label={
+            senderResolved
+              ? `View ${senderName} detail`
+              : `View ${senderHandle} detail (deleted sender)`
+          }
+          title={senderResolved ? m.sender_identity_id : `${senderHandle} (${m.sender_identity_id})`}
           data-testid="message-sender-button"
-          className="rounded font-medium hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+          data-sender-resolved={senderResolved ? 'true' : 'false'}
+          className={`rounded font-medium hover:underline focus-visible:ring-2 focus-visible:ring-accent ${
+            senderResolved ? '' : 'italic text-text-muted'
+          }`}
         >
-          {displayName(m.sender_identity_id)}
+          {senderResolved ? senderName : '(deleted)'}
         </button>
         {/* #219: per-message work-item tag (only when the message carries one);
             the raw ref stays on hover (#192 chrome rule). Now always on the page
@@ -301,12 +324,12 @@ export function MessageList({ messages }: Props): React.ReactElement {
         <button
           type="button"
           onClick={() => setSidebarSender(m.sender_identity_id)}
-          aria-label={`View ${displayName(m.sender_identity_id)} detail`}
+          aria-label={`View ${avatarName} detail`}
           data-testid="message-sender-avatar-button"
           className="mt-5 shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-accent"
         >
           <Avatar
-            name={displayName(m.sender_identity_id)}
+            name={avatarName}
             kind={m.sender_identity_id.startsWith('agent:') ? 'agent' : 'human'}
           />
         </button>
