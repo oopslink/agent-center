@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>v2.9 Plan Orchestration — 视觉稿</title>
+<style>
+  :root{
+    --bg:#f8fafc; --elevated:#fff; --subtle:#f1f5f9; --border:#e2e8f0; --border-strong:#cbd5e1;
+    --ink:#0f172a; --ink2:#475569; --ink3:#64748b; --accent:#3b82f6; --brand:#1e40af;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:13px;line-height:1.5;}
+  .app{max-width:1460px;margin:0 auto;}
+  /* top chrome */
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 18px;background:var(--elevated);border-bottom:1px solid var(--border);}
+  .topbar .logo{font-weight:700;color:var(--brand);}
+  .crumb{color:var(--ink2);font-size:12px;}
+  .crumb b{color:var(--ink);}
+  .wrap{padding:18px;}
+  .callout{font-size:11px;color:#9a3412;background:#ffedd5;border:1px solid #fdba74;border-radius:6px;padding:2px 7px;font-weight:600;}
+  /* plan tabs (parallel) */
+  .plantabs{display:flex;gap:8px;align-items:center;margin:0 0 12px;}
+  .ptab{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border-strong);border-radius:8px 8px 0 0;background:var(--subtle);color:var(--ink2);font-size:12px;cursor:default;}
+  .ptab.active{background:var(--elevated);color:var(--ink);font-weight:600;border-bottom-color:var(--elevated);box-shadow:0 -2px 0 var(--accent) inset;}
+  .ptab .pill{font-size:10px;padding:1px 6px;border-radius:10px;text-transform:uppercase;letter-spacing:.04em;}
+  .pill-running{background:#dbeafe;color:#1e40af;}
+  .pill-draft{background:#f1f5f9;color:#334155;}
+  .pill-done{background:#d1fae5;color:#065f46;}
+  .newplan{margin-left:4px;color:var(--accent);font-size:12px;border:1px dashed var(--border-strong);border-radius:8px;padding:6px 10px;}
+  /* plan header */
+  .planhd{background:var(--elevated);border:1px solid var(--border);border-radius:0 10px 10px 10px;padding:14px 16px;margin-bottom:14px;}
+  .planhd h1{margin:0 0 4px;font-size:19px;letter-spacing:-.3px;}
+  .planhd .meta{display:flex;flex-wrap:wrap;gap:14px;align-items:center;color:var(--ink2);font-size:12px;}
+  .chip{font-size:11px;padding:2px 9px;border-radius:6px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+  .chip-running{background:#dbeafe;color:#1e40af;}
+  .failed-ind{background:#dc2626;color:#fff;font-size:11px;padding:2px 9px;border-radius:6px;font-weight:600;}
+  .progress{font-variant-numeric:tabular-nums;}
+  /* grid */
+  .grid{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start;}
+  .panel{background:var(--elevated);border:1px solid var(--border);border-radius:10px;}
+  .panel-hd{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border);}
+  .panel-hd h2{margin:0;font-size:14px;}
+  .panel-hd .sub{font-size:11px;color:var(--ink3);}
+  .panel-bd{padding:14px;}
+  .btn{font-size:12px;font-weight:600;border-radius:7px;padding:6px 12px;border:1px solid transparent;cursor:default;}
+  .btn-primary{background:var(--brand);color:#fff;}
+  .btn-ghost{background:var(--subtle);color:var(--ink2);border-color:var(--border-strong);}
+  /* DAG */
+  .dag-wrap{position:relative;width:960px;max-width:100%;height:460px;background:
+     radial-gradient(circle, #e2e8f0 1px, transparent 1px);background-size:22px 22px;background-color:#fcfdff;
+     border-radius:8px;border:1px solid var(--border);overflow:hidden;}
+  .dag-svg{position:absolute;left:0;top:0;width:960px;height:460px;z-index:0;}
+  .node{position:absolute;width:160px;z-index:1;border-radius:9px;border:1.5px solid;background:var(--elevated);
+     box-shadow:0 1px 2px rgba(15,23,42,.06);padding:8px 10px;}
+  .node .ntitle{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:5px;line-height:1.3;}
+  .node .nrow{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+  .assignee{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink2);}
+  .av{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;}
+  .av-agent{background:#6d28d9;} .av-human{background:#0e7490;}
+  .nkind{font-size:9px;padding:0 4px;border-radius:4px;border:1px solid var(--border-strong);color:var(--ink3);}
+  .nstate{font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.03em;}
+  /* 6 node states — solid X-100/800, both-mode-AA discipline */
+  .s-blocked{background:#f1f5f9;color:#334155;}      .b-blocked{border-color:#cbd5e1;}
+  .s-ready{background:#dbeafe;color:#1e40af;}          .b-ready{border-color:#93c5fd;}
+  .s-dispatched{background:#ede9fe;color:#5b21b6;}     .b-dispatched{border-color:#c4b5fd;}
+  .s-running{background:#fef3c7;color:#92400e;}         .b-running{border-color:#fcd34d;}
+  .s-done{background:#d1fae5;color:#065f46;}            .b-done{border-color:#6ee7b7;}
+  .s-failed{background:#ffe4e6;color:#9f1239;}          .b-failed{border-color:#fb7185;}
+  .dag-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;}
+  .legend .nstate{cursor:default;}
+  .advance{display:inline-flex;align-items:center;gap:6px;}
+  .advance .hint{font-size:11px;color:var(--ink3);}
+  /* backlog */
+  .bk-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);}
+  .bk-row:last-child{border-bottom:0;}
+  .bk-title{flex:1;font-size:12px;color:var(--ink);}
+  .bk-add{font-size:11px;color:var(--accent);border:1px solid var(--border-strong);border-radius:6px;padding:3px 8px;}
+  .tstatus{font-size:10px;color:var(--ink2);background:var(--subtle);padding:1px 7px;border-radius:5px;}
+  /* conversation */
+  .conv .parts{display:flex;align-items:center;gap:-6px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px;}
+  .conv .parts .av{margin-right:-6px;border:2px solid var(--elevated);} .conv .parts span.lbl{margin-left:12px;font-size:11px;color:var(--ink3);}
+  .msg{margin-bottom:11px;}
+  .msg .who{font-size:11px;font-weight:700;color:var(--ink);} .msg .who.sys{color:#6d28d9;}
+  .msg .tx{font-size:12px;color:var(--ink2);margin-top:1px;}
+  .mention{color:#1d4ed8;font-weight:600;}
+  .sysline{font-size:11px;color:#3730a3;background:#e0e7ff;border-radius:6px;padding:5px 8px;margin-bottom:11px;}
+  .secnote{font-size:11px;color:var(--ink3);margin:2px 0 10px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <span class="logo">agent-center</span>
+    <span class="crumb">Project <b>Alpha</b> › Plans › <b>v3.0</b></span>
+    <span style="flex:1"></span>
+    <span class="callout">mockup · v2.9 Plan Orchestration</span>
+  </div>
+
+  <div class="wrap">
+    <!-- PARALLEL PLANS -->
+    <div class="plantabs">
+      <span class="ptab active">v3.0 <span class="pill pill-running">running</span></span>
+      <span class="ptab">v4.0 <span class="pill pill-draft">draft</span></span>
+      <span class="ptab">v2.9 收尾 <span class="pill pill-done">done</span></span>
+      <span class="newplan">+ New Plan</span>
+      <span style="flex:1"></span>
+      <span class="callout">概念：plan（并行多计划，v3.0 / v4.0 同时进行）</span>
+    </div>
+
+    <!-- PLAN HEADER -->
+    <div class="planhd">
+      <h1>v3.0 发布计划</h1>
+      <div class="meta">
+        <span class="chip chip-running">running</span>
+        <span class="failed-ind" title="有节点失败、已通知创建者">⚠ 1 个节点失败</span>
+        <span class="progress">进度 <b>3 / 7</b></span>
+        <span>目标日期 2026-07-15</span>
+        <span>创建者 @oopslink</span>
+        <span style="flex:1"></span>
+        <span class="btn btn-ghost">■ 停止（回 draft 改 DAG）</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT: DAG + BACKLOG -->
+      <div>
+        <div class="panel" style="margin-bottom:14px;">
+          <div class="panel-hd">
+            <h2>推进计划 · DAG <span class="sub">（节点=task，边=depends_on，左→右执行序；系统按依赖自动推进）</span></h2>
+            <span class="callout">核心：plan 推进计划（DAG）</span>
+          </div>
+          <div class="panel-bd">
+            <div class="dag-wrap">
+              <svg class="dag-svg" viewBox="0 0 960 460">
+                <defs>
+                  <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+                  </marker>
+                </defs>
+                <g fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)">
+                  <!-- T1->T2 --><path d="M172,239 L198,239"/>
+                  <!-- T2->T3 --><path d="M360,239 C376,239 376,109 386,109"/>
+                  <!-- T2->T4 --><path d="M360,239 L386,239"/>
+                  <!-- T2->T7 --><path d="M360,239 C376,239 376,369 386,369"/>
+                  <!-- T3->T5 --><path d="M548,109 C564,109 564,174 574,174"/>
+                  <!-- T4->T5 --><path d="M548,239 C564,239 564,174 574,174"/>
+                  <!-- T5->T6 --><path d="M736,174 L762,174"/>
+                </g>
+              </svg>
+
+              <!-- T1 done -->
+              <div class="node b-done" style="left:12px;top:210px;">
+                <div class="ntitle">设计 schema</div>
+                <div class="nrow"><span class="assignee"><span class="av av-agent">D</span>Dev <span class="nkind">agent</span></span><span class="nstate s-done">done</span></div>
+              </div>
+              <!-- T2 done -->
+              <div class="node b-done" style="left:200px;top:210px;">
+                <div class="ntitle">后端 Plan API</div>
+                <div class="nrow"><span class="assignee"><span class="av av-agent">D</span>Dev <span class="nkind">agent</span></span><span class="nstate s-done">done</span></div>
+              </div>
+              <!-- T3 running -->
+              <div class="node b-running" style="left:388px;top:80px;">
+                <div class="ntitle">前端 Plan 列表</div>
+                <div class="nrow"><span class="assignee"><span class="av av-agent">D2</span>Dev2 <span class="nkind">agent</span></span><span class="nstate s-running">running</span></div>
+              </div>
+              <!-- T4 dispatched -->
+              <div class="node b-dispatched" style="left:388px;top:210px;">
+                <div class="ntitle">DAG 视图</div>
+                <div class="nrow"><span class="assignee"><span class="av av-agent">D2</span>Dev2 <span class="nkind">agent</span></span><span class="nstate s-dispatched">dispatched</span></div>
+              </div>
+              <!-- T7 failed -->
+              <div class="node b-failed" style="left:388px;top:340px;">
+                <div class="ntitle">迁移脚本</div>
+                <div class="nrow"><span class="assignee"><span class="av av-agent">D</span>Dev <span class="nkind">agent</span></span><span class="nstate s-failed">failed</span></div>
+              </div>
+              <!-- T5 ready -->
+              <div class="node b-ready" style="left:576px;top:145px;">
+                <div class="ntitle">编排器接线</div>
+                <div class="nrow"><span class="assignee"><span class="av av-agent">D</span>Dev <span class="nkind">agent</span></span><span class="nstate s-ready">ready</span></div>
+              </div>
+              <!-- T6 blocked -->
+              <div class="node b-blocked" style="left:764px;top:145px;">
+                <div class="ntitle">E2E 验收</div>
+                <div class="nrow"><span class="assignee"><span class="av av-human">人</span>你 <span class="nkind">human</span></span><span class="nstate s-blocked">blocked</span></div>
+              </div>
+            </div>
+
+            <div class="dag-foot">
+              <div class="legend">
+                <span class="nstate s-blocked">blocked 待依赖</span>
+                <span class="nstate s-ready">ready 就绪</span>
+                <span class="nstate s-dispatched">dispatched 已@</span>
+                <span class="nstate s-running">running 进行中</span>
+                <span class="nstate s-done">done 完成</span>
+                <span class="nstate s-failed">failed 失败</span>
+              </div>
+              <span class="advance"><span class="hint">依赖满足即自动派发；也可手动</span><span class="btn btn-primary">▶ 推进 Advance</span></span>
+            </div>
+            <div class="secnote">节点状态是<b>派生</b>的（= f(task 状态, 上游是否全 done, 是否已派发)）；点 Advance 把<b>所有 ready 节点</b>一次性 @ 给各自 assignee（幂等、不重复 @）。</div>
+          </div>
+        </div>
+
+        <!-- BACKLOG -->
+        <div class="panel">
+          <div class="panel-hd">
+            <h2>Backlog <span class="sub">（已建+已指派、未进任何 Plan 的 task；选入 Plan 后才进 DAG）</span></h2>
+            <span class="callout">概念：backlog + task</span>
+          </div>
+          <div class="panel-bd" style="padding-top:4px;padding-bottom:6px;">
+            <div class="bk-row"><span class="av av-agent">D</span><span class="bk-title">CLI adapter 调度（多 CLI）</span><span class="tstatus">todo</span><span class="bk-add">+ 加入 Plan</span></div>
+            <div class="bk-row"><span class="av av-human">人</span><span class="bk-title">发布说明撰写</span><span class="tstatus">todo</span><span class="bk-add">+ 加入 Plan</span></div>
+            <div class="bk-row"><span class="av av-agent">D2</span><span class="bk-title">Settings 页改版</span><span class="tstatus">todo</span><span class="bk-add">+ 加入 Plan</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: PLAN CONVERSATION -->
+      <div class="panel conv">
+        <div class="panel-hd">
+          <h2>Plan 会话 <span class="sub">（建 Plan 自动创建；创建者+各 assignee 自动加入）</span></h2>
+        </div>
+        <div class="panel-bd">
+          <div style="margin-bottom:8px;"><span class="callout">核心：plan conversation</span></div>
+          <div class="parts">
+            <span class="av av-human" title="@oopslink">人</span>
+            <span class="av av-agent" title="@Dev">D</span>
+            <span class="av av-agent" title="@Dev2">D2</span>
+            <span class="av av-human" title="@你">你</span>
+            <span class="lbl">4 位参与者</span>
+          </div>
+
+          <div class="sysline">⚙ 系统：「后端 Plan API」完成 → 下游 <b>「前端 Plan 列表」「DAG 视图」</b> 就绪，已在本会话 @ 对应执行者。</div>
+          <div class="msg"><div class="who sys">⚙ 编排器 → <span class="mention">@Dev2</span></div><div class="tx">节点「前端 Plan 列表」就绪，该你了。<span class="mention">@Dev2</span></div></div>
+          <div class="msg"><div class="who">@Dev2 <span class="nkind">agent</span></div><div class="tx">收到，开始「前端 Plan 列表」。<span class="tstatus">→ running</span></div></div>
+          <div class="sysline">⚠ 「迁移脚本」失败 → 已通知创建者 <span class="mention">@oopslink</span>（创建者是 agent 则自主处理/调 DAG）。</div>
+          <div class="msg"><div class="who">@oopslink <span class="nkind">human</span></div><div class="tx">我看下迁移失败原因，先重跑这个节点。</div></div>
+          <div class="secnote" style="margin-top:6px;">派发=在本会话 @ assignee（@人=通知 / @agent=唤醒做）；任务完成与否仍由 assignee 自己设状态。这里也是大家讨论本 Plan 的地方。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
