@@ -68,6 +68,28 @@ type TaskRepository interface {
 	// reads pm_tasks by status (by-status filter = one status; default = the
 	// non-terminal active set).
 	ListByStatuses(ctx context.Context, statuses []TaskStatus) ([]*Task, error)
+	// ListByPlan returns the tasks selected into a Plan (v2.9 #283), stable-ordered
+	// (created_at, id). A task is in 0..1 Plan (design §2).
+	ListByPlan(ctx context.Context, planID PlanID) ([]*Task, error)
+}
+
+// PlanRepository persists Plan ARs and their execution-DAG edges (v2.9 #283).
+// The DAG is 1:1-scoped to one Plan (§9.8): every Dependency carries a plan_id
+// and AddDependency rejects any edge that would create a cycle or self-edge
+// before persisting. Node status is DERIVED, never stored (§9.2) — there is no
+// node_status read/write here.
+type PlanRepository interface {
+	Save(ctx context.Context, p *Plan) error
+	Update(ctx context.Context, p *Plan) error
+	FindByID(ctx context.Context, id PlanID) (*Plan, error)
+	ListByProject(ctx context.Context, projectID ProjectID) ([]*Plan, error)
+	Delete(ctx context.Context, id PlanID) error
+	// AddDependency loads the plan's existing edges, calls WouldCreateCycle, and
+	// rejects (ErrPlanCycle / ErrSelfDependency) before inserting.
+	AddDependency(ctx context.Context, dep Dependency) error
+	RemoveDependency(ctx context.Context, dep Dependency) error
+	// ListDependencies returns all depends_on edges scoped to one Plan (§9.8).
+	ListDependencies(ctx context.Context, planID PlanID) ([]Dependency, error)
 }
 
 // TaskSubscriberRepository persists manual Task subscriber records.
