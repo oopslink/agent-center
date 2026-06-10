@@ -57,10 +57,10 @@ export function SenderDetailSidebar({
 
   if (!open || !senderRef) return null;
 
-  // F1 consistency (v2.8.1 #192): the resolver returns a CLEAN handle for an
-  // unresolved (e.g. force-deleted) ref — never the raw `agent:agent-xxx`. When
-  // unresolved we render a muted "(deleted)" header label; the clean handle +
-  // raw ref stay on title= for debugging.
+  // F1 consistency (v2.8.1 #192): the resolver returns the RAW ref on a miss
+  // (that's the preserved miss-sentinel — see members.ts). We detect the miss
+  // here via isResolvedName and render a muted "(deleted)" header label instead
+  // of the raw `agent:agent-xxx`; the clean handle + raw ref stay on title=.
   const resolvedName = displayName(senderRef);
   const nameResolved = isResolvedName(senderRef, resolvedName);
   const headerName = nameResolved ? resolvedName : '(deleted)';
@@ -89,7 +89,7 @@ export function SenderDetailSidebar({
           <Avatar name={avatarSeed} kind={kind === 'agent' ? 'agent' : 'human'} size="lg" />
           <div className="min-w-0 flex-1">
             <div
-              className={`truncate text-base font-semibold ${nameResolved ? '' : 'italic text-text-muted'}`}
+              className={`truncate text-base font-semibold ${nameResolved ? '' : 'italic text-text-secondary'}`}
               title={nameResolved ? senderRef : `${avatarSeed} (${senderRef})`}
               data-testid="sender-sidebar-name"
               data-name-resolved={nameResolved ? 'true' : 'false'}
