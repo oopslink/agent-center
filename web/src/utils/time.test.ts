@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatChatDate, formatChatTime, formatLocalTime, localDateToRFC3339 } from './time';
+import { formatChatDate, formatChatTime, formatLocalTime, formatStatusDuration, localDateToRFC3339 } from './time';
 
 describe('formatLocalTime', () => {
   const iso = '2026-06-04T07:34:21.874846Z';
@@ -113,5 +113,47 @@ describe('localDateToRFC3339', () => {
     const hh = String(Math.floor(abs / 60)).padStart(2, '0');
     const mm = String(abs % 60).padStart(2, '0');
     expect(out.slice(19)).toBe(`${sign}${hh}:${mm}`);
+  });
+});
+
+describe('formatStatusDuration', () => {
+  // Fixed "now" so the compute is deterministic (the helper takes `now` as an arg).
+  const now = Date.parse('2026-06-08T12:00:00Z');
+
+  it('formats hours + minutes as "Xh Ym" (largest two units)', () => {
+    // 2h14m before now
+    const since = new Date(now - (2 * 3600 + 14 * 60) * 1000).toISOString();
+    expect(formatStatusDuration(since, now)).toBe('2h 14m');
+  });
+
+  it('formats days + hours as "Xd Yh"', () => {
+    const since = new Date(now - (3 * 86400 + 5 * 3600) * 1000).toISOString();
+    expect(formatStatusDuration(since, now)).toBe('3d 5h');
+  });
+
+  it('formats minutes only as "Xm"', () => {
+    const since = new Date(now - 45 * 60 * 1000).toISOString();
+    expect(formatStatusDuration(since, now)).toBe('45m');
+  });
+
+  it('renders "<1m" under a minute', () => {
+    const since = new Date(now - 30 * 1000).toISOString();
+    expect(formatStatusDuration(since, now)).toBe('<1m');
+  });
+
+  it('drops a zero second unit (e.g. exactly N hours → "Xh", N days → "Xd")', () => {
+    expect(formatStatusDuration(new Date(now - 2 * 3600 * 1000).toISOString(), now)).toBe('2h');
+    expect(formatStatusDuration(new Date(now - 3 * 86400 * 1000).toISOString(), now)).toBe('3d');
+  });
+
+  it('returns null for missing / invalid input (caller omits gracefully)', () => {
+    expect(formatStatusDuration(undefined, now)).toBeNull();
+    expect(formatStatusDuration('', now)).toBeNull();
+    expect(formatStatusDuration('not-a-date', now)).toBeNull();
+  });
+
+  it('clamps clock skew (future timestamp) to "<1m" not a negative duration', () => {
+    const future = new Date(now + 60 * 1000).toISOString();
+    expect(formatStatusDuration(future, now)).toBe('<1m');
   });
 });

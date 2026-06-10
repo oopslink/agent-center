@@ -4,7 +4,6 @@ import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, useDisplayNameResolver } from '@/api/members';
-import { EntityRef } from '@/components/EntityRef';
 import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { TypeChip } from '@/components/TypeChip';
 import {
@@ -17,12 +16,13 @@ import {
   useTask,
   useUnassignTask,
   useUnblockTask,
+  useUpdateTask,
   useVerifyTask,
 } from '@/api/tasks';
 import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
-import { IssueTaskSidebar, type SidebarMetaRow } from '@/components/IssueTaskSidebar';
+import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
@@ -54,6 +54,10 @@ export default function TaskDetail(): React.ReactElement {
   const discard = useDiscardTask(projectId, id);
   const unassign = useUnassignTask(projectId, id);
   const reopen = useReopenTask(projectId, id);
+  // v2.8.1 #281 TaskDetail-sidebar redesign: inline "+ Add" tag PATCHes the full
+  // replacement tag set via the #278 batch hook ({tags}) — atomic, rune-16/max-10
+  // validated in the sidebar before submit.
+  const update = useUpdateTask(projectId, id);
 
   if (task.isLoading) {
     return (
@@ -166,99 +170,37 @@ export default function TaskDetail(): React.ReactElement {
     </div>
   );
 
-  const sidebarActions = (
-    <>
-      {statusControl}
-      {!isTerminal && (
-        <button
-          type="button"
-          onClick={() => setEditOpen(true)}
-          className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
-          data-testid="task-edit-button"
-        >
-          Edit
-        </button>
-      )}
-    </>
-  );
-
   // v2.8.1 #5th: Assignee is metadata, editable in ANY non-terminal state via a
   // "Change" link (opens the existing assign picker). Changing the assignee does
   // NOT change the task status — it reuses useAssignTask/useUnassignTask, which
-  // the backend resolves as a pure metadata write. The row is ALWAYS present so
-  // an unassigned task can still be assigned; "Unassign" appears only when set.
+  // the backend resolves as a pure metadata write. These controls render beside
+  // the assignee avatar/name in the redesigned sidebar's editable section.
   const assigneeEditable = !isTerminal;
-  const meta: SidebarMetaRow[] = [
-    {
-      label: 'Assignee',
-      value: (
-        <div className="flex flex-wrap items-center gap-2">
-          {tk.assignee ? (
-            <EntityRef
-              id={tk.assignee}
-              name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
-              testId="task-assignee"
-            />
-          ) : (
-            <span className="text-text-muted" data-testid="task-assignee-empty">
-              Unassigned
-            </span>
-          )}
-          {assigneeEditable && (
-            <>
-              <button
-                type="button"
-                onClick={() => setAssignOpen(true)}
-                className="text-xs text-accent hover:underline"
-                data-testid="task-assign-change"
-              >
-                Change
-              </button>
-              {tk.assignee && (
-                <button
-                  type="button"
-                  onClick={() => unassign.mutate()}
-                  disabled={unassign.isPending}
-                  className="text-xs text-accent hover:underline disabled:opacity-50"
-                  data-testid="task-unassign-button"
-                >
-                  {unassign.isPending ? 'Unassigning…' : 'Unassign'}
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      ),
-    } satisfies SidebarMetaRow,
-    ...(tk.blocked_reason && status === 'blocked'
-      ? [
-          {
-            label: 'Blocked',
-            value: (
-              <span className="text-danger" data-testid="task-blocked-reason">
-                {tk.blocked_reason}
-              </span>
-            ),
-          } satisfies SidebarMetaRow,
-        ]
-      : []),
-    ...(tk.project_id
-      ? [
-          {
-            label: 'Project',
-            value: (
-              <OrgLink
-                to={`/projects/${encodeURIComponent(tk.project_id)}`}
-                className="text-accent hover:underline"
-                data-testid="task-project-link"
-              >
-                {project.data?.name || tk.project_id}
-              </OrgLink>
-            ),
-          } satisfies SidebarMetaRow,
-        ]
-      : []),
-  ];
+  const assigneeControls = assigneeEditable ? (
+    <>
+      <button
+        type="button"
+        onClick={() => setAssignOpen(true)}
+        className="text-xs text-accent hover:underline"
+        data-testid="task-assign-change"
+      >
+        Change
+      </button>
+      {tk.assignee && (
+        <button
+          type="button"
+          onClick={() => unassign.mutate()}
+          disabled={unassign.isPending}
+          className="text-xs text-accent hover:underline disabled:opacity-50"
+          data-testid="task-unassign-button"
+        >
+          {unassign.isPending ? 'Unassigning…' : 'Unassign'}
+        </button>
+      )}
+    </>
+  ) : undefined;
+
+  const resolvedAssigneeName = tk.assignee ? resolveName(tk.assignee) : '';
 
   return (
     <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
@@ -312,9 +254,24 @@ export default function TaskDetail(): React.ReactElement {
           <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
         </div>
 
-        {/* right sidebar — status block + transitions + metadata */}
+        {/* right sidebar — 2-section TaskDetail layout (editable top / read-only bottom) */}
         <div className="shrink-0 overflow-y-auto lg:w-72">
-          <IssueTaskSidebar status={status} actions={sidebarActions} meta={meta} />
+          <TaskDetailSidebar
+            task={tk}
+            projectName={project.data?.name}
+            assigneeName={resolvedAssigneeName}
+            statusControl={statusControl}
+            onEdit={() => setEditOpen(true)}
+            editable={!isTerminal}
+            addPending={update.isPending}
+            assigneeControls={assigneeControls}
+            onAddTag={(next) => update.mutate({ tags: next })}
+          />
+          {tk.blocked_reason && status === 'blocked' && (
+            <p className="mt-2 text-xs text-danger" data-testid="task-blocked-reason">
+              Blocked: {tk.blocked_reason}
+            </p>
+          )}
         </div>
       </div>
 

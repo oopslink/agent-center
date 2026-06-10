@@ -8,6 +8,7 @@ import { useMembers, normalizeIdentityRef } from '@/api/members';
 import type { MemberResult } from '@/api/members';
 import type { Task, TaskStatus } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
+import { MAX_TAG_RUNES, MAX_TAGS, runeLength, validateTags } from './tagValidation';
 
 interface Props {
   projectId: string;
@@ -28,26 +29,8 @@ const TASK_STATUSES: TaskStatus[] = [
   'reopened',
 ];
 
-// Tag validation — MUST match Dev's backend cleanTags (#278): each tag ≤ 16
-// RUNES (count with [...tag].length, NOT tag.length — critical for CJK), ≤ 10
-// tags total, trimmed, non-empty, deduped (keep first). We validate IN the modal
-// before submit so the user can't trip the backend's atomic 400.
-const MAX_TAG_RUNES = 16;
-const MAX_TAGS = 10;
-
-function runeLength(tag: string): number {
-  return [...tag].length;
-}
-
-// validateTags returns an inline error message, or null when the set is valid.
-function validateTags(tags: string[]): string | null {
-  if (tags.length > MAX_TAGS) return `Max ${MAX_TAGS} tags`;
-  for (const tag of tags) {
-    if (tag.trim() === '') return 'Tag cannot be empty';
-    if (runeLength(tag) > MAX_TAG_RUNES) return `Tag too long (max ${MAX_TAG_RUNES})`;
-  }
-  return null;
-}
+// Tag validation rules (rune-16, max-10, dedup) are shared with the inline "+ Add"
+// affordance in the TaskDetail sidebar — see ./tagValidation (single source).
 
 // Build the prefixed identity ref for an assignee option, mirroring
 // OrgWorkItemsView: "<kind>:<bare-id>" (kind derived from the ref when absent).
