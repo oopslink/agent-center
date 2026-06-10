@@ -106,6 +106,12 @@ type Task struct {
 	// createdAt at construction; updated to `at` on every status mutation (NOT on
 	// metadata edits like rename/assign/tags).
 	statusChangedAt time.Time
+	// planID is the Plan this task is selected into (v2.9 plan orchestration
+	// #283). "" when in no plan; a task is in 0..1 Plan (design §2). Tasks are
+	// created in the backlog first (no PlanID in NewTaskInput) and selected into a
+	// Plan later via SetPlan. NOT a node_status — node status is derived, never
+	// stored (§9.2).
+	planID PlanID
 }
 
 // NewTaskInput captures constructor args.
@@ -175,6 +181,7 @@ type RehydrateTaskInput struct {
 	OrgNumber        int
 	Tags             []string
 	StatusChangedAt  time.Time
+	PlanID           PlanID
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -208,6 +215,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		orgNumber:        in.OrgNumber,
 		tags:             in.Tags,
 		statusChangedAt:  statusChangedAt,
+		planID:           in.PlanID,
 	}, nil
 }
 
@@ -228,6 +236,22 @@ func (t *Task) UpdatedAt() time.Time       { return t.updatedAt }
 func (t *Task) Version() int               { return t.version }
 func (t *Task) Tags() []string             { return t.tags }
 func (t *Task) StatusChangedAt() time.Time { return t.statusChangedAt }
+func (t *Task) PlanID() PlanID             { return t.planID }
+
+// SetPlan selects this task into a Plan (v2.9 #283). A task is in 0..1 Plan
+// (design §2), so this overwrites any prior plan membership. Metadata edit (NOT
+// a status change): does not touch statusChangedAt. The 1:1 DAG-scope invariant
+// (§9.8) is enforced at the edge level by the Plan repository.
+func (t *Task) SetPlan(planID PlanID, at time.Time) {
+	t.planID = planID
+	t.touch(at)
+}
+
+// ClearPlan removes this task from its Plan (back to the backlog).
+func (t *Task) ClearPlan(at time.Time) {
+	t.planID = ""
+	t.touch(at)
+}
 
 // SetTags replaces the task's label set (metadata edit, NOT a status change).
 // Each tag is trimmed; blank tags and tags longer than 16 chars are rejected;

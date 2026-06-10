@@ -25,6 +25,7 @@ type (
 	IssueID   string
 	TaskID    string
 	MemberID  string
+	PlanID    string
 	// IdentityRef mirrors the kind-prefixed identity vocabulary (ADR-0033):
 	// `user:<id>` / `agent:<id>` / `system`.
 	IdentityRef string
@@ -34,6 +35,7 @@ func (id ProjectID) String() string  { return string(id) }
 func (id IssueID) String() string    { return string(id) }
 func (id TaskID) String() string     { return string(id) }
 func (id MemberID) String() string   { return string(id) }
+func (id PlanID) String() string     { return string(id) }
 func (r IdentityRef) String() string { return string(r) }
 
 // Validate enforces the kind-prefixed identity vocabulary (ADR-0033).
@@ -93,4 +95,13 @@ var (
 	// assigned but no AgentDirectory is wired to verify the agent's org — a
 	// missing dependency must not silently bypass the cross-org guard.
 	ErrAgentDirectoryUnavailable = errors.New("projectmanager: agent directory unavailable — cannot verify assignee agent's organization")
+	// Plan orchestration (v2.9 #283).
+	ErrEmptyPlanName         = errors.New("projectmanager: plan name required")
+	ErrPlanCycle             = errors.New("projectmanager: dependency would create a cycle")
+	ErrSelfDependency        = errors.New("projectmanager: a task cannot depend on itself")
+	ErrIllegalPlanTransition = errors.New("projectmanager: illegal plan status transition")
+	ErrInvalidPlanStatus     = errors.New("projectmanager: invalid plan status")
+	ErrPlanNotDraft          = errors.New("projectmanager: plan dependencies/tasks editable only in draft")
+	ErrPlanNotFound          = errors.New("projectmanager: plan not found")
+	ErrPlanExists            = errors.New("projectmanager: plan already exists")
 )
