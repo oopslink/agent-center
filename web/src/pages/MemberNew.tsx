@@ -55,7 +55,9 @@ export default function MemberNew(): React.ReactElement {
           // id is internal-only). Navigate to AgentDetail by identity_id
           // (GET /api/agents/{identity_id} resolves via the member→entity bridge).
           onSuccess: (res) =>
-            navigate(res.identity_id ? `${base}/agents/${res.identity_id}` : `${base}/members/agents`),
+            // dev2/v281: fall back to the canonical /agents list (the retired
+            // /members/agents now just redirects there).
+            navigate(res.identity_id ? `${base}/agents/${res.identity_id}` : `${base}/agents`),
           onError: (err) => setError(err instanceof ApiError ? err.message : 'Create failed'),
         },
       );
@@ -185,7 +187,7 @@ export default function MemberNew(): React.ReactElement {
         <div className="flex gap-2 justify-end">
           <button
             type="button"
-            onClick={() => navigate(`${base}/members/${kind === 'agent' ? 'agents' : 'humans'}`)}
+            onClick={() => navigate(kind === 'agent' ? `${base}/agents` : `${base}/members/humans`)}
             className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
           >
             Cancel
