@@ -608,3 +608,12 @@ func (s *Service) ListMyPausedWork(ctx context.Context, id agent.AgentID) ([]*ag
 func (s *Service) ListActivity(ctx context.Context, id agent.AgentID, limit int, before string) ([]*agent.AgentActivityEvent, error) {
 	return s.activity.ListByAgent(ctx, id, limit, before)
 }
+
+// LatestActivityByAgents returns the single most-recent activity event per agent
+// across the whole input set in ONE batch query (NO N+1) — the v2.8.1 agents-list
+// enrich uses it to render last_activity_at/last_activity_content for the whole
+// page without a per-agent round-trip. Pass the execution-entity AgentIDs (the
+// agent_activity_events partition key). Agents with no events have no map entry.
+func (s *Service) LatestActivityByAgents(ctx context.Context, ids []agent.AgentID) (map[agent.AgentID]*agent.AgentActivityEvent, error) {
+	return s.activity.LatestByAgents(ctx, ids)
+}

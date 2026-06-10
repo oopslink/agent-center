@@ -70,6 +70,12 @@ type MessageRepository interface {
 	FindByIDs(ctx context.Context, ids []MessageID) ([]*Message, error)
 	FindByConversationID(ctx context.Context, conversationID ConversationID, filter MessageFilter) ([]*Message, error)
 	FindRecent(ctx context.Context, conversationID ConversationID, n int) ([]*Message, error)
+	// RecentByConversations batch-fetches the last-n messages per conversation
+	// across the whole input set in a SINGLE window-function query (NO N+1) — the
+	// v2.8.1 channels-list enrich uses it to render a recent-messages preview for
+	// the whole page in one round-trip. Each returned slice is newest-first; a
+	// conversation with no messages simply has no map entry. n <= 0 → empty map.
+	RecentByConversations(ctx context.Context, convIDs []ConversationID, n int) (map[ConversationID][]*Message, error)
 	Append(ctx context.Context, m *Message) error
 	// DeleteByConversationID hard-removes all messages of a conversation (v2.7
 	// #198, DM delete). Idempotent: no rows = no error.

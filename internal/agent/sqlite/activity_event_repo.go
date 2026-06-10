@@ -58,6 +58,48 @@ func (r *ActivityEventRepo) ListByAgent(ctx context.Context, agentID agent.Agent
 	return scanActivityEvents(rows)
 }
 
+// LatestByAgents returns the single most-recent activity event per agent across
+// the whole input set in ONE batch query (NO N+1) — the v2.8.1 agents-list enrich
+// uses it to render last_activity_at/last_activity_content for the whole page in a
+// single round-trip. It wraps `activitySelect` in a ROW_NUMBER() window partitioned
+// by agent_id, ordered occurred_at DESC, id DESC (occurred_at is the canonical event
+// timestamp + the (agent_id, occurred_at) index ordering; id is the stable ULID
+// tiebreaker for same-instant events), and keeps rn = 1. Agents with no events have
+// no map entry. Empty input → empty map.
+func (r *ActivityEventRepo) LatestByAgents(ctx context.Context, agentIDs []agent.AgentID) (map[agent.AgentID]*agent.AgentActivityEvent, error) {
+	out := make(map[agent.AgentID]*agent.AgentActivityEvent, len(agentIDs))
+	if len(agentIDs) == 0 {
+		return out, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	placeholders := make([]byte, 0, len(agentIDs)*2)
+	args := make([]any, 0, len(agentIDs))
+	for i, id := range agentIDs {
+		if i > 0 {
+			placeholders = append(placeholders, ',')
+		}
+		placeholders = append(placeholders, '?')
+		args = append(args, string(id))
+	}
+	q := `SELECT ` + activityCols + `
+		FROM (SELECT ` + activityCols + `, ROW_NUMBER() OVER (
+			PARTITION BY agent_id ORDER BY occurred_at DESC, id DESC
+		) AS rn FROM agent_activity_events WHERE agent_id IN (` + string(placeholders) + `)) WHERE rn = 1`
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	events, err := scanActivityEvents(rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range events {
+		out[e.AgentID()] = e
+	}
+	return out, nil
+}
+
 func (r *ActivityEventRepo) ListByWorkItem(ctx context.Context, workItemRef string) ([]*agent.AgentActivityEvent, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
@@ -69,7 +111,12 @@ func (r *ActivityEventRepo) ListByWorkItem(ctx context.Context, workItemRef stri
 	return scanActivityEvents(rows)
 }
 
-const activitySelect = `SELECT id, agent_id, work_item_ref, interaction_ref, event_type, payload, occurred_at FROM agent_activity_events`
+// activityCols is the shared column list (kept in sync with scanActivityEvents).
+// activitySelect prepends SELECT + appends the FROM for the simple list queries;
+// LatestByAgents reuses activityCols directly inside its window subquery.
+const activityCols = `id, agent_id, work_item_ref, interaction_ref, event_type, payload, occurred_at`
+
+const activitySelect = `SELECT ` + activityCols + ` FROM agent_activity_events`
 
 func scanActivityEvents(rows *sql.Rows) ([]*agent.AgentActivityEvent, error) {
 	var out []*agent.AgentActivityEvent
