@@ -27,6 +27,7 @@ const (
 	ownerRefProjects = "pm://projects/"
 	ownerRefIssues   = "pm://issues/"
 	ownerRefTasks    = "pm://tasks/"
+	ownerRefPlans    = "pm://plans/"
 	ownerRefOrgs     = "id://organizations/"
 )
 
@@ -43,6 +44,10 @@ func NewProjectOwnerRef(projectID string) OwnerRef { return OwnerRef(ownerRefPro
 func NewIssueOwnerRef(issueID string) OwnerRef     { return OwnerRef(ownerRefIssues + issueID) }
 func NewTaskOwnerRef(taskID string) OwnerRef       { return OwnerRef(ownerRefTasks + taskID) }
 
+// NewPlanOwnerRef builds a Plan conversation's owner_ref (pm://plans/{plan_id},
+// v2.9 plan orchestration §2).
+func NewPlanOwnerRef(planID string) OwnerRef { return OwnerRef(ownerRefPlans + planID) }
+
 // WellFormed reports whether a non-empty owner_ref uses a known scheme
 // (id://organizations for channel, pm:// for issue/task). Advisory.
 func (r OwnerRef) WellFormed() bool {
@@ -50,7 +55,7 @@ func (r OwnerRef) WellFormed() bool {
 	if s == "" {
 		return true // empty is allowed (dm)
 	}
-	for _, p := range []string{ownerRefOrgs, ownerRefProjects, ownerRefIssues, ownerRefTasks} {
+	for _, p := range []string{ownerRefOrgs, ownerRefProjects, ownerRefIssues, ownerRefTasks, ownerRefPlans} {
 		if strings.HasPrefix(s, p) && len(s) > len(p) {
 			return true
 		}
