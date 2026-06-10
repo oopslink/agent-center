@@ -198,12 +198,12 @@ export default function Signup(): React.ReactElement {
             />
             <Field
               id="passcode"
-              label="6-digit passcode"
+              label="Passcode"
               type="password"
               value={passcode}
               error={errors.passcode ?? ''}
-              placeholder="••••••"
-              maxLength={6}
+              placeholder="Your passcode"
+              maxLength={128}
               onChange={setPasscode}
             />
             <Field
@@ -212,8 +212,8 @@ export default function Signup(): React.ReactElement {
               type="password"
               value={confirmPasscode}
               error={errors.confirmPasscode ?? ''}
-              placeholder="••••••"
-              maxLength={6}
+              placeholder="Confirm passcode"
+              maxLength={128}
               onChange={setConfirmPasscode}
             />
 
