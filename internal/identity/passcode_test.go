@@ -59,6 +59,10 @@ func TestValidatePasscodePlain(t *testing.T) {
 		{"letters only, no digit or symbol", "abcdef"},
 		{"letters+digits, no symbol", "abc123"},
 		{"letter+digit, no symbol (7 chars)", "abcdef1"},
+		// v2.9 #290 (PD lock): symbol excludes whitespace/control — a trailing
+		// space or a control char does NOT satisfy the symbol requirement.
+		{"trailing space is not a symbol", "Abc123 "},
+		{"control char is not a symbol", "Abc123\t"},
 		{"too long", tooLong},
 	}
 	for _, tc := range invalid {

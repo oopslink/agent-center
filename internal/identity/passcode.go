@@ -22,7 +22,10 @@ const (
 
 // ValidatePasscodePlain enforces the passcode complexity rules: at least 6 and
 // at most 128 characters, with at least one letter, one digit, and one symbol
-// (a rune that is neither a letter nor a digit).
+// (a real punctuation/symbol rune — unicode.IsPunct||IsSymbol). v2.9 #290: symbol
+// EXCLUDES whitespace and control chars (PD lock) so "Abc123 " with a trailing
+// space does NOT satisfy the symbol requirement (trailing-space weak-passcode leak
+// + easily lost on input).
 func ValidatePasscodePlain(plain string) error {
 	n := utf8.RuneCountInString(plain)
 	if n < passcodeMinLen {
@@ -38,7 +41,7 @@ func ValidatePasscodePlain(plain string) error {
 			hasLetter = true
 		case unicode.IsDigit(r):
 			hasDigit = true
-		case !unicode.IsLetter(r) && !unicode.IsDigit(r):
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
 			hasSymbol = true
 		}
 	}
