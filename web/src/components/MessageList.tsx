@@ -191,7 +191,7 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
           data-testid="message-sender-button"
           data-sender-resolved={senderResolved ? 'true' : 'false'}
           className={`rounded font-medium hover:underline focus-visible:ring-2 focus-visible:ring-accent ${
-            senderResolved ? '' : 'italic text-text-muted'
+            senderResolved ? '' : 'italic text-text-secondary'
           }`}
         >
           {senderResolved ? senderName : '(deleted)'}
