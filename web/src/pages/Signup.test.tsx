@@ -15,7 +15,7 @@ function wrap() {
 
 function fillExceptEmail() {
   fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Alice' } });
-  fireEvent.change(screen.getByLabelText('6-digit passcode'), { target: { value: '123456' } });
+  fireEvent.change(screen.getByLabelText('Passcode'), { target: { value: '123456' } });
   fireEvent.change(screen.getByLabelText('Confirm passcode'), { target: { value: '123456' } });
   fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Acme' } });
 }
@@ -47,6 +47,15 @@ describe('Signup email (#193)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
     });
     await waitFor(() => expect(posted).toMatchObject({ email: 'alice@example.com', display_name: 'Alice' }));
+  });
+
+  it('accepts a passcode longer than 6 characters (maxLength is 128, not 6)', () => {
+    wrap();
+    const passcode = screen.getByLabelText('Passcode') as HTMLInputElement;
+    expect(passcode.maxLength).toBe(128);
+    // A >6-char passcode like "Passw0rd!" must be retained, not truncated to 6.
+    fireEvent.change(passcode, { target: { value: 'Passw0rd!' } });
+    expect(passcode.value).toBe('Passw0rd!');
   });
 
   it('surfaces a duplicate-email conflict on the email field', async () => {

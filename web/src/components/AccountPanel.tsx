@@ -81,24 +81,24 @@ export default function AccountPanel(): React.ReactElement {
               id="current_passcode"
               type="password"
               value={currentPasscode}
-              maxLength={6}
+              maxLength={128}
               onChange={(e) => setCurrentPasscode(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="••••••"
+              placeholder="Current password"
             />
           </div>
           <div className="space-y-1">
             <label htmlFor="new_passcode" className="block text-sm text-text-primary">
-              New password (6 digits)
+              New password
             </label>
             <input
               id="new_passcode"
               type="password"
               value={newPasscode}
-              maxLength={6}
+              maxLength={128}
               onChange={(e) => setNewPasscode(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="••••••"
+              placeholder="New password"
             />
           </div>
           <div className="space-y-1">
@@ -109,10 +109,10 @@ export default function AccountPanel(): React.ReactElement {
               id="confirm_new_passcode"
               type="password"
               value={confirmPasscode}
-              maxLength={6}
+              maxLength={128}
               onChange={(e) => setConfirmPasscode(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="••••••"
+              placeholder="Confirm new password"
             />
           </div>
           <button
