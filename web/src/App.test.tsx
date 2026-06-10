@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type React from 'react';
@@ -73,6 +73,46 @@ describe('App shell + route tree', () => {
       });
       unmount();
     }
+  });
+
+  // dev2/v281: the enhanced /agents page is the single canonical agents
+  // surface. The old /members/agents URL must redirect there (no second
+  // reachable agents page) and the "Agents" nav click must reach the
+  // enhanced page, not the old one.
+  it('redirects the retired /members/agents URL to the canonical /agents page', async () => {
+    await renderAt(`${ORG_BASE}/members/agents`);
+    await waitFor(() => {
+      // lands on the ENHANCED Agents page (Name/Provider/Lifecycle/…)
+      expect(screen.getByTestId('page-Agents')).toBeInTheDocument();
+    });
+    // the old MembersAgents page is NOT what rendered.
+    expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
+    // URL landed on canonical /agents (replace — no /members/agents in history).
+    expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
+  });
+
+  it('"Agents" nav item points to the enhanced /agents route, not /members/agents', async () => {
+    await renderAt(`${ORG_BASE}/channels`);
+    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: /primary/i });
+    const agentsLink = within(nav)
+      .getAllByRole('link')
+      .find((a) => a.textContent?.trim().startsWith('Agents'));
+    expect(agentsLink).toBeDefined();
+    expect(agentsLink).toHaveAttribute('href', `${ORG_BASE}/agents`);
+    expect(agentsLink).not.toHaveAttribute('href', `${ORG_BASE}/members/agents`);
+    // Clicking it reaches the ENHANCED page.
+    fireEvent.click(agentsLink!);
+    await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
+  });
+
+  it('⌘6 jumps to the enhanced /agents page (org-scoped), not /members/agents', async () => {
+    await renderAt(`${ORG_BASE}/channels`);
+    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
+    fireEvent.keyDown(window, { key: '6', metaKey: true });
+    await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
+    expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
   });
 
   it('opens per-org settings as a modal from the switcher gear, no standalone entry (#186-6)', async () => {

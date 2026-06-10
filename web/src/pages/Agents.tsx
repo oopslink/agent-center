@@ -1,9 +1,10 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { ApiError } from '@/api/client';
 import { useAgents, useDeleteAgent } from '@/api/agents';
+import { useMembers, normalizeIdentityRef, type MemberResult } from '@/api/members';
 import { useWorkers } from '@/api/workers';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
@@ -35,6 +36,24 @@ export default function Agents(): React.ReactElement {
   const workers = useWorkers();
   const workerName = (id: string): string | undefined =>
     (workers.data ?? []).find((w) => w.worker_id === id)?.name || undefined;
+  // dev2/v281 canonical-fold: the enhanced /agents page is now the single
+  // agents surface, so the retired /members/agents page's Role + membership
+  // Status (Joined/Disabled) columns are folded in here so no info is lost.
+  // The Agent DTO (useAgents) carries neither field — they are member-level
+  // only — so we join the org member list keyed by identity, exactly like the
+  // old MembersAgents page did. The execution Agent's identity_member_id ==
+  // the agent member's identity_id (the #157 unified-create link); a standalone
+  // agent with no member (identity_member_id empty) → no match → '—' fallback.
+  const members = useMembers();
+  const memberByIdentity = useMemo(() => {
+    const m = new Map<string, MemberResult>();
+    for (const mem of members.data ?? []) {
+      m.set(normalizeIdentityRef(mem.identity_id), mem);
+    }
+    return m;
+  }, [members.data]);
+  const memberForAgent = (identityMemberId: string | undefined): MemberResult | undefined =>
+    identityMemberId ? memberByIdentity.get(normalizeIdentityRef(identityMemberId)) : undefined;
   const [createOpen, setCreateOpen] = useState(false);
   // v2.7 #197: per-row hard-delete gated behind a confirm dialog.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -86,10 +105,14 @@ export default function Agents(): React.ReactElement {
         >
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
-              <th className="w-1/5 border-b border-border-base px-3 py-2">Name</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">Name</th>
               <th className="w-1/6 border-b border-border-base px-3 py-2">Provider</th>
               <th className="w-1/12 border-b border-border-base px-3 py-2">Lifecycle</th>
               <th className="w-1/12 border-b border-border-base px-3 py-2">Availability</th>
+              {/* dev2/v281 canonical-fold: Role + Status folded from the retired
+                  /members/agents page so the merge loses no information. */}
+              <th className="w-1/12 border-b border-border-base px-3 py-2">Role</th>
+              <th className="w-1/12 border-b border-border-base px-3 py-2">Status</th>
               <th className="border-b border-border-base px-3 py-2">Last activity</th>
               <th className="w-1/6 border-b border-border-base px-3 py-2">Worker</th>
               <th className="border-b border-border-base px-3 py-2 text-right" />
@@ -123,6 +146,19 @@ export default function Agents(): React.ReactElement {
                 </td>
                 <td className="border-b border-border-base px-3 py-2">
                   <AvailabilityBadge availability={a.availability} />
+                </td>
+                {/* dev2/v281 canonical-fold: Role + membership Status resolved
+                    via the member-list join (see memberForAgent). */}
+                <td
+                  className="border-b border-border-base px-3 py-2 text-xs text-text-secondary"
+                  data-testid="agent-role"
+                >
+                  {memberForAgent(a.identity_member_id)?.role ?? (
+                    <span className="text-text-muted">—</span>
+                  )}
+                </td>
+                <td className="border-b border-border-base px-3 py-2">
+                  <MembershipStatus status={memberForAgent(a.identity_member_id)?.status} />
                 </td>
                 <td className="border-b border-border-base px-3 py-2 align-top">
                   <AgentLastActivity
@@ -204,6 +240,45 @@ export default function Agents(): React.ReactElement {
         }}
       />
     </section>
+  );
+}
+
+// MembershipStatus — membership Status chip (dev2/v281 canonical-fold). Folds
+// the retired /members/agents "Status" column: a member-level joined/disabled
+// flag the Agent DTO does not carry, resolved via the member-list join. The
+// state is conveyed by the TEXT label ("Joined"/"Disabled"), never color-only.
+// COLORS = the curated SOLID X-100/X-800 pairs (theme-INDEPENDENT, AA in BOTH
+// light + dark, no dark: variant): joined = green-100/green-800, disabled =
+// slate-100/slate-700 (muted gray, NOT red — a11y guardrail). Do NOT use
+// `bg-success/10 text-success` — that alpha-tint renders transparent + the green
+// token is green-500 #22c55e = 2.28 on white = light-AA FAIL (Tester2 §3.3 catch;
+// the recurring both-mode alpha-tint-over-token 命门).
+// No member match (standalone agent / member list still loading) → a neutral
+// "—" placeholder, never blank and never a misleading "Disabled".
+function MembershipStatus({
+  status,
+}: {
+  status: MemberResult['status'] | undefined;
+}): React.ReactElement {
+  if (!status) {
+    return (
+      <span className="text-xs text-text-muted" data-testid="agent-status" data-status="unknown">
+        —
+      </span>
+    );
+  }
+  const joined = status === 'joined';
+  return (
+    <span
+      className={[
+        'rounded px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide',
+        joined ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700',
+      ].join(' ')}
+      data-testid="agent-status"
+      data-status={status}
+    >
+      {joined ? 'Joined' : 'Disabled'}
+    </span>
   );
 }
 

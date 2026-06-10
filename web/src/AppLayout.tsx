@@ -20,7 +20,7 @@ import { useKeyShortcuts } from '@/useKeyShortcuts';
 import { readTheme, writeTheme, type Theme } from '@/theme';
 import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useOptionalOrgContext } from './OrgContext';
+import { useOptionalOrgContext, orgPath } from './OrgContext';
 
 // AppLayout v4 — v2.8.1 #278 "Topbar→sidebar" chrome redesign. The old
 // top header bar is gone: org switcher, the ⌘K search trigger, the
@@ -139,10 +139,14 @@ export default function AppLayout(): React.ReactElement {
       'mod+2': () => navigate('/channels'),
       'mod+3': () => navigate('/dms'),
       'mod+4': () => navigate('/projects'),
-      'mod+6': () => navigate('/members/agents'),
+      // dev2/v281: ⌘6 jumps to the enhanced canonical /agents page (NOT the
+      // retired /members/agents). Org-scoped via orgPath so it resolves under
+      // /organizations/{slug}/agents (mirrors CommandPalette's orgPath rewrite)
+      // instead of falling through to OrgRedirect.
+      'mod+6': () => navigate(orgPath('/agents', orgCtx?.slug)),
       'mod+7': () => navigate('/environment'),
     }),
-    [navigate],
+    [navigate, orgCtx?.slug],
   );
   useKeyShortcuts(shortcuts);
 
@@ -296,7 +300,11 @@ function buildNavSections(base: string): ReadonlyArray<NavSection> {
       label: 'Members',
       items: [
         { to: p('members/humans'), label: 'Humans', Icon: UsersIcon },
-        { to: p('members/agents'), label: 'Agents', Icon: AgentsIcon },
+        // dev2/v281: "Agents" opens the enhanced canonical /agents list
+        // (Name/Provider/Lifecycle/Availability/Last activity/Worker), NOT the
+        // retired /members/agents page. p() org-scopes it to
+        // /organizations/{slug}/agents.
+        { to: p('agents'), label: 'Agents', Icon: AgentsIcon },
       ],
     },
     {

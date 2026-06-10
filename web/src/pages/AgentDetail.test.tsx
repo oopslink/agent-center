@@ -84,6 +84,17 @@ function stubAgent(extra: Record<string, unknown> = {}) {
 describe('AgentDetail page', () => {
   afterEach(() => cleanup());
 
+  // dev2/v281: the "Agents" breadcrumb back-link points to the canonical
+  // enhanced /agents page, not the retired /members/agents.
+  it('breadcrumb "Agents" back-link points to canonical /agents (not /members/agents)', async () => {
+    stubAgent();
+    wrap('/agents/A1');
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'bot-1' })).toBeInTheDocument());
+    const crumb = screen.getByRole('link', { name: 'Agents' });
+    expect(crumb).toHaveAttribute('href', '/agents');
+    expect(crumb).not.toHaveAttribute('href', '/members/agents');
+  });
+
   it('renders header with lifecycle + availability badges, worker, work items + activity', async () => {
     stubAgent();
     wrap('/agents/A1');
