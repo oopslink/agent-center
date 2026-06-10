@@ -7,11 +7,9 @@ import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
 import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
-import { IssueTaskSidebar, type SidebarMetaRow } from '@/components/IssueTaskSidebar';
-import { EntityRef } from '@/components/EntityRef';
+import { IssueDetailSidebar } from '@/components/IssueDetailSidebar';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { useDisplayNameResolver } from '@/api/members';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
 // ProjectManager BC: the issue is project-scoped and driven entirely by
@@ -20,14 +18,14 @@ import { useDisplayNameResolver } from '@/api/members';
 // IssueEditModal PATCH (Dev's #251 contract).
 //
 // 5th task (Phabricator-style): two-column responsive layout — the main column
-// holds the title + description + conversation; the right IssueTaskSidebar
-// holds the prominent (read-only) status block + the Edit action + metadata.
+// holds the title + description + conversation; the right IssueDetailSidebar
+// holds the two-section read-only layout (Status + duration / Tags, then
+// Project / Issue ID / Created) with the SOLE edit entry being the Edit-Issue
+// pencil → IssueEditModal. v2.8.1 sidebar-align: this mirrors TaskDetailSidebar
+// (minus assignee — Issues have none), symmetric with TaskDetail.
 export default function IssueDetail(): React.ReactElement {
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const issue = useIssue(projectId, id);
-  // v2.7 #192: resolve created_by ref → display name (raw ref on hover); a
-  // deleted/unresolvable author renders "(deleted)".
-  const resolveName = useDisplayNameResolver();
   // v2.7 #192: parent project shown by name (raw id on hover), not raw project id.
   const project = useProject(issue.data?.project_id);
   const [editOpen, setEditOpen] = useState(false);
@@ -60,50 +58,8 @@ export default function IssueDetail(): React.ReactElement {
   }
 
   const iss = issue.data;
+  // The Edit-Issue button hides on a terminal (discarded) issue — nothing to edit.
   const isTerminal = iss.status === 'discarded';
-
-  // Status is read-only here. The SOLE edit entry is the Edit button → modal,
-  // which batch-PATCHes title / description / status / tags atomically.
-  const actions = !isTerminal ? (
-    <button
-      type="button"
-      onClick={() => setEditOpen(true)}
-      className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
-      data-testid="issue-edit-button"
-    >
-      Edit
-    </button>
-  ) : undefined;
-
-  const meta: SidebarMetaRow[] = [
-    {
-      label: 'Created by',
-      value: (
-        <EntityRef
-          id={iss.created_by}
-          name={resolveName(iss.created_by) === iss.created_by ? undefined : resolveName(iss.created_by)}
-          testId="issue-created-by"
-        />
-      ),
-    },
-    ...(iss.project_id
-      ? [
-          {
-            label: 'Project',
-            value: (
-              <OrgLink
-                to={`/projects/${encodeURIComponent(iss.project_id)}`}
-                className="text-accent hover:underline"
-                data-testid="issue-project-link"
-                title={iss.project_id}
-              >
-                {project.data?.name || iss.project_id}
-              </OrgLink>
-            ),
-          } satisfies SidebarMetaRow,
-        ]
-      : []),
-  ];
 
   return (
     <section className="flex h-full flex-col" data-testid="page-IssueDetail" data-issue-id={iss.id}>
@@ -151,11 +107,16 @@ export default function IssueDetail(): React.ReactElement {
           <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
         </div>
 
-        {/* right sidebar — status block + actions + metadata */}
+        {/* right sidebar — 2-section IssueDetail layout (read-only display top /
+            read-only bottom), mirror of TaskDetailSidebar minus assignee. The
+            ONLY edit path is the Edit-Issue pencil → modal. */}
         <div className="shrink-0 overflow-y-auto lg:w-72">
-          {/* read-only tag chips (mirrors TaskDetail — Task↔Issue parity; edits go
-              through the Edit modal). */}
-          <IssueTaskSidebar status={iss.status} actions={actions} meta={meta} tags={iss.tags ?? []} />
+          <IssueDetailSidebar
+            issue={iss}
+            projectName={project.data?.name}
+            onEdit={() => setEditOpen(true)}
+            editable={!isTerminal}
+          />
         </div>
       </div>
 

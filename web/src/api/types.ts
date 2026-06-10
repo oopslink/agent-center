@@ -379,6 +379,10 @@ export interface Issue {
   // (issue-xxx) stays the stable internal ref (URL/API). Absent until the
   // backend DTO carries it (migration 0049) → UI falls back to the id handle.
   org_ref?: string;
+  // v2.8.1 sidebar-align: when the issue last changed status, emitted by the
+  // Issue DTO (rfc3339OrEmpty(StatusChangedAt)). Drives the in-status duration
+  // text in the sidebar (mirror of Task). Optional — older payloads may omit it.
+  status_changed_at?: string;
   version: number;
   created_at: string;
   updated_at: string;

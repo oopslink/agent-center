@@ -53,16 +53,23 @@ describe('IssueDetail page', () => {
       expect(screen.getByRole('heading', { name: 'login bug' })).toBeInTheDocument(),
     );
     expect(screen.getByTestId('issue-description')).toHaveTextContent('cannot sign in');
-    // 5th task: status now drives the prominent StatusBlock in the sidebar.
+    // v2.8.1 sidebar-align: status drives the compact StatusBlock under a
+    // "Status" label in the two-section IssueDetailSidebar.
     const statusBlock = screen.getByTestId('status-block');
     expect(statusBlock).toHaveAttribute('data-status', 'open');
     expect(statusBlock).toHaveTextContent(/open/i);
-    // project + actions live in the right IssueTaskSidebar.
-    expect(screen.getByTestId('issuetask-sidebar')).toBeInTheDocument();
+    // project + edit live in the right IssueDetailSidebar (mirror of TaskDetail).
+    expect(screen.getByTestId('issue-detail-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('issue-project-link')).toHaveAttribute(
       'href',
       '/projects/proj-a',
     );
+    // The bottom read-only section shows the "Details" header + Issue ID pill +
+    // Created, and there is NO assignee section (Issues have none).
+    expect(screen.getByText('Details')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-id-pill')).toBeInTheDocument();
+    expect(screen.getByTestId('issue-created')).toBeInTheDocument();
+    expect(screen.queryByText('Assignee')).toBeNull();
   });
 
   it('status is READ-ONLY: no inline transition controls are rendered', async () => {
@@ -91,8 +98,10 @@ describe('IssueDetail page', () => {
     expect(screen.queryByTestId('issue-transition-resolved')).toBeNull();
     // Status survives as read-only display via the StatusBlock.
     expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'open');
-    // The Edit button is the sole edit entry.
-    expect(screen.getByTestId('issue-edit-button')).toBeInTheDocument();
+    // The Edit-Issue pencil button (aria-label "Edit issue") is the sole edit entry.
+    const editBtn = screen.getByTestId('issue-edit-button');
+    expect(editBtn).toBeInTheDocument();
+    expect(editBtn).toHaveAttribute('aria-label', 'Edit issue');
   });
 
   it('Edit button opens the modal covering all 4 fields (title/desc/status/tags)', async () => {
@@ -116,7 +125,7 @@ describe('IssueDetail page', () => {
     await waitFor(() => expect(screen.getByTestId('issue-edit-button')).toBeInTheDocument());
     // Parity with TaskDetail: the sidebar shows the tags read-only (chips) BEFORE
     // any edit — Issue tags must be visible, not just editable.
-    expect(screen.getByTestId('sidebar-tag-chip')).toHaveAttribute('data-tag', 'alpha');
+    expect(screen.getByTestId('issue-tag-chip')).toHaveAttribute('data-tag', 'alpha');
     fireEvent.click(screen.getByTestId('issue-edit-button'));
     // Modal opens — all 4 editable fields present, NO assignee.
     expect(screen.getByTestId('issue-edit-modal')).toBeInTheDocument();
