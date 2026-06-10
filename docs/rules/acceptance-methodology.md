@@ -101,6 +101,21 @@ git ls-tree -r <tag-or-commit> -- docs/release/evidence/<screenshots-dir>/
 
 ---
 
+### § 4.1 每个验收点内嵌可视证据（inline evidence per acceptance point）
+
+证据不能只在文字里**引用路径**（如"截图见 `screenshots/`"）—— **每一个功能模块 / 验收点都必须在报告里 inline 内嵌它的可视证据**，让审阅者在验收点旁边直接看到证据、不用去翻目录。
+
+- **FE / UI 功能验收点** → inline 内嵌**真实例截图** `![模块·状态](screenshots/<name>.png)`。**both-mode 命门**（颜色 / 对比 / 主题相关的点：chips、badge、气泡、deleted-sender 降级等）附 **light + dark 两张**。
+- **后端 / data-API 验收点** → inline 内嵌**可视证据 artifact**：关键 test PASS 终端截图、部署结构证据（如 `SELECT sql FROM sqlite_master WHERE name='idx_...'` 输出）、真 endpoint API 响应 shape + 查询数（坐实 N+1 常数级）等。
+- 所有证据文件存 `docs/release/evidence/screenshots/`、**文件名与验收点小节对应**、真实例产出，并遵守 § 4 的 verify-in-tree（commit 进被 tag 的 commit + `git ls-tree` 实证）。
+- 文字结论（"§3.3 GO"）**不能替代**可视证据——结论 + 内嵌证据二者都要有。
+
+> 真实事故（v2.8.1 ship）：报告做完后 @oopslink 审 PDF 指出"验收报告里没有相关功能模块的截图，那个验收点应该有截图证据"——报告只在文字里引用了 `screenshots/` 路径、没把图嵌到验收点旁、也没覆盖每个功能模块。教训：**验收点 = 文字结论 + 内嵌可视证据**，光有结论不够。
+
+**自检：** 报告里每个功能模块 / 验收点旁边，审阅者能直接看到它的内嵌截图 / 证据 artifact 吗（不是只看到一句 `screenshots/` 路径）？both-mode 的点有 light+dark 两张吗？
+
+---
+
 ## § 5. T-9 能力完备性 / CRUD-生命周期验收
 
 > 这是 [`v271-retrospective.md` § 11](v271-retrospective.md) 产品面 "CRUD enumeration before ship" 的**验收侧对偶**：PM 在设计期 enumerate，Tester 在验收期 catch。
@@ -168,6 +183,7 @@ v2.7.1 多轮并行验收用的协议，固化下来：
 - [ ] 多工具流程串了真实链路；finding 暴露的类扫全了（§ 2）
 - [ ] 上线前有一次全产品整合走查跑在 owner 之前（§ 3）
 - [ ] 证据已 commit 进被 tag 的 commit，并 `git ls-tree` 实证在 tree 里（§ 4）
+- [ ] 每个功能模块 / 验收点旁边 **inline 内嵌**了可视证据（FE=真实例截图、后端=test/SQL/API artifact），both-mode 点附 light+dark，非只文字引用路径（§ 4.1）
 - [ ] 每个被管理实体核了 CRUD + 生命周期 + 入口对称完备性，缺失基本操作作为 finding 报出（§ 5）
 - [ ] 用例由 Tester+PD 设计、Dev 零设计参与（§ 6）
 - [ ] 报告用统一语言、对 owner 说人话（§ 7）
