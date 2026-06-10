@@ -464,6 +464,11 @@ function Sidebar({
                           to={item.to}
                           end={item.end}
                           title={isCollapsed ? item.label : undefined}
+                          // Collapsed = icon-only (text label hidden), so give every
+                          // collapsed nav item a robust accessible name via aria-label
+                          // (title alone is hover-dependent for some readers — Tester2
+                          // #253 a11y flag). Expanded items keep their visible text label.
+                          aria-label={isCollapsed ? item.label : undefined}
                           className={({ isActive }) =>
                             [
                               'flex flex-1 items-center rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
