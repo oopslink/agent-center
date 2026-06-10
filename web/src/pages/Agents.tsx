@@ -8,9 +8,10 @@ import { useWorkers } from '@/api/workers';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
-import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
+import { AvailabilityBadge, LifecycleBadge, ProviderBadge } from '@/components/AgentBadges';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
+import { formatLocalTime } from '@/utils/time';
 
 // v2.7 #197: map the backend's delete-guard codes to friendly copy so the UI
 // never shows a raw error code or fails silently (Rule 9).
@@ -85,10 +86,12 @@ export default function Agents(): React.ReactElement {
         >
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
-              <th className="w-1/4 border-b border-border-base px-3 py-2">Name</th>
-              <th className="w-1/6 border-b border-border-base px-3 py-2">Lifecycle</th>
-              <th className="w-1/6 border-b border-border-base px-3 py-2">Availability</th>
-              <th className="w-1/4 border-b border-border-base px-3 py-2">Worker</th>
+              <th className="w-1/5 border-b border-border-base px-3 py-2">Name</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">Provider</th>
+              <th className="w-1/12 border-b border-border-base px-3 py-2">Lifecycle</th>
+              <th className="w-1/12 border-b border-border-base px-3 py-2">Availability</th>
+              <th className="border-b border-border-base px-3 py-2">Last activity</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">Worker</th>
               <th className="border-b border-border-base px-3 py-2 text-right" />
             </tr>
           </thead>
@@ -102,12 +105,30 @@ export default function Agents(): React.ReactElement {
                 data-lifecycle={a.lifecycle}
                 data-availability={a.availability}
               >
-                <td className="border-b border-border-base px-3 py-2 font-medium">{a.name}</td>
+                <td className="border-b border-border-base px-3 py-2 font-medium">
+                  <span className="block truncate">{a.name}</span>
+                </td>
+                <td className="border-b border-border-base px-3 py-2">
+                  {/* v2.8.1 list-enrich: provider = CLI + model badges (text
+                      labels, not color-only; reuse the AgentBadges chip style).
+                      Each chip omitted gracefully when the value is blank. */}
+                  <div className="flex flex-wrap items-center gap-1" data-testid="agent-provider">
+                    {a.cli && <ProviderBadge label={a.cli} testId="agent-cli-badge" />}
+                    {a.model && <ProviderBadge label={a.model} testId="agent-model-badge" />}
+                    {!a.cli && !a.model && <span className="text-xs text-text-muted">—</span>}
+                  </div>
+                </td>
                 <td className="border-b border-border-base px-3 py-2">
                   <LifecycleBadge lifecycle={a.lifecycle} />
                 </td>
                 <td className="border-b border-border-base px-3 py-2">
                   <AvailabilityBadge availability={a.availability} />
+                </td>
+                <td className="border-b border-border-base px-3 py-2 align-top">
+                  <AgentLastActivity
+                    at={a.last_activity_at}
+                    content={a.last_activity_content}
+                  />
                 </td>
                 <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
                   {a.worker_id ? (
@@ -183,5 +204,51 @@ export default function Agents(): React.ReactElement {
         }}
       />
     </section>
+  );
+}
+
+// AgentLastActivity — last-activity cell for an Agents row (v2.8.1 list-enrich).
+// Shows the timestamp via formatLocalTime (LOCAL tz, not raw GMT/Z) + a SINGLE
+// LINE truncated PLAIN-TEXT preview of the content (ellipsis; never grows the
+// row height) with a `title` carrying the full text on hover. No activity (both
+// fields absent) → a friendly "No recent activity" placeholder, never blank.
+// Soft-ref safe: the content is rendered as a text node — a stale/deleted entity
+// reference is just inert text, no lookup, no crash, no raw ref painted.
+function AgentLastActivity({
+  at,
+  content,
+}: {
+  at: string | undefined;
+  content: string | undefined;
+}): React.ReactElement {
+  const preview = content?.replace(/\s+/g, ' ').trim();
+  if (!at && !preview) {
+    return (
+      <span className="text-xs italic text-text-muted" data-testid="agent-no-activity">
+        No recent activity
+      </span>
+    );
+  }
+  return (
+    <div className="min-w-0" data-testid="agent-last-activity">
+      {at && (
+        <div
+          className="text-xs text-text-muted"
+          data-testid="agent-last-activity-at"
+          title={formatLocalTime(at)}
+        >
+          {formatLocalTime(at)}
+        </div>
+      )}
+      {preview && (
+        <div
+          className="truncate text-xs text-text-secondary"
+          data-testid="agent-last-activity-content"
+          title={preview}
+        >
+          {preview}
+        </div>
+      )}
+    </div>
   );
 }
