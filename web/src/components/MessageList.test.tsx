@@ -333,8 +333,9 @@ describe('MessageList deleted/unresolved sender (#192 F1)', () => {
     // visible label is the muted "(deleted)", NOT the raw prefixed ref.
     expect(btn.textContent).toBe('(deleted)');
     expect(btn).toHaveAttribute('data-sender-resolved', 'false');
-    // muted theme token (both-mode safe), italic to de-emphasize.
-    expect(btn.className).toContain('text-text-muted');
+    // de-emphasized but AA-safe both modes (text-secondary 7.24 light / 12.02 dark,
+    // vs text-muted slate-400 2.45 FAIL — Tester2 #246 finding), italic to de-emphasize.
+    expect(btn.className).toContain('text-text-secondary');
     // the load-bearing guarantee: NO raw `agent:agent-xxx` leaks into the slot.
     expect(btn.textContent).not.toContain('agent:agent-');
     expect(btn.textContent).not.toContain('agent:');
