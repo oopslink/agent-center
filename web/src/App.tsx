@@ -22,6 +22,9 @@ const Agents = lazy(() => import('./pages/Agents'));
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
+// v2.9 #286: per-project Plan orchestration (parallel list + Plan detail).
+const ProjectPlans = lazy(() => import('./pages/ProjectPlans'));
+const PlanDetail = lazy(() => import('./pages/PlanDetail'));
 const OrgWorkItems = lazy(() => import('./pages/OrgWorkItems'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
@@ -62,6 +65,10 @@ export function App(): React.ReactElement {
           <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
+          {/* v2.9 #286: Plan orchestration — parallel list + Plan detail (DAG
+              view filled by #287). Reached via the project Plans tab. */}
+          <Route path="projects/:id/plans" element={<ProjectPlans />} />
+          <Route path="projects/:id/plans/:planId" element={<PlanDetail />} />
           <Route path="projects/:projectId/issues/:id" element={<IssueDetail />} />
           <Route path="projects/:projectId/tasks/:id" element={<TaskDetail />} />
           {/* v2.8 #258: org-scope cross-project Issues/Tasks aggregation. */}

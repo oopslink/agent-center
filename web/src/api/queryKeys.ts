@@ -57,4 +57,8 @@ export const qk = {
   // v2.8 #258: org-scope cross-project aggregation, keyed by the filter set.
   orgIssues: (filters?: unknown) => o('orgIssues', filters ?? null),
   orgTasks: (filters?: unknown) => o('orgTasks', filters ?? null),
+  // v2.9 #286 Plan orchestration: Plans are per-project. The parallel list is
+  // keyed by projectId; a single Plan (nodes + derived) keyed by plan id.
+  plansByProject: (projectId: string) => o('plansByProject', projectId),
+  plan: (id: string) => o('plan', id),
 };
