@@ -25,7 +25,7 @@
 > **Conversation 不是日志，是产品骨架。** Task / Issue / 决策 / 进度全挂在 Conversation 上 —— 这是 agent-center 跟"agent 是脚本"思路最大的区别。每一次 dispatch、每一个 InputRequest、每一份 artifact，都能在原线程里追溯。
 
 > [!IMPORTANT]
-> **v2.4.0 已发布（2026-05-26）** —— first-mile deployment 完成：单条命令装好 center 和 worker，Web Console 加 worker 一键复制命令；同机多 worker 隔离；atomic 升级 + 失败自动回滚。详见 [CHANGELOG](./CHANGELOG.md)。
+> **v2.8.1 已发布（2026-06-10）** —— Web Console 体验大改版：重做聊天 / DM / Task & Issue 详情（编辑统一进面板）、Channels & Agents 列表增强、任意 @提及或头像点开详情侧栏。底层把 agent 派发改成拉取模型、根除「单活」竞态（一个 agent 同时只有一个活跃工作项）。first-mile 部署（单命令装 center+worker、atomic 升级失败自动回滚、同机多 worker 与多实例 center `install center --instance`）从 v2.4–v2.7.1 延续。详见 [CHANGELOG](./CHANGELOG.md)。
 
 <br/>
 

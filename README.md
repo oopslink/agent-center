@@ -25,7 +25,7 @@
 > **Conversation is the product spine, not a log.** Tasks, Issues, decisions, progress — all hang off Conversation threads. This is the deepest difference between agent-center and the "agents are scripts" mindset: every dispatch, every InputRequest, every artifact is recoverable in its original thread.
 
 > [!IMPORTANT]
-> **v2.4.0 shipped (2026-05-26)** — First-mile deployment complete: one command installs center, one command installs worker (the Web Console gives you the exact command to copy-paste). Multi-worker per machine, atomic upgrade with auto-rollback. See [CHANGELOG](./CHANGELOG.md).
+> **v2.8.1 shipped (2026-06-10)** — Web Console UX overhaul: redesigned chat / DM / Task & Issue detail with consolidated edit panels, enriched Channels & Agents lists, and a detail sidebar you can pop from any @mention or avatar. Under the hood, agent dispatch is now a pull model that eliminates the single-active race (one agent, one active work item). First-mile deployment (one-command center + worker install, atomic upgrade with auto-rollback, multi-worker and multi-instance centers via `install center --instance`) carries forward from v2.4–v2.7.1. See [CHANGELOG](./CHANGELOG.md).
 
 <br/>
 
