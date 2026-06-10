@@ -157,7 +157,7 @@ func TestConversationsList_Enrich_278(t *testing.T) {
 }
 
 // v2.8.1 #278 soft-ref orphan tolerance: a recent message from a sender whose
-// member row does not resolve must NOT crash — it degrades to a friendly handle.
+// member row does not resolve must NOT crash — sender_display_name = "" (F1 miss-sentinel).
 func TestConversationsList_Enrich_SoftRefSender_278(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -205,9 +205,15 @@ func TestConversationsList_Enrich_SoftRefSender_278(t *testing.T) {
 			t.Fatalf("orphan recent len = %d", len(recent))
 		}
 		m := recent[0].(map[string]any)
-		// Friendly handle (cleaned bare id), never empty, never a crash.
-		if dn, _ := m["sender_display_name"].(string); dn != "ghost-deleted" {
-			t.Errorf("soft-ref sender display = %q, want friendly handle ghost-deleted", dn)
+		// Contract lock (a): an unresolved (deleted) sender returns EMPTY
+		// sender_display_name (the F1 miss-sentinel — FE renders "(deleted)"),
+		// NOT a cleaned handle. The sender_identity_id is retained (for hover).
+		// No crash / no 500.
+		if dn, _ := m["sender_display_name"].(string); dn != "" {
+			t.Errorf("soft-ref sender display = %q, want empty (miss-sentinel for FE (deleted))", dn)
+		}
+		if sid, _ := m["sender_identity_id"].(string); sid != "user:ghost-deleted" {
+			t.Errorf("soft-ref sender_identity_id = %q, want retained user:ghost-deleted", sid)
 		}
 	}
 }

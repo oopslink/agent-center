@@ -85,43 +85,69 @@ func refKindLabel(ref conversation.IdentityRef) string {
 // N+1-tolerant). A ref whose member row is gone (deleted member, retained soft
 // string ref) degrades to a friendly cleaned handle — never a crash, never a
 // blank. The handler builds ONE resolver per request and reuses it across rows.
+// nameHit caches a single identity resolution: the name (real or "") + whether it
+// resolved to a real member (vs deleted/missing), so resolve() and resolveDisplayName()
+// share one identity lookup per ref but differ on the miss case.
+type nameHit struct {
+	name string
+	ok   bool
+}
+
 type nameResolver struct {
 	r     *http.Request
 	d     HandlerDeps
-	cache map[string]string
+	cache map[string]nameHit
 }
 
 func newNameResolver(r *http.Request, d HandlerDeps) *nameResolver {
-	return &nameResolver{r: r, d: d, cache: map[string]string{}}
+	return &nameResolver{r: r, d: d, cache: map[string]nameHit{}}
 }
 
-// resolve returns a human-friendly display name for ref, never empty. Resolution
-// order: identity repo display name → cleaned bare handle (soft-ref orphan
-// tolerance). "system" resolves to "System".
-func (nr *nameResolver) resolve(ctx context.Context, ref conversation.IdentityRef) string {
+// lookupResolved resolves ref to (displayName, true) if a real member name exists,
+// or ("", false) if unresolvable (deleted/missing member, soft string ref). Cached
+// once per ref so the page's enrich stays N+1-free. "system" → ("System", true).
+func (nr *nameResolver) lookupResolved(ctx context.Context, ref conversation.IdentityRef) (string, bool) {
 	key := string(ref)
 	if v, ok := nr.cache[key]; ok {
-		return v
+		return v.name, v.ok
 	}
-	name := nr.lookup(ctx, ref)
-	nr.cache[key] = name
-	return name
+	name, hit := nr.doLookup(ctx, ref)
+	nr.cache[key] = nameHit{name: name, ok: hit}
+	return name, hit
 }
 
-func (nr *nameResolver) lookup(ctx context.Context, ref conversation.IdentityRef) string {
+func (nr *nameResolver) doLookup(ctx context.Context, ref conversation.IdentityRef) (string, bool) {
 	if ref == "system" {
-		return "System"
+		return "System", true
 	}
 	bare := refBareID(ref)
 	if nr.d.IdentityRepo != nil && bare != "" {
 		if ident, err := nr.d.IdentityRepo.GetByID(ctx, bare); err == nil && ident != nil {
 			if dn := strings.TrimSpace(ident.DisplayName()); dn != "" {
-				return dn
+				return dn, true
 			}
 		}
 	}
-	// Soft-ref orphan tolerance: member row gone or unresolvable → friendly handle.
+	return "", false
+}
+
+// resolve returns a human-friendly display name, NEVER empty: real name, else the
+// cleaned bare handle (soft-ref orphan tolerance). Used for participants / the avatar
+// seed (an avatar needs a non-empty name to hash a color + initials).
+func (nr *nameResolver) resolve(ctx context.Context, ref conversation.IdentityRef) string {
+	if name, ok := nr.lookupResolved(ctx, ref); ok {
+		return name
+	}
 	return friendlyHandle(ref)
+}
+
+// resolveDisplayName returns the real member name, or "" on a miss (deleted/missing).
+// Used for recent_messages senders: the empty string is the F1 miss-sentinel so the
+// FE renders "(deleted)" itself (consistent with MessageList #246), instead of the
+// backend pre-resolving to a cleaned handle. sender_identity_id stays for hover.
+func (nr *nameResolver) resolveDisplayName(ctx context.Context, ref conversation.IdentityRef) string {
+	name, _ := nr.lookupResolved(ctx, ref)
+	return name
 }
 
 // friendlyHandle derives a clean, never-empty display fallback from a raw ref when
@@ -179,7 +205,7 @@ func buildRecentMessages(ctx context.Context, nr *nameResolver, msgs []*conversa
 		out = append(out, map[string]any{
 			"id":                  string(m.ID()),
 			"sender_identity_id":  string(m.SenderIdentityID()),
-			"sender_display_name": nr.resolve(ctx, m.SenderIdentityID()),
+			"sender_display_name": nr.resolveDisplayName(ctx, m.SenderIdentityID()),
 			"content":             plainTextPreview(m.Content()),
 			"posted_at":           m.PostedAt().UTC().Format(time.RFC3339Nano),
 		})
