@@ -250,8 +250,8 @@ func ServerCommand() *Command {
 				if cfg.Server.AdminSocketPath != "" {
 					bannerAdmin = cfg.Server.AdminSocketPath
 				}
-				fmt.Fprintf(out, "agent-center server: db=%s listen=%s web=%s admin=%s (escalator running)\n",
-					cfg.Server.SqlitePath, cfg.Server.ListenAddr, bannerWeb, bannerAdmin)
+				fmt.Fprintf(out, "agent-center server: db=%s web=%s admin=%s (escalator running)\n",
+					cfg.Server.SqlitePath, bannerWeb, bannerAdmin)
 				// v2.3-7a banner: if TCP listener is enabled, print its
 				// address + cert fingerprint + expiry so operators can
 				// hand the fingerprint to clients (worker / CLI) for
