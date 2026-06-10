@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useInviteParticipant } from '@/api/conversations';
-import { useMembers, normalizeIdentityRef, type MemberResult } from '@/api/members';
+import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import type { Participant } from '@/api/types';
 
 interface Props {
@@ -50,9 +50,6 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
         return name.includes(q) || m.identity_id.toLowerCase().includes(q);
       });
   }, [members.data, activeIds, query]);
-
-  // Build the invite ref ("<kind>:<id>") the backend expects from a bare member.
-  const refOf = (m: MemberResult) => (m.kind === 'agent' ? 'agent:' : 'user:') + m.identity_id;
 
   const toggle = (ref: string) =>
     setSelected((prev) => {
@@ -116,7 +113,7 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
             </li>
           )}
           {candidates.map((m) => {
-            const ref = refOf(m);
+            const ref = identityRefOf(m);
             return (
               <li key={ref}>
                 <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-bg-subtle" data-testid="invite-candidate">

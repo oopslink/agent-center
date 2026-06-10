@@ -34,6 +34,23 @@ export function normalizeIdentityRef(ref: string): string {
   return ref;
 }
 
+// identityRefOf builds the prefixed identity ref ("agent:<id>" / "user:<id>")
+// from a member-like value — the inverse of normalizeIdentityRef. The id is
+// normalized first so an already-prefixed identity_id is not double-prefixed.
+// Consolidates the per-component `refOf` duplication (DMStartModal /
+// MemberInviteModal / ProjectMemberAddModal / AppLayout / MentionText). v2.9 #254.
+export function identityRefOf(m: { kind: 'user' | 'agent'; identity_id: string }): string {
+  return `${m.kind === 'agent' ? 'agent:' : 'user:'}${normalizeIdentityRef(m.identity_id)}`;
+}
+
+// refKind reads the kind from a prefixed identity ref ("agent:" → 'agent',
+// otherwise 'user'). Matches MemberResult.kind. v2.9 #254. NOTE: UI sites that
+// map to the 'agent' | 'human' avatar-kind contract (ParticipantsPanel /
+// MessageList) intentionally keep their own mapping — different return type.
+export function refKind(ref: string): 'user' | 'agent' {
+  return ref.startsWith('agent:') ? 'agent' : 'user';
+}
+
 export interface AddUserResult extends MemberResult {
   temp_passcode?: string;
   display_name?: string;

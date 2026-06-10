@@ -4,6 +4,7 @@ import { useUser } from '@/api/users';
 import {
   isResolvedName,
   normalizeIdentityRef,
+  refKind,
   useDisplayNameResolver,
   useMembers,
 } from '@/api/members';
@@ -32,13 +33,6 @@ interface Props {
   onClose: () => void;
 }
 
-// senderKind classifies the ref by its prefix. Bare/unknown refs (no prefix)
-// fall through to 'user' — the common human case — so the panel still resolves
-// a name rather than rendering an empty shell.
-function senderKind(ref: string): 'agent' | 'user' {
-  return ref.startsWith('agent:') ? 'agent' : 'user';
-}
-
 export function SenderDetailSidebar({
   open,
   senderRef,
@@ -48,7 +42,7 @@ export function SenderDetailSidebar({
   const displayName = useDisplayNameResolver();
 
   const ref = senderRef ?? '';
-  const kind = senderKind(ref);
+  const kind = refKind(ref);
   const id = ref ? normalizeIdentityRef(ref) : '';
 
   // Both queries are gated on `open` + kind so only the relevant one fires.

@@ -9,6 +9,7 @@ import {
   useDeleteConversation,
 } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
+import { identityRefOf } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { UnreadBadge } from '@/components/UnreadBadge';
@@ -87,7 +88,7 @@ export default function AppLayout(): React.ReactElement {
   useEffect(() => {
     const m = me.data;
     if (!m?.identity_id) return;
-    const ref = (m.kind === 'agent' ? 'agent:' : 'user:') + m.identity_id;
+    const ref = identityRefOf(m);
     setCurrentUserId(ref);
   }, [me.data?.identity_id, me.data?.kind, setCurrentUserId]);
   const orgs = useOrgs();
