@@ -289,3 +289,43 @@ describe('MessageList sender-detail sidebar (increment 2)', () => {
     await waitFor(() => expect(screen.getByTestId('sender-sidebar')).toBeInTheDocument());
   });
 });
+
+// F1 (v2.8.1 #192): a message from an UNRESOLVED sender (e.g. a force-deleted
+// agent — member row gone, messages soft-ref retained) must render a muted
+// "(deleted)" label, NEVER the raw `agent:agent-xxx` prefixed ref. The members
+// list is empty here so the resolver cannot resolve the sender.
+describe('MessageList deleted/unresolved sender (#192 F1)', () => {
+  afterEach(() => cleanup());
+
+  function renderFresh(ui: React.ReactElement) {
+    const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return rtlRender(<QueryClientProvider client={c}>{ui}</QueryClientProvider>);
+  }
+
+  const deletedMsg: Message = {
+    ...sample('M1', 'orphaned message'),
+    sender_identity_id: 'agent:agent-8d1126f6',
+  };
+
+  it('renders "(deleted)" (muted) for an unresolved sender — never the raw ref', () => {
+    renderFresh(<MessageList messages={[deletedMsg]} />);
+    const btn = screen.getByTestId('message-sender-button');
+    // visible label is the muted "(deleted)", NOT the raw prefixed ref.
+    expect(btn.textContent).toBe('(deleted)');
+    expect(btn).toHaveAttribute('data-sender-resolved', 'false');
+    // muted theme token (both-mode safe), italic to de-emphasize.
+    expect(btn.className).toContain('text-text-muted');
+    // the load-bearing guarantee: NO raw `agent:agent-xxx` leaks into the slot.
+    expect(btn.textContent).not.toContain('agent:agent-');
+    expect(btn.textContent).not.toContain('agent:');
+    // the raw ref + clean handle stay on title= for debugging (#192 chrome rule).
+    expect(btn.getAttribute('title')).toContain('agent:agent-8d1126f6');
+    expect(btn.getAttribute('title')).toContain('agent-8d1126f6');
+  });
+
+  it('does not leak the raw prefixed ref anywhere in the row text', () => {
+    renderFresh(<MessageList messages={[deletedMsg]} />);
+    const row = screen.getByTestId('message-row');
+    expect(row.textContent).not.toContain('agent:agent-8d1126f6');
+  });
+});

@@ -76,10 +76,37 @@ export function useMembers() {
   });
 }
 
+// displayNameFallback produces a CLEAN handle for an identity ref that does NOT
+// resolve to a known member (e.g. a force-deleted agent whose member row is
+// gone but whose messages are soft-ref retained). Per the #192 chrome rule /
+// [[id-chrome-vs-content-and-prefixed-refs]] lesson, an id-as-content must
+// display as a clean tail handle, NEVER the raw `prefix:id` form — so we strip
+// the user:/agent: scheme prefix. The raw ref is kept by call sites on title=
+// for debugging. F1 (v2.8.1): call sites use this when they want a clean handle
+// instead of the muted "(deleted)" label.
+export function displayNameFallback(ref: string): string {
+  return normalizeIdentityRef(ref);
+}
+
+// isResolvedName reports whether `name` came from a real member lookup. The
+// resolver returns the RAW ref unchanged on a miss (the codebase-wide #192/#215
+// "resolver(ref) === ref" sentinel that ParticipantsPanel / DMDetail / EntityRef
+// callers rely on), so a name that equals the ref is unresolved. F1 (v2.8.1):
+// MessageList + the sidebar header use this to render a muted "(deleted)"
+// affordance for an unresolved/deleted sender instead of the raw prefixed ref.
+export function isResolvedName(ref: string, name: string): boolean {
+  if (!ref) return false;
+  return name !== ref;
+}
+
 // useDisplayNameResolver returns a function that maps an identity ref (bare or
 // "user:"/"agent:"-prefixed) to the member's display name, falling back to the
-// raw ref when unknown. v2.7 #160: used to render message senders + participant
-// lists with human names instead of "user:user-ab12".
+// RAW ref when unknown. v2.7 #160: used to render message senders + participant
+// lists with human names. The raw-ref-on-miss is an intentional sentinel: call
+// sites detect an unresolved ref via `resolver(ref) === ref` (#192/#215) and
+// render "(deleted)" / a clean handle THEMSELVES — they must NEVER paint the
+// raw return value into the UI when it equals the ref (see isResolvedName +
+// displayNameFallback, and the EntityRef component).
 export function useDisplayNameResolver(): (ref: string) => string {
   const members = useMembers();
   const byId = useMemo(() => {
