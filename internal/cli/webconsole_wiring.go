@@ -222,6 +222,14 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	outboxRepo := outboxsql.NewOutboxRepo(a.DB)
 	appliedRepo := outboxsql.NewAppliedRepo(a.DB)
 	participantProj := pmservice.NewParticipantProjector(a.DB, a.ConvRepo, appliedRepo, a.IDGen, a.Clock)
+	// v2.9 #284/#285 headline fix: the Plan↔Conversation projector consumes
+	// EvtPlanCreated → auto-creates the Plan's dedicated conversation + binds
+	// conversation_id, and EvtPlanParticipantsChanged → additive participant sync
+	// (§9.5). WITHOUT registering it in the relay, a Plan created via the HTTP API
+	// emits the event but nothing creates its conversation → conversation_id stays
+	// "" → advance has no conversation to @mention into → headline dies (the
+	// service-level test wired it, but the real app did not — integration seam).
+	planParticipantProj := pmservice.NewPlanParticipantProjector(a.DB, a.ConvRepo, pmsql.NewPlanRepo(a.DB), appliedRepo, a.IDGen, a.Clock)
 	// v2.7 D2-a: ADDITIVE reconcile projector. Agent lifecycle intent changes
 	// (C3 agent.lifecycle_changed) become declarative agent.reconcile commands on
 	// the agent's Worker control stream (D1). D1's NoopHandler no-op-acks them →
@@ -376,7 +384,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// stats stream sees the work-item lifecycle. Producer-only — the stats query
 	// repoint is Phase-2.
 	workItemEventProj := obsprojection.NewWorkItemEventProjector(a.DB, a.Sink, appliedRepo, a.Clock)
-	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj, taskStatusSyncProj, workItemEventProj)
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, planParticipantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj, taskStatusSyncProj, workItemEventProj)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})
