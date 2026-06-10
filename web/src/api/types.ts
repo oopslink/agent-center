@@ -332,6 +332,11 @@ export interface Issue {
   description: string;
   status: IssueStatus;
   created_by: string;
+  // v2.8.1 issue-edit (#251, mirror of task #278): free-form label set (cleaned +
+  // deduped + bounded to ≤16 runes each, ≤10 entries by the backend). The DTO
+  // emits a non-nil array ([] when none); optional on the type so older payloads
+  // that omit it are treated as no tags.
+  tags?: string[];
   // v2.7.1 #245: org-internal display/reference token ("I1234"). The hash `id`
   // (issue-xxx) stays the stable internal ref (URL/API). Absent until the
   // backend DTO carries it (migration 0049) → UI falls back to the id handle.

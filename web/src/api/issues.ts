@@ -45,9 +45,14 @@ export function useCreateIssue(projectId: string) {
   });
 }
 
+// Mirror of Dev's #251 PATCH contract: atomic, partial (only changed fields),
+// version-CAS. Issue editable fields = title / description / status / tags.
+// NO assignee — Issues are not assignable (unlike Tasks, #278).
 export interface UpdateIssueInput {
   title?: string;
   description?: string;
+  status?: IssueStatus;
+  tags?: string[];
 }
 
 export function useUpdateIssue(projectId: string, issueId: string) {
@@ -61,29 +66,3 @@ export function useUpdateIssue(projectId: string, issueId: string) {
     },
   });
 }
-
-// useTransitionIssue — single transition endpoint driving the issue
-// state machine. The caller passes the target status.
-export function useTransitionIssue(projectId: string, issueId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (status: IssueStatus) =>
-      api.post<Issue>(`/projects/${projectId}/issues/${issueId}/transition`, {
-        status,
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.issue(issueId) });
-      void qc.invalidateQueries({ queryKey: qk.issuesByProject(projectId) });
-    },
-  });
-}
-
-// ISSUE_TRANSITIONS — valid target states keyed by current status.
-export const ISSUE_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
-  open: ['in_progress', 'discarded'],
-  in_progress: ['resolved', 'discarded'],
-  resolved: ['closed', 'reopened'],
-  closed: ['reopened'],
-  reopened: ['open'],
-  discarded: [],
-};

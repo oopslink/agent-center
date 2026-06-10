@@ -2,11 +2,7 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  ISSUE_TRANSITIONS,
-  useIssue,
-  useTransitionIssue,
-} from '@/api/issues';
+import { useIssue } from '@/api/issues';
 import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
 import { MarkdownMessage } from '@/components/MarkdownMessage';
@@ -16,20 +12,19 @@ import { EntityRef } from '@/components/EntityRef';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { useDisplayNameResolver } from '@/api/members';
-import type { IssueStatus } from '@/api/types';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
 // ProjectManager BC: the issue is project-scoped and driven entirely by
-// its projection. State changes go through the single transition
-// endpoint; metadata edits via PATCH.
+// its projection. Status is READ-ONLY display; all metadata edits
+// (title / description / status / tags) go through the single Edit →
+// IssueEditModal PATCH (Dev's #251 contract).
 //
 // 5th task (Phabricator-style): two-column responsive layout — the main column
 // holds the title + description + conversation; the right IssueTaskSidebar
-// holds the prominent status block + actions (Edit / transitions) + metadata.
+// holds the prominent (read-only) status block + the Edit action + metadata.
 export default function IssueDetail(): React.ReactElement {
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const issue = useIssue(projectId, id);
-  const transition = useTransitionIssue(projectId, id);
   // v2.7 #192: resolve created_by ref → display name (raw ref on hover); a
   // deleted/unresolvable author renders "(deleted)".
   const resolveName = useDisplayNameResolver();
@@ -65,35 +60,20 @@ export default function IssueDetail(): React.ReactElement {
   }
 
   const iss = issue.data;
-  const targets = ISSUE_TRANSITIONS[iss.status] ?? [];
   const isTerminal = iss.status === 'discarded';
 
-  const actions = (
-    <>
-      {!isTerminal && (
-        <button
-          type="button"
-          onClick={() => setEditOpen(true)}
-          className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
-          data-testid="issue-edit-button"
-        >
-          Edit
-        </button>
-      )}
-      {targets.map((t) => (
-        <button
-          key={t}
-          type="button"
-          onClick={() => transition.mutate(t)}
-          disabled={transition.isPending}
-          className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-          data-testid={`issue-transition-${t}`}
-        >
-          {transitionLabel(t)}
-        </button>
-      ))}
-    </>
-  );
+  // Status is read-only here. The SOLE edit entry is the Edit button → modal,
+  // which batch-PATCHes title / description / status / tags atomically.
+  const actions = !isTerminal ? (
+    <button
+      type="button"
+      onClick={() => setEditOpen(true)}
+      className="rounded bg-bg-subtle px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
+      data-testid="issue-edit-button"
+    >
+      Edit
+    </button>
+  ) : undefined;
 
   const meta: SidebarMetaRow[] = [
     {
@@ -151,12 +131,6 @@ export default function IssueDetail(): React.ReactElement {
             </div>
           </header>
 
-          {transition.isError && (
-            <p className="mt-2 text-xs text-danger" data-testid="issue-transition-error">
-              {(transition.error as Error).message}
-            </p>
-          )}
-
           {iss.description ? (
             // @oopslink: markdown render + capped height so a long description
             // scrolls internally rather than pushing the conversation off-screen.
@@ -179,7 +153,9 @@ export default function IssueDetail(): React.ReactElement {
 
         {/* right sidebar — status block + actions + metadata */}
         <div className="shrink-0 overflow-y-auto lg:w-72">
-          <IssueTaskSidebar status={iss.status} actions={actions} meta={meta} />
+          {/* read-only tag chips (mirrors TaskDetail — Task↔Issue parity; edits go
+              through the Edit modal). */}
+          <IssueTaskSidebar status={iss.status} actions={actions} meta={meta} tags={iss.tags ?? []} />
         </div>
       </div>
 
@@ -188,23 +164,4 @@ export default function IssueDetail(): React.ReactElement {
       )}
     </section>
   );
-}
-
-function transitionLabel(status: IssueStatus): string {
-  switch (status) {
-    case 'in_progress':
-      return 'Start';
-    case 'resolved':
-      return 'Resolve';
-    case 'closed':
-      return 'Close';
-    case 'reopened':
-      return 'Reopen';
-    case 'discarded':
-      return 'Discard';
-    case 'open':
-      return 'Move to Open';
-    default:
-      return status;
-  }
 }
