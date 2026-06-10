@@ -104,4 +104,11 @@ var (
 	ErrPlanNotDraft          = errors.New("projectmanager: plan dependencies/tasks editable only in draft")
 	ErrPlanNotFound          = errors.New("projectmanager: plan not found")
 	ErrPlanExists            = errors.New("projectmanager: plan already exists")
+	// ErrTaskInOtherPlan rejects selecting a task into a Plan when it already
+	// belongs to a DIFFERENT Plan (Task ↔ Plan = 0..1, design §2). Re-selecting
+	// into the SAME plan is a no-op (not an error).
+	ErrTaskInOtherPlan = errors.New("projectmanager: task already belongs to another plan")
+	// ErrPlanProjectMismatch rejects selecting a task whose project differs from
+	// the Plan's project (a Plan selects only its own project's backlog, §2/§9.6d).
+	ErrPlanProjectMismatch = errors.New("projectmanager: task and plan belong to different projects")
 )

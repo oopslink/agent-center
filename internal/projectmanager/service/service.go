@@ -33,6 +33,12 @@ const (
 	EvtTaskReassigned    = "pm.task.reassigned"
 	EvtTaskStateChanged  = "pm.task.state_changed"
 	EvtTaskSubsChanged   = "pm.task.subscribers_changed"
+	// v2.9 plan orchestration (#284). EvtPlanCreated drives the Plan↔Conversation
+	// 1:1 create (owner_ref pm://plans/{id}); EvtPlanParticipantsChanged drives
+	// the ADDITIVE participant sync (§9.5) when a task is selected into a Plan or
+	// a plan-task's assignee changes.
+	EvtPlanCreated             = "pm.plan.created"
+	EvtPlanParticipantsChanged = "pm.plan.participants_changed"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
@@ -54,7 +60,11 @@ type Service struct {
 	taskSubs     pm.TaskSubscriberRepository
 	issueSubs    pm.IssueSubscriberRepository
 	codeRepoRefs pm.CodeRepoRefRepository
-	outbox       outbox.Repository
+	// plans is OPTIONAL (nil-safe, v2.9 #284). nil ⇒ the Plan AppServices
+	// (CreatePlan / SelectTaskIntoPlan / RemoveTaskFromPlan) are unavailable;
+	// pre-#284 service constructions keep working unchanged.
+	plans  pm.PlanRepository
+	outbox outbox.Repository
 	idgen        idgen.Generator
 	clock        clock.Clock
 	// agentDir is OPTIONAL (nil-safe). nil ⇒ AssignTask skips the
@@ -76,7 +86,10 @@ type Deps struct {
 	TaskSubs     pm.TaskSubscriberRepository
 	IssueSubs    pm.IssueSubscriberRepository
 	CodeRepoRefs pm.CodeRepoRefRepository
-	Outbox       outbox.Repository
+	// Plans is OPTIONAL (v2.9 #284): when set, the Plan AppServices are available.
+	// nil ⇒ CreatePlan/SelectTaskIntoPlan/RemoveTaskFromPlan are unavailable.
+	Plans  pm.PlanRepository
+	Outbox outbox.Repository
 	IDGen        idgen.Generator
 	Clock        clock.Clock
 	// AgentDir is OPTIONAL: when set, AssignTask grants an assignee agent
@@ -96,7 +109,7 @@ func New(d Deps) *Service {
 	return &Service{
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
-		codeRepoRefs: d.CodeRepoRefs, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
+		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq,
 	}
 }
@@ -115,6 +128,26 @@ type taskEventPayload struct {
 	PreviousAssignee     string   `json:"previous_assignee,omitempty"`
 	Status               string   `json:"status,omitempty"`
 	Reason               string   `json:"reason,omitempty"`
+}
+
+// planEventPayload is the JSON payload for Plan participant-affecting events
+// (v2.9 #284). It carries enough for the participant projector to (a) create the
+// Plan's 1:1 Conversation by owner_ref on EvtPlanCreated and (b) ADDITIVELY add
+// participants on EvtPlanCreated / EvtPlanParticipantsChanged.
+//
+// Unlike taskEventPayload (which carries the full EFFECTIVE set for overwrite
+// semantics), Participants here is an ADD-ONLY delta: the projector unions it
+// into the conversation's existing participants and NEVER removes anyone (§9.5 —
+// preserve history access, don't yank mid-plan). The creator rides EvtPlanCreated
+// (always a participant); each selected task's current assignee rides a
+// subsequent EvtPlanParticipantsChanged.
+type planEventPayload struct {
+	PlanID         string   `json:"plan_id"`
+	ProjectID      string   `json:"project_id"`
+	OrganizationID string   `json:"organization_id"` // the project's org — stamped onto the Plan Conversation so org-scoped endpoints (incl. agent wake via @mention) resolve it
+	OwnerRef       string   `json:"owner_ref"`       // pm://plans/{id}
+	CreatorRef     string   `json:"creator_ref,omitempty"`
+	Participants   []string `json:"participants"` // ADD-ONLY (additive §9.5); unioned into existing, never removed
 }
 
 type issueEventPayload struct {
