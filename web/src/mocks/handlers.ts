@@ -55,6 +55,120 @@ function taskActionHandlers() {
   ];
 }
 
+// planHandlers — v2.9 #286 Plan orchestration. mock=contract: shapes track the
+// LOCKED v2.9 backend contract (Plan DTO with derived progress/has_failed; Node
+// DTO §9.2). Stateless echo mocks sufficient for the UI + hook tests; the real
+// orchestrator derivation lands backend-side.
+function planHandlers() {
+  const baseNode = (taskId: string, extra: Record<string, unknown> = {}) => ({
+    task_id: taskId,
+    title: 'sample task',
+    assignee_ref: 'agent:builder',
+    task_status: 'open',
+    node_status: 'ready',
+    depends_on: [] as string[],
+    dispatched_at: null,
+    ...extra,
+  });
+  const basePlan = (pid: string, id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    project_id: pid,
+    name: 'Sample plan',
+    description: '',
+    status: 'draft',
+    creator_ref: 'user:owner',
+    conversation_id: 'conv-plan-1',
+    target_date: null,
+    has_failed: false,
+    progress: { done: 0, total: 0 },
+    created_at: '2026-06-01T01:00:00Z',
+    nodes: [] as unknown[],
+    ...extra,
+  });
+  return [
+    // GET / — parallel Plan list (wrapped under `plans`).
+    http.get('/api/projects/:pid/plans', ({ params }) =>
+      ok({
+        plans: [
+          basePlan(String(params.pid), 'PL-1', {
+            name: 'Onboarding flow',
+            status: 'running',
+            has_failed: true,
+            progress: { done: 2, total: 5 },
+            target_date: '2026-07-01T00:00:00Z',
+          }),
+          basePlan(String(params.pid), 'PL-2', {
+            name: 'Billing rework',
+            status: 'draft',
+            progress: { done: 0, total: 0 },
+          }),
+        ],
+      }),
+    ),
+    // POST / — create empty Plan.
+    http.post('/api/projects/:pid/plans', async ({ params, request }) => {
+      const body = (await request.json()) as {
+        name?: string;
+        description?: string;
+        target_date?: string | null;
+      };
+      return ok(
+        basePlan(String(params.pid), 'PL-NEW', {
+          name: body.name ?? 'new plan',
+          description: body.description ?? '',
+          target_date: body.target_date ?? null,
+        }),
+        201,
+      );
+    }),
+    // GET /:id — single Plan with derived nodes.
+    http.get('/api/projects/:pid/plans/:id', ({ params }) =>
+      ok(
+        basePlan(String(params.pid), String(params.id), {
+          name: 'Onboarding flow',
+          progress: { done: 0, total: 1 },
+          nodes: [baseNode('TS-1', { title: 'sample task' })],
+        }),
+      ),
+    ),
+    // PATCH /:id — draft-only edit (name/goal/target_date).
+    http.patch('/api/projects/:pid/plans/:id', async ({ params, request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      return ok(basePlan(String(params.pid), String(params.id), body));
+    }),
+    // POST /:id/tasks — select a backlog task into the Plan.
+    http.post('/api/projects/:pid/plans/:id/tasks', async ({ params, request }) => {
+      const body = (await request.json()) as { task_id?: string };
+      return ok(
+        basePlan(String(params.pid), String(params.id), {
+          progress: { done: 0, total: 1 },
+          nodes: [baseNode(body.task_id ?? 'TS-1')],
+        }),
+      );
+    }),
+    // DELETE /:id/tasks/:taskId — remove a task from the Plan.
+    http.delete('/api/projects/:pid/plans/:id/tasks/:taskId', () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+    // #287 deps + lifecycle (stubbed contract surface).
+    http.post('/api/projects/:pid/plans/:id/dependencies', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id))),
+    ),
+    http.delete('/api/projects/:pid/plans/:id/dependencies', () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+    http.post('/api/projects/:pid/plans/:id/start', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'running' })),
+    ),
+    http.post('/api/projects/:pid/plans/:id/stop', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'draft' })),
+    ),
+    http.post('/api/projects/:pid/plans/:id/advance', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'running' })),
+    ),
+  ];
+}
+
 // agentHandlers — Agent BC (v2.7 #101) endpoints. The default agent 'aa'
 // (id A-1) is used by the shared hooks.test fixtures. Lifecycle sub-routes
 // echo back an AgentMap with a derived lifecycle.
@@ -331,6 +445,11 @@ export const handlers = [
 
   // Project members (read-only).
   http.get('/api/projects/:pid/members', () => ok({ members: [] })),
+
+  // v2.9 #286 Plan orchestration — mock=contract to the LOCKED v2.9 backend
+  // contract (base /api/projects/:pid/plans). Plan DTO + Node DTO (§9.2 derived)
+  // + create/list/get/add-task/remove-task + #287 deps/lifecycle stubs.
+  ...planHandlers(),
 
   // Agents — Agent BC (v2.7 #101). Org-scoped, wrapped list shape, lifecycle
   // sub-routes + work-items / activity.

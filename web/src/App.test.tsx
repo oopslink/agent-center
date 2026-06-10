@@ -60,6 +60,9 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/agents/worker-1`, 'page-AgentDetail'],
       [`${ORG_BASE}/projects`, 'page-Projects'],
       [`${ORG_BASE}/projects/proj-a`, 'page-ProjectDetail'],
+      // v2.9 #286: Plan orchestration — parallel list + Plan detail.
+      [`${ORG_BASE}/projects/proj-a/plans`, 'page-ProjectPlans'],
+      [`${ORG_BASE}/projects/proj-a/plans/PL-1`, 'page-PlanDetail'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
       [`${ORG_BASE}/environment`, 'page-Environment'],
       // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
@@ -73,6 +76,25 @@ describe('App shell + route tree', () => {
       });
       unmount();
     }
+  });
+
+  // v2.9 #286 §4.2 reachability: Plans are reached via the project detail page
+  // (Plans link), then a Plan card reaches the Plan detail (DAG #287) — a real
+  // nav chain, NOT a direct-URL-only orphan route.
+  it('reaches the Plan list + Plan detail via the project detail page (not direct-URL-only)', async () => {
+    await renderAt(`${ORG_BASE}/projects/proj-a`);
+    // project detail → Plans entry link points at the per-project plans route.
+    const plansLink = await screen.findByTestId('project-plans-link');
+    expect(plansLink).toHaveAttribute('href', `${ORG_BASE}/projects/proj-a/plans`);
+    fireEvent.click(plansLink);
+    // lands on the parallel Plan list.
+    await waitFor(() => expect(screen.getByTestId('page-ProjectPlans')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plans-list')).toBeInTheDocument());
+    // a Plan card → Plan detail (the #287 DAG placeholder route).
+    const card = screen.getAllByTestId('plan-card-link')[0];
+    fireEvent.click(card);
+    await waitFor(() => expect(screen.getByTestId('page-PlanDetail')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/projects/proj-a/plans/PL-1`);
   });
 
   // dev2/v281: the enhanced /agents page is the single canonical agents

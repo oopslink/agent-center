@@ -70,6 +70,15 @@ export default function ProjectDetail(): React.ReactElement {
     <section className="space-y-4" data-testid="page-ProjectDetail" data-project-id={p.id}>
       <Breadcrumb items={[{ label: 'Projects', to: '/projects' }, { label: p.name }]} />
       <ProjectHeader project={p} />
+      {/* v2.9 #286: entry to the project's Plan orchestration (parallel Plan
+          list + DAG). Reachable here via the project detail page (§4.2). */}
+      <OrgLink
+        to={`/projects/${encodeURIComponent(p.id)}/plans`}
+        className="inline-flex items-center gap-1 rounded border border-border-base px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-bg-subtle hover:text-accent"
+        data-testid="project-plans-link"
+      >
+        Plans →
+      </OrgLink>
       <ProjectWorkTabs projectId={p.id} />
       <FleetLinkSection />
     </section>
