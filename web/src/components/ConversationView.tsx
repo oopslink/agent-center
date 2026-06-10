@@ -62,7 +62,7 @@ export function ConversationView({
           {(messages.error as Error).message}
         </p>
       )}
-      {messages.isSuccess && <MessageList messages={messages.data} />}
+      {messages.isSuccess && <MessageList messages={messages.data} surface={surface} />}
       <MessageComposer conversationId={conversationId} />
     </div>
   );

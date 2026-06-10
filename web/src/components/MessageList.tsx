@@ -7,6 +7,7 @@ import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatChatTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
+import type { ConversationSurface } from './ConversationView';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
@@ -46,6 +47,13 @@ export function attachmentHref(uri: string): string {
 
 interface Props {
   messages: Message[];
+  /**
+   * Conversation surface. v2.8.1 7th-DM increment (Dev/Dev2 split): the DM surface
+   * renders RECEIVED messages as bordered content cards (per the DM mockup) instead
+   * of the channel's gray pill bubble. Own bubble (#D1E3FF) + channel are unchanged.
+   * Defaults to channel styling so every other caller is unaffected.
+   */
+  surface?: ConversationSurface;
 }
 
 // MessageList — render messages chronologically. Sender id + posted_at
@@ -55,7 +63,7 @@ interface Props {
 // Auto-scroll behavior (v2.5.6 #60): when a new message arrives, scroll
 // to bottom — but only if the user is already near the bottom. If they
 // scrolled up to read history, we don't yank them back.
-export function MessageList({ messages }: Props): React.ReactElement {
+export function MessageList({ messages, surface = 'channel' }: Props): React.ReactElement {
   const displayName = useDisplayNameResolver();
   // v2.8.1 chat-rightalign: the viewer's own messages render right-aligned
   // (iMessage/Slack style). `currentUserId` is a prefixed identity ref
@@ -183,7 +191,7 @@ export function MessageList({ messages }: Props): React.ReactElement {
           data-testid="message-sender-button"
           data-sender-resolved={senderResolved ? 'true' : 'false'}
           className={`rounded font-medium hover:underline focus-visible:ring-2 focus-visible:ring-accent ${
-            senderResolved ? '' : 'italic text-text-muted'
+            senderResolved ? '' : 'italic text-text-secondary'
           }`}
         >
           {senderResolved ? senderName : '(deleted)'}
@@ -335,7 +343,18 @@ export function MessageList({ messages }: Props): React.ReactElement {
         </button>
         <div className="flex min-w-0 flex-1 flex-col items-start">
           {headerLine}
-          <div className={`${bubbleWidthClass} rounded-2xl bg-bg-subtle px-3 py-2 text-text-primary shadow-sm`}>
+          {/* DM surface renders received messages as a bordered content card (per
+              the 7th-DM mockup); channel/thread surfaces keep the gray pill bubble.
+              Both use theme tokens (bg-bg-elevated/bg-bg-subtle + text-text-primary)
+              so they read AA in both modes. Own bubble (#D1E3FF) is unchanged. */}
+          <div
+            className={`${bubbleWidthClass} px-3 py-2 text-text-primary ${
+              surface === 'dm'
+                ? 'rounded-lg border border-border-base bg-bg-elevated'
+                : 'rounded-2xl bg-bg-subtle shadow-sm'
+            }`}
+            data-surface={surface}
+          >
             {bubbleBody}
           </div>
         </div>

@@ -72,6 +72,26 @@ describe('MessageList', () => {
     expect(rows[0]).toHaveAttribute('data-message-id', 'M1');
   });
 
+  // v2.8.1 7th-DM increment: the DM surface renders RECEIVED messages as bordered
+  // content cards (per the DM mockup); channel keeps the gray pill bubble; own
+  // bubble (#D1E3FF) + default behaviour are unchanged. The sample sender is the
+  // viewer (user:hayang) = own; use a different sender for a received message.
+  it('renders received messages as bordered cards on the DM surface, pills on channel', () => {
+    const received = { ...sample('M1', 'hi'), sender_identity_id: 'agent:arch1' };
+    const { rerender } = render(<MessageList messages={[received]} surface="dm" />);
+    let row = screen.getByTestId('message-row');
+    expect(row).toHaveAttribute('data-own', 'false');
+    let bubble = row.querySelector('[data-surface="dm"]');
+    expect(bubble?.className).toContain('border-border-base');
+    expect(bubble?.className).toContain('bg-bg-elevated');
+    // channel (default surface) keeps the gray pill bubble — no border card.
+    rerender(<MessageList messages={[received]} />);
+    row = screen.getByTestId('message-row');
+    bubble = row.querySelector('[data-surface="channel"]');
+    expect(bubble?.className).toContain('bg-bg-subtle');
+    expect(bubble?.className).not.toContain('border-border-base');
+  });
+
   // #276: message content renders as markdown — a long fenced code block
   // collapses through the shared CollapsibleCodeBlock.
   it('renders message content as markdown with collapsible code blocks (#276)', () => {
@@ -313,8 +333,9 @@ describe('MessageList deleted/unresolved sender (#192 F1)', () => {
     // visible label is the muted "(deleted)", NOT the raw prefixed ref.
     expect(btn.textContent).toBe('(deleted)');
     expect(btn).toHaveAttribute('data-sender-resolved', 'false');
-    // muted theme token (both-mode safe), italic to de-emphasize.
-    expect(btn.className).toContain('text-text-muted');
+    // de-emphasized but AA-safe both modes (text-secondary 7.24 light / 12.02 dark,
+    // vs text-muted slate-400 2.45 FAIL — Tester2 #246 finding), italic to de-emphasize.
+    expect(btn.className).toContain('text-text-secondary');
     // the load-bearing guarantee: NO raw `agent:agent-xxx` leaks into the slot.
     expect(btn.textContent).not.toContain('agent:agent-');
     expect(btn.textContent).not.toContain('agent:');
