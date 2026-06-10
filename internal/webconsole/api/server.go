@@ -202,7 +202,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/projects/{project_id}/issues", s.pmListIssuesHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/issues", s.pmCreateIssueHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/issues/{issue_id}", s.pmGetIssueHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{project_id}/issues/{issue_id}", s.pmUpdateIssueHandler)
+	s.mux.HandleFunc("PATCH /api/projects/{project_id}/issues/{issue_id}", s.pmBatchUpdateIssueHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/transition", s.pmTransitionIssueHandler)
 	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
 	// Change-status menu. Symmetric task + issue.

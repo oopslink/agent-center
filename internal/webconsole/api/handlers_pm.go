@@ -751,3 +751,35 @@ func (s *Server) pmListCodeReposHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"code_repos": out})
 }
+
+// pmBatchUpdateIssueHandler — the bare PATCH /issues/{id} (v2.8.1 edit-consolidation):
+// an atomic dirty-only multi-field save (title/description/status/tags) so the
+// Edit-Issue modal can replace the issue-detail sidebar's per-field inline editors.
+// The Issue analogue of pmBatchUpdateTaskHandler; issues have NO assignee. Superset
+// of the old title/description-only pmUpdateIssueHandler (left unused), mirroring the
+// #232 task repoint (avoids the Go-mux duplicate-route panic).
+func (s *Server) pmBatchUpdateIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	i, caller, ok := s.pmRequireIssueInProject(w, r, d)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status      *string   `json:"status"`
+		Tags        *[]string `json:"tags"`
+		Title       *string   `json:"title"`
+		Description *string   `json:"description"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if err := d.PM.BatchUpdateIssue(r.Context(), i.ID(), pmservice.BatchIssuePatch{
+		Status: req.Status, Tags: req.Tags, Title: req.Title, Description: req.Description,
+	}, caller); err != nil {
+		mapPMError(w, err)
+		return
+	}
+	got, _ := d.PM.GetIssue(r.Context(), i.ID())
+	writeJSON(w, http.StatusOK, pmIssueMap(got))
+}
