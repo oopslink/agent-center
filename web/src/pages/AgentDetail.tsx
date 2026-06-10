@@ -163,7 +163,7 @@ export default function AgentDetail(): React.ReactElement {
       data-lifecycle={a.lifecycle}
     >
       <Breadcrumb
-        items={[{ label: 'Members' }, { label: 'Agents', to: '/members/agents' }, { label: a.name }]}
+        items={[{ label: 'Members' }, { label: 'Agents', to: '/agents' }, { label: a.name }]}
       />
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base pb-3">
         {/* @oopslink: worker subtitle removed — it duplicated the Profile

@@ -212,6 +212,75 @@ describe('Agents list-enrichment (v2.8.1)', () => {
   });
 });
 
+// dev2/v281 canonical-fold: the enhanced /agents page is the single agents
+// surface, so the retired /members/agents page's Role + membership Status
+// (Joined/Disabled) columns are folded in here. Neither field is on the Agent
+// DTO — they're resolved via a member-list join keyed by identity (the agent's
+// identity_member_id == the member's identity_id).
+describe('Agents canonical-fold: Role + Status columns (dev2/v281)', () => {
+  afterEach(() => cleanup());
+
+  it('folds Role + membership Status from the member-list join', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [
+            agent('bot-1', { name: 'bot-1', identity_member_id: 'agent-1' }),
+            agent('bot-2', { name: 'bot-2', identity_member_id: 'agent-2' }),
+          ],
+        }),
+      ),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          {
+            id: 'm-1',
+            organization_id: 'O-1',
+            identity_id: 'agent-1',
+            kind: 'agent',
+            role: 'admin',
+            status: 'joined',
+            joined_at: '2026-05-24T01:00:00Z',
+          },
+          {
+            id: 'm-2',
+            organization_id: 'O-1',
+            identity_id: 'agent-2',
+            kind: 'agent',
+            role: 'member',
+            status: 'disabled',
+            joined_at: '2026-05-24T01:00:00Z',
+          },
+        ]),
+      ),
+    );
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(2));
+    const roles = await screen.findAllByTestId('agent-role');
+    expect(roles[0]).toHaveTextContent('admin');
+    expect(roles[1]).toHaveTextContent('member');
+    const statuses = await screen.findAllByTestId('agent-status');
+    // Status text label (not color-only): Joined / Disabled.
+    await waitFor(() => expect(statuses[0]).toHaveAttribute('data-status', 'joined'));
+    expect(statuses[0]).toHaveTextContent('Joined');
+    expect(statuses[1]).toHaveAttribute('data-status', 'disabled');
+    expect(statuses[1]).toHaveTextContent('Disabled');
+  });
+
+  it('shows a neutral placeholder when no member matches (standalone agent)', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({ agents: [agent('bot-1', { name: 'bot-1', identity_member_id: '' })] }),
+      ),
+      http.get('/api/members', () => HttpResponse.json([])),
+    );
+    wrap(<Agents />);
+    const status = await screen.findByTestId('agent-status');
+    expect(status).toHaveAttribute('data-status', 'unknown');
+    expect(status).toHaveTextContent('—');
+    expect(status).not.toHaveTextContent('Disabled');
+  });
+});
+
 // v2.7 #197: agent rows carry a delete action (hard-delete agent + identity-member);
 // confirmed via the shared ConfirmModal; the 409 guard codes (agent_running /
 // agent_has_active_work) surface as friendly copy, never silent.

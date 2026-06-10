@@ -29,7 +29,6 @@ const WorkerDetail = lazy(() => import('./pages/WorkerDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
-const MembersAgents = lazy(() => import('./pages/MembersAgents'));
 const MemberNew = lazy(() => import('./pages/MemberNew'));
 const UserDetail = lazy(() => import('./pages/UserDetail'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -76,7 +75,12 @@ export function App(): React.ReactElement {
           <Route path="settings" element={<Settings />} />
           <Route path="me" element={<Me />} />
           <Route path="members/humans" element={<MembersHumans />} />
-          <Route path="members/agents" element={<MembersAgents />} />
+          {/* dev2/v281: the enhanced /agents page is the single canonical
+              agents surface. The old /members/agents page is retired — it
+              redirects so the old URL + any stale link lands on canonical and
+              there is no second reachable agents page. (mirrors the /fleet→
+              /environment redirect precedent above.) */}
+          <Route path="members/agents" element={<Navigate to="../agents" replace />} />
           <Route path="members/new" element={<MemberNew />} />
           <Route path="users/:userId" element={<UserDetail />} />
           <Route path="*" element={<NotFound />} />
