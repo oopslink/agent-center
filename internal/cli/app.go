@@ -323,11 +323,15 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
 		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
+		Plans:        pmsql.NewPlanRepo(db), // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
 		Outbox:       outboxsql.NewOutboxRepo(db),
 		IDGen:        gen,
 		Clock:        clk,
 		AgentDir:     agentpkg.NewOrgDirectory(agentRepo),
 		OrgSeq:       pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
+		// v2.9 #285: advance posts the node-ready @mention into the Plan conversation
+		// via MessageWriter (the wake+mention path #220 wakes an agent assignee).
+		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer),
 	})
 
 	// Shared agent WorkItem repo: the Agent BC AppService owns it, and the

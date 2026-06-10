@@ -111,4 +111,10 @@ var (
 	// ErrPlanProjectMismatch rejects selecting a task whose project differs from
 	// the Plan's project (a Plan selects only its own project's backlog, §2/§9.6d).
 	ErrPlanProjectMismatch = errors.New("projectmanager: task and plan belong to different projects")
+	// Start validation (v2.9 #285, §9.6).
+	ErrPlanNoTasks              = errors.New("projectmanager: plan must have at least one task to start")
+	ErrPlanUnassignedTask       = errors.New("projectmanager: every plan task must have an assignee to start")
+	ErrPlanUnresolvableAssignee = errors.New("projectmanager: a plan task's assignee is unresolvable (identity missing or agent archived/deleted)")
+	// ErrPlanNotRunning rejects advance on a Plan that is not running (§9.6/§3).
+	ErrPlanNotRunning = errors.New("projectmanager: plan is not running")
 )

@@ -93,10 +93,12 @@ func MigrateV1ToV2Command() *Command {
 // single-active UNIQUE index); v2.8.1 state-model-fix added 0052 (Task assigned→
 // open + Task/Issue canceled/withdrawn→discarded); v2.8.1 Edit-Task added 0053
 // (Task/Issue tags + status_changed_at columns); v2.9-#283 added 0054
-// (plan orchestration — pm_plans + pm_task_dependencies + tasks.plan_id). Update
-// this constant when any future migration lands so `migrate v1-to-v2` always
-// carries the install to the latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 54
+// (plan orchestration — pm_plans + pm_task_dependencies + tasks.plan_id);
+// v2.9-#285 added 0055 (pm_plan_dispatch_records — the only orchestrator-owned
+// stored state, §9.3). Update this constant when any future migration lands so
+// `migrate v1-to-v2` always carries the install to the latest schema instead of
+// leaving it mid-version.
+const targetSchemaVersion = 55
 
 func runMigrateV1ToV2(
 	ctx context.Context,

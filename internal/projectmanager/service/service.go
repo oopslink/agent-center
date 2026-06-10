@@ -65,8 +65,8 @@ type Service struct {
 	// pre-#284 service constructions keep working unchanged.
 	plans  pm.PlanRepository
 	outbox outbox.Repository
-	idgen        idgen.Generator
-	clock        clock.Clock
+	idgen  idgen.Generator
+	clock  clock.Clock
 	// agentDir is OPTIONAL (nil-safe). nil ⇒ AssignTask skips the
 	// agent-membership step entirely (preserves pre-#5a behavior).
 	agentDir AgentDirectory
@@ -74,7 +74,15 @@ type Service struct {
 	// skip org-number allocation (org_number stays 0, org_ref omitted) — keeps
 	// pre-#245 service constructions (tests) working unchanged.
 	orgSeq pm.OrgSequenceRepository
+	// planDispatcher is OPTIONAL (nil-safe, v2.9 #285). nil ⇒ AdvancePlan returns
+	// ErrDispatcherUnavailable (fail-loud — a missing dispatcher must not silently
+	// no-op the @mention). Posts the node-ready @mention into the Plan conversation.
+	planDispatcher PlanDispatcher
 }
+
+// ErrDispatcherUnavailable is returned by AdvancePlan when no PlanDispatcher is
+// wired (s.planDispatcher == nil) — fail-loud, mirroring ErrPlansUnavailable.
+var ErrDispatcherUnavailable = errors.New("projectmanager: plan dispatcher unavailable — advance cannot post @mentions")
 
 // Deps bundles the Service dependencies.
 type Deps struct {
@@ -90,14 +98,17 @@ type Deps struct {
 	// nil ⇒ CreatePlan/SelectTaskIntoPlan/RemoveTaskFromPlan are unavailable.
 	Plans  pm.PlanRepository
 	Outbox outbox.Repository
-	IDGen        idgen.Generator
-	Clock        clock.Clock
+	IDGen  idgen.Generator
+	Clock  clock.Clock
 	// AgentDir is OPTIONAL: when set, AssignTask grants an assignee agent
 	// project membership (cross-org-guarded). When nil, that step is skipped.
 	AgentDir AgentDirectory
 	// OrgSeq is OPTIONAL (v2.7.1 #245): when set, CreateTask/CreateIssue allocate
 	// a per-org T<n>/I<n> number. nil ⇒ allocation skipped (org_number 0).
 	OrgSeq pm.OrgSequenceRepository
+	// PlanDispatcher is OPTIONAL (v2.9 #285): when set, AdvancePlan posts the
+	// node-ready @mention into the Plan conversation. nil ⇒ AdvancePlan unavailable.
+	PlanDispatcher PlanDispatcher
 }
 
 // New constructs the Service.
@@ -110,7 +121,7 @@ func New(d Deps) *Service {
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
-		agentDir: d.AgentDir, orgSeq: d.OrgSeq,
+		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher,
 	}
 }
 

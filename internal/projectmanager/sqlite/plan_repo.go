@@ -22,7 +22,7 @@ type PlanRepo struct{ db *sql.DB }
 func NewPlanRepo(db *sql.DB) *PlanRepo { return &PlanRepo{db: db} }
 
 // tsPtr formats an optional timestamp: nil → "" (the schema default for "no
-// target date"), else RFC3339Nano (mirrors the task status_changed_at '' convention).
+// target date"), else RFC3339Nano (mirrors the task status_changed_at ” convention).
 func tsPtr(t *time.Time) string {
 	if t == nil || t.IsZero() {
 		return ""
@@ -157,6 +157,54 @@ func (r *PlanRepo) ListDependencies(ctx context.Context, planID pm.PlanID) ([]pm
 		out = append(out, pm.Dependency{PlanID: pm.PlanID(pid), FromTaskID: pm.TaskID(from), ToTaskID: pm.TaskID(to)})
 	}
 	return out, rows.Err()
+}
+
+// --- Dispatch records (v2.9 #285, §9.3) -------------------------------------
+
+// RecordDispatch writes the once-only {plan_id, task_id} dispatch record. It is
+// idempotent on the PK: an INSERT OR IGNORE means re-running advance / event
+// replay / a second upstream completing for an already-dispatched node is a
+// no-op, never an error nor a second @mention (§9.3).
+func (r *PlanRepo) RecordDispatch(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, at time.Time, messageID string) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`INSERT OR IGNORE INTO pm_plan_dispatch_records (plan_id, task_id, dispatched_at, dispatch_message_id) VALUES (?,?,?,?)`,
+		string(planID), string(taskID), ts(at), messageID)
+	return err
+}
+
+// ListDispatchRecords returns one Plan's dispatch records (§9.8 per-plan scoping).
+func (r *PlanRepo) ListDispatchRecords(ctx context.Context, planID pm.PlanID) ([]pm.DispatchRecord, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, task_id, dispatched_at, dispatch_message_id FROM pm_plan_dispatch_records WHERE plan_id = ? ORDER BY task_id`,
+		string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.DispatchRecord
+	for rows.Next() {
+		var pid, tid, at, mid string
+		if err := rows.Scan(&pid, &tid, &at, &mid); err != nil {
+			return nil, err
+		}
+		out = append(out, pm.DispatchRecord{
+			PlanID: pm.PlanID(pid), TaskID: pm.TaskID(tid),
+			DispatchedAt: parseTime(at), DispatchMessageID: mid,
+		})
+	}
+	return out, rows.Err()
+}
+
+// ClearDispatch deletes one node's dispatch record (creator re-run path, §9.3).
+// Deleting a non-existent record is a no-op (not an error).
+func (r *PlanRepo) ClearDispatch(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`DELETE FROM pm_plan_dispatch_records WHERE plan_id = ? AND task_id = ?`,
+		string(planID), string(taskID))
+	return err
 }
 
 const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, created_at, updated_at, version FROM pm_plans`
