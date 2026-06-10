@@ -387,6 +387,23 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 			followedMap = m
 		}
 	}
+	// v2.8.1 #278 channels-list enrich: batch-fetch the recent-messages preview for
+	// the WHOLE page in ONE window-function query (NO N+1 — query count is constant
+	// regardless of list size). Fail-soft: a batch error leaves recent_messages [].
+	recentByConv := map[conversation.ConversationID][]*conversation.Message{}
+	if d.MsgRepo != nil && len(convs) > 0 {
+		ids := make([]conversation.ConversationID, len(convs))
+		for i, c := range convs {
+			ids[i] = c.ID()
+		}
+		if m, rerr := d.MsgRepo.RecentByConversations(r.Context(), ids, recentMessagesCap); rerr == nil {
+			recentByConv = m
+		}
+	}
+	// One name resolver per request — caches member→display-name lookups across all
+	// rows + senders + participants so the enrich never N+1s the identity repo, and
+	// degrades a deleted/soft-ref sender to a friendly handle (never crash).
+	nr := newNameResolver(r, d)
 	arr := make([]map[string]any, len(convs))
 	for i, c := range convs {
 		row := convPublicMap(c)
@@ -404,6 +421,12 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 				}
 			}
 		}
+		// v2.8.1 #278: participants{count,members} + the newest-first recent_messages
+		// preview on every row (most useful on channels, harmless on dm/issue/task —
+		// the FE reads them only where it renders them). created_at (RFC3339Nano) is
+		// already on the row via convPublicMap.
+		row["participants"] = buildParticipants(r.Context(), nr, c)
+		row["recent_messages"] = buildRecentMessages(r.Context(), nr, recentByConv[c.ID()])
 		s.embedBadges(r, d, self, selfDisplayName, c, row, followedMap[c.ID()])
 		arr[i] = row
 	}

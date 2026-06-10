@@ -76,4 +76,10 @@ type ActivityEventRepository interface {
 	ListByAgent(ctx context.Context, agentID AgentID, limit int, before string) ([]*AgentActivityEvent, error)
 	// ListByWorkItem returns events for one WorkItem segment, oldest first.
 	ListByWorkItem(ctx context.Context, workItemRef string) ([]*AgentActivityEvent, error)
+	// LatestByAgents batch-fetches the single most-recent activity event per agent
+	// across the whole input set in ONE window-function query (NO N+1) — the v2.8.1
+	// agents-list enrich uses it to render last_activity_at/last_activity_content for
+	// the whole page in one round-trip. Agents with no events have no map entry; empty
+	// input → empty map.
+	LatestByAgents(ctx context.Context, agentIDs []AgentID) (map[AgentID]*AgentActivityEvent, error)
 }

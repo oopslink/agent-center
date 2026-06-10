@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -258,6 +259,48 @@ func agentActivityMap(e *agentbc.AgentActivityEvent, agentFacingID string) map[s
 	return m
 }
 
+// enrichAgentLastActivity writes the v2.8.1 #278 agents-list fields onto an agent
+// DTO row: last_activity_at (RFC3339Nano | null) + last_activity_content (a plain-
+// text truncated preview | null). A nil event (agent with no activity) leaves both
+// explicitly null so the FE renders an empty state rather than a missing key.
+func enrichAgentLastActivity(m map[string]any, e *agentbc.AgentActivityEvent) {
+	if e == nil {
+		m["last_activity_at"] = nil
+		m["last_activity_content"] = nil
+		return
+	}
+	m["last_activity_at"] = e.OccurredAt().UTC().Format(time.RFC3339Nano)
+	if c := plainTextPreview(activityPreviewText(e)); c != "" {
+		m["last_activity_content"] = c
+	} else {
+		m["last_activity_content"] = nil
+	}
+}
+
+// activityPreviewText derives a human-readable content string from an activity
+// event's JSON payload (v2.8.1 #278). The payload schema is per event_type
+// (activity_event.go): it pulls the first present human-meaningful field
+// (text / result / tool_name / event) and, failing that, the raw payload. Never
+// panics on malformed JSON — a parse miss falls back to the raw payload string.
+func activityPreviewText(e *agentbc.AgentActivityEvent) string {
+	payload := strings.TrimSpace(e.Payload())
+	if payload == "" || payload == "{}" {
+		return ""
+	}
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(payload), &fields); err != nil {
+		return payload // not JSON object → preview the raw string
+	}
+	for _, key := range []string{"text", "result", "tool_name", "event"} {
+		if v, ok := fields[key]; ok {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				return s
+			}
+		}
+	}
+	return payload
+}
+
 // --- gate -------------------------------------------------------------------
 
 // agentRequireInOrg resolves {id}, requires org membership, and verifies the
@@ -311,17 +354,38 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 	// v2.8 #272: the list excludes archived agents by default (they are retired
 	// from the user surface); pass ?include_archived=true to include them.
 	includeArchived := r.URL.Query().Get("include_archived") == "true"
-	out := make([]map[string]any, 0, len(as))
+	shown := make([]*agentbc.Agent, 0, len(as))
 	for _, a := range as {
 		if a.Lifecycle() == agentbc.LifecycleArchived && !includeArchived {
 			continue
 		}
+		shown = append(shown, a)
+	}
+	// v2.8.1 #278 agents-list enrich: batch-fetch the latest activity event for the
+	// WHOLE page in ONE window-function query (NO N+1 — query count is constant
+	// regardless of list size). Keyed by the execution-entity AgentID (the
+	// agent_activity_events partition key). Fail-soft: a batch error → no enrich
+	// (last_activity_* stay null), never a 500.
+	latestActivity := map[agentbc.AgentID]*agentbc.AgentActivityEvent{}
+	if len(shown) > 0 {
+		ids := make([]agentbc.AgentID, len(shown))
+		for i, a := range shown {
+			ids[i] = a.ID()
+		}
+		if m, lerr := d.AgentSvc.LatestActivityByAgents(r.Context(), ids); lerr == nil {
+			latestActivity = m
+		}
+	}
+	out := make([]map[string]any, 0, len(shown))
+	for _, a := range shown {
 		avail, aerr := d.AgentSvc.Availability(r.Context(), a)
 		if aerr != nil {
 			mapAgentError(w, aerr)
 			return
 		}
-		out = append(out, agentMap(a, avail))
+		m := agentMap(a, avail)
+		enrichAgentLastActivity(m, latestActivity[a.ID()])
+		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
 }
