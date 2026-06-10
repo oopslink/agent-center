@@ -454,7 +454,18 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ts, err := d.PM.ListTasks(r.Context(), p.ID())
+	// ?unplanned=1|true restricts to the Backlog (v2.9 Work Board): tasks not yet
+	// selected into any Plan (empty plan_id). Absent/other → all project tasks.
+	var (
+		ts  []*pm.Task
+		err error
+	)
+	switch q := r.URL.Query().Get("unplanned"); q {
+	case "1", "true":
+		ts, err = d.PM.ListUnplannedTasks(r.Context(), p.ID())
+	default:
+		ts, err = d.PM.ListTasks(r.Context(), p.ID())
+	}
 	if err != nil {
 		mapPMError(w, err)
 		return

@@ -264,3 +264,41 @@ func TestPlanRepo_DispatchRecords(t *testing.T) {
 		t.Fatalf("clear missing should be no-op: %v", err)
 	}
 }
+
+// TestTaskRepo_ListUnplannedByProject pins the v2.9 backlog complement: with two
+// tasks in a project, one selected into a Plan and one left in the backlog,
+// ListUnplannedByProject returns ONLY the unplanned one (empty plan_id).
+func TestTaskRepo_ListUnplannedByProject(t *testing.T) {
+	ctx, _, tr := planSetup(t)
+	planned, _ := pm.NewTask(pm.NewTaskInput{ID: "T-planned", ProjectID: "P-1", Title: "in a plan", CreatedBy: "user:a", CreatedAt: t0})
+	backlog, _ := pm.NewTask(pm.NewTaskInput{ID: "T-backlog", ProjectID: "P-1", Title: "not in a plan", CreatedBy: "user:a", CreatedAt: t0.Add(time.Second)})
+	if err := tr.Save(ctx, planned); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Save(ctx, backlog); err != nil {
+		t.Fatal(err)
+	}
+
+	// select one into a plan; leave the other in the backlog.
+	planned.SetPlan("PL-1", t0)
+	if err := tr.Update(ctx, planned); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := tr.ListUnplannedByProject(ctx, "P-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID() != "T-backlog" || got[0].PlanID() != "" {
+		t.Fatalf("ListUnplannedByProject = %+v, want only T-backlog with empty plan_id", got)
+	}
+
+	// clearing the planned task back to backlog returns both.
+	planned.ClearPlan(t0)
+	if err := tr.Update(ctx, planned); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := tr.ListUnplannedByProject(ctx, "P-1"); len(got) != 2 {
+		t.Fatalf("ListUnplannedByProject after clear = %d, want 2", len(got))
+	}
+}
