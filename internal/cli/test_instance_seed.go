@@ -46,7 +46,10 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client
 		OrgSlug:     slug,
 		DisplayName: "Owner " + pack.ID,
 		Email:       "owner@" + slug + ".test",
-		Passcode:    "123456",
+		// v2.9 #290: passcode rule strengthened (≥6 + letter+digit+symbol, ≤128) —
+		// the old "123456" (6 digits) now fails ValidatePasscodePlain → seed signup
+		// would 400. Fixed compliant value (printed in the signin pack for UI login).
+		Passcode: "SeedPass1!",
 	}
 
 	// 1. signup → owner user + org + auto-signin (Set-Cookie captured by the jar).
