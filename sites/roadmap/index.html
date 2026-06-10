@@ -73,8 +73,8 @@
     <a class="brand" href="../index.html">agent-center<span class="dot">·</span></a>
     <nav class="hd-nav">
       <a href="../product/index.html">产品介绍</a>
-      <a href="../manual/v2.7.1/index.html">用户手册</a>
-      <a href="../dev/v2.7.1/index.html">开发指引</a>
+      <a href="../manual/v2.8/index.html">用户手册</a>
+      <a href="../dev/v2.8/index.html">开发指引</a>
       <a class="active" href="../roadmap/index.html">路线图</a>
       <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
     </nav>
@@ -95,7 +95,7 @@
 
   <div class="rm-toolbar">
     <div class="legend rm-legend">
-      <span><i class="swatch" style="background:var(--green-fg)"></i> v2 / v2.8 已完成</span>
+      <span><i class="swatch" style="background:var(--green-fg)"></i> v2 / v2.8.1 已完成</span>
       <span><i class="swatch" style="background:var(--blue-fg)"></i> v2.1 backlog</span>
       <span><i class="swatch" style="background:var(--vo)"></i> v2.7+ 进阶 / v2.9 待做</span>
       <span><i class="swatch" style="background:var(--accent)"></i> v3 推迟</span>
@@ -237,6 +237,33 @@
       <div class="cluster">质量</div>
       <div class="rm-grid">
         <div class="rm-item"><h4>0 production-affecting finding</h4><p>跨 12 PR ship chain + 2 follow-up（cleanup + runtime fix），全程零 production finding · 15 instances pattern proven · consolidated runtime 7/7 + 7/7 PASS direct on shipped。<span class="trig">institutional discipline</span></p></div>
+      </div>
+    </section>
+
+    <!-- ============ v2.8.1 已完成 ============ -->
+    <section class="tl-phase done" data-phase="done">
+      <div class="phase-hd">
+        <h2>v2.8.1 已完成 · Web Console UX 大改版 + 派发可靠性</h2>
+        <span class="st">✓ SHIPPED</span>
+        <span class="when">v2.8.1 · 2026-06-10 · 65 PR · 三面验收（产品 / 后端 / 前端）</span>
+      </div>
+      <p class="phase-sub">v2.8 架构线上的 UX 点发布：8 个界面改版 + 编辑收敛 + 两个列表增强 + 根治 agent 派发单活竞态。验收报告 <code>docs/release/evidence/v2.8.1-acceptance-report.md</code>（每验收点内嵌截图证据）。</p>
+
+      <div class="cluster">界面改版 + 编辑收敛</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>Task &amp; Issue 详情统一编辑</h4><p>详情侧栏只读、编辑统一进单一 Edit 面板（去逐字段行内编辑）；Issue 详情对齐 Task 详情风格。<span class="trig">#250 / #252 · #257</span></p></div>
+        <div class="rm-item"><h4>聊天 / DM UX 刷新</h4><p>消息行 / DM 布局 / 代码块宽度 / 输入框重做 + Channels / Agents / Settings 视觉过一遍 · 对比度(AA) 深浅两模式验。<span class="trig">8 改版</span></p></div>
+        <div class="rm-item"><h4>@提及 / 头像弹详情侧栏</h4><p>点消息里 @ 的 agent / human、或 DM 头像，弹对应详情侧栏（按 kind 分流）。<span class="trig">#258</span></p></div>
+      </div>
+
+      <div class="cluster">列表增强（后端 N+1-free）</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>Channels &amp; Agents 列表</h4><p>Channels 行加创建时间 + 参与者头像 + 最近消息预览；Agents 行加供应商(CLI/model) + 最后活动时间与内容。<span class="trig">#255 list-enrich · #251 Issue batch-update</span></p></div>
+      </div>
+
+      <div class="cluster">派发可靠性</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>单活竞态根治</h4><p>activate 路径原是非原子 check-then-act + 部分（非唯一）索引，并发派同一 agent 会产生多个活跃工作项。改 pull model + UNIQUE 部分索引（<code>agent_work_items(agent_id)</code> WHERE status IN active/waiting_input）+ queue-not-drop：一个 agent 同时只有一个活跃工作项。<span class="trig">#277 / #278</span></p></div>
       </div>
     </section>
 
