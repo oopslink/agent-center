@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '@/api/auth';
 import { ApiError } from '@/api/client';
+import { validatePasscodeStrength, PASSCODE_RULE_HINT } from '@/lib/passcode';
 
 function validateDisplayName(v: string): string {
   if (!v.trim()) return 'Please enter a display name';
@@ -17,8 +18,7 @@ function validateEmail(v: string): string {
 }
 
 function validatePasscode(v: string): string {
-  if (!/^\d{6}$/.test(v)) return 'Please enter a 6-digit passcode';
-  return '';
+  return validatePasscodeStrength(v);
 }
 
 function validateConfirm(p: string, c: string): string {
@@ -50,9 +50,10 @@ interface FieldProps {
   placeholder?: string;
   maxLength?: number;
   onChange: (v: string) => void;
+  onBlur?: () => void;
 }
 
-function Field({ id, label, type = 'text', value, error, placeholder, maxLength, onChange }: FieldProps) {
+function Field({ id, label, type = 'text', value, error, placeholder, maxLength, onChange, onBlur }: FieldProps) {
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="block text-sm font-medium text-text-primary">
@@ -65,6 +66,7 @@ function Field({ id, label, type = 'text', value, error, placeholder, maxLength,
         maxLength={maxLength}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted ${
           error ? 'border-danger' : 'border-border'
         }`}
@@ -89,8 +91,27 @@ export default function Signup(): React.ReactElement {
   const [orgName, setOrgName] = useState('');
   const [orgSlug, setOrgSlug] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [passcodeTouched, setPasscodeTouched] = useState(false);
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // #290 run-real seam: the submit button is disabled while the form is
+  // invalid, so handleSubmit (which populates `errors`) never fires for an
+  // invalid passcode and the user never saw WHICH rule failed. Validate the
+  // passcode on blur, and on subsequent change once it has been touched, so
+  // the existing inline `errors.passcode` element renders the distinct
+  // strength message as the user types/leaves the field.
+  const handlePasscodeChange = (v: string) => {
+    setPasscode(v);
+    if (passcodeTouched) {
+      setErrors((prev) => ({ ...prev, passcode: validatePasscode(v) }));
+    }
+  };
+
+  const handlePasscodeBlur = () => {
+    setPasscodeTouched(true);
+    setErrors((prev) => ({ ...prev, passcode: validatePasscode(passcode) }));
+  };
 
   const autoSlug = (name: string) =>
     name
@@ -196,16 +217,20 @@ export default function Signup(): React.ReactElement {
               maxLength={200}
               onChange={setEmail}
             />
-            <Field
-              id="passcode"
-              label="Passcode"
-              type="password"
-              value={passcode}
-              error={errors.passcode ?? ''}
-              placeholder="Your passcode"
-              maxLength={128}
-              onChange={setPasscode}
-            />
+            <div className="space-y-1">
+              <Field
+                id="passcode"
+                label="Passcode"
+                type="password"
+                value={passcode}
+                error={errors.passcode ?? ''}
+                placeholder="Your passcode"
+                maxLength={128}
+                onChange={handlePasscodeChange}
+                onBlur={handlePasscodeBlur}
+              />
+              <p className="text-xs text-text-secondary">{PASSCODE_RULE_HINT}</p>
+            </div>
             <Field
               id="confirm_passcode"
               label="Confirm passcode"
