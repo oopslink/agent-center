@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { IssueStatus, TaskStatus } from '@/api/types';
+import { tagColorFor } from '@/components/tagColors';
 
 // v2.8.1 #5th (@oopslink Phabricator-style Issue/Task refactor) — the shared
 // right-hand metadata sidebar for IssueDetail + TaskDetail. Pure prop-driven so
@@ -61,6 +62,9 @@ export interface IssueTaskSidebarProps {
   actions?: React.ReactNode;
   /** metadata rows (Created by, Project, Assignee, …) — typed, no bare fields. */
   meta?: SidebarMetaRow[];
+  /** read-only tag chips (hashed both-mode-AA colors, mirrors TaskDetail). When
+   * provided, renders the TAGS section (chips, or a "No tags" placeholder). */
+  tags?: string[];
   /** Task-only: a WorkItems status summary (e.g. "2 In Progress · 5 Pending"). */
   workItemsSummary?: React.ReactNode;
 }
@@ -69,6 +73,7 @@ export function IssueTaskSidebar({
   status,
   actions,
   meta,
+  tags,
   workItemsSummary,
 }: IssueTaskSidebarProps): React.ReactElement {
   return (
@@ -96,6 +101,32 @@ export function IssueTaskSidebar({
             </div>
           ))}
         </dl>
+      )}
+
+      {tags && (
+        <div data-testid="sidebar-tags">
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Tags</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {tags.map((tag) => {
+              const c = tagColorFor(tag);
+              return (
+                <span
+                  key={tag}
+                  data-testid="sidebar-tag-chip"
+                  data-tag={tag}
+                  className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${c.bg} ${c.text}`}
+                >
+                  {tag}
+                </span>
+              );
+            })}
+            {tags.length === 0 && (
+              <span className="text-xs text-text-muted" data-testid="sidebar-tags-empty">
+                No tags
+              </span>
+            )}
+          </div>
+        </div>
       )}
 
       {workItemsSummary && (

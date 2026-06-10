@@ -1,50 +1,138 @@
-// IssueEditModal — v2.5.x #64 edit title + description on a non-terminal
-// issue. The host page hides the trigger button when the issue is
-// terminal; backend also rejects (AR.UpdateMetadata).
-import React, { useState } from 'react';
+// IssueEditModal — v2.8.1 (@oopslink directive, mirror of TaskEditModal #278):
+// full Edit-Issue form that batch-saves title / description / status / tags in
+// ONE atomic PATCH (PATCH /projects/{pid}/issues/{id} → Dev's #251 contract).
+// Only the changed (dirty) fields are sent; the backend applies all-or-none.
+// NO assignee field — Issues are not assignable (unlike Tasks).
+import React, { useMemo, useState } from 'react';
 import { useUpdateIssue } from '@/api/issues';
-import type { Issue } from '@/api/types';
+import type { Issue, IssueStatus } from '@/api/types';
+import { useModalA11y } from './useModalA11y';
+import { MAX_TAG_RUNES, MAX_TAGS, runeLength, validateTags } from './tagValidation';
+import { tagColorFor } from './tagColors';
 
 interface Props {
   projectId: string;
-  issue: Pick<Issue, 'id' | 'title' | 'description'>;
+  issue: Pick<Issue, 'id' | 'title' | 'description' | 'status' | 'tags'>;
   onClose: () => void;
   onSaved?: () => void;
 }
 
+// All IssueStatus values — free-state model (any valid value selectable, no
+// adjacency machinery), mirroring TaskEditModal's status select. Keep in sync
+// with the IssueStatus union.
+const ISSUE_STATUSES: IssueStatus[] = [
+  'open',
+  'in_progress',
+  'resolved',
+  'closed',
+  'discarded',
+  'reopened',
+];
+
 export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): React.ReactElement {
   const [title, setTitle] = useState(issue.title ?? '');
   const [description, setDescription] = useState(issue.description ?? '');
+  const [status, setStatus] = useState<IssueStatus>(issue.status ?? 'open');
+  const [tags, setTags] = useState<string[]>(issue.tags ?? []);
+  const [tagDraft, setTagDraft] = useState('');
+  const [tagError, setTagError] = useState<string | null>(null);
+
   const update = useUpdateIssue(projectId, issue.id);
+  // a11y: Escape closes + focus-trap (rendered = open).
+  const containerRef = useModalA11y({ open: true, onClose });
+
+  // commitTag: add the typed draft as a chip (Enter/comma). Trims, validates the
+  // single tag (rune-16), dedups (no-op if already present), enforces the 10-cap.
+  const commitTag = () => {
+    const candidate = tagDraft.trim();
+    if (candidate === '') {
+      setTagDraft('');
+      return;
+    }
+    if (runeLength(candidate) > MAX_TAG_RUNES) {
+      setTagError(`Tag too long (max ${MAX_TAG_RUNES})`);
+      return;
+    }
+    if (tags.includes(candidate)) {
+      // dedup — keep first; just clear the draft.
+      setTagDraft('');
+      setTagError(null);
+      return;
+    }
+    if (tags.length >= MAX_TAGS) {
+      setTagError(`Max ${MAX_TAGS} tags`);
+      return;
+    }
+    setTags([...tags, candidate]);
+    setTagDraft('');
+    setTagError(null);
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag));
+    setTagError(null);
+  };
+
+  const onTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      commitTag();
+    }
+  };
+
+  const tagsValidationError = useMemo(() => validateTags(tags), [tags]);
 
   const trimmedTitle = title.trim();
-  const canSubmit = trimmedTitle.length > 0 && !update.isPending;
+  // Dirty diff — compare against the original issue so we send ONLY changed fields.
+  const origTags = issue.tags ?? [];
+  const tagsChanged =
+    tags.length !== origTags.length || tags.some((t, i) => t !== origTags[i]);
+  const titleChanged = trimmedTitle !== (issue.title ?? '');
+  const descChanged = description.trim() !== (issue.description ?? '');
+  const statusChanged = status !== (issue.status ?? 'open');
+  const anyDirty = titleChanged || descChanged || statusChanged || tagsChanged;
+
+  const hasError = !!tagError || !!tagsValidationError;
+  const canSubmit =
+    trimmedTitle.length > 0 && anyDirty && !hasError && !update.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
+    // Build the dirty-only batch body. Wire keys match Dev's #251 contract:
+    // {title?, description?, status?, tags?} — "description" (not "desc"),
+    // NO assignee (Issues aren't assignable).
+    const body: {
+      title?: string;
+      description?: string;
+      status?: IssueStatus;
+      tags?: string[];
+    } = {};
+    if (titleChanged) body.title = trimmedTitle;
+    if (descChanged) body.description = description.trim();
+    if (statusChanged) body.status = status;
+    if (tagsChanged) body.tags = tags;
     try {
-      await update.mutateAsync({
-        title: trimmedTitle,
-        description: description.trim() || undefined,
-      });
+      await update.mutateAsync(body);
       onSaved?.();
       onClose();
     } catch {
-      // surfaced via update.error
+      // Atomic = nothing applied. Surfaced via update.error; modal stays open.
     }
   };
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       data-testid="issue-edit-modal"
       role="dialog"
       aria-modal="true"
+      aria-label="Edit issue"
     >
       <form
         onSubmit={submit}
-        className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Edit Issue</h2>
@@ -60,10 +148,11 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
         </div>
 
         <div className="mb-3">
-          <label className="mb-1 block text-xs font-medium text-text-primary">
+          <label htmlFor="issue-edit-title" className="mb-1 block text-xs font-medium text-text-primary">
             Title<span className="ml-1 text-danger">*</span>
           </label>
           <input
+            id="issue-edit-title"
             data-testid="issue-edit-title"
             className={inputClass}
             value={title}
@@ -72,16 +161,90 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
         </div>
 
         <div className="mb-3">
-          <label className="mb-1 block text-xs font-medium text-text-primary">
+          <label
+            htmlFor="issue-edit-description"
+            className="mb-1 block text-xs font-medium text-text-primary"
+          >
             Description
           </label>
           <textarea
+            id="issue-edit-description"
             data-testid="issue-edit-description"
             className={inputClass}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={5}
           />
+        </div>
+
+        <div className="mb-3">
+          <label htmlFor="issue-edit-status" className="mb-1 block text-xs font-medium text-text-primary">
+            Status
+          </label>
+          <select
+            id="issue-edit-status"
+            data-testid="issue-edit-status"
+            className={inputClass}
+            value={status}
+            onChange={(e) => setStatus(e.target.value as IssueStatus)}
+          >
+            {ISSUE_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mb-3">
+          <label htmlFor="issue-edit-tags-input" className="mb-1 block text-xs font-medium text-text-primary">
+            Tags
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((tag) => {
+              const c = tagColorFor(tag);
+              return (
+                <span
+                  key={tag}
+                  data-testid="issue-edit-tag-chip"
+                  data-tag={tag}
+                  className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${c.bg} ${c.text}`}
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    className="hover:opacity-70"
+                    onClick={() => removeTag(tag)}
+                    aria-label={`Remove tag ${tag}`}
+                    data-testid="issue-edit-tag-remove"
+                  >
+                    x
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+          <input
+            id="issue-edit-tags-input"
+            data-testid="issue-edit-tags-input"
+            className={`${inputClass} mt-1.5`}
+            value={tagDraft}
+            onChange={(e) => {
+              setTagDraft(e.target.value);
+              if (tagError) setTagError(null);
+            }}
+            onKeyDown={onTagKeyDown}
+            placeholder="Type a tag, press Enter or comma…"
+            aria-describedby="issue-edit-tags-hint"
+          />
+          <p id="issue-edit-tags-hint" className="mt-1 text-[0.6875rem] text-text-muted">
+            Up to {MAX_TAGS} tags, ≤{MAX_TAG_RUNES} characters each.
+          </p>
+          {(tagError || tagsValidationError) && (
+            <p className="mt-1 text-xs text-danger" data-testid="issue-edit-tag-error">
+              {tagError ?? tagsValidationError}
+            </p>
+          )}
         </div>
 
         {update.isError && (
