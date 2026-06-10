@@ -10,6 +10,7 @@ import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { Avatar } from '@/components/Avatar';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSidebarContext';
 
 // DMDetail page (/dms/:id). Mirrors ChannelDetail layout but skips the
 // ParticipantsPanel — DM membership is fixed at create time (per
@@ -23,8 +24,23 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 // SSE live updates flow through F5's dispatchToQueryClient, same as
 // channels — `conversation.message_added` invalidates the messages
 // query.
+// DMDetail wraps the page in a SenderSidebarProvider so the header peer (entry ①)
+// AND the @mention tokens inside message content (entry ②) AND the message-sender
+// clicks all open the ONE existing kind-routed SenderDetailSidebar. The provider
+// owns the sidebar state + renders the single sidebar instance.
 export default function DMDetail(): React.ReactElement {
+  return (
+    <SenderSidebarProvider>
+      <DMDetailInner />
+    </SenderSidebarProvider>
+  );
+}
+
+function DMDetailInner(): React.ReactElement {
   const { id = '' } = useParams<{ id: string }>();
+  // #281 entry ①: open the SenderDetailSidebar for the DM peer when the header
+  // avatar/@name is clicked. Provided by the wrapping SenderSidebarProvider.
+  const openSender = useSenderSidebar();
   const conv = useConversation(id);
   // v2.7.1 #238 fix: the DM detail GET doesn't enrich peer_display_name (only the
   // list does), so resolve the peer from participants − self for direct loads.
@@ -123,24 +139,47 @@ export default function DMDetail(): React.ReactElement {
             <BackIcon />
           </OrgLink>
 
-          <Avatar
-            name={avatarName}
-            kind={isAgentPeer ? 'agent' : 'human'}
-            size="lg"
-            // Only feed an online state for a resolved, non-deleted agent — the
-            // Avatar renders its status dot only when `online` is defined, so a
-            // user / deleted / loading peer omits it entirely.
-            online={isAgentPeer && !isDeleted && a ? online : undefined}
-          />
+          {/* #281 entry ①: the peer avatar opens the SenderDetailSidebar for the
+              peer (agent → AgentDetailBody, user → UserDetailBody). A real
+              <button> (Tab + Enter/Space), aria-label, cursor-pointer hover. Only
+              interactive when there's a peer ref to open. */}
+          <button
+            type="button"
+            onClick={() => peerRef && openSender?.(peerRef)}
+            disabled={!peerRef}
+            aria-label={`View ${peerName || avatarName} details`}
+            data-testid="dm-peer-avatar-button"
+            className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default enabled:cursor-pointer"
+          >
+            <Avatar
+              name={avatarName}
+              kind={isAgentPeer ? 'agent' : 'human'}
+              size="lg"
+              // Only feed an online state for a resolved, non-deleted agent — the
+              // Avatar renders its status dot only when `online` is defined, so a
+              // user / deleted / loading peer omits it entirely.
+              online={isAgentPeer && !isDeleted && a ? online : undefined}
+            />
+          </button>
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2
-                className="truncate text-xl font-semibold"
-                data-testid="dm-heading"
-                title={peerRef || undefined}
-              >
-                {heading}
+              {/* #281 entry ①: the @name also opens the SenderDetailSidebar.
+                  Kept as an <h2> heading landmark with a nested <button> so it's
+                  both a heading AND keyboard-accessible (Tab + Enter/Space).
+                  title carries the raw ref on hover per the #192 chrome rule. */}
+              <h2 className="min-w-0 text-xl font-semibold">
+                <button
+                  type="button"
+                  onClick={() => peerRef && openSender?.(peerRef)}
+                  disabled={!peerRef}
+                  aria-label={`View ${peerName || avatarName} details`}
+                  data-testid="dm-heading"
+                  title={peerRef || undefined}
+                  className="block max-w-full truncate rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent enabled:cursor-pointer enabled:hover:underline"
+                >
+                  {heading}
+                </button>
               </h2>
               <TypeChip kind="dm" />
               {/* Bot badge — only for an agent peer. Labelled text (not emoji /

@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useConversation } from '@/api/conversations';
 import { ConversationView } from '@/components/ConversationView';
+import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { ParticipantsPanel } from '@/components/ParticipantsPanel';
@@ -54,6 +55,10 @@ export default function ChannelDetail(): React.ReactElement {
   const activeCount = active.length;
 
   return (
+    // #281 entry ②: the channel message surface needs a SenderSidebarProvider so the
+    // @mention tokens in message content become clickable (and message-sender clicks
+    // drive the one provider sidebar). DM has its own; channel/work-item each wrap too.
+    <SenderSidebarProvider>
     <section
       className="flex h-full flex-col"
       data-testid="page-ChannelDetail"
@@ -96,6 +101,7 @@ export default function ChannelDetail(): React.ReactElement {
         sidePanel={<ParticipantsPanel conversationId={ch.id} participants={participants} />}
       />
     </section>
+    </SenderSidebarProvider>
   );
 }
 

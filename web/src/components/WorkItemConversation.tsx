@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
+import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
 
 interface Props {
@@ -26,6 +27,9 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
   const surface = ownerRef.includes('/issues/') ? 'issue-thread' : 'task-thread';
 
   return (
+    // #281 entry ②: the task/issue thread message surface needs a SenderSidebarProvider
+    // so @mention tokens in messages are clickable (each message surface wraps its own).
+    <SenderSidebarProvider>
     <section className="mt-6 flex min-h-0 flex-1 flex-col" data-testid="work-item-conversation">
       <div
         className="flex items-center gap-2 rounded-t border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary"
@@ -61,5 +65,6 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
         </div>
       )}
     </section>
+    </SenderSidebarProvider>
   );
 }
