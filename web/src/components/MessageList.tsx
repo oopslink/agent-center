@@ -9,6 +9,7 @@ import { formatChatTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
 import type { ConversationSurface } from './ConversationView';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
+import { useSenderSidebar } from './SenderSidebarContext';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -81,7 +82,13 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
   const [hasNewBelow, setHasNewBelow] = useState(false);
   // v2.8.1 7th DM increment 2: the sender-detail sidebar. Holds the clicked
   // message's sender identity ref (prefixed, e.g. "agent:A-1"); null = closed.
+  // #281: PREFER the surface-level provider opener when present (so the header
+  // peer + @mention tokens + message-sender clicks all drive the ONE provider
+  // sidebar). Standalone (no provider, e.g. channel surface / unit tests) → keep
+  // this local state + the local sidebar instance below.
+  const providerOpen = useSenderSidebar();
   const [sidebarSender, setSidebarSender] = useState<string | null>(null);
+  const openSender = providerOpen ?? setSidebarSender;
 
   useEffect(() => {
     if (latestId === prevLatestIdRef.current) return;
@@ -181,7 +188,7 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
             clickable too (own = the viewer's own profile). */}
         <button
           type="button"
-          onClick={() => setSidebarSender(m.sender_identity_id)}
+          onClick={() => openSender(m.sender_identity_id)}
           aria-label={
             senderResolved
               ? `View ${senderName} detail`
@@ -331,7 +338,7 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
             sidebar (keyboard-accessible; aria-label on the button). */}
         <button
           type="button"
-          onClick={() => setSidebarSender(m.sender_identity_id)}
+          onClick={() => openSender(m.sender_identity_id)}
           aria-label={`View ${avatarName} detail`}
           data-testid="message-sender-avatar-button"
           className="mt-5 shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-accent"
@@ -384,12 +391,17 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
           New messages ↓
         </button>
       )}
-      {/* v2.8.1 increment 2: a single sidebar instance at the MessageList root. */}
-      <SenderDetailSidebar
-        open={sidebarSender !== null}
-        senderRef={sidebarSender}
-        onClose={() => setSidebarSender(null)}
-      />
+      {/* v2.8.1 increment 2: a single sidebar instance at the MessageList root.
+          #281: rendered ONLY when there's no surface-level provider — under a
+          SenderSidebarProvider (e.g. DMDetail) the provider owns the one sidebar,
+          so we don't double-render. */}
+      {!providerOpen && (
+        <SenderDetailSidebar
+          open={sidebarSender !== null}
+          senderRef={sidebarSender}
+          onClose={() => setSidebarSender(null)}
+        />
+      )}
     </div>
   );
 }
