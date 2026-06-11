@@ -82,11 +82,19 @@ function planHandlers() {
     has_failed: false,
     progress: { done: 0, total: 0 },
     created_at: '2026-06-01T01:00:00Z',
-    nodes: [] as unknown[],
+    // NB: no `nodes` / `nodes_preview` here — the LIST rows add the enriched
+    // nodes_preview/node_count, the DETAIL + write responses add `nodes`. This
+    // keeps each mock shape matched to its real DTO (pmPlanSummaryMap vs
+    // pmPlanDetailMap) instead of leaking a field into the wrong response.
     ...extra,
   });
   return [
-    // GET / — parallel Plan list (wrapped under `plans`).
+    // GET / — parallel Plan list (wrapped under `plans`). mock=contract to the
+    // ENRICHED list DTO (merged PR #272 → v2.9 trunk 654d30e, pmPlanSummaryMap):
+    // each row carries progress{done,total} + has_failed + node_count (TOTAL) +
+    // nodes_preview (capped 4, FULL PlanNode shape incl task_status so the card
+    // StatusChip reads it without crashing). NB: the list row carries
+    // nodes_preview/node_count, NOT the detail `nodes` field.
     http.get('/api/projects/:pid/plans', ({ params }) =>
       ok({
         plans: [
@@ -96,11 +104,21 @@ function planHandlers() {
             has_failed: true,
             progress: { done: 2, total: 5 },
             target_date: '2026-07-01T00:00:00Z',
+            // 6 total nodes; preview capped at 4 → board shows "…and 2 more".
+            node_count: 6,
+            nodes_preview: [
+              baseNode('TS-1', { title: 'Design intake form', task_status: 'done', node_status: 'done' }),
+              baseNode('TS-2', { title: 'Wire welcome email', task_status: 'running', node_status: 'running', assignee_ref: 'user:hayang' }),
+              baseNode('TS-3', { title: 'Set up SSO', task_status: 'open' }),
+              baseNode('TS-4', { title: 'Seed sample data', task_status: 'open' }),
+            ],
           }),
           basePlan(String(params.pid), 'PL-2', {
             name: 'Billing rework',
             status: 'draft',
             progress: { done: 0, total: 0 },
+            node_count: 0,
+            nodes_preview: [],
           }),
         ],
       }),
@@ -117,6 +135,7 @@ function planHandlers() {
           name: body.name ?? 'new plan',
           description: body.description ?? '',
           target_date: body.target_date ?? null,
+          nodes: [] as unknown[], // detail-shaped write response (pmPlanDetailMap).
         }),
         201,
       );
@@ -134,7 +153,7 @@ function planHandlers() {
     // PATCH /:id — draft-only edit (name/goal/target_date).
     http.patch('/api/projects/:pid/plans/:id', async ({ params, request }) => {
       const body = (await request.json()) as Record<string, unknown>;
-      return ok(basePlan(String(params.pid), String(params.id), body));
+      return ok(basePlan(String(params.pid), String(params.id), { nodes: [], ...body }));
     }),
     // POST /:id/tasks — select a backlog task into the Plan.
     http.post('/api/projects/:pid/plans/:id/tasks', async ({ params, request }) => {
@@ -152,19 +171,19 @@ function planHandlers() {
     ),
     // #287 deps + lifecycle (stubbed contract surface).
     http.post('/api/projects/:pid/plans/:id/dependencies', ({ params }) =>
-      ok(basePlan(String(params.pid), String(params.id))),
+      ok(basePlan(String(params.pid), String(params.id), { nodes: [] })),
     ),
     http.delete('/api/projects/:pid/plans/:id/dependencies', () =>
       new HttpResponse(null, { status: 204 }),
     ),
     http.post('/api/projects/:pid/plans/:id/start', ({ params }) =>
-      ok(basePlan(String(params.pid), String(params.id), { status: 'running' })),
+      ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
     ),
     http.post('/api/projects/:pid/plans/:id/stop', ({ params }) =>
-      ok(basePlan(String(params.pid), String(params.id), { status: 'draft' })),
+      ok(basePlan(String(params.pid), String(params.id), { status: 'draft', nodes: [] })),
     ),
     http.post('/api/projects/:pid/plans/:id/advance', ({ params }) =>
-      ok(basePlan(String(params.pid), String(params.id), { status: 'running' })),
+      ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
     ),
   ];
 }

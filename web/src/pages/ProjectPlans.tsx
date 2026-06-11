@@ -357,11 +357,20 @@ function AddToPlanItem({
 }
 
 // PlanColumn — one column per Plan. Header = name + status chip + Open ▸ link;
-// sub-header = progress + has_failed. Cards = the Plan's nodes (no add-button).
+// sub-header = progress + has_failed. Cards = the Plan's nodes_preview (capped 4
+// by the backend, no add-button), with an "…and M more" overflow from node_count.
 // A DRAFT column is a valid HTML5 drop target (select-into-plan); a running/done
 // column is NOT (§9.4) — it rejects the drop + never highlights.
-const MAX_CARDS = 4;
-
+//
+// DEFENSIVE DEFAULTS (resilience): every enriched field is read through a guard
+// so a partial / bare response (e.g. a not-yet-enriched endpoint, or a degraded
+// payload) degrades to an EMPTY column instead of crashing the ErrorBoundary —
+// this is the regression guard for the run-real `reading 'done'` white-screen
+// (progress was undefined on the original bare GET /plans, see PR #272). Each:
+//   progress      ?? { done: 0, total: 0 }
+//   has_failed    ?? false
+//   nodes_preview ?? []
+//   node_count    ?? 0
 function PlanColumn({
   projectId,
   plan,
@@ -374,9 +383,14 @@ function PlanColumn({
   const add = useAddTaskToPlan(projectId, plan.id);
   const [dropActive, setDropActive] = useState(false);
   const isDraft = plan.status === 'draft';
-  const nodes = plan.nodes ?? [];
-  const shown = nodes.slice(0, MAX_CARDS);
-  const overflow = nodes.length - shown.length;
+  // Defensive reads — see the DEFENSIVE DEFAULTS note above.
+  const progress = plan.progress ?? { done: 0, total: 0 };
+  const hasFailed = plan.has_failed ?? false;
+  const preview = plan.nodes_preview ?? [];
+  const nodeCount = plan.node_count ?? 0;
+  // Cards = the (already-capped) preview; overflow = total − shown, only if > 0.
+  const shown = preview;
+  const overflow = nodeCount - shown.length > 0 ? nodeCount - shown.length : 0;
 
   // A drop is valid only on a draft column while a Backlog task is being dragged.
   const canDrop = isDraft && dragTaskId !== null;
@@ -430,9 +444,9 @@ function PlanColumn({
       </div>
       <div className="flex items-center gap-1.5 px-0.5 pb-2 pt-0.5">
         <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="plan-progress">
-          {plan.status === 'draft' ? 'Planning' : 'In progress'} · {planProgressLabel(plan.progress)}
+          {plan.status === 'draft' ? 'Planning' : 'In progress'} · {planProgressLabel(progress)}
         </span>
-        <PlanFailedIndicator hasFailed={plan.has_failed} />
+        <PlanFailedIndicator hasFailed={hasFailed} />
       </div>
       {shown.length === 0 ? (
         <p className="py-3 text-center text-[0.6875rem] text-text-muted" data-testid="plan-empty">

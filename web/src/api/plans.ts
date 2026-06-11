@@ -55,8 +55,18 @@ export interface PlanEdge {
   to_task_id: string;
 }
 
-// Plan DTO. `nodes` are present on the single-Plan read (GET /{id}); the list
-// read (GET /) may omit them. `progress` + `has_failed` are derived (§9.1).
+// Plan DTO. `progress` + `has_failed` are derived (§9.1).
+//
+// Two read shapes carry derived nodes (both via the SAME backend pmPlanNodeMap
+// helper, so a node is byte-identical between them — verified vs merged PR #272
+// → v2.9 trunk 654d30e):
+//   • detail (GET /{id})  → `nodes`: the FULL DAG (every PlanNode).
+//   • list   (GET /)      → `nodes_preview`: the first 4 PlanNodes (capped),
+//                            plus `node_count` (the TOTAL node count) for the
+//                            "…and M more" overflow on the Work Board card.
+// Both are optional on the type so either response is assignable; the Work Board
+// (#291) reads the list pair (nodes_preview / node_count) and the Plan detail
+// (#287) reads `nodes`. Field names match the real DTO EXACTLY.
 export interface Plan {
   id: string;
   project_id: string;
@@ -69,7 +79,11 @@ export interface Plan {
   has_failed: boolean;
   progress: { done: number; total: number };
   created_at: string;
+  // detail read (GET /{id}) — full DAG.
   nodes?: PlanNode[];
+  // list read (GET /) — capped preview + total count (enriched PR #272).
+  nodes_preview?: PlanNode[];
+  node_count?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,8 +93,8 @@ export interface Plan {
 const plansBase = (projectId: string) => `/projects/${projectId}/plans`;
 
 // GET / — the parallel Plan list for a project. Response wrapped under `plans`
-// (mirrors the Task list `{ tasks: [] }` convention). nodes may be omitted in
-// the list shape.
+// (mirrors the Task list `{ tasks: [] }` convention). Each row is enriched
+// (PR #272): progress + has_failed + node_count + nodes_preview (capped 4).
 export function usePlans(projectId: string | undefined) {
   return useQuery({
     queryKey: qk.plansByProject(projectId ?? ''),
