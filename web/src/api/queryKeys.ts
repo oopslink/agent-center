@@ -61,4 +61,9 @@ export const qk = {
   // keyed by projectId; a single Plan (nodes + derived) keyed by plan id.
   plansByProject: (projectId: string) => o('plansByProject', projectId),
   plan: (id: string) => o('plan', id),
+  // v2.9 #291 Work Board: the Backlog column = the project's UNPLANNED tasks
+  // (plan_id null), GET /projects/{pid}/tasks?unplanned=1. Distinct key from the
+  // full task list so the board's Backlog refetches when a task is added to a
+  // Plan (add-task invalidates tasksByProject; we mirror it for this key).
+  unplannedTasksByProject: (projectId: string) => o('unplannedTasksByProject', projectId),
 };

@@ -87,12 +87,12 @@ describe('App shell + route tree', () => {
     const plansLink = await screen.findByTestId('project-plans-link');
     expect(plansLink).toHaveAttribute('href', `${ORG_BASE}/projects/proj-a/plans`);
     fireEvent.click(plansLink);
-    // lands on the parallel Plan list.
+    // lands on the Work Board (the #291 refactored ProjectPlans board).
     await waitFor(() => expect(screen.getByTestId('page-ProjectPlans')).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId('plans-list')).toBeInTheDocument());
-    // a Plan card → Plan detail (the #287 DAG placeholder route).
-    const card = screen.getAllByTestId('plan-card-link')[0];
-    fireEvent.click(card);
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+    // a Plan column's "Open ▸" → Plan detail (the #287 DAG view route).
+    const open = screen.getByTestId('plan-open-PL-1');
+    fireEvent.click(open);
     await waitFor(() => expect(screen.getByTestId('page-PlanDetail')).toBeInTheDocument());
     expect(window.location.pathname).toBe(`${ORG_BASE}/projects/proj-a/plans/PL-1`);
   });
