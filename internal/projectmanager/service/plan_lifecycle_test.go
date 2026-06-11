@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -119,6 +120,266 @@ func (h *planAdvanceHarness) setTaskStatus(t *testing.T, tid pm.TaskID, status p
 	t.Helper()
 	if err := h.svc.SetTaskStatus(h.ctx, tid, status, "user:a"); err != nil {
 		t.Fatalf("SetTaskStatus(%s): %v", status, err)
+	}
+}
+
+// TestListPlanSummaries_DerivesPerPlanReadModel asserts ListPlanSummaries returns
+// one PlanDetail per plan with the SAME DERIVED read model as GetPlanDetail
+// (progress/has_failed/node statuses), so the Work Board enrich is consistent and
+// per-plan — without a second N+1 round of GetPlanDetail calls.
+func TestListPlanSummaries_DerivesPerPlanReadModel(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+
+	// planA: 3 tasks — one completed (done), one discarded (failed), one open.
+	planA, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	h.drain(t)
+	tDone := h.seedAssignedTask(t, pid, planA, "done", "user:x")
+	tFail := h.seedAssignedTask(t, pid, planA, "fail", "user:y")
+	h.seedAssignedTask(t, pid, planA, "open", "user:z")
+	h.setTaskStatus(t, tDone, pm.TaskCompleted)
+	h.setTaskStatus(t, tFail, pm.TaskDiscarded)
+
+	// planB: empty (no tasks).
+	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "beta", CreatedBy: "user:a"})
+	h.drain(t)
+
+	summaries, err := h.svc.ListPlanSummaries(h.ctx, pid)
+	if err != nil {
+		t.Fatalf("ListPlanSummaries: %v", err)
+	}
+	if len(summaries) != 2 {
+		t.Fatalf("summaries=%d want 2", len(summaries))
+	}
+	byID := map[pm.PlanID]*PlanDetail{}
+	for _, d := range summaries {
+		byID[d.Plan.ID()] = d
+	}
+
+	a := byID[planA]
+	if a == nil {
+		t.Fatal("planA missing from summaries")
+	}
+	if a.View.Progress.Done != 1 || a.View.Progress.Total != 3 {
+		t.Fatalf("planA progress=%+v want {Done:1,Total:3}", a.View.Progress)
+	}
+	if !a.View.HasFailed {
+		t.Fatal("planA has_failed=false want true")
+	}
+	if len(a.View.Nodes) != 3 {
+		t.Fatalf("planA nodes=%d want 3", len(a.View.Nodes))
+	}
+
+	b := byID[planB]
+	if b.View.Progress.Done != 0 || b.View.Progress.Total != 0 {
+		t.Fatalf("planB progress=%+v want {0,0}", b.View.Progress)
+	}
+	if b.View.HasFailed {
+		t.Fatal("planB has_failed=true want false")
+	}
+	if len(b.View.Nodes) != 0 {
+		t.Fatalf("planB nodes=%d want 0", len(b.View.Nodes))
+	}
+
+	// Consistency: the summary's per-node status equals GetPlanDetail's for planA.
+	detail, err := h.svc.GetPlanDetail(h.ctx, planA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detailStatus := map[pm.TaskID]pm.NodeStatus{}
+	for _, n := range detail.View.Nodes {
+		detailStatus[n.TaskID] = n.NodeStatus
+	}
+	for _, n := range a.View.Nodes {
+		if detailStatus[n.TaskID] != n.NodeStatus {
+			t.Fatalf("node %s: summary=%s detail=%s", n.TaskID, n.NodeStatus, detailStatus[n.TaskID])
+		}
+	}
+}
+
+// TestListPlanSummaries_BatchedNoNPlus1 asserts ListPlanSummaries is N+1-free:
+// across THREE non-trivial plans (each with tasks + DAG edges + dispatch records),
+// the derived per-plan read model is correct AND identical to the per-plan
+// GetPlanDetail — proving the batched (ListByProject + ListDependenciesByPlans +
+// ListDispatchRecordsByPlans) in-memory grouping produces the SAME result as the
+// single-plan load path, with no per-plan repo round-trip.
+func TestListPlanSummaries_BatchedNoNPlus1(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+
+	type planShape struct {
+		id    pm.PlanID
+		tasks []pm.TaskID
+	}
+	shapes := make([]planShape, 0, 3)
+	for i := 0; i < 3; i++ {
+		name := string(rune('a' + i))
+		planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: "user:a"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.drain(t)
+		// Each plan: 3 tasks t0->t1->t2 (a real DAG), distinct per plan.
+		t0 := h.seedAssignedTask(t, pid, planID, name+"-t0", "user:x")
+		t1 := h.seedAssignedTask(t, pid, planID, name+"-t1", "user:y")
+		t2 := h.seedAssignedTask(t, pid, planID, name+"-t2", "user:z")
+		// t1 depends_on t0; t2 depends_on t1 (edges scoped to THIS plan).
+		if err := h.svc.AddPlanDependency(h.ctx, planID, t1, t0, "user:a"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.svc.AddPlanDependency(h.ctx, planID, t2, t1, "user:a"); err != nil {
+			t.Fatal(err)
+		}
+		// A dispatch record for t0 (the root) in THIS plan only.
+		if err := h.plans.RecordDispatch(h.ctx, planID, t0, time.Unix(1_700_000_100, 0).UTC(), "msg-"+name); err != nil {
+			t.Fatal(err)
+		}
+		shapes = append(shapes, planShape{id: planID, tasks: []pm.TaskID{t0, t1, t2}})
+	}
+
+	summaries, err := h.svc.ListPlanSummaries(h.ctx, pid)
+	if err != nil {
+		t.Fatalf("ListPlanSummaries: %v", err)
+	}
+	if len(summaries) != 3 {
+		t.Fatalf("summaries=%d want 3", len(summaries))
+	}
+	byID := map[pm.PlanID]*PlanDetail{}
+	for _, d := range summaries {
+		byID[d.Plan.ID()] = d
+	}
+
+	for _, sh := range shapes {
+		got := byID[sh.id]
+		if got == nil {
+			t.Fatalf("plan %s missing from summaries", sh.id)
+		}
+		// Correctness + isolation: each plan sees EXACTLY its own 3 tasks/nodes.
+		if len(got.Tasks) != 3 || len(got.View.Nodes) != 3 {
+			t.Fatalf("plan %s tasks=%d nodes=%d want 3/3 (cross-plan leak?)", sh.id, len(got.Tasks), len(got.View.Nodes))
+		}
+		// The batched view must equal the single-plan GetPlanDetail view exactly:
+		// node order, node_status, task_status, depends_on, dispatch — field by field.
+		detail, derr := h.svc.GetPlanDetail(h.ctx, sh.id)
+		if derr != nil {
+			t.Fatal(derr)
+		}
+		if !reflect.DeepEqual(got.View, detail.View) {
+			t.Fatalf("plan %s batched view != GetPlanDetail view:\n batched=%#v\n detail =%#v", sh.id, got.View, detail.View)
+		}
+		// The root (t0) is dispatched in this plan and nowhere leaked from others.
+		for _, n := range got.View.Nodes {
+			if n.TaskID == sh.tasks[0] && !n.Dispatched {
+				t.Fatalf("plan %s root %s should be dispatched", sh.id, sh.tasks[0])
+			}
+		}
+	}
+}
+
+// TestPlanRepo_BatchReads_GroupAndIsolate asserts the two batch repo methods
+// (ListDependenciesByPlans / ListDispatchRecordsByPlans) return correctly GROUPED
+// per-plan data and never leak between plans — and that an empty planIDs slice
+// yields an empty result (no malformed `IN ()`), matching the single-plan readers.
+func TestPlanRepo_BatchReads_GroupAndIsolate(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+
+	// Two plans with DISTINCT edge + dispatch counts so a leak is observable.
+	planA, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	h.drain(t)
+	a0 := h.seedAssignedTask(t, pid, planA, "a0", "user:x")
+	a1 := h.seedAssignedTask(t, pid, planA, "a1", "user:y")
+	if err := h.svc.AddPlanDependency(h.ctx, planA, a1, a0, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.plans.RecordDispatch(h.ctx, planA, a0, time.Unix(1_700_000_100, 0).UTC(), "ma0"); err != nil {
+		t.Fatal(err)
+	}
+
+	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "beta", CreatedBy: "user:a"})
+	h.drain(t)
+	b0 := h.seedAssignedTask(t, pid, planB, "b0", "user:x")
+	b1 := h.seedAssignedTask(t, pid, planB, "b1", "user:y")
+	b2 := h.seedAssignedTask(t, pid, planB, "b2", "user:z")
+	if err := h.svc.AddPlanDependency(h.ctx, planB, b1, b0, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AddPlanDependency(h.ctx, planB, b2, b1, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.plans.RecordDispatch(h.ctx, planB, b0, time.Unix(1_700_000_200, 0).UTC(), "mb0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.plans.RecordDispatch(h.ctx, planB, b1, time.Unix(1_700_000_300, 0).UTC(), "mb1"); err != nil {
+		t.Fatal(err)
+	}
+
+	planIDs := []pm.PlanID{planA, planB}
+
+	// --- ListDependenciesByPlans: grouped per plan, == single-plan reader. -----
+	allEdges, err := h.plans.ListDependenciesByPlans(h.ctx, planIDs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edgesByPlan := map[pm.PlanID][]pm.Dependency{}
+	for _, e := range allEdges {
+		edgesByPlan[e.PlanID] = append(edgesByPlan[e.PlanID], e)
+	}
+	if len(edgesByPlan[planA]) != 1 {
+		t.Fatalf("planA edges=%d want 1 (leak?)", len(edgesByPlan[planA]))
+	}
+	if len(edgesByPlan[planB]) != 2 {
+		t.Fatalf("planB edges=%d want 2 (leak?)", len(edgesByPlan[planB]))
+	}
+	for _, p := range planIDs {
+		single, serr := h.plans.ListDependencies(h.ctx, p)
+		if serr != nil {
+			t.Fatal(serr)
+		}
+		if !reflect.DeepEqual(edgesByPlan[p], single) {
+			t.Fatalf("plan %s batched edges != single-plan edges:\n batched=%v\n single =%v", p, edgesByPlan[p], single)
+		}
+	}
+
+	// --- ListDispatchRecordsByPlans: grouped per plan, == single-plan reader. ---
+	allRecs, err := h.plans.ListDispatchRecordsByPlans(h.ctx, planIDs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recsByPlan := map[pm.PlanID][]pm.DispatchRecord{}
+	for _, rec := range allRecs {
+		recsByPlan[rec.PlanID] = append(recsByPlan[rec.PlanID], rec)
+	}
+	if len(recsByPlan[planA]) != 1 {
+		t.Fatalf("planA dispatch=%d want 1 (leak?)", len(recsByPlan[planA]))
+	}
+	if len(recsByPlan[planB]) != 2 {
+		t.Fatalf("planB dispatch=%d want 2 (leak?)", len(recsByPlan[planB]))
+	}
+	for _, p := range planIDs {
+		single, serr := h.plans.ListDispatchRecords(h.ctx, p)
+		if serr != nil {
+			t.Fatal(serr)
+		}
+		if !reflect.DeepEqual(recsByPlan[p], single) {
+			t.Fatalf("plan %s batched dispatch != single-plan dispatch:\n batched=%v\n single =%v", p, recsByPlan[p], single)
+		}
+	}
+
+	// --- empty planIDs → empty slice (no malformed IN ()). ---------------------
+	emptyEdges, err := h.plans.ListDependenciesByPlans(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("empty ListDependenciesByPlans: %v", err)
+	}
+	if len(emptyEdges) != 0 {
+		t.Fatalf("empty planIDs edges=%d want 0", len(emptyEdges))
+	}
+	emptyRecs, err := h.plans.ListDispatchRecordsByPlans(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("empty ListDispatchRecordsByPlans: %v", err)
+	}
+	if len(emptyRecs) != 0 {
+		t.Fatalf("empty planIDs dispatch=%d want 0", len(emptyRecs))
 	}
 }
 

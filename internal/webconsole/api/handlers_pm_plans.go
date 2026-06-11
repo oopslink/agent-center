@@ -33,6 +33,44 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 	return m
 }
 
+// pmPlanNodeMap renders ONE PlanNodeView to the canonical Plan-node JSON shape
+// (§9.2): {task_id,title,assignee_ref,task_status,node_status,depends_on,
+// dispatched_at?}. It is the SINGLE source of the node contract — both the detail
+// DTO (pmPlanDetailMap) and the list-row preview (pmPlanSummaryMap) build their
+// nodes through this helper, so a list preview node is byte-identical in shape to
+// a detail node and the two can never drift. titleOf/assigneeOf are the per-Plan
+// task lookups built once by the caller.
+func pmPlanNodeMap(n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef) map[string]any {
+	depends := make([]string, 0, len(n.DependsOn))
+	for _, d := range n.DependsOn {
+		depends = append(depends, string(d))
+	}
+	node := map[string]any{
+		"task_id":      string(n.TaskID),
+		"title":        titleOf[n.TaskID],
+		"assignee_ref": string(assigneeOf[n.TaskID]),
+		"task_status":  string(n.TaskStatus),
+		"node_status":  string(n.NodeStatus),
+		"depends_on":   depends,
+	}
+	if n.Dispatched && !n.DispatchedAt.IsZero() {
+		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
+	}
+	return node
+}
+
+// planNodeLookups builds the per-Plan task title/assignee lookups used to enrich
+// derived nodes (which carry only task_id) into the full node JSON.
+func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm.TaskID]pm.IdentityRef) {
+	titleOf := make(map[pm.TaskID]string, len(detail.Tasks))
+	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks))
+	for _, t := range detail.Tasks {
+		titleOf[t.ID()] = t.Title()
+		assigneeOf[t.ID()] = t.Assignee()
+	}
+	return titleOf, assigneeOf
+}
+
 // pmPlanDetailMap renders the full Plan DTO with the DERIVED node read model
 // (§9.2): nodes[{task_id,title,assignee_ref,task_status,node_status,depends_on,
 // dispatched_at?}] + ready_set + has_failed + progress{done,total}.
@@ -40,31 +78,11 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	p := detail.Plan
 	m := pmPlanMap(p)
 
-	titleOf := make(map[pm.TaskID]string, len(detail.Tasks))
-	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks))
-	for _, t := range detail.Tasks {
-		titleOf[t.ID()] = t.Title()
-		assigneeOf[t.ID()] = t.Assignee()
-	}
+	titleOf, assigneeOf := planNodeLookups(detail)
 
 	nodes := make([]map[string]any, 0, len(detail.View.Nodes))
 	for _, n := range detail.View.Nodes {
-		depends := make([]string, 0, len(n.DependsOn))
-		for _, d := range n.DependsOn {
-			depends = append(depends, string(d))
-		}
-		node := map[string]any{
-			"task_id":      string(n.TaskID),
-			"title":        titleOf[n.TaskID],
-			"assignee_ref": string(assigneeOf[n.TaskID]),
-			"task_status":  string(n.TaskStatus),
-			"node_status":  string(n.NodeStatus),
-			"depends_on":   depends,
-		}
-		if n.Dispatched && !n.DispatchedAt.IsZero() {
-			node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
-		}
-		nodes = append(nodes, node)
+		nodes = append(nodes, pmPlanNodeMap(n, titleOf, assigneeOf))
 	}
 	readySet := make([]string, 0, len(detail.View.ReadySet))
 	for _, id := range detail.View.ReadySet {
@@ -75,6 +93,41 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m["ready_set"] = readySet
 	m["has_failed"] = detail.View.HasFailed
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	return m
+}
+
+// planListNodePreviewCap bounds the per-Plan node preview the LIST endpoint emits
+// for the Work Board card ("前4节点"); plans with more nodes report the full count
+// via node_count so the board can render the "…还 M 个" overflow hint.
+const planListNodePreviewCap = 4
+
+// pmPlanSummaryMap renders a Plan for the Work Board's kanban LIST view: the bare
+// Plan fields (same as pmPlanMap) PLUS the DERIVED board summary (§9.1/§9.2) —
+// progress{done,total}, has_failed, node_count, and a capped nodes_preview (the
+// first planListNodePreviewCap nodes). Each preview node is built through the SAME
+// pmPlanNodeMap helper the detail DTO uses, so a list-row preview node carries the
+// FULL node contract ({task_id,title,assignee_ref,task_status,node_status,
+// depends_on,dispatched_at?}) and is byte-identical in shape to a detail node —
+// the StatusChip reads task_status without crashing, and the two views can't drift.
+func pmPlanSummaryMap(detail *pmservice.PlanDetail) map[string]any {
+	m := pmPlanMap(detail.Plan)
+
+	titleOf, assigneeOf := planNodeLookups(detail)
+
+	nodes := detail.View.Nodes
+	n := len(nodes)
+	if n > planListNodePreviewCap {
+		n = planListNodePreviewCap
+	}
+	preview := make([]map[string]any, 0, n)
+	for _, nd := range nodes[:n] {
+		preview = append(preview, pmPlanNodeMap(nd, titleOf, assigneeOf))
+	}
+
+	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	m["has_failed"] = detail.View.HasFailed
+	m["node_count"] = len(nodes)
+	m["nodes_preview"] = preview
 	return m
 }
 
@@ -106,14 +159,14 @@ func (s *Server) pmListPlansHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	plans, err := d.PM.ListPlans(r.Context(), p.ID())
+	summaries, err := d.PM.ListPlanSummaries(r.Context(), p.ID())
 	if err != nil {
 		mapPlanError(w, err)
 		return
 	}
-	out := make([]map[string]any, 0, len(plans))
-	for _, pl := range plans {
-		out = append(out, pmPlanMap(pl))
+	out := make([]map[string]any, 0, len(summaries))
+	for _, detail := range summaries {
+		out = append(out, pmPlanSummaryMap(detail))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"plans": out})
 }

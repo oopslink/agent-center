@@ -4,11 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
+
+// planIDPlaceholders builds the `?,?,...` placeholder list and matching []any
+// args for a `WHERE plan_id IN (...)` batch query over the given plan ids.
+func planIDPlaceholders(planIDs []pm.PlanID) (string, []any) {
+	ph := make([]string, len(planIDs))
+	args := make([]any, len(planIDs))
+	for i, id := range planIDs {
+		ph[i] = "?"
+		args[i] = string(id)
+	}
+	return strings.Join(ph, ","), args
+}
 
 // --- PlanRepo ---------------------------------------------------------------
 
@@ -159,6 +172,34 @@ func (r *PlanRepo) ListDependencies(ctx context.Context, planID pm.PlanID) ([]pm
 	return out, rows.Err()
 }
 
+// ListDependenciesByPlans is the BATCH form of ListDependencies: ONE
+// `WHERE plan_id IN (...)` query returns every given plan's depends_on edges, so a
+// per-project read loads all DAGs without an N+1 loop. Each row carries plan_id so
+// the caller groups in-memory. Empty planIDs → empty slice (no malformed `IN ()`).
+func (r *PlanRepo) ListDependenciesByPlans(ctx context.Context, planIDs []pm.PlanID) ([]pm.Dependency, error) {
+	if len(planIDs) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	in, args := planIDPlaceholders(planIDs)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, from_task_id, to_task_id FROM pm_task_dependencies WHERE plan_id IN (`+in+`) ORDER BY plan_id, from_task_id, to_task_id`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.Dependency
+	for rows.Next() {
+		var pid, from, to string
+		if err := rows.Scan(&pid, &from, &to); err != nil {
+			return nil, err
+		}
+		out = append(out, pm.Dependency{PlanID: pm.PlanID(pid), FromTaskID: pm.TaskID(from), ToTaskID: pm.TaskID(to)})
+	}
+	return out, rows.Err()
+}
+
 // --- Dispatch records (v2.9 #285, §9.3) -------------------------------------
 
 // RecordDispatch writes the once-only {plan_id, task_id} dispatch record. It is
@@ -179,6 +220,37 @@ func (r *PlanRepo) ListDispatchRecords(ctx context.Context, planID pm.PlanID) ([
 	rows, err := exec.QueryContext(ctx,
 		`SELECT plan_id, task_id, dispatched_at, dispatch_message_id FROM pm_plan_dispatch_records WHERE plan_id = ? ORDER BY task_id`,
 		string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.DispatchRecord
+	for rows.Next() {
+		var pid, tid, at, mid string
+		if err := rows.Scan(&pid, &tid, &at, &mid); err != nil {
+			return nil, err
+		}
+		out = append(out, pm.DispatchRecord{
+			PlanID: pm.PlanID(pid), TaskID: pm.TaskID(tid),
+			DispatchedAt: parseTime(at), DispatchMessageID: mid,
+		})
+	}
+	return out, rows.Err()
+}
+
+// ListDispatchRecordsByPlans is the BATCH form of ListDispatchRecords: ONE
+// `WHERE plan_id IN (...)` query returns every given plan's dispatch records, so a
+// per-project read loads all dispatch state without an N+1 loop. Each row carries
+// plan_id so the caller groups in-memory. Empty planIDs → empty slice.
+func (r *PlanRepo) ListDispatchRecordsByPlans(ctx context.Context, planIDs []pm.PlanID) ([]pm.DispatchRecord, error) {
+	if len(planIDs) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	in, args := planIDPlaceholders(planIDs)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, task_id, dispatched_at, dispatch_message_id FROM pm_plan_dispatch_records WHERE plan_id IN (`+in+`) ORDER BY plan_id, task_id`,
+		args...)
 	if err != nil {
 		return nil, err
 	}
