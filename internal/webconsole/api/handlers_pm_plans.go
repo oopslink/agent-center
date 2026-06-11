@@ -159,11 +159,13 @@ func mapPlanError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
-		errors.Is(err, pm.ErrProjectArchived):
+		errors.Is(err, pm.ErrProjectArchived),
+		errors.Is(err, pm.ErrPlanHasRunningTasks):
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op (running
 		// can't delete/archive; already-archived can't re-archive; not-draft can't
 		// edit task-set/DAG; not-running can't advance/stop). v2.9 #297: a plan op on
-		// an ARCHIVED PARENT PROJECT also conflicts. All → 409, consistent across
+		// an ARCHIVED PARENT PROJECT also conflicts; #299: archive rejected while a
+		// member task is still running. All → 409, consistent across
 		// webconsole + MCP. Validation-class (cycle/self/no-tasks) stays 400.
 		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
 	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):

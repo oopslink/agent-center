@@ -193,8 +193,11 @@ func TestArchivePlan_NonRunning_CascadeArchivesTasks(t *testing.T) {
 	h.drain(t)
 	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
 	b := h.seedTaskInPlan(t, pid, planID, "b", "user:y")
-	// Drive one task to a non-open status so we can assert it's preserved.
-	if err := h.svc.SetTaskStatus(h.ctx, a, pm.TaskRunning, "user:a"); err != nil {
+	// Drive one task to a non-open, NON-RUNNING status so we can assert it's
+	// preserved (v2.9 #299: a running task would block archive — see
+	// TestArchivePlan_RunningTask_Rejected; here we use Discarded to keep testing the
+	// status-orthogonal cascade).
+	if err := h.svc.SetTaskStatus(h.ctx, a, pm.TaskDiscarded, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -210,8 +213,8 @@ func TestArchivePlan_NonRunning_CascadeArchivesTasks(t *testing.T) {
 	if p.Status() != pm.PlanArchived {
 		t.Fatalf("plan status = %q want archived", p.Status())
 	}
-	// Both tasks archived; status preserved (a=running, b=open).
-	wantStatus := map[pm.TaskID]pm.TaskStatus{a: pm.TaskRunning, b: pm.TaskOpen}
+	// Both tasks archived; status preserved (a=discarded, b=open).
+	wantStatus := map[pm.TaskID]pm.TaskStatus{a: pm.TaskDiscarded, b: pm.TaskOpen}
 	for id, want := range wantStatus {
 		tk, err := h.tasks.FindByID(h.ctx, id)
 		if err != nil {
@@ -251,6 +254,34 @@ func TestArchivePlan_Running_Rejected(t *testing.T) {
 
 	if err := h.svc.ArchivePlan(h.ctx, planID, "user:a"); err != pm.ErrPlanRunning {
 		t.Fatalf("ArchivePlan(running) = %v want ErrPlanRunning", err)
+	}
+}
+
+// TestArchivePlan_RunningTask_Rejected: v2.9 #299 (@oopslink) — a (draft/stopped)
+// plan with ANY member task in the running state can't be archived (archiving would
+// orphan the in-flight task); completing/stopping the task unblocks archive.
+func TestArchivePlan_RunningTask_Rejected(t *testing.T) {
+	h := planRemovalSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
+	// Drive the member task to running while the plan stays draft (the in-flight case).
+	if err := h.svc.SetTaskStatus(h.ctx, a, pm.TaskRunning, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Archive rejected while the member task is running.
+	if err := h.svc.ArchivePlan(h.ctx, planID, "user:a"); err != pm.ErrPlanHasRunningTasks {
+		t.Fatalf("ArchivePlan(running task) = %v want ErrPlanHasRunningTasks", err)
+	}
+
+	// Discard the running task → no longer running → archive now succeeds.
+	if err := h.svc.SetTaskStatus(h.ctx, a, pm.TaskDiscarded, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ArchivePlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("ArchivePlan after discarding the running task: %v", err)
 	}
 }
 
