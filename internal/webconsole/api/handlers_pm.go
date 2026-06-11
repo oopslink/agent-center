@@ -99,6 +99,10 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
+		// v2.9 P3 Stage B: orthogonal archived state (independent of status) — the
+		// archive FE renders an "已归档" badge + read-only affordance off these.
+		"archived": t.IsArchived(), "archived_by": string(t.ArchivedBy()),
+		"archived_at": rfc3339OrEmptyPtr(t.ArchivedAt()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
@@ -121,6 +125,15 @@ func rfc3339OrEmpty(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.RFC3339Nano)
+}
+
+// rfc3339OrEmptyPtr formats an optional timestamp as RFC3339Nano, or "" when
+// nil/zero (the orthogonal archived_at is nil for a never-archived task).
+func rfc3339OrEmptyPtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return rfc3339OrEmpty(*t)
 }
 
 // orgRefToken renders the v2.7.1 #245 display/reference token ("T<n>"/"I<n>"),
