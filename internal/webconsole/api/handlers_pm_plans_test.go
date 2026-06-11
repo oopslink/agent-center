@@ -527,6 +527,33 @@ func TestPlanAPI_Delete_RunningRejected_409(t *testing.T) {
 	}
 }
 
+// TestPlanAPI_RemoveTask_NonDraft_409 locks the v2.9 ErrPlanNotDraft→409 unification:
+// editing the task-set of a RUNNING plan is a STATE-conflict (was 400 invalid_request),
+// now 409 plan_conflict — same class + code as ErrPlanRunning/Archived, consistent with MCP.
+func TestPlanAPI_RemoveTask_NonDraft_409(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, _ := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	planID := fx.createPlan(t, s, sess, pid, "live")
+	taskA := fx.seedSelectedTask(t, sess, pid, planID, "a", "user:"+sess.IdentityID)
+	if r := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/start", `{}`, sess); r.StatusCode != 200 {
+		t.Fatalf("start status=%d", r.StatusCode)
+	}
+	fx.drain(t)
+
+	// Remove a task from the RUNNING plan → ErrPlanNotDraft → 409 (was 400).
+	resp := orgScopedDelete(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/tasks/"+string(taskA), sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("remove task from running plan status=%d want 409 (ErrPlanNotDraft state-conflict)", resp.StatusCode)
+	}
+}
+
 // TestPlanAPI_Delete_OrgGate: DELETE a plan in another org → 404 (project gate).
 func TestPlanAPI_Delete_OrgGate(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
