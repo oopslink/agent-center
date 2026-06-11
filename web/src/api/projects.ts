@@ -33,6 +33,26 @@ export function useProjects() {
   });
 }
 
+// v2.9 #298: the ARCHIVED-only project list. The backend default-EXCLUDES
+// archived from the active list (useProjects → /projects); this hook fetches
+// the archived projects explicitly via ?status=archived. Own query key so it
+// caches independently of the active list. Mirrors useProjects (wrapped
+// { projects } response). Drives the collapsed "已归档" group on the Projects
+// page — passing `enabled` lets the caller defer the fetch until expanded.
+export function useArchivedProjects(enabled = true) {
+  return useQuery({
+    queryKey: qk.projectsArchived(),
+    queryFn: async () => {
+      const resp = await api.get<{ projects: Project[] }>(
+        '/projects?status=archived',
+      );
+      return resp.projects;
+    },
+    enabled,
+    staleTime: 5_000,
+  });
+}
+
 export function useProject(id: string | undefined) {
   return useQuery({
     queryKey: qk.project(id ?? ''),

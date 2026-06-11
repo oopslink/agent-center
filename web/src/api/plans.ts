@@ -342,6 +342,14 @@ export function useArchivePlan(projectId: string, planId: string) {
 export function friendlyDestructivePlanError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const lower = raw.toLowerCase();
+  // v2.9 #299: ErrPlanHasRunningTasks ("…plan has running tasks — complete or
+  // stop them before archiving") guards MEMBER-TASK state and is DISTINCT from
+  // ErrPlanRunning (plan-state). Its "running tasks" substring also contains
+  // bare "running", so this match MUST come FIRST or it would mis-label as the
+  // plan-is-running message.
+  if (lower.includes('running task')) {
+    return 'This plan has running tasks — wait for them to finish or stop the plan first.';
+  }
   if (lower.includes('running')) {
     return 'This plan is running. Stop it first, then try again.';
   }

@@ -25,7 +25,7 @@ import {
 } from './agents';
 import { useSecrets, useCreateSecret, useRevokeSecret } from './secrets';
 import { useFleet } from './fleet';
-import { useProjects, useProject } from './projects';
+import { useProjects, useProject, useArchivedProjects } from './projects';
 
 // Mutation tests use the sync `mutate(args)` API + waitFor on isSuccess
 // rather than `await act(async () => await mutateAsync(...))`. The async
@@ -220,6 +220,35 @@ describe('react-query hooks', () => {
     const one = renderHook(() => useProject('proj-a'), { wrapper });
     await waitFor(() => expect(one.result.current.isSuccess).toBe(true));
     expect(one.result.current.data?.name).toBe('Project Alpha');
+  });
+
+  // v2.9 #298: useArchivedProjects must call GET /projects?status=archived
+  // (the backend default-excludes archived from useProjects), and return the
+  // archived-only rows.
+  it('useArchivedProjects calls /projects?status=archived', async () => {
+    let seenUrl = '';
+    server.use(
+      http.get('/api/projects', ({ request }) => {
+        seenUrl = request.url;
+        return HttpResponse.json({
+          projects: [{ id: 'proj-z', name: 'Zeta', status: 'archived', created_at: '2026-04-01T00:00:00Z' }],
+        });
+      }),
+    );
+    const wrapper = makeWrapper();
+    const list = renderHook(() => useArchivedProjects(), { wrapper });
+    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
+    expect(new URL(seenUrl).searchParams.get('status')).toBe('archived');
+    expect(list.result.current.data?.[0].id).toBe('proj-z');
+    expect(list.result.current.data?.[0].status).toBe('archived');
+  });
+
+  // enabled=false defers the fetch (drives the lazy collapsed group).
+  it('useArchivedProjects(false) stays idle until enabled', () => {
+    const { result } = renderHook(() => useArchivedProjects(false), {
+      wrapper: makeWrapper(),
+    });
+    expect(result.current.fetchStatus).toBe('idle');
   });
 
   it('useProject skips when id is undefined', () => {

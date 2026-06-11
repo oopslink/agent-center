@@ -36,6 +36,10 @@ export const qk = {
   agentActivity: (id: string) => o('agentActivity', id),
   secrets: () => o('secrets'),
   projects: () => o('projects'),
+  // v2.9 #298: archived-only project list (GET /projects?status=archived).
+  // Distinct key from the active `projects()` list so the collapsed "已归档"
+  // group fetches + caches independently and never collides with the active list.
+  projectsArchived: () => o('projects', 'archived'),
   project: (id: string) => o('project', id),
   fleet: () => o('fleet'),
   workers: () => o('workers'),

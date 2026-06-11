@@ -547,23 +547,37 @@ const baseHandlers = [
 
   // Projects (v2.7 ProjectManager BC projection: wrapped list response;
   // tags retired; status + organization_id + created_by added).
-  http.get('/api/projects', () =>
-    ok({
-      projects: [
-        {
-          id: 'proj-a',
-          organization_id: 'org-test',
-          name: 'Project Alpha',
-          description: 'First sample project',
-          status: 'active',
-          created_by: 'user:hayang',
-          version: 1,
-          created_at: '2026-05-20T01:00:00Z',
-          updated_at: '2026-05-20T01:00:00Z',
-        },
-      ],
-    }),
-  ),
+  http.get('/api/projects', ({ request }) => {
+    // v2.9 #298: the backend default-EXCLUDES archived; ?status=archived →
+    // archived-only; ?status=all → both. Mirror that here so the active list,
+    // the archived group, and the all-case are independently testable.
+    const status = new URL(request.url).searchParams.get('status');
+    const active = {
+      id: 'proj-a',
+      organization_id: 'org-test',
+      name: 'Project Alpha',
+      description: 'First sample project',
+      status: 'active',
+      created_by: 'user:hayang',
+      version: 1,
+      created_at: '2026-05-20T01:00:00Z',
+      updated_at: '2026-05-20T01:00:00Z',
+    };
+    const archived = {
+      id: 'proj-z',
+      organization_id: 'org-test',
+      name: 'Project Zeta (archived)',
+      description: 'A shelved project',
+      status: 'archived',
+      created_by: 'user:hayang',
+      version: 2,
+      created_at: '2026-04-01T01:00:00Z',
+      updated_at: '2026-05-01T01:00:00Z',
+    };
+    if (status === 'archived') return ok({ projects: [archived] });
+    if (status === 'all') return ok({ projects: [active, archived] });
+    return ok({ projects: [active] });
+  }),
   http.post('/api/projects', async ({ request }) => {
     const body = (await request.json()) as { name?: string; description?: string };
     return ok(
