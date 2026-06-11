@@ -109,13 +109,14 @@ func (s *Service) startTaskIfOpen(ctx context.Context, taskID pm.TaskID) error {
 	if t.Status() != pm.TaskOpen {
 		return nil
 	}
+	prevStatus := t.Status() // open, captured before Start.
 	if err := t.Start(s.clock.Now()); err != nil {
 		return err
 	}
 	if err := s.tasks.Update(ctx, t); err != nil {
 		return err
 	}
-	return s.emitTaskStateChanged(ctx, t, "")
+	return s.emitTaskStateChanged(ctx, t, prevStatus, "")
 }
 
 // taskBlockedOnFailureReason is the block reason stamped when a Task is blocked
@@ -138,11 +139,12 @@ func (s *Service) blockTaskOnFailure(ctx context.Context, taskID pm.TaskID) erro
 	if t.Status() != pm.TaskRunning {
 		return nil
 	}
+	prevStatus := t.Status() // running, captured before Block.
 	if err := t.Block(taskBlockedOnFailureReason, s.clock.Now()); err != nil {
 		return err
 	}
 	if err := s.tasks.Update(ctx, t); err != nil {
 		return err
 	}
-	return s.emitTaskStateChanged(ctx, t, taskBlockedOnFailureReason)
+	return s.emitTaskStateChanged(ctx, t, prevStatus, taskBlockedOnFailureReason)
 }

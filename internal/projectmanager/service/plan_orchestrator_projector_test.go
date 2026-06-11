@@ -443,6 +443,82 @@ func TestOrchestrator_FailureReplayNotifiesOnce(t *testing.T) {
 	}
 }
 
+// TestOrchestrator_FirstFailureTransitionNotifies asserts the →failed TRANSITION
+// guard notifies on a genuine first failure: a task moving running→discarded
+// carries prev_status=running (NOT failed) and now=discarded (failed), so the
+// creator is @mentioned exactly once. This is the positive side of the
+// transition guard that the re-discard test below is the negative side of.
+func TestOrchestrator_FirstFailureTransitionNotifies(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "firstfail", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	// Move A into running first (so the failure is a running→discarded transition,
+	// not open→discarded) — prev_status is running, which is NOT failed.
+	h.setTaskStatus(t, a, pm.TaskRunning)
+	h.drain(t)
+	if got := h.mentionCount(t, planID, "user:a"); got != 0 {
+		t.Fatalf("creator mentioned %d times before failure, want 0", got)
+	}
+	// A FAILS: prev=running (not failed) → now=discarded (failed) ⇒ notify once.
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.drain(t)
+	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
+		t.Fatalf("first failure (running→discarded transition) notified %d times, want 1", got)
+	}
+}
+
+// TestOrchestrator_ReDiscardDoesNotRenotify is the edge this fast-follow closes:
+// once a plan-task is already FAILED (discarded), a SUBSEQUENT state_changed event
+// whose prev_status is already `discarded` (a re-discard of an already-failed task)
+// must NOT re-notify the creator — only the →failed TRANSITION notifies. We drive
+// the first failure through the real path (creator mentioned once), then feed a
+// SYNTHETIC state_changed with prev_status=discorded & status=discarded (distinct
+// event id, so the AppliedStore does NOT dedup it) and assert the mention count
+// does NOT increase.
+func TestOrchestrator_ReDiscardDoesNotRenotify(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "rediscard", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	// First failure → creator notified once (the →failed transition).
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.drain(t)
+	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
+		t.Fatalf("first failure notified %d times, want exactly 1", got)
+	}
+
+	// Re-discard: a NEW state_changed event for the already-failed task whose
+	// prev_status is ALREADY discarded. A distinct event id means the AppliedStore
+	// does not short-circuit it — the TRANSITION guard is what must suppress the
+	// re-notify (prev already failed ⇒ not a →failed transition).
+	reEvent := outbox.Event{
+		ID:        h.svc.idgen.NewULID(),
+		EventType: EvtTaskStateChanged,
+		Payload: mustJSON(t, taskEventPayload{
+			TaskID: string(a), ProjectID: string(pid),
+			PrevStatus: string(pm.TaskDiscarded), Status: string(pm.TaskDiscarded),
+		}),
+		CreatedAt: h.svc.clock.Now(),
+	}
+	if err := h.orchestrator.Project(h.ctx, reEvent); err != nil {
+		t.Fatalf("Project(re-discard): %v", err)
+	}
+	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
+		t.Fatalf("re-discard (prev already failed) re-notified: count=%d, want still 1 (the edge this closes)", got)
+	}
+}
+
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
 	b, err := json.Marshal(v)

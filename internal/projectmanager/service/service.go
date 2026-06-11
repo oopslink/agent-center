@@ -144,7 +144,16 @@ type taskEventPayload struct {
 	Assignee             string   `json:"assignee,omitempty"`
 	PreviousAssignee     string   `json:"previous_assignee,omitempty"`
 	Status               string   `json:"status,omitempty"`
-	Reason               string   `json:"reason,omitempty"`
+	// PrevStatus is the task's status BEFORE the transition this event reports
+	// (captured by the producer immediately before the AR transition method). It
+	// lets a consumer distinguish a TRANSITION into a state from a re-emit of an
+	// event whose task was ALREADY in that state — used by the P2-2 failure
+	// handler to notify ONLY on the →failed transition (prev not-failed, now
+	// failed), so re-discarding an already-failed task does NOT re-notify. Empty
+	// on old events / non-transition emits ⇒ treated as "unknown / not-failed" so a
+	// genuine first failure still notifies.
+	PrevStatus string `json:"prev_status,omitempty"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 // planEventPayload is the JSON payload for Plan participant-affecting events

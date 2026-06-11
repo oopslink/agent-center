@@ -128,22 +128,33 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 }
 
 // notifyCreatorOnFailure implements the v2.9 P2-2 failure handler: when THIS
-// pm.task.state_changed event's task is now FAILED (TaskDiscarded — the same
-// taskIsFailed semantics ComputePlanView uses, §9.2/§9.7), it posts an @mention
-// of the Plan CREATOR into the Plan conversation noting the task failed and its
-// downstream is blocked pending resolution. The creator is already a
-// plan-conversation participant (#284 additive sync), so the mention reaches
-// them (an agent creator self-handles; a human handles — design decision 1).
+// pm.task.state_changed event reports a →FAILED TRANSITION (the task's prev
+// status was NOT failed AND it is now FAILED — TaskDiscarded, the same taskIsFailed
+// semantics ComputePlanView uses, §9.2/§9.7), it posts an @mention of the Plan
+// CREATOR into the Plan conversation noting the task failed and its downstream is
+// blocked pending resolution. The creator is already a plan-conversation
+// participant (#284 additive sync), so the mention reaches them (an agent creator
+// self-handles; a human handles — design decision 1).
+//
+// TRANSITION-GUARDED (v2.9 fast-follow): the guard is the →failed TRANSITION, not
+// the CURRENT-failed status. Gating on current-failed alone re-notified whenever a
+// task that was ALREADY failed emitted another state_changed (re-discarding an
+// already-discarded task) — the re-discard edge this closes. PrevStatus rides the
+// event; we notify ONLY if prev-not-failed AND now-failed. An empty PrevStatus
+// (old events / non-transition emits) is the zero TaskStatus → not-failed, so a
+// genuine first failure still notifies and only a real already-failed prev is
+// skipped.
 //
 // IDEMPOTENCY: notify ONCE per failure event. The AppliedStore (in Project's
 // enclosing tx) makes each pm.task.state_changed processed exactly once per
-// projector, so notifying when THIS event's task is failed = once per the failed
+// projector, so notifying on THIS event's →failed transition = once per the failed
 // transition. A replay of the same event short-circuits at IsApplied before
 // advance runs → no re-notify. Unrelated events (a sibling task completing) carry
 // a different, non-failed task → no scan-and-renotify here.
 //
 // It is a no-op for non-task events (pm.plan.started) and for tasks that did NOT
-// transition to failed (the common advance path).
+// transition to failed (the common advance path, incl. a re-discard whose prev is
+// already failed).
 func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context, e outbox.Event, plan *pm.Plan) error {
 	if e.EventType != EvtTaskStateChanged {
 		return nil
@@ -159,8 +170,17 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 	if err != nil {
 		return err
 	}
-	if !pm.TaskIsFailed(t.Status()) {
-		return nil // not a failure transition → nothing to notify.
+	// Notify ONLY on the →failed TRANSITION: prev was NOT failed AND now IS failed.
+	// Gating on the CURRENT status alone re-notified whenever a task was re-discarded
+	// while already failed (an already-failed task emitting another state_changed) —
+	// the re-discard edge this closes. PrevStatus rides the event (captured by the
+	// producer before the AR transition). When PrevStatus is empty (old events /
+	// non-transition emits) it is the zero TaskStatus, which TaskIsFailed reports as
+	// not-failed — so a genuine first failure still notifies, while a re-discard
+	// (prev_status=discarded, already failed) is correctly skipped.
+	prevFailed := pm.TaskIsFailed(pm.TaskStatus(pl.PrevStatus))
+	if prevFailed || !pm.TaskIsFailed(t.Status()) {
+		return nil // not a →failed transition (already failed, or not failed) → nothing to notify.
 	}
 	if p.svc.planDispatcher == nil {
 		return ErrDispatcherUnavailable
