@@ -145,6 +145,29 @@ func (r *PlanRepo) Delete(ctx context.Context, id pm.PlanID) error {
 	return nil
 }
 
+// DeletePlan hard-deletes a Plan + its DAG state (v2.9 P3): it CASCADE-removes
+// the plan's depends_on edges and dispatch records, then deletes the pm_plans row
+// (all within the caller's tx via ExecutorFromCtx, so the cascade is atomic). The
+// caller unloads the plan's tasks back to the backlog beforehand — tasks are NOT
+// touched here. ErrPlanNotFound if no plan row existed.
+func (r *PlanRepo) DeletePlan(ctx context.Context, id pm.PlanID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	if _, err := exec.ExecContext(ctx, `DELETE FROM pm_task_dependencies WHERE plan_id = ?`, string(id)); err != nil {
+		return err
+	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM pm_plan_dispatch_records WHERE plan_id = ?`, string(id)); err != nil {
+		return err
+	}
+	res, err := exec.ExecContext(ctx, `DELETE FROM pm_plans WHERE id = ?`, string(id))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return pm.ErrPlanNotFound
+	}
+	return nil
+}
+
 // AddDependency loads the plan's existing edges, runs WouldCreateCycle (which
 // rejects self-edges and cycles), then inserts. The acyclic + no-self-edge
 // invariant is enforced HERE before any write (§283 acyclic red-line).

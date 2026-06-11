@@ -86,6 +86,12 @@ var (
 	ErrCrossProject        = errors.New("projectmanager: cross-project operation rejected (scope invariant)")
 	ErrInvalidStatus       = errors.New("projectmanager: invalid status")
 	ErrIllegalTransition   = errors.New("projectmanager: illegal status transition")
+	// ErrTaskArchived guards an archived Task (v2.9 P3): archival is an ORTHOGONAL
+	// terminal state (does not change task.status) that makes the Task read-only —
+	// every mutator (Rename/SetDescription/status transitions/Assign/…) rejects with
+	// this once the task is archived. Re-archiving an already-archived task also
+	// returns it (mirrors Conversation.Archive → ErrConversationArchived).
+	ErrTaskArchived = errors.New("projectmanager: task is archived")
 	ErrBlockReasonRequired = errors.New("projectmanager: blocked requires a reason (plan §2.2)")
 	ErrSelfVerify          = errors.New("projectmanager: an identity cannot verify a task it completed (plan §2.2/OQ4)")
 	ErrVersionConflict     = errors.New("projectmanager: version conflict (optimistic lock)")
@@ -117,4 +123,12 @@ var (
 	ErrPlanUnresolvableAssignee = errors.New("projectmanager: a plan task's assignee is unresolvable (identity missing or agent archived/deleted)")
 	// ErrPlanNotRunning rejects advance on a Plan that is not running (§9.6/§3).
 	ErrPlanNotRunning = errors.New("projectmanager: plan is not running")
+	// v2.9 P3 (delete + archive).
+	// ErrPlanRunning rejects DeletePlan/ArchivePlan on a RUNNING Plan: a running
+	// plan must be stopped (or finished) before it can be deleted or archived
+	// (maps to 409). Distinct from ErrPlanNotRunning (advance's not-running guard).
+	ErrPlanRunning = errors.New("projectmanager: plan is running — stop it before deleting or archiving")
+	// ErrPlanArchived rejects re-archiving an already-archived (terminal,
+	// irreversible) Plan, mirroring Conversation.ErrConversationArchived.
+	ErrPlanArchived = errors.New("projectmanager: plan is already archived")
 )

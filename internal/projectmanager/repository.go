@@ -93,6 +93,13 @@ type PlanRepository interface {
 	// ready-but-undispatched nodes for missed events / crash recovery.
 	ListRunningPlans(ctx context.Context) ([]*Plan, error)
 	Delete(ctx context.Context, id PlanID) error
+	// DeletePlan hard-deletes a Plan and its DAG state in one call (v2.9 P3): it
+	// CASCADE-removes the plan's depends_on edges (pm_task_dependencies) and dispatch
+	// records (pm_plan_dispatch_records) before deleting the pm_plans row, so no
+	// orphan edge/record survives. The caller (DeletePlan AppService) UNLOADs the
+	// plan's tasks back to the backlog FIRST (tasks are NOT deleted). Returns
+	// ErrPlanNotFound if the plan row does not exist.
+	DeletePlan(ctx context.Context, id PlanID) error
 	// AddDependency loads the plan's existing edges, calls WouldCreateCycle, and
 	// rejects (ErrPlanCycle / ErrSelfDependency) before inserting.
 	AddDependency(ctx context.Context, dep Dependency) error

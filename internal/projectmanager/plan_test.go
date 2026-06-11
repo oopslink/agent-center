@@ -128,10 +128,21 @@ func TestPlanStatus_TransitionMap(t *testing.T) {
 	if !PlanRunning.CanTransitionTo(PlanDraft) || !PlanRunning.CanTransitionTo(PlanDone) {
 		t.Fatal("running→{draft,done} must be allowed")
 	}
-	if len(planTransitions[PlanDone]) != 0 {
-		t.Fatal("done must be terminal")
+	// v2.9 P3: draft + done can archive (both non-running); running can NOT (stop
+	// first); archived is terminal + irreversible.
+	if !PlanDraft.CanTransitionTo(PlanArchived) {
+		t.Fatal("draft→archived must be allowed")
 	}
-	for _, s := range []PlanStatus{PlanDraft, PlanRunning, PlanDone} {
+	if !PlanDone.CanTransitionTo(PlanArchived) {
+		t.Fatal("done→archived must be allowed")
+	}
+	if PlanRunning.CanTransitionTo(PlanArchived) {
+		t.Fatal("running→archived must NOT be allowed (stop/finish first)")
+	}
+	if len(planTransitions[PlanArchived]) != 0 {
+		t.Fatal("archived must be terminal (irreversible)")
+	}
+	for _, s := range []PlanStatus{PlanDraft, PlanRunning, PlanDone, PlanArchived} {
 		if !s.IsValid() {
 			t.Fatalf("%q must be IsValid", s)
 		}

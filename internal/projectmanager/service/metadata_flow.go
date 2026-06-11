@@ -43,7 +43,9 @@ func (s *Service) UpdateTask(ctx context.Context, cmd UpdateTaskCommand) error {
 			}
 		}
 		if cmd.Description != nil {
-			t.SetDescription(*cmd.Description, now)
+			if err := t.SetDescription(*cmd.Description, now); err != nil {
+				return err
+			}
 		}
 		return s.tasks.Update(txCtx, t)
 	})

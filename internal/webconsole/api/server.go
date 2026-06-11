@@ -234,6 +234,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/projects/{project_id}/plans", s.pmCreatePlanHandler)
 	s.mux.HandleFunc("GET /api/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
 	s.mux.HandleFunc("PATCH /api/projects/{project_id}/plans/{plan_id}", s.pmUpdatePlanHandler)
+	// v2.9 P3: hard-delete (non-running; unloads tasks to backlog + deletes the
+	// plan + its conversation) and archive (non-running; cascade-archives tasks,
+	// irreversible). Running → 409.
+	s.mux.HandleFunc("DELETE /api/projects/{project_id}/plans/{plan_id}", s.pmDeletePlanHandler)
+	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/archive", s.pmArchivePlanHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/tasks", s.pmSelectTaskHandler)
 	s.mux.HandleFunc("DELETE /api/projects/{project_id}/plans/{plan_id}/tasks/{task_id}", s.pmRemoveTaskHandler)
 	s.mux.HandleFunc("POST /api/projects/{project_id}/plans/{plan_id}/dependencies", s.pmAddDependencyHandler)

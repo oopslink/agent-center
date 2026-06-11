@@ -45,6 +45,15 @@ const (
 	// manual Advance click. Payload mirrors planEventPayload (PlanID + ProjectID
 	// + OrganizationID).
 	EvtPlanStarted = "pm.plan.started"
+	// v2.9 P3 (delete + archive). EvtPlanDeleted is emitted by DeletePlan AFTER the
+	// plan row (+ its tasks unloaded to backlog + deps/dispatch-records) are gone; the
+	// PlanParticipantProjector consumes it to HARD-DELETE the plan's 1:1 Conversation
+	// (owner_ref pm://plans/{id}) — the cross-BC "删会话" cleanup, mirroring how
+	// EvtPlanCreated CREATES that conversation (reverse direction). EvtPlanArchived is
+	// emitted by ArchivePlan after the plan + cascade-task archive; the projector
+	// ARCHIVES the plan's conversation (UpdateArchive) for consistency.
+	EvtPlanDeleted  = "pm.plan.deleted"
+	EvtPlanArchived = "pm.plan.archived"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,

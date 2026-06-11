@@ -22,12 +22,18 @@ const (
 	PlanDraft   PlanStatus = "draft"
 	PlanRunning PlanStatus = "running"
 	PlanDone    PlanStatus = "done"
+	// PlanArchived is the v2.9 P3 terminal, IRREVERSIBLE archive state. A
+	// non-running Plan (draft or done) can be archived; archiving cascade-archives
+	// the Plan's tasks (orthogonal Task.archived, status preserved). A running Plan
+	// can NOT be archived — it must be stopped/finished first (ArchivePlan rejects
+	// running with ErrPlanRunning). Nothing transitions OUT of archived.
+	PlanArchived PlanStatus = "archived"
 )
 
 // IsValid reports enum membership.
 func (s PlanStatus) IsValid() bool {
 	switch s {
-	case PlanDraft, PlanRunning, PlanDone:
+	case PlanDraft, PlanRunning, PlanDone, PlanArchived:
 		return true
 	}
 	return false
@@ -35,9 +41,10 @@ func (s PlanStatus) IsValid() bool {
 
 // planTransitions is the allowed-transition adjacency.
 var planTransitions = map[PlanStatus][]PlanStatus{
-	PlanDraft:   {PlanRunning},
-	PlanRunning: {PlanDraft, PlanDone}, // draft = stop (§9.4); done = §9.1
-	PlanDone:    {},                    // terminal
+	PlanDraft:    {PlanRunning, PlanArchived}, // archived = v2.9 P3 archive (draft is non-running)
+	PlanRunning:  {PlanDraft, PlanDone},       // draft = stop (§9.4); done = §9.1; NOT →archived (stop/finish first)
+	PlanDone:     {PlanArchived},              // archived = v2.9 P3 archive (done is non-running)
+	PlanArchived: {},                          // terminal, IRREVERSIBLE
 }
 
 // CanTransitionTo reports whether from→to is a legal Plan transition.
@@ -211,6 +218,21 @@ func (p *Plan) Stop(at time.Time) error { return p.transition(PlanDraft, at) }
 
 // MarkDone moves running→done (§9.1: every node terminal/done).
 func (p *Plan) MarkDone(at time.Time) error { return p.transition(PlanDone, at) }
+
+// Archive moves a NON-running Plan (draft or done) → archived (v2.9 P3): a
+// terminal, IRREVERSIBLE state. A running Plan is rejected with ErrPlanRunning
+// (it must be stopped/finished first); an already-archived Plan is rejected with
+// ErrPlanArchived (mirrors Conversation.Archive idempotency). The service
+// cascade-archives the Plan's tasks (orthogonal Task.archived) around this call.
+func (p *Plan) Archive(at time.Time) error {
+	switch p.status {
+	case PlanArchived:
+		return ErrPlanArchived
+	case PlanRunning:
+		return ErrPlanRunning
+	}
+	return p.transition(PlanArchived, at)
+}
 
 // transition applies a status move guarded by the state machine.
 func (p *Plan) transition(to PlanStatus, at time.Time) error {

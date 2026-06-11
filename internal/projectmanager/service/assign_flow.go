@@ -361,7 +361,9 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 			}
 		}
 		if patch.Description != nil {
-			t.SetDescription(*patch.Description, now)
+			if err := t.SetDescription(*patch.Description, now); err != nil {
+				return err
+			}
 		}
 		if patch.Status != nil {
 			if err := t.SetStatus(pm.TaskStatus(*patch.Status), now); err != nil {

@@ -416,6 +416,147 @@ func TestPlanAPI_ListSummaries_OrgGate(t *testing.T) {
 	}
 }
 
+// TestPlanAPI_Delete_NonRunning: DELETE /plans/{id} on a draft plan returns 200
+// + {deleted:true}, removes the plan, and unloads its task back to the backlog.
+func TestPlanAPI_Delete_NonRunning(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID := fx.createPlan(t, s, sess, pid, "doomed")
+	tid := fx.seedSelectedTask(t, sess, pid, planID, "a", "user:"+sess.IdentityID)
+
+	resp := orgScopedDelete(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID), sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("delete status=%d want 200", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	if body["deleted"] != true {
+		t.Fatalf("delete body=%v want deleted:true", body)
+	}
+	fx.drain(t)
+
+	// Plan gone (GET → 404).
+	get := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID), sess)
+	if get.StatusCode != http.StatusNotFound {
+		t.Fatalf("get deleted plan status=%d want 404", get.StatusCode)
+	}
+	// Task unloaded to backlog (still exists, plan_id="").
+	tk, err := fx.deps.PM.GetTask(ctx, tid)
+	if err != nil {
+		t.Fatalf("task must survive (unloaded): %v", err)
+	}
+	if tk.PlanID() != "" {
+		t.Fatalf("task plan_id=%q want \"\"", tk.PlanID())
+	}
+}
+
+// TestPlanAPI_Delete_RunningRejected_409: DELETE on a running plan → 409.
+func TestPlanAPI_Delete_RunningRejected_409(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, _ := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	planID := fx.createPlan(t, s, sess, pid, "live")
+	fx.seedSelectedTask(t, sess, pid, planID, "a", "user:"+sess.IdentityID)
+	if r := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/start", `{}`, sess); r.StatusCode != 200 {
+		t.Fatalf("start status=%d", r.StatusCode)
+	}
+	fx.drain(t)
+
+	resp := orgScopedDelete(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID), sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("delete running plan status=%d want 409", resp.StatusCode)
+	}
+}
+
+// TestPlanAPI_Delete_OrgGate: DELETE a plan in another org → 404 (project gate).
+func TestPlanAPI_Delete_OrgGate(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	otherPID, _ := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: "other-org", Name: "X", CreatedBy: "user:someone"})
+	resp := orgScopedDelete(t, s.URL+"/api/projects/"+string(otherPID)+"/plans/PL-nope", sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-org delete status=%d want 404", resp.StatusCode)
+	}
+}
+
+// TestPlanAPI_Archive_NonRunning: POST /plans/{id}/archive on a draft plan → 200,
+// plan status archived, its task archived (status preserved).
+func TestPlanAPI_Archive_NonRunning(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, _ := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	planID := fx.createPlan(t, s, sess, pid, "shelf")
+	tid := fx.seedSelectedTask(t, sess, pid, planID, "a", "user:"+sess.IdentityID)
+
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/archive", `{}`, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("archive status=%d want 200", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	if body["status"] != "archived" {
+		t.Fatalf("archived plan status=%v want archived", body["status"])
+	}
+	fx.drain(t)
+
+	tk, _ := fx.deps.PM.GetTask(ctx, tid)
+	if !tk.IsArchived() {
+		t.Fatal("cascade: task must be archived")
+	}
+	if tk.Status() != pm.TaskOpen {
+		t.Fatalf("task status=%q want open (orthogonal preserved)", tk.Status())
+	}
+}
+
+// TestPlanAPI_Archive_RunningRejected_409: POST archive on a running plan → 409.
+func TestPlanAPI_Archive_RunningRejected_409(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, _ := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	planID := fx.createPlan(t, s, sess, pid, "live")
+	fx.seedSelectedTask(t, sess, pid, planID, "a", "user:"+sess.IdentityID)
+	if r := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/start", `{}`, sess); r.StatusCode != 200 {
+		t.Fatalf("start status=%d", r.StatusCode)
+	}
+	fx.drain(t)
+
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/archive", `{}`, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("archive running plan status=%d want 409", resp.StatusCode)
+	}
+}
+
 // seedSelectedTask creates+assigns a task and selects it into the plan via the
 // service (then drains so the assignee becomes a plan-conversation participant).
 func (f *planAPIFixture) seedSelectedTask(t *testing.T, sess testSession, pid pm.ProjectID, planID pm.PlanID, title, assignee string) pm.TaskID {

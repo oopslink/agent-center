@@ -112,6 +112,15 @@ type Task struct {
 	// Plan later via SetPlan. NOT a node_status — node status is derived, never
 	// stored (§9.2).
 	planID PlanID
+	// archivedAt/archivedBy hold the ORTHOGONAL archived state (v2.9 P3). Archival
+	// does NOT change task.status — a task can be archived in ANY status, and its
+	// status is preserved through archive (so a verified/discarded/running task
+	// stays verified/discarded/running). Both nil/empty when not archived. An
+	// archived Task is read-only: every mutator rejects with ErrTaskArchived. This
+	// mirrors Conversation's archivedAt/archivedBy (ADR-0032 §5). Cascade-set by
+	// ArchivePlan when its Plan is archived.
+	archivedAt *time.Time
+	archivedBy IdentityRef
 }
 
 // NewTaskInput captures constructor args.
@@ -182,6 +191,8 @@ type RehydrateTaskInput struct {
 	Tags             []string
 	StatusChangedAt  time.Time
 	PlanID           PlanID
+	ArchivedAt       *time.Time
+	ArchivedBy       IdentityRef
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -216,7 +227,19 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		tags:             in.Tags,
 		statusChangedAt:  statusChangedAt,
 		planID:           in.PlanID,
+		archivedAt:       copyTaskTimePtr(in.ArchivedAt),
+		archivedBy:       in.ArchivedBy,
 	}, nil
+}
+
+// copyTaskTimePtr UTC-normalizes a non-nil, non-zero timestamp pointer (nil/zero
+// → nil), so archivedAt round-trips through rehydrate without aliasing the input.
+func copyTaskTimePtr(t *time.Time) *time.Time {
+	if t == nil || t.IsZero() {
+		return nil
+	}
+	u := t.UTC()
+	return &u
 }
 
 // Getters.
@@ -237,20 +260,55 @@ func (t *Task) Version() int               { return t.version }
 func (t *Task) Tags() []string             { return t.tags }
 func (t *Task) StatusChangedAt() time.Time { return t.statusChangedAt }
 func (t *Task) PlanID() PlanID             { return t.planID }
+func (t *Task) ArchivedAt() *time.Time     { return t.archivedAt }
+func (t *Task) ArchivedBy() IdentityRef    { return t.archivedBy }
+
+// IsArchived reports the ORTHOGONAL archived state (v2.9 P3). Independent of
+// status: a task may be archived in any status.
+func (t *Task) IsArchived() bool { return t.archivedAt != nil }
+
+// Archive sets the ORTHOGONAL archived state (v2.9 P3, mirroring
+// Conversation.Archive): it records archivedAt/archivedBy and makes the Task
+// read-only, but does NOT change task.status — the status is preserved through
+// archive. Re-archiving an already-archived task returns ErrTaskArchived
+// (idempotency is the caller's concern, consistent with Conversation). by must
+// validate.
+func (t *Task) Archive(at time.Time, by IdentityRef) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if err := by.Validate(); err != nil {
+		return err
+	}
+	at = at.UTC()
+	t.archivedAt = &at
+	t.archivedBy = by
+	// NOTE: status is intentionally NOT changed (orthogonal archive).
+	t.touch(at)
+	return nil
+}
 
 // SetPlan selects this task into a Plan (v2.9 #283). A task is in 0..1 Plan
 // (design §2), so this overwrites any prior plan membership. Metadata edit (NOT
 // a status change): does not touch statusChangedAt. The 1:1 DAG-scope invariant
 // (§9.8) is enforced at the edge level by the Plan repository.
-func (t *Task) SetPlan(planID PlanID, at time.Time) {
+func (t *Task) SetPlan(planID PlanID, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	t.planID = planID
 	t.touch(at)
+	return nil
 }
 
 // ClearPlan removes this task from its Plan (back to the backlog).
-func (t *Task) ClearPlan(at time.Time) {
+func (t *Task) ClearPlan(at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	t.planID = ""
 	t.touch(at)
+	return nil
 }
 
 // SetTags replaces the task's label set (metadata edit, NOT a status change).
@@ -258,6 +316,9 @@ func (t *Task) ClearPlan(at time.Time) {
 // exact duplicates are dropped; more than 10 distinct tags is rejected. The
 // cleaned/deduped slice is stored. Does NOT touch statusChangedAt.
 func (t *Task) SetTags(tags []string, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	cleaned, err := cleanTags(tags)
 	if err != nil {
 		return err
@@ -269,6 +330,9 @@ func (t *Task) SetTags(tags []string, at time.Time) error {
 
 // Rename updates the display title (metadata edit, not a state transition).
 func (t *Task) Rename(title string, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if strings.TrimSpace(title) == "" {
 		return errors.New("projectmanager: task title required")
 	}
@@ -278,9 +342,13 @@ func (t *Task) Rename(title string, at time.Time) error {
 }
 
 // SetDescription updates the description (metadata edit).
-func (t *Task) SetDescription(desc string, at time.Time) {
+func (t *Task) SetDescription(desc string, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	t.description = desc
 	t.touch(at)
+	return nil
 }
 
 // Assign sets the assignee as METADATA — it does NOT change the task's workflow
@@ -289,6 +357,9 @@ func (t *Task) SetDescription(desc string, at time.Time) {
 // already-assigned task. The AppService still emits pm.task.assigned so the
 // WorkItemProjector dispatches the agent WorkItem.
 func (t *Task) Assign(assignee IdentityRef, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if err := assignee.Validate(); err != nil {
 		return err
 	}
@@ -303,6 +374,9 @@ func (t *Task) Assign(assignee IdentityRef, at time.Time) error {
 // Unassign clears the assignee (metadata edit; no state change). Allowed in any
 // non-terminal state.
 func (t *Task) Unassign(at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if t.status.IsTerminal() {
 		return ErrIllegalTransition
 	}
@@ -317,6 +391,9 @@ func (t *Task) Start(at time.Time) error { return t.simpleTransition(TaskRunning
 
 // Block moves running→blocked with a required reason (plan §2.2).
 func (t *Task) Block(reason string, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if strings.TrimSpace(reason) == "" {
 		return ErrBlockReasonRequired
 	}
@@ -342,6 +419,9 @@ func (t *Task) Unblock(at time.Time) error {
 // Complete moves running→completed and records who completed it (so the same
 // identity cannot later verify it).
 func (t *Task) Complete(by IdentityRef, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if err := by.Validate(); err != nil {
 		return err
 	}
@@ -359,6 +439,9 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 // completed the task (no self-verification — enables Agent peer-review;
 // plan §2.2 / §10 OQ4).
 func (t *Task) Verify(by IdentityRef, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if err := by.Validate(); err != nil {
 		return err
 	}
@@ -385,6 +468,9 @@ func (t *Task) Discard(at time.Time) error { return t.simpleTransition(TaskDisca
 // agent's structured self-reports + the system projector, which carry their own
 // side-effects (blocked reason, completedBy); SetStatus is the free user override.
 func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if !target.IsValid() {
 		return ErrInvalidStatus
 	}
@@ -414,6 +500,9 @@ func (t *Task) ToOpenFromReopened(at time.Time) error {
 
 // simpleTransition applies a status-only move guarded by the state machine.
 func (t *Task) simpleTransition(to TaskStatus, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
 	if !to.IsValid() {
 		return ErrInvalidStatus
 	}
