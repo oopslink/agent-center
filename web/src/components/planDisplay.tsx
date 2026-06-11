@@ -67,3 +67,55 @@ export function PlanFailedIndicator({ hasFailed }: { hasFailed: boolean }): Reac
 export function planProgressLabel(progress: { done: number; total: number }): string {
   return `${progress.done}/${progress.total}`;
 }
+
+// AutoAdvancingIcon — a small inline SVG "cycle / refresh" glyph (NOT emoji),
+// communicating the plan self-progresses. Inherits currentColor so it tracks
+// whatever text token the caller uses → AA in both modes via the text color.
+export function AutoAdvancingIcon({ className = 'h-3 w-3' }: { className?: string }): React.ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  );
+}
+
+// AutoAdvancingIndicator — the v2.9 P2-4 signal that a RUNNING plan auto-advances
+// its DAG (the orchestrator dispatches newly-ready nodes automatically as
+// upstream tasks complete; manual Advance is kept only as an override). This is
+// purely informational/subtle — NOT an alert. Both-mode AA: it uses the
+// `text-text-secondary` theme token (NOT text-text-muted, which fails readable-
+// AA) and has NO background fill (no alpha-tint). Icon = inline SVG, no emoji.
+export function AutoAdvancingIndicator({
+  variant = 'detail',
+}: {
+  variant?: 'detail' | 'column';
+}): React.ReactElement {
+  const hint = 'The system dispatches ready nodes automatically as upstream tasks complete.';
+  if (variant === 'column') {
+    // Compact suffix for the ~236px board column header.
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-[0.6875rem] text-text-secondary"
+        data-testid="plan-col-auto-advancing"
+        title={hint}
+      >
+        <AutoAdvancingIcon className="h-2.5 w-2.5" />
+        auto-advancing
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded border border-border-base px-1.5 py-0.5 text-[0.6875rem] font-medium text-text-secondary"
+      data-testid="plan-auto-advancing"
+      title={hint}
+      aria-label={`Auto-advancing — ${hint}`}
+    >
+      <AutoAdvancingIcon className="h-3 w-3" />
+      Auto-advancing
+    </span>
+  );
+}
