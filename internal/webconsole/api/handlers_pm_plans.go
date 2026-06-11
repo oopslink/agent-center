@@ -342,15 +342,12 @@ func (s *Server) pmRemoveDependencyHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	var req struct {
-		FromTaskID string `json:"from_task_id"`
-		ToTaskID   string `json:"to_task_id"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	if err := d.PM.RemovePlanDependency(r.Context(), pl.ID(), pm.TaskID(req.FromTaskID), pm.TaskID(req.ToTaskID), caller); err != nil {
+	// DELETE carries the edge in the query string (the FE api.del client is
+	// path/query-only, no body) — reading the body here left from/to empty so the
+	// edge was never removed. Query params are the correct REST shape for DELETE.
+	fromTaskID := r.URL.Query().Get("from_task_id")
+	toTaskID := r.URL.Query().Get("to_task_id")
+	if err := d.PM.RemovePlanDependency(r.Context(), pl.ID(), pm.TaskID(fromTaskID), pm.TaskID(toTaskID), caller); err != nil {
 		mapPlanError(w, err)
 		return
 	}
