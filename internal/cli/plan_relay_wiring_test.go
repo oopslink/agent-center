@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
+	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/environment"
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -227,6 +229,145 @@ func TestProductionRelay_AutoAdvance_OnTaskDone(t *testing.T) {
 	recs, _ = planRepo.ListDispatchRecords(ctx, planID)
 	if countDispatch(recs, a) != 1 || countDispatch(recs, b) != 1 {
 		t.Fatalf("idempotency broken: A=%d B=%d dispatch records, want 1 each (§9.3)", countDispatch(recs, a), countDispatch(recs, b))
+	}
+}
+
+// productionRelayWithControlLog mirrors productionRelay but returns the SAME
+// ControlLog the relay's projectors enqueue onto, so a test can assert the
+// agent.work_available wake the WorkItemProjector delivers through the real set.
+func productionRelayWithControlLog(t *testing.T, app *App) (*outbox.Relay, *outboxsql.OutboxRepo, *environment.ControlLog) {
+	t.Helper()
+	outboxRepo := outboxsql.NewOutboxRepo(app.DB)
+	appliedRepo := outboxsql.NewAppliedRepo(app.DB)
+	controlLog := environment.NewControlLog(envsql.NewControlEventRepo(app.DB), app.IDGen, app.Clock)
+	projectors, _ := app.outboxProjectors(outboxRepo, appliedRepo, controlLog)
+	return outbox.NewRelay(outboxRepo, appliedRepo, app.Clock, projectors...), outboxRepo, controlLog
+}
+
+// TestProductionRelay_Dispatch_DeliversWorkToAgent is the v2.9 P2 #1 HEADLINE
+// #266-class guard: when the orchestrator auto-dispatches a ready node to an AGENT
+// assignee, the work-delivery (queued AgentWorkItem + agent.work_available wake on
+// the agent's Worker control stream) MUST fire through the REAL production projector
+// set — proving the dispatch's emitted pm.task.assigned reaches a PRODUCTION-
+// registered consumer (the WorkItemProjector), not just a hand-wired service relay.
+//
+// The agent is woken via the established WORK path (agent.work_available), NOT the
+// human-only conversational @mention-wake (which a system-authored @mention never
+// triggers per v2.7 #185). If the WorkItemProjector were unregistered, or the
+// dispatch did not emit pm.task.assigned, the wake never fires → this FAILS.
+func TestProductionRelay_Dispatch_DeliversWorkToAgent(t *testing.T) {
+	app := newTestApp(t)
+	ctx := context.Background()
+	svc := app.PMService
+	planRepo := pmsql.NewPlanRepo(app.DB)
+	wiRepo := agentsql.NewWorkItemRepo(app.DB)
+
+	// Seed a RUNNING agent bound to worker W1 (the dispatch must deliver work here).
+	agents := agentsql.NewAgentRepo(app.DB)
+	at := app.Clock.Now()
+	ag, err := agentpkg.RehydrateAgent(agentpkg.RehydrateAgentInput{
+		ID: agentpkg.AgentID("AGENTX"), OrganizationID: "org-rel",
+		Profile: agentpkg.Profile{Name: "AGENTX"}, WorkerID: "W1",
+		Lifecycle: agentpkg.LifecycleRunning, CreatedBy: "system",
+		CreatedAt: at, UpdatedAt: at, Version: 1,
+	})
+	if err != nil {
+		t.Fatalf("RehydrateAgent: %v", err)
+	}
+	if err := agents.Save(ctx, ag); err != nil {
+		t.Fatalf("save agent: %v", err)
+	}
+
+	pid, err := svc.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: "org-rel", Name: "P", CreatedBy: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	relay, _, controlLog := productionRelayWithControlLog(t, app)
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "auto", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatalf("CreatePlan: %v", err)
+	}
+	drainRelay(t, relay)
+
+	tid, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "do the thing", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	assignee := "agent:AGENTX"
+	if err := svc.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &assignee}, "user:a"); err != nil {
+		t.Fatalf("assign agent: %v", err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, tid, "user:a"); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	drainRelay(t, relay)
+	taskRef := "pm://tasks/" + string(tid)
+
+	baseCmds, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+
+	// Start → pm.plan.started → orchestrator auto-dispatches the initial node →
+	// the dispatch emits pm.task.assigned → WorkItemProjector delivers work.
+	if err := svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	drainRelay(t, relay)
+
+	// The node was dispatched (record written).
+	recs, _ := planRepo.ListDispatchRecords(ctx, planID)
+	if !hasDispatch(recs, tid) {
+		t.Fatalf("plan.started did NOT auto-dispatch the node — records=%v", recs)
+	}
+
+	// HEADLINE (1): a queued AgentWorkItem was created for the assignee through the
+	// PRODUCTION relay — the agent has actionable work, not just an @mention.
+	items, _ := wiRepo.ListByTask(ctx, taskRef)
+	if len(items) != 1 || items[0].Status() != agentpkg.WorkItemQueued {
+		t.Fatalf("production relay did NOT deliver a queued AgentWorkItem on dispatch — got %+v (WorkItemProjector unregistered, or dispatch did not emit pm.task.assigned)", items)
+	}
+	wiID := items[0].ID()
+
+	// HEADLINE (2): the agent.work_available WAKE fired on W1 through the production
+	// relay — the agent is woken via the real work path (not the @mention-wake).
+	cmds, err := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wake *environment.WorkerControlEvent
+	for i := len(cmds) - 1; i >= len(baseCmds); i-- {
+		if cmds[i].CommandType() == "agent.work_available" {
+			wake = cmds[i]
+			break
+		}
+	}
+	if wake == nil {
+		t.Fatalf("production relay did NOT enqueue agent.work_available on dispatch — the agent would never be woken via the work path (#266: is the WorkItemProjector consuming the dispatch's pm.task.assigned?)")
+	}
+	if wake.IdempotencyKey() != "agent.work_available:"+wiID {
+		t.Fatalf("wake idempotency_key = %q, want agent.work_available:%s", wake.IdempotencyKey(), wiID)
+	}
+
+	// §9.3 idempotency through the production relay: re-draining (no new events) and
+	// a fresh advance dispatch nothing more → still exactly one WorkItem + one wake.
+	drainRelay(t, relay)
+	if _, err := svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("re-advance: %v", err)
+	}
+	drainRelay(t, relay)
+	items2, _ := wiRepo.ListByTask(ctx, taskRef)
+	if len(items2) != 1 {
+		t.Fatalf("idempotency broken: %d AgentWorkItems after re-dispatch, want 1", len(items2))
+	}
+	cmds2, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+	wakeCount := 0
+	for _, c := range cmds2 {
+		if c.CommandType() == "agent.work_available" && c.IdempotencyKey() == "agent.work_available:"+wiID {
+			wakeCount++
+		}
+	}
+	if wakeCount != 1 {
+		t.Fatalf("idempotency broken: %d agent.work_available for the node, want 1 (§9.3)", wakeCount)
 	}
 }
 

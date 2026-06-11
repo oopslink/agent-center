@@ -216,12 +216,15 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	}
 	view := pm.ComputePlanView(tasks, edges, records)
 
-	// Index task → assignee for the @mention.
+	// Index task → assignee for the @mention, and task → *Task for the
+	// work-delivery emit (v2.9 P2 #1 HEADLINE).
 	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(tasks))
 	titleOf := make(map[pm.TaskID]string, len(tasks))
+	taskOf := make(map[pm.TaskID]*pm.Task, len(tasks))
 	for _, t := range tasks {
 		assigneeOf[t.ID()] = t.Assignee()
 		titleOf[t.ID()] = t.Title()
+		taskOf[t.ID()] = t
 	}
 
 	// Dispatch every ready node (the ready-set is exactly the nodes with no
@@ -239,6 +242,34 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		}
 		if rerr := s.plans.RecordDispatch(txCtx, planID, taskID, now, msgID); rerr != nil {
 			return nil, rerr
+		}
+		// v2.9 P2 #1 HEADLINE: the @mention above is for human-readable VISIBILITY
+		// (and a human can reply → wake). It does NOT wake an agent assignee: the
+		// WakeProjector only wakes on HUMAN (`user:`-sender) messages, and a system-
+		// authored @mention never triggers a wake (v2.7 #185 loop-break). It also
+		// leaves the assignee with no actionable WorkItem. So we ALSO drive the REAL
+		// work-delivery path: emit pm.task.assigned (the SAME event AssignTask emits,
+		// same payload shape via emitTaskAssignEvent) for the dispatched task. The
+		// already-production-registered WorkItemProjector (#266) consumes it →
+		// creates the assignee Agent's queued AgentWorkItem + emits agent.work_available
+		// onto its Worker control stream → the agent is woken via the established work
+		// path (not the human-only conversational @mention-wake).
+		//
+		// IDEMPOTENT: this fires only inside the view.ReadySet loop — i.e. ONLY for a
+		// node with no dispatch record yet. RecordDispatch (INSERT-OR-IGNORE on the PK)
+		// above makes the node NodeDispatched on the next ComputePlanView, so it leaves
+		// the ready-set and is never dispatched again → exactly one pm.task.assigned per
+		// node-dispatch → no double WorkItem / wake under replay or concurrent done-events.
+		//
+		// LOOP-SAFE: this wakes the DETERMINED assignee of a NEW ready DAG node (forward,
+		// one-way, dispatch-idempotent) — not a conversational agent→agent reply (what
+		// #185 guards). A human assignee has no AgentWorkItem, so the WorkItemProjector's
+		// agent-only dispatch branch naturally no-ops for them (the @mention is their
+		// notification); we still emit so the participant/effective-set stays consistent.
+		if t := taskOf[taskID]; t != nil {
+			if eerr := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); eerr != nil {
+				return nil, eerr
+			}
 		}
 		dispatched = append(dispatched, taskID)
 	}
