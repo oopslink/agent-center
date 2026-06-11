@@ -192,8 +192,26 @@ func (s *Server) pmListProjectsHandler(w http.ResponseWriter, r *http.Request) {
 		mapPMError(w, err)
 		return
 	}
+	// v2.9 #298 (@oopslink): the project LIST excludes archived by DEFAULT — sidebar
+	// and default views don't show archived projects. ?status=archived returns only
+	// archived (Projects-page "Archived" group); ?status=all returns both. (A single
+	// project GET still reads an archived project — only the list filters.)
+	status := r.URL.Query().Get("status")
 	out := make([]map[string]any, 0, len(ps))
 	for _, p := range ps {
+		archived := p.Status() == pm.ProjectArchived
+		switch status {
+		case "archived":
+			if !archived {
+				continue
+			}
+		case "all":
+			// keep both active + archived
+		default: // "" or "active" → default excludes archived
+			if archived {
+				continue
+			}
+		}
 		out = append(out, pmProjectMap(p))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": out})
