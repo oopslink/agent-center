@@ -550,4 +550,63 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(raw.closest('details')).not.toBeNull();
     expect(screen.getByText('← Back to plans')).toBeInTheDocument();
   });
+
+  // A2 (§9.4 draft-only): a DRAFT plan's task-list rows have a Remove button →
+  // useRemoveTaskFromPlan(task_id) (task returns to the Backlog). A running/done
+  // plan's rows have NO Remove control; a remove failure surfaces a friendly
+  // inline message (#218).
+  it('A2 task-list: DRAFT plan rows have a Remove button that DELETEs by task_id', async () => {
+    let deletedTaskId: string | undefined;
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.delete('/api/projects/proj-a/plans/PL-1/tasks/:taskId', ({ params }) => {
+        deletedTaskId = String(params.taskId);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    const removeBtn = screen.getByTestId('plan-task-remove-n3');
+    expect(removeBtn).toHaveAttribute('aria-label', 'Remove frontend list from plan');
+    await act(async () => {
+      fireEvent.click(removeBtn);
+    });
+    await waitFor(() => expect(deletedTaskId).toBe('n3'));
+  });
+
+  it('A2 task-list: running plan rows have NO Remove control (§9.4 draft-only)', async () => {
+    mockPlan({ status: 'running' });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    expect(screen.getAllByTestId('plan-task-row').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('plan-task-remove-n3')).not.toBeInTheDocument();
+  });
+
+  it('A2 task-list: done plan rows have NO Remove control (§9.4 draft-only)', async () => {
+    mockPlan({ status: 'done' });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    expect(screen.queryByTestId('plan-task-remove-n3')).not.toBeInTheDocument();
+  });
+
+  it('A2 task-list #218: a remove failure shows a friendly inline message (no raw API error)', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.delete('/api/projects/proj-a/plans/PL-1/tasks/:taskId', () =>
+        HttpResponse.json({ error: 'conflict', message: 'plan not draft' }, { status: 409 }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('plan-task-remove-n3'));
+    });
+    const err = await screen.findByTestId('plan-task-remove-error-n3');
+    expect(err).toHaveTextContent("Couldn't remove this task from the plan.");
+    expect(err).not.toHaveTextContent('plan not draft');
+  });
 });
