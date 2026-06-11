@@ -212,6 +212,7 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		prevStatus := t.Status() // Unassign is metadata-only; status unchanged.
 		prev := t.Assignee()
 		if err := t.Unassign(now); err != nil {
 			return err
@@ -222,7 +223,7 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, "")
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
 	})
 }
 
@@ -241,6 +242,7 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		prevStatus := t.Status() // before the reopen chain (completed/verified).
 		prevAssignee, prevCompleter := t.Assignee(), t.CompletedBy()
 		if err := t.Reopen(now); err != nil {
 			return err
@@ -257,7 +259,7 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, "")
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
 	})
 }
 
@@ -273,13 +275,14 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		prevStatus := t.Status() // snapshot BEFORE the transition (Discard/SetStatus/...).
 		if err := mutate(t, now); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, reason)
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, reason)
 	})
 }
 
@@ -323,6 +326,7 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		prevStatus := t.Status() // snapshot BEFORE patch.Status applies (if any).
 		if patch.Title != nil {
 			if err := t.Rename(*patch.Title, now); err != nil {
 				return err
@@ -353,7 +357,7 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, "")
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
 	})
 }
 
@@ -380,7 +384,15 @@ func (s *Service) emitTaskAssignEvent(ctx context.Context, t *pm.Task, evt, prev
 // leave the task Conversation. The ParticipantProjector consumes this and
 // rewrites participants to the effective set (set semantics → idempotent for
 // state changes that don't move the set, e.g. start/block/complete).
-func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, reason string) error {
+//
+// prevStatus is the task's status captured by the caller BEFORE the transition
+// this emit reports (the task is already transitioned by the time we run, so the
+// caller MUST snapshot prev). It rides the payload as PrevStatus so the P2-2
+// failure handler can notify ONLY on the →failed transition (#re-discard edge).
+// For emits that follow no status transition (assign/reassign/unassign tags-only
+// edits), the caller passes the current status — prev == now means "not a
+// transition", which is never a failure transition anyway.
+func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, prevStatus pm.TaskStatus, reason string) error {
 	manual, err := s.taskSubs.ListByTask(ctx, t.ID())
 	if err != nil {
 		return err
@@ -390,7 +402,7 @@ func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, reason s
 		taskEventPayload{
 			TaskID: string(t.ID()), ProjectID: string(t.ProjectID()),
 			OwnerRef: "pm://tasks/" + string(t.ID()), Assignee: string(t.Assignee()),
-			Status: string(t.Status()), Reason: reason,
+			Status: string(t.Status()), PrevStatus: string(prevStatus), Reason: reason,
 			EffectiveSubscribers: EffectiveTaskSubscribers(t, manual),
 		})
 }
