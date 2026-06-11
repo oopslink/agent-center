@@ -57,8 +57,10 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
-		errors.Is(err, pm.ErrProjectArchived):
+		errors.Is(err, pm.ErrProjectArchived),
+		errors.Is(err, pm.ErrPlanHasRunningTasks):
 		// v2.9 #297: a plan op on an ARCHIVED PARENT PROJECT also conflicts → 409.
+		// v2.9 #299: archive rejected while a member task is still running → 409.
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op → 409
 		// plan_conflict, CONSISTENT with webconsole mapPlanError (ErrPlanNotDraft was
 		// 422 here / 400 there; unified to 409 = same domain-error-class same code

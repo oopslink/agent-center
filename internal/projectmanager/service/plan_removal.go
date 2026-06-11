@@ -107,6 +107,19 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
+		// v2.9 #299 (@oopslink): reject archiving a plan that still has any member
+		// task in the RUNNING state — after stop, a draft plan may still carry an
+		// in-flight running task, and archiving would orphan it. (Distinct from
+		// p.Archive's ErrPlanRunning, which guards the PLAN's own running status.)
+		tasks, err := s.tasks.ListByPlan(txCtx, planID)
+		if err != nil {
+			return err
+		}
+		for _, t := range tasks {
+			if t.Status() == pm.TaskRunning {
+				return pm.ErrPlanHasRunningTasks
+			}
+		}
 		// (a) archive the plan (rejects running → ErrPlanRunning, already-archived →
 		// ErrPlanArchived).
 		if err := p.Archive(now); err != nil {
@@ -116,11 +129,7 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 			return err
 		}
 		// (b) CASCADE: archive every (not-yet-archived) task in the plan. Orthogonal —
-		// status is preserved.
-		tasks, err := s.tasks.ListByPlan(txCtx, planID)
-		if err != nil {
-			return err
-		}
+		// status is preserved. (Reuses the list fetched for the running-task check.)
 		for _, t := range tasks {
 			if t.IsArchived() {
 				continue // idempotent: already archived
