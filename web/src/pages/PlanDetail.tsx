@@ -7,6 +7,8 @@ import {
   useStartPlan,
   useStopPlan,
   useAdvancePlan,
+  useAddDependency,
+  useRemoveDependency,
   type Plan,
   type PlanNode,
   type PlanNodeStatus,
@@ -31,12 +33,15 @@ import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 // REMOVED here entirely.
 //
 // node_status is DERIVED by the orchestrator (§9.2) — we DISPLAY it, never store
-// or edit it. This execution view renders the derived DAG (display-only) +
-// header lifecycle controls (Start / Stop / Advance, each once). Dependency-edge
-// editing is a separate PLANNING concern (planning/execution are separated) and
-// is NOT part of this page — the backend AddPlanDependency/RemovePlanDependency
-// are draft-gated, but the edge editor is a tracked P1 fast-follow, built
-// elsewhere.
+// or edit it. This view renders the derived DAG + header lifecycle controls
+// (Start / Stop / Advance, each once).
+//
+// v2.9 Stage A1 (#287 fast-follow): a DRAFT plan's DAG is now EDITABLE here — a
+// draft-only dependency-edge editor (add via labeled selects, remove via a list
+// of edges) sits below the graph. The backend AddPlanDependency/RemovePlanDependency
+// are draft-gated (§9.4: running/done → ErrPlanNotDraft), cycle-guarded
+// (ErrPlanCycle) and self-edge-rejected (ErrSelfDependency); the editor is gated
+// to draft to match, and a running/done plan stays DISPLAY-ONLY.
 
 type Tab = 'dag' | 'tasks';
 
@@ -115,7 +120,7 @@ export default function PlanDetail(): React.ReactElement {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_330px]">
           <div className="border-b border-border-base p-4 lg:border-b-0 lg:border-r" data-testid="plan-detail-main">
             {tab === 'dag' ? (
-              <PlanDag plan={p} />
+              <PlanDag projectId={id} plan={p} />
             ) : (
               <PlanTaskList plan={p} />
             )}
@@ -446,8 +451,9 @@ function layoutDag(nodes: PlanNode[]): { positioned: Positioned[]; width: number
   return { positioned, width, height };
 }
 
-function PlanDag({ plan }: { plan: Plan }): React.ReactElement {
+function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
+  const isDraft = plan.status === 'draft';
 
   const { positioned, width, height } = useMemo(() => layoutDag(nodes), [nodes]);
   const posById = useMemo(
@@ -553,17 +559,214 @@ function PlanDag({ plan }: { plan: Plan }): React.ReactElement {
         ))}
       </div>
 
-      {/* This execution-page DAG is DISPLAY-ONLY. node_status is DERIVED (§9.2)
-          and shown, not edited; the graph shows the dependency structure; and
-          Advance (header) dispatches ready nodes. Dependency-edge editing is a
-          separate planning concern (planning/execution are separated) — not
-          available here. */}
+      {/* node_status is DERIVED (§9.2) and shown, not edited. In DRAFT the
+          dependency STRUCTURE is editable below; once running/done the graph is
+          DISPLAY-ONLY (the backend rejects edits with ErrPlanNotDraft). */}
       <p className="mt-2 text-[0.6875rem] text-text-muted" data-testid="plan-dag-note">
-        Display-only graph: node status is derived (= f(task status, all upstream done, dispatch record))
-        and shown, not edited. A running plan auto-advances (the system dispatches ready nodes as upstream
-        tasks complete); "Advance now" is a manual override. Dependency editing is a planning concern and
-        isn't done on this execution view.
+        Node status is derived (= f(task status, all upstream done, dispatch record)) and shown, not edited.{' '}
+        {isDraft ? (
+          <>
+            This plan is a draft, so its dependencies are editable below — add or remove edges to shape the DAG.
+          </>
+        ) : (
+          <>
+            Display-only graph: a running plan auto-advances (the system dispatches ready nodes as upstream
+            tasks complete) and "Advance now" is a manual override. Dependencies can only be edited while the
+            plan is a draft.
+          </>
+        )}
       </p>
+
+      {/* Stage A1: the draft-only dependency-edge editor (add via labeled
+          selects, remove via a list). Gated to draft — running/done = display
+          only, matching the backend draft-gate (§9.4). */}
+      {isDraft && <PlanDagEditor projectId={projectId} plan={plan} />}
+    </div>
+  );
+}
+
+// ── Draft-only dependency-edge editor (v2.9 Stage A1) ────────────────────────
+// from/to semantics (verified against the backend, plan_view.go + plan_flow.go):
+// a node's `depends_on` lists `edge.ToTaskID` where `edge.FromTaskID == node`,
+// i.e. AddPlanDependency(from, to) means **from depends_on to** (`to` is the
+// upstream dependency that completes first; `from` is the downstream dependent).
+// So an edge "B depends on A" → { from_task_id: B, to_task_id: A }.
+//
+// #218: add/remove failures map the backend Go error message (all surface as a
+// 400 invalid_request, distinguished by the message text) to a FRIENDLY string;
+// the raw error is never shown.
+function friendlyDependencyError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const lower = raw.toLowerCase();
+  if (lower.includes('itself') || lower.includes('self')) {
+    return "A task can't depend on itself.";
+  }
+  if (lower.includes('cycle')) {
+    return 'That would create a cycle in the plan.';
+  }
+  if (lower.includes('draft')) {
+    return 'Dependencies can only be edited while the plan is a draft.';
+  }
+  return "Couldn't update the plan's dependencies. Please try again.";
+}
+
+interface ExistingEdge {
+  from: PlanNode; // dependent (downstream) — has the dep in depends_on
+  to: PlanNode; // dependency (upstream) — completes first
+}
+
+function PlanDagEditor({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
+  const nodes = plan.nodes ?? [];
+  const addDep = useAddDependency(projectId, plan.id);
+  const removeDep = useRemoveDependency(projectId, plan.id);
+
+  // Add-form selects: `from` = the dependent task ("this task"); `to` = the
+  // task it depends on (upstream). Matches the backend body exactly.
+  const [fromId, setFromId] = useState('');
+  const [toId, setToId] = useState('');
+
+  const byId = useMemo(() => new Map(nodes.map((n) => [n.task_id, n])), [nodes]);
+  const titleOf = (n: PlanNode) => n.title || `#${idHandle(n.task_id)}`;
+
+  // Existing edges derived from nodes' depends_on (each = "from depends_on to").
+  const edges = useMemo<ExistingEdge[]>(() => {
+    const out: ExistingEdge[] = [];
+    for (const n of nodes) {
+      for (const depId of n.depends_on) {
+        const to = byId.get(depId);
+        if (!to) continue; // skip dangling refs
+        out.push({ from: n, to });
+      }
+    }
+    return out;
+  }, [nodes, byId]);
+
+  const canAdd = fromId !== '' && toId !== '' && fromId !== toId && !addDep.isPending;
+
+  function onAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canAdd) return;
+    addDep.mutate(
+      { from_task_id: fromId, to_task_id: toId },
+      {
+        onSuccess: () => {
+          setFromId('');
+          setToId('');
+        },
+      },
+    );
+  }
+
+  const mutationError = addDep.isError ? addDep.error : removeDep.isError ? removeDep.error : null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-border-base bg-bg-subtle p-3" data-testid="plan-dag-editor">
+      <h3 className="mb-2 text-xs font-semibold text-text-primary">Edit dependencies (draft)</h3>
+
+      {nodes.length < 2 ? (
+        <p className="text-[0.6875rem] text-text-secondary" data-testid="plan-edge-add-empty">
+          Add at least two tasks to this plan (from the Work Board) to create a dependency.
+        </p>
+      ) : (
+        <form className="flex flex-wrap items-end gap-2" onSubmit={onAdd} data-testid="plan-edge-add">
+          <label className="flex flex-col gap-0.5 text-[0.625rem] uppercase tracking-wide text-text-secondary">
+            Task
+            <select
+              className="rounded border border-border-strong bg-bg-elevated px-2 py-1 text-xs normal-case text-text-primary"
+              data-testid="plan-edge-add-from"
+              aria-label="Task that depends on another"
+              value={fromId}
+              onChange={(e) => setFromId(e.target.value)}
+            >
+              <option value="">Select a task…</option>
+              {nodes.map((n) => (
+                <option key={n.task_id} value={n.task_id}>
+                  {titleOf(n)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="pb-1.5 text-xs font-medium text-text-secondary">depends on</span>
+          <label className="flex flex-col gap-0.5 text-[0.625rem] uppercase tracking-wide text-text-secondary">
+            Depends on
+            <select
+              className="rounded border border-border-strong bg-bg-elevated px-2 py-1 text-xs normal-case text-text-primary"
+              data-testid="plan-edge-add-to"
+              aria-label="Upstream task it depends on"
+              value={toId}
+              onChange={(e) => setToId(e.target.value)}
+            >
+              <option value="">Select a task…</option>
+              {nodes.map((n) => (
+                <option key={n.task_id} value={n.task_id}>
+                  {titleOf(n)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            data-testid="plan-edge-add-btn"
+            disabled={!canAdd}
+            className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Add dependency
+          </button>
+        </form>
+      )}
+
+      {/* #218 friendly error (never the raw API message). */}
+      {mutationError && (
+        <p className="mt-2 text-xs font-medium text-danger" role="alert" data-testid="plan-edge-error">
+          {friendlyDependencyError(mutationError)}
+        </p>
+      )}
+
+      {/* Existing edges → remove list (the a11y-accessible primary; a clickable
+          SVG edge is a poor target). Each row = "<from> depends on <to>". */}
+      <div className="mt-3">
+        <h4 className="mb-1 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary">
+          Dependencies
+        </h4>
+        {edges.length === 0 ? (
+          <p className="text-[0.6875rem] text-text-secondary" data-testid="plan-edge-list-empty">
+            No dependencies yet. Add one above to order the tasks.
+          </p>
+        ) : (
+          <ul className="space-y-1" data-testid="plan-edge-list">
+            {edges.map((edge) => {
+              const key = `${edge.from.task_id}->${edge.to.task_id}`;
+              return (
+                <li
+                  key={key}
+                  className="flex items-center justify-between gap-2 rounded border border-border-base bg-bg-elevated px-2 py-1"
+                  data-testid="plan-edge-remove"
+                  data-edge={key}
+                >
+                  <span className="min-w-0 truncate text-xs text-text-primary">
+                    <span className="font-medium">{titleOf(edge.from)}</span>
+                    <span className="text-text-secondary"> depends on </span>
+                    <span className="font-medium">{titleOf(edge.to)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="plan-edge-remove-btn"
+                    disabled={removeDep.isPending}
+                    onClick={() =>
+                      removeDep.mutate({ from_task_id: edge.from.task_id, to_task_id: edge.to.task_id })
+                    }
+                    aria-label={`Remove dependency: ${titleOf(edge.from)} depends on ${titleOf(edge.to)}`}
+                    title="Remove this dependency"
+                    className="shrink-0 rounded border border-border-strong bg-bg-subtle px-2 py-0.5 text-[0.6875rem] font-semibold text-text-secondary hover:bg-bg-base disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
