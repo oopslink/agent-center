@@ -88,10 +88,25 @@ export const orgApi = {
   delete: (id: string) => api.del<void>(`/orgs/${id}`),
 };
 
+// useOrgs lists the caller's organizations. OrgGuard / OrgRedirect gate the
+// app's org routing on this, so a transient startup failure (GET /api/orgs can
+// be CPU-starved into a transient 401 under parallel load at boot) must not be
+// surfaced as a hard error before React Query has had a fair chance to recover —
+// otherwise OrgGuard sees an undefined/errored result and (pre-fix) redirected
+// to /signup prematurely. We allow a few retries with backoff so the transient
+// case recovers (spinner → retry → success). A GENUINE 401 does not spin
+// forever: the api client (client.ts request()) fires redirectUnauthenticated()
+// on a real 401, navigating the whole window to /signin or /signup, which tears
+// this query down. Retries here only widen the recovery window for the
+// transient case; they cannot trap an authenticated-but-no-orgs user (that path
+// settles to success with []) nor a genuinely-unauthenticated one (fetch-layer
+// redirect).
 export function useOrgs() {
   return useQuery({
     queryKey: ['orgs'],
     queryFn: () => orgApi.list(),
     staleTime: 30_000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(250 * 2 ** attempt, 2_000),
   });
 }
