@@ -324,6 +324,25 @@ func (s *Service) requireProjectMember(ctx context.Context, projectID pm.Project
 	return nil
 }
 
+// requireProjectMutable is the v2.9 #297 archived-project write-gate: an archived
+// Project is PURE READ-ONLY (@oopslink: archive is IRREVERSIBLE, no restore), so
+// every project-CHILD mutation must reject with pm.ErrProjectArchived (→ 409
+// cross-surface) once the project is archived. It loads the project (projects.
+// FindByID; a missing project surfaces pm.ErrProjectNotFound) and returns
+// pm.ErrProjectArchived when status == archived, else nil. Callers invoke it INSIDE
+// their tx, AFTER loading the mutated entity (so the projectID is resolved) and
+// BEFORE the write. Reads (GetX/ListX) and the Archive op itself do NOT call it.
+func (s *Service) requireProjectMutable(ctx context.Context, projectID pm.ProjectID) error {
+	p, err := s.projects.FindByID(ctx, projectID)
+	if err != nil {
+		return err // pm.ErrProjectNotFound when missing
+	}
+	if p.Status() == pm.ProjectArchived {
+		return pm.ErrProjectArchived
+	}
+	return nil
+}
+
 // runInTx is a thin wrapper so AppServices read clearly.
 func (s *Service) runInTx(ctx context.Context, fn func(ctx context.Context) error) error {
 	return persistence.RunInTx(ctx, s.db, fn)

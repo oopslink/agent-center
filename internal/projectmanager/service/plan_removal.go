@@ -39,6 +39,10 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject plan delete on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
+			return err
+		}
 		// Guard: a running plan cannot be deleted — stop it first.
 		if p.Status() == pm.PlanRunning {
 			return pm.ErrPlanRunning
@@ -97,6 +101,10 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject plan archive on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
 		// (a) archive the plan (rejects running → ErrPlanRunning, already-archived →

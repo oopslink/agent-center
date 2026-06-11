@@ -40,6 +40,10 @@ func mapPMError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, pmservice.ErrCannotRemoveOwner):
 		writeError(w, http.StatusConflict, "cannot_remove_owner", err.Error())
+	case errors.Is(err, pm.ErrProjectArchived):
+		// v2.9 #297: archived project is read-only (irreversible) — every child
+		// mutation rejects with 409, cross-surface (mirrors ErrPlanArchived).
+		writeError(w, http.StatusConflict, "project_archived", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrSelfVerify), errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),

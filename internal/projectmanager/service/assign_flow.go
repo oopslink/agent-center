@@ -32,6 +32,10 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject (re)assign on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
 		prev := t.Assignee()
 		if err := t.Assign(assignee, now); err != nil {
 			return err
@@ -121,6 +125,10 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject unblock on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
 		if err := t.Unblock(now); err != nil {
@@ -240,6 +248,10 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject unassign on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
 		prevStatus := t.Status() // Unassign is metadata-only; status unchanged.
 		prev := t.Assignee()
 		if err := t.Unassign(now); err != nil {
@@ -268,6 +280,10 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject reopen on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
 		prevStatus := t.Status() // before the reopen chain (completed/verified).
@@ -301,6 +317,11 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject any status transition (Start/Discard/Block/Complete/Verify/
+		// SetStatus — every taskStateOp caller) on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
 		prevStatus := t.Status() // snapshot BEFORE the transition (Discard/SetStatus/...).
@@ -352,6 +373,10 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject batch task edit on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
 		prevStatus := t.Status() // snapshot BEFORE patch.Status applies (if any).
