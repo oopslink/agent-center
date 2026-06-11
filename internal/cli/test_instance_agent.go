@@ -49,7 +49,7 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 			BootstrapHost string `json:"bootstrap_host"`
 			WorkerID      string `json:"worker_id"`
 		}
-		if err := seedPostJSON(ctx, client, base+"/api/admintoken/mint-enroll?org_slug="+slug,
+		if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/admintoken/mint-enroll",
 			map[string]any{"name": layout.workerID(n)}, &mint); err != nil {
 			return fmt.Errorf("mint-enroll worker %d: %w", n, err)
 		}
@@ -80,7 +80,7 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 	//    authorizes creation.
 	connectedWorker := pack.Workers[len(pack.Workers)-workers].ID
 	agentName := "Sandbox Agent " + pack.ID
-	if err := seedPostJSON(ctx, client, base+"/api/members/agent?org_slug="+slug, map[string]any{
+	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/members/agent", map[string]any{
 		"display_name": agentName,
 		"role":         "member",
 		"cli":          "claude-code",
@@ -99,7 +99,7 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 			Name             string `json:"name"`
 		} `json:"agents"`
 	}
-	if err := seedGetJSON(ctx, client, base+"/api/agents?org_slug="+slug, &agentsList); err != nil {
+	if err := seedGetJSON(ctx, client, base+"/api/orgs/"+slug+"/agents", &agentsList); err != nil {
 		return fmt.Errorf("list agents: %w", err)
 	}
 	var agentID, agentMemberID string
@@ -120,7 +120,7 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 	// 4. START the agent — a freshly-created agent is lifecycle=stopped; it must
 	//    be started so the worker reconciles it and it can execute dispatched
 	//    work (otherwise the task stays queued and no tool events are produced).
-	if err := seedPostJSON(ctx, client, base+"/api/agents/"+agentID+"/start?org_slug="+slug, map[string]any{}, nil); err != nil {
+	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/agents/"+agentID+"/start", map[string]any{}, nil); err != nil {
 		return fmt.Errorf("start agent: %w", err)
 	}
 
@@ -139,13 +139,13 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 	var taskResp struct {
 		ID string `json:"id"`
 	}
-	if err := seedPostJSON(ctx, client, base+"/api/projects/"+projectID+"/tasks?org_slug="+slug, map[string]any{
+	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/projects/"+projectID+"/tasks", map[string]any{
 		"title":       "List the files in the project root",
 		"description": "Run `ls` in the project root directory and report the file names you see.",
 	}, &taskResp); err != nil {
 		return fmt.Errorf("create dispatch task: %w", err)
 	}
-	if err := seedPostJSON(ctx, client, base+"/api/projects/"+projectID+"/tasks/"+taskResp.ID+"/assign?org_slug="+slug, map[string]any{
+	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/projects/"+projectID+"/tasks/"+taskResp.ID+"/assign", map[string]any{
 		"assignee": assignee,
 	}, nil); err != nil {
 		return fmt.Errorf("assign task to agent: %w", err)

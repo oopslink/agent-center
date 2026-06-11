@@ -15,7 +15,13 @@ func TestUserDetailHandler(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	resp := orgScopedGet(t, s.URL+"/api/users/"+sess.IdentityID, sess)
+	// /api/users/{user_id} is org-agnostic (exempt): authenticated only, bare path.
+	req, _ := http.NewRequest(http.MethodGet, s.URL+"/api/users/"+sess.IdentityID, nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}

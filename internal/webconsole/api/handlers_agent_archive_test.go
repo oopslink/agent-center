@@ -99,7 +99,7 @@ func listAgentIDs(t *testing.T, s *httptest.Server, sess testSession, includeArc
 	t.Helper()
 	url := s.URL + "/api/agents"
 	if includeArchived {
-		url += "?include_archived=true" // base has no query yet; orgScopedGet then appends &org_slug
+		url += "?include_archived=true" // orgScopedGet rewrites the path to /api/orgs/<slug>/agents, query preserved
 	}
 	resp := orgScopedGet(t, url, sess)
 	if resp.StatusCode != 200 {

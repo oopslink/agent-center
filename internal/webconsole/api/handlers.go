@@ -169,21 +169,22 @@ func hd(r *http.Request) HandlerDeps {
 }
 
 // resolveOrgIDFromRequest extracts the active organization ID for the request.
-// Resolution order (v2.6 multi-org isolation):
-//  1. ?org_id=<id> query param (explicit)
-//  2. ?org_slug=<slug> query param (frontend auto-injects from URL path)
-//  3. empty string (no org filter — legacy / cross-org callers)
 //
-// Returns the resolved org ID. When no resolver is available (OrgRepo nil),
-// returns the raw value of ?org_id= or empty string.
+// v2.9 org-routing-explicit (no-shim): the org scope is carried by the PATH,
+// not the query string. Org-scoped routes are registered under
+// /api/orgs/{slug}/... so the slug is the {slug} path segment. We resolve it
+// via OrgRepo.GetBySlug → org.ID(). The legacy ?org_id=/?org_slug= query
+// parsing is DELETED — callers must use the path form.
+//
+// Returns the resolved org ID, or empty string when the slug is missing/unknown
+// (or when OrgRepo is nil). requireOrgMember turns empty → 400 org_required.
 func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
-	if v := r.URL.Query().Get("org_id"); v != "" {
-		return v
+	slug := r.PathValue("slug")
+	if slug == "" || d.OrgRepo == nil {
+		return ""
 	}
-	if slug := r.URL.Query().Get("org_slug"); slug != "" && d.OrgRepo != nil {
-		if org, err := d.OrgRepo.GetBySlug(r.Context(), slug); err == nil && org != nil {
-			return org.ID()
-		}
+	if org, err := d.OrgRepo.GetBySlug(r.Context(), slug); err == nil && org != nil {
+		return org.ID()
 	}
 	return ""
 }
@@ -191,7 +192,7 @@ func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
 // requireOrgMember is the authoritative auth/scope helper for org-scoped APIs.
 // It:
 //  1. Verifies the request has a valid JWT cookie → returns 401 if not.
-//  2. Resolves the target org via ?org_id= / ?org_slug= → returns 400 if missing/unknown.
+//  2. Resolves the target org via the {slug} path segment → returns 400 if missing/unknown.
 //  3. Verifies the caller is a member of that org → returns 403 if not.
 //
 // On success: returns (callerIdentity, callerMember, orgID, true).
@@ -219,7 +220,7 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 	orgID := resolveOrgIDFromRequest(r, d)
 	if orgID == "" {
 		writeError(w, http.StatusBadRequest, "org_required",
-			"missing or unknown organization scope (provide ?org_id= or ?org_slug=)")
+			"missing or unknown organization scope (use /api/orgs/{slug}/...)")
 		return nil, nil, "", false
 	}
 	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, callerID.ID())

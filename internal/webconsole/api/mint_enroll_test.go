@@ -167,7 +167,7 @@ func TestMintEnroll_PreCreatesWorker(t *testing.T) {
 	}
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	resp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json",
+	resp, err := http.Post(srv.URL+"/api/orgs/_/admintoken/mint-enroll", "application/json",
 		strings.NewReader(`{"name":"alice-box"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +217,7 @@ func TestMintEnroll_RevokesTokenOnAddFailure(t *testing.T) {
 	}
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	resp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	resp, err := http.Post(srv.URL+"/api/orgs/_/admintoken/mint-enroll", "application/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -612,7 +612,7 @@ func TestMintEnroll_HappyPath(t *testing.T) {
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
 
-	resp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	resp, err := http.Post(srv.URL+"/api/orgs/_/admintoken/mint-enroll", "application/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +663,7 @@ func TestMintEnroll_NotConfigured(t *testing.T) {
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
 
-	resp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	resp, err := http.Post(srv.URL+"/api/orgs/_/admintoken/mint-enroll", "application/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -685,7 +685,7 @@ func TestMintEnroll_SvcNotWired(t *testing.T) {
 	deps := HandlerDeps{Actor: observability.Actor("user:hayang")}
 	srv := mintEnrollServer(t, deps)
 	defer srv.Close()
-	resp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	resp, err := http.Post(srv.URL+"/api/orgs/_/admintoken/mint-enroll", "application/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
