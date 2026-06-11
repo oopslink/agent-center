@@ -669,4 +669,42 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     // Coexistence: the A2 remove button is still present on the SAME card.
     expect(within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR')).toBeInTheDocument();
   });
+
+  // v2.9 Stage B (#283): a plan task card shows an Archived badge when
+  // task.archived (orthogonal — coexists with the status chip).
+  it('Stage B: an archived-plan card shows the Archived badge (coexists with status chip)', async () => {
+    const archivedPlans = {
+      plans: [
+        {
+          id: 'PL-A', project_id: 'proj-a', name: 'Shelved plan', description: '',
+          status: 'archived', creator_ref: 'user:owner', conversation_id: 'cA', target_date: null,
+          has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
+          node_count: 1,
+          nodes_preview: [{ ...planNode('TS-AR', 'Archived task'), archived: true }],
+        },
+        {
+          id: 'PL-D', project_id: 'proj-a', name: 'Live draft', description: '',
+          status: 'draft', creator_ref: 'user:owner', conversation_id: 'cD', target_date: null,
+          has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
+          node_count: 1, nodes_preview: [planNode('TS-LV', 'Live task')],
+        },
+      ],
+    };
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(archivedPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    // archived column chip shows 'archived'; archived task card has the badge.
+    const archivedCol = screen.getByText('Shelved plan').closest('[data-testid="plan-column"]')!;
+    expect(within(archivedCol as HTMLElement).getByTestId('plan-status-chip')).toHaveTextContent('archived');
+    const arBadge = within(archivedCol as HTMLElement).getByTestId('task-archived-badge-TS-AR');
+    expect(arBadge).toHaveTextContent('Archived');
+    expect(arBadge.className).toContain('bg-amber-100');
+    // non-archived task in the draft column → NO badge.
+    const draftCol = screen.getByText('Live draft').closest('[data-testid="plan-column"]')!;
+    expect(within(draftCol as HTMLElement).queryByTestId('task-archived-badge-TS-LV')).not.toBeInTheDocument();
+  });
 });

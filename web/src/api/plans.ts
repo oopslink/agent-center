@@ -22,7 +22,13 @@ import type { Task } from './types';
 // done ⟺ every node done. A failed node keeps the Plan `running` and surfaces
 // as the derived `has_failed` flag — the Plan never auto-enters a terminal
 // failed in v1.
-export type PlanStatus = 'draft' | 'running' | 'done';
+//
+// archived (v2.9 Stage B / #290) is a TERMINAL state reached via the explicit
+// ArchivePlan action (POST .../archive, non-running only). It is IRREVERSIBLE:
+// archiving cascades plan→archived + ALL plan tasks→archived (task.status is
+// preserved — orthogonal). An archived plan is still GET-able (read-only); a
+// re-archive → 409 ErrPlanArchived.
+export type PlanStatus = 'draft' | 'running' | 'done' | 'archived';
 
 // Plan-node status (§9.2) — DERIVED by the orchestrator, never stored as a
 // competing field. blocked (some upstream not done) → ready (all upstream done,
@@ -46,6 +52,13 @@ export interface PlanNode {
   node_status: PlanNodeStatus;
   depends_on: string[];
   dispatched_at?: string | null;
+  // v2.9 Stage B (#283): the plan task DTO (pmTaskMap) now carries an `archived`
+  // flag (+ audit fields) set when the plan is archived. ORTHOGONAL to task_status
+  // / node_status — the archive badge reads `archived` and coexists with the
+  // status chip. Optional so a pre-archive / not-yet-enriched node is assignable.
+  archived?: boolean;
+  archived_at?: string | null;
+  archived_by?: string | null;
 }
 
 // PlanEdge — a directed dependency edge. `from` (the dependent / downstream
@@ -79,6 +92,10 @@ export interface Plan {
   has_failed: boolean;
   progress: { done: number; total: number };
   created_at: string;
+  // v2.9 Stage B (#290): set when the plan reaches the terminal archived state.
+  // Optional — only an archived plan carries them.
+  archived_at?: string | null;
+  archived_by?: string | null;
   // detail read (GET /{id}) — full DAG.
   nodes?: PlanNode[];
   // list read (GET /) — capped preview + total count (enriched PR #272).
@@ -286,4 +303,50 @@ export function useAdvancePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/advance`),
   );
+}
+
+// ---------------------------------------------------------------------------
+// v2.9 Stage B (#280/#283/#290) — DESTRUCTIVE plan lifecycle: Delete + Archive.
+// Both are non-running-only (the backend rejects a running plan with 409
+// plan_conflict) and IRREVERSIBLE. Each goes through usePlanWrite so it shares
+// the plan / plansByProject / tasks / unplanned invalidation:
+//   • Delete unloads ALL the plan's tasks back to the Backlog (→ tasks +
+//     unplanned must refetch) + cascade-deletes the conversation + deletes the
+//     plan. The plan itself is GONE, so the caller navigates away on success.
+//   • Archive flips the plan + ALL its tasks to archived (→ plan + list refetch
+//     so the archived chip/badge show); the plan stays GET-able (read-only).
+// ---------------------------------------------------------------------------
+
+// DELETE /{id} → { deleted: true }. IRREVERSIBLE. Only a NON-running plan
+// (running → 409 plan_conflict). On success the plan no longer exists — the
+// caller must navigate away (the detail route would 404).
+export function useDeletePlan(projectId: string, planId: string) {
+  return usePlanWrite<void, { deleted: boolean }>(projectId, planId, () =>
+    api.del<{ deleted: boolean }>(`${plansBase(projectId)}/${planId}`),
+  );
+}
+
+// POST /{id}/archive → the archived plan detail. IRREVERSIBLE (archived is
+// terminal; re-archive → 409 ErrPlanArchived). Only a NON-running plan
+// (running → 409). Cascade: plan→archived + ALL plan tasks→archived (task.status
+// preserved). The plan stays readable, so the caller can stay/refresh.
+export function useArchivePlan(projectId: string, planId: string) {
+  return usePlanWrite<void, Plan>(projectId, planId, () =>
+    api.post<Plan>(`${plansBase(projectId)}/${planId}/archive`),
+  );
+}
+
+// #218 friendly error for the destructive 409s (running / already-archived).
+// STATUS-AGNOSTIC: match by MESSAGE substring (mirrors friendlyDependencyError),
+// never the raw API error. Shared by the Delete + Archive confirm-modals.
+export function friendlyDestructivePlanError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const lower = raw.toLowerCase();
+  if (lower.includes('running')) {
+    return 'This plan is running. Stop it first, then try again.';
+  }
+  if (lower.includes('archiv')) {
+    return 'This plan is already archived.';
+  }
+  return "Couldn't complete that action. Please try again.";
 }

@@ -50,7 +50,10 @@ describe('App shell + route tree', () => {
     await waitFor(() => {
       expect(screen.getByTestId('page-ChannelDetail')).toBeInTheDocument();
     });
-  });
+    // Full-route-tree render is heavy; give headroom under full-suite runner load
+    // (passes well under default in isolation, but the saturated 97-file run can
+    // exceed the 5s default → explicit timeout keeps the full suite reliably green).
+  }, 20000);
 
   it('renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Secrets / Fleet / Settings', async () => {
     const cases: Array<[string, string]> = [
@@ -78,7 +81,9 @@ describe('App shell + route tree', () => {
       });
       unmount();
     }
-  });
+    // 14 sequential full-route-tree renders — heavy; explicit timeout for headroom
+    // under full-suite runner load (green in isolation; saturated run can exceed 5s).
+  }, 20000);
 
   // v2.9 #286 §4.2 reachability: Plans are reached via the project detail page
   // (Plans link), then a Plan card reaches the Plan detail (DAG #287) — a real

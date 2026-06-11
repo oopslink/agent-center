@@ -10,6 +10,9 @@ import {
   usePatchPlan,
   useAddTaskToPlan,
   useRemoveTaskFromPlan,
+  useDeletePlan,
+  useArchivePlan,
+  friendlyDestructivePlanError,
 } from './plans';
 
 // v2.9 #286 Plan orchestration — project-scoped Plan hooks. Verified against the
@@ -119,5 +122,57 @@ describe('plans hooks', () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(hit).toBe(true);
+  });
+
+  // v2.9 Stage B — destructive lifecycle hooks.
+  it('useDeletePlan DELETEs /:id', async () => {
+    let method = '';
+    let url = '';
+    server.use(
+      http.delete('/api/projects/proj-a/plans/PL-1', ({ request }) => {
+        method = request.method;
+        url = new URL(request.url).pathname;
+        return HttpResponse.json({ deleted: true });
+      }),
+    );
+    const { result } = renderHook(() => useDeletePlan('proj-a', 'PL-1'), { wrapper: makeWrapper() });
+    act(() => {
+      result.current.mutate();
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(method).toBe('DELETE');
+    expect(url).toBe('/api/projects/proj-a/plans/PL-1');
+    expect(result.current.data).toEqual({ deleted: true });
+  });
+
+  it('useArchivePlan POSTs /:id/archive', async () => {
+    let method = '';
+    let url = '';
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/archive', ({ request }) => {
+        method = request.method;
+        url = new URL(request.url).pathname;
+        return HttpResponse.json({ id: 'PL-1', status: 'archived' });
+      }),
+    );
+    const { result } = renderHook(() => useArchivePlan('proj-a', 'PL-1'), { wrapper: makeWrapper() });
+    act(() => {
+      result.current.mutate();
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(method).toBe('POST');
+    expect(url).toBe('/api/projects/proj-a/plans/PL-1/archive');
+  });
+
+  it('friendlyDestructivePlanError maps 409s by message substring (status-agnostic, no raw error)', () => {
+    expect(friendlyDestructivePlanError(new Error('[409 plan_conflict] projectmanager: plan is running'))).toMatch(
+      /Stop it first/i,
+    );
+    expect(friendlyDestructivePlanError(new Error('[409 plan_conflict] plan already archived'))).toMatch(
+      /already archived/i,
+    );
+    expect(friendlyDestructivePlanError(new Error('boom'))).toMatch(/try again/i);
+    // never leaks the raw message
+    expect(friendlyDestructivePlanError(new Error('projectmanager: plan is running'))).not.toMatch(/projectmanager/);
   });
 });
