@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { StatusChip } from '@/components/workItemDisplay';
-import { PlanStatusChip, PlanFailedIndicator, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, planProgressLabel } from '@/components/planDisplay';
 
 // ProjectPlans (/projects/:id/plans) — v2.9 #291 WORK BOARD (the headline
 // Plan-Orchestration PLANNING view). A horizontal kanban: a first Backlog
@@ -446,6 +446,8 @@ function PlanColumn({
         <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="plan-progress">
           {plan.status === 'draft' ? 'Planning' : 'In progress'} · {planProgressLabel(progress)}
         </span>
+        {/* P2-4: a running plan self-progresses (auto-advance). Compact suffix. */}
+        {plan.status === 'running' && <AutoAdvancingIndicator variant="column" />}
         <PlanFailedIndicator hasFailed={hasFailed} />
       </div>
       {shown.length === 0 ? (

@@ -82,6 +82,24 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(screen.getByTestId('new-plan-column')).toBeInTheDocument();
   });
 
+  // P2-4: a running Plan column communicates it self-progresses (auto-advance);
+  // a draft column does not (draft is not being orchestrated).
+  it('a running Plan column shows the auto-advancing indicator; a draft column does not', async () => {
+    server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const running = screen.getByText('Onboarding flow').closest('[data-testid="plan-column"]')!;
+    const ind = within(running as HTMLElement).getByTestId('plan-col-auto-advancing');
+    expect(ind).toHaveTextContent(/auto-advancing/i);
+    // both-mode AA token, no alpha-tint
+    expect(ind.className).toContain('text-text-secondary');
+    expect(ind.className).not.toMatch(/\/\d+/);
+
+    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    expect(within(draft as HTMLElement).queryByTestId('plan-col-auto-advancing')).not.toBeInTheDocument();
+  });
+
   // DEFENSIVE regression guard for the run-real white-screen (PR #272 context):
   // the ORIGINAL bare GET /plans had no progress/nodes_preview/node_count, so the
   // board read plan.progress.done on undefined → "Cannot read properties of

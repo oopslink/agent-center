@@ -19,7 +19,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
 import { StatusChip, idHandle } from '@/components/workItemDisplay';
-import { PlanStatusChip, PlanFailedIndicator, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, planProgressLabel } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 
@@ -147,6 +147,9 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           {plan.name}
         </h1>
         <PlanStatusChip status={plan.status} />
+        {/* P2-4: a RUNNING plan IS being auto-advanced (the orchestrator
+            dispatches ready nodes by events). Subtle informational signal. */}
+        {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
         <PlanFailedIndicator hasFailed={plan.has_failed} />
         <span className="flex-1" />
         {/* Lifecycle (§9.4 / §9.6): running → Advance (dispatch ready) + Stop
@@ -154,14 +157,20 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             (the DAG footer keeps the legend only). */}
         {plan.status === 'running' && (
           <>
+            {/* Manual Advance is KEPT as an OVERRIDE (§9.6): the system already
+                auto-advances a running plan; this button is reframed as a "do it
+                now" override (same idempotent dispatch path, INSERT-OR-IGNORE
+                no-op if already dispatched). Function unchanged. */}
             <button
               type="button"
               data-testid="plan-advance-btn"
               disabled={advance.isPending}
               onClick={() => advance.mutate()}
-              className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              title="Manually dispatch ready nodes now (the system already advances automatically)"
+              aria-label="Manually dispatch ready nodes now (the system already advances automatically)"
+              className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base disabled:opacity-50"
             >
-              ▸ Advance
+              ▸ Advance now
             </button>
             <button
               type="button"
@@ -551,8 +560,9 @@ function PlanDag({ plan }: { plan: Plan }): React.ReactElement {
           available here. */}
       <p className="mt-2 text-[0.6875rem] text-text-muted" data-testid="plan-dag-note">
         Display-only graph: node status is derived (= f(task status, all upstream done, dispatch record))
-        and shown, not edited. The graph shows the plan's dependency structure; Advance dispatches every
-        ready node (idempotent). Dependency editing is a planning concern and isn't done on this execution view.
+        and shown, not edited. A running plan auto-advances (the system dispatches ready nodes as upstream
+        tasks complete); "Advance now" is a manual override. Dependency editing is a planning concern and
+        isn't done on this execution view.
       </p>
     </div>
   );

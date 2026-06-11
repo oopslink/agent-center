@@ -296,6 +296,57 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-dag-placeholder')).not.toBeInTheDocument();
   });
 
+  // ── P2-4: auto-advancing indicator + Advance reframed as override ──────────
+  it('running plan shows the auto-advancing indicator (near the status chip)', async () => {
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    const ind = screen.getByTestId('plan-auto-advancing');
+    expect(ind).toHaveTextContent(/auto-advancing/i);
+    // both-mode AA token (text-text-secondary), NO alpha-tint bg
+    expect(ind.className).toContain('text-text-secondary');
+    expect(ind.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
+    // informational hint present
+    expect(ind.getAttribute('title') ?? '').toMatch(/dispatches ready nodes automatically/i);
+  });
+
+  it('draft plan does NOT show the auto-advancing indicator', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-auto-advancing')).not.toBeInTheDocument();
+  });
+
+  it('done plan does NOT show the auto-advancing indicator', async () => {
+    mockPlan({ status: 'done', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-auto-advancing')).not.toBeInTheDocument();
+  });
+
+  it('Advance button is kept (running) reframed as a manual override and still calls useAdvancePlan', async () => {
+    let advanced = false;
+    mockPlan();
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/advance', () => {
+        advanced = true;
+        return HttpResponse.json(planWith());
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument());
+    const btn = screen.getByTestId('plan-advance-btn');
+    // reworded label + override affordance (title/aria-label)
+    expect(btn).toHaveTextContent(/advance now/i);
+    expect(btn.getAttribute('title') ?? '').toMatch(/the system already advances automatically/i);
+    expect(btn.getAttribute('aria-label') ?? '').toMatch(/manually dispatch ready nodes/i);
+    // Stop still present alongside it
+    expect(screen.getByTestId('plan-stop-btn')).toBeInTheDocument();
+    // function unchanged → still hits useAdvancePlan
+    await act(async () => fireEvent.click(btn));
+    await waitFor(() => expect(advanced).toBe(true));
+  });
+
   it('#218: plan-load error → friendly ErrorState with raw error behind [Details]', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
