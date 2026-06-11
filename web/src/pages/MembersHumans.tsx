@@ -54,7 +54,7 @@ function MemberRow({
         <EntityRef
           id={member.identity_id}
           name={member.display_name}
-          fallback={member.identity_id}
+          fallback={normalizeIdentityRef(member.identity_id)}
           to={`/users/${encodeURIComponent(normalizeIdentityRef(member.identity_id))}`}
           testId="human-member-link"
         />

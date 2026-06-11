@@ -405,7 +405,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
                 <EntityRef
                   id={m.identity_id}
                   name={resolveName(m.identity_id) === m.identity_id ? undefined : resolveName(m.identity_id)}
-                  fallback={m.identity_id}
+                  fallback={normalizeIdentityRef(m.identity_id)}
                   testId="project-member-ref"
                   className="truncate text-sm text-text-primary"
                 />
@@ -668,7 +668,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                       <EntityRef
                         id={tk.assignee}
                         name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
-                        fallback={tk.assignee}
+                        fallback={normalizeIdentityRef(tk.assignee)}
                       />
                     ) : (
                       '—'

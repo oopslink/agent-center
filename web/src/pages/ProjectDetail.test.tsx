@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -248,7 +248,12 @@ describe('ProjectDetail page', () => {
     await waitFor(() => expect(screen.getByTestId('member-row')).toBeInTheDocument());
     const memberRow = screen.getByTestId('member-row');
     expect(memberRow).toHaveAttribute('data-member-id', 'M-1');
-    expect(memberRow).toHaveTextContent('user:hayang');
+    // #192/#160: an unresolved member (no display_name) shows the CLEAN handle,
+    // never the raw "user:hayang" prefixed ref (which stays on title= only).
+    const memberRef = within(memberRow).getByTestId('project-member-ref');
+    expect(memberRef).toHaveTextContent('hayang');
+    expect(memberRef.textContent).not.toContain('user:hayang');
+    expect(memberRef).toHaveAttribute('title', 'user:hayang');
     expect(memberRow).toHaveTextContent('owner');
 
     fireEvent.click(screen.getByTestId('project-tab-repos'));

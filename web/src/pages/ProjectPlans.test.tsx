@@ -707,4 +707,78 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     const draftCol = screen.getByText('Live draft').closest('[data-testid="plan-column"]')!;
     expect(within(draftCol as HTMLElement).queryByTestId('task-archived-badge-TS-LV')).not.toBeInTheDocument();
   });
+
+  // @oopslink WORK-BOARD bug + sweep: AssigneeBadge must show the resolved
+  // DISPLAY NAME (via useDisplayNameResolver), NOT the raw ref handle-tail.
+  describe('AssigneeBadge — resolved display name (the @oopslink bug)', () => {
+    it('renders the agent DISPLAY NAME (not the id tail) when the member directory resolves the ref', async () => {
+      server.use(
+        http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+        http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
+        // member directory loaded by the resolver's internal useMembers() query.
+        http.get('/api/members', () =>
+          HttpResponse.json([
+            {
+              id: 'mem-b', organization_id: 'org-test', identity_id: 'agent:builder',
+              kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+              display_name: 'Builder Bot',
+            },
+          ]),
+        ),
+      );
+      wrap('/projects/proj-a/plans');
+      await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+      const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+      const badge = within(draft as HTMLElement).getAllByTestId('assignee')[0];
+      // Resolved → the display name; the raw "agent:builder" ref stays on title only.
+      await waitFor(() => expect(badge).toHaveTextContent('Builder Bot'));
+      expect(badge).toHaveTextContent('Builder Bot');
+      expect(badge).not.toHaveTextContent('builder');
+      expect(badge).toHaveAttribute('title', 'agent:builder');
+      expect(badge).toHaveAttribute('data-kind', 'agent');
+    });
+
+    it('falls back to the CLEAN handle (normalizeIdentityRef) for an unresolvable ref', async () => {
+      server.use(
+        http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+        http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
+        // directory does NOT contain agent:builder → resolver misses.
+        http.get('/api/members', () => HttpResponse.json([])),
+      );
+      wrap('/projects/proj-a/plans');
+      await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+      const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+      const badge = within(draft as HTMLElement).getAllByTestId('assignee')[0];
+      // Unresolved → the clean handle "builder", NEVER the raw "agent:builder".
+      expect(badge).toHaveTextContent('builder');
+      expect(badge.textContent).not.toContain('agent:builder');
+      expect(badge).toHaveAttribute('title', 'agent:builder');
+    });
+
+    it('shows the Unassigned empty state when there is no assignee', async () => {
+      const noAssignee = {
+        plans: [
+          {
+            id: 'PL-U', project_id: 'proj-a', name: 'No-assignee plan', description: '',
+            status: 'draft', creator_ref: 'user:owner', conversation_id: 'cU', target_date: null,
+            has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
+            node_count: 1,
+            nodes_preview: [{ ...planNode('TS-NA', 'Unassigned task'), assignee_ref: null }],
+          },
+        ],
+      };
+      server.use(
+        http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+        http.get('/api/projects/proj-a/plans', () => HttpResponse.json(noAssignee)),
+      );
+      wrap('/projects/proj-a/plans');
+      await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+      const col = screen.getByText('No-assignee plan').closest('[data-testid="plan-column"]')!;
+      const badge = within(col as HTMLElement).getAllByTestId('assignee')[0];
+      expect(badge).toHaveTextContent('Unassigned');
+    });
+  });
 });
