@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useProject } from '@/api/projects';
@@ -48,6 +48,78 @@ import { TaskTitleLink } from '@/components/TaskTitleLink';
 // to draft to match, and a running/done plan stays DISPLAY-ONLY.
 
 type Tab = 'dag' | 'tasks';
+
+// ── DAG↔chat resizable splitter (v2.9 Stage A8) ──────────────────────────────
+// @oopslink's request: the fixed 330px chat side is now a USER-RESIZABLE column.
+// The split is only side-by-side at lg+ (small screens stay stacked, no
+// splitter). The chat-side WIDTH (px) is tracked in state, applied via an inline
+// `gridTemplateColumns: 1fr <handle> <chatWidth>px`, persisted in localStorage,
+// and clamped to a sane band so the chat never collapses and the DAG stays
+// usable. The handle is a keyboard-operable role="separator" (ArrowKeys step).
+const CHAT_WIDTH_KEY = 'planDetail.chatWidth';
+const CHAT_WIDTH_MIN = 260;
+const CHAT_WIDTH_MAX = 560;
+const CHAT_WIDTH_DEFAULT = 330; // matches the previous fixed layout
+const CHAT_WIDTH_STEP = 16; // keyboard ArrowKey increment
+const SPLIT_HANDLE_W = 6; // px — the draggable handle column width
+
+function clampChatWidth(px: number): number {
+  if (Number.isNaN(px)) return CHAT_WIDTH_DEFAULT;
+  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, Math.round(px)));
+}
+
+function readStoredChatWidth(): number {
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+      return CHAT_WIDTH_DEFAULT;
+    }
+    const raw = localStorage.getItem(CHAT_WIDTH_KEY);
+    if (raw == null) return CHAT_WIDTH_DEFAULT;
+    const n = Number.parseFloat(raw);
+    if (Number.isNaN(n)) return CHAT_WIDTH_DEFAULT;
+    return clampChatWidth(n); // clamp on restore
+  } catch {
+    return CHAT_WIDTH_DEFAULT;
+  }
+}
+
+function writeStoredChatWidth(px: number): void {
+  try {
+    if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+      localStorage.setItem(CHAT_WIDTH_KEY, String(px));
+    }
+  } catch {
+    // best-effort (private mode / quota) — width still works in-session.
+  }
+}
+
+// lg breakpoint (Tailwind lg = 1024px) — drives whether the resizable
+// side-by-side layout (+ splitter) renders vs the stacked small-screen layout.
+// matchMedia-unavailable (jsdom/SSR) defaults to TRUE so the side-by-side
+// resizable layout (the primary surface) renders; real small screens get the
+// media-query `false` and stay stacked.
+function useIsWideLayout(): boolean {
+  const query = '(min-width: 1024px)';
+  const getMatch = () => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia(query).matches;
+  };
+  const [wide, setWide] = useState<boolean>(getMatch);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia(query);
+    const onChange = () => setWide(mql.matches);
+    onChange();
+    // addEventListener is the modern API; guard for older jsdom/Safari.
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    }
+    mql.addListener(onChange);
+    return () => mql.removeListener(onChange);
+  }, []);
+  return wide;
+}
 
 export default function PlanDetail(): React.ReactElement {
   const { id = '', planId = '' } = useParams<{ id: string; planId: string }>();
@@ -120,21 +192,149 @@ export default function PlanDetail(): React.ReactElement {
           </span>
         </div>
 
-        {/* Grid — main (DAG / task list) + side (plan conversation ~330px). */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_330px]">
-          <div className="border-b border-border-base p-4 lg:border-b-0 lg:border-r" data-testid="plan-detail-main">
-            {tab === 'dag' ? (
+        {/* Grid — main (DAG / task list) + a draggable splitter + side (plan
+            conversation). Resizable on lg+; stacked on small screens. */}
+        <PlanDetailSplitLayout
+          main={
+            tab === 'dag' ? (
               <PlanDag projectId={id} plan={p} />
             ) : (
               <PlanTaskList projectId={id} plan={p} />
-            )}
-          </div>
-          <div className="p-4" data-testid="plan-detail-side">
-            <PlanConversationSide conversationId={p.conversation_id} />
-          </div>
-        </div>
+            )
+          }
+          side={<PlanConversationSide conversationId={p.conversation_id} />}
+        />
       </div>
     </section>
+  );
+}
+
+// ── Resizable DAG↔chat split layout (v2.9 Stage A8) ──────────────────────────
+// On lg+ : `1fr <handle> <chatWidth>px` grid with a draggable role="separator"
+// handle (pointer-drag + ArrowKey-step, both clamped + localStorage-persisted).
+// Below lg : a plain stacked grid (no splitter), matching the prior behavior.
+function PlanDetailSplitLayout({
+  main,
+  side,
+}: {
+  main: React.ReactNode;
+  side: React.ReactNode;
+}): React.ReactElement {
+  const wide = useIsWideLayout();
+  const [chatWidth, setChatWidth] = useState<number>(() => readStoredChatWidth());
+  // Live drag state: the chat width and pointer-x at pointerdown.
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // Persist whenever the width settles (covers drag-end + keyboard steps).
+  // `next` is a delta-from-current updater so sequential keypresses compound
+  // correctly (no stale-closure on chatWidth between rapid presses).
+  const commitWidth = useCallback((compute: (current: number) => number) => {
+    setChatWidth((current) => {
+      const clamped = clampChatWidth(compute(current));
+      writeStoredChatWidth(clamped);
+      return clamped;
+    });
+  }, []);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      dragRef.current = { startX: e.clientX, startWidth: chatWidth };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    },
+    [chatWidth],
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    // Dragging LEFT (negative delta) makes the chat WIDER (the chat is the
+    // right column), so subtract the delta from the start width.
+    const delta = e.clientX - drag.startX;
+    setChatWidth(clampChatWidth(drag.startWidth - delta));
+  }, []);
+
+  const endDrag = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+      // Persist the final width (read from state via functional update to avoid
+      // a stale closure).
+      setChatWidth((w) => {
+        writeStoredChatWidth(w);
+        return w;
+      });
+    },
+    [],
+  );
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // ArrowLeft = wider chat; ArrowRight = narrower chat (mirrors the
+      // drag-left-to-widen direction). Up/Down mirror Left/Right for convenience.
+      let compute: ((w: number) => number) | null = null;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') compute = (w) => w + CHAT_WIDTH_STEP;
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') compute = (w) => w - CHAT_WIDTH_STEP;
+      else if (e.key === 'Home') compute = () => CHAT_WIDTH_MAX;
+      else if (e.key === 'End') compute = () => CHAT_WIDTH_MIN;
+      if (compute == null) return;
+      e.preventDefault();
+      commitWidth(compute);
+    },
+    [commitWidth],
+  );
+
+  // Small screens: stacked, no splitter (matches the prior lg-gated layout).
+  if (!wide) {
+    return (
+      <div className="grid grid-cols-1" data-testid="plan-detail-split">
+        <div className="border-b border-border-base p-4" data-testid="plan-detail-main">
+          {main}
+        </div>
+        <div className="p-4" data-testid="plan-detail-side">
+          {side}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="grid"
+      style={{ gridTemplateColumns: `1fr ${SPLIT_HANDLE_W}px ${chatWidth}px` }}
+      data-testid="plan-detail-split"
+      data-split-wide="true"
+    >
+      <div className="border-border-base p-4" data-testid="plan-detail-main">
+        {main}
+      </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize plan conversation panel"
+        aria-valuemin={CHAT_WIDTH_MIN}
+        aria-valuemax={CHAT_WIDTH_MAX}
+        aria-valuenow={chatWidth}
+        tabIndex={0}
+        data-testid="plan-split-handle"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={onKeyDown}
+        className="group relative cursor-col-resize touch-none select-none border-l border-r border-border-base bg-bg-subtle outline-none transition-colors hover:bg-bg-base focus-visible:bg-bg-base focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        {/* center grip line — a clearer grab affordance */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-strong group-hover:bg-accent"
+        />
+      </div>
+      <div className="p-4" data-testid="plan-detail-side">
+        {side}
+      </div>
+    </div>
   );
 }
 
