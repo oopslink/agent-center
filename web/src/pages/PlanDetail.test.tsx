@@ -225,12 +225,20 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-edge-remove')).not.toBeInTheDocument();
   });
 
-  it('DAG is display-only in draft too: still no edge-edit affordance', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
+  it('running plan does NOT show the draft dependency editor (display-only)', async () => {
+    mockPlan(); // default = running
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-dag-note')).toBeInTheDocument());
-    expect(screen.queryByTestId('plan-edge-edit-hint')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('plan-edge-edit-locked')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-remove')).not.toBeInTheDocument();
+  });
+
+  it('done plan does NOT show the draft dependency editor (display-only)', async () => {
+    mockPlan({ status: 'done', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
   });
 
@@ -345,6 +353,162 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     // function unchanged → still hits useAdvancePlan
     await act(async () => fireEvent.click(btn));
     await waitFor(() => expect(advanced).toBe(true));
+  });
+
+  // ── v2.9 Stage A1: draft-only dependency-edge editor ───────────────────────
+  // from/to semantics (verified vs backend plan_view.go + plan_flow.go):
+  // AddPlanDependency(from, to) ⟺ "from depends_on to"; a node's depends_on
+  // lists edge.ToTaskID where edge.FromTaskID == node. So edge "B depends on A"
+  // → { from_task_id: B, to_task_id: A }.
+  it('draft plan shows the dependency editor: add control + edge-remove list', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag-editor')).toBeInTheDocument());
+    // add control (two labeled selects + add button)
+    expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-edge-add-from')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-edge-add-to')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-edge-add-btn')).toBeInTheDocument();
+    // dropdowns use node titles, not raw ids
+    const fromSel = screen.getByTestId('plan-edge-add-from');
+    expect(within(fromSel).getByText('design schema')).toBeInTheDocument();
+    expect(within(fromSel).getByText('backend api')).toBeInTheDocument();
+    // existing edges rendered as remove rows (6 depends_on edges in the fixture)
+    expect(screen.getAllByTestId('plan-edge-remove')).toHaveLength(6);
+    // a row reads "<dependent> depends on <dependency>": n2 depends on n1
+    const n2n1 = screen
+      .getAllByTestId('plan-edge-remove')
+      .find((el) => el.getAttribute('data-edge') === 'n2->n1');
+    expect(n2n1).toBeDefined();
+    expect(n2n1!).toHaveTextContent('backend api');
+    expect(n2n1!).toHaveTextContent('depends on');
+    expect(n2n1!).toHaveTextContent('design schema');
+  });
+
+  it('draft: add-dependency calls useAddDependency with { from_task_id, to_task_id } (from depends_on to)', async () => {
+    let body: { from_task_id?: string; to_task_id?: string } | null = null;
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/dependencies', async ({ request }) => {
+        body = (await request.json()) as { from_task_id: string; to_task_id: string };
+        return HttpResponse.json(planWith({ status: 'draft' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
+    // pick "docs" (n7) depends on "design schema" (n1)
+    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n7' } });
+    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n1' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
+    await waitFor(() => expect(body).not.toBeNull());
+    expect(body).toEqual({ from_task_id: 'n7', to_task_id: 'n1' });
+  });
+
+  it('draft: add button is disabled until two DISTINCT tasks are selected (no self-edge)', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edge-add-btn')).toBeInTheDocument());
+    const btn = screen.getByTestId('plan-edge-add-btn') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true); // nothing selected
+    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
+    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n1' } });
+    expect(btn.disabled).toBe(true); // same task → would be a self-edge
+    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n2' } });
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('draft: remove calls useRemoveDependency with the edge { from_task_id, to_task_id }', async () => {
+    let hit = false;
+    let params: { from: string | null; to: string | null } = { from: null, to: null };
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.delete('/api/projects/proj-a/plans/PL-1/dependencies', ({ request }) => {
+        const url = new URL(request.url);
+        params = { from: url.searchParams.get('from_task_id'), to: url.searchParams.get('to_task_id') };
+        hit = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edge-list')).toBeInTheDocument());
+    const row = screen
+      .getAllByTestId('plan-edge-remove')
+      .find((el) => el.getAttribute('data-edge') === 'n2->n1')!;
+    await act(async () => fireEvent.click(within(row).getByTestId('plan-edge-remove-btn')));
+    await waitFor(() => expect(hit).toBe(true));
+    expect(params).toEqual({ from: 'n2', to: 'n1' });
+  });
+
+  it('#218: a cycle error surfaces the FRIENDLY message (not the raw API error)', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
+        HttpResponse.json(
+          { error: 'invalid_request', message: 'projectmanager: dependency would create a cycle' },
+          { status: 400 },
+        ),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
+    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n6' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
+    const err = await screen.findByTestId('plan-edge-error');
+    expect(err).toHaveTextContent('That would create a cycle in the plan.');
+    // raw backend error must NOT leak
+    expect(err.textContent ?? '').not.toMatch(/projectmanager:|invalid_request/);
+  });
+
+  it('#218: a self-edge error surfaces the FRIENDLY message', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
+        HttpResponse.json(
+          { error: 'invalid_request', message: 'projectmanager: a task cannot depend on itself' },
+          { status: 400 },
+        ),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
+    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n2' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
+    const err = await screen.findByTestId('plan-edge-error');
+    expect(err).toHaveTextContent("A task can't depend on itself.");
+    expect(err.textContent ?? '').not.toMatch(/projectmanager:/);
+  });
+
+  it('draft: plan-dag-note states dependencies ARE editable here', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag-note')).toBeInTheDocument());
+    const note = screen.getByTestId('plan-dag-note');
+    expect(note.textContent ?? '').toMatch(/editable/i);
+    expect(note.textContent ?? '').not.toMatch(/display-only/i);
+  });
+
+  it('error surface uses the danger token, not raw red, and no alpha-tint', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
+        HttpResponse.json(
+          { error: 'invalid_request', message: 'projectmanager: dependency would create a cycle' },
+          { status: 400 },
+        ),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
+    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n6' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
+    const err = await screen.findByTestId('plan-edge-error');
+    expect(err.className).toContain('text-danger');
+    expect(err.className).not.toMatch(/text-red-|bg-red-/);
+    // editor surface: solid token bg, no bg-{token}/{opacity} alpha-tint
+    expect(screen.getByTestId('plan-dag-editor').className).not.toMatch(/\/\d+/);
   });
 
   it('#218: plan-load error → friendly ErrorState with raw error behind [Details]', async () => {
