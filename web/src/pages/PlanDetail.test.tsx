@@ -610,3 +610,148 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(err).not.toHaveTextContent('plan not draft');
   });
 });
+
+// ── v2.9 Stage A5: synthetic Start/End flow anchors ──────────────────────────
+// Even parallel/independent chains read left→right because every real node sits
+// on a Start→…→End path. The anchors are layout/flow markers — NOT tasks: no
+// node_status / 6-state chip, no assignee, not clickable, not counted, not in
+// the task list. Distinct testids; their edges are on a separate testid so the
+// real depends_on edge count is unaffected.
+describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
+  afterEach(() => cleanup());
+
+  function mockNodes(nodes: unknown[], overrides: Record<string, unknown> = {}) {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans/PL-1', () =>
+        HttpResponse.json(planWith({ nodes, ...overrides })),
+      ),
+    );
+  }
+
+  const node = (id: string, deps: string[] = [], extra: Record<string, unknown> = {}) => ({
+    task_id: id,
+    title: id,
+    assignee_ref: 'agent:dev',
+    task_status: 'open',
+    node_status: 'ready',
+    depends_on: deps,
+    ...extra,
+  });
+
+  it('renders distinct Start + End anchors (default fixture)', async () => {
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    const start = screen.getByTestId('plan-dag-synthetic-start');
+    const end = screen.getByTestId('plan-dag-synthetic-end');
+    expect(start).toHaveTextContent('Start');
+    expect(end).toHaveTextContent('End');
+    // distinct from real task nodes: NOT a plan-dag-node, NO node_status chip,
+    // NO assignee tag inside the marker.
+    expect(start.getAttribute('data-testid')).not.toBe('plan-dag-node');
+    expect(within(start).queryByTestId('node-state-chip')).toBeNull();
+    expect(within(end).queryByTestId('node-state-chip')).toBeNull();
+    // marker content is just the label — no assignee/avatar/status rendered
+    expect(start.textContent).toBe('Start');
+    expect(end.textContent).toBe('End');
+  });
+
+  it('synthetic anchors are NOT counted as task nodes (real node count unchanged)', async () => {
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // still exactly 7 real task nodes — the 2 anchors are excluded
+    expect(screen.getAllByTestId('plan-dag-node')).toHaveLength(7);
+    // anchors are not in the task-list tab / its count either
+    expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('7');
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(7);
+    expect(screen.queryByTestId('plan-dag-synthetic-start')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-dag-synthetic-end')).not.toBeInTheDocument();
+  });
+
+  it('real depends_on edges are unchanged; synthetic edges are on a separate testid', async () => {
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // the 6 real depends_on edges are still exactly 6 (no synthetic leakage)
+    expect(screen.getAllByTestId('plan-dag-edge')).toHaveLength(6);
+    // synthetic edges exist on their own testid: Start→{n1,n7} roots (2) and
+    // {n6,n7}→End leaves (2). (n7 is both a root AND a leaf.)
+    const synth = screen.getAllByTestId('plan-dag-synthetic-edge');
+    const keys = synth.map((e) => e.getAttribute('data-edge'));
+    expect(keys).toContain('start->n1');
+    expect(keys).toContain('start->n7');
+    expect(keys).toContain('n6->end');
+    expect(keys).toContain('n7->end');
+  });
+
+  it('multi-parallel: 3 independent tasks → Start→all 3, all 3→End (left→right flow)', async () => {
+    mockNodes([node('a'), node('b'), node('c')]);
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    const keys = screen
+      .getAllByTestId('plan-dag-synthetic-edge')
+      .map((e) => e.getAttribute('data-edge'));
+    // Start connects to all 3 roots
+    expect(keys).toEqual(expect.arrayContaining(['start->a', 'start->b', 'start->c']));
+    // all 3 leaves connect to End
+    expect(keys).toEqual(expect.arrayContaining(['a->end', 'b->end', 'c->end']));
+    // no real dependency edges in a fully-parallel plan
+    expect(screen.queryAllByTestId('plan-dag-edge')).toHaveLength(0);
+    // both anchors present, all real nodes level 0
+    expect(screen.getByTestId('plan-dag-synthetic-start')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-dag-synthetic-end')).toBeInTheDocument();
+  });
+
+  it('single chain A→B→C: Start→A only, C→End only', async () => {
+    mockNodes([node('a'), node('b', ['a']), node('c', ['b'])]);
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    const keys = screen
+      .getAllByTestId('plan-dag-synthetic-edge')
+      .map((e) => e.getAttribute('data-edge'));
+    expect(keys).toEqual(expect.arrayContaining(['start->a', 'c->end']));
+    // only A is a root and only C is a leaf
+    expect(keys).not.toContain('start->b');
+    expect(keys).not.toContain('start->c');
+    expect(keys).not.toContain('a->end');
+    expect(keys).not.toContain('b->end');
+  });
+
+  it('single node: Start→node and node→End', async () => {
+    mockNodes([node('solo')]);
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    expect(screen.getByTestId('plan-dag-synthetic-start')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-dag-synthetic-end')).toBeInTheDocument();
+    const keys = screen
+      .getAllByTestId('plan-dag-synthetic-edge')
+      .map((e) => e.getAttribute('data-edge'));
+    expect(keys).toEqual(expect.arrayContaining(['start->solo', 'solo->end']));
+  });
+
+  it('empty plan: no synthetic anchors, no crash', async () => {
+    mockNodes([]);
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    expect(screen.getByTestId('plan-dag-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-dag-synthetic-start')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-dag-synthetic-end')).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId('plan-dag-synthetic-edge')).toHaveLength(0);
+  });
+
+  it('anchors use solid tokens (no alpha-tint, no raw red, not the 6-state border)', async () => {
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    for (const id of ['plan-dag-synthetic-start', 'plan-dag-synthetic-end']) {
+      const el = screen.getByTestId(id);
+      expect(el.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
+      expect(el.className).not.toMatch(/text-red-|bg-red-/);
+      // readable secondary text, not muted
+      expect(el.className).toContain('text-text-secondary');
+    }
+  });
+});
