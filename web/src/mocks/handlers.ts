@@ -282,7 +282,7 @@ function agentHandlers() {
   ];
 }
 
-export const handlers = [
+const baseHandlers = [
   // Health
   http.get('/api/health', () => ok({ status: 'ok' })),
 
@@ -682,4 +682,58 @@ export const handlers = [
 
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),
+
+  // Workers (Environment fleet list). Org-scoped → also gets an /orgs/:slug
+  // variant via the duplication below. Previously unhandled, which made every
+  // org-route render log an MSW onUnhandledRequest error; a default empty list
+  // keeps heavy full-tree renders quiet and fast.
+  http.get('/api/workers', () => ok({ workers: [] })),
+
+  // System build info (org-agnostic → exempt, bare only).
+  http.get('/api/system/version', () => ok({ version: 'test', commit: 'test' })),
+];
+
+// v2.9 org-routing: the web client now path-routes org-scoped calls as
+// /api/orgs/{slug}/<resource> (see withOrgSlug in api/client.ts) instead of the
+// legacy ?org_slug= query. Component/integration tests that render at an
+// /organizations/{slug}/* route therefore fetch the path-routed URL. To keep
+// BOTH conventions working under test — org-route tests (scoped) and
+// pure-unit tests that hit bare /api/* (no org slug in the jsdom URL) — every
+// org-scoped handler is registered twice: once bare and once under
+// /api/orgs/:slug. Exempt resource classes (auth, orgs CRUD, users, sse,
+// health, system) are NEVER path-scoped, matching the backend's locked route
+// table, so they keep only their bare registration.
+const ORG_EXEMPT_PREFIXES = [
+  '/api/auth',
+  '/api/orgs',
+  '/api/users',
+  '/api/sse',
+  '/api/health',
+  '/api/system',
+];
+
+function isExemptHandlerPath(path: string): boolean {
+  return ORG_EXEMPT_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+function orgScopedVariant(handler: (typeof baseHandlers)[number]) {
+  // `resolver` is a protected field on RequestHandler; it is present at runtime
+  // and reading it lets us re-register the same resolver under the path-scoped
+  // URL without duplicating ~80 handler bodies.
+  const h = handler as unknown as {
+    info: { method: string; path: string };
+    resolver: Parameters<typeof http.get>[1];
+  };
+  const { method, path } = h.info;
+  // path is like "/api/projects/:pid/plans" → "/api/orgs/:slug/projects/:pid/plans"
+  const scopedPath = `/api/orgs/:slug${path.slice('/api'.length)}`;
+  const verb = String(method).toLowerCase() as 'get' | 'post' | 'patch' | 'delete' | 'put';
+  return http[verb](scopedPath, h.resolver);
+}
+
+export const handlers = [
+  ...baseHandlers,
+  ...baseHandlers
+    .filter((h) => !isExemptHandlerPath((h.info as { path: string }).path))
+    .map(orgScopedVariant),
 ];

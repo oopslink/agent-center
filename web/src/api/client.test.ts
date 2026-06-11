@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
-import { ApiError, api, request } from './client';
+import { ApiError, api, request, withOrgSlug } from './client';
 import { server } from '../test/mswServer';
 
 describe('api client', () => {
@@ -88,5 +88,97 @@ describe('api client', () => {
       // MSW surfaces this as a fetch failure; client maps to network_error.
       expect(['network_error', 'http_error']).toContain(err.code);
     }
+  });
+});
+
+describe('withOrgSlug — v2.9 path-routed org scope', () => {
+  afterEach(() => {
+    // reset jsdom URL back to the non-org-scoped default.
+    window.history.pushState({}, '', '/');
+  });
+
+  function onOrgRoute(slug: string) {
+    window.history.pushState({}, '', `/organizations/${slug}/projects`);
+  }
+
+  describe('no org slug in the browser URL', () => {
+    it('returns /api-relative paths unchanged', () => {
+      expect(withOrgSlug('/projects')).toBe('/projects');
+    });
+    it('returns full /api paths unchanged', () => {
+      expect(withOrgSlug('/api/workers/w1')).toBe('/api/workers/w1');
+    });
+  });
+
+  describe('on an org-scoped route', () => {
+    it('splices /orgs/{slug} into an /api-relative resource path', () => {
+      onOrgRoute('acme');
+      expect(withOrgSlug('/projects')).toBe('/orgs/acme/projects');
+    });
+
+    it('preserves nested resource paths', () => {
+      onOrgRoute('acme');
+      expect(withOrgSlug('/projects/p1/plans')).toBe('/orgs/acme/projects/p1/plans');
+    });
+
+    it('preserves a trailing query string after the resource', () => {
+      onOrgRoute('acme');
+      expect(withOrgSlug('/issues?project=p1&status=open')).toBe(
+        '/orgs/acme/issues?project=p1&status=open',
+      );
+    });
+
+    it('inserts /orgs/{slug} AFTER the /api prefix for full-path raw fetches', () => {
+      onOrgRoute('acme');
+      expect(withOrgSlug('/api/workers/w1/name')).toBe('/api/orgs/acme/workers/w1/name');
+    });
+
+    it('uses the slug captured from the /organizations/:slug URL', () => {
+      onOrgRoute('acme-corp');
+      expect(withOrgSlug('/projects')).toBe('/orgs/acme-corp/projects');
+    });
+
+    it.each([
+      ['/auth/login', '/auth/login'],
+      ['/orgs', '/orgs'],
+      ['/orgs/abc', '/orgs/abc'],
+      ['/users/u1', '/users/u1'],
+      ['/sse/subscribe', '/sse/subscribe'],
+      ['/health', '/health'],
+      ['/system/info', '/system/info'],
+    ])('leaves exempt resource %s unchanged', (input, expected) => {
+      onOrgRoute('acme');
+      expect(withOrgSlug(input)).toBe(expected);
+    });
+
+    it.each([
+      ['/api/auth/bootstrap', '/api/auth/bootstrap'],
+      ['/api/orgs', '/api/orgs'],
+      ['/api/orgs/abc', '/api/orgs/abc'],
+      ['/api/users/u1', '/api/users/u1'],
+      ['/api/sse', '/api/sse'],
+    ])('leaves exempt full-path %s unchanged', (input, expected) => {
+      onOrgRoute('acme');
+      expect(withOrgSlug(input)).toBe(expected);
+    });
+
+    it('does not double-prefix an already org-scoped resource', () => {
+      onOrgRoute('acme');
+      expect(withOrgSlug('/orgs/acme/projects')).toBe('/orgs/acme/projects');
+    });
+  });
+
+  it('request() fetches the path-routed URL for an org-scoped resource', async () => {
+    window.history.pushState({}, '', '/organizations/acme/projects');
+    let seen = '';
+    server.use(
+      http.get('/api/orgs/acme/projects', ({ request: r }) => {
+        seen = new URL(r.url).pathname;
+        return HttpResponse.json({ items: [] });
+      }),
+    );
+    await api.get('/projects');
+    expect(seen).toBe('/api/orgs/acme/projects');
+    window.history.pushState({}, '', '/');
   });
 });
