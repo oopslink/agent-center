@@ -155,6 +155,11 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 // It is a no-op for non-task events (pm.plan.started) and for tasks that did NOT
 // transition to failed (the common advance path, incl. a re-discard whose prev is
 // already failed).
+//
+// v2.9 P3 (failure→agent-creator-wake): after the @mention, when the creator is an
+// AGENT it ALSO emits EvtPlanCreatorFailureWake (same tx) so the WakeProjector can
+// DIRECTLY wake the agent-creator (a system @mention can never wake an agent — #220
+// / #185). For a HUMAN creator nothing extra is emitted. See the emit block below.
 func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context, e outbox.Event, plan *pm.Plan) error {
 	if e.EventType != EvtTaskStateChanged {
 		return nil
@@ -190,8 +195,57 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 	// prepends "@<display_name> " so the failed-task notice actually @mentions (and
 	// can wake) the creator.
 	content := fmt.Sprintf("task %q failed — its downstream is blocked pending resolution.", t.Title())
-	_, perr := p.svc.planDispatcher.PostMention(txCtx, plan.ConversationID(), creator, content)
-	return perr
+	msgID, perr := p.svc.planDispatcher.PostMention(txCtx, plan.ConversationID(), creator, content)
+	if perr != nil {
+		return perr
+	}
+	// v2.9 P3 (failure→agent-creator-wake, §9.1 / decision-1): when the creator is an
+	// AGENT, the @mention alone can NEVER wake it — the WakeProjector (#220) wakes
+	// agents ONLY on human (`user:`) senders (v2.7 #185 loop-break: a system/agent
+	// message never wakes an agent), and this @mention is SYSTEM-authored. So emit a
+	// sanctioned DIRECT wake-trigger event IN THIS SAME TX (deduped by the enclosing
+	// Project tx's AppliedStore around the →failed transition event): the
+	// (production-registered) WakeProjector consumes it → enqueues an agent.converse
+	// for the agent-creator pointing at the plan conversation → the agent wakes, reads
+	// THIS failure @mention, and self-handles via the Stage C MCP plan tools.
+	//
+	// AGENT-ONLY: for a HUMAN creator we do NOT emit — the @mention in the conversation
+	// IS their notification (a human reading the plan conversation needs no system
+	// wake). The agent scheme is the "agent:" prefix (ADR-0033 identity vocabulary).
+	//
+	// IDEMPOTENT: this fires once per failure-transition event. The enclosing Project
+	// tx's AppliedStore makes the triggering EvtTaskStateChanged process-once per
+	// projector, and the →failed transition guard above means we reach here once per
+	// →failed transition. The MessageID (the failure @mention's id) rides the payload
+	// as the WakeProjector's converse idempotency anchor, so even a redelivered wake
+	// event never double-wakes the creator.
+	//
+	// LOOP-SAFE (does NOT widen #185): this is a one-shot system→agent wake on a
+	// DETERMINED creator for a DETERMINED failure transition — NOT a chat agent→agent
+	// reply. The woken creator READS the plan conversation and acts via MCP tools;
+	// that reading/acting does NOT re-emit EvtPlanCreatorFailureWake (only a NEW
+	// task→failed transition does) → no wake loop.
+	if !strings.HasPrefix(creator, "agent:") {
+		return nil
+	}
+	orgID := ""
+	if proj, perr := p.svc.projects.FindByID(txCtx, plan.ProjectID()); perr == nil && proj != nil {
+		orgID = proj.OrganizationID() // diagnostic context only; absence is non-fatal.
+	}
+	return p.svc.emit(txCtx, EvtPlanCreatorFailureWake,
+		refsJSON(map[string]string{
+			"plan_id":         string(plan.ID()),
+			"project_id":      string(plan.ProjectID()),
+			"conversation_id": plan.ConversationID(),
+		}),
+		planCreatorFailureWakePayload{
+			CreatorRef:     creator,
+			ConversationID: plan.ConversationID(),
+			MessageID:      msgID,
+			PlanID:         string(plan.ID()),
+			TaskID:         string(t.ID()),
+			OrganizationID: orgID,
+		})
 }
 
 // targetPlan extracts the Plan id this event should advance. For

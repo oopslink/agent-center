@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
@@ -368,6 +369,132 @@ func TestProductionRelay_Dispatch_DeliversWorkToAgent(t *testing.T) {
 	}
 	if wakeCount != 1 {
 		t.Fatalf("idempotency broken: %d agent.work_available for the node, want 1 (§9.3)", wakeCount)
+	}
+}
+
+// TestProductionRelay_AgentCreatorFailureWake is the v2.9 P3 #266-class behavioral
+// guard: when a plan task FAILS and the plan's CREATOR is an AGENT, the orchestrator
+// emits pm.plan.creator_failure_wake → the (production-registered) WakeProjector
+// must consume it and enqueue an agent.converse on the agent-creator's worker
+// control stream, driven through the REAL App.outboxProjectors() set. This proves
+// the WakeProjector HANDLES the new event in PRODUCTION (registered ≠ handles — the
+// #282 lesson): a system @mention can never wake an agent (#220 / #185), so without
+// this direct wake the agent-creator would never self-handle the failure. If the new
+// case were missing from the WakeProjector switch, no converse fires → this FAILS.
+func TestProductionRelay_AgentCreatorFailureWake(t *testing.T) {
+	app := newTestApp(t)
+	ctx := context.Background()
+	svc := app.PMService
+
+	// Seed a RUNNING agent-creator bound to worker W1 (the wake must deliver here).
+	agents := agentsql.NewAgentRepo(app.DB)
+	at := app.Clock.Now()
+	ag, err := agentpkg.RehydrateAgent(agentpkg.RehydrateAgentInput{
+		ID: agentpkg.AgentID("CREATORBOT"), OrganizationID: "org-rel",
+		Profile: agentpkg.Profile{Name: "CREATORBOT"}, WorkerID: "W1",
+		Lifecycle: agentpkg.LifecycleRunning, CreatedBy: "system",
+		CreatedAt: at, UpdatedAt: at, Version: 1,
+	})
+	if err != nil {
+		t.Fatalf("RehydrateAgent: %v", err)
+	}
+	if err := agents.Save(ctx, ag); err != nil {
+		t.Fatalf("save agent: %v", err)
+	}
+
+	pid, err := svc.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: "org-rel", Name: "P", CreatedBy: "user:a",
+	})
+	if err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	// The agent-creator must be a project member to pass CreatePlan's write-gate.
+	if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: "agent:CREATORBOT", Role: pm.RoleMember, Actor: "user:a",
+	}); err != nil {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
+
+	relay, _, controlLog := productionRelayWithControlLog(t, app)
+	// Plan CREATED BY THE AGENT (creator_ref = agent:CREATORBOT).
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "agentplan", CreatedBy: "agent:CREATORBOT"})
+	if err != nil {
+		t.Fatalf("CreatePlan: %v", err)
+	}
+	drainRelay(t, relay) // bind the plan conversation
+
+	// A task assigned to a HUMAN (so the failure does not also deliver work to the
+	// agent-creator via the work path — the converse below is the P3 wake, isolated).
+	tid, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "do the thing", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	assignee := "user:x"
+	if err := svc.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &assignee}, "user:a"); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, tid, "user:a"); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if err := svc.StartPlan(ctx, planID, "agent:CREATORBOT"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	drainRelay(t, relay)
+
+	planRepo := pmsql.NewPlanRepo(app.DB)
+	plan, err := planRepo.FindByID(ctx, planID)
+	if err != nil {
+		t.Fatalf("FindByID plan: %v", err)
+	}
+	convID := plan.ConversationID()
+	if convID == "" {
+		t.Fatal("plan conversation not bound")
+	}
+
+	baseCmds, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+
+	// The task FAILS → orchestrator @mentions the agent-creator AND emits
+	// pm.plan.creator_failure_wake → WakeProjector enqueues agent.converse on W1.
+	if err := svc.SetTaskStatus(ctx, tid, pm.TaskDiscarded, "user:a"); err != nil {
+		t.Fatalf("SetTaskStatus(fail): %v", err)
+	}
+	drainRelay(t, relay)
+
+	cmds, err := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var converse *environment.WorkerControlEvent
+	for i := len(cmds) - 1; i >= len(baseCmds); i-- {
+		if cmds[i].CommandType() == "agent.converse" {
+			converse = cmds[i]
+			break
+		}
+	}
+	if converse == nil {
+		t.Fatalf("production relay did NOT enqueue agent.converse on agent-creator plan-task failure — the WakeProjector is not handling pm.plan.creator_failure_wake in production (registered ≠ handles, #282)")
+	}
+	// The converse targets the plan conversation + the agent-creator's entity id.
+	wantPrefix := "agent.converse:" + convID + ":"
+	if !strings.HasPrefix(converse.IdempotencyKey(), wantPrefix) || !strings.HasSuffix(converse.IdempotencyKey(), ":CREATORBOT") {
+		t.Fatalf("converse idempotency_key = %q, want %s<failureMsgID>:CREATORBOT", converse.IdempotencyKey(), wantPrefix)
+	}
+	if !strings.Contains(converse.Payload(), `"agent_id":"CREATORBOT"`) {
+		t.Fatalf("converse payload missing agent-creator id: %s", converse.Payload())
+	}
+
+	// Replay idempotency through the production relay: re-draining (no new events)
+	// enqueues no second converse for the same failure.
+	drainRelay(t, relay)
+	cmds2, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+	converseCount := 0
+	for _, c := range cmds2 {
+		if c.CommandType() == "agent.converse" {
+			converseCount++
+		}
+	}
+	if converseCount != 1 {
+		t.Fatalf("idempotency broken: %d agent.converse for the agent-creator, want 1 (P3)", converseCount)
 	}
 }
 

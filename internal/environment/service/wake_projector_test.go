@@ -20,6 +20,7 @@ import (
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
 type wakeFixture struct {
@@ -178,6 +179,27 @@ func (f *wakeFixture) saveAgent(t *testing.T, agentID, workerID string) {
 	}
 	if err := f.agents.Save(f.ctx, a); err != nil {
 		t.Fatalf("save agent: %v", err)
+	}
+}
+
+// planCreatorWakeEvent builds an EvtPlanCreatorFailureWake outbox event (v2.9 P3).
+func planCreatorWakeEvent(id, creatorRef, convID, msgID, planID, taskID string) outbox.Event {
+	pl, err := json.Marshal(map[string]string{
+		"creator_ref":     creatorRef,
+		"conversation_id": convID,
+		"message_id":      msgID,
+		"plan_id":         planID,
+		"task_id":         taskID,
+		"organization_id": "org-1",
+	})
+	if err != nil {
+		panic(err)
+	}
+	return outbox.Event{
+		ID:        id,
+		EventType: pmservice.EvtPlanCreatorFailureWake,
+		Payload:   string(pl),
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
 	}
 }
 
@@ -511,6 +533,94 @@ func TestWakeProjector_AwaitingInput_IdempotentRedelivery(t *testing.T) {
 	}
 	if cmds := f.commandsFor(t, "W1"); len(cmds) != 1 {
 		t.Fatalf("re-delivery must not duplicate batch: want 1, got %d", len(cmds))
+	}
+}
+
+// --- v2.9 P3 plan-creator-wake (pm.plan.creator_failure_wake) -----------------
+
+// TestWakeProjector_PlanCreatorWake_EnqueuesConverse is the P3 headline: an
+// EvtPlanCreatorFailureWake event → the WakeProjector enqueues ONE agent.converse
+// for the agent-creator on the plan conversation, keyed by the failure @mention id
+// (so a replay never double-wakes). This is the DIRECT system wake the orchestrator
+// triggers because a system @mention can never wake an agent (#220 / #185).
+func TestWakeProjector_PlanCreatorWake_EnqueuesConverse(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "BOT", "W7")
+
+	e := planCreatorWakeEvent("EVW1", "agent:BOT", "plan-conv-1", "failmsg-1", "plan-1", "T9")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+
+	cmds := f.commandsFor(t, "W7")
+	if len(cmds) != 1 {
+		t.Fatalf("want 1 converse command, got %d", len(cmds))
+	}
+	c := cmds[0]
+	if c.CommandType() != "agent.converse" {
+		t.Fatalf("command_type = %q, want agent.converse", c.CommandType())
+	}
+	if c.IdempotencyKey() != "agent.converse:plan-conv-1:failmsg-1:BOT" {
+		t.Fatalf("idempotency_key = %q, want agent.converse:plan-conv-1:failmsg-1:BOT", c.IdempotencyKey())
+	}
+	if !strings.Contains(c.Payload(), `"agent_id":"BOT"`) {
+		t.Fatalf("payload missing agent_id: %s", c.Payload())
+	}
+	if !strings.Contains(c.Payload(), `"conversation_id":"plan-conv-1"`) {
+		t.Fatalf("payload missing conversation_id: %s", c.Payload())
+	}
+	if !strings.Contains(c.Payload(), `"message_id":"failmsg-1"`) {
+		t.Fatalf("payload missing failure message_id: %s", c.Payload())
+	}
+}
+
+// TestWakeProjector_PlanCreatorWake_ReplayOnce feeds the SAME wake event twice →
+// exactly ONE agent.converse (the same-tx AppliedStore dedups the redelivery, and
+// the converse idempotency key would dedup at the ControlLog regardless).
+func TestWakeProjector_PlanCreatorWake_ReplayOnce(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "BOT", "W7")
+
+	e := planCreatorWakeEvent("EVW1", "agent:BOT", "plan-conv-1", "failmsg-1", "plan-1", "T9")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 1: %v", err)
+	}
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project 2: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W7"); len(cmds) != 1 {
+		t.Fatalf("replay must not duplicate the converse: want 1, got %d", len(cmds))
+	}
+}
+
+// TestWakeProjector_PlanCreatorWake_StoppedAgent_NoConverse asserts a STOPPED
+// agent-creator is skipped (no converse, no error) — the failure @mention already
+// sits in the plan conversation for it to read when it next runs.
+func TestWakeProjector_PlanCreatorWake_StoppedAgent_NoConverse(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveAgent(t, "BOT", "W7") // NewAgent → LifecycleStopped
+
+	e := planCreatorWakeEvent("EVW1", "agent:BOT", "plan-conv-1", "failmsg-1", "plan-1", "T9")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project must not fail on a stopped agent: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W7"); len(cmds) != 0 {
+		t.Fatalf("stopped agent-creator must enqueue no converse, got %d", len(cmds))
+	}
+}
+
+// TestWakeProjector_PlanCreatorWake_UnresolvedAgent_NoError asserts an unresolvable
+// agent-creator is skipped (no converse, no error) — a missing wake target must not
+// stall the projector.
+func TestWakeProjector_PlanCreatorWake_UnresolvedAgent_NoError(t *testing.T) {
+	f := newWakeFixture(t)
+	// No agent saved → resolveAgent fails → skip + no error.
+	e := planCreatorWakeEvent("EVW1", "agent:GHOST", "plan-conv-1", "failmsg-1", "plan-1", "T9")
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project must not fail on an unresolved agent-creator: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W7"); len(cmds) != 0 {
+		t.Fatalf("unresolved agent-creator must enqueue nothing, got %d", len(cmds))
 	}
 }
 

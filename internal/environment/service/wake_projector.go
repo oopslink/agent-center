@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/mention"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
 // commandTypeAgentWake is the D2-e-i immediate-wakeup command the WakeProjector
@@ -210,6 +211,22 @@ type awaitingInputPayload struct {
 	ConversationID string `json:"conversation_id"`
 }
 
+// planCreatorFailureWakePayload mirrors the JSON the PM Service writes for the
+// EvtPlanCreatorFailureWake outbox event (v2.9 P3 failure→agent-creator-wake). It
+// is the env-side copy of pmservice.planCreatorFailureWakePayload (that type is
+// unexported; mirroring its keys keeps the BC boundary clean — env consumes the
+// event, it does not depend on PM's struct). CreatorRef is the agent ref
+// ("agent:<id>"); ConversationID is the plan conversation; MessageID is the failure
+// @mention id (the converse idempotency anchor).
+type planCreatorFailureWakePayload struct {
+	CreatorRef     string `json:"creator_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	PlanID         string `json:"plan_id"`
+	TaskID         string `json:"task_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
 // Project enqueues an agent.wake command for each waiting_input WorkItem on the
 // task whose conversation received the message (OQ5 immediate wake).
 //
@@ -226,6 +243,8 @@ func (p *WakeProjector) Project(ctx context.Context, e outbox.Event) error {
 		return p.projectMessageAdded(ctx, e)
 	case EvtAgentAwaitingInput:
 		return p.projectAwaitingInput(ctx, e)
+	case pmservice.EvtPlanCreatorFailureWake:
+		return p.projectPlanCreatorWake(ctx, e)
 	default:
 		return nil
 	}
@@ -596,6 +615,127 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		CommandType:    commandTypeAgentConverse,
 		Payload:        string(payload),
 		IdempotencyKey: "agent.converse:" + pl.ConversationID + ":" + pl.MessageID + ":" + entityID,
+	})
+	return err
+}
+
+// projectPlanCreatorWake is the v2.9 P3 failure→agent-creator-wake path (§9.1 /
+// decision-1): the PlanOrchestratorProjector emitted EvtPlanCreatorFailureWake
+// because a plan task FAILED and the plan's creator is an AGENT — and a SYSTEM
+// @mention can never wake an agent (#220 / v2.7 #185 wakes agents ONLY on `user:`
+// senders). This is the SANCTIONED DIRECT system wake: resolve the agent-creator →
+// its worker binding (mirroring deliverConverse) and enqueue ONE agent.converse
+// pointing at the plan conversation, so the agent wakes, reads the failure @mention,
+// and self-handles (adjust DAG / escalate via the Stage C MCP plan tools).
+//
+// Same-tx idempotent (IsApplied/MarkApplied in one tx), exactly like the other
+// projector paths. The agent.converse idempotency key embeds the failure @mention's
+// MessageID + the creator's resolved EXECUTION-ENTITY id, so a redelivered wake
+// event on the SAME failure transition never double-wakes the creator.
+//
+// LOOP-SAFE (does NOT widen #185): this is a one-shot system→agent wake on a
+// DETERMINED creator for a DETERMINED failure event — NOT a chat agent→agent reply.
+// The woken creator READS the plan conversation and acts via MCP tools; that
+// reading/acting does NOT re-emit EvtPlanCreatorFailureWake (only a NEW task→failed
+// transition emits it from the orchestrator) → there is no wake loop.
+//
+// Resolve-or-skip: if the creator agent can't be resolved, isn't running, or has no
+// worker binding, it logs + skips (no error — a missing wake target must not stall
+// the projector, mirroring deliverConverse / enqueueWake). MarkApplied still runs.
+func (p *WakeProjector) projectPlanCreatorWake(ctx context.Context, e outbox.Event) error {
+	var pl planCreatorFailureWakePayload
+	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+		return err
+	}
+	if p.controlLog == nil || p.agents == nil {
+		return nil // wake delivery not wired (e.g. test fixtures) → clean no-op
+	}
+	creatorRef := strings.TrimSpace(pl.CreatorRef)
+	convID := strings.TrimSpace(pl.ConversationID)
+	failureMsgID := strings.TrimSpace(pl.MessageID)
+	// Defensive: only an agent creator should have produced this event; ignore a
+	// malformed/non-agent ref or a missing conversation rather than fail.
+	if !strings.HasPrefix(creatorRef, agentParticipantPrefix) || convID == "" {
+		slog.Info("wake projector: plan-creator wake skipped (non-agent creator ref or no conversation)",
+			"creator_ref", creatorRef, "conversation_id", convID, "plan_id", pl.PlanID)
+		return nil
+	}
+	rawID := strings.TrimPrefix(creatorRef, agentParticipantPrefix)
+
+	now := p.clock.Now()
+	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+		if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
+			return err
+		} else if done {
+			return nil
+		}
+		if err := p.deliverCreatorWake(txCtx, rawID, convID, failureMsgID, pl); err != nil {
+			return err
+		}
+		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+	})
+}
+
+// deliverCreatorWake resolves the agent-creator and enqueues the agent.converse for
+// the plan-failure wake (runs in the caller's tx). It MIRRORS deliverConverse:
+// resolve tolerantly (FINDING-J: rawID may be the entity id OR the identity-member
+// id), require LifecycleRunning + a worker binding, and enqueue the converse on the
+// EXECUTION-ENTITY id (a.ID()). Resolve/running/worker failures log + skip (no error).
+//
+// IDEMPOTENCY-KEY: "agent.converse:<conv>:<failureMsgID>:<creatorEntity>" — the same
+// shape deliverConverse uses (conv:msg:entity), with the failure @mention id as the
+// message anchor so a replayed wake event dedups at the ControlLog (never double-wake).
+func (p *WakeProjector) deliverCreatorWake(ctx context.Context, rawID, convID, failureMsgID string, pl planCreatorFailureWakePayload) error {
+	a, ok := p.resolveAgent(ctx, rawID)
+	if !ok {
+		slog.Warn("wake projector: plan-creator wake skipped (agent-creator unresolved)",
+			"raw_id", rawID, "conversation_id", convID, "plan_id", pl.PlanID)
+		return nil
+	}
+	entityID := string(a.ID())
+	if a.Lifecycle() != agent.LifecycleRunning {
+		// A stopped agent-creator cannot be woken to self-handle now. Unlike the
+		// DM/channel converse (which posts a visible "not running" notice to a HUMAN
+		// peer), here the failure @mention already sits in the plan conversation for
+		// the creator to read whenever it next runs — so just log + skip (no extra
+		// system noise into the plan conversation).
+		slog.Info("wake projector: plan-creator wake skipped (agent-creator not running)",
+			"agent_id", entityID, "conversation_id", convID, "plan_id", pl.PlanID)
+		return nil
+	}
+	workerID := a.WorkerID()
+	if strings.TrimSpace(workerID) == "" {
+		slog.Info("wake projector: plan-creator wake skipped (agent-creator has no worker binding)",
+			"agent_id", entityID, "conversation_id", convID, "plan_id", pl.PlanID)
+		return nil
+	}
+	// Resolve the plan conversation for kind/name in the brief (best-effort; the
+	// converse still delivers if the lookup is unwired/fails).
+	convKind, convName := "", ""
+	if p.convRepo != nil {
+		if conv, err := p.convRepo.FindByID(ctx, conversation.ConversationID(convID)); err == nil && conv != nil {
+			convKind = string(conv.Kind())
+			convName = conv.Name()
+		}
+	}
+	payload, err := json.Marshal(converseCommandPayload{
+		AgentID:        entityID,
+		ConversationID: convID,
+		ConvKind:       convKind,
+		ConvName:       convName,
+		SenderRef:      "system",
+		SenderDisplay:  "system",
+		MessageID:      failureMsgID,
+		MessageText:    "A task in your plan failed — read the plan conversation and self-handle (adjust the DAG or escalate).",
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(workerID),
+		CommandType:    commandTypeAgentConverse,
+		Payload:        string(payload),
+		IdempotencyKey: "agent.converse:" + convID + ":" + failureMsgID + ":" + entityID,
 	})
 	return err
 }
