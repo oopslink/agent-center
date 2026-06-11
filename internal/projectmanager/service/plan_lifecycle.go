@@ -74,7 +74,24 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		if err := p.Start(now); err != nil {
 			return err
 		}
-		return s.plans.Update(txCtx, p)
+		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+		// v2.9 P2-1 auto-advance: emit pm.plan.started so the orchestrator projector
+		// dispatches the Plan's INITIAL ready nodes (no manual Advance). The project's
+		// org is carried so the payload mirrors planEventPayload (the orchestrator
+		// only needs PlanID, but org keeps the payload shape consistent).
+		proj, perr := s.projects.FindByID(txCtx, p.ProjectID())
+		if perr != nil {
+			return perr
+		}
+		return s.emit(txCtx, EvtPlanStarted,
+			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),
+			planEventPayload{
+				PlanID: string(p.ID()), ProjectID: string(p.ProjectID()),
+				OrganizationID: proj.OrganizationID(),
+				OwnerRef:       "pm://plans/" + string(p.ID()),
+			})
 	})
 }
 
@@ -133,7 +150,6 @@ func (s *Service) AdvancePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 	if s.planDispatcher == nil {
 		return nil, ErrDispatcherUnavailable
 	}
-	now := s.clock.Now()
 	var dispatched []pm.TaskID
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		p, err := s.plans.FindByID(txCtx, planID)
@@ -143,66 +159,97 @@ func (s *Service) AdvancePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
-		if p.Status() != pm.PlanRunning {
-			return pm.ErrPlanNotRunning
-		}
-		if strings.TrimSpace(p.ConversationID()) == "" {
-			// A running Plan must have its 1:1 conversation bound (#284) — dispatch
-			// has nowhere to post otherwise (fail-loud, not silent).
-			return fmt.Errorf("projectmanager: plan %s has no conversation to dispatch into", planID)
-		}
-		tasks, err := s.tasks.ListByPlan(txCtx, planID)
-		if err != nil {
-			return err
-		}
-		edges, err := s.plans.ListDependencies(txCtx, planID)
-		if err != nil {
-			return err
-		}
-		records, err := s.plans.ListDispatchRecords(txCtx, planID)
-		if err != nil {
-			return err
-		}
-		view := pm.ComputePlanView(tasks, edges, records)
-
-		// Index task → assignee for the @mention.
-		assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(tasks))
-		titleOf := make(map[pm.TaskID]string, len(tasks))
-		for _, t := range tasks {
-			assigneeOf[t.ID()] = t.Assignee()
-			titleOf[t.ID()] = t.Title()
-		}
-
-		// Dispatch every ready node (the ready-set is exactly the nodes with no
-		// dispatch record — ComputePlanView derives `dispatched` from the records,
-		// so a dispatched-but-not-running node is NodeDispatched, never NodeReady).
-		for _, taskID := range view.ReadySet {
-			assignee := assigneeOf[taskID]
-			content := fmt.Sprintf("%s your task %q is ready — all upstream dependencies are done.", string(assignee), titleOf[taskID])
-			msgID, perr := s.planDispatcher.PostMention(txCtx, p.ConversationID(), string(assignee), content)
-			if perr != nil {
-				return perr
-			}
-			if rerr := s.plans.RecordDispatch(txCtx, planID, taskID, now, msgID); rerr != nil {
-				return rerr
-			}
-			dispatched = append(dispatched, taskID)
-		}
-
-		// §9.1: a Plan is done iff EVERY node is done. Mark it here so a final
-		// advance (after the last task completes) transitions running→done.
-		if view.AllDone {
-			if merr := p.MarkDone(now); merr != nil {
-				return merr
-			}
-			if uerr := s.plans.Update(txCtx, p); uerr != nil {
-				return uerr
-			}
-		}
-		return nil
+		dispatched, err = s.dispatchReadyNodes(txCtx, p)
+		return err
 	})
 	if err != nil {
 		return nil, err
+	}
+	return dispatched, nil
+}
+
+// dispatchReadyNodes is the reusable AUTO-ADVANCE dispatch core (v2.9 P2-1).
+// Given a LOADED Plan (inside an open tx), it computes the Plan's DERIVED view
+// and dispatches EVERY ready node that has no dispatch record yet (§9.3 + the
+// all-ready lock): for each such node it posts an `@assignee …ready` message
+// into the Plan conversation (PlanDispatcher.PostMention → the wake+mention path
+// #220 wakes an agent) and writes the once-only dispatch record. After
+// dispatching, if every node is `done` the Plan is marked done (§9.1).
+//
+// It is IDEMPOTENT and REPLAY/CONCURRENCY-safe: a node already dispatched is
+// skipped (ComputePlanView derives `dispatched` from the records → a
+// dispatched-but-not-running node is NodeDispatched, never NodeReady), and
+// RecordDispatch is INSERT-OR-IGNORE on PK (plan_id, task_id) so two concurrent
+// task-done events / an event replay can never double-@mention a node (§9.3).
+//
+// It asserts the Plan is running (ErrPlanNotRunning otherwise) and has its 1:1
+// conversation bound (#284 — fail-loud, not silent). It does NOT check
+// project membership — both callers gate that themselves (AdvancePlan via the
+// actor, the orchestrator projector is a system path). It MUST run inside a tx
+// (RunInTx is reentrant, so the dispatcher's AddMessage joins it → atomic
+// dispatch). Returns the NEWLY-dispatched task ids.
+func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.TaskID, error) {
+	if s.planDispatcher == nil {
+		return nil, ErrDispatcherUnavailable
+	}
+	if p.Status() != pm.PlanRunning {
+		return nil, pm.ErrPlanNotRunning
+	}
+	if strings.TrimSpace(p.ConversationID()) == "" {
+		// A running Plan must have its 1:1 conversation bound (#284) — dispatch
+		// has nowhere to post otherwise (fail-loud, not silent).
+		return nil, fmt.Errorf("projectmanager: plan %s has no conversation to dispatch into", p.ID())
+	}
+	now := s.clock.Now()
+	planID := p.ID()
+	tasks, err := s.tasks.ListByPlan(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := s.plans.ListDependencies(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	records, err := s.plans.ListDispatchRecords(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	view := pm.ComputePlanView(tasks, edges, records)
+
+	// Index task → assignee for the @mention.
+	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(tasks))
+	titleOf := make(map[pm.TaskID]string, len(tasks))
+	for _, t := range tasks {
+		assigneeOf[t.ID()] = t.Assignee()
+		titleOf[t.ID()] = t.Title()
+	}
+
+	// Dispatch every ready node (the ready-set is exactly the nodes with no
+	// dispatch record — ComputePlanView derives `dispatched` from the records,
+	// so a dispatched-but-not-running node is NodeDispatched, never NodeReady).
+	var dispatched []pm.TaskID
+	for _, taskID := range view.ReadySet {
+		assignee := assigneeOf[taskID]
+		content := fmt.Sprintf("%s your task %q is ready — all upstream dependencies are done.", string(assignee), titleOf[taskID])
+		msgID, perr := s.planDispatcher.PostMention(txCtx, p.ConversationID(), string(assignee), content)
+		if perr != nil {
+			return nil, perr
+		}
+		if rerr := s.plans.RecordDispatch(txCtx, planID, taskID, now, msgID); rerr != nil {
+			return nil, rerr
+		}
+		dispatched = append(dispatched, taskID)
+	}
+
+	// §9.1: a Plan is done iff EVERY node is done. Mark it here so a final
+	// advance (after the last task completes) transitions running→done.
+	if view.AllDone {
+		if merr := p.MarkDone(now); merr != nil {
+			return nil, merr
+		}
+		if uerr := s.plans.Update(txCtx, p); uerr != nil {
+			return nil, uerr
+		}
 	}
 	return dispatched, nil
 }
