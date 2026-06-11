@@ -10,9 +10,11 @@ import {
   useAddDependency,
   useRemoveDependency,
   useRemoveTaskFromPlan,
+  usePatchPlan,
   type Plan,
   type PlanNode,
   type PlanNodeStatus,
+  type PatchPlanInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
 import { useDisplayNameResolver, normalizeIdentityRef, refKind } from '@/api/members';
@@ -141,6 +143,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const start = useStartPlan(projectId, plan.id);
   const stop = useStopPlan(projectId, plan.id);
   const advance = useAdvancePlan(projectId, plan.id);
+  const [editing, setEditing] = useState(false);
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
@@ -190,15 +193,28 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           </>
         )}
         {plan.status === 'draft' && (
-          <button
-            type="button"
-            data-testid="plan-start-btn"
-            disabled={start.isPending}
-            onClick={() => start.mutate()}
-            className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          >
-            ▸ Start
-          </button>
+          <>
+            {/* Editing is a PLANNING action (§9.4): name / goal / target_date
+                are editable ONLY while the plan is a draft; a running/done plan
+                is immutable (the backend rejects PATCH with ErrPlanNotDraft). */}
+            <button
+              type="button"
+              data-testid="plan-edit-btn"
+              onClick={() => setEditing(true)}
+              className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              data-testid="plan-start-btn"
+              disabled={start.isPending}
+              onClick={() => start.mutate()}
+              className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              ▸ Start
+            </button>
+          </>
         )}
       </div>
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
@@ -228,7 +244,171 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           {((start.error ?? stop.error ?? advance.error) as Error).message}
         </p>
       )}
+      {editing && (
+        <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />
+      )}
     </header>
+  );
+}
+
+// ── Plan-edit modal (v2.9 Stage A3) ──────────────────────────────────────────
+// Edits name / goal (= the `description` DTO field — the contract names it
+// `description`, NOT `goal`; verified vs PatchPlanInput in api/plans.ts) /
+// target_date via usePatchPlan (PATCH /{id}). draft-only — opened only from the
+// header's draft-gated Edit button (§9.4: running/done is immutable, the backend
+// rejects with ErrPlanNotDraft). Mirrors PlanCreateModal's structure + styling
+// (bg-black/50 scrim + bg-bg-elevated surface = the sanctioned both-mode-AA modal
+// pattern). #218: a patch failure surfaces a FRIENDLY inline message, never the
+// raw API error.
+//
+// Partial-update / TargetDateSet semantics (verified vs the backend contract):
+//   • Only CHANGED fields are sent (a no-op submit sends {}), so unchanged fields
+//     stay untouched server-side.
+//   • target_date: the create flow stores an absolute RFC3339 instant from a
+//     YYYY-MM-DD picker. We pre-fill the picker from the stored instant (local
+//     date). On submit, if the user CLEARED it → send target_date: '' (the
+//     backend's TargetDateSet="" path CLEARS it; absent = unchanged). If set to a
+//     new date → send the RFC3339 instant. If unchanged → omit it entirely.
+const PLAN_EDIT_MODAL_INPUT =
+  'mt-1 block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent';
+
+// A stored RFC3339 instant → the YYYY-MM-DD the date picker expects (local date).
+function instantToDateInput(instant: string | null | undefined): string {
+  if (!instant) return '';
+  const d = new Date(instant);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function friendlyPatchError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const lower = raw.toLowerCase();
+  if (lower.includes('draft')) {
+    return 'This plan can only be edited while it is a draft.';
+  }
+  return "Couldn't save your changes. Please try again.";
+}
+
+function PlanEditModal({
+  projectId,
+  plan,
+  onClose,
+}: {
+  projectId: string;
+  plan: Plan;
+  onClose: () => void;
+}): React.ReactElement {
+  const [name, setName] = useState(plan.name);
+  const [description, setDescription] = useState(plan.description ?? '');
+  const [targetDate, setTargetDate] = useState(() => instantToDateInput(plan.target_date));
+  const patch = usePatchPlan(projectId, plan.id);
+
+  // The picker value the field STARTED at — used to detect "cleared" vs "changed"
+  // vs "unchanged" without re-parsing the stored instant on every render.
+  const originalTargetDate = instantToDateInput(plan.target_date);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    const input: PatchPlanInput = {};
+    // name — required; send only when changed.
+    if (name.trim() !== plan.name) input.name = name.trim();
+    // goal (= description) — send only when changed (cleared → '').
+    if (description.trim() !== (plan.description ?? '')) input.description = description.trim();
+    // target_date — distinguish cleared / changed / unchanged.
+    if (targetDate !== originalTargetDate) {
+      if (targetDate === '') {
+        // cleared → '' (the backend's TargetDateSet="" path CLEARS it).
+        input.target_date = '';
+      } else {
+        // YYYY-MM-DD → RFC3339 with local offset (absolute instant), matching
+        // the create flow so the backend stores an absolute time, not naive UTC.
+        const d = new Date(`${targetDate}T00:00:00`);
+        if (!Number.isNaN(d.getTime())) input.target_date = d.toISOString();
+      }
+    }
+
+    try {
+      await patch.mutateAsync(input);
+      onClose();
+    } catch {
+      // surfaced inline below (#218)
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      data-testid="plan-edit-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit plan"
+    >
+      <form onSubmit={submit} className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
+        <h2 className="mb-4 text-lg font-semibold">Edit Plan</h2>
+        <label className="block text-xs font-medium" htmlFor="plan-edit-name">
+          Name
+        </label>
+        <input
+          id="plan-edit-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={PLAN_EDIT_MODAL_INPUT}
+          data-testid="plan-edit-name"
+          autoFocus
+        />
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-edit-description">
+          Goal
+        </label>
+        <textarea
+          id="plan-edit-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className={PLAN_EDIT_MODAL_INPUT}
+          data-testid="plan-edit-description"
+        />
+        <label className="mt-3 block text-xs font-medium" htmlFor="plan-edit-target-date">
+          Target date
+        </label>
+        <input
+          id="plan-edit-target-date"
+          type="date"
+          lang="en"
+          value={targetDate}
+          onChange={(e) => setTargetDate(e.target.value)}
+          className={PLAN_EDIT_MODAL_INPUT}
+          data-testid="plan-edit-target-date"
+        />
+        {patch.isError && (
+          <p className="mt-3 text-xs font-medium text-danger" role="alert" data-testid="plan-edit-error">
+            {friendlyPatchError(patch.error)}
+          </p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+            onClick={onClose}
+            data-testid="plan-edit-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={patch.isPending || !name.trim()}
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
+            data-testid="plan-edit-submit"
+          >
+            {patch.isPending ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 

@@ -609,6 +609,174 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(err).toHaveTextContent("Couldn't remove this task from the plan.");
     expect(err).not.toHaveTextContent('plan not draft');
   });
+
+  // ── v2.9 Stage A3: draft-only Plan-edit modal (name / goal / target_date) ───
+  // The Edit button is gated to draft (§9.4: running/done is immutable). The
+  // modal pre-fills name/goal(description)/target_date and PATCHes via
+  // usePatchPlan. PATCH body field names are name/description/target_date
+  // (the contract names goal `description`). Cleared target_date → '' (clears);
+  // an unchanged field is OMITTED (partial update). #218 friendly errors.
+  it('A3: DRAFT plan shows the Edit button; running/done do NOT', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument();
+    cleanup();
+
+    mockPlan({ status: 'running' });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-edit-btn')).not.toBeInTheDocument();
+    cleanup();
+
+    mockPlan({ status: 'done', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-edit-btn')).not.toBeInTheDocument();
+  });
+
+  it('A3: clicking Edit opens the modal pre-filled with name/goal/target_date', async () => {
+    mockPlan({
+      status: 'draft',
+      has_failed: false,
+      name: 'v3.0 release plan',
+      description: 'ship the orchestrator',
+      target_date: '2026-07-15T00:00:00Z',
+    });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-edit-modal')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('plan-edit-btn'));
+    expect(screen.getByTestId('plan-edit-modal')).toBeInTheDocument();
+    expect((screen.getByTestId('plan-edit-name') as HTMLInputElement).value).toBe('v3.0 release plan');
+    expect((screen.getByTestId('plan-edit-description') as HTMLTextAreaElement).value).toBe(
+      'ship the orchestrator',
+    );
+    // RFC3339 instant → local YYYY-MM-DD in the picker (date part preserved)
+    expect((screen.getByTestId('plan-edit-target-date') as HTMLInputElement).value).toMatch(
+      /^2026-07-1[45]$/,
+    );
+  });
+
+  it('A3: editing + submit PATCHes only the CHANGED fields (name/description), absolute target_date', async () => {
+    let body: Record<string, unknown> | null = null;
+    mockPlan({
+      status: 'draft',
+      has_failed: false,
+      name: 'old name',
+      description: 'old goal',
+      target_date: '2026-07-15T00:00:00Z',
+    });
+    server.use(
+      http.patch('/api/projects/proj-a/plans/PL-1', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(planWith({ status: 'draft' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-edit-btn'));
+    fireEvent.change(screen.getByTestId('plan-edit-name'), { target: { value: 'new name' } });
+    // leave description + target_date UNCHANGED → they must be omitted
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edit-submit')));
+    await waitFor(() => expect(body).not.toBeNull());
+    expect(body).toEqual({ name: 'new name' });
+    // modal closes on success
+    await waitFor(() => expect(screen.queryByTestId('plan-edit-modal')).not.toBeInTheDocument());
+  });
+
+  it('A3: clearing target_date sends target_date: "" (clear); unchanged name/goal omitted', async () => {
+    let body: Record<string, unknown> | null = null;
+    mockPlan({
+      status: 'draft',
+      has_failed: false,
+      name: 'keep name',
+      description: 'keep goal',
+      target_date: '2026-07-15T00:00:00Z',
+    });
+    server.use(
+      http.patch('/api/projects/proj-a/plans/PL-1', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(planWith({ status: 'draft' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-edit-btn'));
+    fireEvent.change(screen.getByTestId('plan-edit-target-date'), { target: { value: '' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edit-submit')));
+    await waitFor(() => expect(body).not.toBeNull());
+    expect(body).toEqual({ target_date: '' });
+  });
+
+  it('A3: setting a new target_date sends an absolute RFC3339 instant', async () => {
+    let body: Record<string, unknown> | null = null;
+    mockPlan({ status: 'draft', has_failed: false, name: 'p', description: '', target_date: null });
+    server.use(
+      http.patch('/api/projects/proj-a/plans/PL-1', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(planWith({ status: 'draft' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-edit-btn'));
+    fireEvent.change(screen.getByTestId('plan-edit-target-date'), { target: { value: '2026-08-01' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edit-submit')));
+    await waitFor(() => expect(body).not.toBeNull());
+    expect(typeof body!.target_date).toBe('string');
+    // an ABSOLUTE RFC3339 instant (local offset) whose LOCAL date is the picked
+    // 2026-08-01 — timezone-agnostic (don't assume the runner's tz is UTC).
+    const sent = new Date(String(body!.target_date));
+    expect(Number.isNaN(sent.getTime())).toBe(false);
+    const localDate = `${sent.getFullYear()}-${String(sent.getMonth() + 1).padStart(2, '0')}-${String(sent.getDate()).padStart(2, '0')}`;
+    expect(localDate).toBe('2026-08-01');
+    expect(Object.keys(body!)).toEqual(['target_date']); // name/description unchanged → omitted
+  });
+
+  it('A3: Cancel closes the modal WITHOUT a PATCH', async () => {
+    let patched = false;
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.patch('/api/projects/proj-a/plans/PL-1', () => {
+        patched = true;
+        return HttpResponse.json(planWith({ status: 'draft' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-edit-btn'));
+    fireEvent.change(screen.getByTestId('plan-edit-name'), { target: { value: 'changed' } });
+    fireEvent.click(screen.getByTestId('plan-edit-cancel'));
+    expect(screen.queryByTestId('plan-edit-modal')).not.toBeInTheDocument();
+    // give any (erroneous) request a tick to fire
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(patched).toBe(false);
+  });
+
+  it('A3 #218: a PATCH failure surfaces a FRIENDLY inline message (no raw API error)', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.patch('/api/projects/proj-a/plans/PL-1', () =>
+        HttpResponse.json({ error: 'conflict', message: 'projectmanager: plan is not a draft' }, { status: 409 }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-edit-btn'));
+    fireEvent.change(screen.getByTestId('plan-edit-name'), { target: { value: 'new' } });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-edit-submit')));
+    const err = await screen.findByTestId('plan-edit-error');
+    expect(err).toHaveTextContent('This plan can only be edited while it is a draft.');
+    expect(err.textContent ?? '').not.toMatch(/projectmanager:|conflict/);
+    // danger token, not raw red; scrim ok but surface no alpha-tint
+    expect(err.className).toContain('text-danger');
+    expect(err.className).not.toMatch(/text-red-|bg-red-/);
+    // modal stays open on error
+    expect(screen.getByTestId('plan-edit-modal')).toBeInTheDocument();
+  });
 });
 
 // ── v2.9 Stage A5: synthetic Start/End flow anchors ──────────────────────────
