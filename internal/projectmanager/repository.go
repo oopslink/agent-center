@@ -94,6 +94,12 @@ type PlanRepository interface {
 	RemoveDependency(ctx context.Context, dep Dependency) error
 	// ListDependencies returns all depends_on edges scoped to one Plan (§9.8).
 	ListDependencies(ctx context.Context, planID PlanID) ([]Dependency, error)
+	// ListDependenciesByPlans is the BATCH form of ListDependencies: it returns the
+	// depends_on edges for ALL of the given plans in ONE query (WHERE plan_id IN
+	// (...)), so a per-project read (ListPlanSummaries) loads every plan's DAG
+	// without an N+1 loop. Each Dependency carries its PlanID so callers group
+	// in-memory. Empty planIDs → empty slice (no malformed `IN ()`).
+	ListDependenciesByPlans(ctx context.Context, planIDs []PlanID) ([]Dependency, error)
 
 	// Dispatch records (v2.9 #285, §9.3) — the ONLY orchestrator-owned stored
 	// state. RecordDispatch writes the once-only {plan_id, task_id} record when a
@@ -103,6 +109,12 @@ type PlanRepository interface {
 	// node's record so a creator re-run re-dispatches it on the next advance.
 	RecordDispatch(ctx context.Context, planID PlanID, taskID TaskID, at time.Time, messageID string) error
 	ListDispatchRecords(ctx context.Context, planID PlanID) ([]DispatchRecord, error)
+	// ListDispatchRecordsByPlans is the BATCH form of ListDispatchRecords: it
+	// returns the dispatch records for ALL of the given plans in ONE query (WHERE
+	// plan_id IN (...)), so a per-project read (ListPlanSummaries) loads every
+	// plan's dispatch state without an N+1 loop. Each DispatchRecord carries its
+	// PlanID so callers group in-memory. Empty planIDs → empty slice.
+	ListDispatchRecordsByPlans(ctx context.Context, planIDs []PlanID) ([]DispatchRecord, error)
 	ClearDispatch(ctx context.Context, planID PlanID, taskID TaskID) error
 }
 

@@ -90,17 +90,105 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 	if err != nil {
 		return nil, err
 	}
-	tasks, err := s.tasks.ListByPlan(ctx, id)
+	return s.planDetail(ctx, p)
+}
+
+// planDetail loads one Plan's tasks + edges + dispatch records and derives the
+// whole-Plan read model (§9.2) for the given (already-loaded) Plan AR. Shared by
+// GetPlanDetail (single plan) and ListPlanSummaries (per-plan in a loop) so the
+// load+derive sequence lives in exactly one place. Node status is DERIVED here,
+// never stored.
+func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, error) {
+	tasks, err := s.tasks.ListByPlan(ctx, p.ID())
 	if err != nil {
 		return nil, err
 	}
-	edges, err := s.plans.ListDependencies(ctx, id)
+	edges, err := s.plans.ListDependencies(ctx, p.ID())
 	if err != nil {
 		return nil, err
 	}
-	records, err := s.plans.ListDispatchRecords(ctx, id)
+	records, err := s.plans.ListDispatchRecords(ctx, p.ID())
 	if err != nil {
 		return nil, err
 	}
 	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records)}, nil
+}
+
+// ListPlanSummaries returns one PlanDetail per Plan in the project (the same
+// DERIVED read model as GetPlanDetail), so the Work Board can render every kanban
+// Plan column — progress, has_failed, a capped node preview — from this ONE call
+// instead of N+1 GetPlanDetail fetches.
+//
+// N+1-free: it issues a CONSTANT number of queries regardless of plan count —
+//  1. plans.ListByProject  → the project's plans.
+//  2. tasks.ListByProject  → ALL project tasks once, grouped in-memory by PlanID
+//     (unplanned tasks with an empty plan_id are skipped).
+//  3. plans.ListDependenciesByPlans   → ALL plans' DAG edges in one IN(...) query.
+//  4. plans.ListDispatchRecordsByPlans → ALL plans' dispatch records in one query.
+//
+// Then each plan's view is derived purely in-memory via ComputePlanView over its
+// grouped tasks/edges/records — no per-plan repo round-trip (no 3×N N+1). The
+// project-wide task list is ordered (created_at, id) identically to ListByPlan, so
+// each plan's grouped task slice — and therefore its derived node order — matches
+// what GetPlanDetail produces. §9.2: node status stays DERIVED, never stored.
+func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID) ([]*PlanDetail, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	plans, err := s.plans.ListByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if len(plans) == 0 {
+		return []*PlanDetail{}, nil
+	}
+
+	planIDs := make([]pm.PlanID, 0, len(plans))
+	for _, p := range plans {
+		planIDs = append(planIDs, p.ID())
+	}
+
+	// 1 query: all project tasks, grouped by PlanID (skip unplanned). Iteration
+	// preserves the (created_at, id) order so each group mirrors ListByPlan.
+	allTasks, err := s.tasks.ListByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	tasksByPlan := make(map[pm.PlanID][]*pm.Task, len(plans))
+	for _, t := range allTasks {
+		pid := t.PlanID()
+		if pid == "" {
+			continue
+		}
+		tasksByPlan[pid] = append(tasksByPlan[pid], t)
+	}
+
+	// 1 query: all plans' DAG edges, grouped by PlanID.
+	allEdges, err := s.plans.ListDependenciesByPlans(ctx, planIDs)
+	if err != nil {
+		return nil, err
+	}
+	edgesByPlan := make(map[pm.PlanID][]pm.Dependency, len(plans))
+	for _, e := range allEdges {
+		edgesByPlan[e.PlanID] = append(edgesByPlan[e.PlanID], e)
+	}
+
+	// 1 query: all plans' dispatch records, grouped by PlanID.
+	allRecords, err := s.plans.ListDispatchRecordsByPlans(ctx, planIDs)
+	if err != nil {
+		return nil, err
+	}
+	recordsByPlan := make(map[pm.PlanID][]pm.DispatchRecord, len(plans))
+	for _, rec := range allRecords {
+		recordsByPlan[rec.PlanID] = append(recordsByPlan[rec.PlanID], rec)
+	}
+
+	// Per-plan view derivation is pure in-memory (no query).
+	out := make([]*PlanDetail, 0, len(plans))
+	for _, p := range plans {
+		tasks := tasksByPlan[p.ID()]
+		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()])
+		out = append(out, &PlanDetail{Plan: p, Tasks: tasks, View: view})
+	}
+	return out, nil
 }
