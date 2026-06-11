@@ -282,6 +282,14 @@ func (a *App) outboxProjectors(
 	// active → Task.Start (assigned→running), the keystone that makes the
 	// agent-declared complete_task/block_task reachable (both require running).
 	taskStatusSyncProj := pmservice.NewTaskStatusSyncProjector(a.DB, a.PMService, appliedRepo, a.Clock)
+	// v2.9 P2-1 AUTO-ADVANCE core (#266 LESSON): the orchestrator projector must be
+	// in the PRODUCTION relay or auto-advance is silently dead. It consumes
+	// pm.task.state_changed (a plan-task reaching a terminal state → re-dispatch the
+	// plan's newly-ready downstream nodes) and pm.plan.started (→ dispatch the plan's
+	// initial ready nodes). It reuses a.PMService's dispatch core (which has the
+	// PlanDispatcher wired); idempotent via AppliedStore + INSERT-OR-IGNORE dispatch
+	// records (§9.3). Registered in the returned slice + guarded by the #266 class-test.
+	planOrchestratorProj := pmservice.NewPlanOrchestratorProjector(a.DB, a.PMService, appliedRepo, a.Clock)
 	// v2.7 #111 #3b: fan work-item transitions out to the observability Event
 	// store (one agent.work_item.transitioned Event each) so the append-only
 	// stats stream sees the work-item lifecycle. Producer-only — the stats query
@@ -295,6 +303,7 @@ func (a *App) outboxProjectors(
 		wakeProj,
 		agentWorkItemProj,
 		taskStatusSyncProj,
+		planOrchestratorProj,
 		workItemEventProj,
 	}, wakeProj
 }

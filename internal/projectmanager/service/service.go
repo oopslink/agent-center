@@ -39,6 +39,12 @@ const (
 	// a plan-task's assignee changes.
 	EvtPlanCreated             = "pm.plan.created"
 	EvtPlanParticipantsChanged = "pm.plan.participants_changed"
+	// v2.9 P2-1 auto-advance: EvtPlanStarted is emitted by StartPlan after the
+	// draft→running transition. The PlanOrchestratorProjector consumes it to
+	// dispatch the Plan's INITIAL ready nodes (those with no upstream) — no
+	// manual Advance click. Payload mirrors planEventPayload (PlanID + ProjectID
+	// + OrganizationID).
+	EvtPlanStarted = "pm.plan.started"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
