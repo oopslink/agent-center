@@ -1,8 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import type React from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { renderHook, waitFor, cleanup } from '@testing-library/react';
+import { createElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
+import { server } from '../test/mswServer';
+import { qk } from './queryKeys';
 import {
   displayNameFallback,
   isResolvedName,
   normalizeIdentityRef,
+  useAddAgentMember,
 } from './members';
 
 // v2.7 #160: members carry BARE ids ("user-x"); message sender_identity_id and
@@ -54,5 +62,63 @@ describe('isResolvedName (#192 F1)', () => {
   });
   it('an empty ref is unresolved', () => {
     expect(isResolvedName('', '')).toBe(false);
+  });
+});
+
+// v2.9 #300 (@oopslink finding): after creating an agent through the unified
+// POST /api/members/agent (AgentCreateModal → useAddAgentMember), the agents
+// list (Agents / Home / MembersAgents / WorkerManagement / BoundAgents /
+// Environment — all read useAgents → qk.agents()) must auto-refresh. The
+// create therefore has to invalidate qk.agents() — not just the members list —
+// otherwise the new agent only appears after a manual reload.
+describe('useAddAgentMember (#300 auto-refresh)', () => {
+  afterEach(() => cleanup());
+
+  function makeWrapperWithClient(): {
+    wrapper: ({ children }: { children: React.ReactNode }) => React.ReactElement;
+    qc: QueryClient;
+  } {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    return { wrapper, qc };
+  }
+
+  it('invalidates qk.agents() (and the members list) on a successful create', async () => {
+    server.use(
+      http.post('/api/members/agent', () =>
+        HttpResponse.json({
+          id: 'M1',
+          organization_id: 'org-1',
+          identity_id: 'agent-new1',
+          kind: 'agent',
+          role: 'member',
+          status: 'joined',
+          joined_at: '2026-06-12T00:00:00Z',
+          agent_id: 'agent-new1',
+        }),
+      ),
+    );
+
+    const { wrapper, qc } = makeWrapperWithClient();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAddAgentMember(), { wrapper });
+    result.current.mutate({ display_name: 'builder-bot', worker_id: 'w-1' });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const invalidatedKeys = invalidateSpy.mock.calls.map((c) => c[0]?.queryKey);
+    // the load-bearing assertion: the agents list query was invalidated so the
+    // new agent shows up without a manual reload.
+    expect(invalidatedKeys).toContainEqual(qk.agents());
+    // and the members list is still invalidated (pre-existing behaviour kept).
+    expect(
+      invalidatedKeys.some(
+        (k) => Array.isArray(k) && k[0] === 'org' && k[k.length - 1] === 'members',
+      ),
+    ).toBe(true);
   });
 });
