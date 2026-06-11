@@ -70,15 +70,6 @@ export default function ProjectDetail(): React.ReactElement {
     <section className="space-y-4" data-testid="page-ProjectDetail" data-project-id={p.id}>
       <Breadcrumb items={[{ label: 'Projects', to: '/projects' }, { label: p.name }]} />
       <ProjectHeader project={p} />
-      {/* v2.9 #286: entry to the project's Plan orchestration (parallel Plan
-          list + DAG). Reachable here via the project detail page (§4.2). */}
-      <OrgLink
-        to={`/projects/${encodeURIComponent(p.id)}/plans`}
-        className="inline-flex items-center gap-1 rounded border border-border-base px-2.5 py-1 text-xs font-medium text-text-primary hover:bg-bg-subtle hover:text-accent"
-        data-testid="project-plans-link"
-      >
-        Plans →
-      </OrgLink>
       <ProjectWorkTabs projectId={p.id} />
       <FleetLinkSection />
     </section>
@@ -112,7 +103,17 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
           <h1 className="font-heading text-2xl font-semibold text-text-primary" title={p.id}>{p.name}</h1>
           <ProjectStatusBadge status={p.status} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* v2.9 #286: entry to the project's Plan orchestration (the Work Board
+              — parallel Plan list + DAG). Reachable here via the project detail
+              page header (§4.2). Styled to match the sibling Edit/Archive buttons. */}
+          <OrgLink
+            to={`/projects/${encodeURIComponent(p.id)}/plans`}
+            className="inline-flex items-center gap-1 rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            data-testid="project-plans-link"
+          >
+            Work Board
+          </OrgLink>
           <button
             type="button"
             className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
