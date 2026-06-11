@@ -416,6 +416,50 @@ func TestPlanAPI_ListSummaries_OrgGate(t *testing.T) {
 	}
 }
 
+// TestPlanAPI_RemoveDependency_ViaQuery exercises the REAL FE chain: the edge is
+// passed in the DELETE query string (the FE api.del client is path/query-only, no
+// body). Regression guard for the body-vs-query seam where the handler read the
+// JSON body → from/to empty → the edge was never removed (A1 remove-edge bug).
+func TestPlanAPI_RemoveDependency_ViaQuery(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID := fx.createPlan(t, s, sess, pid, "edges")
+	fx.drain(t)
+	taskA := fx.seedSelectedTask(t, sess, pid, planID, "A", "user:"+sess.IdentityID)
+	taskB := fx.seedSelectedTask(t, sess, pid, planID, "B", "user:"+sess.IdentityID)
+	if err := fx.deps.PM.AddPlanDependency(ctx, planID, taskB, taskA, caller); err != nil {
+		t.Fatal(err)
+	}
+	fx.drain(t)
+
+	// DELETE the edge via the query string (NOT a body) — the FE-client shape.
+	url := s.URL + "/api/projects/" + string(pid) + "/plans/" + string(planID) +
+		"/dependencies?from_task_id=" + string(taskB) + "&to_task_id=" + string(taskA)
+	resp := orgScopedDelete(t, url, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("remove dependency via query status=%d, want 200", resp.StatusCode)
+	}
+	got := decodeBody(t, resp)
+	for _, n := range got["nodes"].([]any) {
+		node := n.(map[string]any)
+		if node["task_id"] == string(taskB) {
+			if dep, ok := node["depends_on"].([]any); ok && len(dep) != 0 {
+				t.Fatalf("edge not removed: node B still depends_on %v", dep)
+			}
+		}
+	}
+}
+
 // TestPlanAPI_Delete_NonRunning: DELETE /plans/{id} on a draft plan returns 200
 // + {deleted:true}, removes the plan, and unloads its task back to the backlog.
 func TestPlanAPI_Delete_NonRunning(t *testing.T) {
