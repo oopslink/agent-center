@@ -46,6 +46,10 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
+		// v2.9 #297: can't START a plan on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
+			return err
+		}
 		tasks, err := s.tasks.ListByPlan(txCtx, planID)
 		if err != nil {
 			return err

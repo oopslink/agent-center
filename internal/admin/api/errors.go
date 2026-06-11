@@ -79,6 +79,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrVersionConflict):
 		writeError(w, http.StatusConflict, "version_conflict", err.Error())
 
+	// ---- project_archived (409) — v2.9 #297 -----------------------------
+	case errors.Is(err, pm.ErrProjectArchived):
+		// archived project is read-only (irreversible, @oopslink) — every project-child
+		// mutation rejects 409, cross-surface (mirrors webconsole mapPMError + the
+		// plan_conflict class in mapPlanToolError).
+		writeError(w, http.StatusConflict, "project_archived", err.Error())
+
 	// ---- forbidden / terminal (403) -------------------------------------
 	case errors.Is(err, conversation.ErrConversationArchived),
 		errors.Is(err, conversation.ErrConversationClosed),
