@@ -136,14 +136,16 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
-	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived):
-		// v2.9 P3: a running plan can't be deleted/archived (stop it first); an
-		// already-archived plan can't be re-archived — transient conflicts → 409.
+	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
+		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning):
+		// v2.9 P3: STATE-conflict class — the plan's status blocks the op (running
+		// can't delete/archive; already-archived can't re-archive; not-draft can't
+		// edit task-set/DAG; not-running can't advance/stop). All → 409, consistent
+		// across webconsole + MCP. Validation-class (cycle/self/no-tasks) stays 400.
 		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
 	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
-	case errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
-		errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
+	case errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
 		errors.Is(err, pm.ErrPlanCycle), errors.Is(err, pm.ErrSelfDependency),
 		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
