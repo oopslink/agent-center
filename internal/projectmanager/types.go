@@ -131,4 +131,13 @@ var (
 	// ErrPlanArchived rejects re-archiving an already-archived (terminal,
 	// irreversible) Plan, mirroring Conversation.ErrConversationArchived.
 	ErrPlanArchived = errors.New("projectmanager: plan is already archived")
+	// ErrProjectArchived guards an archived Project (v2.9 #297). @oopslink ruled
+	// project archive is IRREVERSIBLE (no restore), so an archived project is PURE
+	// READ-ONLY: every project-CHILD mutation (member add/remove, issue/task
+	// create/edit/transition, plan create/edit/lifecycle, …) is rejected with this
+	// once the project is archived, while reads (GetX/ListX) are unaffected. Maps to
+	// 409 cross-surface (webconsole + MCP), mirroring ErrPlanArchived's state-conflict
+	// class. The Archive operation itself is NOT guarded (it is the transition into
+	// this terminal state).
+	ErrProjectArchived = errors.New("projectmanager: project is archived")
 )

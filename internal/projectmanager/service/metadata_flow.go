@@ -37,6 +37,10 @@ func (s *Service) UpdateTask(ctx context.Context, cmd UpdateTaskCommand) error {
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), cmd.Actor); err != nil {
 			return err
 		}
+		// #297: reject task metadata edit on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
 		if cmd.Title != nil {
 			if err := t.Rename(*cmd.Title, now); err != nil {
 				return err
@@ -68,6 +72,10 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCommand) error
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, i.ProjectID(), cmd.Actor); err != nil {
+			return err
+		}
+		// #297: reject issue metadata edit on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
 		if cmd.Title != nil {

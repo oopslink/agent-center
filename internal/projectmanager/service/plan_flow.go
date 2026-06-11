@@ -47,6 +47,10 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
 			return err
 		}
+		// #297: reject plan-create on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, cmd.ProjectID); err != nil {
+			return err
+		}
 		// The Plan Conversation must be stamped with the project's org so org-scoped
 		// endpoints (incl. the orchestrator's @mention → agent wake, §9.5) resolve it.
 		proj, perr := s.projects.FindByID(txCtx, cmd.ProjectID)
@@ -105,6 +109,10 @@ func (s *Service) SelectTaskIntoPlan(ctx context.Context, planID pm.PlanID, task
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject select-task-into-plan on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
 		t, err := s.tasks.FindByID(txCtx, taskID)
@@ -166,6 +174,10 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject remove-task-from-plan on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
+			return err
+		}
 		// §9.4: the plan's task-set + DAG are editable only in draft. Removing a
 		// node from a running/done plan would break the executing DAG — mirror the
 		// gate on SelectTaskIntoPlan / Add+RemovePlanDependency (add/remove symmetry).
@@ -223,6 +235,10 @@ func (s *Service) UpdatePlan(ctx context.Context, cmd UpdatePlanCommand) error {
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), cmd.Actor); err != nil {
 			return err
 		}
+		// #297: reject plan edit on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
+			return err
+		}
 		if p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
@@ -257,6 +273,10 @@ func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromT
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject add-dependency on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
+			return err
+		}
 		if p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
@@ -286,6 +306,10 @@ func (s *Service) RemovePlanDependency(ctx context.Context, planID pm.PlanID, fr
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject remove-dependency on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
 		if p.Status() != pm.PlanDraft {
