@@ -417,16 +417,33 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(btn.disabled).toBe(false);
   });
 
-  it('draft: remove calls useRemoveDependency with the edge { from_task_id, to_task_id }', async () => {
-    let hit = false;
+  it('draft: remove FIRES the DELETE request (real wiring) — and never submits the add form', async () => {
+    // Real-wiring regression guard (Tester2 #?: "click Remove does nothing — no
+    // DELETE, edge stays, no error"). We mock at the api/http (MSW) layer — NOT
+    // the useRemoveDependency hook — so the actual button→onClick→mutate→api.del
+    // path is exercised end-to-end. Two assertions:
+    //   1) clicking Remove ACTUALLY fires `api.del` (the DELETE) with the right
+    //      URL params (the request truly leaves the component on click), and
+    //   2) the click does NOT trigger the add form's onSubmit (no add POST) —
+    //      i.e. the Remove <button> is not a stray type="submit" being eaten by
+    //      the surrounding form. On the broken (form-submit-eats-click) code the
+    //      DELETE never fires (delHit stays false) → this test FAILS; with the
+    //      Remove button as type="button" the DELETE fires → it PASSES.
+    let delHit = false;
+    let addHit = false;
     let params: { from: string | null; to: string | null } = { from: null, to: null };
     mockPlan({ status: 'draft', has_failed: false });
     server.use(
       http.delete('/api/projects/proj-a/plans/PL-1/dependencies', ({ request }) => {
         const url = new URL(request.url);
         params = { from: url.searchParams.get('from_task_id'), to: url.searchParams.get('to_task_id') };
-        hit = true;
+        delHit = true;
         return new HttpResponse(null, { status: 204 });
+      }),
+      // If clicking Remove submitted the add form, this add POST would fire.
+      http.post('/api/projects/proj-a/plans/PL-1/dependencies', () => {
+        addHit = true;
+        return HttpResponse.json(planWith({ status: 'draft' }));
       }),
     );
     wrap();
@@ -435,8 +452,12 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       .getAllByTestId('plan-edge-remove')
       .find((el) => el.getAttribute('data-edge') === 'n2->n1')!;
     await act(async () => fireEvent.click(within(row).getByTestId('plan-edge-remove-btn')));
-    await waitFor(() => expect(hit).toBe(true));
+    // the DELETE truly fires on click (this is the assertion the prior mocked-hook
+    // test could never make — it proves the request leaves the component)
+    await waitFor(() => expect(delHit).toBe(true));
     expect(params).toEqual({ from: 'n2', to: 'n1' });
+    // clicking Remove must NOT have submitted the add form
+    expect(addHit).toBe(false);
   });
 
   it('#218: a cycle error surfaces the FRIENDLY message (not the raw API error)', async () => {
