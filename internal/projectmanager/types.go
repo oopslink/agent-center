@@ -131,4 +131,10 @@ var (
 	// ErrPlanArchived rejects re-archiving an already-archived (terminal,
 	// irreversible) Plan, mirroring Conversation.ErrConversationArchived.
 	ErrPlanArchived = errors.New("projectmanager: plan is already archived")
+	// ErrPlanHasRunningTasks rejects archiving a plan that still has a member task
+	// in the running state (v2.9 #299, @oopslink): after stop, a draft plan may
+	// still have an in-flight running task, and archiving would orphan it. Archive
+	// requires no running member task (maps to 409). Distinct from ErrPlanRunning
+	// (which guards the PLAN's own running status).
+	ErrPlanHasRunningTasks = errors.New("projectmanager: plan has running tasks — complete or stop them before archiving")
 )
