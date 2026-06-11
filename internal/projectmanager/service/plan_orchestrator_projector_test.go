@@ -2,11 +2,11 @@ package service
 
 import (
 	"encoding/json"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/mention"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -51,11 +51,14 @@ func (h *orchestratorHarness) dispatchRecords(t *testing.T, planID pm.PlanID) []
 	return recs
 }
 
-// mentionCount returns how many messages in the plan conversation contain `ref`
-// in their content (the @mention is carried in the message text — the wake path
-// scans content, see PlanDispatchAdapter).
+// mentionCount returns how many messages in the plan conversation @mention the
+// identity `ref` (v2.9 BUG C: the adapter now posts "@<display_name> <body>", so
+// the wake path's mention.Present matches it). It resolves ref → display_name via
+// the SAME resolver the harness wires (planTestDisplayName) and counts messages
+// whose content contains "@<display_name>".
 func (h *orchestratorHarness) mentionCount(t *testing.T, planID pm.PlanID, ref string) int {
 	t.Helper()
+	name, _ := planTestDisplayName(h.ctx, ref)
 	conv, err := h.convRepo.FindByOwnerRef(h.ctx, conversation.NewPlanOwnerRef(string(planID)))
 	if err != nil {
 		t.Fatalf("plan conversation should exist: %v", err)
@@ -66,7 +69,7 @@ func (h *orchestratorHarness) mentionCount(t *testing.T, planID pm.PlanID, ref s
 	}
 	n := 0
 	for _, m := range msgs {
-		if strings.Contains(m.Content(), ref) {
+		if mention.Present(m.Content(), name) {
 			n++
 		}
 	}

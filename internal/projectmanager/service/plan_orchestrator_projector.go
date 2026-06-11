@@ -186,7 +186,10 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 		return ErrDispatcherUnavailable
 	}
 	creator := string(plan.CreatorRef())
-	content := fmt.Sprintf("%s task %q failed — its downstream is blocked pending resolution.", creator, t.Title())
+	// content is the BODY only — the dispatcher resolves creator → display_name and
+	// prepends "@<display_name> " so the failed-task notice actually @mentions (and
+	// can wake) the creator.
+	content := fmt.Sprintf("task %q failed — its downstream is blocked pending resolution.", t.Title())
 	_, perr := p.svc.planDispatcher.PostMention(txCtx, plan.ConversationID(), creator, content)
 	return perr
 }

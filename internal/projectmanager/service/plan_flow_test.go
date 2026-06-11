@@ -306,3 +306,50 @@ func TestPlanParticipantSync_Idempotent(t *testing.T) {
 		t.Fatalf("want 2 participants (creator + assignee), got %d", before)
 	}
 }
+
+// TestAssignAfterSelect_SyncsPlanParticipant is the BUG B regression: a task is
+// selected into a plan WITHOUT an assignee first, THEN AssignTask is called. The
+// assign path must emit pm.plan.participants_changed so the new assignee joins the
+// plan conversation — otherwise the dispatch @mention can never reach it. Before
+// the fix only SelectTaskIntoPlan emitted it (and only when the task already had an
+// assignee at select time), so the assign-after-select agent was left out.
+func TestAssignAfterSelect_SyncsPlanParticipant(t *testing.T) {
+	svc, convRepo, _, _, relay, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+
+	// Select FIRST, with NO assignee → no participant delta for the task yet.
+	if err := svc.SelectTaskIntoPlan(ctx, planID, tid, "user:a"); err != nil {
+		t.Fatalf("SelectTaskIntoPlan: %v", err)
+	}
+	drain(t, relay, ctx)
+	conv, _ := convRepo.FindByOwnerRef(ctx, conversation.NewPlanOwnerRef(string(planID)))
+	if ids := participantIDs(conv); hasID(ids, "user:bob") {
+		t.Fatalf("assignee must not be a participant before assignment, got %v", ids)
+	}
+
+	// Assign AFTER select → must emit participants_changed → assignee joins the plan conv.
+	if err := svc.AssignTask(ctx, tid, "user:bob", "user:a"); err != nil {
+		t.Fatalf("AssignTask: %v", err)
+	}
+	drain(t, relay, ctx)
+
+	conv, _ = convRepo.FindByOwnerRef(ctx, conversation.NewPlanOwnerRef(string(planID)))
+	ids := participantIDs(conv)
+	if !hasID(ids, "user:bob") {
+		t.Fatalf("assign-after-select must add the assignee to the plan conversation, got %v", ids)
+	}
+}
+
+// TestAssignTask_NoPlan_DoesNotEmitParticipantSync confirms the BUG B emit is
+// scoped to plan tasks: assigning a task NOT in any plan must not error / must be
+// a no-op for the plan participant sync (PlanID == "" → nothing emitted).
+func TestAssignTask_NoPlan_DoesNotEmitParticipantSync(t *testing.T) {
+	svc, _, _, _, _, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "loose", CreatedBy: "user:a"})
+	if err := svc.AssignTask(ctx, tid, "user:bob", "user:a"); err != nil {
+		t.Fatalf("AssignTask on a plan-less task should succeed: %v", err)
+	}
+}

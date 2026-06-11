@@ -230,7 +230,9 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	var dispatched []pm.TaskID
 	for _, taskID := range view.ReadySet {
 		assignee := assigneeOf[taskID]
-		content := fmt.Sprintf("%s your task %q is ready — all upstream dependencies are done.", string(assignee), titleOf[taskID])
+		// content is the BODY only — the dispatcher resolves assignee → display_name
+		// and prepends "@<display_name> " so the wake+mention path (#220) fires.
+		content := fmt.Sprintf("your task %q is ready — all upstream dependencies are done.", titleOf[taskID])
 		msgID, perr := s.planDispatcher.PostMention(txCtx, p.ConversationID(), string(assignee), content)
 		if perr != nil {
 			return nil, perr
