@@ -24,13 +24,14 @@ func TestSeedTestInstanceTenant_257_PopulatesAccessPack(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"organization_id":"organization-abc","identity_id":"user-1"}`))
 	})
-	mux.HandleFunc("POST /api/projects", func(w http.ResponseWriter, r *http.Request) {
+	// v2.9 org-routing-explicit: the seed client posts to /api/orgs/{slug}/...
+	mux.HandleFunc("POST /api/orgs/{slug}/projects", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := r.Cookie(sessionCookie); err == nil {
 			sawProjectCookie = true
 		}
 		_, _ = w.Write([]byte(`{"id":"project-xyz","name":"Alpha"}`))
 	})
-	mux.HandleFunc("POST /api/conversations", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/orgs/{slug}/conversations", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := r.Cookie(sessionCookie); err == nil {
 			sawChannelCookie = true
 		}

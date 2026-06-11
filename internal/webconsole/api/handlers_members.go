@@ -21,7 +21,7 @@ func (s *Server) resolveCallerAndOrg(w http.ResponseWriter, r *http.Request, d H
 	return requireOrgMember(w, r, d)
 }
 
-// listMembersHandler handles GET /api/members?org_slug=|org_id=.
+// listMembersHandler handles GET /api/orgs/{slug}/members (org via path).
 func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	_, _, orgID, ok := s.resolveCallerAndOrg(w, r, d)
@@ -86,7 +86,7 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, arr)
 }
 
-// addMemberHandler handles POST /api/members[?org_id=].
+// addMemberHandler handles POST /api/members(org via /api/orgs/{slug} path).
 // Creates a NEW user identity (with temp passcode) + member row, OR adds an
 // existing identity by display_name when ?reuse=true. Default behavior is
 // "create new user" per v2.6 acceptance plan §3.
@@ -161,7 +161,7 @@ func (s *Server) addMemberHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, result)
 }
 
-// addAgentMemberHandler handles POST /api/members/agent[?org_id=].
+// addAgentMemberHandler handles POST /api/members/agent(org via /api/orgs/{slug} path).
 // Creates a new agent identity + member.
 // defaultAgentModel is the API-layer fallback applied when an agent is created
 // without an explicit model (v2.7.1 #236). Mirrors the frontend
@@ -327,7 +327,7 @@ func (s *Server) requireTargetMemberInOrg(w http.ResponseWriter, r *http.Request
 	return target, true
 }
 
-// changeMemberRoleHandler handles PATCH /api/members/{id}/role[?org_id=].
+// changeMemberRoleHandler handles PATCH /api/members/{id}/role(org via /api/orgs/{slug} path).
 // Requires owner role (only owners can change roles to prevent privilege escalation).
 func (s *Server) changeMemberRoleHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -362,7 +362,7 @@ func (s *Server) changeMemberRoleHandler(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// disableMemberHandler handles POST /api/members/{id}/disable[?org_id=].
+// disableMemberHandler handles POST /api/members/{id}/disable(org via /api/orgs/{slug} path).
 // Requires owner or admin role.
 func (s *Server) disableMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -393,7 +393,7 @@ func (s *Server) disableMemberHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// reEnableMemberHandler handles POST /api/members/{id}/reenable[?org_id=].
+// reEnableMemberHandler handles POST /api/members/{id}/reenable(org via /api/orgs/{slug} path).
 // Requires owner or admin role.
 func (s *Server) reEnableMemberHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)

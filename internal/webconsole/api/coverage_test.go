@@ -12,6 +12,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretsvcCreate "github.com/oopslink/agent-center/internal/secretmgmt/service"
@@ -54,32 +55,40 @@ func TestAPI_OrgScope_Isolation_And_Membership(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps) // org "testorg", caller is owner
 	ctx := context.Background()
-	// Seed a channel in the caller's org and one in a different org.
+	// Seed a second org the caller is NOT a member of (real org with a slug so
+	// the {slug} path resolves) + a channel in each org.
+	otherOrg, err := identity.OrganizationFactory{}.New("otherorg", "Other Org", "user:other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewSQLiteOrganizationRepo(db).Save(ctx, otherOrg); err != nil {
+		t.Fatal(err)
+	}
 	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
 		Name: "mine", OrganizationID: sess.OrgID, CreatedBy: "user:hayang", Actor: "user:hayang",
 	})
 	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "theirs", OrganizationID: "organization-other", CreatedBy: "user:other", Actor: "user:other",
+		Name: "theirs", OrganizationID: otherOrg.ID(), CreatedBy: "user:other", Actor: "user:other",
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	// (1) no cookie → 401
-	resp, _ := http.Get(s.URL + "/api/conversations?org_slug=" + sess.OrgSlug)
+	// (1) no cookie → 401 (path carries the org slug now)
+	resp, _ := http.Get(s.URL + "/api/orgs/" + sess.OrgSlug + "/conversations")
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("no cookie: got %d want 401", resp.StatusCode)
 	}
 
-	// (3) cookie but no org scope → 400 (must NOT return all data)
-	req, _ := http.NewRequest(http.MethodGet, s.URL+"/api/conversations", nil)
+	// (3) cookie but unknown org slug → 400 (must NOT return all data)
+	req, _ := http.NewRequest(http.MethodGet, s.URL+"/api/orgs/nonexistent-slug/conversations", nil)
 	req.AddCookie(sess.Cookie)
 	resp, _ = http.DefaultClient.Do(req)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("no org scope: got %d want 400", resp.StatusCode)
+		t.Fatalf("unknown org slug: got %d want 400", resp.StatusCode)
 	}
 
-	// (2) member of a different org → 403
-	req, _ = http.NewRequest(http.MethodGet, s.URL+"/api/conversations?org_id=organization-other", nil)
+	// (2) member of a different org → 403 (valid slug, caller not a member)
+	req, _ = http.NewRequest(http.MethodGet, s.URL+"/api/orgs/"+otherOrg.Slug()+"/conversations", nil)
 	req.AddCookie(sess.Cookie)
 	resp, _ = http.DefaultClient.Do(req)
 	if resp.StatusCode != http.StatusForbidden {
@@ -265,7 +274,7 @@ func TestAPI_ListSecrets_NotWired(t *testing.T) {
 	deps.UserSecretRepo = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/secrets")
+	resp, _ := http.Get(s.URL + "/api/orgs/_/secrets")
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -276,7 +285,7 @@ func TestAPI_CreateSecret_NotWired(t *testing.T) {
 	deps.UserSecretSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/secrets", "application/json",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/secrets", "application/json",
 		strings.NewReader(`{"name":"x","value":"v"}`))
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -288,7 +297,7 @@ func TestAPI_RevokeSecret_NotWired(t *testing.T) {
 	deps.UserSecretSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	req, _ := http.NewRequest("DELETE", s.URL+"/api/secrets/x", nil)
+	req, _ := http.NewRequest("DELETE", s.URL+"/api/orgs/_/secrets/x", nil)
 	resp, _ := http.DefaultClient.Do(req)
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -301,7 +310,7 @@ func TestAPI_CreateSecret_Happy(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"name":"api-key","kind":"cloud_credential","value":"deadbeef"}`
-	resp, _ := http.Post(s.URL+"/api/secrets", "application/json", strings.NewReader(body))
+	resp, _ := http.Post(s.URL+"/api/orgs/_/secrets", "application/json", strings.NewReader(body))
 	if resp.StatusCode != 201 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -317,7 +326,7 @@ func TestAPI_CreateSecret_MissingValue(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/secrets", "application/json",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/secrets", "application/json",
 		strings.NewReader(`{"name":"x"}`))
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -328,7 +337,7 @@ func TestAPI_CreateSecret_BadJSON(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/secrets", "application/json", strings.NewReader(`{x`))
+	resp, _ := http.Post(s.URL+"/api/orgs/_/secrets", "application/json", strings.NewReader(`{x`))
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}

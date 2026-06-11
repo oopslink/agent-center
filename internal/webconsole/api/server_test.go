@@ -214,16 +214,34 @@ var testSigningKey = func() []byte {
 	return b
 }()
 
-// orgScopedPost executes a POST with the session cookie + ?org_slug attached.
-// Needed because once AuthSvc is wired the global authMiddleware gates every
-// /api/* request (not just the org-scoped reads).
+// orgScopedURL rewrites a bare org-scoped URL into the v2.9 path form.
+// `url` is a relative path like "/api/conversations" or "/api/projects/p1/tasks"
+// (optionally with a query string). It is rewritten to
+// "/api/orgs/<slug>/conversations" — the {slug} path segment requireOrgMember
+// now reads (the legacy ?org_slug= query was deleted backend-side). A full URL
+// (scheme://host/api/...) is rewritten in place so callers can pass ts.URL+path.
+// Already-prefixed (/api/orgs/...) URLs and non-/api URLs are left untouched.
+func orgScopedURL(url, slug string) string {
+	const apiPrefix = "/api/"
+	idx := strings.Index(url, apiPrefix)
+	if idx < 0 {
+		return url
+	}
+	head := url[:idx]            // "" or "scheme://host"
+	rest := url[idx+len(apiPrefix):] // e.g. "conversations" or "orgs/s/x"
+	if strings.HasPrefix(rest, "orgs/") || rest == "orgs" {
+		return url // already path-scoped (or the org CRUD endpoint itself)
+	}
+	return head + "/api/orgs/" + slug + "/" + rest
+}
+
+// orgScopedPost executes a POST with the session cookie against the v2.9
+// path-scoped org URL (/api/orgs/<slug>/...). Needed because once AuthSvc is
+// wired the global authMiddleware gates every /api/* request and requireOrgMember
+// reads the {slug} path segment.
 func orgScopedPost(t *testing.T, url, body string, sess testSession) *http.Response {
 	t.Helper()
-	if !strings.Contains(url, "?") {
-		url += "?org_slug=" + sess.OrgSlug
-	} else {
-		url += "&org_slug=" + sess.OrgSlug
-	}
+	url = orgScopedURL(url, sess.OrgSlug)
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -237,14 +255,11 @@ func orgScopedPost(t *testing.T, url, body string, sess testSession) *http.Respo
 	return resp
 }
 
-// orgScopedPatch executes a PATCH with the session cookie + ?org_slug attached.
+// orgScopedPatch executes a PATCH with the session cookie against the v2.9
+// path-scoped org URL (/api/orgs/<slug>/...).
 func orgScopedPatch(t *testing.T, url, body string, sess testSession) *http.Response {
 	t.Helper()
-	if !strings.Contains(url, "?") {
-		url += "?org_slug=" + sess.OrgSlug
-	} else {
-		url += "&org_slug=" + sess.OrgSlug
-	}
+	url = orgScopedURL(url, sess.OrgSlug)
 	req, err := http.NewRequest(http.MethodPatch, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -258,14 +273,11 @@ func orgScopedPatch(t *testing.T, url, body string, sess testSession) *http.Resp
 	return resp
 }
 
-// orgScopedDelete executes a DELETE with the session cookie + ?org_slug attached.
+// orgScopedDelete executes a DELETE with the session cookie against the v2.9
+// path-scoped org URL (/api/orgs/<slug>/...).
 func orgScopedDelete(t *testing.T, url string, sess testSession) *http.Response {
 	t.Helper()
-	if !strings.Contains(url, "?") {
-		url += "?org_slug=" + sess.OrgSlug
-	} else {
-		url += "&org_slug=" + sess.OrgSlug
-	}
+	url = orgScopedURL(url, sess.OrgSlug)
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -278,17 +290,12 @@ func orgScopedDelete(t *testing.T, url string, sess testSession) *http.Response 
 	return resp
 }
 
-// orgScopedGet executes a GET against url with the session cookie attached
-// and ?org_slug=<sess.OrgSlug> appended (merging with existing query params).
-// Used by list endpoint tests now that requireOrgMember enforces strict
-// org membership at the API boundary.
+// orgScopedGet executes a GET against the v2.9 path-scoped org URL
+// (/api/orgs/<slug>/...) with the session cookie attached. Used by list
+// endpoint tests now that requireOrgMember reads the {slug} path segment.
 func orgScopedGet(t *testing.T, url string, sess testSession) *http.Response {
 	t.Helper()
-	if !strings.Contains(url, "?") {
-		url += "?org_slug=" + sess.OrgSlug
-	} else {
-		url += "&org_slug=" + sess.OrgSlug
-	}
+	url = orgScopedURL(url, sess.OrgSlug)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -442,7 +449,7 @@ func TestAPI_FleetWithoutSvc(t *testing.T) {
 	deps.FleetSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/fleet")
+	resp, _ := http.Get(s.URL + "/api/orgs/_/fleet")
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}

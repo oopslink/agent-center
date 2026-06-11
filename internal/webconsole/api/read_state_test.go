@@ -107,7 +107,7 @@ func TestAPI_Unread_InvalidUserID(t *testing.T) {
 	convID, _ := seedConvAndMessages(t, deps, "", "unread-bad", 1)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/" + string(convID) + "/unread?user_id=no-prefix")
+	resp, _ := http.Get(s.URL + "/api/orgs/_/conversations/" + string(convID) + "/unread?user_id=no-prefix")
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -118,7 +118,7 @@ func TestAPI_Unread_RepoUnwired_501(t *testing.T) {
 	deps.ReadStateSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/any/unread")
+	resp, _ := http.Get(s.URL + "/api/orgs/_/conversations/any/unread")
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -200,7 +200,7 @@ func TestAPI_Seen_InvalidJSON(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/x/seen",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations/x/seen",
 		"application/json", strings.NewReader(`{not json`))
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -211,7 +211,7 @@ func TestAPI_Seen_MissingMessageID(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/x/seen",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations/x/seen",
 		"application/json", strings.NewReader(`{"user_id":"user:hayang"}`))
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -224,7 +224,7 @@ func TestAPI_Seen_InvalidUserID(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 	body := `{"user_id":"no-prefix","last_seen_message_id":"` + string(ids[0]) + `"}`
-	resp, _ := http.Post(s.URL+"/api/conversations/"+string(convID)+"/seen",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations/"+string(convID)+"/seen",
 		"application/json", strings.NewReader(body))
 	if resp.StatusCode != 400 {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -270,7 +270,7 @@ func TestAPI_Seen_RepoUnwired_501(t *testing.T) {
 	deps.ReadStateSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/x/seen",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations/x/seen",
 		"application/json", strings.NewReader(`{"last_seen_message_id":"x"}`))
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d", resp.StatusCode)

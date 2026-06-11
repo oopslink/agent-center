@@ -21,7 +21,7 @@ func TestAPI_CreateConversation_Channel_Happy(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	resp, err := http.Post(s.URL+"/api/conversations",
+	resp, err := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"channel","name":"alpha","description":"plan room"}`))
 	if err != nil {
@@ -56,7 +56,7 @@ func TestAPI_CreateConversation_Channel_NameRequired(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"channel"}`))
 	if resp.StatusCode != http.StatusBadRequest {
@@ -76,7 +76,7 @@ func TestAPI_CreateConversation_Channel_DuplicateName(t *testing.T) {
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"channel","name":"dup"}`))
 	if resp.StatusCode != http.StatusConflict {
@@ -88,7 +88,7 @@ func TestAPI_CreateConversation_DM_Happy(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"dm","members":["agent:supervisor-1"]}`))
 	if resp.StatusCode != http.StatusCreated {
@@ -124,7 +124,7 @@ func TestAPI_CreateConversation_DM_MembersRequired(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"dm"}`))
 	if resp.StatusCode != http.StatusBadRequest {
@@ -136,7 +136,7 @@ func TestAPI_CreateConversation_DM_BadMemberIdentity(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"dm","members":["no-prefix-bareid"]}`))
 	if resp.StatusCode != http.StatusBadRequest {
@@ -156,7 +156,7 @@ func TestAPI_CreateConversation_DM_StrictOneToOne(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"dm","members":["user:hayang","agent:s-1"]}`))
 	if resp.StatusCode != http.StatusBadRequest {
@@ -173,7 +173,7 @@ func TestAPI_CreateConversation_BadKind(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"task","name":"x"}`))
 	if resp.StatusCode != http.StatusBadRequest {
@@ -185,7 +185,7 @@ func TestAPI_CreateConversation_BadJSON(t *testing.T) {
 	deps, _ := setupAPI(t)
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json", strings.NewReader(`{not json`))
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("got %d", resp.StatusCode)
@@ -197,7 +197,7 @@ func TestAPI_CreateConversation_Channel_ChannelSvcNotWired(t *testing.T) {
 	deps.ChannelMgmtSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"channel","name":"x"}`))
 	if resp.StatusCode != http.StatusNotImplemented {
@@ -256,7 +256,7 @@ func TestAPI_ListRefs_NotWired(t *testing.T) {
 	deps.CarryOverSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Get(s.URL + "/api/conversations/whatever/refs")
+	resp, _ := http.Get(s.URL + "/api/orgs/_/conversations/whatever/refs")
 	if resp.StatusCode != http.StatusNotImplemented {
 		t.Fatalf("got %d", resp.StatusCode)
 	}
@@ -267,7 +267,7 @@ func TestAPI_CreateConversation_DM_MessageWriterNotWired(t *testing.T) {
 	deps.MessageWriter = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations",
 		"application/json",
 		strings.NewReader(`{"kind":"dm","members":["agent:x"]}`))
 	if resp.StatusCode != http.StatusNotImplemented {
