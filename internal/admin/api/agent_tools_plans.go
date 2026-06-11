@@ -1,0 +1,561 @@
+package api
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/oopslink/agent-center/internal/agent"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+)
+
+// =============================================================================
+// Agent MCP passthrough tools — Plan operations (v2.9 P3 Stage C). Thin wrappers
+// over the pm Plan AppServices so a PM-agent can drive Plan orchestration via MCP
+// tools (an agent-created plan becomes real). MIRRORS agent_tools_passthrough.go
+// EXACTLY: parse args → call the pm AppService with actor=agent → map result/error
+// to the MCP tool response. NO new domain logic.
+//
+// Auth/identity is REUSED, not reinvented:
+//   - Every tool goes through requireAgentOnWorker (the b1 guardrail: worker proven
+//     by the TOKEN OWNER, target agent bound to it — the SAME gate the task tools
+//     use). A wrong-org / wrong-worker caller is rejected there (403) before any
+//     AppService call.
+//   - The actor passed into each WRITE AppService is the agent's business identity
+//     ref `agent:<member-id>` (agentActor) — the SAME actor the create_task /
+//     assign_task tools pass. The AppService's own requireProjectMember is the
+//     write-gate: an agent member of the plan's project passes; a foreign project
+//     yields ErrNotMember (→403). No extra membership layer is added on top.
+//
+// Plan domain errors the AppServices already enforce (ErrPlanNotDraft,
+// ErrPlanNotRunning, ErrPlanCycle, ErrSelfDependency, ErrPlanNoTasks, …) are
+// surfaced as tool errors via mapPlanToolError (the admin mirror of webconsole's
+// mapPlanError).
+//
+// NOTE on task assignment: assign_task ALREADY exists in agent_tools_passthrough.go
+// (→ pm.AssignTask). A plan node's assignee is just the underlying Task's assignee,
+// so there is NO plan-specific assign tool here — the existing assign_task suffices.
+//
+// NOTE on delete/archive: delete_plan / archive_plan are thin wrappers over the pm
+// DeletePlan / ArchivePlan AppServices (Stage B), which guard a RUNNING plan with
+// ErrPlanRunning (stop it first) and re-archival with ErrPlanArchived — both
+// surfaced via mapPlanToolError as 409 plan_conflict (mirroring webconsole).
+// =============================================================================
+
+// mapPlanToolError translates Plan-specific sentinel errors to the tool-error
+// envelope, then defers to the shared mapDomainError for everything else. It is
+// the admin-package mirror of webconsole/api.mapPlanError (same sentinels, same
+// status classes): plan-not-found → 404, plans/dispatcher-unwired → 501, the
+// draft/running/cycle/validation guards → 422 invalid_transition (a state
+// precondition the agent must observe), and ErrNotMember/ErrCrossProject fall
+// through to mapDomainError's 403.
+func mapPlanToolError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, pm.ErrPlanNotFound):
+		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived):
+		// v2.9 P3 Stage C: a running plan can't be deleted/archived (stop it first);
+		// an already-archived plan can't be re-archived — transient conflicts → 409
+		// (mirrors webconsole mapPlanError's plan_conflict mapping).
+		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
+	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
+	case errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
+		errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
+		errors.Is(err, pm.ErrPlanCycle), errors.Is(err, pm.ErrSelfDependency),
+		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
+		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
+		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
+		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists):
+		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
+	default:
+		mapDomainError(w, err)
+	}
+}
+
+// --- create_plan -------------------------------------------------------------
+
+type createPlanReq struct {
+	AgentID     string `json:"agent_id"`
+	ProjectID   string `json:"project_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	TargetDate  string `json:"target_date"`
+}
+
+// createPlanHandler creates a draft Plan via pm.CreatePlan with actor=agent. The
+// AppService's requireProjectMember bounds the agent to its own projects (a
+// foreign project → ErrNotMember → 403). target_date, when present, is RFC3339Nano.
+func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req createPlanReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	var td *time.Time
+	if strings.TrimSpace(req.TargetDate) != "" {
+		t, perr := time.Parse(time.RFC3339Nano, req.TargetDate)
+		if perr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_target_date", "target_date must be RFC3339")
+			return
+		}
+		td = &t
+	}
+	planID, err := d.PMService.CreatePlan(r.Context(), pmservice.CreatePlanCommand{
+		ProjectID:   pm.ProjectID(req.ProjectID),
+		Name:        req.Name,
+		Description: req.Description,
+		TargetDate:  td,
+		CreatedBy:   pm.IdentityRef(agentActor(a)),
+	})
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(planID)})
+}
+
+// --- add_task_to_plan --------------------------------------------------------
+
+type planTaskReq struct {
+	AgentID string `json:"agent_id"`
+	PlanID  string `json:"plan_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// addTaskToPlanHandler selects a backlog task into a draft Plan via
+// pm.SelectTaskIntoPlan (actor=agent). Draft-gating + project-scope guards
+// (ErrPlanNotDraft / ErrPlanProjectMismatch / ErrTaskInOtherPlan) are enforced by
+// the AppService and surfaced as tool errors.
+func (s *Server) addTaskToPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanTask(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.SelectTaskIntoPlan(r.Context(), pm.PlanID(req.PlanID),
+		pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// removeTaskFromPlanHandler removes a task from its Plan via
+// pm.RemoveTaskFromPlan (actor=agent).
+func (s *Server) removeTaskFromPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanTask(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.RemoveTaskFromPlan(r.Context(), pm.PlanID(req.PlanID),
+		pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- add_plan_dependency / remove_plan_dependency ----------------------------
+
+type planDepReq struct {
+	AgentID    string `json:"agent_id"`
+	PlanID     string `json:"plan_id"`
+	FromTaskID string `json:"from_task_id"`
+	ToTaskID   string `json:"to_task_id"`
+}
+
+// addPlanDependencyHandler adds a depends_on edge to a draft Plan's DAG via
+// pm.AddPlanDependency (actor=agent). The repo rejects self-edges/cycles
+// (ErrSelfDependency / ErrPlanCycle) before persisting → surfaced as tool errors.
+func (s *Server) addPlanDependencyHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanDep(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.AddPlanDependency(r.Context(), pm.PlanID(req.PlanID),
+		pm.TaskID(req.FromTaskID), pm.TaskID(req.ToTaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// removePlanDependencyHandler removes a depends_on edge from a draft Plan's DAG
+// via pm.RemovePlanDependency (actor=agent). Idempotent (removing a missing edge
+// is a no-op).
+func (s *Server) removePlanDependencyHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanDep(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.RemovePlanDependency(r.Context(), pm.PlanID(req.PlanID),
+		pm.TaskID(req.FromTaskID), pm.TaskID(req.ToTaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- start_plan / stop_plan --------------------------------------------------
+
+type planIDReq struct {
+	AgentID string `json:"agent_id"`
+	PlanID  string `json:"plan_id"`
+}
+
+// startPlanHandler validates + moves a draft Plan to running via pm.StartPlan
+// (actor=agent). Start-validation guards (ErrPlanNoTasks, ErrPlanCycle,
+// ErrPlanUnassignedTask, ErrPlanUnresolvableAssignee, …) are enforced by the
+// AppService and surfaced as tool errors.
+func (s *Server) startPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.StartPlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// stopPlanHandler moves a running Plan back to draft via pm.StopPlan (actor=agent).
+func (s *Server) stopPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.StopPlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- delete_plan / archive_plan ----------------------------------------------
+
+// deletePlanHandler HARD-deletes a non-running Plan via pm.DeletePlan (actor=agent):
+// its tasks are unloaded back to the backlog, its deps/dispatch-records + the plan
+// row are removed, and its 1:1 conversation is hard-deleted (event-driven). A running
+// plan is rejected (ErrPlanRunning → 409 plan_conflict; stop it first). The plan is
+// gone, so it returns a bare deletion confirmation.
+func (s *Server) deletePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.DeletePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "plan_id": req.PlanID})
+}
+
+// archivePlanHandler archives a non-running Plan + CASCADE-archives its tasks via
+// pm.ArchivePlan (actor=agent, irreversible). A running plan is rejected
+// (ErrPlanRunning → 409); an already-archived plan is rejected (ErrPlanArchived →
+// 409). Returns the archived Plan detail (mirrors get_plan / webconsole archive).
+func (s *Server) archivePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.ArchivePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	detail, derr := d.PMService.GetPlanDetail(r.Context(), pm.PlanID(req.PlanID))
+	if derr != nil {
+		mapPlanToolError(w, derr)
+		return
+	}
+	writeJSON(w, http.StatusOK, planDetailMap(detail))
+}
+
+// --- get_plan / list_plans ---------------------------------------------------
+
+type getPlanReq struct {
+	AgentID   string `json:"agent_id"`
+	ProjectID string `json:"project_id"`
+	PlanID    string `json:"plan_id"`
+}
+
+// getPlanHandler returns the full Plan DTO (the DERIVED node read model, §9.2) for
+// a plan via pm.GetPlanDetail. It first resolves the plan and verifies it belongs
+// to project_id (the same plan-in-project check the web handler does) so a caller
+// cannot read a plan outside the project it named.
+func (s *Server) getPlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req getPlanReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	// The guardrail (worker-from-token + agent-bound) is the read gate; the
+	// resolved agent itself isn't needed for the project-scoped plan reads.
+	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	detail, err := d.PMService.GetPlanDetail(r.Context(), pm.PlanID(req.PlanID))
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	// Plan-in-project check (mirrors the web pmRequirePlanInProject): a plan named
+	// under the wrong project is not found here.
+	if string(detail.Plan.ProjectID()) != req.ProjectID {
+		writeError(w, http.StatusNotFound, "not_found", "plan not found in this project")
+		return
+	}
+	writeJSON(w, http.StatusOK, planDetailMap(detail))
+}
+
+type listPlansReq struct {
+	AgentID   string `json:"agent_id"`
+	ProjectID string `json:"project_id"`
+}
+
+// listPlansHandler returns the project's Plan summaries (the DERIVED board read
+// model, §9.1/§9.2) via pm.ListPlanSummaries.
+func (s *Server) listPlansHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listPlansReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	// The guardrail (worker-from-token + agent-bound) is the read gate; the
+	// resolved agent itself isn't needed for the project-scoped plan reads.
+	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	summaries, err := d.PMService.ListPlanSummaries(r.Context(), pm.ProjectID(req.ProjectID))
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(summaries))
+	for _, detail := range summaries {
+		out = append(out, planSummaryMap(detail))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plans": out})
+}
+
+// --- decode helpers ----------------------------------------------------------
+//
+// Each runs the SAME prologue every passthrough write tool uses: decode → require
+// the agent on the worker (guardrail) → assert PMService wired → validate the ids.
+// They return the resolved Agent (the actor source) + the parsed req on success;
+// on any failure they have already written the error envelope.
+
+func (s *Server) decodePlanTask(w http.ResponseWriter, r *http.Request, d HandlerDeps) (a *agent.Agent, req planTaskReq, ok bool) {
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return nil, req, false
+	}
+	ag, gateOK := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !gateOK {
+		return nil, req, false
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return nil, req, false
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return nil, req, false
+	}
+	if strings.TrimSpace(req.TaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return nil, req, false
+	}
+	return ag, req, true
+}
+
+func (s *Server) decodePlanDep(w http.ResponseWriter, r *http.Request, d HandlerDeps) (a *agent.Agent, req planDepReq, ok bool) {
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return nil, req, false
+	}
+	ag, gateOK := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !gateOK {
+		return nil, req, false
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return nil, req, false
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return nil, req, false
+	}
+	if strings.TrimSpace(req.FromTaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_from_task_id", "")
+		return nil, req, false
+	}
+	if strings.TrimSpace(req.ToTaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_to_task_id", "")
+		return nil, req, false
+	}
+	return ag, req, true
+}
+
+func (s *Server) decodePlanID(w http.ResponseWriter, r *http.Request, d HandlerDeps) (a *agent.Agent, req planIDReq, ok bool) {
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return nil, req, false
+	}
+	ag, gateOK := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !gateOK {
+		return nil, req, false
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return nil, req, false
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return nil, req, false
+	}
+	return ag, req, true
+}
+
+// --- serializers -------------------------------------------------------------
+//
+// planMap / planNodeMap / planDetailMap / planSummaryMap reproduce the canonical
+// Plan wire shape the webconsole emits (handlers_pm_plans.go pmPlan*Map). The web
+// mappers live in the webconsole/api package and can't be imported here, so these
+// mirror them exactly (same keys, same RFC3339Nano timestamps) — mirroring the
+// way agentTaskMap/agentIssueMap mirror webconsole's pmTaskMap/pmIssueMap.
+
+func planMap(p *pm.Plan) map[string]any {
+	m := map[string]any{
+		"id": string(p.ID()), "project_id": string(p.ProjectID()), "name": p.Name(),
+		"description": p.Description(), "status": string(p.Status()),
+		"creator_ref": string(p.CreatorRef()), "conversation_id": p.ConversationID(),
+		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
+		"version":    p.Version(),
+	}
+	if d := p.TargetDate(); d != nil {
+		m["target_date"] = d.Format(time.RFC3339Nano)
+	}
+	return m
+}
+
+func planNodeMap(n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef) map[string]any {
+	depends := make([]string, 0, len(n.DependsOn))
+	for _, d := range n.DependsOn {
+		depends = append(depends, string(d))
+	}
+	node := map[string]any{
+		"task_id":      string(n.TaskID),
+		"title":        titleOf[n.TaskID],
+		"assignee_ref": string(assigneeOf[n.TaskID]),
+		"task_status":  string(n.TaskStatus),
+		"node_status":  string(n.NodeStatus),
+		"depends_on":   depends,
+	}
+	if n.Dispatched && !n.DispatchedAt.IsZero() {
+		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
+	}
+	return node
+}
+
+func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm.TaskID]pm.IdentityRef) {
+	titleOf := make(map[pm.TaskID]string, len(detail.Tasks))
+	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks))
+	for _, t := range detail.Tasks {
+		titleOf[t.ID()] = t.Title()
+		assigneeOf[t.ID()] = t.Assignee()
+	}
+	return titleOf, assigneeOf
+}
+
+// planDetailMap renders the full Plan DTO with the DERIVED node read model (§9.2):
+// nodes + ready_set + has_failed + progress{done,total}.
+func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
+	m := planMap(detail.Plan)
+	titleOf, assigneeOf := planNodeLookups(detail)
+	nodes := make([]map[string]any, 0, len(detail.View.Nodes))
+	for _, n := range detail.View.Nodes {
+		nodes = append(nodes, planNodeMap(n, titleOf, assigneeOf))
+	}
+	readySet := make([]string, 0, len(detail.View.ReadySet))
+	for _, id := range detail.View.ReadySet {
+		readySet = append(readySet, string(id))
+	}
+	m["nodes"] = nodes
+	m["ready_set"] = readySet
+	m["has_failed"] = detail.View.HasFailed
+	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	return m
+}
+
+// planListNodePreviewCap bounds the per-Plan node preview the list tool emits
+// (mirrors the web list endpoint's cap).
+const planListNodePreviewCap = 4
+
+// planSummaryMap renders a Plan for the list tool: the bare Plan fields plus the
+// DERIVED board summary (progress, has_failed, node_count, a capped nodes_preview).
+func planSummaryMap(detail *pmservice.PlanDetail) map[string]any {
+	m := planMap(detail.Plan)
+	titleOf, assigneeOf := planNodeLookups(detail)
+	nodes := detail.View.Nodes
+	n := len(nodes)
+	if n > planListNodePreviewCap {
+		n = planListNodePreviewCap
+	}
+	preview := make([]map[string]any, 0, n)
+	for _, nd := range nodes[:n] {
+		preview = append(preview, planNodeMap(nd, titleOf, assigneeOf))
+	}
+	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	m["has_failed"] = detail.View.HasFailed
+	m["node_count"] = len(nodes)
+	m["nodes_preview"] = preview
+	return m
+}
