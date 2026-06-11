@@ -627,4 +627,46 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     });
     await waitFor(() => expect(postedTo).toBe('PL-2'));
   });
+
+  // -------------------------------------------------------------------------
+  // A6 (§4.2 reachability): the task TITLE on a board card is a new-tab link to
+  // the TaskDetail page (/projects/{pid}/tasks/{tid}, org-prefixed by OrgLink's
+  // orgPath — here unprefixed since the test renders outside an OrgGuard). The
+  // link opens in a NEW TAB (target=_blank + rel noopener) and the card's drag /
+  // A2 remove affordances are NOT swallowed by the link (link is on title only).
+  // -------------------------------------------------------------------------
+  it('A6 §4.2: a BACKLOG card title is a new-tab link to TaskDetail (href + target=_blank + rel noopener)', async () => {
+    server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const link = screen.getByTestId('task-open-link-TS-BL1');
+    expect(link).toHaveAttribute('href', '/projects/proj-a/tasks/TS-BL1');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(link).toHaveTextContent('unplanned backlog task');
+    // The link does NOT consume the whole card: the draggable card + the
+    // add-to-plan button still render alongside the title link.
+    const card = screen.getByTestId('backlog-card');
+    expect(card).toHaveAttribute('draggable', 'true');
+    expect(within(card).getByTestId('backlog-add-TS-BL1')).toBeInTheDocument();
+  });
+
+  it('A6 §4.2: a PLAN-column task card title is a new-tab link AND coexists with the A2 remove button', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const link = within(draft as HTMLElement).getByTestId('task-open-link-TS-DR');
+    expect(link).toHaveAttribute('href', '/projects/proj-a/tasks/TS-DR');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(link).toHaveTextContent('Draft task');
+    // Coexistence: the A2 remove button is still present on the SAME card.
+    expect(within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR')).toBeInTheDocument();
+  });
 });

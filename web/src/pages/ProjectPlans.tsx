@@ -19,6 +19,7 @@ import type { Task } from '@/api/types';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
+import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { StatusChip } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, planProgressLabel } from '@/components/planDisplay';
 
@@ -332,7 +333,9 @@ function BacklogCard({
       }}
       onDragEnd={() => setDragSource(null)}
     >
-      <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">{task.title}</div>
+      <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">
+        <TaskTitleLink projectId={projectId} taskId={task.id} title={task.title} />
+      </div>
       <div className="flex items-center justify-between gap-1.5">
         <AssigneeBadge assignee={task.assignee} />
         <StatusChip status={task.status} />
@@ -641,7 +644,7 @@ function PlanTaskCard({
     >
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1 text-xs font-semibold leading-tight text-text-primary">
-          {node.title}
+          <TaskTitleLink projectId={projectId} taskId={node.task_id} title={node.title} />
         </div>
         {canRemove && (
           <button

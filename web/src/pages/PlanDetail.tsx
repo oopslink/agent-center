@@ -27,6 +27,7 @@ import { StatusChip, idHandle } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, planProgressLabel } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
+import { TaskTitleLink } from '@/components/TaskTitleLink';
 
 // PlanDetail (/projects/:id/plans/:planId) — v2.9 Plan-Orchestration EXECUTION
 // view (#287). The mockup's ② Plan Detail: a header (name + status + failed +
@@ -853,8 +854,12 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                   data-task-id={p.node.task_id}
                   data-level={p.level}
                 >
-                  <div className="mb-1.5 truncate text-xs font-semibold text-text-primary" title={p.node.title}>
-                    {p.node.title || `#${idHandle(p.node.task_id)}`}
+                  <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
+                    <TaskTitleLink
+                      projectId={projectId}
+                      taskId={p.node.task_id}
+                      title={p.node.title || `#${idHandle(p.node.task_id)}`}
+                    />
                   </div>
                   <div className="flex items-center justify-between gap-1.5">
                     <span className="min-w-0 text-[0.6875rem]">
@@ -1156,8 +1161,12 @@ function PlanTaskRow({
   const remove = useRemoveTaskFromPlan(projectId, planId);
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
-      <td className="max-w-[18rem] truncate py-1.5 pr-3 text-text-primary" title={node.title}>
-        {node.title || `#${idHandle(node.task_id)}`}
+      <td className="max-w-[18rem] py-1.5 pr-3 text-text-primary" title={node.title}>
+        <TaskTitleLink
+          projectId={projectId}
+          taskId={node.task_id}
+          title={node.title || `#${idHandle(node.task_id)}`}
+        />
         {remove.isError && (
           <span
             className="mt-0.5 block text-[0.6875rem] font-normal text-danger"
