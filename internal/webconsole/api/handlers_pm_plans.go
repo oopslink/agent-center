@@ -40,18 +40,25 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 // nodes through this helper, so a list preview node is byte-identical in shape to
 // a detail node and the two can never drift. titleOf/assigneeOf are the per-Plan
 // task lookups built once by the caller.
-func pmPlanNodeMap(n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef) map[string]any {
+func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 	depends := make([]string, 0, len(n.DependsOn))
 	for _, d := range n.DependsOn {
 		depends = append(depends, string(d))
 	}
 	node := map[string]any{
 		"task_id":      string(n.TaskID),
-		"title":        titleOf[n.TaskID],
-		"assignee_ref": string(assigneeOf[n.TaskID]),
+		"title":        l.titleOf[n.TaskID],
+		"assignee_ref": string(l.assigneeOf[n.TaskID]),
 		"task_status":  string(n.TaskStatus),
 		"node_status":  string(n.NodeStatus),
 		"depends_on":   depends,
+		// v2.9 P3 Stage B: orthogonal archived state (ArchivePlan cascades to every
+		// task) so the DAG-node / task-list "已归档" badge renders here too — not just
+		// on board cards (which read the task DTO). Coexists with task_status.
+		"archived": l.archivedOf[n.TaskID],
+	}
+	if at := l.archivedAtOf[n.TaskID]; at != "" {
+		node["archived_at"] = at
 	}
 	if n.Dispatched && !n.DispatchedAt.IsZero() {
 		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
@@ -59,16 +66,30 @@ func pmPlanNodeMap(n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf m
 	return node
 }
 
-// planNodeLookups builds the per-Plan task title/assignee lookups used to enrich
-// derived nodes (which carry only task_id) into the full node JSON.
-func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm.TaskID]pm.IdentityRef) {
-	titleOf := make(map[pm.TaskID]string, len(detail.Tasks))
-	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks))
-	for _, t := range detail.Tasks {
-		titleOf[t.ID()] = t.Title()
-		assigneeOf[t.ID()] = t.Assignee()
+// planNodeLookup is the per-Plan task lookups used to enrich derived nodes (which
+// carry only task_id) into the full node JSON — title/assignee plus the orthogonal
+// archived state (#283/Stage B) so the badge renders on DAG nodes + task list.
+type planNodeLookup struct {
+	titleOf      map[pm.TaskID]string
+	assigneeOf   map[pm.TaskID]pm.IdentityRef
+	archivedOf   map[pm.TaskID]bool
+	archivedAtOf map[pm.TaskID]string
+}
+
+func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
+	l := planNodeLookup{
+		titleOf:      make(map[pm.TaskID]string, len(detail.Tasks)),
+		assigneeOf:   make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks)),
+		archivedOf:   make(map[pm.TaskID]bool, len(detail.Tasks)),
+		archivedAtOf: make(map[pm.TaskID]string, len(detail.Tasks)),
 	}
-	return titleOf, assigneeOf
+	for _, t := range detail.Tasks {
+		l.titleOf[t.ID()] = t.Title()
+		l.assigneeOf[t.ID()] = t.Assignee()
+		l.archivedOf[t.ID()] = t.IsArchived()
+		l.archivedAtOf[t.ID()] = rfc3339OrEmptyPtr(t.ArchivedAt())
+	}
+	return l
 }
 
 // pmPlanDetailMap renders the full Plan DTO with the DERIVED node read model
@@ -78,11 +99,11 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	p := detail.Plan
 	m := pmPlanMap(p)
 
-	titleOf, assigneeOf := planNodeLookups(detail)
+	lookups := planNodeLookups(detail)
 
 	nodes := make([]map[string]any, 0, len(detail.View.Nodes))
 	for _, n := range detail.View.Nodes {
-		nodes = append(nodes, pmPlanNodeMap(n, titleOf, assigneeOf))
+		nodes = append(nodes, pmPlanNodeMap(n, lookups))
 	}
 	readySet := make([]string, 0, len(detail.View.ReadySet))
 	for _, id := range detail.View.ReadySet {
@@ -112,7 +133,7 @@ const planListNodePreviewCap = 4
 func pmPlanSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	m := pmPlanMap(detail.Plan)
 
-	titleOf, assigneeOf := planNodeLookups(detail)
+	lookups := planNodeLookups(detail)
 
 	nodes := detail.View.Nodes
 	n := len(nodes)
@@ -121,7 +142,7 @@ func pmPlanSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	}
 	preview := make([]map[string]any, 0, n)
 	for _, nd := range nodes[:n] {
-		preview = append(preview, pmPlanNodeMap(nd, titleOf, assigneeOf))
+		preview = append(preview, pmPlanNodeMap(nd, lookups))
 	}
 
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
