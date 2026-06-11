@@ -112,6 +112,27 @@ func (r *PlanRepo) ListByProject(ctx context.Context, projectID pm.ProjectID) ([
 	return out, rows.Err()
 }
 
+// ListRunningPlans returns every Plan in status `running` across ALL projects
+// (global, no project filter), stable-ordered (created_at, id). It backs the
+// v2.9 P2-3 reconciliation sweep (the global background safety net).
+func (r *PlanRepo) ListRunningPlans(ctx context.Context) ([]*pm.Plan, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, planSelect+` WHERE status = ? ORDER BY created_at, id`, string(pm.PlanRunning))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*pm.Plan
+	for rows.Next() {
+		p, err := scanPlan(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func (r *PlanRepo) Delete(ctx context.Context, id pm.PlanID) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx, `DELETE FROM pm_plans WHERE id = ?`, string(id))

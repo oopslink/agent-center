@@ -87,6 +87,11 @@ type PlanRepository interface {
 	Update(ctx context.Context, p *Plan) error
 	FindByID(ctx context.Context, id PlanID) (*Plan, error)
 	ListByProject(ctx context.Context, projectID ProjectID) ([]*Plan, error)
+	// ListRunningPlans returns every Plan in status `running` across ALL projects
+	// (global, no project filter), stable-ordered (created_at, id). It backs the
+	// v2.9 P2-3 reconciliation sweep — the background safety net that re-dispatches
+	// ready-but-undispatched nodes for missed events / crash recovery.
+	ListRunningPlans(ctx context.Context) ([]*Plan, error)
 	Delete(ctx context.Context, id PlanID) error
 	// AddDependency loads the plan's existing edges, calls WouldCreateCycle, and
 	// rejects (ErrPlanCycle / ErrSelfDependency) before inserting.

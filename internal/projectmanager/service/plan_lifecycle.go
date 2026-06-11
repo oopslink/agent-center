@@ -276,6 +276,59 @@ func (s *Service) StopPlan(ctx context.Context, planID pm.PlanID, actor pm.Ident
 	})
 }
 
+// ReconcileRunningPlans is the v2.9 P2-3 reconciliation sweep: the background
+// safety net for missed events / crash recovery. It lists EVERY running Plan
+// (global) and re-runs the idempotent dispatch core (dispatchReadyNodes) for
+// each, so a ready-but-undispatched node (an event the orchestrator projector
+// never saw) still gets dispatched. It is IDEMPOTENT: an already-dispatched node
+// is skipped (ComputePlanView derives it as NodeDispatched, never NodeReady) and
+// RecordDispatch is INSERT-OR-IGNORE — so a sweep over a fully-dispatched plan
+// dispatches nothing (no double @mention, §9.3).
+//
+// Each plan is dispatched in its OWN tx so one plan's failure does not abort the
+// sweep: a per-plan error is logged via errFn (when non-nil) and the loop
+// continues to the next plan. Returns the first error encountered (for surfacing
+// in tests / callers that want it), but never stops early on it. Draft/done plans
+// are excluded by ListRunningPlans, so they are naturally skipped.
+func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID pm.PlanID, err error)) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	if s.planDispatcher == nil {
+		return ErrDispatcherUnavailable
+	}
+	plans, err := s.plans.ListRunningPlans(ctx)
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, p := range plans {
+		perr := s.runInTx(ctx, func(txCtx context.Context) error {
+			// Re-load inside the tx so the dispatch core sees a consistent snapshot
+			// (status could have changed between the list and this tick).
+			fresh, ferr := s.plans.FindByID(txCtx, p.ID())
+			if ferr != nil {
+				return ferr
+			}
+			if fresh.Status() != pm.PlanRunning {
+				return nil // raced out of running → skip (no-op).
+			}
+			_, derr := s.dispatchReadyNodes(txCtx, fresh)
+			return derr
+		})
+		if perr != nil {
+			if errFn != nil {
+				errFn(p.ID(), perr)
+			}
+			if firstErr == nil {
+				firstErr = perr
+			}
+			// continue — a per-plan error must not abort the whole sweep.
+		}
+	}
+	return firstErr
+}
+
 // RerunFailedNode clears one node's dispatch record (§9.3 creator re-run) so the
 // next advance re-dispatches it. Used to resolve a failed node after the creator
 // reopens/restarts the underlying task. The actor must be a project member; the

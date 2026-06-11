@@ -42,6 +42,11 @@ func taskIsDone(s TaskStatus) bool { return s == TaskCompleted || s == TaskVerif
 // taskIsFailed reports the §9.2 terminal-FAIL mapping (discarded).
 func taskIsFailed(s TaskStatus) bool { return s == TaskDiscarded }
 
+// TaskIsFailed is the exported §9.2 terminal-FAIL predicate (discarded), reused
+// by the orchestrator's P2-2 failure handler so the "is this node failed?" rule
+// lives in ONE place (§9.7 — a failed node leaves its downstream blocked).
+func TaskIsFailed(s TaskStatus) bool { return taskIsFailed(s) }
+
 // DeriveNodeStatus computes one node's DERIVED status (§9.2) from the three
 // inputs. Precedence: terminal task state (done/failed) and running mirror the
 // task directly; otherwise upstream gating decides blocked vs ready/dispatched.
