@@ -9,6 +9,7 @@ import {
   useAdvancePlan,
   useAddDependency,
   useRemoveDependency,
+  useRemoveTaskFromPlan,
   type Plan,
   type PlanNode,
   type PlanNodeStatus,
@@ -122,7 +123,7 @@ export default function PlanDetail(): React.ReactElement {
             {tab === 'dag' ? (
               <PlanDag projectId={id} plan={p} />
             ) : (
-              <PlanTaskList plan={p} />
+              <PlanTaskList projectId={id} plan={p} />
             )}
           </div>
           <div className="p-4" data-testid="plan-detail-side">
@@ -772,8 +773,12 @@ function PlanDagEditor({ projectId, plan }: { projectId: string; plan: Plan }): 
 }
 
 // ── Task list tab ────────────────────────────────────────────────────────────
-function PlanTaskList({ plan }: { plan: Plan }): React.ReactElement {
+// §9.4: removing a task from a Plan is a PLANNING action — only a DRAFT plan
+// exposes a per-row "Remove" control (consistent with add-to-plan / the A1 edge
+// editor). A running/done plan renders the rows read-only (no Remove column).
+function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
+  const canRemove = plan.status === 'draft';
   return (
     <div data-testid="plan-task-list">
       {nodes.length === 0 ? (
@@ -789,30 +794,82 @@ function PlanTaskList({ plan }: { plan: Plan }): React.ReactElement {
                 <th className="py-1.5 pr-3 font-medium">Assignee</th>
                 <th className="py-1.5 pr-3 font-medium">Task status</th>
                 <th className="py-1.5 font-medium">Node status</th>
+                {canRemove && <th className="py-1.5 pl-3 text-right font-medium">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
               {nodes.map((n) => (
-                <tr key={n.task_id} data-testid="plan-task-row" data-task-id={n.task_id}>
-                  <td className="max-w-[18rem] truncate py-1.5 pr-3 text-text-primary" title={n.title}>
-                    {n.title || `#${idHandle(n.task_id)}`}
-                  </td>
-                  <td className="py-1.5 pr-3">
-                    <AssigneeTag assigneeRef={n.assignee_ref} />
-                  </td>
-                  <td className="py-1.5 pr-3">
-                    <StatusChip status={n.task_status} />
-                  </td>
-                  <td className="py-1.5">
-                    <NodeStateChip status={n.node_status} />
-                  </td>
-                </tr>
+                <PlanTaskRow
+                  key={n.task_id}
+                  projectId={projectId}
+                  planId={plan.id}
+                  node={n}
+                  canRemove={canRemove}
+                />
               ))}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  );
+}
+
+// PlanTaskRow — one task-list row. When the plan is draft, the trailing cell
+// holds a "Remove" button → useRemoveTaskFromPlan(task_id) (task returns to the
+// Backlog on success via query invalidation). #218: a remove failure surfaces a
+// friendly inline message in the row, never a raw API error.
+function PlanTaskRow({
+  projectId,
+  planId,
+  node,
+  canRemove,
+}: {
+  projectId: string;
+  planId: string;
+  node: PlanNode;
+  canRemove: boolean;
+}): React.ReactElement {
+  const remove = useRemoveTaskFromPlan(projectId, planId);
+  return (
+    <tr data-testid="plan-task-row" data-task-id={node.task_id}>
+      <td className="max-w-[18rem] truncate py-1.5 pr-3 text-text-primary" title={node.title}>
+        {node.title || `#${idHandle(node.task_id)}`}
+        {remove.isError && (
+          <span
+            className="mt-0.5 block text-[0.6875rem] font-normal text-danger"
+            role="alert"
+            data-testid={`plan-task-remove-error-${node.task_id}`}
+          >
+            Couldn't remove this task from the plan. Please try again.
+          </span>
+        )}
+      </td>
+      <td className="py-1.5 pr-3">
+        <AssigneeTag assigneeRef={node.assignee_ref} />
+      </td>
+      <td className="py-1.5 pr-3">
+        <StatusChip status={node.task_status} />
+      </td>
+      <td className="py-1.5">
+        <NodeStateChip status={node.node_status} />
+      </td>
+      {canRemove && (
+        <td className="py-1.5 pl-3 text-right">
+          <button
+            type="button"
+            className="rounded border border-border-strong bg-bg-subtle px-2 py-0.5 text-[0.6875rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary disabled:opacity-50"
+            disabled={remove.isPending}
+            aria-label={`Remove ${node.title || idHandle(node.task_id)} from plan`}
+            title="Remove from plan (back to backlog)"
+            data-testid={`plan-task-remove-${node.task_id}`}
+            onClick={() => remove.mutate(node.task_id)}
+          >
+            Remove
+          </button>
+        </td>
+      )}
+    </tr>
   );
 }
 

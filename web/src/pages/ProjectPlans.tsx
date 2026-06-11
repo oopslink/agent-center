@@ -7,7 +7,9 @@ import {
   useCreatePlan,
   useUnplannedTasks,
   useAddTaskToPlan,
+  useRemoveTaskFromPlan,
   type Plan,
+  type PlanNode,
   type CreatePlanInput,
 } from '@/api/plans';
 import { refKind } from '@/api/members';
@@ -456,25 +458,84 @@ function PlanColumn({
         </p>
       ) : (
         shown.map((node) => (
-          <div
+          <PlanTaskCard
             key={node.task_id}
-            className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
-            data-testid="plan-task-card"
-            data-task-id={node.task_id}
-          >
-            <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">
-              {node.title}
-            </div>
-            <div className="flex items-center justify-between gap-1.5">
-              <AssigneeBadge assignee={node.assignee_ref} />
-              <StatusChip status={node.task_status} />
-            </div>
-          </div>
+            projectId={projectId}
+            planId={plan.id}
+            node={node}
+            // §9.4: removing a task from a Plan is a PLANNING action — only a
+            // DRAFT Plan exposes the remove affordance (mirrors add-to-plan /
+            // the A1 edge editor). running/done columns render NO remove control.
+            canRemove={isDraft}
+          />
         ))
       )}
       {overflow > 0 && (
         <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`plan-overflow-${plan.id}`}>
           …and {overflow} more
+        </p>
+      )}
+    </div>
+  );
+}
+
+// PlanTaskCard — a single Plan-column task card (from nodes_preview). A DRAFT
+// Plan exposes a keyboard-accessible "Remove from plan" affordance per card
+// (§9.4 planning-only); on success the task returns to the Backlog (the board's
+// query invalidation refetches both the Plan list + the unplanned set). A
+// running/done Plan renders NO remove control. #218: a remove failure surfaces a
+// friendly inline message (never a raw API error) — the card stays put.
+function PlanTaskCard({
+  projectId,
+  planId,
+  node,
+  canRemove,
+}: {
+  projectId: string;
+  planId: string;
+  node: PlanNode;
+  canRemove: boolean;
+}): React.ReactElement {
+  const remove = useRemoveTaskFromPlan(projectId, planId);
+  return (
+    <div
+      className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
+      data-testid="plan-task-card"
+      data-task-id={node.task_id}
+    >
+      <div className="flex items-start justify-between gap-1.5">
+        <div className="min-w-0 flex-1 text-xs font-semibold leading-tight text-text-primary">
+          {node.title}
+        </div>
+        {canRemove && (
+          <button
+            type="button"
+            className="-mr-0.5 -mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary disabled:opacity-50"
+            disabled={remove.isPending}
+            aria-label={`Remove ${node.title} from plan`}
+            title="Remove from plan (back to backlog)"
+            data-testid={`plan-task-remove-${node.task_id}`}
+            onClick={() => {
+              // Direct remove (no confirm modal): removing from a Plan is
+              // reversible — the task just returns to the Backlog (≠ delete).
+              remove.mutate(node.task_id);
+            }}
+          >
+            <RemoveIcon />
+          </button>
+        )}
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-1.5">
+        <AssigneeBadge assignee={node.assignee_ref} />
+        <StatusChip status={node.task_status} />
+      </div>
+      {remove.isError && (
+        <p
+          className="mt-1.5 text-[0.6875rem] text-danger"
+          role="alert"
+          data-testid={`plan-task-remove-error-${node.task_id}`}
+        >
+          Couldn't remove this task from the plan. Please try again.
         </p>
       )}
     </div>
@@ -542,6 +603,16 @@ function BacklogIcon(): React.ReactElement {
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <rect x="2.5" y="2" width="11" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
       <path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// "×" remove glyph as an inline SVG (NOT an emoji/pictograph, per the a11y
+// guardrail). aria-hidden — the accessible name lives on the wrapping <button>.
+function RemoveIcon(): React.ReactElement {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }

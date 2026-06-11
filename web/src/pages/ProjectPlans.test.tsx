@@ -240,4 +240,91 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(screen.getByTestId('backlog-empty')).toBeInTheDocument();
     expect(screen.getByTestId('new-plan-column')).toBeInTheDocument();
   });
+
+  // A2 (#291 inverse of add-to-plan): remove a task from a Plan → back to Backlog.
+  // §9.4 draft-only — a DRAFT Plan column's card exposes the remove affordance;
+  // a running/done column does NOT.
+  const planNode = (taskId: string, title: string) => ({
+    task_id: taskId,
+    title,
+    assignee_ref: 'agent:builder',
+    task_status: 'open',
+    node_status: 'ready',
+    depends_on: [],
+    dispatched_at: null,
+  });
+  const plansWithDraftNode = {
+    plans: [
+      {
+        id: 'PL-1', project_id: 'proj-a', name: 'Onboarding flow', description: '',
+        status: 'running', creator_ref: 'user:owner', conversation_id: 'c1', target_date: null,
+        has_failed: false, progress: { done: 1, total: 2 }, created_at: '2026-06-01T01:00:00Z',
+        node_count: 1, nodes_preview: [planNode('TS-RUN', 'Running task')],
+      },
+      {
+        id: 'PL-2', project_id: 'proj-a', name: 'Billing rework', description: '',
+        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
+        has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
+        node_count: 1, nodes_preview: [planNode('TS-DR', 'Draft task')],
+      },
+    ],
+  };
+
+  it('A2 board: a DRAFT Plan column card shows the remove affordance; clicking it DELETEs by task_id (back to backlog)', async () => {
+    let deletedTaskId: string | undefined;
+    let deletedFromPlan: string | undefined;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
+      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', ({ params }) => {
+        deletedFromPlan = String(params.planId);
+        deletedTaskId = String(params.taskId);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const removeBtn = within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR');
+    expect(removeBtn).toHaveAttribute('aria-label', 'Remove Draft task from plan');
+    await act(async () => {
+      fireEvent.click(removeBtn);
+    });
+    await waitFor(() => expect(deletedTaskId).toBe('TS-DR'));
+    expect(deletedFromPlan).toBe('PL-2');
+  });
+
+  it('A2 board: a running Plan column card has NO remove affordance (§9.4 draft-only)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+    const running = screen.getByText('Onboarding flow').closest('[data-testid="plan-column"]')!;
+    expect(within(running as HTMLElement).queryByTestId('plan-task-remove-TS-RUN')).not.toBeInTheDocument();
+    // the draft column DOES have it (control assertion).
+    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    expect(within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR')).toBeInTheDocument();
+  });
+
+  it('A2 board #218: a remove failure surfaces a friendly inline message (no raw API error)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithDraftNode)),
+      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', () =>
+        HttpResponse.json({ error: 'conflict', message: 'plan not draft' }, { status: 409 }),
+      ),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    await act(async () => {
+      fireEvent.click(within(draft as HTMLElement).getByTestId('plan-task-remove-TS-DR'));
+    });
+    const err = await within(draft as HTMLElement).findByTestId('plan-task-remove-error-TS-DR');
+    expect(err).toHaveTextContent("Couldn't remove this task from the plan.");
+    expect(err).not.toHaveTextContent('plan not draft');
+  });
 });
