@@ -1713,22 +1713,57 @@ func (s *Server) revokeEnrollHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "admintoken_svc_not_wired", "")
 		return
 	}
+	// v2.9 security fix: this state-change endpoint was previously UNAUTHENTICATED
+	// (anyone with a token-id could revoke). Now require ① a valid session AND
+	// ② that the caller is a member of the token's org (resolved via the token's
+	// bound worker). Fail CLOSED — if any auth/lookup dep is missing or the org
+	// can't be resolved, reject rather than allow.
+	if d.AuthSvc == nil || d.MemberRepo == nil || d.WorkerRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "revoke requires auth + member + worker deps")
+		return
+	}
+	cookie, err := r.Cookie(jwtCookieName)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
+		return
+	}
+	callerID, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		return
+	}
 	q := r.URL.Query()
 	id := admintoken.TokenID(q.Get("id"))
 	if string(id) == "" {
-		// token_hint is currently advisory — we don't index by
-		// plaintext prefix. Treat as no-op success so the Modal's
-		// fire-and-forget close path doesn't surface noise.
+		// token_hint is advisory — we don't index by plaintext prefix. Authenticated
+		// no-op so the Modal's fire-and-forget close path doesn't surface noise.
 		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	// Resolve the token's org via its bound worker, then verify caller membership.
+	tok, err := d.AdminTokenSvc.FindByID(r.Context(), id)
+	if err != nil || tok == nil {
+		// Nothing to revoke (not-found) → graceful no-op for the close path (no
+		// existence-leak: the caller is already authenticated).
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	wk, err := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(tok.WorkerID()))
+	if err != nil || wk == nil {
+		// Can't resolve the token's org → fail closed (cannot verify membership).
+		writeError(w, http.StatusForbidden, "forbidden", "cannot verify token organization")
+		return
+	}
+	if _, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), wk.OrganizationID(), callerID.ID()); err != nil {
+		writeError(w, http.StatusForbidden, "forbidden", "not a member of the token's organization")
 		return
 	}
 	if err := d.AdminTokenSvc.Revoke(r.Context(), admintokensvc.RevokeCommand{
 		ID:     id,
-		By:     string(d.Actor),
+		By:     string(callerID.ID()),
 		Reason: "web-console enroll-modal closed",
 	}); err != nil {
-		// Already-revoked / not-found → 204 is still acceptable for
-		// the close path.
+		// Already-revoked / svc error → 204 still acceptable for the close path.
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

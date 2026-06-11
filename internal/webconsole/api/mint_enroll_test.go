@@ -695,54 +695,174 @@ func TestMintEnroll_SvcNotWired(t *testing.T) {
 	}
 }
 
-func TestRevokeEnroll_NoIDIsNoOp(t *testing.T) {
-	svc := newRealAdminTokenSvc(t)
-	srv := mintEnrollServer(t, HandlerDeps{AdminTokenSvc: svc})
-	defer srv.Close()
-	resp, err := http.Post(srv.URL+"/api/admintoken/revoke?token_hint=abc", "application/json", nil)
+// =============================================================================
+// POST /api/admintoken/revoke — v2.9 authz matrix.
+//
+// This endpoint was previously UNAUTHENTICATED (anyone with a token id could
+// revoke). The v2.9 security fix now requires ① a valid session JWT AND ② that
+// the caller is a member of the token's organization (resolved via the token's
+// bound worker → worker.OrganizationID → MemberRepo.GetByOrganizationAndIdentity).
+// Fail closed: missing deps → 501, no/invalid session → 401, non-member → 403.
+//
+// We use the setupAPIWithAuth + setupTestSession harness (NOT the minimal
+// mintEnrollServer) because the new contract needs AuthSvc + MemberRepo +
+// WorkerRepo wired, a signed-in session, a worker-with-org, and an enroll
+// token bound to that worker — all on a shared sqlite DB.
+// =============================================================================
+
+// setupRevokeAuth wires the auth + member + worker deps plus an AdminTokenSvc
+// on the shared test DB, and returns the deps, db, and an authenticated session
+// whose org owns subsequently-seeded workers.
+func setupRevokeAuth(t *testing.T) (HandlerDeps, *sql.DB, *admintokensvc.Service, testSession) {
+	t.Helper()
+	deps, db := setupAPIWithAuth(t)
+	deps.WorkerRepo = wfsqlite.NewWorkerRepo(db)
+	svc := admintokensvc.New(atsqlite.New(db), idgen.NewGenerator(clock.SystemClock{}), clock.SystemClock{})
+	deps.AdminTokenSvc = svc
+	sess := setupTestSession(t, db, deps)
+	return deps, db, svc, sess
+}
+
+// seedEnrollTokenForWorker mints an enroll token bound to workerID and returns
+// its token id. The worker must already be seeded (see saveWorkforceWorkerInOrg)
+// for the handler's org-membership resolution to find it.
+func seedEnrollTokenForWorker(t *testing.T, svc *admintokensvc.Service, workerID string) string {
+	t.Helper()
+	res, err := svc.CreateEnrollToken(context.Background(), admintokensvc.CreateEnrollCommand{
+		Owner:     admintoken.Owner("worker:" + workerID),
+		Scopes:    []admintoken.Scope{"dispatch:pull"},
+		CreatedBy: "test",
+		WorkerID:  workerID,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	return string(res.ID)
+}
+
+// revokePost issues POST /api/admintoken/revoke with the given query, optionally
+// attaching the session cookie. Returns the response.
+func revokePost(t *testing.T, url string, cookie *http.Cookie) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+// (1) Happy path: authenticated caller who IS a member of the token's org → 204
+// AND the token is actually revoked (RevokedAt != nil). This is the legit FE
+// Modal-close flow — the security fix must NOT break it.
+func TestRevokeEnroll_RealID(t *testing.T) {
+	deps, db, svc, sess := setupRevokeAuth(t)
+	saveWorkforceWorkerInOrg(t, db, sess.OrgID, "w-mine")
+	tokenID := seedEnrollTokenForWorker(t, svc, "w-mine")
+
+	srv := newTestServer(t, deps)
+	defer srv.Close()
+
+	resp := revokePost(t, srv.URL+"/api/admintoken/revoke?id="+tokenID, sess.Cookie)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("revoke status = %d, want 204", resp.StatusCode)
+	}
+	tok, err := svc.FindByID(context.Background(), admintoken.TokenID(tokenID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.RevokedAt() == nil {
+		t.Errorf("token not revoked (RevokedAt == nil)")
+	}
+}
+
+// (2) Unauthenticated: no JWT cookie → 401.
+func TestRevokeEnroll_Unauthenticated(t *testing.T) {
+	deps, db, svc, sess := setupRevokeAuth(t)
+	saveWorkforceWorkerInOrg(t, db, sess.OrgID, "w-mine")
+	tokenID := seedEnrollTokenForWorker(t, svc, "w-mine")
+
+	srv := newTestServer(t, deps)
+	defer srv.Close()
+
+	resp := revokePost(t, srv.URL+"/api/admintoken/revoke?id="+tokenID, nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	}
+	// And the token must NOT be revoked.
+	tok, err := svc.FindByID(context.Background(), admintoken.TokenID(tokenID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.RevokedAt() != nil {
+		t.Errorf("token revoked by unauthenticated caller")
+	}
+}
+
+// (3) Non-member: authenticated caller who is NOT a member of the token's org
+// (the token's worker belongs to a DIFFERENT org) → 403, and the token is NOT
+// revoked.
+func TestRevokeEnroll_NonMemberForbidden(t *testing.T) {
+	deps, db, svc, sess := setupRevokeAuth(t)
+	// Worker (and thus token) belong to a DIFFERENT org than the caller's session.
+	saveWorkforceWorkerInOrg(t, db, "org-other", "w-other")
+	tokenID := seedEnrollTokenForWorker(t, svc, "w-other")
+
+	srv := newTestServer(t, deps)
+	defer srv.Close()
+
+	resp := revokePost(t, srv.URL+"/api/admintoken/revoke?id="+tokenID, sess.Cookie)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", resp.StatusCode)
+	}
+	tok, err := svc.FindByID(context.Background(), admintoken.TokenID(tokenID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.RevokedAt() != nil {
+		t.Errorf("token revoked by non-member caller")
+	}
+}
+
+// (4) Empty ?id (authenticated) → 204 no-op. The advisory Modal-close path:
+// token_hint is advisory-only (not indexed), so an authenticated caller with no
+// resolvable id is a quiet no-op rather than an error.
+func TestRevokeEnroll_NoIDIsNoOp(t *testing.T) {
+	deps, _, _, sess := setupRevokeAuth(t)
+
+	srv := newTestServer(t, deps)
+	defer srv.Close()
+
+	resp := revokePost(t, srv.URL+"/api/admintoken/revoke?token_hint=abc", sess.Cookie)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", resp.StatusCode)
 	}
 }
 
-func TestRevokeEnroll_RealID(t *testing.T) {
+// (5) Deps not wired (missing MemberRepo/WorkerRepo) → 501 fail-closed, even
+// with AdminTokenSvc present.
+func TestRevokeEnroll_DepsNotWired(t *testing.T) {
 	svc := newRealAdminTokenSvc(t)
-	deps := HandlerDeps{
-		Actor:               observability.Actor("user:hayang"),
-		AdminTokenSvc:       svc,
-		EnrollFingerprint:   "sha256:AA",
-		EnrollBootstrapHost: "h:7300",
-	}
-	srv := mintEnrollServer(t, deps)
+	srv := mintEnrollServer(t, HandlerDeps{AdminTokenSvc: svc})
 	defer srv.Close()
-	// Mint first.
-	mintResp, err := http.Post(srv.URL+"/api/admintoken/mint-enroll", "application/json", nil)
+	resp, err := http.Post(srv.URL+"/api/admintoken/revoke?id=anything", "application/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer mintResp.Body.Close()
-	var body mintEnrollResp
-	_ = json.NewDecoder(mintResp.Body).Decode(&body)
-	// Now revoke by id.
-	revokeResp, err := http.Post(srv.URL+"/api/admintoken/revoke?id="+body.ID, "application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer revokeResp.Body.Close()
-	if revokeResp.StatusCode != http.StatusNoContent {
-		t.Fatalf("revoke status = %d", revokeResp.StatusCode)
-	}
-	// Verify token is revoked.
-	tok, err := svc.FindByID(context.Background(), admintoken.TokenID(body.ID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if tok.RevokedAt() == nil {
-		t.Errorf("token not revoked")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501", resp.StatusCode)
 	}
 }
 
