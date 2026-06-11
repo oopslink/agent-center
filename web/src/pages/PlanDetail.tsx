@@ -398,7 +398,30 @@ interface Positioned {
   y: number;
 }
 
-function layoutDag(nodes: PlanNode[]): { positioned: Positioned[]; width: number; height: number } {
+// v2.9 Stage A5 — synthetic Start/End flow anchors (NOT real tasks): a Start
+// node a column LEFT of all roots (edges → every level-0 root) and an End node
+// a column RIGHT of the deepest level (edges ← every leaf, i.e. a node nothing
+// else depends on). They give parallel/independent chains a clear left→right
+// progression. They are layout/flow markers only: no node_status / 6-state
+// chip, not dispatchable, not counted, not in the task list.
+interface SyntheticAnchor {
+  // center point of the anchor marker (used for both placement + edge endpoint)
+  cx: number;
+  cy: number;
+  // the real-node anchor points this connects to (root left-mids for Start,
+  // leaf right-mids for End)
+  links: { taskId: string; x: number; y: number }[];
+}
+
+const SYNTH_R = 26; // synthetic marker radius (circle terminal)
+
+function layoutDag(nodes: PlanNode[]): {
+  positioned: Positioned[];
+  width: number;
+  height: number;
+  start: SyntheticAnchor | null;
+  end: SyntheticAnchor | null;
+} {
   const byId = new Map(nodes.map((n) => [n.task_id, n]));
   // Only consider deps that are actually in this plan (defensive — a dangling
   // dep ref must not break level computation).
@@ -432,6 +455,13 @@ function layoutDag(nodes: PlanNode[]): { positioned: Positioned[]; width: number
     byLevel.set(lvl, arr);
   }
 
+  // Reserve a left gutter column for the Start anchor when there are any nodes,
+  // so real nodes are shifted right by one column (Start sits at x≈PAD_X, real
+  // level-0 nodes at PAD_X + COL_W). Empty plan ⇒ no gutter, no anchors.
+  const hasNodes = nodes.length > 0;
+  const SYNTH_COL = COL_W; // width of each synthetic gutter column
+  const baseX = PAD_X + (hasNodes ? SYNTH_COL : 0);
+
   // Even vertical spread within each level.
   const positioned: Positioned[] = [];
   let maxRows = 0;
@@ -441,22 +471,84 @@ function layoutDag(nodes: PlanNode[]): { positioned: Positioned[]; width: number
       positioned.push({
         node,
         level: lvl,
-        x: PAD_X + lvl * COL_W,
+        x: baseX + lvl * COL_W,
         y: PAD_Y + row * (NODE_H + ROW_GAP),
       });
     });
   }
 
-  const width = PAD_X * 2 + (maxLevel + 1) * COL_W - (COL_W - NODE_W);
-  const height = Math.max(PAD_Y * 2 + maxRows * (NODE_H + ROW_GAP) - ROW_GAP, 200);
-  return { positioned, width, height };
+  // Roots = real level-0 nodes (no in-plan deps). Leaves = nodes that no other
+  // in-plan node depends on. Start → every root; every leaf → End.
+  const dependedOn = new Set<string>();
+  for (const n of nodes) for (const d of depsOf(n)) dependedOn.add(d);
+
+  const contentHeight = Math.max(PAD_Y * 2 + maxRows * (NODE_H + ROW_GAP) - ROW_GAP, 200);
+  const midY = contentHeight / 2;
+
+  let start: SyntheticAnchor | null = null;
+  let end: SyntheticAnchor | null = null;
+  if (hasNodes) {
+    const roots = positioned.filter((p) => p.level === 0);
+    const leaves = positioned.filter((p) => !dependedOn.has(p.node.task_id));
+    start = {
+      cx: PAD_X + SYNTH_R,
+      cy: midY,
+      // edge endpoint = root node's LEFT-mid
+      links: roots.map((p) => ({ taskId: p.node.task_id, x: p.x, y: p.y + NODE_H / 2 })),
+    };
+    const endCx = baseX + (maxLevel + 1) * COL_W + SYNTH_R;
+    end = {
+      cx: endCx,
+      cy: midY,
+      // edge endpoint = leaf node's RIGHT-mid
+      links: leaves.map((p) => ({ taskId: p.node.task_id, x: p.x + NODE_W, y: p.y + NODE_H / 2 })),
+    };
+  }
+
+  // Width spans from PAD_X (Start) to End marker (when present), else the real
+  // layout extent.
+  const realRight = baseX + maxLevel * COL_W + NODE_W;
+  const width = hasNodes
+    ? (end ? end.cx + SYNTH_R + PAD_X : realRight + PAD_X)
+    : PAD_X * 2 + (maxLevel + 1) * COL_W - (COL_W - NODE_W);
+  const height = contentHeight;
+  return { positioned, width, height, start, end };
+}
+
+// Synthetic Start/End flow anchor — a distinct, non-task marker. No node_status
+// / 6-state chip, no assignee, not clickable, not counted. Solid theme tokens
+// (both-mode AA), plain text "Start"/"End" (no emoji). Positioned by its center
+// (cx,cy) so it lines up with its flow edges.
+function SyntheticAnchorMarker({
+  kind,
+  anchor,
+}: {
+  kind: 'start' | 'end';
+  anchor: SyntheticAnchor;
+}): React.ReactElement {
+  const label = kind === 'start' ? 'Start' : 'End';
+  return (
+    <div
+      className="absolute flex items-center justify-center rounded-full border-[1.5px] border-border-strong bg-bg-elevated text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary shadow-1"
+      style={{
+        left: anchor.cx - SYNTH_R,
+        top: anchor.cy - SYNTH_R,
+        width: SYNTH_R * 2,
+        height: SYNTH_R * 2,
+      }}
+      data-testid={`plan-dag-synthetic-${kind}`}
+      aria-hidden="true"
+    >
+      {label}
+    </div>
+  );
 }
 
 function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
 
-  const { positioned, width, height } = useMemo(() => layoutDag(nodes), [nodes]);
+  const { positioned, width, height, start, end } = useMemo(() => layoutDag(nodes), [nodes]);
   const posById = useMemo(
     () => new Map(positioned.map((p) => [p.node.task_id, p])),
     [positioned],
@@ -483,6 +575,33 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
     }
     return out;
   }, [positioned, posById]);
+
+  // v2.9 A5: synthetic flow edges — Start anchor → each root's left-mid, and
+  // each leaf's right-mid → End anchor. Same cubic shape as real edges; kept on
+  // a SEPARATE testid (`plan-dag-synthetic-edge`) so real-edge assertions/counts
+  // are unaffected. A dashed/lighter stroke reads as a flow anchor, not a dep.
+  const synthEdges = useMemo(() => {
+    const out: { key: string; d: string }[] = [];
+    if (start) {
+      for (const l of start.links) {
+        const midX = (start.cx + l.x) / 2;
+        out.push({
+          key: `start->${l.taskId}`,
+          d: `M${start.cx},${start.cy} C${midX},${start.cy} ${midX},${l.y} ${l.x},${l.y}`,
+        });
+      }
+    }
+    if (end) {
+      for (const l of end.links) {
+        const midX = (l.x + end.cx) / 2;
+        out.push({
+          key: `${l.taskId}->end`,
+          d: `M${l.x},${l.y} C${midX},${l.y} ${midX},${end.cy} ${end.cx},${end.cy}`,
+        });
+      }
+    }
+    return out;
+  }, [start, end]);
 
   return (
     <div data-testid="plan-dag">
@@ -523,6 +642,24 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                   <path key={e.key} d={e.d} data-testid="plan-dag-edge" data-edge={e.key} />
                 ))}
               </g>
+              {/* Synthetic flow edges (Start→roots, leaves→End): lighter +
+                  dashed so they read as flow anchors, not real dependencies. */}
+              <g
+                fill="none"
+                className="stroke-border-base"
+                strokeWidth="1.4"
+                strokeDasharray="4 3"
+                markerEnd="url(#plan-dag-arrow)"
+              >
+                {synthEdges.map((e) => (
+                  <path
+                    key={e.key}
+                    d={e.d}
+                    data-testid="plan-dag-synthetic-edge"
+                    data-edge={e.key}
+                  />
+                ))}
+              </g>
             </svg>
             {/* Nodes (z-10). */}
             {positioned.map((p) => {
@@ -548,6 +685,12 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                 </div>
               );
             })}
+            {/* Synthetic Start/End anchors (z-10) — distinct flow markers, NOT
+                tasks: no node_status / 6-state chip, no assignee, not
+                clickable/dispatchable, not in any count. Rendered as a labeled
+                circular terminal. */}
+            {start && <SyntheticAnchorMarker kind="start" anchor={start} />}
+            {end && <SyntheticAnchorMarker kind="end" anchor={end} />}
           </div>
         </div>
       )}
