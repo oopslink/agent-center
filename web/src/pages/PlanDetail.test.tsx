@@ -1,5 +1,5 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -955,5 +955,186 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
       // readable secondary text, not muted
       expect(el.className).toContain('text-text-secondary');
     }
+  });
+});
+
+// ── v2.9 Stage A8 — draggable DAG↔chat splitter ──────────────────────────────
+// matchMedia is absent in jsdom → useIsWideLayout() defaults to the wide
+// (side-by-side + splitter) layout, so these tests exercise the resizable path.
+const SPLIT_KEY = 'planDetail.chatWidth';
+const SPLIT_MIN = 260;
+const SPLIT_MAX = 560;
+const SPLIT_STEP = 16;
+
+// gridTemplateColumns is `1fr 6px <chatWidth>px` — pull the chat px out.
+function chatWidthFromStyle(el: HTMLElement): number {
+  const tmpl = el.style.gridTemplateColumns; // e.g. "1fr 6px 330px"
+  const m = tmpl.match(/(\d+(?:\.\d+)?)px\s*$/);
+  return m ? Number.parseFloat(m[1]) : NaN;
+}
+
+// jsdom's PointerEvent drops clientX from fireEvent inits — build the event and
+// assign clientX explicitly so the drag handlers see real coordinates.
+function firePointer(
+  el: HTMLElement,
+  type: 'pointerDown' | 'pointerMove' | 'pointerUp',
+  clientX: number,
+): void {
+  const ev = createEvent[type](el, { pointerId: 1 });
+  Object.defineProperty(ev, 'clientX', { value: clientX, configurable: true });
+  fireEvent(el, ev);
+}
+
+// The vitest env's global `localStorage` is an empty stub (no get/set/remove
+// methods — the production code guards for exactly this). Install a working
+// in-memory store for these tests so persist/restore is actually exercised.
+function makeMemoryStorage(): Storage {
+  const map = new Map<string, string>();
+  return {
+    get length() {
+      return map.size;
+    },
+    clear: () => map.clear(),
+    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+    key: (i: number) => Array.from(map.keys())[i] ?? null,
+    removeItem: (k: string) => void map.delete(k),
+    setItem: (k: string, v: string) => void map.set(k, String(v)),
+  } as Storage;
+}
+
+describe('PlanDetail — v2.9 A8 DAG↔chat splitter', () => {
+  let originalLocalStorage: Storage;
+
+  beforeEach(() => {
+    originalLocalStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: makeMemoryStorage(),
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: originalLocalStorage,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  async function mountWithHandle(overrides: Record<string, unknown> = {}) {
+    mockPlan(overrides);
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-split-handle')).toBeInTheDocument());
+    return screen.getByTestId('plan-split-handle');
+  }
+
+  it('renders the handle as a keyboard-operable role=separator', async () => {
+    const handle = await mountWithHandle();
+    expect(handle).toHaveAttribute('role', 'separator');
+    expect(handle).toHaveAttribute('aria-orientation', 'vertical');
+    expect(handle).toHaveAttribute('tabindex', '0');
+    expect(handle).toHaveAttribute('aria-valuemin', String(SPLIT_MIN));
+    expect(handle).toHaveAttribute('aria-valuemax', String(SPLIT_MAX));
+    // default width (no stored value) = 330
+    expect(handle).toHaveAttribute('aria-valuenow', '330');
+    expect(handle.className).toContain('cursor-col-resize');
+    // visible hover + focus-visible affordance
+    expect(handle.className).toMatch(/hover:/);
+    expect(handle.className).toMatch(/focus-visible:/);
+  });
+
+  it('pointer-drag LEFT widens the chat column (gridTemplateColumns changes)', async () => {
+    const handle = await mountWithHandle();
+    const split = screen.getByTestId('plan-detail-split');
+    const before = chatWidthFromStyle(split);
+    expect(before).toBe(330);
+
+    act(() => {
+      firePointer(handle, 'pointerDown', 800);
+      firePointer(handle, 'pointerMove', 760); // drag left 40px
+      firePointer(handle, 'pointerUp', 760);
+    });
+
+    const after = chatWidthFromStyle(split);
+    expect(after).toBe(370); // 330 + 40 (left-drag = wider)
+    expect(handle).toHaveAttribute('aria-valuenow', '370');
+  });
+
+  it('pointer-drag persists the new width to localStorage; remount restores it', async () => {
+    const handle = await mountWithHandle();
+    act(() => {
+      firePointer(handle, 'pointerDown', 800);
+      firePointer(handle, 'pointerMove', 770); // +30 → 360
+      firePointer(handle, 'pointerUp', 770);
+    });
+    expect(localStorage.getItem(SPLIT_KEY)).toBe('360');
+
+    cleanup();
+    // remount — width restored from localStorage
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-split-handle')).toBeInTheDocument());
+    expect(screen.getByTestId('plan-split-handle')).toHaveAttribute('aria-valuenow', '360');
+    expect(chatWidthFromStyle(screen.getByTestId('plan-detail-split'))).toBe(360);
+  });
+
+  it('keyboard ArrowLeft/ArrowRight adjust the width by the step', async () => {
+    const handle = await mountWithHandle();
+    act(() => {
+      handle.focus();
+      fireEvent.keyDown(handle, { key: 'ArrowLeft' }); // wider +16 → 346
+    });
+    expect(handle).toHaveAttribute('aria-valuenow', String(330 + SPLIT_STEP));
+    expect(localStorage.getItem(SPLIT_KEY)).toBe(String(330 + SPLIT_STEP));
+
+    act(() => {
+      fireEvent.keyDown(handle, { key: 'ArrowRight' }); // narrower -16 → back to 330
+      fireEvent.keyDown(handle, { key: 'ArrowRight' }); // -16 → 314
+    });
+    expect(handle).toHaveAttribute('aria-valuenow', String(330 - SPLIT_STEP));
+  });
+
+  it('clamps to [min,max] when dragging/keying past the bounds', async () => {
+    const handle = await mountWithHandle();
+    // Drag far LEFT → would exceed max, clamps to 560.
+    act(() => {
+      firePointer(handle, 'pointerDown', 800);
+      firePointer(handle, 'pointerMove', 200); // +600
+      firePointer(handle, 'pointerUp', 200);
+    });
+    expect(handle).toHaveAttribute('aria-valuenow', String(SPLIT_MAX));
+    expect(chatWidthFromStyle(screen.getByTestId('plan-detail-split'))).toBe(SPLIT_MAX);
+
+    // Drag far RIGHT → would go below min, clamps to 260.
+    act(() => {
+      firePointer(handle, 'pointerDown', 200);
+      firePointer(handle, 'pointerMove', 1200); // -1000
+      firePointer(handle, 'pointerUp', 1200);
+    });
+    expect(handle).toHaveAttribute('aria-valuenow', String(SPLIT_MIN));
+  });
+
+  it('restores a clamped width when localStorage holds an out-of-range value', async () => {
+    localStorage.setItem(SPLIT_KEY, '9999'); // beyond max
+    const handle = await mountWithHandle();
+    expect(handle).toHaveAttribute('aria-valuenow', String(SPLIT_MAX));
+  });
+
+  it('handle uses theme tokens (no alpha-tint, no raw red, no emoji)', async () => {
+    const handle = await mountWithHandle();
+    expect(handle.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
+    expect(handle.className).not.toMatch(/text-red-|bg-red-/);
+    // eslint-disable-next-line no-control-regex
+    expect(handle.textContent ?? '').not.toMatch(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+  });
+
+  it('keeps the DAG main + conversation side mounted alongside the splitter', async () => {
+    await mountWithHandle();
+    expect(screen.getByTestId('plan-detail-main')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-detail-side')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-dag')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-conversation')).toBeInTheDocument();
   });
 });
