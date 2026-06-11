@@ -184,6 +184,58 @@ func TestPM_FlatProjectLifecycle(t *testing.T) {
 	}
 }
 
+// v2.9 #298 (@oopslink): GET /api/orgs/{slug}/projects excludes archived by DEFAULT
+// (sidebar / default views don't show archived); ?status=archived returns only
+// archived (Projects-page "Archived" group); ?status=all returns both.
+func TestPM_ListProjects_StatusFilter(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	mkProject := func(name string) string {
+		resp := orgScopedPost(t, s.URL+"/api/projects", `{"name":"`+name+`"}`, sess)
+		if resp.StatusCode != 200 {
+			t.Fatalf("create %s status=%d", name, resp.StatusCode)
+		}
+		var c map[string]any
+		json.NewDecoder(resp.Body).Decode(&c)
+		return c["id"].(string)
+	}
+	active := mkProject("Active")
+	archived := mkProject("ToArchive")
+
+	// Archive the second (DELETE = active→archived).
+	if resp := orgScopedDelete(t, s.URL+"/api/projects/"+archived, sess); resp.StatusCode != 200 {
+		t.Fatalf("archive status=%d", resp.StatusCode)
+	}
+
+	list := func(query string) []map[string]any {
+		resp := orgScopedGet(t, s.URL+"/api/projects"+query, sess)
+		if resp.StatusCode != 200 {
+			t.Fatalf("list %q status=%d", query, resp.StatusCode)
+		}
+		var l struct {
+			Projects []map[string]any `json:"projects"`
+		}
+		json.NewDecoder(resp.Body).Decode(&l)
+		return l.Projects
+	}
+
+	// Default → only the ACTIVE project (archived excluded).
+	if def := list(""); len(def) != 1 || def[0]["id"] != active {
+		t.Fatalf("default list should be [active], got %+v", def)
+	}
+	// ?status=archived → only the ARCHIVED project.
+	if arch := list("?status=archived"); len(arch) != 1 || arch[0]["id"] != archived {
+		t.Fatalf("?status=archived should be [archived], got %+v", arch)
+	}
+	// ?status=all → both.
+	if all := list("?status=all"); len(all) != 2 {
+		t.Fatalf("?status=all should be 2, got %d", len(all))
+	}
+}
+
 // TestPM_ProjectNesting_CrossOrgGuard proves the v2.9 org-routing-explicit
 // security guard: with path-based org scoping (/api/orgs/{slug}/projects/{pid}/...)
 // a caller could combine a slug they ARE a member of (org-A) with a project_id
