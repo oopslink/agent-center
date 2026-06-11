@@ -49,6 +49,30 @@ func TestWakeProjector_IssueProjectMember_NonParticipant_Mention_Wakes(t *testin
 	}
 }
 
+// v2.9 ② (@oopslink symmetric-broaden): a PLAN conversation's @mention candidates
+// broaden to the plan's project agent-members too — so a human can @ a project-member
+// agent that is NOT a plan-conversation participant and wake it, exactly like an
+// issue/task conversation. (The resolver maps pm://plans/{id} → plan's project.)
+func TestWakeProjector_PlanProjectMember_NonParticipant_Mention_Wakes(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "AG1", "W1")
+	// Plan conversation WITHOUT AG1 as a participant — only bob.
+	f.saveConv(t, "plan-1", conversation.ConversationKindPlan, "", userPart("bob"))
+	// AG1 IS a member of the plan's owning project.
+	p := f.projWithMembers(
+		map[string]string{"agent:AG1": "Helper"},
+		map[string][]string{"pm://plans/plan-1": {"AG1"}},
+	)
+
+	ev := messageAddedEventOwner("EV1", "plan-1", "pm://plans/plan-1", "m1", "user:bob", "hey @helper look at this plan")
+	if err := p.Project(f.ctx, ev); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 1 || cmds[0].CommandType() != "agent.converse" {
+		t.Fatalf("plan project-member @mention should wake (② symmetric-broaden), got %d", len(cmds))
+	}
+}
+
 func TestWakeProjector_IssueNonMember_Mention_NoWake(t *testing.T) {
 	f := newWakeFixture(t)
 	f.saveRunningAgent(t, "AG1", "W1")

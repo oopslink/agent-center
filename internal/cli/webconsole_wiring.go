@@ -252,6 +252,16 @@ func (a *App) outboxProjectors(
 					return nil, err
 				}
 				projectID = is.ProjectID()
+			case strings.HasPrefix(ownerRef, "pm://plans/"):
+				// v2.9 ② (@oopslink): a PLAN conversation's @mention candidates broaden
+				// to the plan's project agent-members too (symmetric with issue/task), so
+				// a human can @ any project agent in a plan conversation, not just a
+				// participant. plan → its project.
+				pl, err := pmsql.NewPlanRepo(a.DB).FindByID(ctx, pm.PlanID(strings.TrimPrefix(ownerRef, "pm://plans/")))
+				if err != nil || pl == nil {
+					return nil, err
+				}
+				projectID = pl.ProjectID()
 			default:
 				return nil, nil // not a project-owned conversation
 			}
