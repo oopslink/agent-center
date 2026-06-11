@@ -180,6 +180,18 @@ export function usePatchPlan(projectId: string, planId: string) {
 // lifecycle): refresh both the single Plan (derived nodes) and the parallel list
 // (progress / status). Task ↔ Plan is 0..1, so adding/removing also changes
 // which tasks are "backlog" — invalidate the project task list too.
+function invalidatePlanWrite(
+  qc: ReturnType<typeof useQueryClient>,
+  projectId: string,
+  planId: string,
+) {
+  void qc.invalidateQueries({ queryKey: qk.plan(planId) });
+  void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
+  void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+  // v2.9 #291: add/remove-task changes the Backlog (unplanned) set too.
+  void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
+}
+
 function usePlanWrite<TVars, TResult>(
   projectId: string,
   planId: string,
@@ -188,13 +200,7 @@ function usePlanWrite<TVars, TResult>(
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.plan(planId) });
-      void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
-      void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
-      // v2.9 #291: add/remove-task changes the Backlog (unplanned) set too.
-      void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
-    },
+    onSuccess: () => invalidatePlanWrite(qc, projectId, planId),
   });
 }
 
@@ -210,6 +216,32 @@ export function useRemoveTaskFromPlan(projectId: string, planId: string) {
   return usePlanWrite<string, void>(projectId, planId, (taskId) =>
     api.del(`${plansBase(projectId)}/${planId}/tasks/${taskId}`),
   );
+}
+
+// A7 (Work Board cross-column task drag): the SAME select/remove ops, but the
+// target/source plan is only known at DROP time (any draft plan, or the source
+// plan a card was dragged out of). React forbids calling a per-plan hook
+// conditionally per drop, so these variants take the planId as a MUTATION
+// VARIABLE rather than a closure — one stable hook drives drops to/from any
+// plan. Backed by the identical endpoints + the shared usePlanWrite
+// invalidation (plan / list / tasks / unplanned), so a drag-move and the
+// keyboard add/remove buttons converge on the same refetch.
+export function useAddTaskToAnyPlan(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, taskId }: { planId: string; taskId: string }) =>
+      api.post<Plan>(`${plansBase(projectId)}/${planId}/tasks`, { task_id: taskId }),
+    onSuccess: (_d, { planId }) => invalidatePlanWrite(qc, projectId, planId),
+  });
+}
+
+export function useRemoveTaskFromAnyPlan(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, taskId }: { planId: string; taskId: string }) =>
+      api.del(`${plansBase(projectId)}/${planId}/tasks/${taskId}`),
+    onSuccess: (_d, { planId }) => invalidatePlanWrite(qc, projectId, planId),
+  });
 }
 
 // ---------------------------------------------------------------------------
