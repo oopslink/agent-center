@@ -175,4 +175,30 @@ describe('plans hooks', () => {
     // never leaks the raw message
     expect(friendlyDestructivePlanError(new Error('projectmanager: plan is running'))).not.toMatch(/projectmanager/);
   });
+
+  // v2.9 #299: ErrPlanHasRunningTasks ("…plan has running tasks…") must map to
+  // the distinct "has running tasks" text, NOT the plan-is-running text. Its
+  // "running tasks" substring also contains bare "running", so the order in the
+  // mapper (running task → before → running) is what makes this correct.
+  it('friendlyDestructivePlanError distinguishes ErrPlanHasRunningTasks from ErrPlanRunning', () => {
+    const hasRunningTasks = friendlyDestructivePlanError(
+      new Error(
+        '[409 plan_conflict] projectmanager: plan has running tasks — complete or stop them before archiving',
+      ),
+    );
+    expect(hasRunningTasks).toMatch(/has running tasks/i);
+    expect(hasRunningTasks).not.toMatch(/Stop it first/i);
+
+    // ErrPlanRunning (plan-state) still maps to the plan-is-running text.
+    const planRunning = friendlyDestructivePlanError(
+      new Error('[409 plan_conflict] projectmanager: plan is running'),
+    );
+    expect(planRunning).toMatch(/Stop it first/i);
+    expect(planRunning).not.toMatch(/has running tasks/i);
+
+    // already-archived fallback still works.
+    expect(
+      friendlyDestructivePlanError(new Error('[409 plan_conflict] plan already archived')),
+    ).toMatch(/already archived/i);
+  });
 });
