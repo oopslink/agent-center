@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
+import type { Task } from './types';
 
 // Plans — v2.9 Plan Orchestration P1 (#286 foundation + backlog→Plan selection).
 //
@@ -91,6 +92,24 @@ export function usePlans(projectId: string | undefined) {
   });
 }
 
+// GET /projects/{pid}/tasks?unplanned=1 — the Backlog column source (v2.9 #291
+// Work Board). Returns ONLY the project tasks with NO plan (plan_id null), org-
+// gated (Dev's endpoint). Same wrapped `{ tasks: Task[] }` shape as the full
+// project task list (useTasksList) — mock=contract; VERIFY the real endpoint
+// honours `?unplanned=1` + returns the identical Task shape once it lands.
+export function useUnplannedTasks(projectId: string | undefined) {
+  return useQuery({
+    queryKey: qk.unplannedTasksByProject(projectId ?? ''),
+    queryFn: async () => {
+      const resp = await api.get<{ tasks: Task[] }>(
+        `/projects/${projectId}/tasks?unplanned=1`,
+      );
+      return resp.tasks;
+    },
+    enabled: !!projectId,
+  });
+}
+
 // GET /{id} — a single Plan with its derived nodes + DAG.
 export function usePlan(projectId: string | undefined, planId: string | undefined) {
   return useQuery({
@@ -159,6 +178,8 @@ function usePlanWrite<TVars, TResult>(
       void qc.invalidateQueries({ queryKey: qk.plan(planId) });
       void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
       void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+      // v2.9 #291: add/remove-task changes the Backlog (unplanned) set too.
+      void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
     },
   });
 }

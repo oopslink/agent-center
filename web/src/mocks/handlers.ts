@@ -380,23 +380,45 @@ export const handlers = [
     });
   }),
 
-  // v2.7 ProjectManager BC — nested Tasks under a project.
-  http.get('/api/projects/:pid/tasks', ({ params }) =>
-    ok({
-      tasks: [
-        {
-          id: 'TS-1',
-          project_id: String(params.pid),
-          title: 'sample task',
-          description: '',
-          status: 'open',
-          version: 1,
-          created_at: '2026-05-24T01:00:00Z',
-          updated_at: '2026-05-24T01:00:00Z',
-        },
-      ],
-    }),
-  ),
+  // v2.7 ProjectManager BC — nested Tasks under a project. v2.9 #291 Work Board:
+  // the `?unplanned=1` filter (Dev's endpoint, org-gated) returns only the
+  // project tasks with NO plan (plan_id null) — the Backlog column source. Same
+  // Task[] shape as the full list (mock=contract). Without the filter the full
+  // project task list is returned (existing behaviour, unchanged).
+  http.get('/api/projects/:pid/tasks', ({ params, request }) => {
+    const unplanned = new URL(request.url).searchParams.get('unplanned');
+    const tasks = [
+      {
+        id: 'TS-1',
+        project_id: String(params.pid),
+        title: 'sample task',
+        description: '',
+        status: 'open',
+        version: 1,
+        created_at: '2026-05-24T01:00:00Z',
+        updated_at: '2026-05-24T01:00:00Z',
+      },
+    ];
+    if (unplanned === '1') {
+      // Backlog: distinct unplanned task with an assignee so the avatar renders.
+      return ok({
+        tasks: [
+          {
+            id: 'TS-BL1',
+            project_id: String(params.pid),
+            title: 'unplanned backlog task',
+            description: '',
+            status: 'open',
+            assignee: 'agent:builder',
+            version: 1,
+            created_at: '2026-05-24T01:00:00Z',
+            updated_at: '2026-05-24T01:00:00Z',
+          },
+        ],
+      });
+    }
+    return ok({ tasks });
+  }),
   http.post('/api/projects/:pid/tasks', async ({ params, request }) => {
     const body = (await request.json()) as { title?: string; description?: string };
     return ok(
