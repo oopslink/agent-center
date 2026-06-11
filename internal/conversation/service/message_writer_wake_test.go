@@ -147,6 +147,32 @@ func TestAddMessage_IssueConversation_EmitsWakeOutbox(t *testing.T) {
 	}
 }
 
+// v2.9 #306 ②: a plan conversation emits the wake event even with NO agent
+// participant, so the WakeProjector runs + can broaden to an @mentioned project-
+// member agent (symmetric with issues #227). Without this, a non-participant
+// project-member @mention in a plan conversation never emits → ② can't fire — the
+// run-real gap Tester2 caught (converse=0) while ① [participant] worked because a
+// participant conv passes the conversationHasAgentParticipant gate.
+func TestAddMessage_PlanConversation_EmitsWakeOutbox(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-plan-1")
+	f.saveConv(t, convID, conversation.ConversationKindPlan, conversation.OwnerRef("pm://plans/P1"), "")
+
+	if _, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID:   convID,
+		SenderIdentityID: conversation.IdentityRef("user:bob"),
+		ContentKind:      conversation.MessageContentText,
+		Content:          "hey @agent please look at this plan",
+		Direction:        conversation.DirectionInbound,
+		Actor:            observability.Actor("user:bob"),
+	}); err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+	if evs := f.messageAddedEvents(t); len(evs) != 1 {
+		t.Fatalf("plan conversation must emit a wake event (#306 ②), got %d", len(evs))
+	}
+}
+
 func TestAddMessage_ChannelConversation_NoWakeOutbox(t *testing.T) {
 	f := newWakeFixture(t)
 	convID := conversation.ConversationID("conv-chan-1")
