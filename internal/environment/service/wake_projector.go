@@ -437,7 +437,8 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 		}
 	}
 	if p.projectAgentMembers != nil &&
-		(kind == conversation.ConversationKindIssue || kind == conversation.ConversationKindTask) {
+		(kind == conversation.ConversationKindIssue || kind == conversation.ConversationKindTask ||
+			kind == conversation.ConversationKindPlan) {
 		if memberIDs, err := p.projectAgentMembers(ctx, pl.OwnerRef); err != nil {
 			slog.Warn("wake projector: project-member lookup failed",
 				"owner_ref", pl.OwnerRef, "conversation_id", pl.ConversationID, "err", err)
