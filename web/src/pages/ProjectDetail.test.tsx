@@ -82,6 +82,15 @@ describe('ProjectDetail page', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Project Alpha' })).toBeInTheDocument());
     expect(screen.getByTestId('project-description')).toHaveTextContent('the alpha project');
     expect(screen.getByTestId('project-status-active')).toBeInTheDocument();
+    // v2.9 workboard-link-header: the Work Board link lives in the header button
+    // cluster alongside Edit/Archive, reads "Work Board", and still navigates to
+    // the per-project plans route (§4.2 reachability — testid + href unchanged).
+    const plansLink = screen.getByTestId('project-plans-link');
+    expect(plansLink).toHaveTextContent('Work Board');
+    expect(plansLink).toHaveAttribute('href', '/projects/proj-a/plans');
+    const headerCluster = screen.getByTestId('project-edit-btn').parentElement;
+    expect(headerCluster).toContainElement(plansLink);
+    expect(headerCluster).toContainElement(screen.getByTestId('project-delete-btn'));
     // Issues tab is the default; the issue row shows.
     await waitFor(() => expect(screen.getByText('login bug')).toBeInTheDocument());
     // Switch to the Tasks tab to see the task row.
