@@ -166,6 +166,12 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
+		// §9.4: the plan's task-set + DAG are editable only in draft. Removing a
+		// node from a running/done plan would break the executing DAG — mirror the
+		// gate on SelectTaskIntoPlan / Add+RemovePlanDependency (add/remove symmetry).
+		if p.Status() != pm.PlanDraft {
+			return pm.ErrPlanNotDraft
+		}
 		t, err := s.tasks.FindByID(txCtx, taskID)
 		if err != nil {
 			return err
