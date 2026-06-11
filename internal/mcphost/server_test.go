@@ -197,6 +197,57 @@ func TestPlanToolsRegistered(t *testing.T) {
 	}
 }
 
+// TestAgentFacingToolParity is the (3) full-parity guard (PD-approved, #266-class):
+// it asserts the live per-agent MCP catalog (ListTools) EQUALS the source-of-truth
+// AgentFacingToolNames set — BOTH directions. Forward: every canonical name is
+// registered (a set member dropped from NewServer → FAIL). Reverse: every registered
+// tool is in the canonical set (a tool added to NewServer without a deliberate
+// AgentFacingToolNames entry → FAIL). This catches the WHOLE class of
+// registration↔manifest drift (the #285/#299 seam where a handler exists but isn't
+// agent-facing, or a tool is exposed without a deliberate decision) in EITHER
+// direction — not just the specific families TestPlanToolsRegistered guards.
+func TestAgentFacingToolParity(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}})
+
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	registered := map[string]bool{}
+	for _, tool := range res.Tools {
+		registered[tool.Name] = true
+	}
+	canonical := map[string]bool{}
+	for _, name := range AgentFacingToolNames {
+		canonical[name] = true
+	}
+
+	// Forward: every canonical agent-facing tool is actually registered.
+	for _, name := range AgentFacingToolNames {
+		if !registered[name] {
+			t.Errorf("canonical agent-facing tool %q is NOT registered in NewServer (dropped from the catalog, or stale AgentFacingToolNames)", name)
+		}
+	}
+	// Reverse: every registered tool is in the canonical set — no tool reaches the
+	// agent LLM without a deliberate AgentFacingToolNames entry.
+	for name := range registered {
+		if !canonical[name] {
+			t.Errorf("tool %q is registered in NewServer but NOT in AgentFacingToolNames — add it deliberately (is it meant to be agent-facing?)", name)
+		}
+	}
+	// Size parity = fast signal the two sets diverged.
+	if len(registered) != len(AgentFacingToolNames) {
+		t.Errorf("registered tool count = %d, AgentFacingToolNames = %d (sets diverged)", len(registered), len(AgentFacingToolNames))
+	}
+	// FilesSeamTools (the reverse-lockstep exception markers) must be real
+	// agent-facing tools.
+	for _, name := range FilesSeamTools {
+		if !canonical[name] {
+			t.Errorf("FilesSeamTools entry %q is not in AgentFacingToolNames", name)
+		}
+	}
+}
+
 func TestCallGetMyWork(t *testing.T) {
 	fake := &fakeAdmin{canned: json.RawMessage(`{"work_items":[{"id":"wi-1"}]}`)}
 	cs := connect(t, Config{AgentID: "agent-42", Admin: fake})
