@@ -185,6 +185,28 @@ function planHandlers() {
     http.post('/api/projects/:pid/plans/:id/advance', ({ params }) =>
       ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
     ),
+    // v2.9 Stage B (#280): DELETE /:id → { deleted: true }. Non-running only
+    // (running → 409 plan_conflict on the real backend); the plan is gone after.
+    http.delete('/api/projects/:pid/plans/:id', () => ok({ deleted: true })),
+    // v2.9 Stage B (#290): POST /:id/archive → the archived plan detail. Cascade
+    // plan→archived + ALL plan tasks→archived (task.status preserved).
+    http.post('/api/projects/:pid/plans/:id/archive', ({ params }) =>
+      ok(
+        basePlan(String(params.pid), String(params.id), {
+          status: 'archived',
+          archived_at: '2026-06-11T00:00:00Z',
+          archived_by: 'user:owner',
+          nodes: [
+            baseNode('TS-1', {
+              title: 'sample task',
+              archived: true,
+              archived_at: '2026-06-11T00:00:00Z',
+              archived_by: 'user:owner',
+            }),
+          ],
+        }),
+      ),
+    ),
   ];
 }
 

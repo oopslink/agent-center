@@ -21,7 +21,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { StatusChip } from '@/components/workItemDisplay';
-import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
 
 // ProjectPlans (/projects/:id/plans) — v2.9 #291 WORK BOARD (the headline
 // Plan-Orchestration PLANNING view). A horizontal kanban: a first Backlog
@@ -666,7 +666,11 @@ function PlanTaskCard({
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-1.5">
         <AssigneeBadge assignee={node.assignee_ref} />
-        <StatusChip status={node.task_status} />
+        <span className="inline-flex items-center gap-1">
+          {/* Stage B (#283): archive badge coexists with the status chip. */}
+          <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />
+          <StatusChip status={node.task_status} />
+        </span>
       </div>
       {remove.isError && (
         <p

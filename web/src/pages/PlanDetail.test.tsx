@@ -1138,3 +1138,272 @@ describe('PlanDetail — v2.9 A8 DAG↔chat splitter', () => {
     expect(screen.getByTestId('plan-conversation')).toBeInTheDocument();
   });
 });
+
+// ── v2.9 Stage B: Plan Delete + Archive (consequence-explaining modals) ───────
+// Destructive lifecycle: Delete (DELETE /{id}, unloads tasks→backlog, deletes
+// conv+plan, IRREVERSIBLE → navigate away) + Archive (POST /{id}/archive, plan +
+// tasks → terminal archived, IRREVERSIBLE). Entry gated to NON-running, NON-
+// archived (the real boundary is the backend 409). Each opens a consequence-
+// explaining confirm modal; Cancel = no call; 409 = friendly inline, modal stays.
+describe('PlanDetail — v2.9 Stage B delete + archive', () => {
+  afterEach(() => cleanup());
+
+  // A wrap that surfaces the current location so navigate-away is assertable.
+  function wrapLoc(path = '/projects/proj-a/plans/PL-1') {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/projects/:id/plans/:planId" element={<PlanDetail />} />
+            <Route
+              path="/projects/:id/plans"
+              element={<div data-testid="plans-board">Plans board</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('shows Delete + Archive entries for a DRAFT plan', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument();
+  });
+
+  it('shows Delete + Archive entries for a DONE plan', async () => {
+    mockPlan({ status: 'done', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument();
+  });
+
+  it('HIDES Delete + Archive for a RUNNING plan (entry gate; real block is the 409)', async () => {
+    mockPlan({ status: 'running' });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-delete-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-archive-btn')).not.toBeInTheDocument();
+  });
+
+  it('an ARCHIVED plan is terminal: NO Delete / Archive entries (read-only)', async () => {
+    mockPlan({ status: 'archived', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-delete-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-archive-btn')).not.toBeInTheDocument();
+    // the archived plan still shows its status chip (read-only).
+    expect(within(screen.getByTestId('plan-detail-header')).getByTestId('plan-status-chip')).toHaveTextContent(
+      'archived',
+    );
+  });
+
+  it('clicking Delete opens a CONSEQUENCE-explaining modal (not just "are you sure?")', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-delete-btn'));
+    const modal = screen.getByTestId('plan-delete-modal');
+    expect(modal).toHaveTextContent(/unloads all this plan's tasks back to the Backlog/i);
+    expect(modal).toHaveTextContent(/permanently deletes the plan's conversation/i);
+    expect(modal).toHaveTextContent(/deletes the plan/i);
+    expect(modal).toHaveTextContent(/cannot be undone/i);
+  });
+
+  it('Delete confirm DELETEs /{id} and navigates AWAY to the plans board', async () => {
+    let method = '';
+    let url = '';
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.delete('/api/projects/proj-a/plans/PL-1', ({ request }) => {
+        method = request.method;
+        url = new URL(request.url).pathname;
+        return HttpResponse.json({ deleted: true });
+      }),
+    );
+    wrapLoc();
+    await waitFor(() => expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-delete-btn'));
+    await act(async () => fireEvent.click(screen.getByTestId('plan-delete-confirm')));
+    await waitFor(() => expect(screen.getByTestId('plans-board')).toBeInTheDocument());
+    expect(method).toBe('DELETE');
+    expect(url).toBe('/api/projects/proj-a/plans/PL-1');
+  });
+
+  it('Delete Cancel closes the modal WITHOUT a DELETE', async () => {
+    let deleted = false;
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.delete('/api/projects/proj-a/plans/PL-1', () => {
+        deleted = true;
+        return HttpResponse.json({ deleted: true });
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-delete-btn'));
+    fireEvent.click(screen.getByTestId('plan-delete-cancel'));
+    expect(screen.queryByTestId('plan-delete-modal')).not.toBeInTheDocument();
+    await act(async () => { await Promise.resolve(); });
+    expect(deleted).toBe(false);
+  });
+
+  it('Delete #218: a 409 surfaces a FRIENDLY message and the modal STAYS OPEN', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.delete('/api/projects/proj-a/plans/PL-1', () =>
+        HttpResponse.json({ error: 'plan_conflict', message: 'projectmanager: plan is running' }, { status: 409 }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-delete-btn'));
+    await act(async () => fireEvent.click(screen.getByTestId('plan-delete-confirm')));
+    const err = await screen.findByTestId('plan-delete-error');
+    expect(err).toHaveTextContent(/This plan is running\. Stop it first/i);
+    expect(err.textContent ?? '').not.toMatch(/projectmanager:|plan_conflict/);
+    expect(err.className).toContain('text-danger');
+    expect(err.className).not.toMatch(/text-red-|bg-red-/);
+    expect(screen.getByTestId('plan-delete-modal')).toBeInTheDocument();
+  });
+
+  it('clicking Archive opens a CONSEQUENCE-explaining modal (terminal, cannot be undone)', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-archive-btn'));
+    const modal = screen.getByTestId('plan-archive-modal');
+    expect(modal).toHaveTextContent(/archives the plan and all its tasks/i);
+    expect(modal).toHaveTextContent(/terminal state/i);
+    expect(modal).toHaveTextContent(/cannot be undone/i);
+  });
+
+  it('Archive confirm POSTs /{id}/archive (and stays on the detail view)', async () => {
+    let method = '';
+    let url = '';
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/archive', ({ request }) => {
+        method = request.method;
+        url = new URL(request.url).pathname;
+        return HttpResponse.json(planWith({ status: 'archived' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-archive-btn'));
+    await act(async () => fireEvent.click(screen.getByTestId('plan-archive-confirm')));
+    await waitFor(() => expect(method).toBe('POST'));
+    expect(url).toBe('/api/projects/proj-a/plans/PL-1/archive');
+    // modal closes on success; still on the detail page (plan is GET-able).
+    await waitFor(() => expect(screen.queryByTestId('plan-archive-modal')).not.toBeInTheDocument());
+    expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument();
+  });
+
+  it('Archive Cancel closes the modal WITHOUT an archive POST', async () => {
+    let archived = false;
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/archive', () => {
+        archived = true;
+        return HttpResponse.json(planWith({ status: 'archived' }));
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-archive-btn'));
+    fireEvent.click(screen.getByTestId('plan-archive-cancel'));
+    expect(screen.queryByTestId('plan-archive-modal')).not.toBeInTheDocument();
+    await act(async () => { await Promise.resolve(); });
+    expect(archived).toBe(false);
+  });
+
+  it('Archive #218: a 409 already-archived surfaces a FRIENDLY message, modal stays open', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/archive', () =>
+        HttpResponse.json({ error: 'plan_conflict', message: 'projectmanager: plan already archived' }, { status: 409 }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-archive-btn'));
+    await act(async () => fireEvent.click(screen.getByTestId('plan-archive-confirm')));
+    const err = await screen.findByTestId('plan-archive-error');
+    expect(err).toHaveTextContent(/already archived/i);
+    expect(err.textContent ?? '').not.toMatch(/projectmanager:|plan_conflict/);
+    expect(screen.getByTestId('plan-archive-modal')).toBeInTheDocument();
+  });
+
+  it('task-list row shows the Archived badge when task.archived (coexists with status chips)', async () => {
+    mockPlan({
+      status: 'archived',
+      has_failed: false,
+      nodes: [
+        {
+          task_id: 'na',
+          title: 'archived task',
+          assignee_ref: 'agent:dev',
+          task_status: 'completed',
+          node_status: 'done',
+          depends_on: [],
+          archived: true,
+        },
+        {
+          task_id: 'nb',
+          title: 'live task',
+          assignee_ref: 'agent:dev',
+          task_status: 'open',
+          node_status: 'ready',
+          depends_on: [],
+        },
+      ],
+    });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-tab-tasks')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    // archived task → badge present, AND its node-status chip still shows.
+    expect(screen.getByTestId('task-archived-badge-na')).toHaveTextContent('Archived');
+    const rowA = screen.getAllByTestId('plan-task-row').find((r) => r.getAttribute('data-task-id') === 'na')!;
+    expect(within(rowA).getByTestId('node-state-chip')).toBeInTheDocument();
+    // non-archived task → NO badge.
+    expect(screen.queryByTestId('task-archived-badge-nb')).not.toBeInTheDocument();
+  });
+
+  it('archive badge uses a curated SOLID amber pair (no alpha-tint, no raw red, no emoji)', async () => {
+    mockPlan({
+      status: 'archived',
+      has_failed: false,
+      nodes: [
+        { task_id: 'na', title: 't', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [], archived: true },
+      ],
+    });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-tab-tasks')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    const badge = screen.getByTestId('task-archived-badge-na');
+    expect(badge.className).toContain('bg-amber-100');
+    expect(badge.className).toContain('text-amber-800');
+    expect(badge.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
+    expect(badge.className).not.toMatch(/text-red-|bg-red-/);
+    // eslint-disable-next-line no-control-regex
+    expect(badge.textContent ?? '').not.toMatch(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+  });
+
+  it('PlanStatusChip renders the archived status with a curated SOLID stone pair', async () => {
+    mockPlan({ status: 'archived', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    const chip = within(screen.getByTestId('plan-detail-header')).getByTestId('plan-status-chip');
+    expect(chip).toHaveTextContent('archived');
+    expect(chip).toHaveAttribute('data-status', 'archived');
+    expect(chip.className).toContain('bg-stone-100');
+    expect(chip.className).toContain('text-stone-800');
+    expect(chip.className).not.toMatch(/\/\d+/);
+    expect(chip.className).not.toMatch(/text-red-|bg-red-/);
+  });
+});

@@ -15,16 +15,19 @@ import type { PlanStatus } from '@/api/plans';
 //
 // Computed contrast (Tailwind v3 default hex, white-vs-black AA formula):
 //   slate-100/slate-800 = 13.35 · sky-100/sky-800 ... we reuse the proven pairs:
-//   draft   → slate-100 / slate-800  (13.35)  — not started, neutral
-//   running → blue-100  / blue-800   (7.15)   — in flight
-//   done    → emerald-100/emerald-800 (6.78)  — complete
-// ALL ≥ 4.5 → AA in BOTH modes. Distinct hues (slate/blue/emerald), distinguished
-// by FILL + TEXT, never color alone.
+//   draft    → slate-100 / slate-800  (13.35)  — not started, neutral
+//   running  → blue-100  / blue-800   (7.15)   — in flight
+//   done     → emerald-100/emerald-800 (6.78)  — complete
+//   archived → stone-100 / stone-800  (13.90)  — terminal / shelved (v2.9 Stage B)
+// ALL ≥ 4.5 → AA in BOTH modes. archived uses a WARM neutral (stone) distinct
+// from draft's COOL neutral (slate) — terminal-neutral, not a live hue; the
+// uppercase "archived" label is the primary distinguisher (never color alone).
 
 const PLAN_STATUS_CLS: Record<PlanStatus, string> = {
   draft: 'bg-slate-100 text-slate-800',
   running: 'bg-blue-100 text-blue-800',
   done: 'bg-emerald-100 text-emerald-800',
+  archived: 'bg-stone-100 text-stone-800',
 };
 
 export function planStatusClass(status: PlanStatus): string {
@@ -59,6 +62,39 @@ export function PlanFailedIndicator({ hasFailed }: { hasFailed: boolean }): Reac
       title="A node in this plan has a failed task (§9.1)"
     >
       Failed node
+    </span>
+  );
+}
+
+// TaskArchivedBadge — v2.9 Stage B (#283). A plan task carries an `archived`
+// flag once its plan is archived (cascade), ORTHOGONAL to task_status /
+// node_status (both the status chip AND this badge can show on the same row).
+// Renders nothing when the task is not archived. Both-mode AA: a CURATED SOLID
+// amber-100 / amber-800 pair (theme-independent literal Tailwind colors → the
+// same light-block-dark-text in BOTH modes, contrast 6.37 — AA). Distinct from
+// the neutral archived PLAN chip (amber = "shelved item" tone) and not red (the
+// raw-red guardrail). Text label "Archived" + tiny inline SVG (NOT emoji).
+export function TaskArchivedBadge({
+  archived,
+  taskId,
+}: {
+  archived: boolean | undefined;
+  taskId: string;
+}): React.ReactElement | null {
+  if (!archived) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-amber-800"
+      data-testid={`task-archived-badge-${taskId}`}
+      title="This task was archived with its plan (read-only)."
+    >
+      {/* archive box glyph */}
+      <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="4" rx="1" />
+        <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
+        <path d="M10 12h4" />
+      </svg>
+      Archived
     </span>
   );
 }

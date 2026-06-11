@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { OrgLink } from '@/OrgContext';
+import { useNavigate, useParams } from 'react-router-dom';
+import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
 import { useProject } from '@/api/projects';
 import {
   usePlan,
@@ -11,6 +11,9 @@ import {
   useRemoveDependency,
   useRemoveTaskFromPlan,
   usePatchPlan,
+  useDeletePlan,
+  useArchivePlan,
+  friendlyDestructivePlanError,
   type Plan,
   type PlanNode,
   type PlanNodeStatus,
@@ -24,7 +27,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
 import { StatusChip, idHandle } from '@/components/workItemDisplay';
-import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
@@ -345,10 +348,19 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const stop = useStopPlan(projectId, plan.id);
   const advance = useAdvancePlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
     creatorName === plan.creator_ref ? normalizeIdentityRef(plan.creator_ref) : creatorName;
+
+  // Destructive-action entry gate (PD bar 1 — UX, not security): Delete + Archive
+  // are exposed ONLY for a NON-running, NON-archived plan. A running plan would
+  // be rejected by the backend (409 plan_conflict) — the real boundary — so we
+  // simply HIDE the entries rather than offer an action that can't succeed. An
+  // archived plan is TERMINAL (re-archive/delete-after-archive aren't part of the
+  // flow) so it shows read-only: no Delete / Archive.
+  const canDestroy = plan.status !== 'running' && plan.status !== 'archived';
 
   return (
     <header className="space-y-2 border-b border-border-base p-4" data-testid="plan-detail-header">
@@ -417,6 +429,33 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             </button>
           </>
         )}
+        {/* Destructive lifecycle (v2.9 Stage B): Archive + Delete. Exposed only
+            for a NON-running, NON-archived plan (canDestroy). Each opens a
+            CONSEQUENCE-explaining confirm modal — never acts on a single click.
+            The real block on a running plan is the backend 409; hiding here is
+            the UX gate. */}
+        {canDestroy && (
+          <>
+            <button
+              type="button"
+              data-testid="plan-archive-btn"
+              onClick={() => setConfirming('archive')}
+              title="Archive this plan and all its tasks (terminal, cannot be undone)"
+              className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary"
+            >
+              Archive
+            </button>
+            <button
+              type="button"
+              data-testid="plan-delete-btn"
+              onClick={() => setConfirming('delete')}
+              title="Delete this plan (unloads its tasks to the Backlog, cannot be undone)"
+              className="rounded border border-danger bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-danger hover:bg-bg-base"
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
         <div className="flex items-center gap-1">
@@ -448,7 +487,184 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
       {editing && (
         <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />
       )}
+      {confirming === 'delete' && (
+        <PlanDeleteModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />
+      )}
+      {confirming === 'archive' && (
+        <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />
+      )}
     </header>
+  );
+}
+
+// ── Destructive confirm modals (v2.9 Stage B) ────────────────────────────────
+// Both mirror the PlanEditModal/PlanCreateModal pattern (bg-black/50 scrim +
+// solid bg-bg-elevated surface = the sanctioned both-mode-AA modal). They are
+// CONSEQUENCE-EXPLAINING (PD bar 2): the body spells out exactly what the action
+// does (not just "are you sure?"). Cancel closes WITHOUT acting. On error the
+// modal STAYS OPEN and shows a FRIENDLY inline message (#218,
+// friendlyDestructivePlanError — status-agnostic message-substring match).
+
+// PlanDeleteModal — DELETE /{id}. On success the plan no longer exists, so we
+// navigate AWAY to the project's Plans board (the detail route would 404).
+function PlanDeleteModal({
+  projectId,
+  plan,
+  onClose,
+}: {
+  projectId: string;
+  plan: Plan;
+  onClose: () => void;
+}): React.ReactElement {
+  const navigate = useNavigate();
+  const org = useOptionalOrgContext();
+  const del = useDeletePlan(projectId, plan.id);
+
+  const onConfirm = async () => {
+    try {
+      await del.mutateAsync();
+      // The plan is GONE — leave the (now-404) detail route for the board.
+      onClose();
+      navigate(orgPath(`/projects/${encodeURIComponent(projectId)}/plans`, org?.slug));
+    } catch {
+      // surfaced inline below (#218); modal stays open.
+    }
+  };
+
+  return (
+    <DestructiveConfirmModal
+      testId="plan-delete-modal"
+      title="Delete this plan?"
+      planName={plan.name}
+      body="This unloads all this plan's tasks back to the Backlog, permanently deletes the plan's conversation, and deletes the plan. This cannot be undone."
+      confirmLabel="Delete plan"
+      pendingLabel="Deleting…"
+      pending={del.isPending}
+      error={del.isError ? friendlyDestructivePlanError(del.error) : null}
+      errorTestId="plan-delete-error"
+      cancelTestId="plan-delete-cancel"
+      confirmTestId="plan-delete-confirm"
+      onCancel={onClose}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
+// PlanArchiveModal — POST /{id}/archive. On success the plan (+ all its tasks)
+// flip to the terminal archived state; the plan stays readable, so we just close
+// and let the invalidation refresh the now-archived view.
+function PlanArchiveModal({
+  projectId,
+  plan,
+  onClose,
+}: {
+  projectId: string;
+  plan: Plan;
+  onClose: () => void;
+}): React.ReactElement {
+  const archive = useArchivePlan(projectId, plan.id);
+
+  const onConfirm = async () => {
+    try {
+      await archive.mutateAsync();
+      onClose();
+    } catch {
+      // surfaced inline below (#218); modal stays open.
+    }
+  };
+
+  return (
+    <DestructiveConfirmModal
+      testId="plan-archive-modal"
+      title="Archive this plan?"
+      planName={plan.name}
+      body="This archives the plan and all its tasks (a terminal state). This cannot be undone."
+      confirmLabel="Archive plan"
+      pendingLabel="Archiving…"
+      pending={archive.isPending}
+      error={archive.isError ? friendlyDestructivePlanError(archive.error) : null}
+      errorTestId="plan-archive-error"
+      cancelTestId="plan-archive-cancel"
+      confirmTestId="plan-archive-confirm"
+      onCancel={onClose}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
+// Shared scrim+surface confirm dialog for the two destructive actions. Same
+// modal idiom as PlanEditModal (bg-black/50 scrim + solid bg-bg-elevated). The
+// confirm button is danger-toned (border + danger text, no white-on-light-red
+// flip — that fails dark-mode AA).
+function DestructiveConfirmModal({
+  testId,
+  title,
+  planName,
+  body,
+  confirmLabel,
+  pendingLabel,
+  pending,
+  error,
+  errorTestId,
+  cancelTestId,
+  confirmTestId,
+  onCancel,
+  onConfirm,
+}: {
+  testId: string;
+  title: string;
+  planName: string;
+  body: string;
+  confirmLabel: string;
+  pendingLabel: string;
+  pending: boolean;
+  error: string | null;
+  errorTestId: string;
+  cancelTestId: string;
+  confirmTestId: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}): React.ReactElement {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      data-testid={testId}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
+        <h2 className="mb-2 text-lg font-semibold">{title}</h2>
+        <p className="mb-3 text-sm text-text-secondary">
+          <span className="font-medium text-text-primary">{planName}</span>
+        </p>
+        <p className="text-sm text-text-secondary">{body}</p>
+        {error && (
+          <p className="mt-3 text-xs font-medium text-danger" role="alert" data-testid={errorTestId}>
+            {error}
+          </p>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+            onClick={onCancel}
+            data-testid={cancelTestId}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            className="rounded border border-danger bg-bg-subtle px-3 py-1.5 text-sm font-semibold text-danger hover:bg-bg-base disabled:opacity-50"
+            onClick={onConfirm}
+            data-testid={confirmTestId}
+          >
+            {pending ? pendingLabel : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1065,7 +1281,10 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                     <span className="min-w-0 text-[0.6875rem]">
                       <AssigneeTag assigneeRef={p.node.assignee_ref} />
                     </span>
-                    <NodeStateChip status={p.node.node_status} />
+                    <span className="inline-flex items-center gap-1">
+                      <TaskArchivedBadge archived={p.node.archived} taskId={p.node.task_id} />
+                      <NodeStateChip status={p.node.node_status} />
+                    </span>
                   </div>
                 </div>
               );
@@ -1384,7 +1603,12 @@ function PlanTaskRow({
         <StatusChip status={node.task_status} />
       </td>
       <td className="py-1.5">
-        <NodeStateChip status={node.node_status} />
+        <span className="inline-flex items-center gap-1.5">
+          <NodeStateChip status={node.node_status} />
+          {/* Stage B (#283): archive badge is ORTHOGONAL — coexists with the
+              node-status chip when the plan (and thus the task) is archived. */}
+          <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />
+        </span>
       </td>
       {canRemove && (
         <td className="py-1.5 pl-3 text-right">
