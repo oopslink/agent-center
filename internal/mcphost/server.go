@@ -231,6 +231,65 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Verify a completed task (the calling agent may not verify its own completion).",
 	}, makeVerifyTask(cfg))
 
+	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
+	// A PM-agent programmatically builds and runs plans: create a draft plan,
+	// add backlog tasks as nodes, wire depends_on edges into a DAG, then start
+	// it (the center dispatches ready nodes as their dependencies complete).
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "create_plan",
+		Description: "Create a new draft plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
+	}, makeCreatePlan(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "add_task_to_plan",
+		Description: "Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist.",
+	}, makePlanTask(cfg, "add_task_to_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "remove_task_from_plan",
+		Description: "Remove a task node from a draft plan (returns it to the backlog). The plan must be in draft.",
+	}, makePlanTask(cfg, "remove_task_from_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "add_plan_dependency",
+		Description: "Add a depends_on edge to a draft plan's DAG: from_task_id depends on to_task_id (to_task_id must finish before from_task_id is dispatched). Both tasks must already be nodes in the plan. Self-edges and cycles are rejected.",
+	}, makePlanDep(cfg, "add_plan_dependency"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "remove_plan_dependency",
+		Description: "Remove a depends_on edge (from_task_id depends_on to_task_id) from a draft plan's DAG. Idempotent — removing a missing edge is a no-op.",
+	}, makePlanDep(cfg, "remove_plan_dependency"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "start_plan",
+		Description: "Validate and start a draft plan (move it to running). The center then dispatches each node once its dependencies complete. Fails if the plan has no tasks, has a cycle, or has unassigned/unresolvable-assignee tasks — fix those first.",
+	}, makePlanID(cfg, "start_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "stop_plan",
+		Description: "Stop a running plan and move it back to draft so you can edit it (add/remove tasks or dependencies). Resume by calling start_plan again.",
+	}, makePlanID(cfg, "stop_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_plan",
+		Description: "Read a plan's full detail: its nodes, dependency edges, per-node status, the ready_set, has_failed, and progress{done,total}. Scoped to the project you name (a plan in another project is not found).",
+	}, makeGetPlan(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_plans",
+		Description: "List a project's plans with a board summary each (status, progress, has_failed, node_count, and a capped nodes preview). Use this to find a plan_id to operate on.",
+	}, makeListPlans(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "delete_plan",
+		Description: "Hard-delete a non-running plan: its tasks return to the backlog and its dependencies/dispatch records are removed. Stop the plan first if it is running (a running plan is rejected). Irreversible.",
+	}, makePlanID(cfg, "delete_plan"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "archive_plan",
+		Description: "Archive a non-running plan and cascade-archive its tasks (irreversible). Stop the plan first if it is running. Returns the archived plan detail.",
+	}, makePlanID(cfg, "archive_plan"))
+
 	// --- file tools ----------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "upload_file",
