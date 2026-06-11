@@ -258,6 +258,32 @@ func TestSelectTaskIntoPlan_Rejects(t *testing.T) {
 	}
 }
 
+// TestRemoveTaskFromPlan_RejectsNonDraft locks §9.4 add/remove symmetry: a task
+// can be removed from the plan only in draft. Without the gate, the Stage C MCP
+// remove_task tool (and the API) could pull a node out of a RUNNING plan, breaking
+// the executing DAG / orphaning its dispatch record — an enforcement hole the FE
+// gate can't cover (MCP/API bypass it).
+func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
+	svc, _, plans, _, _, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
+	taskA, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
+	if err := svc.SelectTaskIntoPlan(ctx, planID, taskA, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	// Transition the plan to running, then attempt the remove.
+	p, _ := plans.FindByID(ctx, planID)
+	if err := p.Start(svc.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := plans.Update(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RemoveTaskFromPlan(ctx, planID, taskA, "user:a"); !errors.Is(err, pm.ErrPlanNotDraft) {
+		t.Fatalf("remove from running plan = %v, want ErrPlanNotDraft", err)
+	}
+}
+
 func TestSelectTaskIntoPlan_SamePlan_NoOp(t *testing.T) {
 	svc, _, _, tasks, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
