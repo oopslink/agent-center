@@ -40,6 +40,15 @@ const ownerRefTasksPrefix = "pm://tasks/"
 // runs + can auto-join the @mentioned project member.
 const ownerRefIssuesPrefix = "pm://issues/"
 
+// ownerRefPlansPrefix is the plan-owned conversation owner_ref scheme (v2.9 #306
+// ②). Like issue conversations, a plan conversation belongs to a project, so an
+// @mention of a project-member agent must reach the WakeProjector — but that agent
+// is not (yet) a conversation participant, so the conversationHasAgentParticipant
+// emit gate alone would never fire (chicken-and-egg: no emit → no projector → no
+// broaden/auto-join). Emit for plan conversations unconditionally (symmetric to
+// tasks/issues) so the projector runs + can wake the @mentioned project member.
+const ownerRefPlansPrefix = "pm://plans/"
+
 // MessageWriter combines Conversation lifecycle (Open / Close / Archive)
 // and AddMessage (v2 per ADR-0014 same-tx double-write).
 type MessageWriter struct {
@@ -284,6 +293,7 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			ownerRef := string(conv.OwnerRef())
 			if strings.HasPrefix(ownerRef, ownerRefTasksPrefix) ||
 				strings.HasPrefix(ownerRef, ownerRefIssuesPrefix) || // v2.7.1 #227: issue @mention → project-member auto-join
+				strings.HasPrefix(ownerRef, ownerRefPlansPrefix) || // v2.9 #306 ②: plan @mention → project-member broaden (non-participant)
 				conversationHasAgentParticipant(conv) {
 				if emitErr := w.emitMessageAddedOutbox(txCtx, conv, m); emitErr != nil {
 					return emitErr
