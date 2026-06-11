@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type React from 'react';
 import { App } from './App';
+import { server } from './test/mswServer';
 import { FakeEventSource } from './sse/fakeEventSource';
 
 // AppLayout opens a single EventSource on mount via useSSE. jsdom has no
@@ -95,6 +97,108 @@ describe('App shell + route tree', () => {
     fireEvent.click(open);
     await waitFor(() => expect(screen.getByTestId('page-PlanDetail')).toBeInTheDocument());
     expect(window.location.pathname).toBe(`${ORG_BASE}/projects/proj-a/plans/PL-1`);
+  });
+
+  // §4.2 reachability: the primary sidebar nav must point at the canonical
+  // org-scoped routes (not bare/legacy paths). These assert the LINK/href, not
+  // a direct-URL render — the whole point of the audit.
+  it('sidebar nav links point at the canonical org-scoped Workspace/Conversations/System routes', async () => {
+    await renderAt(`${ORG_BASE}/channels`);
+    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: /primary/i });
+    const linkByLabel = (label: string) =>
+      within(nav)
+        .getAllByRole('link')
+        .find((a) => a.textContent?.trim().startsWith(label));
+    const expected: Array<[string, string]> = [
+      ['Projects', `${ORG_BASE}/projects`],
+      ['Issues', `${ORG_BASE}/issues`],
+      ['Tasks', `${ORG_BASE}/tasks`],
+      ['Channels', `${ORG_BASE}/channels`],
+      ['DMs', `${ORG_BASE}/dms`],
+      ['Humans', `${ORG_BASE}/members/humans`],
+      ['Environment', `${ORG_BASE}/environment`],
+      ['Settings', `${ORG_BASE}/settings`],
+    ];
+    for (const [label, href] of expected) {
+      const link = linkByLabel(label);
+      expect(link, `nav link for ${label}`).toBeDefined();
+      expect(link).toHaveAttribute('href', href);
+    }
+  });
+
+  // §4.2 reachability: ProjectDetail is reached from the Projects list (a real
+  // row link), not direct-URL-only.
+  it('reaches ProjectDetail via a Projects-list row link', async () => {
+    await renderAt(`${ORG_BASE}/projects`);
+    await waitFor(() => expect(screen.getByTestId('page-Projects')).toBeInTheDocument());
+    const row = await screen.findByRole('link', { name: /project alpha/i });
+    expect(row).toHaveAttribute('href', `${ORG_BASE}/projects/proj-a`);
+    fireEvent.click(row);
+    await waitFor(() => expect(screen.getByTestId('page-ProjectDetail')).toBeInTheDocument());
+  });
+
+  // §4.2 reachability (A6 task→new-tab): the canonical TaskDetail route is
+  // reachable via the new-tab TaskTitleLink anchor on the Plan board cards —
+  // a real anchor with target=_blank pointing at the org-scoped task route, not
+  // a direct-URL-only orphan. (Asserts the href; new tabs can't be followed in
+  // jsdom, but the anchor IS the real reachability pointer.)
+  it('A6 TaskDetail is reachable via the new-tab TaskTitleLink anchor on the Plan board', async () => {
+    await renderAt(`${ORG_BASE}/projects/proj-a/plans`);
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+    const taskAnchors = await screen.findAllByTestId(/^task-open-link-/);
+    expect(taskAnchors.length).toBeGreaterThan(0);
+    const anchor = taskAnchors[0];
+    expect(anchor).toHaveAttribute('target', '_blank');
+    expect(anchor).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    expect(anchor.getAttribute('href')).toMatch(
+      new RegExp(`^${ORG_BASE}/projects/proj-a/tasks/`),
+    );
+  });
+
+  // §4.2 reachability (self change-password): the self Account tab (the
+  // change-password panel) must be reachable via a REAL entry — the sidebar
+  // user link → /me → UserDetail?tab=account — not just by typing the
+  // users/:id?tab=account URL. This was specifically flagged.
+  it('self change-password (Account tab) is reachable via the sidebar user link → /me redirect', async () => {
+    // UserDetail has no canonical mock handler (per-test server.use); register
+    // the self user so /me's redirect resolves the account tab.
+    server.use(
+      http.get('/api/users/user-test', () =>
+        HttpResponse.json({
+          user_id: 'user-test',
+          display_name: 'Test User',
+          email: 'test@example.com',
+          created_at: '2026-05-20T01:00:00Z',
+          memberships: [],
+        }),
+      ),
+    );
+    await renderAt(`${ORG_BASE}/channels`);
+    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
+    // The sidebar user entry is the real "me" nav pointer (renders once the
+    // /api/auth/me display_name resolves).
+    const userLink = await screen.findByTestId('sidebar-user');
+    expect(userLink).toHaveAttribute('href', `${ORG_BASE}/me`);
+    fireEvent.click(userLink);
+    // /me redirects (replace) to the self UserDetail with the Account tab.
+    await waitFor(() => expect(screen.getByTestId('page-UserDetail')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('account-panel')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /change password/i })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`${ORG_BASE}/users/user-test`);
+  });
+
+  // §4.2 reachability (orphan hunt): the legacy /members/new "Add Agent" page is
+  // an ORPHAN — its only inbound link lived on the retired /members/agents page,
+  // and the canonical /agents surface now creates agents via an inline modal. It
+  // must redirect to the canonical /agents page (matching the /members/agents and
+  // /fleet retirement precedent) so the stale URL lands on a reachable surface
+  // and there is no direct-URL-only orphan page.
+  it('redirects the orphaned /members/new URL to the canonical /agents page', async () => {
+    await renderAt(`${ORG_BASE}/members/new?kind=agent`);
+    await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
+    expect(screen.queryByTestId('page-MemberNew')).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
   });
 
   // dev2/v281: the enhanced /agents page is the single canonical agents
