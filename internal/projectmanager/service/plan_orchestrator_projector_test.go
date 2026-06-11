@@ -2,9 +2,11 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -47,6 +49,53 @@ func (h *orchestratorHarness) dispatchRecords(t *testing.T, planID pm.PlanID) []
 		t.Fatal(err)
 	}
 	return recs
+}
+
+// mentionCount returns how many messages in the plan conversation contain `ref`
+// in their content (the @mention is carried in the message text — the wake path
+// scans content, see PlanDispatchAdapter).
+func (h *orchestratorHarness) mentionCount(t *testing.T, planID pm.PlanID, ref string) int {
+	t.Helper()
+	conv, err := h.convRepo.FindByOwnerRef(h.ctx, conversation.NewPlanOwnerRef(string(planID)))
+	if err != nil {
+		t.Fatalf("plan conversation should exist: %v", err)
+	}
+	msgs, err := h.msgRepo.FindRecent(h.ctx, conv.ID(), 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, m := range msgs {
+		if strings.Contains(m.Content(), ref) {
+			n++
+		}
+	}
+	return n
+}
+
+// takeEvent fetches the first UNPROCESSED outbox event of the given type whose
+// payload references taskID — the REAL event (with its real id) the producer
+// emitted, so a test can replay the SAME event id through the projector.
+func (h *orchestratorHarness) takeEvent(t *testing.T, eventType, taskID string) outbox.Event {
+	t.Helper()
+	evs, err := h.ob.FetchUnprocessed(h.ctx, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range evs {
+		if e.EventType != eventType {
+			continue
+		}
+		var pl taskEventPayload
+		if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+			continue
+		}
+		if pl.TaskID == taskID {
+			return e
+		}
+	}
+	t.Fatalf("no unprocessed %s event for task %s", eventType, taskID)
+	return outbox.Event{}
 }
 
 func dispatchCount(recs []pm.DispatchRecord, tid pm.TaskID) int {
@@ -264,6 +313,134 @@ func TestOrchestrator_NoopCases(t *testing.T) {
 		// Irrelevant types short-circuit BEFORE the tx → not MarkApplied (other
 		// projectors may consume it). Just assert no error + no panic above.
 	})
+}
+
+// TestOrchestrator_FailureNotifiesCreator is the v2.9 P2-2 headline test:
+// a running plan A→{B,C} where A→B and A→C; A FAILS (TaskDiscarded) →
+//   - the plan CREATOR (user:a) is @mentioned in the plan conversation,
+//   - the downstream subtree (B, C) is NOT dispatched (stays blocked, §9.7),
+//   - the plan stays `running` (not done, never auto-terminal-failed).
+func TestOrchestrator_FailureNotifiesCreator(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "fail", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
+	c := h.seedAssignedTask(t, pid, planID, "C", "user:z")
+	if err := h.svc.AddPlanDependency(h.ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AddPlanDependency(h.ctx, planID, c, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	// A dispatched; the creator hasn't been notified yet (no failure).
+	if got := h.mentionCount(t, planID, "user:a"); got != 0 {
+		t.Fatalf("creator mentioned %d times before any failure, want 0", got)
+	}
+
+	// A FAILS → orchestrator notifies the creator; B/C stay blocked.
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.drain(t)
+
+	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
+		t.Fatalf("creator @mentioned %d times on failure, want exactly 1 (P2-2)", got)
+	}
+	recs := h.dispatchRecords(t, planID)
+	if dispatchCount(recs, b) != 0 || dispatchCount(recs, c) != 0 {
+		t.Fatalf("downstream-of-failed dispatched (B=%d C=%d), want 0 — must stay blocked (§9.7)", dispatchCount(recs, b), dispatchCount(recs, c))
+	}
+	// Plan stays running (failure never auto-terminates — §9.1).
+	plan, err := h.plans.FindByID(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status() != pm.PlanRunning {
+		t.Fatalf("plan status %q after a node failed, want running (no auto-terminate)", plan.Status())
+	}
+}
+
+// TestOrchestrator_FailureIndependentBranchAdvances asserts §9.7 branch
+// isolation: in a plan with an independent branch (A→B) and a separate node D
+// with no relation to A, A failing leaves B blocked but a SEPARATELY-completing
+// upstream still advances its own downstream. Concretely: A→B and D→E; A fails
+// (B blocked, creator notified) while D completes (E auto-dispatched).
+func TestOrchestrator_FailureIndependentBranchAdvances(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "branch", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
+	d := h.seedAssignedTask(t, pid, planID, "D", "user:m")
+	e := h.seedAssignedTask(t, pid, planID, "E", "user:n")
+	if err := h.svc.AddPlanDependency(h.ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AddPlanDependency(h.ctx, planID, e, d, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+
+	// A fails → B stays blocked, creator notified.
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.drain(t)
+	// D completes → its INDEPENDENT downstream E auto-advances.
+	h.setTaskStatus(t, d, pm.TaskCompleted)
+	h.drain(t)
+
+	recs := h.dispatchRecords(t, planID)
+	if dispatchCount(recs, b) != 0 {
+		t.Fatalf("B (downstream of failed A) dispatched %d times, want 0 (§9.7)", dispatchCount(recs, b))
+	}
+	if dispatchCount(recs, e) != 1 {
+		t.Fatalf("E (independent branch, D done) dispatched %d times, want 1 (independent branch advances)", dispatchCount(recs, e))
+	}
+	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
+		t.Fatalf("creator @mentioned %d times, want exactly 1", got)
+	}
+}
+
+// TestOrchestrator_FailureReplayNotifiesOnce replays the SAME failure event
+// (same event ID) → the creator is @mentioned EXACTLY once. The AppliedStore
+// dedups the failed-transition event per projector, so the redelivery
+// short-circuits at IsApplied before advance re-runs (P2-2 idempotency: the
+// per-event AppliedStore dedup is the primary guarantee).
+func TestOrchestrator_FailureReplayNotifiesOnce(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "replayfail", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	b := h.seedAssignedTask(t, pid, planID, "B", "user:y")
+	if err := h.svc.AddPlanDependency(h.ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	// Mark A failed WITHOUT draining, then capture the real failure event so we can
+	// replay the SAME event id through the projector twice.
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	failEvent := h.takeEvent(t, EvtTaskStateChanged, string(a))
+
+	if err := h.orchestrator.Project(h.ctx, failEvent); err != nil {
+		t.Fatalf("first Project(failure): %v", err)
+	}
+	if err := h.orchestrator.Project(h.ctx, failEvent); err != nil {
+		t.Fatalf("replay Project(failure): %v", err)
+	}
+	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
+		t.Fatalf("creator @mentioned %d times across an event replay, want exactly 1 (AppliedStore dedup)", got)
+	}
 }
 
 func mustJSON(t *testing.T, v any) string {

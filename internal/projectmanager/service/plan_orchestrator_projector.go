@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/clock"
@@ -25,7 +26,12 @@ import (
 //   - pm.task.state_changed → load the task; if it belongs to a Plan AND that
 //     Plan is running, re-dispatch the Plan's newly-ready nodes (a task reaching
 //     a terminal state can unblock downstream nodes; calling dispatchReadyNodes
-//     is safe/idempotent regardless of WHICH state it moved to).
+//     is safe/idempotent regardless of WHICH state it moved to). v2.9 P2-2: if
+//     the task is now FAILED (TaskDiscarded), also @mention the Plan CREATOR in
+//     the Plan conversation — the failure handler (§9.1/§9.7). The failed node's
+//     downstream stays `blocked` (ComputePlanView) and the Plan does NOT
+//     auto-terminate (MarkDone fires only when ALL nodes are done); the creator
+//     notification is the ONLY new effect.
 //   - pm.plan.started → dispatch the Plan's INITIAL ready nodes (those with no
 //     upstream dependency).
 //
@@ -86,8 +92,16 @@ func (p *PlanOrchestratorProjector) Project(ctx context.Context, e outbox.Event)
 }
 
 // advance resolves the target Plan from the event, loads it, and (when it is
-// running) calls the dispatch core. Resolving to no plan / a non-running plan is
-// a no-op (the caller still MarkApplied so the event is not retried forever).
+// running) drives the dispatch core. Resolving to no plan / a non-running plan
+// is a no-op (the caller still MarkApplied so the event is not retried forever).
+//
+// v2.9 P2-2: for a pm.task.state_changed event whose task has transitioned to
+// FAILED, it ALSO @mentions the Plan creator in the Plan conversation BEFORE
+// dispatching — the failure handler (§9.1/§9.7). The notify + the dispatch share
+// THIS event's one tx, so the AppliedStore dedups both: a redelivered failure
+// event short-circuits (IsApplied) and never re-notifies. The dispatch core is
+// still called so INDEPENDENT branches keep advancing (a failed node merely
+// leaves its own downstream `blocked`, §9.7).
 func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Event) error {
 	planID, ok, err := p.targetPlan(txCtx, e)
 	if err != nil {
@@ -104,8 +118,57 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 		// Draft/done plan → nothing to auto-advance (no-op, idempotent).
 		return nil
 	}
+	// P2-2 failure handling: a plan-task that just transitioned to FAILED notifies
+	// the creator once (per-event, deduped by the AppliedStore around this tx).
+	if err := p.notifyCreatorOnFailure(txCtx, e, plan); err != nil {
+		return err
+	}
 	_, err = p.svc.dispatchReadyNodes(txCtx, plan)
 	return err
+}
+
+// notifyCreatorOnFailure implements the v2.9 P2-2 failure handler: when THIS
+// pm.task.state_changed event's task is now FAILED (TaskDiscarded — the same
+// taskIsFailed semantics ComputePlanView uses, §9.2/§9.7), it posts an @mention
+// of the Plan CREATOR into the Plan conversation noting the task failed and its
+// downstream is blocked pending resolution. The creator is already a
+// plan-conversation participant (#284 additive sync), so the mention reaches
+// them (an agent creator self-handles; a human handles — design decision 1).
+//
+// IDEMPOTENCY: notify ONCE per failure event. The AppliedStore (in Project's
+// enclosing tx) makes each pm.task.state_changed processed exactly once per
+// projector, so notifying when THIS event's task is failed = once per the failed
+// transition. A replay of the same event short-circuits at IsApplied before
+// advance runs → no re-notify. Unrelated events (a sibling task completing) carry
+// a different, non-failed task → no scan-and-renotify here.
+//
+// It is a no-op for non-task events (pm.plan.started) and for tasks that did NOT
+// transition to failed (the common advance path).
+func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context, e outbox.Event, plan *pm.Plan) error {
+	if e.EventType != EvtTaskStateChanged {
+		return nil
+	}
+	var pl taskEventPayload
+	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+		return err
+	}
+	if strings.TrimSpace(pl.TaskID) == "" {
+		return nil
+	}
+	t, err := p.svc.tasks.FindByID(txCtx, pm.TaskID(pl.TaskID))
+	if err != nil {
+		return err
+	}
+	if !pm.TaskIsFailed(t.Status()) {
+		return nil // not a failure transition → nothing to notify.
+	}
+	if p.svc.planDispatcher == nil {
+		return ErrDispatcherUnavailable
+	}
+	creator := string(plan.CreatorRef())
+	content := fmt.Sprintf("%s task %q failed — its downstream is blocked pending resolution.", creator, t.Title())
+	_, perr := p.svc.planDispatcher.PostMention(txCtx, plan.ConversationID(), creator, content)
+	return perr
 }
 
 // targetPlan extracts the Plan id this event should advance. For

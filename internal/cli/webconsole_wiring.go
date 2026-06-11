@@ -471,11 +471,25 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	})
 	go wakeLoop.Run(wakeLoopCtx)
 
+	// v2.9 P2-3 RECONCILIATION SWEEP: a slow-cadence (60s) sweep re-runs the
+	// IDEMPOTENT plan dispatch core over every running Plan — the safety net that
+	// re-dispatches any ready-but-undispatched node a missed pm.task.state_changed /
+	// crash left stranded. It reuses a.PMService (with the PlanDispatcher wired);
+	// already-dispatched nodes are skipped (INSERT-OR-IGNORE record), so it
+	// dispatches nothing on the happy path. Mirrors the wakeLoop lifecycle
+	// (ctx-cancel + graceful shutdown).
+	planReconcileLoopCtx, planReconcileLoopCancel := context.WithCancel(ctx)
+	planReconcileLoop := pmservice.NewPlanReconcileLoop(a.PMService, 60*time.Second, func(msg string) {
+		logger("webconsole plan reconcile: " + msg)
+	})
+	go planReconcileLoop.Run(planReconcileLoopCtx)
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
 		gcCancel()
 		wakeLoopCancel()
+		planReconcileLoopCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
