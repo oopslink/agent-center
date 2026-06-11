@@ -32,7 +32,9 @@ const WorkerDetail = lazy(() => import('./pages/WorkerDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
-const MemberNew = lazy(() => import('./pages/MemberNew'));
+// dev2/v29-s42 §4.2: MemberNew is no longer routed (orphan retired → redirect
+// below); the page component stays for its isolated unit tests. No lazy import
+// here so the unreachable chunk isn't shipped.
 const UserDetail = lazy(() => import('./pages/UserDetail'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -88,7 +90,16 @@ export function App(): React.ReactElement {
               there is no second reachable agents page. (mirrors the /fleet→
               /environment redirect precedent above.) */}
           <Route path="members/agents" element={<Navigate to="../agents" replace />} />
-          <Route path="members/new" element={<MemberNew />} />
+          {/* dev2/v29-s42 §4.2: /members/new is an ORPHAN — its sole inbound
+              link lived on the retired /members/agents page, and the canonical
+              /agents surface now creates agents via an inline AgentCreateModal
+              (and Members→Humans via AddUserModal). Nothing live reaches this
+              page, so the legacy URL redirects to the canonical /agents list —
+              mirroring the /members/agents and /fleet retirement precedents —
+              so a stale link lands on a reachable surface, not a direct-URL-
+              only orphan. (MemberNew is kept as a component + unit-tested in
+              isolation; it is simply no longer a routed page.) */}
+          <Route path="members/new" element={<Navigate to="../agents" replace />} />
           <Route path="users/:userId" element={<UserDetail />} />
           <Route path="*" element={<NotFound />} />
         </Route>
