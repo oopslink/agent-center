@@ -54,6 +54,20 @@ const (
 	// ARCHIVES the plan's conversation (UpdateArchive) for consistency.
 	EvtPlanDeleted  = "pm.plan.deleted"
 	EvtPlanArchived = "pm.plan.archived"
+	// v2.9 P3 (failure→agent-creator-wake, §9.1 / decision-1). Emitted by the
+	// PlanOrchestratorProjector's notifyCreatorOnFailure — IN THE SAME TX as the
+	// failure @mention PostMention — ONLY when the Plan creator is an AGENT
+	// (CreatorRef has the "agent:" scheme). The (production-registered) WakeProjector
+	// consumes it and enqueues an agent.converse control command for the
+	// agent-creator pointing at the plan conversation, so the agent wakes to READ the
+	// failure @mention and self-handle (adjust DAG / escalate via the Stage C MCP plan
+	// tools). This is the SANCTIONED DIRECT system wake for a DETERMINED creator on a
+	// DETERMINED failure event — NOT the human-only @mention wake path (#220 / v2.7
+	// #185 only wakes agents on `user:` senders, so a system @mention can never wake an
+	// agent creator). It does NOT widen #185: it is a one-shot system→agent wake on a
+	// failure transition, not a chat agent→agent reply loop. For a HUMAN creator NO
+	// event is emitted (the @mention in the conversation IS their notification).
+	EvtPlanCreatorFailureWake = "pm.plan.creator_failure_wake"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
@@ -183,6 +197,28 @@ type planEventPayload struct {
 	OwnerRef       string   `json:"owner_ref"`       // pm://plans/{id}
 	CreatorRef     string   `json:"creator_ref,omitempty"`
 	Participants   []string `json:"participants"` // ADD-ONLY (additive §9.5); unioned into existing, never removed
+}
+
+// planCreatorFailureWakePayload is the JSON payload for EvtPlanCreatorFailureWake
+// (v2.9 P3 failure→agent-creator-wake). It carries everything the WakeProjector
+// needs to resolve the agent-creator → its worker binding and enqueue an
+// agent.converse pointing at the plan conversation:
+//   - CreatorRef is the agent ref ("agent:<id>") — the WakeProjector strips the
+//     scheme and resolves the agent (tolerating the entity-id OR identity-member-id
+//     form, like deliverConverse) → its worker binding.
+//   - ConversationID is the plan's 1:1 conversation (where the failure @mention was
+//     posted) — the converse target + cursor the agent reads.
+//   - MessageID is the failure @mention's message id (from PostMention). It is the
+//     idempotency anchor: the converse key embeds it so a redelivered wake on the
+//     SAME failure transition never double-wakes the creator.
+//   - PlanID / TaskID / OrganizationID are diagnostic context (the failure locus).
+type planCreatorFailureWakePayload struct {
+	CreatorRef     string `json:"creator_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	PlanID         string `json:"plan_id"`
+	TaskID         string `json:"task_id"`
+	OrganizationID string `json:"organization_id"`
 }
 
 type issueEventPayload struct {

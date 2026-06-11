@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 
@@ -519,6 +520,162 @@ func TestOrchestrator_ReDiscardDoesNotRenotify(t *testing.T) {
 	}
 	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
 		t.Fatalf("re-discard (prev already failed) re-notified: count=%d, want still 1 (the edge this closes)", got)
+	}
+}
+
+// creatorWakeEvents returns ALL outbox events of type EvtPlanCreatorFailureWake
+// whose payload references planID — used to assert the v2.9 P3 agent-creator-wake
+// trigger is (or is NOT) emitted on a plan-task failure. It scans the FULL outbox
+// (processed + unprocessed) so a drained event is still observable.
+func (h *orchestratorHarness) creatorWakeEvents(t *testing.T, planID pm.PlanID) []planCreatorFailureWakePayload {
+	t.Helper()
+	rows, err := h.svc.db.QueryContext(h.ctx, `SELECT payload FROM outbox_events WHERE event_type = ?`, EvtPlanCreatorFailureWake)
+	if err != nil {
+		t.Fatalf("query outbox: %v", err)
+	}
+	defer rows.Close()
+	var out []planCreatorFailureWakePayload
+	for rows.Next() {
+		var payload string
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		var pl planCreatorFailureWakePayload
+		if err := json.Unmarshal([]byte(payload), &pl); err != nil {
+			t.Fatalf("unmarshal creator-wake payload: %v", err)
+		}
+		if pl.PlanID == string(planID) {
+			out = append(out, pl)
+		}
+	}
+	return out
+}
+
+// seedAgentCreatorPlan creates a plan whose CREATOR is an AGENT (agent:<id>). The
+// agent must be a project member to pass CreatePlan's write-gate, so it is added as
+// a member first (actor = the human project owner). Returns the plan id.
+func (h *orchestratorHarness) seedAgentCreatorPlan(t *testing.T, pid pm.ProjectID, name, agentCreator string) pm.PlanID {
+	t.Helper()
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: pm.IdentityRef(agentCreator), Role: pm.RoleMember, Actor: "user:a",
+	}); err != nil {
+		t.Fatalf("AddProjectMember(%s): %v", agentCreator, err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: name, CreatedBy: pm.IdentityRef(agentCreator)})
+	if err != nil {
+		t.Fatalf("CreatePlan(agent creator): %v", err)
+	}
+	h.drain(t)
+	return planID
+}
+
+// TestOrchestrator_FailureWakesAgentCreator is the v2.9 P3 headline: a plan-task
+// failure in a plan whose CREATOR is an AGENT emits EvtPlanCreatorFailureWake
+// (carrying creator + plan conversation + the failure @mention's message id) — the
+// trigger the WakeProjector consumes to DIRECTLY wake the agent-creator (a system
+// @mention can never wake an agent). The creator is ALSO @mentioned (the failure
+// notice that the woken agent reads).
+func TestOrchestrator_FailureWakesAgentCreator(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID := h.seedAgentCreatorPlan(t, pid, "agentplan", "agent:bot")
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	if err := h.svc.StartPlan(h.ctx, planID, "agent:bot"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	// No failure yet → no wake trigger emitted.
+	if got := len(h.creatorWakeEvents(t, planID)); got != 0 {
+		t.Fatalf("creator-wake emitted %d times before any failure, want 0", got)
+	}
+
+	// A FAILS → orchestrator @mentions the agent-creator AND emits the wake trigger.
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.drain(t)
+
+	if got := h.mentionCount(t, planID, "agent:bot"); got != 1 {
+		t.Fatalf("agent-creator @mentioned %d times on failure, want exactly 1", got)
+	}
+	evs := h.creatorWakeEvents(t, planID)
+	if len(evs) != 1 {
+		t.Fatalf("creator-wake emitted %d times on agent-creator failure, want exactly 1 (P3)", len(evs))
+	}
+	pl := evs[0]
+	if pl.CreatorRef != "agent:bot" {
+		t.Fatalf("creator-wake CreatorRef = %q, want agent:bot", pl.CreatorRef)
+	}
+	if pl.TaskID != string(a) {
+		t.Fatalf("creator-wake TaskID = %q, want %s", pl.TaskID, a)
+	}
+	if pl.OrganizationID != "org-1" {
+		t.Fatalf("creator-wake OrganizationID = %q, want org-1", pl.OrganizationID)
+	}
+	// The wake points at the plan conversation and carries the failure @mention's id
+	// (the WakeProjector's converse idempotency anchor) — both must be non-empty.
+	conv, err := h.convRepo.FindByOwnerRef(h.ctx, conversation.NewPlanOwnerRef(string(planID)))
+	if err != nil {
+		t.Fatalf("plan conversation should exist: %v", err)
+	}
+	if pl.ConversationID != string(conv.ID()) {
+		t.Fatalf("creator-wake ConversationID = %q, want %s", pl.ConversationID, conv.ID())
+	}
+	if strings.TrimSpace(pl.MessageID) == "" {
+		t.Fatal("creator-wake MessageID is empty — the WakeProjector needs the failure @mention id as its converse idempotency anchor")
+	}
+}
+
+// TestOrchestrator_FailureHumanCreator_NoWake asserts the AGENT-ONLY gate: a
+// plan-task failure in a plan whose creator is a HUMAN @mentions the creator but
+// does NOT emit EvtPlanCreatorFailureWake — the @mention in the conversation IS the
+// human's notification; no system wake is needed (decision-1).
+func TestOrchestrator_FailureHumanCreator_NoWake(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "humanplan", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+
+	// A FAILS → human creator @mentioned, but NO wake trigger emitted.
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.drain(t)
+
+	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
+		t.Fatalf("human creator @mentioned %d times on failure, want 1", got)
+	}
+	if got := len(h.creatorWakeEvents(t, planID)); got != 0 {
+		t.Fatalf("HUMAN-creator failure emitted %d creator-wake events, want 0 (@mention is their notification)", got)
+	}
+}
+
+// TestOrchestrator_AgentCreatorWakeReplayOnce replays the SAME failure event (same
+// event id) through the orchestrator → EvtPlanCreatorFailureWake is emitted EXACTLY
+// once (the enclosing Project tx's AppliedStore short-circuits the redelivery before
+// advance/notify re-runs). This is the P3 once-per-failure-transition guarantee.
+func TestOrchestrator_AgentCreatorWakeReplayOnce(t *testing.T) {
+	h := orchestratorSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID := h.seedAgentCreatorPlan(t, pid, "replaywake", "agent:bot")
+	a := h.seedAssignedTask(t, pid, planID, "A", "user:x")
+	if err := h.svc.StartPlan(h.ctx, planID, "agent:bot"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	// Mark A failed WITHOUT draining, capture the real failure event, replay it twice.
+	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	failEvent := h.takeEvent(t, EvtTaskStateChanged, string(a))
+
+	if err := h.orchestrator.Project(h.ctx, failEvent); err != nil {
+		t.Fatalf("first Project(failure): %v", err)
+	}
+	if err := h.orchestrator.Project(h.ctx, failEvent); err != nil {
+		t.Fatalf("replay Project(failure): %v", err)
+	}
+	if got := len(h.creatorWakeEvents(t, planID)); got != 1 {
+		t.Fatalf("creator-wake emitted %d times across an event replay, want exactly 1 (AppliedStore dedup)", got)
 	}
 }
 
