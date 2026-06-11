@@ -123,7 +123,9 @@ func (s *Service) SelectTaskIntoPlan(ctx context.Context, planID pm.PlanID, task
 		if t.PlanID() == planID {
 			return nil // already selected into this plan — idempotent no-op
 		}
-		t.SetPlan(planID, now)
+		if err := t.SetPlan(planID, now); err != nil {
+			return err
+		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
@@ -181,7 +183,9 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 				}
 			}
 		}
-		t.ClearPlan(now)
+		if err := t.ClearPlan(now); err != nil {
+			return err
+		}
 		return s.tasks.Update(txCtx, t)
 	})
 }

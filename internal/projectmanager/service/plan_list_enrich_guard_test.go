@@ -87,7 +87,7 @@ func TestListPlanSummaries_NoNPlus1_QueryCountGuard(t *testing.T) {
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: spy, Outbox: ob, IDGen: gen, Clock: clk,
 		AgentDir:       allOrgDir("org-1"),
-		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer),
+		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, realPlans, applied, gen, clk)

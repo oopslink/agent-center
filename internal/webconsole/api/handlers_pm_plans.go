@@ -136,6 +136,10 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived):
+		// v2.9 P3: a running plan can't be deleted/archived (stop it first); an
+		// already-archived plan can't be re-archived — transient conflicts → 409.
+		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
 	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
 	case errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
@@ -379,6 +383,45 @@ func (s *Server) pmStopPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+// pmDeletePlanHandler hard-deletes a non-running Plan (v2.9 P3): its tasks are
+// unloaded back to the backlog, its deps/dispatch-records + the plan row are
+// removed, and its 1:1 conversation is hard-deleted (event-driven). A running
+// plan is rejected 409 (stop it first). The plan is gone, so it returns a bare
+// deletion confirmation (no detail to re-fetch).
+func (s *Server) pmDeletePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.DeletePlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "plan_id": string(pl.ID())})
+}
+
+// pmArchivePlanHandler archives a non-running Plan + CASCADE-archives its tasks
+// (v2.9 P3, irreversible). A running plan is rejected 409 (stop it first); an
+// already-archived plan is rejected 409. Returns the archived Plan detail.
+func (s *Server) pmArchivePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PM.ArchivePlan(r.Context(), pl.ID(), caller); err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	detail, derr := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	if derr != nil {
+		mapPlanError(w, derr)
+		return
+	}
 	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
 }
 

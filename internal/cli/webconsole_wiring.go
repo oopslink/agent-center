@@ -145,7 +145,10 @@ func (a *App) outboxProjectors(
 	// emits the event but nothing creates its conversation → conversation_id stays
 	// "" → advance has no conversation to @mention into → headline dies (the
 	// service-level test wired it, but the real app did not — integration seam).
-	planParticipantProj := pmservice.NewPlanParticipantProjector(a.DB, a.ConvRepo, pmsql.NewPlanRepo(a.DB), appliedRepo, a.IDGen, a.Clock)
+	planParticipantProj := pmservice.NewPlanParticipantProjector(a.DB, a.ConvRepo, pmsql.NewPlanRepo(a.DB), appliedRepo, a.IDGen, a.Clock).
+		// v2.9 P3: wire the optional message + read-state repos so EvtPlanDeleted fully
+		// hard-deletes the plan conversation ("删会话"), and EvtPlanArchived archives it.
+		WithConversationCascade(a.MsgRepo, a.ReadStateRepo)
 	// v2.7 D2-c-i: ADDITIVE work delivery. When the projector creates a queued
 	// AgentWorkItem it ALSO enqueues an agent.work command (with a brief) onto the
 	// assignee Agent's Worker control stream, same tx. The agents repo resolves

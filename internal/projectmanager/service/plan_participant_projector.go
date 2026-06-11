@@ -42,6 +42,13 @@ type PlanParticipantProjector struct {
 	applied  outbox.AppliedStore
 	idgen    idgen.Generator
 	clock    clock.Clock
+	// msgRepo/readState are OPTIONAL (v2.9 P3, nil-safe). When wired, the
+	// EvtPlanDeleted branch cascade-removes the plan conversation's messages +
+	// read-state in the SAME tx as the conversation-row delete (mirroring the DM
+	// hard-delete handler, #198). nil ⇒ only the conversation row is deleted (the
+	// messages/read-state are left, harmless once the parent row is gone).
+	msgRepo   conversation.MessageRepository
+	readState conversation.UserConversationReadStateRepository
 }
 
 // NewPlanParticipantProjector constructs the projector. plans may be nil only in
@@ -54,6 +61,17 @@ func NewPlanParticipantProjector(db *sql.DB, convRepo conversation.ConversationR
 	return &PlanParticipantProjector{db: db, convRepo: convRepo, plans: plans, applied: applied, idgen: gen, clock: clk}
 }
 
+// WithConversationCascade wires the OPTIONAL message + read-state repos so the
+// EvtPlanDeleted branch fully hard-deletes the plan conversation (row + messages
+// + read-state) in one tx (v2.9 P3, mirrors the DM-delete handler #198). Without
+// it, EvtPlanDeleted still deletes the conversation row (messages/read-state are
+// then orphan-harmless). Returns the receiver for fluent wiring.
+func (p *PlanParticipantProjector) WithConversationCascade(msgRepo conversation.MessageRepository, readState conversation.UserConversationReadStateRepository) *PlanParticipantProjector {
+	p.msgRepo = msgRepo
+	p.readState = readState
+	return p
+}
+
 // Name is the AppliedStore key (distinct from the task/issue projector so both
 // can independently track applied events on the shared Relay).
 func (p *PlanParticipantProjector) Name() string { return "pm-plan-participant-sync" }
@@ -61,7 +79,7 @@ func (p *PlanParticipantProjector) Name() string { return "pm-plan-participant-s
 // Project applies one Plan event. Irrelevant event types are a no-op.
 func (p *PlanParticipantProjector) Project(ctx context.Context, e outbox.Event) error {
 	switch e.EventType {
-	case EvtPlanCreated, EvtPlanParticipantsChanged:
+	case EvtPlanCreated, EvtPlanParticipantsChanged, EvtPlanDeleted, EvtPlanArchived:
 		// handled below
 	default:
 		return nil
@@ -75,6 +93,37 @@ func (p *PlanParticipantProjector) Project(ctx context.Context, e outbox.Event) 
 	}
 	ownerRef := conversation.OwnerRef(pl.OwnerRef)
 	now := p.clock.Now()
+
+	// v2.9 P3 cleanup branches: delete (hard-remove the plan conversation, "删会话")
+	// and archive (UpdateArchive) the plan's 1:1 conversation. Both are idempotent
+	// (an already-gone/already-archived conversation is a no-op) + applied-gated.
+	if e.EventType == EvtPlanDeleted || e.EventType == EvtPlanArchived {
+		return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+			if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
+				return err
+			} else if done {
+				return nil
+			}
+			conv, err := p.convRepo.FindByOwnerRef(txCtx, ownerRef)
+			switch {
+			case errors.Is(err, conversation.ErrConversationNotFound):
+				// No conversation bound (or already deleted) — nothing to clean up.
+			case err != nil:
+				return err
+			case e.EventType == EvtPlanDeleted:
+				if cerr := p.deletePlanConversation(txCtx, conv.ID()); cerr != nil {
+					return cerr
+				}
+			default: // EvtPlanArchived
+				if conv.Status() != conversation.ConversationArchived {
+					if cerr := p.convRepo.UpdateArchive(txCtx, conv.ID(), conv.Version(), conversation.IdentityRef("system"), now); cerr != nil {
+						return cerr
+					}
+				}
+			}
+			return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+		})
+	}
 
 	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
 		// Same-tx idempotency: if already applied, this event is done.
@@ -128,6 +177,24 @@ func (p *PlanParticipantProjector) Project(ctx context.Context, e outbox.Event) 
 		}
 		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
 	})
+}
+
+// deletePlanConversation hard-removes the plan's 1:1 conversation: its messages
+// and read-state (when the optional repos are wired), then the conversation row
+// itself — all in the caller's tx (mirroring the DM hard-delete handler, #198).
+// Each step is idempotent (deleting absent rows is a no-op).
+func (p *PlanParticipantProjector) deletePlanConversation(ctx context.Context, id conversation.ConversationID) error {
+	if p.msgRepo != nil {
+		if err := p.msgRepo.DeleteByConversationID(ctx, id); err != nil {
+			return err
+		}
+	}
+	if p.readState != nil {
+		if err := p.readState.DeleteByConversationID(ctx, id); err != nil {
+			return err
+		}
+	}
+	return p.convRepo.Delete(ctx, id)
 }
 
 // bindConversationToPlan loads the Plan, sets its conversation id, and persists
