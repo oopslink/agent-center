@@ -38,11 +38,10 @@ import (
 // (→ pm.AssignTask). A plan node's assignee is just the underlying Task's assignee,
 // so there is NO plan-specific assign tool here — the existing assign_task suffices.
 //
-// NOTE on delete/archive: the prompt listed delete_plan / archive_plan, but the pm
-// Plan AppService exposes NO DeletePlan/ArchivePlan method and the Plan AR has only
-// draft/running/done states (no archived/deleted). As a THIN passthrough adds no
-// new domain logic, those two tools are intentionally NOT built here — there is
-// nothing to wrap. They are a separate follow-up (a domain method must land first).
+// NOTE on delete/archive: delete_plan / archive_plan are thin wrappers over the pm
+// DeletePlan / ArchivePlan AppServices (Stage B), which guard a RUNNING plan with
+// ErrPlanRunning (stop it first) and re-archival with ErrPlanArchived — both
+// surfaced via mapPlanToolError as 409 plan_conflict (mirroring webconsole).
 // =============================================================================
 
 // mapPlanToolError translates Plan-specific sentinel errors to the tool-error
@@ -56,6 +55,11 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived):
+		// v2.9 P3 Stage C: a running plan can't be deleted/archived (stop it first);
+		// an already-archived plan can't be re-archived — transient conflicts → 409
+		// (mirrors webconsole mapPlanError's plan_conflict mapping).
+		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
 	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
 	case errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
@@ -247,6 +251,48 @@ func (s *Server) stopPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- delete_plan / archive_plan ----------------------------------------------
+
+// deletePlanHandler HARD-deletes a non-running Plan via pm.DeletePlan (actor=agent):
+// its tasks are unloaded back to the backlog, its deps/dispatch-records + the plan
+// row are removed, and its 1:1 conversation is hard-deleted (event-driven). A running
+// plan is rejected (ErrPlanRunning → 409 plan_conflict; stop it first). The plan is
+// gone, so it returns a bare deletion confirmation.
+func (s *Server) deletePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.DeletePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "plan_id": req.PlanID})
+}
+
+// archivePlanHandler archives a non-running Plan + CASCADE-archives its tasks via
+// pm.ArchivePlan (actor=agent, irreversible). A running plan is rejected
+// (ErrPlanRunning → 409); an already-archived plan is rejected (ErrPlanArchived →
+// 409). Returns the archived Plan detail (mirrors get_plan / webconsole archive).
+func (s *Server) archivePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	a, req, ok := s.decodePlanID(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.PMService.ArchivePlan(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	detail, derr := d.PMService.GetPlanDetail(r.Context(), pm.PlanID(req.PlanID))
+	if derr != nil {
+		mapPlanToolError(w, derr)
+		return
+	}
+	writeJSON(w, http.StatusOK, planDetailMap(detail))
 }
 
 // --- get_plan / list_plans ---------------------------------------------------

@@ -418,6 +418,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/remove_plan_dependency", s.removePlanDependencyHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/start_plan", s.startPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/stop_plan", s.stopPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/delete_plan", s.deletePlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/archive_plan", s.archivePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_plan", s.getPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_plans", s.listPlansHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)

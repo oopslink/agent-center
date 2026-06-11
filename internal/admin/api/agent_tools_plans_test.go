@@ -297,6 +297,128 @@ func TestStartPlan_CrossWorker_403(t *testing.T) {
 	}
 }
 
+// --- delete_plan -------------------------------------------------------------
+
+func TestDeletePlan_AsMember_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, planID := f.seedPlanMember(t)
+	tid := f.seedPlanTask(t, pid, planID) // a task selected into the plan.
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/delete_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID})
+	if status != http.StatusOK || body["deleted"] != true {
+		t.Fatalf("status = %d body=%v, want 200 deleted=true", status, body)
+	}
+	// The plan is gone.
+	if _, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID)); err == nil {
+		t.Fatalf("plan still exists after delete")
+	}
+	// The task is unloaded back to the backlog (not deleted), plan_id cleared.
+	tk, err := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
+	if err != nil {
+		t.Fatalf("task should survive plan delete: %v", err)
+	}
+	if tk.PlanID() != "" {
+		t.Fatalf("task plan_id = %q, want empty after plan delete", tk.PlanID())
+	}
+}
+
+// TestDeletePlan_Running_Surfaced: a RUNNING plan can't be deleted → ErrPlanRunning
+// surfaced as 409 plan_conflict.
+func TestDeletePlan_Running_Surfaced(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, planID := f.seedPlanMember(t)
+	f.seedPlanTask(t, pid, planID)
+	if err := f.pmSvc.StartPlan(context.Background(), pm.PlanID(planID), pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/delete_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID})
+	if status != http.StatusConflict || body["error"] != "plan_conflict" {
+		t.Fatalf("status = %d err=%v, want 409 plan_conflict (ErrPlanRunning)", status, body["error"])
+	}
+}
+
+func TestDeletePlan_CrossWorker_403(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, planID := f.seedPlanMember(t)
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/delete_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent2, "plan_id": planID})
+	if status != http.StatusForbidden || body["error"] != "agent_not_bound_to_worker" {
+		t.Fatalf("status = %d err=%v, want 403 agent_not_bound_to_worker", status, body["error"])
+	}
+}
+
+// --- archive_plan ------------------------------------------------------------
+
+func TestArchivePlan_AsMember_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, planID := f.seedPlanMember(t)
+	tid := f.seedPlanTask(t, pid, planID)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/archive_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	// Returns the archived Plan detail (same shape get_plan emits).
+	if body["id"] != planID || body["status"] != string(pm.PlanArchived) {
+		t.Fatalf("archive body id/status = %v/%v, want %s/archived", body["id"], body["status"], planID)
+	}
+	p, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status() != pm.PlanArchived {
+		t.Fatalf("plan status = %s, want archived", p.Status())
+	}
+	// CASCADE: the plan's task is archived too.
+	tk, _ := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
+	if !tk.IsArchived() {
+		t.Fatalf("task not archived after plan archive")
+	}
+}
+
+// TestArchivePlan_Running_Surfaced: a RUNNING plan can't be archived → ErrPlanRunning
+// surfaced as 409 plan_conflict.
+func TestArchivePlan_Running_Surfaced(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, planID := f.seedPlanMember(t)
+	f.seedPlanTask(t, pid, planID)
+	if err := f.pmSvc.StartPlan(context.Background(), pm.PlanID(planID), pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/archive_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "plan_id": planID})
+	if status != http.StatusConflict || body["error"] != "plan_conflict" {
+		t.Fatalf("status = %d err=%v, want 409 plan_conflict (ErrPlanRunning)", status, body["error"])
+	}
+}
+
+func TestArchivePlan_CrossWorker_403(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, planID := f.seedPlanMember(t)
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/archive_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent2, "plan_id": planID})
+	if status != http.StatusForbidden || body["error"] != "agent_not_bound_to_worker" {
+		t.Fatalf("status = %d err=%v, want 403 agent_not_bound_to_worker", status, body["error"])
+	}
+}
+
 // --- get_plan ----------------------------------------------------------------
 
 func TestGetPlan_OK(t *testing.T) {
