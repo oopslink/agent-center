@@ -33,6 +33,10 @@ export function useSSEConversationSubscribe(conversationIds: string[] | undefine
   const idsKey = conversationIds?.join(',') ?? '';
 
   useEffect(() => {
+    // Wait for the authenticated identity (seeded from /api/auth/me).
+    // currentUserId starts empty; subscribing under it would POST an
+    // empty user_id, registering against the wrong subscription set.
+    if (!userId) return;
     if (!conversationIds || conversationIds.length === 0) return;
     const ids = [...conversationIds];
     ids.forEach((convId) => {

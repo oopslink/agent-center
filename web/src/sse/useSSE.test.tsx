@@ -397,4 +397,44 @@ describe('useSSE', () => {
     expect(FakeEventSource.last()?.closed).toBe(true);
     expect(useAppStore.getState().sseStatus).toBe('closed');
   });
+
+  // Regression: currentUserId starts EMPTY until AppLayout seeds it from
+  // /api/auth/me. The hook must NOT connect under an unresolved identity —
+  // otherwise it leaked a /api/sse?user_id=user:hayang request (the removed
+  // hardcoded placeholder).
+  it('does NOT open a connection while the identity is empty', () => {
+    useAppStore.setState({ currentUserId: '' });
+    const qc = new QueryClient();
+    renderHook(
+      () =>
+        useSSE({
+          factory: (url) => new FakeEventSource(url) as unknown as EventSource,
+        }),
+      { wrapper: makeWrapper(qc) },
+    );
+    expect(FakeEventSource.instances.length).toBe(0);
+  });
+
+  it('connects once the identity is seeded (e.g. from /api/auth/me)', () => {
+    useAppStore.setState({ currentUserId: '' });
+    const qc = new QueryClient();
+    renderHook(
+      () =>
+        useSSE({
+          factory: (url) => new FakeEventSource(url) as unknown as EventSource,
+        }),
+      { wrapper: makeWrapper(qc) },
+    );
+    // Empty identity → no connection yet.
+    expect(FakeEventSource.instances.length).toBe(0);
+
+    // AppLayout resolves the authenticated identity → the hook connects
+    // under the real ref (not a placeholder).
+    act(() => {
+      useAppStore.setState({ currentUserId: 'user:real' });
+    });
+    expect(FakeEventSource.instances.length).toBeGreaterThan(0);
+    expect(FakeEventSource.last()?.url).toContain('user_id=user%3Areal');
+    expect(FakeEventSource.last()?.url).not.toContain('hayang');
+  });
 });

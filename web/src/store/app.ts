@@ -5,9 +5,13 @@ import { create } from 'zustand';
 //
 // Holds:
 //   - currentUserId: identity ref used as the default sender for
-//     messages + responder for input requests. Loopback bind makes
-//     this single-user; default is `user:hayang` matching the
-//     backend's DefaultActor.
+//     messages + responder for input requests. Starts EMPTY and is
+//     seeded by AppLayout from /api/auth/me (the per-request JWT
+//     session identity). It must NOT carry a hardcoded placeholder:
+//     a seed value leaks into the initial SSE connection before auth
+//     resolves (historically `user:hayang`, removed with the backend
+//     DefaultActor in #155/#162). Consumers (useSSE, conversation
+//     subscribe) gate on a non-empty value before acting.
 //   - sseStatus: connection lifecycle for the SSE banner.
 export type SSEStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
@@ -27,7 +31,7 @@ export interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  currentUserId: 'user:hayang',
+  currentUserId: '',
   sseStatus: 'idle',
   sseLastEventId: null,
   addWorkerModalOpen: false,
