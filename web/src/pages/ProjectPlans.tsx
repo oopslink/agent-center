@@ -8,6 +8,8 @@ import {
   useUnplannedTasks,
   useAddTaskToPlan,
   useRemoveTaskFromPlan,
+  useAddTaskToAnyPlan,
+  useRemoveTaskFromAnyPlan,
   type Plan,
   type PlanNode,
   type CreatePlanInput,
@@ -35,9 +37,12 @@ export default function ProjectPlans(): React.ReactElement {
   const plans = usePlans(id);
   const backlog = useUnplannedTasks(id);
   const [createOpen, setCreateOpen] = useState(false);
-  // The single Backlog task currently being dragged (HTML5 DnD). Held in state
-  // so a draft Plan column can light up its drop-zone + reject running columns.
-  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  // The task currently being dragged (HTML5 DnD) + WHERE it came from. Held in
+  // state so a draft Plan column can light up its drop-zone + reject running
+  // columns, AND so a drop knows the source (Backlog vs another Plan) to pick
+  // SELECT (backlog→plan) vs MOVE (plan→plan) vs REMOVE (plan→backlog). A7:
+  // fromPlanId === null ⟺ dragged from the Backlog; non-null ⟺ from that Plan.
+  const [dragSource, setDragSource] = useState<DragSource | null>(null);
 
   const projectName = project.data?.name ?? id;
 
@@ -73,12 +78,45 @@ export default function ProjectPlans(): React.ReactElement {
         projectId={id}
         plans={plans}
         backlog={backlog}
-        dragTaskId={dragTaskId}
-        setDragTaskId={setDragTaskId}
+        dragSource={dragSource}
+        setDragSource={setDragSource}
         onNewPlan={() => setCreateOpen(true)}
       />
     </section>
   );
+}
+
+// DragSource — the in-flight drag's identity: which task + where it came from.
+// fromPlanId === null ⟺ from the Backlog; a plan id ⟺ from that Plan column.
+// A7 carries the source so a drop can choose SELECT / MOVE / REMOVE correctly.
+export interface DragSource {
+  taskId: string;
+  fromPlanId: string | null;
+}
+
+// A7 race-proof drop: a PLAN-task drag stamps its SOURCE plan id into the
+// HTML5 dataTransfer (a custom MIME) AT dragStart — synchronously, on the
+// native event. Unlike the React `dragSource` STATE (which only lands after a
+// re-render+commit and so can lag the browser's first `dragover`), dataTransfer
+// is available on EVERY dragover/drop the instant the drag begins. The Backlog
+// reads the source from here so its drop-acceptance never depends on the state
+// update having committed first (the run-real bug: the onDragOver preventDefault
+// read stale state → the browser never registered the Backlog as a drop zone,
+// so data-droppable stayed false + 0 RemoveTaskFromPlan fired). The MIME's mere
+// PRESENCE in `dataTransfer.types` is readable during dragover in every browser
+// (the value is protected then), so the Backlog can decide "this is a plan-task
+// → accept" without needing the value mid-drag.
+const FROM_PLAN_MIME = 'application/x-slock-from-plan';
+
+// Read the dragged task's source plan from dataTransfer (race-proof, set on
+// dragStart) with the React state as a fallback. taskId comes from text/plain
+// (also set on dragStart); fromPlanId from the custom MIME. A backlog-origin
+// drag never stamps FROM_PLAN_MIME, so fromPlanId resolves null there.
+function readDragSource(e: React.DragEvent, state: DragSource | null): DragSource | null {
+  const taskId = e.dataTransfer.getData('text/plain') || state?.taskId || '';
+  const fromPlan = e.dataTransfer.getData(FROM_PLAN_MIME);
+  if (!taskId) return state;
+  return { taskId, fromPlanId: fromPlan ? fromPlan : state?.fromPlanId ?? null };
 }
 
 interface PlansQuery {
@@ -100,15 +138,15 @@ function Board({
   projectId,
   plans,
   backlog,
-  dragTaskId,
-  setDragTaskId,
+  dragSource,
+  setDragSource,
   onNewPlan,
 }: {
   projectId: string;
   plans: PlansQuery;
   backlog: TasksQuery;
-  dragTaskId: string | null;
-  setDragTaskId: (id: string | null) => void;
+  dragSource: DragSource | null;
+  setDragSource: (s: DragSource | null) => void;
   onNewPlan: () => void;
 }): React.ReactElement {
   // A board-level load is only "failed" if the Plans list (the columns) fails —
@@ -144,14 +182,16 @@ function Board({
         projectId={projectId}
         backlog={backlog}
         draftPlans={draftPlans}
-        setDragTaskId={setDragTaskId}
+        dragSource={dragSource}
+        setDragSource={setDragSource}
       />
       {planList.map((plan) => (
         <PlanColumn
           key={plan.id}
           projectId={projectId}
           plan={plan}
-          dragTaskId={dragTaskId}
+          dragSource={dragSource}
+          setDragSource={setDragSource}
         />
       ))}
       <NewPlanColumn onClick={onNewPlan} />
@@ -172,19 +212,60 @@ function BacklogColumn({
   projectId,
   backlog,
   draftPlans,
-  setDragTaskId,
+  dragSource,
+  setDragSource,
 }: {
   projectId: string;
   backlog: TasksQuery;
   draftPlans: Plan[];
-  setDragTaskId: (id: string | null) => void;
+  dragSource: DragSource | null;
+  setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const tasks = backlog.data ?? [];
+  const remove = useRemoveTaskFromAnyPlan(projectId);
+  const [dropActive, setDropActive] = useState(false);
+  // A7: the Backlog accepts a drop only when a PLAN-task is being dragged
+  // (fromPlanId != null) → REMOVE = back to backlog. A backlog card dropped on
+  // the backlog is a no-op (fromPlanId == null). The source plan was draft (only
+  // draft cards are draggable), so RemoveTaskFromPlan is allowed (§9.4).
+  const canDrop = dragSource !== null && dragSource.fromPlanId !== null;
+
+  // A7 race-proof acceptance: the Backlog is a valid drop target whenever the
+  // in-flight drag is a PLAN-task. That's known the instant dragStart stamps
+  // FROM_PLAN_MIME — readable on every dragover via `dataTransfer.types` even
+  // before the React `dragSource` state commits. We OR the state-derived
+  // `canDrop` (for the synthetic-event test path / robustness) with the
+  // dataTransfer marker so the real browser always registers the drop zone.
+  const acceptsDrag = (e: React.DragEvent) =>
+    canDrop || e.dataTransfer.types.includes(FROM_PLAN_MIME);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropActive(false);
+    // Read the source from dataTransfer first (set synchronously on dragStart),
+    // falling back to the React state — so a drop fires the remove even if the
+    // state update hadn't committed when the native drop landed.
+    const src = readDragSource(e, dragSource);
+    if (!src || src.fromPlanId === null) return; // backlog→backlog no-op.
+    remove.mutate({ planId: src.fromPlanId, taskId: src.taskId });
+  };
+
   return (
     <div
-      className={`${columnBase} border-border-strong bg-bg-subtle`}
+      className={`${columnBase} bg-bg-subtle ${
+        dropActive ? 'border-accent ring-2 ring-accent' : 'border-border-strong'
+      }`}
       data-testid="backlog-column"
+      data-droppable={canDrop ? 'true' : 'false'}
       role="listitem"
+      onDragOver={(e) => {
+        if (!acceptsDrag(e)) return; // a backlog card over the backlog = no drop.
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDropActive(true);
+      }}
+      onDragLeave={() => setDropActive(false)}
+      onDrop={handleDrop}
     >
       <div className="flex items-center justify-between px-0.5 pb-2">
         <span className="flex items-center gap-1.5 text-sm font-bold text-text-primary">
@@ -214,7 +295,7 @@ function BacklogColumn({
             projectId={projectId}
             task={task}
             draftPlans={draftPlans}
-            setDragTaskId={setDragTaskId}
+            setDragSource={setDragSource}
           />
         ))
       )}
@@ -229,12 +310,12 @@ function BacklogCard({
   projectId,
   task,
   draftPlans,
-  setDragTaskId,
+  setDragSource,
 }: {
   projectId: string;
   task: Task;
   draftPlans: Plan[];
-  setDragTaskId: (id: string | null) => void;
+  setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
@@ -244,11 +325,12 @@ function BacklogCard({
       data-task-id={task.id}
       draggable
       onDragStart={(e) => {
-        setDragTaskId(task.id);
+        // A7: from the Backlog → fromPlanId null (SELECT into a draft plan).
+        setDragSource({ taskId: task.id, fromPlanId: null });
         e.dataTransfer.setData('text/plain', task.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      onDragEnd={() => setDragTaskId(null)}
+      onDragEnd={() => setDragSource(null)}
     >
       <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">{task.title}</div>
       <div className="flex items-center justify-between gap-1.5">
@@ -376,15 +458,22 @@ function AddToPlanItem({
 function PlanColumn({
   projectId,
   plan,
-  dragTaskId,
+  dragSource,
+  setDragSource,
 }: {
   projectId: string;
   plan: Plan;
-  dragTaskId: string | null;
+  dragSource: DragSource | null;
+  setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const add = useAddTaskToPlan(projectId, plan.id);
+  // A7: cross-column MOVE needs to remove from the SOURCE plan + add to THIS
+  // plan; the source plan is only known at drop time → the any-plan variants.
+  const addAny = useAddTaskToAnyPlan(projectId);
+  const removeAny = useRemoveTaskFromAnyPlan(projectId);
   const [dropActive, setDropActive] = useState(false);
   const isDraft = plan.status === 'draft';
+  const dragTaskId = dragSource?.taskId ?? null;
   // Defensive reads — see the DEFENSIVE DEFAULTS note above.
   const progress = plan.progress ?? { done: 0, total: 0 };
   const hasFailed = plan.has_failed ?? false;
@@ -401,10 +490,28 @@ function PlanColumn({
     e.preventDefault();
     setDropActive(false);
     if (!isDraft) return; // running/done columns reject the drop (§9.4).
-    const taskId = e.dataTransfer.getData('text/plain') || dragTaskId;
+    // Read the source race-proof from dataTransfer (set on dragStart), state as
+    // fallback — same source-of-truth the Backlog REMOVE uses, so MOVE/REMOVE
+    // are consistent and neither waits on a state commit.
+    const src = readDragSource(e, dragSource);
+    const taskId = src?.taskId ?? null;
     if (!taskId) return;
+    const fromPlanId = src?.fromPlanId ?? null;
     try {
-      await add.mutateAsync({ task_id: taskId });
+      if (fromPlanId === null) {
+        // From the Backlog → SELECT into this draft plan (EXISTING behavior).
+        await add.mutateAsync({ task_id: taskId });
+      } else if (fromPlanId === plan.id) {
+        // Dropped back onto its own plan → no-op (don't fire mutations).
+        return;
+      } else {
+        // From ANOTHER draft plan → MOVE = remove from source THEN add to this
+        // plan. Remove first (the source was draft, so it's allowed §9.4), then
+        // add to the target. Both invalidate; the task ends in this plan. The
+        // backend ops are idempotent + INSERT-OR-IGNORE — we fire each once.
+        await removeAny.mutateAsync({ planId: fromPlanId, taskId });
+        await addAny.mutateAsync({ planId: plan.id, taskId });
+      }
     } catch {
       // surfaced by the board re-fetch.
     }
@@ -466,7 +573,10 @@ function PlanColumn({
             // §9.4: removing a task from a Plan is a PLANNING action — only a
             // DRAFT Plan exposes the remove affordance (mirrors add-to-plan /
             // the A1 edge editor). running/done columns render NO remove control.
+            // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
+            // are draggable (the source must be draft so MOVE/REMOVE is allowed).
             canRemove={isDraft}
+            setDragSource={setDragSource}
           />
         ))
       )}
@@ -490,18 +600,44 @@ function PlanTaskCard({
   planId,
   node,
   canRemove,
+  setDragSource,
 }: {
   projectId: string;
   planId: string;
   node: PlanNode;
   canRemove: boolean;
+  setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
+  // A7: a Plan-task card is draggable ONLY when its plan is draft (canRemove ==
+  // isDraft) — moving it out runs RemoveTaskFromPlan on the source, which the
+  // backend allows only for a draft plan (§9.4). running/done cards: no drag.
+  const draggable = canRemove;
   return (
     <div
       className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
       data-testid="plan-task-card"
       data-task-id={node.task_id}
+      data-draggable={draggable ? 'true' : 'false'}
+      draggable={draggable}
+      onDragStart={
+        draggable
+          ? (e) => {
+              // Carry the task AND its SOURCE plan so a drop can MOVE / REMOVE.
+              // The state set is the render hint; the dataTransfer stamps are the
+              // race-proof source (read at dragover/drop, no state-commit wait).
+              setDragSource({ taskId: node.task_id, fromPlanId: planId });
+              e.dataTransfer.setData('text/plain', node.task_id);
+              // FROM_PLAN_MIME marks this as a plan-task drag (presence readable
+              // during dragover) AND carries the source plan id (read at drop) so
+              // the Backlog REMOVE + a cross-plan MOVE work without the React
+              // `dragSource` state having committed first.
+              e.dataTransfer.setData(FROM_PLAN_MIME, planId);
+              e.dataTransfer.effectAllowed = 'move';
+            }
+          : undefined
+      }
+      onDragEnd={draggable ? () => setDragSource(null) : undefined}
     >
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1 text-xs font-semibold leading-tight text-text-primary">
