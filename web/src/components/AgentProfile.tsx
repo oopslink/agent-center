@@ -1,6 +1,7 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { EntityRef } from '@/components/EntityRef';
+import { normalizeIdentityRef } from '@/api/members';
 import type { Agent } from '@/api/types';
 
 // AgentProfile (v2.7.1 #228 PR(b)) — the Profile tab body. Three blocks:
@@ -67,7 +68,7 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
                 <EntityRef
                   id={agent.created_by}
                   name={agent.created_by_display_name || undefined}
-                  fallback={agent.created_by}
+                  fallback={normalizeIdentityRef(agent.created_by)}
                   testId="agent-profile-creator-ref"
                 />
               </dd>

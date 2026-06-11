@@ -14,7 +14,7 @@ import {
   type PlanNode,
   type CreatePlanInput,
 } from '@/api/plans';
-import { refKind } from '@/api/members';
+import { refKind, useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import type { Task } from '@/api/types';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -705,8 +705,12 @@ function NewPlanColumn({ onClick }: { onClick: () => void }): React.ReactElement
 // AssigneeBadge — the mockup's solid avatar + handle. agent = violet, human =
 // cyan (both SOLID, white text → AA in BOTH modes; theme-independent literals,
 // NOT alpha-tint). Empty assignee → a neutral "Unassigned" badge. The raw ref
-// is on hover (title), the visible text is the handle tail (#192). NO emoji.
+// is on hover (title); the visible text is the resolved DISPLAY NAME (#160) —
+// falling back to the clean handle (#192) when the member directory doesn't
+// resolve the ref. NO emoji. The resolver's internal useMembers() query is what
+// loads the org member directory into this page, so no extra load hook is needed.
 function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactElement {
+  const resolveName = useDisplayNameResolver();
   if (!assignee) {
     return (
       <span className="inline-flex items-center gap-1 text-[0.6875rem] text-text-muted" data-testid="assignee">
@@ -718,8 +722,11 @@ function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactE
     );
   }
   const kind = refKind(assignee); // 'agent' | 'user'
-  const handle = assignee.replace(/^(agent:|user:)/, '');
-  const tail = handle.length > 8 ? handle.slice(-8) : handle;
+  // Resolve the identity ref → display name; on a miss the resolver returns the
+  // raw ref unchanged (the #192/#215 sentinel), so fall back to the clean handle
+  // (prefix stripped) — NEVER paint the raw prefixed ref as visible text.
+  const resolved = resolveName(assignee);
+  const label = resolved === assignee ? normalizeIdentityRef(assignee) : resolved;
   const disc = kind === 'agent' ? 'bg-violet-700' : 'bg-cyan-700';
   return (
     <span
@@ -732,9 +739,9 @@ function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactE
         className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.5rem] font-bold text-white ${disc}`}
         aria-hidden="true"
       >
-        {tail.charAt(0).toUpperCase()}
+        {label.charAt(0).toUpperCase()}
       </span>
-      {tail}
+      {label}
     </span>
   );
 }
