@@ -575,6 +575,40 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(deletedTaskId).toBe('n3'));
   });
 
+  // A6 (§4.2 reachability): a DAG node's TITLE and a task-list row's TITLE are
+  // each a new-tab link to TaskDetail (/projects/{pid}/tasks/{tid}, org-prefixed
+  // by orgPath — unprefixed here as the test renders outside an OrgGuard), with
+  // target=_blank + rel noopener. The title link must NOT swallow the A2 remove
+  // control on a draft plan's row.
+  it('A6 §4.2: a DAG node title is a new-tab link to TaskDetail (href + target=_blank + rel noopener)', async () => {
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    const node = screen.getByTestId('plan-dag').querySelector('[data-task-id="n3"]')! as HTMLElement;
+    const link = within(node).getByTestId('task-open-link-n3');
+    expect(link).toHaveAttribute('href', '/projects/proj-a/tasks/n3');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(link).toHaveTextContent('frontend list');
+  });
+
+  it('A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (draft)', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    const row = screen
+      .getByTestId('plan-task-list')
+      .querySelector('[data-testid="plan-task-row"][data-task-id="n3"]')! as HTMLElement;
+    const link = within(row).getByTestId('task-open-link-n3');
+    expect(link).toHaveAttribute('href', '/projects/proj-a/tasks/n3');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(link).toHaveTextContent('frontend list');
+    // Coexistence: the A2 Remove button is still present in the same row.
+    expect(within(row).getByTestId('plan-task-remove-n3')).toBeInTheDocument();
+  });
+
   it('A2 task-list: running plan rows have NO Remove control (§9.4 draft-only)', async () => {
     mockPlan({ status: 'running' });
     wrap();
