@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/mention"
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -61,8 +63,11 @@ func planAdvanceSetup(t *testing.T) *planAdvanceHarness {
 		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
-		AgentDir:       allOrgDir("org-1"),
-		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer),
+		AgentDir: allOrgDir("org-1"),
+		// Resolver mirrors production (strip the agent:/user: scheme → display_name).
+		// Here the harness has no IdentityRepo, so it uses the bare id as the
+		// display_name — enough to exercise the @<display_name> prepend + wake match.
+		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
@@ -648,5 +653,128 @@ func TestRerunFailedNode_ReDispatches(t *testing.T) {
 	d3, _ := h.svc.AdvancePlan(h.ctx, planID, "user:a")
 	if len(d3) != 1 || d3[0] != a {
 		t.Fatalf("post-rerun advance = %v, want [A] (re-dispatched)", d3)
+	}
+}
+
+// planTestDisplayName mirrors the production resolver (strip the agent:/user:
+// scheme → display_name). The harness has no IdentityRepo, so the bare id stands
+// in for the display_name — enough to exercise the @<display_name> prepend +
+// the wake-match assertion. An empty/scheme-only ref is "unresolvable".
+func planTestDisplayName(_ context.Context, assigneeRef string) (string, bool) {
+	id := assigneeRef
+	if i := strings.IndexByte(id, ':'); i >= 0 {
+		id = id[i+1:]
+	}
+	if strings.TrimSpace(id) == "" {
+		return "", false
+	}
+	return id, true
+}
+
+// latestPlanMsgText returns the most recent message text in the plan conversation.
+func (h *planAdvanceHarness) latestPlanMsgText(t *testing.T, planID pm.PlanID) string {
+	t.Helper()
+	conv, err := h.convRepo.FindByOwnerRef(h.ctx, conversation.NewPlanOwnerRef(string(planID)))
+	if err != nil {
+		t.Fatalf("plan conversation should exist: %v", err)
+	}
+	msgs, err := h.msgRepo.FindRecent(h.ctx, conv.ID(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) == 0 {
+		t.Fatal("no message posted into plan conversation")
+	}
+	return msgs[0].Content()
+}
+
+// TestDispatch_PostsAtMention_WakeWouldFire is the BUG C regression: a dispatched
+// node's message must @mention the assignee's display_name so the wake detector
+// (mention.Present) matches it — i.e. an IDLE agent WOULD be woken. Without the
+// fix the orchestrator posted the raw ref ("agent:... your task..."), which
+// mention.Present never matched → the idle agent was never woken.
+func TestDispatch_PostsAtMention_WakeWouldFire(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "wake", CreatedBy: "user:a"})
+	h.drain(t)
+	const assignee = "agent:agent-bot-1"
+	a := h.seedAssignedTask(t, pid, planID, "build the thing", assignee)
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	d, err := h.svc.AdvancePlan(h.ctx, planID, "user:a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d) != 1 || d[0] != a {
+		t.Fatalf("advance = %v, want [A]", d)
+	}
+	text := h.latestPlanMsgText(t, planID)
+
+	displayName, _ := planTestDisplayName(h.ctx, assignee) // "agent-bot-1"
+	if !strings.Contains(text, "@"+displayName) {
+		t.Fatalf("dispatch text %q does not contain @%s", text, displayName)
+	}
+	// The exact contract: the wake detector WOULD fire on this text.
+	if !mention.Present(text, displayName) {
+		t.Fatalf("mention.Present(%q, %q) = false; the idle agent would NOT be woken", text, displayName)
+	}
+	// The raw ref must NOT leak into the body (the old broken format).
+	if strings.Contains(text, assignee+" your task") {
+		t.Fatalf("dispatch text still embeds the raw ref: %q", text)
+	}
+}
+
+// TestDispatch_UnresolvableRef_FallsBack covers the BUG C fallback: when the
+// assignee ref has no resolvable display_name, the adapter posts the body
+// verbatim (nothing breaks) — but with no @mention, so the wake won't fire.
+func TestDispatch_UnresolvableRef_FallsBack(t *testing.T) {
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
+	gen := idgen.NewGenerator(clk)
+	ob := outboxsql.NewOutboxRepo(db)
+	convRepo := convsql.NewConversationRepo(db)
+	msgRepo := convsql.NewMessageRepo(db)
+	er, _ := obsqlite.NewEventRepo(context.Background(), db)
+	sink := observability.NewEventSink(er, er, gen, clk)
+	writer := convservice.NewMessageWriter(db, convRepo, msgRepo, sink, gen, clk).WithOutbox(ob)
+
+	// Resolver that NEVER resolves → the fallback path (post content verbatim).
+	adapter := convservice.NewPlanDispatchAdapter(writer, func(context.Context, string) (string, bool) {
+		return "", false
+	})
+
+	ctx := context.Background()
+	// Create a conversation to post into.
+	conv, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID: conversation.ConversationID(gen.NewULID()), Kind: conversation.ConversationKindPlan,
+		OwnerRef: conversation.NewPlanOwnerRef("plan-x"), OrganizationID: "org-1",
+		CreatedBy: conversation.IdentityRef("user:a"), OpenedAt: clk.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := convRepo.Save(ctx, conv); err != nil {
+		t.Fatal(err)
+	}
+	body := "your task \"X\" is ready — all upstream dependencies are done."
+	_, err = adapter.PostMention(ctx, string(conv.ID()), "agent:unknown", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := msgRepo.FindRecent(ctx, conv.ID(), 1)
+	if err != nil || len(msgs) == 0 {
+		t.Fatalf("no message posted: %v", err)
+	}
+	if got := msgs[0].Content(); got != body {
+		t.Fatalf("fallback content = %q, want verbatim %q (no @mention prepended)", got, body)
 	}
 }

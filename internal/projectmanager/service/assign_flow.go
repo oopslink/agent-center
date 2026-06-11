@@ -60,8 +60,36 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		if prev != "" {
 			evt = EvtTaskReassigned
 		}
-		return s.emitTaskAssignEvent(txCtx, t, evt, string(prev))
+		if err := s.emitTaskAssignEvent(txCtx, t, evt, string(prev)); err != nil {
+			return err
+		}
+		// BUG B (v2.9 assign-after-select): if this task is already in a plan,
+		// emit pm.plan.participants_changed so the NEW assignee additively joins the
+		// Plan conversation (#284). SelectTaskIntoPlan only syncs the assignee that
+		// existed AT SELECT TIME; an agent assigned LATER would otherwise be left out
+		// of the plan conversation → the dispatch @mention (BUG C) can't reach it.
+		return s.syncPlanParticipantOnAssign(txCtx, t, assignee)
 	})
+}
+
+// syncPlanParticipantOnAssign emits pm.plan.participants_changed for the task's
+// plan (if any) with `assignee` as an ADD-ONLY participant delta — mirroring
+// SelectTaskIntoPlan's emit (plan_flow.go) so the assign-after-select sequence
+// (task selected first, agent assigned later) still adds the agent to the Plan
+// conversation (#284, additive). A task not in a plan (PlanID == "") or an empty
+// assignee is a no-op (nothing to sync). Runs in the AssignTask tx.
+func (s *Service) syncPlanParticipantOnAssign(ctx context.Context, t *pm.Task, assignee pm.IdentityRef) error {
+	planID := t.PlanID()
+	if planID == "" || strings.TrimSpace(string(assignee)) == "" {
+		return nil
+	}
+	return s.emit(ctx, EvtPlanParticipantsChanged,
+		refsJSON(map[string]string{"plan_id": string(planID), "project_id": string(t.ProjectID())}),
+		planEventPayload{
+			PlanID: string(planID), ProjectID: string(t.ProjectID()),
+			OrganizationID: "", OwnerRef: "pm://plans/" + string(planID),
+			Participants: []string{string(assignee)},
+		})
 }
 
 // StartTask moves an assigned Task to running (the explicit "picked up/started"

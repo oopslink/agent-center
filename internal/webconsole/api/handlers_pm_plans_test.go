@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/clock"
@@ -56,7 +57,15 @@ func setupPlanAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 		IDGen:          gen,
 		Clock:          clk,
 		AgentDir:       allAgentsDir{},
-		PlanDispatcher: convservice.NewPlanDispatchAdapter(deps.MessageWriter),
+		PlanDispatcher: convservice.NewPlanDispatchAdapter(deps.MessageWriter, func(_ context.Context, ref string) (string, bool) {
+			if i := strings.IndexByte(ref, ':'); i >= 0 {
+				ref = ref[i+1:]
+			}
+			if strings.TrimSpace(ref) == "" {
+				return "", false
+			}
+			return ref, true
+		}),
 	})
 	taskProj := pmservice.NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := pmservice.NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
