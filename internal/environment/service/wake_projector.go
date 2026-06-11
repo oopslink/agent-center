@@ -379,14 +379,19 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 		return nil // conversation gone/unreadable → nothing to wake (don't fail)
 	}
 	kind := conv.Kind()
-	// v2.7.1 #220: DM / Channel / Issue are handled here (conversational @mention
-	// wake). TASK is handled in projectMessageAdded — it ALSO runs the WorkItem
+	// v2.7.1 #220: DM / Channel / Issue handled here (conversational @mention wake).
+	// v2.9: PLAN conversations too — a human @mentioning a plan-conversation
+	// participant agent (creator/assignee, joined via #284) must wake it, exactly
+	// like DM/Channel (run-real caught participant-also-not-woken: this kind-gate
+	// dropped pm://plans/ convs entirely before the participant-candidate logic).
+	// TASK is handled in projectMessageAdded — it ALSO runs the WorkItem
 	// request_input wake, so both wakes share one applied-mark there (the applied
 	// idempotency key is (projector, event), so they cannot run as two separate
 	// passes). Other kinds: ignore.
 	if kind != conversation.ConversationKindDM &&
 		kind != conversation.ConversationKindChannel &&
-		kind != conversation.ConversationKindIssue {
+		kind != conversation.ConversationKindIssue &&
+		kind != conversation.ConversationKindPlan {
 		return nil
 	}
 
