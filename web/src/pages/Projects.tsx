@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 
-import { useProjects, type Project } from '@/api/projects';
+import {
+  useProjects,
+  useArchivedProjects,
+  type Project,
+} from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
 import { EntityRef } from '@/components/EntityRef';
 import { Skeleton } from '@/components/Skeleton';
@@ -61,36 +65,124 @@ export default function Projects(): React.ReactElement {
           data-testid="projects-list"
         >
           {projects.data.map((p) => (
-            <li key={p.id} data-testid="project-row" data-project-id={p.id}>
-              <OrgLink
-                to={`/projects/${encodeURIComponent(p.id)}`}
-                className="flex flex-col gap-1 px-4 py-3 motion-safe:transition-colors hover:bg-bg-subtle"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* v2.7 #192: project name, raw id on hover (no visible id badge). */}
-                  <EntityRef
-                    id={p.id}
-                    name={p.name}
-                    fallback={p.id}
-                    testId="project-name"
-                    className="font-medium text-text-primary"
-                  />
-                  <ProjectStatusBadge status={p.status} />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="max-w-[60ch] truncate text-xs text-text-secondary">
-                    {p.description || <span className="italic text-text-muted">no description</span>}
-                  </span>
-                  <span className="text-xs tabular-nums text-text-muted">
-                    {formatRelative(p.created_at)}
-                  </span>
-                </div>
-              </OrgLink>
-            </li>
+            <ProjectRow key={p.id} project={p} />
           ))}
         </ul>
       )}
+
+      {/* v2.9 #298: collapsed "已归档" / Archived group. The backend default-
+          EXCLUDES archived from the active list above; this group fetches the
+          archived-only list LAZILY (only once expanded) and lists read-only
+          rows. Collapsed by default. */}
+      <ArchivedProjectsGroup />
     </section>
+  );
+}
+
+// ArchivedProjectsGroup — the collapsed "已归档" disclosure. Fetches the
+// archived-only project list (useArchivedProjects) ONLY when expanded so the
+// active page load stays a single request. Renders read-only rows (an
+// "Archived" badge already shows via ProjectStatusBadge); empty → a quiet note.
+function ArchivedProjectsGroup(): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  // Defer the archived fetch until the group is first opened.
+  const archived = useArchivedProjects(open);
+
+  return (
+    <section className="space-y-2" data-testid="archived-projects-group">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 rounded px-1 py-1.5 text-left text-sm font-medium text-text-secondary motion-safe:transition-colors hover:text-text-primary"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        data-testid="archived-projects-toggle"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className={[
+            'h-3.5 w-3.5 motion-safe:transition-transform',
+            open ? 'rotate-90' : '',
+          ].join(' ')}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          aria-hidden="true"
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+        <span>Archived / 已归档</span>
+      </button>
+
+      {open && (
+        <div data-testid="archived-projects-body">
+          {archived.isLoading && (
+            <div className="space-y-2" data-testid="archived-projects-loading">
+              <Skeleton height="3rem" />
+              <Skeleton height="3rem" />
+            </div>
+          )}
+          {archived.isError && (
+            <p
+              className="text-sm text-danger"
+              data-testid="archived-projects-error"
+            >
+              {(archived.error as Error).message}
+            </p>
+          )}
+          {archived.isSuccess && archived.data.length === 0 && (
+            <p
+              className="px-1 text-xs italic text-text-muted"
+              data-testid="archived-projects-empty"
+            >
+              No archived projects.
+            </p>
+          )}
+          {archived.isSuccess && archived.data.length > 0 && (
+            <ul
+              className="divide-y divide-border-base rounded-lg border border-border-base bg-bg-elevated shadow-1"
+              data-testid="archived-projects-list"
+            >
+              {archived.data.map((p) => (
+                <ProjectRow key={p.id} project={p} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ProjectRow — one project list row. Shared by the active list + the archived
+// group so both render identically (name + status badge + description + age).
+function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
+  return (
+    <li data-testid="project-row" data-project-id={p.id}>
+      <OrgLink
+        to={`/projects/${encodeURIComponent(p.id)}`}
+        className="flex flex-col gap-1 px-4 py-3 motion-safe:transition-colors hover:bg-bg-subtle"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {/* v2.7 #192: project name, raw id on hover (no visible id badge). */}
+          <EntityRef
+            id={p.id}
+            name={p.name}
+            fallback={p.id}
+            testId="project-name"
+            className="font-medium text-text-primary"
+          />
+          <ProjectStatusBadge status={p.status} />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="max-w-[60ch] truncate text-xs text-text-secondary">
+            {p.description || <span className="italic text-text-muted">no description</span>}
+          </span>
+          <span className="text-xs tabular-nums text-text-muted">
+            {formatRelative(p.created_at)}
+          </span>
+        </div>
+      </OrgLink>
+    </li>
   );
 }
 

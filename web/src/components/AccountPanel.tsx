@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSignout, authApi } from '@/api/auth';
 import { ApiError } from '@/api/client';
+import { validatePasscodeStrength, PASSCODE_RULE_HINT } from '@/lib/passcode';
 
 // AccountPanel renders the self-only account controls (change password + sign
 // out). v2.8.1 #8: extracted from the old standalone /me page so the unified
@@ -14,7 +15,25 @@ export default function AccountPanel(): React.ReactElement {
   const [newPasscode, setNewPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
+  const [newPasscodeError, setNewPasscodeError] = useState('');
+  const [newPasscodeTouched, setNewPasscodeTouched] = useState(false);
   const [passcodeSuccess, setPasscodeSuccess] = useState(false);
+
+  // #290 run-real seam: surface the distinct passcode-strength message inline
+  // under the new-password field on blur (and on change once touched), so the
+  // user sees WHICH rule failed as they type — not only the form-level error
+  // raised on submit. The confirm-match check stays on submit (below).
+  const handleNewPasscodeChange = (v: string) => {
+    setNewPasscode(v);
+    if (newPasscodeTouched) {
+      setNewPasscodeError(validatePasscodeStrength(v));
+    }
+  };
+
+  const handleNewPasscodeBlur = () => {
+    setNewPasscodeTouched(true);
+    setNewPasscodeError(validatePasscodeStrength(newPasscode));
+  };
 
   const changePasscode = useMutation({
     mutationFn: () =>
@@ -24,6 +43,8 @@ export default function AccountPanel(): React.ReactElement {
       setNewPasscode('');
       setConfirmPasscode('');
       setPasscodeError('');
+      setNewPasscodeError('');
+      setNewPasscodeTouched(false);
       setPasscodeSuccess(true);
       qc.invalidateQueries({ queryKey: ['me'] });
       setTimeout(() => setPasscodeSuccess(false), 3000);
@@ -40,7 +61,8 @@ export default function AccountPanel(): React.ReactElement {
   });
 
   const validatePasscodeForm = () => {
-    if (!/^\d{6}$/.test(newPasscode)) return 'New password must be 6 digits';
+    const strengthErr = validatePasscodeStrength(newPasscode);
+    if (strengthErr) return strengthErr;
     if (newPasscode !== confirmPasscode) return 'Passcodes do not match';
     return '';
   };
@@ -81,25 +103,36 @@ export default function AccountPanel(): React.ReactElement {
               id="current_passcode"
               type="password"
               value={currentPasscode}
-              maxLength={6}
+              maxLength={128}
               onChange={(e) => setCurrentPasscode(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="••••••"
+              placeholder="Current password"
             />
           </div>
           <div className="space-y-1">
             <label htmlFor="new_passcode" className="block text-sm text-text-primary">
-              New password (6 digits)
+              New password
             </label>
             <input
               id="new_passcode"
               type="password"
               value={newPasscode}
-              maxLength={6}
-              onChange={(e) => setNewPasscode(e.target.value)}
-              className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="••••••"
+              maxLength={128}
+              onChange={(e) => handleNewPasscodeChange(e.target.value)}
+              onBlur={handleNewPasscodeBlur}
+              className={`w-full rounded border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary ${
+                newPasscodeError ? 'border-danger' : 'border-border'
+              }`}
+              placeholder="New password"
+              aria-describedby={newPasscodeError ? 'new_passcode-err' : undefined}
+              aria-invalid={!!newPasscodeError}
             />
+            {newPasscodeError && (
+              <p id="new_passcode-err" role="alert" className="text-xs text-danger">
+                {newPasscodeError}
+              </p>
+            )}
+            <p className="text-xs text-text-secondary">{PASSCODE_RULE_HINT}</p>
           </div>
           <div className="space-y-1">
             <label htmlFor="confirm_new_passcode" className="block text-sm text-text-primary">
@@ -109,10 +142,10 @@ export default function AccountPanel(): React.ReactElement {
               id="confirm_new_passcode"
               type="password"
               value={confirmPasscode}
-              maxLength={6}
+              maxLength={128}
               onChange={(e) => setConfirmPasscode(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="••••••"
+              placeholder="Confirm new password"
             />
           </div>
           <button

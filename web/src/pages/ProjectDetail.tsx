@@ -103,7 +103,17 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
           <h1 className="font-heading text-2xl font-semibold text-text-primary" title={p.id}>{p.name}</h1>
           <ProjectStatusBadge status={p.status} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* v2.9 #286: entry to the project's Plan orchestration (the Work Board
+              — parallel Plan list + DAG). Reachable here via the project detail
+              page header (§4.2). Styled to match the sibling Edit/Archive buttons. */}
+          <OrgLink
+            to={`/projects/${encodeURIComponent(p.id)}/plans`}
+            className="inline-flex items-center gap-1 rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            data-testid="project-plans-link"
+          >
+            Work Board
+          </OrgLink>
           <button
             type="button"
             className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
@@ -395,7 +405,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
                 <EntityRef
                   id={m.identity_id}
                   name={resolveName(m.identity_id) === m.identity_id ? undefined : resolveName(m.identity_id)}
-                  fallback={m.identity_id}
+                  fallback={normalizeIdentityRef(m.identity_id)}
                   testId="project-member-ref"
                   className="truncate text-sm text-text-primary"
                 />
@@ -658,7 +668,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                       <EntityRef
                         id={tk.assignee}
                         name={resolveName(tk.assignee) === tk.assignee ? undefined : resolveName(tk.assignee)}
-                        fallback={tk.assignee}
+                        fallback={normalizeIdentityRef(tk.assignee)}
                       />
                     ) : (
                       '—'

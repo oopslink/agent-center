@@ -4,14 +4,17 @@ import { useAppStore } from './app';
 describe('useAppStore', () => {
   beforeEach(() => {
     useAppStore.setState({
-      currentUserId: 'user:hayang',
+      currentUserId: '',
       sseStatus: 'idle',
       sseLastEventId: null,
     });
   });
 
-  it('seeds with the default loopback user identity', () => {
-    expect(useAppStore.getState().currentUserId).toBe('user:hayang');
+  it('seeds currentUserId EMPTY (no hardcoded placeholder identity)', () => {
+    // Assert the store INITIALIZER (not the beforeEach reset): it must not
+    // carry a hardcoded user (e.g. the removed 'user:hayang'). AppLayout
+    // seeds it from /api/auth/me at runtime; until then it is ''.
+    expect(useAppStore.getInitialState().currentUserId).toBe('');
   });
 
   it('setCurrentUserId replaces the identity', () => {

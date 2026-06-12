@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useAddProjectMember } from '@/api/projects';
-import { useMembers, normalizeIdentityRef, type MemberResult } from '@/api/members';
+import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import type { ProjectMember } from '@/api/types';
 
 interface Props {
@@ -37,8 +37,6 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
         return name.includes(q) || m.identity_id.toLowerCase().includes(q);
       });
   }, [members.data, existingIds, query]);
-
-  const refOf = (m: MemberResult) => (m.kind === 'agent' ? 'agent:' : 'user:') + m.identity_id;
 
   const toggle = (ref: string) =>
     setSelected((prev) => {
@@ -101,7 +99,7 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
             </li>
           )}
           {candidates.map((m) => {
-            const ref = refOf(m);
+            const ref = identityRefOf(m);
             return (
               <li key={ref}>
                 <label

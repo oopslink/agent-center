@@ -40,6 +40,10 @@ func mapPMError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, pmservice.ErrCannotRemoveOwner):
 		writeError(w, http.StatusConflict, "cannot_remove_owner", err.Error())
+	case errors.Is(err, pm.ErrProjectArchived):
+		// v2.9 #297: archived project is read-only (irreversible) — every child
+		// mutation rejects with 409, cross-surface (mirrors ErrPlanArchived).
+		writeError(w, http.StatusConflict, "project_archived", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrSelfVerify), errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
@@ -99,6 +103,10 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
+		// v2.9 P3 Stage B: orthogonal archived state (independent of status) — the
+		// archive FE renders an "已归档" badge + read-only affordance off these.
+		"archived": t.IsArchived(), "archived_by": string(t.ArchivedBy()),
+		"archived_at": rfc3339OrEmptyPtr(t.ArchivedAt()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
@@ -121,6 +129,15 @@ func rfc3339OrEmpty(t time.Time) string {
 		return ""
 	}
 	return t.Format(time.RFC3339Nano)
+}
+
+// rfc3339OrEmptyPtr formats an optional timestamp as RFC3339Nano, or "" when
+// nil/zero (the orthogonal archived_at is nil for a never-archived task).
+func rfc3339OrEmptyPtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return rfc3339OrEmpty(*t)
 }
 
 // orgRefToken renders the v2.7.1 #245 display/reference token ("T<n>"/"I<n>"),
@@ -179,8 +196,26 @@ func (s *Server) pmListProjectsHandler(w http.ResponseWriter, r *http.Request) {
 		mapPMError(w, err)
 		return
 	}
+	// v2.9 #298 (@oopslink): the project LIST excludes archived by DEFAULT — sidebar
+	// and default views don't show archived projects. ?status=archived returns only
+	// archived (Projects-page "Archived" group); ?status=all returns both. (A single
+	// project GET still reads an archived project — only the list filters.)
+	status := r.URL.Query().Get("status")
 	out := make([]map[string]any, 0, len(ps))
 	for _, p := range ps {
+		archived := p.Status() == pm.ProjectArchived
+		switch status {
+		case "archived":
+			if !archived {
+				continue
+			}
+		case "all":
+			// keep both active + archived
+		default: // "" or "active" → default excludes archived
+			if archived {
+				continue
+			}
+		}
 		out = append(out, pmProjectMap(p))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": out})
@@ -454,7 +489,18 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ts, err := d.PM.ListTasks(r.Context(), p.ID())
+	// ?unplanned=1|true restricts to the Backlog (v2.9 Work Board): tasks not yet
+	// selected into any Plan (empty plan_id). Absent/other → all project tasks.
+	var (
+		ts  []*pm.Task
+		err error
+	)
+	switch q := r.URL.Query().Get("unplanned"); q {
+	case "1", "true":
+		ts, err = d.PM.ListUnplannedTasks(r.Context(), p.ID())
+	default:
+		ts, err = d.PM.ListTasks(r.Context(), p.ID())
+	}
 	if err != nil {
 		mapPMError(w, err)
 		return

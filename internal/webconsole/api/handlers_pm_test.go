@@ -184,6 +184,103 @@ func TestPM_FlatProjectLifecycle(t *testing.T) {
 	}
 }
 
+// v2.9 #298 (@oopslink): GET /api/orgs/{slug}/projects excludes archived by DEFAULT
+// (sidebar / default views don't show archived); ?status=archived returns only
+// archived (Projects-page "Archived" group); ?status=all returns both.
+func TestPM_ListProjects_StatusFilter(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	mkProject := func(name string) string {
+		resp := orgScopedPost(t, s.URL+"/api/projects", `{"name":"`+name+`"}`, sess)
+		if resp.StatusCode != 200 {
+			t.Fatalf("create %s status=%d", name, resp.StatusCode)
+		}
+		var c map[string]any
+		json.NewDecoder(resp.Body).Decode(&c)
+		return c["id"].(string)
+	}
+	active := mkProject("Active")
+	archived := mkProject("ToArchive")
+
+	// Archive the second (DELETE = active→archived).
+	if resp := orgScopedDelete(t, s.URL+"/api/projects/"+archived, sess); resp.StatusCode != 200 {
+		t.Fatalf("archive status=%d", resp.StatusCode)
+	}
+
+	list := func(query string) []map[string]any {
+		resp := orgScopedGet(t, s.URL+"/api/projects"+query, sess)
+		if resp.StatusCode != 200 {
+			t.Fatalf("list %q status=%d", query, resp.StatusCode)
+		}
+		var l struct {
+			Projects []map[string]any `json:"projects"`
+		}
+		json.NewDecoder(resp.Body).Decode(&l)
+		return l.Projects
+	}
+
+	// Default → only the ACTIVE project (archived excluded).
+	if def := list(""); len(def) != 1 || def[0]["id"] != active {
+		t.Fatalf("default list should be [active], got %+v", def)
+	}
+	// ?status=archived → only the ARCHIVED project.
+	if arch := list("?status=archived"); len(arch) != 1 || arch[0]["id"] != archived {
+		t.Fatalf("?status=archived should be [archived], got %+v", arch)
+	}
+	// ?status=all → both.
+	if all := list("?status=all"); len(all) != 2 {
+		t.Fatalf("?status=all should be 2, got %d", len(all))
+	}
+}
+
+// TestPM_ProjectNesting_CrossOrgGuard proves the v2.9 org-routing-explicit
+// security guard: with path-based org scoping (/api/orgs/{slug}/projects/{pid}/...)
+// a caller could combine a slug they ARE a member of (org-A) with a project_id
+// that lives in ANOTHER org (org-B) — 借-project_id 越权. pmRequireProjectInOrg
+// must reject it (project.OrganizationID != resolved orgID → 404, no existence
+// leak). Sanity: the org-B owner reaching the same project via org-B's slug 200s.
+func TestPM_ProjectNesting_CrossOrgGuard(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sessA := setupTestSession(t, db, deps)                            // org-A, caller is owner
+	sessB := setupNamedTestSession(t, db, "victimuser", "victim-org") // org-B
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	// A project that lives in org-B (owned by the org-B user).
+	pidB, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: sessB.OrgID, Name: "VictimProj", CreatedBy: pm.IdentityRef("user:" + sessB.IdentityID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// org-A caller uses org-A's slug (which they ARE a member of) + org-B's
+	// project_id → cross-org borrow → 404 (guarded, not leaked).
+	// orgScopedGet rewrites the bare path to /api/orgs/<sessA.slug>/projects/<pidB>.
+	resp := orgScopedGet(t, s.URL+"/api/projects/"+string(pidB), sessA)
+	if resp.StatusCode != 404 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("cross-org project borrow: got %d want 404 body=%s", resp.StatusCode, b)
+	}
+	// A nested read (tasks) must be guarded the same way.
+	resp = orgScopedGet(t, s.URL+"/api/projects/"+string(pidB)+"/tasks", sessA)
+	if resp.StatusCode != 404 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("cross-org nested borrow: got %d want 404 body=%s", resp.StatusCode, b)
+	}
+
+	// Sanity: the legitimate org-B owner reaching it via org-B's slug → 200.
+	resp = orgScopedGet(t, s.URL+"/api/projects/"+string(pidB), sessB)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("own-org project access: got %d want 200 body=%s", resp.StatusCode, b)
+	}
+}
+
 // TestPM_RemoveProjectMember covers DELETE /api/projects/{id}/members/{identity_id}
 // (v2.7 #207/#208): add a member, remove it (with the %3A-encoded identity ref to
 // prove the ServeMux wildcard decode round-trips the colon, matching the

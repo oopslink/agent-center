@@ -68,6 +68,66 @@ type TaskRepository interface {
 	// reads pm_tasks by status (by-status filter = one status; default = the
 	// non-terminal active set).
 	ListByStatuses(ctx context.Context, statuses []TaskStatus) ([]*Task, error)
+	// ListByPlan returns the tasks selected into a Plan (v2.9 #283), stable-ordered
+	// (created_at, id). A task is in 0..1 Plan (design §2).
+	ListByPlan(ctx context.Context, planID PlanID) ([]*Task, error)
+	// ListUnplannedByProject returns the project's backlog (v2.9): tasks with an
+	// empty plan_id — i.e. not yet selected into any Plan. It is the complement of
+	// ListByPlan, stable-ordered (created_at, id).
+	ListUnplannedByProject(ctx context.Context, projectID ProjectID) ([]*Task, error)
+}
+
+// PlanRepository persists Plan ARs and their execution-DAG edges (v2.9 #283).
+// The DAG is 1:1-scoped to one Plan (§9.8): every Dependency carries a plan_id
+// and AddDependency rejects any edge that would create a cycle or self-edge
+// before persisting. Node status is DERIVED, never stored (§9.2) — there is no
+// node_status read/write here.
+type PlanRepository interface {
+	Save(ctx context.Context, p *Plan) error
+	Update(ctx context.Context, p *Plan) error
+	FindByID(ctx context.Context, id PlanID) (*Plan, error)
+	ListByProject(ctx context.Context, projectID ProjectID) ([]*Plan, error)
+	// ListRunningPlans returns every Plan in status `running` across ALL projects
+	// (global, no project filter), stable-ordered (created_at, id). It backs the
+	// v2.9 P2-3 reconciliation sweep — the background safety net that re-dispatches
+	// ready-but-undispatched nodes for missed events / crash recovery.
+	ListRunningPlans(ctx context.Context) ([]*Plan, error)
+	Delete(ctx context.Context, id PlanID) error
+	// DeletePlan hard-deletes a Plan and its DAG state in one call (v2.9 P3): it
+	// CASCADE-removes the plan's depends_on edges (pm_task_dependencies) and dispatch
+	// records (pm_plan_dispatch_records) before deleting the pm_plans row, so no
+	// orphan edge/record survives. The caller (DeletePlan AppService) UNLOADs the
+	// plan's tasks back to the backlog FIRST (tasks are NOT deleted). Returns
+	// ErrPlanNotFound if the plan row does not exist.
+	DeletePlan(ctx context.Context, id PlanID) error
+	// AddDependency loads the plan's existing edges, calls WouldCreateCycle, and
+	// rejects (ErrPlanCycle / ErrSelfDependency) before inserting.
+	AddDependency(ctx context.Context, dep Dependency) error
+	RemoveDependency(ctx context.Context, dep Dependency) error
+	// ListDependencies returns all depends_on edges scoped to one Plan (§9.8).
+	ListDependencies(ctx context.Context, planID PlanID) ([]Dependency, error)
+	// ListDependenciesByPlans is the BATCH form of ListDependencies: it returns the
+	// depends_on edges for ALL of the given plans in ONE query (WHERE plan_id IN
+	// (...)), so a per-project read (ListPlanSummaries) loads every plan's DAG
+	// without an N+1 loop. Each Dependency carries its PlanID so callers group
+	// in-memory. Empty planIDs → empty slice (no malformed `IN ()`).
+	ListDependenciesByPlans(ctx context.Context, planIDs []PlanID) ([]Dependency, error)
+
+	// Dispatch records (v2.9 #285, §9.3) — the ONLY orchestrator-owned stored
+	// state. RecordDispatch writes the once-only {plan_id, task_id} record when a
+	// ready node's @mention is posted (idempotent on the PK: a duplicate write for
+	// an already-dispatched node is a no-op, never an error). ListDispatchRecords
+	// returns one Plan's records (§9.8 per-plan scoping). ClearDispatch deletes one
+	// node's record so a creator re-run re-dispatches it on the next advance.
+	RecordDispatch(ctx context.Context, planID PlanID, taskID TaskID, at time.Time, messageID string) error
+	ListDispatchRecords(ctx context.Context, planID PlanID) ([]DispatchRecord, error)
+	// ListDispatchRecordsByPlans is the BATCH form of ListDispatchRecords: it
+	// returns the dispatch records for ALL of the given plans in ONE query (WHERE
+	// plan_id IN (...)), so a per-project read (ListPlanSummaries) loads every
+	// plan's dispatch state without an N+1 loop. Each DispatchRecord carries its
+	// PlanID so callers group in-memory. Empty planIDs → empty slice.
+	ListDispatchRecordsByPlans(ctx context.Context, planIDs []PlanID) ([]DispatchRecord, error)
+	ClearDispatch(ctx context.Context, planID PlanID, taskID TaskID) error
 }
 
 // TaskSubscriberRepository persists manual Task subscriber records.

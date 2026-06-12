@@ -1,12 +1,22 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { makeWrapper } from '../test/renderWith';
 import { server } from '../test/mswServer';
+import { useAppStore } from '@/store/app';
 import { useSSEConversationSubscribe } from './useSSEConversationSubscribe';
 
 describe('useSSEConversationSubscribe', () => {
-  afterEach(() => cleanup());
+  // currentUserId starts EMPTY in the store; the hook gates on it, so seed
+  // an authenticated identity (as AppLayout does from /api/auth/me) before
+  // the subscribe-path tests.
+  beforeEach(() => {
+    useAppStore.setState({ currentUserId: 'user:real' });
+  });
+  afterEach(() => {
+    cleanup();
+    useAppStore.setState({ currentUserId: '' });
+  });
 
   it('POSTs /sse/subscribe per conv id on mount', async () => {
     const subscribed: Array<{ user_id: string; conversation_id: string }> = [];
@@ -25,7 +35,23 @@ describe('useSSEConversationSubscribe', () => {
       'c-2',
       'c-3',
     ]);
-    expect(subscribed[0].user_id).toBe('user:hayang');
+    expect(subscribed[0].user_id).toBe('user:real');
+  });
+
+  it('does NOT subscribe while the identity is empty', async () => {
+    useAppStore.setState({ currentUserId: '' });
+    const calls: string[] = [];
+    server.use(
+      http.post('/api/sse/subscribe', async ({ request }) => {
+        calls.push(((await request.json()) as { conversation_id: string }).conversation_id);
+        return HttpResponse.json({ subscribed: true }, { status: 200 });
+      }),
+    );
+    renderHook(() => useSSEConversationSubscribe(['c-1', 'c-2']), {
+      wrapper: makeWrapper(),
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls).toEqual([]);
   });
 
   it('POSTs /sse/unsubscribe per id on unmount', async () => {

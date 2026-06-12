@@ -23,8 +23,10 @@ func TestLoad_DefaultsWhenNoPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Server.ListenAddr != ":7000" {
-		t.Fatalf("default listen_addr: got %q", cfg.Server.ListenAddr)
+	// server.listen_addr is deprecated (v2.9 #174) — no longer defaulted; a
+	// still-defaulted field stands in for the "defaults applied" assertion.
+	if cfg.Server.SqlitePath != "/var/lib/agent-center/agent-center.db" {
+		t.Fatalf("default sqlite_path: got %q", cfg.Server.SqlitePath)
 	}
 }
 
@@ -83,12 +85,11 @@ server:
 func TestLoad_EnvOverridesYAML(t *testing.T) {
 	path := writeYAML(t, `
 server:
-  listen_addr: ":7000"
   sqlite_path: "/tmp/x.db"
 `)
 	envFn := func(k string) (string, bool) {
-		if k == "AGENT_CENTER_SERVER_LISTEN_ADDR" {
-			return ":9999", true
+		if k == "AGENT_CENTER_SERVER_SQLITE_PATH" {
+			return "/tmp/override.db", true
 		}
 		return "", false
 	}
@@ -96,41 +97,41 @@ server:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Server.ListenAddr != ":9999" {
-		t.Fatalf("env override: got %q want :9999", cfg.Server.ListenAddr)
+	if cfg.Server.SqlitePath != "/tmp/override.db" {
+		t.Fatalf("env override: got %q want /tmp/override.db", cfg.Server.SqlitePath)
 	}
 }
 
 func TestLoad_FlagOverridesEnv(t *testing.T) {
 	envFn := func(k string) (string, bool) {
-		if k == "AGENT_CENTER_SERVER_LISTEN_ADDR" {
-			return ":1111", true
+		if k == "AGENT_CENTER_SERVER_SQLITE_PATH" {
+			return "/tmp/from-env.db", true
 		}
 		return "", false
 	}
 	cfg, err := Load(LoadOptions{
 		Env:           envFn,
-		FlagOverrides: map[string]string{"server.listen_addr": ":2222"},
+		FlagOverrides: map[string]string{"server.sqlite_path": "/tmp/from-flag.db"},
 	})
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Server.ListenAddr != ":2222" {
-		t.Fatalf("flag override: got %q", cfg.Server.ListenAddr)
+	if cfg.Server.SqlitePath != "/tmp/from-flag.db" {
+		t.Fatalf("flag override: got %q", cfg.Server.SqlitePath)
 	}
 }
 
 func TestLoad_RejectsMissingRequired(t *testing.T) {
 	path := writeYAML(t, `
 server:
-  listen_addr: ""
+  sqlite_path: ""
 `)
 	_, err := Load(LoadOptions{Path: path})
 	if err == nil {
 		t.Fatal("expected error for empty required field")
 	}
-	if !strings.Contains(err.Error(), "listen_addr") {
-		t.Fatalf("error missing listen_addr: %v", err)
+	if !strings.Contains(err.Error(), "sqlite_path") {
+		t.Fatalf("error missing sqlite_path: %v", err)
 	}
 }
 
@@ -228,14 +229,15 @@ func TestParsePort(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.Server.ListenAddr == "" {
-		t.Fatal("DefaultConfig.Server.ListenAddr empty")
+	// server.listen_addr is deprecated (v2.9 #174) — no longer defaulted; a
+	// still-defaulted field stands in.
+	if cfg.Server.SqlitePath == "" {
+		t.Fatal("DefaultConfig.Server.SqlitePath empty")
 	}
 }
 
 func TestApplyEnvOverrides_AllKnownKeys(t *testing.T) {
 	env := map[string]string{
-		"AGENT_CENTER_SERVER_LISTEN_ADDR":           ":1111",
 		"AGENT_CENTER_SERVER_SQLITE_PATH":           "/p.db",
 		"AGENT_CENTER_SERVER_ADMIN_SOCKET_PATH":     "/a.sock",
 		"AGENT_CENTER_NOTIFICATION_DEFAULT_CHANNEL": "x:y:z",
@@ -248,9 +250,6 @@ func TestApplyEnvOverrides_AllKnownKeys(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if cfg.Server.ListenAddr != ":1111" {
-		t.Fatal()
 	}
 	if cfg.Server.SqlitePath != "/p.db" {
 		t.Fatal()
@@ -266,15 +265,11 @@ func TestApplyEnvOverrides_AllKnownKeys(t *testing.T) {
 func TestApplyFlagOverrides_AllKnownKeys(t *testing.T) {
 	cfg, err := Load(LoadOptions{
 		FlagOverrides: map[string]string{
-			"server.listen_addr": ":5555",
 			"server.sqlite_path": "/x.db",
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if cfg.Server.ListenAddr != ":5555" {
-		t.Fatal()
 	}
 	if cfg.Server.SqlitePath != "/x.db" {
 		t.Fatal()
@@ -283,15 +278,16 @@ func TestApplyFlagOverrides_AllKnownKeys(t *testing.T) {
 
 func TestValidate_AllMissingFields(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Server.ListenAddr = ""
+	// server.listen_addr is deprecated (v2.9 #174) — no longer validated;
+	// sqlite_path remains required.
 	cfg.Server.SqlitePath = ""
 	err := validate(&cfg)
 	if err == nil {
 		t.Fatal()
 	}
 	reasons := AsErrorList(err)
-	if len(reasons) < 2 {
-		t.Fatalf("expected 2 reasons: %v", reasons)
+	if len(reasons) < 1 {
+		t.Fatalf("expected at least 1 reason: %v", reasons)
 	}
 }
 

@@ -80,6 +80,43 @@ func TestCreateProject_WritesStateMemberAndEvent(t *testing.T) {
 	}
 }
 
+// v2.9 #297: an archived project is read-only (irreversible per @oopslink) — every
+// project-child mutation rejects with pm.ErrProjectArchived (requireProjectMutable);
+// reads still work; an ACTIVE project is unaffected (no regression).
+func TestProjectArchived_ChildMutationsRejected(t *testing.T) {
+	svc, _, ctx := setup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// ACTIVE project: a child mutation succeeds (no regression).
+	tid, err := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "T", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatalf("CreateTask on active project should succeed: %v", err)
+	}
+
+	// Archive the project (irreversible terminal).
+	if err := svc.ArchiveProject(ctx, pid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Every project-child mutation now rejects with ErrProjectArchived.
+	if _, err := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "T2", CreatedBy: "user:a"}); err != pm.ErrProjectArchived {
+		t.Fatalf("CreateTask on archived → want ErrProjectArchived, got %v", err)
+	}
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != pm.ErrProjectArchived {
+		t.Fatalf("AddProjectMember on archived → want ErrProjectArchived, got %v", err)
+	}
+	if err := svc.AssignTask(ctx, tid, "user:a", "user:a"); err != pm.ErrProjectArchived {
+		t.Fatalf("AssignTask on archived → want ErrProjectArchived, got %v", err)
+	}
+
+	// Reads still work on an archived project.
+	if _, err := svc.GetProject(ctx, pid); err != nil {
+		t.Fatalf("GetProject on archived should still work, got %v", err)
+	}
+}
+
 func TestAddProjectMember_GatedByMembership(t *testing.T) {
 	svc, _, ctx := setup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

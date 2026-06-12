@@ -118,123 +118,37 @@ type WebConsoleEnrollWiring struct {
 	Fingerprint   string // SSH-style sha256:HH:HH:...
 }
 
-// runWebConsole binds + serves the Web Console HTTP API at addr,
-// enforcing the loopback bind guard (per ADR-0037 / NF2 — no remote
-// listen). Returns http.ErrServerClosed on graceful shutdown.
-func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enroll WebConsoleEnrollWiring, logger func(string)) (cleanup func() error, err error) {
-	if addr == "" {
-		addr = "127.0.0.1:7100"
-	}
-	if a == nil {
-		return func() error { return nil }, errors.New("webconsole: app nil")
-	}
-	// v2.6 production guarantee: webconsole requires Identity BC auth.
-	// AuthSvc is wired only when secret_management.master_key_file is set
-	// (master key doubles as the JWT HS256 signing key per ADR-0043 §6).
-	// Refuse to start the webconsole when auth is unconfigured rather than
-	// allowing the per-request middleware to fail-open.
-	if a.IdentityAuthSvc == nil {
-		return func() error { return nil }, errors.New(
-			"webconsole: auth not configured — set secret_management.master_key_file " +
-				"in the server config (the master key doubles as the JWT signing key)")
-	}
-	// v2.7 D3-d/D3-c: a single files transfer Service instance backs BOTH the
-	// /api/files HTTP surface (FilesSvc) and the refcount GC loop below — built
-	// once from the configured blobstore root (nil when unconfigured).
-	filesSvc := buildFilesService(a)
-	deps := api.HandlerDeps{
-		DB:                  a.DB,
-		Actor:               a.operatorActor(),
-		EventSink:           a.Sink,
-		ConvRepo:            a.ConvRepo,
-		MsgRepo:             a.MsgRepo,
-		MessageWriter:       a.MessageWriter,
-		ChannelMgmtSvc:      a.ChannelMgmtSvc,
-		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
-		CarryOverSvc:        a.CarryOverSvc,
-		AgentInstanceRepo:   a.AgentInstanceRepo,
-		UserSecretRepo:      a.UserSecretRepo,
-		UserSecretSvc:       a.UserSecretSvc,
-		PM:                  a.PMService,
-		AgentSvc:            a.AgentService,
-		FilesSvc:            filesSvc,
-		FleetSvc:            a.FleetSvc,
-		ReadStateRepo:       a.ReadStateRepo,
-		ReadStateSvc:        a.ReadStateSvc,
-		FollowStateSvc:      a.FollowStateSvc,
-		AdminTokenSvc:       a.AdminTokenSvc,
-		EnrollBootstrapHost: enroll.BootstrapHost,
-		EnrollFingerprint:   enroll.Fingerprint,
-		WorkerRenameSvc:     a.EnrollSvc,
-		WorkerAddSvc:        a.EnrollSvc,
-		WorkerRemoveSvc:     a.EnrollSvc,
-		WorkerRepo:          a.WorkerRepo,
-		FileTransferRepo:    filessql.NewFileTransferSessionRepo(a.DB),
-		SignupSvc:           a.IdentitySignupSvc,
-		SigninSvc:           a.IdentitySigninSvc,
-		SignoutSvc:          a.IdentitySignoutSvc,
-		AuthSvc:             a.IdentityAuthSvc,
-		PasscodeChangeSvc:   a.IdentityPasscodeChangeSvc,
-		IdentityRepo:        a.IdentityRepo,
-		OrgRepo:             a.IdentityOrgRepo,
-		OrgCreateSvc:        a.IdentityOrgCreateSvc,
-		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
-		MemberRepo:          a.IdentityMemberRepo,
-		MemberAddSvc:        a.IdentityMemberAddSvc,
-		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
-		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
-		MemberDisableSvc:    a.IdentityMemberDisableSvc,
-		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
-		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
-	}
-	srv := api.NewServer(addr, api.Deps{
-		SSE: bus, SPA: spa.Handler(),
-		Version: ResolvedBuildVersion(),
-		Branch:  ResolvedBuildBranch(),
-		Commit:  ResolvedBuildCommit(),
-		BuiltAt: ResolvedBuildBuiltAt(),
-	})
-	// Wrap the inner mux with deps middleware; install it as the
-	// server's handler so the loopback guard in api.Server.ListenAndServe
-	// still applies.
-	wrapped := api.WithDeps(deps)(srv.Handler())
-	srv.SetHandler(wrapped)
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger("webconsole: " + err.Error())
-		}
-	}()
-	// Start the EventSink → SSE Bus fan-out tailer. It polls the
-	// events table on a 250ms ticker and publishes each new event
-	// onto the bus, where subscribed users receive it.
-	fanoutCtx, fanoutCancel := context.WithCancel(ctx)
-	fanout := sse.NewEventFanout(a.EventRepo, bus, 0).WithErrorHandler(func(err error) {
-		logger("webconsole fanout: " + err.Error())
-	})
-	go fanout.Run(fanoutCtx)
-
-	// v2.7 B3: bring the cross-BC outbox online. A single-goroutine Pump
-	// drains the outbox (backlog on boot, then ~1s ticker) and applies the
-	// ProjectManager→Conversation participant projection + the AssignTask→
-	// AgentWorkItem projection. Without this loop the projectors are static
-	// and no cross-BC effect ever happens (plan §10 OQ1). Mirrors the fanout
-	// lifecycle (ctx-cancel + graceful shutdown).
-	outboxRepo := outboxsql.NewOutboxRepo(a.DB)
-	appliedRepo := outboxsql.NewAppliedRepo(a.DB)
+// outboxProjectors is the SINGLE source of the production outbox projector set.
+// Both runWebConsole (production) and the wiring test build their projector list
+// from this one function, so a future "emit-an-event-but-no-consumer-registered"
+// drift (e.g. dropping planParticipantProj — the v2.9 #284/#285 headline fix) is
+// caught by the test rather than silently shipping. The returned slice is the
+// EXACT variadic set previously passed to outbox.NewRelay, in the SAME order.
+//
+// wakeProj is ALSO returned individually because it is reused after the relay is
+// built (the D2-e-iii wake reconcile loop must drive the SAME instance the relay
+// drains — see runWebConsole). All other projectors are relay-only.
+//
+// Deps: appliedRepo (every projector's applied-store), outboxRepo (the work-item
+// transition sink), and controlLog (the agent control / wake command log, built
+// from a.ControlStreamBus + envsql by the caller). Everything else comes off a.
+func (a *App) outboxProjectors(
+	outboxRepo *outboxsql.OutboxRepo,
+	appliedRepo *outboxsql.AppliedRepo,
+	controlLog *environment.ControlLog,
+) ([]outbox.Projector, *envservice.WakeProjector) {
 	participantProj := pmservice.NewParticipantProjector(a.DB, a.ConvRepo, appliedRepo, a.IDGen, a.Clock)
-	// v2.7 D2-a: ADDITIVE reconcile projector. Agent lifecycle intent changes
-	// (C3 agent.lifecycle_changed) become declarative agent.reconcile commands on
-	// the agent's Worker control stream (D1). D1's NoopHandler no-op-acks them →
-	// zero real effect yet (no execution cutover; old taskruntime path untouched).
-	// v2.7 D5 slice-1: inject the shared SSE down-push bus as the OPTIONAL
-	// after-commit publisher. AppendCommand best-effort pushes each newly-appended
-	// command (with its offset) to the bus so a subscribed worker gets it with low
-	// latency; a publish failure cannot fail the append (poll + catch-up recover).
-	// nil-safe (a.ControlStreamBus may be nil in non-webconsole boot paths).
-	controlLog := environment.NewControlLog(envsql.NewControlEventRepo(a.DB), a.IDGen, a.Clock)
-	if a.ControlStreamBus != nil {
-		controlLog = controlLog.WithPublisher(a.ControlStreamBus)
-	}
+	// v2.9 #284/#285 headline fix: the Plan↔Conversation projector consumes
+	// EvtPlanCreated → auto-creates the Plan's dedicated conversation + binds
+	// conversation_id, and EvtPlanParticipantsChanged → additive participant sync
+	// (§9.5). WITHOUT registering it in the relay, a Plan created via the HTTP API
+	// emits the event but nothing creates its conversation → conversation_id stays
+	// "" → advance has no conversation to @mention into → headline dies (the
+	// service-level test wired it, but the real app did not — integration seam).
+	planParticipantProj := pmservice.NewPlanParticipantProjector(a.DB, a.ConvRepo, pmsql.NewPlanRepo(a.DB), appliedRepo, a.IDGen, a.Clock).
+		// v2.9 P3: wire the optional message + read-state repos so EvtPlanDeleted fully
+		// hard-deletes the plan conversation ("删会话"), and EvtPlanArchived archives it.
+		WithConversationCascade(a.MsgRepo, a.ReadStateRepo)
 	// v2.7 D2-c-i: ADDITIVE work delivery. When the projector creates a queued
 	// AgentWorkItem it ALSO enqueues an agent.work command (with a brief) onto the
 	// assignee Agent's Worker control stream, same tx. The agents repo resolves
@@ -338,6 +252,16 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 					return nil, err
 				}
 				projectID = is.ProjectID()
+			case strings.HasPrefix(ownerRef, "pm://plans/"):
+				// v2.9 ② (@oopslink): a PLAN conversation's @mention candidates broaden
+				// to the plan's project agent-members too (symmetric with issue/task), so
+				// a human can @ any project agent in a plan conversation, not just a
+				// participant. plan → its project.
+				pl, err := pmsql.NewPlanRepo(a.DB).FindByID(ctx, pm.PlanID(strings.TrimPrefix(ownerRef, "pm://plans/")))
+				if err != nil || pl == nil {
+					return nil, err
+				}
+				projectID = pl.ProjectID()
 			default:
 				return nil, nil // not a project-owned conversation
 			}
@@ -371,12 +295,156 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// active → Task.Start (assigned→running), the keystone that makes the
 	// agent-declared complete_task/block_task reachable (both require running).
 	taskStatusSyncProj := pmservice.NewTaskStatusSyncProjector(a.DB, a.PMService, appliedRepo, a.Clock)
+	// v2.9 P2-1 AUTO-ADVANCE core (#266 LESSON): the orchestrator projector must be
+	// in the PRODUCTION relay or auto-advance is silently dead. It consumes
+	// pm.task.state_changed (a plan-task reaching a terminal state → re-dispatch the
+	// plan's newly-ready downstream nodes) and pm.plan.started (→ dispatch the plan's
+	// initial ready nodes). It reuses a.PMService's dispatch core (which has the
+	// PlanDispatcher wired); idempotent via AppliedStore + INSERT-OR-IGNORE dispatch
+	// records (§9.3). Registered in the returned slice + guarded by the #266 class-test.
+	planOrchestratorProj := pmservice.NewPlanOrchestratorProjector(a.DB, a.PMService, appliedRepo, a.Clock)
 	// v2.7 #111 #3b: fan work-item transitions out to the observability Event
 	// store (one agent.work_item.transitioned Event each) so the append-only
 	// stats stream sees the work-item lifecycle. Producer-only — the stats query
 	// repoint is Phase-2.
 	workItemEventProj := obsprojection.NewWorkItemEventProjector(a.DB, a.Sink, appliedRepo, a.Clock)
-	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, participantProj, workItemProj, agentControlProj, wakeProj, agentWorkItemProj, taskStatusSyncProj, workItemEventProj)
+	return []outbox.Projector{
+		participantProj,
+		planParticipantProj,
+		workItemProj,
+		agentControlProj,
+		wakeProj,
+		agentWorkItemProj,
+		taskStatusSyncProj,
+		planOrchestratorProj,
+		workItemEventProj,
+	}, wakeProj
+}
+
+// runWebConsole binds + serves the Web Console HTTP API at addr,
+// enforcing the loopback bind guard (per ADR-0037 / NF2 — no remote
+// listen). Returns http.ErrServerClosed on graceful shutdown.
+func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enroll WebConsoleEnrollWiring, logger func(string)) (cleanup func() error, err error) {
+	if addr == "" {
+		addr = "127.0.0.1:7100"
+	}
+	if a == nil {
+		return func() error { return nil }, errors.New("webconsole: app nil")
+	}
+	// v2.6 production guarantee: webconsole requires Identity BC auth.
+	// AuthSvc is wired only when secret_management.master_key_file is set
+	// (master key doubles as the JWT HS256 signing key per ADR-0043 §6).
+	// Refuse to start the webconsole when auth is unconfigured rather than
+	// allowing the per-request middleware to fail-open.
+	if a.IdentityAuthSvc == nil {
+		return func() error { return nil }, errors.New(
+			"webconsole: auth not configured — set secret_management.master_key_file " +
+				"in the server config (the master key doubles as the JWT signing key)")
+	}
+	// v2.7 D3-d/D3-c: a single files transfer Service instance backs BOTH the
+	// /api/files HTTP surface (FilesSvc) and the refcount GC loop below — built
+	// once from the configured blobstore root (nil when unconfigured).
+	filesSvc := buildFilesService(a)
+	deps := api.HandlerDeps{
+		DB:                  a.DB,
+		Actor:               a.operatorActor(),
+		EventSink:           a.Sink,
+		ConvRepo:            a.ConvRepo,
+		MsgRepo:             a.MsgRepo,
+		MessageWriter:       a.MessageWriter,
+		ChannelMgmtSvc:      a.ChannelMgmtSvc,
+		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
+		CarryOverSvc:        a.CarryOverSvc,
+		AgentInstanceRepo:   a.AgentInstanceRepo,
+		UserSecretRepo:      a.UserSecretRepo,
+		UserSecretSvc:       a.UserSecretSvc,
+		PM:                  a.PMService,
+		AgentSvc:            a.AgentService,
+		FilesSvc:            filesSvc,
+		FleetSvc:            a.FleetSvc,
+		ReadStateRepo:       a.ReadStateRepo,
+		ReadStateSvc:        a.ReadStateSvc,
+		FollowStateSvc:      a.FollowStateSvc,
+		AdminTokenSvc:       a.AdminTokenSvc,
+		EnrollBootstrapHost: enroll.BootstrapHost,
+		EnrollFingerprint:   enroll.Fingerprint,
+		WorkerRenameSvc:     a.EnrollSvc,
+		WorkerAddSvc:        a.EnrollSvc,
+		WorkerRemoveSvc:     a.EnrollSvc,
+		WorkerRepo:          a.WorkerRepo,
+		FileTransferRepo:    filessql.NewFileTransferSessionRepo(a.DB),
+		SignupSvc:           a.IdentitySignupSvc,
+		SigninSvc:           a.IdentitySigninSvc,
+		SignoutSvc:          a.IdentitySignoutSvc,
+		AuthSvc:             a.IdentityAuthSvc,
+		PasscodeChangeSvc:   a.IdentityPasscodeChangeSvc,
+		IdentityRepo:        a.IdentityRepo,
+		OrgRepo:             a.IdentityOrgRepo,
+		OrgCreateSvc:        a.IdentityOrgCreateSvc,
+		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
+		MemberRepo:          a.IdentityMemberRepo,
+		MemberAddSvc:        a.IdentityMemberAddSvc,
+		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
+		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
+		MemberDisableSvc:    a.IdentityMemberDisableSvc,
+		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
+		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
+	}
+	srv := api.NewServer(addr, api.Deps{
+		SSE: bus, SPA: spa.Handler(),
+		Version: ResolvedBuildVersion(),
+		Branch:  ResolvedBuildBranch(),
+		Commit:  ResolvedBuildCommit(),
+		BuiltAt: ResolvedBuildBuiltAt(),
+	})
+	// Wrap the inner mux with deps middleware; install it as the
+	// server's handler so the loopback guard in api.Server.ListenAndServe
+	// still applies.
+	wrapped := api.WithDeps(deps)(srv.Handler())
+	srv.SetHandler(wrapped)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger("webconsole: " + err.Error())
+		}
+	}()
+	// Start the EventSink → SSE Bus fan-out tailer. It polls the
+	// events table on a 250ms ticker and publishes each new event
+	// onto the bus, where subscribed users receive it.
+	fanoutCtx, fanoutCancel := context.WithCancel(ctx)
+	fanout := sse.NewEventFanout(a.EventRepo, bus, 0).WithErrorHandler(func(err error) {
+		logger("webconsole fanout: " + err.Error())
+	})
+	go fanout.Run(fanoutCtx)
+
+	// v2.7 B3: bring the cross-BC outbox online. A single-goroutine Pump
+	// drains the outbox (backlog on boot, then ~1s ticker) and applies the
+	// ProjectManager→Conversation participant projection + the AssignTask→
+	// AgentWorkItem projection. Without this loop the projectors are static
+	// and no cross-BC effect ever happens (plan §10 OQ1). Mirrors the fanout
+	// lifecycle (ctx-cancel + graceful shutdown).
+	outboxRepo := outboxsql.NewOutboxRepo(a.DB)
+	appliedRepo := outboxsql.NewAppliedRepo(a.DB)
+	// v2.7 D2-a: ADDITIVE reconcile projector. Agent lifecycle intent changes
+	// (C3 agent.lifecycle_changed) become declarative agent.reconcile commands on
+	// the agent's Worker control stream (D1). D1's NoopHandler no-op-acks them →
+	// zero real effect yet (no execution cutover; old taskruntime path untouched).
+	// v2.7 D5 slice-1: inject the shared SSE down-push bus as the OPTIONAL
+	// after-commit publisher. AppendCommand best-effort pushes each newly-appended
+	// command (with its offset) to the bus so a subscribed worker gets it with low
+	// latency; a publish failure cannot fail the append (poll + catch-up recover).
+	// nil-safe (a.ControlStreamBus may be nil in non-webconsole boot paths).
+	controlLog := environment.NewControlLog(envsql.NewControlEventRepo(a.DB), a.IDGen, a.Clock)
+	if a.ControlStreamBus != nil {
+		controlLog = controlLog.WithPublisher(a.ControlStreamBus)
+	}
+	// SINGLE source of the production projector set (incl planParticipantProj — the
+	// v2.9 #284/#285 headline fix). outboxProjectors is shared with the wiring test
+	// so a dropped projector (emit-an-event-but-no-consumer-registered) fails there
+	// instead of silently shipping. wakeProj is also returned individually because
+	// the D2-e-iii wake reconcile loop below must drive the SAME instance the relay
+	// drains (push + poll dedup on the same batch key).
+	projectors, wakeProj := a.outboxProjectors(outboxRepo, appliedRepo, controlLog)
+	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, projectors...)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})
@@ -416,11 +484,25 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	})
 	go wakeLoop.Run(wakeLoopCtx)
 
+	// v2.9 P2-3 RECONCILIATION SWEEP: a slow-cadence (60s) sweep re-runs the
+	// IDEMPOTENT plan dispatch core over every running Plan — the safety net that
+	// re-dispatches any ready-but-undispatched node a missed pm.task.state_changed /
+	// crash left stranded. It reuses a.PMService (with the PlanDispatcher wired);
+	// already-dispatched nodes are skipped (INSERT-OR-IGNORE record), so it
+	// dispatches nothing on the happy path. Mirrors the wakeLoop lifecycle
+	// (ctx-cancel + graceful shutdown).
+	planReconcileLoopCtx, planReconcileLoopCancel := context.WithCancel(ctx)
+	planReconcileLoop := pmservice.NewPlanReconcileLoop(a.PMService, 60*time.Second, func(msg string) {
+		logger("webconsole plan reconcile: " + msg)
+	})
+	go planReconcileLoop.Run(planReconcileLoopCtx)
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
 		gcCancel()
 		wakeLoopCancel()
+		planReconcileLoopCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)

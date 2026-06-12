@@ -22,6 +22,9 @@ const Agents = lazy(() => import('./pages/Agents'));
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
+// v2.9 #286: per-project Plan orchestration (parallel list + Plan detail).
+const ProjectPlans = lazy(() => import('./pages/ProjectPlans'));
+const PlanDetail = lazy(() => import('./pages/PlanDetail'));
 const OrgWorkItems = lazy(() => import('./pages/OrgWorkItems'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
@@ -29,7 +32,9 @@ const WorkerDetail = lazy(() => import('./pages/WorkerDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Me = lazy(() => import('./pages/Me'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
-const MemberNew = lazy(() => import('./pages/MemberNew'));
+// dev2/v29-s42 §4.2: MemberNew is no longer routed (orphan retired → redirect
+// below); the page component stays for its isolated unit tests. No lazy import
+// here so the unreachable chunk isn't shipped.
 const UserDetail = lazy(() => import('./pages/UserDetail'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -62,6 +67,10 @@ export function App(): React.ReactElement {
           <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
+          {/* v2.9 #286: Plan orchestration — parallel list + Plan detail (DAG
+              view filled by #287). Reached via the project Plans tab. */}
+          <Route path="projects/:id/plans" element={<ProjectPlans />} />
+          <Route path="projects/:id/plans/:planId" element={<PlanDetail />} />
           <Route path="projects/:projectId/issues/:id" element={<IssueDetail />} />
           <Route path="projects/:projectId/tasks/:id" element={<TaskDetail />} />
           {/* v2.8 #258: org-scope cross-project Issues/Tasks aggregation. */}
@@ -81,7 +90,16 @@ export function App(): React.ReactElement {
               there is no second reachable agents page. (mirrors the /fleet→
               /environment redirect precedent above.) */}
           <Route path="members/agents" element={<Navigate to="../agents" replace />} />
-          <Route path="members/new" element={<MemberNew />} />
+          {/* dev2/v29-s42 §4.2: /members/new is an ORPHAN — its sole inbound
+              link lived on the retired /members/agents page, and the canonical
+              /agents surface now creates agents via an inline AgentCreateModal
+              (and Members→Humans via AddUserModal). Nothing live reaches this
+              page, so the legacy URL redirects to the canonical /agents list —
+              mirroring the /members/agents and /fleet retirement precedents —
+              so a stale link lands on a reachable surface, not a direct-URL-
+              only orphan. (MemberNew is kept as a component + unit-tested in
+              isolation; it is simply no longer a routed page.) */}
+          <Route path="members/new" element={<Navigate to="../agents" replace />} />
           <Route path="users/:userId" element={<UserDetail />} />
           <Route path="*" element={<NotFound />} />
         </Route>

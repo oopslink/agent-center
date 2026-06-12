@@ -174,13 +174,14 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version(), nullInt(t.OrgNumber()),
-		marshalTags(t.Tags()), ts(t.StatusChangedAt()))
+		marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
+		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()))
 	if isUnique(err) {
 		return pm.ErrTaskExists
 	}
@@ -191,11 +192,12 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_tasks SET title=?, description=?, status=?, assignee=?, derived_from_issue=?,
-			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=? WHERE id=?`,
+			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, plan_id=?, archived_at=?, archived_by=? WHERE id=?`,
 		t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
-		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.ID()))
+		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
+		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), string(t.ID()))
 	if err != nil {
 		return err
 	}
@@ -221,6 +223,20 @@ func (r *TaskRepo) ListByProject(ctx context.Context, projectID pm.ProjectID) ([
 
 func (r *TaskRepo) ListByAssignee(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
 	return r.list(ctx, taskSelect+` WHERE assignee = ? ORDER BY created_at, id`, string(assignee))
+}
+
+// ListByPlan returns the tasks selected into a Plan (v2.9 #283), stable-ordered
+// (created_at, id).
+func (r *TaskRepo) ListByPlan(ctx context.Context, planID pm.PlanID) ([]*pm.Task, error) {
+	return r.list(ctx, taskSelect+` WHERE plan_id = ? ORDER BY created_at, id`, string(planID))
+}
+
+// ListUnplannedByProject returns the project's backlog (v2.9): tasks with an
+// empty plan_id (not yet selected into any Plan), stable-ordered (created_at,
+// id). The IS NULL guard tolerates pre-#283 rows that predate the NOT NULL
+// DEFAULT '' column.
+func (r *TaskRepo) ListUnplannedByProject(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
+	return r.list(ctx, taskSelect+` WHERE project_id = ? AND (plan_id IS NULL OR plan_id = '') ORDER BY created_at, id`, string(projectID))
 }
 
 func (r *TaskRepo) list(ctx context.Context, q string, arg string) ([]*pm.Task, error) {
@@ -305,7 +321,7 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at FROM pm_tasks`
+	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
@@ -315,9 +331,12 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		orgNumber                                                     sql.NullInt64
 		tags                                                          sql.NullString
 		statusChangedAt                                               sql.NullString
+		planID                                                        sql.NullString
+		archivedAt                                                    sql.NullString
+		archivedBy                                                    sql.NullString
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt); err != nil {
+		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &planID, &archivedAt, &archivedBy); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateTask(pm.RehydrateTaskInput{
@@ -329,6 +348,9 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		OrgNumber:       int(orgNumber.Int64),
 		Tags:            unmarshalTags(tags.String),
 		StatusChangedAt: parseTime(statusChangedAt.String),
+		PlanID:          pm.PlanID(planID.String),
+		ArchivedAt:      parseTimePtr(archivedAt.String),
+		ArchivedBy:      pm.IdentityRef(archivedBy.String),
 	})
 }
 

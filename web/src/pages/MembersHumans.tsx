@@ -54,7 +54,7 @@ function MemberRow({
         <EntityRef
           id={member.identity_id}
           name={member.display_name}
-          fallback={member.identity_id}
+          fallback={normalizeIdentityRef(member.identity_id)}
           to={`/users/${encodeURIComponent(normalizeIdentityRef(member.identity_id))}`}
           testId="human-member-link"
         />
@@ -260,7 +260,7 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
     >
       <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
         <h2 className="text-base font-semibold text-text-primary mb-4">Add user</h2>
-        <p className="text-xs text-text-muted mb-3">A new user identity will be created with a 6-digit temporary passcode.</p>
+        <p className="text-xs text-text-muted mb-3">A new user identity will be created with a temporary passcode.</p>
         {error && (
           <div role="alert" className="mb-3 rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
             {error}

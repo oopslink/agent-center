@@ -102,8 +102,25 @@ var wantTools = []string{
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",
 	"block_task", "complete_task", "verify_task",
+	// v2.9 P3 Stage C (#285): plan orchestration tools (see planTools)
+	"create_plan", "add_task_to_plan", "remove_task_from_plan",
+	"add_plan_dependency", "remove_plan_dependency",
+	"start_plan", "stop_plan", "get_plan", "list_plans",
+	"delete_plan", "archive_plan",
 	// files
 	"upload_file", "download_file", "attach_file",
+}
+
+// planTools is the v2.9 P3 Stage C (#285) plan agent-tool catalog: every plan
+// admin handler in internal/admin/api/agent_tools_plans.go MUST have a matching
+// per-agent MCP tool registered in NewServer, or the agent LLM can't see/call
+// it. TestPlanToolsRegistered (the #266-class integration-seam guard) asserts
+// all of these are present.
+var planTools = []string{
+	"create_plan", "add_task_to_plan", "remove_task_from_plan",
+	"add_plan_dependency", "remove_plan_dependency",
+	"start_plan", "stop_plan", "get_plan", "list_plans",
+	"delete_plan", "archive_plan",
 }
 
 func TestInitializeAndListTools(t *testing.T) {
@@ -138,6 +155,95 @@ func TestInitializeAndListTools(t *testing.T) {
 	for _, prop := range []string{"task_id", "text"} {
 		if _, ok := schemaProps[prop]; !ok {
 			t.Errorf("post_task_message schema missing property %q (have %v)", prop, keys2(schemaProps))
+		}
+	}
+}
+
+// TestPlanToolsRegistered is the #266-class integration-seam guard for the
+// v2.9 P3 Stage C plan tools (#285). The seam it closes: the plan tools existed
+// as admin HTTP handlers (internal/admin/api/agent_tools_plans.go) but were
+// NEVER registered in the per-agent MCP tool catalog NewServer builds — so the
+// agent LLM could not see or call them, breaking "PM-agent programmatically
+// builds plans". This test enumerates the tools the live MCP server (via
+// NewServer → ListTools, the SAME mechanism the existing tests use) actually
+// exposes and asserts EVERY plan tool is present (plus the existing task tools
+// stay present), so a future plan admin handler added without a matching
+// mcphost registration fails CI here.
+func TestPlanToolsRegistered(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}})
+
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	registered := map[string]bool{}
+	for _, tool := range res.Tools {
+		registered[tool.Name] = true
+	}
+
+	// Every plan tool must be in the agent-facing catalog.
+	for _, name := range planTools {
+		if !registered[name] {
+			t.Errorf("plan tool %q is NOT registered in the per-agent MCP catalog (admin handler exists but agent LLM can't see it)", name)
+		}
+	}
+
+	// Sanity: the existing task tools must still be present (the plan
+	// additions did not displace them).
+	for _, name := range []string{"create_task", "assign_task", "get_task", "complete_task"} {
+		if !registered[name] {
+			t.Errorf("existing tool %q went missing after the plan-tool additions", name)
+		}
+	}
+}
+
+// TestAgentFacingToolParity is the (3) full-parity guard (PD-approved, #266-class):
+// it asserts the live per-agent MCP catalog (ListTools) EQUALS the source-of-truth
+// AgentFacingToolNames set — BOTH directions. Forward: every canonical name is
+// registered (a set member dropped from NewServer → FAIL). Reverse: every registered
+// tool is in the canonical set (a tool added to NewServer without a deliberate
+// AgentFacingToolNames entry → FAIL). This catches the WHOLE class of
+// registration↔manifest drift (the #285/#299 seam where a handler exists but isn't
+// agent-facing, or a tool is exposed without a deliberate decision) in EITHER
+// direction — not just the specific families TestPlanToolsRegistered guards.
+func TestAgentFacingToolParity(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}})
+
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	registered := map[string]bool{}
+	for _, tool := range res.Tools {
+		registered[tool.Name] = true
+	}
+	canonical := map[string]bool{}
+	for _, name := range AgentFacingToolNames {
+		canonical[name] = true
+	}
+
+	// Forward: every canonical agent-facing tool is actually registered.
+	for _, name := range AgentFacingToolNames {
+		if !registered[name] {
+			t.Errorf("canonical agent-facing tool %q is NOT registered in NewServer (dropped from the catalog, or stale AgentFacingToolNames)", name)
+		}
+	}
+	// Reverse: every registered tool is in the canonical set — no tool reaches the
+	// agent LLM without a deliberate AgentFacingToolNames entry.
+	for name := range registered {
+		if !canonical[name] {
+			t.Errorf("tool %q is registered in NewServer but NOT in AgentFacingToolNames — add it deliberately (is it meant to be agent-facing?)", name)
+		}
+	}
+	// Size parity = fast signal the two sets diverged.
+	if len(registered) != len(AgentFacingToolNames) {
+		t.Errorf("registered tool count = %d, AgentFacingToolNames = %d (sets diverged)", len(registered), len(AgentFacingToolNames))
+	}
+	// FilesSeamTools (the reverse-lockstep exception markers) must be real
+	// agent-facing tools.
+	for _, name := range FilesSeamTools {
+		if !canonical[name] {
+			t.Errorf("FilesSeamTools entry %q is not in AgentFacingToolNames", name)
 		}
 	}
 }

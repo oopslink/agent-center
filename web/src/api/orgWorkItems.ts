@@ -4,11 +4,12 @@ import { qk } from './queryKeys';
 import type { OrgWorkItem } from './types';
 
 // v2.8 #258: org-scoped cross-project Issues/Tasks aggregation.
-// GET /api/issues?org_slug=<slug> | GET /api/tasks?org_slug=<slug>
+// GET /api/orgs/{slug}/issues | GET /api/orgs/{slug}/tasks
 //   → { items: OrgWorkItem[], total }.
-// org scope follows the /api/projects convention: org_slug is auto-injected by
-// the api client from the current /organizations/:slug/* URL (these paths are
-// NOT in ORG_INJECT_EXEMPT), so the hook just calls /issues|/tasks.
+// org scope follows the /api/projects convention: the /orgs/{slug} path segment
+// is auto-injected by the api client (withOrgSlug) from the current
+// /organizations/:slug/* URL (these paths are NOT in ORG_INJECT_EXEMPT), so the
+// hook just calls /issues|/tasks.
 
 export type OrgWorkItemKind = 'issue' | 'task';
 

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { currentOrgScope } from './queryKeys';
+import { currentOrgScope, qk } from './queryKeys';
 
 // membersKey is org-scoped so switching orgs / tabs doesn't reuse cached members.
 const membersKey = () => ['org', currentOrgScope(), 'members'] as const;
@@ -32,6 +32,23 @@ export function normalizeIdentityRef(ref: string): string {
   if (ref.startsWith('user:')) return ref.slice('user:'.length);
   if (ref.startsWith('agent:')) return ref.slice('agent:'.length);
   return ref;
+}
+
+// identityRefOf builds the prefixed identity ref ("agent:<id>" / "user:<id>")
+// from a member-like value — the inverse of normalizeIdentityRef. The id is
+// normalized first so an already-prefixed identity_id is not double-prefixed.
+// Consolidates the per-component `refOf` duplication (DMStartModal /
+// MemberInviteModal / ProjectMemberAddModal / AppLayout / MentionText). v2.9 #254.
+export function identityRefOf(m: { kind: 'user' | 'agent'; identity_id: string }): string {
+  return `${m.kind === 'agent' ? 'agent:' : 'user:'}${normalizeIdentityRef(m.identity_id)}`;
+}
+
+// refKind reads the kind from a prefixed identity ref ("agent:" → 'agent',
+// otherwise 'user'). Matches MemberResult.kind. v2.9 #254. NOTE: UI sites that
+// map to the 'agent' | 'human' avatar-kind contract (ParticipantsPanel /
+// MessageList) intentionally keep their own mapping — different return type.
+export function refKind(ref: string): 'user' | 'agent' {
+  return ref.startsWith('agent:') ? 'agent' : 'user';
 }
 
 export interface AddUserResult extends MemberResult {
@@ -132,7 +149,15 @@ export function useAddAgentMember() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: AddAgentMemberPayload) => membersApi.addAgent(payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
+    // v2.9 #300: the unified create writes BOTH a member row AND an execution
+    // Agent, so it must invalidate the agents list (qk.agents()) as well as the
+    // members list. Without the agents invalidation the new agent never appears
+    // in Agents / Home / MembersAgents / WorkerManagement / BoundAgents /
+    // Environment (all read useAgents → qk.agents()) until a manual reload.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: membersKey() });
+      void qc.invalidateQueries({ queryKey: qk.agents() });
+    },
   });
 }
 

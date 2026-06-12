@@ -67,10 +67,10 @@ export default function Signin(): React.ReactElement {
                 type="password"
                 value={passcode}
                 autoComplete="current-password"
-                maxLength={6}
+                maxLength={128}
                 onChange={(e) => setPasscode(e.target.value)}
                 className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted"
-                placeholder="••••••"
+                placeholder="Your password"
               />
             </div>
 

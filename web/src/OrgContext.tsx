@@ -76,8 +76,15 @@ function OrgErrorScreen({ code, slug }: { code: 403 | 404; slug?: string }): Rea
 }
 
 // OrgGuard validates the :slug URL parameter against the user's org list.
-// - Loading: shows spinner
-// - No orgs at all: redirect to /signup
+// - Loading OR not-yet-successfully-settled (incl. a transient error that React
+//   Query is still retrying): shows spinner. We must NOT treat an errored/
+//   undefined query the same as "genuinely no orgs" — under startup CPU
+//   starvation GET /api/orgs can transiently 401, and prematurely redirecting to
+//   /signup before the query settles is a robustness bug (v2.9 OrgGuard 401
+//   retry). A genuine unauthenticated user is handled at the fetch layer
+//   (client.ts request() → redirectUnauthenticated() on a real 401), so this
+//   spinner never spins forever for unauth.
+// - Settled successfully with no orgs at all: redirect to /signup.
 // - Slug present but not in the user's active orgs: 404 (deleted/unknown) vs
 //   403 (exists but not a member) — but the /api/orgs list only returns orgs
 //   the caller belongs to, so from the SPA's view an unmatched slug is "not a
@@ -88,7 +95,9 @@ export function OrgGuard({ children }: { children: React.ReactNode }): React.Rea
   const { slug } = useParams<{ slug: string }>();
   const orgs = useOrgs();
 
-  if (orgs.isLoading) {
+  // Loading or not-yet-settled-successfully (e.g. a transient error still being
+  // retried) → spinner. Only a settled-success result drives a redirect.
+  if (!orgs.isSuccess) {
     return (
       <div className="flex h-screen items-center justify-center bg-bg-base">
         <span className="text-sm text-text-muted">Loading…</span>
@@ -96,7 +105,7 @@ export function OrgGuard({ children }: { children: React.ReactNode }): React.Rea
     );
   }
 
-  // No organizations at all → must sign up / be added to one.
+  // Settled successfully with no organizations at all → must sign up / be added.
   if ((orgs.data ?? []).length === 0) {
     return <Navigate to="/signup" replace />;
   }
@@ -120,9 +129,13 @@ export function OrgGuard({ children }: { children: React.ReactNode }): React.Rea
 }
 
 // OrgRedirect — redirect from / or unknown paths to the first org's home.
+// Mirrors OrgGuard's settle gating: only a settled-success result drives a
+// redirect. While loading or while a transient error is still being retried we
+// show the spinner (genuine unauth is handled at the fetch layer), so a starved
+// GET /api/orgs never bounces the user to /signup before the query settles.
 export function OrgRedirect(): React.ReactElement {
   const orgs = useOrgs();
-  if (orgs.isLoading) {
+  if (!orgs.isSuccess) {
     return (
       <div className="flex h-screen items-center justify-center bg-bg-base">
         <span className="text-sm text-text-muted">Loading…</span>

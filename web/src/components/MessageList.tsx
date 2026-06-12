@@ -38,8 +38,9 @@ export function formatBytes(n: number): string {
 }
 
 // attachmentHref maps an ac://files/{ulid} URI to the gated download endpoint,
-// carrying the current org scope (?org_slug=) the same way the api client does —
-// GET /api/files/{ulid} runs requireOrgMember, which 400s without an org scope.
+// carrying the current org scope (path-routed /api/orgs/{slug}/files/{ulid}) the
+// same way the api client does — the endpoint runs requireOrgMember, which
+// rejects requests without an org scope.
 export function attachmentHref(uri: string): string {
   const prefix = 'ac://files/';
   if (!uri.startsWith(prefix)) return '#';

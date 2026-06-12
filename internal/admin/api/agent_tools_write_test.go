@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,16 @@ type writeToolsFixture struct {
 	clk        *clock.FakeClock
 }
 
+// atAllAgentsDir maps every agent to the fixture's test org so an agent assignee
+// resolves (exists + same org) in StartPlan's §9.6c assignee validation. Mirrors
+// the webconsole plan test's allAgentsDir (returning the project's org so the
+// cross-org guard passes).
+type atAllAgentsDir struct{}
+
+func (atAllAgentsDir) OrgOfAgent(_ context.Context, _ string) (string, error) {
+	return atTestOrg, nil
+}
+
 func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 	t.Helper()
 	db, err := persistence.Open(persistence.MemoryDSN())
@@ -89,6 +100,11 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 	msgRepo := convsql.NewMessageRepo(db)
 	writer := convservice.NewMessageWriter(db, convRepo, msgRepo, sink, gen, clk)
 
+	// v2.9 P3 Stage C: wire the Plan repo + a REAL PlanDispatcher (over the
+	// MessageWriter) so the Plan passthrough tools' AppServices are AVAILABLE in
+	// the fixture (mirrors the webconsole plan test). allAgentsDir resolves every
+	// agent assignee into the test org so StartPlan's §9.6c assignee check passes.
+	plans := pmsql.NewPlanRepo(db)
 	pmSvc := pmservice.New(pmservice.Deps{
 		DB:           db,
 		Projects:     pmsql.NewProjectRepo(db),
@@ -98,16 +114,27 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
 		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
+		Plans:        plans,
 		Outbox:       outboxsql.NewOutboxRepo(db),
 		IDGen:        gen,
 		Clock:        clk,
-		AgentDir:     agent.NewOrgDirectory(agents),
+		AgentDir:     atAllAgentsDir{},
+		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, func(_ context.Context, ref string) (string, bool) {
+			if i := strings.IndexByte(ref, ':'); i >= 0 {
+				ref = ref[i+1:]
+			}
+			if strings.TrimSpace(ref) == "" {
+				return "", false
+			}
+			return ref, true
+		}),
 	})
 
 	outboxRepo := outboxsql.NewOutboxRepo(db)
 	applied := outboxsql.NewAppliedRepo(db)
 	relay := outbox.NewRelay(outboxsql.NewOutboxRepo(db), applied, clk,
 		pmservice.NewParticipantProjector(db, convRepo, applied, gen, clk),
+		pmservice.NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk),
 		pmservice.NewWorkItemProjector(db, workItems, applied, gen, clk))
 
 	// Seed the worker + agent (bound to W1, in the test org).

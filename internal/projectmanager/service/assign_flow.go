@@ -32,6 +32,10 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject (re)assign on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
 		prev := t.Assignee()
 		if err := t.Assign(assignee, now); err != nil {
 			return err
@@ -60,8 +64,36 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		if prev != "" {
 			evt = EvtTaskReassigned
 		}
-		return s.emitTaskAssignEvent(txCtx, t, evt, string(prev))
+		if err := s.emitTaskAssignEvent(txCtx, t, evt, string(prev)); err != nil {
+			return err
+		}
+		// BUG B (v2.9 assign-after-select): if this task is already in a plan,
+		// emit pm.plan.participants_changed so the NEW assignee additively joins the
+		// Plan conversation (#284). SelectTaskIntoPlan only syncs the assignee that
+		// existed AT SELECT TIME; an agent assigned LATER would otherwise be left out
+		// of the plan conversation → the dispatch @mention (BUG C) can't reach it.
+		return s.syncPlanParticipantOnAssign(txCtx, t, assignee)
 	})
+}
+
+// syncPlanParticipantOnAssign emits pm.plan.participants_changed for the task's
+// plan (if any) with `assignee` as an ADD-ONLY participant delta — mirroring
+// SelectTaskIntoPlan's emit (plan_flow.go) so the assign-after-select sequence
+// (task selected first, agent assigned later) still adds the agent to the Plan
+// conversation (#284, additive). A task not in a plan (PlanID == "") or an empty
+// assignee is a no-op (nothing to sync). Runs in the AssignTask tx.
+func (s *Service) syncPlanParticipantOnAssign(ctx context.Context, t *pm.Task, assignee pm.IdentityRef) error {
+	planID := t.PlanID()
+	if planID == "" || strings.TrimSpace(string(assignee)) == "" {
+		return nil
+	}
+	return s.emit(ctx, EvtPlanParticipantsChanged,
+		refsJSON(map[string]string{"plan_id": string(planID), "project_id": string(t.ProjectID())}),
+		planEventPayload{
+			PlanID: string(planID), ProjectID: string(t.ProjectID()),
+			OrganizationID: "", OwnerRef: "pm://plans/" + string(planID),
+			Participants: []string{string(assignee)},
+		})
 }
 
 // StartTask moves an assigned Task to running (the explicit "picked up/started"
@@ -93,6 +125,10 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject unblock on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
 		if err := t.Unblock(now); err != nil {
@@ -212,6 +248,11 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject unassign on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		prevStatus := t.Status() // Unassign is metadata-only; status unchanged.
 		prev := t.Assignee()
 		if err := t.Unassign(now); err != nil {
 			return err
@@ -222,7 +263,7 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, "")
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
 	})
 }
 
@@ -241,6 +282,11 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject reopen on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		prevStatus := t.Status() // before the reopen chain (completed/verified).
 		prevAssignee, prevCompleter := t.Assignee(), t.CompletedBy()
 		if err := t.Reopen(now); err != nil {
 			return err
@@ -257,7 +303,7 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, "")
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
 	})
 }
 
@@ -273,13 +319,19 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject any status transition (Start/Discard/Block/Complete/Verify/
+		// SetStatus — every taskStateOp caller) on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		prevStatus := t.Status() // snapshot BEFORE the transition (Discard/SetStatus/...).
 		if err := mutate(t, now); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, reason)
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, reason)
 	})
 }
 
@@ -323,13 +375,20 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject batch task edit on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		prevStatus := t.Status() // snapshot BEFORE patch.Status applies (if any).
 		if patch.Title != nil {
 			if err := t.Rename(*patch.Title, now); err != nil {
 				return err
 			}
 		}
 		if patch.Description != nil {
-			t.SetDescription(*patch.Description, now)
+			if err := t.SetDescription(*patch.Description, now); err != nil {
+				return err
+			}
 		}
 		if patch.Status != nil {
 			if err := t.SetStatus(pm.TaskStatus(*patch.Status), now); err != nil {
@@ -353,7 +412,7 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, "")
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
 	})
 }
 
@@ -380,7 +439,15 @@ func (s *Service) emitTaskAssignEvent(ctx context.Context, t *pm.Task, evt, prev
 // leave the task Conversation. The ParticipantProjector consumes this and
 // rewrites participants to the effective set (set semantics → idempotent for
 // state changes that don't move the set, e.g. start/block/complete).
-func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, reason string) error {
+//
+// prevStatus is the task's status captured by the caller BEFORE the transition
+// this emit reports (the task is already transitioned by the time we run, so the
+// caller MUST snapshot prev). It rides the payload as PrevStatus so the P2-2
+// failure handler can notify ONLY on the →failed transition (#re-discard edge).
+// For emits that follow no status transition (assign/reassign/unassign tags-only
+// edits), the caller passes the current status — prev == now means "not a
+// transition", which is never a failure transition anyway.
+func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, prevStatus pm.TaskStatus, reason string) error {
 	manual, err := s.taskSubs.ListByTask(ctx, t.ID())
 	if err != nil {
 		return err
@@ -390,7 +457,7 @@ func (s *Service) emitTaskStateChanged(ctx context.Context, t *pm.Task, reason s
 		taskEventPayload{
 			TaskID: string(t.ID()), ProjectID: string(t.ProjectID()),
 			OwnerRef: "pm://tasks/" + string(t.ID()), Assignee: string(t.Assignee()),
-			Status: string(t.Status()), Reason: reason,
+			Status: string(t.Status()), PrevStatus: string(prevStatus), Reason: reason,
 			EffectiveSubscribers: EffectiveTaskSubscribers(t, manual),
 		})
 }

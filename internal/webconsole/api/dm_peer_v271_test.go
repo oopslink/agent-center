@@ -15,7 +15,7 @@ func TestDM_SelfRejected(t *testing.T) {
 	deps, _ := setupAPI(t) // caller = user:hayang
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations", "application/json",
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations", "application/json",
 		strings.NewReader(`{"kind":"dm","members":["user:hayang"]}`))
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("self-DM got %d, want 400", resp.StatusCode)
@@ -29,7 +29,7 @@ func TestDM_Dedup(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	first, _ := http.Post(s.URL+"/api/conversations", "application/json",
+	first, _ := http.Post(s.URL+"/api/orgs/_/conversations", "application/json",
 		strings.NewReader(`{"kind":"dm","members":["agent:s-1"]}`))
 	if first.StatusCode != http.StatusCreated {
 		t.Fatalf("first DM got %d, want 201", first.StatusCode)
@@ -38,7 +38,7 @@ func TestDM_Dedup(t *testing.T) {
 	_ = json.NewDecoder(first.Body).Decode(&b1)
 	id1, _ := b1["conversation_id"].(string)
 
-	second, _ := http.Post(s.URL+"/api/conversations", "application/json",
+	second, _ := http.Post(s.URL+"/api/orgs/_/conversations", "application/json",
 		strings.NewReader(`{"kind":"dm","members":["agent:s-1"]}`))
 	if second.StatusCode != http.StatusOK {
 		t.Fatalf("second DM got %d, want 200 (dedup reuse)", second.StatusCode)

@@ -309,6 +309,13 @@ export function useSSE(opts?: { factory?: EventSourceFactory }): void {
   const ctrlRef = useRef<Controller | null>(null);
 
   useEffect(() => {
+    // Don't open a connection until the authenticated identity is known.
+    // currentUserId starts empty and is seeded from /api/auth/me by
+    // AppLayout; connecting earlier would subscribe the SSE stream under a
+    // placeholder identity (historically the hardcoded 'user:hayang'),
+    // producing a stray /api/sse?user_id=user:hayang request before the
+    // real session resolves.
+    if (!userId) return;
     const factory = opts?.factory ?? ((url: string) => new EventSource(url));
     ctrlRef.current = startSSE({ userId, qc, store: useAppStore, factory });
     return () => {

@@ -27,9 +27,18 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 type RequestInitWithTimeout = RequestInit & { timeoutMs?: number };
 
-// v2.6-FE-6: paths that must NOT receive auto-injected org_slug. /auth/* runs
-// before org context exists; /orgs is the cross-org meta endpoint.
-const ORG_INJECT_EXEMPT = ['/auth/', '/orgs', '/health', '/system/'];
+// v2.9 org-routing: resource paths that must NOT be scoped under /orgs/{slug}.
+// These are matched against the /api-relative path (the leading "/api" prefix,
+// if present, is stripped before the check). The locked exempt set is:
+//   /auth/*   — runs before org context exists
+//   /orgs     — org CRUD itself (/orgs, /orgs/{id}); cross-org meta endpoint
+//   /users/   — cross-org user profile (/users/{user_id})
+//   /sse      — per-user SSE stream + subscribe/unsubscribe
+//   /health   — liveness probe
+//   /system/  — system endpoints
+// NB: /orgs only ever appears here as an INPUT path (org CRUD). The org-scoped
+// form /orgs/{slug}/<resource> is the OUTPUT of withOrgSlug, never an input.
+const ORG_INJECT_EXEMPT = ['/auth/', '/orgs', '/users/', '/sse', '/health', '/system/'];
 
 function shouldInjectOrgSlug(path: string): boolean {
   for (const p of ORG_INJECT_EXEMPT) {
@@ -51,18 +60,36 @@ function readCurrentOrgSlug(): string | null {
   }
 }
 
-// withOrgSlug appends ?org_slug=<current> to a /api path. Exported so the few
-// raw-fetch call sites (AddWorkerModal, Fleet worker actions, InstallCommandModal)
-// that bypass the api client still carry the org scope. Pass an /api-relative
-// path (e.g. "/workers/x/name"); the helper applies the same exemptions as the
-// client's auto-injection.
+// withOrgSlug splices /orgs/{currentSlug} into a path so org-scoped requests
+// hit the v2.9 path-routed backend (GET /api/orgs/{slug}/projects, …) instead
+// of the legacy ?org_slug= query form. Exported so the few raw-fetch call sites
+// (AddWorkerModal, Fleet worker actions, InstallCommandModal, MessageList,
+// conversations upload, projects delete) that bypass the api client still carry
+// the org scope.
+//
+// Two input conventions are accepted:
+//   - /api-relative paths from request()/api.* (e.g. "/projects") → returns
+//     "/orgs/{slug}/projects" (request() then prepends "/api").
+//   - full paths from raw fetch() sites (e.g. "/api/workers/x") → returns
+//     "/api/orgs/{slug}/workers/x" (the /orgs/{slug} segment is inserted AFTER
+//     the leading /api, never before it).
+//
+// Returns the path unchanged when: the resource is exempt (see
+// ORG_INJECT_EXEMPT), there is no org slug in the browser URL, or the path is
+// already org-scoped (defensive guard against double-prefixing).
 export function withOrgSlug(path: string): string {
-  if (!shouldInjectOrgSlug(path)) return path;
+  // Normalise: separate an optional leading "/api" prefix from the resource
+  // path so exemption + splicing operate on the /api-relative resource.
+  const hasApiPrefix = path === '/api' || path.startsWith('/api/');
+  const prefix = hasApiPrefix ? '/api' : '';
+  const resource = hasApiPrefix ? path.slice('/api'.length) : path;
+
+  if (!shouldInjectOrgSlug(resource)) return path;
+  // Already org-scoped — don't double-prefix.
+  if (resource === '/orgs' || resource.startsWith('/orgs/')) return path;
   const slug = readCurrentOrgSlug();
   if (!slug) return path;
-  // Don't override if caller already set the param.
-  if (path.includes('org_slug=') || path.includes('org_id=')) return path;
-  return path + (path.includes('?') ? '&' : '?') + 'org_slug=' + encodeURIComponent(slug);
+  return `${prefix}/orgs/${encodeURIComponent(slug)}${resource}`;
 }
 
 export async function request<T>(path: string, init: RequestInitWithTimeout = {}): Promise<T> {

@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { useCreateConversation } from '@/api/conversations';
-import { useMembers, normalizeIdentityRef, type MemberResult } from '@/api/members';
+import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { useModalA11y } from './useModalA11y';
 
@@ -29,7 +29,6 @@ export function DMStartModal({
   const containerRef = useModalA11y({ open, onClose });
 
   const meBare = me ? normalizeIdentityRef(me) : '';
-  const refOf = (m: MemberResult) => (m.kind === 'agent' ? 'agent:' : 'user:') + m.identity_id;
 
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -91,7 +90,7 @@ export function DMStartModal({
               </li>
             )}
             {candidates.map((m) => {
-              const ref = refOf(m);
+              const ref = identityRefOf(m);
               const active = selected === ref;
               return (
                 <li key={ref}>

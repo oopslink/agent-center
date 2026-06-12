@@ -22,6 +22,10 @@ func (s *Service) TransitionIssue(ctx context.Context, issueID pm.IssueID, to pm
 		if err := s.requireProjectMember(txCtx, i.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject issue transition on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
+			return err
+		}
 		if err := i.Transition(to, now); err != nil {
 			return err
 		}
@@ -49,6 +53,10 @@ func (s *Service) SetIssueStatus(ctx context.Context, issueID pm.IssueID, target
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, i.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject issue status-set on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
 		if err := i.SetStatus(target, now); err != nil {
@@ -91,6 +99,10 @@ func (s *Service) BatchUpdateIssue(ctx context.Context, issueID pm.IssueID, patc
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, i.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject batch issue edit on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
 		if patch.Title != nil {

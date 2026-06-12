@@ -411,6 +411,17 @@ func (s *Server) routes() {
 	// differs. The literal `transfer` segment is more specific than `{ulid}`, so
 	// ServeMux routes PUT/complete to the transfer handlers and bare GET to
 	// download (same precedence trick as D3-d).
+	s.mux.HandleFunc("POST /admin/agent-tools/create_plan", s.createPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/add_task_to_plan", s.addTaskToPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/remove_task_from_plan", s.removeTaskFromPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/add_plan_dependency", s.addPlanDependencyHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/remove_plan_dependency", s.removePlanDependencyHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/start_plan", s.startPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/stop_plan", s.stopPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/delete_plan", s.deletePlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/archive_plan", s.archivePlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_plan", s.getPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_plans", s.listPlansHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/attach_file", s.attachFileHandler)
 	s.mux.HandleFunc("PUT /admin/files/transfer/{transfer_id}", s.putAgentBlobHandler)

@@ -33,6 +33,41 @@ const (
 	EvtTaskReassigned    = "pm.task.reassigned"
 	EvtTaskStateChanged  = "pm.task.state_changed"
 	EvtTaskSubsChanged   = "pm.task.subscribers_changed"
+	// v2.9 plan orchestration (#284). EvtPlanCreated drives the Plan↔Conversation
+	// 1:1 create (owner_ref pm://plans/{id}); EvtPlanParticipantsChanged drives
+	// the ADDITIVE participant sync (§9.5) when a task is selected into a Plan or
+	// a plan-task's assignee changes.
+	EvtPlanCreated             = "pm.plan.created"
+	EvtPlanParticipantsChanged = "pm.plan.participants_changed"
+	// v2.9 P2-1 auto-advance: EvtPlanStarted is emitted by StartPlan after the
+	// draft→running transition. The PlanOrchestratorProjector consumes it to
+	// dispatch the Plan's INITIAL ready nodes (those with no upstream) — no
+	// manual Advance click. Payload mirrors planEventPayload (PlanID + ProjectID
+	// + OrganizationID).
+	EvtPlanStarted = "pm.plan.started"
+	// v2.9 P3 (delete + archive). EvtPlanDeleted is emitted by DeletePlan AFTER the
+	// plan row (+ its tasks unloaded to backlog + deps/dispatch-records) are gone; the
+	// PlanParticipantProjector consumes it to HARD-DELETE the plan's 1:1 Conversation
+	// (owner_ref pm://plans/{id}) — the cross-BC "删会话" cleanup, mirroring how
+	// EvtPlanCreated CREATES that conversation (reverse direction). EvtPlanArchived is
+	// emitted by ArchivePlan after the plan + cascade-task archive; the projector
+	// ARCHIVES the plan's conversation (UpdateArchive) for consistency.
+	EvtPlanDeleted  = "pm.plan.deleted"
+	EvtPlanArchived = "pm.plan.archived"
+	// v2.9 P3 (failure→agent-creator-wake, §9.1 / decision-1). Emitted by the
+	// PlanOrchestratorProjector's notifyCreatorOnFailure — IN THE SAME TX as the
+	// failure @mention PostMention — ONLY when the Plan creator is an AGENT
+	// (CreatorRef has the "agent:" scheme). The (production-registered) WakeProjector
+	// consumes it and enqueues an agent.converse control command for the
+	// agent-creator pointing at the plan conversation, so the agent wakes to READ the
+	// failure @mention and self-handle (adjust DAG / escalate via the Stage C MCP plan
+	// tools). This is the SANCTIONED DIRECT system wake for a DETERMINED creator on a
+	// DETERMINED failure event — NOT the human-only @mention wake path (#220 / v2.7
+	// #185 only wakes agents on `user:` senders, so a system @mention can never wake an
+	// agent creator). It does NOT widen #185: it is a one-shot system→agent wake on a
+	// failure transition, not a chat agent→agent reply loop. For a HUMAN creator NO
+	// event is emitted (the @mention in the conversation IS their notification).
+	EvtPlanCreatorFailureWake = "pm.plan.creator_failure_wake"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
@@ -54,9 +89,13 @@ type Service struct {
 	taskSubs     pm.TaskSubscriberRepository
 	issueSubs    pm.IssueSubscriberRepository
 	codeRepoRefs pm.CodeRepoRefRepository
-	outbox       outbox.Repository
-	idgen        idgen.Generator
-	clock        clock.Clock
+	// plans is OPTIONAL (nil-safe, v2.9 #284). nil ⇒ the Plan AppServices
+	// (CreatePlan / SelectTaskIntoPlan / RemoveTaskFromPlan) are unavailable;
+	// pre-#284 service constructions keep working unchanged.
+	plans  pm.PlanRepository
+	outbox outbox.Repository
+	idgen  idgen.Generator
+	clock  clock.Clock
 	// agentDir is OPTIONAL (nil-safe). nil ⇒ AssignTask skips the
 	// agent-membership step entirely (preserves pre-#5a behavior).
 	agentDir AgentDirectory
@@ -64,7 +103,15 @@ type Service struct {
 	// skip org-number allocation (org_number stays 0, org_ref omitted) — keeps
 	// pre-#245 service constructions (tests) working unchanged.
 	orgSeq pm.OrgSequenceRepository
+	// planDispatcher is OPTIONAL (nil-safe, v2.9 #285). nil ⇒ AdvancePlan returns
+	// ErrDispatcherUnavailable (fail-loud — a missing dispatcher must not silently
+	// no-op the @mention). Posts the node-ready @mention into the Plan conversation.
+	planDispatcher PlanDispatcher
 }
+
+// ErrDispatcherUnavailable is returned by AdvancePlan when no PlanDispatcher is
+// wired (s.planDispatcher == nil) — fail-loud, mirroring ErrPlansUnavailable.
+var ErrDispatcherUnavailable = errors.New("projectmanager: plan dispatcher unavailable — advance cannot post @mentions")
 
 // Deps bundles the Service dependencies.
 type Deps struct {
@@ -76,15 +123,21 @@ type Deps struct {
 	TaskSubs     pm.TaskSubscriberRepository
 	IssueSubs    pm.IssueSubscriberRepository
 	CodeRepoRefs pm.CodeRepoRefRepository
-	Outbox       outbox.Repository
-	IDGen        idgen.Generator
-	Clock        clock.Clock
+	// Plans is OPTIONAL (v2.9 #284): when set, the Plan AppServices are available.
+	// nil ⇒ CreatePlan/SelectTaskIntoPlan/RemoveTaskFromPlan are unavailable.
+	Plans  pm.PlanRepository
+	Outbox outbox.Repository
+	IDGen  idgen.Generator
+	Clock  clock.Clock
 	// AgentDir is OPTIONAL: when set, AssignTask grants an assignee agent
 	// project membership (cross-org-guarded). When nil, that step is skipped.
 	AgentDir AgentDirectory
 	// OrgSeq is OPTIONAL (v2.7.1 #245): when set, CreateTask/CreateIssue allocate
 	// a per-org T<n>/I<n> number. nil ⇒ allocation skipped (org_number 0).
 	OrgSeq pm.OrgSequenceRepository
+	// PlanDispatcher is OPTIONAL (v2.9 #285): when set, AdvancePlan posts the
+	// node-ready @mention into the Plan conversation. nil ⇒ AdvancePlan unavailable.
+	PlanDispatcher PlanDispatcher
 }
 
 // New constructs the Service.
@@ -96,8 +149,8 @@ func New(d Deps) *Service {
 	return &Service{
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
-		codeRepoRefs: d.CodeRepoRefs, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
-		agentDir: d.AgentDir, orgSeq: d.OrgSeq,
+		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
+		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher,
 	}
 }
 
@@ -114,7 +167,58 @@ type taskEventPayload struct {
 	Assignee             string   `json:"assignee,omitempty"`
 	PreviousAssignee     string   `json:"previous_assignee,omitempty"`
 	Status               string   `json:"status,omitempty"`
-	Reason               string   `json:"reason,omitempty"`
+	// PrevStatus is the task's status BEFORE the transition this event reports
+	// (captured by the producer immediately before the AR transition method). It
+	// lets a consumer distinguish a TRANSITION into a state from a re-emit of an
+	// event whose task was ALREADY in that state — used by the P2-2 failure
+	// handler to notify ONLY on the →failed transition (prev not-failed, now
+	// failed), so re-discarding an already-failed task does NOT re-notify. Empty
+	// on old events / non-transition emits ⇒ treated as "unknown / not-failed" so a
+	// genuine first failure still notifies.
+	PrevStatus string `json:"prev_status,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+// planEventPayload is the JSON payload for Plan participant-affecting events
+// (v2.9 #284). It carries enough for the participant projector to (a) create the
+// Plan's 1:1 Conversation by owner_ref on EvtPlanCreated and (b) ADDITIVELY add
+// participants on EvtPlanCreated / EvtPlanParticipantsChanged.
+//
+// Unlike taskEventPayload (which carries the full EFFECTIVE set for overwrite
+// semantics), Participants here is an ADD-ONLY delta: the projector unions it
+// into the conversation's existing participants and NEVER removes anyone (§9.5 —
+// preserve history access, don't yank mid-plan). The creator rides EvtPlanCreated
+// (always a participant); each selected task's current assignee rides a
+// subsequent EvtPlanParticipantsChanged.
+type planEventPayload struct {
+	PlanID         string   `json:"plan_id"`
+	ProjectID      string   `json:"project_id"`
+	OrganizationID string   `json:"organization_id"` // the project's org — stamped onto the Plan Conversation so org-scoped endpoints (incl. agent wake via @mention) resolve it
+	OwnerRef       string   `json:"owner_ref"`       // pm://plans/{id}
+	CreatorRef     string   `json:"creator_ref,omitempty"`
+	Participants   []string `json:"participants"` // ADD-ONLY (additive §9.5); unioned into existing, never removed
+}
+
+// planCreatorFailureWakePayload is the JSON payload for EvtPlanCreatorFailureWake
+// (v2.9 P3 failure→agent-creator-wake). It carries everything the WakeProjector
+// needs to resolve the agent-creator → its worker binding and enqueue an
+// agent.converse pointing at the plan conversation:
+//   - CreatorRef is the agent ref ("agent:<id>") — the WakeProjector strips the
+//     scheme and resolves the agent (tolerating the entity-id OR identity-member-id
+//     form, like deliverConverse) → its worker binding.
+//   - ConversationID is the plan's 1:1 conversation (where the failure @mention was
+//     posted) — the converse target + cursor the agent reads.
+//   - MessageID is the failure @mention's message id (from PostMention). It is the
+//     idempotency anchor: the converse key embeds it so a redelivered wake on the
+//     SAME failure transition never double-wakes the creator.
+//   - PlanID / TaskID / OrganizationID are diagnostic context (the failure locus).
+type planCreatorFailureWakePayload struct {
+	CreatorRef     string `json:"creator_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	PlanID         string `json:"plan_id"`
+	TaskID         string `json:"task_id"`
+	OrganizationID string `json:"organization_id"`
 }
 
 type issueEventPayload struct {
@@ -216,6 +320,25 @@ func (s *Service) requireProjectMember(ctx context.Context, projectID pm.Project
 			return ErrNotMember
 		}
 		return err
+	}
+	return nil
+}
+
+// requireProjectMutable is the v2.9 #297 archived-project write-gate: an archived
+// Project is PURE READ-ONLY (@oopslink: archive is IRREVERSIBLE, no restore), so
+// every project-CHILD mutation must reject with pm.ErrProjectArchived (→ 409
+// cross-surface) once the project is archived. It loads the project (projects.
+// FindByID; a missing project surfaces pm.ErrProjectNotFound) and returns
+// pm.ErrProjectArchived when status == archived, else nil. Callers invoke it INSIDE
+// their tx, AFTER loading the mutated entity (so the projectID is resolved) and
+// BEFORE the write. Reads (GetX/ListX) and the Archive op itself do NOT call it.
+func (s *Service) requireProjectMutable(ctx context.Context, projectID pm.ProjectID) error {
+	p, err := s.projects.FindByID(ctx, projectID)
+	if err != nil {
+		return err // pm.ErrProjectNotFound when missing
+	}
+	if p.Status() == pm.ProjectArchived {
+		return pm.ErrProjectArchived
 	}
 	return nil
 }

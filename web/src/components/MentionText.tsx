@@ -1,6 +1,6 @@
 import type React from 'react';
 import { Fragment, useMemo } from 'react';
-import { useMembers, normalizeIdentityRef } from '@/api/members';
+import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 
 // v2.8.1 #281 (mention-sidebar) entry ②: @mention tokens in message content.
 //
@@ -30,8 +30,7 @@ export function useMentionResolver(): (handle: string) => string | null {
   const byHandle = useMemo(() => {
     const m = new Map<string, string>();
     for (const mem of members.data ?? []) {
-      const prefix = mem.kind === 'agent' ? 'agent:' : 'user:';
-      const ref = `${prefix}${normalizeIdentityRef(mem.identity_id)}`;
+      const ref = identityRefOf(mem);
       const tail = normalizeIdentityRef(mem.identity_id).toLowerCase();
       if (tail) m.set(tail, ref);
       if (mem.display_name) {

@@ -81,6 +81,12 @@ type PeekConfig struct {
 
 // ServerConfig: 04-configuration § 7.1.
 type ServerConfig struct {
+	// ListenAddr is DEPRECATED (v2.9 #174): it was validated-required but never
+	// actually bound — the web server binds WebConsole.ListenAddr and the admin
+	// endpoint uses its own socket / AdminTCPListen. The field is retained (no
+	// longer required, no env/flag/default plumbing) only so existing config
+	// files that still set `server.listen_addr` keep loading under strict decode;
+	// the value is ignored. Remove once deployed configs have dropped the key.
 	ListenAddr      string `yaml:"listen_addr"`
 	SqlitePath      string `yaml:"sqlite_path"`
 	AdminSocketPath string `yaml:"admin_socket_path"`
@@ -188,7 +194,6 @@ func (e ExecutionConfig) KillGrace() time.Duration {
 func DefaultConfig() Config {
 	return Config{
 		Server: ServerConfig{
-			ListenAddr:      ":7000",
 			SqlitePath:      "/var/lib/agent-center/agent-center.db",
 			AdminSocketPath: "/run/agent-center/admin.sock",
 		},
@@ -508,10 +513,6 @@ func applyEnvOverrides(cfg *Config, env func(string) (string, bool)) error {
 		setter func(string) error
 	}
 	bindings := []binding{
-		{"AGENT_CENTER_SERVER_LISTEN_ADDR", func(v string) error {
-			cfg.Server.ListenAddr = v
-			return nil
-		}},
 		{"AGENT_CENTER_SERVER_SQLITE_PATH", func(v string) error {
 			cfg.Server.SqlitePath = v
 			return nil
@@ -560,10 +561,6 @@ func applyFlagOverrides(cfg *Config, flags map[string]string) error {
 		return nil
 	}
 	allowed := map[string]func(string) error{
-		"server.listen_addr": func(v string) error {
-			cfg.Server.ListenAddr = v
-			return nil
-		},
 		"server.sqlite_path": func(v string) error {
 			cfg.Server.SqlitePath = v
 			return nil
@@ -588,9 +585,6 @@ func applyFlagOverrides(cfg *Config, flags map[string]string) error {
 
 func validate(cfg *Config) error {
 	var errs []string
-	if strings.TrimSpace(cfg.Server.ListenAddr) == "" {
-		errs = append(errs, "server.listen_addr: required")
-	}
 	if strings.TrimSpace(cfg.Server.SqlitePath) == "" {
 		errs = append(errs, "server.sqlite_path: required")
 	}

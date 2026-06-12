@@ -1,8 +1,9 @@
 import type React from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageList } from './MessageList';
+import { useAppStore } from '@/store/app';
 import type { Message } from '@/api/types';
 
 // v2.7 #160: MessageList now resolves sender display names via useMembers
@@ -37,7 +38,16 @@ function stubScroll(el: HTMLElement, opts: { scrollHeight: number; clientHeight:
 }
 
 describe('MessageList', () => {
-  afterEach(() => cleanup());
+  // currentUserId starts EMPTY in the store and is seeded from /api/auth/me at
+  // runtime. sample() messages are sent by 'user:hayang', and several tests
+  // below assert "own message" styling — so seed the viewer identity to match.
+  beforeEach(() => {
+    useAppStore.setState({ currentUserId: 'user:hayang' });
+  });
+  afterEach(() => {
+    cleanup();
+    useAppStore.setState({ currentUserId: '' });
+  });
 
   it('renders empty state when no messages', () => {
     render(<MessageList messages={[]} />);
@@ -148,10 +158,10 @@ describe('MessageList', () => {
   });
 
   // v2.8.1 chat-rightalign: the viewer's own messages (sender === store
-  // currentUserId, default 'user:hayang') render right-aligned (accent bubble,
-  // no avatar); other people's stay left (avatar + elevated bubble).
+  // currentUserId, seeded to 'user:hayang' in beforeEach) render right-aligned
+  // (accent bubble, no avatar); other people's stay left (avatar + bubble).
   it('renders the viewer\'s OWN message right-aligned (light-blue bubble, dark text, no avatar)', () => {
-    // sample() defaults sender_identity_id to 'user:hayang' === store currentUserId.
+    // sample() sends as 'user:hayang' === the seeded store currentUserId.
     render(<MessageList messages={[sample('M1', 'mine')]} />);
     const row = screen.getByTestId('message-row');
     expect(row).toHaveAttribute('data-own', 'true');

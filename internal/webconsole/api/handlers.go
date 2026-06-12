@@ -169,21 +169,22 @@ func hd(r *http.Request) HandlerDeps {
 }
 
 // resolveOrgIDFromRequest extracts the active organization ID for the request.
-// Resolution order (v2.6 multi-org isolation):
-//  1. ?org_id=<id> query param (explicit)
-//  2. ?org_slug=<slug> query param (frontend auto-injects from URL path)
-//  3. empty string (no org filter — legacy / cross-org callers)
 //
-// Returns the resolved org ID. When no resolver is available (OrgRepo nil),
-// returns the raw value of ?org_id= or empty string.
+// v2.9 org-routing-explicit (no-shim): the org scope is carried by the PATH,
+// not the query string. Org-scoped routes are registered under
+// /api/orgs/{slug}/... so the slug is the {slug} path segment. We resolve it
+// via OrgRepo.GetBySlug → org.ID(). The legacy ?org_id=/?org_slug= query
+// parsing is DELETED — callers must use the path form.
+//
+// Returns the resolved org ID, or empty string when the slug is missing/unknown
+// (or when OrgRepo is nil). requireOrgMember turns empty → 400 org_required.
 func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
-	if v := r.URL.Query().Get("org_id"); v != "" {
-		return v
+	slug := r.PathValue("slug")
+	if slug == "" || d.OrgRepo == nil {
+		return ""
 	}
-	if slug := r.URL.Query().Get("org_slug"); slug != "" && d.OrgRepo != nil {
-		if org, err := d.OrgRepo.GetBySlug(r.Context(), slug); err == nil && org != nil {
-			return org.ID()
-		}
+	if org, err := d.OrgRepo.GetBySlug(r.Context(), slug); err == nil && org != nil {
+		return org.ID()
 	}
 	return ""
 }
@@ -191,7 +192,7 @@ func resolveOrgIDFromRequest(r *http.Request, d HandlerDeps) string {
 // requireOrgMember is the authoritative auth/scope helper for org-scoped APIs.
 // It:
 //  1. Verifies the request has a valid JWT cookie → returns 401 if not.
-//  2. Resolves the target org via ?org_id= / ?org_slug= → returns 400 if missing/unknown.
+//  2. Resolves the target org via the {slug} path segment → returns 400 if missing/unknown.
 //  3. Verifies the caller is a member of that org → returns 403 if not.
 //
 // On success: returns (callerIdentity, callerMember, orgID, true).
@@ -219,7 +220,7 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 	orgID := resolveOrgIDFromRequest(r, d)
 	if orgID == "" {
 		writeError(w, http.StatusBadRequest, "org_required",
-			"missing or unknown organization scope (provide ?org_id= or ?org_slug=)")
+			"missing or unknown organization scope (use /api/orgs/{slug}/...)")
 		return nil, nil, "", false
 	}
 	member, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), orgID, callerID.ID())
@@ -1713,22 +1714,57 @@ func (s *Server) revokeEnrollHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "admintoken_svc_not_wired", "")
 		return
 	}
+	// v2.9 security fix: this state-change endpoint was previously UNAUTHENTICATED
+	// (anyone with a token-id could revoke). Now require ① a valid session AND
+	// ② that the caller is a member of the token's org (resolved via the token's
+	// bound worker). Fail CLOSED — if any auth/lookup dep is missing or the org
+	// can't be resolved, reject rather than allow.
+	if d.AuthSvc == nil || d.MemberRepo == nil || d.WorkerRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "revoke requires auth + member + worker deps")
+		return
+	}
+	cookie, err := r.Cookie(jwtCookieName)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
+		return
+	}
+	callerID, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "invalid session")
+		return
+	}
 	q := r.URL.Query()
 	id := admintoken.TokenID(q.Get("id"))
 	if string(id) == "" {
-		// token_hint is currently advisory — we don't index by
-		// plaintext prefix. Treat as no-op success so the Modal's
-		// fire-and-forget close path doesn't surface noise.
+		// token_hint is advisory — we don't index by plaintext prefix. Authenticated
+		// no-op so the Modal's fire-and-forget close path doesn't surface noise.
 		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	// Resolve the token's org via its bound worker, then verify caller membership.
+	tok, err := d.AdminTokenSvc.FindByID(r.Context(), id)
+	if err != nil || tok == nil {
+		// Nothing to revoke (not-found) → graceful no-op for the close path (no
+		// existence-leak: the caller is already authenticated).
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	wk, err := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(tok.WorkerID()))
+	if err != nil || wk == nil {
+		// Can't resolve the token's org → fail closed (cannot verify membership).
+		writeError(w, http.StatusForbidden, "forbidden", "cannot verify token organization")
+		return
+	}
+	if _, err := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), wk.OrganizationID(), callerID.ID()); err != nil {
+		writeError(w, http.StatusForbidden, "forbidden", "not a member of the token's organization")
 		return
 	}
 	if err := d.AdminTokenSvc.Revoke(r.Context(), admintokensvc.RevokeCommand{
 		ID:     id,
-		By:     string(d.Actor),
+		By:     string(callerID.ID()),
 		Reason: "web-console enroll-modal closed",
 	}); err != nil {
-		// Already-revoked / not-found → 204 is still acceptable for
-		// the close path.
+		// Already-revoked / svc error → 204 still acceptable for the close path.
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

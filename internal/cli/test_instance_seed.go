@@ -46,7 +46,10 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client
 		OrgSlug:     slug,
 		DisplayName: "Owner " + pack.ID,
 		Email:       "owner@" + slug + ".test",
-		Passcode:    "123456",
+		// v2.9 #290: passcode rule strengthened (≥6 + letter+digit+symbol, ≤128) —
+		// the old "123456" (6 digits) now fails ValidatePasscodePlain → seed signup
+		// would 400. Fixed compliant value (printed in the signin pack for UI login).
+		Passcode: "SeedPass1!",
 	}
 
 	// 1. signup → owner user + org + auto-signin (Set-Cookie captured by the jar).
@@ -63,11 +66,11 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client
 		return nil, "", fmt.Errorf("signup: %w", err)
 	}
 
-	// 2. create a project (org resolved via ?org_slug=, same as the UI).
+	// 2. create a project (org carried by the /api/orgs/{slug} path, same as the UI).
 	var projResp struct {
 		ID string `json:"id"`
 	}
-	if err := seedPostJSON(ctx, client, base+"/api/projects?org_slug="+slug, map[string]any{
+	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/projects", map[string]any{
 		"name": "Alpha", "description": "seeded by install test-instance --with-seed",
 	}, &projResp); err != nil {
 		return nil, "", fmt.Errorf("create project: %w", err)
@@ -77,7 +80,7 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client
 	var chanResp struct {
 		ConversationID string `json:"conversation_id"`
 	}
-	if err := seedPostJSON(ctx, client, base+"/api/conversations?org_slug="+slug, map[string]any{
+	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/conversations", map[string]any{
 		"kind": "channel", "name": "general",
 	}, &chanResp); err != nil {
 		return nil, "", fmt.Errorf("create channel: %w", err)

@@ -55,6 +55,161 @@ function taskActionHandlers() {
   ];
 }
 
+// planHandlers — v2.9 #286 Plan orchestration. mock=contract: shapes track the
+// LOCKED v2.9 backend contract (Plan DTO with derived progress/has_failed; Node
+// DTO §9.2). Stateless echo mocks sufficient for the UI + hook tests; the real
+// orchestrator derivation lands backend-side.
+function planHandlers() {
+  const baseNode = (taskId: string, extra: Record<string, unknown> = {}) => ({
+    task_id: taskId,
+    title: 'sample task',
+    assignee_ref: 'agent:builder',
+    task_status: 'open',
+    node_status: 'ready',
+    depends_on: [] as string[],
+    dispatched_at: null,
+    ...extra,
+  });
+  const basePlan = (pid: string, id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    project_id: pid,
+    name: 'Sample plan',
+    description: '',
+    status: 'draft',
+    creator_ref: 'user:owner',
+    conversation_id: 'conv-plan-1',
+    target_date: null,
+    has_failed: false,
+    progress: { done: 0, total: 0 },
+    created_at: '2026-06-01T01:00:00Z',
+    // NB: no `nodes` / `nodes_preview` here — the LIST rows add the enriched
+    // nodes_preview/node_count, the DETAIL + write responses add `nodes`. This
+    // keeps each mock shape matched to its real DTO (pmPlanSummaryMap vs
+    // pmPlanDetailMap) instead of leaking a field into the wrong response.
+    ...extra,
+  });
+  return [
+    // GET / — parallel Plan list (wrapped under `plans`). mock=contract to the
+    // ENRICHED list DTO (merged PR #272 → v2.9 trunk 654d30e, pmPlanSummaryMap):
+    // each row carries progress{done,total} + has_failed + node_count (TOTAL) +
+    // nodes_preview (capped 4, FULL PlanNode shape incl task_status so the card
+    // StatusChip reads it without crashing). NB: the list row carries
+    // nodes_preview/node_count, NOT the detail `nodes` field.
+    http.get('/api/projects/:pid/plans', ({ params }) =>
+      ok({
+        plans: [
+          basePlan(String(params.pid), 'PL-1', {
+            name: 'Onboarding flow',
+            status: 'running',
+            has_failed: true,
+            progress: { done: 2, total: 5 },
+            target_date: '2026-07-01T00:00:00Z',
+            // 6 total nodes; preview capped at 4 → board shows "…and 2 more".
+            node_count: 6,
+            nodes_preview: [
+              baseNode('TS-1', { title: 'Design intake form', task_status: 'done', node_status: 'done' }),
+              baseNode('TS-2', { title: 'Wire welcome email', task_status: 'running', node_status: 'running', assignee_ref: 'user:hayang' }),
+              baseNode('TS-3', { title: 'Set up SSO', task_status: 'open' }),
+              baseNode('TS-4', { title: 'Seed sample data', task_status: 'open' }),
+            ],
+          }),
+          basePlan(String(params.pid), 'PL-2', {
+            name: 'Billing rework',
+            status: 'draft',
+            progress: { done: 0, total: 0 },
+            node_count: 0,
+            nodes_preview: [],
+          }),
+        ],
+      }),
+    ),
+    // POST / — create empty Plan.
+    http.post('/api/projects/:pid/plans', async ({ params, request }) => {
+      const body = (await request.json()) as {
+        name?: string;
+        description?: string;
+        target_date?: string | null;
+      };
+      return ok(
+        basePlan(String(params.pid), 'PL-NEW', {
+          name: body.name ?? 'new plan',
+          description: body.description ?? '',
+          target_date: body.target_date ?? null,
+          nodes: [] as unknown[], // detail-shaped write response (pmPlanDetailMap).
+        }),
+        201,
+      );
+    }),
+    // GET /:id — single Plan with derived nodes.
+    http.get('/api/projects/:pid/plans/:id', ({ params }) =>
+      ok(
+        basePlan(String(params.pid), String(params.id), {
+          name: 'Onboarding flow',
+          progress: { done: 0, total: 1 },
+          nodes: [baseNode('TS-1', { title: 'sample task' })],
+        }),
+      ),
+    ),
+    // PATCH /:id — draft-only edit (name/goal/target_date).
+    http.patch('/api/projects/:pid/plans/:id', async ({ params, request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      return ok(basePlan(String(params.pid), String(params.id), { nodes: [], ...body }));
+    }),
+    // POST /:id/tasks — select a backlog task into the Plan.
+    http.post('/api/projects/:pid/plans/:id/tasks', async ({ params, request }) => {
+      const body = (await request.json()) as { task_id?: string };
+      return ok(
+        basePlan(String(params.pid), String(params.id), {
+          progress: { done: 0, total: 1 },
+          nodes: [baseNode(body.task_id ?? 'TS-1')],
+        }),
+      );
+    }),
+    // DELETE /:id/tasks/:taskId — remove a task from the Plan.
+    http.delete('/api/projects/:pid/plans/:id/tasks/:taskId', () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+    // #287 deps + lifecycle (stubbed contract surface).
+    http.post('/api/projects/:pid/plans/:id/dependencies', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { nodes: [] })),
+    ),
+    http.delete('/api/projects/:pid/plans/:id/dependencies', () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+    http.post('/api/projects/:pid/plans/:id/start', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
+    ),
+    http.post('/api/projects/:pid/plans/:id/stop', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'draft', nodes: [] })),
+    ),
+    http.post('/api/projects/:pid/plans/:id/advance', ({ params }) =>
+      ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
+    ),
+    // v2.9 Stage B (#280): DELETE /:id → { deleted: true }. Non-running only
+    // (running → 409 plan_conflict on the real backend); the plan is gone after.
+    http.delete('/api/projects/:pid/plans/:id', () => ok({ deleted: true })),
+    // v2.9 Stage B (#290): POST /:id/archive → the archived plan detail. Cascade
+    // plan→archived + ALL plan tasks→archived (task.status preserved).
+    http.post('/api/projects/:pid/plans/:id/archive', ({ params }) =>
+      ok(
+        basePlan(String(params.pid), String(params.id), {
+          status: 'archived',
+          archived_at: '2026-06-11T00:00:00Z',
+          archived_by: 'user:owner',
+          nodes: [
+            baseNode('TS-1', {
+              title: 'sample task',
+              archived: true,
+              archived_at: '2026-06-11T00:00:00Z',
+              archived_by: 'user:owner',
+            }),
+          ],
+        }),
+      ),
+    ),
+  ];
+}
+
 // agentHandlers — Agent BC (v2.7 #101) endpoints. The default agent 'aa'
 // (id A-1) is used by the shared hooks.test fixtures. Lifecycle sub-routes
 // echo back an AgentMap with a derived lifecycle.
@@ -127,7 +282,7 @@ function agentHandlers() {
   ];
 }
 
-export const handlers = [
+const baseHandlers = [
   // Health
   http.get('/api/health', () => ok({ status: 'ok' })),
 
@@ -266,23 +421,45 @@ export const handlers = [
     });
   }),
 
-  // v2.7 ProjectManager BC — nested Tasks under a project.
-  http.get('/api/projects/:pid/tasks', ({ params }) =>
-    ok({
-      tasks: [
-        {
-          id: 'TS-1',
-          project_id: String(params.pid),
-          title: 'sample task',
-          description: '',
-          status: 'open',
-          version: 1,
-          created_at: '2026-05-24T01:00:00Z',
-          updated_at: '2026-05-24T01:00:00Z',
-        },
-      ],
-    }),
-  ),
+  // v2.7 ProjectManager BC — nested Tasks under a project. v2.9 #291 Work Board:
+  // the `?unplanned=1` filter (Dev's endpoint, org-gated) returns only the
+  // project tasks with NO plan (plan_id null) — the Backlog column source. Same
+  // Task[] shape as the full list (mock=contract). Without the filter the full
+  // project task list is returned (existing behaviour, unchanged).
+  http.get('/api/projects/:pid/tasks', ({ params, request }) => {
+    const unplanned = new URL(request.url).searchParams.get('unplanned');
+    const tasks = [
+      {
+        id: 'TS-1',
+        project_id: String(params.pid),
+        title: 'sample task',
+        description: '',
+        status: 'open',
+        version: 1,
+        created_at: '2026-05-24T01:00:00Z',
+        updated_at: '2026-05-24T01:00:00Z',
+      },
+    ];
+    if (unplanned === '1') {
+      // Backlog: distinct unplanned task with an assignee so the avatar renders.
+      return ok({
+        tasks: [
+          {
+            id: 'TS-BL1',
+            project_id: String(params.pid),
+            title: 'unplanned backlog task',
+            description: '',
+            status: 'open',
+            assignee: 'agent:builder',
+            version: 1,
+            created_at: '2026-05-24T01:00:00Z',
+            updated_at: '2026-05-24T01:00:00Z',
+          },
+        ],
+      });
+    }
+    return ok({ tasks });
+  }),
   http.post('/api/projects/:pid/tasks', async ({ params, request }) => {
     const body = (await request.json()) as { title?: string; description?: string };
     return ok(
@@ -332,6 +509,11 @@ export const handlers = [
   // Project members (read-only).
   http.get('/api/projects/:pid/members', () => ok({ members: [] })),
 
+  // v2.9 #286 Plan orchestration — mock=contract to the LOCKED v2.9 backend
+  // contract (base /api/projects/:pid/plans). Plan DTO + Node DTO (§9.2 derived)
+  // + create/list/get/add-task/remove-task + #287 deps/lifecycle stubs.
+  ...planHandlers(),
+
   // Agents — Agent BC (v2.7 #101). Org-scoped, wrapped list shape, lifecycle
   // sub-routes + work-items / activity.
   ...agentHandlers(),
@@ -365,23 +547,37 @@ export const handlers = [
 
   // Projects (v2.7 ProjectManager BC projection: wrapped list response;
   // tags retired; status + organization_id + created_by added).
-  http.get('/api/projects', () =>
-    ok({
-      projects: [
-        {
-          id: 'proj-a',
-          organization_id: 'org-test',
-          name: 'Project Alpha',
-          description: 'First sample project',
-          status: 'active',
-          created_by: 'user:hayang',
-          version: 1,
-          created_at: '2026-05-20T01:00:00Z',
-          updated_at: '2026-05-20T01:00:00Z',
-        },
-      ],
-    }),
-  ),
+  http.get('/api/projects', ({ request }) => {
+    // v2.9 #298: the backend default-EXCLUDES archived; ?status=archived →
+    // archived-only; ?status=all → both. Mirror that here so the active list,
+    // the archived group, and the all-case are independently testable.
+    const status = new URL(request.url).searchParams.get('status');
+    const active = {
+      id: 'proj-a',
+      organization_id: 'org-test',
+      name: 'Project Alpha',
+      description: 'First sample project',
+      status: 'active',
+      created_by: 'user:hayang',
+      version: 1,
+      created_at: '2026-05-20T01:00:00Z',
+      updated_at: '2026-05-20T01:00:00Z',
+    };
+    const archived = {
+      id: 'proj-z',
+      organization_id: 'org-test',
+      name: 'Project Zeta (archived)',
+      description: 'A shelved project',
+      status: 'archived',
+      created_by: 'user:hayang',
+      version: 2,
+      created_at: '2026-04-01T01:00:00Z',
+      updated_at: '2026-05-01T01:00:00Z',
+    };
+    if (status === 'archived') return ok({ projects: [archived] });
+    if (status === 'all') return ok({ projects: [active, archived] });
+    return ok({ projects: [active] });
+  }),
   http.post('/api/projects', async ({ request }) => {
     const body = (await request.json()) as { name?: string; description?: string };
     return ok(
@@ -500,4 +696,58 @@ export const handlers = [
 
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),
+
+  // Workers (Environment fleet list). Org-scoped → also gets an /orgs/:slug
+  // variant via the duplication below. Previously unhandled, which made every
+  // org-route render log an MSW onUnhandledRequest error; a default empty list
+  // keeps heavy full-tree renders quiet and fast.
+  http.get('/api/workers', () => ok({ workers: [] })),
+
+  // System build info (org-agnostic → exempt, bare only).
+  http.get('/api/system/version', () => ok({ version: 'test', commit: 'test' })),
+];
+
+// v2.9 org-routing: the web client now path-routes org-scoped calls as
+// /api/orgs/{slug}/<resource> (see withOrgSlug in api/client.ts) instead of the
+// legacy ?org_slug= query. Component/integration tests that render at an
+// /organizations/{slug}/* route therefore fetch the path-routed URL. To keep
+// BOTH conventions working under test — org-route tests (scoped) and
+// pure-unit tests that hit bare /api/* (no org slug in the jsdom URL) — every
+// org-scoped handler is registered twice: once bare and once under
+// /api/orgs/:slug. Exempt resource classes (auth, orgs CRUD, users, sse,
+// health, system) are NEVER path-scoped, matching the backend's locked route
+// table, so they keep only their bare registration.
+const ORG_EXEMPT_PREFIXES = [
+  '/api/auth',
+  '/api/orgs',
+  '/api/users',
+  '/api/sse',
+  '/api/health',
+  '/api/system',
+];
+
+function isExemptHandlerPath(path: string): boolean {
+  return ORG_EXEMPT_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+function orgScopedVariant(handler: (typeof baseHandlers)[number]) {
+  // `resolver` is a protected field on RequestHandler; it is present at runtime
+  // and reading it lets us re-register the same resolver under the path-scoped
+  // URL without duplicating ~80 handler bodies.
+  const h = handler as unknown as {
+    info: { method: string; path: string };
+    resolver: Parameters<typeof http.get>[1];
+  };
+  const { method, path } = h.info;
+  // path is like "/api/projects/:pid/plans" → "/api/orgs/:slug/projects/:pid/plans"
+  const scopedPath = `/api/orgs/:slug${path.slice('/api'.length)}`;
+  const verb = String(method).toLowerCase() as 'get' | 'post' | 'patch' | 'delete' | 'put';
+  return http[verb](scopedPath, h.resolver);
+}
+
+export const handlers = [
+  ...baseHandlers,
+  ...baseHandlers
+    .filter((h) => !isExemptHandlerPath((h.info as { path: string }).path))
+    .map(orgScopedVariant),
 ];

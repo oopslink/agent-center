@@ -138,36 +138,38 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PATCH /api/orgs/{id}", s.updateOrgHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{id}", s.deleteOrgHandler)
 
-	// v2.6-FE-4: Member management.
-	s.mux.HandleFunc("GET /api/members", s.listMembersHandler)
-	s.mux.HandleFunc("POST /api/members", s.addMemberHandler)
-	s.mux.HandleFunc("POST /api/members/agent", s.addAgentMemberHandler)
-	s.mux.HandleFunc("PATCH /api/members/{id}/role", s.changeMemberRoleHandler)
-	s.mux.HandleFunc("POST /api/members/{id}/disable", s.disableMemberHandler)
-	s.mux.HandleFunc("POST /api/members/{id}/reenable", s.reEnableMemberHandler)
+	// v2.6-FE-4: Member management. v2.9 org-routing-explicit: org via {slug} path.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/members", s.listMembersHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/members", s.addMemberHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/members/agent", s.addAgentMemberHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/members/{id}/role", s.changeMemberRoleHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/members/{id}/disable", s.disableMemberHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/members/{id}/reenable", s.reEnableMemberHandler)
 	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
+	// EXEMPT (org-agnostic): cross-org profile — lists every org the user belongs
+	// to + their per-org role; authenticated only, no requireOrgMember gate.
 	s.mux.HandleFunc("GET /api/users/{user_id}", s.userDetailHandler)
 
-	// Conversations.
-	s.mux.HandleFunc("GET /api/conversations", s.listConversationsHandler)
-	s.mux.HandleFunc("POST /api/conversations", s.createConversationHandler)
-	s.mux.HandleFunc("GET /api/conversations/{id}", s.showConversationHandler)
+	// Conversations. v2.9 org-routing-explicit: org carried by {slug} path.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations", s.listConversationsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations", s.createConversationHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}", s.showConversationHandler)
 	// v2.7 #198: hard-delete a DM (channels use archive → 400 use_archive).
-	s.mux.HandleFunc("DELETE /api/conversations/{id}", s.deleteConversationHandler)
-	s.mux.HandleFunc("GET /api/conversations/{id}/messages", s.listMessagesHandler)
-	s.mux.HandleFunc("POST /api/conversations/{id}/messages", s.sendMessageHandler)
-	s.mux.HandleFunc("POST /api/conversations/{id}/archive", s.archiveConversationHandler)
-	s.mux.HandleFunc("GET /api/conversations/{id}/refs", s.listRefsHandler)
-	s.mux.HandleFunc("GET /api/conversations/{id}/unread", s.unreadHandler)
-	s.mux.HandleFunc("POST /api/conversations/{id}/seen", s.markSeenHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/conversations/{id}", s.deleteConversationHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}/messages", s.listMessagesHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations/{id}/messages", s.sendMessageHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations/{id}/archive", s.archiveConversationHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}/refs", s.listRefsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}/unread", s.unreadHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations/{id}/seen", s.markSeenHandler)
 	// v2.8 #268: follow / unfollow (badge model). POST = follow,
 	// DELETE = unfollow; auto-follow happens on participate / @mention.
-	s.mux.HandleFunc("POST /api/conversations/{id}/follow", s.followConversationHandler)
-	s.mux.HandleFunc("DELETE /api/conversations/{id}/follow", s.unfollowConversationHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations/{id}/follow", s.followConversationHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/conversations/{id}/follow", s.unfollowConversationHandler)
 
 	// Participants (channel kind only — service enforces).
-	s.mux.HandleFunc("POST /api/conversations/{id}/participants", s.inviteParticipantHandler)
-	s.mux.HandleFunc("DELETE /api/conversations/{id}/participants/{identity_id}", s.removeParticipantHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations/{id}/participants", s.inviteParticipantHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/conversations/{id}/participants/{identity_id}", s.removeParticipantHandler)
 
 	// v2.7 B3-c: the legacy flat Issue/Task HTTP surface (Discussion +
 	// TaskRuntime BCs, derive-from-message per ADR-0036) is RETIRED. Issues and
@@ -180,127 +182,151 @@ func (s *Server) routes() {
 	// The legacy Workforce project routes + worker↔project mapping routes are
 	// retired (worker↔project is now transitive: Project→Task→AgentWorkItem→
 	// Worker). Project is the work-management truth; CRUD is org-scoped.
-	s.mux.HandleFunc("GET /api/projects", s.pmListProjectsHandler)
-	s.mux.HandleFunc("POST /api/projects", s.pmCreateProjectHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects", s.pmListProjectsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects", s.pmCreateProjectHandler)
 	// v2.8 #258/#260: org-scoped cross-project work-item aggregation (Sidebar >
-	// Workspace > Issues/Tasks). Org via requireOrgMember (?org_slug=/?org_id=).
-	s.mux.HandleFunc("GET /api/issues", s.pmListOrgIssuesHandler)
-	s.mux.HandleFunc("GET /api/tasks", s.pmListOrgTasksHandler)
-	s.mux.HandleFunc("GET /api/projects/{project_id}", s.pmGetProjectHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{project_id}", s.pmUpdateProjectHandler)
-	s.mux.HandleFunc("DELETE /api/projects/{project_id}", s.pmArchiveProjectHandler)
+	// Workspace > Issues/Tasks). Org via requireOrgMember ({slug} path).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/issues", s.pmListOrgIssuesHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/tasks", s.pmListOrgTasksHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}", s.pmGetProjectHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}", s.pmUpdateProjectHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}", s.pmArchiveProjectHandler)
 
 	// v2.7 B3 ProjectManager nested routes (ADR-0046). Project-owned resources
 	// nest under /api/projects/{project_id}/... so membership gating is uniform
 	// (requireProjectMember on the path project). NET-NEW paths — distinct from
 	// the legacy flat /api/issues|tasks (B3-c retires those + repoints flat
 	// /api/projects to the pm Service).
-	s.mux.HandleFunc("GET /api/projects/{project_id}/members", s.pmListMembersHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/members", s.pmAddMemberHandler)
-	s.mux.HandleFunc("DELETE /api/projects/{project_id}/members/{identity_id}", s.pmRemoveMemberHandler)
-	s.mux.HandleFunc("GET /api/projects/{project_id}/code-repos", s.pmListCodeReposHandler)
-	s.mux.HandleFunc("GET /api/projects/{project_id}/issues", s.pmListIssuesHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/issues", s.pmCreateIssueHandler)
-	s.mux.HandleFunc("GET /api/projects/{project_id}/issues/{issue_id}", s.pmGetIssueHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{project_id}/issues/{issue_id}", s.pmBatchUpdateIssueHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/transition", s.pmTransitionIssueHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/members", s.pmListMembersHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/members", s.pmAddMemberHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/members/{identity_id}", s.pmRemoveMemberHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/code-repos", s.pmListCodeReposHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues", s.pmListIssuesHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/issues", s.pmCreateIssueHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}", s.pmGetIssueHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}", s.pmBatchUpdateIssueHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}/transition", s.pmTransitionIssueHandler)
 	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
 	// Change-status menu. Symmetric task + issue.
-	s.mux.HandleFunc("POST /api/projects/{project_id}/issues/{issue_id}/status", s.pmSetIssueStatusHandler)
-	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks", s.pmListTasksHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks", s.pmCreateTaskHandler)
-	s.mux.HandleFunc("GET /api/projects/{project_id}/tasks/{task_id}", s.pmGetTaskHandler)
-	s.mux.HandleFunc("PATCH /api/projects/{project_id}/tasks/{task_id}", s.pmBatchUpdateTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/assign", s.pmAssignTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/start", s.pmStartTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/block", s.pmBlockTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unblock", s.pmUnblockTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/complete", s.pmCompleteTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/verify", s.pmVerifyTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/discard", s.pmDiscardTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unassign", s.pmUnassignTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/reopen", s.pmReopenTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}/status", s.pmSetIssueStatusHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/tasks", s.pmListTasksHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks", s.pmCreateTaskHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}", s.pmGetTaskHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}", s.pmBatchUpdateTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/assign", s.pmAssignTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/start", s.pmStartTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/block", s.pmBlockTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/unblock", s.pmUnblockTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/complete", s.pmCompleteTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/verify", s.pmVerifyTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/discard", s.pmDiscardTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/unassign", s.pmUnassignTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/reopen", s.pmReopenTaskHandler)
 	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
 	// Change-status menu. The typed endpoints above remain for the agent's
 	// structured self-reports.
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/status", s.pmSetTaskStatusHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
-	s.mux.HandleFunc("POST /api/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/status", s.pmSetTaskStatusHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
+
+	// v2.9 Plan Orchestration (#285). Plans nest under the project; node status is
+	// DERIVED in the GET DTO (§9.2). Edits (select/deps/patch) are draft-only (§9.4);
+	// start (§9.6 validation) / stop (§9.4) / advance (§9.3 idempotent dispatch).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans", s.pmListPlansHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans", s.pmCreatePlanHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmUpdatePlanHandler)
+	// v2.9 P3: hard-delete (non-running; unloads tasks to backlog + deletes the
+	// plan + its conversation) and archive (non-running; cascade-archives tasks,
+	// irreversible). Running → 409.
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmDeletePlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/archive", s.pmArchivePlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/tasks", s.pmSelectTaskHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/tasks/{task_id}", s.pmRemoveTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/dependencies", s.pmAddDependencyHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/dependencies", s.pmRemoveDependencyHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/start", s.pmStartPlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/stop", s.pmStopPlanHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/advance", s.pmAdvancePlanHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
 	// v2.7 C3 Agent BC (ADR-0049). Org-scoped; replaces the legacy
 	// workforce.AgentInstance /api/agents routes (retired — old handlers are
 	// dead code, that backend retires with #107). {name}→{id} forces a repoint.
-	s.mux.HandleFunc("GET /api/agents", s.agentListHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents", s.agentListHandler)
 	// v2.7 #185 / no-middle-state: POST /api/agents (standalone agent WITHOUT an
 	// identity member) is removed. The single creation entry is POST
-	// /api/members/agent, which atomically provisions identity+member+execution
-	// agent (#157) so an agent ALWAYS has a member id (the business-layer id).
-	s.mux.HandleFunc("GET /api/agents/{id}", s.agentGetHandler)
+	// /api/orgs/{slug}/members/agent, which atomically provisions identity+member+
+	// execution agent (#157) so an agent ALWAYS has a member id (business-layer id).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}", s.agentGetHandler)
 	// v2.7 #197: hard-delete an agent (stopped + idle) + cascade its identity-member.
-	s.mux.HandleFunc("DELETE /api/agents/{id}", s.agentDeleteHandler)
-	s.mux.HandleFunc("POST /api/agents/{id}/start", s.agentStartHandler)
-	s.mux.HandleFunc("POST /api/agents/{id}/stop", s.agentStopHandler)
-	s.mux.HandleFunc("POST /api/agents/{id}/restart", s.agentRestartHandler)
-	s.mux.HandleFunc("POST /api/agents/{id}/reset", s.agentResetHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/agents/{id}", s.agentDeleteHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/start", s.agentStartHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/stop", s.agentStopHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/restart", s.agentRestartHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/reset", s.agentResetHandler)
 	// v2.8 #272: soft-delete (archive) — the sole user-facing delete path
 	// (hard DELETE above is admin-only). Idempotent; running → 409 must-stop-first.
-	s.mux.HandleFunc("POST /api/agents/{id}/archive", s.agentArchiveHandler)
-	s.mux.HandleFunc("GET /api/agents/{id}/work-items", s.agentWorkItemsHandler)
-	s.mux.HandleFunc("GET /api/agents/{id}/activity", s.agentActivityHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/archive", s.agentArchiveHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/work-items", s.agentWorkItemsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/activity", s.agentActivityHandler)
 
-	// Secrets (metadata only — plaintext only at create time).
-	s.mux.HandleFunc("GET /api/secrets", s.listSecretsHandler)
-	s.mux.HandleFunc("POST /api/secrets", s.createSecretHandler)
-	s.mux.HandleFunc("DELETE /api/secrets/{id}", s.revokeSecretHandler)
+	// Secrets (metadata only — plaintext only at create time). Org via {slug} path.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/secrets", s.listSecretsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/secrets", s.createSecretHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/secrets/{id}", s.revokeSecretHandler)
 
 	// v2.7 D3-d: files transport (human upload/download). Upload is a 3-call
 	// create→put→complete flow; download is reachability-gated (fail-closed).
 	// The literal `transfer` segment is more specific than `{ulid}`, so
-	// PUT/complete and GET-download never collide on the matcher.
-	s.mux.HandleFunc("POST /api/files", s.createUploadHandler)
-	s.mux.HandleFunc("PUT /api/files/transfer/{transfer_id}", s.putBlobHandler)
-	s.mux.HandleFunc("POST /api/files/transfer/{transfer_id}/complete", s.completeUploadHandler)
-	s.mux.HandleFunc("GET /api/files/{ulid}", s.downloadHandler)
+	// PUT/complete and GET-download never collide on the matcher. Org via {slug}.
+	s.mux.HandleFunc("POST /api/orgs/{slug}/files", s.createUploadHandler)
+	s.mux.HandleFunc("PUT /api/orgs/{slug}/files/transfer/{transfer_id}", s.putBlobHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/files/transfer/{transfer_id}/complete", s.completeUploadHandler)
+	// v2.7 E1 #139: in-flight file-transfer sessions, org-scoped via scope→org
+	// fail-closed resolution (ListOpen = open + unexpired, no global cap).
+	// Registered before /files/{ulid} so the literal `transfers` wins the match.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/files/transfers", s.listTransfersHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/files/{ulid}", s.downloadHandler)
 
-	// SSE — single user-level long connection per Q5=B.
+	// SSE — single user-level long connection per Q5=B. EXEMPT (user-level, not
+	// org-scoped): subscribe/connect key on user_id + conversation_id.
 	s.mux.HandleFunc("GET /api/sse", s.sseHandler)
 	s.mux.HandleFunc("POST /api/sse/subscribe", s.sseSubscribeHandler)
 	s.mux.HandleFunc("POST /api/sse/unsubscribe", s.sseUnsubscribeHandler)
 
-	// Fleet snapshot.
-	s.mux.HandleFunc("GET /api/fleet", s.fleetSnapshotHandler)
+	// Fleet snapshot. Org via {slug} path.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/fleet", s.fleetSnapshotHandler)
 
-	// v2.4-D-F3 fix: AddWorkerModal mints enroll tokens here.
-	s.mux.HandleFunc("POST /api/admintoken/mint-enroll", s.mintEnrollHandler)
+	// v2.4-D-F3 fix: AddWorkerModal mints enroll tokens here (org-scoped — stamps
+	// the org on the minted worker).
+	s.mux.HandleFunc("POST /api/orgs/{slug}/admintoken/mint-enroll", s.mintEnrollHandler)
+	// EXEMPT: revoke is a fire-and-forget token-id close path with no org gate.
 	s.mux.HandleFunc("POST /api/admintoken/revoke", s.revokeEnrollHandler)
 
 	// v2.7 E1 #138 (Environment domain page): org-scoped READS of the org's
 	// workers. v2.7 #140 step-2: sourced from canonical workforce.Worker
 	// (enrolled set) — list is FindAll + in-handler org-filter; detail is
 	// fetch-then-check-org (cross-org id → 404, E-10b).
-	s.mux.HandleFunc("GET /api/workers", s.listWorkersHandler)
-	s.mux.HandleFunc("GET /api/workers/{id}", s.getWorkerHandler)
-	// v2.7 E1 #139: in-flight file-transfer sessions, org-scoped via scope→org
-	// fail-closed resolution (ListOpen = open + unexpired, no global cap).
-	s.mux.HandleFunc("GET /api/files/transfers", s.listTransfersHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/workers", s.listWorkersHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/workers/{id}", s.getWorkerHandler)
 
 	// v2.4-D-X1 (@oopslink ask): rename worker friendly name.
-	s.mux.HandleFunc("PATCH /api/workers/{id}/name", s.workerRenameHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/workers/{id}/name", s.workerRenameHandler)
 
 	// v2.5-B2 (#50): re-display the install command for a worker
 	// whose enroll token is still alive (not used / expired / revoked).
-	s.mux.HandleFunc("GET /api/workers/{id}/install-command", s.showInstallCommandHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/workers/{id}/install-command", s.showInstallCommandHandler)
 
 	// v2.5-B3 (#51): mint a fresh enroll token for an existing worker
 	// whose old enroll token has expired or been burned. 403 if the
 	// worker already has a long-term token (daemon already enrolled).
-	s.mux.HandleFunc("POST /api/workers/{id}/install-command/re-mint", s.reMintInstallCommandHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/workers/{id}/install-command/re-mint", s.reMintInstallCommandHandler)
 
 	// v2.5-B4 (#52): drop the worker row + revoke its tokens. SSE
 	// emits workforce.worker.removed so Fleet rows in other tabs
 	// retire automatically.
-	s.mux.HandleFunc("DELETE /api/workers/{id}", s.removeWorkerHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/workers/{id}", s.removeWorkerHandler)
 
 	// Unmatched /api/* → JSON 404, NOT the SPA HTML catch-all (#196 / FINDING-M).
 	// Without this, an unknown or wrong-method /api path (e.g. POST /api/agents

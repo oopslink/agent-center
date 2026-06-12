@@ -44,7 +44,7 @@ func TestAPI_Follow_Unwired_501(t *testing.T) {
 	deps.FollowStateSvc = nil
 	s := newTestServer(t, deps)
 	defer s.Close()
-	resp, _ := http.Post(s.URL+"/api/conversations/any/follow", "application/json", nil)
+	resp, _ := http.Post(s.URL+"/api/orgs/_/conversations/any/follow", "application/json", nil)
 	if resp.StatusCode != 501 {
 		t.Fatalf("got %d want 501", resp.StatusCode)
 	}

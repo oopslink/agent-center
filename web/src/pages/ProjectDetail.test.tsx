@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -82,6 +82,15 @@ describe('ProjectDetail page', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Project Alpha' })).toBeInTheDocument());
     expect(screen.getByTestId('project-description')).toHaveTextContent('the alpha project');
     expect(screen.getByTestId('project-status-active')).toBeInTheDocument();
+    // v2.9 workboard-link-header: the Work Board link lives in the header button
+    // cluster alongside Edit/Archive, reads "Work Board", and still navigates to
+    // the per-project plans route (§4.2 reachability — testid + href unchanged).
+    const plansLink = screen.getByTestId('project-plans-link');
+    expect(plansLink).toHaveTextContent('Work Board');
+    expect(plansLink).toHaveAttribute('href', '/projects/proj-a/plans');
+    const headerCluster = screen.getByTestId('project-edit-btn').parentElement;
+    expect(headerCluster).toContainElement(plansLink);
+    expect(headerCluster).toContainElement(screen.getByTestId('project-delete-btn'));
     // Issues tab is the default; the issue row shows.
     await waitFor(() => expect(screen.getByText('login bug')).toBeInTheDocument());
     // Switch to the Tasks tab to see the task row.
@@ -239,7 +248,12 @@ describe('ProjectDetail page', () => {
     await waitFor(() => expect(screen.getByTestId('member-row')).toBeInTheDocument());
     const memberRow = screen.getByTestId('member-row');
     expect(memberRow).toHaveAttribute('data-member-id', 'M-1');
-    expect(memberRow).toHaveTextContent('user:hayang');
+    // #192/#160: an unresolved member (no display_name) shows the CLEAN handle,
+    // never the raw "user:hayang" prefixed ref (which stays on title= only).
+    const memberRef = within(memberRow).getByTestId('project-member-ref');
+    expect(memberRef).toHaveTextContent('hayang');
+    expect(memberRef.textContent).not.toContain('user:hayang');
+    expect(memberRef).toHaveAttribute('title', 'user:hayang');
     expect(memberRow).toHaveTextContent('owner');
 
     fireEvent.click(screen.getByTestId('project-tab-repos'));

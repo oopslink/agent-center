@@ -79,6 +79,10 @@ func (s *Service) AddProjectMember(ctx context.Context, cmd AddProjectMemberComm
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.Actor); err != nil {
 			return err
 		}
+		// #297: reject member-add on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, cmd.ProjectID); err != nil {
+			return err
+		}
 		if err := s.members.Save(txCtx, m); err != nil {
 			return err
 		}
@@ -132,6 +136,10 @@ func (s *Service) RemoveProjectMember(ctx context.Context, cmd RemoveProjectMemb
 		if target.Role() == pm.RoleOwner {
 			return ErrCannotRemoveOwner
 		}
+		// #297: reject member-remove on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, cmd.ProjectID); err != nil {
+			return err
+		}
 		if err := s.members.Delete(txCtx, target.ID()); err != nil {
 			return err
 		}
@@ -159,6 +167,10 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 	issueID := pm.IssueID(s.idgen.NewEntityID("issue"))
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
+			return err
+		}
+		// #297: reject issue-create on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, cmd.ProjectID); err != nil {
 			return err
 		}
 		proj, perr := s.projects.FindByID(txCtx, cmd.ProjectID)
@@ -216,6 +228,10 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 	taskID := pm.TaskID(s.idgen.NewEntityID("task"))
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		if err := s.requireProjectMember(txCtx, cmd.ProjectID, cmd.CreatedBy); err != nil {
+			return err
+		}
+		// #297: reject task-create on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, cmd.ProjectID); err != nil {
 			return err
 		}
 		// The task Conversation must be stamped with the project's org so org-scoped
@@ -284,6 +300,10 @@ func (s *Service) SubscribeTask(ctx context.Context, taskID pm.TaskID, identity,
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject subscriber-add on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
 		if err := s.taskSubs.Add(txCtx, sub); err != nil {
 			return err
 		}
@@ -301,6 +321,10 @@ func (s *Service) UnsubscribeTask(ctx context.Context, taskID pm.TaskID, identit
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject subscriber-remove on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
 		if err := s.taskSubs.Remove(txCtx, taskID, identity); err != nil {
@@ -344,6 +368,10 @@ func (s *Service) SubscribeIssue(ctx context.Context, issueID pm.IssueID, identi
 		if err := s.requireProjectMember(txCtx, i.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject subscriber-add on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
+			return err
+		}
 		if err := s.issueSubs.Add(txCtx, sub); err != nil {
 			return err
 		}
@@ -358,6 +386,10 @@ func (s *Service) UnsubscribeIssue(ctx context.Context, issueID pm.IssueID, iden
 			return err
 		}
 		if err := s.requireProjectMember(txCtx, i.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject subscriber-remove on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
 		if err := s.issueSubs.Remove(txCtx, issueID, identity); err != nil {

@@ -293,3 +293,138 @@ func makeVerifyTask(cfg Config) mcp.ToolHandlerFor[verifyTaskArgs, any] {
 		return callAdmin(ctx, cfg, "verify_task", body)
 	}
 }
+
+// --- Plan tools (v2.9 P3 Stage C, #285) --------------------------------------
+//
+// These mirror the admin Plan agent-tool handlers in
+// internal/admin/api/agent_tools_plans.go VERBATIM: the MCP tool name equals
+// the admin route segment (callAdmin POSTs to /admin/agent-tools/<tool>), and
+// each body key matches the handler's decode struct EXACTLY:
+//   - create_plan          : {project_id, name, description?, target_date?}
+//   - add_task_to_plan      : {plan_id, task_id}
+//   - remove_task_from_plan : {plan_id, task_id}
+//   - add_plan_dependency    : {plan_id, from_task_id, to_task_id}
+//   - remove_plan_dependency : {plan_id, from_task_id, to_task_id}
+//   - start_plan / stop_plan : {plan_id}
+//   - delete_plan / archive_plan : {plan_id}
+//   - get_plan               : {project_id, plan_id}
+//   - list_plans             : {project_id}
+// As everywhere in this file, agent_id is process-fixed (injected from cfg,
+// NEVER from args) so a PM-agent cannot drive another agent's plans.
+
+// --- create_plan -------------------------------------------------------------
+
+type createPlanArgs struct {
+	ProjectID   string `json:"project_id" jsonschema:"the project to create the plan in (you must be a member)"`
+	Name        string `json:"name" jsonschema:"the plan name"`
+	Description string `json:"description,omitempty" jsonschema:"optional plan description"`
+	TargetDate  string `json:"target_date,omitempty" jsonschema:"optional target date, RFC3339 (e.g. 2026-06-30T00:00:00Z)"`
+}
+
+func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args createPlanArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"project_id":  args.ProjectID,
+			"name":        args.Name,
+			"description": args.Description,
+			"target_date": args.TargetDate,
+		}
+		return callAdmin(ctx, cfg, "create_plan", body)
+	}
+}
+
+// --- add_task_to_plan / remove_task_from_plan --------------------------------
+
+type planTaskArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the draft plan to modify"`
+	TaskID string `json:"task_id" jsonschema:"the task to add to / remove from the plan"`
+}
+
+// makePlanTask backs BOTH add_task_to_plan and remove_task_from_plan. The tool
+// string MUST equal the admin route segment, so it is supplied explicitly.
+func makePlanTask(cfg Config, tool string) mcp.ToolHandlerFor[planTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args planTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, tool, body)
+	}
+}
+
+// --- add_plan_dependency / remove_plan_dependency ----------------------------
+
+type planDepArgs struct {
+	PlanID     string `json:"plan_id" jsonschema:"the draft plan whose dependency DAG to modify"`
+	FromTaskID string `json:"from_task_id" jsonschema:"the dependent task (it depends_on to_task_id)"`
+	ToTaskID   string `json:"to_task_id" jsonschema:"the prerequisite task that must finish first"`
+}
+
+// makePlanDep backs BOTH add_plan_dependency and remove_plan_dependency. The
+// tool string MUST equal the admin route segment, so it is supplied explicitly.
+func makePlanDep(cfg Config, tool string) mcp.ToolHandlerFor[planDepArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args planDepArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"plan_id":      args.PlanID,
+			"from_task_id": args.FromTaskID,
+			"to_task_id":   args.ToTaskID,
+		}
+		return callAdmin(ctx, cfg, tool, body)
+	}
+}
+
+// --- start_plan / stop_plan / delete_plan / archive_plan ---------------------
+
+type planIDArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the plan to operate on"`
+}
+
+// makePlanID backs the single-plan-id tools (start_plan, stop_plan,
+// delete_plan, archive_plan). The tool string MUST equal the admin route
+// segment, so it is supplied explicitly.
+func makePlanID(cfg Config, tool string) mcp.ToolHandlerFor[planIDArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args planIDArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+		}
+		return callAdmin(ctx, cfg, tool, body)
+	}
+}
+
+// --- get_plan ----------------------------------------------------------------
+
+type getPlanArgs struct {
+	ProjectID string `json:"project_id" jsonschema:"the project the plan belongs to (scopes the read)"`
+	PlanID    string `json:"plan_id" jsonschema:"the plan to read"`
+}
+
+func makeGetPlan(cfg Config) mcp.ToolHandlerFor[getPlanArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getPlanArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+			"plan_id":    args.PlanID,
+		}
+		return callAdmin(ctx, cfg, "get_plan", body)
+	}
+}
+
+// --- list_plans --------------------------------------------------------------
+
+type listPlansArgs struct {
+	ProjectID string `json:"project_id" jsonschema:"the project whose plans to list"`
+}
+
+func makeListPlans(cfg Config) mcp.ToolHandlerFor[listPlansArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listPlansArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+		}
+		return callAdmin(ctx, cfg, "list_plans", body)
+	}
+}

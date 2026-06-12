@@ -13,9 +13,113 @@ ADR / phase plan landscape, see
 
 ## [Unreleased]
 
+_Nothing yet — released work is tracked in the per-version sections below._
+
+## [v2.9] — 2026-06-12
+
+Plan Orchestration + explicit org routing (58 PRs).
+
 ### Added
 
-- **Multiple center deployments on one machine — `install center --instance <name>` (v2.7.1 #211).**
+- **Plan Orchestration.** Compose work as a DAG of tasks (a *Plan*): create a
+  plan, add backlog tasks as nodes, and wire dependencies while it's in draft
+  (cycle / self-edge rejected). `start` a plan and the center auto-advances it —
+  each node's status is derived (blocked / ready / dispatched / running / done /
+  failed), and as upstream tasks complete the system dispatches each ready node
+  to its assigned agent (work-delivery, not a chat @mention), running the plan to
+  done with no manual stepping. A failed node blocks its subtree and wakes the
+  plan's creator. The Work Board (Backlog column + one column per Plan) and Plan
+  detail (DAG view with synthetic Start/End nodes, draggable DAG↔chat splitter,
+  draft-only edge editing, all-direction task drag) are the operating surface.
+- **Programmatic plans for agents (MCP).** A PM-style agent can build and run a
+  plan through its own MCP tools (`create_plan`, `add_task_to_plan`,
+  `add_plan_dependency`, `start_plan`, …) — the 11 plan tools are registered in
+  the agent-facing tool catalog, so an agent can assemble and start a plan and
+  let the orchestrator execute it.
+- **Plan & project lifecycle.** Plans have draft / running / done plus an
+  irreversible **archive** (cascades to its tasks, read-only); a plan with a
+  running task can't be archived. Projects can be archived (read-only — every
+  child mutation across the web and MCP surfaces is rejected with 409; reads
+  still work), and archived projects are excluded from the default list and
+  shown in a separate "Archived" group.
+
+### Changed
+
+- **Explicit org routing.** Every org-scoped API moved to `/api/orgs/{slug}/...`
+  (path-explicit), eliminating the implicit "current org" that was inferred from
+  session / `?org_slug=` query — the same path can no longer return different
+  data depending on hidden state. Full no-shim migration; cross-org access is
+  denied with 404 (existence-non-disclosure). The frontend addresses pages under
+  `/organizations/{slug}/...`.
+- **Plan conversations join @mention-wake.** @mentioning a project agent in a
+  plan conversation now wakes it — including a project-member agent that isn't yet
+  a participant (issue / task conversations already supported @mention-wake since
+  v2.7.1; plan conversations and the non-participant project-member breadth are
+  the v2.9 addition). Only human-authored messages trigger conversational wake
+  (system / agent messages never do).
+
+### Security
+
+- **Authenticated token revoke.** `POST /api/admintoken/revoke` now requires an
+  authenticated caller who is a member of the token's organization (was
+  unauthenticated): 401 unauthenticated / 403 non-member / 204 on success.
+
+## [v2.8.1] — 2026-06-10
+
+Web Console UX overhaul + agent-dispatch reliability (65 PRs).
+
+### Added
+
+- **Channels & Agents list enrichment.** Channels rows show created-time +
+  participant avatars + a recent-message preview; Agents rows show provider
+  (CLI / model) + last-activity time and content. Backed by N+1-free list-enrich
+  APIs (#255).
+- **Detail sidebar from any @mention or avatar.** Clicking an @mentioned agent /
+  human in a message, or the peer avatar in a DM header, opens the agent / human
+  detail sidebar (kind-routed).
+- **Issue batch-update API (#251)** mirroring task batch-update (title / description
+  / status / tags), powering the consolidated Issue edit panel.
+
+### Changed
+
+- **Task & Issue detail redesigned, editing consolidated.** Task and Issue detail
+  sidebars are read-only; all edits go through a single Edit panel (no per-field
+  inline editing). Issue detail aligned to the Task detail style.
+- **Chat / DM UX refresh.** Redesigned message rows, DM layout cleanup, code-block
+  width, composer, plus a Channels / Agents / Settings visual pass. Contrast (AA)
+  verified in both light and dark themes.
+
+### Fixed
+
+- **Single-active race in agent dispatch (#277 / #278).** The activate path was a
+  non-atomic check-then-act over a partial (non-unique) index, so concurrent
+  assigns to one agent could yield multiple active work items. Fixed with a pull
+  model + a UNIQUE partial index (`agent_work_items(agent_id)` WHERE status IN
+  active / waiting_input) and queue-not-drop semantics: one agent, one active work
+  item.
+
+## [v2.8] — 2026-06-06
+
+Conversation-centric work items + chat references.
+
+### Added
+
+- **`#` / `@` reference picker (#266 / #275).** In-composer autocomplete for
+  `#channel` and `@user` / `@agent`, with linkify + click-through in rendered
+  messages.
+- **Worker detail page.** A dedicated WorkerDetail view for an enrolled worker.
+- **Org-scoped Issues / Tasks views.** Work items surfaced at the org level.
+
+### Changed
+
+- **Agents reply in DMs & channels (#185).** An agent that is a DM peer or channel
+  participant now receives messages and can reply (beyond work-item dispatch).
+
+## [v2.7.1] — 2026-06-04
+
+### Added
+
+- **Multiple center deployments on one machine — `install center --instance <name>` (#211).**
   A named instance gets its own install prefix (`~/.agent-center.<name>`, the
   `default` instance keeps the legacy `~/.agent-center`) and its own launchd /
   systemd label (`com.agent-center.center.<name>` / `agent-center-<name>.service`;
@@ -30,6 +134,28 @@ ADR / phase plan landscape, see
   implicit `default` (existing operators unaffected). Fresh-install only — no
   migration. Also fixes a latent gap where `server.bootstrap_public_url` (#200) was
   missing from the config known-keys allowlist.
+- **Worker config as the single source of truth (#249 / #251).** `install worker`
+  writes all enroll fields (worker_id / name / bootstrap / token /
+  server_fingerprint) into `<prefix>/etc/config.yaml` (0600), so `worker run
+  --config=…` is the whole launch command and the token no longer appears in `ps`,
+  the launchd plist, or the printed command. Legacy flags still work as overrides;
+  upgrade migrates older configs automatically.
+- **Org-internal sequence numbers `T<n>` / `I<n>` (#245).** A per-(org, type) counter
+  (migration 0049) surfaced as `org_ref` in tables, detail views, and breadcrumbs.
+- **Humans list + user detail page + signup email (#193 / #213).** The Humans page
+  adds email / created-at / last-session columns, a new `/users/{id}` detail page,
+  and signup accepts an (optional, unverified) email.
+- **MCP `find_org_agent` / `find_org_channel` (#241 / #246)** return ready-to-use
+  refs; channel-post errors made precise (404 / 403).
+
+### Changed
+
+- **Icon-ified controls + chrome polish.** AgentDetail Stop / Restart / Reset and
+  chat composer controls became icons (#240 / #250); channel URLs use a hash id
+  `/channels/:id` (#247); the sidebar collapse control simplified to a chevron
+  (#253); README / docs adapted to the v2.7.1 retag (#252).
+
+## [v2.7.0] — 2026-06-04
 
 ### Notes / Compatibility
 
@@ -481,6 +607,14 @@ ADR / phase plan landscape, see
 - **macOS install default `server.listen_addr` is `:7050`.** Was `:7000`; see
   Fixed (#161). This is the install-template default — a custom `--prefix` install
   is unaffected if the operator overrode the value.
+
+## [v2.6.1] — 2026-05-29
+
+### Fixed
+
+- **v2.6 build break.** `AppLayout` used unnamed `useEffect` / `useState` and the
+  SPA lint step did not run `tsc -b`, so app-source type errors slipped through.
+  `lint-spa-tsc` now uses `tsc -b` to actually check app sources.
 
 ## [v2.6.0] — 2026-05-28
 

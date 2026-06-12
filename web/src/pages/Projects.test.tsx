@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -82,6 +82,92 @@ describe('Projects page', () => {
     );
     wrap(<Projects />);
     expect(screen.getByTestId('projects-loading')).toBeInTheDocument();
+  });
+
+  // v2.9 #298: the "已归档" / Archived group is collapsed by default; the
+  // archived list must NOT be fetched until the toggle is expanded.
+  it('archived group is collapsed by default and does not fetch archived', async () => {
+    let archivedFetched = false;
+    server.use(
+      http.get('/api/projects', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        if (status === 'archived') {
+          archivedFetched = true;
+          return HttpResponse.json({ projects: [] });
+        }
+        return HttpResponse.json({
+          projects: [
+            { id: 'proj-a', name: 'Project Alpha', status: 'active', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        });
+      }),
+    );
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getByTestId('projects-list')).toBeInTheDocument());
+    // Toggle present, group body NOT rendered, archived endpoint untouched.
+    expect(screen.getByTestId('archived-projects-toggle')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('archived-projects-body')).not.toBeInTheDocument();
+    // active list unaffected: exactly the one active row.
+    expect(screen.getAllByTestId('project-row')).toHaveLength(1);
+    expect(archivedFetched).toBe(false);
+  });
+
+  // Expanding the group fetches + lists the archived projects (read-only),
+  // without disturbing the active list above it.
+  it('expanding the archived group fetches and lists archived projects', async () => {
+    server.use(
+      http.get('/api/projects', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        if (status === 'archived') {
+          return HttpResponse.json({
+            projects: [
+              { id: 'proj-z', name: 'Project Zeta', status: 'archived', created_at: '2026-04-01T01:00:00Z' },
+            ],
+          });
+        }
+        return HttpResponse.json({
+          projects: [
+            { id: 'proj-a', name: 'Project Alpha', status: 'active', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        });
+      }),
+    );
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getByTestId('projects-list')).toBeInTheDocument());
+    expect(screen.getAllByTestId('project-row')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('archived-projects-toggle'));
+    await waitFor(() =>
+      expect(screen.getByTestId('archived-projects-list')).toBeInTheDocument(),
+    );
+    expect(screen.getByText('Project Zeta')).toBeInTheDocument();
+    expect(screen.getByTestId('project-status-archived')).toBeInTheDocument();
+    expect(screen.getByTestId('archived-projects-toggle')).toHaveAttribute('aria-expanded', 'true');
+    // Active list (Alpha) still rendered, unaffected: 1 active + 1 archived row.
+    expect(screen.getByText('Project Alpha')).toBeInTheDocument();
+    expect(screen.getAllByTestId('project-row')).toHaveLength(2);
+  });
+
+  // Empty archived set → a quiet note, not a crash.
+  it('expanding shows the empty note when no archived projects', async () => {
+    server.use(
+      http.get('/api/projects', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        if (status === 'archived') return HttpResponse.json({ projects: [] });
+        return HttpResponse.json({
+          projects: [
+            { id: 'proj-a', name: 'Project Alpha', status: 'active', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        });
+      }),
+    );
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getByTestId('projects-list')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('archived-projects-toggle'));
+    await waitFor(() =>
+      expect(screen.getByTestId('archived-projects-empty')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('archived-projects-list')).not.toBeInTheDocument();
   });
 
   it('surfaces API error', async () => {

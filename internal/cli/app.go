@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
@@ -323,11 +324,29 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
 		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
+		Plans:        pmsql.NewPlanRepo(db), // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
 		Outbox:       outboxsql.NewOutboxRepo(db),
 		IDGen:        gen,
 		Clock:        clk,
 		AgentDir:     agentpkg.NewOrgDirectory(agentRepo),
 		OrgSeq:       pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
+		// v2.9 #285: advance posts the node-ready @mention into the Plan conversation
+		// via MessageWriter (the wake+mention path #220 wakes an agent assignee). The
+		// resolver mirrors the WakeProjector's DisplayName resolution (strip the
+		// agent:/user: scheme → IdentityRepo display_name) so the @<display_name> the
+		// adapter prepends matches exactly what the wake detector (mention.Present)
+		// scans for — otherwise an idle agent is never woken (BUG C).
+		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, func(ctx context.Context, assigneeRef string) (string, bool) {
+			id := assigneeRef
+			if i := strings.IndexByte(id, ':'); i >= 0 {
+				id = id[i+1:] // strip the agent:/user: scheme → bare identity id
+			}
+			idn, err := idIdentityRepo.GetByID(ctx, id)
+			if err != nil || idn == nil {
+				return "", false
+			}
+			return idn.DisplayName(), true
+		}),
 	})
 
 	// Shared agent WorkItem repo: the Agent BC AppService owns it, and the

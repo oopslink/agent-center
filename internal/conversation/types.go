@@ -69,13 +69,18 @@ const (
 	ConversationKindChannel ConversationKind = "channel"
 	ConversationKindTask    ConversationKind = "task"
 	ConversationKindIssue   ConversationKind = "issue"
+	// ConversationKindPlan is a Plan's dedicated 1:1 conversation (v2.9 plan
+	// orchestration, design §2). Auto-created by the ProjectManager sync-create
+	// path (owner_ref pm://plans/{id}); the orchestrator @mentions a node's
+	// assignee here to dispatch. Like task/issue it is NOT directly openable.
+	ConversationKindPlan ConversationKind = "plan"
 )
 
 // IsValid checks enum membership.
 func (k ConversationKind) IsValid() bool {
 	switch k {
 	case ConversationKindDM, ConversationKindChannel,
-		ConversationKindTask, ConversationKindIssue:
+		ConversationKindTask, ConversationKindIssue, ConversationKindPlan:
 		return true
 	}
 	return false

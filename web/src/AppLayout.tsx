@@ -9,6 +9,7 @@ import {
   useDeleteConversation,
 } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
+import { identityRefOf } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { UnreadBadge } from '@/components/UnreadBadge';
@@ -77,17 +78,17 @@ export default function AppLayout(): React.ReactElement {
   useSSE();
   const me = useMe();
   // v2.7 #155: wire the store's currentUserId to the AUTHENTICATED identity ref.
-  // It otherwise stays at the hardcoded default ('user:hayang'), which silently
-  // mismatched every identity-ref comparison (e.g. ParticipantsPanel's owner
-  // check → no invite/remove controls; DM peer filtering). The backend stamps
-  // refs as "<kind>:<id>" (user:/agent:), so build the same shape from
-  // /api/auth/me (identity_id + kind). This was latent until #146 made the
-  // backend use the real session identity instead of the same static default.
+  // currentUserId starts EMPTY (no hardcoded placeholder); until this seeds it,
+  // identity-ref comparisons (e.g. ParticipantsPanel's owner check → invite/
+  // remove controls; DM peer filtering) and SSE connect are gated off. The
+  // backend stamps refs as "<kind>:<id>" (user:/agent:), so build the same shape
+  // from /api/auth/me (identity_id + kind), the per-request session identity
+  // (#146) that also powers the attachment download gate.
   const setCurrentUserId = useAppStore((s) => s.setCurrentUserId);
   useEffect(() => {
     const m = me.data;
     if (!m?.identity_id) return;
-    const ref = (m.kind === 'agent' ? 'agent:' : 'user:') + m.identity_id;
+    const ref = identityRefOf(m);
     setCurrentUserId(ref);
   }, [me.data?.identity_id, me.data?.kind, setCurrentUserId]);
   const orgs = useOrgs();

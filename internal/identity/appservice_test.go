@@ -24,7 +24,7 @@ func TestSignupService_Execute(t *testing.T) {
 
 	form := SignupForm{
 		DisplayName:      "Hayang",
-		PasscodePlain:    "123456",
+		PasscodePlain:    "Passw0rd1!",
 		OrganizationName: "My Organization",
 		OrganizationSlug: "my-org",
 	}
@@ -67,10 +67,10 @@ func TestSignupService_DuplicateDisplayName(t *testing.T) {
 	memberRepo := NewSQLiteMemberRepo(db)
 	svc := NewSignupService(db, idRepo, orgRepo, memberRepo)
 
-	form := SignupForm{DisplayName: "User1", PasscodePlain: "123456", OrganizationName: "Org1", OrganizationSlug: "org-one"}
+	form := SignupForm{DisplayName: "User1", PasscodePlain: "Passw0rd1!", OrganizationName: "Org1", OrganizationSlug: "org-one"}
 	svc.Execute(ctx, form)
 
-	form2 := SignupForm{DisplayName: "User1", PasscodePlain: "654321", OrganizationName: "Org2", OrganizationSlug: "org-two"}
+	form2 := SignupForm{DisplayName: "User1", PasscodePlain: "Passw0rd2!", OrganizationName: "Org2", OrganizationSlug: "org-two"}
 	_, err := svc.Execute(ctx, form2)
 	if err != ErrIdentityDisplayNameTaken {
 		t.Errorf("expected ErrIdentityDisplayNameTaken, got %v", err)
@@ -86,10 +86,10 @@ func TestSignupService_DuplicateSlug(t *testing.T) {
 	memberRepo := NewSQLiteMemberRepo(db)
 	svc := NewSignupService(db, idRepo, orgRepo, memberRepo)
 
-	form := SignupForm{DisplayName: "User1", PasscodePlain: "123456", OrganizationName: "Org", OrganizationSlug: "dup-slug"}
+	form := SignupForm{DisplayName: "User1", PasscodePlain: "Passw0rd1!", OrganizationName: "Org", OrganizationSlug: "dup-slug"}
 	svc.Execute(ctx, form)
 
-	form2 := SignupForm{DisplayName: "User2", PasscodePlain: "654321", OrganizationName: "Org", OrganizationSlug: "dup-slug"}
+	form2 := SignupForm{DisplayName: "User2", PasscodePlain: "Passw0rd2!", OrganizationName: "Org", OrganizationSlug: "dup-slug"}
 	_, err := svc.Execute(ctx, form2)
 	if err != ErrOrganizationSlugTaken {
 		t.Errorf("expected ErrOrganizationSlugTaken, got %v", err)
@@ -116,7 +116,7 @@ func TestSignupService_Validation(t *testing.T) {
 
 	t.Run("invalid slug", func(t *testing.T) {
 		_, err := svc.Execute(ctx, SignupForm{
-			DisplayName: "Bob", PasscodePlain: "123456", OrganizationName: "Org", OrganizationSlug: "INVALID",
+			DisplayName: "Bob", PasscodePlain: "Passw0rd1!", OrganizationName: "Org", OrganizationSlug: "INVALID",
 		})
 		if err != ErrOrganizationSlugInvalid {
 			t.Errorf("expected ErrOrganizationSlugInvalid, got %v", err)
@@ -135,11 +135,11 @@ func TestSigninService_Execute(t *testing.T) {
 	signingKey := testSigningKey()
 	signinSvc := NewSigninService(idRepo, signingKey)
 
-	form := SignupForm{DisplayName: "LoginUser", PasscodePlain: "123456", OrganizationName: "Org", OrganizationSlug: "login-org"}
+	form := SignupForm{DisplayName: "LoginUser", PasscodePlain: "Passw0rd1!", OrganizationName: "Org", OrganizationSlug: "login-org"}
 	signupSvc.Execute(ctx, form)
 
 	t.Run("correct credentials", func(t *testing.T) {
-		result, err := signinSvc.Execute(ctx, "LoginUser", "123456")
+		result, err := signinSvc.Execute(ctx, "LoginUser", "Passw0rd1!")
 		if err != nil {
 			t.Fatalf("expected success, got: %v", err)
 		}
@@ -185,11 +185,11 @@ func TestAuthService_AuthenticateToken(t *testing.T) {
 	authSvc := NewAuthService(idRepo, signingKey)
 
 	signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "AuthUser", PasscodePlain: "123456",
+		DisplayName: "AuthUser", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "Org", OrganizationSlug: "auth-org",
 	})
 
-	sinResult, _ := signinSvc.Execute(ctx, "AuthUser", "123456")
+	sinResult, _ := signinSvc.Execute(ctx, "AuthUser", "Passw0rd1!")
 
 	t.Run("valid token", func(t *testing.T) {
 		identity, err := authSvc.AuthenticateToken(ctx, sinResult.JWT)

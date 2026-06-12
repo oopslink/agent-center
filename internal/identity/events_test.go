@@ -63,7 +63,7 @@ func TestEventEmission_Signup(t *testing.T) {
 
 	svc := NewSignupServiceWithSink(s.db, s.idRepo, s.orgRepo, s.memberRepo, s.sink)
 	_, err := svc.Execute(ctx, SignupForm{
-		DisplayName: "Alice", PasscodePlain: "123456",
+		DisplayName: "Alice", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "Acme", OrganizationSlug: "acme",
 	})
 	if err != nil {
@@ -119,7 +119,7 @@ func TestEventEmission_MemberRoleChanged(t *testing.T) {
 
 	signupSvc := NewSignupService(s.db, s.idRepo, s.orgRepo, s.memberRepo)
 	r, _ := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Owner1", PasscodePlain: "123456",
+		DisplayName: "Owner1", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "O", OrganizationSlug: "org-a",
 	})
 
@@ -144,7 +144,7 @@ func TestEventEmission_MemberDisableReEnable(t *testing.T) {
 
 	signupSvc := NewSignupService(s.db, s.idRepo, s.orgRepo, s.memberRepo)
 	r, _ := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Owner3", PasscodePlain: "123456",
+		DisplayName: "Owner3", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "P", OrganizationSlug: "org-b",
 	})
 
@@ -175,7 +175,7 @@ func TestEventEmission_OrganizationDeleted(t *testing.T) {
 
 	signupSvc := NewSignupService(s.db, s.idRepo, s.orgRepo, s.memberRepo)
 	r, _ := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Owner4", PasscodePlain: "123456",
+		DisplayName: "Owner4", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "Q", OrganizationSlug: "org-c",
 	})
 
@@ -195,7 +195,7 @@ func TestEventEmission_OrganizationUpdated(t *testing.T) {
 
 	signupSvc := NewSignupService(s.db, s.idRepo, s.orgRepo, s.memberRepo)
 	r, _ := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Owner5", PasscodePlain: "123456",
+		DisplayName: "Owner5", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "R", OrganizationSlug: "org-d",
 	})
 
@@ -213,7 +213,7 @@ func TestEventEmission_MemberRemoved(t *testing.T) {
 
 	signupSvc := NewSignupService(s.db, s.idRepo, s.orgRepo, s.memberRepo)
 	r, _ := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Owner6", PasscodePlain: "123456",
+		DisplayName: "Owner6", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "S", OrganizationSlug: "org-e",
 	})
 
@@ -238,7 +238,7 @@ func TestEventEmission_AgentProvision(t *testing.T) {
 
 	signupSvc := NewSignupService(s.db, s.idRepo, s.orgRepo, s.memberRepo)
 	r, _ := signupSvc.Execute(ctx, SignupForm{
-		DisplayName: "Owner7", PasscodePlain: "123456",
+		DisplayName: "Owner7", PasscodePlain: "Passw0rd1!",
 		OrganizationName: "T", OrganizationSlug: "org-f",
 	})
 
@@ -299,7 +299,7 @@ func TestEventEmission_PasscodeChanged(t *testing.T) {
 	s.idRepo.Save(ctx, identity)
 
 	svc := NewPasscodeChangeServiceWithSink(s.db, s.idRepo, s.sink)
-	if err := svc.Change(ctx, identity.ID(), "123456", "654321"); err != nil {
+	if err := svc.Change(ctx, identity.ID(), "123456", "Passw0rd2!"); err != nil {
 		t.Fatalf("Change: %v", err)
 	}
 	s.assertEventType(ctx, t, EvtIdentityPasscodeChanged)

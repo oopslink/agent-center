@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/blobstore"
@@ -39,11 +38,7 @@ func mustURI(t *testing.T, ulid string) files.FileURI {
 // orgScopedPut executes a PUT with the session cookie + ?org_slug attached.
 func orgScopedPut(t *testing.T, url string, body []byte, sess testSession) *http.Response {
 	t.Helper()
-	if !strings.Contains(url, "?") {
-		url += "?org_slug=" + sess.OrgSlug
-	} else {
-		url += "&org_slug=" + sess.OrgSlug
-	}
+	url = orgScopedURL(url, sess.OrgSlug)
 	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -430,8 +425,8 @@ func TestAPI_Files_Download_NoSession_Unauthorized(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 	ulid := uploadBlob(t, s.URL, sess, []byte("x"))
-	// No cookie, no org_slug.
-	resp, err := http.Get(s.URL + "/api/files/" + ulid)
+	// Valid org slug in the path, but no session cookie → requireOrgMember 401.
+	resp, err := http.Get(s.URL + "/api/orgs/" + sess.OrgSlug + "/files/" + ulid)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -215,6 +215,40 @@ func TestWakeProjector_Channel_NoMention_NoWake(t *testing.T) {
 	}
 }
 
+// v2.9: a human @mentioning a PLAN-conversation participant agent must wake it,
+// exactly like Channel/Issue. Regression guard for the conv-KIND gate that had
+// dropped ConversationKindPlan entirely (run-real caught participant-also-not-
+// woken: the gate returned nil before the participant-candidate logic ran).
+func TestWakeProjector_Plan_Mention_EnqueuesConverse(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "AG1", "W1")
+	f.saveConv(t, "plan-1", conversation.ConversationKindPlan, "Sprint", agentPart("AG1"), userPart("bob"))
+	p := f.projWith(map[string]string{"agent:AG1": "Helper"}, nil)
+
+	// @Helper in a plan conversation → wakes the participant agent AG1.
+	if err := p.Project(f.ctx, convMessageEvent("EV1", "plan-1", "m1", "user:bob", "@helper please look at this plan")); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 1 || cmds[0].CommandType() != "agent.converse" {
+		t.Fatalf("want 1 agent.converse on plan-conv @mention, got %d", len(cmds))
+	}
+}
+
+func TestWakeProjector_Plan_NoMention_NoWake(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "AG1", "W1")
+	f.saveConv(t, "plan-1", conversation.ConversationKindPlan, "Sprint", agentPart("AG1"), userPart("bob"))
+	p := f.projWith(map[string]string{"agent:AG1": "Helper"}, nil)
+
+	// No @mention → no wake (plan conv is @mention-gated like channel/issue).
+	if err := p.Project(f.ctx, convMessageEvent("EV1", "plan-1", "m1", "user:bob", "just a note, nobody pinged")); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 0 {
+		t.Fatalf("un-mentioned plan message must not wake, got %d", len(cmds))
+	}
+}
+
 // --- FINDING-J: member-id participant ref ↔ entity-id bridge ----------------
 
 // A channel participant referenced by its identity-MEMBER id (the canonical

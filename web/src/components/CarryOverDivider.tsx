@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef } from '@/api/members';
 import type {
   ConversationMessageReference,
   Message,
@@ -25,6 +26,7 @@ export function CarryOverDivider({
   refs,
   messages,
 }: Props): React.ReactElement | null {
+  const resolveName = useDisplayNameResolver();
   if (refs.length === 0) return null;
   const referencedIds = new Set(refs.map((r) => r.source_message_id));
   const carried = messages.filter((m) => referencedIds.has(m.id));
@@ -60,9 +62,21 @@ export function CarryOverDivider({
                 data-testid="carry-over-message"
                 data-message-id={m.id}
               >
-                <div className="mb-0.5 font-mono text-text-muted">
-                  {m.sender_identity_id}
-                </div>
+                {/* Sender as the human display NAME (#160); the resolver returns
+                    the raw ref unchanged on a miss (#192/#215 sentinel) → fall
+                    back to the clean handle, never the prefixed ref. Raw ref on
+                    hover (title) for reference. */}
+                {(() => {
+                  const resolved = resolveName(m.sender_identity_id);
+                  const label = isResolvedName(m.sender_identity_id, resolved)
+                    ? resolved
+                    : normalizeIdentityRef(m.sender_identity_id);
+                  return (
+                    <div className="mb-0.5 text-text-muted" title={m.sender_identity_id}>
+                      {label}
+                    </div>
+                  );
+                })()}
                 <div className="whitespace-pre-wrap text-text-primary">
                   {m.content}
                 </div>
