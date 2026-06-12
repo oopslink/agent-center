@@ -104,6 +104,16 @@ export interface Message {
   input_request_ref?: string;
   context_refs?: ContextRefs;
   attachments?: MessageAttachment[];
+  // v2.9.1 Threads (mock=contract, P1-BE in parallel — VERIFY vs the real
+  // GET /conversations/{id}/messages later). A message in the main list is
+  // TOP-LEVEL (replies are excluded from that endpoint); a message inside a
+  // thread carries `parent_message_id` (its root). `reply_count` +
+  // `thread_last_activity_at` are computed server-side on the top-level row and
+  // drive the per-message ThreadButton (count chip + has-activity dot). All
+  // optional: legacy/older payloads omit them (treat as not-a-thread / 0).
+  parent_message_id?: string; // set on a reply; absent on a top-level message.
+  reply_count?: number; // # direct replies to this top-level message; 0/absent = none.
+  thread_last_activity_at?: string; // RFC3339 of the most recent reply; presence ⇒ has-activity.
 }
 
 // Agent BC (v2.7 #101). Org-scoped agents with a lifecycle/availability
@@ -511,6 +521,10 @@ export interface SendMessageInput {
   direction?: 'inbound' | 'outbound' | 'internal';
   input_request_ref?: string;
   attachments?: MessageAttachment[];
+  // v2.9.1 Threads: when set, the message is a REPLY in this root message's
+  // thread (POST /conversations/{id}/messages body carries parent_message_id).
+  // Absent → a normal top-level message. Mirrors the BE sendMessageReq add.
+  parent_message_id?: string;
 }
 
 export interface SendMessageResult {

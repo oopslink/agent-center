@@ -10,6 +10,9 @@ import { MarkdownMessage } from './MarkdownMessage';
 import type { ConversationSurface } from './ConversationView';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
 import { useSenderSidebar } from './SenderSidebarContext';
+import { ThreadButton } from './ThreadButton';
+import { ThreadSidebar } from './ThreadSidebar';
+import { useThreadSidebar } from './ThreadSidebarContext';
 
 // v2.7 #133: a short text type label for an attachment (no emoji icons — a11y
 // no-emoji-icons rule). Derived from the mime category for the metadata chip.
@@ -56,6 +59,13 @@ interface Props {
    * Defaults to channel styling so every other caller is unaffected.
    */
   surface?: ConversationSurface;
+  /**
+   * v2.9.1 Threads: render the per-message ThreadButton + own the thread sidebar.
+   * Defaults true (the main conversation surface). ThreadSidebar passes false so
+   * a reply rendered INSIDE a thread never grows its own thread affordance — P1
+   * is single-level (no thread-in-thread).
+   */
+  showThreads?: boolean;
 }
 
 // MessageList — render messages chronologically. Sender id + posted_at
@@ -65,7 +75,11 @@ interface Props {
 // Auto-scroll behavior (v2.5.6 #60): when a new message arrives, scroll
 // to bottom — but only if the user is already near the bottom. If they
 // scrolled up to read history, we don't yank them back.
-export function MessageList({ messages, surface = 'channel' }: Props): React.ReactElement {
+export function MessageList({
+  messages,
+  surface = 'channel',
+  showThreads = true,
+}: Props): React.ReactElement {
   const displayName = useDisplayNameResolver();
   // v2.8.1 chat-rightalign: the viewer's own messages render right-aligned
   // (iMessage/Slack style). `currentUserId` is a prefixed identity ref
@@ -90,6 +104,14 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
   const providerOpen = useSenderSidebar();
   const [sidebarSender, setSidebarSender] = useState<string | null>(null);
   const openSender = providerOpen ?? setSidebarSender;
+
+  // v2.9.1 Threads: the per-message ThreadButton opens the ONE thread sidebar.
+  // PREFER the surface-level provider (ConversationView mounts it) so the single
+  // sidebar is shared; fall back to a local instance when standalone (matches the
+  // sender-sidebar pattern above, keeping MessageList self-contained in tests).
+  const providerOpenThread = useThreadSidebar();
+  const [localThreadRoot, setLocalThreadRoot] = useState<Message | null>(null);
+  const openThread = providerOpenThread ?? setLocalThreadRoot;
 
   useEffect(() => {
     if (latestId === prevLatestIdRef.current) return;
@@ -296,6 +318,17 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
       </div>
     );
 
+    // v2.9.1 Threads: the per-message thread affordance (count chip + activity
+    // dot), aligned to the message's side. Opens the thread sidebar for THIS
+    // message. Omitted when showThreads=false (i.e. inside a thread itself).
+    const threadAffordance = showThreads ? (
+      <ThreadButton
+        replyCount={m.reply_count}
+        hasActivity={!!m.thread_last_activity_at}
+        onClick={() => openThread(m)}
+      />
+    ) : null;
+
     // Chat UX 2 (#1+#2): own = right-aligned LIGHT-BLUE bubble (#D1E3FF), no
     // avatar (#225). bg-chatuserbubble + FIXED dark text (text-slate-900) — NOT a
     // theme token. The bubble surface is a fixed light color in BOTH modes, so
@@ -316,6 +349,7 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
           <div className={`${bubbleWidthClass} rounded-2xl bg-chatuserbubble px-3 py-2 text-slate-900 shadow-sm`}>
             {bubbleBody}
           </div>
+          {threadAffordance}
         </article>
       );
     }
@@ -365,6 +399,7 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
           >
             {bubbleBody}
           </div>
+          {threadAffordance}
         </div>
       </article>
     );
@@ -401,6 +436,17 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
           open={sidebarSender !== null}
           senderRef={sidebarSender}
           onClose={() => setSidebarSender(null)}
+        />
+      )}
+      {/* v2.9.1 Threads: local thread sidebar fallback — rendered ONLY when this
+          list owns threads (showThreads) AND there is no surface-level provider
+          (under ConversationView's ThreadSidebarProvider the provider owns the
+          one sidebar, so we don't double-render). */}
+      {showThreads && !providerOpenThread && (
+        <ThreadSidebar
+          open={localThreadRoot !== null}
+          rootMessage={localThreadRoot}
+          onClose={() => setLocalThreadRoot(null)}
         />
       )}
     </div>

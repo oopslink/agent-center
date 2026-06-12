@@ -1,6 +1,7 @@
 import type React from 'react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -76,6 +77,23 @@ describe('ConversationView (#264 surface-agnostic shell)', () => {
     wrap(<ConversationView surface="dm" conversationId="C1" />);
     expect(await screen.findByTestId('conversation-error')).toBeInTheDocument();
     expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'dm');
+  });
+
+  it('exposes the per-message thread affordance and opens the thread on click (all surfaces)', async () => {
+    server.use(
+      http.get('/api/conversations/C1/messages', () =>
+        HttpResponse.json([{ ...msg('m1', 'thread me'), reply_count: 2 }]),
+      ),
+      http.get('/api/conversations/:id/messages/:mid/replies', () => HttpResponse.json([])),
+      seenOk,
+    );
+    wrap(<ConversationView surface="channel" conversationId="C1" />);
+    await waitFor(() => expect(screen.getByText('thread me')).toBeInTheDocument());
+    const threadBtn = screen.getByTestId('thread-button');
+    expect(screen.getByTestId('thread-reply-count')).toHaveTextContent('2');
+    expect(screen.queryByTestId('thread-sidebar')).toBeNull();
+    await userEvent.click(threadBtn);
+    expect(screen.getByTestId('thread-sidebar')).toBeInTheDocument();
   });
 
   it('renders the optional side panel beside the body (e.g. channel participants)', async () => {

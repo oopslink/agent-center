@@ -6,6 +6,10 @@ import { MentionPicker } from './MentionPicker';
 
 interface Props {
   conversationId: string;
+  // v2.9.1 Threads: when set, this composer sends REPLIES into the given root
+  // message's thread (the POST carries parent_message_id). Used by ThreadSidebar;
+  // absent on the main conversation composer (normal top-level send).
+  parentMessageId?: string;
 }
 
 // MessageComposer — single-line textarea + Send button. Per F6 oversight
@@ -13,7 +17,7 @@ interface Props {
 // while the mutation is pending; clears on success.
 //
 // Owns its own draft state (component-local — not server, not Zustand).
-export function MessageComposer({ conversationId }: Props): React.ReactElement {
+export function MessageComposer({ conversationId, parentMessageId }: Props): React.ReactElement {
   const [draft, setDraft] = useState('');
   const [files, setFiles] = useState<Array<{ file: File; previewUrl: string | null }>>([]);
   // v2.7.1 #222: track IME composition so Enter that confirms a composition
@@ -44,7 +48,14 @@ export function MessageComposer({ conversationId }: Props): React.ReactElement {
     const content = draft.trim();
     try {
       const attachments = await Promise.all(files.map(({ file }) => uploadMessageAttachment(file)));
-      await send.mutateAsync({ conversationId, content, attachments });
+      await send.mutateAsync({
+        conversationId,
+        content,
+        attachments,
+        // Only attach parent_message_id when this is a thread composer — a
+        // top-level composer leaves it undefined (omitted from the POST body).
+        ...(parentMessageId ? { parent_message_id: parentMessageId } : {}),
+      });
       setDraft('');
       setFiles((prev) => {
         for (const f of prev) {
