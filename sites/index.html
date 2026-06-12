@@ -149,6 +149,15 @@
 
 <main class="wrap wide">
 
+  <div class="section-title">v2.9 新特性 · Plan Orchestration</div>
+  <div class="desc" style="max-width:880px;margin:0 0 18px">把工作组织成<b>任务的 DAG（一个 Plan）</b>，<code>start</code> 之后 center 随上游任务完成自动把每个就绪节点派发给对应 agent —— 一路跑到完成、无需手动推进。PM 型 agent 还能通过 MCP 工具编程式建 plan 并跑起来。Plan / Project 有明确生命周期（draft / running / done + 不可逆归档=只读）。org 路由显式化（<code>/api/orgs/{slug}/...</code>，前端 <code>/organizations/{slug}/...</code>），agent 在 plan 会话被 @提及也会唤醒。</div>
+  <div class="grid two" style="margin-bottom:8px">
+    <figure style="margin:0"><img src="assets/v2.9/cap5a-plan-detail-dag.png" alt="Plan 详情：DAG 6态节点 + assignee + 依赖编辑 + 会话侧栏" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Plan 详情：DAG（START→节点→END）+ 6 态节点 + assignee 名 + draft 边编辑 + plan 会话侧栏</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.9/cap1-done.png" alt="Plan 自动推进到 DONE 2/2" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Start 后系统自动 dispatch 每个就绪节点给 agent → 跑到 DONE 2/2，零手点</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.9/cap3-plan-chat-reply.png" alt="plan 会话 @agent 真唤真回" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">plan 会话里 @ 项目 agent → agent 真唤真回</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.9/cap4-archived-group.png" alt="归档项目「已归档」组只读" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">归档项目进「已归档」组、只读（默认列表不显）</figcaption></figure>
+  </div>
+
   <div class="section-title">文档板块</div>
   <div class="grid">
     <a class="card" href="product/index.html">
@@ -176,7 +185,7 @@
       <span class="idx">04</span>
       <div class="ico">🧭</div>
       <h3>路线图</h3>
-      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。v2.8.1 已 GA（v2.8 会话页统一架构 + v2.8.1 Web Console UX 大改版 / 列表增强 / 提及侧栏 / 单活竞态根治），v3 推迟项与边界。</div>
+      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.9 已发布</b>（Plan Orchestration + 显式 org 路由 + plan 会话唤醒 + 归档语义），承接 v2.8.1（Web Console UX / 单活竞态根治），v3 推迟项与边界。</div>
       <div class="tags"><span class="tag">已完成</span><span class="tag">backlog</span><span class="tag">v3 推迟</span></div>
     </a>
   </div>
