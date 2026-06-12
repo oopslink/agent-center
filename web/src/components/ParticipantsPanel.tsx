@@ -7,6 +7,7 @@ import type { Participant } from '@/api/types';
 import { MemberInviteModal } from './MemberInviteModal';
 import { EntityRef } from './EntityRef';
 import { Avatar } from './Avatar';
+import { ConversationThreadList } from './ConversationThreadList';
 
 interface Props {
   conversationId: string;
@@ -174,6 +175,10 @@ export function ParticipantsPanel({
           )}
         </>
       )}
+
+      {/* v2.9.1 Threads P2: the conversation's thread list. Clicking a thread
+          opens the shared ThreadSidebar (mounted by ConversationView). */}
+      <ConversationThreadList conversationId={conversationId} />
     </aside>
   );
 }

@@ -116,6 +116,18 @@ export interface Message {
   thread_last_activity_at?: string; // RFC3339 of the most recent reply; presence ⇒ has-activity.
 }
 
+// v2.9.1 Threads P2 (mock=contract, P2-BE in parallel — VERIFY vs the real
+// GET /conversations/{id}/threads later). One summary per thread (root message)
+// in the conversation: the root message + its reply count + last activity. Drives
+// the Participants-sidebar thread list (preview + count chip + has-activity dot +
+// activity sort). `root` is a full Message so clicking opens the SAME ThreadSidebar
+// (which takes a root Message) with no extra fetch.
+export interface ThreadSummary {
+  root: Message;
+  reply_count: number;
+  thread_last_activity_at?: string; // RFC3339 of the most recent reply; presence ⇒ has-activity.
+}
+
 // Agent BC (v2.7 #101). Org-scoped agents with a lifecycle/availability
 // state machine, backed by /api/agents. Replaces the retired
 // workforce.AgentInstance surface. Mirrors agentMap from the backend.

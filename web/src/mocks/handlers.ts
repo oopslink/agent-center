@@ -328,6 +328,10 @@ const baseHandlers = [
   http.post('/api/conversations/:id/messages', () =>
     ok({ message_id: 'M-NEW', event_id: 'E-2' }, 201),
   ),
+  // v2.9.1 Threads: default-empty so every conversation surface that renders the
+  // thread affordance / thread list doesn't trip onUnhandledRequest:'error'.
+  http.get('/api/conversations/:id/threads', () => ok([])),
+  http.get('/api/conversations/:id/messages/:mid/replies', () => ok([])),
   http.post('/api/conversations/:id/participants', () => ok({ event_id: 'E-inv' })),
   http.delete('/api/conversations/:id/participants/:identity_id', () =>
     ok({ event_id: 'E-kick' }),

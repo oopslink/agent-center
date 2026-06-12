@@ -34,6 +34,9 @@ export const qk = {
   // so each open thread caches independently and a reply invalidates only its
   // own thread (plus the messages list, for the root's reply_count bump).
   threadReplies: (convId: string, rootId: string) => o('threadReplies', convId, rootId),
+  // v2.9.1 Threads P2: all thread summaries in a conversation
+  // (GET /conversations/{convId}/threads) — drives the Participants thread list.
+  conversationThreads: (convId: string) => o('conversationThreads', convId),
   refs: (convId: string) => o('refs', convId),
   agents: () => o('agents'),
   agent: (id: string) => o('agent', id),

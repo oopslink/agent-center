@@ -11,6 +11,7 @@ import type {
   Message,
   SendMessageInput,
   SendMessageResult,
+  ThreadSummary,
 } from './types';
 
 interface CreateUploadResult {
@@ -76,6 +77,17 @@ export function useThreadReplies(
     queryFn: () =>
       api.get<Message[]>(`/conversations/${conversationId}/messages/${rootMessageId}/replies`),
     enabled: !!conversationId && !!rootMessageId,
+  });
+}
+
+// v2.9.1 Threads P2: list every thread (root message) in a conversation, with
+// reply count + last-activity, for the Participants-sidebar thread list. Gated on
+// conversationId. Sorting/presentation is the caller's concern.
+export function useConversationThreads(conversationId: string | undefined) {
+  return useQuery({
+    queryKey: qk.conversationThreads(conversationId ?? ''),
+    queryFn: () => api.get<ThreadSummary[]>(`/conversations/${conversationId}/threads`),
+    enabled: !!conversationId,
   });
 }
 
