@@ -806,15 +806,17 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
 		return
 	}
-	filter := conversation.MessageFilter{Limit: 200}
+	// v2.9.1 Thread P1: the main flow shows top-level messages only; replies live in
+	// the thread panel (fetched via the /replies endpoint).
+	filter := conversation.MessageFilter{Limit: 200, TopLevelOnly: true}
 	msgs, err := d.MsgRepo.FindByConversationID(r.Context(), id, filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	// v2.9.1 Thread P1: one grouped query for per-root reply counts (no N+1) so each
-	// root message carries the thread-button badge (reply_count + has_activity).
-	counts, err := d.MsgRepo.ThreadReplyCounts(r.Context(), id)
+	// One grouped query for per-root reply count + last activity (no N+1) so each
+	// root message carries the thread-button badge (reply_count + thread_last_activity_at).
+	digests, err := d.MsgRepo.ThreadReplyDigests(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
@@ -822,59 +824,46 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	arr := make([]map[string]any, len(msgs))
 	for i, m := range msgs {
 		mm := msgPublicMap(m)
-		if n := counts[m.ID()]; n > 0 {
-			mm["reply_count"] = n
-			mm["has_activity"] = true
+		if dg, ok := digests[m.ID()]; ok && dg.ReplyCount > 0 {
+			mm["reply_count"] = dg.ReplyCount
+			mm["thread_last_activity_at"] = dg.LastActivityAt
 		}
 		arr[i] = mm
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
 
-// getThreadHandler serves GET /api/orgs/{slug}/conversations/{id}/threads/{rootMessageId}
-// (v2.9.1 Thread P1 read side): returns the root message + all its replies (ordered),
-// with reply_count + has_activity derived on the root. Cross-org / unknown-root →
-// 404 (existence-non-disclosure, §5.7): requireConversationInOrg guards the
-// conversation, and a rootId that is absent OR is itself a reply (not a thread head)
-// also 404s.
-func (s *Server) getThreadHandler(w http.ResponseWriter, r *http.Request) {
+// listThreadRepliesHandler serves
+// GET /api/orgs/{slug}/conversations/{id}/messages/{rootId}/replies (v2.9.1 Thread
+// P1 read side): returns ONLY the thread's replies (the caller already has the root
+// from the main list), in posted_at order. Cross-org / unknown-root → 404
+// (existence-non-disclosure, §5.7): requireConversationInOrg guards the
+// conversation, and a rootId that is absent, lives in another conversation, or is
+// itself a reply (not a thread head) also 404s.
+func (s *Server) listThreadRepliesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
-	rootID := conversation.MessageID(r.PathValue("rootMessageId"))
+	rootID := conversation.MessageID(r.PathValue("rootId"))
 	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
 		return
 	}
-	msgs, err := d.MsgRepo.FindThread(r.Context(), id, rootID)
+	// Validate the root: must exist, belong to THIS conversation, and be a real
+	// thread head (not itself a reply). Any miss → 404 (non-disclosure).
+	root, err := d.MsgRepo.FindByID(r.Context(), rootID)
+	if err != nil || root.ConversationID() != id || !root.IsThreadRoot() {
+		writeError(w, http.StatusNotFound, "not_found", "thread not found")
+		return
+	}
+	replies, err := d.MsgRepo.FindThreadReplies(r.Context(), id, rootID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
-	var root *conversation.Message
-	replies := make([]*conversation.Message, 0, len(msgs))
-	for _, m := range msgs {
-		if m.ID() == rootID {
-			root = m
-		} else {
-			replies = append(replies, m)
-		}
-	}
-	// The rootId must resolve to an actual thread root in this conversation. Absent,
-	// or a reply id passed as the root → 404 (a thread is addressed by its root only).
-	if root == nil || !root.IsThreadRoot() {
-		writeError(w, http.StatusNotFound, "not_found", "thread not found")
-		return
-	}
-	rootMap := msgPublicMap(root)
-	rootMap["reply_count"] = len(replies)
-	rootMap["has_activity"] = len(replies) > 0
-	replyMaps := make([]map[string]any, len(replies))
+	arr := make([]map[string]any, len(replies))
 	for i, m := range replies {
-		replyMaps[i] = msgPublicMap(m)
+		arr[i] = msgPublicMap(m)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"root":    rootMap,
-		"replies": replyMaps,
-	})
+	writeJSON(w, http.StatusOK, arr)
 }
 
 type sendMessageReq struct {

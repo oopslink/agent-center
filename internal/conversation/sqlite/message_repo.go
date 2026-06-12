@@ -118,6 +118,10 @@ func (r *MessageRepo) FindByConversationID(ctx context.Context, conversationID c
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := messageSelect + ` WHERE conversation_id = ?`
 	args := []any{string(conversationID)}
+	if filter.TopLevelOnly {
+		// v2.9.1 Thread P1: exclude replies — the main flow shows top-level only.
+		q += ` AND parent_message_id IS NULL`
+	}
 	if filter.Since != nil {
 		q += ` AND posted_at >= ?`
 		args = append(args, filter.Since.UTC().Format(time.RFC3339Nano))
@@ -164,16 +168,15 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 	return out, nil
 }
 
-// FindThread returns the root message + all its replies within a conversation,
-// root FIRST then replies oldest→newest (v2.9.1 Thread P1). The
-// `(root_message_id IS NOT NULL)` sort key forces the root (NULL root ref) ahead
-// of its replies regardless of timestamps, then posted_at + id give a stable
-// reply order. Scoped to conversation_id so cross-conversation rows never leak.
-func (r *MessageRepo) FindThread(ctx context.Context, conversationID conversation.ConversationID, rootMessageID conversation.MessageID) ([]*conversation.Message, error) {
+// FindThreadReplies returns ONLY the replies of a thread (root_message_id ==
+// rootMessageID) within a conversation, ordered oldest→newest (v2.9.1 Thread P1).
+// The root is not included. Scoped to conversation_id so cross-conversation rows
+// never leak. id is a stable tiebreaker for same-instant replies.
+func (r *MessageRepo) FindThreadReplies(ctx context.Context, conversationID conversation.ConversationID, rootMessageID conversation.MessageID) ([]*conversation.Message, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	q := messageSelect + ` WHERE conversation_id = ? AND (id = ? OR root_message_id = ?)
-		ORDER BY (root_message_id IS NOT NULL), posted_at ASC, id ASC`
-	rows, err := exec.QueryContext(ctx, q, string(conversationID), string(rootMessageID), string(rootMessageID))
+	q := messageSelect + ` WHERE conversation_id = ? AND root_message_id = ?
+		ORDER BY posted_at ASC, id ASC`
+	rows, err := exec.QueryContext(ctx, q, string(conversationID), string(rootMessageID))
 	if err != nil {
 		return nil, err
 	}
@@ -189,26 +192,28 @@ func (r *MessageRepo) FindThread(ctx context.Context, conversationID conversatio
 	return out, rows.Err()
 }
 
-// ThreadReplyCounts returns reply counts grouped by thread root for a whole
-// conversation in one query (NO N+1). Roots with no replies are simply absent.
-func (r *MessageRepo) ThreadReplyCounts(ctx context.Context, conversationID conversation.ConversationID) (map[conversation.MessageID]int, error) {
+// ThreadReplyDigests returns reply count + last-activity (MAX posted_at) grouped
+// by thread root for a whole conversation in one query (NO N+1). Roots with no
+// replies are simply absent. MAX(posted_at) follows the codebase convention of
+// ordering the RFC3339Nano text column directly (same as FindByConversationID).
+func (r *MessageRepo) ThreadReplyDigests(ctx context.Context, conversationID conversation.ConversationID) (map[conversation.MessageID]conversation.ThreadDigest, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		`SELECT root_message_id, COUNT(*) FROM messages
+		`SELECT root_message_id, COUNT(*), MAX(posted_at) FROM messages
 			WHERE conversation_id = ? AND root_message_id IS NOT NULL
 			GROUP BY root_message_id`, string(conversationID))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := make(map[conversation.MessageID]int)
+	out := make(map[conversation.MessageID]conversation.ThreadDigest)
 	for rows.Next() {
-		var root string
+		var root, lastActivity string
 		var n int
-		if err := rows.Scan(&root, &n); err != nil {
+		if err := rows.Scan(&root, &n, &lastActivity); err != nil {
 			return nil, err
 		}
-		out[conversation.MessageID(root)] = n
+		out[conversation.MessageID(root)] = conversation.ThreadDigest{ReplyCount: n, LastActivityAt: lastActivity}
 	}
 	return out, rows.Err()
 }

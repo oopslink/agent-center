@@ -30,10 +30,9 @@ func postReply(t *testing.T, srvURL, cid, content, parentID string, sess testSes
 	return id
 }
 
-// GET /threads/{root} returns the root + ordered replies, with reply_count +
-// has_activity derived on the root. Exercises the POST parent_message_id wiring
-// end-to-end (write a reply → read the thread).
-func TestAPI_GetThread_RootPlusOrderedReplies(t *testing.T) {
+// GET .../messages/{rootId}/replies returns ONLY the thread's replies (children),
+// in order. Exercises the POST parent_message_id wiring end-to-end.
+func TestAPI_ListThreadReplies_ChildrenOrdered(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	cid := seedOrgChannel(t, deps, sess.OrgID, "alpha")
@@ -44,41 +43,35 @@ func TestAPI_GetThread_RootPlusOrderedReplies(t *testing.T) {
 	postReply(t, s.URL, cid, "first reply", rootID, sess)
 	postReply(t, s.URL, cid, "second reply", rootID, sess)
 
-	resp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/threads/"+rootID, sess)
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages/"+rootID+"/replies", sess)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("get thread: got %d want 200", resp.StatusCode)
+		t.Fatalf("get replies: got %d want 200", resp.StatusCode)
 	}
-	var out struct {
-		Root    map[string]any   `json:"root"`
-		Replies []map[string]any `json:"replies"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	var replies []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&replies); err != nil {
 		t.Fatal(err)
 	}
-	if out.Root["id"] != rootID {
-		t.Fatalf("root id = %v want %v", out.Root["id"], rootID)
+	if len(replies) != 2 {
+		t.Fatalf("replies len = %d want 2 (children only, no root)", len(replies))
 	}
-	if out.Root["reply_count"].(float64) != 2 {
-		t.Fatalf("reply_count = %v want 2", out.Root["reply_count"])
+	if replies[0]["content"] != "first reply" || replies[1]["content"] != "second reply" {
+		t.Fatalf("replies out of order: %v / %v", replies[0]["content"], replies[1]["content"])
 	}
-	if out.Root["has_activity"] != true {
-		t.Fatalf("has_activity = %v want true", out.Root["has_activity"])
-	}
-	if len(out.Replies) != 2 {
-		t.Fatalf("replies len = %d want 2", len(out.Replies))
-	}
-	if out.Replies[0]["content"] != "first reply" || out.Replies[1]["content"] != "second reply" {
-		t.Fatalf("replies out of order: %v / %v", out.Replies[0]["content"], out.Replies[1]["content"])
+	// The root itself must NOT appear in the replies payload.
+	for _, m := range replies {
+		if m["id"] == rootID {
+			t.Fatalf("root leaked into replies payload: %v", m)
+		}
 	}
 	// Each reply carries its thread linkage.
-	if out.Replies[0]["root_message_id"] != rootID || out.Replies[0]["parent_message_id"] != rootID {
-		t.Fatalf("reply thread refs wrong: %v", out.Replies[0])
+	if replies[0]["root_message_id"] != rootID || replies[0]["parent_message_id"] != rootID {
+		t.Fatalf("reply thread refs wrong: %v", replies[0])
 	}
 }
 
-// The message-list endpoint annotates a root message with reply_count +
-// has_activity (the thread-button badge foundation); plain messages omit them.
-func TestAPI_ListMessages_ThreadBadge(t *testing.T) {
+// The message-list endpoint shows top-level messages only (replies excluded) and
+// annotates a root with reply_count + thread_last_activity_at.
+func TestAPI_ListMessages_TopLevelOnly_ThreadBadge(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	cid := seedOrgChannel(t, deps, sess.OrgID, "alpha")
@@ -86,7 +79,7 @@ func TestAPI_ListMessages_ThreadBadge(t *testing.T) {
 	defer s.Close()
 
 	rootID := postReply(t, s.URL, cid, "root", "", sess)
-	postReply(t, s.URL, cid, "reply", rootID, sess)
+	replyID := postReply(t, s.URL, cid, "reply", rootID, sess)
 	plainID := postReply(t, s.URL, cid, "plain", "", sess)
 
 	resp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages", sess)
@@ -98,31 +91,56 @@ func TestAPI_ListMessages_ThreadBadge(t *testing.T) {
 	for _, m := range msgs {
 		byID[m["id"].(string)] = m
 	}
-	if byID[rootID]["reply_count"].(float64) != 1 || byID[rootID]["has_activity"] != true {
-		t.Fatalf("root badge wrong: %v", byID[rootID])
+	// Reply is excluded from the main flow.
+	if _, ok := byID[replyID]; ok {
+		t.Fatalf("reply must be excluded from the main message list")
 	}
+	// Root carries the badge.
+	if byID[rootID]["reply_count"].(float64) != 1 {
+		t.Fatalf("root reply_count wrong: %v", byID[rootID])
+	}
+	if byID[rootID]["thread_last_activity_at"] == nil {
+		t.Fatalf("root must carry thread_last_activity_at: %v", byID[rootID])
+	}
+	// Plain top-level message carries no badge.
 	if _, ok := byID[plainID]["reply_count"]; ok {
 		t.Fatalf("plain message must not carry reply_count: %v", byID[plainID])
 	}
 }
 
 // A non-existent root id in a reachable conversation → 404 (non-disclosure).
-func TestAPI_GetThread_UnknownRoot_404(t *testing.T) {
+func TestAPI_ListThreadReplies_UnknownRoot_404(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	cid := seedOrgChannel(t, deps, sess.OrgID, "alpha")
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	resp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/threads/ghost", sess)
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages/ghost/replies", sess)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("unknown root: got %d want 404", resp.StatusCode)
 	}
 }
 
-// Cross-org: reading a thread in another org's conversation → 404 (§5.7, existence
-// non-disclosure), regardless of whether the root message exists there.
-func TestAPI_GetThread_CrossOrg_404(t *testing.T) {
+// Passing a REPLY id as the root → 404 (a thread is addressed by its root only).
+func TestAPI_ListThreadReplies_ReplyAsRoot_404(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "alpha")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	rootID := postReply(t, s.URL, cid, "root", "", sess)
+	replyID := postReply(t, s.URL, cid, "reply", rootID, sess)
+
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages/"+replyID+"/replies", sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("reply-as-root: got %d want 404", resp.StatusCode)
+	}
+}
+
+// Cross-org: reading a thread in another org's conversation → 404 (§5.7).
+func TestAPI_ListThreadReplies_CrossOrg_404(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps) // caller's org
 	ctx := context.Background()
@@ -148,8 +166,26 @@ func TestAPI_GetThread_CrossOrg_404(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 
-	resp := orgScopedGet(t, s.URL+"/api/conversations/"+string(other.ConversationID)+"/threads/"+string(rootRes.MessageID), sess)
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+string(other.ConversationID)+"/messages/"+string(rootRes.MessageID)+"/replies", sess)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("cross-org thread read: got %d want 404", resp.StatusCode)
+	}
+}
+
+// POST a reply whose parent lives in ANOTHER conversation → 404 (ErrMessageParentMismatch).
+func TestAPI_SendReply_ParentInOtherConversation_404(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cidA := seedOrgChannel(t, deps, sess.OrgID, "alpha")
+	cidB := seedOrgChannel(t, deps, sess.OrgID, "beta")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	rootInA := postReply(t, s.URL, cidA, "root in A", "", sess)
+	// Reply in B targeting a parent in A → rejected.
+	resp := orgScopedPost(t, s.URL+"/api/conversations/"+cidB+"/messages",
+		`{"content":"x","parent_message_id":"`+rootInA+`"}`, sess)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-conversation parent: got %d want 404", resp.StatusCode)
 	}
 }

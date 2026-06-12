@@ -227,10 +227,10 @@ func mkReply(t *testing.T, id, rootID conversation.MessageID, convID conversatio
 	return m
 }
 
-// v2.9.1 Thread (P1) read side: FindThread returns the root + ALL its replies in
-// posted_at order, scoped to the conversation; replies from OTHER roots / other
-// conversations are excluded.
-func TestMessageRepo_FindThread_RootPlusOrderedReplies(t *testing.T) {
+// v2.9.1 Thread (P1) read side: FindThreadReplies returns ONLY the replies (NOT the
+// root) in posted_at order, scoped to the conversation; replies from OTHER roots /
+// other conversations are excluded.
+func TestMessageRepo_FindThreadReplies_OrderedChildrenOnly(t *testing.T) {
 	convR, msgR := setupMsgDB(t)
 	ctx := context.Background()
 	_ = convR.Save(ctx, mkConv(t, "c-1", conversation.ConversationKindDM, ""))
@@ -244,9 +244,9 @@ func TestMessageRepo_FindThread_RootPlusOrderedReplies(t *testing.T) {
 	// A different root B in c-1, and a same-id thread in c-2 — must NOT leak in.
 	_ = msgR.Append(ctx, mkMsg(t, "B", "c-1"))
 	_ = msgR.Append(ctx, mkReply(t, "B-r1", "B", "c-1", base.Add(3*time.Minute)))
-	_ = msgR.Append(ctx, mkMsg(t, "A", "c-2")) // same id "A" in another conv — isolation
+	_ = msgR.Append(ctx, mkReply(t, "A-r1", "A", "c-2", base.Add(time.Minute))) // same ids, other conv
 
-	got, err := msgR.FindThread(ctx, "c-1", "A")
+	got, err := msgR.FindThreadReplies(ctx, "c-1", "A")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,67 +254,84 @@ func TestMessageRepo_FindThread_RootPlusOrderedReplies(t *testing.T) {
 	for _, m := range got {
 		ids = append(ids, string(m.ID()))
 	}
-	want := []string{"A", "A-r1", "A-r2"}
+	want := []string{"A-r1", "A-r2"} // children only, posted_at ASC; root A excluded
 	if len(ids) != len(want) {
-		t.Fatalf("thread ids = %v want %v", ids, want)
+		t.Fatalf("reply ids = %v want %v", ids, want)
 	}
 	for i := range want {
 		if ids[i] != want[i] {
-			t.Fatalf("thread ids = %v want %v (root-first then posted_at ASC)", ids, want)
+			t.Fatalf("reply ids = %v want %v (posted_at ASC, children only)", ids, want)
 		}
 	}
 }
 
-// A root with no replies returns just the root.
-func TestMessageRepo_FindThread_RootOnly(t *testing.T) {
+// A root with no replies yields an empty slice.
+func TestMessageRepo_FindThreadReplies_None(t *testing.T) {
 	convR, msgR := setupMsgDB(t)
 	ctx := context.Background()
 	_ = convR.Save(ctx, mkConv(t, "c-1", conversation.ConversationKindDM, ""))
 	_ = msgR.Append(ctx, mkMsg(t, "solo", "c-1"))
-	got, err := msgR.FindThread(ctx, "c-1", "solo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0].ID() != "solo" {
-		t.Fatalf("got %d msgs, want just the root", len(got))
-	}
-}
-
-// An unknown root id (or one in another conversation) yields an empty thread —
-// the handler turns this into a 404 (existence-non-disclosure).
-func TestMessageRepo_FindThread_UnknownRoot_Empty(t *testing.T) {
-	convR, msgR := setupMsgDB(t)
-	ctx := context.Background()
-	_ = convR.Save(ctx, mkConv(t, "c-1", conversation.ConversationKindDM, ""))
-	got, err := msgR.FindThread(ctx, "c-1", "ghost")
+	got, err := msgR.FindThreadReplies(ctx, "c-1", "solo")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 0 {
-		t.Fatalf("unknown root should yield empty, got %d", len(got))
+		t.Fatalf("root with no replies should yield empty, got %d", len(got))
 	}
 }
 
-// ThreadReplyCounts groups reply counts by root for the whole conversation in one
-// query — the foundation for the message-list thread badge (no N+1).
-func TestMessageRepo_ThreadReplyCounts(t *testing.T) {
+// ThreadReplyDigests groups reply count + last-activity by root for the whole
+// conversation in one query — the message-list thread-badge foundation (no N+1).
+func TestMessageRepo_ThreadReplyDigests(t *testing.T) {
+	convR, msgR := setupMsgDB(t)
+	ctx := context.Background()
+	_ = convR.Save(ctx, mkConv(t, "c-1", conversation.ConversationKindDM, ""))
+	base := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	last := base.Add(2 * time.Minute)
+	_ = msgR.Append(ctx, mkMsg(t, "A", "c-1"))
+	_ = msgR.Append(ctx, mkReply(t, "A-r1", "A", "c-1", base.Add(time.Minute)))
+	_ = msgR.Append(ctx, mkReply(t, "A-r2", "A", "c-1", last))
+	_ = msgR.Append(ctx, mkMsg(t, "B", "c-1")) // no replies → absent from the map
+
+	digests, err := msgR.ThreadReplyDigests(ctx, "c-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digests["A"].ReplyCount != 2 {
+		t.Fatalf("A reply count = %d want 2", digests["A"].ReplyCount)
+	}
+	if digests["A"].LastActivityAt != last.Format(time.RFC3339Nano) {
+		t.Fatalf("A last activity = %q want %q", digests["A"].LastActivityAt, last.Format(time.RFC3339Nano))
+	}
+	if _, ok := digests["B"]; ok {
+		t.Fatalf("B has no replies; should be absent, got %v", digests)
+	}
+}
+
+// TopLevelOnly filter excludes replies from FindByConversationID (the main flow).
+func TestMessageRepo_FindByConversationID_TopLevelOnly(t *testing.T) {
 	convR, msgR := setupMsgDB(t)
 	ctx := context.Background()
 	_ = convR.Save(ctx, mkConv(t, "c-1", conversation.ConversationKindDM, ""))
 	base := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
 	_ = msgR.Append(ctx, mkMsg(t, "A", "c-1"))
 	_ = msgR.Append(ctx, mkReply(t, "A-r1", "A", "c-1", base.Add(time.Minute)))
-	_ = msgR.Append(ctx, mkReply(t, "A-r2", "A", "c-1", base.Add(2*time.Minute)))
-	_ = msgR.Append(ctx, mkMsg(t, "B", "c-1")) // no replies → absent from the map
+	_ = msgR.Append(ctx, mkMsg(t, "C", "c-1"))
 
-	counts, err := msgR.ThreadReplyCounts(ctx, "c-1")
+	got, err := msgR.FindByConversationID(ctx, "c-1", conversation.MessageFilter{TopLevelOnly: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if counts["A"] != 2 {
-		t.Fatalf("A reply count = %d want 2", counts["A"])
+	var ids []string
+	for _, m := range got {
+		ids = append(ids, string(m.ID()))
 	}
-	if _, ok := counts["B"]; ok {
-		t.Fatalf("B has no replies; should be absent from counts, got %v", counts)
+	for _, id := range ids {
+		if id == "A-r1" {
+			t.Fatalf("reply A-r1 must be excluded from top-level list, got %v", ids)
+		}
+	}
+	if len(ids) != 2 {
+		t.Fatalf("top-level list = %v want [A C]", ids)
 	}
 }

@@ -58,6 +58,20 @@ type MessageFilter struct {
 	Since *time.Time
 	Tail  int // last N messages when non-zero
 	Limit int
+	// TopLevelOnly excludes thread replies (parent_message_id IS NOT NULL) — the
+	// main conversation flow shows only top-level messages; replies live in the
+	// thread side panel (v2.9.1 Thread P1). Opt-in; default false keeps every other
+	// caller's behavior unchanged.
+	TopLevelOnly bool
+}
+
+// ThreadDigest is the per-root thread summary used to badge a top-level message
+// (v2.9.1 Thread P1): how many replies and when the latest one landed.
+type ThreadDigest struct {
+	ReplyCount int
+	// LastActivityAt is the latest reply's posted_at as an RFC3339Nano string
+	// (same wire format msgPublicMap emits for posted_at). Empty when no replies.
+	LastActivityAt string
 }
 
 // MessageRepository per ADR-0031 (v2 — vendor_msg_ref dropped).
@@ -76,17 +90,17 @@ type MessageRepository interface {
 	// the whole page in one round-trip. Each returned slice is newest-first; a
 	// conversation with no messages simply has no map entry. n <= 0 → empty map.
 	RecentByConversations(ctx context.Context, convIDs []ConversationID, n int) (map[ConversationID][]*Message, error)
-	// FindThread returns a whole thread within a conversation: the root message
-	// (id == rootMessageID) plus ALL its replies (root_message_id == rootMessageID),
-	// root FIRST then replies in posted_at order (v2.9.1 Thread P1). Scoped to the
-	// conversation, so a root/id from another conversation never leaks in. An
-	// unknown root yields an empty slice (the HTTP edge maps that to 404).
-	FindThread(ctx context.Context, conversationID ConversationID, rootMessageID MessageID) ([]*Message, error)
-	// ThreadReplyCounts returns the reply count per thread root for a whole
-	// conversation in a SINGLE grouped query (NO N+1) — the foundation for the
-	// message-list thread-button badge. Roots with no replies are absent from the
-	// map (count 0).
-	ThreadReplyCounts(ctx context.Context, conversationID ConversationID) (map[MessageID]int, error)
+	// FindThreadReplies returns ONLY the replies of a thread (root_message_id ==
+	// rootMessageID) within a conversation, in posted_at order (v2.9.1 Thread P1).
+	// The root itself is NOT included — the caller already has it from the main
+	// list. Scoped to the conversation, so replies from another conversation never
+	// leak in. Empty slice when the root has no replies.
+	FindThreadReplies(ctx context.Context, conversationID ConversationID, rootMessageID MessageID) ([]*Message, error)
+	// ThreadReplyDigests returns the reply count + last-activity timestamp per
+	// thread root for a whole conversation in a SINGLE grouped query (NO N+1) — the
+	// foundation for the message-list thread-button badge. Roots with no replies
+	// are absent from the map.
+	ThreadReplyDigests(ctx context.Context, conversationID ConversationID) (map[MessageID]ThreadDigest, error)
 	Append(ctx context.Context, m *Message) error
 	// DeleteByConversationID hard-removes all messages of a conversation (v2.7
 	// #198, DM delete). Idempotent: no rows = no error.
