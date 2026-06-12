@@ -51,10 +51,12 @@ Plan Orchestration + explicit org routing (58 PRs).
   data depending on hidden state. Full no-shim migration; cross-org access is
   denied with 404 (existence-non-disclosure). The frontend addresses pages under
   `/organizations/{slug}/...`.
-- **Conversation wake reaches project agents.** @mentioning an agent in a plan /
-  issue / task conversation now wakes it (not only DMs), including a project-member
-  agent that isn't yet a participant. Only human-authored messages trigger
-  conversational wake (system / agent messages never do).
+- **Plan conversations join @mention-wake.** @mentioning a project agent in a
+  plan conversation now wakes it — including a project-member agent that isn't yet
+  a participant (issue / task conversations already supported @mention-wake since
+  v2.7.1; plan conversations and the non-participant project-member breadth are
+  the v2.9 addition). Only human-authored messages trigger conversational wake
+  (system / agent messages never do).
 
 ### Security
 
