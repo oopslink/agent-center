@@ -439,9 +439,11 @@ export function MessageList({
         />
       )}
       {/* v2.9.1 Threads: local thread sidebar fallback — rendered ONLY when this
-          list owns threads (showThreads) AND there is no surface-level provider
-          (under ConversationView's ThreadSidebarProvider the provider owns the
-          one sidebar, so we don't double-render). */}
+          list owns threads (showThreads) AND there is no surface-level provider.
+          On real conversation surfaces ConversationView mounts ThreadSidebarProvider
+          (added in P2), so providerOpenThread is set and this fallback does NOT
+          render (the provider owns the single sidebar — no double-render). The
+          fallback covers standalone use (e.g. unit tests with no provider). */}
       {showThreads && !providerOpenThread && (
         <ThreadSidebar
           open={localThreadRoot !== null}
