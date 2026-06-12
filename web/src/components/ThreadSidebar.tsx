@@ -66,7 +66,9 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
             <div className="text-base font-semibold" data-testid="thread-sidebar-title">
               Thread
             </div>
-            <div className="text-xs text-text-muted">
+            {/* §-1 Finding 2: readable subtitle uses text-text-secondary (AA in
+                both modes), NOT the sub-AA text-text-muted (B2 / decision #2). */}
+            <div className="text-xs text-text-secondary" data-testid="thread-sidebar-subtitle">
               {replyList.length === 0
                 ? 'No replies yet'
                 : `${replyList.length} ${replyList.length === 1 ? 'reply' : 'replies'}`}
