@@ -260,6 +260,43 @@ func makeBlockTask(cfg Config) mcp.ToolHandlerFor[blockTaskArgs, any] {
 	}
 }
 
+// --- unblock_task / rerun_failed_node (v2.9.1 P0 recovery) -------------------
+
+type unblockTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the blocked task to recover"`
+}
+
+// makeUnblockTask recovers a blocked task: blocked→running + a fresh re-dispatch
+// (re-wakes the assignee). Recovery for a task stuck blocked after a
+// restart/stale-release (reason "agent execution failed").
+func makeUnblockTask(cfg Config) mcp.ToolHandlerFor[unblockTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args unblockTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "unblock_task", body)
+	}
+}
+
+type rerunFailedNodeArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the plan the node belongs to"`
+	TaskID string `json:"task_id" jsonschema:"the plan node's task to re-run"`
+}
+
+// makeRerunFailedNode clears a plan node's dispatch record so the next plan
+// advance re-dispatches it — plan-aware recovery for a stuck node.
+func makeRerunFailedNode(cfg Config) mcp.ToolHandlerFor[rerunFailedNodeArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args rerunFailedNodeArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "rerun_failed_node", body)
+	}
+}
+
 // --- complete_task -----------------------------------------------------------
 
 type completeTaskArgs struct {

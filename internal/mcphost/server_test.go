@@ -102,6 +102,8 @@ var wantTools = []string{
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",
 	"block_task", "complete_task", "verify_task",
+	// v2.9.1 P0 recovery tools (deadlocked-blocked task recovery)
+	"unblock_task", "rerun_failed_node",
 	// v2.9 P3 Stage C (#285): plan orchestration tools (see planTools)
 	"create_plan", "add_task_to_plan", "remove_task_from_plan",
 	"add_plan_dependency", "remove_plan_dependency",

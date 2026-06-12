@@ -222,6 +222,16 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeBlockTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "unblock_task",
+		Description: "Recover a blocked task: move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
+	}, makeUnblockTask(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "rerun_failed_node",
+		Description: "Clear a plan node's dispatch record so the next plan advance re-dispatches it. Plan-aware recovery for a stuck/failed node.",
+	}, makeRerunFailedNode(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_task",
 		Description: "Optionally post a summary and move the task to completed.",
 	}, makeCompleteTask(cfg))

@@ -25,6 +25,10 @@ var AgentFacingToolNames = []string{
 	"block_task",
 	"complete_task",
 	"create_plan",
+	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
+	// task stuck blocked after a restart/stale-release).
+	"unblock_task",
+	"rerun_failed_node",
 	"create_task",
 	"delete_plan",
 	"download_file",
