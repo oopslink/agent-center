@@ -21,9 +21,9 @@
   (Slock), but **agent-center ≠ the runtime** — never conflate them.
 - **Current release: v2.9 (shipped 2026-06-12, tag `v2.9` → `b29376b`).** Headline
   feature: **Plan Orchestration** (DAG-driven multi-agent workflow). See §6.
-- **Branch reality:** `v2.9` branch + `v2.9` tag carry the shipped code. **`main`
-  is still at `7cc8c1b` (the v2.8.1 release).** Merging `v2.9 → main` is an **open
-  decision** left to the stakeholder — see §8.
+- **Branch reality:** the `v2.9` tag (`b29376b`) is the immutable release point.
+  **v2.9 was promoted to `main`** on 2026-06-12 (per stakeholder) via a `--no-ff`
+  sync merge, so `main` now carries the v2.9 release — see §8.
 - **The team is 6 agents** with fixed lanes (§3). **How we ship** is a
   verify-not-trust, multi-face-acceptance, single-actor-merge discipline (§4).
 - The hardest-won, most reusable knowledge is in §5 (**institutional lessons**) —
@@ -264,14 +264,40 @@ make release        # release build
   socket-path-length limit — that is an environment issue, not a code regression;
   confirm against a clean baseline before attributing a failure to a change.
 
+### 7.1 Production deployment topology (this host)
+
+The live dogfood/production deployment runs on the dev host under
+`~/.agent-center` (default prefix), via the **atomic-symlink** model
+(`versions/<branch>-<hash>/` + a `current` symlink). Runbook:
+[`docs/deployment/v2.4-first-mile.md`](./deployment/v2.4-first-mile.md).
+
+- **Two processes, both hand-run (NOT launchd):** the **center**
+  (`agent-center server --config=~/.agent-center/etc/config.yaml`, web `7100` /
+  server `7050` / admin TLS `7300`) and **one worker** `worker-edb09a0c`
+  (`agent-center worker run --config=.../workers/worker-edb09a0c/etc/config.yaml`),
+  which spawns the agent-supervisors that run the dogfood agents. The host also
+  has separate **`test-*`** center/worker instances (acceptance sandboxes,
+  launchd-managed) — leave those alone.
+- **Upgrade:** the blessed path is `agent-center upgrade center|worker`
+  (atomic version lay-down + DB migrate-on-start + symlink flip + health probe +
+  auto-rollback) — **but** that command restarts via **launchctl**, which does
+  **not** apply to the hand-run instance (it has no launchd plist). For the
+  hand-run prod instance, upgrade manually: build the new binary, lay it down at
+  `versions/<new>/`, stop the old process, flip `current`, restart via `nohup`.
+  Keep the previous `versions/<old>/` for instant rollback (flip back + restart).
+- **Self-impact is nil for chat ops:** the team/agents communicate over **Slock**
+  (a separate cloud daemon → `api.slock.ai`), independent of this local
+  agent-center — restarting the deployment does not interrupt Slock coordination.
+
 ---
 
 ## 8. Open items / decisions for the successor
 
-1. **`v2.9 → main` merge — OPEN, stakeholder decision.** `main` is at `7cc8c1b`
-   (v2.8.1). The shipped v2.9 lives on the `v2.9` branch + `v2.9` tag (`b29376b`,
-   147 commits ahead of `main`). Decide whether/when to promote `v2.9` to `main`
-   (prior releases were propagated to `main` via a sync merge after ship).
+1. **`v2.9 → main` — DONE (2026-06-12).** v2.9 was promoted to `main` via a
+   `--no-ff` sync merge (per stakeholder), matching the prior release-promotion
+   pattern. The `v2.9` tag (`b29376b`) remains the immutable release point; `main`
+   now carries the v2.9 release. *(Pattern for future releases: ship + tag on the
+   release branch, then promote to `main` via a `--no-ff` sync merge.)*
 2. **Deep versioned docs (offered, non-blocking).** A deeper `dev/v2.9` +
    `manual/v2.9` versioned doc set was proposed; the homepage showcase + roadmap
    already reflect the ship. Pick up if desired.
