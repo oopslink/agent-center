@@ -164,6 +164,55 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 	return out, nil
 }
 
+// FindThread returns the root message + all its replies within a conversation,
+// root FIRST then replies oldest→newest (v2.9.1 Thread P1). The
+// `(root_message_id IS NOT NULL)` sort key forces the root (NULL root ref) ahead
+// of its replies regardless of timestamps, then posted_at + id give a stable
+// reply order. Scoped to conversation_id so cross-conversation rows never leak.
+func (r *MessageRepo) FindThread(ctx context.Context, conversationID conversation.ConversationID, rootMessageID conversation.MessageID) ([]*conversation.Message, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	q := messageSelect + ` WHERE conversation_id = ? AND (id = ? OR root_message_id = ?)
+		ORDER BY (root_message_id IS NOT NULL), posted_at ASC, id ASC`
+	rows, err := exec.QueryContext(ctx, q, string(conversationID), string(rootMessageID), string(rootMessageID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*conversation.Message
+	for rows.Next() {
+		m, err := scanMessage(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// ThreadReplyCounts returns reply counts grouped by thread root for a whole
+// conversation in one query (NO N+1). Roots with no replies are simply absent.
+func (r *MessageRepo) ThreadReplyCounts(ctx context.Context, conversationID conversation.ConversationID) (map[conversation.MessageID]int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT root_message_id, COUNT(*) FROM messages
+			WHERE conversation_id = ? AND root_message_id IS NOT NULL
+			GROUP BY root_message_id`, string(conversationID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[conversation.MessageID]int)
+	for rows.Next() {
+		var root string
+		var n int
+		if err := rows.Scan(&root, &n); err != nil {
+			return nil, err
+		}
+		out[conversation.MessageID(root)] = n
+	}
+	return out, rows.Err()
+}
+
 // RecentByConversations returns the last-n messages per conversation across the
 // whole input set in a SINGLE batch query (NO N+1) — used by the v2.8.1 channels
 // list enrich to show a per-row recent-messages preview without a per-conversation

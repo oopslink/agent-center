@@ -33,8 +33,8 @@ import (
 // HandlerDeps is the narrow surface handlers need. The cli.App provides
 // these via an adapter (see internal/cli/webconsole_adapter.go).
 type HandlerDeps struct {
-	DB                 *sql.DB
-	Actor              observability.Actor
+	DB    *sql.DB
+	Actor observability.Actor
 	// EventSink emits observability/audit events (v2.8.1: agent/worker
 	// force_deleted). Optional — nil in headless/test wirings → emit is skipped.
 	EventSink          *observability.EventSink
@@ -812,11 +812,69 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
+	// v2.9.1 Thread P1: one grouped query for per-root reply counts (no N+1) so each
+	// root message carries the thread-button badge (reply_count + has_activity).
+	counts, err := d.MsgRepo.ThreadReplyCounts(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
 	arr := make([]map[string]any, len(msgs))
 	for i, m := range msgs {
-		arr[i] = msgPublicMap(m)
+		mm := msgPublicMap(m)
+		if n := counts[m.ID()]; n > 0 {
+			mm["reply_count"] = n
+			mm["has_activity"] = true
+		}
+		arr[i] = mm
 	}
 	writeJSON(w, http.StatusOK, arr)
+}
+
+// getThreadHandler serves GET /api/orgs/{slug}/conversations/{id}/threads/{rootMessageId}
+// (v2.9.1 Thread P1 read side): returns the root message + all its replies (ordered),
+// with reply_count + has_activity derived on the root. Cross-org / unknown-root →
+// 404 (existence-non-disclosure, §5.7): requireConversationInOrg guards the
+// conversation, and a rootId that is absent OR is itself a reply (not a thread head)
+// also 404s.
+func (s *Server) getThreadHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	id := conversation.ConversationID(r.PathValue("id"))
+	rootID := conversation.MessageID(r.PathValue("rootMessageId"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
+	msgs, err := d.MsgRepo.FindThread(r.Context(), id, rootID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	var root *conversation.Message
+	replies := make([]*conversation.Message, 0, len(msgs))
+	for _, m := range msgs {
+		if m.ID() == rootID {
+			root = m
+		} else {
+			replies = append(replies, m)
+		}
+	}
+	// The rootId must resolve to an actual thread root in this conversation. Absent,
+	// or a reply id passed as the root → 404 (a thread is addressed by its root only).
+	if root == nil || !root.IsThreadRoot() {
+		writeError(w, http.StatusNotFound, "not_found", "thread not found")
+		return
+	}
+	rootMap := msgPublicMap(root)
+	rootMap["reply_count"] = len(replies)
+	rootMap["has_activity"] = len(replies) > 0
+	replyMaps := make([]map[string]any, len(replies))
+	for i, m := range replies {
+		replyMaps[i] = msgPublicMap(m)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"root":    rootMap,
+		"replies": replyMaps,
+	})
 }
 
 type sendMessageReq struct {
@@ -826,6 +884,10 @@ type sendMessageReq struct {
 	Direction        string              `json:"direction"`
 	InputRequestRef  string              `json:"input_request_ref"`
 	Attachments      []msgAttachmentJSON `json:"attachments"`
+	// ParentMessageID (v2.9.1 Thread P1) makes this message a thread reply. The
+	// service derives the root (depth-1) and rejects a parent in another
+	// conversation. Empty for a top-level message.
+	ParentMessageID string `json:"parent_message_id"`
 }
 
 // msgAttachmentJSON is the wire shape for a message attachment (v2.7 #133):
@@ -930,6 +992,7 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 			Direction:        conversation.MessageDirection(dir),
 			InputRequestRef:  req.InputRequestRef,
 			Attachments:      atts,
+			ParentMessageID:  conversation.MessageID(req.ParentMessageID),
 			Actor:            d.Actor,
 		})
 		if err != nil {
@@ -1443,6 +1506,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
+		// v2.9.1 Thread P1: a reply targeting a parent in another conversation is
+		// indistinguishable from "not found" at the edge (existence non-disclosure).
+		errors.Is(err, conversation.ErrMessageParentMismatch),
 		errors.Is(err, workforce.ErrAgentInstanceNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
@@ -1519,6 +1585,14 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 		"direction":          string(m.Direction()),
 		"input_request_ref":  m.InputRequestRef(),
 		"posted_at":          m.PostedAt().Format(time.RFC3339Nano),
+	}
+	// Thread linkage (v2.9.1 P1): emitted only for a reply (a top-level message
+	// carries neither key). parent == root under depth-1; both are the thread root.
+	if pid := m.ParentMessageID(); pid != "" {
+		out["parent_message_id"] = string(pid)
+	}
+	if rid := m.RootMessageID(); rid != "" {
+		out["root_message_id"] = string(rid)
 	}
 	// context_refs lets the UI segment a task conversation's messages by
 	// AgentWorkItem across re-dispatches (v2.7 #137). Emitted only when set

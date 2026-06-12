@@ -76,6 +76,17 @@ type MessageRepository interface {
 	// the whole page in one round-trip. Each returned slice is newest-first; a
 	// conversation with no messages simply has no map entry. n <= 0 → empty map.
 	RecentByConversations(ctx context.Context, convIDs []ConversationID, n int) (map[ConversationID][]*Message, error)
+	// FindThread returns a whole thread within a conversation: the root message
+	// (id == rootMessageID) plus ALL its replies (root_message_id == rootMessageID),
+	// root FIRST then replies in posted_at order (v2.9.1 Thread P1). Scoped to the
+	// conversation, so a root/id from another conversation never leaks in. An
+	// unknown root yields an empty slice (the HTTP edge maps that to 404).
+	FindThread(ctx context.Context, conversationID ConversationID, rootMessageID MessageID) ([]*Message, error)
+	// ThreadReplyCounts returns the reply count per thread root for a whole
+	// conversation in a SINGLE grouped query (NO N+1) — the foundation for the
+	// message-list thread-button badge. Roots with no replies are absent from the
+	// map (count 0).
+	ThreadReplyCounts(ctx context.Context, conversationID ConversationID) (map[MessageID]int, error)
 	Append(ctx context.Context, m *Message) error
 	// DeleteByConversationID hard-removes all messages of a conversation (v2.7
 	// #198, DM delete). Idempotent: no rows = no error.
