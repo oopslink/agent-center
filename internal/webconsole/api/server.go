@@ -160,6 +160,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations/{id}/messages", s.sendMessageHandler)
 	// v2.9.1 Thread P1: read a thread's replies (children only, ordered).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}/messages/{rootId}/replies", s.listThreadRepliesHandler)
+	// v2.9.1 Thread P2: list the conversation's threads (Participants sidebar).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}/threads", s.listThreadsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations/{id}/archive", s.archiveConversationHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}/refs", s.listRefsHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}/unread", s.unreadHandler)

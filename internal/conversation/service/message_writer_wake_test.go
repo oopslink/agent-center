@@ -124,6 +124,54 @@ func TestAddMessage_TaskConversation_EmitsWakeOutbox(t *testing.T) {
 	}
 }
 
+// v2.9.1 Thread P2 (§5.1 verify-not-trust — confirm, don't trust): a thread REPLY
+// is an ordinary same-conversation message, so it MUST emit the wake-trigger outbox
+// event exactly like any message — i.e. @agent-in-thread wakes via the existing
+// v2.9 mention-wake mechanism, with no upstream event-emit gap. The emit gate is
+// parent-agnostic; this class-guard would catch any regression that made replies
+// silently skip the wake.
+func TestAddMessage_ThreadReply_EmitsWakeOutbox(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-task-thread")
+	f.saveConv(t, convID, conversation.ConversationKindTask, conversation.NewTaskOwnerRef("T9"), "")
+
+	root, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:bob",
+		ContentKind: conversation.MessageContentText, Content: "root", Direction: conversation.DirectionInbound,
+		Actor: observability.Actor("user:bob"),
+	})
+	if err != nil {
+		t.Fatalf("AddMessage root: %v", err)
+	}
+	reply, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:carol",
+		ContentKind: conversation.MessageContentText, Content: "@agent ping in thread",
+		Direction:       conversation.DirectionInbound,
+		ParentMessageID: root.MessageID, // <-- thread reply
+		Actor:           observability.Actor("user:carol"),
+	})
+	if err != nil {
+		t.Fatalf("AddMessage reply: %v", err)
+	}
+
+	evs := f.messageAddedEvents(t)
+	if len(evs) != 2 {
+		t.Fatalf("want 2 wake events (root + thread reply), got %d", len(evs))
+	}
+	found := false
+	for _, e := range evs {
+		if strings.Contains(e.Payload, `"message_id":"`+string(reply.MessageID)+`"`) {
+			found = true
+			if !strings.Contains(e.Payload, `"text":"@agent ping in thread"`) {
+				t.Fatalf("reply wake payload wrong: %s", e.Payload)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("thread reply did not emit a wake event; the @agent-in-thread wake would not fire")
+	}
+}
+
 // v2.7.1 #227: an issue conversation emits the wake event even with NO agent
 // participant, so the WakeProjector runs + can auto-join an @mentioned project
 // member (chicken-and-egg: without this, the first issue @mention never emits).

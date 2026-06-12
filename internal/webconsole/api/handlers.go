@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -864,6 +865,52 @@ func (s *Server) listThreadRepliesHandler(w http.ResponseWriter, r *http.Request
 		arr[i] = msgPublicMap(m)
 	}
 	writeJSON(w, http.StatusOK, arr)
+}
+
+// listThreadsHandler serves GET /api/orgs/{slug}/conversations/{id}/threads (v2.9.1
+// Thread P2): one ThreadSummary per thread (a root message WITH replies) for the
+// Participants-sidebar thread list — {root: <full message>, reply_count,
+// thread_last_activity_at}. Roots with no replies are not threads and are excluded.
+// Sorted by last activity desc (the FE re-sorts, but a tidy deterministic order
+// helps). Cross-org → 404 (§5.7) via requireConversationInOrg.
+func (s *Server) listThreadsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	id := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
+	digests, err := d.MsgRepo.ThreadReplyDigests(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	if len(digests) == 0 {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	rootIDs := make([]conversation.MessageID, 0, len(digests))
+	for rid := range digests {
+		rootIDs = append(rootIDs, rid)
+	}
+	roots, err := d.MsgRepo.FindByIDs(r.Context(), rootIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	summaries := make([]map[string]any, 0, len(roots))
+	for _, root := range roots {
+		dg := digests[root.ID()]
+		summaries = append(summaries, map[string]any{
+			"root":                    msgPublicMap(root),
+			"reply_count":             dg.ReplyCount,
+			"thread_last_activity_at": dg.LastActivityAt,
+		})
+	}
+	// Most-recently-active thread first (deterministic; FE re-sorts by the same key).
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i]["thread_last_activity_at"].(string) > summaries[j]["thread_last_activity_at"].(string)
+	})
+	writeJSON(w, http.StatusOK, summaries)
 }
 
 type sendMessageReq struct {
