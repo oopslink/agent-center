@@ -15,6 +15,53 @@ ADR / phase plan landscape, see
 
 _Nothing yet — released work is tracked in the per-version sections below._
 
+## [v2.9] — 2026-06-12
+
+Plan Orchestration + explicit org routing (58 PRs).
+
+### Added
+
+- **Plan Orchestration.** Compose work as a DAG of tasks (a *Plan*): create a
+  plan, add backlog tasks as nodes, and wire dependencies while it's in draft
+  (cycle / self-edge rejected). `start` a plan and the center auto-advances it —
+  each node's status is derived (blocked / ready / dispatched / running / done /
+  failed), and as upstream tasks complete the system dispatches each ready node
+  to its assigned agent (work-delivery, not a chat @mention), running the plan to
+  done with no manual stepping. A failed node blocks its subtree and wakes the
+  plan's creator. The Work Board (Backlog column + one column per Plan) and Plan
+  detail (DAG view with synthetic Start/End nodes, draggable DAG↔chat splitter,
+  draft-only edge editing, all-direction task drag) are the operating surface.
+- **Programmatic plans for agents (MCP).** A PM-style agent can build and run a
+  plan through its own MCP tools (`create_plan`, `add_task_to_plan`,
+  `add_plan_dependency`, `start_plan`, …) — the 11 plan tools are registered in
+  the agent-facing tool catalog, so an agent can assemble and start a plan and
+  let the orchestrator execute it.
+- **Plan & project lifecycle.** Plans have draft / running / done plus an
+  irreversible **archive** (cascades to its tasks, read-only); a plan with a
+  running task can't be archived. Projects can be archived (read-only — every
+  child mutation across the web and MCP surfaces is rejected with 409; reads
+  still work), and archived projects are excluded from the default list and
+  shown in a separate "Archived" group.
+
+### Changed
+
+- **Explicit org routing.** Every org-scoped API moved to `/api/orgs/{slug}/...`
+  (path-explicit), eliminating the implicit "current org" that was inferred from
+  session / `?org_slug=` query — the same path can no longer return different
+  data depending on hidden state. Full no-shim migration; cross-org access is
+  denied with 404 (existence-non-disclosure). The frontend addresses pages under
+  `/organizations/{slug}/...`.
+- **Conversation wake reaches project agents.** @mentioning an agent in a plan /
+  issue / task conversation now wakes it (not only DMs), including a project-member
+  agent that isn't yet a participant. Only human-authored messages trigger
+  conversational wake (system / agent messages never do).
+
+### Security
+
+- **Authenticated token revoke.** `POST /api/admintoken/revoke` now requires an
+  authenticated caller who is a member of the token's organization (was
+  unauthenticated): 401 unauthenticated / 403 non-member / 204 on success.
+
 ## [v2.8.1] — 2026-06-10
 
 Web Console UX overhaul + agent-dispatch reliability (65 PRs).
