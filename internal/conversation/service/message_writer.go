@@ -200,7 +200,12 @@ type AddMessageCommand struct {
 	// MessageAttachment {ac://files URI, filename, mime, size}. Optional; nil for
 	// a plain message. Stored on the Message (attachments JSON column, A0).
 	Attachments []conversation.MessageAttachment
-	Actor       observability.Actor
+	// ParentMessageID (v2.9.1 Thread P1) is the message being replied to. Empty for
+	// a top-level message. The reply's root is DERIVED from the parent (Slack-style
+	// depth-1: a reply always hangs off a root; a reply to a reply is merged into
+	// the same thread). The parent must live in the SAME conversation.
+	ParentMessageID conversation.MessageID
+	Actor           observability.Actor
 }
 
 // AddMessageResult tracks the message id + event id.
@@ -230,6 +235,22 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			}
 			return conversation.ErrConversationClosed
 		}
+		// v2.9.1 Thread P1: when this message is a reply, resolve its parent/root.
+		// The parent must exist AND live in the SAME conversation — a parent in
+		// another conversation is rejected (conversations are org-scoped, so this
+		// blocks cross-org thread stitching; §5.7 non-disclosure at the edge).
+		// Depth-1: ResolveReplyPlacement redirects a reply-to-a-reply to the root.
+		var parentRef, rootRef conversation.MessageID
+		if strings.TrimSpace(string(cmd.ParentMessageID)) != "" {
+			parent, err := w.msgRepo.FindByID(txCtx, cmd.ParentMessageID)
+			if err != nil {
+				return err // ErrMessageNotFound surfaces for an unknown parent
+			}
+			if parent.ConversationID() != cmd.ConversationID {
+				return conversation.ErrMessageParentMismatch
+			}
+			parentRef, rootRef = conversation.ResolveReplyPlacement(parent)
+		}
 		m, err := conversation.NewMessage(conversation.NewMessageInput{
 			ID:               conversation.MessageID(w.idgen.NewULID()),
 			ConversationID:   cmd.ConversationID,
@@ -239,6 +260,8 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			Direction:        cmd.Direction,
 			InputRequestRef:  cmd.InputRequestRef,
 			Attachments:      cmd.Attachments,
+			ParentMessageID:  parentRef,
+			RootMessageID:    rootRef,
 			PostedAt:         w.clock.Now(),
 		})
 		if err != nil {

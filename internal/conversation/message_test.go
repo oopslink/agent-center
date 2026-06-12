@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -158,5 +159,111 @@ func TestParticipantElement_IsActive(t *testing.T) {
 	p.LeftAt = "t"
 	if p.IsActive() {
 		t.Fatal()
+	}
+}
+
+// --- v2.9.1 Thread (P1): parent/root refs + depth-1 invariant ---
+
+// A top-level message has no parent/root; it is its own thread root, so
+// ThreadID() is its own id.
+func TestNewMessage_RootMessage_ThreadDefaults(t *testing.T) {
+	m, err := NewMessage(NewMessageInput{
+		ID: "m-root", ConversationID: "c-1", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound, PostedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.ParentMessageID() != "" || m.RootMessageID() != "" {
+		t.Fatalf("root message must have empty parent/root, got parent=%q root=%q", m.ParentMessageID(), m.RootMessageID())
+	}
+	if !m.IsThreadRoot() {
+		t.Fatal("top-level message should be a thread root")
+	}
+	if m.ThreadID() != "m-root" {
+		t.Fatalf("thread id of a root is its own id, got %q", m.ThreadID())
+	}
+}
+
+// A reply attaches to a root: parent == root, both non-empty, both != self.
+func TestNewMessage_ThreadReply_Happy(t *testing.T) {
+	m, err := NewMessage(NewMessageInput{
+		ID: "m-reply", ConversationID: "c-1", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound, PostedAt: time.Now(),
+		ParentMessageID: "m-root", RootMessageID: "m-root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.ParentMessageID() != "m-root" || m.RootMessageID() != "m-root" {
+		t.Fatalf("got parent=%q root=%q", m.ParentMessageID(), m.RootMessageID())
+	}
+	if m.IsThreadRoot() {
+		t.Fatal("a reply is not a thread root")
+	}
+	if m.ThreadID() != "m-root" {
+		t.Fatalf("reply thread id is its root, got %q", m.ThreadID())
+	}
+}
+
+// Depth-1 invariant: parent must equal root (a reply can only hang off a root).
+func TestNewMessage_ThreadReply_DepthViolation(t *testing.T) {
+	_, err := NewMessage(NewMessageInput{
+		ID: "m-2", ConversationID: "c-1", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound, PostedAt: time.Now(),
+		ParentMessageID: "m-reply", RootMessageID: "m-root", // parent != root → 2nd level
+	})
+	if !errors.Is(err, ErrMessageInvalidThread) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// A root without a parent is inconsistent (root is derived only for replies).
+func TestNewMessage_ThreadReply_RootWithoutParent(t *testing.T) {
+	_, err := NewMessage(NewMessageInput{
+		ID: "m-2", ConversationID: "c-1", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound, PostedAt: time.Now(),
+		RootMessageID: "m-root", // parent empty but root set
+	})
+	if !errors.Is(err, ErrMessageInvalidThread) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// A message cannot be its own parent/root.
+func TestNewMessage_ThreadReply_SelfReply(t *testing.T) {
+	_, err := NewMessage(NewMessageInput{
+		ID: "m-self", ConversationID: "c-1", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound, PostedAt: time.Now(),
+		ParentMessageID: "m-self", RootMessageID: "m-self",
+	})
+	if !errors.Is(err, ErrMessageSelfReply) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// Replying to a ROOT places the new reply directly under that root.
+func TestResolveReplyPlacement_RootTarget(t *testing.T) {
+	root, _ := NewMessage(NewMessageInput{
+		ID: "A", ConversationID: "c-1", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound, PostedAt: time.Now(),
+	})
+	parentID, rootID := ResolveReplyPlacement(root)
+	if parentID != "A" || rootID != "A" {
+		t.Fatalf("got parent=%q root=%q, want A/A", parentID, rootID)
+	}
+}
+
+// Replying to a REPLY merges into the same thread: parent/root redirect to the
+// target's root (no 2nd level is ever produced).
+func TestResolveReplyPlacement_ReplyTarget_RedirectsToRoot(t *testing.T) {
+	reply, _ := NewMessage(NewMessageInput{
+		ID: "B", ConversationID: "c-1", SenderIdentityID: "user:a",
+		ContentKind: MessageContentText, Direction: DirectionInbound, PostedAt: time.Now(),
+		ParentMessageID: "A", RootMessageID: "A",
+	})
+	parentID, rootID := ResolveReplyPlacement(reply)
+	if parentID != "A" || rootID != "A" {
+		t.Fatalf("got parent=%q root=%q, want redirect to root A/A", parentID, rootID)
 	}
 }

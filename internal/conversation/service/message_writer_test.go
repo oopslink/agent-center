@@ -321,6 +321,124 @@ func TestAddMessage_WithAttachments(t *testing.T) {
 	}
 }
 
+// --- v2.9.1 Thread (P1): AddMessage parent → derived root/thread ---
+
+// setupWithRepos returns a writer plus the message repo so a test can inspect
+// the persisted thread fields (mirrors TestAddMessage_WithAttachments).
+func setupWithRepos(t *testing.T) (*MessageWriter, *convsqlite.MessageRepo) {
+	t.Helper()
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	fc := clock.NewFakeClock(time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC))
+	gen := idgen.NewGenerator(fc)
+	er, _ := obsqlite.NewEventRepo(context.Background(), db)
+	sink := observability.NewEventSink(er, er, gen, fc)
+	convRepo := convsqlite.NewConversationRepo(db)
+	msgRepo := convsqlite.NewMessageRepo(db)
+	return NewMessageWriter(db, convRepo, msgRepo, sink, gen, fc), msgRepo
+}
+
+func openDM(t *testing.T, w *MessageWriter) conversation.ConversationID {
+	t.Helper()
+	res, err := w.OpenConversation(context.Background(), OpenCommand{
+		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
+		Actor: observability.Actor("user:hayang"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.ConversationID
+}
+
+func addMsg(t *testing.T, w *MessageWriter, conv conversation.ConversationID, parent conversation.MessageID) conversation.MessageID {
+	t.Helper()
+	res, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "x", Direction: conversation.DirectionInbound,
+		ParentMessageID: parent, Actor: observability.Actor("user:hayang"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.MessageID
+}
+
+// A reply onto a root derives parent == root == the root's id.
+func TestAddMessage_ThreadReply_DerivesRootAndParent(t *testing.T) {
+	w, msgRepo := setupWithRepos(t)
+	conv := openDM(t, w)
+	rootID := addMsg(t, w, conv, "")
+	replyID := addMsg(t, w, conv, rootID)
+
+	reply, err := msgRepo.FindByID(context.Background(), replyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply.ParentMessageID() != rootID || reply.RootMessageID() != rootID {
+		t.Fatalf("got parent=%q root=%q, want %q/%q", reply.ParentMessageID(), reply.RootMessageID(), rootID, rootID)
+	}
+	if reply.ThreadID() != rootID {
+		t.Fatalf("reply thread id %q want %q", reply.ThreadID(), rootID)
+	}
+}
+
+// Replying to a REPLY merges into the same thread — parent/root are redirected to
+// the root, so no 2nd level is ever created (Slack-style depth-1).
+func TestAddMessage_ThreadReply_ToReply_MergesToRoot(t *testing.T) {
+	w, msgRepo := setupWithRepos(t)
+	conv := openDM(t, w)
+	rootID := addMsg(t, w, conv, "")
+	reply1 := addMsg(t, w, conv, rootID)
+	reply2 := addMsg(t, w, conv, reply1) // reply to a reply
+
+	got, err := msgRepo.FindByID(context.Background(), reply2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ParentMessageID() != rootID || got.RootMessageID() != rootID {
+		t.Fatalf("reply-to-reply must redirect to root: got parent=%q root=%q, want %q", got.ParentMessageID(), got.RootMessageID(), rootID)
+	}
+}
+
+// Replying to a non-existent parent is rejected.
+func TestAddMessage_ThreadReply_ParentNotFound(t *testing.T) {
+	w, _ := setupWithRepos(t)
+	conv := openDM(t, w)
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "x", Direction: conversation.DirectionInbound,
+		ParentMessageID: "ghost", Actor: observability.Actor("user:hayang"),
+	})
+	if !errors.Is(err, conversation.ErrMessageNotFound) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// Org/conversation isolation: a reply cannot target a parent that lives in a
+// DIFFERENT conversation (conversations are org-scoped, so this also blocks
+// cross-org thread stitching — §5.7 existence-non-disclosure at the edge).
+func TestAddMessage_ThreadReply_ParentInOtherConversation(t *testing.T) {
+	w, _ := setupWithRepos(t)
+	convA := openDM(t, w)
+	convB := openDM(t, w)
+	rootInA := addMsg(t, w, convA, "")
+
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: convB, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "x", Direction: conversation.DirectionInbound,
+		ParentMessageID: rootInA, Actor: observability.Actor("user:hayang"),
+	})
+	if !errors.Is(err, conversation.ErrMessageParentMismatch) {
+		t.Fatalf("got %v", err)
+	}
+}
+
 // v2.7 #187: conversation ids are user-facing "<kind>-<8hex>" for channel/DM;
 // task (and other internal) conversations keep the ULID (navigated via owner_ref).
 func TestNewConversationID_PrefixByKind(t *testing.T) {

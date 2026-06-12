@@ -174,3 +174,41 @@ func TestMessageRepo_AppendNil(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+// v2.9.1 Thread (P1): parent_message_id / root_message_id round-trip through the
+// INSERT + scan. A root message stores NULL for both; a reply stores its root.
+func TestMessageRepo_ThreadRefs_RoundTrip(t *testing.T) {
+	convR, msgR := setupMsgDB(t)
+	_ = convR.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindDM, ""))
+
+	root := mkMsg(t, "m-root", "c-1")
+	if err := msgR.Append(context.Background(), root); err != nil {
+		t.Fatal(err)
+	}
+	reply, err := conversation.NewMessage(conversation.NewMessageInput{
+		ID: "m-reply", ConversationID: "c-1", SenderIdentityID: "user:hayang",
+		ContentKind: conversation.MessageContentText, Content: "re", Direction: conversation.DirectionInbound,
+		PostedAt: time.Now().UTC(), ParentMessageID: "m-root", RootMessageID: "m-root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := msgR.Append(context.Background(), reply); err != nil {
+		t.Fatal(err)
+	}
+
+	gotRoot, err := msgR.FindByID(context.Background(), "m-root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotRoot.ParentMessageID() != "" || gotRoot.RootMessageID() != "" {
+		t.Fatalf("root row should keep NULL parent/root, got parent=%q root=%q", gotRoot.ParentMessageID(), gotRoot.RootMessageID())
+	}
+	gotReply, err := msgR.FindByID(context.Background(), "m-reply")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotReply.ParentMessageID() != "m-root" || gotReply.RootMessageID() != "m-root" {
+		t.Fatalf("reply row parent/root not round-tripped, got parent=%q root=%q", gotReply.ParentMessageID(), gotReply.RootMessageID())
+	}
+}

@@ -205,4 +205,15 @@ var (
 	ErrMessageNotFound      = errors.New("conversation: message not found")
 	ErrMessageImmutable     = errors.New("conversation: message is append-only, cannot modify")
 	ErrMessageInvalidSender = errors.New("conversation: message sender_identity_id invalid")
+	// Thread (v2.9.1 P1): a reply must hang off a ROOT message — parent and root
+	// are either both empty (a root message) or both set and EQUAL (depth-1,
+	// Slack-style). Any other combination is inconsistent.
+	ErrMessageInvalidThread = errors.New("conversation: message thread refs invalid (parent/root must be both empty or equal; depth-1)")
+	// ErrMessageSelfReply guards against a message being its own parent/root.
+	ErrMessageSelfReply = errors.New("conversation: message cannot reply to itself")
+	// ErrMessageParentMismatch is returned when a reply targets a parent message
+	// that belongs to a DIFFERENT conversation (conversations are org-scoped, so
+	// this also blocks cross-org thread stitching). The HTTP edge maps it to 404
+	// (existence-non-disclosure, §5.7).
+	ErrMessageParentMismatch = errors.New("conversation: parent message is in a different conversation")
 )

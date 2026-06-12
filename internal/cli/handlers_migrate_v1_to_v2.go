@@ -99,7 +99,9 @@ func MigrateV1ToV2Command() *Command {
 // orthogonal Task archived state for Plan delete + archive). Update this constant
 // when any future migration lands so `migrate v1-to-v2` always carries the install
 // to the latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 56
+// v2.9.1 Thread P1 added 0057 (messages.parent_message_id/root_message_id —
+// depth-1 thread refs).
+const targetSchemaVersion = 57
 
 func runMigrateV1ToV2(
 	ctx context.Context,
