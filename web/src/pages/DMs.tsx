@@ -28,7 +28,7 @@ export default function DMs(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-DMs">
       <header className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">DMs</h2>
+        <h1 className="text-xl font-semibold">DMs</h1>
         <button
           type="button"
           className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"

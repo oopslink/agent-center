@@ -8,7 +8,7 @@ export default function Settings(): React.ReactElement {
   const version = useSystemVersion();
   return (
     <section className="space-y-4" data-testid="page-Settings">
-      <h2 className="text-xl font-semibold">Settings</h2>
+      <h1 className="text-xl font-semibold">Settings</h1>
 
       <div
         className="max-w-md rounded-lg border border-border-base bg-bg-elevated p-4"

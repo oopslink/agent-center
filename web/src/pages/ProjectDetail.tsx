@@ -71,7 +71,7 @@ export default function ProjectDetail(): React.ReactElement {
       <Breadcrumb items={[{ label: 'Projects', to: '/projects' }, { label: p.name }]} />
       <ProjectHeader project={p} />
       <ProjectWorkTabs projectId={p.id} />
-      <FleetLinkSection />
+      <EnvironmentLinkSection />
     </section>
   );
 }
@@ -688,7 +688,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   );
 }
 
-function FleetLinkSection(): React.ReactElement {
+function EnvironmentLinkSection(): React.ReactElement {
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -696,13 +696,13 @@ function FleetLinkSection(): React.ReactElement {
     >
       <h2 className="font-heading text-sm font-semibold text-text-primary">Workers</h2>
       <p className="mt-1 text-xs text-text-secondary">
-        Worker / execution rollups live in the Fleet view.
+        Worker / execution rollups live in Environment.
       </p>
       <OrgLink
-        to="/fleet"
+        to="/environment"
         className="mt-2 inline-block text-xs text-accent hover:underline"
       >
-        View in Fleet →
+        View in Environment →
       </OrgLink>
     </div>
   );

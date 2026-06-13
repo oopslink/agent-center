@@ -70,7 +70,7 @@ export default function Projects(): React.ReactElement {
         </ul>
       )}
 
-      {/* v2.9 #298: collapsed "已归档" / Archived group. The backend default-
+      {/* v2.9 #298: collapsed Archived group. The backend default-
           EXCLUDES archived from the active list above; this group fetches the
           archived-only list LAZILY (only once expanded) and lists read-only
           rows. Collapsed by default. */}
@@ -79,7 +79,7 @@ export default function Projects(): React.ReactElement {
   );
 }
 
-// ArchivedProjectsGroup — the collapsed "已归档" disclosure. Fetches the
+// ArchivedProjectsGroup — the collapsed Archived disclosure. Fetches the
 // archived-only project list (useArchivedProjects) ONLY when expanded so the
 // active page load stays a single request. Renders read-only rows (an
 // "Archived" badge already shows via ProjectStatusBadge); empty → a quiet note.
@@ -110,7 +110,7 @@ function ArchivedProjectsGroup(): React.ReactElement {
         >
           <path d="M9 6l6 6-6 6" />
         </svg>
-        <span>Archived / 已归档</span>
+        <span>Archived</span>
       </button>
 
       {open && (

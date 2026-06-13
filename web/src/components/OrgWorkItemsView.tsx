@@ -187,7 +187,7 @@ export function OrgWorkItemsView({
     <section className="space-y-4" data-testid={`page-Org${title}`}>
       <header className="space-y-2 border-b border-border-base pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-xl font-semibold text-text-primary">{title}</h2>
+          <h1 className="text-xl font-semibold text-text-primary">{title}</h1>
           <button
             type="button"
             data-testid="org-workitems-create"

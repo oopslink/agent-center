@@ -29,7 +29,7 @@ export default function Secrets(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-Secrets">
       <header className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Secrets</h2>
+        <h1 className="text-xl font-semibold">Secrets</h1>
         <button
           type="button"
           onClick={() => setCreateOpen(true)}

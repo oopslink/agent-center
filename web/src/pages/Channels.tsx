@@ -43,7 +43,7 @@ export default function Channels(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-Channels">
       <header className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Channels</h2>
+        <h1 className="text-xl font-semibold">Channels</h1>
         <button
           type="button"
           className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"

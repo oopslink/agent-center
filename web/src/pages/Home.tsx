@@ -68,7 +68,7 @@ export default function Home(): React.ReactElement {
             are where agents (claude-code, codex, opencode, …) actually run.
           </p>
           <OrgLink
-            to="/fleet"
+            to="/environment"
             className="mt-3 inline-block rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
             data-testid="home-get-started-cta"
           >
@@ -83,7 +83,7 @@ export default function Home(): React.ReactElement {
           label="Active work items"
           value={workItems.length}
           tone={workItems.length > 0 ? 'success' : 'neutral'}
-          href="/fleet"
+          href="/environment"
           loading={fleet.isLoading}
         />
         <StatCard
@@ -91,7 +91,7 @@ export default function Home(): React.ReactElement {
           value={onlineWorkers}
           subValue={`/ ${(fleet.data?.workers ?? []).length} total`}
           tone={onlineWorkers > 0 ? 'success' : 'neutral'}
-          href="/fleet"
+          href="/environment"
           loading={fleet.isLoading}
         />
       </div>
@@ -100,7 +100,7 @@ export default function Home(): React.ReactElement {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PanelCard
           title="Work items"
-          to="/fleet"
+          to="/environment"
           empty="No active work items"
           loading={fleet.isLoading}
           data-testid="home-active-work-items"

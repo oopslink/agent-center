@@ -63,7 +63,7 @@ export default function Agents(): React.ReactElement {
     <section className="space-y-4" data-testid="page-Agents">
       <header className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Agents</h2>
+          <h1 className="text-xl font-semibold">Agents</h1>
           <p className="text-xs text-text-muted">
             Organization-scoped agents with a managed lifecycle.
           </p>

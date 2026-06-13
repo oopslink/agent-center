@@ -44,9 +44,8 @@ export function CommandPalette({
       { label: 'Channels', href: '/channels', hint: 'page' },
       { label: 'DMs', href: '/dms', hint: 'page' },
       { label: 'Projects', href: '/projects', hint: 'page' },
-      { label: 'Input Requests', href: '/inputrequests', hint: 'page' },
       { label: 'Agents', href: '/agents', hint: 'page' },
-      { label: 'Fleet', href: '/fleet', hint: 'page' },
+      { label: 'Environment', href: '/environment', hint: 'page' },
       { label: 'Secrets', href: '/secrets', hint: 'page' },
       { label: 'Settings', href: '/settings', hint: 'page' },
     ];
