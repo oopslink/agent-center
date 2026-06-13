@@ -26,14 +26,14 @@ import type React from 'react';
 // `statusSolidClass`; the FilterBar status chips reuse `STATUS_BG_CLS` for both
 // the solid-selected fill AND the unselected color dot (●) — no hex duplication.
 export const STATUS_BG_CLS: Record<string, string> = {
-  open: 'bg-sky-600',
-  in_progress: 'bg-blue-600',
-  running: 'bg-blue-600',
-  resolved: 'bg-green-600',
-  completed: 'bg-green-600',
-  closed: 'bg-slate-500',
-  discarded: 'bg-zinc-700',
-  reopened: 'bg-amber-600',
+  open: 'bg-status-sky-solid',
+  in_progress: 'bg-status-blue-solid',
+  running: 'bg-status-blue-solid',
+  resolved: 'bg-status-green-solid',
+  completed: 'bg-status-green-solid',
+  closed: 'bg-status-slate-solid',
+  discarded: 'bg-status-zinc-solid',
+  reopened: 'bg-status-amber-solid',
 };
 
 // statusSolidClass — the saturated REV4 fill + white text for a status (the

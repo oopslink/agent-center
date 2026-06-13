@@ -942,7 +942,7 @@ function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactE
   // (prefix stripped) — NEVER paint the raw prefixed ref as visible text.
   const resolved = resolveName(assignee);
   const label = resolved === assignee ? normalizeIdentityRef(assignee) : resolved;
-  const disc = kind === 'agent' ? 'bg-violet-700' : 'bg-cyan-700';
+  const disc = kind === 'agent' ? 'bg-status-violet-solid' : 'bg-status-cyan-solid';
   return (
     <span
       className="inline-flex items-center gap-1 text-[0.6875rem] text-text-secondary"

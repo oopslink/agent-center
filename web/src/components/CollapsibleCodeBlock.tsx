@@ -89,7 +89,7 @@ export function CollapsibleCodeBlock({
           chrome text uses light, WCAG-AA-on-#003247 colors (slate-200/300). */}
       <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-1">
         {language ? (
-          <span className="font-mono text-xs text-slate-300" data-testid="code-lang-badge">
+          <span className="font-mono text-xs text-codeblock-muted" data-testid="code-lang-badge">
             {language}
           </span>
         ) : (
@@ -97,7 +97,7 @@ export function CollapsibleCodeBlock({
         )}
         <span className="flex items-center gap-2">
           <span
-            className="text-xs text-slate-300"
+            className="text-xs text-codeblock-muted"
             data-testid="code-copy-status"
             aria-live="polite"
           >
@@ -105,7 +105,7 @@ export function CollapsibleCodeBlock({
           </span>
           <button
             type="button"
-            className="flex items-center rounded p-1 text-slate-300 hover:bg-white/10 hover:text-slate-100"
+            className="flex items-center rounded p-1 text-codeblock-muted hover:bg-white/10 hover:text-codeblock-fg"
             data-testid="code-copy-btn"
             aria-label={`Copy ${contextLabel}`}
             title={`Copy ${contextLabel}`}
@@ -124,7 +124,7 @@ export function CollapsibleCodeBlock({
           <code
             id={regionId}
             aria-live="off"
-            className="hljs font-mono text-slate-100"
+            className="hljs font-mono text-codeblock-fg"
             data-testid="code-region"
             dangerouslySetInnerHTML={{ __html: highlighted }}
           />
@@ -132,7 +132,7 @@ export function CollapsibleCodeBlock({
           <code
             id={regionId}
             aria-live="off"
-            className="hljs font-mono text-slate-100"
+            className="hljs font-mono text-codeblock-fg"
             data-testid="code-region"
           >
             {shown}
@@ -143,7 +143,7 @@ export function CollapsibleCodeBlock({
       {collapsible && (
         <button
           type="button"
-          className="w-full border-t border-white/10 px-3 py-1 text-left text-xs text-sky-300 hover:bg-white/5"
+          className="w-full border-t border-white/10 px-3 py-1 text-left text-xs text-codeblock-link hover:bg-white/5"
           data-testid="code-disclosure-btn"
           aria-expanded={expanded}
           aria-controls={regionId}

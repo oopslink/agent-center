@@ -166,10 +166,10 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     }
     // locked palette: each state's literal class pair is applied
     const legend = screen.getByTestId('plan-dag-legend');
-    expect(within(legend).getByText('done').className).toContain('bg-emerald-100');
-    expect(within(legend).getByText('done').className).toContain('text-emerald-800');
-    expect(within(legend).getByText('failed').className).toContain('bg-rose-100');
-    expect(within(legend).getByText('dispatched').className).toContain('bg-violet-100');
+    expect(within(legend).getByText('done').className).toContain('bg-status-emerald-bg');
+    expect(within(legend).getByText('done').className).toContain('text-status-emerald-fg');
+    expect(within(legend).getByText('failed').className).toContain('bg-status-rose-bg');
+    expect(within(legend).getByText('dispatched').className).toContain('bg-status-violet-bg');
     // Advance button present while running
     expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument();
   });
@@ -1348,8 +1348,8 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     await waitFor(() => expect(screen.getByTestId('plan-tab-tasks')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const badge = screen.getByTestId('task-archived-badge-na');
-    expect(badge.className).toContain('bg-amber-100');
-    expect(badge.className).toContain('text-amber-800');
+    expect(badge.className).toContain('bg-status-amber-bg');
+    expect(badge.className).toContain('text-status-amber-fg');
     expect(badge.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
     expect(badge.className).not.toMatch(/text-red-|bg-red-/);
     // eslint-disable-next-line no-control-regex
@@ -1363,8 +1363,8 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     const chip = within(screen.getByTestId('plan-detail-header')).getByTestId('plan-status-chip');
     expect(chip).toHaveTextContent('archived');
     expect(chip).toHaveAttribute('data-status', 'archived');
-    expect(chip.className).toContain('bg-stone-100');
-    expect(chip.className).toContain('text-stone-800');
+    expect(chip.className).toContain('bg-status-stone-bg');
+    expect(chip.className).toContain('text-status-stone-fg');
     expect(chip.className).not.toMatch(/\/\d+/);
     expect(chip.className).not.toMatch(/text-red-|bg-red-/);
   });

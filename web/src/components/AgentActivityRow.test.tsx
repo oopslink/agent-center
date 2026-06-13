@@ -77,7 +77,7 @@ describe('AgentActivityRow (#228 categories)', () => {
     row(ev('tool_use', { tool_name: 'Grep', args: { pattern: 'foo' } }));
     const badge = screen.getByTestId('agent-activity-badge');
     expect(badge).toHaveTextContent('Searching');
-    expect(badge.className).toContain('text-purple-600');
+    expect(badge.className).toContain('text-status-purple-strong');
     expect(badge.querySelector('svg')).toBeInTheDocument();
   });
 
@@ -148,7 +148,7 @@ describe('AgentActivityRow (#228 categories)', () => {
     row(ev('system_init', { model: 'claude-opus-4-8', session_id: 'abcd1234efgh' }));
     const badge = screen.getByTestId('agent-activity-badge');
     expect(badge).toHaveTextContent('Checking messages');
-    expect(badge.className).toContain('text-orange-600');
+    expect(badge.className).toContain('text-status-orange-strong');
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('claude-opus-4-8');
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('abcd1234');
   });
