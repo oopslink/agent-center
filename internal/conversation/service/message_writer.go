@@ -351,6 +351,11 @@ type messageAddedOutboxPayload struct {
 	MessageID      string `json:"message_id"`
 	Sender         string `json:"sender"`
 	Text           string `json:"text"`
+	// RootMessageID (v2.9.1 Thread F4) is the thread root of the triggering message
+	// when it is a thread reply (empty for a top-level message). It flows through the
+	// WakeProjector → daemon brief so the woken agent replies IN the same thread
+	// (parent=root) instead of at conversation top-level.
+	RootMessageID string `json:"root_message_id,omitempty"`
 }
 
 // emitMessageAddedOutbox appends the wake-trigger event to the outbox inside the
@@ -362,6 +367,7 @@ func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conver
 		MessageID:      string(m.ID()),
 		Sender:         string(m.SenderIdentityID()),
 		Text:           m.Content(),
+		RootMessageID:  string(m.RootMessageID()), // F4: thread root (empty if top-level)
 	})
 	if err != nil {
 		return err

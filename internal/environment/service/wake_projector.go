@@ -167,6 +167,9 @@ type messageAddedPayload struct {
 	MessageID      string `json:"message_id"`
 	Sender         string `json:"sender"`
 	Text           string `json:"text"`
+	// RootMessageID (v2.9.1 Thread F4) is the thread root of the triggering message
+	// (empty if top-level); carried through to the agent so its reply lands in-thread.
+	RootMessageID string `json:"root_message_id,omitempty"`
 }
 
 // wakeCommandPayload is the agent.wake command payload the daemon AgentController
@@ -183,6 +186,8 @@ type wakeCommandPayload struct {
 	ConversationID string `json:"conversation_id"`
 	MessageID      string `json:"message_id"`
 	MessageText    string `json:"message_text"`
+	// RootMessageID (F4): thread root of the triggering message → agent replies in-thread.
+	RootMessageID string `json:"root_message_id,omitempty"`
 }
 
 // converseCommandPayload is the agent.converse command payload (v2.7 #185). It
@@ -200,6 +205,8 @@ type converseCommandPayload struct {
 	SenderDisplay  string `json:"sender_display"`
 	MessageID      string `json:"message_id"`
 	MessageText    string `json:"message_text"`
+	// RootMessageID (F4): thread root of the triggering message → agent replies in-thread.
+	RootMessageID string `json:"root_message_id,omitempty"`
 }
 
 // awaitingInputPayload mirrors the JSON keys the request_input admin handler
@@ -345,6 +352,7 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 		ConversationID: pl.ConversationID, // D2-e-ii backfill: cursor advance after inject.
 		MessageID:      pl.MessageID,
 		MessageText:    pl.Text,
+		RootMessageID:  pl.RootMessageID, // F4: carry thread root → agent replies in-thread
 	})
 	if err != nil {
 		return err
@@ -612,6 +620,7 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		SenderDisplay:  senderDisplay,
 		MessageID:      pl.MessageID,
 		MessageText:    pl.Text,
+		RootMessageID:  pl.RootMessageID, // F4: carry thread root → agent replies in-thread
 	})
 	if err != nil {
 		return err

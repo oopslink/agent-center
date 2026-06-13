@@ -172,6 +172,47 @@ func TestAddMessage_ThreadReply_EmitsWakeOutbox(t *testing.T) {
 	}
 }
 
+// F4: the wake outbox payload of a thread reply must carry root_message_id so the
+// woken agent can reply IN the thread (parent=root). A top-level message carries none.
+func TestAddMessage_ThreadReply_WakePayloadCarriesRoot(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-task-root")
+	f.saveConv(t, convID, conversation.ConversationKindTask, conversation.NewTaskOwnerRef("T7"), "")
+
+	root, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:bob",
+		ContentKind: conversation.MessageContentText, Content: "root", Direction: conversation.DirectionInbound,
+		Actor: observability.Actor("user:bob"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:carol",
+		ContentKind: conversation.MessageContentText, Content: "in thread", Direction: conversation.DirectionInbound,
+		ParentMessageID: root.MessageID, Actor: observability.Actor("user:carol"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var rootEv, replyEv string
+	for _, e := range f.messageAddedEvents(t) {
+		if strings.Contains(e.Payload, `"message_id":"`+string(root.MessageID)+`"`) {
+			rootEv = e.Payload
+		}
+		if strings.Contains(e.Payload, `"message_id":"`+string(reply.MessageID)+`"`) {
+			replyEv = e.Payload
+		}
+	}
+	if !strings.Contains(replyEv, `"root_message_id":"`+string(root.MessageID)+`"`) {
+		t.Fatalf("reply wake payload must carry root_message_id=%s, got: %s", root.MessageID, replyEv)
+	}
+	if strings.Contains(rootEv, "root_message_id") {
+		t.Fatalf("top-level root message payload must NOT carry root_message_id, got: %s", rootEv)
+	}
+}
+
 // v2.7.1 #227: an issue conversation emits the wake event even with NO agent
 // participant, so the WakeProjector runs + can auto-join an @mentioned project
 // member (chicken-and-egg: without this, the first issue @mention never emits).
