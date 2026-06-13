@@ -181,6 +181,11 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeGetTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_tasks",
+		Description: "List all tasks in a project (board overview), optionally filtered by status and/or assignee. Requires project_id; the caller must be a project member.",
+	}, makeListTasks(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_issue",
 		Description: "Get an issue the calling agent's own task derives from (own-scope).",
 	}, makeGetIssue(cfg))

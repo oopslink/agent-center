@@ -97,7 +97,7 @@ var wantTools = []string{
 	// v2.7.1 #246: channel name → id discovery
 	"find_org_channel",
 	// reads
-	"get_task", "get_issue",
+	"get_task", "get_issue", "list_tasks",
 	// pm writes / passthrough
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",

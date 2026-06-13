@@ -44,6 +44,7 @@ var AgentFacingToolNames = []string{
 	"get_task",
 	"list_my_paused_work",
 	"list_plans",
+	"list_tasks",
 	"mark_seen",
 	"pause_work",
 	"post_message",

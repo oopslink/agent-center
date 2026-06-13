@@ -42,6 +42,33 @@ func makeGetTask(cfg Config) mcp.ToolHandlerFor[getTaskArgs, any] {
 	}
 }
 
+// --- list_tasks (v2.9.1 #T38) ------------------------------------------------
+
+type listTasksArgs struct {
+	ProjectID string   `json:"project_id" jsonschema:"the project whose tasks to list (required)"`
+	Status    []string `json:"status,omitempty" jsonschema:"optional task statuses to include (e.g. open, running, completed); omit for all"`
+	Assignee  string   `json:"assignee,omitempty" jsonschema:"optional assignee identity ref to filter by (agent:<id> / user:<id>)"`
+}
+
+// makeListTasks lists ALL tasks in a project (board overview), optionally filtered
+// by status and/or assignee — fills the gap where get_my_work is self-only and
+// list_plans only covers plan nodes.
+func makeListTasks(cfg Config) mcp.ToolHandlerFor[listTasksArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listTasksArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+		}
+		if len(args.Status) > 0 {
+			body["status"] = args.Status
+		}
+		if args.Assignee != "" {
+			body["assignee"] = args.Assignee
+		}
+		return callAdmin(ctx, cfg, "list_tasks", body)
+	}
+}
+
 // --- get_issue ---------------------------------------------------------------
 
 type getIssueArgs struct {
