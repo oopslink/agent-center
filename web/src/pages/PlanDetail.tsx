@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
 import { useProject } from '@/api/projects';
@@ -32,6 +32,7 @@ import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchiv
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
+import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 
 // PlanDetail (/projects/:id/plans/:planId) — v2.9 Plan-Orchestration EXECUTION
 // view (#287). The mockup's ② Plan Detail: a header (name + status + failed +
@@ -1004,6 +1005,69 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
   const [compact, setCompact] = useState(false);
   const scale = compact ? 0.7 : 1;
 
+  // v2.9.1 point 3: IN-GRAPH dependency editing (draft-only). The dependency
+  // STRUCTURE is edited directly on the graph — no separate dropdown box (§21
+  // single entry). Each draft node has a focusable "connect" control that enters
+  // CONNECT MODE with that node as the source; valid targets (validDropTargets,
+  // = excludes self/exists/cycle — cycle/self blocked at the UI layer) light up
+  // as activatable targets. Each existing edge has a focusable delete control.
+  // Add = AddPlanDependency(from=source, to=target) → "source depends on target".
+  const addDep = useAddDependency(projectId, plan.id);
+  const removeDep = useRemoveDependency(projectId, plan.id);
+  // connectFrom = the SOURCE task_id of the in-progress connection (null = not in
+  // connect mode). Only meaningful while draft.
+  const [connectFrom, setConnectFrom] = useState<string | null>(null);
+  const titleOf = useCallback(
+    (taskId: string) => {
+      const n = nodes.find((m) => m.task_id === taskId);
+      return n?.title || `#${idHandle(taskId)}`;
+    },
+    [nodes],
+  );
+
+  const exitConnect = useCallback(() => setConnectFrom(null), []);
+
+  // Escape exits connect mode without adding (a11y: a cancel affordance is also
+  // rendered visibly below).
+  useEffect(() => {
+    if (connectFrom == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitConnect();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [connectFrom, exitConnect]);
+
+  // Leaving draft (e.g. plan starts) must drop any in-progress connect mode.
+  useEffect(() => {
+    if (!isDraft) setConnectFrom(null);
+  }, [isDraft]);
+
+  // The legal targets for the active source (self/exists/cycle excluded). Only
+  // these become activatable target controls; everything else is inert.
+  const dropTargets = useMemo(
+    () => (connectFrom != null ? validDropTargets(nodes, connectFrom) : new Set<string>()),
+    [nodes, connectFrom],
+  );
+
+  const onTargetActivate = useCallback(
+    (target: string) => {
+      if (connectFrom == null) return;
+      // UI-layer guard (cycle/self never even offered, but double-check).
+      if (dependencyEdgeError(nodes, connectFrom, target) !== null) return;
+      addDep.mutate(
+        { from_task_id: connectFrom, to_task_id: target },
+        { onSuccess: () => setConnectFrom(null) },
+      );
+      // Exit connect mode immediately (optimistic UX); on error the friendly
+      // message surfaces below and the user can retry.
+      setConnectFrom(null);
+    },
+    [addDep, connectFrom, nodes],
+  );
+
+  const mutationError = addDep.isError ? addDep.error : removeDep.isError ? removeDep.error : null;
+
   const { positioned, width, height, start, end } = useMemo(() => layoutDag(nodes), [nodes]);
   const posById = useMemo(
     () => new Map(positioned.map((p) => [p.node.task_id, p])),
@@ -1013,7 +1077,12 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
   // Edges: dep (upstream) → node (downstream). Path from dep right-mid to node
   // left-mid; a horizontal-ease cubic for a clean orthogonal-ish curve.
   const edges = useMemo(() => {
-    const out: { key: string; d: string }[] = [];
+    // Each real edge: dep (upstream `to`) → node (downstream `from`). The plan
+    // node `p` lists `depId` in depends_on, i.e. "p depends on depId" ⟺
+    // AddPlanDependency(from=p, to=depId). `from`/`to` are kept on the edge so a
+    // draft delete control can call RemoveDependency with the exact ids; `mx/my`
+    // is the curve midpoint where the delete control is anchored.
+    const out: { key: string; d: string; from: string; to: string; mx: number; my: number }[] = [];
     for (const p of positioned) {
       for (const depId of p.node.depends_on) {
         const dep = posById.get(depId);
@@ -1026,6 +1095,10 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
         out.push({
           key: `${depId}->${p.node.task_id}`,
           d: `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`,
+          from: p.node.task_id,
+          to: depId,
+          mx: midX,
+          my: (y1 + y2) / 2,
         });
       }
     }
@@ -1068,13 +1141,39 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
       ) : (
         <>
         {/* v2.9.1 point 2: compact (zoom-to-fit) toggle for long/wide DAGs. */}
-        <div className="mb-2 flex justify-end">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          {/* Connect-mode banner (point 3, draft-only): shown while a connection
+              is in progress. Tells the user to pick a highlighted target and
+              offers a visible Cancel affordance (Escape also exits). */}
+          {isDraft && connectFrom != null ? (
+            <div
+              className="flex flex-1 items-center gap-2 rounded border border-accent bg-bg-elevated px-2 py-1 text-[0.6875rem] text-text-secondary"
+              data-testid="plan-connect-banner"
+              role="status"
+            >
+              <span className="min-w-0 truncate">
+                Pick a highlighted task that{' '}
+                <span className="font-semibold text-text-primary">{titleOf(connectFrom)}</span> depends on.
+              </span>
+              <button
+                type="button"
+                data-testid="plan-connect-cancel"
+                onClick={exitConnect}
+                aria-label="Cancel adding dependency"
+                className="ml-auto shrink-0 rounded border border-border-strong bg-bg-subtle px-2 py-0.5 font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={() => setCompact((c) => !c)}
             aria-pressed={compact}
             data-testid="plan-dag-compact-toggle"
-            className="rounded border border-border-strong px-2 py-0.5 text-[0.6875rem] font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+            className="shrink-0 rounded border border-border-strong px-2 py-0.5 text-[0.6875rem] font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
           >
             {compact ? 'Compact: on' : 'Compact'}
           </button>
@@ -1144,27 +1243,79 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                 ))}
               </g>
             </svg>
+            {/* Draft-only IN-GRAPH edge delete controls (z-10, anchored at each
+                edge's curve midpoint). A real <button> (keyboard-focusable) →
+                useRemoveDependency.mutate({from, to}). Running/done = none. */}
+            {isDraft &&
+              edges.map((e) => (
+                <button
+                  key={`del-${e.from}->${e.to}`}
+                  type="button"
+                  data-testid="plan-edge-delete"
+                  // from->to (dependent->dependency) matches the RemoveDependency
+                  // body: "from depends on to".
+                  data-edge={`${e.from}->${e.to}`}
+                  disabled={removeDep.isPending}
+                  onClick={() => removeDep.mutate({ from_task_id: e.from, to_task_id: e.to })}
+                  aria-label={`Remove dependency: ${titleOf(e.from)} depends on ${titleOf(e.to)}`}
+                  title={`Remove dependency: ${titleOf(e.from)} depends on ${titleOf(e.to)}`}
+                  className="absolute z-10 flex h-5 w-5 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-xs font-bold leading-none text-text-secondary shadow-1 hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                  // centered on the edge midpoint (button is 20px = w-5/h-5).
+                  style={{ left: e.mx - 10, top: e.my - 10 }}
+                >
+                  {/* ASCII multiplication sign (not emoji). */}
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              ))}
             {/* Nodes (z-10). */}
             {positioned.map((p) => {
               const s = NODE_STATE[p.node.node_status] ?? NODE_STATE.blocked;
+              const taskId = p.node.task_id;
+              const inConnect = connectFrom != null;
+              const isSource = connectFrom === taskId;
+              const isTarget = inConnect && !isSource && dropTargets.has(taskId);
               return (
                 <div
-                  key={p.node.task_id}
-                  className={`absolute rounded-lg border-[1.5px] bg-bg-elevated p-2 shadow-1 ${s.border}`}
+                  key={taskId}
+                  className={`absolute rounded-lg border-[1.5px] bg-bg-elevated p-2 shadow-1 ${
+                    isTarget
+                      ? 'border-accent ring-2 ring-accent'
+                      : isSource
+                        ? 'border-accent'
+                        : s.border
+                  }`}
                   style={{ left: p.x, top: p.y, width: NODE_W }}
                   data-testid="plan-dag-node"
-                  data-task-id={p.node.task_id}
+                  data-task-id={taskId}
                   data-level={p.level}
+                  data-connect-source={isSource ? 'true' : undefined}
+                  data-connect-target={isTarget ? 'true' : undefined}
                 >
                   {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node. */}
-                  <div className="mb-1">
-                    <TaskIdTag taskId={p.node.task_id} orgRef={orgRefOf(p.node.task_id)} testId="plan-node-taskid" />
+                  <div className="mb-1 flex items-center justify-between gap-1">
+                    <TaskIdTag taskId={taskId} orgRef={orgRefOf(taskId)} testId="plan-node-taskid" />
+                    {/* Draft connect control (point 3): a real keyboard-focusable
+                        button. Activating enters connect mode with this node as
+                        the source. Hidden once running/done (display-only). */}
+                    {isDraft && !inConnect && (
+                      <button
+                        type="button"
+                        data-testid="plan-node-connect"
+                        data-task-id={taskId}
+                        onClick={() => setConnectFrom(taskId)}
+                        aria-label={`Add dependency from ${titleOf(taskId)}`}
+                        title={`Add a dependency from ${titleOf(taskId)} (pick the task it depends on)`}
+                        className="shrink-0 rounded border border-border-strong bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      >
+                        + Dep
+                      </button>
+                    )}
                   </div>
                   <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
                     <TaskTitleLink
                       projectId={projectId}
-                      taskId={p.node.task_id}
-                      title={p.node.title || `#${idHandle(p.node.task_id)}`}
+                      taskId={taskId}
+                      title={p.node.title || `#${idHandle(taskId)}`}
                     />
                   </div>
                   <div className="flex items-center justify-between gap-1.5">
@@ -1172,10 +1323,25 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                       <AssigneeTag assigneeRef={p.node.assignee_ref} />
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <TaskArchivedBadge archived={p.node.archived} taskId={p.node.task_id} />
+                      <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                       <NodeStateChip status={p.node.node_status} />
                     </span>
                   </div>
+                  {/* Connect-mode target affordance (point 3): ONLY valid targets
+                      (self/exists/cycle excluded) become activatable. A real
+                      keyboard-focusable button overlaying the node; activating it
+                      adds "source depends on target". Invalid nodes get nothing. */}
+                  {isTarget && (
+                    <button
+                      type="button"
+                      data-testid="plan-connect-target"
+                      data-task-id={taskId}
+                      onClick={() => onTargetActivate(taskId)}
+                      aria-label={`Make ${titleOf(connectFrom!)} depend on ${titleOf(taskId)}`}
+                      title={`Make ${titleOf(connectFrom!)} depend on ${titleOf(taskId)}`}
+                      className="absolute inset-0 rounded-lg border-2 border-accent bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    />
+                  )}
                 </div>
               );
             })}
@@ -1200,13 +1366,16 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
       </div>
 
       {/* node_status is DERIVED (§9.2) and shown, not edited. In DRAFT the
-          dependency STRUCTURE is editable below; once running/done the graph is
-          DISPLAY-ONLY (the backend rejects edits with ErrPlanNotDraft). */}
+          dependency STRUCTURE is editable IN-GRAPH (point 3): each node has a
+          "+ Dep" connect control, and each edge has an "×" delete control. Once
+          running/done the graph is DISPLAY-ONLY (backend rejects with
+          ErrPlanNotDraft). */}
       <p className="mt-2 text-[0.6875rem] text-text-muted" data-testid="plan-dag-note">
         Node status is derived (= f(task status, all upstream done, dispatch record)) and shown, not edited.{' '}
         {isDraft ? (
           <>
-            This plan is a draft, so its dependencies are editable below — add or remove edges to shape the DAG.
+            This plan is a draft, so its dependencies are editable right on the graph — use a node's "+ Dep"
+            button to add an edge, or an edge's "×" to remove one.
           </>
         ) : (
           <>
@@ -1217,10 +1386,13 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
         )}
       </p>
 
-      {/* Stage A1: the draft-only dependency-edge editor (add via labeled
-          selects, remove via a list). Gated to draft — running/done = display
-          only, matching the backend draft-gate (§9.4). */}
-      {isDraft && <PlanDagEditor projectId={projectId} plan={plan} />}
+      {/* #218 friendly add/remove error (never the raw API message). The
+          single in-graph entry point (§21) — no separate editor box. */}
+      {isDraft && mutationError && (
+        <p className="mt-2 text-xs font-medium text-danger" role="alert" data-testid="plan-edge-error">
+          {friendlyDependencyError(mutationError)}
+        </p>
+      )}
     </div>
   );
 }
@@ -1248,167 +1420,6 @@ function friendlyDependencyError(error: unknown): string {
     return 'Dependencies can only be edited while the plan is a draft.';
   }
   return "Couldn't update the plan's dependencies. Please try again.";
-}
-
-interface ExistingEdge {
-  from: PlanNode; // dependent (downstream) — has the dep in depends_on
-  to: PlanNode; // dependency (upstream) — completes first
-}
-
-function PlanDagEditor({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
-  const nodes = plan.nodes ?? [];
-  const addDep = useAddDependency(projectId, plan.id);
-  const removeDep = useRemoveDependency(projectId, plan.id);
-
-  // Add-form selects: `from` = the dependent task ("this task"); `to` = the
-  // task it depends on (upstream). Matches the backend body exactly.
-  const [fromId, setFromId] = useState('');
-  const [toId, setToId] = useState('');
-
-  const byId = useMemo(() => new Map(nodes.map((n) => [n.task_id, n])), [nodes]);
-  const titleOf = (n: PlanNode) => n.title || `#${idHandle(n.task_id)}`;
-
-  // Existing edges derived from nodes' depends_on (each = "from depends_on to").
-  const edges = useMemo<ExistingEdge[]>(() => {
-    const out: ExistingEdge[] = [];
-    for (const n of nodes) {
-      for (const depId of n.depends_on) {
-        const to = byId.get(depId);
-        if (!to) continue; // skip dangling refs
-        out.push({ from: n, to });
-      }
-    }
-    return out;
-  }, [nodes, byId]);
-
-  const canAdd = fromId !== '' && toId !== '' && fromId !== toId && !addDep.isPending;
-
-  function onAdd(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canAdd) return;
-    addDep.mutate(
-      { from_task_id: fromId, to_task_id: toId },
-      {
-        onSuccess: () => {
-          setFromId('');
-          setToId('');
-        },
-      },
-    );
-  }
-
-  const mutationError = addDep.isError ? addDep.error : removeDep.isError ? removeDep.error : null;
-
-  return (
-    <div className="mt-3 rounded-lg border border-border-base bg-bg-subtle p-3" data-testid="plan-dag-editor">
-      <h3 className="mb-2 text-xs font-semibold text-text-primary">Edit dependencies (draft)</h3>
-
-      {nodes.length < 2 ? (
-        <p className="text-[0.6875rem] text-text-secondary" data-testid="plan-edge-add-empty">
-          Add at least two tasks to this plan (from the Work Board) to create a dependency.
-        </p>
-      ) : (
-        <form className="flex flex-wrap items-end gap-2" onSubmit={onAdd} data-testid="plan-edge-add">
-          <label className="flex flex-col gap-0.5 text-[0.625rem] uppercase tracking-wide text-text-secondary">
-            Task
-            <select
-              className="rounded border border-border-strong bg-bg-elevated px-2 py-1 text-xs normal-case text-text-primary"
-              data-testid="plan-edge-add-from"
-              aria-label="Task that depends on another"
-              value={fromId}
-              onChange={(e) => setFromId(e.target.value)}
-            >
-              <option value="">Select a task…</option>
-              {nodes.map((n) => (
-                <option key={n.task_id} value={n.task_id}>
-                  {titleOf(n)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className="pb-1.5 text-xs font-medium text-text-secondary">depends on</span>
-          <label className="flex flex-col gap-0.5 text-[0.625rem] uppercase tracking-wide text-text-secondary">
-            Depends on
-            <select
-              className="rounded border border-border-strong bg-bg-elevated px-2 py-1 text-xs normal-case text-text-primary"
-              data-testid="plan-edge-add-to"
-              aria-label="Upstream task it depends on"
-              value={toId}
-              onChange={(e) => setToId(e.target.value)}
-            >
-              <option value="">Select a task…</option>
-              {nodes.map((n) => (
-                <option key={n.task_id} value={n.task_id}>
-                  {titleOf(n)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="submit"
-            data-testid="plan-edge-add-btn"
-            disabled={!canAdd}
-            className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          >
-            Add dependency
-          </button>
-        </form>
-      )}
-
-      {/* #218 friendly error (never the raw API message). */}
-      {mutationError && (
-        <p className="mt-2 text-xs font-medium text-danger" role="alert" data-testid="plan-edge-error">
-          {friendlyDependencyError(mutationError)}
-        </p>
-      )}
-
-      {/* Existing edges → remove list (the a11y-accessible primary; a clickable
-          SVG edge is a poor target). Each row = "<from> depends on <to>". */}
-      <div className="mt-3">
-        <h4 className="mb-1 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary">
-          Dependencies
-        </h4>
-        {edges.length === 0 ? (
-          <p className="text-[0.6875rem] text-text-secondary" data-testid="plan-edge-list-empty">
-            No dependencies yet. Add one above to order the tasks.
-          </p>
-        ) : (
-          <ul className="space-y-1" data-testid="plan-edge-list">
-            {edges.map((edge) => {
-              const key = `${edge.from.task_id}->${edge.to.task_id}`;
-              return (
-                <li
-                  key={key}
-                  className="flex items-center justify-between gap-2 rounded border border-border-base bg-bg-elevated px-2 py-1"
-                  data-testid="plan-edge-remove"
-                  data-edge={key}
-                >
-                  <span className="min-w-0 truncate text-xs text-text-primary">
-                    <span className="font-medium">{titleOf(edge.from)}</span>
-                    <span className="text-text-secondary"> depends on </span>
-                    <span className="font-medium">{titleOf(edge.to)}</span>
-                  </span>
-                  <button
-                    type="button"
-                    data-testid="plan-edge-remove-btn"
-                    disabled={removeDep.isPending}
-                    onClick={() =>
-                      removeDep.mutate({ from_task_id: edge.from.task_id, to_task_id: edge.to.task_id })
-                    }
-                    aria-label={`Remove dependency: ${titleOf(edge.from)} depends on ${titleOf(edge.to)}`}
-                    title="Remove this dependency"
-                    className="shrink-0 rounded border border-border-strong bg-bg-subtle px-2 py-0.5 text-[0.6875rem] font-semibold text-text-secondary hover:bg-bg-base disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ── Task list tab ────────────────────────────────────────────────────────────
