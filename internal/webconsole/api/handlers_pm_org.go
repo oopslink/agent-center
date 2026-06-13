@@ -32,7 +32,14 @@ import (
 // Terminal status sets — "all open" (the default when ?status= is omitted)
 // excludes these. Values are the raw pm domain status strings.
 var issueTerminalStatus = map[string]bool{"resolved": true, "closed": true, "withdrawn": true}
-var taskTerminalStatus = map[string]bool{"completed": true, "verified": true, "canceled": true}
+
+// taskTerminalStatus is the terminal Task set the default ("all open") view
+// excludes. v2.9.1 ADR-0046: the Task state machine is {open, running, completed,
+// discarded, reopened} — terminal = {completed, discarded}. (Pre-ADR-0046 this read
+// {completed, verified, canceled}; verified was removed and canceled renamed
+// discarded, so the old map both named dead states AND missed `discarded` — a
+// discarded task wrongly survived the default filter.)
+var taskTerminalStatus = map[string]bool{"completed": true, "discarded": true}
 
 func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)

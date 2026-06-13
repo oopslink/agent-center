@@ -505,8 +505,19 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 		mapPMError(w, err)
 		return
 	}
+	// v2.9.1 (task-c91805fe): the default backlog/task view shows only "unscheduled
+	// todo" — it EXCLUDES terminal tasks (completed/discarded). They remain reachable
+	// via an explicit ?status= filter (e.g. ?status=completed), mirroring the
+	// archived-projects pattern (#298/#310) and the org task list. Plan membership is
+	// untouched: a done task selected into a Plan still belongs to that Plan's DAG;
+	// only this backlog POOL view hides it. statusPasses: empty filter → exclude
+	// terminal; explicit filter → only the named statuses.
+	statusFilter := parseSetParam(r, "status")
 	out := make([]map[string]any, 0, len(ts))
 	for _, t := range ts {
+		if !statusPasses(string(t.Status()), statusFilter, taskTerminalStatus) {
+			continue
+		}
 		out = append(out, pmTaskMap(t))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
