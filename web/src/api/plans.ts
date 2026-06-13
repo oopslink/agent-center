@@ -59,6 +59,11 @@ export interface PlanNode {
   archived?: boolean;
   archived_at?: string | null;
   archived_by?: string | null;
+  // ADR-0047: a COMPUTED flag on a built-in assignment-pool node — true when the
+  // task is assigned+dispatched and so CLAIMABLE by its assignee (pull, no-wake).
+  // Backend-derived; absent / false on backlog + structured-plan nodes. The Work
+  // Board renders a "claimable" chip on a pool node when this is true.
+  claimable?: boolean;
 }
 
 // PlanEdge — a directed dependency edge. `from` (the dependent / downstream
@@ -96,6 +101,13 @@ export interface Plan {
   // Optional — only an archived plan carries them.
   archived_at?: string | null;
   archived_by?: string | null;
+  // ADR-0047: exactly one plan per project is the BUILT-IN assignment pool
+  // (name "[Built-in]"). Flat (no DAG edges), always running, "pull, no-wake":
+  // its assigned+dispatched nodes are CLAIMABLE. The Work Board renders the
+  // is_builtin plan as a DISTINCT segment, NOT a generic structured-plan column.
+  // Optional so a legacy / pre-ADR-0047 payload (no flag) treats every plan as
+  // structured.
+  is_builtin?: boolean;
   // detail read (GET /{id}) — full DAG.
   nodes?: PlanNode[];
   // list read (GET /) — capped preview + total count (enriched PR #272).

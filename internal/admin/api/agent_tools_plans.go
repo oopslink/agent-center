@@ -484,6 +484,7 @@ func planMap(p *pm.Plan) map[string]any {
 		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
 		"version":    p.Version(),
+		"is_builtin": p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
 	}
 	if d := p.TargetDate(); d != nil {
 		m["target_date"] = d.Format(time.RFC3339Nano)
