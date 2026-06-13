@@ -127,8 +127,15 @@ describe('MentionText (#281 entry ②)', () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <SenderSidebarProvider>
-          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
-          <div data-testid="outer-row" onClick={outer}>
+          <div
+            data-testid="outer-row"
+            role="button"
+            tabIndex={0}
+            onClick={outer}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') outer();
+            }}
+          >
             <MarkdownMessage content={'hi @alice'} />
           </div>
         </SenderSidebarProvider>

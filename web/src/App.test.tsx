@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type React from 'react';
 import { App } from './App';
 import { server } from './test/mswServer';
@@ -14,6 +14,8 @@ beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource =
     FakeEventSource;
 });
+
+afterEach(() => cleanup());
 
 // MSW mock for /api/orgs returns slug='test', so org base is /organizations/test.
 const ORG_BASE = '/organizations/test';
