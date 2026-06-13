@@ -113,7 +113,11 @@ export interface Message {
   // optional: legacy/older payloads omit them (treat as not-a-thread / 0).
   parent_message_id?: string; // set on a reply; absent on a top-level message.
   reply_count?: number; // # direct replies to this top-level message; 0/absent = none.
-  thread_last_activity_at?: string; // RFC3339 of the most recent reply; presence ⇒ has-activity.
+  thread_last_activity_at?: string; // RFC3339 of the most recent reply; drives sort.
+  // v2.9.1 P3: per-user "new activity since last viewed" — server-derived
+  // (latest reply id > my conversation last_seen). Drives the thread-button dot.
+  // Absent/false on older payloads or for agents (no read state).
+  has_new_activity?: boolean;
 }
 
 // v2.9.1 Threads P2 (mock=contract, P2-BE in parallel — VERIFY vs the real
@@ -125,7 +129,10 @@ export interface Message {
 export interface ThreadSummary {
   root: Message;
   reply_count: number;
-  thread_last_activity_at?: string; // RFC3339 of the most recent reply; presence ⇒ has-activity.
+  thread_last_activity_at?: string; // RFC3339 of the most recent reply; drives sort.
+  // v2.9.1 P3: per-user "new activity since last viewed" (server-derived). Drives
+  // the thread-list dot. Absent/false on older payloads or for agents.
+  has_new_activity?: boolean;
 }
 
 // Agent BC (v2.7 #101). Org-scoped agents with a lifecycle/availability

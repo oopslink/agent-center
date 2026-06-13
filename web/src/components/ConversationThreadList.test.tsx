@@ -47,10 +47,10 @@ describe('ConversationThreadList', () => {
     expect(within(row).getByTestId('thread-list-reply-count')).toHaveTextContent('3');
   });
 
-  it('shows a has-activity dot only when the thread has recent activity', async () => {
+  it('shows a dot only for threads with NEW activity since last viewed (P3)', async () => {
     mockThreads([
-      { root: root('M1', 'active one', '2026-06-12T00:00:00Z'), reply_count: 1, thread_last_activity_at: '2026-06-12T03:00:00Z' },
-      { root: root('M2', 'quiet one', '2026-06-12T00:00:00Z'), reply_count: 0 },
+      { root: root('M1', 'unseen one', '2026-06-12T00:00:00Z'), reply_count: 1, thread_last_activity_at: '2026-06-12T03:00:00Z', has_new_activity: true },
+      { root: root('M2', 'seen one', '2026-06-12T00:00:00Z'), reply_count: 2, thread_last_activity_at: '2026-06-12T02:00:00Z', has_new_activity: false },
     ]);
     render(<ConversationThreadList conversationId="C1" />);
     await screen.findAllByTestId('thread-list-row');

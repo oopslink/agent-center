@@ -54,6 +54,23 @@ describe('ThreadSidebar', () => {
     expect(screen.queryByTestId('thread-sidebar')).toBeNull();
   });
 
+  it('marks the latest reply seen on open (P3 — clears the has-activity dot)', async () => {
+    let seenId: string | undefined;
+    server.use(
+      http.post('/api/conversations/:id/seen', async ({ request }) => {
+        const body = (await request.json()) as { last_seen_message_id: string };
+        seenId = body.last_seen_message_id;
+        return HttpResponse.json(
+          { last_seen_message_id: body.last_seen_message_id, version: 1, bumped: true, event_id: 'E-seen' },
+          { status: 200 },
+        );
+      }),
+    );
+    render(<ThreadSidebar open rootMessage={root} onClose={() => {}} />);
+    // once the replies load, the latest reply id (R1) is marked seen
+    await waitFor(() => expect(seenId).toBe('R1'));
+  });
+
   it('renders the root message and its replies when open', async () => {
     render(<ThreadSidebar open rootMessage={root} onClose={() => {}} />);
     expect(screen.getByTestId('thread-sidebar')).toBeInTheDocument();

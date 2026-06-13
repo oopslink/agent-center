@@ -57,7 +57,8 @@ export function ConversationThreadList({ conversationId }: Props): React.ReactEl
             .map((t) => {
               const resolved = displayName(t.root.sender_identity_id);
               const senderResolved = isResolvedName(t.root.sender_identity_id, resolved);
-              const hasActivity = !!t.thread_last_activity_at;
+              // v2.9.1 P3: dot = NEW activity since last viewed (server-derived).
+              const hasActivity = !!t.has_new_activity;
               return (
                 <li key={t.root.id}>
                   <button

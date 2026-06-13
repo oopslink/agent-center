@@ -10,6 +10,88 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 )
 
+// v2.9.1 P3: the has-new-activity derivation is a pure ULID compare against the
+// user's last_seen cursor. Covers all branches deterministically.
+func TestThreadHasNewActivity(t *testing.T) {
+	cases := []struct {
+		name     string
+		dg       conversation.ThreadDigest
+		lastSeen string
+		applies  bool
+		want     bool
+	}{
+		{"newer reply than cursor → new", conversation.ThreadDigest{ReplyCount: 1, LastReplyID: "0200"}, "0100", true, true},
+		{"reply at cursor → seen", conversation.ThreadDigest{ReplyCount: 1, LastReplyID: "0100"}, "0100", true, false},
+		{"reply older than cursor → seen", conversation.ThreadDigest{ReplyCount: 1, LastReplyID: "0100"}, "0200", true, false},
+		{"never seen (empty cursor) + replies → new", conversation.ThreadDigest{ReplyCount: 1, LastReplyID: "0001"}, "", true, true},
+		{"no replies → never new", conversation.ThreadDigest{ReplyCount: 0, LastReplyID: ""}, "", true, false},
+		{"does not apply (agent / no read-state) → false", conversation.ThreadDigest{ReplyCount: 1, LastReplyID: "0200"}, "0100", false, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := threadHasNewActivity(c.dg, c.lastSeen, c.applies); got != c.want {
+				t.Fatalf("threadHasNewActivity = %v want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// End-to-end wiring: the thread list + message-list badge carry has_new_activity.
+// The session user posts the root + reply; posting advances the sender's read
+// cursor (sendMessageHandler marks-seen), so the sender has already "seen" their
+// own reply → has_new_activity is present and false. (The true path — a reply
+// from another participant — is covered by the pure-fn + digest tests and by
+// Tester2 run-real with two real participants.)
+func TestAPI_ThreadListAndBadge_HasNewActivity_SeenBySender(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	cid := seedOrgChannel(t, deps, sess.OrgID, "alpha")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	rootID := postReply(t, s.URL, cid, "root msg", "", sess)
+	postReply(t, s.URL, cid, "a reply", rootID, sess)
+
+	// Thread list summary carries the boolean (false: sender saw own reply).
+	resp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/threads", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get threads: got %d want 200", resp.StatusCode)
+	}
+	var threads []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&threads); err != nil {
+		t.Fatal(err)
+	}
+	if len(threads) != 1 {
+		t.Fatalf("threads len = %d want 1", len(threads))
+	}
+	hna, present := threads[0]["has_new_activity"]
+	if !present {
+		t.Fatalf("thread summary missing has_new_activity: %v", threads[0])
+	}
+	if hna != false {
+		t.Fatalf("has_new_activity = %v want false (sender saw own reply)", hna)
+	}
+
+	// Message-list root row carries the same badge.
+	mresp := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages", sess)
+	var msgs []map[string]any
+	if err := json.NewDecoder(mresp.Body).Decode(&msgs); err != nil {
+		t.Fatal(err)
+	}
+	var rootRow map[string]any
+	for _, m := range msgs {
+		if m["id"] == rootID {
+			rootRow = m
+		}
+	}
+	if rootRow == nil {
+		t.Fatalf("root row not found in message list")
+	}
+	if _, ok := rootRow["has_new_activity"]; !ok {
+		t.Fatalf("root row missing has_new_activity badge: %v", rootRow)
+	}
+}
+
 // postReply POSTs a message (optionally a thread reply) and returns its id.
 func postReply(t *testing.T, srvURL, cid, content, parentID string, sess testSession) string {
 	t.Helper()

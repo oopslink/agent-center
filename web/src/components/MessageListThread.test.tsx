@@ -41,14 +41,24 @@ describe('MessageList thread affordance', () => {
     expect(screen.getByTestId('thread-button')).toBeInTheDocument();
   });
 
-  it('shows the reply count and activity dot from the message', () => {
+  it('shows the reply count, and the dot only when there is NEW activity (P3)', () => {
     render(
       <MessageList
-        messages={[msg({ reply_count: 4, thread_last_activity_at: '2026-06-12T00:05:00Z' })]}
+        messages={[msg({ reply_count: 4, thread_last_activity_at: '2026-06-12T00:05:00Z', has_new_activity: true })]}
       />,
     );
     expect(screen.getByTestId('thread-reply-count')).toHaveTextContent('4');
     expect(screen.getByTestId('thread-activity-dot')).toBeInTheDocument();
+  });
+
+  it('hides the dot when there are replies but no NEW activity (seen)', () => {
+    render(
+      <MessageList
+        messages={[msg({ reply_count: 4, thread_last_activity_at: '2026-06-12T00:05:00Z', has_new_activity: false })]}
+      />,
+    );
+    expect(screen.getByTestId('thread-reply-count')).toHaveTextContent('4');
+    expect(screen.queryByTestId('thread-activity-dot')).toBeNull();
   });
 
   it('hides the thread button when showThreads is false (used inside a thread)', () => {

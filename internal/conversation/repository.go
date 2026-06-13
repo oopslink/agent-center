@@ -72,6 +72,11 @@ type ThreadDigest struct {
 	// LastActivityAt is the latest reply's posted_at as an RFC3339Nano string
 	// (same wire format msgPublicMap emits for posted_at). Empty when no replies.
 	LastActivityAt string
+	// LastReplyID is the latest reply's message id (ULID). v2.9.1 P3 has-activity:
+	// a thread has "new activity since last viewed" for a user when
+	// LastReplyID > that user's conversation last_seen_message_id (lexicographic
+	// ULID compare, the same monotonic ordering unread uses). Empty when no replies.
+	LastReplyID string
 }
 
 // MessageRepository per ADR-0031 (v2 — vendor_msg_ref dropped).

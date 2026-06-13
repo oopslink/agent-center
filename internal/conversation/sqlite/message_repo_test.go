@@ -303,6 +303,11 @@ func TestMessageRepo_ThreadReplyDigests(t *testing.T) {
 	if digests["A"].LastActivityAt != last.Format(time.RFC3339Nano) {
 		t.Fatalf("A last activity = %q want %q", digests["A"].LastActivityAt, last.Format(time.RFC3339Nano))
 	}
+	// v2.9.1 P3: LastReplyID = MAX(reply id) — the latest reply, for the per-user
+	// has-new-activity compare. Ids "A-r1" < "A-r2" lexicographically.
+	if digests["A"].LastReplyID != "A-r2" {
+		t.Fatalf("A last reply id = %q want %q", digests["A"].LastReplyID, "A-r2")
+	}
 	if _, ok := digests["B"]; ok {
 		t.Fatalf("B has no replies; should be absent, got %v", digests)
 	}

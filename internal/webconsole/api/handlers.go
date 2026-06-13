@@ -801,6 +801,36 @@ func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, row)
 }
 
+// threadSeenCursor returns the requesting user's conversation read cursor
+// (last_seen_message_id) for the v2.9.1 P3 has-new-activity derivation, and
+// whether the marker applies at all. A thread "has new activity" when its latest
+// reply id (ThreadDigest.LastReplyID, a ULID) sorts after lastSeen — the same
+// monotonic-id ordering unread uses. Marker is per-user and coarse-by-design
+// (owner: "先做有无, 不做精细 per-user 未读计数"): it reuses the single conversation
+// read cursor, so viewing the conversation / opening a thread advances it.
+// Agents don't track read state (Q-T1) → marker never applies (false).
+func (s *Server) threadSeenCursor(r *http.Request, d HandlerDeps, convID conversation.ConversationID) (lastSeen string, applies bool) {
+	userID := conversation.IdentityRef(d.Actor)
+	if d.ReadStateSvc == nil || !userID.IsHuman() {
+		return "", false
+	}
+	sum, err := d.ReadStateSvc.Unread(r.Context(), userID, convID)
+	if err != nil {
+		// Fail-soft: a never-seen user yields empty lastSeen (everything is new);
+		// on an unexpected error we still apply the marker with an empty cursor
+		// rather than hide real activity.
+		return "", true
+	}
+	return string(sum.LastSeenMessageID), true
+}
+
+// threadHasNewActivity reports whether a thread (its digest) has activity the
+// user hasn't seen: there is at least one reply and the latest reply id sorts
+// after the user's last_seen cursor (ULID lexicographic compare).
+func threadHasNewActivity(dg conversation.ThreadDigest, lastSeen string, applies bool) bool {
+	return applies && dg.LastReplyID != "" && dg.LastReplyID > lastSeen
+}
+
 func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
@@ -822,12 +852,15 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
+	lastSeen, applies := s.threadSeenCursor(r, d, id)
 	arr := make([]map[string]any, len(msgs))
 	for i, m := range msgs {
 		mm := msgPublicMap(m)
 		if dg, ok := digests[m.ID()]; ok && dg.ReplyCount > 0 {
 			mm["reply_count"] = dg.ReplyCount
 			mm["thread_last_activity_at"] = dg.LastActivityAt
+			// v2.9.1 P3: per-user "new activity since last viewed" badge dot.
+			mm["has_new_activity"] = threadHasNewActivity(dg, lastSeen, applies)
 		}
 		arr[i] = mm
 	}
@@ -897,6 +930,7 @@ func (s *Server) listThreadsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
+	lastSeen, applies := s.threadSeenCursor(r, d, id)
 	summaries := make([]map[string]any, 0, len(roots))
 	for _, root := range roots {
 		dg := digests[root.ID()]
@@ -904,6 +938,8 @@ func (s *Server) listThreadsHandler(w http.ResponseWriter, r *http.Request) {
 			"root":                    msgPublicMap(root),
 			"reply_count":             dg.ReplyCount,
 			"thread_last_activity_at": dg.LastActivityAt,
+			// v2.9.1 P3: per-user "new activity since last viewed" marker.
+			"has_new_activity": threadHasNewActivity(dg, lastSeen, applies),
 		})
 	}
 	// Most-recently-active thread first (deterministic; FE re-sorts by the same key).

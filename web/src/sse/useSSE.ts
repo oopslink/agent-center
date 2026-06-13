@@ -204,6 +204,11 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'conversation.read_state.changed':
       if (ev.conversation_id) {
         invalidate(qk.unread(ev.conversation_id));
+        // v2.9.1 P3: the read cursor advanced → per-user has-new-activity badges
+        // may now clear, so re-derive the thread list + the per-message thread
+        // badges (this is what makes the dot disappear "after viewing").
+        invalidate(qk.conversationThreads(ev.conversation_id));
+        invalidate(qk.messages(ev.conversation_id));
       }
       return;
     case 'conversation.participant_joined':

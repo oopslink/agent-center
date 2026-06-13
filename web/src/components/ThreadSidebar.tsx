@@ -1,6 +1,8 @@
 import type React from 'react';
+import { useEffect } from 'react';
 import type { Message } from '@/api/types';
 import { useThreadReplies } from '@/api/conversations';
+import { useMarkSeen } from '@/api/readState';
 import { useModalA11y } from './useModalA11y';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
@@ -35,6 +37,19 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
     open ? conversationId : undefined,
     open ? rootMessage?.id : undefined,
   );
+
+  // v2.9.1 P3: viewing a thread marks its latest reply seen — advances the
+  // conversation read cursor, so this thread's has_new_activity dot clears (the
+  // resulting conversation.read_state.changed SSE re-derives the badges). Fires
+  // when the latest reply id changes while open; mark-seen is only-forward +
+  // idempotent, so a redundant call is a cheap no-op.
+  const markSeen = useMarkSeen();
+  const latestReplyId = replies.data?.[replies.data.length - 1]?.id;
+  useEffect(() => {
+    if (!open || !conversationId || !latestReplyId) return;
+    markSeen.mutate({ conversationId, lastSeenMessageId: latestReplyId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, conversationId, latestReplyId]);
 
   if (!open || !rootMessage) return null;
 

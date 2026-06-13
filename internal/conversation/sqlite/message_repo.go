@@ -198,8 +198,10 @@ func (r *MessageRepo) FindThreadReplies(ctx context.Context, conversationID conv
 // ordering the RFC3339Nano text column directly (same as FindByConversationID).
 func (r *MessageRepo) ThreadReplyDigests(ctx context.Context, conversationID conversation.ConversationID) (map[conversation.MessageID]conversation.ThreadDigest, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	// MAX(id) = the latest reply's ULID (monotonic, so MAX(id) and MAX(posted_at)
+	// pick the same row); used for the per-user has-new-activity compare (P3).
 	rows, err := exec.QueryContext(ctx,
-		`SELECT root_message_id, COUNT(*), MAX(posted_at) FROM messages
+		`SELECT root_message_id, COUNT(*), MAX(posted_at), MAX(id) FROM messages
 			WHERE conversation_id = ? AND root_message_id IS NOT NULL
 			GROUP BY root_message_id`, string(conversationID))
 	if err != nil {
@@ -208,12 +210,16 @@ func (r *MessageRepo) ThreadReplyDigests(ctx context.Context, conversationID con
 	defer rows.Close()
 	out := make(map[conversation.MessageID]conversation.ThreadDigest)
 	for rows.Next() {
-		var root, lastActivity string
+		var root, lastActivity, lastReplyID string
 		var n int
-		if err := rows.Scan(&root, &n, &lastActivity); err != nil {
+		if err := rows.Scan(&root, &n, &lastActivity, &lastReplyID); err != nil {
 			return nil, err
 		}
-		out[conversation.MessageID(root)] = conversation.ThreadDigest{ReplyCount: n, LastActivityAt: lastActivity}
+		out[conversation.MessageID(root)] = conversation.ThreadDigest{
+			ReplyCount:     n,
+			LastActivityAt: lastActivity,
+			LastReplyID:    lastReplyID,
+		}
 	}
 	return out, rows.Err()
 }

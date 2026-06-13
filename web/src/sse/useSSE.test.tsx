@@ -92,9 +92,13 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversation('C1') });
   });
 
-  it('conversation.read_state.changed invalidates unread', () => {
+  it('conversation.read_state.changed invalidates unread + thread badges', () => {
     dispatchToQueryClient(qc, ev('conversation.read_state.changed', 'C1'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
+    // v2.9.1 P3: read cursor moved → has-new-activity badges may clear, so the
+    // thread list + the per-message thread badges must re-derive.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversationThreads('C1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.messages('C1') });
   });
 
   it('workforce.agent_instance.* invalidates agents + fleet (note BC prefix)', () => {

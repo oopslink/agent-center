@@ -324,7 +324,9 @@ export function MessageList({
     const threadAffordance = showThreads ? (
       <ThreadButton
         replyCount={m.reply_count}
-        hasActivity={!!m.thread_last_activity_at}
+        // v2.9.1 P3: dot = NEW activity since last viewed (server-derived), not
+        // merely "has any replies".
+        hasActivity={!!m.has_new_activity}
         onClick={() => openThread(m)}
       />
     ) : null;
