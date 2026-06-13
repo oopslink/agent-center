@@ -20,8 +20,15 @@ import {
   type PatchPlanInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
-import { useTasksList } from '@/api/tasks';
-import { useDisplayNameResolver, normalizeIdentityRef, refKind } from '@/api/members';
+import { useTasksList, useAssignTask, useUnassignTask } from '@/api/tasks';
+import {
+  useDisplayNameResolver,
+  useMembers,
+  identityRefOf,
+  normalizeIdentityRef,
+  refKind,
+  type MemberResult,
+} from '@/api/members';
 import { formatLocalTime } from '@/utils/time';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
@@ -1426,10 +1433,39 @@ function friendlyDependencyError(error: unknown): string {
 // §9.4: removing a task from a Plan is a PLANNING action — only a DRAFT plan
 // exposes a per-row "Remove" control (consistent with add-to-plan / the A1 edge
 // editor). A running/done plan renders the rows read-only (no Remove column).
+// memberRef — build the prefixed identity ref ("agent:<id>"/"user:<id>") for an
+// assignee <option>, mirroring TaskEditModal.memberRef (kind derived when absent).
+// Reuses the shared identityRefOf when kind is present; falls back to deriving
+// kind from the id for legacy rows with no explicit kind.
+function memberRef(m: MemberResult): string {
+  const kind = m.kind ?? (m.identity_id.startsWith('agent') ? 'agent' : 'user');
+  return identityRefOf({ kind, identity_id: m.identity_id });
+}
+
+// T41 (v2.9.1 #291): the Task-list tab is the COMPREHENSIVE management surface
+// for a big plan — every node is rendered (no cap, ever), a search box narrows
+// the visible rows by title / Task-id / assignee, and the table scrolls
+// vertically within the tab. Inline assignee reassignment lives per-row.
 function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const canRemove = plan.status === 'draft';
   const orgRefOf = useTaskOrgRefResolver(projectId);
+  const members = useMembers();
+  const [query, setQuery] = useState('');
+
+  // Case-insensitive filter on title OR Task-id (org_ref) OR assignee handle.
+  // Empty box ⇒ ALL nodes (never capped). Matching keeps input order.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return nodes;
+    return nodes.filter((n) => {
+      const orgRef = orgRefOf(n.task_id) ?? '';
+      const assignee = n.assignee_ref ? normalizeIdentityRef(n.assignee_ref) : '';
+      const haystack = `${n.title ?? ''} ${orgRef} ${assignee}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [nodes, query, orgRefOf]);
+
   return (
     <div data-testid="plan-task-list">
       {nodes.length === 0 ? (
@@ -1437,32 +1473,55 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
           No tasks in this plan yet.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs" data-testid="plan-task-list-table">
-            <thead>
-              <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <th className="py-1.5 pr-3 font-medium">Task</th>
-                <th className="py-1.5 pr-3 font-medium">Title</th>
-                <th className="py-1.5 pr-3 font-medium">Assignee</th>
-                <th className="py-1.5 pr-3 font-medium">Task status</th>
-                <th className="py-1.5 font-medium">Node status</th>
-                {canRemove && <th className="py-1.5 pl-3 text-right font-medium">Action</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-base">
-              {nodes.map((n) => (
-                <PlanTaskRow
-                  key={n.task_id}
-                  projectId={projectId}
-                  planId={plan.id}
-                  node={n}
-                  orgRef={orgRefOf(n.task_id)}
-                  canRemove={canRemove}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              data-testid="plan-task-search"
+              aria-label="Filter tasks"
+              placeholder="Filter by title, Task id, or assignee…"
+              className="min-w-[14rem] flex-1 rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            />
+            <span className="text-[0.6875rem] text-text-muted" data-testid="plan-task-search-count">
+              Showing {filtered.length} of {nodes.length}
+            </span>
+          </div>
+          {filtered.length === 0 ? (
+            <p className="py-8 text-center text-xs text-text-muted" data-testid="plan-task-search-empty">
+              No tasks match your filter.
+            </p>
+          ) : (
+            <div className="max-h-[28rem] overflow-x-auto overflow-y-auto">
+              <table className="w-full text-left text-xs" data-testid="plan-task-list-table">
+                <thead>
+                  <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
+                    <th className="py-1.5 pr-3 font-medium">Task</th>
+                    <th className="py-1.5 pr-3 font-medium">Title</th>
+                    <th className="py-1.5 pr-3 font-medium">Assignee</th>
+                    <th className="py-1.5 pr-3 font-medium">Task status</th>
+                    <th className="py-1.5 font-medium">Node status</th>
+                    {canRemove && <th className="py-1.5 pl-3 text-right font-medium">Action</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-base">
+                  {filtered.map((n) => (
+                    <PlanTaskRow
+                      key={n.task_id}
+                      projectId={projectId}
+                      planId={plan.id}
+                      node={n}
+                      orgRef={orgRefOf(n.task_id)}
+                      canRemove={canRemove}
+                      members={members.data ?? []}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1478,14 +1537,27 @@ function PlanTaskRow({
   node,
   orgRef,
   canRemove,
+  members,
 }: {
   projectId: string;
   planId: string;
   node: PlanNode;
   orgRef?: string;
   canRemove: boolean;
+  members: MemberResult[];
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
+  // T41 inline 分派: reassigning is NOT draft-gated (allowed regardless of plan
+  // status). assign("") would set an empty assignee; the dedicated unassign
+  // endpoint is the established "clear assignee" path, so route "" → unassign.
+  const assign = useAssignTask(projectId, node.task_id);
+  const unassign = useUnassignTask(projectId, node.task_id);
+  const assignError = assign.isError || unassign.isError;
+  const onAssigneeChange = (next: string) => {
+    if (next === '') unassign.mutate();
+    else assign.mutate({ assignee: next });
+  };
+  const title = node.title || `#${idHandle(node.task_id)}`;
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
       {/* v2.9.1 UX point 1: human Task id (T-number) column. */}
@@ -1496,7 +1568,7 @@ function PlanTaskRow({
         <TaskTitleLink
           projectId={projectId}
           taskId={node.task_id}
-          title={node.title || `#${idHandle(node.task_id)}`}
+          title={title}
         />
         {remove.isError && (
           <span
@@ -1508,8 +1580,33 @@ function PlanTaskRow({
           </span>
         )}
       </td>
-      <td className="py-1.5 pr-3">
+      <td className="py-1.5 pr-3 align-top">
+        {/* DISPLAY current assignee + an inline reassignment <select> (分派). */}
         <AssigneeTag assigneeRef={node.assignee_ref} />
+        <select
+          value={node.assignee_ref ?? ''}
+          data-testid="plan-row-assign"
+          aria-label={`Reassign ${title}`}
+          disabled={assign.isPending || unassign.isPending}
+          onChange={(e) => onAssigneeChange(e.target.value)}
+          className="mt-1 block w-full max-w-[12rem] rounded border border-border-base bg-bg-elevated px-1 py-0.5 text-[0.6875rem] text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+        >
+          <option value="">Unassigned</option>
+          {members.map((m) => (
+            <option key={m.id} value={memberRef(m)}>
+              {m.display_name ?? m.identity_id} ({m.kind})
+            </option>
+          ))}
+        </select>
+        {assignError && (
+          <span
+            className="mt-0.5 block text-[0.6875rem] font-normal text-danger"
+            role="alert"
+            data-testid={`plan-task-assign-error-${node.task_id}`}
+          >
+            Couldn't reassign this task. Please try again.
+          </span>
+        )}
       </td>
       <td className="py-1.5 pr-3">
         <StatusChip status={node.task_status} />

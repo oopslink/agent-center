@@ -1368,4 +1368,136 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     expect(chip.className).not.toMatch(/\/\d+/);
     expect(chip.className).not.toMatch(/text-red-|bg-red-/);
   });
+
+  // ── T41 (v2.9.1 #291): big-plan Task-list = searchable + scrollable + inline
+  // 分派. A big plan must render EVERY node (no cap), be filterable by title /
+  // Task-id / assignee, and let you reassign per row regardless of plan status.
+  // Build a ~12-node plan so "no silent truncation" is meaningful.
+  function bigNodes() {
+    const nodes = [];
+    for (let i = 1; i <= 12; i++) {
+      nodes.push({
+        task_id: `b${i}`,
+        title: `task number ${i}`,
+        assignee_ref: i % 2 === 0 ? 'agent:dev' : 'agent:dev2',
+        task_status: 'open',
+        node_status: 'ready',
+        depends_on: [],
+      });
+    }
+    return nodes;
+  }
+
+  it('T41: Task tab renders ALL nodes of a big plan (no cap)', async () => {
+    mockPlan({ nodes: bigNodes() });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    const table = await screen.findByTestId('plan-task-list-table');
+    expect(within(table).getAllByTestId('plan-task-row')).toHaveLength(12);
+    expect(screen.getByTestId('plan-task-search-count')).toHaveTextContent('Showing 12 of 12');
+  });
+
+  it('T41: search filters by title; clearing restores all; no-match shows empty state', async () => {
+    mockPlan({ nodes: bigNodes() });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+    const search = screen.getByTestId('plan-task-search');
+    expect(search).toHaveAttribute('aria-label', 'Filter tasks');
+
+    // "number 3" matches exactly one node (title).
+    fireEvent.change(search, { target: { value: 'number 3' } });
+    expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(1);
+    expect(screen.getByTestId('plan-task-search-count')).toHaveTextContent('Showing 1 of 12');
+
+    // Clearing restores ALL rows.
+    fireEvent.change(search, { target: { value: '' } });
+    expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(12);
+
+    // A non-matching query shows the empty state (and hides the table).
+    fireEvent.change(search, { target: { value: 'zzz-no-match' } });
+    expect(screen.getByTestId('plan-task-search-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-task-list-table')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-task-search-count')).toHaveTextContent('Showing 0 of 12');
+  });
+
+  it('T41: search filters by Task-id (org_ref) and by assignee handle', async () => {
+    mockPlan({ nodes: bigNodes() });
+    // org_ref resolution: b1 → T900.
+    server.use(
+      http.get('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            { id: 'b1', project_id: 'proj-a', title: 'task number 1', description: '', status: 'open', org_ref: 'T900', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
+          ],
+        }),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+    const search = screen.getByTestId('plan-task-search');
+
+    // by Task-id (org_ref) → only b1.
+    await waitFor(() => {
+      const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b1"]') as HTMLElement;
+      expect(within(row).getByTestId('plan-row-taskid')).toHaveTextContent('T900');
+    });
+    fireEvent.change(search, { target: { value: 't900' } });
+    const idRows = within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row');
+    expect(idRows).toHaveLength(1);
+    expect(idRows[0]).toHaveAttribute('data-task-id', 'b1');
+
+    // by assignee handle: "dev2" is on the odd-indexed nodes (6 of 12).
+    fireEvent.change(search, { target: { value: 'dev2' } });
+    expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(6);
+  });
+
+  it('T41: per-row assignee <select> fires the assign mutation with {assignee}', async () => {
+    mockPlan({ nodes: bigNodes() });
+    let assignedBody: { assignee?: string } | null = null;
+    server.use(
+      // members feed the <option> list (mirror TaskEditModal: prefixed refs).
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-1', organization_id: 'org-test', identity_id: 'agent:dev', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev One' },
+          { id: 'mem-2', organization_id: 'org-test', identity_id: 'agent:dev2', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev Two' },
+        ]),
+      ),
+      http.post('/api/projects/proj-a/tasks/b1/assign', async ({ request }) => {
+        assignedBody = (await request.json()) as { assignee?: string };
+        return HttpResponse.json({ id: 'b1', project_id: 'proj-a', title: 'task number 1', description: '', status: 'open', assignee: assignedBody.assignee, version: 2, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' });
+      }),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+
+    // the select must be populated from useMembers.
+    const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b1"]') as HTMLElement;
+    const select = within(row).getByTestId('plan-row-assign');
+    await waitFor(() => expect(within(select).getByText('Dev One (agent)')).toBeInTheDocument());
+    expect(select).toHaveAttribute('aria-label', 'Reassign task number 1');
+
+    await act(async () => fireEvent.change(select, { target: { value: 'agent:dev' } }));
+    await waitFor(() => expect(assignedBody).toEqual({ assignee: 'agent:dev' }));
+  });
+
+  it('T41: choosing Unassigned routes to the unassign endpoint', async () => {
+    mockPlan({ nodes: bigNodes() });
+    let unassigned = false;
+    server.use(
+      http.post('/api/projects/proj-a/tasks/b2/unassign', () => {
+        unassigned = true;
+        return HttpResponse.json({ id: 'b2', project_id: 'proj-a', title: 'task number 2', description: '', status: 'open', assignee: '', version: 2, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' });
+      }),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+    const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b2"]') as HTMLElement;
+    const select = within(row).getByTestId('plan-row-assign');
+    await act(async () => fireEvent.change(select, { target: { value: '' } }));
+    await waitFor(() => expect(unassigned).toBe(true));
+  });
 });
