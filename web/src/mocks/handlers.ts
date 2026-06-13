@@ -80,6 +80,9 @@ function planHandlers() {
     target_date: null,
     has_failed: false,
     progress: { done: 0, total: 0 },
+    // ADR-0047: structured plans by default; the built-in pool row overrides
+    // is_builtin:true (exactly one per project).
+    is_builtin: false,
     created_at: '2026-06-01T01:00:00Z',
     // NB: no `nodes` / `nodes_preview` here — the LIST rows add the enriched
     // nodes_preview/node_count, the DETAIL + write responses add `nodes`. This
@@ -97,6 +100,23 @@ function planHandlers() {
     http.get('/api/projects/:pid/plans', ({ params }) =>
       ok({
         plans: [
+          // ADR-0047 segment 2: the BUILT-IN assignment pool (exactly one per
+          // project, name "[Built-in]"). Flat, always running, is_builtin:true.
+          // Claimable nodes carry `claimable:true`; a completed + a discarded
+          // node are present to prove the FE HIDES terminal work in the pool.
+          basePlan(String(params.pid), 'PL-BUILTIN', {
+            name: '[Built-in]',
+            status: 'running',
+            is_builtin: true,
+            progress: { done: 1, total: 4 },
+            node_count: 4,
+            nodes_preview: [
+              baseNode('TS-CLAIM', { title: 'Claimable pool task', task_status: 'open', node_status: 'dispatched', claimable: true, assignee_ref: 'agent:builder' }),
+              baseNode('TS-POOL2', { title: 'Pending pool task', task_status: 'open', node_status: 'ready', claimable: false }),
+              baseNode('TS-DONE', { title: 'Done pool task', task_status: 'completed', node_status: 'done' }),
+              baseNode('TS-DISC', { title: 'Discarded pool task', task_status: 'discarded', node_status: 'done' }),
+            ],
+          }),
           basePlan(String(params.pid), 'PL-1', {
             name: 'Onboarding flow',
             status: 'running',
@@ -445,6 +465,8 @@ const baseHandlers = [
     ];
     if (unplanned === '1') {
       // Backlog: distinct unplanned task with an assignee so the avatar renders.
+      // ADR-0047: a completed + a discarded unplanned task are also returned so
+      // tests prove the FE HIDES terminal work in the Backlog (count stays 1).
       return ok({
         tasks: [
           {
@@ -454,6 +476,26 @@ const baseHandlers = [
             description: '',
             status: 'open',
             assignee: 'agent:builder',
+            version: 1,
+            created_at: '2026-05-24T01:00:00Z',
+            updated_at: '2026-05-24T01:00:00Z',
+          },
+          {
+            id: 'TS-BL-DONE',
+            project_id: String(params.pid),
+            title: 'completed backlog task',
+            description: '',
+            status: 'completed',
+            version: 1,
+            created_at: '2026-05-24T01:00:00Z',
+            updated_at: '2026-05-24T01:00:00Z',
+          },
+          {
+            id: 'TS-BL-DISC',
+            project_id: String(params.pid),
+            title: 'discarded backlog task',
+            description: '',
+            status: 'discarded',
             version: 1,
             created_at: '2026-05-24T01:00:00Z',
             updated_at: '2026-05-24T01:00:00Z',

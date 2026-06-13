@@ -52,12 +52,12 @@ func TestMigration0058_TaskStateSimplify(t *testing.T) {
 	insert("T-running", "running", "")
 	insert("T-open", "open", "")
 
-	// Re-apply 0057(thread)+0058(task-state).
+	// Re-apply 0057(thread)+0058(task-state)+0059(builtin).
 	if err := mig.Up(ctx); err != nil {
-		t.Fatalf("second Up (apply 0057+0058): %v", err)
+		t.Fatalf("second Up (apply 0057+0058+0059): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 58 {
-		t.Fatalf("version after re-Up: got %d want 58", v)
+	if v, _ := mig.Version(ctx); v != 59 {
+		t.Fatalf("version after re-Up: got %d want 59", v)
 	}
 
 	status := func(id string) (string, string) {

@@ -782,3 +782,240 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// ADR-0047 — the THREE-segment Work Board: Backlog (unscheduled, not claimable)
+// + built-in Assignment Pool (flat, claimable) + structured Plans (DAG). These
+// exercise the default mock list (which now includes a PL-BUILTIN is_builtin
+// row) and bespoke fixtures.
+// ---------------------------------------------------------------------------
+describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structured plans)', () => {
+  afterEach(() => cleanup());
+
+  // poolNode — a built-in-pool node fixture (carries the ADR-0047 `claimable`).
+  const poolNode = (
+    taskId: string,
+    title: string,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    task_id: taskId,
+    title,
+    assignee_ref: 'agent:builder',
+    task_status: 'open',
+    node_status: 'ready',
+    depends_on: [],
+    dispatched_at: null,
+    ...extra,
+  });
+
+  const threeSegmentPlans = {
+    plans: [
+      {
+        id: 'PL-BUILTIN', project_id: 'proj-a', name: '[Built-in]', description: '',
+        status: 'running', creator_ref: 'user:owner', conversation_id: 'cb', target_date: null,
+        has_failed: false, progress: { done: 1, total: 4 }, created_at: '2026-06-01T01:00:00Z',
+        is_builtin: true, node_count: 4,
+        nodes_preview: [
+          poolNode('TS-CLAIM', 'Claimable pool task', { node_status: 'dispatched', claimable: true }),
+          poolNode('TS-POOL2', 'Pending pool task', { claimable: false }),
+          poolNode('TS-DONE', 'Done pool task', { task_status: 'completed', node_status: 'done' }),
+          poolNode('TS-DISC', 'Discarded pool task', { task_status: 'discarded', node_status: 'done' }),
+        ],
+      },
+      {
+        id: 'PL-2', project_id: 'proj-a', name: 'Billing rework', description: '',
+        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
+        has_failed: false, progress: { done: 1, total: 2 }, created_at: '2026-06-01T01:00:00Z',
+        is_builtin: false, node_count: 2,
+        nodes_preview: [
+          poolNode('TS-STRUCT-DONE', 'Structured done node', { task_status: 'completed', node_status: 'done' }),
+          poolNode('TS-STRUCT-OPEN', 'Structured open node'),
+        ],
+      },
+    ],
+  };
+
+  it('renders all THREE segments DISTINCTLY: backlog-column, builtin-pool-column, and a structured plan-column', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    // 1. Backlog — labelled "unscheduled — not claimable".
+    const backlog = screen.getByTestId('backlog-column');
+    expect(within(backlog).getByTestId('backlog-subtitle')).toHaveTextContent(/not claimable/i);
+
+    // 2. Built-in pool — its OWN segment (not a plan-column), labelled Assignment Pool.
+    const pool = screen.getByTestId('builtin-pool-column');
+    expect(within(pool).getByText('Assignment Pool')).toBeInTheDocument();
+    expect(pool).toHaveAttribute('data-builtin', 'true');
+    // The is_builtin plan is NOT rendered as a generic plan-column.
+    expect(screen.queryByText('[Built-in]')).not.toBeInTheDocument();
+
+    // 3. Structured plan — the ONLY plan-column (the built-in is excluded).
+    const cols = screen.getAllByTestId('plan-column');
+    expect(cols).toHaveLength(1);
+    expect(within(cols[0]).getByText('Billing rework')).toBeInTheDocument();
+  });
+
+  it('the built-in pool shows the CLAIMABLE affordance on a claimable node only', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const pool = screen.getByTestId('builtin-pool-column');
+    // The claimable node carries the chip; the pending (claimable:false) does not.
+    const chip = within(pool).getByTestId('claimable-chip-TS-CLAIM');
+    expect(chip).toHaveTextContent(/claimable/i);
+    // both-mode AA: SOLID emerald-100/emerald-800 pair, NO alpha-tint.
+    expect(chip.className).toContain('bg-emerald-100');
+    expect(chip.className).toContain('text-emerald-800');
+    expect(chip.className).not.toMatch(/\/\d+/);
+    expect(within(pool).queryByTestId('claimable-chip-TS-POOL2')).not.toBeInTheDocument();
+  });
+
+  it('HIDES completed/discarded in the Backlog (count + cards)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const backlog = screen.getByTestId('backlog-column');
+    // The default mock returns 1 open + 1 completed + 1 discarded unplanned task.
+    expect(within(backlog).getByTestId('backlog-count')).toHaveTextContent('1');
+    expect(within(backlog).getByText('unplanned backlog task')).toBeInTheDocument();
+    expect(within(backlog).queryByText('completed backlog task')).not.toBeInTheDocument();
+    expect(within(backlog).queryByText('discarded backlog task')).not.toBeInTheDocument();
+    expect(within(backlog).getAllByTestId('backlog-card')).toHaveLength(1);
+  });
+
+  it('HIDES completed/discarded in the built-in pool (count + cards)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const pool = screen.getByTestId('builtin-pool-column');
+    // 4 nodes: claimable(open) + pending(open) shown; done + discarded hidden → 2.
+    expect(within(pool).getByTestId('builtin-pool-count')).toHaveTextContent('2');
+    expect(within(pool).getAllByTestId('pool-task-card')).toHaveLength(2);
+    expect(within(pool).getByText('Claimable pool task')).toBeInTheDocument();
+    expect(within(pool).getByText('Pending pool task')).toBeInTheDocument();
+    expect(within(pool).queryByText('Done pool task')).not.toBeInTheDocument();
+    expect(within(pool).queryByText('Discarded pool task')).not.toBeInTheDocument();
+  });
+
+  it('a structured plan KEEPS its done node (history), unlike the pool', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const structured = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    // Both the done (history) AND open nodes render — done is NOT hidden here.
+    expect(within(structured as HTMLElement).getByText('Structured done node')).toBeInTheDocument();
+    expect(within(structured as HTMLElement).getByText('Structured open node')).toBeInTheDocument();
+    expect(within(structured as HTMLElement).getAllByTestId('plan-task-card')).toHaveLength(2);
+    // The structured column has NO claimable affordance (pool-only).
+    expect(within(structured as HTMLElement).queryByTestId('claimable-chip-TS-STRUCT-OPEN')).not.toBeInTheDocument();
+  });
+
+  it('the built-in pool has NO DAG/edge/remove affordance (flat) — no remove button on a pool card', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const pool = screen.getByTestId('builtin-pool-column');
+    const card = within(pool).getAllByTestId('pool-task-card')[0];
+    // Flat: no remove control, not draggable (no data-draggable).
+    expect(within(pool).queryByTestId('plan-task-remove-TS-CLAIM')).not.toBeInTheDocument();
+    expect(card).not.toHaveAttribute('draggable', 'true');
+  });
+
+  it('selecting a Backlog task INTO the pool is allowed: the add-menu offers Assignment Pool → POST to the built-in plan', async () => {
+    let postedTo: string | undefined;
+    let posted: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
+        postedTo = String(params.planId);
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+      }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('backlog-add-TS-BL1'));
+    const menu = screen.getByTestId('add-menu-TS-BL1');
+    const poolItem = within(menu).getByTestId('add-to-plan-TS-BL1-PL-BUILTIN');
+    expect(poolItem).toHaveTextContent('Assignment Pool');
+    await act(async () => {
+      fireEvent.click(poolItem);
+    });
+    await waitFor(() => expect(posted).toEqual({ task_id: 'TS-BL1' }));
+    expect(postedTo).toBe('PL-BUILTIN');
+  });
+
+  it('dragging a Backlog task onto the pool selects it in (POST to the built-in plan)', async () => {
+    let postedTo: string | undefined;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params }) => {
+        postedTo = String(params.planId);
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+      }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    function dt() {
+      const store: Record<string, string> = {};
+      return {
+        setData: (k: string, v: string) => { store[k] = v; },
+        getData: (k: string) => store[k] ?? '',
+        get types() { return Object.keys(store); },
+        effectAllowed: '', dropEffect: '',
+      } as unknown as DataTransfer;
+    }
+
+    const backlog = screen.getByTestId('backlog-column');
+    const backlogCard = within(backlog).getByTestId('backlog-card');
+    const pool = screen.getByTestId('builtin-pool-column');
+    const transfer = dt();
+    fireEvent.dragStart(backlogCard, { dataTransfer: transfer });
+    // pool accepts a backlog-origin drag (fromPlanId null).
+    expect(pool).toHaveAttribute('data-droppable', 'true');
+    fireEvent.dragOver(pool, { dataTransfer: transfer });
+    await act(async () => {
+      fireEvent.drop(pool, { dataTransfer: transfer });
+    });
+    await waitFor(() => expect(postedTo).toBe('PL-BUILTIN'));
+  });
+
+  it('uses the DEFAULT mock list which already includes a built-in pool segment', async () => {
+    server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+    // The shared handlers.ts mock now ships PL-BUILTIN (is_builtin) + 2 structured.
+    expect(screen.getByTestId('builtin-pool-column')).toBeInTheDocument();
+    expect(screen.getByTestId('claimable-chip-TS-CLAIM')).toBeInTheDocument();
+    expect(screen.getAllByTestId('plan-column')).toHaveLength(2);
+  });
+});

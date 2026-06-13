@@ -101,8 +101,10 @@ func MigrateV1ToV2Command() *Command {
 // to the latest schema instead of leaving it mid-version.
 // v2.9.1 Thread P1 added 0057 (messages.parent_message_id/root_message_id —
 // depth-1 thread refs); v2.9.1 ADR-0046 added 0058 (task state machine 7→5:
-// data-only blocked→running keep reason, verified→completed).
-const targetSchemaVersion = 58
+// data-only blocked→running keep reason, verified→completed); v2.9.1 ADR-0047
+// added 0059 (pm_plans.is_builtin + per-project built-in claimable pool, with the
+// assigned-backlog-task backfill).
+const targetSchemaVersion = 59
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -44,19 +44,19 @@ func setupPlanAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 	convRepo := convsqlite.NewConversationRepo(db)
 	plans := pmsql.NewPlanRepo(db)
 	deps.PM = pmservice.New(pmservice.Deps{
-		DB:             db,
-		Projects:       pmsql.NewProjectRepo(db),
-		Members:        pmsql.NewProjectMemberRepo(db),
-		Issues:         pmsql.NewIssueRepo(db),
-		Tasks:          pmsql.NewTaskRepo(db),
-		TaskSubs:       pmsql.NewTaskSubscriberRepo(db),
-		IssueSubs:      pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs:   pmsql.NewCodeRepoRefRepo(db),
-		Plans:          plans,
-		Outbox:         ob,
-		IDGen:          gen,
-		Clock:          clk,
-		AgentDir:       allAgentsDir{},
+		DB:           db,
+		Projects:     pmsql.NewProjectRepo(db),
+		Members:      pmsql.NewProjectMemberRepo(db),
+		Issues:       pmsql.NewIssueRepo(db),
+		Tasks:        pmsql.NewTaskRepo(db),
+		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
+		Plans:        plans,
+		Outbox:       ob,
+		IDGen:        gen,
+		Clock:        clk,
+		AgentDir:     allAgentsDir{},
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(deps.MessageWriter, func(_ context.Context, ref string) (string, bool) {
 			if i := strings.IndexByte(ref, ':'); i >= 0 {
 				ref = ref[i+1:]
@@ -283,8 +283,9 @@ func TestPlanAPI_ListSummaries_BoardEnrich(t *testing.T) {
 	}
 	body := decodeBody(t, resp)
 	plans := body["plans"].([]any)
-	if len(plans) != 3 {
-		t.Fatalf("list returned %d plans, want 3", len(plans))
+	// 3 structured plans + the ADR-0047 auto-created built-in pool.
+	if len(plans) != 4 {
+		t.Fatalf("list returned %d plans, want 4", len(plans))
 	}
 	byID := map[string]map[string]any{}
 	for _, p := range plans {

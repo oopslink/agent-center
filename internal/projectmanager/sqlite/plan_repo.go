@@ -58,10 +58,11 @@ func parseTimePtr(s string) *time.Time {
 func (r *PlanRepo) Save(ctx context.Context, p *pm.Plan) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, conversation_id, target_date, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(p.ID()), string(p.ProjectID()), p.Name(), p.Description(),
 		string(p.Status()), string(p.CreatorRef()), p.ConversationID(), tsPtr(p.TargetDate()),
+		boolToInt(p.IsBuiltin()),
 		ts(p.CreatedAt()), ts(p.UpdatedAt()), p.Version())
 	if isUnique(err) {
 		return pm.ErrPlanExists
@@ -72,9 +73,9 @@ func (r *PlanRepo) Save(ctx context.Context, p *pm.Plan) error {
 func (r *PlanRepo) Update(ctx context.Context, p *pm.Plan) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
-		`UPDATE pm_plans SET name=?, description=?, status=?, conversation_id=?, target_date=?, updated_at=?, version=? WHERE id=?`,
+		`UPDATE pm_plans SET name=?, description=?, status=?, conversation_id=?, target_date=?, is_builtin=?, updated_at=?, version=? WHERE id=?`,
 		p.Name(), p.Description(), string(p.Status()), p.ConversationID(), tsPtr(p.TargetDate()),
-		ts(p.UpdatedAt()), p.Version(), string(p.ID()))
+		boolToInt(p.IsBuiltin()), ts(p.UpdatedAt()), p.Version(), string(p.ID()))
 	if err != nil {
 		return err
 	}
@@ -323,20 +324,30 @@ func (r *PlanRepo) ClearDispatch(ctx context.Context, planID pm.PlanID, taskID p
 	return err
 }
 
-const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, created_at, updated_at, version FROM pm_plans`
+const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, created_at, updated_at, version FROM pm_plans`
+
+// boolToInt maps a Go bool to SQLite's 0/1 integer storage convention.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
 
 func scanPlan(scan func(...any) error) (*pm.Plan, error) {
 	var (
 		id, projectID, name, description, status, creatorRef, conversationID, targetDate, createdAt, updatedAt string
+		isBuiltin                                                                                              int
 		version                                                                                                int
 	)
-	if err := scan(&id, &projectID, &name, &description, &status, &creatorRef, &conversationID, &targetDate, &createdAt, &updatedAt, &version); err != nil {
+	if err := scan(&id, &projectID, &name, &description, &status, &creatorRef, &conversationID, &targetDate, &isBuiltin, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
 	return pm.RehydratePlan(pm.RehydratePlanInput{
 		ID: pm.PlanID(id), ProjectID: pm.ProjectID(projectID), Name: name, Description: description,
 		Status: pm.PlanStatus(status), CreatorRef: pm.IdentityRef(creatorRef), ConversationID: conversationID,
 		TargetDate: parseTimePtr(targetDate),
+		Builtin:    isBuiltin != 0,
 		CreatedAt:  parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
 	})
 }

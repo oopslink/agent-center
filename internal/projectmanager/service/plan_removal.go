@@ -43,6 +43,13 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
+		// ADR-0047: the built-in pool cannot be deleted on its own (it lives + dies
+		// with its project). Check BEFORE the running guard so the error is the
+		// specific ErrBuiltinPlanImmutable (the pool is always running, so the running
+		// guard would otherwise mask it with ErrPlanRunning).
+		if p.IsBuiltin() {
+			return pm.ErrBuiltinPlanImmutable
+		}
 		// Guard: a running plan cannot be deleted — stop it first.
 		if p.Status() == pm.PlanRunning {
 			return pm.ErrPlanRunning
@@ -106,6 +113,13 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		// #297: reject plan archive on an archived (read-only) project.
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
+		}
+		// ADR-0047: the user-facing ArchivePlan rejects the built-in pool — it is
+		// archived ONLY as part of its project's cascade (which calls the domain
+		// Plan.Archive directly), never on its own. Check before the running guard so
+		// the error is the specific ErrBuiltinPlanImmutable.
+		if p.IsBuiltin() {
+			return pm.ErrBuiltinPlanImmutable
 		}
 		// v2.9 #299 (@oopslink): reject archiving a plan that still has any member
 		// task in the RUNNING state — after stop, a draft plan may still carry an

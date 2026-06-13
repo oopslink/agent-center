@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -44,6 +45,15 @@ func (s *Service) CreateProject(ctx context.Context, cmd CreateProjectCommand) (
 		if err := s.members.Save(txCtx, member); err != nil {
 			return err
 		}
+		// ADR-0047: auto-create the per-project built-in "assignment pool" Plan —
+		// one per project, always-started (running), FLAT (no edges), a pull/no-wake
+		// dispatch pool that makes its assigned tasks claimable. Nil-safe: only when a
+		// PlanRepository is wired (matches the other optional-plan paths).
+		if s.plans != nil {
+			if err := s.createBuiltinPlan(txCtx, p.ID(), p.OrganizationID(), now); err != nil {
+				return err
+			}
+		}
 		return s.emit(txCtx, EvtProjectCreated,
 			refsJSON(map[string]string{"project_id": string(p.ID())}),
 			map[string]string{"project_id": string(p.ID()), "name": p.Name(), "created_by": string(cmd.CreatedBy)})
@@ -52,6 +62,47 @@ func (s *Service) CreateProject(ctx context.Context, cmd CreateProjectCommand) (
 		return "", err
 	}
 	return p.ID(), nil
+}
+
+// createBuiltinPlan creates the per-project built-in "assignment pool" Plan
+// (ADR-0047) inside the caller's tx and immediately Starts it (the pool is
+// always-started so its tasks become dispatchable/claimable without a manual
+// StartPlan). It is FLAT (no dependency edges) and CreatorRef "system". The repo's
+// partial unique index (one builtin per project) backstops a duplicate. No outbox
+// event is emitted: the pool needs no 1:1 conversation (it is a pull/no-wake pool —
+// dispatch records its readiness, it never @mentions).
+func (s *Service) createBuiltinPlan(ctx context.Context, projectID pm.ProjectID, orgID string, now time.Time) error {
+	bp, err := pm.NewPlan(pm.NewPlanInput{
+		ID:         pm.PlanID(s.idgen.NewEntityID("plan")),
+		ProjectID:  projectID,
+		Name:       "[Built-in]",
+		CreatorRef: "system",
+		Builtin:    true,
+		CreatedAt:  now,
+	})
+	if err != nil {
+		return err
+	}
+	// Always-started: the pool is running from birth so dispatchReadyNodes can run.
+	if err := bp.Start(now); err != nil {
+		return err
+	}
+	if err := s.plans.Save(ctx, bp); err != nil {
+		return err
+	}
+	// ADR-0047 §-1: emit pm.plan.created so the plan-participant projector creates the
+	// pool's 1:1 conversation (owner_ref pm://plans/<id>) — same path as a structured
+	// plan. No human creator participant (creator_ref=system); assignees join the
+	// conversation as their tasks enter the pool (via EvtPlanParticipantsChanged).
+	return s.emit(ctx, EvtPlanCreated,
+		refsJSON(map[string]string{"plan_id": string(bp.ID()), "project_id": string(projectID)}),
+		planEventPayload{
+			PlanID:         string(bp.ID()),
+			ProjectID:      string(projectID),
+			OrganizationID: orgID,
+			OwnerRef:       "pm://plans/" + string(bp.ID()),
+			CreatorRef:     "system",
+		})
 }
 
 // AddProjectMemberCommand adds a member to a project (actor must be a member).
