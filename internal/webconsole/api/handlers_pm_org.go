@@ -71,6 +71,13 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
 			continue
 		}
+		// v2.9.1 (T42): hide items of an ARCHIVED project by default — UNLESS the
+		// user explicitly filters to that project (else filtering by it would be an
+		// empty, confusing list). Mirrors the archived-project / archived-channel
+		// default-exclude semantics (#310 / task-169c598d).
+		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
+			continue
+		}
 		issues, lerr := d.PM.ListIssues(r.Context(), p.ID())
 		if lerr != nil {
 			mapPMError(w, lerr)
@@ -120,6 +127,13 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 	items := make([]map[string]any, 0)
 	for _, p := range projects {
 		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
+			continue
+		}
+		// v2.9.1 (T42): hide items of an ARCHIVED project by default — UNLESS the
+		// user explicitly filters to that project (else filtering by it would be an
+		// empty, confusing list). Mirrors the archived-project / archived-channel
+		// default-exclude semantics (#310 / task-169c598d).
+		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
 			continue
 		}
 		tasks, lerr := d.PM.ListTasks(r.Context(), p.ID())
