@@ -5,17 +5,19 @@ import (
 	"testing"
 )
 
-// TestMigration0057_TaskStateSimplify proves the ADR-0046 data migration
-// (0057_v291_task_state_simplify) rewrites the two deleted task states:
+// TestMigration0058_TaskStateSimplify proves the ADR-0046 data migration
+// (0058_v291_task_state_simplify — renumbered from 0057 on the v2.9.1 merge, since
+// thread's 0057_v291_message_thread_refs already holds slot 0057) rewrites the two
+// deleted task states:
 //   - status='blocked'  → 'running', KEEPING blocked_reason (stuck is now a
 //     running-task annotation, not a state — removes the deadlock class).
 //   - status='verified' → 'completed'.
 //
-// Strategy: full Up lands at 57; Down to 56 reverts 0057 (a data-only no-op down,
-// so the schema is intact and pm_tasks.status is a free TEXT column). We then seed
-// legacy 'blocked'/'verified' rows and run Up again, which applies 0057, and assert
-// the rows were rewritten while untouched statuses survive verbatim.
-func TestMigration0057_TaskStateSimplify(t *testing.T) {
+// Strategy: full Up lands at 58; Down to 56 reverts 0057+0058 (the task-state down
+// is a data-only no-op; pm_tasks.status stays a free TEXT column). We then seed
+// legacy 'blocked'/'verified' rows and run Up again, which re-applies 0057+0058,
+// and assert the rows were rewritten while untouched statuses survive verbatim.
+func TestMigration0058_TaskStateSimplify(t *testing.T) {
 	db, err := Open(t.TempDir() + "/adr46.db")
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +29,7 @@ func TestMigration0057_TaskStateSimplify(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("first Up: %v", err)
 	}
-	// Revert only 0057 (data-only down is a no-op; schema stays at the 0057 shape).
+	// Down to 56 reverts 0057(thread)+0058(task-state); the task-state down is a data-only no-op.
 	if err := mig.Down(ctx, 56); err != nil {
 		t.Fatalf("Down(56): %v", err)
 	}
@@ -50,12 +52,12 @@ func TestMigration0057_TaskStateSimplify(t *testing.T) {
 	insert("T-running", "running", "")
 	insert("T-open", "open", "")
 
-	// Apply 0057.
+	// Re-apply 0057(thread)+0058(task-state).
 	if err := mig.Up(ctx); err != nil {
-		t.Fatalf("second Up (apply 0057): %v", err)
+		t.Fatalf("second Up (apply 0057+0058): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 57 {
-		t.Fatalf("version after re-Up: got %d want 57", v)
+	if v, _ := mig.Version(ctx); v != 58 {
+		t.Fatalf("version after re-Up: got %d want 58", v)
 	}
 
 	status := func(id string) (string, string) {
