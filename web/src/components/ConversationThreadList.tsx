@@ -74,7 +74,10 @@ export function ConversationThreadList({ conversationId }: Props): React.ReactEl
                       >
                         {senderResolved ? resolved : '(deleted)'}
                       </span>
-                      <span className="block truncate text-text-muted" data-testid="thread-list-preview">
+                      {/* F3 (Tester2 run-real): preview uses text-text-secondary
+                          (slate-600 ≈6.92), NOT text-text-muted (slate-500 on the
+                          slate-100 panel = 4.34 < 4.5 AA FAIL in light). §5.5. */}
+                      <span className="block truncate text-text-secondary" data-testid="thread-list-preview">
                         {t.root.content}
                       </span>
                     </span>

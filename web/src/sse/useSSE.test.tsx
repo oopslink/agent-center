@@ -75,10 +75,13 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversation('C1') });
   });
 
-  it('conversation.message_added invalidates messages + unread', () => {
+  it('conversation.message_added invalidates messages + unread + thread list', () => {
     dispatchToQueryClient(qc, ev('conversation.message_added', 'C1'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.messages('C1') });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unread('C1') });
+    // v2.9.1 Threads F2: keep the Participants thread list live (new thread /
+    // reply_count++ / re-sort) the same way the message badge is live.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversationThreads('C1') });
   });
 
   it('conversation.archived / conversation.closed invalidate list + detail', () => {

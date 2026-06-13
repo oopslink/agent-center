@@ -194,6 +194,11 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         // New message ticks the unread badge on every listener; the
         // focused tab will then auto-mark-seen which clears it again.
         invalidate(qk.unread(ev.conversation_id));
+        // v2.9.1 Threads F2: keep the Participants thread list live — a new
+        // root thread, a reply (reply_count++/last-activity re-sort) all arrive
+        // as conversation.message_added, same SSE path that keeps the per-message
+        // thread badge live. (cf #318 list-refresh-on-mutation.)
+        invalidate(qk.conversationThreads(ev.conversation_id));
       }
       return;
     case 'conversation.read_state.changed':
