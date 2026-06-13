@@ -227,3 +227,91 @@ describe('Channels list-enrichment (v2.8.1)', () => {
     expect(await screen.findByTestId('channel-no-messages')).toHaveTextContent('No messages yet');
   });
 });
+
+// v2.9.1 task-169c598d: archived channels are excluded from the default list and
+// surfaced via a lazy collapsed "Archived" group; active rows carry an Archive
+// action. Mirrors the Projects archived-group tests (#317).
+describe('Channels archive (v2.9.1)', () => {
+  afterEach(() => cleanup());
+
+  it('archived group is collapsed by default and does not fetch archived', async () => {
+    let archivedFetched = false;
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        if (status === 'archived') {
+          archivedFetched = true;
+          return HttpResponse.json([]);
+        }
+        return HttpResponse.json([
+          { id: 'C1', kind: 'channel', name: 'alpha', status: 'active', description: '' },
+        ]);
+      }),
+    );
+    wrap(<Channels />);
+    await waitFor(() => expect(screen.getAllByTestId('channel-row')).toHaveLength(1));
+    expect(screen.getByTestId('archived-channels-toggle')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('archived-channels-body')).not.toBeInTheDocument();
+    expect(archivedFetched).toBe(false);
+  });
+
+  it('expanding the archived group fetches and lists archived channels with the ARCHIVED badge', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        if (status === 'archived') {
+          return HttpResponse.json([
+            { id: 'C9', kind: 'channel', name: 'zeta', status: 'archived', description: 'old room' },
+          ]);
+        }
+        return HttpResponse.json([
+          { id: 'C1', kind: 'channel', name: 'alpha', status: 'active', description: '' },
+        ]);
+      }),
+    );
+    wrap(<Channels />);
+    await waitFor(() => expect(screen.getAllByTestId('channel-row')).toHaveLength(1));
+    fireEvent.click(screen.getByTestId('archived-channels-toggle'));
+    await waitFor(() => expect(screen.getByTestId('archived-channels-list')).toBeInTheDocument());
+    expect(screen.getByText('zeta')).toBeInTheDocument();
+    expect(screen.getByTestId('channel-status-archived')).toBeInTheDocument();
+    // archived row is read-only — no Archive action on it.
+    expect(screen.getByTestId('archived-channel-row').querySelector('[data-testid="channel-archive-btn"]')).toBeNull();
+  });
+
+  it('shows the empty note when there are no archived channels', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        return HttpResponse.json(
+          status === 'archived'
+            ? []
+            : [{ id: 'C1', kind: 'channel', name: 'alpha', status: 'active', description: '' }],
+        );
+      }),
+    );
+    wrap(<Channels />);
+    await waitFor(() => expect(screen.getAllByTestId('channel-row')).toHaveLength(1));
+    fireEvent.click(screen.getByTestId('archived-channels-toggle'));
+    await waitFor(() => expect(screen.getByTestId('archived-channels-empty')).toBeInTheDocument());
+  });
+
+  it('archiving an active channel POSTs to the archive endpoint', async () => {
+    let archivedId = '';
+    server.use(
+      http.get('/api/conversations', () =>
+        HttpResponse.json([
+          { id: 'C1', kind: 'channel', name: 'alpha', status: 'active', description: '' },
+        ]),
+      ),
+      http.post('/api/conversations/:id/archive', ({ params }) => {
+        archivedId = params.id as string;
+        return HttpResponse.json({ event_id: 'ev-1' });
+      }),
+    );
+    wrap(<Channels />);
+    const btn = await screen.findByTestId('channel-archive-btn');
+    fireEvent.click(btn);
+    await waitFor(() => expect(archivedId).toBe('C1'));
+  });
+});

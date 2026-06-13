@@ -38,6 +38,20 @@ export function useConversation(id: string | undefined) {
   });
 }
 
+// useArchivedChannels fetches the ARCHIVED-only channel list (v2.9.1 task-169c598d).
+// The backend default-EXCLUDES archived from the active list (useConversations →
+// /conversations); this fetches them explicitly via ?status=archived, under its own
+// cache key so it never collides with the active list. Lazy via `enabled` so the
+// collapsed "Archived" group on the Channels page only fetches once expanded.
+// Mirrors useArchivedProjects (#298/#317).
+export function useArchivedChannels(enabled = true) {
+  return useQuery({
+    queryKey: qk.conversationsArchived('channel'),
+    queryFn: () => api.get<Conversation[]>('/conversations?kind=channel&status=archived'),
+    enabled,
+  });
+}
+
 // useConversationByOwnerRef fetches the single task/issue conversation pinned
 // to an owner_ref (pm://tasks|issues/{id}). The list endpoint is org-scoped by
 // construction, so a cross-org owner_ref returns no rows (fail-closed, no
@@ -157,6 +171,9 @@ export function useArchiveConversation() {
     onSuccess: (_, vars) => {
       void qc.invalidateQueries({ queryKey: qk.conversation(vars.id) });
       void qc.invalidateQueries({ queryKey: qk.conversations() });
+      // v2.9.1 (task-169c598d): the just-archived channel leaves the active list
+      // and joins the archived group — refresh both.
+      void qc.invalidateQueries({ queryKey: qk.conversationsArchived('channel') });
     },
   });
 }

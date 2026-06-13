@@ -26,6 +26,11 @@ function o(...parts: readonly unknown[]): readonly unknown[] {
 export const qk = {
   conversations: (kind?: string) =>
     kind ? (o('conversations', { kind })) : (o('conversations')),
+  // v2.9.1 (task-169c598d): the ARCHIVED-only conversation list (?status=archived),
+  // a SEPARATE cache key from the active list so the collapsed "Archived" group
+  // caches independently and never collides with qk.conversations(kind).
+  conversationsArchived: (kind?: string) =>
+    kind ? o('conversations', 'archived', { kind }) : o('conversations', 'archived'),
   conversation: (id: string) => o('conversation', id),
   conversationByOwner: (ownerRef: string) => o('conversationByOwner', ownerRef),
   messages: (convId: string) => o('messages', convId),
