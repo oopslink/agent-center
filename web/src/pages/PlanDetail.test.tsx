@@ -280,29 +280,36 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     // the over-claiming affordance elements are gone (no editor is here)
     expect(screen.queryByTestId('plan-edge-edit-hint')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-edit-locked')).not.toBeInTheDocument();
-    // no control to change a node's status (derived) and no edge editor control
+    // no control to change a node's status (derived); the OLD dropdown editor box
+    // is gone entirely (point 3 §21 single entry).
     expect(screen.queryByTestId('node-status-select')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('plan-edge-remove')).not.toBeInTheDocument();
-  });
-
-  it('running plan does NOT show the draft dependency editor (display-only)', async () => {
-    mockPlan(); // default = running
-    wrap();
-    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-remove')).not.toBeInTheDocument();
   });
 
-  it('done plan does NOT show the draft dependency editor (display-only)', async () => {
+  it('running plan is display-only: NO in-graph connect / edge-delete controls (and no old editor box)', async () => {
+    mockPlan(); // default = running
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // old dropdown box gone
+    expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-remove')).not.toBeInTheDocument();
+    // new in-graph affordances are NOT rendered on a running plan
+    expect(screen.queryByTestId('plan-node-connect')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-delete')).not.toBeInTheDocument();
+  });
+
+  it('done plan is display-only: NO in-graph connect / edge-delete controls', async () => {
     mockPlan({ status: 'done', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-node-connect')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-delete')).not.toBeInTheDocument();
   });
 
   it('lifecycle controls (Start/Stop/Advance) each render exactly once, status-gated', async () => {
@@ -419,38 +426,66 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(advanced).toBe(true));
   });
 
-  // ── v2.9 Stage A1: draft-only dependency-edge editor ───────────────────────
+  // ── v2.9.1 point 3: IN-GRAPH dependency editing (draft-only) ───────────────
+  // The old PlanDagEditor two-select dropdown box is GONE (§21 single entry).
   // from/to semantics (verified vs backend plan_view.go + plan_flow.go):
   // AddPlanDependency(from, to) ⟺ "from depends_on to"; a node's depends_on
   // lists edge.ToTaskID where edge.FromTaskID == node. So edge "B depends on A"
-  // → { from_task_id: B, to_task_id: A }.
-  it('draft plan shows the dependency editor: add control + edge-remove list', async () => {
+  // → { from_task_id: B, to_task_id: A }. The keyboard/click connect path uses
+  // validDropTargets (self/exists/cycle excluded at the UI layer).
+  //
+  // Helpers to find the in-graph controls inside a specific node.
+  function dagNode(taskId: string): HTMLElement {
+    return screen.getByTestId('plan-dag').querySelector(`[data-task-id="${taskId}"]`) as HTMLElement;
+  }
+
+  it('draft plan shows in-graph affordances: a connect button per node + a delete control per edge', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-dag-editor')).toBeInTheDocument());
-    // add control (two labeled selects + add button)
-    expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-edge-add-from')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-edge-add-to')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-edge-add-btn')).toBeInTheDocument();
-    // dropdowns use node titles, not raw ids
-    const fromSel = screen.getByTestId('plan-edge-add-from');
-    expect(within(fromSel).getByText('design schema')).toBeInTheDocument();
-    expect(within(fromSel).getByText('backend api')).toBeInTheDocument();
-    // existing edges rendered as remove rows (6 depends_on edges in the fixture)
-    expect(screen.getAllByTestId('plan-edge-remove')).toHaveLength(6);
-    // a row reads "<dependent> depends on <dependency>": n2 depends on n1
-    const n2n1 = screen
-      .getAllByTestId('plan-edge-remove')
-      .find((el) => el.getAttribute('data-edge') === 'n2->n1');
-    expect(n2n1).toBeDefined();
-    expect(n2n1!).toHaveTextContent('backend api');
-    expect(n2n1!).toHaveTextContent('depends on');
-    expect(n2n1!).toHaveTextContent('design schema');
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // the OLD dropdown editor box is gone entirely
+    expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-edge-remove')).not.toBeInTheDocument();
+    // a connect control per node (7 nodes), each a real <button> with an aria-label
+    const connects = screen.getAllByTestId('plan-node-connect');
+    expect(connects).toHaveLength(7);
+    for (const c of connects) expect(c.tagName).toBe('BUTTON');
+    const n1Connect = within(dagNode('n1')).getByTestId('plan-node-connect');
+    expect(n1Connect).toHaveAttribute('aria-label', 'Add dependency from design schema');
+    // a delete control per existing edge (6 depends_on edges in the fixture)
+    const dels = screen.getAllByTestId('plan-edge-delete');
+    expect(dels).toHaveLength(6);
+    for (const d of dels) expect(d.tagName).toBe('BUTTON');
+    const n2n1del = dels.find((el) => el.getAttribute('data-edge') === 'n2->n1');
+    expect(n2n1del).toBeDefined();
+    expect(n2n1del!).toHaveAttribute('aria-label', 'Remove dependency: backend api depends on design schema');
   });
 
-  it('draft: add-dependency calls useAddDependency with { from_task_id, to_task_id } (from depends_on to)', async () => {
+  it('draft: clicking a node connect button enters connect mode and lights up valid targets', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // not in connect mode yet
+    expect(screen.queryByTestId('plan-connect-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-connect-target')).not.toBeInTheDocument();
+    // connect FROM n7 (docs, no deps). Valid targets exclude self + already-linked
+    // + cycle-forming. n7 has no deps and nothing depends on it → every OTHER node
+    // is a valid target (6 of them).
+    fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
+    expect(screen.getByTestId('plan-connect-banner')).toBeInTheDocument();
+    const targets = screen.getAllByTestId('plan-connect-target');
+    expect(targets).toHaveLength(6);
+    for (const t of targets) expect(t.tagName).toBe('BUTTON');
+    // the source node itself is NOT an activatable target (self blocked)
+    expect(within(dagNode('n7')).queryByTestId('plan-connect-target')).not.toBeInTheDocument();
+    // while in connect mode, the per-node connect buttons are hidden
+    expect(screen.queryByTestId('plan-node-connect')).not.toBeInTheDocument();
+  });
+
+  it('draft: activating a valid target calls useAddDependency with { from_task_id, to_task_id } (from depends_on to)', async () => {
     let body: { from_task_id?: string; to_task_id?: string } | null = null;
     mockPlan({ status: 'draft', has_failed: false });
     server.use(
@@ -461,41 +496,81 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     );
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
-    // pick "docs" (n7) depends on "design schema" (n1)
-    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n7' } });
-    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n1' } });
-    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // "docs" (n7) depends on "design schema" (n1): connect from n7, activate n1.
+    fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
+    const n1Target = within(dagNode('n1')).getByTestId('plan-connect-target');
+    await act(async () => fireEvent.click(n1Target));
     await waitFor(() => expect(body).not.toBeNull());
     expect(body).toEqual({ from_task_id: 'n7', to_task_id: 'n1' });
+    // connect mode exits after activating
+    await waitFor(() => expect(screen.queryByTestId('plan-connect-banner')).not.toBeInTheDocument());
   });
 
-  it('draft: add button is disabled until two DISTINCT tasks are selected (no self-edge)', async () => {
+  it('draft: a cycle/self/existing target is NOT offered as an activatable target (UI-layer block)', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-edge-add-btn')).toBeInTheDocument());
-    const btn = screen.getByTestId('plan-edge-add-btn') as HTMLButtonElement;
-    expect(btn.disabled).toBe(true); // nothing selected
-    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
-    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n1' } });
-    expect(btn.disabled).toBe(true); // same task → would be a self-edge
-    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n2' } });
-    expect(btn.disabled).toBe(false);
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // Connect FROM n1 (design schema, level 0). n2..n6 all transitively depend on
+    // n1, so making n1 depend on any of them would CLOSE A CYCLE → none offered.
+    // n7 (docs) is independent → the only valid target.
+    fireEvent.click(within(dagNode('n1')).getByTestId('plan-node-connect'));
+    const targets = screen.getAllByTestId('plan-connect-target');
+    expect(targets).toHaveLength(1);
+    // the only valid target is n7
+    expect(targets[0].closest('[data-task-id]')!.getAttribute('data-task-id')).toBe('n7');
+    // self (n1) and the cycle-forming nodes (n2, n6) are NOT activatable targets
+    expect(within(dagNode('n1')).queryByTestId('plan-connect-target')).not.toBeInTheDocument();
+    expect(within(dagNode('n2')).queryByTestId('plan-connect-target')).not.toBeInTheDocument();
+    expect(within(dagNode('n6')).queryByTestId('plan-connect-target')).not.toBeInTheDocument();
   });
 
-  it('draft: remove FIRES the DELETE request (real wiring) — and never submits the add form', async () => {
-    // Real-wiring regression guard (Tester2 #?: "click Remove does nothing — no
-    // DELETE, edge stays, no error"). We mock at the api/http (MSW) layer — NOT
-    // the useRemoveDependency hook — so the actual button→onClick→mutate→api.del
-    // path is exercised end-to-end. Two assertions:
-    //   1) clicking Remove ACTUALLY fires `api.del` (the DELETE) with the right
-    //      URL params (the request truly leaves the component on click), and
-    //   2) the click does NOT trigger the add form's onSubmit (no add POST) —
-    //      i.e. the Remove <button> is not a stray type="submit" being eaten by
-    //      the surrounding form. On the broken (form-submit-eats-click) code the
-    //      DELETE never fires (delHit stays false) → this test FAILS; with the
-    //      Remove button as type="button" the DELETE fires → it PASSES.
+  it('draft: an already-existing edge target is NOT offered again (exists excluded)', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // n2 already depends on n1. Connect FROM n2 → n1 must NOT be an activatable
+    // target (exists). n3..n6 depend on n2 (cycle), so only the independent n7 is
+    // offered.
+    fireEvent.click(within(dagNode('n2')).getByTestId('plan-node-connect'));
+    expect(within(dagNode('n1')).queryByTestId('plan-connect-target')).not.toBeInTheDocument();
+    const targets = screen.getAllByTestId('plan-connect-target');
+    expect(targets.map((t) => t.closest('[data-task-id]')!.getAttribute('data-task-id'))).toEqual(['n7']);
+  });
+
+  it('draft: Escape exits connect mode without adding; the Cancel affordance also exits', async () => {
+    let addHit = false;
+    mockPlan({ status: 'draft', has_failed: false });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/dependencies', () => {
+        addHit = true;
+        return HttpResponse.json(planWith({ status: 'draft' }));
+      }),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // enter connect mode, then Escape
+    fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
+    expect(screen.getByTestId('plan-connect-banner')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByTestId('plan-connect-banner')).not.toBeInTheDocument());
+    // the per-node connect controls return
+    expect(screen.getAllByTestId('plan-node-connect').length).toBeGreaterThan(0);
+    // re-enter, then click Cancel
+    fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
+    fireEvent.click(screen.getByTestId('plan-connect-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('plan-connect-banner')).not.toBeInTheDocument());
+    // nothing was added
+    await act(async () => { await Promise.resolve(); });
+    expect(addHit).toBe(false);
+  });
+
+  it('draft: an edge delete control FIRES the DELETE request with the correct ids (real wiring)', async () => {
+    // Mock at the api/http (MSW) layer — NOT the useRemoveDependency hook — so the
+    // actual button→onClick→mutate→api.del path is exercised end-to-end.
     let delHit = false;
     let addHit = false;
     let params: { from: string | null; to: string | null } = { from: null, to: null };
@@ -507,7 +582,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
         delHit = true;
         return new HttpResponse(null, { status: 204 });
       }),
-      // If clicking Remove submitted the add form, this add POST would fire.
+      // if clicking delete somehow fired an add, this POST would trip.
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', () => {
         addHit = true;
         return HttpResponse.json(planWith({ status: 'draft' }));
@@ -515,20 +590,20 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     );
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-edge-list')).toBeInTheDocument());
-    const row = screen
-      .getAllByTestId('plan-edge-remove')
+    await waitFor(() => expect(screen.getAllByTestId('plan-edge-delete').length).toBeGreaterThan(0));
+    const del = screen
+      .getAllByTestId('plan-edge-delete')
       .find((el) => el.getAttribute('data-edge') === 'n2->n1')!;
-    await act(async () => fireEvent.click(within(row).getByTestId('plan-edge-remove-btn')));
-    // the DELETE truly fires on click (this is the assertion the prior mocked-hook
-    // test could never make — it proves the request leaves the component)
+    await act(async () => fireEvent.click(del));
     await waitFor(() => expect(delHit).toBe(true));
+    // "n2 depends on n1" → { from_task_id: n2, to_task_id: n1 }
     expect(params).toEqual({ from: 'n2', to: 'n1' });
-    // clicking Remove must NOT have submitted the add form
     expect(addHit).toBe(false);
   });
 
-  it('#218: a cycle error surfaces the FRIENDLY message (not the raw API error)', async () => {
+  it('#218: a cycle error from add surfaces the FRIENDLY message (not the raw API error)', async () => {
+    // Force a target through despite the UI guard by mocking a 400 cycle response
+    // on a LEGAL UI target (n7→n1): the friendly mapping still applies.
     mockPlan({ status: 'draft', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
@@ -540,38 +615,16 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     );
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
-    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n6' } });
-    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
+    await act(async () => fireEvent.click(within(dagNode('n1')).getByTestId('plan-connect-target')));
     const err = await screen.findByTestId('plan-edge-error');
     expect(err).toHaveTextContent('That would create a cycle in the plan.');
     // raw backend error must NOT leak
     expect(err.textContent ?? '').not.toMatch(/projectmanager:|invalid_request/);
   });
 
-  it('#218: a self-edge error surfaces the FRIENDLY message', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
-    server.use(
-      http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
-        HttpResponse.json(
-          { error: 'invalid_request', message: 'projectmanager: a task cannot depend on itself' },
-          { status: 400 },
-        ),
-      ),
-    );
-    wrap();
-    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
-    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n2' } });
-    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
-    const err = await screen.findByTestId('plan-edge-error');
-    expect(err).toHaveTextContent("A task can't depend on itself.");
-    expect(err.textContent ?? '').not.toMatch(/projectmanager:/);
-  });
-
-  it('draft: plan-dag-note states dependencies ARE editable here', async () => {
+  it('draft: plan-dag-note states dependencies ARE editable here (in-graph)', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
@@ -581,7 +634,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(note.textContent ?? '').not.toMatch(/display-only/i);
   });
 
-  it('error surface uses the danger token, not raw red, and no alpha-tint', async () => {
+  it('error surface + in-graph controls use solid danger/semantic tokens (no raw red, no alpha-tint)', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     server.use(
       http.post('/api/projects/proj-a/plans/PL-1/dependencies', () =>
@@ -593,15 +646,19 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     );
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
-    await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
-    fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
-    fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n6' } });
-    await act(async () => fireEvent.click(screen.getByTestId('plan-edge-add-btn')));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
+    await act(async () => fireEvent.click(within(dagNode('n1')).getByTestId('plan-connect-target')));
     const err = await screen.findByTestId('plan-edge-error');
     expect(err.className).toContain('text-danger');
     expect(err.className).not.toMatch(/text-red-|bg-red-/);
-    // editor surface: solid token bg, no bg-{token}/{opacity} alpha-tint
-    expect(screen.getByTestId('plan-dag-editor').className).not.toMatch(/\/\d+/);
+    // in-graph delete control: solid token bg, no bg-{token}/{opacity} alpha-tint,
+    // ASCII glyph (no emoji)
+    const del = screen.getAllByTestId('plan-edge-delete')[0];
+    expect(del.className).not.toMatch(/\/\d+/);
+    expect(del.className).not.toMatch(/text-red-|bg-red-/);
+    // eslint-disable-next-line no-control-regex
+    expect(del.textContent ?? '').not.toMatch(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
   });
 
   it('#218: plan-load error → friendly ErrorState with raw error behind [Details]', async () => {
@@ -1310,5 +1367,137 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     expect(chip.className).toContain('text-stone-800');
     expect(chip.className).not.toMatch(/\/\d+/);
     expect(chip.className).not.toMatch(/text-red-|bg-red-/);
+  });
+
+  // ── T41 (v2.9.1 #291): big-plan Task-list = searchable + scrollable + inline
+  // 分派. A big plan must render EVERY node (no cap), be filterable by title /
+  // Task-id / assignee, and let you reassign per row regardless of plan status.
+  // Build a ~12-node plan so "no silent truncation" is meaningful.
+  function bigNodes() {
+    const nodes = [];
+    for (let i = 1; i <= 12; i++) {
+      nodes.push({
+        task_id: `b${i}`,
+        title: `task number ${i}`,
+        assignee_ref: i % 2 === 0 ? 'agent:dev' : 'agent:dev2',
+        task_status: 'open',
+        node_status: 'ready',
+        depends_on: [],
+      });
+    }
+    return nodes;
+  }
+
+  it('T41: Task tab renders ALL nodes of a big plan (no cap)', async () => {
+    mockPlan({ nodes: bigNodes() });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    const table = await screen.findByTestId('plan-task-list-table');
+    expect(within(table).getAllByTestId('plan-task-row')).toHaveLength(12);
+    expect(screen.getByTestId('plan-task-search-count')).toHaveTextContent('Showing 12 of 12');
+  });
+
+  it('T41: search filters by title; clearing restores all; no-match shows empty state', async () => {
+    mockPlan({ nodes: bigNodes() });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+    const search = screen.getByTestId('plan-task-search');
+    expect(search).toHaveAttribute('aria-label', 'Filter tasks');
+
+    // "number 3" matches exactly one node (title).
+    fireEvent.change(search, { target: { value: 'number 3' } });
+    expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(1);
+    expect(screen.getByTestId('plan-task-search-count')).toHaveTextContent('Showing 1 of 12');
+
+    // Clearing restores ALL rows.
+    fireEvent.change(search, { target: { value: '' } });
+    expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(12);
+
+    // A non-matching query shows the empty state (and hides the table).
+    fireEvent.change(search, { target: { value: 'zzz-no-match' } });
+    expect(screen.getByTestId('plan-task-search-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-task-list-table')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-task-search-count')).toHaveTextContent('Showing 0 of 12');
+  });
+
+  it('T41: search filters by Task-id (org_ref) and by assignee handle', async () => {
+    mockPlan({ nodes: bigNodes() });
+    // org_ref resolution: b1 → T900.
+    server.use(
+      http.get('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            { id: 'b1', project_id: 'proj-a', title: 'task number 1', description: '', status: 'open', org_ref: 'T900', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
+          ],
+        }),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+    const search = screen.getByTestId('plan-task-search');
+
+    // by Task-id (org_ref) → only b1.
+    await waitFor(() => {
+      const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b1"]') as HTMLElement;
+      expect(within(row).getByTestId('plan-row-taskid')).toHaveTextContent('T900');
+    });
+    fireEvent.change(search, { target: { value: 't900' } });
+    const idRows = within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row');
+    expect(idRows).toHaveLength(1);
+    expect(idRows[0]).toHaveAttribute('data-task-id', 'b1');
+
+    // by assignee handle: "dev2" is on the odd-indexed nodes (6 of 12).
+    fireEvent.change(search, { target: { value: 'dev2' } });
+    expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(6);
+  });
+
+  it('T41: per-row assignee <select> fires the assign mutation with {assignee}', async () => {
+    mockPlan({ nodes: bigNodes() });
+    let assignedBody: { assignee?: string } | null = null;
+    server.use(
+      // members feed the <option> list (mirror TaskEditModal: prefixed refs).
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-1', organization_id: 'org-test', identity_id: 'agent:dev', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev One' },
+          { id: 'mem-2', organization_id: 'org-test', identity_id: 'agent:dev2', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev Two' },
+        ]),
+      ),
+      http.post('/api/projects/proj-a/tasks/b1/assign', async ({ request }) => {
+        assignedBody = (await request.json()) as { assignee?: string };
+        return HttpResponse.json({ id: 'b1', project_id: 'proj-a', title: 'task number 1', description: '', status: 'open', assignee: assignedBody.assignee, version: 2, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' });
+      }),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+
+    // the select must be populated from useMembers.
+    const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b1"]') as HTMLElement;
+    const select = within(row).getByTestId('plan-row-assign');
+    await waitFor(() => expect(within(select).getByText('Dev One (agent)')).toBeInTheDocument());
+    expect(select).toHaveAttribute('aria-label', 'Reassign task number 1');
+
+    await act(async () => fireEvent.change(select, { target: { value: 'agent:dev' } }));
+    await waitFor(() => expect(assignedBody).toEqual({ assignee: 'agent:dev' }));
+  });
+
+  it('T41: choosing Unassigned routes to the unassign endpoint', async () => {
+    mockPlan({ nodes: bigNodes() });
+    let unassigned = false;
+    server.use(
+      http.post('/api/projects/proj-a/tasks/b2/unassign', () => {
+        unassigned = true;
+        return HttpResponse.json({ id: 'b2', project_id: 'proj-a', title: 'task number 2', description: '', status: 'open', assignee: '', version: 2, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' });
+      }),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await screen.findByTestId('plan-task-list-table');
+    const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b2"]') as HTMLElement;
+    const select = within(row).getByTestId('plan-row-assign');
+    await act(async () => fireEvent.change(select, { target: { value: '' } }));
+    await waitFor(() => expect(unassigned).toBe(true));
   });
 });
