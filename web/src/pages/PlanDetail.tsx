@@ -997,6 +997,12 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
   const orgRefOf = useTaskOrgRefResolver(projectId);
+  // v2.9.1 UX point 2: a "Compact" toggle uniformly zooms the DAG down so a long
+  // (many-level) / wide plan fits in view without endless horizontal scrolling.
+  // CSS transform (content scales cleanly, no node-content overflow); the scroll
+  // area is sized to the scaled extent. Layout algorithm is untouched.
+  const [compact, setCompact] = useState(false);
+  const scale = compact ? 0.7 : 1;
 
   const { positioned, width, height, start, end } = useMemo(() => layoutDag(nodes), [nodes]);
   const posById = useMemo(
@@ -1060,12 +1066,39 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
           No tasks in this plan yet. Add tasks from the Work Board.
         </p>
       ) : (
+        <>
+        {/* v2.9.1 point 2: compact (zoom-to-fit) toggle for long/wide DAGs. */}
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setCompact((c) => !c)}
+            aria-pressed={compact}
+            data-testid="plan-dag-compact-toggle"
+            className="rounded border border-border-strong px-2 py-0.5 text-[0.6875rem] font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {compact ? 'Compact: on' : 'Compact'}
+          </button>
+        </div>
         <div
           className="relative overflow-auto rounded-lg border border-border-base bg-bg-subtle"
           data-testid="plan-dag-canvas"
+          data-compact={compact ? 'true' : 'false'}
           style={{ maxHeight: 480 }}
         >
-          <div className="relative" style={{ width, height }}>
+          {/* Sizing wrapper reserves the SCALED extent so the scroll area is
+              correct; the inner layer keeps its natural size and is zoomed via
+              transform (transform doesn't affect layout box). */}
+          <div style={{ width: width * scale, height: height * scale }}>
+          <div
+            className="relative"
+            data-testid="plan-dag-scaler"
+            style={{
+              width,
+              height,
+              transform: scale === 1 ? undefined : `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+          >
             {/* Edges (z-0, behind nodes). */}
             <svg
               className="absolute left-0 top-0"
@@ -1153,7 +1186,9 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
             {start && <SyntheticAnchorMarker kind="start" anchor={start} />}
             {end && <SyntheticAnchorMarker kind="end" anchor={end} />}
           </div>
+          </div>
         </div>
+        </>
       )}
 
       {/* Legend (all 6 states) — the lifecycle controls live in the header

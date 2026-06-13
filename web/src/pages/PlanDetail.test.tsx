@@ -203,6 +203,22 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(row1).getByTestId('plan-row-taskid')).toHaveTextContent('T101');
   });
 
+  it('point 2: compact toggle zooms the DAG down so a long plan fits', async () => {
+    mockPlan();
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    const toggle = screen.getByTestId('plan-dag-compact-toggle');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('plan-dag-canvas')).toHaveAttribute('data-compact', 'false');
+    expect(screen.getByTestId('plan-dag-scaler').getAttribute('style') ?? '').not.toContain('scale(');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('plan-dag-canvas')).toHaveAttribute('data-compact', 'true');
+    // compact applies a uniform downscale so a wide/long DAG fits in view
+    expect(screen.getByTestId('plan-dag-scaler').getAttribute('style') ?? '').toContain('scale(0.7)');
+  });
+
   it('DAG computes a layered left→right layout from depends_on', async () => {
     mockPlan();
     wrap();
