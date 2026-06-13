@@ -254,10 +254,12 @@ describe('TaskDetail page', () => {
       await waitFor(() => expect(screen.getAllByTestId('task-tag-chip').length).toBe(3));
       const chips = screen.getAllByTestId('task-tag-chip');
       const byTag = new Map(chips.map((c) => [c.getAttribute('data-tag'), c.className]));
-      // each chip carries a curated bg-X-100 + text-X-800 pair (both-mode AA).
+      // each chip carries a curated status-hue bg/fg token pair (both-mode AA):
+      // the bg-X-100 + text-X-800 raw classes migrated to bg-status-X-bg /
+      // text-status-X-fg (light hex unchanged; dark pair added).
       for (const cls of byTag.values()) {
-        expect(cls).toMatch(/bg-\w+-100/);
-        expect(cls).toMatch(/text-\w+-800/);
+        expect(cls).toMatch(/bg-status-\w+-bg/);
+        expect(cls).toMatch(/text-status-\w+-fg/);
       }
       // deterministic: 'infra' hashes to the same pair as a second 'infra' render.
       const { tagColorFor } = await import('@/components/tagColors');

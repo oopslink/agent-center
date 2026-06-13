@@ -187,7 +187,7 @@ function DMDetailInner(): React.ReactElement {
               {isAgentPeer && (
                 <span
                   data-testid="dm-bot-badge"
-                  className="rounded bg-blue-100 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-blue-800"
+                  className="rounded bg-status-blue-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-blue-fg"
                 >
                   Bot
                 </span>
@@ -200,7 +200,7 @@ function DMDetailInner(): React.ReactElement {
                   role="img"
                   aria-label="Online"
                   title="Online"
-                  className="inline-block h-2.5 w-2.5 rounded-full bg-green-500"
+                  className="inline-block h-2.5 w-2.5 rounded-full bg-status-green-solid-soft"
                 />
               )}
             </div>

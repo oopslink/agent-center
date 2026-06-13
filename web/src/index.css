@@ -31,6 +31,93 @@
   /* Focus ring used by `focus-visible` utilities (skill rule
    * `focus-states`: 2-4px, must be visible). */
   --ring-color: rgba(59, 130, 246, 0.5);
+
+  /*
+   * Status / chip / badge palette tokens (no-raw-colors migration).
+   * LIGHT values are the EXACT Tailwind v3 hexes the SPA used before
+   * the token rename (Tester2-AA-locked — light mode is byte-identical);
+   * the parallel `:root.dark` block adds the standard dark tonal pair.
+   *   -bg     = chip background  ({hue}-100)
+   *   -fg     = chip text        ({hue}-800)
+   *   -border = chip border      ({hue}-300)
+   *   -solid  = solid badge/dot  ({hue}-600/700/500 — the shade used)
+   *   -strong = text-only accent ({hue}-600/700)
+   */
+  /* slate */
+  --color-status-slate-bg:      #f1f5f9; /* slate-100 */
+  --color-status-slate-fg:      #1e293b; /* slate-800 */
+  --color-status-slate-fg-soft: #334155; /* slate-700 */
+  --color-status-slate-border:  #cbd5e1; /* slate-300 */
+  --color-status-slate-solid:      #64748b; /* slate-500 */
+  --color-status-slate-solid-soft: #94a3b8; /* slate-400 */
+  /* gray (zinc) */
+  --color-status-zinc-solid:    #3f3f46; /* zinc-700 */
+  /* stone */
+  --color-status-stone-bg:      #f5f5f4; /* stone-100 */
+  --color-status-stone-fg:      #292524; /* stone-800 */
+  /* blue */
+  --color-status-blue-bg:       #dbeafe; /* blue-100 */
+  --color-status-blue-fg:       #1e40af; /* blue-800 */
+  --color-status-blue-border:   #93c5fd; /* blue-300 */
+  --color-status-blue-solid:    #2563eb; /* blue-600 */
+  /* indigo */
+  --color-status-indigo-bg:     #e0e7ff; /* indigo-100 */
+  --color-status-indigo-fg:     #3730a3; /* indigo-800 */
+  /* violet */
+  --color-status-violet-bg:     #ede9fe; /* violet-100 */
+  --color-status-violet-fg:     #5b21b6; /* violet-800 */
+  --color-status-violet-border: #c4b5fd; /* violet-300 */
+  --color-status-violet-solid:  #6d28d9; /* violet-700 */
+  /* purple */
+  --color-status-purple-bg:     #f3e8ff; /* purple-100 */
+  --color-status-purple-fg:     #6b21a8; /* purple-800 */
+  --color-status-purple-strong: #9333ea; /* purple-600 */
+  /* fuchsia */
+  --color-status-fuchsia-bg:    #fae8ff; /* fuchsia-100 */
+  --color-status-fuchsia-fg:    #86198f; /* fuchsia-800 */
+  /* amber */
+  --color-status-amber-bg:      #fef3c7; /* amber-100 */
+  --color-status-amber-fg:      #92400e; /* amber-800 */
+  --color-status-amber-border:  #fcd34d; /* amber-300 */
+  --color-status-amber-solid:   #d97706; /* amber-600 */
+  /* emerald */
+  --color-status-emerald-bg:     #d1fae5; /* emerald-100 */
+  --color-status-emerald-fg:     #065f46; /* emerald-800 */
+  --color-status-emerald-border: #6ee7b7; /* emerald-300 */
+  /* teal */
+  --color-status-teal-bg:       #ccfbf1; /* teal-100 */
+  --color-status-teal-fg:       #115e59; /* teal-800 */
+  --color-status-teal-solid:    #0d9488; /* teal-600 */
+  /* cyan */
+  --color-status-cyan-bg:       #cffafe; /* cyan-100 */
+  --color-status-cyan-fg:       #155e75; /* cyan-800 */
+  --color-status-cyan-solid:    #0e7490; /* cyan-700 */
+  /* rose */
+  --color-status-rose-bg:       #ffe4e6; /* rose-100 */
+  --color-status-rose-fg:       #9f1239; /* rose-800 */
+  --color-status-rose-border:   #fda4af; /* rose-300 */
+  /* green */
+  --color-status-green-bg:        #dcfce7; /* green-100 */
+  --color-status-green-fg:        #166534; /* green-800 */
+  --color-status-green-solid:     #16a34a; /* green-600 */
+  --color-status-green-solid-soft:#22c55e; /* green-500 */
+  /* sky */
+  --color-status-sky-solid:     #0284c7; /* sky-600 */
+  /* orange */
+  --color-status-orange-solid:  #f97316; /* orange-500 */
+  --color-status-orange-strong: #ea580c; /* orange-600 */
+
+  /*
+   * FIXED tokens — light AND dark are IDENTICAL on purpose. These sit on
+   * fixed-color surfaces that do NOT flip per theme (the own chat bubble
+   * #D1E3FF and the code block #003247), so their text must stay constant
+   * in both modes (Tester2 AA-locked — the both-mode 命门).
+   */
+  --color-chatbubble-fg:    #0f172a; /* slate-900, on #D1E3FF own bubble */
+  --color-chatbubble-link:  #1d4ed8; /* blue-700, link on #D1E3FF bubble */
+  --color-codeblock-fg:     #f1f5f9; /* slate-100, code text on #003247 */
+  --color-codeblock-muted:  #cbd5e1; /* slate-300, chrome text on #003247 */
+  --color-codeblock-link:   #7dd3fc; /* sky-300, disclosure on #003247 */
 }
 
 /*
@@ -60,6 +147,84 @@
   --shadow-3: 0 12px 24px rgba(0, 0, 0, 0.45);
 
   --ring-color: rgba(96, 165, 250, 0.6);
+
+  /*
+   * Dark tonal pairs for the status palette. -bg → {hue}-900, -fg → {hue}-200,
+   * -border → {hue}-700, -solid → one step lighter, -strong → one step lighter.
+   */
+  /* slate */
+  --color-status-slate-bg:      #0f172a; /* slate-900 */
+  --color-status-slate-fg:      #e2e8f0; /* slate-200 */
+  --color-status-slate-fg-soft: #cbd5e1; /* slate-300 */
+  --color-status-slate-border:  #334155; /* slate-700 */
+  --color-status-slate-solid:      #94a3b8; /* slate-400 */
+  --color-status-slate-solid-soft: #cbd5e1; /* slate-300 */
+  /* zinc */
+  --color-status-zinc-solid:    #52525b; /* zinc-600 */
+  /* stone */
+  --color-status-stone-bg:      #1c1917; /* stone-900 */
+  --color-status-stone-fg:      #e7e5e4; /* stone-200 */
+  /* blue */
+  --color-status-blue-bg:       #1e3a8a; /* blue-900 */
+  --color-status-blue-fg:       #bfdbfe; /* blue-200 */
+  --color-status-blue-border:   #1d4ed8; /* blue-700 */
+  --color-status-blue-solid:    #3b82f6; /* blue-500 */
+  /* indigo */
+  --color-status-indigo-bg:     #312e81; /* indigo-900 */
+  --color-status-indigo-fg:     #c7d2fe; /* indigo-200 */
+  /* violet */
+  --color-status-violet-bg:     #4c1d95; /* violet-900 */
+  --color-status-violet-fg:     #ddd6fe; /* violet-200 */
+  --color-status-violet-border: #6d28d9; /* violet-700 */
+  --color-status-violet-solid:  #7c3aed; /* violet-600 */
+  /* purple */
+  --color-status-purple-bg:     #581c87; /* purple-900 */
+  --color-status-purple-fg:     #e9d5ff; /* purple-200 */
+  --color-status-purple-strong: #a855f7; /* purple-500 */
+  /* fuchsia */
+  --color-status-fuchsia-bg:    #701a75; /* fuchsia-900 */
+  --color-status-fuchsia-fg:    #f5d0fe; /* fuchsia-200 */
+  /* amber */
+  --color-status-amber-bg:      #78350f; /* amber-900 */
+  --color-status-amber-fg:      #fde68a; /* amber-200 */
+  --color-status-amber-border:  #b45309; /* amber-700 */
+  --color-status-amber-solid:   #f59e0b; /* amber-500 */
+  /* emerald */
+  --color-status-emerald-bg:     #064e3b; /* emerald-900 */
+  --color-status-emerald-fg:     #a7f3d0; /* emerald-200 */
+  --color-status-emerald-border: #047857; /* emerald-700 */
+  /* teal */
+  --color-status-teal-bg:       #134e4a; /* teal-900 */
+  --color-status-teal-fg:       #99f6e4; /* teal-200 */
+  --color-status-teal-solid:    #14b8a6; /* teal-500 */
+  /* cyan */
+  --color-status-cyan-bg:       #164e63; /* cyan-900 */
+  --color-status-cyan-fg:       #a5f3fc; /* cyan-200 */
+  --color-status-cyan-solid:    #0891b2; /* cyan-600 */
+  /* rose */
+  --color-status-rose-bg:       #881337; /* rose-900 */
+  --color-status-rose-fg:       #fecdd3; /* rose-200 */
+  --color-status-rose-border:   #be123c; /* rose-700 */
+  /* green */
+  --color-status-green-bg:        #14532d; /* green-900 */
+  --color-status-green-fg:        #bbf7d0; /* green-200 */
+  --color-status-green-solid:     #22c55e; /* green-500 */
+  --color-status-green-solid-soft:#4ade80; /* green-400 */
+  /* sky */
+  --color-status-sky-solid:     #0ea5e9; /* sky-500 */
+  /* orange */
+  --color-status-orange-solid:  #fb923c; /* orange-400 */
+  --color-status-orange-strong: #f97316; /* orange-500 */
+
+  /*
+   * FIXED tokens — UNCHANGED in dark (identical to light). These surfaces
+   * (#D1E3FF own bubble, #003247 code block) are fixed in both modes.
+   */
+  --color-chatbubble-fg:    #0f172a;
+  --color-chatbubble-link:  #1d4ed8;
+  --color-codeblock-fg:     #f1f5f9;
+  --color-codeblock-muted:  #cbd5e1;
+  --color-codeblock-link:   #7dd3fc;
 }
 
 /*

@@ -130,7 +130,7 @@ describe('ProjectDetail page', () => {
     const issueChip = screen.getByTestId('status-chip');
     expect(issueChip).toHaveAttribute('data-status', 'in_progress');
     // v2.8.1 #5th: StatusChip unified to @oopslink's REVISION 4 white-on-saturated palette (matches StatusBlock).
-    expect(issueChip.className).toContain('bg-blue-600');
+    expect(issueChip.className).toContain('bg-status-blue-solid');
     expect(issueChip.className).toContain('text-white');
     // Title links into the issue detail.
     const issueLink = screen.getByText('login bug').closest('a');

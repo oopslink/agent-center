@@ -14,16 +14,16 @@ describe('IssueTaskSidebar + StatusBlock (#5th)', () => {
     // in_progress/running=blue-600, blocked=blockedred (#dc2626), verified=teal,
     // closed=slate-500, discarded=zinc-700, reopened=amber.
     const cases: Array<[SK, string, string]> = [
-      ['open', 'Open', 'bg-sky-600 text-white'],
-      ['in_progress', 'In Progress', 'bg-blue-600 text-white'],
-      ['running', 'Running', 'bg-blue-600 text-white'],
+      ['open', 'Open', 'bg-status-sky-solid text-white'],
+      ['in_progress', 'In Progress', 'bg-status-blue-solid text-white'],
+      ['running', 'Running', 'bg-status-blue-solid text-white'],
       ['blocked', 'Blocked', 'bg-blockedred text-white'],
-      ['resolved', 'Resolved', 'bg-green-600 text-white'],
-      ['completed', 'Completed', 'bg-green-600 text-white'],
-      ['verified', 'Verified', 'bg-teal-600 text-white'],
-      ['closed', 'Closed', 'bg-slate-500 text-white'], // slate (terminal Issue)
-      ['discarded', 'Discarded', 'bg-zinc-700 text-white'], // zinc (terminal, replaces canceled/withdrawn)
-      ['reopened', 'Reopened', 'bg-amber-600 text-white'],
+      ['resolved', 'Resolved', 'bg-status-green-solid text-white'],
+      ['completed', 'Completed', 'bg-status-green-solid text-white'],
+      ['verified', 'Verified', 'bg-status-teal-solid text-white'],
+      ['closed', 'Closed', 'bg-status-slate-solid text-white'], // slate (terminal Issue)
+      ['discarded', 'Discarded', 'bg-status-zinc-solid text-white'], // zinc (terminal, replaces canceled/withdrawn)
+      ['reopened', 'Reopened', 'bg-status-amber-solid text-white'],
     ];
     for (const [status, label, cls] of cases) {
       cleanup();

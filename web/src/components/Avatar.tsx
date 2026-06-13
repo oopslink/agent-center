@@ -68,7 +68,7 @@ export function Avatar({ name, kind = 'human', size = 'md', online }: AvatarProp
           aria-label={online ? 'online' : 'offline'}
           title={online ? 'Online' : 'Offline'}
           className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-bg-elevated ${
-            online ? 'bg-green-500' : 'bg-slate-400'
+            online ? 'bg-status-green-solid-soft' : 'bg-status-slate-solid-soft'
           }`}
         />
       )}

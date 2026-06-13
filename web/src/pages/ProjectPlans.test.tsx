@@ -702,7 +702,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(within(archivedCol as HTMLElement).getByTestId('plan-status-chip')).toHaveTextContent('archived');
     const arBadge = within(archivedCol as HTMLElement).getByTestId('task-archived-badge-TS-AR');
     expect(arBadge).toHaveTextContent('Archived');
-    expect(arBadge.className).toContain('bg-amber-100');
+    expect(arBadge.className).toContain('bg-status-amber-bg');
     // non-archived task in the draft column → NO badge.
     const draftCol = screen.getByText('Live draft').closest('[data-testid="plan-column"]')!;
     expect(within(draftCol as HTMLElement).queryByTestId('task-archived-badge-TS-LV')).not.toBeInTheDocument();

@@ -874,8 +874,8 @@ const ICON_CLS = 'h-2.5 w-2.5';
 const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   blocked: {
     label: 'blocked',
-    cls: 'bg-slate-100 text-slate-800',
-    border: 'border-slate-300',
+    cls: 'bg-status-slate-bg text-status-slate-fg',
+    border: 'border-status-slate-border',
     // lock
     icon: (
       <svg viewBox="0 0 24 24" className={ICON_CLS} fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -886,8 +886,8 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
   ready: {
     label: 'ready',
-    cls: 'bg-blue-100 text-blue-800',
-    border: 'border-blue-300',
+    cls: 'bg-status-blue-bg text-status-blue-fg',
+    border: 'border-status-blue-border',
     // circle (○)
     icon: (
       <svg viewBox="0 0 24 24" className={ICON_CLS} fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -897,8 +897,8 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
   dispatched: {
     label: 'dispatched',
-    cls: 'bg-violet-100 text-violet-800',
-    border: 'border-violet-300',
+    cls: 'bg-status-violet-bg text-status-violet-fg',
+    border: 'border-status-violet-border',
     // clock / hourglass
     icon: (
       <svg viewBox="0 0 24 24" className={ICON_CLS} fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -909,8 +909,8 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
   running: {
     label: 'running',
-    cls: 'bg-amber-100 text-amber-800',
-    border: 'border-amber-300',
+    cls: 'bg-status-amber-bg text-status-amber-fg',
+    border: 'border-status-amber-border',
     // play (▶)
     icon: (
       <svg viewBox="0 0 24 24" className={ICON_CLS} fill="currentColor" aria-hidden="true">
@@ -920,8 +920,8 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
   done: {
     label: 'done',
-    cls: 'bg-emerald-100 text-emerald-800',
-    border: 'border-emerald-300',
+    cls: 'bg-status-emerald-bg text-status-emerald-fg',
+    border: 'border-status-emerald-border',
     // check mark
     icon: (
       <svg viewBox="0 0 24 24" className={ICON_CLS} fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
@@ -931,8 +931,8 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
   failed: {
     label: 'failed',
-    cls: 'bg-rose-100 text-rose-800',
-    border: 'border-rose-300',
+    cls: 'bg-status-rose-bg text-status-rose-fg',
+    border: 'border-status-rose-border',
     // cross / x
     icon: (
       <svg viewBox="0 0 24 24" className={ICON_CLS} fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">

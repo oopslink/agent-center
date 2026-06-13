@@ -24,14 +24,14 @@ import type { PlanStatus } from '@/api/plans';
 // uppercase "archived" label is the primary distinguisher (never color alone).
 
 const PLAN_STATUS_CLS: Record<PlanStatus, string> = {
-  draft: 'bg-slate-100 text-slate-800',
-  running: 'bg-blue-100 text-blue-800',
-  done: 'bg-emerald-100 text-emerald-800',
-  archived: 'bg-stone-100 text-stone-800',
+  draft: 'bg-status-slate-bg text-status-slate-fg',
+  running: 'bg-status-blue-bg text-status-blue-fg',
+  done: 'bg-status-emerald-bg text-status-emerald-fg',
+  archived: 'bg-status-stone-bg text-status-stone-fg',
 };
 
 export function planStatusClass(status: PlanStatus): string {
-  return PLAN_STATUS_CLS[status] ?? 'bg-slate-100 text-slate-800';
+  return PLAN_STATUS_CLS[status] ?? 'bg-status-slate-bg text-status-slate-fg';
 }
 
 // PlanStatusChip — the draft/running/done pill. Same shape/size idiom as the
@@ -84,7 +84,7 @@ export function TaskArchivedBadge({
   if (!archived) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-amber-800"
+      className="inline-flex items-center gap-1 rounded bg-status-amber-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-amber-fg"
       data-testid={`task-archived-badge-${taskId}`}
       title="This task was archived with its plan (read-only)."
     >

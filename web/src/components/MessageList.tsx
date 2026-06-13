@@ -241,13 +241,14 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
             long fenced code collapses via the shared CollapsibleCodeBlock. */}
         {/* both-mode命门: the own bubble is a FIXED light #D1E3FF that does NOT
             flip per theme, so its markdown body must use FIXED dark text
-            (text-slate-900) in both modes — the default theme token would flip
-            light in dark mode = light-on-light-blue FAIL. Other bubble is
-            theme-adaptive (bg-bg-subtle), so it keeps the default token. */}
+            (text-chatbubble-fg, a light==dark token = the old slate-900) in both
+            modes — the default theme token would flip light in dark mode =
+            light-on-light-blue FAIL. Other bubble is theme-adaptive
+            (bg-bg-subtle), so it keeps the default token. */}
         <MarkdownMessage
           content={m.content}
-          textClass={isOwn ? 'text-slate-900' : 'text-text-primary'}
-          linkClass={isOwn ? 'text-blue-700' : 'text-accent'}
+          textClass={isOwn ? 'text-chatbubble-fg' : 'text-text-primary'}
+          linkClass={isOwn ? 'text-chatbubble-link' : 'text-accent'}
         />
         {/* #142: attachments download through the same gated /api/files/{id}
             endpoint used by the backend reachability checks. */}
@@ -297,10 +298,11 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
     );
 
     // Chat UX 2 (#1+#2): own = right-aligned LIGHT-BLUE bubble (#D1E3FF), no
-    // avatar (#225). bg-chatuserbubble + FIXED dark text (text-slate-900) — NOT a
-    // theme token. The bubble surface is a fixed light color in BOTH modes, so
-    // text-text-primary (which flips light in dark mode) would be light-on-light-
-    // blue = FAIL. text-slate-900 stays dark on #D1E3FF in both modes (Tester2
+    // avatar (#225). bg-chatuserbubble + FIXED dark text (text-chatbubble-fg, a
+    // light==dark token) — NOT a theme token. The bubble surface is a fixed light
+    // color in BOTH modes, so text-text-primary (which flips light in dark mode)
+    // would be light-on-light-blue = FAIL. The fixed token stays dark on #D1E3FF
+    // in both modes (Tester2
     // 13.72 AAA). The header line (name + work-item tag + time) sits ABOVE the
     // bubble, right-aligned; the bubble itself is content-only.
     if (isOwn) {
@@ -313,7 +315,7 @@ export function MessageList({ messages, surface = 'channel' }: Props): React.Rea
           data-own="true"
         >
           {headerLine}
-          <div className={`${bubbleWidthClass} rounded-2xl bg-chatuserbubble px-3 py-2 text-slate-900 shadow-sm`}>
+          <div className={`${bubbleWidthClass} rounded-2xl bg-chatuserbubble px-3 py-2 text-chatbubble-fg shadow-sm`}>
             {bubbleBody}
           </div>
         </article>

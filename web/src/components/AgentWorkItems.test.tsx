@@ -96,9 +96,9 @@ describe('AgentWorkItems (#228 PR(d))', () => {
         .find((el) => el.textContent === label)
         ?.querySelector('span')?.className ?? '';
     expect(cls('Paused')).toContain('dark:text-violet-400');
-    expect(cls('Pending')).toContain('text-orange-700'); // light fix (not 600)
+    expect(cls('Pending')).toContain('text-orange-700'); // raw-color-ok: asserts the component's dark-paired light fix (not 600)
     expect(cls('Pending')).toContain('dark:text-orange-400');
-    expect(cls('Pending')).not.toContain('text-orange-600');
+    expect(cls('Pending')).not.toContain('text-orange-600'); // raw-color-ok: regression guard, old failing shade
   });
 
   it('filters rows to the Paused bucket', async () => {
