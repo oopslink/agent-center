@@ -403,6 +403,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/verify_task", s.verifyTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_task", s.getTaskHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_task", s.getTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_tasks", s.listTasksHandler) // v2.9.1 #T38
 	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_issue", s.getIssueHandler)
 	// v2.7 post-D3 (task #104) — agent file MCP tools. Upload/download/attach with

@@ -34,6 +34,18 @@ func (s *Service) ListTasks(ctx context.Context, projectID pm.ProjectID) ([]*pm.
 	return s.tasks.ListByProject(ctx, projectID)
 }
 
+// ListProjectTasksForMember lists a project's tasks, GUARDED by project membership
+// (org-isolation §5.7: a non-member / cross-org actor gets requireProjectMember's
+// error — mapped to 404 at the edge, no existence disclosure). Used by the
+// list_tasks MCP tool so a PD/agent can see the whole board (status/assignee
+// filtering is applied by the caller).
+func (s *Service) ListProjectTasksForMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef) ([]*pm.Task, error) {
+	if err := s.requireProjectMember(ctx, projectID, actor); err != nil {
+		return nil, err
+	}
+	return s.tasks.ListByProject(ctx, projectID)
+}
+
 // ListUnplannedTasks returns the project's backlog (v2.9): tasks not yet
 // selected into any Plan (empty plan_id). It is the complement of the Plan's
 // task list, for the Work Board's Backlog column.
