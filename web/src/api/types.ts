@@ -104,6 +104,35 @@ export interface Message {
   input_request_ref?: string;
   context_refs?: ContextRefs;
   attachments?: MessageAttachment[];
+  // v2.9.1 Threads (mock=contract, P1-BE in parallel — VERIFY vs the real
+  // GET /conversations/{id}/messages later). A message in the main list is
+  // TOP-LEVEL (replies are excluded from that endpoint); a message inside a
+  // thread carries `parent_message_id` (its root). `reply_count` +
+  // `thread_last_activity_at` are computed server-side on the top-level row and
+  // drive the per-message ThreadButton (count chip + has-activity dot). All
+  // optional: legacy/older payloads omit them (treat as not-a-thread / 0).
+  parent_message_id?: string; // set on a reply; absent on a top-level message.
+  reply_count?: number; // # direct replies to this top-level message; 0/absent = none.
+  thread_last_activity_at?: string; // RFC3339 of the most recent reply; drives sort.
+  // v2.9.1 P3: per-user "new activity since last viewed" — server-derived
+  // (latest reply id > my conversation last_seen). Drives the thread-button dot.
+  // Absent/false on older payloads or for agents (no read state).
+  has_new_activity?: boolean;
+}
+
+// v2.9.1 Threads P2 (mock=contract, P2-BE in parallel — VERIFY vs the real
+// GET /conversations/{id}/threads later). One summary per thread (root message)
+// in the conversation: the root message + its reply count + last activity. Drives
+// the Participants-sidebar thread list (preview + count chip + has-activity dot +
+// activity sort). `root` is a full Message so clicking opens the SAME ThreadSidebar
+// (which takes a root Message) with no extra fetch.
+export interface ThreadSummary {
+  root: Message;
+  reply_count: number;
+  thread_last_activity_at?: string; // RFC3339 of the most recent reply; drives sort.
+  // v2.9.1 P3: per-user "new activity since last viewed" (server-derived). Drives
+  // the thread-list dot. Absent/false on older payloads or for agents.
+  has_new_activity?: boolean;
 }
 
 // Agent BC (v2.7 #101). Org-scoped agents with a lifecycle/availability
@@ -511,6 +540,10 @@ export interface SendMessageInput {
   direction?: 'inbound' | 'outbound' | 'internal';
   input_request_ref?: string;
   attachments?: MessageAttachment[];
+  // v2.9.1 Threads: when set, the message is a REPLY in this root message's
+  // thread (POST /conversations/{id}/messages body carries parent_message_id).
+  // Absent → a normal top-level message. Mirrors the BE sendMessageReq add.
+  parent_message_id?: string;
 }
 
 export interface SendMessageResult {

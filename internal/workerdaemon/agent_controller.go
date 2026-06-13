@@ -103,7 +103,7 @@ const (
 	cmdTypeAgentReconcile = "agent.reconcile"
 	cmdTypeAgentWork      = "agent.work"
 	cmdTypeAgentWake      = "agent.wake"
-	cmdTypeAgentConverse  = "agent.converse" // v2.7 #185: DM/channel message → inject (no WorkItem)
+	cmdTypeAgentConverse  = "agent.converse"       // v2.7 #185: DM/channel message → inject (no WorkItem)
 	cmdTypeWorkAvailable  = "agent.work_available" // v2.8.1 #278 D pull-model WAKE (PR2 emit / PR3 handle)
 )
 
@@ -155,6 +155,8 @@ type wakePayload struct {
 	ConversationID string `json:"conversation_id"`
 	MessageID      string `json:"message_id"`
 	MessageText    string `json:"message_text"`
+	// RootMessageID (F4): thread root of the triggering message (empty if top-level).
+	RootMessageID string `json:"root_message_id,omitempty"`
 }
 
 // workAvailablePayload decodes an "agent.work_available" (wake) command. Matches
@@ -182,6 +184,10 @@ type conversePayload struct {
 	SenderDisplay  string `json:"sender_display"`
 	MessageID      string `json:"message_id"`
 	MessageText    string `json:"message_text"`
+	// RootMessageID (F4): thread root of the triggering message (empty if top-level).
+	// When set, the agent was @mentioned INSIDE a thread → its reply must land in the
+	// same thread (the brief tells it to pass parent_message_id).
+	RootMessageID string `json:"root_message_id,omitempty"`
 }
 
 // AgentControllerConfig parameterises the controller.
@@ -799,8 +805,14 @@ func buildConverseBrief(pl conversePayload) string {
 	} else {
 		header = fmt.Sprintf("[Direct message from %s]:", sender)
 	}
-	return fmt.Sprintf("%s\n%s\n\n(To reply, use the post_message tool with conversation_id=%q. This is a conversation, not a task — there is no work item to complete.)",
-		header, pl.MessageText, pl.ConversationID)
+	// F4: when the mention is INSIDE a thread, tell the agent to reply in that thread
+	// (pass parent_message_id=<root>) so its answer lands in the thread, not at
+	// conversation top-level. Empty RootMessageID → an ordinary top-level reply.
+	replyHint := fmt.Sprintf("(To reply, use the post_message tool with conversation_id=%q. This is a conversation, not a task — there is no work item to complete.)", pl.ConversationID)
+	if root := strings.TrimSpace(pl.RootMessageID); root != "" {
+		replyHint = fmt.Sprintf("(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id=%q AND parent_message_id=%q — do not omit parent_message_id, or your reply will land outside the thread.)", pl.ConversationID, root)
+	}
+	return fmt.Sprintf("%s\n%s\n\n%s", header, pl.MessageText, replyHint)
 }
 
 // recordWake records messageID in the agent's bounded wake-dedup set, evicting

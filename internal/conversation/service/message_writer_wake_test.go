@@ -124,6 +124,95 @@ func TestAddMessage_TaskConversation_EmitsWakeOutbox(t *testing.T) {
 	}
 }
 
+// v2.9.1 Thread P2 (§5.1 verify-not-trust — confirm, don't trust): a thread REPLY
+// is an ordinary same-conversation message, so it MUST emit the wake-trigger outbox
+// event exactly like any message — i.e. @agent-in-thread wakes via the existing
+// v2.9 mention-wake mechanism, with no upstream event-emit gap. The emit gate is
+// parent-agnostic; this class-guard would catch any regression that made replies
+// silently skip the wake.
+func TestAddMessage_ThreadReply_EmitsWakeOutbox(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-task-thread")
+	f.saveConv(t, convID, conversation.ConversationKindTask, conversation.NewTaskOwnerRef("T9"), "")
+
+	root, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:bob",
+		ContentKind: conversation.MessageContentText, Content: "root", Direction: conversation.DirectionInbound,
+		Actor: observability.Actor("user:bob"),
+	})
+	if err != nil {
+		t.Fatalf("AddMessage root: %v", err)
+	}
+	reply, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:carol",
+		ContentKind: conversation.MessageContentText, Content: "@agent ping in thread",
+		Direction:       conversation.DirectionInbound,
+		ParentMessageID: root.MessageID, // <-- thread reply
+		Actor:           observability.Actor("user:carol"),
+	})
+	if err != nil {
+		t.Fatalf("AddMessage reply: %v", err)
+	}
+
+	evs := f.messageAddedEvents(t)
+	if len(evs) != 2 {
+		t.Fatalf("want 2 wake events (root + thread reply), got %d", len(evs))
+	}
+	found := false
+	for _, e := range evs {
+		if strings.Contains(e.Payload, `"message_id":"`+string(reply.MessageID)+`"`) {
+			found = true
+			if !strings.Contains(e.Payload, `"text":"@agent ping in thread"`) {
+				t.Fatalf("reply wake payload wrong: %s", e.Payload)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("thread reply did not emit a wake event; the @agent-in-thread wake would not fire")
+	}
+}
+
+// F4: the wake outbox payload of a thread reply must carry root_message_id so the
+// woken agent can reply IN the thread (parent=root). A top-level message carries none.
+func TestAddMessage_ThreadReply_WakePayloadCarriesRoot(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-task-root")
+	f.saveConv(t, convID, conversation.ConversationKindTask, conversation.NewTaskOwnerRef("T7"), "")
+
+	root, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:bob",
+		ContentKind: conversation.MessageContentText, Content: "root", Direction: conversation.DirectionInbound,
+		Actor: observability.Actor("user:bob"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reply, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID: convID, SenderIdentityID: "user:carol",
+		ContentKind: conversation.MessageContentText, Content: "in thread", Direction: conversation.DirectionInbound,
+		ParentMessageID: root.MessageID, Actor: observability.Actor("user:carol"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var rootEv, replyEv string
+	for _, e := range f.messageAddedEvents(t) {
+		if strings.Contains(e.Payload, `"message_id":"`+string(root.MessageID)+`"`) {
+			rootEv = e.Payload
+		}
+		if strings.Contains(e.Payload, `"message_id":"`+string(reply.MessageID)+`"`) {
+			replyEv = e.Payload
+		}
+	}
+	if !strings.Contains(replyEv, `"root_message_id":"`+string(root.MessageID)+`"`) {
+		t.Fatalf("reply wake payload must carry root_message_id=%s, got: %s", root.MessageID, replyEv)
+	}
+	if strings.Contains(rootEv, "root_message_id") {
+		t.Fatalf("top-level root message payload must NOT carry root_message_id, got: %s", rootEv)
+	}
+}
+
 // v2.7.1 #227: an issue conversation emits the wake event even with NO agent
 // participant, so the WakeProjector runs + can auto-join an @mentioned project
 // member (chicken-and-egg: without this, the first issue @mention never emits).

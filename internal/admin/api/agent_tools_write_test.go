@@ -696,3 +696,41 @@ func TestCompleteTask_NoSummary_OK(t *testing.T) {
 		t.Fatalf("task status = %s, want completed", got)
 	}
 }
+
+// F4: post_task_message with parent_message_id threads the agent's reply IN the
+// thread (parent=root) instead of at conversation top-level. This is the center
+// half of the @agent-in-thread fix: the agent passes the thread root the wake brief
+// gave it, and the reply lands in the thread.
+func TestPostTaskMessage_ParentMessageID_ThreadsReply(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "content": "thread root"})
+	if status != http.StatusOK {
+		t.Fatalf("post root status=%d body=%v", status, body)
+	}
+	rootID, _ := body["message_id"].(string)
+	if rootID == "" {
+		t.Fatalf("missing root message_id: %v", body)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "content": "in-thread reply", "parent_message_id": rootID})
+	if status != http.StatusOK {
+		t.Fatalf("post reply status=%d body=%v", status, body)
+	}
+	replyID, _ := body["message_id"].(string)
+
+	for _, m := range f.taskMessages(t, tid) {
+		if string(m.ID()) == replyID {
+			if string(m.ParentMessageID()) != rootID || string(m.RootMessageID()) != rootID {
+				t.Fatalf("reply must be in-thread (parent=root=%s), got parent=%q root=%q", rootID, m.ParentMessageID(), m.RootMessageID())
+			}
+			return
+		}
+	}
+	t.Fatalf("reply message %s not found", replyID)
+}

@@ -11,6 +11,7 @@ import type {
   Message,
   SendMessageInput,
   SendMessageResult,
+  ThreadSummary,
 } from './types';
 
 interface CreateUploadResult {
@@ -63,6 +64,33 @@ export function useMessages(conversationId: string | undefined) {
   });
 }
 
+// v2.9.1 Threads: fetch the replies of one root (top-level) message. The root
+// message itself is NOT included — the caller already holds it from the main
+// list; this returns only the child messages (parent_message_id == rootMessageId),
+// chronological. Gated on rootMessageId so a closed thread sidebar fires nothing.
+export function useThreadReplies(
+  conversationId: string | undefined,
+  rootMessageId: string | undefined,
+) {
+  return useQuery({
+    queryKey: qk.threadReplies(conversationId ?? '', rootMessageId ?? ''),
+    queryFn: () =>
+      api.get<Message[]>(`/conversations/${conversationId}/messages/${rootMessageId}/replies`),
+    enabled: !!conversationId && !!rootMessageId,
+  });
+}
+
+// v2.9.1 Threads P2: list every thread (root message) in a conversation, with
+// reply count + last-activity, for the Participants-sidebar thread list. Gated on
+// conversationId. Sorting/presentation is the caller's concern.
+export function useConversationThreads(conversationId: string | undefined) {
+  return useQuery({
+    queryKey: qk.conversationThreads(conversationId ?? ''),
+    queryFn: () => api.get<ThreadSummary[]>(`/conversations/${conversationId}/threads`),
+    enabled: !!conversationId,
+  });
+}
+
 export function useConversationRefs(conversationId: string | undefined) {
   return useQuery({
     queryKey: qk.refs(conversationId ?? ''),
@@ -89,7 +117,16 @@ export function useSendMessage() {
     mutationFn: ({ conversationId, ...body }: SendMessageInput) =>
       api.post<SendMessageResult>(`/conversations/${conversationId}/messages`, body),
     onSuccess: (_, vars) => {
+      // Always refresh the main list (a top-level send appends; a reply bumps
+      // the root's reply_count + activity dot).
       void qc.invalidateQueries({ queryKey: qk.messages(vars.conversationId) });
+      // v2.9.1 Threads: a reply also refreshes its own thread so the new reply
+      // appears in the open ThreadSidebar immediately.
+      if (vars.parent_message_id) {
+        void qc.invalidateQueries({
+          queryKey: qk.threadReplies(vars.conversationId, vars.parent_message_id),
+        });
+      }
     },
   });
 }

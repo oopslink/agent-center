@@ -372,6 +372,9 @@ func makeFindOrgChannel(cfg Config) mcp.ToolHandlerFor[findOrgChannelArgs, any] 
 type postTaskMessageArgs struct {
 	TaskID string `json:"task_id" jsonschema:"the task to post into"`
 	Text   string `json:"text" jsonschema:"the message text"`
+	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
+	// root message id the wake brief gave you. Omit for a normal top-level message.
+	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
 }
 
 // makePostTaskMessage returns the post_task_message handler bound to cfg.
@@ -386,6 +389,9 @@ func makePostTaskMessage(cfg Config) mcp.ToolHandlerFor[postTaskMessageArgs, any
 			"task_id":  args.TaskID,
 			"content":  args.Text,
 		}
+		if args.ParentMessageID != "" {
+			body["parent_message_id"] = args.ParentMessageID
+		}
 		return callAdmin(ctx, cfg, "post_task_message", body)
 	}
 }
@@ -396,6 +402,9 @@ func makePostTaskMessage(cfg Config) mcp.ToolHandlerFor[postTaskMessageArgs, any
 type postMessageArgs struct {
 	ConversationID string `json:"conversation_id" jsonschema:"the conversation to reply in (use the conversation_id from the message you received)"`
 	Text           string `json:"text" jsonschema:"the message text"`
+	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
+	// root message id the wake brief gave you. Omit for a normal top-level message.
+	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
 }
 
 // makePostMessage returns the post_message handler bound to cfg. agent_id is
@@ -406,6 +415,9 @@ func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 			"agent_id":        cfg.AgentID,
 			"conversation_id": args.ConversationID,
 			"content":         args.Text,
+		}
+		if args.ParentMessageID != "" {
+			body["parent_message_id"] = args.ParentMessageID
 		}
 		return callAdmin(ctx, cfg, "post_message", body)
 	}
