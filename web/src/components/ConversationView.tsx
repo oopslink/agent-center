@@ -5,6 +5,7 @@ import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
+import { ThreadSidebarProvider } from '@/components/ThreadSidebarContext';
 
 // v2.8 #264 P1: the surface-agnostic conversation shell. channel / DM /
 // task-thread / issue-thread all render through ONE <ConversationView> — the
@@ -68,20 +69,25 @@ export function ConversationView({
   );
 
   return (
-    <div
-      className="flex flex-1 flex-col overflow-hidden"
-      data-testid="conversation-view"
-      data-surface={surface}
-    >
-      {header}
-      {sidePanel ? (
-        <div className="flex flex-1 overflow-hidden">
-          {body}
-          {sidePanel}
-        </div>
-      ) : (
-        body
-      )}
-    </div>
+    // v2.9.1 Threads P2: one ThreadSidebarProvider at the surface root so the
+    // message list (body) AND the side panel's thread list both open the SAME
+    // single ThreadSidebar (shared instance, no double-render).
+    <ThreadSidebarProvider>
+      <div
+        className="flex flex-1 flex-col overflow-hidden"
+        data-testid="conversation-view"
+        data-surface={surface}
+      >
+        {header}
+        {sidePanel ? (
+          <div className="flex flex-1 overflow-hidden">
+            {body}
+            {sidePanel}
+          </div>
+        ) : (
+          body
+        )}
+      </div>
+    </ThreadSidebarProvider>
   );
 }

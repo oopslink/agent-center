@@ -95,6 +95,23 @@ describe('MessageComposer', () => {
     expect(send.className).toContain('w-10');
   });
 
+  it('sends parent_message_id when given a parentMessageId (thread reply)', async () => {
+    let seenParent: string | undefined;
+    server.use(
+      http.post('/api/conversations/:id/messages', async ({ request }) => {
+        const body = (await request.json()) as { parent_message_id?: string; content: string };
+        seenParent = body.parent_message_id;
+        return HttpResponse.json({ message_id: 'M-NEW', event_id: 'E-1' }, { status: 201 });
+      }),
+    );
+    wrap(<MessageComposer conversationId="C1" parentMessageId="M-root" />);
+    const ta = screen.getByTestId('composer-textarea') as HTMLTextAreaElement;
+    await userEvent.type(ta, 'a reply');
+    fireEvent.keyDown(ta, { key: 'Enter' });
+    await waitFor(() => expect(ta.value).toBe(''));
+    expect(seenParent).toBe('M-root');
+  });
+
   it('surfaces send errors and keeps the draft intact', async () => {
     server.use(
       http.post('/api/conversations/:id/messages', () =>
