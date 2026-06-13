@@ -33,6 +33,18 @@ const (
 	EvtTaskReassigned    = "pm.task.reassigned"
 	EvtTaskStateChanged  = "pm.task.state_changed"
 	EvtTaskSubsChanged   = "pm.task.subscribers_changed"
+	// v2.9.1 P1 (task-aab863b3) auto-redispatch follow-up. EvtTaskAutoRedispatched
+	// is an AUDIT marker emitted by the AutoRedispatchReconciler each time it
+	// automatically re-dispatches a stuck (running + blocked_reason) task whose
+	// assignee agent became available again — distinguishing the SYSTEM auto path
+	// from a human/agent manual unblock_task. The functional re-dispatch is the
+	// accompanying EvtTaskAssigned re-emit (consumed by the WorkItemProjector to
+	// mint a fresh WorkItem); this event carries the attempt count for observability.
+	EvtTaskAutoRedispatched = "pm.task.auto_redispatched"
+	// EvtTaskAutoRedispatchExhausted is emitted ONCE when a stuck task hits the
+	// auto-redispatch retry cap — the auto path gives up and leaves the task stuck
+	// (blocked_reason intact) for manual unblock_task recovery (auto优先, 手动兜底).
+	EvtTaskAutoRedispatchExhausted = "pm.task.auto_redispatch_exhausted"
 	// v2.9 plan orchestration (#284). EvtPlanCreated drives the Plan↔Conversation
 	// 1:1 create (owner_ref pm://plans/{id}); EvtPlanParticipantsChanged drives
 	// the ADDITIVE participant sync (§9.5) when a task is selected into a Plan or
