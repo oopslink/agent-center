@@ -1,5 +1,5 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -126,14 +126,26 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(started).toBe(true));
   });
 
-  it('tabs switch between DAG and task list; task-list count = node count', async () => {
+  it('three tabs (chat/DAG/tasks); chat is default; switching shows DAG / task list; task-list count = node count', async () => {
     mockPlan();
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-tabs')).toBeInTheDocument());
+    // all three tabs exist
+    expect(screen.getByTestId('plan-tab-chat')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-tab-tasks')).toBeInTheDocument();
     // tab label carries the node count (7)
     expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('7');
-    // default = DAG; task list not shown
+    // default = chat: the chat panel + conversation are shown; DAG + task list are not
+    expect(screen.getByTestId('plan-panel-chat')).toBeInTheDocument();
+    expect(await screen.findByTestId('plan-conversation')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-dag')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-task-list')).not.toBeInTheDocument();
+    // clicking DAG shows the DAG (and not the task list)
+    fireEvent.click(screen.getByTestId('plan-tab-dag'));
+    expect(screen.getByTestId('plan-dag')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-task-list')).not.toBeInTheDocument();
+    // clicking Task list shows the task list (and not the DAG)
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     expect(screen.getByTestId('plan-task-list')).toBeInTheDocument();
     expect(screen.queryByTestId('plan-dag')).not.toBeInTheDocument();
@@ -142,6 +154,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('DAG renders a node per task with the 6-state chips (label + color) + Advance', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // one positioned node per task
     expect(screen.getAllByTestId('plan-dag-node')).toHaveLength(7);
@@ -176,6 +189,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       ),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // DAG node carries the resolved T-number
     const node1 = screen.getByTestId('plan-dag').querySelector('[data-task-id="n1"]') as HTMLElement;
@@ -192,6 +206,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('DAG computes a layered left→right layout from depends_on', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     const lvl = (id: string) =>
       Number(screen.getByTestId('plan-dag').querySelector(`[data-task-id="${id}"]`)!.getAttribute('data-level'));
@@ -207,6 +222,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('DAG draws an edge per depends_on relation (upstream→downstream)', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // depends_on edges: n2←n1, n3←n2, n4←n2, n5←n3, n5←n4, n6←n5 = 6 edges
     const edges = screen.getAllByTestId('plan-dag-edge');
@@ -237,6 +253,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('DAG is display-only: note never claims an edge editor, and no edge-edit control exists', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag-note')).toBeInTheDocument());
     const note = screen.getByTestId('plan-dag-note');
     // derived/display-only is stated, but the note must NOT claim edges are editable here
@@ -256,6 +273,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('running plan does NOT show the draft dependency editor (display-only)', async () => {
     mockPlan(); // default = running
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
@@ -265,6 +283,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('done plan does NOT show the draft dependency editor (display-only)', async () => {
     mockPlan({ status: 'done', has_failed: false });
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-dag-editor')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
@@ -296,6 +315,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('task-list tab lists nodes with task_status + node_status chips', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const table = screen.getByTestId('plan-task-list-table');
@@ -391,6 +411,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('draft plan shows the dependency editor: add control + edge-remove list', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag-editor')).toBeInTheDocument());
     // add control (two labeled selects + add button)
     expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument();
@@ -423,6 +444,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       }),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
     // pick "docs" (n7) depends on "design schema" (n1)
     fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n7' } });
@@ -435,6 +457,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('draft: add button is disabled until two DISTINCT tasks are selected (no self-edge)', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-edge-add-btn')).toBeInTheDocument());
     const btn = screen.getByTestId('plan-edge-add-btn') as HTMLButtonElement;
     expect(btn.disabled).toBe(true); // nothing selected
@@ -475,6 +498,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       }),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-edge-list')).toBeInTheDocument());
     const row = screen
       .getAllByTestId('plan-edge-remove')
@@ -499,6 +523,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       ),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
     fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
     fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n6' } });
@@ -520,6 +545,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       ),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
     fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
     fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n2' } });
@@ -532,6 +558,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('draft: plan-dag-note states dependencies ARE editable here', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag-note')).toBeInTheDocument());
     const note = screen.getByTestId('plan-dag-note');
     expect(note.textContent ?? '').toMatch(/editable/i);
@@ -549,6 +576,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       ),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-edge-add')).toBeInTheDocument());
     fireEvent.change(screen.getByTestId('plan-edge-add-from'), { target: { value: 'n1' } });
     fireEvent.change(screen.getByTestId('plan-edge-add-to'), { target: { value: 'n6' } });
@@ -593,6 +621,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       }),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const removeBtn = screen.getByTestId('plan-task-remove-n3');
@@ -611,6 +640,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('A6 §4.2: a DAG node title is a new-tab link to TaskDetail (href + target=_blank + rel noopener)', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     const node = screen.getByTestId('plan-dag').querySelector('[data-task-id="n3"]')! as HTMLElement;
     const link = within(node).getByTestId('task-open-link-n3');
@@ -623,6 +653,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (draft)', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const row = screen
@@ -640,6 +671,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('A2 task-list: running plan rows have NO Remove control (§9.4 draft-only)', async () => {
     mockPlan({ status: 'running' });
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     expect(screen.getAllByTestId('plan-task-row').length).toBeGreaterThan(0);
@@ -649,6 +681,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('A2 task-list: done plan rows have NO Remove control (§9.4 draft-only)', async () => {
     mockPlan({ status: 'done' });
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     expect(screen.queryByTestId('plan-task-remove-n3')).not.toBeInTheDocument();
@@ -662,6 +695,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       ),
     );
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     await act(async () => {
@@ -872,6 +906,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('renders distinct Start + End anchors (default fixture)', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     const start = screen.getByTestId('plan-dag-synthetic-start');
     const end = screen.getByTestId('plan-dag-synthetic-end');
@@ -890,6 +925,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('synthetic anchors are NOT counted as task nodes (real node count unchanged)', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // still exactly 7 real task nodes — the 2 anchors are excluded
     expect(screen.getAllByTestId('plan-dag-node')).toHaveLength(7);
@@ -904,6 +940,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('real depends_on edges are unchanged; synthetic edges are on a separate testid', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // the 6 real depends_on edges are still exactly 6 (no synthetic leakage)
     expect(screen.getAllByTestId('plan-dag-edge')).toHaveLength(6);
@@ -920,6 +957,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('multi-parallel: 3 independent tasks → Start→all 3, all 3→End (left→right flow)', async () => {
     mockNodes([node('a'), node('b'), node('c')]);
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     const keys = screen
       .getAllByTestId('plan-dag-synthetic-edge')
@@ -938,6 +976,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('single chain A→B→C: Start→A only, C→End only', async () => {
     mockNodes([node('a'), node('b', ['a']), node('c', ['b'])]);
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     const keys = screen
       .getAllByTestId('plan-dag-synthetic-edge')
@@ -953,6 +992,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('single node: Start→node and node→End', async () => {
     mockNodes([node('solo')]);
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     expect(screen.getByTestId('plan-dag-synthetic-start')).toBeInTheDocument();
     expect(screen.getByTestId('plan-dag-synthetic-end')).toBeInTheDocument();
@@ -965,6 +1005,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('empty plan: no synthetic anchors, no crash', async () => {
     mockNodes([]);
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     expect(screen.getByTestId('plan-dag-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('plan-dag-synthetic-start')).not.toBeInTheDocument();
@@ -975,6 +1016,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
   it('anchors use solid tokens (no alpha-tint, no raw red, not the 6-state border)', async () => {
     mockPlan();
     wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     for (const id of ['plan-dag-synthetic-start', 'plan-dag-synthetic-end']) {
       const el = screen.getByTestId(id);
@@ -983,187 +1025,6 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
       // readable secondary text, not muted
       expect(el.className).toContain('text-text-secondary');
     }
-  });
-});
-
-// ── v2.9 Stage A8 — draggable DAG↔chat splitter ──────────────────────────────
-// matchMedia is absent in jsdom → useIsWideLayout() defaults to the wide
-// (side-by-side + splitter) layout, so these tests exercise the resizable path.
-const SPLIT_KEY = 'planDetail.chatWidth';
-const SPLIT_MIN = 260;
-const SPLIT_MAX = 560;
-const SPLIT_STEP = 16;
-
-// gridTemplateColumns is `1fr 6px <chatWidth>px` — pull the chat px out.
-function chatWidthFromStyle(el: HTMLElement): number {
-  const tmpl = el.style.gridTemplateColumns; // e.g. "1fr 6px 330px"
-  const m = tmpl.match(/(\d+(?:\.\d+)?)px\s*$/);
-  return m ? Number.parseFloat(m[1]) : NaN;
-}
-
-// jsdom's PointerEvent drops clientX from fireEvent inits — build the event and
-// assign clientX explicitly so the drag handlers see real coordinates.
-function firePointer(
-  el: HTMLElement,
-  type: 'pointerDown' | 'pointerMove' | 'pointerUp',
-  clientX: number,
-): void {
-  const ev = createEvent[type](el, { pointerId: 1 });
-  Object.defineProperty(ev, 'clientX', { value: clientX, configurable: true });
-  fireEvent(el, ev);
-}
-
-// The vitest env's global `localStorage` is an empty stub (no get/set/remove
-// methods — the production code guards for exactly this). Install a working
-// in-memory store for these tests so persist/restore is actually exercised.
-function makeMemoryStorage(): Storage {
-  const map = new Map<string, string>();
-  return {
-    get length() {
-      return map.size;
-    },
-    clear: () => map.clear(),
-    getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
-    key: (i: number) => Array.from(map.keys())[i] ?? null,
-    removeItem: (k: string) => void map.delete(k),
-    setItem: (k: string, v: string) => void map.set(k, String(v)),
-  } as Storage;
-}
-
-describe('PlanDetail — v2.9 A8 DAG↔chat splitter', () => {
-  let originalLocalStorage: Storage;
-
-  beforeEach(() => {
-    originalLocalStorage = globalThis.localStorage;
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: makeMemoryStorage(),
-      configurable: true,
-      writable: true,
-    });
-  });
-
-  afterEach(() => {
-    cleanup();
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: originalLocalStorage,
-      configurable: true,
-      writable: true,
-    });
-  });
-
-  async function mountWithHandle(overrides: Record<string, unknown> = {}) {
-    mockPlan(overrides);
-    wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-split-handle')).toBeInTheDocument());
-    return screen.getByTestId('plan-split-handle');
-  }
-
-  it('renders the handle as a keyboard-operable role=separator', async () => {
-    const handle = await mountWithHandle();
-    expect(handle).toHaveAttribute('role', 'separator');
-    expect(handle).toHaveAttribute('aria-orientation', 'vertical');
-    expect(handle).toHaveAttribute('tabindex', '0');
-    expect(handle).toHaveAttribute('aria-valuemin', String(SPLIT_MIN));
-    expect(handle).toHaveAttribute('aria-valuemax', String(SPLIT_MAX));
-    // default width (no stored value) = 330
-    expect(handle).toHaveAttribute('aria-valuenow', '330');
-    expect(handle.className).toContain('cursor-col-resize');
-    // visible hover + focus-visible affordance
-    expect(handle.className).toMatch(/hover:/);
-    expect(handle.className).toMatch(/focus-visible:/);
-  });
-
-  it('pointer-drag LEFT widens the chat column (gridTemplateColumns changes)', async () => {
-    const handle = await mountWithHandle();
-    const split = screen.getByTestId('plan-detail-split');
-    const before = chatWidthFromStyle(split);
-    expect(before).toBe(330);
-
-    act(() => {
-      firePointer(handle, 'pointerDown', 800);
-      firePointer(handle, 'pointerMove', 760); // drag left 40px
-      firePointer(handle, 'pointerUp', 760);
-    });
-
-    const after = chatWidthFromStyle(split);
-    expect(after).toBe(370); // 330 + 40 (left-drag = wider)
-    expect(handle).toHaveAttribute('aria-valuenow', '370');
-  });
-
-  it('pointer-drag persists the new width to localStorage; remount restores it', async () => {
-    const handle = await mountWithHandle();
-    act(() => {
-      firePointer(handle, 'pointerDown', 800);
-      firePointer(handle, 'pointerMove', 770); // +30 → 360
-      firePointer(handle, 'pointerUp', 770);
-    });
-    expect(localStorage.getItem(SPLIT_KEY)).toBe('360');
-
-    cleanup();
-    // remount — width restored from localStorage
-    mockPlan();
-    wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-split-handle')).toBeInTheDocument());
-    expect(screen.getByTestId('plan-split-handle')).toHaveAttribute('aria-valuenow', '360');
-    expect(chatWidthFromStyle(screen.getByTestId('plan-detail-split'))).toBe(360);
-  });
-
-  it('keyboard ArrowLeft/ArrowRight adjust the width by the step', async () => {
-    const handle = await mountWithHandle();
-    act(() => {
-      handle.focus();
-      fireEvent.keyDown(handle, { key: 'ArrowLeft' }); // wider +16 → 346
-    });
-    expect(handle).toHaveAttribute('aria-valuenow', String(330 + SPLIT_STEP));
-    expect(localStorage.getItem(SPLIT_KEY)).toBe(String(330 + SPLIT_STEP));
-
-    act(() => {
-      fireEvent.keyDown(handle, { key: 'ArrowRight' }); // narrower -16 → back to 330
-      fireEvent.keyDown(handle, { key: 'ArrowRight' }); // -16 → 314
-    });
-    expect(handle).toHaveAttribute('aria-valuenow', String(330 - SPLIT_STEP));
-  });
-
-  it('clamps to [min,max] when dragging/keying past the bounds', async () => {
-    const handle = await mountWithHandle();
-    // Drag far LEFT → would exceed max, clamps to 560.
-    act(() => {
-      firePointer(handle, 'pointerDown', 800);
-      firePointer(handle, 'pointerMove', 200); // +600
-      firePointer(handle, 'pointerUp', 200);
-    });
-    expect(handle).toHaveAttribute('aria-valuenow', String(SPLIT_MAX));
-    expect(chatWidthFromStyle(screen.getByTestId('plan-detail-split'))).toBe(SPLIT_MAX);
-
-    // Drag far RIGHT → would go below min, clamps to 260.
-    act(() => {
-      firePointer(handle, 'pointerDown', 200);
-      firePointer(handle, 'pointerMove', 1200); // -1000
-      firePointer(handle, 'pointerUp', 1200);
-    });
-    expect(handle).toHaveAttribute('aria-valuenow', String(SPLIT_MIN));
-  });
-
-  it('restores a clamped width when localStorage holds an out-of-range value', async () => {
-    localStorage.setItem(SPLIT_KEY, '9999'); // beyond max
-    const handle = await mountWithHandle();
-    expect(handle).toHaveAttribute('aria-valuenow', String(SPLIT_MAX));
-  });
-
-  it('handle uses theme tokens (no alpha-tint, no raw red, no emoji)', async () => {
-    const handle = await mountWithHandle();
-    expect(handle.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
-    expect(handle.className).not.toMatch(/text-red-|bg-red-/);
-    // eslint-disable-next-line no-control-regex
-    expect(handle.textContent ?? '').not.toMatch(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
-  });
-
-  it('keeps the DAG main + conversation side mounted alongside the splitter', async () => {
-    await mountWithHandle();
-    expect(screen.getByTestId('plan-detail-main')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-detail-side')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-dag')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-conversation')).toBeInTheDocument();
   });
 });
 
