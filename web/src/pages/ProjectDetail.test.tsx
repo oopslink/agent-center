@@ -112,7 +112,7 @@ describe('ProjectDetail page', () => {
       http.get('/api/projects/proj-a/tasks', () =>
         HttpResponse.json({
           tasks: [
-            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'blocked', assignee: 'agent:bot-9', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'running', blocked_reason: 'waiting on review', assignee: 'agent:bot-9', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
           ],
         }),
       ),
@@ -143,7 +143,7 @@ describe('ProjectDetail page', () => {
     expect(taskHandle).toHaveAttribute('title', 'task-01KT8DXYZ123');
     expect(screen.getByTestId('task-assignee')).toHaveTextContent('Bot Nine');
     expect(screen.getByTestId('task-priority')).toHaveTextContent('—');
-    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'blocked');
+    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'running');
   });
 
   it('shows org_ref (T<n>/I<n>) in the ID column when present, hash id on hover (#245)', async () => {

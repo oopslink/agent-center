@@ -33,17 +33,16 @@ function taskActionHandlers() {
       ok(baseTask(String(params.pid), String(params.id), 'running')),
     ),
     http.post('/api/projects/:pid/tasks/:id/block', async ({ params, request }) => {
+      // ADR-0046: block sets the `blocked_reason` "stuck" annotation; the task
+      // STAYS running (blocked is no longer a status).
       const body = (await request.json()) as { reason?: string };
-      return ok(baseTask(String(params.pid), String(params.id), 'blocked', { blocked_reason: body.reason }));
+      return ok(baseTask(String(params.pid), String(params.id), 'running', { blocked_reason: body.reason }));
     }),
     http.post('/api/projects/:pid/tasks/:id/unblock', ({ params }) =>
-      ok(baseTask(String(params.pid), String(params.id), 'running')),
+      ok(baseTask(String(params.pid), String(params.id), 'running', { blocked_reason: '' })),
     ),
     http.post('/api/projects/:pid/tasks/:id/complete', ({ params }) =>
       ok(baseTask(String(params.pid), String(params.id), 'completed', { completed_by: 'agent:builder' })),
-    ),
-    http.post('/api/projects/:pid/tasks/:id/verify', ({ params }) =>
-      ok(baseTask(String(params.pid), String(params.id), 'verified')),
     ),
     http.post('/api/projects/:pid/tasks/:id/discard', ({ params }) =>
       ok(baseTask(String(params.pid), String(params.id), 'discarded')),

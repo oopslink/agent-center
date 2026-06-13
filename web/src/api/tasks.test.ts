@@ -131,7 +131,7 @@ describe('tasks hooks', () => {
           project_id: 'proj-a',
           title: 'x',
           description: '',
-          status: 'blocked',
+          status: 'running',
           blocked_reason: 'waiting',
           version: 2,
           created_at: 'x',
