@@ -71,9 +71,14 @@ type Plan struct {
 	creatorRef     IdentityRef
 	conversationID string
 	targetDate     *time.Time
-	createdAt      time.Time
-	updatedAt      time.Time
-	version        int
+	// builtin marks the per-project default "assignment pool" plan (ADR-0047): one
+	// per project, auto-created + always-started, FLAT (no dependency edges), a
+	// "pull, no-wake" dispatch pool. It cannot be stopped / archived / deleted on its
+	// own (it is archived WITH its project).
+	builtin   bool
+	createdAt time.Time
+	updatedAt time.Time
+	version   int
 }
 
 // NewPlanInput captures constructor args.
@@ -84,6 +89,7 @@ type NewPlanInput struct {
 	Description string
 	CreatorRef  IdentityRef
 	TargetDate  *time.Time
+	Builtin     bool // ADR-0047: the per-project default assignment pool
 	CreatedAt   time.Time
 }
 
@@ -113,6 +119,7 @@ func NewPlan(in NewPlanInput) (*Plan, error) {
 		status:      PlanDraft,
 		creatorRef:  in.CreatorRef,
 		targetDate:  normalizeTargetDate(in.TargetDate),
+		builtin:     in.Builtin,
 		createdAt:   at,
 		updatedAt:   at,
 		version:     1,
@@ -129,6 +136,7 @@ type RehydratePlanInput struct {
 	CreatorRef     IdentityRef
 	ConversationID string
 	TargetDate     *time.Time
+	Builtin        bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Version        int
@@ -151,6 +159,7 @@ func RehydratePlan(in RehydratePlanInput) (*Plan, error) {
 		creatorRef:     in.CreatorRef,
 		conversationID: in.ConversationID,
 		targetDate:     normalizeTargetDate(in.TargetDate),
+		builtin:        in.Builtin,
 		createdAt:      in.CreatedAt.UTC(),
 		updatedAt:      in.UpdatedAt.UTC(),
 		version:        in.Version,
@@ -178,6 +187,7 @@ func (p *Plan) TargetDate() *time.Time  { return p.targetDate }
 func (p *Plan) CreatedAt() time.Time    { return p.createdAt }
 func (p *Plan) UpdatedAt() time.Time    { return p.updatedAt }
 func (p *Plan) Version() int            { return p.version }
+func (p *Plan) IsBuiltin() bool         { return p.builtin }
 
 // Rename updates the display name.
 func (p *Plan) Rename(name string, at time.Time) error {
@@ -213,11 +223,23 @@ func (p *Plan) SetConversationID(id string, at time.Time) {
 // AppService in #285, not here.
 func (p *Plan) Start(at time.Time) error { return p.transition(PlanRunning, at) }
 
-// Stop moves running→draft (§9.4: halt orchestration to edit the DAG).
-func (p *Plan) Stop(at time.Time) error { return p.transition(PlanDraft, at) }
+// Stop moves running→draft (§9.4: halt orchestration to edit the DAG). ADR-0047:
+// the built-in pool is ALWAYS started — it cannot be stopped.
+func (p *Plan) Stop(at time.Time) error {
+	if p.builtin {
+		return ErrBuiltinPlanImmutable
+	}
+	return p.transition(PlanDraft, at)
+}
 
-// MarkDone moves running→done (§9.1: every node terminal/done).
-func (p *Plan) MarkDone(at time.Time) error { return p.transition(PlanDone, at) }
+// MarkDone moves running→done (§9.1: every node terminal/done). ADR-0047: the
+// built-in pool is a resident pool — it never "completes".
+func (p *Plan) MarkDone(at time.Time) error {
+	if p.builtin {
+		return ErrBuiltinPlanImmutable
+	}
+	return p.transition(PlanDone, at)
+}
 
 // Archive moves a NON-running Plan (draft or done) → archived (v2.9 P3): a
 // terminal, IRREVERSIBLE state. A running Plan is rejected with ErrPlanRunning

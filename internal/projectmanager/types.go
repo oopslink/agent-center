@@ -130,6 +130,15 @@ var (
 	// ErrPlanArchived rejects re-archiving an already-archived (terminal,
 	// irreversible) Plan, mirroring Conversation.ErrConversationArchived.
 	ErrPlanArchived = errors.New("projectmanager: plan is already archived")
+	// ADR-0047 built-in assignment pool.
+	// ErrBuiltinPlanImmutable rejects stop/done/archive/delete on the per-project
+	// built-in pool (it is always-started and archived only with its project).
+	ErrBuiltinPlanImmutable = errors.New("projectmanager: the built-in plan cannot be stopped, archived, or deleted on its own")
+	// ErrBuiltinPlanNoEdges rejects adding a dependency edge inside the built-in
+	// pool (it is a FLAT pool, not a DAG — every task is immediately dispatchable).
+	ErrBuiltinPlanNoEdges = errors.New("projectmanager: the built-in plan is a flat pool — dependency edges are not allowed")
+	// ErrBuiltinPlanExists rejects creating a second built-in plan for a project.
+	ErrBuiltinPlanExists = errors.New("projectmanager: project already has a built-in plan")
 	// ErrProjectArchived guards an archived Project (v2.9 #297). @oopslink ruled
 	// project archive is IRREVERSIBLE (no restore), so an archived project is PURE
 	// READ-ONLY: every project-CHILD mutation (member add/remove, issue/task

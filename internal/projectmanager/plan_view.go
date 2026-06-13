@@ -71,6 +71,28 @@ func DeriveNodeStatus(taskStatus TaskStatus, upstreamAllDone bool, dispatched bo
 	}
 }
 
+// Claimable reports whether a task can be CLAIMED (open→running) right now — a
+// DERIVED predicate, never stored (ADR-0047 §1,守 §9.2 derive-not-store). A task
+// is claimable iff it is not archived, still `open` (un-started; claim = open→
+// running), has an assignee, is IN a plan, and that plan node is `dispatched`.
+//
+// Deliberately NOT claimable: a backlog task (planID=="") — captured but not yet
+// ready; a `running` task — already claimed; a terminal/reopened task. The
+// built-in pool makes its tasks claimable by recording a dispatch (no wake), so
+// they reach nodeStatus==dispatched here just like a structured plan's ready node.
+func Claimable(archived bool, status TaskStatus, assignee IdentityRef, planID PlanID, nodeStatus NodeStatus) bool {
+	return !archived &&
+		status == TaskOpen &&
+		assignee != "" &&
+		planID != "" &&
+		nodeStatus == NodeDispatched
+}
+
+// TaskClaimable is the convenience form over a *Task + its derived node status.
+func TaskClaimable(t *Task, nodeStatus NodeStatus) bool {
+	return Claimable(t.IsArchived(), t.Status(), t.Assignee(), t.PlanID(), nodeStatus)
+}
+
 // PlanNodeView is one node's DERIVED projection for the read model / DTO.
 type PlanNodeView struct {
 	TaskID            TaskID
