@@ -47,7 +47,7 @@ func (r *ReferenceRepo) Save(ctx context.Context, refs []*conversation.Conversat
 			ref.CreatedAt.UTC().Format(time.RFC3339Nano),
 		)
 		if err != nil {
-			if isUniqueConstraint(err) {
+			if persistence.IsUniqueViolation(err) {
 				return conversation.ErrConversationAlreadyExists
 			}
 			return err

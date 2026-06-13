@@ -84,7 +84,7 @@ func (r *FollowStateRepo) Upsert(ctx context.Context,
 		if _, err := exec.ExecContext(ctx, stmt,
 			string(s.UserID), string(s.ConversationID),
 			boolToInt(s.Followed), now); err != nil {
-			if isUniqueConstraint(err) {
+			if persistence.IsUniqueViolation(err) {
 				return conversation.ErrFollowStateVersionConflict
 			}
 			return err

@@ -65,7 +65,7 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 		c.OrganizationID(),
 	)
 	if err != nil {
-		if isUniqueConstraint(err) {
+		if persistence.IsUniqueViolation(err) {
 			return conversation.ErrConversationAlreadyExists
 		}
 		return err
@@ -396,12 +396,4 @@ func parseNullTime(s sql.NullString) (*time.Time, error) {
 		return nil, fmt.Errorf("parse time %q: %w", s.String, err)
 	}
 	return &t, nil
-}
-
-func isUniqueConstraint(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "UNIQUE constraint failed") ||
-		strings.Contains(err.Error(), "constraint failed: UNIQUE")
 }
