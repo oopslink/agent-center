@@ -873,8 +873,8 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     const chip = within(pool).getByTestId('claimable-chip-TS-CLAIM');
     expect(chip).toHaveTextContent(/claimable/i);
     // both-mode AA: SOLID emerald-100/emerald-800 pair, NO alpha-tint.
-    expect(chip.className).toContain('bg-emerald-100');
-    expect(chip.className).toContain('text-emerald-800');
+    expect(chip.className).toContain('bg-status-emerald-bg');
+    expect(chip.className).toContain('text-status-emerald-fg');
     expect(chip.className).not.toMatch(/\/\d+/);
     expect(within(pool).queryByTestId('claimable-chip-TS-POOL2')).not.toBeInTheDocument();
   });

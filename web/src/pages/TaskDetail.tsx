@@ -126,7 +126,7 @@ export default function TaskDetail(): React.ReactElement {
               alpha-tint — mirrors the chip pattern in tagColors.ts). */}
           {status === 'running' && tk.blocked_reason && (
             <div
-              className="mt-2 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
+              className="mt-2 rounded bg-status-amber-bg px-2 py-1 text-xs font-medium text-status-amber-fg"
               data-testid="task-blocked-reason"
             >
               Stuck: {tk.blocked_reason}

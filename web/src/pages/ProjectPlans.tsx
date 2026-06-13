@@ -501,9 +501,9 @@ function AddToPlanItem({
 }
 
 // ClaimableChip — ADR-0047 affordance on a built-in-pool node that is currently
-// CLAIMABLE (assigned + dispatched; pull, no-wake). Both-mode AA: a CURATED
-// SOLID emerald-100 / emerald-800 pair (theme-independent literal Tailwind
-// colors → the same light-block-dark-text in BOTH modes, contrast 6.78 — AA).
+// CLAIMABLE (assigned + dispatched; pull, no-wake). Both-mode AA: SOLID
+// status-emerald token chip (bg=emerald-100 hex light + AA-paired dark, fg=
+// emerald-800 — contrast ≥4.5 in both modes via the no-raw-colors token system).
 // NO alpha-tint. Text label "Claimable" (never color alone) + tiny inline SVG
 // (NOT emoji). Renders nothing when the node is not claimable.
 function ClaimableChip({
@@ -516,7 +516,7 @@ function ClaimableChip({
   if (!claimable) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-emerald-800"
+      className="inline-flex items-center gap-1 rounded bg-status-emerald-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-emerald-fg"
       data-testid={`claimable-chip-${taskId}`}
       title="Claimable now — assigned & dispatched (pull, no-wake)."
     >
@@ -579,7 +579,7 @@ function BuiltinPoolColumn({
   return (
     <div
       className={`${columnBase} bg-bg-elevated ${
-        dropActive && canDrop ? 'border-accent ring-2 ring-accent' : 'border-emerald-300'
+        dropActive && canDrop ? 'border-accent ring-2 ring-accent' : 'border-status-emerald-border'
       }`}
       data-testid="builtin-pool-column"
       data-plan-id={plan.id}

@@ -328,8 +328,8 @@ describe('TaskDetail page', () => {
       const badge = await screen.findByTestId('task-blocked-reason');
       expect(badge).toHaveTextContent('Stuck: waiting on review');
       // solid X-100/X-800 token chip (no alpha-tint) → AA ≥4.5 in light + dark.
-      expect(badge.className).toContain('bg-amber-100');
-      expect(badge.className).toContain('text-amber-800');
+      expect(badge.className).toContain('bg-status-amber-bg');
+      expect(badge.className).toContain('text-status-amber-fg');
     });
 
     it('does NOT show the Stuck badge when blocked_reason is empty/absent', async () => {
