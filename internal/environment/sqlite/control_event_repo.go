@@ -29,7 +29,7 @@ func (r *ControlEventRepo) Append(ctx context.Context, e *env.WorkerControlEvent
 		 VALUES (?,?,?,?,?,?,?)`,
 		e.ID(), string(e.WorkerID()), e.Offset(), e.IdempotencyKey(),
 		e.CommandType(), nullString(e.Payload()), ts(e.CreatedAt()))
-	if isUnique(err) {
+	if persistence.IsUniqueViolation(err) {
 		// Distinguish the idempotency-key clash (race backstop) from an
 		// offset clash. The constraint name appears in the modernc.org/sqlite
 		// error text (e.g. "UNIQUE constraint failed: worker_control_events.worker_id, worker_control_events.idempotency_key").

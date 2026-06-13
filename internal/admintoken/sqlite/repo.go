@@ -56,7 +56,7 @@ func (r *Repo) Save(ctx context.Context, t *admintoken.AdminToken) error {
 		isEnrollInt, nullTimePtr(t.ExpiresAt()), nullTimePtr(t.UsedAt()),
 		nullString(t.WorkerID()), nullBytes(t.PlaintextCiphertext()), nullBytes(t.PlaintextNonce()),
 	); err != nil {
-		if isUnique(err) {
+		if persistence.IsUniqueViolation(err) {
 			return admintoken.ErrTokenAlreadyExists
 		}
 		return err
@@ -379,11 +379,4 @@ func nullTimePtr(t *time.Time) any {
 		return nil
 	}
 	return t.UTC().Format(time.RFC3339Nano)
-}
-
-func isUnique(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }

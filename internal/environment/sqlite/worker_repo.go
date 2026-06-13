@@ -39,11 +39,6 @@ func nullString(s string) any {
 	return s
 }
 
-// isUnique reports whether err is a sqlite UNIQUE-constraint violation.
-func isUnique(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique")
-}
-
 // --- WorkerRepo -------------------------------------------------------------
 
 // WorkerRepo implements env.WorkerRepository.
@@ -61,7 +56,7 @@ func (r *WorkerRepo) Save(ctx context.Context, w *env.Worker) error {
 		string(w.ID()), nullString(w.Name()), string(w.Status()),
 		w.LastAckedOffset(), nullString(ts(w.LastHeartbeatAt())),
 		ts(w.CreatedAt()), ts(w.UpdatedAt()), w.Version())
-	if isUnique(err) {
+	if persistence.IsUniqueViolation(err) {
 		return env.ErrWorkerExists
 	}
 	return err

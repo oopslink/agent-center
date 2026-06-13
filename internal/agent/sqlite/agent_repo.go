@@ -26,10 +26,6 @@ func nullString(s string) any {
 	return s
 }
 
-func isUnique(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique")
-}
-
 func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	env, skills, err := marshalProfileJSON(a)
@@ -44,7 +40,7 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), env, skills, a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
 		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), a.Version())
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "unique") {
+	if persistence.IsUniqueViolation(err) {
 		return agent.ErrAgentExists
 	}
 	return err

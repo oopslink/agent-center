@@ -95,7 +95,7 @@ func (r *ReadStateRepo) Upsert(ctx context.Context,
 		if _, err := exec.ExecContext(ctx, stmt,
 			string(s.UserID), string(s.ConversationID),
 			string(s.LastSeenMessageID), now); err != nil {
-			if isUniqueConstraint(err) {
+			if persistence.IsUniqueViolation(err) {
 				return conversation.ErrReadStateVersionConflict
 			}
 			return err

@@ -48,7 +48,7 @@ func (r *WorkItemRepo) Save(ctx context.Context, w *agent.AgentWorkItem) error {
 		 VALUES (?,?,?,?,?,?,?,?)`,
 		w.ID(), string(w.AgentID()), w.TaskRef(), string(w.Status()), w.Interactions(),
 		ts(w.CreatedAt()), ts(w.UpdatedAt()), w.Version())
-	if err != nil && isUnique(err) {
+	if persistence.IsUniqueViolation(err) {
 		return agent.ErrWorkItemExists
 	}
 	if err != nil {

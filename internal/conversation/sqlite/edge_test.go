@@ -49,18 +49,6 @@ func TestParseNullTime(t *testing.T) {
 	}
 }
 
-func TestIsUniqueConstraint(t *testing.T) {
-	if isUniqueConstraint(nil) {
-		t.Fatal()
-	}
-	if !isUniqueConstraint(errors.New("UNIQUE constraint failed: x.y")) {
-		t.Fatal()
-	}
-	if !isUniqueConstraint(errors.New("constraint failed: UNIQUE x")) {
-		t.Fatal()
-	}
-}
-
 func TestConversationRepo_SaveNil(t *testing.T) {
 	r := setupDB(t)
 	if err := r.Save(context.Background(), nil); err == nil {
