@@ -2,7 +2,7 @@
 //
 // Renders the install command for a previously-added Worker so the
 // operator can copy it onto the worker machine. Two entry points
-// from the Fleet row:
+// from the Environment worker row:
 //   - "Show install command"  → mode: 'show' → GET /api/workers/{id}/install-command
 //   - "Re-mint install command" → mode: 'remint' (after confirm) → POST .../install-command/re-mint
 //
@@ -269,7 +269,7 @@ function ReMintPromptBody({
       return;
     }
     setError(result.kind === 'conflict'
-      ? 'Worker is already online — remove it from Fleet first if you want to reset.'
+      ? 'Worker is already online — remove it from Environment first if you want to reset.'
       : result.kind === 'not_found'
         ? 'Worker not found.'
         : `Re-mint failed: ${'message' in result ? result.message : 'unknown'}`);

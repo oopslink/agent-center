@@ -1,7 +1,7 @@
 // AgentCreateModal — Agent BC "Add Agent" form. v2.7 #186/#77: POST /api/agents
 // was removed ("no middle state" — agent always has a member id), so this posts
 // to the unified POST /api/members/agent (atomic identity-member + execution
-// Agent, #157). The Worker picker is sourced from the Fleet snapshot
+// Agent, #157). The Worker picker is sourced from the Environment snapshot
 // (useFleet().workers); name + worker_id are required; description/model/cli/
 // skills optional. The created agent's business id = response identity_id.
 import React, { useState } from 'react';
@@ -134,7 +134,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
         </Field>
 
-        <Field label="Worker" required hint="Sourced from the Fleet.">
+        <Field label="Worker" required hint="Sourced from Environment.">
           {/* v2.7 #191: shared searchable EntitySelect instead of a raw <select>. */}
           <EntitySelect
             testId="agent-create-worker"
@@ -152,7 +152,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
           {fleet.isSuccess && workers.length === 0 && (
             <p className="mt-1 text-[0.6875rem] text-text-muted" data-testid="agent-create-no-workers">
-              No workers in the fleet yet — enroll a worker first.
+              No workers in Environment yet — enroll a worker first.
             </p>
           )}
         </Field>

@@ -150,9 +150,9 @@ export default function Environment(): React.ReactElement {
     <section className="space-y-6" data-testid="page-Environment">
       <header className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Environment</h2>
+          <h1 className="text-xl font-semibold">Environment</h1>
           <p className="text-xs text-text-muted">
-            Compute Resource in this organization, the agents bound to them,
+            Compute resources in this organization, the agents bound to them,
             in-flight work items, and file transfers.
           </p>
         </div>

@@ -7,8 +7,8 @@
 // (logical: create record, status=offline) from "install worker"
 // (operator runs ./install on the worker machine) — see
 // #agent-center:5f8a6f7e. Once the mint succeeds the Worker AR
-// already exists in Fleet, and the operator picks up the install
-// command from the Fleet row's "Show install command" action
+// already exists in Environment, and the operator picks up the install
+// command from the Environment row's "Show install command" action
 // (B2 #50). So the Modal can close immediately.
 //
 // Remaining states (3):
@@ -17,7 +17,7 @@
 //   - mint_error:  POST failed (e.g. admin TCP listener not
 //                  configured) — show server message + Retry/Close
 //
-// On mint success the Modal closes; the new offline Fleet row
+// On mint success the Modal closes; the new offline Environment row
 // arrives via the workforce.worker.added SSE event (wired in
 // useSSE).
 import React, { useEffect, useState } from 'react';
@@ -34,7 +34,7 @@ interface Props {
 }
 
 // MintResponse mirrors POST /api/admintoken/mint-enroll. The full
-// install-command rebuild lives in the Fleet row's Show Install
+// install-command rebuild lives in the Environment row's Show Install
 // Command Modal (F2 #54) so this file no longer needs the bearer
 // or fingerprint.
 interface MintResponse {
@@ -84,9 +84,9 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
       try {
         await mintEnrollToken(name);
         // v2.5-F1: close immediately on success. The new Worker
-        // row paints in Fleet via the workforce.worker.added SSE
+        // row paints in Environment via the workforce.worker.added SSE
         // event; the operator gets the install command from the
-        // Fleet row's "Show install command" action.
+        // Environment row's "Show install command" action.
         onClose();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -164,8 +164,8 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
           />
           <p className="mt-1 text-xs text-text-muted">
             Use a unique name (e.g. <code className="font-mono">test-1</code>,{' '}
-            <code className="font-mono">tenant-foo</code>) so you can spot this worker in Fleet.
-            You'll grab the install command from the new Fleet row's Show install command action.
+            <code className="font-mono">tenant-foo</code>) so you can spot this worker in Environment.
+            You'll grab the install command from the new Environment row's Show install command action.
           </p>
           <div className="mt-4 flex justify-end gap-2">
             <button

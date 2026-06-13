@@ -319,7 +319,7 @@ export default function MembersHumans(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-MembersHumans">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-text-primary">Humans</h2>
+        <h1 className="text-xl font-semibold text-text-primary">Humans</h1>
         <button
           type="button"
           onClick={() => setAddModalOpen(true)}
