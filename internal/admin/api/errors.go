@@ -102,8 +102,7 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, convservice.ErrParticipantNotActive),
 		errors.Is(err, convservice.ErrParticipantNotOwner),
 		errors.Is(err, pm.ErrIllegalTransition),
-		errors.Is(err, pm.ErrInvalidStatus),
-		errors.Is(err, pm.ErrSelfVerify):
+		errors.Is(err, pm.ErrInvalidStatus):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 
 	// ---- bad_request (400) ----------------------------------------------

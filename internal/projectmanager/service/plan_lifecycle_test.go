@@ -590,7 +590,7 @@ func TestAdvancePlan_DoneSemantics(t *testing.T) {
 			t.Fatal(err)
 		}
 		h.setTaskStatus(t, a, pm.TaskCompleted)
-		h.setTaskStatus(t, b, pm.TaskVerified)
+		h.setTaskStatus(t, b, pm.TaskCompleted)
 		if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
 			t.Fatal(err)
 		}

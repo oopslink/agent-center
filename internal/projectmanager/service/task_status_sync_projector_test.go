@@ -77,6 +77,15 @@ func taskStatus(t *testing.T, svc *Service, ctx context.Context, tid pm.TaskID) 
 	return tk.Status()
 }
 
+func taskBlockedReason(t *testing.T, svc *Service, ctx context.Context, tid pm.TaskID) string {
+	t.Helper()
+	tk, err := svc.tasks.FindByID(ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tk.BlockedReason()
+}
+
 func TestTaskStatusSync_ActiveStartsAssignedTask(t *testing.T) {
 	svc, proj, _, ctx := taskSyncSetup(t)
 	tid := assignedTask(t, svc, ctx)
@@ -167,8 +176,12 @@ func TestTaskStatusSync_B3AgentDeathBlocksRunningTask(t *testing.T) {
 	if err := proj.Project(ctx, transitionEventCause(t, "E-2", tid, "failed", agentpkg.WorkItemCauseAgentDeath)); err != nil {
 		t.Fatal(err)
 	}
-	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskBlocked {
-		t.Fatalf("B3 agent-death failure must block the running task, got %s", got)
+	// ADR-0046: failure annotates a blocked_reason; status STAYS running.
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskRunning {
+		t.Fatalf("B3 agent-death failure must keep the task RUNNING (annotation), got %s", got)
+	}
+	if r := taskBlockedReason(t, svc, ctx, tid); r == "" {
+		t.Fatal("B3 agent-death failure must set a blocked_reason annotation")
 	}
 }
 
@@ -185,8 +198,12 @@ func TestTaskStatusSync_L2FailedBlocksRunningTask(t *testing.T) {
 	if err := proj.Project(ctx, transitionEventCause(t, "E-2", tid, "failed", "")); err != nil {
 		t.Fatal(err)
 	}
-	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskBlocked {
-		t.Fatalf("L2 single-turn failure on a running task must block (no limbo), got %s", got)
+	// ADR-0046: failure annotates a blocked_reason; status STAYS running.
+	if got := taskStatus(t, svc, ctx, tid); got != pm.TaskRunning {
+		t.Fatalf("L2 single-turn failure must keep the task RUNNING (annotation), got %s", got)
+	}
+	if r := taskBlockedReason(t, svc, ctx, tid); r == "" {
+		t.Fatal("L2 single-turn failure must set a blocked_reason annotation")
 	}
 }
 

@@ -627,9 +627,9 @@ func TestBlockTask_OK(t *testing.T) {
 	if !found {
 		t.Fatalf("block reason not posted to task conv")
 	}
-	// Task is blocked.
-	if got := f.taskStatus(t, tid); got != pm.TaskBlocked {
-		t.Fatalf("task status = %s, want blocked", got)
+	// ADR-0046: block sets a reason annotation; status stays running (never a state).
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("task status = %s, want running (blocked is an annotation)", got)
 	}
 }
 
@@ -748,8 +748,9 @@ func TestUnblockTask_OK(t *testing.T) {
 		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "agent execution failed"}); status != http.StatusOK {
 		t.Fatalf("block status = %d body=%v", status, body)
 	}
-	if got := f.taskStatus(t, tid); got != pm.TaskBlocked {
-		t.Fatalf("precondition: task should be blocked, got %s", got)
+	// ADR-0046: blocked is a running-task annotation, not a state.
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("precondition: task should be running with a block annotation, got %s", got)
 	}
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
@@ -795,16 +796,23 @@ func TestUnblockTask_RecoversAgentExecutionFailedDeadlock(t *testing.T) {
 	}
 }
 
-func TestUnblockTask_NotBlocked_Maps409Or422(t *testing.T) {
+// ADR-0046: unblock_task on a task that carries NO blocked_reason is an idempotent
+// NO-OP (returns 200) — not an error. "blocked" is no longer a state, so there is
+// no illegal transition; clearing a non-existent annotation is harmless and avoids
+// a double-dispatch on an already-active task.
+func TestUnblockTask_NotBlocked_NoOp200(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t) // running, not blocked
+	tid := f.seedRunningTask(t) // running, no blocked_reason
 	srv := f.server(t)
 
-	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	// Illegal transition (running is not blocked) → a 4xx domain error, never 200.
-	if status == http.StatusOK || status < 400 {
-		t.Fatalf("unblock of a non-blocked task should fail, got %d", status)
+	if status != http.StatusOK {
+		t.Fatalf("unblock of a non-stuck task should be a 200 no-op, got %d body=%v", status, body)
+	}
+	// Status unchanged — still running.
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("task status = %s, want running (unchanged by no-op unblock)", got)
 	}
 }

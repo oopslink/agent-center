@@ -403,7 +403,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/reassign_task", s.assignTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/subscribe", s.subscribeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/unsubscribe", s.unsubscribeHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/verify_task", s.verifyTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_task", s.getTaskHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_task", s.getTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)

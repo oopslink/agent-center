@@ -121,12 +121,6 @@ export function useCompleteTask(projectId: string, taskId: string) {
   );
 }
 
-export function useVerifyTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/verify`),
-  );
-}
-
 export function useDiscardTask(projectId: string, taskId: string) {
   return useTaskAction<void>(projectId, taskId, () =>
     api.post<Task>(`${taskPath(projectId, taskId)}/discard`),

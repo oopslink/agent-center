@@ -108,15 +108,17 @@ func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Discard(now) }, "")
 }
 
-// BlockTask moves running→blocked with a required reason (plan §2.2).
+// BlockTask records a stuck-reason ANNOTATION on a running task (ADR-0046: status
+// stays running, no deadlock). A required reason.
 func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string, actor pm.IdentityRef) error {
 	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Block(reason, now) }, reason)
 }
 
-// UnblockTask moves blocked→running. Per §10 OQ11, the prior WorkItem was
-// already CANCELED when the Task was blocked, so unblocking is a fresh dispatch:
-// it emits pm.task.assigned and the WorkItemProjector creates a NEW WorkItem
-// (nothing live to supersede). There is no WorkItem "blocked"/return edge.
+// UnblockTask clears a stuck (blocked_reason) annotation on a RUNNING task and
+// re-dispatches it (ADR-0046). The task never left running, but its prior WorkItem
+// terminated (failed) when it got stuck, so unblocking emits pm.task.assigned and
+// the WorkItemProjector mints a fresh WorkItem. No-op if the task carries no
+// blocked_reason (not stuck) — avoids a duplicate dispatch on an already-active task.
 func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
@@ -131,6 +133,9 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
+		if strings.TrimSpace(t.BlockedReason()) == "" {
+			return nil // not stuck → nothing to recover (idempotent, no double-dispatch)
+		}
 		if err := t.Unblock(now); err != nil {
 			return err
 		}
@@ -144,12 +149,6 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 // CompleteTask moves running→completed and records the completer.
 func (s *Service) CompleteTask(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
 	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Complete(by, now) }, "")
-}
-
-// VerifyTask moves completed→verified. The verifier must NOT be the completer
-// (ErrSelfVerify from the AR).
-func (s *Service) VerifyTask(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Verify(by, now) }, "")
 }
 
 // retainAsTaskSubscriber persists `identity` as a sticky MANUAL subscriber so a

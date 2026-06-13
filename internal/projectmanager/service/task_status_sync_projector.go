@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
@@ -106,17 +107,32 @@ func (s *Service) startTaskIfOpen(ctx context.Context, taskID pm.TaskID) error {
 	if err != nil {
 		return err
 	}
-	if t.Status() != pm.TaskOpen {
+	switch t.Status() {
+	case pm.TaskOpen:
+		prevStatus := t.Status() // open, captured before Start.
+		if err := t.Start(s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(ctx, t); err != nil {
+			return err
+		}
+		return s.emitTaskStateChanged(ctx, t, prevStatus, "")
+	case pm.TaskRunning:
+		// ADR-0046 A①: a re-activated WorkItem means the agent is back, so clear any
+		// stale `blocked_reason` stuck-annotation (the task was running the whole time).
+		if strings.TrimSpace(t.BlockedReason()) == "" {
+			return nil // not stuck → nothing to clear
+		}
+		if err := t.Unblock(s.clock.Now()); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(ctx, t); err != nil {
+			return err
+		}
+		return s.emitTaskStateChanged(ctx, t, pm.TaskRunning, "")
+	default:
 		return nil
 	}
-	prevStatus := t.Status() // open, captured before Start.
-	if err := t.Start(s.clock.Now()); err != nil {
-		return err
-	}
-	if err := s.tasks.Update(ctx, t); err != nil {
-		return err
-	}
-	return s.emitTaskStateChanged(ctx, t, prevStatus, "")
 }
 
 // taskBlockedOnFailureReason is the block reason stamped when a Task is blocked
@@ -125,12 +141,12 @@ func (s *Service) startTaskIfOpen(ctx context.Context, taskID pm.TaskID) error {
 // across all failure sources (v2.8.1 #278 (b) fix).
 const taskBlockedOnFailureReason = "agent execution failed"
 
-// blockTaskOnFailure moves a running Task to blocked when its WorkItem failed (any
-// cause; system path, no project-member check). A no-op when the Task is not
-// running: assigned (the WorkItem never activated → failed before pickup) is left
-// assigned per the 口径 edge (agent-level failed already surfaces, the user
-// reassigns); already-blocked is idempotent; terminal is skipped. The user/agent
-// unblocks via reopened or re-dispatch.
+// blockTaskOnFailure stamps the `blocked_reason` stuck-ANNOTATION on a running Task
+// when its WorkItem failed (any cause; system path, no project-member check).
+// ADR-0046: the task STAYS running (no longer transitions to a `blocked` state), so
+// it can never deadlock — it is immediately resumable (auto on WI re-activation, or
+// via unblock_task). A no-op when the Task is not running: assigned-but-never-
+// activated is left as-is; terminal is skipped. Idempotent.
 func (s *Service) blockTaskOnFailure(ctx context.Context, taskID pm.TaskID) error {
 	t, err := s.tasks.FindByID(ctx, taskID)
 	if err != nil {
@@ -139,12 +155,13 @@ func (s *Service) blockTaskOnFailure(ctx context.Context, taskID pm.TaskID) erro
 	if t.Status() != pm.TaskRunning {
 		return nil
 	}
-	prevStatus := t.Status() // running, captured before Block.
 	if err := t.Block(taskBlockedOnFailureReason, s.clock.Now()); err != nil {
 		return err
 	}
 	if err := s.tasks.Update(ctx, t); err != nil {
 		return err
 	}
-	return s.emitTaskStateChanged(ctx, t, prevStatus, taskBlockedOnFailureReason)
+	// Status is unchanged (running); the event carries the new blocked_reason so the
+	// UI/observability can surface the "stuck" badge.
+	return s.emitTaskStateChanged(ctx, t, pm.TaskRunning, taskBlockedOnFailureReason)
 }

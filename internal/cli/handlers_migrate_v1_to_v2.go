@@ -100,8 +100,9 @@ func MigrateV1ToV2Command() *Command {
 // when any future migration lands so `migrate v1-to-v2` always carries the install
 // to the latest schema instead of leaving it mid-version.
 // v2.9.1 Thread P1 added 0057 (messages.parent_message_id/root_message_id —
-// depth-1 thread refs).
-const targetSchemaVersion = 57
+// depth-1 thread refs); v2.9.1 ADR-0046 added 0058 (task state machine 7→5:
+// data-only blocked→running keep reason, verified→completed).
+const targetSchemaVersion = 58
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -46,17 +46,14 @@ func TestTask_Archive_StatusPreservedThroughArchive(t *testing.T) {
 	if err := tk.Complete("user:a", at); err != nil {
 		t.Fatal(err)
 	}
-	if err := tk.Verify("user:b", at); err != nil {
-		t.Fatal(err)
-	}
-	if tk.Status() != TaskVerified {
-		t.Fatalf("precondition: status = %q want verified", tk.Status())
+	if tk.Status() != TaskCompleted {
+		t.Fatalf("precondition: status = %q want completed", tk.Status())
 	}
 	if err := tk.Archive(at, "user:admin"); err != nil {
 		t.Fatalf("Archive: %v", err)
 	}
-	if tk.Status() != TaskVerified {
-		t.Fatalf("status = %q after archive — must stay verified (orthogonal)", tk.Status())
+	if tk.Status() != TaskCompleted {
+		t.Fatalf("status = %q after archive — must stay completed (orthogonal)", tk.Status())
 	}
 	if !tk.IsArchived() {
 		t.Fatal("must be archived")
@@ -100,7 +97,7 @@ func TestTask_Archived_RejectsMutations(t *testing.T) {
 		"Discard":        func(tk *Task) error { return tk.Discard(at) },
 		"Block":          func(tk *Task) error { return tk.Block("why", at) },
 		"Complete":       func(tk *Task) error { return tk.Complete("user:a", at) },
-		"Verify":         func(tk *Task) error { return tk.Verify("user:b", at) },
+		"Unblock":        func(tk *Task) error { return tk.Unblock(at) },
 		"SetStatus":      func(tk *Task) error { return tk.SetStatus(TaskRunning, at) },
 		"Assign":         func(tk *Task) error { return tk.Assign("user:a", at) },
 		"Unassign":       func(tk *Task) error { return tk.Unassign(at) },
@@ -129,7 +126,7 @@ func TestTask_Archived_RejectsMutations(t *testing.T) {
 func TestTask_Rehydrate_ArchiveRoundTrip(t *testing.T) {
 	at := t0.Add(2 * time.Hour)
 	tk, err := RehydrateTask(RehydrateTaskInput{
-		ID: "T1", ProjectID: "P1", Title: "do", Status: TaskVerified,
+		ID: "T1", ProjectID: "P1", Title: "do", Status: TaskCompleted,
 		CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: at, Version: 5,
 		ArchivedAt: &at, ArchivedBy: "user:admin",
 	})
@@ -142,7 +139,7 @@ func TestTask_Rehydrate_ArchiveRoundTrip(t *testing.T) {
 	if tk.ArchivedBy() != "user:admin" || tk.ArchivedAt() == nil || !tk.ArchivedAt().Equal(at.UTC()) {
 		t.Fatalf("archive fields lost: by=%q at=%v", tk.ArchivedBy(), tk.ArchivedAt())
 	}
-	if tk.Status() != TaskVerified {
-		t.Fatalf("status = %q want verified (orthogonal preserved)", tk.Status())
+	if tk.Status() != TaskCompleted {
+		t.Fatalf("status = %q want completed (orthogonal preserved)", tk.Status())
 	}
 }

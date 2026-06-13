@@ -418,14 +418,14 @@ export interface Issue {
 }
 
 // Task mirrors the v2.7 ProjectManager BC Task projection. Tasks are
-// project-scoped (nested under /projects/{pid}/tasks). New 8-state
-// status machine driven by POST sub-route actions.
+// project-scoped (nested under /projects/{pid}/tasks). ADR-0046 simplified
+// state machine: open | running | completed | discarded | reopened. `blocked`
+// and `verified` are NO LONGER statuses — "stuck" is now a `blocked_reason`
+// annotation on a RUNNING task (see Task.blocked_reason below).
 export type TaskStatus =
   | 'open'
   | 'running'
-  | 'blocked'
   | 'completed'
-  | 'verified'
   | 'discarded'
   | 'reopened';
 
@@ -438,6 +438,9 @@ export interface Task {
   assignee?: string;
   derived_from_issue?: string;
   completed_by?: string;
+  // ADR-0046: "stuck" annotation on a RUNNING task (no longer a status). When
+  // non-empty, the task is running but blocked on something; the UI surfaces a
+  // "Stuck" badge gated on status === 'running' && blocked_reason.
   blocked_reason?: string;
   // v2.8.1 edit-task #278: free-form label set (cleaned + deduped + bounded to
   // ≤16 runes each, ≤10 entries by the backend). The DTO always emits a non-nil

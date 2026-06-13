@@ -120,10 +120,17 @@ export default function TaskDetail(): React.ReactElement {
             onEdit={() => setEditOpen(true)}
             editable={!isTerminal}
           />
-          {tk.blocked_reason && status === 'blocked' && (
-            <p className="mt-2 text-xs text-danger" data-testid="task-blocked-reason">
-              Blocked: {tk.blocked_reason}
-            </p>
+          {/* ADR-0046 D5: "stuck" is no longer a status — it's a blocked_reason
+              annotation on a RUNNING task. Show a solid amber chip (theme-
+              independent amber-100/amber-800, AA ≥4.5 in both light + dark, no
+              alpha-tint — mirrors the chip pattern in tagColors.ts). */}
+          {status === 'running' && tk.blocked_reason && (
+            <div
+              className="mt-2 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
+              data-testid="task-blocked-reason"
+            >
+              Stuck: {tk.blocked_reason}
+            </div>
           )}
         </div>
       </div>
