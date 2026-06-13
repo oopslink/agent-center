@@ -490,6 +490,78 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "blocked"})
 }
 
+// --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
+
+type unblockTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// unblockTaskHandler RECOVERS a blocked task: blocked→running plus a fresh
+// re-dispatch (UnblockTask emits pm.task.assigned → the WorkItemProjector mints a
+// NEW WorkItem, re-waking the assignee). This is the recovery entry point for the
+// "restart / stale-release → deadlocked blocked" class (v2.9.1 P0): a Task blocked
+// with reason "agent execution failed" otherwise had no path back to executable.
+//
+// Cross-agent BY DESIGN — an owner/PD recovers ANOTHER agent's stuck task — so it
+// does NOT requireOwnTask; the pm service enforces project membership (+ rejects an
+// archived project). Unblocking a non-blocked task is an illegal transition (4xx).
+func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req unblockTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.UnblockTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
+}
+
+// --- rerun_failed_node (v2.9.1 P0 recovery, plan-aware) ----------------------
+
+type rerunFailedNodeReq struct {
+	AgentID string `json:"agent_id"`
+	PlanID  string `json:"plan_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// rerunFailedNodeHandler clears a plan node's dispatch record (pm RerunFailedNode)
+// so the next plan advance re-dispatches it — the plan-aware companion to
+// unblock_task for recovering a stuck node (v2.9.1 P0). Project-member guarded by
+// the service.
+func (s *Server) rerunFailedNodeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req rerunFailedNodeReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.RerunFailedNode(r.Context(), pm.PlanID(req.PlanID), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 // --- complete_task -----------------------------------------------------------
 
 type completeTaskReq struct {

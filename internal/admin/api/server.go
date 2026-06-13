@@ -390,6 +390,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/post_message", s.postMessageHandler) // v2.7 #185: DM/channel reply
 	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
+	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
+	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/rerun_failed_node", s.rerunFailedNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
 	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
 	// AppServices (writes use actor=agent; the AppService's requireProjectMember
