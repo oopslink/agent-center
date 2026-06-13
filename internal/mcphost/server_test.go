@@ -101,7 +101,7 @@ var wantTools = []string{
 	// pm writes / passthrough
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",
-	"block_task", "complete_task", "verify_task",
+	"block_task", "complete_task",
 	// v2.9.1 P0 recovery tools (deadlocked-blocked task recovery)
 	"unblock_task", "rerun_failed_node",
 	// v2.9 P3 Stage C (#285): plan orchestration tools (see planTools)

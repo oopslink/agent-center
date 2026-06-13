@@ -96,10 +96,12 @@ func MigrateV1ToV2Command() *Command {
 // (plan orchestration — pm_plans + pm_task_dependencies + tasks.plan_id);
 // v2.9-#285 added 0055 (pm_plan_dispatch_records — the only orchestrator-owned
 // stored state, §9.3); v2.9 P3 Stage B added 0056 (pm_tasks.archived_at/by — the
-// orthogonal Task archived state for Plan delete + archive). Update this constant
-// when any future migration lands so `migrate v1-to-v2` always carries the install
-// to the latest schema instead of leaving it mid-version.
-const targetSchemaVersion = 56
+// orthogonal Task archived state for Plan delete + archive); v2.9.1 ADR-0046 added
+// 0057 (task state machine 7→5: data-only blocked→running keep reason,
+// verified→completed). Update this constant when any future migration lands so
+// `migrate v1-to-v2` always carries the install to the latest schema instead of
+// leaving it mid-version.
+const targetSchemaVersion = 57
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -91,9 +91,8 @@ var (
 	// every mutator (Rename/SetDescription/status transitions/Assign/…) rejects with
 	// this once the task is archived. Re-archiving an already-archived task also
 	// returns it (mirrors Conversation.Archive → ErrConversationArchived).
-	ErrTaskArchived = errors.New("projectmanager: task is archived")
+	ErrTaskArchived        = errors.New("projectmanager: task is archived")
 	ErrBlockReasonRequired = errors.New("projectmanager: blocked requires a reason (plan §2.2)")
-	ErrSelfVerify          = errors.New("projectmanager: an identity cannot verify a task it completed (plan §2.2/OQ4)")
 	ErrVersionConflict     = errors.New("projectmanager: version conflict (optimistic lock)")
 	ErrEmptyProjectScope   = errors.New("projectmanager: project_id required (no global work items)")
 	ErrCrossOrgAssignee    = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")

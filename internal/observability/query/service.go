@@ -338,7 +338,7 @@ func (s *Service) inspectProject(ctx context.Context, id string) (InspectResult,
 // work" equivalent of the old open-only default). Pinned to IsTerminal() by a
 // partition test (TestActiveTaskStatuses_MatchesIsTerminal). v2.7 #107 proj-B.
 var activeTaskStatuses = []pm.TaskStatus{
-	pm.TaskOpen, pm.TaskRunning, pm.TaskBlocked, pm.TaskReopened,
+	pm.TaskOpen, pm.TaskRunning, pm.TaskReopened,
 }
 
 func filterTasksByStatus(items []*pm.Task, st pm.TaskStatus) []*pm.Task {

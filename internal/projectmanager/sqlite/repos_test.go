@@ -170,7 +170,8 @@ func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := tr.FindByID(ctx, "T1")
-	if got.Status() != pm.TaskBlocked || got.Assignee() != "agent:c" || got.BlockedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
+	// ADR-0046: Block is an annotation; status stays running, reason persisted.
+	if got.Status() != pm.TaskRunning || got.Assignee() != "agent:c" || got.BlockedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
 		t.Fatalf("task round-trip lost fields: %+v", got)
 	}
 	_ = got.Unblock(t0)
@@ -213,7 +214,7 @@ func TestTaskRepo_ListByStatuses(t *testing.T) {
 		t.Fatalf("ListByStatuses(completed) = %+v", l)
 	}
 	// multi status (the non-terminal active set excludes the completed task)
-	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskRunning, pm.TaskBlocked, pm.TaskReopened}
+	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskRunning, pm.TaskReopened}
 	if l, _ := tr.ListByStatuses(ctx, active); len(l) != 1 || l[0].ID() != "T-open" {
 		t.Fatalf("ListByStatuses(active) = %+v", l)
 	}
@@ -305,13 +306,13 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	save("T1", "PA", pm.TaskRunning, t0)
 	save("T2", "PB", pm.TaskRunning, late)
 	save("T3", "PA", pm.TaskCompleted, late)
-	save("T4", "PC", pm.TaskBlocked, t0)
+	save("T4", "PC", pm.TaskReopened, t0)
 
 	got, err := tr.CountByStatus(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[pm.TaskStatus]int{pm.TaskRunning: 2, pm.TaskCompleted: 1, pm.TaskBlocked: 1}
+	want := map[pm.TaskStatus]int{pm.TaskRunning: 2, pm.TaskCompleted: 1, pm.TaskReopened: 1}
 	if len(got) != len(want) {
 		t.Fatalf("status classes mismatch: got %v want %v", got, want)
 	}
@@ -329,8 +330,8 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	if got2[pm.TaskRunning] != 1 || got2[pm.TaskCompleted] != 1 {
 		t.Fatalf("since-filtered counts wrong: got %v", got2)
 	}
-	if got2[pm.TaskBlocked] != 0 {
-		t.Fatalf("since must exclude the early blocked task: got %v", got2)
+	if got2[pm.TaskReopened] != 0 {
+		t.Fatalf("since must exclude the early reopened task: got %v", got2)
 	}
 }
 

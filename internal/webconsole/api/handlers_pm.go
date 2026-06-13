@@ -45,7 +45,7 @@ func mapPMError(w http.ResponseWriter, err error) {
 		// mutation rejects with 409, cross-surface (mirrors ErrPlanArchived).
 		writeError(w, http.StatusConflict, "project_archived", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
-		errors.Is(err, pm.ErrSelfVerify), errors.Is(err, pm.ErrBlockReasonRequired),
+		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
 		errors.Is(err, pm.ErrProjectExists), errors.Is(err, pm.ErrMemberExists),
 		errors.Is(err, pm.ErrTaskExists), errors.Is(err, pm.ErrIssueExists):
@@ -670,11 +670,6 @@ func (s *Server) pmUnblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) pmCompleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.CompleteTask(r.Context(), id, c) })
-}
-
-func (s *Server) pmVerifyTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.VerifyTask(r.Context(), id, c) })
 }
 
 func (s *Server) pmDiscardTaskHandler(w http.ResponseWriter, r *http.Request) {

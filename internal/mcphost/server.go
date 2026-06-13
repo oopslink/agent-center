@@ -236,11 +236,6 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Optionally post a summary and move the task to completed.",
 	}, makeCompleteTask(cfg))
 
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "verify_task",
-		Description: "Verify a completed task (the calling agent may not verify its own completion).",
-	}, makeVerifyTask(cfg))
-
 	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
 	// A PM-agent programmatically builds and runs plans: create a draft plan,
 	// add backlog tasks as nodes, wire depends_on edges into a DAG, then start

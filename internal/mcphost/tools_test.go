@@ -93,12 +93,6 @@ func TestJSONToolsForwarding(t *testing.T) {
 			wantTool: "complete_task",
 			wantBody: map[string]any{"agent_id": "agent-X", "task_id": "t-1", "summary": "done"},
 		},
-		{
-			toolName: "verify_task",
-			args:     map[string]any{"task_id": "t-1"},
-			wantTool: "verify_task",
-			wantBody: map[string]any{"agent_id": "agent-X", "task_id": "t-1"},
-		},
 	}
 
 	for _, tc := range cases {

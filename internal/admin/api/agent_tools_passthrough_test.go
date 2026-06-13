@@ -12,7 +12,7 @@ import (
 
 // =============================================================================
 // v2.7 D2 b2/d-ii-B — agent MCP passthrough tools (create_task, assign_task /
-// reassign_task, subscribe / unsubscribe, verify_task, get_task, get_issue).
+// reassign_task, subscribe / unsubscribe, get_task, get_issue).
 //
 // These reuse the writeToolsFixture (real admin server + AuthMiddleware over the
 // full pm → outbox → projector pipeline). The WRITE tools go through the pm
@@ -264,55 +264,8 @@ func TestUnsubscribe_ExplicitIdentity_OK(t *testing.T) {
 	}
 }
 
-// --- verify_task -------------------------------------------------------------
-
-// TestVerifyTask_SelfVerify_Rejected: AG1 completed the task, so AG1 verifying
-// it must be rejected with pm.ErrSelfVerify → 422 invalid_transition.
-func TestVerifyTask_SelfVerify_Rejected(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t) // AG1 is assignee + member; task is running.
-	// AG1 completes the task (becomes the completer).
-	if err := f.pmSvc.CompleteTask(context.Background(), pm.TaskID(tid), pm.IdentityRef("agent:"+atAgent1)); err != nil {
-		t.Fatal(err)
-	}
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/verify_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d, want 422 (no self-verify); body = %v", status, body)
-	}
-	if body["error"] != "invalid_transition" {
-		t.Fatalf("error = %v, want invalid_transition (ErrSelfVerify)", body["error"])
-	}
-	// Task stays completed (not verified).
-	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
-		t.Fatalf("task status = %s, want completed (self-verify rejected)", got)
-	}
-}
-
-// TestVerifyTask_NonCompleter_OK: AG1 is a member but a DIFFERENT identity
-// (user:owner) completed the task, so AG1 can verify → 200.
-func TestVerifyTask_NonCompleter_OK(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t)
-	// user:owner (a member, the creator) completes the task — AG1 is NOT the completer.
-	if err := f.pmSvc.CompleteTask(context.Background(), pm.TaskID(tid), pm.IdentityRef("user:owner")); err != nil {
-		t.Fatal(err)
-	}
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/verify_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusOK || body["ok"] != true {
-		t.Fatalf("status = %d body=%v, want 200 ok=true", status, body)
-	}
-	if got := f.taskStatus(t, tid); got != pm.TaskVerified {
-		t.Fatalf("task status = %s, want verified", got)
-	}
-}
+// ADR-0046: verify_task is DELETED (verification capability removed). The former
+// TestVerifyTask_SelfVerify_Rejected / TestVerifyTask_NonCompleter_OK were removed.
 
 // --- get_task ----------------------------------------------------------------
 

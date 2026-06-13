@@ -131,10 +131,11 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 	}
 	if e.EventType == EvtTaskStateChanged {
 		switch pl.Status {
-		case string(pm.TaskBlocked), string(pm.TaskDiscarded), string(pm.TaskOpen):
-			// blocked/discarded end the attempt; →open is reopen, which also drops
-			// any live attempt. Reopen has no live WorkItem so it is a no-op
-			// (terminal items are skipped below).
+		case string(pm.TaskDiscarded), string(pm.TaskOpen):
+			// discarded ends the attempt; →open is reopen, which also drops any live
+			// attempt. Reopen has no live WorkItem so it is a no-op (terminal items are
+			// skipped below). ADR-0046: "blocked" is no longer a status transition (it
+			// is a running-task annotation), so it no longer appears here.
 			cancelLive = true
 		case string(pm.TaskCompleted):
 			// v2.7 #111 ④ (Q1): the Task is done → FINISH the live WorkItem so it

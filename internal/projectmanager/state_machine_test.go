@@ -8,14 +8,14 @@ import (
 var t0 = time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
 
 // TestTaskStatus_IsTerminal_Partition pins the terminal/active partition that
-// the observability default task-query relies on (v2.7 #107 proj-B): terminal =
-// {completed, verified, discarded}; active (non-terminal) = {open, running,
-// blocked, reopened}. v2.8.1: no "assigned" state (assignee is metadata).
-// Iterating every enum value guards against a new status silently landing on the
-// wrong side (the proj-A "core-enum" §-1 lesson).
+// the observability default task-query relies on (v2.7 #107 proj-B). ADR-0046
+// (7→5 states): terminal = {completed, discarded}; active (non-terminal) =
+// {open, running, reopened}. "blocked"/"verified" deleted. v2.8.1: no "assigned"
+// state (assignee is metadata). Iterating every enum value guards against a new
+// status silently landing on the wrong side (the proj-A "core-enum" §-1 lesson).
 func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
-	terminal := map[TaskStatus]bool{TaskCompleted: true, TaskVerified: true, TaskDiscarded: true}
-	all := []TaskStatus{TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskVerified, TaskDiscarded, TaskReopened}
+	terminal := map[TaskStatus]bool{TaskCompleted: true, TaskDiscarded: true}
+	all := []TaskStatus{TaskOpen, TaskRunning, TaskCompleted, TaskDiscarded, TaskReopened}
 	for _, s := range all {
 		if !s.IsValid() {
 			t.Fatalf("%s not IsValid — enum drift", s)
@@ -24,15 +24,15 @@ func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
 			t.Fatalf("IsTerminal(%s) = %v, want %v", s, got, terminal[s])
 		}
 	}
-	// Exactly 3 terminal, 4 active.
+	// Exactly 2 terminal, 3 active.
 	var nTerminal int
 	for _, s := range all {
 		if s.IsTerminal() {
 			nTerminal++
 		}
 	}
-	if nTerminal != 3 {
-		t.Fatalf("expected 3 terminal statuses, got %d", nTerminal)
+	if nTerminal != 2 {
+		t.Fatalf("expected 2 terminal statuses, got %d", nTerminal)
 	}
 }
 
@@ -114,24 +114,8 @@ func TestTaskHappyPath(t *testing.T) {
 	}
 }
 
-// --- Task: no self-verification (plan §2.2 / OQ4) ---
-
-func TestTaskNoSelfVerify(t *testing.T) {
-	tk := newTask(t)
-	_ = tk.Assign("agent:c", t0)
-	_ = tk.Start(t0)
-	_ = tk.Complete("agent:c", t0)
-	if err := tk.Verify("agent:c", t0); err != ErrSelfVerify {
-		t.Fatalf("self-verify must be rejected, got %v", err)
-	}
-	// a different identity can verify
-	if err := tk.Verify("user:reviewer", t0); err != nil {
-		t.Fatalf("peer verify should succeed: %v", err)
-	}
-	if tk.Status() != TaskVerified {
-		t.Fatalf("status should be verified, got %s", tk.Status())
-	}
-}
+// ADR-0046: verification (Verify / ErrSelfVerify / TaskVerified) is DELETED —
+// the former TestTaskNoSelfVerify was removed with the capability.
 
 // --- Task: blocked requires a reason (plan §2.2) ---
 
@@ -145,14 +129,15 @@ func TestTaskBlockRequiresReason(t *testing.T) {
 	if err := tk.Block("waiting on API key", t0); err != nil {
 		t.Fatal(err)
 	}
-	if tk.Status() != TaskBlocked || tk.BlockedReason() == "" {
-		t.Fatal("blocked with reason")
+	// ADR-0046: Block is an annotation on a RUNNING task — status stays running.
+	if tk.Status() != TaskRunning || tk.BlockedReason() == "" {
+		t.Fatal("blocked-reason annotation set, status stays running")
 	}
 	if err := tk.Unblock(t0); err != nil {
 		t.Fatal(err)
 	}
 	if tk.Status() != TaskRunning || tk.BlockedReason() != "" {
-		t.Fatal("unblock clears reason, returns to running")
+		t.Fatal("unblock clears reason, status stays running")
 	}
 }
 
@@ -190,12 +175,11 @@ func TestTaskDiscardAndReopen(t *testing.T) {
 		t.Fatalf("discarded is terminal, got %v", err)
 	}
 
-	// reopen chain from verified: completed→verified→reopened→open
+	// reopen chain (ADR-0046, no verified): completed→reopened→open
 	tk2 := newTask(t)
 	_ = tk2.Assign("agent:c", t0)
 	_ = tk2.Start(t0)
 	_ = tk2.Complete("agent:c", t0)
-	_ = tk2.Verify("user:r", t0)
 	if err := tk2.Reopen(t0); err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +226,7 @@ func TestProject_LifecycleAndRehydrate(t *testing.T) {
 func TestTaskSetStatus_FreeAnyValid(t *testing.T) {
 	tk := newTask(t) // open
 	// Any valid target reachable from any state, regardless of the adjacency graph.
-	for _, target := range []TaskStatus{TaskCompleted, TaskOpen, TaskDiscarded, TaskRunning, TaskVerified, TaskBlocked, TaskReopened} {
+	for _, target := range []TaskStatus{TaskCompleted, TaskOpen, TaskDiscarded, TaskRunning, TaskReopened} {
 		if err := tk.SetStatus(target, t0); err != nil {
 			t.Fatalf("SetStatus(%s) free transition failed: %v", target, err)
 		}

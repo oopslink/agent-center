@@ -36,8 +36,9 @@ const (
 	NodeFailed     NodeStatus = "failed"
 )
 
-// taskIsDone reports the §9.2 terminal-DONE mapping (completed / verified).
-func taskIsDone(s TaskStatus) bool { return s == TaskCompleted || s == TaskVerified }
+// taskIsDone reports the §9.2 terminal-DONE mapping. ADR-0046: "verified" removed,
+// so DONE == completed (the only success-terminal state).
+func taskIsDone(s TaskStatus) bool { return s == TaskCompleted }
 
 // taskIsFailed reports the §9.2 terminal-FAIL mapping (discarded).
 func taskIsFailed(s TaskStatus) bool { return s == TaskDiscarded }

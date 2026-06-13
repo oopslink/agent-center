@@ -315,22 +315,6 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 	}
 }
 
-// --- verify_task -------------------------------------------------------------
-
-type verifyTaskArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the completed task to verify"`
-}
-
-func makeVerifyTask(cfg Config) mcp.ToolHandlerFor[verifyTaskArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args verifyTaskArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-		}
-		return callAdmin(ctx, cfg, "verify_task", body)
-	}
-}
-
 // --- Plan tools (v2.9 P3 Stage C, #285) --------------------------------------
 //
 // These mirror the admin Plan agent-tool handlers in
