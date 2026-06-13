@@ -15,6 +15,37 @@ ADR / phase plan landscape, see
 
 _Nothing yet — released work is tracked in the per-version sections below._
 
+## [v2.9.1] — 2026-06-13
+
+Message Threads + task-recovery tooling.
+
+### Added
+
+- **Message Threads.** Derive a thread from any message — a thread affordance on
+  each message opens a popout **thread sidebar** showing the root message plus its
+  replies, with a composer that posts into the thread. **Slack-style single
+  level** (a reply never grows its own thread; the depth-1 invariant is enforced
+  server-side). A **thread list** in the Participants sidebar lists every thread
+  in the conversation and opens the corresponding sidebar. **@mentioning a
+  project agent inside a thread wakes it, and the agent's reply lands in that
+  thread** (the thread root is carried through the wake → brief → post-message
+  chain) rather than at conversation top-level. A **"new activity" marker** (dot)
+  flags a thread with replies you haven't seen and clears on view (coarse,
+  per-user, reusing the conversation read cursor). Works across all conversation
+  types (channel / DM / issue / task / plan).
+- **Task recovery.** New `unblock_task` and `rerun_failed_node` tools (MCP +
+  admin) recover a task left stuck `blocked` after an agent restart / stale
+  work-item release (reason "agent execution failed") — previously a dead-end
+  (`blocked → completed` is illegal and no recovery path was exposed).
+  Cross-agent by design (an owner / PM can recover another agent's task), guarded
+  by project membership.
+
+### Fixed
+
+- Restored the `spa-eslint` lint gate: the referenced `jsx-a11y` rules are
+  registered as no-op stubs, so an `eslint-disable` directive referencing them no
+  longer hard-errors (gate was baseline-red, not a code violation).
+
 ## [v2.9] — 2026-06-12
 
 Plan Orchestration + explicit org routing (58 PRs).
