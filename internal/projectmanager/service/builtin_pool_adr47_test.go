@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/conversation"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
@@ -193,5 +194,82 @@ func TestStructuredPlan_DispatchPostsMention(t *testing.T) {
 	after := h.planConvMsgCount(t, plan)
 	if after <= before {
 		t.Fatalf("structured plan ready node should post an @mention: msgs before=%d after=%d", before, after)
+	}
+}
+
+// ADR-0047 §-1 #2: the built-in pool gets a 1:1 conversation (same EvtPlanCreated
+// path as a structured plan) so pool activity has a home.
+func TestADR47_BuiltinPool_GetsConversation(t *testing.T) {
+	svc, convRepo, plans, _, relay, ctx := planSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drain(t, relay, ctx)
+
+	var poolID pm.PlanID
+	ps, _ := svc.ListPlans(ctx, pid)
+	for _, p := range ps {
+		if p.IsBuiltin() {
+			poolID = p.ID()
+		}
+	}
+	if poolID == "" {
+		t.Fatal("no builtin pool")
+	}
+	pool, _ := plans.FindByID(ctx, poolID)
+	if pool.ConversationID() == "" {
+		t.Fatal("builtin pool must have a bound conversation after drain")
+	}
+	conv, err := convRepo.FindByOwnerRef(ctx, conversation.NewPlanOwnerRef(string(poolID)))
+	if err != nil {
+		t.Fatalf("pool conversation should exist by owner_ref: %v", err)
+	}
+	if conv.Kind() != conversation.ConversationKindPlan {
+		t.Fatalf("conv kind=%s want plan", conv.Kind())
+	}
+}
+
+// ADR-0047 §-1 #1: archiving a project cascade-archives its built-in pool (the pool
+// is "archived with its project"), even though the pool is always-running.
+func TestADR47_ArchiveProject_CascadeArchivesBuiltinPool(t *testing.T) {
+	svc, _, plans, _, _, ctx := planSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var poolID pm.PlanID
+	ps, _ := svc.ListPlans(ctx, pid)
+	for _, p := range ps {
+		if p.IsBuiltin() {
+			poolID = p.ID()
+		}
+	}
+	if err := svc.ArchiveProject(ctx, pid, "user:a"); err != nil {
+		t.Fatalf("ArchiveProject: %v", err)
+	}
+	pool, err := plans.FindByID(ctx, poolID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pool.Status() != pm.PlanArchived {
+		t.Fatalf("builtin pool status=%s, want archived after project archive", pool.Status())
+	}
+}
+
+// ADR-0047 §-1 #3: TaskClaimableByID — a backlog task (no plan) is never claimable.
+func TestADR47_TaskClaimableByID_BacklogFalse(t *testing.T) {
+	svc, _, _, _, _, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, err := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "backlog", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimable, err := svc.TaskClaimableByID(ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimable {
+		t.Fatal("a backlog task (no plan) must not be claimable")
 	}
 }

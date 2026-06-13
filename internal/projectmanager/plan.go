@@ -256,6 +256,20 @@ func (p *Plan) Archive(at time.Time) error {
 	return p.transition(PlanArchived, at)
 }
 
+// ArchiveWithProject archives a Plan as part of its PROJECT being archived
+// (ADR-0047): unlike Archive it accepts ANY non-archived status — including a
+// running (or built-in, always-running) plan — since the project archive is the
+// one legitimate path that retires the resident built-in pool. Idempotent:
+// re-archiving returns ErrPlanArchived. Used ONLY by the project-archive cascade.
+func (p *Plan) ArchiveWithProject(at time.Time) error {
+	if p.status == PlanArchived {
+		return ErrPlanArchived
+	}
+	p.status = PlanArchived
+	p.touch(at)
+	return nil
+}
+
 // transition applies a status move guarded by the state machine.
 func (p *Plan) transition(to PlanStatus, at time.Time) error {
 	if !to.IsValid() {

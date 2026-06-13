@@ -226,7 +226,12 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, agentTaskMap(t))
+	m := agentTaskMap(t)
+	// ADR-0047 §-1: expose the derived `claimable` on the single-task read too.
+	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
+		m["claimable"] = claimable
+	}
+	writeJSON(w, http.StatusOK, m)
 }
 
 // --- get_issue ---------------------------------------------------------------

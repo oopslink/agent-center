@@ -122,6 +122,37 @@ func (s *Service) ListClaimableTasks(ctx context.Context, assignee pm.IdentityRe
 	return out, nil
 }
 
+// TaskClaimableByID derives whether a single task is claimable right now (ADR-0047
+// §-1: expose `claimable` on get_task too). A backlog task (no plan) is never
+// claimable; otherwise it derives the task's node_status from its plan view and
+// applies the claimable predicate. Nil-safe on the plan repo (→ false).
+func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool, error) {
+	t, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return false, err
+	}
+	planID := t.PlanID()
+	if planID == "" || s.plans == nil {
+		return false, nil
+	}
+	p, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return false, err
+	}
+	detail, err := s.planDetail(ctx, p)
+	if err != nil {
+		return false, err
+	}
+	var ns pm.NodeStatus
+	for _, n := range detail.View.Nodes {
+		if n.TaskID == taskID {
+			ns = n.NodeStatus
+			break
+		}
+	}
+	return pm.TaskClaimable(t, ns), nil
+}
+
 // --- Plan reads (v2.9 #285) -------------------------------------------------
 
 // ListPlans returns a project's Plans (parallel plans, §2), stable-ordered.

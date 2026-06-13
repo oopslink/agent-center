@@ -50,7 +50,7 @@ func (s *Service) CreateProject(ctx context.Context, cmd CreateProjectCommand) (
 		// dispatch pool that makes its assigned tasks claimable. Nil-safe: only when a
 		// PlanRepository is wired (matches the other optional-plan paths).
 		if s.plans != nil {
-			if err := s.createBuiltinPlan(txCtx, p.ID(), now); err != nil {
+			if err := s.createBuiltinPlan(txCtx, p.ID(), p.OrganizationID(), now); err != nil {
 				return err
 			}
 		}
@@ -71,7 +71,7 @@ func (s *Service) CreateProject(ctx context.Context, cmd CreateProjectCommand) (
 // partial unique index (one builtin per project) backstops a duplicate. No outbox
 // event is emitted: the pool needs no 1:1 conversation (it is a pull/no-wake pool —
 // dispatch records its readiness, it never @mentions).
-func (s *Service) createBuiltinPlan(ctx context.Context, projectID pm.ProjectID, now time.Time) error {
+func (s *Service) createBuiltinPlan(ctx context.Context, projectID pm.ProjectID, orgID string, now time.Time) error {
 	bp, err := pm.NewPlan(pm.NewPlanInput{
 		ID:         pm.PlanID(s.idgen.NewEntityID("plan")),
 		ProjectID:  projectID,
@@ -87,7 +87,22 @@ func (s *Service) createBuiltinPlan(ctx context.Context, projectID pm.ProjectID,
 	if err := bp.Start(now); err != nil {
 		return err
 	}
-	return s.plans.Save(ctx, bp)
+	if err := s.plans.Save(ctx, bp); err != nil {
+		return err
+	}
+	// ADR-0047 §-1: emit pm.plan.created so the plan-participant projector creates the
+	// pool's 1:1 conversation (owner_ref pm://plans/<id>) — same path as a structured
+	// plan. No human creator participant (creator_ref=system); assignees join the
+	// conversation as their tasks enter the pool (via EvtPlanParticipantsChanged).
+	return s.emit(ctx, EvtPlanCreated,
+		refsJSON(map[string]string{"plan_id": string(bp.ID()), "project_id": string(projectID)}),
+		planEventPayload{
+			PlanID:         string(bp.ID()),
+			ProjectID:      string(projectID),
+			OrganizationID: orgID,
+			OwnerRef:       "pm://plans/" + string(bp.ID()),
+			CreatorRef:     "system",
+		})
 }
 
 // AddProjectMemberCommand adds a member to a project (actor must be a member).
