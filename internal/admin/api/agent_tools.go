@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
 // =============================================================================
@@ -111,7 +112,31 @@ func (s *Server) getMyWorkHandler(w http.ResponseWriter, r *http.Request) {
 	for i, it := range items {
 		out[i] = workItemMap(it)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"work_items": out})
+	resp := map[string]any{"work_items": out}
+
+	// ADR-0047 PULL pool: the built-in "assignment pool" dispatches via pull — it
+	// creates NO WorkItem and posts NO wake. Its claimable tasks would therefore be
+	// invisible to the WorkItem-only surface above. So we ALSO query pm for the
+	// agent's CLAIMABLE tasks (open + assigned-to-it + in a plan + node dispatched)
+	// and surface them under "claimable_tasks". The agent pulls + claims these
+	// (open→running) rather than being woken. Nil-safe: only when PMService is wired.
+	if d.PMService != nil {
+		claimable, cerr := d.PMService.ListClaimableTasks(r.Context(), pm.IdentityRef(agentActor(a)))
+		if cerr != nil {
+			mapDomainError(w, cerr)
+			return
+		}
+		ct := make([]map[string]any, len(claimable))
+		for i, c := range claimable {
+			m := agentTaskMap(c.Task)
+			m["node_status"] = string(c.NodeStatus)
+			m["claimable"] = true
+			ct[i] = m
+		}
+		resp["claimable_tasks"] = ct
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // workItemMap projects an AgentWorkItem to the JSON wire shape.

@@ -485,10 +485,21 @@ func TestListPlans_OK(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
 	plans, _ := body["plans"].([]any)
-	if len(plans) != 1 {
-		t.Fatalf("plans len = %d, want 1; body = %v", len(plans), body)
+	// "Plan A" + the ADR-0047 auto-created "[Built-in]" pool.
+	if len(plans) != 2 {
+		t.Fatalf("plans len = %d, want 2; body = %v", len(plans), body)
 	}
-	row, _ := plans[0].(map[string]any)
+	// Locate the structured "Plan A" row (not the built-in pool).
+	var row map[string]any
+	for _, p := range plans {
+		m, _ := p.(map[string]any)
+		if m["name"] == "Plan A" {
+			row = m
+		}
+	}
+	if row == nil {
+		t.Fatalf("Plan A missing from list: %v", plans)
+	}
 	for _, k := range []string{"id", "name", "status", "progress", "has_failed", "node_count", "nodes_preview"} {
 		if _, ok := row[k]; !ok {
 			t.Fatalf("plan summary missing %q: %v", k, row)

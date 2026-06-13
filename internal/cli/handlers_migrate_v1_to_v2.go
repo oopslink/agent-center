@@ -98,10 +98,12 @@ func MigrateV1ToV2Command() *Command {
 // stored state, §9.3); v2.9 P3 Stage B added 0056 (pm_tasks.archived_at/by — the
 // orthogonal Task archived state for Plan delete + archive); v2.9.1 ADR-0046 added
 // 0057 (task state machine 7→5: data-only blocked→running keep reason,
-// verified→completed). Update this constant when any future migration lands so
-// `migrate v1-to-v2` always carries the install to the latest schema instead of
-// leaving it mid-version.
-const targetSchemaVersion = 57
+// verified→completed); v2.9.1 ADR-0047 added 0058 (pm_plans.is_builtin + the
+// per-project built-in claimable pool, with the assigned-backlog-task backfill).
+// Update this constant when any future migration lands so `migrate v1-to-v2`
+// always carries the install to the latest schema instead of leaving it
+// mid-version.
+const targetSchemaVersion = 58
 
 func runMigrateV1ToV2(
 	ctx context.Context,

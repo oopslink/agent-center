@@ -491,7 +491,7 @@ func planMap(p *pm.Plan) map[string]any {
 	return m
 }
 
-func planNodeMap(n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef) map[string]any {
+func planNodeMap(planID pm.PlanID, n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef, archivedOf map[pm.TaskID]bool) map[string]any {
 	depends := make([]string, 0, len(n.DependsOn))
 	for _, d := range n.DependsOn {
 		depends = append(depends, string(d))
@@ -503,6 +503,11 @@ func planNodeMap(n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map
 		"task_status":  string(n.TaskStatus),
 		"node_status":  string(n.NodeStatus),
 		"depends_on":   depends,
+		// ADR-0047: the DERIVED claimable predicate, computed where the plan view is
+		// available (the node already carries node_status; the lookups supply the
+		// archived/assignee inputs). True iff the task can be claimed (open→running)
+		// right now: not archived, open, assigned, in this plan, node dispatched.
+		"claimable": pm.Claimable(archivedOf[n.TaskID], n.TaskStatus, assigneeOf[n.TaskID], planID, n.NodeStatus),
 	}
 	if n.Dispatched && !n.DispatchedAt.IsZero() {
 		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
@@ -510,24 +515,26 @@ func planNodeMap(n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map
 	return node
 }
 
-func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm.TaskID]pm.IdentityRef) {
+func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm.TaskID]pm.IdentityRef, map[pm.TaskID]bool) {
 	titleOf := make(map[pm.TaskID]string, len(detail.Tasks))
 	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks))
+	archivedOf := make(map[pm.TaskID]bool, len(detail.Tasks))
 	for _, t := range detail.Tasks {
 		titleOf[t.ID()] = t.Title()
 		assigneeOf[t.ID()] = t.Assignee()
+		archivedOf[t.ID()] = t.IsArchived()
 	}
-	return titleOf, assigneeOf
+	return titleOf, assigneeOf, archivedOf
 }
 
 // planDetailMap renders the full Plan DTO with the DERIVED node read model (§9.2):
 // nodes + ready_set + has_failed + progress{done,total}.
 func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m := planMap(detail.Plan)
-	titleOf, assigneeOf := planNodeLookups(detail)
+	titleOf, assigneeOf, archivedOf := planNodeLookups(detail)
 	nodes := make([]map[string]any, 0, len(detail.View.Nodes))
 	for _, n := range detail.View.Nodes {
-		nodes = append(nodes, planNodeMap(n, titleOf, assigneeOf))
+		nodes = append(nodes, planNodeMap(detail.Plan.ID(), n, titleOf, assigneeOf, archivedOf))
 	}
 	readySet := make([]string, 0, len(detail.View.ReadySet))
 	for _, id := range detail.View.ReadySet {
@@ -548,7 +555,7 @@ const planListNodePreviewCap = 4
 // DERIVED board summary (progress, has_failed, node_count, a capped nodes_preview).
 func planSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	m := planMap(detail.Plan)
-	titleOf, assigneeOf := planNodeLookups(detail)
+	titleOf, assigneeOf, archivedOf := planNodeLookups(detail)
 	nodes := detail.View.Nodes
 	n := len(nodes)
 	if n > planListNodePreviewCap {
@@ -556,7 +563,7 @@ func planSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	}
 	preview := make([]map[string]any, 0, n)
 	for _, nd := range nodes[:n] {
-		preview = append(preview, planNodeMap(nd, titleOf, assigneeOf))
+		preview = append(preview, planNodeMap(detail.Plan.ID(), nd, titleOf, assigneeOf, archivedOf))
 	}
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
 	m["has_failed"] = detail.View.HasFailed

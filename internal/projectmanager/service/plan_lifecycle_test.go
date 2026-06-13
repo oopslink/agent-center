@@ -153,8 +153,9 @@ func TestListPlanSummaries_DerivesPerPlanReadModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPlanSummaries: %v", err)
 	}
-	if len(summaries) != 2 {
-		t.Fatalf("summaries=%d want 2", len(summaries))
+	// planA + planB + the ADR-0047 auto-created built-in pool (empty: 0 nodes).
+	if len(summaries) != 3 {
+		t.Fatalf("summaries=%d want 3", len(summaries))
 	}
 	byID := map[pm.PlanID]*PlanDetail{}
 	for _, d := range summaries {
@@ -246,8 +247,9 @@ func TestListPlanSummaries_BatchedNoNPlus1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPlanSummaries: %v", err)
 	}
-	if len(summaries) != 3 {
-		t.Fatalf("summaries=%d want 3", len(summaries))
+	// 3 structured plans + the ADR-0047 auto-created built-in pool (empty).
+	if len(summaries) != 4 {
+		t.Fatalf("summaries=%d want 4", len(summaries))
 	}
 	byID := map[pm.PlanID]*PlanDetail{}
 	for _, d := range summaries {

@@ -50,12 +50,12 @@ func TestMigration0057_TaskStateSimplify(t *testing.T) {
 	insert("T-running", "running", "")
 	insert("T-open", "open", "")
 
-	// Apply 0057.
+	// Apply 0057 (and any later migration, e.g. 0058 builtin pool).
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up (apply 0057): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 57 {
-		t.Fatalf("version after re-Up: got %d want 57", v)
+	if v, _ := mig.Version(ctx); v != 58 {
+		t.Fatalf("version after re-Up: got %d want 58", v)
 	}
 
 	status := func(id string) (string, string) {

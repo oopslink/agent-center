@@ -53,6 +53,75 @@ func (s *Service) ListTaskSubscribers(ctx context.Context, taskID pm.TaskID) ([]
 	return s.taskSubs.ListByTask(ctx, taskID)
 }
 
+// ClaimableTask bundles a CLAIMABLE pool task with its derived node status
+// (ADR-0047). A task is claimable iff pm.TaskClaimable(task, nodeStatus) — not
+// archived, status==open, has an assignee, is IN a plan, and that plan node is
+// `dispatched`. The built-in pull pool reaches `dispatched` via a dispatch record
+// (no wake/WorkItem), so these tasks would otherwise be invisible to get_my_work.
+type ClaimableTask struct {
+	Task       *pm.Task
+	NodeStatus pm.NodeStatus
+}
+
+// ListClaimableTasks returns the CLAIMABLE tasks assigned to `assignee` across all
+// its plans (ADR-0047). It backs get_my_work's pull-pool surface: an agent's
+// built-in-pool tasks have no WorkItem (pull/no-wake), so the work tool must query
+// pm directly + apply the claimable predicate. Mechanism: list the assignee's
+// tasks, then per distinct plan derive node statuses (via planDetail / the plan
+// view) and keep only tasks whose node is `dispatched` (TaskClaimable true).
+//
+// Cost is bounded by the number of DISTINCT plans the assignee's open tasks belong
+// to (one planDetail load each), de-duplicated so the same plan view is derived
+// once. Backlog tasks (planID=="") are skipped — they are never claimable.
+func (s *Service) ListClaimableTasks(ctx context.Context, assignee pm.IdentityRef) ([]ClaimableTask, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	tasks, err := s.tasks.ListByAssignee(ctx, assignee)
+	if err != nil {
+		return nil, err
+	}
+	// Cache one node-status map per plan so N tasks in the same plan derive the
+	// plan view exactly once (no per-task plan-view re-derivation).
+	nodeStatusByPlan := make(map[pm.PlanID]map[pm.TaskID]pm.NodeStatus)
+	planView := func(planID pm.PlanID) (map[pm.TaskID]pm.NodeStatus, error) {
+		if m, ok := nodeStatusByPlan[planID]; ok {
+			return m, nil
+		}
+		p, err := s.plans.FindByID(ctx, planID)
+		if err != nil {
+			return nil, err
+		}
+		detail, err := s.planDetail(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		m := make(map[pm.TaskID]pm.NodeStatus, len(detail.View.Nodes))
+		for _, n := range detail.View.Nodes {
+			m[n.TaskID] = n.NodeStatus
+		}
+		nodeStatusByPlan[planID] = m
+		return m, nil
+	}
+
+	var out []ClaimableTask
+	for _, t := range tasks {
+		planID := t.PlanID()
+		if planID == "" {
+			continue // backlog tasks are never claimable
+		}
+		statuses, err := planView(planID)
+		if err != nil {
+			return nil, err
+		}
+		ns := statuses[t.ID()]
+		if pm.TaskClaimable(t, ns) {
+			out = append(out, ClaimableTask{Task: t, NodeStatus: ns})
+		}
+	}
+	return out, nil
+}
+
 // --- Plan reads (v2.9 #285) -------------------------------------------------
 
 // ListPlans returns a project's Plans (parallel plans, §2), stable-ordered.

@@ -193,11 +193,20 @@ func (s *Service) AdvancePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 // (RunInTx is reentrant, so the dispatcher's AddMessage joins it → atomic
 // dispatch). Returns the NEWLY-dispatched task ids.
 func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.TaskID, error) {
-	if s.planDispatcher == nil {
-		return nil, ErrDispatcherUnavailable
-	}
 	if p.Status() != pm.PlanRunning {
 		return nil, pm.ErrPlanNotRunning
+	}
+	// ADR-0047 PULL split: the built-in pool is a "pull, no-wake" dispatch pool. For
+	// each ready node it ONLY RecordDispatch (node_status ready→dispatched → the task
+	// becomes claimable; get_my_work surfaces it). It does NOT PostMention and does
+	// NOT emit EvtTaskAssigned — there is no push/wake (the agent pulls via
+	// get_my_work + claim). It therefore needs no PlanDispatcher and no bound
+	// conversation (the structured-plan requirements below do not apply).
+	if p.IsBuiltin() {
+		return s.dispatchBuiltinPool(txCtx, p)
+	}
+	if s.planDispatcher == nil {
+		return nil, ErrDispatcherUnavailable
 	}
 	if strings.TrimSpace(p.ConversationID()) == "" {
 		// A running Plan must have its 1:1 conversation bound (#284) — dispatch
@@ -287,6 +296,45 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		if uerr := s.plans.Update(txCtx, p); uerr != nil {
 			return nil, uerr
 		}
+	}
+	return dispatched, nil
+}
+
+// dispatchBuiltinPool is the ADR-0047 PULL dispatch core for the built-in pool: a
+// FLAT (no-edge) always-running pool. For each ready node it writes ONLY the
+// once-only dispatch record (node_status ready→dispatched → the task becomes
+// claimable, surfaced by get_my_work). It posts NO @mention and emits NO
+// EvtTaskAssigned — there is no push/wake; the assignee pulls the task via
+// get_my_work and claims it (open→running). Because the pool is flat, every
+// assigned open task has no upstream → is immediately `ready` → gets a dispatch
+// record on the first sweep. IDEMPOTENT + replay-safe: ComputePlanView derives a
+// dispatched node as NodeDispatched (never NodeReady), and RecordDispatch is
+// INSERT-OR-IGNORE on the PK, so re-running never double-records. The pool never
+// "completes" (it is immutable/resident), so it never MarkDone.
+func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.TaskID, error) {
+	now := s.clock.Now()
+	planID := p.ID()
+	tasks, err := s.tasks.ListByPlan(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := s.plans.ListDependencies(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	records, err := s.plans.ListDispatchRecords(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	view := pm.ComputePlanView(tasks, edges, records)
+	var dispatched []pm.TaskID
+	for _, taskID := range view.ReadySet {
+		// PULL: record the dispatch (no message, no work-item, no wake). An empty
+		// dispatch_message_id reflects that no @mention was posted for this node.
+		if rerr := s.plans.RecordDispatch(txCtx, planID, taskID, now, ""); rerr != nil {
+			return nil, rerr
+		}
+		dispatched = append(dispatched, taskID)
 	}
 	return dispatched, nil
 }
