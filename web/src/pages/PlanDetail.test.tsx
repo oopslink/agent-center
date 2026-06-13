@@ -161,6 +161,34 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument();
   });
 
+  it('point 1: DAG nodes and task-list rows show the Task id (org_ref T-number, # fallback)', async () => {
+    mockPlan();
+    // Resolve the human Task id via the project task list (org_ref). n1→T101,
+    // n2→T102; the rest have no org_ref → "#"+id-tail fallback.
+    server.use(
+      http.get('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            { id: 'n1', project_id: 'proj-a', title: 'design schema', description: '', status: 'completed', org_ref: 'T101', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
+            { id: 'n2', project_id: 'proj-a', title: 'backend api', description: '', status: 'completed', org_ref: 'T102', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
+          ],
+        }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // DAG node carries the resolved T-number
+    const node1 = screen.getByTestId('plan-dag').querySelector('[data-task-id="n1"]') as HTMLElement;
+    await waitFor(() => expect(within(node1).getByTestId('plan-node-taskid')).toHaveTextContent('T101'));
+    // a node whose task has no org_ref falls back to the #id-tail handle
+    const node3 = screen.getByTestId('plan-dag').querySelector('[data-task-id="n3"]') as HTMLElement;
+    expect(within(node3).getByTestId('plan-node-taskid')).toHaveTextContent('#');
+    // task-list rows show the same Task id
+    fireEvent.click(screen.getByTestId('plan-tab-tasks'));
+    const row1 = screen.getByTestId('plan-task-list').querySelector('[data-task-id="n1"]') as HTMLElement;
+    expect(within(row1).getByTestId('plan-row-taskid')).toHaveTextContent('T101');
+  });
+
   it('DAG computes a layered left→right layout from depends_on', async () => {
     mockPlan();
     wrap();

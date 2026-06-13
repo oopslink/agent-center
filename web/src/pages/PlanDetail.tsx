@@ -20,6 +20,7 @@ import {
   type PatchPlanInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
+import { useTasksList } from '@/api/tasks';
 import { useDisplayNameResolver, normalizeIdentityRef, refKind } from '@/api/members';
 import { formatLocalTime } from '@/utils/time';
 import { Skeleton } from '@/components/Skeleton';
@@ -958,6 +959,45 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
   );
 }
 
+// v2.9.1 UX point 1: the human Task id (org_ref, e.g. "T123") is on the Task DTO,
+// not the PlanNode. Resolve it FE-side via the project's task list (one cached
+// query) → a task_id → org_ref map. Returns a resolver; absent/not-yet-loaded →
+// undefined (callers fall back to the #id-tail handle, the established pattern).
+function useTaskOrgRefResolver(projectId: string): (taskId: string) => string | undefined {
+  const tasks = useTasksList(projectId);
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of tasks.data ?? []) {
+      if (t.org_ref) map.set(t.id, t.org_ref);
+    }
+    return (taskId: string) => map.get(taskId);
+  }, [tasks.data]);
+}
+
+// TaskIdTag — a small monospace pill showing the human Task id (org_ref "T123"),
+// falling back to "#"+id-tail when there's no org_ref (#192 id-as-content). Solid
+// theme tokens (both-mode AA, no alpha-tint). Full task_id on hover.
+function TaskIdTag({
+  taskId,
+  orgRef,
+  testId,
+}: {
+  taskId: string;
+  orgRef?: string;
+  testId: string;
+}): React.ReactElement {
+  const label = orgRef || `#${idHandle(taskId)}`;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
+      data-testid={testId}
+      title={taskId}
+    >
+      {label}
+    </span>
+  );
+}
+
 // assignee_ref → avatar (agent/human) + clean handle.
 function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactElement {
   const resolveName = useDisplayNameResolver();
@@ -1144,6 +1184,7 @@ function SyntheticAnchorMarker({
 function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
+  const orgRefOf = useTaskOrgRefResolver(projectId);
 
   const { positioned, width, height, start, end } = useMemo(() => layoutDag(nodes), [nodes]);
   const posById = useMemo(
@@ -1270,6 +1311,10 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                   data-task-id={p.node.task_id}
                   data-level={p.level}
                 >
+                  {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node. */}
+                  <div className="mb-1">
+                    <TaskIdTag taskId={p.node.task_id} orgRef={orgRefOf(p.node.task_id)} testId="plan-node-taskid" />
+                  </div>
                   <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
                     <TaskTitleLink
                       projectId={projectId}
@@ -1526,6 +1571,7 @@ function PlanDagEditor({ projectId, plan }: { projectId: string; plan: Plan }): 
 function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const canRemove = plan.status === 'draft';
+  const orgRefOf = useTaskOrgRefResolver(projectId);
   return (
     <div data-testid="plan-task-list">
       {nodes.length === 0 ? (
@@ -1537,6 +1583,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
           <table className="w-full text-left text-xs" data-testid="plan-task-list-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
+                <th className="py-1.5 pr-3 font-medium">Task</th>
                 <th className="py-1.5 pr-3 font-medium">Title</th>
                 <th className="py-1.5 pr-3 font-medium">Assignee</th>
                 <th className="py-1.5 pr-3 font-medium">Task status</th>
@@ -1551,6 +1598,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
                   projectId={projectId}
                   planId={plan.id}
                   node={n}
+                  orgRef={orgRefOf(n.task_id)}
                   canRemove={canRemove}
                 />
               ))}
@@ -1570,16 +1618,22 @@ function PlanTaskRow({
   projectId,
   planId,
   node,
+  orgRef,
   canRemove,
 }: {
   projectId: string;
   planId: string;
   node: PlanNode;
+  orgRef?: string;
   canRemove: boolean;
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
+      {/* v2.9.1 UX point 1: human Task id (T-number) column. */}
+      <td className="py-1.5 pr-3 align-top">
+        <TaskIdTag taskId={node.task_id} orgRef={orgRef} testId="plan-row-taskid" />
+      </td>
       <td className="max-w-[18rem] py-1.5 pr-3 text-text-primary" title={node.title}>
         <TaskTitleLink
           projectId={projectId}
