@@ -25,6 +25,8 @@
 > **Conversation 不是日志，是产品骨架。** Task / Issue / 决策 / 进度全挂在 Conversation 上 —— 这是 agent-center 跟"agent 是脚本"思路最大的区别。每一次 dispatch、每一个 InputRequest、每一份 artifact，都能在原线程里追溯。
 
 > [!IMPORTANT]
+> **v2.9.1 已发布（2026-06-14）** —— **消息 Thread**：从任一消息派生 thread、在弹出侧边栏里回复（Slack 式单层），Participants 侧栏有 thread 列表；**在 thread 内 @提及项目 agent 会唤醒它、且其回复落在该 thread 内**,"有无新活动"标记提示未读 —— 适用所有会话类型。外加一波任务模型/看板收尾:**claimable + 每项目内置指派池**(指派≠领取;三段 Work Board —— Backlog · 内置池 · 结构化 Plan)、更简的**任务状态机**(`blocked` 改为可恢复注解、删除 `verified`)、看板可见性修复(终态任务 & 归档项目条目默认不进列表;大 plan 任务列表带搜索/行内改派)、**频道归档**、`list_tasks` MCP 工具、任务恢复工具(`unblock_task`/`rerun_failed_node` + 自动重派)、以及全量设计 token 迁移。详见 [CHANGELOG](./CHANGELOG.md)。
+>
 > **v2.9 已发布（2026-06-12）** —— **Plan 编排（Plan Orchestration）**：把工作组织成任务的 DAG（一个 *Plan*）、`start` 它，center 随上游任务完成自动把每个就绪节点派发给对应 agent —— plan 一路跑到完成、无需手动推进。PM 型 agent 还能通过自己的 MCP 工具编程式建 plan 并跑起来。Plan 与 Project 有明确生命周期（draft / running / done，外加**不可逆归档**=只读；有 running task 的 plan 不能归档）。**org 路由显式化** —— 每个 org-scoped API 都挂在 `/api/orgs/{slug}/...` 下、消除隐含 org 状态。**plan 会话现在也纳入 @提及唤醒** —— 在 plan 会话里 @提及一个项目 agent 会唤醒它（issue / task 会话自 v2.7.1 起就支持；plan 会话与非-participant 的 project-member 广度是 v2.9 新增）。Web Console、拉取模型派发、first-mile 部署从 v2.4–v2.8.1 延续。详见 [CHANGELOG](./CHANGELOG.md)。
 
 <br/>

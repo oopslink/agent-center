@@ -15,6 +15,59 @@ ADR / phase plan landscape, see
 
 _Nothing yet — released work is tracked in the per-version sections below._
 
+## [v2.9.1] — 2026-06-14
+
+Message Threads + a task-model / board / tooling cleanup wave.
+
+### Added
+
+- **Message Threads.** Derive a thread from any message — a thread affordance
+  opens a popout **thread sidebar** (root message + replies + a thread composer);
+  **Slack-style single level** (depth-1 enforced server-side). A **thread list** in
+  the Participants sidebar lists every thread. **@mentioning a project agent inside
+  a thread wakes it and the agent's reply lands in that thread** (root carried
+  through the wake→brief→post-message chain). A **"new activity" marker** flags
+  unseen replies and clears on view. Works across all conversation types.
+- **claimable + built-in assignment pool.** A task is **claimable** (an agent may
+  start it) only when it's assigned, in a plan, and that plan node is dispatched —
+  *assign ≠ claim* (assignment is ownership; dispatch is "act now"). Each project
+  gets a **built-in assignment pool** (a flat, always-on plan): tasks there are
+  claimable any time (pull, no auto-wake). The Work Board is now **three segments**
+  — Backlog (captured, not claimable) · Built-in pool (claimable) · structured
+  Plans (DAG). `get_my_work` returns only claimable tasks.
+- **Task recovery.** `unblock_task` / `rerun_failed_node` recover a task left stuck
+  `blocked` after a restart / stale work-item release; plus **auto-redispatch** of
+  a stale-released node when its assignee returns (retry-capped).
+- **`list_tasks` MCP tool** — list a project's tasks, filterable by status / assignee.
+- **Channel archive.** Archive a channel (irreversible, like a project): read-only
+  (mutations → 409), excluded from the default list (`?status=archived` to see),
+  with an Archived group in the UI.
+
+### Changed
+
+- **Task state machine 7 → 5 (ADR-0046).** Removed `blocked` (being stuck is now a
+  `blocked_reason` annotation on a `running` task — no more deadlock class) and
+  `verified` (`completed` is the terminal "done"; the no-self-accept discipline
+  lives in process). Existing rows migrate (blocked→running keeping the reason,
+  verified→completed).
+- **Board visibility.** The backlog / task list excludes terminal tasks
+  (completed / discarded) by default (filterable via `?status=`); the Plan detail
+  task list shows **all** tasks with search / scroll / inline reassignment (no
+  silent truncation); an archived project's tasks & issues are hidden from the
+  task / issue pages by default.
+- **Plan detail UX.** Task ids (`T<n>`) on DAG nodes + task list; chat / DAG / Task
+  as three tabs (chat default); compact DAG layout for large plans; in-graph
+  dependency editing (click + keyboard, cycle/self blocked in the UI) replacing the
+  old dependency dropdown.
+- **Design tokens.** The SPA's raw Tailwind palette classes are migrated to
+  semantic CSS-var tokens (both-mode AA preserved); the `no-raw-colors` gate is
+  green.
+
+### Fixed
+
+- Restored the `spa-eslint` gate (registered the referenced `jsx-a11y` rules as
+  no-op stubs so an `eslint-disable` directive no longer hard-errors).
+
 ## [v2.9] — 2026-06-12
 
 Plan Orchestration + explicit org routing (58 PRs).
