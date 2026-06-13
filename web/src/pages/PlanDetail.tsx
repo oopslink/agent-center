@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
 import { useProject } from '@/api/projects';
@@ -20,6 +20,7 @@ import {
   type PatchPlanInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
+import { useTasksList } from '@/api/tasks';
 import { useDisplayNameResolver, normalizeIdentityRef, refKind } from '@/api/members';
 import { formatLocalTime } from '@/utils/time';
 import { Skeleton } from '@/components/Skeleton';
@@ -50,85 +51,19 @@ import { TaskTitleLink } from '@/components/TaskTitleLink';
 // (ErrPlanCycle) and self-edge-rejected (ErrSelfDependency); the editor is gated
 // to draft to match, and a running/done plan stays DISPLAY-ONLY.
 
-type Tab = 'dag' | 'tasks';
+// v2.9.1 UX point 4: chat / DAG / Task list as three independent tabs (default
+// chat). Replaces the prior DAG|Task two-tab + resizable chat side-splitter.
+type Tab = 'chat' | 'dag' | 'tasks';
 
-// ── DAG↔chat resizable splitter (v2.9 Stage A8) ──────────────────────────────
-// @oopslink's request: the fixed 330px chat side is now a USER-RESIZABLE column.
-// The split is only side-by-side at lg+ (small screens stay stacked, no
-// splitter). The chat-side WIDTH (px) is tracked in state, applied via an inline
-// `gridTemplateColumns: 1fr <handle> <chatWidth>px`, persisted in localStorage,
-// and clamped to a sane band so the chat never collapses and the DAG stays
-// usable. The handle is a keyboard-operable role="separator" (ArrowKeys step).
-const CHAT_WIDTH_KEY = 'planDetail.chatWidth';
-const CHAT_WIDTH_MIN = 260;
-const CHAT_WIDTH_MAX = 560;
-const CHAT_WIDTH_DEFAULT = 330; // matches the previous fixed layout
-const CHAT_WIDTH_STEP = 16; // keyboard ArrowKey increment
-const SPLIT_HANDLE_W = 6; // px — the draggable handle column width
-
-function clampChatWidth(px: number): number {
-  if (Number.isNaN(px)) return CHAT_WIDTH_DEFAULT;
-  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, Math.round(px)));
-}
-
-function readStoredChatWidth(): number {
-  try {
-    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
-      return CHAT_WIDTH_DEFAULT;
-    }
-    const raw = localStorage.getItem(CHAT_WIDTH_KEY);
-    if (raw == null) return CHAT_WIDTH_DEFAULT;
-    const n = Number.parseFloat(raw);
-    if (Number.isNaN(n)) return CHAT_WIDTH_DEFAULT;
-    return clampChatWidth(n); // clamp on restore
-  } catch {
-    return CHAT_WIDTH_DEFAULT;
-  }
-}
-
-function writeStoredChatWidth(px: number): void {
-  try {
-    if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
-      localStorage.setItem(CHAT_WIDTH_KEY, String(px));
-    }
-  } catch {
-    // best-effort (private mode / quota) — width still works in-session.
-  }
-}
-
-// lg breakpoint (Tailwind lg = 1024px) — drives whether the resizable
-// side-by-side layout (+ splitter) renders vs the stacked small-screen layout.
-// matchMedia-unavailable (jsdom/SSR) defaults to TRUE so the side-by-side
-// resizable layout (the primary surface) renders; real small screens get the
-// media-query `false` and stay stacked.
-function useIsWideLayout(): boolean {
-  const query = '(min-width: 1024px)';
-  const getMatch = () => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
-    return window.matchMedia(query).matches;
-  };
-  const [wide, setWide] = useState<boolean>(getMatch);
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mql = window.matchMedia(query);
-    const onChange = () => setWide(mql.matches);
-    onChange();
-    // addEventListener is the modern API; guard for older jsdom/Safari.
-    if (typeof mql.addEventListener === 'function') {
-      mql.addEventListener('change', onChange);
-      return () => mql.removeEventListener('change', onChange);
-    }
-    mql.addListener(onChange);
-    return () => mql.removeListener(onChange);
-  }, []);
-  return wide;
-}
+// (v2.9.1 point 4) The DAG↔chat resizable side-splitter (v2.9 Stage A8) was
+// removed — chat is now a top-level tab (see the 3-tab layout above), so the
+// chat-width state / localStorage persistence / lg-breakpoint splitter are gone.
 
 export default function PlanDetail(): React.ReactElement {
   const { id = '', planId = '' } = useParams<{ id: string; planId: string }>();
   const project = useProject(id);
   const plan = usePlan(id, planId);
-  const [tab, setTab] = useState<Tab>('dag');
+  const [tab, setTab] = useState<Tab>('chat');
 
   const projectName = project.data?.name ?? id;
 
@@ -182,8 +117,12 @@ export default function PlanDetail(): React.ReactElement {
       <div className="rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
         <PlanDetailHeader projectId={id} plan={p} />
 
-        {/* Tabs — DAG (推进计划) / Task list (任务列表 N). NO backlog tab. */}
+        {/* Tabs — Chat (default) / DAG (推进计划) / Task list (任务列表 N).
+            NO backlog tab (planning is on the Board). v2.9.1 point 4. */}
         <div className="flex items-center gap-1 px-4 pt-2" role="tablist" data-testid="plan-tabs">
+          <TabButton id="chat" active={tab === 'chat'} onSelect={setTab}>
+            Chat (对话)
+          </TabButton>
           <TabButton id="dag" active={tab === 'dag'} onSelect={setTab}>
             DAG (推进计划)
           </TabButton>
@@ -195,149 +134,23 @@ export default function PlanDetail(): React.ReactElement {
           </span>
         </div>
 
-        {/* Grid — main (DAG / task list) + a draggable splitter + side (plan
-            conversation). Resizable on lg+; stacked on small screens. */}
-        <PlanDetailSplitLayout
-          main={
-            tab === 'dag' ? (
-              <PlanDag projectId={id} plan={p} />
-            ) : (
-              <PlanTaskList projectId={id} plan={p} />
-            )
-          }
-          side={<PlanConversationSide conversationId={p.conversation_id} />}
-        />
+        {/* Single tabbed content area (point 4: chat is now a tab, not a side
+            splitter). Chat stays mounted-but-hidden across tabs so its SSE
+            subscription + scroll/composer-draft survive; DAG/Task mount lazily
+            when their tab is active. */}
+        <div className="p-4" data-testid="plan-detail-content">
+          <div role="tabpanel" hidden={tab !== 'chat'} data-testid="plan-panel-chat">
+            <PlanConversationSide conversationId={p.conversation_id} />
+          </div>
+          <div role="tabpanel" hidden={tab !== 'dag'} data-testid="plan-panel-dag">
+            {tab === 'dag' && <PlanDag projectId={id} plan={p} />}
+          </div>
+          <div role="tabpanel" hidden={tab !== 'tasks'} data-testid="plan-panel-tasks">
+            {tab === 'tasks' && <PlanTaskList projectId={id} plan={p} />}
+          </div>
+        </div>
       </div>
     </section>
-  );
-}
-
-// ── Resizable DAG↔chat split layout (v2.9 Stage A8) ──────────────────────────
-// On lg+ : `1fr <handle> <chatWidth>px` grid with a draggable role="separator"
-// handle (pointer-drag + ArrowKey-step, both clamped + localStorage-persisted).
-// Below lg : a plain stacked grid (no splitter), matching the prior behavior.
-function PlanDetailSplitLayout({
-  main,
-  side,
-}: {
-  main: React.ReactNode;
-  side: React.ReactNode;
-}): React.ReactElement {
-  const wide = useIsWideLayout();
-  const [chatWidth, setChatWidth] = useState<number>(() => readStoredChatWidth());
-  // Live drag state: the chat width and pointer-x at pointerdown.
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-  // Persist whenever the width settles (covers drag-end + keyboard steps).
-  // `next` is a delta-from-current updater so sequential keypresses compound
-  // correctly (no stale-closure on chatWidth between rapid presses).
-  const commitWidth = useCallback((compute: (current: number) => number) => {
-    setChatWidth((current) => {
-      const clamped = clampChatWidth(compute(current));
-      writeStoredChatWidth(clamped);
-      return clamped;
-    });
-  }, []);
-
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      dragRef.current = { startX: e.clientX, startWidth: chatWidth };
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-    },
-    [chatWidth],
-  );
-
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    // Dragging LEFT (negative delta) makes the chat WIDER (the chat is the
-    // right column), so subtract the delta from the start width.
-    const delta = e.clientX - drag.startX;
-    setChatWidth(clampChatWidth(drag.startWidth - delta));
-  }, []);
-
-  const endDrag = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragRef.current) return;
-      dragRef.current = null;
-      e.currentTarget.releasePointerCapture?.(e.pointerId);
-      // Persist the final width (read from state via functional update to avoid
-      // a stale closure).
-      setChatWidth((w) => {
-        writeStoredChatWidth(w);
-        return w;
-      });
-    },
-    [],
-  );
-
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      // ArrowLeft = wider chat; ArrowRight = narrower chat (mirrors the
-      // drag-left-to-widen direction). Up/Down mirror Left/Right for convenience.
-      let compute: ((w: number) => number) | null = null;
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') compute = (w) => w + CHAT_WIDTH_STEP;
-      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') compute = (w) => w - CHAT_WIDTH_STEP;
-      else if (e.key === 'Home') compute = () => CHAT_WIDTH_MAX;
-      else if (e.key === 'End') compute = () => CHAT_WIDTH_MIN;
-      if (compute == null) return;
-      e.preventDefault();
-      commitWidth(compute);
-    },
-    [commitWidth],
-  );
-
-  // Small screens: stacked, no splitter (matches the prior lg-gated layout).
-  if (!wide) {
-    return (
-      <div className="grid grid-cols-1" data-testid="plan-detail-split">
-        <div className="border-b border-border-base p-4" data-testid="plan-detail-main">
-          {main}
-        </div>
-        <div className="p-4" data-testid="plan-detail-side">
-          {side}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="grid"
-      style={{ gridTemplateColumns: `1fr ${SPLIT_HANDLE_W}px ${chatWidth}px` }}
-      data-testid="plan-detail-split"
-      data-split-wide="true"
-    >
-      <div className="border-border-base p-4" data-testid="plan-detail-main">
-        {main}
-      </div>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize plan conversation panel"
-        aria-valuemin={CHAT_WIDTH_MIN}
-        aria-valuemax={CHAT_WIDTH_MAX}
-        aria-valuenow={chatWidth}
-        tabIndex={0}
-        data-testid="plan-split-handle"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onKeyDown={onKeyDown}
-        className="group relative cursor-col-resize touch-none select-none border-l border-r border-border-base bg-bg-subtle outline-none transition-colors hover:bg-bg-base focus-visible:bg-bg-base focus-visible:ring-2 focus-visible:ring-accent"
-      >
-        {/* center grip line — a clearer grab affordance */}
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-strong group-hover:bg-accent"
-        />
-      </div>
-      <div className="p-4" data-testid="plan-detail-side">
-        {side}
-      </div>
-    </div>
   );
 }
 
@@ -958,6 +771,45 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
   );
 }
 
+// v2.9.1 UX point 1: the human Task id (org_ref, e.g. "T123") is on the Task DTO,
+// not the PlanNode. Resolve it FE-side via the project's task list (one cached
+// query) → a task_id → org_ref map. Returns a resolver; absent/not-yet-loaded →
+// undefined (callers fall back to the #id-tail handle, the established pattern).
+function useTaskOrgRefResolver(projectId: string): (taskId: string) => string | undefined {
+  const tasks = useTasksList(projectId);
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of tasks.data ?? []) {
+      if (t.org_ref) map.set(t.id, t.org_ref);
+    }
+    return (taskId: string) => map.get(taskId);
+  }, [tasks.data]);
+}
+
+// TaskIdTag — a small monospace pill showing the human Task id (org_ref "T123"),
+// falling back to "#"+id-tail when there's no org_ref (#192 id-as-content). Solid
+// theme tokens (both-mode AA, no alpha-tint). Full task_id on hover.
+function TaskIdTag({
+  taskId,
+  orgRef,
+  testId,
+}: {
+  taskId: string;
+  orgRef?: string;
+  testId: string;
+}): React.ReactElement {
+  const label = orgRef || `#${idHandle(taskId)}`;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
+      data-testid={testId}
+      title={taskId}
+    >
+      {label}
+    </span>
+  );
+}
+
 // assignee_ref → avatar (agent/human) + clean handle.
 function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactElement {
   const resolveName = useDisplayNameResolver();
@@ -1144,6 +996,13 @@ function SyntheticAnchorMarker({
 function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
+  const orgRefOf = useTaskOrgRefResolver(projectId);
+  // v2.9.1 UX point 2: a "Compact" toggle uniformly zooms the DAG down so a long
+  // (many-level) / wide plan fits in view without endless horizontal scrolling.
+  // CSS transform (content scales cleanly, no node-content overflow); the scroll
+  // area is sized to the scaled extent. Layout algorithm is untouched.
+  const [compact, setCompact] = useState(false);
+  const scale = compact ? 0.7 : 1;
 
   const { positioned, width, height, start, end } = useMemo(() => layoutDag(nodes), [nodes]);
   const posById = useMemo(
@@ -1207,12 +1066,39 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
           No tasks in this plan yet. Add tasks from the Work Board.
         </p>
       ) : (
+        <>
+        {/* v2.9.1 point 2: compact (zoom-to-fit) toggle for long/wide DAGs. */}
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setCompact((c) => !c)}
+            aria-pressed={compact}
+            data-testid="plan-dag-compact-toggle"
+            className="rounded border border-border-strong px-2 py-0.5 text-[0.6875rem] font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {compact ? 'Compact: on' : 'Compact'}
+          </button>
+        </div>
         <div
           className="relative overflow-auto rounded-lg border border-border-base bg-bg-subtle"
           data-testid="plan-dag-canvas"
+          data-compact={compact ? 'true' : 'false'}
           style={{ maxHeight: 480 }}
         >
-          <div className="relative" style={{ width, height }}>
+          {/* Sizing wrapper reserves the SCALED extent so the scroll area is
+              correct; the inner layer keeps its natural size and is zoomed via
+              transform (transform doesn't affect layout box). */}
+          <div style={{ width: width * scale, height: height * scale }}>
+          <div
+            className="relative"
+            data-testid="plan-dag-scaler"
+            style={{
+              width,
+              height,
+              transform: scale === 1 ? undefined : `scale(${scale})`,
+              transformOrigin: 'top left',
+            }}
+          >
             {/* Edges (z-0, behind nodes). */}
             <svg
               className="absolute left-0 top-0"
@@ -1270,6 +1156,10 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                   data-task-id={p.node.task_id}
                   data-level={p.level}
                 >
+                  {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node. */}
+                  <div className="mb-1">
+                    <TaskIdTag taskId={p.node.task_id} orgRef={orgRefOf(p.node.task_id)} testId="plan-node-taskid" />
+                  </div>
                   <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
                     <TaskTitleLink
                       projectId={projectId}
@@ -1296,7 +1186,9 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
             {start && <SyntheticAnchorMarker kind="start" anchor={start} />}
             {end && <SyntheticAnchorMarker kind="end" anchor={end} />}
           </div>
+          </div>
         </div>
+        </>
       )}
 
       {/* Legend (all 6 states) — the lifecycle controls live in the header
@@ -1526,6 +1418,7 @@ function PlanDagEditor({ projectId, plan }: { projectId: string; plan: Plan }): 
 function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const canRemove = plan.status === 'draft';
+  const orgRefOf = useTaskOrgRefResolver(projectId);
   return (
     <div data-testid="plan-task-list">
       {nodes.length === 0 ? (
@@ -1537,6 +1430,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
           <table className="w-full text-left text-xs" data-testid="plan-task-list-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
+                <th className="py-1.5 pr-3 font-medium">Task</th>
                 <th className="py-1.5 pr-3 font-medium">Title</th>
                 <th className="py-1.5 pr-3 font-medium">Assignee</th>
                 <th className="py-1.5 pr-3 font-medium">Task status</th>
@@ -1551,6 +1445,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
                   projectId={projectId}
                   planId={plan.id}
                   node={n}
+                  orgRef={orgRefOf(n.task_id)}
                   canRemove={canRemove}
                 />
               ))}
@@ -1570,16 +1465,22 @@ function PlanTaskRow({
   projectId,
   planId,
   node,
+  orgRef,
   canRemove,
 }: {
   projectId: string;
   planId: string;
   node: PlanNode;
+  orgRef?: string;
   canRemove: boolean;
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
+      {/* v2.9.1 UX point 1: human Task id (T-number) column. */}
+      <td className="py-1.5 pr-3 align-top">
+        <TaskIdTag taskId={node.task_id} orgRef={orgRef} testId="plan-row-taskid" />
+      </td>
       <td className="max-w-[18rem] py-1.5 pr-3 text-text-primary" title={node.title}>
         <TaskTitleLink
           projectId={projectId}
