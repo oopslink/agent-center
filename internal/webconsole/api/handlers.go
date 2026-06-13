@@ -361,8 +361,17 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		kk := conversation.ConversationKind(k)
 		filter.Kind = &kk
 	}
-	if st := r.URL.Query().Get("status"); st != "" {
-		ss := conversation.ConversationStatus(st)
+	// v2.9.1 (task-169c598d): the conversation/channel list EXCLUDES archived by
+	// DEFAULT, mirroring the project list (#298). ?status=<specific> (incl.
+	// "archived") returns only that status; ?status=all returns every status;
+	// no ?status= (default) excludes archived. The default-exclude is applied as a
+	// post-filter below (a single Status filter can't express "not archived").
+	statusParam := r.URL.Query().Get("status")
+	switch statusParam {
+	case "", "all":
+		// "" → default-exclude archived (post-filter below); "all" → no status filter.
+	default:
+		ss := conversation.ConversationStatus(statusParam)
 		filter.Status = &ss
 	}
 	// v2.7 #137: fetch a task/issue conversation by owner_ref (pm://tasks|
@@ -377,6 +386,19 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
+	}
+	// Default view (no ?status=) excludes archived conversations/channels; they
+	// remain reachable via ?status=archived (handled by the repo filter above) or
+	// ?status=all. Mirrors the project list default-exclude (#298).
+	if statusParam == "" {
+		kept := make([]*conversation.Conversation, 0, len(convs))
+		for _, c := range convs {
+			if c.Status() == conversation.ConversationArchived {
+				continue
+			}
+			kept = append(kept, c)
+		}
+		convs = kept
 	}
 	self := conversation.IdentityRef(d.Actor)
 	// v2.8 #268: per-row unread/mention/followed badges for the sidebar.
@@ -1590,8 +1612,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "version_conflict", err.Error())
 	case errors.Is(err, conversation.ErrReadStateMessageNotInConversation):
 		writeError(w, http.StatusUnprocessableEntity, "message_not_in_conversation", err.Error())
-	case errors.Is(err, conversation.ErrConversationArchived),
-		errors.Is(err, conversation.ErrConversationClosed):
+	case errors.Is(err, conversation.ErrConversationArchived):
+		// v2.9.1 (task-169c598d): an archived conversation/channel is read-only;
+		// mutations reject with 409 Conflict — aligning channel archive with the
+		// PROJECT archive semantic (ErrProjectArchived → 409 "project_archived",
+		// #297) so the whole archive family is cross-surface consistent.
+		writeError(w, http.StatusConflict, "conversation_archived", err.Error())
+	case errors.Is(err, conversation.ErrConversationClosed):
 		writeError(w, http.StatusForbidden, "conversation_terminal", err.Error())
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),
 		errors.Is(err, convservice.ErrParticipantAlreadyActive):
