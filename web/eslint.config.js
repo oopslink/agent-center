@@ -34,13 +34,27 @@ const reactHooksStub = {
   rules: { 'exhaustive-deps': noop, 'rules-of-hooks': noop },
 };
 
+// Same rationale for jsx-a11y: the source carries a few `// eslint-disable-next-line
+// jsx-a11y/...` directives (e.g. an intentional onClick on a test wrapper div).
+// This config does NOT lint a11y, but ESLint hard-errors on a disable directive
+// that references an unknown rule ("Definition for rule '...' was not found"),
+// which left the spa-eslint gate baseline-red on main (gate-health bug, NOT a
+// code violation). Register the referenced jsx-a11y rules as no-op stubs so the
+// directives stay valid without pulling in a11y linting (out of scope here).
+const jsxA11yStub = {
+  rules: {
+    'no-static-element-interactions': noop,
+    'click-events-have-key-events': noop,
+  },
+};
+
 export default [
   {
     files: ['src/**/*.{ts,tsx}'],
     // Legacy react-hooks disable directives are no-ops here (see stub above);
     // don't flag them as "unused" — this config isn't the hooks linter.
     linterOptions: { reportUnusedDisableDirectives: 'off' },
-    plugins: { 'react-hooks': reactHooksStub },
+    plugins: { 'react-hooks': reactHooksStub, 'jsx-a11y': jsxA11yStub },
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 'latest',
