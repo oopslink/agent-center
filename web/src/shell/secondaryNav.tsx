@@ -1,4 +1,5 @@
 import type React from 'react';
+import WorkspaceSecondaryNav from '@/shell/nav/WorkspaceSecondaryNav';
 
 // ============================================================================
 // v2.10.0 [T1] — col② per-module secondary-nav registry.
@@ -35,6 +36,8 @@ export type ModuleSecondaryNav = React.ComponentType<ModuleSecondaryNavProps>;
 // Per-module col② overrides. Empty = every module uses the shell default.
 // Module tasks add their entry here (and only here, besides their own file).
 export const SECONDARY_NAV_REGISTRY: Partial<Record<ShellModuleId, ModuleSecondaryNav>> = {
+  // v2.10.0 [T4]: route-aware Workspace nav (top-level list ↔ project sub-nav).
+  workspace: WorkspaceSecondaryNav,
   // conversations: ConversationsSecondaryNav,   // T2 (dev1)
   // members:       MembersSecondaryNav,         // T7 (dev3)
   // system:        SystemSecondaryNav,          // T8 (dev3)
