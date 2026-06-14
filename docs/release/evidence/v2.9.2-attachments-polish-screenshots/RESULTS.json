@@ -1,0 +1,60 @@
+{
+  "results": [
+    [
+      "G4_oversize_rejected",
+      "OK",
+      "reject=\"huge.png — exceeds the 25 MB limit\""
+    ],
+    [
+      "G4_empty_rejected",
+      "OK",
+      "reject=\"empty.txt — is empty\""
+    ],
+    [
+      "G4_valid_staged",
+      "OK",
+      "1 staged chip(s)"
+    ],
+    [
+      "G1_dropzone_overlay",
+      "OK",
+      "dragenter→overlay; types.Files=true"
+    ],
+    [
+      "G1_drop_staged",
+      "OK",
+      "dropped file staged"
+    ],
+    [
+      "G1_drop_received",
+      "OK",
+      "dropped image rendered in message list"
+    ],
+    [
+      "G2_paste_staged",
+      "OK",
+      "pasted screenshot staged"
+    ],
+    [
+      "G2_paste_received",
+      "OK",
+      "pasted image rendered"
+    ],
+    [
+      "G3_progressbar_shown",
+      "OK",
+      "progressbar role rendered, max aria-valuenow=0"
+    ],
+    [
+      "G3_progress_received",
+      "OK",
+      "file uploaded+sent after progress"
+    ]
+  ],
+  "notes": [
+    "paste synthetic event clipFiles={\"typesHasFiles\":true,\"clipFiles\":1}"
+  ],
+  "consoleErrors": [],
+  "bin": "/Users/oopslink/works/codes/oopslink/ac-wt-v292acc/bin/agent-center",
+  "commit": "62413fc"
+}
