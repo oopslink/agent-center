@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { MarkdownMessage } from './MarkdownMessage';
 import { SenderSidebarProvider } from './SenderSidebarContext';
+import { OrgContext } from '@/OrgContext';
 
 // #281 entry ②: @mention tokens in message content open the existing kind-routed
 // SenderDetailSidebar. Mentions weren't previously distinct tokens — this asserts
@@ -154,5 +155,119 @@ describe('MentionText (#281 entry ②)', () => {
     // members resolve, but @nobody matches no member → stays plain text.
     await waitFor(() => expect(screen.getByTestId('markdown-message')).toHaveTextContent('hello @nobody here'));
     expect(screen.queryByTestId('mention-token')).toBeNull();
+  });
+});
+
+// v2.9.2 (task-82915d7c): a `task-<id>` reference in message content linkifies to
+// the task detail page, labelled with the human Task id ("T123", org_ref). The
+// resolver reads the org task list; an unknown / out-of-org id stays plain text.
+function renderInOrg(ui: React.ReactElement, slug = 'test-org') {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <OrgContext.Provider value={{ slug, orgId: 'O', orgName: 'Test Org' }}>
+        <SenderSidebarProvider>{ui}</SenderSidebarProvider>
+      </OrgContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
+// One known org task (task-abc → T123 in proj-x). Mentions resolve to no member
+// (empty list) — task-only content still needs the members handler since the
+// markdown mention pipeline loads it.
+function mockOrgTasks() {
+  server.use(
+    http.get('/api/members', () => HttpResponse.json([])),
+    http.get('/api/tasks', () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: 'task-abc', org_ref: 'T123', project: { id: 'proj-x', name: 'Project X' },
+            title: 'Wire the thing', status: 'open', assignee: null,
+            updated_at: 'x', created_at: 'x',
+          },
+          {
+            // a task WITHOUT an org_ref → label falls back to #id-tail.
+            id: 'task-noref', project: { id: 'proj-x', name: 'Project X' },
+            title: 'No ref task', status: 'open', assignee: null,
+            updated_at: 'x', created_at: 'x',
+          },
+        ],
+        total: 2,
+      }),
+    ),
+  );
+}
+
+describe('MentionText task-ref linkify (task-82915d7c)', () => {
+  afterEach(() => cleanup());
+
+  it('renders a known task-<id> as a T123 link to the task detail page (new tab)', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'please see task-abc for context'} />);
+    const link = await screen.findByTestId('task-ref-token');
+    expect(link.tagName).toBe('A');
+    // label = org_ref, NOT the raw task id.
+    expect(link).toHaveTextContent('T123');
+    expect(link).not.toHaveTextContent('task-abc');
+    // org-prefixed task detail route, opened in a new tab with opener guards.
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-abc');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(link).toHaveAttribute('data-task-id', 'task-abc');
+  });
+
+  it('falls back to the #id-tail handle when the task has no org_ref', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'blocked on task-noref now'} />);
+    const link = await screen.findByTestId('task-ref-token');
+    expect(link).toHaveTextContent('#');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-noref');
+  });
+
+  it('leaves an UNKNOWN / out-of-org task-<id> as plain text (no dangling link)', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'ref task-zzz does not exist'} />);
+    await waitFor(() =>
+      expect(screen.getByTestId('markdown-message')).toHaveTextContent('ref task-zzz does not exist'),
+    );
+    expect(screen.queryByTestId('task-ref-token')).toBeNull();
+  });
+
+  it('does NOT linkify task- embedded in a larger word (subtask-abc)', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'this subtask-abc is not a ref'} />);
+    await waitFor(() =>
+      expect(screen.getByTestId('markdown-message')).toHaveTextContent('this subtask-abc is not a ref'),
+    );
+    // the negative lookbehind prevents matching task-abc inside subtask-abc.
+    expect(screen.queryByTestId('task-ref-token')).toBeNull();
+  });
+
+  it('linkifies a mention AND a task-ref in the same line', async () => {
+    server.use(
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'm2', organization_id: 'O', identity_id: 'user:alice', display_name: 'Alice', kind: 'user', role: 'member', status: 'joined', joined_at: 'x' },
+        ]),
+      ),
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [{ id: 'task-abc', org_ref: 'T123', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
+          total: 1,
+        }),
+      ),
+    );
+    renderInOrg(<MarkdownMessage content={'@alice please take task-abc'} />);
+    expect(await screen.findByTestId('mention-token')).toHaveTextContent('@alice');
+    expect(await screen.findByTestId('task-ref-token')).toHaveTextContent('T123');
+  });
+
+  it('does NOT linkify a task-ref inside a fenced code block', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'```\nrun task-abc here\n```'} />);
+    // code fences render through CollapsibleCodeBlock, never the linkify pipeline.
+    await waitFor(() => expect(screen.getByTestId('markdown-message')).toBeInTheDocument());
+    expect(screen.queryByTestId('task-ref-token')).toBeNull();
   });
 });
