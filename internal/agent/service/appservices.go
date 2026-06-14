@@ -401,6 +401,50 @@ func (s *Service) ResumeWork(ctx context.Context, agentID agent.AgentID, workIte
 	})
 }
 
+// ResumeWorkByOperator resumes a PAUSED work item on behalf of an OPERATOR
+// (PD/owner) rather than the owning agent (T53). It is the recovery path for a
+// plan node whose agent paused its work item and then went idle, leaving the node
+// stuck: ResumeWork is agent-ownership-guarded, so no operator could un-stick it.
+// This deliberately SKIPS the ownership guard (the CALLER authorizes the operator
+// — e.g. pm project-membership) but keeps every OTHER invariant: the item must be
+// paused (Resume enforces paused→active), and single-active is still enforced
+// (HasActiveWorkItem pre-check + the DB UNIQUE backstop) so a busy agent is not
+// double-activated. Returns the owning agent id so the caller can wake it.
+func (s *Service) ResumeWorkByOperator(ctx context.Context, workItemID string) (agent.AgentID, error) {
+	now := s.clock.Now()
+	var agentID agent.AgentID
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		wi, err := s.workItems.FindByID(txCtx, workItemID)
+		if err != nil {
+			return err
+		}
+		agentID = wi.AgentID()
+		// Operator resume is strictly paused→active: a queued/active/terminal item is
+		// not "stuck paused", so reject it (Resume itself would permit queued→active).
+		if wi.Status() != agent.WorkItemPaused {
+			return agent.ErrWorkItemIllegalMove
+		}
+		active, err := s.workItems.HasActiveWorkItem(txCtx, wi.AgentID())
+		if err != nil {
+			return err
+		}
+		if active {
+			return agent.ErrAgentHasActiveWork // the agent is busy on another item
+		}
+		if err := wi.Resume(now); err != nil { // paused→active
+			return err
+		}
+		if err := s.workItems.Update(txCtx, wi); err != nil {
+			if persistence.IsUniqueViolation(err) {
+				return agent.ErrAgentHasActiveWork
+			}
+			return err
+		}
+		return nil
+	})
+	return agentID, err
+}
+
 // AppendActivity appends an observation event to the Agent's append-only
 // activity stream (D2-c-i stdout→activity sink). It records an observation only
 // — it does NOT post to any Conversation. Returns the new event id.

@@ -13,11 +13,14 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
+	"github.com/oopslink/agent-center/internal/files"
+	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
 // errNoLiveWorkItem signals that the agent holds a WorkItem for the task but
@@ -178,6 +181,17 @@ func (s *Server) postTaskMessageHandler(w http.ResponseWriter, r *http.Request) 
 
 // --- post_message (v2.7 #185) ------------------------------------------------
 
+// agentAttachmentReq is the wire shape for one file an agent attaches to a
+// message (T44) — a reference to an ALREADY-UPLOADED blob (ac://files/{ulid})
+// plus display metadata. The agent uploads via upload_file first, then names the
+// returned file_uri here. Mirrors the human msgAttachmentJSON.
+type agentAttachmentReq struct {
+	URI      string `json:"uri"`
+	Filename string `json:"filename"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
+}
+
 type postMessageReq struct {
 	AgentID        string `json:"agent_id"`
 	ConversationID string `json:"conversation_id"`
@@ -186,6 +200,9 @@ type postMessageReq struct {
 	// thread, the thread root id — so its reply lands in-thread instead of at
 	// conversation top-level. Empty for an ordinary top-level message.
 	ParentMessageID string `json:"parent_message_id"`
+	// Attachments (T44): already-uploaded files to attach to this message — the
+	// agent-side dual of the human chat-box attachment. Optional.
+	Attachments []agentAttachmentReq `json:"attachments"`
 }
 
 // postMessageHandler appends a message, as the agent, to ANY conversation
@@ -193,6 +210,14 @@ type postMessageReq struct {
 // conversation_id. v2.7 #185: this is the agent's reply path for DM/channel
 // conversations (post_task_message is task-owner-scoped + requires a WorkItem;
 // this is participant-scoped, no WorkItem needed). Authz = active participant.
+//
+// T44: the message may carry attachments — the agent-side dual of the human
+// chat-box attachment. Each attachment names an already-uploaded blob the agent
+// can reach in its OWN domain (agentReachable); the message stores the attachment
+// metadata AND a {ScopeConversation, convID} reference is added in the SAME tx so
+// the file is downloadable by the conversation's other participants (humans +
+// agents). Authz stays the participant gate — a non-participant is 403'd before
+// any write — and a not-reachable attachment is 403'd before the message lands.
 func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req postMessageReq
@@ -212,7 +237,10 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_conversation_id", "")
 		return
 	}
-	if strings.TrimSpace(req.Content) == "" {
+	// Content is required UNLESS the message carries at least one attachment — an
+	// attachment-only message (just a file, no text) is valid, mirroring the human
+	// chat box.
+	if strings.TrimSpace(req.Content) == "" && len(req.Attachments) == 0 {
 		writeError(w, http.StatusBadRequest, "missing_content", "")
 		return
 	}
@@ -243,20 +271,142 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 			"agent is not an active participant of this conversation")
 		return
 	}
-	res, err := d.MessageWriter.AddMessage(r.Context(), convservice.AddMessageCommand{
-		ConversationID:   conv.ID(),
-		SenderIdentityID: conversation.IdentityRef(agentActor(a)),
-		ContentKind:      conversation.MessageContentText,
-		Direction:        conversation.DirectionOutbound,
-		Content:          req.Content,
-		ParentMessageID:  conversation.MessageID(req.ParentMessageID), // F4: reply in-thread
-		Actor:            observability.Actor(agentActor(a)),
-	})
+
+	// T44: resolve + authorize attachments BEFORE any write. Each named file must
+	// parse and be reachable in the agent's OWN domain (e.g. uploaded by the agent
+	// via upload_file). A bad URI or an unreachable file → 403 before the message
+	// lands (atomic: no partial post).
+	atts, fileURIs, ok := s.resolveAgentAttachments(w, r, d, a, req.Attachments)
+	if !ok {
+		return
+	}
+
+	add := func(ctx context.Context) (convservice.AddMessageResult, error) {
+		res, aerr := d.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+			ConversationID:   conv.ID(),
+			SenderIdentityID: conversation.IdentityRef(agentActor(a)),
+			ContentKind:      conversation.MessageContentText,
+			Direction:        conversation.DirectionOutbound,
+			Content:          req.Content,
+			ParentMessageID:  conversation.MessageID(req.ParentMessageID), // F4: reply in-thread
+			Attachments:      atts,
+			Actor:            observability.Actor(agentActor(a)),
+		})
+		if aerr != nil {
+			return convservice.AddMessageResult{}, aerr
+		}
+		// Place a conversation-scope reference per attachment so the file becomes
+		// downloadable by the conversation's OTHER participants (humans reach it via
+		// their conversation membership; agents via agentParticipantConvScopes). Same
+		// tx as AddMessage — mirrors the human sendMessageHandler. Idempotent: if the
+		// agent already anchored this file in THIS conversation (e.g. it called
+		// upload_file with scope=conversation,scope_id=convID), we skip — AddReference
+		// does not dedup, so without this the natural upload→post flow would leave two
+		// identical live references.
+		for i, fileURI := range fileURIs {
+			att := req.Attachments[i]
+			exists, cerr := s.convRefExists(ctx, d, fileURI, conv.ID())
+			if cerr != nil {
+				return convservice.AddMessageResult{}, cerr
+			}
+			if exists {
+				continue
+			}
+			if _, rerr := d.FilesSvc.AddReference(ctx, filesservice.AddReferenceCmd{
+				FileURI:   fileURI,
+				Scope:     files.ScopeConversation,
+				ScopeID:   string(conv.ID()),
+				Filename:  att.Filename,
+				MimeType:  att.MimeType,
+				SizeBytes: att.Size,
+				CreatedBy: agentActor(a),
+			}); rerr != nil {
+				return convservice.AddMessageResult{}, rerr
+			}
+		}
+		return res, nil
+	}
+
+	var res convservice.AddMessageResult
+	if len(fileURIs) > 0 {
+		if d.DB == nil {
+			writeError(w, http.StatusNotImplemented, "db_not_wired", "database not wired")
+			return
+		}
+		err = persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+			var txErr error
+			res, txErr = add(txCtx)
+			return txErr
+		})
+	} else {
+		res, err = add(r.Context())
+	}
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"message_id": string(res.MessageID)})
+}
+
+// resolveAgentAttachments validates + maps the request attachments to domain
+// MessageAttachments and parsed FileURIs, enforcing per-file own-domain
+// reachability. On any failure it writes the error envelope and returns ok=false.
+// An empty input is a no-op success (nil, nil, true). Requires FilesSvc when any
+// attachment is present.
+func (s *Server) resolveAgentAttachments(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, in []agentAttachmentReq) ([]conversation.MessageAttachment, []files.FileURI, bool) {
+	if len(in) == 0 {
+		return nil, nil, true
+	}
+	if d.FilesSvc == nil {
+		writeError(w, http.StatusNotImplemented, "files_not_wired", "files service not wired")
+		return nil, nil, false
+	}
+	atts := make([]conversation.MessageAttachment, 0, len(in))
+	fileURIs := make([]files.FileURI, 0, len(in))
+	for _, att := range in {
+		fileURI, perr := files.ParseFileURI(att.URI)
+		if perr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_file_uri", perr.Error())
+			return nil, nil, false
+		}
+		reachable, rerr := s.agentReachable(d, r, a, fileURI)
+		if rerr != nil {
+			writeError(w, http.StatusInternalServerError, "reachability_failed", rerr.Error())
+			return nil, nil, false
+		}
+		if !reachable {
+			// Fail-closed: the agent named a file it cannot reach in its own domain
+			// (not uploaded by it / not in a task or conversation it is in).
+			writeError(w, http.StatusForbidden, "attachment_not_reachable",
+				"attachment "+att.URI+" is not reachable in the agent's own domain — upload it first (upload_file) or attach a file already in your domain")
+			return nil, nil, false
+		}
+		atts = append(atts, conversation.MessageAttachment{
+			URI: att.URI, Filename: att.Filename, MimeType: att.MimeType, Size: att.Size,
+		})
+		fileURIs = append(fileURIs, fileURI)
+	}
+	return atts, fileURIs, true
+}
+
+// convRefExists reports whether a LIVE {ScopeConversation, convID} reference to
+// fileURI already exists — used to keep post_message's reference-add idempotent
+// (AddReference does not dedup). A nil FilesSvc → false (the caller would not
+// reach here). A repo error is propagated so the enclosing tx rolls back.
+func (s *Server) convRefExists(ctx context.Context, d HandlerDeps, fileURI files.FileURI, convID conversation.ConversationID) (bool, error) {
+	if d.FilesSvc == nil {
+		return false, nil
+	}
+	refs, err := d.FilesSvc.ListReferences(ctx, fileURI)
+	if err != nil {
+		return false, err
+	}
+	for _, ref := range refs {
+		if ref.Scope == files.ScopeConversation && ref.ScopeID == string(convID) && ref.IsLive() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // agentIsActiveParticipant reports whether agent a is an active (non-left)
@@ -560,6 +710,62 @@ func (s *Server) rerunFailedNodeHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- resume_paused_node (T53) -----------------------------------------------
+
+type resumePausedNodeReq struct {
+	AgentID string `json:"agent_id"`
+	PlanID  string `json:"plan_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// resumePausedNodeHandler is the operator recovery action: a project-member agent
+// (PD) resumes a plan node whose agent paused its work item and went idle (shown
+// `paused` since T53). pm authorizes (project member + plan running) then resumes
+// the node's paused work item + wakes its agent so it continues. Authz = the
+// calling agent's project membership (agentActor), exactly like rerun_failed_node.
+func (s *Server) resumePausedNodeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req resumePausedNodeReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.ResumePausedNode(r.Context(), pm.PlanID(req.PlanID), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		writeResumePausedNodeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// writeResumePausedNodeError maps the T53 resume errors to HTTP. ErrNodeNotPaused
+// → 409 (nothing to resume), ErrAgentHasActiveWork → 409 (the agent is busy),
+// ErrPlanNotRunning → 409, ErrTaskNotInPlan → 404; the rest fall through to the
+// shared domain mapper (project-member 403 → 404 existence-non-disclosure, etc.).
+func writeResumePausedNodeError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, pmservice.ErrNodeNotPaused):
+		writeError(w, http.StatusConflict, "node_not_paused", "the plan node has no paused work item to resume")
+	case errors.Is(err, agent.ErrAgentHasActiveWork):
+		writeError(w, http.StatusConflict, "agent_busy", "the node's agent is busy on another work item; try again after it settles")
+	case errors.Is(err, pm.ErrPlanNotRunning):
+		writeError(w, http.StatusConflict, "plan_not_running", "the plan is not running")
+	case errors.Is(err, pmservice.ErrTaskNotInPlan):
+		writeError(w, http.StatusNotFound, "task_not_in_plan", "the task is not a node of this plan")
+	case errors.Is(err, pmservice.ErrNodeResumerUnavailable):
+		writeError(w, http.StatusNotImplemented, "resume_not_wired", "paused-node resume is not available")
+	default:
+		mapDomainError(w, err)
+	}
 }
 
 // --- complete_task -----------------------------------------------------------

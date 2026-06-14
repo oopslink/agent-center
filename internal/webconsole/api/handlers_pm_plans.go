@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
@@ -62,6 +63,13 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 		// archived, open, assigned, in this plan, node dispatched (e.g. built-in pool).
 		"claimable": pm.Claimable(l.archivedOf[n.TaskID], n.TaskStatus, l.assigneeOf[n.TaskID], l.planID, n.NodeStatus),
 	}
+	// v2.9.2 (task-0543ece9): the human Task id (org_ref "T123") rides on the node
+	// DTO so the Work Board card + agent-facing list show it WITHOUT a second
+	// task-list resolver query. Omitted (not ""-emitted) when unallocated (orgNumber
+	// 0 for pre-allocator rows), mirroring the task DTO's omit-when-empty contract.
+	if ref := l.orgRefOf[n.TaskID]; ref != "" {
+		node["org_ref"] = ref
+	}
 	if at := l.archivedAtOf[n.TaskID]; at != "" {
 		node["archived_at"] = at
 	}
@@ -80,6 +88,7 @@ type planNodeLookup struct {
 	assigneeOf   map[pm.TaskID]pm.IdentityRef
 	archivedOf   map[pm.TaskID]bool
 	archivedAtOf map[pm.TaskID]string
+	orgRefOf     map[pm.TaskID]string
 }
 
 func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
@@ -89,12 +98,14 @@ func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 		assigneeOf:   make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks)),
 		archivedOf:   make(map[pm.TaskID]bool, len(detail.Tasks)),
 		archivedAtOf: make(map[pm.TaskID]string, len(detail.Tasks)),
+		orgRefOf:     make(map[pm.TaskID]string, len(detail.Tasks)),
 	}
 	for _, t := range detail.Tasks {
 		l.titleOf[t.ID()] = t.Title()
 		l.assigneeOf[t.ID()] = t.Assignee()
 		l.archivedOf[t.ID()] = t.IsArchived()
 		l.archivedAtOf[t.ID()] = rfc3339OrEmptyPtr(t.ArchivedAt())
+		l.orgRefOf[t.ID()] = orgRefToken("T", t.OrgNumber())
 	}
 	return l
 }
@@ -124,31 +135,28 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	return m
 }
 
-// planListNodePreviewCap bounds the per-Plan node preview the LIST endpoint emits
-// for the Work Board card ("前4节点"); plans with more nodes report the full count
-// via node_count so the board can render the "…还 M 个" overflow hint.
-const planListNodePreviewCap = 4
-
 // pmPlanSummaryMap renders a Plan for the Work Board's kanban LIST view: the bare
 // Plan fields (same as pmPlanMap) PLUS the DERIVED board summary (§9.1/§9.2) —
-// progress{done,total}, has_failed, node_count, and a capped nodes_preview (the
-// first planListNodePreviewCap nodes). Each preview node is built through the SAME
-// pmPlanNodeMap helper the detail DTO uses, so a list-row preview node carries the
-// FULL node contract ({task_id,title,assignee_ref,task_status,node_status,
-// depends_on,dispatched_at?}) and is byte-identical in shape to a detail node —
-// the StatusChip reads task_status without crashing, and the two views can't drift.
+// progress{done,total}, has_failed, node_count, and nodes_preview.
+//
+// v2.9.2 (task-0543ece9): the preview is NO LONGER capped — it carries EVERY node,
+// so the Work Board card shows the whole task set without a silent "…and N more"
+// truncation. This aligns the board with T41's "no silent truncation" principle
+// (which fixed the Plan DETAIL page; the board card was the remaining gap). The
+// board renders the full list in a scrollable column. node_count stays == the
+// node count (now == len(nodes_preview)); a degraded/partial payload that still
+// sends fewer preview nodes than node_count keeps the FE overflow hint as a
+// belt-and-braces safety net. Each preview node is built through the SAME
+// pmPlanNodeMap helper the detail DTO uses, so it is byte-identical in shape to a
+// detail node and the two views can never drift.
 func pmPlanSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	m := pmPlanMap(detail.Plan)
 
 	lookups := planNodeLookups(detail)
 
 	nodes := detail.View.Nodes
-	n := len(nodes)
-	if n > planListNodePreviewCap {
-		n = planListNodePreviewCap
-	}
-	preview := make([]map[string]any, 0, n)
-	for _, nd := range nodes[:n] {
+	preview := make([]map[string]any, 0, len(nodes))
+	for _, nd := range nodes {
 		preview = append(preview, pmPlanNodeMap(nd, lookups))
 	}
 
@@ -411,6 +419,37 @@ func (s *Server) pmStopPlanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := d.PM.StopPlan(r.Context(), pl.ID(), caller); err != nil {
 		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+// pmResumePausedNodeHandler is the T53 operator recovery action for the owner: a
+// project member resumes a plan node whose agent paused its work item and went idle
+// (the node shows `paused`). pm authorizes (project member + plan running + task in
+// plan), resumes the node's work item, and wakes its agent. Returns the refreshed
+// plan detail so the DAG reflects the node leaving `paused`.
+func (s *Server) pmResumePausedNodeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	taskID := pm.TaskID(r.PathValue("task_id"))
+	if err := d.PM.ResumePausedNode(r.Context(), pl.ID(), taskID, caller); err != nil {
+		switch {
+		case errors.Is(err, pmservice.ErrNodeNotPaused):
+			writeError(w, http.StatusConflict, "node_not_paused", "the plan node has no paused work item to resume")
+		case errors.Is(err, agent.ErrAgentHasActiveWork):
+			writeError(w, http.StatusConflict, "agent_busy", "the node's agent is busy on another work item; try again after it settles")
+		case errors.Is(err, pmservice.ErrTaskNotInPlan):
+			writeError(w, http.StatusNotFound, "not_found", "the task is not a node of this plan")
+		case errors.Is(err, pmservice.ErrNodeResumerUnavailable):
+			writeError(w, http.StatusNotImplemented, "pm_not_wired", "paused-node resume is not available")
+		default:
+			mapPlanError(w, err)
+		}
 		return
 	}
 	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())

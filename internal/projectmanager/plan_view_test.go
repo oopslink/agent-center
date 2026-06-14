@@ -31,23 +31,29 @@ func TestDeriveNodeStatus_FiveStates(t *testing.T) {
 		taskStatus      TaskStatus
 		upstreamAllDone bool
 		dispatched      bool
+		paused          bool
 		want            NodeStatus
 	}{
-		{"done-completed", TaskCompleted, true, true, NodeDone},
-		{"failed-discarded", TaskDiscarded, true, true, NodeFailed},
-		{"running", TaskRunning, true, true, NodeRunning},
-		{"blocked-upstream-not-done", TaskOpen, false, false, NodeBlocked},
-		{"blocked-even-if-dispatched-flag", TaskOpen, false, true, NodeBlocked},
-		{"ready-all-upstream-done-not-dispatched", TaskOpen, true, false, NodeReady},
-		{"dispatched-all-upstream-done-dispatched", TaskOpen, true, true, NodeDispatched},
-		{"reopened-upstream-not-done-blocked", TaskReopened, false, false, NodeBlocked},
+		{"done-completed", TaskCompleted, true, true, false, NodeDone},
+		{"failed-discarded", TaskDiscarded, true, true, false, NodeFailed},
+		{"running", TaskRunning, true, true, false, NodeRunning},
+		{"blocked-upstream-not-done", TaskOpen, false, false, false, NodeBlocked},
+		{"blocked-even-if-dispatched-flag", TaskOpen, false, true, false, NodeBlocked},
+		{"ready-all-upstream-done-not-dispatched", TaskOpen, true, false, false, NodeReady},
+		{"dispatched-all-upstream-done-dispatched", TaskOpen, true, true, false, NodeDispatched},
+		{"reopened-upstream-not-done-blocked", TaskReopened, false, false, false, NodeBlocked},
 		// done/failed take precedence over upstream gating.
-		{"done-precedence-over-blocked", TaskCompleted, false, false, NodeDone},
-		{"failed-precedence-over-blocked", TaskDiscarded, false, false, NodeFailed},
+		{"done-precedence-over-blocked", TaskCompleted, false, false, false, NodeDone},
+		{"failed-precedence-over-blocked", TaskDiscarded, false, false, false, NodeFailed},
+		// T53: a running task whose work item is paused derives `paused`, not running.
+		{"paused-running-work-item", TaskRunning, true, true, true, NodePaused},
+		// paused flag only matters for a running task — a terminal/blocked task ignores it.
+		{"paused-ignored-when-done", TaskCompleted, true, true, true, NodeDone},
+		{"paused-ignored-when-blocked", TaskOpen, false, false, true, NodeBlocked},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := DeriveNodeStatus(c.taskStatus, c.upstreamAllDone, c.dispatched)
+			got := DeriveNodeStatus(c.taskStatus, c.upstreamAllDone, c.dispatched, c.paused)
 			if got != c.want {
 				t.Fatalf("DeriveNodeStatus(%s,%v,%v)=%s want %s", c.taskStatus, c.upstreamAllDone, c.dispatched, got, c.want)
 			}
@@ -65,7 +71,7 @@ func TestComputePlanView_ReadySet_FanOut(t *testing.T) {
 		{PlanID: "pl", FromTaskID: "B", ToTaskID: "A"}, // B depends_on A
 		{PlanID: "pl", FromTaskID: "C", ToTaskID: "A"}, // C depends_on A
 	}
-	view := ComputePlanView(tasks, edges, nil)
+	view := ComputePlanView(tasks, edges, nil, nil)
 	if len(view.ReadySet) != 2 {
 		t.Fatalf("ready-set=%v want [B C]", view.ReadySet)
 	}
@@ -91,7 +97,7 @@ func TestComputePlanView_DispatchedNotReady(t *testing.T) {
 	tasks := []*Task{a, b}
 	edges := []Dependency{{PlanID: "pl", FromTaskID: "B", ToTaskID: "A"}}
 	records := []DispatchRecord{{PlanID: "pl", TaskID: "B", DispatchedAt: time.Now(), DispatchMessageID: "m1"}}
-	view := ComputePlanView(tasks, edges, records)
+	view := ComputePlanView(tasks, edges, records, nil)
 	if len(view.ReadySet) != 0 {
 		t.Fatalf("ready-set=%v want empty (B already dispatched)", view.ReadySet)
 	}
@@ -103,6 +109,27 @@ func TestComputePlanView_DispatchedNotReady(t *testing.T) {
 	}
 	if bNode == nil || bNode.NodeStatus != NodeDispatched {
 		t.Fatalf("B node=%+v want dispatched", bNode)
+	}
+}
+
+// T53: a running task whose work item is paused derives `paused`; a running task
+// not in the paused set stays `running`. AllDone stays false (a paused node ≠ done).
+func TestComputePlanView_PausedOverlay(t *testing.T) {
+	a := newTaskWithStatus(t, "A", TaskRunning) // paused
+	b := newTaskWithStatus(t, "B", TaskRunning) // running (not paused)
+	view := ComputePlanView([]*Task{a, b}, nil, nil, map[TaskID]bool{"A": true})
+	byID := map[TaskID]NodeStatus{}
+	for _, n := range view.Nodes {
+		byID[n.TaskID] = n.NodeStatus
+	}
+	if byID["A"] != NodePaused {
+		t.Fatalf("A node=%s want paused (work item paused)", byID["A"])
+	}
+	if byID["B"] != NodeRunning {
+		t.Fatalf("B node=%s want running (not in paused set)", byID["B"])
+	}
+	if view.AllDone {
+		t.Fatal("AllDone must be false while a node is paused")
 	}
 }
 
@@ -121,7 +148,7 @@ func TestComputePlanView_FailureIsolation(t *testing.T) {
 		{PlanID: "pl", FromTaskID: "B", ToTaskID: "A"}, // B depends_on A (failed)
 		{PlanID: "pl", FromTaskID: "Y", ToTaskID: "X"}, // Y depends_on X (done)
 	}
-	view := ComputePlanView(tasks, edges, nil)
+	view := ComputePlanView(tasks, edges, nil, nil)
 	byID := map[TaskID]NodeStatus{}
 	for _, n := range view.Nodes {
 		byID[n.TaskID] = n.NodeStatus
@@ -149,7 +176,7 @@ func TestComputePlanView_AllDone(t *testing.T) {
 	t.Run("all done", func(t *testing.T) {
 		a := newTaskWithStatus(t, "A", TaskCompleted)
 		b := newTaskWithStatus(t, "B", TaskCompleted)
-		view := ComputePlanView([]*Task{a, b}, nil, nil)
+		view := ComputePlanView([]*Task{a, b}, nil, nil, nil)
 		if !view.AllDone {
 			t.Fatal("AllDone should be true when all nodes done")
 		}
@@ -160,7 +187,7 @@ func TestComputePlanView_AllDone(t *testing.T) {
 	t.Run("one failed keeps not-done", func(t *testing.T) {
 		a := newTaskWithStatus(t, "A", TaskCompleted)
 		b := newTaskWithStatus(t, "B", TaskDiscarded)
-		view := ComputePlanView([]*Task{a, b}, nil, nil)
+		view := ComputePlanView([]*Task{a, b}, nil, nil, nil)
 		if view.AllDone {
 			t.Fatal("AllDone must be false when a node is failed (§9.1)")
 		}
@@ -169,7 +196,7 @@ func TestComputePlanView_AllDone(t *testing.T) {
 		}
 	})
 	t.Run("empty plan is not all-done", func(t *testing.T) {
-		view := ComputePlanView(nil, nil, nil)
+		view := ComputePlanView(nil, nil, nil, nil)
 		if view.AllDone {
 			t.Fatal("an empty plan is not AllDone")
 		}

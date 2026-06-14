@@ -227,7 +227,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if err != nil {
 		return nil, err
 	}
-	view := pm.ComputePlanView(tasks, edges, records)
+	view := pm.ComputePlanView(tasks, edges, records, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
 
 	// Index task → assignee for the @mention, and task → *Task for the
 	// work-delivery emit (v2.9 P2 #1 HEADLINE).
@@ -326,7 +326,7 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 	if err != nil {
 		return nil, err
 	}
-	view := pm.ComputePlanView(tasks, edges, records)
+	view := pm.ComputePlanView(tasks, edges, records, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
 	var dispatched []pm.TaskID
 	for _, taskID := range view.ReadySet {
 		// PULL: record the dispatch (no message, no work-item, no wake). An empty
@@ -432,4 +432,41 @@ func (s *Service) RerunFailedNode(ctx context.Context, planID pm.PlanID, taskID 
 		}
 		return s.plans.ClearDispatch(txCtx, planID, taskID)
 	})
+}
+
+// ResumePausedNode is the T53 OPERATOR recovery action: a project member (PD/owner)
+// resumes a plan node whose agent paused its work item and went idle, leaving the
+// node stuck (shown `paused` since T53 part A). Authz mirrors RerunFailedNode — the
+// plan must be running and the actor a project member — plus the task must be a node
+// of THIS plan (no foreign task id). The actual resume + agent wake is a cross-BC
+// effect delegated to the NodeResumer port (agent service resume + env-control
+// wake), so the pm BC stays decoupled. Errors: ErrNodeResumerUnavailable (port not
+// wired), ErrPlanNotRunning, ErrTaskNotInPlan, ErrNodeNotPaused (nothing paused),
+// or the resumer's error (e.g. the agent is busy on another item). Authz runs in a
+// read; the port call runs outside the pm tx (it manages the agent BC's own tx).
+func (s *Service) ResumePausedNode(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	if s.nodeResumer == nil {
+		return ErrNodeResumerUnavailable
+	}
+	p, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return err
+	}
+	if err := s.requireProjectMember(ctx, p.ProjectID(), actor); err != nil {
+		return err
+	}
+	if p.Status() != pm.PlanRunning {
+		return pm.ErrPlanNotRunning
+	}
+	t, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if t.PlanID() != planID {
+		return ErrTaskNotInPlan
+	}
+	return s.nodeResumer.ResumePausedNode(ctx, "pm://tasks/"+string(taskID))
 }

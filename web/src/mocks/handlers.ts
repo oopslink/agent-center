@@ -67,6 +67,10 @@ function planHandlers() {
     node_status: 'ready',
     depends_on: [] as string[],
     dispatched_at: null,
+    // v2.9.2 (task-0543ece9): the node DTO now carries org_ref ("T<n>") so the
+    // Work Board card shows the human Task id. Derive a stable default from the
+    // task-id tail; a node can override via extra.
+    org_ref: `T${taskId.replace(/\D/g, '') || '0'}`,
     ...extra,
   });
   const basePlan = (pid: string, id: string, extra: Record<string, unknown> = {}) => ({
@@ -123,13 +127,16 @@ function planHandlers() {
             has_failed: true,
             progress: { done: 2, total: 5 },
             target_date: '2026-07-01T00:00:00Z',
-            // 6 total nodes; preview capped at 4 → board shows "…and 2 more".
+            // v2.9.2 (task-0543ece9): NO cap — nodes_preview carries ALL 6 nodes so
+            // the board renders the whole set (scrollable), no "…and N more".
             node_count: 6,
             nodes_preview: [
               baseNode('TS-1', { title: 'Design intake form', task_status: 'done', node_status: 'done' }),
               baseNode('TS-2', { title: 'Wire welcome email', task_status: 'running', node_status: 'running', assignee_ref: 'user:hayang' }),
               baseNode('TS-3', { title: 'Set up SSO', task_status: 'open' }),
               baseNode('TS-4', { title: 'Seed sample data', task_status: 'open' }),
+              baseNode('TS-5', { title: 'Configure roles', task_status: 'open' }),
+              baseNode('TS-6', { title: 'Smoke test flow', task_status: 'open' }),
             ],
           }),
           basePlan(String(params.pid), 'PL-2', {

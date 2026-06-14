@@ -324,6 +324,26 @@ func makeRerunFailedNode(cfg Config) mcp.ToolHandlerFor[rerunFailedNodeArgs, any
 	}
 }
 
+type resumePausedNodeArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the plan the node belongs to"`
+	TaskID string `json:"task_id" jsonschema:"the paused plan node's task to resume"`
+}
+
+// makeResumePausedNode resumes a plan node whose agent PAUSED its work item and
+// went idle (the node shows `paused`): it resumes the node's work item and wakes
+// the agent so it continues. Operator recovery — distinct from rerun_failed_node
+// (which is for a FAILED/undispatched node).
+func makeResumePausedNode(cfg Config) mcp.ToolHandlerFor[resumePausedNodeArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args resumePausedNodeArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "resume_paused_node", body)
+	}
+}
+
 // --- complete_task -----------------------------------------------------------
 
 type completeTaskArgs struct {

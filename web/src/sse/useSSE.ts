@@ -277,6 +277,11 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'task.done':
       invalidate(qk.fleet());
       invalidate(qk.tasksList());
+      // v2.9.2 (task-0543ece9): a child task moving (created/done/…) changes the
+      // owning Plan's derived progress + node read-model. Refresh every Work Board
+      // list so its cards reflect the change live instead of going stale until a
+      // manual reload (the "done child not visible on the card" gap).
+      invalidate(qk.plansByProjectAll());
       return;
     case 'task_execution.submitted':
     case 'task_execution.dispatched':
@@ -287,6 +292,9 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'task_execution.kill_requested':
     case 'task_execution.dispatch_rejected':
       invalidate(qk.fleet());
+      // The node_status chip on a board card is derived from execution state
+      // (ready→dispatched→running); refresh the board lists so it tracks live.
+      invalidate(qk.plansByProjectAll());
       return;
     case 'task_execution.input_required':
       invalidate(qk.fleet());

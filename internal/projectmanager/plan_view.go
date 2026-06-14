@@ -6,12 +6,18 @@ import "time"
 //
 // §9.2 RED-LINE: node status is DERIVED, never stored as a competing field:
 //
-//	node_status = f(task.status, upstream-all-done?, dispatch-record)
+//	node_status = f(task.status, upstream-all-done?, dispatch-record, work-item-paused?)
 //
-// The six distinct states (and how they derive):
+// The seven distinct states (and how they derive):
 //   - done       : task terminal-done (completed / verified).
 //   - failed     : task terminal-fail (discarded).
-//   - running    : task is running.
+//   - paused     : task is running BUT the agent paused its work item (T53). The
+//                  underlying task stays `running` (pause is an execution-state
+//                  overlay, not a task-lifecycle state), so without this the node
+//                  would mis-display as `running` while nobody is working it — the
+//                  "卡死/看着 running 实则停了" bug. Still derived, never stored: the
+//                  source of truth is the live AgentWorkItem status.
+//   - running    : task is running and its work item is not paused.
 //   - blocked    : task not terminal/running AND some upstream is NOT done
 //                  (a node downstream of a failed/unfinished node, §9.7).
 //   - ready      : task not terminal/running, ALL upstream done, NOT yet dispatched.
@@ -32,6 +38,7 @@ const (
 	NodeReady      NodeStatus = "ready"
 	NodeDispatched NodeStatus = "dispatched"
 	NodeRunning    NodeStatus = "running"
+	NodePaused     NodeStatus = "paused" // T53: running task whose agent paused its work item
 	NodeDone       NodeStatus = "done"
 	NodeFailed     NodeStatus = "failed"
 )
@@ -48,16 +55,23 @@ func taskIsFailed(s TaskStatus) bool { return s == TaskDiscarded }
 // lives in ONE place (§9.7 — a failed node leaves its downstream blocked).
 func TaskIsFailed(s TaskStatus) bool { return taskIsFailed(s) }
 
-// DeriveNodeStatus computes one node's DERIVED status (§9.2) from the three
-// inputs. Precedence: terminal task state (done/failed) and running mirror the
-// task directly; otherwise upstream gating decides blocked vs ready/dispatched.
-func DeriveNodeStatus(taskStatus TaskStatus, upstreamAllDone bool, dispatched bool) NodeStatus {
+// DeriveNodeStatus computes one node's DERIVED status (§9.2) from the four
+// inputs. Precedence: terminal task state (done/failed) mirrors the task
+// directly; a running task derives `paused` when its work item is paused else
+// `running`; otherwise upstream gating decides blocked vs ready/dispatched.
+func DeriveNodeStatus(taskStatus TaskStatus, upstreamAllDone bool, dispatched bool, paused bool) NodeStatus {
 	switch {
 	case taskIsDone(taskStatus):
 		return NodeDone
 	case taskIsFailed(taskStatus):
 		return NodeFailed
 	case taskStatus == TaskRunning:
+		// T53: a running task whose agent paused its work item shows `paused`, not
+		// `running` — so the DAG/card tells the truth (the agent set it aside) and an
+		// operator knows to resume it rather than wait on a phantom-running node.
+		if paused {
+			return NodePaused
+		}
 		return NodeRunning
 	case !upstreamAllDone:
 		// open / blocked / reopened with an unsatisfied upstream → blocked (§9.7).
@@ -123,10 +137,14 @@ type PlanView struct {
 }
 
 // ComputePlanView derives the whole-Plan read model from the selected tasks, the
-// DAG edges, and the dispatch records (§9.2/§9.7/§9.1). It is PURE: callers load
-// the three inputs and pass them in. Nodes are returned in the input `tasks`
-// order (callers pass a stable order); the ready-set follows that same order.
-func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord) PlanView {
+// DAG edges, the dispatch records, and the set of tasks whose work item is paused
+// (§9.2/§9.7/§9.1). It is PURE: callers load the inputs and pass them in. `paused`
+// maps a TaskID→true when that task's live AgentWorkItem is paused (T53); a nil/
+// empty map means "no paused overlay" — dispatch callers pass nil since pausing a
+// running node never changes the ready-set or AllDone (a paused node is neither
+// ready nor done). Nodes are returned in the input `tasks` order (callers pass a
+// stable order); the ready-set follows that same order.
+func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, paused map[TaskID]bool) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
 	inPlan := make(map[TaskID]struct{}, len(tasks))
@@ -170,7 +188,7 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 			}
 		}
 		_, dispatched := dispatchedSet[t.ID()]
-		ns := DeriveNodeStatus(t.Status(), upstreamAllDone, dispatched)
+		ns := DeriveNodeStatus(t.Status(), upstreamAllDone, dispatched, paused[t.ID()])
 		view.Nodes = append(view.Nodes, PlanNodeView{
 			TaskID:            t.ID(),
 			TaskStatus:        t.Status(),

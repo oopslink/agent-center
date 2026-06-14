@@ -9,6 +9,7 @@ import type {
   CreateConversationInput,
   CreateConversationResult,
   Message,
+  MessageAttachment,
   SendMessageInput,
   SendMessageResult,
   ThreadSummary,
@@ -145,21 +146,36 @@ export function useSendMessage() {
   });
 }
 
-export async function uploadMessageAttachment(file: File) {
+// v2.9.2 composer polish: per-transfer upload progress + cancellation.
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+}
+
+export interface UploadAttachmentOptions {
+  // Called with byte progress during the PUT transfer (only fires when the
+  // transfer length is computable). 0..total.
+  onProgress?: (progress: UploadProgress) => void;
+  // Abort the in-flight transfer (e.g. user removes the attachment mid-upload).
+  signal?: AbortSignal;
+}
+
+// uploadMessageAttachment runs the three-step blob upload: create transfer →
+// PUT bytes → complete. The PUT goes through XHR (not fetch) so the transfer can
+// report upload progress and be aborted — fetch exposes neither. The create and
+// complete bookends stay on the JSON api client.
+export async function uploadMessageAttachment(
+  file: File,
+  opts: UploadAttachmentOptions = {},
+): Promise<MessageAttachment> {
+  const { onProgress, signal } = opts;
   const contentType = file.type || 'application/octet-stream';
   const created = await api.post<CreateUploadResult>('/files', {
     content_type: contentType,
     size: file.size,
   });
   const putPath = `/api${withOrgSlug(`/files/transfer/${encodeURIComponent(created.transfer_id)}`)}`;
-  const putResp = await fetch(putPath, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: file,
-  });
-  if (!putResp.ok) {
-    throw new Error(`upload failed: ${putResp.status}`);
-  }
+  await putWithProgress(putPath, contentType, file, onProgress, signal);
   await api.post(`/files/transfer/${encodeURIComponent(created.transfer_id)}/complete`, {
     size: file.size,
   });
@@ -169,6 +185,41 @@ export async function uploadMessageAttachment(file: File) {
     mime_type: contentType,
     size: file.size,
   };
+}
+
+// putWithProgress PUTs the blob via XMLHttpRequest, surfacing upload.onprogress
+// and honoring an AbortSignal. Resolves on a 2xx, rejects otherwise — an aborted
+// transfer rejects with an AbortError so callers can distinguish cancel from
+// failure.
+function putWithProgress(
+  url: string,
+  contentType: string,
+  file: File,
+  onProgress?: (progress: UploadProgress) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Upload aborted', 'AbortError'));
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress({ loaded: e.loaded, total: e.total });
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`upload failed: ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error('upload failed: network error'));
+    xhr.onabort = () => reject(new DOMException('Upload aborted', 'AbortError'));
+    if (signal) {
+      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+    xhr.send(file);
+  });
 }
 
 // useDeleteConversation hard-deletes a conversation and its messages +
