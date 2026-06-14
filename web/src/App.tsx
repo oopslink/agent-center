@@ -11,7 +11,8 @@ const Signin = lazy(() => import('./pages/Signin'));
 // All pages are lazy-loaded so the initial bundle stays small and each
 // route ships as its own chunk (per F3 oversight #3). The Suspense
 // boundary inside AppLayout renders a fallback while a chunk streams.
-const Home = lazy(() => import('./pages/Home'));
+// v2.10.0 [T1]: the Overview/Home dashboard is removed — the org index
+// redirects into the Workspace module (see the index route below).
 const Channels = lazy(() => import('./pages/Channels'));
 const ChannelDetail = lazy(() => import('./pages/ChannelDetail'));
 const DMs = lazy(() => import('./pages/DMs'));
@@ -58,7 +59,9 @@ export function App(): React.ReactElement {
             </OrgGuard>
           }
         >
-          <Route index element={<Home />} />
+          {/* v2.10.0 [T1]: Overview/Home removed. The org index redirects into
+              the Workspace module's default page (Projects). */}
+          <Route index element={<Navigate to="projects" replace />} />
           <Route path="channels" element={<Channels />} />
           <Route path="channels/:channelId" element={<ChannelDetail />} />
           <Route path="dms" element={<DMs />} />
