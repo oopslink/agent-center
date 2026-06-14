@@ -116,9 +116,12 @@ The full rules are in [`docs/rules/`](./rules) and are **binding**, not advisory
   path — `/api/orgs/{slug}/...` — never session-implicit) and **§21 "single
   canonical page/route"** (delete the old one on replace; no orphan routes).
 - [`acceptance-methodology.md`](./rules/acceptance-methodology.md) — **§4.1**
-  (inline evidence per acceptance point) and **§4.2** (verify via a *real
+  (inline evidence per acceptance point), **§4.2** (verify via a *real
   reachable* user path — nav / shortcut / breadcrumb / post-create redirect — not
-  just a direct URL).
+  just a direct URL), and **§4.3** (the release acceptance report MUST carry
+  **user-perspective end-to-end key-step screenshots** produced by a
+  **committed, reproducible capture script** — a text-only acceptance report is
+  not a pass).
 - [`testing.md`](./rules/testing.md) — test discipline (independence, ownership by
   scope, real-artifact acceptance).
 - [`ux-standards.md`](./rules/ux-standards.md) — both-mode AA, **no alpha-tint**
