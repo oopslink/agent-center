@@ -3,7 +3,7 @@ import { Children } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
-import { MentionText, useMentionResolver } from './MentionText';
+import { MentionText, useMentionResolver, useTaskRefResolver, type ResolvedTaskRef } from './MentionText';
 import { useSenderSidebar } from './SenderSidebarContext';
 
 // v2.8 #276 — render message content as markdown (@oopslink chose A = full
@@ -41,12 +41,23 @@ function linkifyMentions(
   onMention: ((ref: string) => void) | null,
   resolve: (handle: string) => string | null,
   linkClass: string,
+  resolveTask: (taskId: string) => ResolvedTaskRef | null,
 ): React.ReactNode {
   if (!onMention) return children;
   return Children.map(children, (child) => {
     if (typeof child === 'string') {
-      if (!child.includes('@')) return child;
-      return <MentionText text={child} onMention={onMention} resolve={resolve} linkClass={linkClass} />;
+      // Tokenize only strings that could carry a token (@mention or task-ref) —
+      // a plain prose run with neither is passed through untouched.
+      if (!child.includes('@') && !child.includes('task-')) return child;
+      return (
+        <MentionText
+          text={child}
+          onMention={onMention}
+          resolve={resolve}
+          linkClass={linkClass}
+          resolveTask={resolveTask}
+        />
+      );
     }
     return child;
   });
@@ -100,7 +111,10 @@ function MentionAwareMarkdown({
   onMention: (ref: string) => void;
 }): React.ReactElement {
   const resolve = useMentionResolver();
-  const linkify = (children: React.ReactNode) => linkifyMentions(children, onMention, resolve, linkClass);
+  // v2.9.2 (task-82915d7c): resolve `task-<id>` references → task-detail links.
+  const resolveTask = useTaskRefResolver();
+  const linkify = (children: React.ReactNode) =>
+    linkifyMentions(children, onMention, resolve, linkClass, resolveTask);
   return <MarkdownBody content={content} textClass={textClass} linkClass={linkClass} linkify={linkify} />;
 }
 

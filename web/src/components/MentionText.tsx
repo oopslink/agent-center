@@ -1,6 +1,10 @@
 import type React from 'react';
 import { Fragment, useMemo } from 'react';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
+import { useOrgWorkItems } from '@/api/orgWorkItems';
+import { useOptionalOrgContext, orgPath } from '@/OrgContext';
+import { taskDetailPath } from './TaskTitleLink';
+import { idHandle } from './workItemDisplay';
 
 // v2.8.1 #281 (mention-sidebar) entry ②: @mention tokens in message content.
 //
@@ -43,10 +47,50 @@ export function useMentionResolver(): (handle: string) => string | null {
   return (handle: string) => byHandle.get(handle.toLowerCase().replace(/\s+/g, '')) ?? null;
 }
 
-// MENTION_RE matches an @handle token: @ + word/.-/_ chars. A leading boundary
-// (start or non-word char) is enforced via the surrounding split so we don't
-// match an email's local-part-ish "@" mid-word. Capture group = the handle.
-const MENTION_RE = /@([A-Za-z0-9][A-Za-z0-9._-]*)/g;
+// ResolvedTaskRef — a `task-<id>` reference resolved to its display label + the
+// task-detail href. `label` is the human Task id ("T123", org_ref) or the
+// #id-tail handle when unallocated (#192 id-as-content). `href` routes to the
+// task detail page, org-prefixed.
+export interface ResolvedTaskRef {
+  label: string;
+  href: string;
+}
+
+// useTaskRefResolver builds a task_id → { label, href } resolver from the ORG
+// task list (GET /api/orgs/{slug}/tasks, cached) so a `task-<id>` reference in a
+// message — even one pointing at ANOTHER project — linkifies to the task detail
+// page with its "T123" label. v2.9.2 (task-82915d7c). Returns a function that
+// yields null for an unknown / out-of-org task id, so the reference stays plain
+// text instead of dangling to a wrong/forbidden target (verify-not-trust).
+export function useTaskRefResolver(): (taskId: string) => ResolvedTaskRef | null {
+  const ctx = useOptionalOrgContext();
+  const slug = ctx?.slug;
+  const tasks = useOrgWorkItems('task', slug);
+  return useMemo(() => {
+    const byId = new Map<string, { orgRef?: string; projectId: string }>();
+    for (const it of tasks.data?.items ?? []) {
+      byId.set(it.id, { orgRef: it.org_ref, projectId: it.project.id });
+    }
+    return (taskId: string): ResolvedTaskRef | null => {
+      const entry = byId.get(taskId);
+      if (!entry) return null;
+      return {
+        label: entry.orgRef || `#${idHandle(taskId)}`,
+        href: orgPath(taskDetailPath(entry.projectId, taskId), slug),
+      };
+    };
+  }, [tasks.data, slug]);
+}
+
+// TOKEN_RE matches EITHER an @handle token (group 1) OR a `task-<id>` reference
+// (group 2) in one ordered pass, so a string carrying both linkifies correctly.
+//   - @handle: @ + word/.-/_ chars. A leading boundary is enforced by the
+//     surrounding split so we don't match an email's local-part-ish "@" mid-word.
+//   - task-<id>: a NEGATIVE LOOKBEHIND `(?<![A-Za-z0-9])` guards the left
+//     boundary so "subtask-1" does NOT match (only a standalone `task-…` does).
+//     The id is [A-Za-z0-9]+ (hash tail / ULID), terminated by any other char
+//     (so "task-x." stops at the dot). v2.9.2 (task-82915d7c).
+const TOKEN_RE = /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)/g;
 
 interface MentionTextProps {
   text: string;
@@ -58,6 +102,10 @@ interface MentionTextProps {
    * theme) this must be a FIXED-dark color (e.g. text-chatbubble-link), NOT the text-accent
    * theme token (#3b82f6 → blue-on-blue <4.5 on #D1E3FF — the both-mode 命门). */
   linkClass?: string;
+  /** v2.9.2 (task-82915d7c): optional `task-<id>` → { label, href } resolver. When
+   * provided, a resolvable task reference becomes a link to the task detail page
+   * labelled with its "T123" org_ref; an unresolved reference stays plain text. */
+  resolveTask?: (taskId: string) => ResolvedTaskRef | null;
 }
 
 // MentionText tokenizes one plain-text string, turning each @handle that
@@ -68,39 +116,73 @@ export function MentionText({
   onMention,
   resolve,
   linkClass = 'text-accent',
+  resolveTask,
 }: MentionTextProps): React.ReactElement {
   const parts: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
-  MENTION_RE.lastIndex = 0;
+  TOKEN_RE.lastIndex = 0;
   let key = 0;
-  while ((match = MENTION_RE.exec(text)) !== null) {
+  while ((match = TOKEN_RE.exec(text)) !== null) {
     const handle = match[1];
-    const ref = resolve(handle);
-    if (!ref) continue; // leave unknown @handle as plain text
+    const taskId = match[2];
+    let node: React.ReactNode = null;
+    if (handle !== undefined) {
+      const ref = resolve(handle);
+      if (ref) {
+        node = (
+          <button
+            key={key++}
+            type="button"
+            // stopPropagation: a mention click must NOT bubble to the message-row /
+            // other message handlers (#281 critical: no click-conflict).
+            onClick={(e) => {
+              e.stopPropagation();
+              onMention(ref);
+            }}
+            data-testid="mention-token"
+            data-mention-ref={ref}
+            aria-label={`View ${handle} details`}
+            // both-mode: the mention reads as a link and uses the SAME context-aware
+            // linkClass as MarkdownMessage's links — text-accent on theme surfaces, but a
+            // FIXED-dark color (text-chatbubble-link) on the own #D1E3FF bubble (avoids the
+            // blue-on-blue <4.5 命门). NO alpha-tint fill (would render transparent).
+            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+          >
+            @{handle}
+          </button>
+        );
+      }
+    } else if (taskId !== undefined && resolveTask) {
+      const t = resolveTask(taskId);
+      if (t) {
+        node = (
+          <a
+            key={key++}
+            href={t.href}
+            // New tab + opener/referrer guards, mirroring TaskTitleLink — opening
+            // the task detail without losing the conversation. stopPropagation so a
+            // ref click never bubbles to the message-row handlers (#281).
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="task-ref-token"
+            data-task-id={taskId}
+            title={`Open ${taskId} in a new tab`}
+            // Same context-aware linkClass as mentions (both-mode AA on theme +
+            // own-bubble surfaces); keyboard-accessible as a native anchor.
+            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+          >
+            {t.label}
+          </a>
+        );
+      }
+    }
+    // Unresolved (or task linkify disabled) → leave the token as plain text: skip
+    // without advancing `last`, so the matched chars stay in the next text slice.
+    if (node === null) continue;
     if (match.index > last) parts.push(<Fragment key={key++}>{text.slice(last, match.index)}</Fragment>);
-    parts.push(
-      <button
-        key={key++}
-        type="button"
-        // stopPropagation: a mention click must NOT bubble to the message-row /
-        // other message handlers (#281 critical: no click-conflict).
-        onClick={(e) => {
-          e.stopPropagation();
-          onMention(ref);
-        }}
-        data-testid="mention-token"
-        data-mention-ref={ref}
-        aria-label={`View ${handle} details`}
-        // both-mode: the mention reads as a link and uses the SAME context-aware
-        // linkClass as MarkdownMessage's links — text-accent on theme surfaces, but a
-        // FIXED-dark color (text-chatbubble-link) on the own #D1E3FF bubble (avoids the
-        // blue-on-blue <4.5 命门). NO alpha-tint fill (would render transparent).
-        className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-      >
-        @{handle}
-      </button>,
-    );
+    parts.push(node);
     last = match.index + match[0].length;
   }
   if (last < text.length) parts.push(<Fragment key={key++}>{text.slice(last)}</Fragment>);
