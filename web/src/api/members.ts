@@ -34,6 +34,22 @@ export function normalizeIdentityRef(ref: string): string {
   return ref;
 }
 
+// v2.10.0 [T75] — the canonical system/scheduler sender. The Plan orchestrator
+// speaks for the Plan when it posts dispatch/advance notifications: the backend
+// PlanDispatchAdapter posts them with SenderIdentityID "system" (content_kind=
+// text — a real, visible @mention that wakes the assignee, NOT a collapsed
+// system row). "system" is NOT an org member, so without an explicit mapping the
+// display-name resolver misses → call sites render the unresolved "(deleted)"
+// branch (the owner-reported bug). Resolve it to a stable "System" author.
+export const SYSTEM_SENDER_REF = 'system';
+export const SYSTEM_DISPLAY_NAME = 'System';
+
+// isSystemSender reports whether an identity ref is the system/scheduler sender
+// (bare or, defensively, prefix-stripped to the same sentinel).
+export function isSystemSender(ref: string): boolean {
+  return normalizeIdentityRef(ref) === SYSTEM_SENDER_REF;
+}
+
 // identityRefOf builds the prefixed identity ref ("agent:<id>" / "user:<id>")
 // from a member-like value — the inverse of normalizeIdentityRef. The id is
 // normalized first so an already-prefixed identity_id is not double-prefixed.
@@ -133,7 +149,13 @@ export function useDisplayNameResolver(): (ref: string) => string {
     }
     return m;
   }, [members.data]);
-  return (ref: string) => (ref ? byId.get(normalizeIdentityRef(ref)) ?? ref : ref);
+  return (ref: string) => {
+    if (!ref) return ref;
+    // v2.10.0 [T75]: the system/scheduler sender resolves to a stable "System"
+    // author (it is not a member row) — never the unresolved "(deleted)" branch.
+    if (isSystemSender(ref)) return SYSTEM_DISPLAY_NAME;
+    return byId.get(normalizeIdentityRef(ref)) ?? ref;
+  };
 }
 
 export function useAddMember() {
