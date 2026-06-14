@@ -318,6 +318,17 @@ export function useAdvancePlan(projectId: string, planId: string) {
   );
 }
 
+// T53: operator recovery — resume a `paused` plan node (its agent set the work
+// item aside and went idle). Resumes the node's work item + wakes the agent;
+// returns the refreshed plan so the DAG reflects the node leaving `paused`.
+export function useResumePausedNode(projectId: string, planId: string) {
+  return usePlanWrite<string, Plan>(projectId, planId, (taskId) =>
+    api.post<Plan>(
+      `${plansBase(projectId)}/${planId}/nodes/${encodeURIComponent(taskId)}/resume`,
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // v2.9 Stage B (#280/#283/#290) — DESTRUCTIVE plan lifecycle: Delete + Archive.
 // Both are non-running-only (the backend rejects a running plan with 409

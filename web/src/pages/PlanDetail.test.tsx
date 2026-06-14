@@ -110,6 +110,32 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(stopped).toBe(true));
   });
 
+  // T53: a paused node gets an operator Resume button (task-list tab); a
+  // non-paused node does not. Clicking it POSTs the node resume.
+  it('paused node shows a Resume button that POSTs the node resume (T53)', async () => {
+    let resumedTask = '';
+    mockPlan({
+      nodes: [
+        { task_id: 'np', title: 'paused node', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'paused', depends_on: [] },
+        { task_id: 'nr', title: 'running node', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'running', depends_on: [] },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/nodes/:taskId/resume', ({ params }) => {
+        resumedTask = String(params.taskId);
+        return HttpResponse.json(planWith({}));
+      }),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await waitFor(() => expect(screen.getByTestId('plan-task-list')).toBeInTheDocument());
+    // Resume only on the paused node.
+    expect(screen.getByTestId('plan-node-resume-np')).toBeInTheDocument();
+    expect(screen.queryByTestId('plan-node-resume-nr')).not.toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByTestId('plan-node-resume-np')));
+    await waitFor(() => expect(resumedTask).toBe('np'));
+  });
+
   it('shows Start when draft (not Stop) and calls useStartPlan', async () => {
     let started = false;
     mockPlan({ status: 'draft', has_failed: false });

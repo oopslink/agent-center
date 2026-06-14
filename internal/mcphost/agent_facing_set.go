@@ -29,6 +29,7 @@ var AgentFacingToolNames = []string{
 	// task stuck blocked after a restart/stale-release).
 	"unblock_task",
 	"rerun_failed_node",
+	"resume_paused_node",
 	"create_task",
 	"delete_plan",
 	"download_file",

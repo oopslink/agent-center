@@ -107,6 +107,20 @@ type PausedTaskPort interface {
 	PausedTasks(ctx context.Context, taskIDs []string) (map[string]bool, error)
 }
 
+// NodeResumer resumes a plan node whose agent PAUSED its work item and re-engages
+// the agent (T53), so an operator (PD/owner) can un-stick a node that ResumeWork —
+// agent-ownership-guarded — left unrecoverable. It is an OPTIONAL, nil-safe port of
+// the pm Service: when wired, ResumePausedNode authorizes the operator (pm project
+// membership + plan running) then delegates the cross-BC effect to this port; nil ⇒
+// ErrNodeResumerUnavailable (fail-loud, mirroring ErrDispatcherUnavailable). Like
+// the other ports it is STRING-typed so the agent/environment-side adapter
+// implements it WITHOUT importing pm. taskRef is the pm://tasks/{id} ref of the
+// node. Implemented at composition over the agent service (resume) + env control
+// (the agent.work_available wake).
+type NodeResumer interface {
+	ResumePausedNode(ctx context.Context, taskRef string) error
+}
+
 // Service is the ProjectManager AppService facade.
 type Service struct {
 	db           *sql.DB
@@ -139,11 +153,27 @@ type Service struct {
 	// `paused` nodes (running stays running). When wired, the read paths overlay the
 	// live paused-work-item set onto the derived view.
 	pausedTasks PausedTaskPort
+	// nodeResumer is OPTIONAL (nil-safe, T53). nil ⇒ ResumePausedNode returns
+	// ErrNodeResumerUnavailable. When wired, it resumes a paused node + wakes its
+	// agent (cross-BC effect behind the port).
+	nodeResumer NodeResumer
 }
 
 // ErrDispatcherUnavailable is returned by AdvancePlan when no PlanDispatcher is
 // wired (s.planDispatcher == nil) — fail-loud, mirroring ErrPlansUnavailable.
 var ErrDispatcherUnavailable = errors.New("projectmanager: plan dispatcher unavailable — advance cannot post @mentions")
+
+// ErrNodeResumerUnavailable is returned by ResumePausedNode when no NodeResumer is
+// wired (s.nodeResumer == nil) — fail-loud, mirroring ErrDispatcherUnavailable.
+var ErrNodeResumerUnavailable = errors.New("projectmanager: node resumer unavailable — paused-node resume is not wired")
+
+// ErrTaskNotInPlan is returned by ResumePausedNode when the target task is not a
+// node of the named plan (a mismatched/foreign task id).
+var ErrTaskNotInPlan = errors.New("projectmanager: task is not a node of this plan")
+
+// ErrNodeNotPaused is returned by ResumePausedNode when the target node has no
+// paused work item to resume (the resumer reports nothing paused).
+var ErrNodeNotPaused = errors.New("projectmanager: plan node has no paused work item to resume")
 
 // Deps bundles the Service dependencies.
 type Deps struct {
@@ -174,6 +204,9 @@ type Deps struct {
 	// `paused` node for a running task whose agent paused its work item. nil ⇒ no
 	// paused overlay.
 	PausedTasks PausedTaskPort
+	// NodeResumer is OPTIONAL (T53): when set, ResumePausedNode can resume a paused
+	// node + wake its agent. nil ⇒ ResumePausedNode is unavailable.
+	NodeResumer NodeResumer
 }
 
 // New constructs the Service.
@@ -187,7 +220,7 @@ func New(d Deps) *Service {
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher,
-		pausedTasks: d.PausedTasks,
+		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer,
 	}
 }
 
@@ -197,6 +230,14 @@ func New(d Deps) *Service {
 // the overlay). Returns the receiver for chaining.
 func (s *Service) SetPausedTaskProvider(p PausedTaskPort) *Service {
 	s.pausedTasks = p
+	return s
+}
+
+// SetNodeResumer wires the optional T53 paused-node resume port AFTER construction
+// (the adapter needs the agent service + env control, built after the pm Service).
+// nil is tolerated. Returns the receiver for chaining.
+func (s *Service) SetNodeResumer(r NodeResumer) *Service {
+	s.nodeResumer = r
 	return s
 }
 

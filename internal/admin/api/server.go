@@ -393,6 +393,8 @@ func (s *Server) routes() {
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/rerun_failed_node", s.rerunFailedNodeHandler)
+	// T53: operator resume of a paused plan node (un-stick a set-aside node).
+	s.mux.HandleFunc("POST /admin/agent-tools/resume_paused_node", s.resumePausedNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
 	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
 	// AppServices (writes use actor=agent; the AppService's requireProjectMember
