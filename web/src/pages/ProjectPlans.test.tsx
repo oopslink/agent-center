@@ -126,6 +126,42 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(within(col as HTMLElement).getByTestId('plan-overflow-PL-DEG')).toHaveTextContent('…and 7 more');
   });
 
+  // task-1099941e: an ARCHIVED plan must NOT render a column on the Work Board
+  // (the backend default-excludes it; this is the FE belt-and-braces guard against
+  // a degraded/stale payload that still carries one).
+  it('does NOT render a column for an archived plan (FE guard)', async () => {
+    server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
+    server.use(
+      http.get('/api/projects/:pid/plans', ({ params }) =>
+        HttpResponse.json({
+          plans: [
+            {
+              id: 'PL-ACT', project_id: String(params.pid), name: 'Active plan',
+              description: '', status: 'running', creator_ref: 'user:owner',
+              conversation_id: 'c', is_builtin: false, version: 1,
+              created_at: '2026-05-20T01:00:00Z', updated_at: '2026-05-20T01:00:00Z',
+              has_failed: false, progress: { done: 0, total: 1 }, node_count: 0, nodes_preview: [],
+            },
+            {
+              id: 'PL-ARCH', project_id: String(params.pid), name: 'Archived plan',
+              description: '', status: 'archived', creator_ref: 'user:owner',
+              conversation_id: 'c2', is_builtin: false, version: 2,
+              created_at: '2026-05-20T01:00:00Z', updated_at: '2026-05-21T01:00:00Z',
+              has_failed: false, progress: { done: 0, total: 0 }, node_count: 0, nodes_preview: [],
+            },
+          ],
+        }),
+      ),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+    expect(screen.getByText('Active plan')).toBeInTheDocument();
+    // the archived plan column is filtered out — no column, no name.
+    expect(screen.queryByText('Archived plan')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('plan-column')).toHaveTextContent('Active plan');
+    expect(screen.getAllByTestId('plan-column')).toHaveLength(1);
+  });
+
   // P2-4: a running Plan column communicates it self-progresses (auto-advance);
   // a draft column does not (draft is not being orchestrated).
   it('a running Plan column shows the auto-advancing indicator; a draft column does not', async () => {
@@ -715,13 +751,16 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
   });
 
   // v2.9 Stage B (#283): a plan task card shows an Archived badge when
-  // task.archived (orthogonal — coexists with the status chip).
-  it('Stage B: an archived-plan card shows the Archived badge (coexists with status chip)', async () => {
-    const archivedPlans = {
+  // task.archived (ORTHOGONAL to plan status — a non-archived plan can hold an
+  // archived TASK). task-1099941e: the plan here is NON-archived (running) since
+  // archived PLANS are now excluded from the board; the badge under test is the
+  // task-level `archived` flag, which is independent of plan status.
+  it('Stage B: a card shows the task Archived badge (orthogonal to plan status)', async () => {
+    const plansWithArchivedTask = {
       plans: [
         {
-          id: 'PL-A', project_id: 'proj-a', name: 'Shelved plan', description: '',
-          status: 'archived', creator_ref: 'user:owner', conversation_id: 'cA', target_date: null,
+          id: 'PL-A', project_id: 'proj-a', name: 'Running plan', description: '',
+          status: 'running', creator_ref: 'user:owner', conversation_id: 'cA', target_date: null,
           has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
           node_count: 1,
           nodes_preview: [{ ...planNode('TS-AR', 'Archived task'), archived: true }],
@@ -736,15 +775,15 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     };
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
-      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(archivedPlans)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansWithArchivedTask)),
     );
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
 
-    // archived column chip shows 'archived'; archived task card has the badge.
-    const archivedCol = screen.getByText('Shelved plan').closest('[data-testid="plan-column"]')!;
-    expect(within(archivedCol as HTMLElement).getByTestId('plan-status-chip')).toHaveTextContent('archived');
-    const arBadge = within(archivedCol as HTMLElement).getByTestId('task-archived-badge-TS-AR');
+    // the (non-archived) plan column renders; its archived TASK card has the badge.
+    const col = screen.getByText('Running plan').closest('[data-testid="plan-column"]')!;
+    expect(within(col as HTMLElement).getByTestId('plan-status-chip')).toHaveTextContent('running');
+    const arBadge = within(col as HTMLElement).getByTestId('task-archived-badge-TS-AR');
     expect(arBadge).toHaveTextContent('Archived');
     expect(arBadge.className).toContain('bg-status-amber-bg');
     // non-archived task in the draft column → NO badge.

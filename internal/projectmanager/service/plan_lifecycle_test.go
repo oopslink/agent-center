@@ -203,6 +203,48 @@ func TestListPlanSummaries_DerivesPerPlanReadModel(t *testing.T) {
 	}
 }
 
+// TestListPlanSummaries_ExcludesArchived is the class-guard for task-1099941e:
+// an ARCHIVED plan must NOT appear in the Work Board list (both web + agent-tools
+// mirrors go through ListPlanSummaries). Mirrors project/channel archive — archived
+// work leaves the active board by default.
+func TestListPlanSummaries_ExcludesArchived(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+
+	// kept: a normal draft plan. gone: a plan we archive.
+	kept, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "kept", CreatedBy: "user:a"})
+	h.drain(t)
+	gone, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "gone", CreatedBy: "user:a"})
+	h.drain(t)
+	if err := h.svc.ArchivePlan(h.ctx, gone, "user:a"); err != nil {
+		t.Fatalf("ArchivePlan: %v", err)
+	}
+	h.drain(t)
+
+	summaries, err := h.svc.ListPlanSummaries(h.ctx, pid)
+	if err != nil {
+		t.Fatalf("ListPlanSummaries: %v", err)
+	}
+	for _, d := range summaries {
+		if d.Plan.ID() == gone {
+			t.Fatalf("archived plan %s leaked into the Work Board list", gone)
+		}
+		if d.Plan.Status() == pm.PlanArchived {
+			t.Fatalf("archived plan %s (status=%s) leaked into summaries", d.Plan.ID(), d.Plan.Status())
+		}
+	}
+	// the non-archived plan + the auto-created built-in pool remain.
+	var keptSeen bool
+	for _, d := range summaries {
+		if d.Plan.ID() == kept {
+			keptSeen = true
+		}
+	}
+	if !keptSeen {
+		t.Fatalf("non-archived plan %s missing from summaries", kept)
+	}
+}
+
 // TestListPlanSummaries_BatchedNoNPlus1 asserts ListPlanSummaries is N+1-free:
 // across THREE non-trivial plans (each with tasks + DAG edges + dispatch records),
 // the derived per-plan read model is correct AND identical to the per-plan

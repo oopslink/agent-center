@@ -171,7 +171,11 @@ function Board({
       </div>
     );
   }
-  const planList = plans.data ?? [];
+  // task-1099941e: the Work Board excludes ARCHIVED plans (mirrors project/channel
+  // archive — archived work leaves the active board). The backend list already
+  // default-excludes them (ListPlanSummaries); this FE filter is the belt-and-
+  // braces guard so a degraded/stale payload never leaks an archived plan column.
+  const planList = (plans.data ?? []).filter((p) => p.status !== 'archived');
 
   // ADR-0047 partition: the BUILT-IN assignment pool (exactly one is_builtin
   // plan) is its own segment; every other plan is a STRUCTURED plan column.
