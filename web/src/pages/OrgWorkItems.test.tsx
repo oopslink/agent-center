@@ -193,12 +193,12 @@ describe('OrgWorkItems page (#258)', () => {
     const chip = screen.getByTestId('org-filter-status-open');
     // unselected: aria-pressed=false, light bg (no solid fill), shows a color dot.
     expect(chip).toHaveAttribute('aria-pressed', 'false');
-    expect(chip.className).not.toContain('bg-sky-600');
-    expect(chip.querySelector('span[aria-hidden="true"]')?.className).toContain('bg-sky-600');
+    expect(chip.className).not.toContain('bg-status-sky-solid');
+    expect(chip.querySelector('span[aria-hidden="true"]')?.className).toContain('bg-status-sky-solid');
     // toggle on → aria-pressed=true, solid sky-600 fill + white text, dot gone.
     fireEvent.click(chip);
     expect(chip).toHaveAttribute('aria-pressed', 'true');
-    expect(chip.className).toContain('bg-sky-600');
+    expect(chip.className).toContain('bg-status-sky-solid');
     expect(chip.className).toContain('text-white');
     expect(chip.querySelector('span[aria-hidden="true"]')).toBeNull();
   });

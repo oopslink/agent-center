@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,8 +34,8 @@ import (
 // HandlerDeps is the narrow surface handlers need. The cli.App provides
 // these via an adapter (see internal/cli/webconsole_adapter.go).
 type HandlerDeps struct {
-	DB                 *sql.DB
-	Actor              observability.Actor
+	DB    *sql.DB
+	Actor observability.Actor
 	// EventSink emits observability/audit events (v2.8.1: agent/worker
 	// force_deleted). Optional — nil in headless/test wirings → emit is skipped.
 	EventSink          *observability.EventSink
@@ -360,8 +361,17 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		kk := conversation.ConversationKind(k)
 		filter.Kind = &kk
 	}
-	if st := r.URL.Query().Get("status"); st != "" {
-		ss := conversation.ConversationStatus(st)
+	// v2.9.1 (task-169c598d): the conversation/channel list EXCLUDES archived by
+	// DEFAULT, mirroring the project list (#298). ?status=<specific> (incl.
+	// "archived") returns only that status; ?status=all returns every status;
+	// no ?status= (default) excludes archived. The default-exclude is applied as a
+	// post-filter below (a single Status filter can't express "not archived").
+	statusParam := r.URL.Query().Get("status")
+	switch statusParam {
+	case "", "all":
+		// "" → default-exclude archived (post-filter below); "all" → no status filter.
+	default:
+		ss := conversation.ConversationStatus(statusParam)
 		filter.Status = &ss
 	}
 	// v2.7 #137: fetch a task/issue conversation by owner_ref (pm://tasks|
@@ -376,6 +386,19 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
+	}
+	// Default view (no ?status=) excludes archived conversations/channels; they
+	// remain reachable via ?status=archived (handled by the repo filter above) or
+	// ?status=all. Mirrors the project list default-exclude (#298).
+	if statusParam == "" {
+		kept := make([]*conversation.Conversation, 0, len(convs))
+		for _, c := range convs {
+			if c.Status() == conversation.ConversationArchived {
+				continue
+			}
+			kept = append(kept, c)
+		}
+		convs = kept
 	}
 	self := conversation.IdentityRef(d.Actor)
 	// v2.8 #268: per-row unread/mention/followed badges for the sidebar.
@@ -800,23 +823,152 @@ func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, row)
 }
 
+// threadSeenCursor returns the requesting user's conversation read cursor
+// (last_seen_message_id) for the v2.9.1 P3 has-new-activity derivation, and
+// whether the marker applies at all. A thread "has new activity" when its latest
+// reply id (ThreadDigest.LastReplyID, a ULID) sorts after lastSeen — the same
+// monotonic-id ordering unread uses. Marker is per-user and coarse-by-design
+// (owner: "先做有无, 不做精细 per-user 未读计数"): it reuses the single conversation
+// read cursor, so viewing the conversation / opening a thread advances it.
+// Agents don't track read state (Q-T1) → marker never applies (false).
+func (s *Server) threadSeenCursor(r *http.Request, d HandlerDeps, convID conversation.ConversationID) (lastSeen string, applies bool) {
+	userID := conversation.IdentityRef(d.Actor)
+	if d.ReadStateSvc == nil || !userID.IsHuman() {
+		return "", false
+	}
+	sum, err := d.ReadStateSvc.Unread(r.Context(), userID, convID)
+	if err != nil {
+		// Fail-soft: a never-seen user yields empty lastSeen (everything is new);
+		// on an unexpected error we still apply the marker with an empty cursor
+		// rather than hide real activity.
+		return "", true
+	}
+	return string(sum.LastSeenMessageID), true
+}
+
+// threadHasNewActivity reports whether a thread (its digest) has activity the
+// user hasn't seen: there is at least one reply and the latest reply id sorts
+// after the user's last_seen cursor (ULID lexicographic compare).
+func threadHasNewActivity(dg conversation.ThreadDigest, lastSeen string, applies bool) bool {
+	return applies && dg.LastReplyID != "" && dg.LastReplyID > lastSeen
+}
+
 func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
 	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
 		return
 	}
-	filter := conversation.MessageFilter{Limit: 200}
+	// v2.9.1 Thread P1: the main flow shows top-level messages only; replies live in
+	// the thread panel (fetched via the /replies endpoint).
+	filter := conversation.MessageFilter{Limit: 200, TopLevelOnly: true}
 	msgs, err := d.MsgRepo.FindByConversationID(r.Context(), id, filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
+	// One grouped query for per-root reply count + last activity (no N+1) so each
+	// root message carries the thread-button badge (reply_count + thread_last_activity_at).
+	digests, err := d.MsgRepo.ThreadReplyDigests(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	lastSeen, applies := s.threadSeenCursor(r, d, id)
 	arr := make([]map[string]any, len(msgs))
 	for i, m := range msgs {
+		mm := msgPublicMap(m)
+		if dg, ok := digests[m.ID()]; ok && dg.ReplyCount > 0 {
+			mm["reply_count"] = dg.ReplyCount
+			mm["thread_last_activity_at"] = dg.LastActivityAt
+			// v2.9.1 P3: per-user "new activity since last viewed" badge dot.
+			mm["has_new_activity"] = threadHasNewActivity(dg, lastSeen, applies)
+		}
+		arr[i] = mm
+	}
+	writeJSON(w, http.StatusOK, arr)
+}
+
+// listThreadRepliesHandler serves
+// GET /api/orgs/{slug}/conversations/{id}/messages/{rootId}/replies (v2.9.1 Thread
+// P1 read side): returns ONLY the thread's replies (the caller already has the root
+// from the main list), in posted_at order. Cross-org / unknown-root → 404
+// (existence-non-disclosure, §5.7): requireConversationInOrg guards the
+// conversation, and a rootId that is absent, lives in another conversation, or is
+// itself a reply (not a thread head) also 404s.
+func (s *Server) listThreadRepliesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	id := conversation.ConversationID(r.PathValue("id"))
+	rootID := conversation.MessageID(r.PathValue("rootId"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
+	// Validate the root: must exist, belong to THIS conversation, and be a real
+	// thread head (not itself a reply). Any miss → 404 (non-disclosure).
+	root, err := d.MsgRepo.FindByID(r.Context(), rootID)
+	if err != nil || root.ConversationID() != id || !root.IsThreadRoot() {
+		writeError(w, http.StatusNotFound, "not_found", "thread not found")
+		return
+	}
+	replies, err := d.MsgRepo.FindThreadReplies(r.Context(), id, rootID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	arr := make([]map[string]any, len(replies))
+	for i, m := range replies {
 		arr[i] = msgPublicMap(m)
 	}
 	writeJSON(w, http.StatusOK, arr)
+}
+
+// listThreadsHandler serves GET /api/orgs/{slug}/conversations/{id}/threads (v2.9.1
+// Thread P2): one ThreadSummary per thread (a root message WITH replies) for the
+// Participants-sidebar thread list — {root: <full message>, reply_count,
+// thread_last_activity_at}. Roots with no replies are not threads and are excluded.
+// Sorted by last activity desc (the FE re-sorts, but a tidy deterministic order
+// helps). Cross-org → 404 (§5.7) via requireConversationInOrg.
+func (s *Server) listThreadsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	id := conversation.ConversationID(r.PathValue("id"))
+	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
+	digests, err := d.MsgRepo.ThreadReplyDigests(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	if len(digests) == 0 {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	rootIDs := make([]conversation.MessageID, 0, len(digests))
+	for rid := range digests {
+		rootIDs = append(rootIDs, rid)
+	}
+	roots, err := d.MsgRepo.FindByIDs(r.Context(), rootIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	lastSeen, applies := s.threadSeenCursor(r, d, id)
+	summaries := make([]map[string]any, 0, len(roots))
+	for _, root := range roots {
+		dg := digests[root.ID()]
+		summaries = append(summaries, map[string]any{
+			"root":                    msgPublicMap(root),
+			"reply_count":             dg.ReplyCount,
+			"thread_last_activity_at": dg.LastActivityAt,
+			// v2.9.1 P3: per-user "new activity since last viewed" marker.
+			"has_new_activity": threadHasNewActivity(dg, lastSeen, applies),
+		})
+	}
+	// Most-recently-active thread first (deterministic; FE re-sorts by the same key).
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i]["thread_last_activity_at"].(string) > summaries[j]["thread_last_activity_at"].(string)
+	})
+	writeJSON(w, http.StatusOK, summaries)
 }
 
 type sendMessageReq struct {
@@ -826,6 +978,10 @@ type sendMessageReq struct {
 	Direction        string              `json:"direction"`
 	InputRequestRef  string              `json:"input_request_ref"`
 	Attachments      []msgAttachmentJSON `json:"attachments"`
+	// ParentMessageID (v2.9.1 Thread P1) makes this message a thread reply. The
+	// service derives the root (depth-1) and rejects a parent in another
+	// conversation. Empty for a top-level message.
+	ParentMessageID string `json:"parent_message_id"`
 }
 
 // msgAttachmentJSON is the wire shape for a message attachment (v2.7 #133):
@@ -930,6 +1086,7 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 			Direction:        conversation.MessageDirection(dir),
 			InputRequestRef:  req.InputRequestRef,
 			Attachments:      atts,
+			ParentMessageID:  conversation.MessageID(req.ParentMessageID),
 			Actor:            d.Actor,
 		})
 		if err != nil {
@@ -1443,6 +1600,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
+		// v2.9.1 Thread P1: a reply targeting a parent in another conversation is
+		// indistinguishable from "not found" at the edge (existence non-disclosure).
+		errors.Is(err, conversation.ErrMessageParentMismatch),
 		errors.Is(err, workforce.ErrAgentInstanceNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
@@ -1452,8 +1612,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "version_conflict", err.Error())
 	case errors.Is(err, conversation.ErrReadStateMessageNotInConversation):
 		writeError(w, http.StatusUnprocessableEntity, "message_not_in_conversation", err.Error())
-	case errors.Is(err, conversation.ErrConversationArchived),
-		errors.Is(err, conversation.ErrConversationClosed):
+	case errors.Is(err, conversation.ErrConversationArchived):
+		// v2.9.1 (task-169c598d): an archived conversation/channel is read-only;
+		// mutations reject with 409 Conflict — aligning channel archive with the
+		// PROJECT archive semantic (ErrProjectArchived → 409 "project_archived",
+		// #297) so the whole archive family is cross-surface consistent.
+		writeError(w, http.StatusConflict, "conversation_archived", err.Error())
+	case errors.Is(err, conversation.ErrConversationClosed):
 		writeError(w, http.StatusForbidden, "conversation_terminal", err.Error())
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),
 		errors.Is(err, convservice.ErrParticipantAlreadyActive):
@@ -1519,6 +1684,14 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 		"direction":          string(m.Direction()),
 		"input_request_ref":  m.InputRequestRef(),
 		"posted_at":          m.PostedAt().Format(time.RFC3339Nano),
+	}
+	// Thread linkage (v2.9.1 P1): emitted only for a reply (a top-level message
+	// carries neither key). parent == root under depth-1; both are the thread root.
+	if pid := m.ParentMessageID(); pid != "" {
+		out["parent_message_id"] = string(pid)
+	}
+	if rid := m.RootMessageID(); rid != "" {
+		out["root_message_id"] = string(rid)
 	}
 	// context_refs lets the UI segment a task conversation's messages by
 	// AgentWorkItem across re-dispatches (v2.7 #137). Emitted only when set

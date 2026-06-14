@@ -260,6 +260,35 @@ func messageAddedEventOwner(id, convID, ownerRef, msgID, sender, text string) ou
 	}
 }
 
+// F4: when the triggering message is a thread reply, its root_message_id must
+// propagate through the projector into the wake command payload so the agent
+// replies in-thread.
+func TestWakeProjector_ThreadReply_CarriesRootIntoWake(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveAgent(t, "AG1", "W1")
+	f.saveWorkItem(t, "wi-1", "AG1", "pm://tasks/T1", agent.WorkItemWaitingInput)
+
+	pl, _ := json.Marshal(map[string]string{
+		"conversation_id": "conv-1",
+		"owner_ref":       "pm://tasks/T1",
+		"message_id":      "msg-reply",
+		"sender":          "user:bob",
+		"text":            "@AG1 in thread",
+		"root_message_id": "msg-root",
+	})
+	e := outbox.Event{ID: "EVF4", EventType: convservice.EvtConversationMessageAdded, Payload: string(pl), CreatedAt: time.Unix(1_700_000_000, 0).UTC()}
+	if err := f.proj.Project(f.ctx, e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 {
+		t.Fatalf("want 1 wake command, got %d", len(cmds))
+	}
+	if !strings.Contains(cmds[0].Payload(), `"root_message_id":"msg-root"`) {
+		t.Fatalf("wake command must carry root_message_id, got: %s", cmds[0].Payload())
+	}
+}
+
 func TestWakeProjector_WaitingInput_EnqueuesWake(t *testing.T) {
 	f := newWakeFixture(t)
 	f.saveAgent(t, "AG1", "W1")

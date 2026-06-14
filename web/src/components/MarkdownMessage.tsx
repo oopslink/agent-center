@@ -55,7 +55,7 @@ function linkifyMentions(
 // `textClass` overrides the body text color. Default `text-text-primary` (theme
 // token, adapts both modes) is correct on theme-adaptive backgrounds. On a FIXED
 // light surface (e.g. the own chat bubble's #D1E3FF, which does NOT flip per theme),
-// pass a FIXED dark class (text-slate-900) so the body stays dark in BOTH modes —
+// pass a FIXED dark class (text-chatbubble-fg) so the body stays dark in BOTH modes —
 // a theme token would flip light in dark mode = light-on-light-blue FAIL.
 export function MarkdownMessage({
   content,

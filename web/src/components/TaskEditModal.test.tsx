@@ -135,7 +135,7 @@ describe('TaskEditModal', () => {
       (screen.getByTestId('task-edit-status') as HTMLSelectElement).options,
     ).map((o) => o.value);
     expect(opts).toEqual([
-      'open', 'running', 'blocked', 'completed', 'verified', 'discarded', 'reopened',
+      'open', 'running', 'completed', 'discarded', 'reopened',
     ]);
   });
 

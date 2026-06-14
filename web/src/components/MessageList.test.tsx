@@ -167,14 +167,15 @@ describe('MessageList', () => {
     expect(row).toHaveAttribute('data-own', 'true');
     expect(row.className).toContain('items-end');
     // Chat UX 2 (#1+#2): own bubble is bg-chatuserbubble (#D1E3FF), NOT the old
-    // bg-indigo-500; adaptive max-w; FIXED dark text (text-slate-900) so it stays
-    // dark on the fixed light-blue in BOTH light + dark mode (NOT a theme token).
+    // indigo fill; adaptive max-w; FIXED dark text (text-chatbubble-fg, a
+    // light==dark token) so it stays dark on the fixed light-blue in BOTH light +
+    // dark mode (NOT a theme token).
     const bubble = row.querySelector('.bg-chatuserbubble');
     expect(bubble).not.toBeNull();
-    expect(row.querySelector('.bg-indigo-500')).toBeNull();
+    expect(row.querySelector('.bg-indigo-500')).toBeNull(); // raw-color-ok: regression guard, old removed fill
     expect(bubble?.className).toContain('max-w-[75%]');
     expect(bubble?.className).not.toContain('sm:w-2/3');
-    expect(bubble?.className).toContain('text-slate-900');
+    expect(bubble?.className).toContain('text-chatbubble-fg');
     // text-text-primary flips light in dark mode → must NOT be the bubble's text.
     expect(bubble?.className).not.toContain('text-text-primary');
     // no avatar for own messages (#225).

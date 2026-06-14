@@ -46,6 +46,66 @@ export default {
         // in dark mode — see the own-bubble render. Tester2: #D1E3FF + dark text
         // = 13.72 AAA. Mirrors the blockedred custom-hex-token pattern.
         chatuserbubble: '#D1E3FF',
+
+        // Status / chip / badge palette tokens (no-raw-colors migration).
+        // CSS vars in src/index.css carry the exact light hex + dark pair so
+        // `<html class="dark">` flips them; light mode is byte-identical to the
+        // pre-migration raw Tailwind palette classes.
+        'status-slate-bg':       'var(--color-status-slate-bg)',
+        'status-slate-fg':       'var(--color-status-slate-fg)',
+        'status-slate-fg-soft':  'var(--color-status-slate-fg-soft)',
+        'status-slate-border':   'var(--color-status-slate-border)',
+        'status-slate-solid':      'var(--color-status-slate-solid)',
+        'status-slate-solid-soft': 'var(--color-status-slate-solid-soft)',
+        'status-zinc-solid':     'var(--color-status-zinc-solid)',
+        'status-stone-bg':       'var(--color-status-stone-bg)',
+        'status-stone-fg':       'var(--color-status-stone-fg)',
+        'status-blue-bg':        'var(--color-status-blue-bg)',
+        'status-blue-fg':        'var(--color-status-blue-fg)',
+        'status-blue-border':    'var(--color-status-blue-border)',
+        'status-blue-solid':     'var(--color-status-blue-solid)',
+        'status-indigo-bg':      'var(--color-status-indigo-bg)',
+        'status-indigo-fg':      'var(--color-status-indigo-fg)',
+        'status-violet-bg':      'var(--color-status-violet-bg)',
+        'status-violet-fg':      'var(--color-status-violet-fg)',
+        'status-violet-border':  'var(--color-status-violet-border)',
+        'status-violet-solid':   'var(--color-status-violet-solid)',
+        'status-purple-bg':      'var(--color-status-purple-bg)',
+        'status-purple-fg':      'var(--color-status-purple-fg)',
+        'status-purple-strong':  'var(--color-status-purple-strong)',
+        'status-fuchsia-bg':     'var(--color-status-fuchsia-bg)',
+        'status-fuchsia-fg':     'var(--color-status-fuchsia-fg)',
+        'status-amber-bg':       'var(--color-status-amber-bg)',
+        'status-amber-fg':       'var(--color-status-amber-fg)',
+        'status-amber-border':   'var(--color-status-amber-border)',
+        'status-amber-solid':    'var(--color-status-amber-solid)',
+        'status-emerald-bg':     'var(--color-status-emerald-bg)',
+        'status-emerald-fg':     'var(--color-status-emerald-fg)',
+        'status-emerald-border': 'var(--color-status-emerald-border)',
+        'status-teal-bg':        'var(--color-status-teal-bg)',
+        'status-teal-fg':        'var(--color-status-teal-fg)',
+        'status-teal-solid':     'var(--color-status-teal-solid)',
+        'status-cyan-bg':        'var(--color-status-cyan-bg)',
+        'status-cyan-fg':        'var(--color-status-cyan-fg)',
+        'status-cyan-solid':     'var(--color-status-cyan-solid)',
+        'status-rose-bg':        'var(--color-status-rose-bg)',
+        'status-rose-fg':        'var(--color-status-rose-fg)',
+        'status-rose-border':    'var(--color-status-rose-border)',
+        'status-green-bg':         'var(--color-status-green-bg)',
+        'status-green-fg':         'var(--color-status-green-fg)',
+        'status-green-solid':      'var(--color-status-green-solid)',
+        'status-green-solid-soft': 'var(--color-status-green-solid-soft)',
+        'status-sky-solid':      'var(--color-status-sky-solid)',
+        'status-orange-solid':   'var(--color-status-orange-solid)',
+        'status-orange-strong':  'var(--color-status-orange-strong)',
+
+        // FIXED tokens (light == dark) for fixed-color surfaces that do NOT
+        // flip per theme — the own chat bubble (#D1E3FF) and code block (#003247).
+        'chatbubble-fg':   'var(--color-chatbubble-fg)',
+        'chatbubble-link': 'var(--color-chatbubble-link)',
+        'codeblock-fg':    'var(--color-codeblock-fg)',
+        'codeblock-muted': 'var(--color-codeblock-muted)',
+        'codeblock-link':  'var(--color-codeblock-link)',
       },
       fontFamily: {
         // @oopslink (locked): dropped the custom DM Sans + Space Grotesk pairing;

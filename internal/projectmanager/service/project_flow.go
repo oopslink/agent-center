@@ -56,6 +56,33 @@ func (s *Service) ArchiveProject(ctx context.Context, projectID pm.ProjectID, ac
 			return err
 		}
 		p.Archive(now)
-		return s.projects.Update(txCtx, p)
+		if err := s.projects.Update(txCtx, p); err != nil {
+			return err
+		}
+		// ADR-0047: cascade-archive the project's built-in pool (it is "archived with
+		// its project"). ArchiveWithProject accepts the always-running pool. Other
+		// (structured) plans are left as-is — the archived project freezes all child
+		// writes via requireProjectMutable.
+		if s.plans != nil {
+			plans, lerr := s.plans.ListByProject(txCtx, p.ID())
+			if lerr != nil {
+				return lerr
+			}
+			for _, pl := range plans {
+				if !pl.IsBuiltin() {
+					continue
+				}
+				if aerr := pl.ArchiveWithProject(now); aerr != nil {
+					if aerr == pm.ErrPlanArchived {
+						continue // already archived — idempotent
+					}
+					return aerr
+				}
+				if uerr := s.plans.Update(txCtx, pl); uerr != nil {
+					return uerr
+				}
+			}
+		}
+		return nil
 	})
 }

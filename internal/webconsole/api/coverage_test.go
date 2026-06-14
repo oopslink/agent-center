@@ -516,7 +516,7 @@ func TestMapDomainError_Matrix(t *testing.T) {
 		{secretmgmt.ErrUserSecretNotFound, 404},
 		{conversation.ErrConversationVersionConflict, 409},
 		{secretmgmt.ErrUserSecretVersionConflict, 409},
-		{conversation.ErrConversationArchived, 403},
+		{conversation.ErrConversationArchived, 409}, // v2.9.1 task-169c598d: archived = read-only → 409 (project-archive parity)
 		{conversation.ErrConversationClosed, 403},
 		{conversation.ErrConversationAlreadyExists, 409},
 		{convservice.ErrParticipantAlreadyActive, 409},

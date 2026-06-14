@@ -42,6 +42,33 @@ func makeGetTask(cfg Config) mcp.ToolHandlerFor[getTaskArgs, any] {
 	}
 }
 
+// --- list_tasks (v2.9.1 #T38) ------------------------------------------------
+
+type listTasksArgs struct {
+	ProjectID string   `json:"project_id" jsonschema:"the project whose tasks to list (required)"`
+	Status    []string `json:"status,omitempty" jsonschema:"optional task statuses to include (e.g. open, running, completed); omit for all"`
+	Assignee  string   `json:"assignee,omitempty" jsonschema:"optional assignee identity ref to filter by (agent:<id> / user:<id>)"`
+}
+
+// makeListTasks lists ALL tasks in a project (board overview), optionally filtered
+// by status and/or assignee — fills the gap where get_my_work is self-only and
+// list_plans only covers plan nodes.
+func makeListTasks(cfg Config) mcp.ToolHandlerFor[listTasksArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listTasksArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+		}
+		if len(args.Status) > 0 {
+			body["status"] = args.Status
+		}
+		if args.Assignee != "" {
+			body["assignee"] = args.Assignee
+		}
+		return callAdmin(ctx, cfg, "list_tasks", body)
+	}
+}
+
 // --- get_issue ---------------------------------------------------------------
 
 type getIssueArgs struct {
@@ -260,6 +287,43 @@ func makeBlockTask(cfg Config) mcp.ToolHandlerFor[blockTaskArgs, any] {
 	}
 }
 
+// --- unblock_task / rerun_failed_node (v2.9.1 P0 recovery) -------------------
+
+type unblockTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the blocked task to recover"`
+}
+
+// makeUnblockTask recovers a blocked task: blocked→running + a fresh re-dispatch
+// (re-wakes the assignee). Recovery for a task stuck blocked after a
+// restart/stale-release (reason "agent execution failed").
+func makeUnblockTask(cfg Config) mcp.ToolHandlerFor[unblockTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args unblockTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "unblock_task", body)
+	}
+}
+
+type rerunFailedNodeArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the plan the node belongs to"`
+	TaskID string `json:"task_id" jsonschema:"the plan node's task to re-run"`
+}
+
+// makeRerunFailedNode clears a plan node's dispatch record so the next plan
+// advance re-dispatches it — plan-aware recovery for a stuck node.
+func makeRerunFailedNode(cfg Config) mcp.ToolHandlerFor[rerunFailedNodeArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args rerunFailedNodeArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "rerun_failed_node", body)
+	}
+}
+
 // --- complete_task -----------------------------------------------------------
 
 type completeTaskArgs struct {
@@ -275,22 +339,6 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 			"summary":  args.Summary,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
-	}
-}
-
-// --- verify_task -------------------------------------------------------------
-
-type verifyTaskArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the completed task to verify"`
-}
-
-func makeVerifyTask(cfg Config) mcp.ToolHandlerFor[verifyTaskArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args verifyTaskArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-		}
-		return callAdmin(ctx, cfg, "verify_task", body)
 	}
 }
 

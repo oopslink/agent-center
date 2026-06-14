@@ -87,7 +87,7 @@ func (s *Server) findOwnWorkItems(ctx context.Context, repo agent.WorkItemReposi
 // Returns the new message id. The Conversation is resolved by owner_ref
 // (pm://tasks/{taskID}); ErrConversationNotFound surfaces if the task has no
 // bound Conversation yet (the participant projector creates it on task create).
-func (s *Server) postAgentMessage(ctx context.Context, d HandlerDeps, a *agent.Agent, taskID, content string) (conversation.MessageID, error) {
+func (s *Server) postAgentMessage(ctx context.Context, d HandlerDeps, a *agent.Agent, taskID, content string, parentID conversation.MessageID) (conversation.MessageID, error) {
 	conv, err := d.ConvRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID))
 	if err != nil {
 		return "", err
@@ -98,6 +98,7 @@ func (s *Server) postAgentMessage(ctx context.Context, d HandlerDeps, a *agent.A
 		ContentKind:      conversation.MessageContentText,
 		Direction:        conversation.DirectionOutbound,
 		Content:          content,
+		ParentMessageID:  parentID, // F4: thread the reply when replying inside a thread
 		Actor:            observability.Actor(agentActor(a)),
 	})
 	if err != nil {
@@ -138,6 +139,9 @@ type postTaskMessageReq struct {
 	AgentID string `json:"agent_id"`
 	TaskID  string `json:"task_id"`
 	Content string `json:"content"`
+	// ParentMessageID (v2.9.1 Thread F4): when the agent is replying inside a thread,
+	// the thread root id — so the reply lands in-thread. Empty for a top-level message.
+	ParentMessageID string `json:"parent_message_id"`
 }
 
 // postTaskMessageHandler appends a human-visible message to the task
@@ -164,7 +168,7 @@ func (s *Server) postTaskMessageHandler(w http.ResponseWriter, r *http.Request) 
 	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
 		return
 	}
-	msgID, err := s.postAgentMessage(r.Context(), d, a, req.TaskID, req.Content)
+	msgID, err := s.postAgentMessage(r.Context(), d, a, req.TaskID, req.Content, conversation.MessageID(req.ParentMessageID))
 	if err != nil {
 		mapDomainError(w, err)
 		return
@@ -178,6 +182,10 @@ type postMessageReq struct {
 	AgentID        string `json:"agent_id"`
 	ConversationID string `json:"conversation_id"`
 	Content        string `json:"content"`
+	// ParentMessageID (v2.9.1 Thread F4): when the agent was @mentioned inside a
+	// thread, the thread root id — so its reply lands in-thread instead of at
+	// conversation top-level. Empty for an ordinary top-level message.
+	ParentMessageID string `json:"parent_message_id"`
 }
 
 // postMessageHandler appends a message, as the agent, to ANY conversation
@@ -241,6 +249,7 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentKind:      conversation.MessageContentText,
 		Direction:        conversation.DirectionOutbound,
 		Content:          req.Content,
+		ParentMessageID:  conversation.MessageID(req.ParentMessageID), // F4: reply in-thread
 		Actor:            observability.Actor(agentActor(a)),
 	})
 	if err != nil {
@@ -311,7 +320,7 @@ func (s *Server) requestInputHandler(w http.ResponseWriter, r *http.Request) {
 	var parked *agent.AgentWorkItem
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
 		// (a) post the question to the task Conversation (nests the ambient tx).
-		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Question); err != nil {
+		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Question, ""); err != nil {
 			return err
 		}
 		// (b) target the agent's NON-TERMINAL WorkItem for the task and park it.
@@ -468,7 +477,7 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
-		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason); err != nil {
+		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
 			return err
 		}
 		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason,
@@ -479,6 +488,78 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "blocked"})
+}
+
+// --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
+
+type unblockTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// unblockTaskHandler RECOVERS a blocked task: blocked→running plus a fresh
+// re-dispatch (UnblockTask emits pm.task.assigned → the WorkItemProjector mints a
+// NEW WorkItem, re-waking the assignee). This is the recovery entry point for the
+// "restart / stale-release → deadlocked blocked" class (v2.9.1 P0): a Task blocked
+// with reason "agent execution failed" otherwise had no path back to executable.
+//
+// Cross-agent BY DESIGN — an owner/PD recovers ANOTHER agent's stuck task — so it
+// does NOT requireOwnTask; the pm service enforces project membership (+ rejects an
+// archived project). Unblocking a non-blocked task is an illegal transition (4xx).
+func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req unblockTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.UnblockTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
+}
+
+// --- rerun_failed_node (v2.9.1 P0 recovery, plan-aware) ----------------------
+
+type rerunFailedNodeReq struct {
+	AgentID string `json:"agent_id"`
+	PlanID  string `json:"plan_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// rerunFailedNodeHandler clears a plan node's dispatch record (pm RerunFailedNode)
+// so the next plan advance re-dispatches it — the plan-aware companion to
+// unblock_task for recovering a stuck node (v2.9.1 P0). Project-member guarded by
+// the service.
+func (s *Server) rerunFailedNodeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req rerunFailedNodeReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.RerunFailedNode(r.Context(), pm.PlanID(req.PlanID), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // --- complete_task -----------------------------------------------------------
@@ -516,7 +597,7 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
 		if strings.TrimSpace(req.Summary) != "" {
-			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Summary); err != nil {
+			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Summary, ""); err != nil {
 				return err
 			}
 		}

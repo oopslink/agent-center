@@ -25,6 +25,10 @@ var AgentFacingToolNames = []string{
 	"block_task",
 	"complete_task",
 	"create_plan",
+	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
+	// task stuck blocked after a restart/stale-release).
+	"unblock_task",
+	"rerun_failed_node",
 	"create_task",
 	"delete_plan",
 	"download_file",
@@ -40,6 +44,7 @@ var AgentFacingToolNames = []string{
 	"get_task",
 	"list_my_paused_work",
 	"list_plans",
+	"list_tasks",
 	"mark_seen",
 	"pause_work",
 	"post_message",
@@ -55,7 +60,6 @@ var AgentFacingToolNames = []string{
 	"subscribe",
 	"unsubscribe",
 	"upload_file",
-	"verify_task",
 }
 
 // FilesSeamTools are the agent-facing tools that move BYTES through the FileMover

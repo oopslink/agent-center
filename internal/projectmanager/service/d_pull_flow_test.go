@@ -20,9 +20,9 @@ import (
 	conversation "github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
+	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
-	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -242,8 +242,10 @@ func TestPR7_TaskWISync_FailedToBlock(t *testing.T) {
 		t.Fatalf("FailWork: %v", err)
 	}
 	h.drain(t)
-	if got := h.taskStatus(t, tid); got != pmpkg.TaskBlocked {
-		t.Fatalf("after FailWork: task must be BLOCKED (no running-limbo, per (b) fix), got %s", got)
+	// ADR-0046: WI failure sets a blocked_reason annotation; status STAYS running
+	// (blocked is no longer a state, so a failed task can never deadlock).
+	if got := h.taskStatus(t, tid); got != pmpkg.TaskRunning {
+		t.Fatalf("after FailWork: task must stay RUNNING with a block annotation, got %s", got)
 	}
 	if n := h.activeWaiting(t, "AG1"); n != 0 {
 		t.Fatalf("after fail: single-active slot must be freed, got %d", n)
@@ -290,8 +292,9 @@ func TestPR7_ReconcilerReleasesStuck(t *testing.T) {
 	if got := h.activeWaiting(t, "AG1"); got != 0 {
 		t.Fatalf("after reconciler release: single-active slot must be freed, got %d", got)
 	}
-	if got := h.taskStatus(t, tid); got != pmpkg.TaskBlocked {
-		t.Fatalf("after reconciler release: task must be BLOCKED (stuck recovery → (b) path), got %s", got)
+	// ADR-0046: stuck recovery sets a blocked_reason annotation; status stays running.
+	if got := h.taskStatus(t, tid); got != pmpkg.TaskRunning {
+		t.Fatalf("after reconciler release: task must stay RUNNING with a block annotation, got %s", got)
 	}
 }
 

@@ -26,9 +26,22 @@ function o(...parts: readonly unknown[]): readonly unknown[] {
 export const qk = {
   conversations: (kind?: string) =>
     kind ? (o('conversations', { kind })) : (o('conversations')),
+  // v2.9.1 (task-169c598d): the ARCHIVED-only conversation list (?status=archived),
+  // a SEPARATE cache key from the active list so the collapsed "Archived" group
+  // caches independently and never collides with qk.conversations(kind).
+  conversationsArchived: (kind?: string) =>
+    kind ? o('conversations', 'archived', { kind }) : o('conversations', 'archived'),
   conversation: (id: string) => o('conversation', id),
   conversationByOwner: (ownerRef: string) => o('conversationByOwner', ownerRef),
   messages: (convId: string) => o('messages', convId),
+  // v2.9.1 Threads: the replies of one root message
+  // (GET /conversations/{convId}/messages/{rootId}/replies). Keyed by both ids
+  // so each open thread caches independently and a reply invalidates only its
+  // own thread (plus the messages list, for the root's reply_count bump).
+  threadReplies: (convId: string, rootId: string) => o('threadReplies', convId, rootId),
+  // v2.9.1 Threads P2: all thread summaries in a conversation
+  // (GET /conversations/{convId}/threads) — drives the Participants thread list.
+  conversationThreads: (convId: string) => o('conversationThreads', convId),
   refs: (convId: string) => o('refs', convId),
   agents: () => o('agents'),
   agent: (id: string) => o('agent', id),

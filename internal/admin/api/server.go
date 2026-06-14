@@ -390,6 +390,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/post_message", s.postMessageHandler) // v2.7 #185: DM/channel reply
 	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
+	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
+	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/rerun_failed_node", s.rerunFailedNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
 	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
 	// AppServices (writes use actor=agent; the AppService's requireProjectMember
@@ -400,9 +403,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/reassign_task", s.assignTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/subscribe", s.subscribeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/unsubscribe", s.unsubscribeHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/verify_task", s.verifyTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_task", s.getTaskHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_task", s.getTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_tasks", s.listTasksHandler) // v2.9.1 #T38
 	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_issue", s.getIssueHandler)
 	// v2.7 post-D3 (task #104) — agent file MCP tools. Upload/download/attach with

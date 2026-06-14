@@ -58,15 +58,16 @@ func TestIssue_GettersRehydrate(t *testing.T) {
 
 func TestTask_GettersRehydrate(t *testing.T) {
 	tk, err := RehydrateTask(RehydrateTaskInput{
-		ID: "T1", ProjectID: "P1", Title: "t", Description: "d", Status: TaskBlocked,
+		ID: "T1", ProjectID: "P1", Title: "t", Description: "d", Status: TaskRunning,
 		Assignee: "agent:c", DerivedFromIssue: "I1", CompletedBy: "", BlockedReason: "r",
 		CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// ADR-0046: a "stuck" task is RUNNING with a blocked_reason annotation.
 	if tk.ID() != "T1" || tk.ProjectID() != "P1" || tk.Title() != "t" || tk.Description() != "d" ||
-		tk.Status() != TaskBlocked || tk.Assignee() != "agent:c" || tk.DerivedFromIssue() != "I1" ||
+		tk.Status() != TaskRunning || tk.Assignee() != "agent:c" || tk.DerivedFromIssue() != "I1" ||
 		tk.BlockedReason() != "r" || tk.CreatedBy() != "user:a" || tk.Version() != 4 ||
 		!tk.CreatedAt().Equal(t0) || !tk.UpdatedAt().Equal(t0) {
 		t.Fatalf("task getters wrong: %+v", tk)

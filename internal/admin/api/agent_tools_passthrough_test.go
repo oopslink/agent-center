@@ -12,7 +12,7 @@ import (
 
 // =============================================================================
 // v2.7 D2 b2/d-ii-B — agent MCP passthrough tools (create_task, assign_task /
-// reassign_task, subscribe / unsubscribe, verify_task, get_task, get_issue).
+// reassign_task, subscribe / unsubscribe, get_task, get_issue).
 //
 // These reuse the writeToolsFixture (real admin server + AuthMiddleware over the
 // full pm → outbox → projector pipeline). The WRITE tools go through the pm
@@ -81,6 +81,81 @@ func (f *writeToolsFixture) seedForeignProject(t *testing.T) pm.ProjectID {
 		t.Fatal(err)
 	}
 	return pid
+}
+
+// --- list_tasks (v2.9.1 #T38) ------------------------------------------------
+
+func TestListTasks_FiltersAndIsolation(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, seedTID := f.seedMemberProject(t) // task "seed" assigned to atAgent1 (open)
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	// A second task assigned to atAgent1, started → running.
+	t2, _ := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "two", CreatedBy: owner})
+	f.drain(t)
+	_ = f.pmSvc.AssignTask(ctx, t2, pm.IdentityRef("agent:"+atAgent1), owner)
+	f.drain(t)
+	_ = f.pmSvc.StartTask(ctx, t2, pm.IdentityRef("agent:"+atAgent1))
+	// A third task assigned to a different identity (open).
+	t3, _ := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "three", CreatedBy: owner})
+	f.drain(t)
+	_ = f.pmSvc.AssignTask(ctx, t3, pm.IdentityRef("user:bob"), owner)
+	f.drain(t)
+	srv := f.server(t)
+
+	list := func(body map[string]any) []map[string]any {
+		status, resp := postBearer(t, srv.URL, "/admin/agent-tools/list_tasks", "acat_w1", body)
+		if status != http.StatusOK {
+			t.Fatalf("list_tasks status=%d body=%v", status, resp)
+		}
+		raw, _ := resp["tasks"].([]any)
+		out := make([]map[string]any, 0, len(raw))
+		for _, x := range raw {
+			out = append(out, x.(map[string]any))
+		}
+		return out
+	}
+
+	// All three tasks in the project.
+	all := list(map[string]any{"agent_id": atAgent1, "project_id": string(pid)})
+	if len(all) != 3 {
+		t.Fatalf("list all: got %d want 3", len(all))
+	}
+	// Status filter → only the running one (t2).
+	running := list(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "status": []string{"running"}})
+	if len(running) != 1 || running[0]["id"] != string(t2) {
+		t.Fatalf("status=running: got %v", running)
+	}
+	// Assignee filter → the two assigned to atAgent1 (seed + t2).
+	mine := list(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "assignee": "agent:" + atAgent1})
+	if len(mine) != 2 {
+		t.Fatalf("assignee filter: got %d want 2", len(mine))
+	}
+	for _, m := range mine {
+		if m["id"] != seedTID && m["id"] != string(t2) {
+			t.Fatalf("assignee filter returned unexpected task %v", m["id"])
+		}
+	}
+
+	// Org-isolation: a project the agent is NOT a member of → rejected (no listing).
+	foreign := f.seedForeignProject(t)
+	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/list_tasks", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(foreign)})
+	if status == http.StatusOK || status < 400 {
+		t.Fatalf("foreign project must be rejected, got %d", status)
+	}
+}
+
+func TestListTasks_MissingProjectID_400(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/list_tasks", "acat_w1",
+		map[string]any{"agent_id": atAgent1})
+	if status != http.StatusBadRequest || body["error"] != "missing_project_id" {
+		t.Fatalf("got status=%d err=%v want 400 missing_project_id", status, body["error"])
+	}
 }
 
 // --- create_task -------------------------------------------------------------
@@ -264,55 +339,8 @@ func TestUnsubscribe_ExplicitIdentity_OK(t *testing.T) {
 	}
 }
 
-// --- verify_task -------------------------------------------------------------
-
-// TestVerifyTask_SelfVerify_Rejected: AG1 completed the task, so AG1 verifying
-// it must be rejected with pm.ErrSelfVerify → 422 invalid_transition.
-func TestVerifyTask_SelfVerify_Rejected(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t) // AG1 is assignee + member; task is running.
-	// AG1 completes the task (becomes the completer).
-	if err := f.pmSvc.CompleteTask(context.Background(), pm.TaskID(tid), pm.IdentityRef("agent:"+atAgent1)); err != nil {
-		t.Fatal(err)
-	}
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/verify_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d, want 422 (no self-verify); body = %v", status, body)
-	}
-	if body["error"] != "invalid_transition" {
-		t.Fatalf("error = %v, want invalid_transition (ErrSelfVerify)", body["error"])
-	}
-	// Task stays completed (not verified).
-	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
-		t.Fatalf("task status = %s, want completed (self-verify rejected)", got)
-	}
-}
-
-// TestVerifyTask_NonCompleter_OK: AG1 is a member but a DIFFERENT identity
-// (user:owner) completed the task, so AG1 can verify → 200.
-func TestVerifyTask_NonCompleter_OK(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t)
-	// user:owner (a member, the creator) completes the task — AG1 is NOT the completer.
-	if err := f.pmSvc.CompleteTask(context.Background(), pm.TaskID(tid), pm.IdentityRef("user:owner")); err != nil {
-		t.Fatal(err)
-	}
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/verify_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusOK || body["ok"] != true {
-		t.Fatalf("status = %d body=%v, want 200 ok=true", status, body)
-	}
-	if got := f.taskStatus(t, tid); got != pm.TaskVerified {
-		t.Fatalf("task status = %s, want verified", got)
-	}
-}
+// ADR-0046: verify_task is DELETED (verification capability removed). The former
+// TestVerifyTask_SelfVerify_Rejected / TestVerifyTask_NonCompleter_OK were removed.
 
 // --- get_task ----------------------------------------------------------------
 

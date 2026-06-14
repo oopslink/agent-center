@@ -32,6 +32,39 @@ func newPlanFixture(id pm.PlanID, project pm.ProjectID) *pm.Plan {
 	return p
 }
 
+// TestPlanRepo_BuiltinRoundTrip (ADR-0047) proves the is_builtin flag round-trips:
+// a builtin plan saved + reloaded reports IsBuiltin()==true, and a normal plan
+// reports false.
+func TestPlanRepo_BuiltinRoundTrip(t *testing.T) {
+	ctx, pr, _ := planSetup(t)
+	bp, err := pm.NewPlan(pm.NewPlanInput{
+		ID: "PL-builtin", ProjectID: "P-1", Name: "[Built-in]",
+		CreatorRef: "system", Builtin: true, CreatedAt: t0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pr.Save(ctx, bp); err != nil {
+		t.Fatal(err)
+	}
+	got, err := pr.FindByID(ctx, "PL-builtin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.IsBuiltin() {
+		t.Fatalf("builtin plan round-trip: IsBuiltin()=false, want true")
+	}
+	// A normal plan stays non-builtin.
+	np := newPlanFixture("PL-normal", "P-1")
+	if err := pr.Save(ctx, np); err != nil {
+		t.Fatal(err)
+	}
+	rn, _ := pr.FindByID(ctx, "PL-normal")
+	if rn.IsBuiltin() {
+		t.Fatalf("normal plan round-trip: IsBuiltin()=true, want false")
+	}
+}
+
 func TestPlanRepo_RoundTrip(t *testing.T) {
 	ctx, pr, _ := planSetup(t)
 	p := newPlanFixture("PL-1", "P-1")

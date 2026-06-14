@@ -254,10 +254,12 @@ describe('TaskDetail page', () => {
       await waitFor(() => expect(screen.getAllByTestId('task-tag-chip').length).toBe(3));
       const chips = screen.getAllByTestId('task-tag-chip');
       const byTag = new Map(chips.map((c) => [c.getAttribute('data-tag'), c.className]));
-      // each chip carries a curated bg-X-100 + text-X-800 pair (both-mode AA).
+      // each chip carries a curated status-hue bg/fg token pair (both-mode AA):
+      // the bg-X-100 + text-X-800 raw classes migrated to bg-status-X-bg /
+      // text-status-X-fg (light hex unchanged; dark pair added).
       for (const cls of byTag.values()) {
-        expect(cls).toMatch(/bg-\w+-100/);
-        expect(cls).toMatch(/text-\w+-800/);
+        expect(cls).toMatch(/bg-status-\w+-bg/);
+        expect(cls).toMatch(/text-status-\w+-fg/);
       }
       // deterministic: 'infra' hashes to the same pair as a second 'infra' render.
       const { tagColorFor } = await import('@/components/tagColors');
@@ -313,6 +315,41 @@ describe('TaskDetail page', () => {
       wrap('/projects/proj-a/tasks/TS-1');
       expect(await screen.findByTestId('task-assignee-empty')).toHaveTextContent('Unassigned');
       expect(screen.queryByTestId('task-assign-change')).not.toBeInTheDocument();
+    });
+
+    // ───────── ADR-0046 D5: "stuck" annotation (blocked_reason) on a RUNNING task.
+    it('shows a "Stuck" badge on a RUNNING task with a non-empty blocked_reason (solid amber, both-mode AA)', async () => {
+      server.use(
+        http.get('/api/projects/proj-a/tasks/:id', () =>
+          HttpResponse.json(taskAt('running', { blocked_reason: 'waiting on review' })),
+        ),
+      );
+      wrap('/projects/proj-a/tasks/TS-1');
+      const badge = await screen.findByTestId('task-blocked-reason');
+      expect(badge).toHaveTextContent('Stuck: waiting on review');
+      // solid X-100/X-800 token chip (no alpha-tint) → AA ≥4.5 in light + dark.
+      expect(badge.className).toContain('bg-status-amber-bg');
+      expect(badge.className).toContain('text-status-amber-fg');
+    });
+
+    it('does NOT show the Stuck badge when blocked_reason is empty/absent', async () => {
+      server.use(
+        http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('running'))),
+      );
+      wrap('/projects/proj-a/tasks/TS-1');
+      await screen.findByTestId('task-sidebar-status');
+      expect(screen.queryByTestId('task-blocked-reason')).not.toBeInTheDocument();
+    });
+
+    it('does NOT show the Stuck badge on a non-running task even if blocked_reason is set', async () => {
+      server.use(
+        http.get('/api/projects/proj-a/tasks/:id', () =>
+          HttpResponse.json(taskAt('open', { blocked_reason: 'stale annotation' })),
+        ),
+      );
+      wrap('/projects/proj-a/tasks/TS-1');
+      await screen.findByTestId('task-sidebar-status');
+      expect(screen.queryByTestId('task-blocked-reason')).not.toBeInTheDocument();
     });
   });
 });

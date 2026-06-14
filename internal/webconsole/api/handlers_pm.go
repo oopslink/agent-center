@@ -45,7 +45,7 @@ func mapPMError(w http.ResponseWriter, err error) {
 		// mutation rejects with 409, cross-surface (mirrors ErrPlanArchived).
 		writeError(w, http.StatusConflict, "project_archived", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
-		errors.Is(err, pm.ErrSelfVerify), errors.Is(err, pm.ErrBlockReasonRequired),
+		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
 		errors.Is(err, pm.ErrProjectExists), errors.Is(err, pm.ErrMemberExists),
 		errors.Is(err, pm.ErrTaskExists), errors.Is(err, pm.ErrIssueExists):
@@ -505,8 +505,19 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 		mapPMError(w, err)
 		return
 	}
+	// v2.9.1 (task-c91805fe): the default backlog/task view shows only "unscheduled
+	// todo" — it EXCLUDES terminal tasks (completed/discarded). They remain reachable
+	// via an explicit ?status= filter (e.g. ?status=completed), mirroring the
+	// archived-projects pattern (#298/#310) and the org task list. Plan membership is
+	// untouched: a done task selected into a Plan still belongs to that Plan's DAG;
+	// only this backlog POOL view hides it. statusPasses: empty filter → exclude
+	// terminal; explicit filter → only the named statuses.
+	statusFilter := parseSetParam(r, "status")
 	out := make([]map[string]any, 0, len(ts))
 	for _, t := range ts {
+		if !statusPasses(string(t.Status()), statusFilter, taskTerminalStatus) {
+			continue
+		}
 		out = append(out, pmTaskMap(t))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
@@ -670,11 +681,6 @@ func (s *Server) pmUnblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) pmCompleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.CompleteTask(r.Context(), id, c) })
-}
-
-func (s *Server) pmVerifyTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.VerifyTask(r.Context(), id, c) })
 }
 
 func (s *Server) pmDiscardTaskHandler(w http.ResponseWriter, r *http.Request) {

@@ -194,11 +194,21 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         // New message ticks the unread badge on every listener; the
         // focused tab will then auto-mark-seen which clears it again.
         invalidate(qk.unread(ev.conversation_id));
+        // v2.9.1 Threads F2: keep the Participants thread list live — a new
+        // root thread, a reply (reply_count++/last-activity re-sort) all arrive
+        // as conversation.message_added, same SSE path that keeps the per-message
+        // thread badge live. (cf #318 list-refresh-on-mutation.)
+        invalidate(qk.conversationThreads(ev.conversation_id));
       }
       return;
     case 'conversation.read_state.changed':
       if (ev.conversation_id) {
         invalidate(qk.unread(ev.conversation_id));
+        // v2.9.1 P3: the read cursor advanced → per-user has-new-activity badges
+        // may now clear, so re-derive the thread list + the per-message thread
+        // badges (this is what makes the dot disappear "after viewing").
+        invalidate(qk.conversationThreads(ev.conversation_id));
+        invalidate(qk.messages(ev.conversation_id));
       }
       return;
     case 'conversation.participant_joined':

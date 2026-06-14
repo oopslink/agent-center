@@ -119,7 +119,11 @@ func (s *Service) SelectTaskIntoPlan(ctx context.Context, planID pm.PlanID, task
 		if err != nil {
 			return err
 		}
-		if p.Status() != pm.PlanDraft {
+		// ADR-0047: the built-in pool is the ONE running plan that accepts new tasks
+		// (that is how a task enters the claimable pool — selecting it makes it
+		// dispatchable/claimable). A structured plan is still draft-only (§9.4): its
+		// task-set/DAG is editable only while stopped.
+		if !p.IsBuiltin() && p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
 		if t.ProjectID() != p.ProjectID() {
@@ -276,6 +280,11 @@ func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromT
 		// #297: reject add-dependency on an archived (read-only) project.
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
+		}
+		// ADR-0047: the built-in pool is a FLAT pool — dependency edges are never
+		// allowed (it is always running, never draft; this guard documents WHY).
+		if p.IsBuiltin() {
+			return pm.ErrBuiltinPlanNoEdges
 		}
 		if p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft

@@ -3,8 +3,12 @@ import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { useConversations } from '@/api/conversations';
-import type { Participant, RecentMessageSummary } from '@/api/types';
+import {
+  useConversations,
+  useArchivedChannels,
+  useArchiveConversation,
+} from '@/api/conversations';
+import type { Conversation, Participant, RecentMessageSummary } from '@/api/types';
 import {
   displayNameFallback,
   isResolvedName,
@@ -29,6 +33,9 @@ const MAX_PREVIEWS = 3;
 // participant avatar-stack + count, and ≤3 recent-message plain-text previews.
 export default function Channels(): React.ReactElement {
   const channels = useConversations({ kind: 'channel' });
+  // v2.9.1 (task-169c598d): archive a channel (active→archived). Single hook for
+  // the whole list (hooks can't run inside the row .map); rows call archive.mutate.
+  const archive = useArchiveConversation();
   const [createOpen, setCreateOpen] = useState(false);
   // v2.7.1 #247: after create, navigate to the new channel by id.
   const navigate = useNavigate();
@@ -77,10 +84,16 @@ export default function Channels(): React.ReactElement {
       {channels.isSuccess && channels.data.length > 0 && (
         <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
           {channels.data.map((c) => (
-            <li key={c.id} data-testid="channel-row" data-channel-name={c.name} data-channel-id={c.id}>
+            <li
+              key={c.id}
+              data-testid="channel-row"
+              data-channel-name={c.name}
+              data-channel-id={c.id}
+              className="flex items-stretch"
+            >
               <OrgLink
                 to={`/channels/${encodeURIComponent(c.id)}`}
-                className="block px-4 py-3 hover:bg-bg-subtle"
+                className="block flex-1 px-4 py-3 hover:bg-bg-subtle"
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-3">
@@ -112,10 +125,27 @@ export default function Channels(): React.ReactElement {
                 )}
                 <RecentMessages messages={c.recent_messages} resolve={resolve} />
               </OrgLink>
+              <div className="flex shrink-0 items-center pr-3">
+                <button
+                  type="button"
+                  data-testid="channel-archive-btn"
+                  aria-label={`Archive ${c.name}`}
+                  className="rounded px-2 py-1 text-xs font-medium text-text-secondary motion-safe:transition-colors hover:bg-bg-subtle hover:text-text-primary disabled:opacity-50"
+                  disabled={archive.isPending}
+                  onClick={() => archive.mutate({ id: c.id, version: 0 })}
+                >
+                  Archive
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+
+      {/* v2.9.1 (task-169c598d): collapsed Archived group, lazy-loaded, read-only —
+          mirrors the Projects Archived group (#317). Active list above default-
+          excludes archived (backend). */}
+      <ArchivedChannelsGroup />
 
       <ChannelCreateModal
         open={createOpen}
@@ -123,6 +153,119 @@ export default function Channels(): React.ReactElement {
         onCreated={(id) => navigate(`${org ? `/organizations/${org.slug}` : ''}/channels/${encodeURIComponent(id)}`)}
       />
     </section>
+  );
+}
+
+// ArchivedChannelsGroup — the collapsed "Archived" disclosure (v2.9.1
+// task-169c598d), mirroring the Projects archived group (#317). Fetches the
+// archived-only channel list (useArchivedChannels) ONLY when first expanded so the
+// active page load stays a single request. Rows are READ-ONLY (no Archive action;
+// the ARCHIVED badge shows the state, and the backend rejects mutations with 409).
+// Empty → a quiet note.
+function ArchivedChannelsGroup(): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const archived = useArchivedChannels(open);
+
+  return (
+    <section className="space-y-2" data-testid="archived-channels-group">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 rounded px-1 py-1.5 text-left text-sm font-medium text-text-secondary motion-safe:transition-colors hover:text-text-primary"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        data-testid="archived-channels-toggle"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className={['h-3.5 w-3.5 motion-safe:transition-transform', open ? 'rotate-90' : ''].join(' ')}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          aria-hidden="true"
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+        <span>Archived / 已归档</span>
+      </button>
+
+      {open && (
+        <div data-testid="archived-channels-body">
+          {archived.isLoading && (
+            <div className="space-y-2" data-testid="archived-channels-loading">
+              <Skeleton height="2.5rem" />
+              <Skeleton height="2.5rem" />
+            </div>
+          )}
+          {archived.isError && (
+            <p className="text-sm text-danger" data-testid="archived-channels-error">
+              {(archived.error as Error).message}
+            </p>
+          )}
+          {archived.isSuccess && archived.data.length === 0 && (
+            <p className="px-1 text-xs italic text-text-muted" data-testid="archived-channels-empty">
+              No archived channels.
+            </p>
+          )}
+          {archived.isSuccess && archived.data.length > 0 && (
+            <ul
+              className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary"
+              data-testid="archived-channels-list"
+            >
+              {archived.data.map((c) => (
+                <ArchivedChannelRow key={c.id} channel={c} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ArchivedChannelRow — a read-only archived-channel row: name + ARCHIVED badge +
+// description, linking to the (read-only) channel detail. No Archive action.
+function ArchivedChannelRow({ channel: c }: { channel: Conversation }): React.ReactElement {
+  return (
+    <li data-testid="archived-channel-row" data-channel-id={c.id} data-channel-name={c.name}>
+      <OrgLink
+        to={`/channels/${encodeURIComponent(c.id)}`}
+        className="block px-4 py-3 hover:bg-bg-subtle"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="truncate font-medium">{c.name}</span>
+            <ChannelStatusBadge status={c.status} />
+          </span>
+          {c.created_at && (
+            <span
+              className="hidden text-xs text-text-muted sm:inline"
+              title={formatLocalTime(c.created_at)}
+            >
+              {formatLocalTime(c.created_at)}
+            </span>
+          )}
+        </div>
+        {c.description && (
+          <p className="mt-1 max-w-full truncate text-xs text-text-muted">{c.description}</p>
+        )}
+      </OrgLink>
+    </li>
+  );
+}
+
+// ChannelStatusBadge — active/archived status chip (mirrors ProjectStatusBadge).
+// The uppercase label is the primary distinguisher (never color alone).
+function ChannelStatusBadge({ status }: { status: Conversation['status'] }): React.ReactElement {
+  return (
+    <span
+      className={[
+        'rounded px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide',
+        status === 'archived' ? 'bg-bg-subtle text-text-muted' : 'bg-success/10 text-success',
+      ].join(' ')}
+      data-testid={`channel-status-${status}`}
+    >
+      {status}
+    </span>
   );
 }
 

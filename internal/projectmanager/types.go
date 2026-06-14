@@ -91,9 +91,8 @@ var (
 	// every mutator (Rename/SetDescription/status transitions/Assign/…) rejects with
 	// this once the task is archived. Re-archiving an already-archived task also
 	// returns it (mirrors Conversation.Archive → ErrConversationArchived).
-	ErrTaskArchived = errors.New("projectmanager: task is archived")
+	ErrTaskArchived        = errors.New("projectmanager: task is archived")
 	ErrBlockReasonRequired = errors.New("projectmanager: blocked requires a reason (plan §2.2)")
-	ErrSelfVerify          = errors.New("projectmanager: an identity cannot verify a task it completed (plan §2.2/OQ4)")
 	ErrVersionConflict     = errors.New("projectmanager: version conflict (optimistic lock)")
 	ErrEmptyProjectScope   = errors.New("projectmanager: project_id required (no global work items)")
 	ErrCrossOrgAssignee    = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
@@ -131,6 +130,15 @@ var (
 	// ErrPlanArchived rejects re-archiving an already-archived (terminal,
 	// irreversible) Plan, mirroring Conversation.ErrConversationArchived.
 	ErrPlanArchived = errors.New("projectmanager: plan is already archived")
+	// ADR-0047 built-in assignment pool.
+	// ErrBuiltinPlanImmutable rejects stop/done/archive/delete on the per-project
+	// built-in pool (it is always-started and archived only with its project).
+	ErrBuiltinPlanImmutable = errors.New("projectmanager: the built-in plan cannot be stopped, archived, or deleted on its own")
+	// ErrBuiltinPlanNoEdges rejects adding a dependency edge inside the built-in
+	// pool (it is a FLAT pool, not a DAG — every task is immediately dispatchable).
+	ErrBuiltinPlanNoEdges = errors.New("projectmanager: the built-in plan is a flat pool — dependency edges are not allowed")
+	// ErrBuiltinPlanExists rejects creating a second built-in plan for a project.
+	ErrBuiltinPlanExists = errors.New("projectmanager: project already has a built-in plan")
 	// ErrProjectArchived guards an archived Project (v2.9 #297). @oopslink ruled
 	// project archive is IRREVERSIBLE (no restore), so an archived project is PURE
 	// READ-ONLY: every project-CHILD mutation (member add/remove, issue/task

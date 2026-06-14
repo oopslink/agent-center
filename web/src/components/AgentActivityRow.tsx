@@ -11,7 +11,7 @@ import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 type Category = { key: string; label: string; cls: string; dot: string };
 const CAT_OUTPUT: Category = { key: 'output', label: 'Output', cls: 'text-success', dot: 'bg-success' };
 const CAT_THINKING: Category = { key: 'thinking', label: 'Thinking', cls: 'italic text-text-muted', dot: 'bg-text-muted' };
-const CAT_CHECKING: Category = { key: 'checking', label: 'Checking messages', cls: 'text-orange-600', dot: 'bg-orange-500' };
+const CAT_CHECKING: Category = { key: 'checking', label: 'Checking messages', cls: 'text-status-orange-strong', dot: 'bg-status-orange-solid' };
 // v2.8 #274 increment 4: tool_use / tool_result get their own categories
 // (replacing the broad Running command / Searching code labels — Q1). The badge
 // label + icon are computed dynamically at render time (search-vs-run icon via
@@ -90,7 +90,7 @@ function toolBadge(key: string, p: Record<string, unknown>): ToolBadge | null {
   if (key === 'tool_use') {
     const search = SEARCH_TOOLS.has(str(p.tool_name).toLowerCase());
     return search
-      ? { Icon: SearchIcon, label: 'Searching', cls: 'text-purple-600', aria: 'Searching (tool use)' }
+      ? { Icon: SearchIcon, label: 'Searching', cls: 'text-status-purple-strong', aria: 'Searching (tool use)' }
       : { Icon: WrenchIcon, label: 'Running', cls: 'text-brand', aria: 'Running (tool use)' };
   }
   if (key === 'tool_result') {
@@ -357,7 +357,7 @@ export function CheckingGroup({ events }: { events: AgentActivityEvent[] }): Rea
     <li data-testid="agent-activity-checking-group" data-count={n}>
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-2 py-2 text-left text-xs text-orange-600 hover:bg-bg-subtle"
+        className="flex w-full items-center justify-between gap-2 py-2 text-left text-xs text-status-orange-strong hover:bg-bg-subtle"
         data-testid="agent-activity-checking-toggle"
         aria-expanded={expanded}
         aria-controls={regionId}
@@ -365,7 +365,7 @@ export function CheckingGroup({ events }: { events: AgentActivityEvent[] }): Rea
         onClick={() => setExpanded((e) => !e)}
       >
         <span className="flex items-center gap-2">
-          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-orange-500" />
+          <span aria-hidden="true" className="h-2 w-2 rounded-full bg-status-orange-solid" />
           Checking messages × {n}
         </span>
         <span className="tabular-nums text-text-muted">

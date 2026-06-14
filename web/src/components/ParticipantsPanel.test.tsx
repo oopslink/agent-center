@@ -27,6 +27,33 @@ const member: Participant = {
 };
 
 describe('ParticipantsPanel', () => {
+  it('renders a Threads section listing the conversation threads', async () => {
+    server.use(
+      http.get('/api/conversations/:id/threads', () =>
+        HttpResponse.json(
+          [
+            {
+              root: {
+                id: 'M1',
+                conversation_id: 'C1',
+                sender_identity_id: 'user:hayang',
+                content_kind: 'text',
+                content: 'a panel thread',
+                direction: 'inbound',
+                posted_at: '2026-06-12T00:00:00Z',
+              },
+              reply_count: 2,
+            },
+          ],
+          { status: 200 },
+        ),
+      ),
+    );
+    wrap(<ParticipantsPanel conversationId="C1" participants={[owner, member]} />);
+    expect(await screen.findByTestId('thread-list')).toBeInTheDocument();
+    expect(await screen.findByText(/a panel thread/)).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     useAppStore.setState({ currentUserId: 'user:hayang' });
     // localStorage may carry collapsed=1 between tests; reset to expanded.

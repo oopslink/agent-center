@@ -38,8 +38,9 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 	}
 	const stmt = `INSERT INTO messages (
 		id, conversation_id, sender_identity_id, content_kind, content,
-		direction, input_request_ref, context_refs, attachments, posted_at, created_at
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+		direction, input_request_ref, context_refs, attachments, posted_at, created_at,
+		parent_message_id, root_message_id
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(m.ID()),
 		string(m.ConversationID()),
@@ -52,6 +53,8 @@ func (r *MessageRepo) Append(ctx context.Context, m *conversation.Message) error
 		attsJSON,
 		m.PostedAt().Format(time.RFC3339Nano),
 		m.CreatedAt().Format(time.RFC3339Nano),
+		nullString(string(m.ParentMessageID())),
+		nullString(string(m.RootMessageID())),
 	)
 	return err
 }
@@ -115,6 +118,10 @@ func (r *MessageRepo) FindByConversationID(ctx context.Context, conversationID c
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	q := messageSelect + ` WHERE conversation_id = ?`
 	args := []any{string(conversationID)}
+	if filter.TopLevelOnly {
+		// v2.9.1 Thread P1: exclude replies — the main flow shows top-level only.
+		q += ` AND parent_message_id IS NULL`
+	}
 	if filter.Since != nil {
 		q += ` AND posted_at >= ?`
 		args = append(args, filter.Since.UTC().Format(time.RFC3339Nano))
@@ -159,6 +166,62 @@ func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversatio
 		out[len(msgs)-1-i] = m
 	}
 	return out, nil
+}
+
+// FindThreadReplies returns ONLY the replies of a thread (root_message_id ==
+// rootMessageID) within a conversation, ordered oldest→newest (v2.9.1 Thread P1).
+// The root is not included. Scoped to conversation_id so cross-conversation rows
+// never leak. id is a stable tiebreaker for same-instant replies.
+func (r *MessageRepo) FindThreadReplies(ctx context.Context, conversationID conversation.ConversationID, rootMessageID conversation.MessageID) ([]*conversation.Message, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	q := messageSelect + ` WHERE conversation_id = ? AND root_message_id = ?
+		ORDER BY posted_at ASC, id ASC`
+	rows, err := exec.QueryContext(ctx, q, string(conversationID), string(rootMessageID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*conversation.Message
+	for rows.Next() {
+		m, err := scanMessage(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// ThreadReplyDigests returns reply count + last-activity (MAX posted_at) grouped
+// by thread root for a whole conversation in one query (NO N+1). Roots with no
+// replies are simply absent. MAX(posted_at) follows the codebase convention of
+// ordering the RFC3339Nano text column directly (same as FindByConversationID).
+func (r *MessageRepo) ThreadReplyDigests(ctx context.Context, conversationID conversation.ConversationID) (map[conversation.MessageID]conversation.ThreadDigest, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	// MAX(id) = the latest reply's ULID (monotonic, so MAX(id) and MAX(posted_at)
+	// pick the same row); used for the per-user has-new-activity compare (P3).
+	rows, err := exec.QueryContext(ctx,
+		`SELECT root_message_id, COUNT(*), MAX(posted_at), MAX(id) FROM messages
+			WHERE conversation_id = ? AND root_message_id IS NOT NULL
+			GROUP BY root_message_id`, string(conversationID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[conversation.MessageID]conversation.ThreadDigest)
+	for rows.Next() {
+		var root, lastActivity, lastReplyID string
+		var n int
+		if err := rows.Scan(&root, &n, &lastActivity, &lastReplyID); err != nil {
+			return nil, err
+		}
+		out[conversation.MessageID(root)] = conversation.ThreadDigest{
+			ReplyCount:     n,
+			LastActivityAt: lastActivity,
+			LastReplyID:    lastReplyID,
+		}
+	}
+	return out, rows.Err()
 }
 
 // RecentByConversations returns the last-n messages per conversation across the
@@ -210,7 +273,8 @@ func (r *MessageRepo) RecentByConversations(ctx context.Context, convIDs []conve
 // messageSelect wraps it with SELECT + the FROM for the simple queries;
 // RecentByConversations reuses messageCols directly inside its window subquery.
 const messageCols = `id, conversation_id, sender_identity_id, content_kind, content,
-	direction, input_request_ref, context_refs, attachments, posted_at, created_at`
+	direction, input_request_ref, context_refs, attachments, posted_at, created_at,
+	parent_message_id, root_message_id`
 
 const messageSelect = `SELECT ` + messageCols + ` FROM messages`
 
@@ -219,10 +283,12 @@ func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 		id, conversationID, senderIdentityID, contentKind, content, direction string
 		inputRequestRef                                                       sql.NullString
 		contextRefsJSON, attachmentsJSON                                      sql.NullString
+		parentMessageID, rootMessageID                                        sql.NullString
 		postedAt, createdAt                                                   string
 	)
 	if err := scan(&id, &conversationID, &senderIdentityID, &contentKind, &content,
-		&direction, &inputRequestRef, &contextRefsJSON, &attachmentsJSON, &postedAt, &createdAt); err != nil {
+		&direction, &inputRequestRef, &contextRefsJSON, &attachmentsJSON, &postedAt, &createdAt,
+		&parentMessageID, &rootMessageID); err != nil {
 		return nil, err
 	}
 	pt, err := time.Parse(time.RFC3339Nano, postedAt)
@@ -251,6 +317,8 @@ func scanMessage(scan func(...any) error) (*conversation.Message, error) {
 		InputRequestRef:  inputRequestRef.String,
 		ContextRefs:      ctxRefs,
 		Attachments:      atts,
+		ParentMessageID:  conversation.MessageID(parentMessageID.String),
+		RootMessageID:    conversation.MessageID(rootMessageID.String),
 		PostedAt:         pt,
 		CreatedAt:        ct,
 	})

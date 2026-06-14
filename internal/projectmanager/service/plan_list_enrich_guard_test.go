@@ -130,8 +130,9 @@ func TestListPlanSummaries_NoNPlus1_QueryCountGuard(t *testing.T) {
 	if lerr != nil {
 		t.Fatal(lerr)
 	}
-	if len(sums) != N {
-		t.Fatalf("ListPlanSummaries returned %d plans, want %d", len(sums), N)
+	// N seeded plans + the ADR-0047 auto-created built-in pool (from CreateProject).
+	if len(sums) != N+1 {
+		t.Fatalf("ListPlanSummaries returned %d plans, want %d", len(sums), N+1)
 	}
 
 	if spy.depsByPlans != 1 {

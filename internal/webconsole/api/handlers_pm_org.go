@@ -32,7 +32,14 @@ import (
 // Terminal status sets — "all open" (the default when ?status= is omitted)
 // excludes these. Values are the raw pm domain status strings.
 var issueTerminalStatus = map[string]bool{"resolved": true, "closed": true, "withdrawn": true}
-var taskTerminalStatus = map[string]bool{"completed": true, "verified": true, "canceled": true}
+
+// taskTerminalStatus is the terminal Task set the default ("all open") view
+// excludes. v2.9.1 ADR-0046: the Task state machine is {open, running, completed,
+// discarded, reopened} — terminal = {completed, discarded}. (Pre-ADR-0046 this read
+// {completed, verified, canceled}; verified was removed and canceled renamed
+// discarded, so the old map both named dead states AND missed `discarded` — a
+// discarded task wrongly survived the default filter.)
+var taskTerminalStatus = map[string]bool{"completed": true, "discarded": true}
 
 func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -62,6 +69,13 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 	items := make([]map[string]any, 0)
 	for _, p := range projects {
 		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
+			continue
+		}
+		// v2.9.1 (T42): hide items of an ARCHIVED project by default — UNLESS the
+		// user explicitly filters to that project (else filtering by it would be an
+		// empty, confusing list). Mirrors the archived-project / archived-channel
+		// default-exclude semantics (#310 / task-169c598d).
+		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
 			continue
 		}
 		issues, lerr := d.PM.ListIssues(r.Context(), p.ID())
@@ -113,6 +127,13 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 	items := make([]map[string]any, 0)
 	for _, p := range projects {
 		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
+			continue
+		}
+		// v2.9.1 (T42): hide items of an ARCHIVED project by default — UNLESS the
+		// user explicitly filters to that project (else filtering by it would be an
+		// empty, confusing list). Mirrors the archived-project / archived-channel
+		// default-exclude semantics (#310 / task-169c598d).
+		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
 			continue
 		}
 		tasks, lerr := d.PM.ListTasks(r.Context(), p.ID())

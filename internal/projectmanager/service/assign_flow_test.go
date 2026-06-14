@@ -175,17 +175,10 @@ func TestTaskStateFlow_CompleteThenNonSelfVerify(t *testing.T) {
 	if err := svc.CompleteTask(ctx, tid, "user:b"); err != nil {
 		t.Fatal(err)
 	}
-	// self-verify rejected
-	if err := svc.VerifyTask(ctx, tid, "user:b"); err != pm.ErrSelfVerify {
-		t.Fatalf("self-verify should be ErrSelfVerify, got %v", err)
-	}
-	// a different member verifies
-	if err := svc.VerifyTask(ctx, tid, "user:a"); err != nil {
-		t.Fatal(err)
-	}
+	// ADR-0046: verification removed — completed is the terminal done state.
 	tk, _ := svc.tasks.FindByID(ctx, tid)
-	if tk.Status() != pm.TaskVerified {
-		t.Fatalf("task should be verified, got %s", tk.Status())
+	if tk.Status() != pm.TaskCompleted {
+		t.Fatalf("task should be completed, got %s", tk.Status())
 	}
 }
 
@@ -250,10 +243,13 @@ func TestCreateIssue_GatingAndUnsubscribe(t *testing.T) {
 	}
 }
 
-// TestBlockCancelsWorkItem_UnblockCreatesNew is the §10 OQ11 acceptance: a
-// blocked Task CANCELS its live WorkItem (no WorkItem `blocked`), and unblocking
-// creates a fresh WorkItem (nothing to supersede — the old one is canceled).
-func TestBlockCancelsWorkItem_UnblockCreatesNew(t *testing.T) {
+// TestBlockAnnotates_UnblockRedispatches is the ADR-0046 acceptance (replaces the
+// old §10 OQ11 cancel-on-block contract): Block is an ANNOTATION on a RUNNING task
+// — status stays running and the live WorkItem is UNTOUCHED (no cancel; "blocked"
+// is no longer a state, so there is no deadlock). Unblock clears the reason and
+// re-dispatches via pm.task.assigned, which supersedes the stale live WorkItem and
+// mints a fresh queued one.
+func TestBlockAnnotates_UnblockRedispatches(t *testing.T) {
 	svc, wiRepo, relay, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
@@ -273,18 +269,22 @@ func TestBlockCancelsWorkItem_UnblockCreatesNew(t *testing.T) {
 		t.Fatalf("after assign: want 1 live WorkItem, got %v", sc)
 	}
 
-	// Block the Task → the live WorkItem is CANCELED (not blocked).
+	// Block the Task → ANNOTATION only: status stays running, WorkItem UNTOUCHED.
 	if err := svc.BlockTask(ctx, tid, "needs key", "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := relay.RunOnce(ctx, 100); err != nil {
 		t.Fatal(err)
 	}
-	if liveCount(list()) != 0 || statusCount(list())[agentpkg.WorkItemCanceled] != 1 {
-		t.Fatalf("after block: want 0 live + 1 canceled, got %v", statusCount(list()))
+	if liveCount(list()) != 1 || statusCount(list())[agentpkg.WorkItemCanceled] != 0 {
+		t.Fatalf("after block: want 1 live + 0 canceled (annotation, no cancel), got %v", statusCount(list()))
+	}
+	tk, _ := svc.tasks.FindByID(ctx, tid)
+	if tk.Status() != pm.TaskRunning || tk.BlockedReason() != "needs key" {
+		t.Fatalf("after block: want running + reason set, got %s / %q", tk.Status(), tk.BlockedReason())
 	}
 
-	// Unblock → a brand-new WorkItem is created (no supersede).
+	// Unblock → reason cleared + re-dispatch: stale live WI superseded, fresh queued one.
 	if err := svc.UnblockTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -292,8 +292,12 @@ func TestBlockCancelsWorkItem_UnblockCreatesNew(t *testing.T) {
 		t.Fatal(err)
 	}
 	sc := statusCount(list())
-	if liveCount(list()) != 1 || sc[agentpkg.WorkItemCanceled] != 1 || sc[agentpkg.WorkItemSuperseded] != 0 {
-		t.Fatalf("after unblock: want 1 live + 1 canceled + 0 superseded, got %v", sc)
+	if liveCount(list()) != 1 || sc[agentpkg.WorkItemSuperseded] != 1 {
+		t.Fatalf("after unblock: want 1 live + 1 superseded (re-dispatch), got %v", sc)
+	}
+	tk, _ = svc.tasks.FindByID(ctx, tid)
+	if tk.Status() != pm.TaskRunning || tk.BlockedReason() != "" {
+		t.Fatalf("after unblock: want running + reason cleared, got %s / %q", tk.Status(), tk.BlockedReason())
 	}
 }
 

@@ -24,12 +24,18 @@ describe('plans hooks', () => {
   it('usePlans unwraps the wrapped parallel list under a project', async () => {
     const { result } = renderHook(() => usePlans('proj-a'), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toHaveLength(2);
-    expect(result.current.data?.[0].id).toBe('PL-1');
+    // ADR-0047: the list now ships the built-in assignment pool + structured plans.
+    expect(result.current.data).toHaveLength(3);
+    const pl1 = result.current.data?.find((p) => p.id === 'PL-1');
     // derived fields present per contract
-    expect(result.current.data?.[0].status).toBe('running');
-    expect(result.current.data?.[0].has_failed).toBe(true);
-    expect(result.current.data?.[0].progress).toEqual({ done: 2, total: 5 });
+    expect(pl1?.status).toBe('running');
+    expect(pl1?.has_failed).toBe(true);
+    expect(pl1?.progress).toEqual({ done: 2, total: 5 });
+    // ADR-0047: exactly one built-in pool (is_builtin) — the others are structured.
+    const builtins = result.current.data?.filter((p) => p.is_builtin === true) ?? [];
+    expect(builtins).toHaveLength(1);
+    expect(builtins[0].id).toBe('PL-BUILTIN');
+    expect(result.current.data?.find((p) => p.id === 'PL-1')?.is_builtin).toBe(false);
   });
 
   it('usePlans stays idle when projectId is undefined', () => {

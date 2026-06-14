@@ -22,9 +22,7 @@ interface Props {
 const TASK_STATUSES: TaskStatus[] = [
   'open',
   'running',
-  'blocked',
   'completed',
-  'verified',
   'discarded',
   'reopened',
 ];

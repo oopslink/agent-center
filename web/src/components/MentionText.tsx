@@ -55,7 +55,7 @@ interface MentionTextProps {
   resolve: (handle: string) => string | null;
   /** link/mention text color — context-aware (mirrors MarkdownMessage's linkClass).
    * On the own chat bubble (#D1E3FF, a FIXED light surface that does NOT flip per
-   * theme) this must be a FIXED-dark color (e.g. text-blue-700), NOT the text-accent
+   * theme) this must be a FIXED-dark color (e.g. text-chatbubble-link), NOT the text-accent
    * theme token (#3b82f6 → blue-on-blue <4.5 on #D1E3FF — the both-mode 命门). */
   linkClass?: string;
 }
@@ -94,7 +94,7 @@ export function MentionText({
         aria-label={`View ${handle} details`}
         // both-mode: the mention reads as a link and uses the SAME context-aware
         // linkClass as MarkdownMessage's links — text-accent on theme surfaces, but a
-        // FIXED-dark color (text-blue-700) on the own #D1E3FF bubble (avoids the
+        // FIXED-dark color (text-chatbubble-link) on the own #D1E3FF bubble (avoids the
         // blue-on-blue <4.5 命门). NO alpha-tint fill (would render transparent).
         className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
       >

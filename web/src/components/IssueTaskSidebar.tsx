@@ -11,33 +11,29 @@ import { tagColorFor } from '@/components/tagColors';
 // Status colors align with the existing StatusChip (#258) palette — no
 // cross-component drift (a big block in one hue + a chip in another would
 // confuse). @oopslink REVISION 4 lock: white text on a saturated color
-// background (bg-<color> text-white). blocked uses the custom `blockedred`
-// token (#dc2626) so the a11y guardrail's raw bg-red-/text-red- ban stays green.
+// background (bg-<color> text-white). ADR-0046: `blocked` and `verified` are
+// no longer statuses (stuck → blocked_reason on a running task).
 type StatusKey = IssueStatus | TaskStatus;
 
 const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
   // not started (sky)
-  open: { label: 'Open', cls: 'bg-sky-600 text-white' },
+  open: { label: 'Open', cls: 'bg-status-sky-solid text-white' },
   // in flight (blue)
-  in_progress: { label: 'In Progress', cls: 'bg-blue-600 text-white' },
-  running: { label: 'Running', cls: 'bg-blue-600 text-white' },
-  // blocked (red #dc2626 via custom blockedred token)
-  blocked: { label: 'Blocked', cls: 'bg-blockedred text-white' },
+  in_progress: { label: 'In Progress', cls: 'bg-status-blue-solid text-white' },
+  running: { label: 'Running', cls: 'bg-status-blue-solid text-white' },
   // done (green)
-  resolved: { label: 'Resolved', cls: 'bg-green-600 text-white' },
-  completed: { label: 'Completed', cls: 'bg-green-600 text-white' },
-  // verified (teal — distinct hue from done green)
-  verified: { label: 'Verified', cls: 'bg-teal-600 text-white' },
+  resolved: { label: 'Resolved', cls: 'bg-status-green-solid text-white' },
+  completed: { label: 'Completed', cls: 'bg-status-green-solid text-white' },
   // closed (Issue) → slate (terminal)
-  closed: { label: 'Closed', cls: 'bg-slate-500 text-white' },
+  closed: { label: 'Closed', cls: 'bg-status-slate-solid text-white' },
   // discarded (both Issue+Task; replaces canceled/withdrawn) → zinc.
-  discarded: { label: 'Discarded', cls: 'bg-zinc-700 text-white' },
+  discarded: { label: 'Discarded', cls: 'bg-status-zinc-solid text-white' },
   // reopened (amber — back in play)
-  reopened: { label: 'Reopened', cls: 'bg-amber-600 text-white' },
+  reopened: { label: 'Reopened', cls: 'bg-status-amber-solid text-white' },
 };
 
 export function StatusBlock({ status }: { status: StatusKey }): React.ReactElement {
-  const s = STATUS_BLOCK[status] ?? { label: status, cls: 'bg-slate-500 text-white' };
+  const s = STATUS_BLOCK[status] ?? { label: status, cls: 'bg-status-slate-solid text-white' };
   return (
     <div
       className={`rounded px-3 py-2 text-center text-sm font-semibold uppercase tracking-wide ${s.cls}`}

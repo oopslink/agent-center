@@ -25,7 +25,7 @@ func newTaskWithStatus(t *testing.T, id string, status TaskStatus) *Task {
 	return tk
 }
 
-func TestDeriveNodeStatus_SixStates(t *testing.T) {
+func TestDeriveNodeStatus_FiveStates(t *testing.T) {
 	cases := []struct {
 		name            string
 		taskStatus      TaskStatus
@@ -34,7 +34,6 @@ func TestDeriveNodeStatus_SixStates(t *testing.T) {
 		want            NodeStatus
 	}{
 		{"done-completed", TaskCompleted, true, true, NodeDone},
-		{"done-verified", TaskVerified, true, false, NodeDone},
 		{"failed-discarded", TaskDiscarded, true, true, NodeFailed},
 		{"running", TaskRunning, true, true, NodeRunning},
 		{"blocked-upstream-not-done", TaskOpen, false, false, NodeBlocked},
@@ -149,7 +148,7 @@ func TestComputePlanView_FailureIsolation(t *testing.T) {
 func TestComputePlanView_AllDone(t *testing.T) {
 	t.Run("all done", func(t *testing.T) {
 		a := newTaskWithStatus(t, "A", TaskCompleted)
-		b := newTaskWithStatus(t, "B", TaskVerified)
+		b := newTaskWithStatus(t, "B", TaskCompleted)
 		view := ComputePlanView([]*Task{a, b}, nil, nil)
 		if !view.AllDone {
 			t.Fatal("AllDone should be true when all nodes done")

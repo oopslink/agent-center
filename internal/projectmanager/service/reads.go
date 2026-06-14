@@ -34,6 +34,18 @@ func (s *Service) ListTasks(ctx context.Context, projectID pm.ProjectID) ([]*pm.
 	return s.tasks.ListByProject(ctx, projectID)
 }
 
+// ListProjectTasksForMember lists a project's tasks, GUARDED by project membership
+// (org-isolation §5.7: a non-member / cross-org actor gets requireProjectMember's
+// error — mapped to 404 at the edge, no existence disclosure). Used by the
+// list_tasks MCP tool so a PD/agent can see the whole board (status/assignee
+// filtering is applied by the caller).
+func (s *Service) ListProjectTasksForMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef) ([]*pm.Task, error) {
+	if err := s.requireProjectMember(ctx, projectID, actor); err != nil {
+		return nil, err
+	}
+	return s.tasks.ListByProject(ctx, projectID)
+}
+
 // ListUnplannedTasks returns the project's backlog (v2.9): tasks not yet
 // selected into any Plan (empty plan_id). It is the complement of the Plan's
 // task list, for the Work Board's Backlog column.
@@ -51,6 +63,106 @@ func (s *Service) ListCodeRepos(ctx context.Context, projectID pm.ProjectID) ([]
 
 func (s *Service) ListTaskSubscribers(ctx context.Context, taskID pm.TaskID) ([]*pm.TaskSubscriber, error) {
 	return s.taskSubs.ListByTask(ctx, taskID)
+}
+
+// ClaimableTask bundles a CLAIMABLE pool task with its derived node status
+// (ADR-0047). A task is claimable iff pm.TaskClaimable(task, nodeStatus) — not
+// archived, status==open, has an assignee, is IN a plan, and that plan node is
+// `dispatched`. The built-in pull pool reaches `dispatched` via a dispatch record
+// (no wake/WorkItem), so these tasks would otherwise be invisible to get_my_work.
+type ClaimableTask struct {
+	Task       *pm.Task
+	NodeStatus pm.NodeStatus
+}
+
+// ListClaimableTasks returns the CLAIMABLE tasks assigned to `assignee` across all
+// its plans (ADR-0047). It backs get_my_work's pull-pool surface: an agent's
+// built-in-pool tasks have no WorkItem (pull/no-wake), so the work tool must query
+// pm directly + apply the claimable predicate. Mechanism: list the assignee's
+// tasks, then per distinct plan derive node statuses (via planDetail / the plan
+// view) and keep only tasks whose node is `dispatched` (TaskClaimable true).
+//
+// Cost is bounded by the number of DISTINCT plans the assignee's open tasks belong
+// to (one planDetail load each), de-duplicated so the same plan view is derived
+// once. Backlog tasks (planID=="") are skipped — they are never claimable.
+func (s *Service) ListClaimableTasks(ctx context.Context, assignee pm.IdentityRef) ([]ClaimableTask, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	tasks, err := s.tasks.ListByAssignee(ctx, assignee)
+	if err != nil {
+		return nil, err
+	}
+	// Cache one node-status map per plan so N tasks in the same plan derive the
+	// plan view exactly once (no per-task plan-view re-derivation).
+	nodeStatusByPlan := make(map[pm.PlanID]map[pm.TaskID]pm.NodeStatus)
+	planView := func(planID pm.PlanID) (map[pm.TaskID]pm.NodeStatus, error) {
+		if m, ok := nodeStatusByPlan[planID]; ok {
+			return m, nil
+		}
+		p, err := s.plans.FindByID(ctx, planID)
+		if err != nil {
+			return nil, err
+		}
+		detail, err := s.planDetail(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		m := make(map[pm.TaskID]pm.NodeStatus, len(detail.View.Nodes))
+		for _, n := range detail.View.Nodes {
+			m[n.TaskID] = n.NodeStatus
+		}
+		nodeStatusByPlan[planID] = m
+		return m, nil
+	}
+
+	var out []ClaimableTask
+	for _, t := range tasks {
+		planID := t.PlanID()
+		if planID == "" {
+			continue // backlog tasks are never claimable
+		}
+		statuses, err := planView(planID)
+		if err != nil {
+			return nil, err
+		}
+		ns := statuses[t.ID()]
+		if pm.TaskClaimable(t, ns) {
+			out = append(out, ClaimableTask{Task: t, NodeStatus: ns})
+		}
+	}
+	return out, nil
+}
+
+// TaskClaimableByID derives whether a single task is claimable right now (ADR-0047
+// §-1: expose `claimable` on get_task too). A backlog task (no plan) is never
+// claimable; otherwise it derives the task's node_status from its plan view and
+// applies the claimable predicate. Nil-safe on the plan repo (→ false).
+func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool, error) {
+	t, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return false, err
+	}
+	planID := t.PlanID()
+	if planID == "" || s.plans == nil {
+		return false, nil
+	}
+	p, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return false, err
+	}
+	detail, err := s.planDetail(ctx, p)
+	if err != nil {
+		return false, err
+	}
+	var ns pm.NodeStatus
+	for _, n := range detail.View.Nodes {
+		if n.TaskID == taskID {
+			ns = n.NodeStatus
+			break
+		}
+	}
+	return pm.TaskClaimable(t, ns), nil
 }
 
 // --- Plan reads (v2.9 #285) -------------------------------------------------

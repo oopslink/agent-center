@@ -627,9 +627,9 @@ func TestBlockTask_OK(t *testing.T) {
 	if !found {
 		t.Fatalf("block reason not posted to task conv")
 	}
-	// Task is blocked.
-	if got := f.taskStatus(t, tid); got != pm.TaskBlocked {
-		t.Fatalf("task status = %s, want blocked", got)
+	// ADR-0046: block sets a reason annotation; status stays running (never a state).
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("task status = %s, want running (blocked is an annotation)", got)
 	}
 }
 
@@ -694,5 +694,125 @@ func TestCompleteTask_NoSummary_OK(t *testing.T) {
 	}
 	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
 		t.Fatalf("task status = %s, want completed", got)
+	}
+}
+
+// F4: post_task_message with parent_message_id threads the agent's reply IN the
+// thread (parent=root) instead of at conversation top-level. This is the center
+// half of the @agent-in-thread fix: the agent passes the thread root the wake brief
+// gave it, and the reply lands in the thread.
+func TestPostTaskMessage_ParentMessageID_ThreadsReply(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "content": "thread root"})
+	if status != http.StatusOK {
+		t.Fatalf("post root status=%d body=%v", status, body)
+	}
+	rootID, _ := body["message_id"].(string)
+	if rootID == "" {
+		t.Fatalf("missing root message_id: %v", body)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "content": "in-thread reply", "parent_message_id": rootID})
+	if status != http.StatusOK {
+		t.Fatalf("post reply status=%d body=%v", status, body)
+	}
+	replyID, _ := body["message_id"].(string)
+
+	for _, m := range f.taskMessages(t, tid) {
+		if string(m.ID()) == replyID {
+			if string(m.ParentMessageID()) != rootID || string(m.RootMessageID()) != rootID {
+				t.Fatalf("reply must be in-thread (parent=root=%s), got parent=%q root=%q", rootID, m.ParentMessageID(), m.RootMessageID())
+			}
+			return
+		}
+	}
+	t.Fatalf("reply message %s not found", replyID)
+}
+
+// --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
+
+func TestUnblockTask_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	// Block it first (simulating the failure path).
+	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/block_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "agent execution failed"}); status != http.StatusOK {
+		t.Fatalf("block status = %d body=%v", status, body)
+	}
+	// ADR-0046: blocked is a running-task annotation, not a state.
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("precondition: task should be running with a block annotation, got %s", got)
+	}
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("unblock status = %d, want 200; body = %v", status, body)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("task status = %s, want running after unblock", got)
+	}
+}
+
+// CLASS-GUARD: the exact deadlock this P0 fixes — a task blocked with reason
+// "agent execution failed" (the restart/stale-release path) must be RECOVERABLE
+// back to executable and able to complete. Guards against the whole
+// "restart → deadlocked blocked" defect class (no legal path out of blocked).
+func TestUnblockTask_RecoversAgentExecutionFailedDeadlock(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	// 1. The failure path blocks the running task with the generic reason.
+	if status, _ := postBearer(t, srv.URL, "/admin/agent-tools/block_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "agent execution failed"}); status != http.StatusOK {
+		t.Fatalf("block status = %d", status)
+	}
+	// 2. Recovery: unblock → running.
+	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid}); status != http.StatusOK {
+		t.Fatalf("unblock status = %d body=%v", status, body)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("after unblock: status = %s, want running", got)
+	}
+	// 3. The recovered task can now complete normally (the deadlock is gone).
+	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "recovered and finished"}); status != http.StatusOK {
+		t.Fatalf("complete status = %d body=%v", status, body)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
+		t.Fatalf("recovered task should complete, got %s", got)
+	}
+}
+
+// ADR-0046: unblock_task on a task that carries NO blocked_reason is an idempotent
+// NO-OP (returns 200) — not an error. "blocked" is no longer a state, so there is
+// no illegal transition; clearing a non-existent annotation is harmless and avoids
+// a double-dispatch on an already-active task.
+func TestUnblockTask_NotBlocked_NoOp200(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t) // running, no blocked_reason
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("unblock of a non-stuck task should be a 200 no-op, got %d body=%v", status, body)
+	}
+	// Status unchanged — still running.
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("task status = %s, want running (unchanged by no-op unblock)", got)
 	}
 }

@@ -26,6 +26,7 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
 		"version":    p.Version(),
+		"is_builtin": p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
 	}
 	if d := p.TargetDate(); d != nil {
 		m["target_date"] = d.Format(time.RFC3339Nano)
@@ -56,6 +57,10 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 		// task) so the DAG-node / task-list "已归档" badge renders here too — not just
 		// on board cards (which read the task DTO). Coexists with task_status.
 		"archived": l.archivedOf[n.TaskID],
+		// ADR-0047: the DERIVED claimable predicate, computed where the plan view is
+		// available. True iff the task can be claimed (open→running) right now: not
+		// archived, open, assigned, in this plan, node dispatched (e.g. built-in pool).
+		"claimable": pm.Claimable(l.archivedOf[n.TaskID], n.TaskStatus, l.assigneeOf[n.TaskID], l.planID, n.NodeStatus),
 	}
 	if at := l.archivedAtOf[n.TaskID]; at != "" {
 		node["archived_at"] = at
@@ -70,6 +75,7 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 // carry only task_id) into the full node JSON — title/assignee plus the orthogonal
 // archived state (#283/Stage B) so the badge renders on DAG nodes + task list.
 type planNodeLookup struct {
+	planID       pm.PlanID
 	titleOf      map[pm.TaskID]string
 	assigneeOf   map[pm.TaskID]pm.IdentityRef
 	archivedOf   map[pm.TaskID]bool
@@ -78,6 +84,7 @@ type planNodeLookup struct {
 
 func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 	l := planNodeLookup{
+		planID:       detail.Plan.ID(),
 		titleOf:      make(map[pm.TaskID]string, len(detail.Tasks)),
 		assigneeOf:   make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks)),
 		archivedOf:   make(map[pm.TaskID]bool, len(detail.Tasks)),

@@ -19,6 +19,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/escalator"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -241,6 +242,24 @@ func ServerCommand() *Command {
 					_ = wiReconciler.Run(wiReconcilerCtx)
 				}()
 				defer wiReconcilerCancel()
+
+				// v2.9.1 P1 (task-aab863b3): auto-redispatch reconciler. Follow-up to
+				// the P0 manual recovery — once a stuck-released node's assignee agent
+				// is back online (lifecycle running + no live WorkItem), automatically
+				// re-dispatch it, capped at AutoRedispatchDefaultMaxAttempts per stuck
+				// episode (then it backs off to manual unblock_task). The agent-BC
+				// eligibility adapter is injected as a port so the pm reconciler never
+				// imports agent repos directly (DDD BC seam).
+				redispatchGate := agentservice.NewRedispatchEligibility(app.AgentRepo, app.AgentWorkItemRepo)
+				redispatchReconciler := pmservice.NewAutoRedispatchReconciler(
+					app.PMService, redispatchGate, nil, 0, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[auto-redispatch] "+msg+"\n", a...) },
+				)
+				redispatchReconcilerCtx, redispatchReconcilerCancel := context.WithCancel(ctx)
+				go func() {
+					_ = redispatchReconciler.Run(redispatchReconcilerCtx)
+				}()
+				defer redispatchReconcilerCancel()
 
 				bannerWeb := "disabled"
 				if webEnabled {

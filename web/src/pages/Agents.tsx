@@ -272,7 +272,7 @@ function MembershipStatus({
     <span
       className={[
         'rounded px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide',
-        joined ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700',
+        joined ? 'bg-status-green-bg text-status-green-fg' : 'bg-status-slate-bg text-status-slate-fg-soft',
       ].join(' ')}
       data-testid="agent-status"
       data-status={status}

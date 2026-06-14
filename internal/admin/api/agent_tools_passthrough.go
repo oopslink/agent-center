@@ -199,43 +199,6 @@ func (s *Server) subscribeOp(w http.ResponseWriter, r *http.Request, subscribe b
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// --- verify_task -------------------------------------------------------------
-
-type verifyTaskReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-}
-
-// verifyTaskHandler verifies a completed Task via pm.VerifyTask with by=agent.
-// The pm AR enforces no-self-verify (ErrSelfVerify when the agent is the
-// completer) — mapped to 422 via the existing pm-error mapper.
-func (s *Server) verifyTaskHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req verifyTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.PMService == nil {
-		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
-		return
-	}
-	if strings.TrimSpace(req.TaskID) == "" {
-		writeError(w, http.StatusBadRequest, "missing_task_id", "")
-		return
-	}
-	if err := d.PMService.VerifyTask(r.Context(), pm.TaskID(req.TaskID),
-		pm.IdentityRef(agentActor(a))); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-}
-
 // --- get_task ----------------------------------------------------------------
 
 // getTaskHandler returns the task projection for a task the agent OWNS (own-work
@@ -263,7 +226,71 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, agentTaskMap(t))
+	m := agentTaskMap(t)
+	// ADR-0047 §-1: expose the derived `claimable` on the single-task read too.
+	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
+		m["claimable"] = claimable
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
+// --- list_tasks (v2.9.1 #T38) ------------------------------------------------
+
+type listTasksReq struct {
+	AgentID   string   `json:"agent_id"`
+	ProjectID string   `json:"project_id"`
+	Status    []string `json:"status"`   // optional; one or more task statuses
+	Assignee  string   `json:"assignee"` // optional; exact identity ref (agent:x / user:y)
+}
+
+// listTasksHandler lists ALL tasks in a project (board overview), optionally
+// filtered by status and/or assignee — the MCP `list_tasks` tool. Project-member
+// guarded (org-isolation §5.7: a non-member / cross-org project → 404, no
+// disclosure). Reuses the agentTaskMap summary (incl. org_ref + plan_id).
+func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listTasksReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	tasks, err := d.PMService.ListProjectTasksForMember(r.Context(),
+		pm.ProjectID(req.ProjectID), pm.IdentityRef(agentActor(a)))
+	if err != nil {
+		mapDomainError(w, err) // non-member / not-found → 404 (§5.7)
+		return
+	}
+	// Optional status set (case-sensitive enum values) + exact assignee filter.
+	statusSet := map[string]bool{}
+	for _, st := range req.Status {
+		if s := strings.TrimSpace(st); s != "" {
+			statusSet[s] = true
+		}
+	}
+	assignee := strings.TrimSpace(req.Assignee)
+	out := make([]map[string]any, 0, len(tasks))
+	for _, t := range tasks {
+		if len(statusSet) > 0 && !statusSet[string(t.Status())] {
+			continue
+		}
+		if assignee != "" && string(t.Assignee()) != assignee {
+			continue
+		}
+		out = append(out, agentTaskMap(t))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": len(out)})
 }
 
 // --- get_issue ---------------------------------------------------------------
@@ -359,6 +386,7 @@ func agentTaskMap(t *pm.Task) map[string]any {
 		"description": t.Description(), "status": string(t.Status()), "assignee": string(t.Assignee()),
 		"derived_from_issue": string(t.DerivedFromIssue()), "completed_by": string(t.CompletedBy()),
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
+		"plan_id":    string(t.PlanID()), // v2.9.1 #T38: empty = backlog (not selected into a plan)
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 	}
 	if t.OrgNumber() > 0 { // v2.7.1 #245: T<n> display/ref token (omitted when unallocated)

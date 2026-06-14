@@ -25,16 +25,16 @@ export interface TagColor {
 }
 
 export const TAG_PALETTE: TagColor[] = [
-  { bg: 'bg-slate-100', text: 'text-slate-800' },
-  { bg: 'bg-blue-100', text: 'text-blue-800' },
-  { bg: 'bg-indigo-100', text: 'text-indigo-800' },
-  { bg: 'bg-violet-100', text: 'text-violet-800' },
-  { bg: 'bg-purple-100', text: 'text-purple-800' },
-  { bg: 'bg-fuchsia-100', text: 'text-fuchsia-800' },
-  { bg: 'bg-amber-100', text: 'text-amber-800' },
-  { bg: 'bg-emerald-100', text: 'text-emerald-800' },
-  { bg: 'bg-teal-100', text: 'text-teal-800' },
-  { bg: 'bg-cyan-100', text: 'text-cyan-800' },
+  { bg: 'bg-status-slate-bg', text: 'text-status-slate-fg' },
+  { bg: 'bg-status-blue-bg', text: 'text-status-blue-fg' },
+  { bg: 'bg-status-indigo-bg', text: 'text-status-indigo-fg' },
+  { bg: 'bg-status-violet-bg', text: 'text-status-violet-fg' },
+  { bg: 'bg-status-purple-bg', text: 'text-status-purple-fg' },
+  { bg: 'bg-status-fuchsia-bg', text: 'text-status-fuchsia-fg' },
+  { bg: 'bg-status-amber-bg', text: 'text-status-amber-fg' },
+  { bg: 'bg-status-emerald-bg', text: 'text-status-emerald-fg' },
+  { bg: 'bg-status-teal-bg', text: 'text-status-teal-fg' },
+  { bg: 'bg-status-cyan-bg', text: 'text-status-cyan-fg' },
 ];
 
 // tagColorFor — deterministic FNV-ish hash of the tag name → a stable palette

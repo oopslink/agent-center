@@ -6,27 +6,26 @@ import (
 	"time"
 )
 
-// TaskStatus enum + state machine (v2.8.1 model fix — @oopslink: "assigned 和
-// open 不是一个层级的状态，assigned 还没开始做，还是 open 状态"):
+// TaskStatus enum + state machine. v2.9.1 ADR-0046 simplified 7→5 states:
 //
-//	open → running → blocked → running
-//	running → completed → verified
-//	open/running/blocked → discarded (terminal)
-//	completed/verified → reopened → open
+//	open → running → completed
+//	open/running → discarded (terminal)
+//	completed → reopened → open
 //
-// The former "assigned" STATE is removed: assignee is PURE METADATA (set/cleared
-// in any non-terminal state via Assign/Unassign), not a workflow state. A task
-// with an assignee is still "open" until the agent starts it (open→running). The
-// former "canceled" state is renamed "discarded" (uniform 废弃 semantic with
-// Issue's discarded).
+// "blocked" is NO LONGER a state (ADR-0046): being stuck-with-a-reason is now a
+// `blocked_reason` ANNOTATION on a `running` task (block_task writes it; resume /
+// unblock_task / complete / discard clear it). This removes the "enters
+// automatically but has no legal exit" deadlock class (T16) and the name clash with
+// Plan's derived `node_status: blocked`. "verified" is also removed (unused; the
+// "nobody self-accepts" discipline lives in process — PD §-1 + Tester/Tester2 — not
+// in a task state). The former "assigned" STATE was removed in v2.8.1 (assignee is
+// metadata); "canceled" was renamed "discarded".
 type TaskStatus string
 
 const (
 	TaskOpen      TaskStatus = "open"
 	TaskRunning   TaskStatus = "running"
-	TaskBlocked   TaskStatus = "blocked"
 	TaskCompleted TaskStatus = "completed"
-	TaskVerified  TaskStatus = "verified"
 	TaskDiscarded TaskStatus = "discarded" // was "canceled" (v2.8.1 rename)
 	TaskReopened  TaskStatus = "reopened"
 )
@@ -34,21 +33,20 @@ const (
 // IsValid reports enum membership.
 func (s TaskStatus) IsValid() bool {
 	switch s {
-	case TaskOpen, TaskRunning, TaskBlocked,
-		TaskCompleted, TaskVerified, TaskDiscarded, TaskReopened:
+	case TaskOpen, TaskRunning, TaskCompleted, TaskDiscarded, TaskReopened:
 		return true
 	}
 	return false
 }
 
 // taskTransitions is the allowed-transition adjacency. Start moves open→running
-// directly (assignment is metadata, not a precondition state).
+// directly (assignment is metadata, not a precondition state). ADR-0046: there is
+// NO `blocked` node (stuck = a running-task annotation) and NO `verified` node, so
+// every non-terminal state always has a forward path — no deadlock is reachable.
 var taskTransitions = map[TaskStatus][]TaskStatus{
 	TaskOpen:      {TaskRunning, TaskDiscarded},
-	TaskRunning:   {TaskBlocked, TaskCompleted, TaskDiscarded},
-	TaskBlocked:   {TaskRunning, TaskDiscarded},
-	TaskCompleted: {TaskVerified, TaskReopened},
-	TaskVerified:  {TaskReopened},
+	TaskRunning:   {TaskCompleted, TaskDiscarded},
+	TaskCompleted: {TaskReopened},
 	TaskDiscarded: {}, // terminal
 	TaskReopened:  {TaskOpen},
 }
@@ -65,13 +63,14 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 
 // IsTerminal reports whether the task has reached a concluded state: work is
 // done (completed/verified) or abandoned (discarded). A Reopen can re-activate a
-// completed/verified task, but in any concluded state the task is not "active
-// work in flight". The complement (the active / non-terminal set) is exactly
-// {open, running, blocked, reopened}. v2.7 #107 Phase-2 (proj-B): the
-// observability default task-query set is the non-terminal set.
+// completed task, but in any concluded state the task is not "active work in
+// flight". The complement (the active / non-terminal set) is exactly
+// {open, running, reopened}. v2.7 #107 Phase-2 (proj-B): the observability default
+// task-query set is the non-terminal set. ADR-0046: "blocked" is no longer a state
+// (a running annotation), so a stuck task is non-terminal (running) as expected.
 func (s TaskStatus) IsTerminal() bool {
 	switch s {
-	case TaskCompleted, TaskVerified, TaskDiscarded:
+	case TaskCompleted, TaskDiscarded:
 		return true
 	}
 	return false
@@ -386,29 +385,9 @@ func (t *Task) Unassign(at time.Time) error {
 }
 
 // Start moves open→running (the agent picked up the work; assignment is metadata,
-// not a precondition state).
-func (t *Task) Start(at time.Time) error { return t.simpleTransition(TaskRunning, at) }
-
-// Block moves running→blocked with a required reason (plan §2.2).
-func (t *Task) Block(reason string, at time.Time) error {
-	if t.IsArchived() {
-		return ErrTaskArchived
-	}
-	if strings.TrimSpace(reason) == "" {
-		return ErrBlockReasonRequired
-	}
-	if !t.status.CanTransitionTo(TaskBlocked) {
-		return ErrIllegalTransition
-	}
-	t.status = TaskBlocked
-	t.statusChangedAt = at.UTC()
-	t.blockedReason = reason
-	t.touch(at)
-	return nil
-}
-
-// Unblock moves blocked→running.
-func (t *Task) Unblock(at time.Time) error {
+// not a precondition state). ADR-0046: starting/re-activating a task clears any
+// stale blocked_reason — the agent is back, so it is no longer stuck.
+func (t *Task) Start(at time.Time) error {
 	if err := t.simpleTransition(TaskRunning, at); err != nil {
 		return err
 	}
@@ -416,8 +395,39 @@ func (t *Task) Unblock(at time.Time) error {
 	return nil
 }
 
-// Complete moves running→completed and records who completed it (so the same
-// identity cannot later verify it).
+// Block records a stuck-reason ANNOTATION on a RUNNING task — it does NOT change
+// the status (ADR-0046: "blocked" is no longer a state, so a blocked task can never
+// deadlock). A reason is required. No-op-safe callers should check status first; a
+// non-running task is rejected (only running work can be "stuck").
+func (t *Task) Block(reason string, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if strings.TrimSpace(reason) == "" {
+		return ErrBlockReasonRequired
+	}
+	if t.status != TaskRunning {
+		return ErrIllegalTransition
+	}
+	t.blockedReason = reason
+	t.touch(at)
+	return nil
+}
+
+// Unblock clears the blocked_reason annotation (ADR-0046). The task stays RUNNING
+// (it never left running), so it is immediately resumable — no transition, no
+// deadlock. Idempotent: clearing an empty reason is a no-op-safe touch.
+func (t *Task) Unblock(at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	t.blockedReason = ""
+	t.touch(at)
+	return nil
+}
+
+// Complete moves running→completed and records who completed it. ADR-0046: clears
+// any blocked_reason (a completed task is not stuck).
 func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
@@ -431,41 +441,27 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	t.status = TaskCompleted
 	t.statusChangedAt = at.UTC()
 	t.completedBy = by
+	t.blockedReason = ""
 	t.touch(at)
 	return nil
 }
 
-// Verify moves completed→verified. The verifier must NOT be the identity that
-// completed the task (no self-verification — enables Agent peer-review;
-// plan §2.2 / §10 OQ4).
-func (t *Task) Verify(by IdentityRef, at time.Time) error {
-	if t.IsArchived() {
-		return ErrTaskArchived
-	}
-	if err := by.Validate(); err != nil {
+// Discard moves open/running→discarded (terminal; was "Cancel" pre-v2.8.1).
+// ADR-0046: clears any blocked_reason (a discarded task is not stuck).
+func (t *Task) Discard(at time.Time) error {
+	if err := t.simpleTransition(TaskDiscarded, at); err != nil {
 		return err
 	}
-	if !t.status.CanTransitionTo(TaskVerified) {
-		return ErrIllegalTransition
-	}
-	if by == t.completedBy {
-		return ErrSelfVerify
-	}
-	t.status = TaskVerified
-	t.statusChangedAt = at.UTC()
-	t.touch(at)
+	t.blockedReason = ""
 	return nil
 }
-
-// Discard moves open/running/blocked→discarded (terminal; was "Cancel" pre-v2.8.1).
-func (t *Task) Discard(at time.Time) error { return t.simpleTransition(TaskDiscarded, at) }
 
 // SetStatus sets the status to any VALID target with NO adjacency enforcement
 // (v2.8.1 @oopslink: "task state = agent's self-reported progress, the center does
 // not enforce workflow rules"). The only check is enum validity; any valid state
 // is reachable from any state (the Change-status menu offers the full enum). The
-// typed transitions (Start/Block/Complete/Verify/Discard/Reopen) remain for the
-// agent's structured self-reports + the system projector, which carry their own
+// typed transitions (Start/Block/Complete/Discard/Reopen) remain for the agent's
+// structured self-reports + the system projector, which carry their own
 // side-effects (blocked reason, completedBy); SetStatus is the free user override.
 func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	if t.IsArchived() {
@@ -483,7 +479,7 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	return nil
 }
 
-// Reopen moves completed/verified→reopened.
+// Reopen moves completed→reopened.
 func (t *Task) Reopen(at time.Time) error { return t.simpleTransition(TaskReopened, at) }
 
 // ToOpenFromReopened moves reopened→open (completing the reopen chain).

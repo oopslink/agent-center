@@ -12,14 +12,13 @@ import type React from 'react';
 // (bg-<color> text-white). Palette:
 //   open                  → sky (not started)
 //   in_progress/running   → blue (in flight)
-//   blocked               → red #dc2626 via custom blockedred token
 //   resolved/completed    → green (done)
-//   verified              → teal (done + checked, distinct hue from green)
 //   closed (Issue)        → slate (terminal)
 //   discarded (both)      → zinc (terminal, replaces canceled/withdrawn)
 //   reopened              → amber (back in play)
-// blocked uses the custom `blockedred` token so the a11y guardrail's raw
-// bg-red-/text-red- ban stays green.
+// ADR-0046: `blocked` and `verified` are no longer issue/task statuses — "stuck"
+// is a blocked_reason annotation on a RUNNING task, rendered separately (see
+// TaskDetail) with a solid amber-100/amber-800 chip.
 //
 // SINGLE SOURCE of the REV4 status→color mapping. `STATUS_BG_CLS` is the bare
 // background-color class for each status (literal strings so Tailwind's content
@@ -27,16 +26,14 @@ import type React from 'react';
 // `statusSolidClass`; the FilterBar status chips reuse `STATUS_BG_CLS` for both
 // the solid-selected fill AND the unselected color dot (●) — no hex duplication.
 export const STATUS_BG_CLS: Record<string, string> = {
-  open: 'bg-sky-600',
-  in_progress: 'bg-blue-600',
-  running: 'bg-blue-600',
-  blocked: 'bg-blockedred',
-  resolved: 'bg-green-600',
-  completed: 'bg-green-600',
-  verified: 'bg-teal-600',
-  closed: 'bg-slate-500',
-  discarded: 'bg-zinc-700',
-  reopened: 'bg-amber-600',
+  open: 'bg-status-sky-solid',
+  in_progress: 'bg-status-blue-solid',
+  running: 'bg-status-blue-solid',
+  resolved: 'bg-status-green-solid',
+  completed: 'bg-status-green-solid',
+  closed: 'bg-status-slate-solid',
+  discarded: 'bg-status-zinc-solid',
+  reopened: 'bg-status-amber-solid',
 };
 
 // statusSolidClass — the saturated REV4 fill + white text for a status (the

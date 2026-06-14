@@ -60,7 +60,7 @@ export default function ProjectPlans(): React.ReactElement {
         <div>
           <h1 className="font-heading text-2xl font-semibold text-text-primary">Work Board</h1>
           <p className="mt-0.5 text-xs text-text-muted">
-            Planning · drag a Backlog task into a draft Plan column (or use its “Add to plan” button).
+            Three segments · Backlog (unscheduled) · Assignment Pool (claimable) · structured Plans.
           </p>
         </div>
         <button
@@ -134,7 +134,12 @@ interface TasksQuery {
 }
 
 // Board — the horizontal scrolling kanban (.board: flex, gap, overflow-x-auto).
-// Backlog column first, then a column per Plan, then the New-Plan column.
+// ADR-0047 THREE-segment Work Board, left→right:
+//   1. Backlog        — unscheduled tasks (plan_id == ""), NOT claimable, flat.
+//   2. Assignment Pool — the is_builtin plan (exactly one): a FLAT list whose
+//                        assigned+dispatched nodes are CLAIMABLE. No DAG edges.
+//   3. Structured Plans — every non-builtin plan, the existing DAG columns.
+// Then the trailing New-Plan column (creates a structured plan).
 function Board({
   projectId,
   plans,
@@ -168,9 +173,15 @@ function Board({
   }
   const planList = plans.data ?? [];
 
-  // The draft Plans are the only valid add/drop targets (§9.4 select-into-plan
-  // is draft-only). Computed once + shared by every Backlog card's add-menu.
-  const draftPlans = planList.filter((p) => p.status === 'draft');
+  // ADR-0047 partition: the BUILT-IN assignment pool (exactly one is_builtin
+  // plan) is its own segment; every other plan is a STRUCTURED plan column.
+  const builtinPool = planList.find((p) => p.is_builtin === true) ?? null;
+  const structuredPlans = planList.filter((p) => p.is_builtin !== true);
+
+  // The draft STRUCTURED Plans are the only valid add/drop targets (§9.4
+  // select-into-plan is draft-only); shared by every Backlog card's add-menu.
+  // The built-in pool is offered separately (it is always-running, never draft).
+  const draftPlans = structuredPlans.filter((p) => p.status === 'draft');
 
   return (
     <div
@@ -183,10 +194,18 @@ function Board({
         projectId={projectId}
         backlog={backlog}
         draftPlans={draftPlans}
+        builtinPool={builtinPool}
         dragSource={dragSource}
         setDragSource={setDragSource}
       />
-      {planList.map((plan) => (
+      {builtinPool && (
+        <BuiltinPoolColumn
+          projectId={projectId}
+          plan={builtinPool}
+          dragSource={dragSource}
+        />
+      )}
+      {structuredPlans.map((plan) => (
         <PlanColumn
           key={plan.id}
           projectId={projectId}
@@ -198,6 +217,14 @@ function Board({
       <NewPlanColumn onClick={onNewPlan} />
     </div>
   );
+}
+
+// HIDDEN_NODE / HIDDEN_TASK — ADR-0047: completed + discarded work is HIDDEN by
+// default in the Backlog and the Assignment Pool (those are "live capacity"
+// segments). Structured plans KEEP done nodes (history). The BE may already
+// exclude them; we also filter on the FE so a degraded payload never leaks them.
+function isLiveTaskStatus(status: string | undefined): boolean {
+  return status !== 'completed' && status !== 'discarded';
 }
 
 // columnBase — the shared .col look (fixed ~236px, solid subtle bg, border).
@@ -213,16 +240,21 @@ function BacklogColumn({
   projectId,
   backlog,
   draftPlans,
+  builtinPool,
   dragSource,
   setDragSource,
 }: {
   projectId: string;
   backlog: TasksQuery;
   draftPlans: Plan[];
+  builtinPool: Plan | null;
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
-  const tasks = backlog.data ?? [];
+  // ADR-0047: HIDE completed/discarded in the Backlog by default (live capacity
+  // only). The BE `?unplanned=1` may already exclude them; the FE filter is the
+  // belt-and-braces guard so a degraded payload never leaks terminal work.
+  const tasks = (backlog.data ?? []).filter((t) => isLiveTaskStatus(t.status));
   const remove = useRemoveTaskFromAnyPlan(projectId);
   const [dropActive, setDropActive] = useState(false);
   // A7: the Backlog accepts a drop only when a PLAN-task is being dragged
@@ -268,14 +300,19 @@ function BacklogColumn({
       onDragLeave={() => setDropActive(false)}
       onDrop={handleDrop}
     >
-      <div className="flex items-center justify-between px-0.5 pb-2">
-        <span className="flex items-center gap-1.5 text-sm font-bold text-text-primary">
-          <BacklogIcon />
-          Backlog
-        </span>
-        <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="backlog-count">
-          {tasks.length}
-        </span>
+      <div className="px-0.5 pb-2">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-sm font-bold text-text-primary">
+            <BacklogIcon />
+            Backlog
+          </span>
+          <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="backlog-count">
+            {tasks.length}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[0.625rem] leading-tight text-text-muted" data-testid="backlog-subtitle">
+          Unscheduled — not claimable
+        </p>
       </div>
       {backlog.isError ? (
         <ErrorState
@@ -296,6 +333,7 @@ function BacklogColumn({
             projectId={projectId}
             task={task}
             draftPlans={draftPlans}
+            builtinPool={builtinPool}
             setDragSource={setDragSource}
           />
         ))
@@ -311,11 +349,13 @@ function BacklogCard({
   projectId,
   task,
   draftPlans,
+  builtinPool,
   setDragSource,
 }: {
   projectId: string;
   task: Task;
   draftPlans: Plan[];
+  builtinPool: Plan | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -357,6 +397,7 @@ function BacklogCard({
             projectId={projectId}
             taskId={task.id}
             draftPlans={draftPlans}
+            builtinPool={builtinPool}
             onClose={() => setMenuOpen(false)}
           />
         )}
@@ -372,13 +413,16 @@ function AddToPlanMenu({
   projectId,
   taskId,
   draftPlans,
+  builtinPool,
   onClose,
 }: {
   projectId: string;
   taskId: string;
   draftPlans: Plan[];
+  builtinPool: Plan | null;
   onClose: () => void;
 }): React.ReactElement {
+  const noTargets = draftPlans.length === 0 && !builtinPool;
   return (
     <div
       className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-border-base bg-bg-elevated p-1 shadow-1"
@@ -388,21 +432,34 @@ function AddToPlanMenu({
         if (e.key === 'Escape') onClose();
       }}
     >
-      {draftPlans.length === 0 ? (
+      {noTargets ? (
         <p className="px-2 py-1.5 text-[0.6875rem] text-text-muted" data-testid="add-menu-empty">
-          No draft plan. Create one to plan this task.
+          No draft plan or pool. Create a plan to schedule this task.
         </p>
       ) : (
-        draftPlans.map((plan) => (
-          <AddToPlanItem
-            key={plan.id}
-            projectId={projectId}
-            planId={plan.id}
-            planName={plan.name}
-            taskId={taskId}
-            onDone={onClose}
-          />
-        ))
+        <>
+          {/* ADR-0047: the built-in Assignment Pool is a select target (BE permits
+              moving a backlog task into the pool → it becomes claimable). */}
+          {builtinPool && (
+            <AddToPlanItem
+              projectId={projectId}
+              planId={builtinPool.id}
+              planName="Assignment Pool"
+              taskId={taskId}
+              onDone={onClose}
+            />
+          )}
+          {draftPlans.map((plan) => (
+            <AddToPlanItem
+              key={plan.id}
+              projectId={projectId}
+              planId={plan.id}
+              planName={plan.name}
+              taskId={taskId}
+              onDone={onClose}
+            />
+          ))}
+        </>
       )}
     </div>
   );
@@ -440,6 +497,164 @@ function AddToPlanItem({
     >
       {planName}
     </button>
+  );
+}
+
+// ClaimableChip — ADR-0047 affordance on a built-in-pool node that is currently
+// CLAIMABLE (assigned + dispatched; pull, no-wake). Both-mode AA: SOLID
+// status-emerald token chip (bg=emerald-100 hex light + AA-paired dark, fg=
+// emerald-800 — contrast ≥4.5 in both modes via the no-raw-colors token system).
+// NO alpha-tint. Text label "Claimable" (never color alone) + tiny inline SVG
+// (NOT emoji). Renders nothing when the node is not claimable.
+function ClaimableChip({
+  claimable,
+  taskId,
+}: {
+  claimable: boolean | undefined;
+  taskId: string;
+}): React.ReactElement | null {
+  if (!claimable) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded bg-status-emerald-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-emerald-fg"
+      data-testid={`claimable-chip-${taskId}`}
+      title="Claimable now — assigned & dispatched (pull, no-wake)."
+    >
+      {/* hand / pull glyph */}
+      <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
+        <path d="M5 12V7a2 2 0 0 1 4 0v5" />
+        <path d="M9 11V5a2 2 0 0 1 4 0v6" />
+        <path d="M13 11V6a2 2 0 0 1 4 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3" />
+      </svg>
+      Claimable
+    </span>
+  );
+}
+
+// BuiltinPoolColumn — ADR-0047 segment 2: the is_builtin assignment pool, a
+// DISTINCT segment (not a generic plan column). A FLAT list of its nodes (no
+// DAG / edge editing, no remove affordance, no drag-out — the pool is always
+// running, "pull, no-wake"). completed/discarded nodes are HIDDEN by default.
+// A claimable node shows the ClaimableChip. It IS a drop target for a backlog
+// task being dragged in (BE permits selecting a backlog task into the pool).
+function BuiltinPoolColumn({
+  projectId,
+  plan,
+  dragSource,
+}: {
+  projectId: string;
+  plan: Plan;
+  dragSource: DragSource | null;
+}): React.ReactElement {
+  const add = useAddTaskToPlan(projectId, plan.id);
+  const [dropActive, setDropActive] = useState(false);
+  // Defensive reads (mirror PlanColumn) — degrade to an empty pool, never crash.
+  const preview = plan.nodes_preview ?? [];
+  const nodeCount = plan.node_count ?? 0;
+  // ADR-0047: hide completed/discarded in the pool (live capacity only).
+  const shown = preview.filter((n) => isLiveTaskStatus(n.task_status));
+  // Overflow uses the LIVE count when known; fall back to node_count − shown.
+  const overflow = nodeCount - preview.length > 0 ? nodeCount - preview.length : 0;
+
+  // A backlog-origin drag (fromPlanId === null) can be dropped INTO the pool →
+  // SELECT. A plan/pool-origin drag is not a pool target (the pool is flat).
+  const dragTaskId = dragSource?.taskId ?? null;
+  const canDrop = dragTaskId !== null && dragSource?.fromPlanId == null;
+
+  const acceptsDrag = (e: React.DragEvent) =>
+    canDrop && !e.dataTransfer.types.includes(FROM_PLAN_MIME);
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropActive(false);
+    const src = readDragSource(e, dragSource);
+    if (!src || src.fromPlanId !== null) return; // only a backlog task selects in.
+    try {
+      await add.mutateAsync({ task_id: src.taskId });
+    } catch {
+      // surfaced by the board re-fetch.
+    }
+  };
+
+  return (
+    <div
+      className={`${columnBase} bg-bg-elevated ${
+        dropActive && canDrop ? 'border-accent ring-2 ring-accent' : 'border-status-emerald-border'
+      }`}
+      data-testid="builtin-pool-column"
+      data-plan-id={plan.id}
+      data-builtin="true"
+      data-droppable={canDrop ? 'true' : 'false'}
+      role="listitem"
+      onDragOver={(e) => {
+        if (!acceptsDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDropActive(true);
+      }}
+      onDragLeave={() => setDropActive(false)}
+      onDrop={handleDrop}
+    >
+      <div className="px-0.5 pb-2">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-sm font-bold text-text-primary">
+            <PoolIcon />
+            Assignment Pool
+          </span>
+          <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="builtin-pool-count">
+            {shown.length}
+          </span>
+        </div>
+        <p className="mt-0.5 text-[0.625rem] leading-tight text-text-muted" data-testid="builtin-pool-subtitle">
+          Built-in · always running · claimable
+        </p>
+      </div>
+      {shown.length === 0 ? (
+        <p className="py-3 text-center text-[0.6875rem] text-text-muted" data-testid="builtin-pool-empty">
+          No claimable tasks yet.
+        </p>
+      ) : (
+        shown.map((node) => (
+          <PoolTaskCard key={node.task_id} projectId={projectId} node={node} />
+        ))
+      )}
+      {overflow > 0 && (
+        <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`pool-overflow-${plan.id}`}>
+          …and {overflow} more
+        </p>
+      )}
+    </div>
+  );
+}
+
+// PoolTaskCard — a single built-in-pool task card (flat, no remove / drag-out /
+// DAG affordance). Shows the ClaimableChip when the node is claimable, alongside
+// the task status chip + archive badge.
+function PoolTaskCard({
+  projectId,
+  node,
+}: {
+  projectId: string;
+  node: PlanNode;
+}): React.ReactElement {
+  return (
+    <div
+      className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
+      data-testid="pool-task-card"
+      data-task-id={node.task_id}
+    >
+      <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">
+        <TaskTitleLink projectId={projectId} taskId={node.task_id} title={node.title} />
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <AssigneeBadge assignee={node.assignee_ref} />
+        <span className="inline-flex items-center gap-1">
+          <ClaimableChip claimable={node.claimable} taskId={node.task_id} />
+          <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />
+          <StatusChip status={node.task_status} />
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -727,7 +942,7 @@ function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactE
   // (prefix stripped) — NEVER paint the raw prefixed ref as visible text.
   const resolved = resolveName(assignee);
   const label = resolved === assignee ? normalizeIdentityRef(assignee) : resolved;
-  const disc = kind === 'agent' ? 'bg-violet-700' : 'bg-cyan-700';
+  const disc = kind === 'agent' ? 'bg-status-violet-solid' : 'bg-status-cyan-solid';
   return (
     <span
       className="inline-flex items-center gap-1 text-[0.6875rem] text-text-secondary"
@@ -753,6 +968,18 @@ function BacklogIcon(): React.ReactElement {
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <rect x="2.5" y="2" width="11" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
       <path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// PoolIcon — a "layers / stack" glyph for the Assignment Pool header (NOT an
+// emoji, per the a11y guardrail). aria-hidden — the visible "Assignment Pool"
+// label is the accessible name.
+function PoolIcon(): React.ReactElement {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 1.5L14.5 5 8 8.5 1.5 5 8 1.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M1.5 8L8 11.5 14.5 8M1.5 11L8 14.5 14.5 11" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
   );
 }
