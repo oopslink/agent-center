@@ -1,0 +1,144 @@
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import { useAgents } from '@/api/agents';
+import { useMembers, normalizeIdentityRef } from '@/api/members';
+import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
+
+// ============================================================================
+// v2.10.0 [T7] Members — col② secondary nav (registered in
+// shell/secondaryNav.tsx). Two sections — Humans and Agents — each with an
+// "All …" row (the list/table page) plus the individual members, mirroring the
+// mockup `docs/design/v2.10.0/members.html` col②. Agent rows open AgentDetail;
+// human rows open UserDetail; archived agents are dropped (they live in
+// history). The shell owns the col② chrome (header / search / footer / collapse
+// / col④ host); this component only fills the nav body.
+// ============================================================================
+
+interface NavRow {
+  to: string;
+  label: string;
+}
+
+const SECTION_STATE_KEY = 'ac.members.sections';
+
+function readSectionOpen(key: string): boolean {
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return true;
+    const raw = localStorage.getItem(SECTION_STATE_KEY);
+    if (!raw) return true;
+    const parsed = JSON.parse(raw) as Record<string, boolean>;
+    return parsed[key] === undefined ? true : parsed[key];
+  } catch {
+    return true;
+  }
+}
+
+function writeSectionOpen(key: string, open: boolean): void {
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.setItem !== 'function') return;
+    const raw = localStorage.getItem(SECTION_STATE_KEY);
+    const parsed = (raw ? (JSON.parse(raw) as Record<string, boolean>) : {}) ?? {};
+    parsed[key] = open;
+    localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(parsed));
+  } catch {
+    // ignore
+  }
+}
+
+export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.ReactElement {
+  const agents = useAgents();
+  const members = useMembers();
+
+  const humanRows: NavRow[] = (members.data ?? [])
+    .filter((m) => m.kind === 'user' || m.identity_id.startsWith('user'))
+    .map((m) => {
+      const ref = normalizeIdentityRef(m.identity_id);
+      return { to: `${orgBase}/users/${encodeURIComponent(ref)}`, label: m.display_name || ref };
+    });
+
+  const agentRows: NavRow[] = (agents.data ?? [])
+    .filter((a) => a.lifecycle !== 'archived')
+    .map((a) => ({ to: `${orgBase}/agents/${encodeURIComponent(a.id)}`, label: a.name || a.id }));
+
+  return (
+    <div className="space-y-1" data-testid="members-secondary-nav">
+      <NavSection
+        sectionKey="humans"
+        title="Humans"
+        allTo={`${orgBase}/members/humans`}
+        allLabel="All humans"
+        rows={humanRows}
+      />
+      <NavSection
+        sectionKey="agents"
+        title="Agents"
+        allTo={`${orgBase}/agents`}
+        allLabel="All agents"
+        rows={agentRows}
+      />
+    </div>
+  );
+}
+
+function NavSection({
+  sectionKey,
+  title,
+  allTo,
+  allLabel,
+  rows,
+}: {
+  sectionKey: string;
+  title: string;
+  allTo: string;
+  allLabel: string;
+  rows: NavRow[];
+}): React.ReactElement {
+  const [open, setOpen] = useState(() => readSectionOpen(sectionKey));
+  useEffect(() => {
+    writeSectionOpen(sectionKey, open);
+  }, [sectionKey, open]);
+
+  return (
+    <div>
+      <h3 className="px-1">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          data-testid={`members-section-toggle-${sectionKey}`}
+          className="flex w-full items-center justify-between rounded px-1 pb-1 pt-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary"
+        >
+          <span data-testid="section-label">{title}</span>
+          <span aria-hidden="true">{open ? '⌄' : '›'}</span>
+        </button>
+      </h3>
+      {open && (
+        <ul className="space-y-0.5" data-testid={`members-section-list-${sectionKey}`}>
+          <li>
+            <NavLink to={allTo} end className={rowClass} data-testid={`members-all-${sectionKey}`}>
+              {allLabel}
+            </NavLink>
+          </li>
+          {rows.map((r) => (
+            <li key={r.to}>
+              <NavLink to={r.to} className={rowClass}>
+                <span className="block truncate">{r.label}</span>
+              </NavLink>
+            </li>
+          ))}
+          {rows.length === 0 && (
+            <li className="px-2 py-0.5 text-xs italic text-text-muted">(none)</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function rowClass({ isActive }: { isActive: boolean }): string {
+  return [
+    'block rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
+    isActive ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
+  ].join(' ');
+}
