@@ -58,7 +58,13 @@ export default function ProjectPlans(): React.ReactElement {
       />
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base pb-3">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">Work Board</h1>
+          {/* v2.10.0 [T5]: header carries the project name (mockup
+              docs/design/v2.10.0/workboard.html — "<project> · Work Board"); the
+              col② project sub-nav already provides the in-project navigation. */}
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">
+            <span data-testid="workboard-project-name">{projectName}</span>
+            <span className="text-text-muted"> · Work Board</span>
+          </h1>
           <p className="mt-0.5 text-xs text-text-muted">
             Three segments · Backlog (unscheduled) · Assignment Pool (claimable) · structured Plans.
           </p>
