@@ -99,6 +99,13 @@ func mapFilesError(w http.ResponseWriter, err error) {
 //     {ScopeIssue, issueID}; resolve the task's Conversation
 //     (ConvRepo.FindByOwnerRef(pm://tasks/{taskID})) → if found →
 //     {ScopeConversation, convID}.
+//   - per participant channel/DM (T44): every channel/DM in the agent's OWN org
+//     where it is an ACTIVE participant → {ScopeConversation, convID}. This is the
+//     direct realization of the doc's "conversation participant" analog: it lets an
+//     agent place a file into (and read a file from) a channel/DM it is in, the
+//     dual of the human chat-box attachment. Org-scoped by construction (Find is
+//     a.OrganizationID()-filtered) so a cross-org conversation never appears — a
+//     non-participant agent simply has no such scope (§5.7 fail-closed).
 //
 // The result is deduped. Per-task lookup errors are TOLERATED (skip that task's
 // derived scopes) — fail-closed: a scope we cannot resolve simply does not
@@ -109,7 +116,7 @@ func (s *Server) agentOwnDomainScopes(d HandlerDeps, r *http.Request, a *agent.A
 	scopes := []filesservice.ScopeRef{{Scope: files.ScopeAgent, ScopeID: string(a.ID())}}
 
 	if d.AgentWorkItemRepo == nil {
-		return scopes, nil
+		return append(scopes, s.agentParticipantConvScopes(d, r, a)...), nil
 	}
 	items, err := d.AgentWorkItemRepo.ListByAgent(ctx, a.ID())
 	if err != nil {
@@ -138,7 +145,55 @@ func (s *Server) agentOwnDomainScopes(d HandlerDeps, r *http.Request, a *agent.A
 			}
 		}
 	}
+	scopes = append(scopes, s.agentParticipantConvScopes(d, r, a)...)
 	return dedupScopeRefs(scopes), nil
+}
+
+// agentParticipantConvScopes returns a {ScopeConversation, convID} scope for every
+// channel/DM in the agent's OWN org where the agent is an ACTIVE (non-left)
+// participant — the file-domain realization of the post_message participant gate
+// (agentIsActiveParticipant). It is best-effort and fail-closed: a missing
+// ConvRepo, an empty org, or a Find error yields NO conversation scopes (the agent
+// is denied, never wrongly granted). Only channel + DM kinds are enumerated (task/
+// issue/plan conversations are reached via the work-item derivation above), which
+// also keeps the scan bounded — channels/DMs per org are few, well under Find's
+// DefaultConversationLimit, so no participant conversation is silently truncated.
+func (s *Server) agentParticipantConvScopes(d HandlerDeps, r *http.Request, a *agent.Agent) []filesservice.ScopeRef {
+	if d.ConvRepo == nil {
+		return nil
+	}
+	orgID := a.OrganizationID()
+	if orgID == "" {
+		return nil
+	}
+	ctx := r.Context()
+	refs := agentConvRefs(a) // execution ref + identity-member ref (dual-ref)
+	var out []filesservice.ScopeRef
+	for _, kind := range []conversation.ConversationKind{
+		conversation.ConversationKindChannel,
+		conversation.ConversationKindDM,
+	} {
+		k := kind
+		convs, err := d.ConvRepo.Find(ctx, conversation.ConversationFilter{
+			OrganizationID: orgID,
+			Kind:           &k,
+		})
+		if err != nil {
+			continue // fail-closed: skip this kind rather than over-grant
+		}
+		for _, c := range convs {
+			for _, ref := range refs {
+				if c.HasActiveParticipant(ref) {
+					out = append(out, filesservice.ScopeRef{
+						Scope:   files.ScopeConversation,
+						ScopeID: string(c.ID()),
+					})
+					break
+				}
+			}
+		}
+	}
+	return out
 }
 
 // dedupScopeRefs removes duplicate {Scope, ScopeID} pairs, preserving order.
