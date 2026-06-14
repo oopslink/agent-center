@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
-import { StatusChip } from '@/components/workItemDisplay';
+import { StatusChip, idHandle } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
 
 // ProjectPlans (/projects/:id/plans) — v2.9 #291 WORK BOARD (the headline
@@ -171,7 +171,11 @@ function Board({
       </div>
     );
   }
-  const planList = plans.data ?? [];
+  // task-1099941e: the Work Board excludes ARCHIVED plans (mirrors project/channel
+  // archive — archived work leaves the active board). The backend list already
+  // default-excludes them (ListPlanSummaries); this FE filter is the belt-and-
+  // braces guard so a degraded/stale payload never leaks an archived plan column.
+  const planList = (plans.data ?? []).filter((p) => p.status !== 'archived');
 
   // ADR-0047 partition: the BUILT-IN assignment pool (exactly one is_builtin
   // plan) is its own segment; every other plan is a STRUCTURED plan column.
@@ -614,9 +618,12 @@ function BuiltinPoolColumn({
           No claimable tasks yet.
         </p>
       ) : (
-        shown.map((node) => (
-          <PoolTaskCard key={node.task_id} projectId={projectId} node={node} />
-        ))
+        // task-0543ece9: all live pool nodes in a bounded scroll area (no cap).
+        <div className="max-h-[26rem] space-y-0 overflow-y-auto" data-testid={`pool-cards-${plan.id}`}>
+          {shown.map((node) => (
+            <PoolTaskCard key={node.task_id} projectId={projectId} node={node} />
+          ))}
+        </div>
       )}
       {overflow > 0 && (
         <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`pool-overflow-${plan.id}`}>
@@ -643,6 +650,9 @@ function PoolTaskCard({
       data-testid="pool-task-card"
       data-task-id={node.task_id}
     >
+      <div className="mb-1 flex items-center gap-1">
+        <TaskIdTag taskId={node.task_id} orgRef={node.org_ref} />
+      </div>
       <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">
         <TaskTitleLink projectId={projectId} taskId={node.task_id} title={node.title} />
       </div>
@@ -655,6 +665,25 @@ function PoolTaskCard({
         </span>
       </div>
     </div>
+  );
+}
+
+// TaskIdTag — a small monospace pill showing the human Task id (org_ref "T123"),
+// falling back to "#"+id-tail when the node has no org_ref (pre-allocator rows,
+// #192 id-as-content). v2.9.2 (task-0543ece9): the board card now shows the
+// T-number directly from `node.org_ref` (the node DTO carries it — no resolver).
+// Mirrors PlanDetail's TaskIdTag: solid theme tokens (both-mode AA, no alpha-tint),
+// full task_id on hover.
+function TaskIdTag({ taskId, orgRef }: { taskId: string; orgRef?: string }): React.ReactElement {
+  const label = orgRef || `#${idHandle(taskId)}`;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
+      data-testid={`plan-card-taskid-${taskId}`}
+      title={taskId}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -782,22 +811,31 @@ function PlanColumn({
           No tasks yet.
         </p>
       ) : (
-        shown.map((node) => (
-          <PlanTaskCard
-            key={node.task_id}
-            projectId={projectId}
-            planId={plan.id}
-            node={node}
-            // §9.4: removing a task from a Plan is a PLANNING action — only a
-            // DRAFT Plan exposes the remove affordance (mirrors add-to-plan /
-            // the A1 edge editor). running/done columns render NO remove control.
-            // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
-            // are draggable (the source must be draft so MOVE/REMOVE is allowed).
-            canRemove={isDraft}
-            setDragSource={setDragSource}
-          />
-        ))
+        // task-0543ece9: render EVERY node (backend no longer caps the preview) in
+        // a bounded, scrollable area so a large plan (12+ tasks) shows all cards
+        // without a silent "…and N more" truncation AND without an unbounded-tall
+        // column. The scroll keeps the board row height sane.
+        <div className="max-h-[26rem] space-y-0 overflow-y-auto" data-testid={`plan-cards-${plan.id}`}>
+          {shown.map((node) => (
+            <PlanTaskCard
+              key={node.task_id}
+              projectId={projectId}
+              planId={plan.id}
+              node={node}
+              // §9.4: removing a task from a Plan is a PLANNING action — only a
+              // DRAFT Plan exposes the remove affordance (mirrors add-to-plan /
+              // the A1 edge editor). running/done columns render NO remove control.
+              // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
+              // are draggable (the source must be draft so MOVE/REMOVE is allowed).
+              canRemove={isDraft}
+              setDragSource={setDragSource}
+            />
+          ))}
+        </div>
       )}
+      {/* Overflow hint is now a belt-and-braces safety net only: with the cap
+          removed node_count == shown.length so this stays hidden, but a degraded
+          partial payload (fewer preview nodes than node_count) still surfaces it. */}
       {overflow > 0 && (
         <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`plan-overflow-${plan.id}`}>
           …and {overflow} more
@@ -857,6 +895,9 @@ function PlanTaskCard({
       }
       onDragEnd={draggable ? () => setDragSource(null) : undefined}
     >
+      <div className="mb-1 flex items-center gap-1">
+        <TaskIdTag taskId={node.task_id} orgRef={node.org_ref} />
+      </div>
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1 text-xs font-semibold leading-tight text-text-primary">
           <TaskTitleLink projectId={projectId} taskId={node.task_id} title={node.title} />

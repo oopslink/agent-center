@@ -251,6 +251,20 @@ func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID)
 	if err != nil {
 		return nil, err
 	}
+	// v2.9.2 (task-1099941e): the Work Board EXCLUDES archived plans by default —
+	// an archived plan leaves the active board, mirroring project (#310) / channel
+	// archive semantics. Filtered here (the single shared read both list mirrors —
+	// web + agent-tools — go through), so neither surface leaks an archived plan,
+	// and an archived plan's tasks/edges/records aren't even derived below. A
+	// dedicated archived-plans view, if added, would use a separate read path.
+	active := plans[:0]
+	for _, p := range plans {
+		if p.Status() == pm.PlanArchived {
+			continue
+		}
+		active = append(active, p)
+	}
+	plans = active
 	if len(plans) == 0 {
 		return []*PlanDetail{}, nil
 	}
