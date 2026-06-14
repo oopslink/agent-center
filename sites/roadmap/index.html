@@ -95,7 +95,7 @@
 
   <div class="rm-toolbar">
     <div class="legend rm-legend">
-      <span><i class="swatch" style="background:var(--green-fg)"></i> v2 / v2.8.1 / v2.9 已完成</span>
+      <span><i class="swatch" style="background:var(--green-fg)"></i> v2 / v2.8.1 / v2.9 / v2.9.1 已完成</span>
       <span><i class="swatch" style="background:var(--blue-fg)"></i> v2.1 backlog</span>
       <span><i class="swatch" style="background:var(--vo)"></i> v2.7+ 进阶 / v3 候选</span>
       <span><i class="swatch" style="background:var(--accent)"></i> v3 推迟</span>
@@ -264,6 +264,30 @@
       <div class="cluster">派发可靠性</div>
       <div class="rm-grid">
         <div class="rm-item"><h4>单活竞态根治</h4><p>activate 路径原是非原子 check-then-act + 部分（非唯一）索引，并发派同一 agent 会产生多个活跃工作项。改 pull model + UNIQUE 部分索引（<code>agent_work_items(agent_id)</code> WHERE status IN active/waiting_input）+ queue-not-drop：一个 agent 同时只有一个活跃工作项。<span class="trig">#277 / #278</span></p></div>
+      </div>
+    </section>
+
+    <!-- ============ v2.9 / v2.9.1 已完成 ============ -->
+    <section class="tl-phase done" data-phase="done">
+      <div class="phase-hd">
+        <h2>v2.9 / v2.9.1 已完成 · Plan 编排 + Message Threads</h2>
+        <span class="st">✓ SHIPPED</span>
+        <span class="when">v2.9 · 2026-06-12（58 PR） / v2.9.1 · 2026-06-14 · 三面验收（用户视角端到端 + 关键步骤截图）</span>
+      </div>
+      <p class="phase-sub">v2.9 把工作组织成任务 DAG（Plan Orchestration）并自动推进，org 路由显式化；v2.9.1 在会话上加 Message Threads,并做一波任务模型/看板/归档收尾。验收报告 <code>docs/release/evidence/v2.9.1-acceptance-report.md</code>（每验收点内嵌真实例截图，复现脚本 <code>tests/e2e/v2/capture-v291.mjs</code>）。</p>
+
+      <div class="cluster">v2.9 · Plan Orchestration</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>Plan = 任务 DAG，自动推进</h4><p>建 plan / 加 backlog 节点 / draft 期连依赖（拒环/自环），<code>start</code> 后随上游完成自动 dispatch 每个就绪节点给对应 agent，节点状态派生（blocked/ready/dispatched/running/done/failed）。PM 型 agent 可经 MCP 编程式建 plan 并跑。<span class="trig">Plan Orchestration</span></div></div>
+        <div class="rm-item"><h4>显式 org 路由 + 归档语义</h4><p>每个 org-scoped API 挂 <code>/api/orgs/{slug}/...</code>，消除隐含 org 状态（跨 org 404）；Plan/Project 有 draft/running/done + 不可逆归档（只读）。plan 会话纳入 @提及唤醒。<span class="trig">org-routing · archive</span></p></div>
+      </div>
+
+      <div class="cluster">v2.9.1 · Message Threads + 任务模型/看板收尾</div>
+      <div class="rm-grid">
+        <div class="rm-item"><h4>Message Threads</h4><p>任一消息派生 thread、弹出侧栏回复（Slack 式单层）+ Participants 线程列表 +「有无新活动」标记；thread 内 @提及项目 agent 唤醒且回复落 thread 内；适用所有会话类型。<span class="trig">v2.9.1 headline</span></p></div>
+        <div class="rm-item"><h4>claimable + 内置指派池（ADR-0047）</h4><p>每项目一个常驻内置指派池（指派≠领取，可拉取认领）；三段 Work Board = Backlog · 内置池 · 结构化 Plan；claimable 为派生谓词。<span class="trig">ADR-0047</span></p></div>
+        <div class="rm-item"><h4>任务状态机 7→5（ADR-0046）</h4><p>五态（open/running/completed/discarded/reopened）；<code>blocked</code> 改为可恢复注解、删 <code>verified</code>；带数据 round-trip 迁移。<span class="trig">ADR-0046</span></p></div>
+        <div class="rm-item"><h4>看板可见性 + 频道归档 + 工具/恢复</h4><p>列表默认排终态、归档项目条目隐藏、大 plan 任务搜索/行内改派；频道归档（只读 409 + 归档组）；<code>list_tasks</code> MCP；<code>unblock_task</code>/<code>rerun_failed_node</code> + 自动重派；全量设计 token 迁移。<span class="trig">收尾波</span></p></div>
       </div>
     </section>
 

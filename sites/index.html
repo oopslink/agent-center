@@ -149,6 +149,15 @@
 
 <main class="wrap wide">
 
+  <div class="section-title">v2.9.1 新特性 · Message Threads</div>
+  <div class="desc" style="max-width:880px;margin:0 0 18px">从任一消息<b>派生出 thread</b>、在弹出侧边栏里回复（Slack 式单层），Participants 侧栏有 thread 列表 +「有无新活动」标记；<b>在 thread 内 @提及项目 agent 会唤醒它、且回复落在该 thread 内</b> —— 适用所有会话类型。外加任务模型/看板收尾：<b>claimable + 每项目内置指派池</b>（指派≠领取；三段 Work Board = Backlog · 内置池 · 结构化 Plan）、更简的<b>任务状态机</b>（5 态，<code>blocked</code> 改为可恢复注解、删 <code>verified</code>）、<b>频道归档</b>、<code>list_tasks</code> MCP 工具、任务恢复工具与自动重派。</div>
+  <div class="grid two" style="margin-bottom:8px">
+    <figure style="margin:0"><img src="assets/v2.9.1/thread-sidebar.png" alt="ThreadSidebar：root + 回复 + 回复框" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">消息派生 thread → 侧栏「Thread · 2 replies」= root + 回复 + 回复框</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.9.1/work-board.png" alt="三段 Work Board" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">三段 Work Board：Backlog（不可领）· Assignment Pool（内置·常驻·可领）· 结构化 Plan</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.9.1/plan-dag.png" alt="Plan 详情 DAG + Task 号 + 派生状态" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Plan 三 tab + DAG：Task 号 + 派生节点状态（READY/BLOCKED）+ 在图连线编辑</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.9.1/channel-archive.png" alt="频道归档组" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">频道归档：「Archived / 已归档」组（只读），活动列表默认排除</figcaption></figure>
+  </div>
+
   <div class="section-title">v2.9 新特性 · Plan Orchestration</div>
   <div class="desc" style="max-width:880px;margin:0 0 18px">把工作组织成<b>任务的 DAG（一个 Plan）</b>，<code>start</code> 之后 center 随上游任务完成自动把每个就绪节点派发给对应 agent —— 一路跑到完成、无需手动推进。PM 型 agent 还能通过 MCP 工具编程式建 plan 并跑起来。Plan / Project 有明确生命周期（draft / running / done + 不可逆归档=只读）。org 路由显式化（<code>/api/orgs/{slug}/...</code>，前端 <code>/organizations/{slug}/...</code>），agent 在 plan 会话被 @提及也会唤醒。</div>
   <div class="grid two" style="margin-bottom:8px">
@@ -185,7 +194,7 @@
       <span class="idx">04</span>
       <div class="ico">🧭</div>
       <h3>路线图</h3>
-      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.9 已发布</b>（Plan Orchestration + 显式 org 路由 + plan 会话唤醒 + 归档语义），承接 v2.8.1（Web Console UX / 单活竞态根治），v3 推迟项与边界。</div>
+      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.9.1 已发布</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档），承接 <b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义）、v2.8.1（Web Console UX / 单活竞态根治），v3 推迟项与边界。</div>
       <div class="tags"><span class="tag">已完成</span><span class="tag">backlog</span><span class="tag">v3 推迟</span></div>
     </a>
   </div>

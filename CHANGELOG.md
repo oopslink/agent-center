@@ -15,6 +15,60 @@ ADR / phase plan landscape, see
 
 _Nothing yet — released work is tracked in the per-version sections below._
 
+## [v2.9.1] — 2026-06-14
+
+Message Threads + a task-model / board / archive cleanup wave.
+
+### Added
+
+- **Message Threads.** Derive a thread from any message and reply in a popout
+  thread sidebar (Slack-style single level — replies are flat, a reply's parent
+  is always the root). The Participants sidebar lists every thread in the
+  conversation with reply count and a "new activity" marker for unseen replies.
+  **@mentioning a project agent inside a thread wakes it and its reply lands in
+  the thread** (not at top level). Works across all conversation types
+  (channel / DM / issue / task / plan). Stored as `parent_message_id` with a
+  derived root; server enforces single-level depth and rejects a parent in
+  another conversation.
+- **Built-in assignment pool + claimable (ADR-0047).** Every project has one
+  always-running **built-in assignment pool** — a flat list of claimable tasks an
+  agent can pull at will (assign ≠ claim). The Work Board is now three segments:
+  **Backlog** (unscheduled, not claimable) · **Assignment Pool** (built-in,
+  claimable) · **structured Plans** (DAG columns). `claimable` is a derived
+  predicate (open ∧ assigned ∧ in a started plan node that's dispatched). A
+  backfill migration moves assigned non-terminal backlog tasks into the pool.
+- **`list_tasks` MCP tool.** List a project's tasks, filterable by status and
+  assignee.
+- **Channel archive.** Channels can be archived (irreversible, read-only — writes
+  rejected with 409); archived channels leave the default list and show in a
+  separate "Archived" group (parity with project archive).
+- **Task-recovery tooling.** `unblock_task` / `rerun_failed_node` MCP tools plus
+  automatic re-dispatch of stale-released plan nodes (retry-capped) — recovers
+  the restart→deadlock failure mode.
+
+### Changed
+
+- **Simpler task state machine (ADR-0046).** Seven states down to five
+  (`open` / `running` / `completed` / `discarded` / `reopened`). `blocked` is no
+  longer a state — it's a recoverable annotation on a running task (auto-clears on
+  resume / unblock / complete / discard); `verified` is removed (`completed` is
+  terminal). A round-trip migration preserves prior data.
+- **Board visibility.** Backlog / task / issue lists exclude terminal tasks by
+  default (re-viewable via `?status=`); tasks & issues of archived projects are
+  hidden from the org-level lists; large plans show a searchable task list with
+  inline reassignment.
+- **Plan detail UX.** Task org-numbers shown; a compact DAG layout with
+  in-graph dependency editing (click + keyboard); Chat / DAG / Task-list split
+  into three tabs (Chat default).
+- **Design tokens.** Remaining raw Tailwind palette classes migrated to semantic
+  CSS-var tokens; the `no-raw-colors` lint gate is clean, both-mode AA preserved.
+
+### Fixed
+
+- Restored the SPA ESLint (jsx-a11y) gate.
+- Thread follow-ups: thread-list live-refreshes on new messages; thread-list
+  preview meets light-mode AA; thread-mentioned agent replies land in-thread.
+
 ## [v2.9] — 2026-06-12
 
 Plan Orchestration + explicit org routing (58 PRs).
