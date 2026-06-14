@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>agent-center · v2.9.2 — Chat-First UI/UX 重构 mockup</title>
+<style>
+  /* ---- Real design tokens, mirrored from web/src/index.css (light + dark) ---- */
+  :root{
+    --bg-base:#f8fafc; --bg-elev:#ffffff; --bg-subtle:#f1f5f9;
+    --border:#e2e8f0; --border-strong:#cbd5e1;
+    --tp:#0f172a; --ts:#475569; --tm:#64748b;
+    --brand:#1e40af; --brand-h:#1d4ed8; --accent:#2563eb;
+    --success:#22c55e; --warning:#f59e0b; --danger:#dc2626;
+    --own:#D1E3FF; --own-fg:#0f172a;
+    --sh1:0 1px 2px rgba(15,23,42,.04); --sh2:0 4px 8px rgba(15,23,42,.08);
+    --blue-bg:#dbeafe; --blue-fg:#1e40af; --emerald-bg:#d1fae5; --emerald-fg:#065f46;
+    --amber-bg:#fef3c7; --amber-fg:#92400e; --violet-bg:#ede9fe; --violet-fg:#5b21b6;
+    --font:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  }
+  .dark{
+    --bg-base:#0f172a; --bg-elev:#1e293b; --bg-subtle:#1e293b;
+    --border:#334155; --border-strong:#475569;
+    --tp:#f1f5f9; --ts:#cbd5e1; --tm:#94a3b8;
+    --brand:#3b82f6; --brand-h:#2563eb; --accent:#60a5fa;
+    --blue-bg:#1e3a5f; --blue-fg:#bfdbfe; --emerald-bg:#064e3b; --emerald-fg:#a7f3d0;
+    --amber-bg:#78350f; --amber-fg:#fde68a; --violet-bg:#3b2f63; --violet-fg:#ddd6fe;
+    --sh1:0 1px 2px rgba(0,0,0,.25); --sh2:0 4px 8px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e7ebf0;color:var(--tp);font-family:var(--font);font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .page{max-width:1320px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--ts);font-size:13.5px;margin:0 0 18px;max-width:880px}
+  .decisions{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 26px}
+  .dec{background:#fff;border:1px solid var(--border-strong);border-radius:10px;padding:10px 14px;font-size:12.5px;box-shadow:var(--sh1);max-width:340px}
+  .dec b{color:var(--brand)}
+  .dec .pick{display:inline-block;background:var(--blue-bg);color:var(--blue-fg);border-radius:5px;padding:0 6px;font-weight:600;font-size:11px;margin-left:4px}
+  .sech{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--tm);margin:34px 0 12px;font-weight:700}
+  .frame{background:var(--bg-base);border:1px solid var(--border-strong);border-radius:14px;box-shadow:var(--sh2);overflow:hidden}
+  /* annotation pills */
+  .cap{position:absolute;z-index:5;background:var(--brand);color:#fff;font-size:10.5px;font-weight:700;width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--bg-elev)}
+  .legend{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 26px;margin:14px 2px 0;font-size:12.5px;color:var(--ts)}
+  .legend div{display:flex;gap:9px;align-items:flex-start}
+  .legend .n{flex:none;background:var(--brand);color:#fff;font-size:10px;font-weight:700;width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .tag{font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle}
+  .t-chat{background:var(--blue-bg);color:var(--blue-fg)} .t-mob{background:var(--emerald-bg);color:var(--emerald-fg)} .t-att{background:var(--amber-bg);color:var(--amber-fg)}
+
+  /* ============ DESKTOP SHELL ============ */
+  .desk{display:grid;grid-template-columns:54px 304px 1fr 268px;height:632px;position:relative}
+  .rail{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:30px;height:30px;border-radius:8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:8px;font-size:14px}
+  .ri{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--tm);font-size:17px;position:relative}
+  .ri.active{background:var(--blue-bg);color:var(--brand)}
+  .ri small{position:absolute;bottom:1px;font-size:7px;letter-spacing:0}
+  .rail .spacer{flex:1}
+  .col{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .colhead{padding:12px 14px 10px;border-bottom:1px solid var(--border)}
+  .colhead .row{display:flex;align-items:center;justify-content:space-between}
+  .colhead h2{font-size:15px;margin:0;letter-spacing:-.01em}
+  .search{margin-top:10px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 9px;color:var(--tm);font-size:12.5px;display:flex;align-items:center;gap:7px}
+  .seg{display:flex;gap:4px;margin-top:10px}
+  .seg span{font-size:11.5px;padding:3px 9px;border-radius:999px;color:var(--ts);background:var(--bg-subtle);border:1px solid transparent;cursor:default}
+  .seg span.on{background:var(--brand);color:#fff;font-weight:600}
+  .list{overflow:hidden;flex:1}
+  .conv{display:flex;gap:10px;padding:10px 13px;border-bottom:1px solid var(--border);align-items:flex-start;position:relative}
+  .conv.sel{background:var(--bg-subtle)}
+  .conv.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .av{flex:none;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:12.5px}
+  .av.ch{background:#0ea5e9;border-radius:9px} .av.dm{background:#8b5cf6;border-radius:50%} .av.wk{background:#0f766e}
+  .conv .mid{min-width:0;flex:1}
+  .conv .nm{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px}
+  .conv .pv{color:var(--tm);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .conv .meta{flex:none;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+  .conv .ts{color:var(--tm);font-size:10.5px;font-family:var(--mono)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--brand)}
+  .chip{font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px}
+  .c-task{background:var(--emerald-bg);color:var(--emerald-fg)} .c-issue{background:var(--amber-bg);color:var(--amber-fg)} .c-plan{background:var(--violet-bg);color:var(--violet-fg)}
+
+  /* center conversation */
+  .conv-main{display:flex;flex-direction:column;background:var(--bg-base);min-width:0}
+  .cm-head{padding:11px 16px;border-bottom:1px solid var(--border);background:var(--bg-elev);display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .cm-head .ttl{display:flex;align-items:center;gap:9px;min-width:0}
+  .cm-head .ttl h3{margin:0;font-size:14.5px;letter-spacing:-.01em;white-space:nowrap}
+  .ctxlink{font-size:11px;font-weight:600;background:var(--emerald-bg);color:var(--emerald-fg);padding:2px 7px;border-radius:5px;font-family:var(--mono)}
+  .faces{display:flex}
+  .faces span{width:24px;height:24px;border-radius:50%;border:2px solid var(--bg-elev);margin-left:-7px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+  .hbtn{color:var(--tm);font-size:16px;border:1px solid var(--border);border-radius:7px;width:30px;height:30px;display:flex;align-items:center;justify-content:center}
+  .stream{flex:1;padding:16px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+  .msg{display:flex;gap:10px;max-width:78%}
+  .msg .bub{background:var(--bg-elev);border:1px solid var(--border);border-radius:4px 12px 12px 12px;padding:8px 12px;box-shadow:var(--sh1)}
+  .msg .who{font-size:11.5px;font-weight:700;margin-bottom:2px;color:var(--brand)}
+  .msg.me{align-self:flex-end;flex-direction:row-reverse}
+  .msg.me .bub{background:var(--own);color:var(--own-fg);border:none;border-radius:12px 4px 12px 12px}
+  .msg.me .who{color:#1e3a8a}
+  .att-img{margin-top:7px;width:172px;height:108px;border-radius:8px;background:linear-gradient(135deg,#60a5fa,#1e40af 70%);position:relative;display:flex;align-items:flex-end;overflow:hidden}
+  .att-img .cap2{background:rgba(15,23,42,.55);color:#fff;font-size:10px;font-family:var(--mono);padding:3px 7px;width:100%}
+  .att-file{margin-top:7px;display:flex;align-items:center;gap:9px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:7px 10px;width:230px}
+  .att-file .ic{width:30px;height:34px;border-radius:5px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;font-family:var(--mono)}
+  .att-file .nm{font-size:12px;font-weight:600} .att-file .sz{font-size:10.5px;color:var(--tm);font-family:var(--mono)}
+  .ts2{font-size:9.5px;color:var(--tm);font-family:var(--mono);margin-top:5px}
+
+  /* composer */
+  .composer{border-top:1px solid var(--border);background:var(--bg-elev);padding:10px 14px 12px}
+  .drop{border:1.5px dashed var(--border-strong);border-radius:10px;padding:8px 10px;background:var(--bg-base)}
+  .tray{display:flex;gap:8px;margin-bottom:8px}
+  .tray .pill{position:relative;border:1px solid var(--border);border-radius:8px;background:var(--bg-subtle);overflow:hidden}
+  .tray .thumb{width:60px;height:46px;background:linear-gradient(135deg,#34d399,#0f766e)}
+  .tray .filepill{display:flex;align-items:center;gap:7px;padding:7px 9px;width:178px}
+  .tray .x{position:absolute;top:-6px;right:-6px;width:17px;height:17px;border-radius:50%;background:var(--tp);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-elev)}
+  .prog{height:4px;border-radius:3px;background:var(--border);margin-top:5px;overflow:hidden}
+  .prog i{display:block;height:100%;width:64%;background:var(--accent)}
+  .cbar{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .cbar .tools{display:flex;gap:4px;color:var(--tm);font-size:17px}
+  .cbar .tools .b{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center}
+  .cbar .input{flex:1;color:var(--tm);font-size:13px;padding:7px 2px}
+  .send{background:var(--brand);color:#fff;border-radius:8px;padding:7px 16px;font-weight:600;font-size:13px}
+  .hint{font-size:10.5px;color:var(--tm);margin-top:6px;display:flex;gap:14px}
+
+  /* right context panel */
+  .ctx{background:var(--bg-elev);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+  .ctx h4{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--tm);margin:0;padding:13px 15px 7px;font-weight:700}
+  .ctx .blk{padding:0 15px 13px;border-bottom:1px solid var(--border)}
+  .kv{display:flex;justify-content:space-between;font-size:12px;padding:4px 0}
+  .kv .k{color:var(--tm)} .kv .v{font-weight:600}
+  .stat{font-size:11px;font-weight:700;border-radius:5px;padding:1px 8px;background:var(--blue-bg);color:var(--blue-fg)}
+  .gal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 15px 14px}
+  .gal span{aspect-ratio:1;border-radius:7px;background:linear-gradient(135deg,#a5b4fc,#4f46e5)}
+  .gal span:nth-child(2){background:linear-gradient(135deg,#fbbf24,#b45309)}
+  .gal span:nth-child(3){background:linear-gradient(135deg,#34d399,#0f766e)}
+  .gal span:nth-child(4){background:linear-gradient(135deg,#f472b6,#9d174d)}
+
+  /* ============ MOBILE ============ */
+  .phones{display:flex;gap:26px;flex-wrap:wrap}
+  .phone{width:288px;height:600px;background:var(--bg-base);border:9px solid #11161d;border-radius:34px;overflow:hidden;position:relative;box-shadow:var(--sh2);display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:20px;background:#11161d;border-radius:0 0 14px 14px;z-index:6}
+  .mtop{padding:24px 14px 9px;background:var(--bg-elev);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .mtop h3{margin:0;font-size:16px;letter-spacing:-.01em}
+  .mtop .ic{color:var(--tm);font-size:18px}
+  .mbody{flex:1;overflow:hidden}
+  .mtab{display:flex;border-top:1px solid var(--border);background:var(--bg-elev)}
+  .mtab div{flex:1;text-align:center;padding:8px 0 9px;font-size:10px;color:var(--tm)}
+  .mtab div .i{font-size:18px;display:block;line-height:1.1}
+  .mtab div.on{color:var(--brand);font-weight:700}
+  .mconv{display:flex;gap:9px;padding:10px 13px;border-bottom:1px solid var(--border);align-items:center}
+  .mcard{margin:10px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:11px;padding:11px 12px;box-shadow:var(--sh1)}
+  .mcard .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .mcard .id{font-family:var(--mono);font-size:10.5px;color:var(--tm)}
+  .mcard h5{margin:5px 0 8px;font-size:13.5px;font-weight:600}
+  .mcard .ft{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ts)}
+  .msheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg-elev);border-top:1px solid var(--border-strong);border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgba(15,23,42,.18);padding:14px 16px 18px;z-index:7}
+  .msheet .grab{width:38px;height:4px;border-radius:3px;background:var(--border-strong);margin:0 auto 12px}
+  .mcomp{border-top:1px solid var(--border);background:var(--bg-elev);padding:9px 11px;display:flex;align-items:center;gap:9px}
+  .mcomp .plus{width:34px;height:34px;border-radius:50%;background:var(--bg-subtle);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}
+  .mcomp .field{flex:1;background:var(--bg-subtle);border:1px solid var(--border);border-radius:18px;padding:8px 13px;color:var(--tm);font-size:12.5px}
+  .mcomp .go{width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+  .pill-note{font-size:11px;color:var(--tm);margin:9px 2px 0}
+  .bubsm .bub{font-size:12px}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+  @media(max-width:1000px){.twocol{grid-template-columns:1fr}.desk{grid-template-columns:54px 240px 1fr}.ctx{display:none}}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>agent-center · v2.9.2 — Chat-First UI/UX 重构 <span style="font-weight:400;color:var(--tm);font-size:15px">· mockup</span></h1>
+  <p class="sub">把 CHAT 提为产品主入口,看板/Plan/表格降为二级;移动端按调查的 critical 项做响应式重排;附件打磨(拖拽/粘贴/进度)并进 composer。配色/字体/own-bubble 全部沿用现有 design token(<code>web/src/index.css</code>),这是一次「IA 掉头 + 响应式」的演进,不是另起视觉语言。</p>
+
+  <div class="decisions">
+    <div class="dec"><b>决策 A — 重构幅度</b><span class="pick">本 mockup 取 A</span><br>IA 重排 + 移动响应式打磨,复用现有组件与 token。视觉大改作为 fast-follow。</div>
+    <div class="dec"><b>决策 B — “CHAT 首位”形态</b><span class="pick">本 mockup 取 ②</span><br>统一 Inbox:channel / DM / issue·task·plan 会话都从 Chat 进,工作项会话带类型 chip 内联。</div>
+    <div class="dec"><b>附件</b><span class="pick">已实现→打磨</span><br>发收图/文件后端+前端主链路已在;补拖拽、粘贴、上传进度、校验 + run-real 真验。</div>
+  </div>
+  <div style="font-size:12px;color:var(--ts);margin:-12px 0 6px">标注图例:<span class="tag t-chat">CHAT</span>chat-first 动作 &nbsp; <span class="tag t-mob">MOBILE</span>移动调查痛点修复 &nbsp; <span class="tag t-att">ATTACH</span>附件打磨</div>
+
+  <!-- ============ DESKTOP ============ -->
+  <div class="sech">1 · 桌面 — Chat-first 主面 (light)</div>
+  <div class="frame">
+    <div class="desk">
+      <span class="cap" style="left:60px;top:14px">1</span>
+      <span class="cap" style="left:320px;top:96px">2</span>
+      <span class="cap" style="left:50%;top:14px">3</span>
+      <span class="cap" style="right:250px;top:300px">4</span>
+      <span class="cap" style="left:62%;bottom:120px">5</span>
+      <span class="cap" style="right:14px;top:14px">6</span>
+
+      <!-- left rail -->
+      <div class="rail">
+        <div class="logo">A</div>
+        <div class="ri active">💬<small>Chat</small></div>
+        <div class="ri">▦<small>Boards</small></div>
+        <div class="ri">◇<small>Plans</small></div>
+        <div class="ri">◎<small>Agents</small></div>
+        <div class="ri">⛁<small>Files</small></div>
+        <div class="spacer" style="flex:1"></div>
+        <div class="ri">⚙</div>
+        <div class="ri" style="background:#0f766e;color:#fff;border-radius:50%">H</div>
+      </div>
+
+      <!-- unified inbox -->
+      <div class="col">
+        <div class="colhead">
+          <div class="row"><h2>Chat</h2><span style="color:var(--tm);font-size:16px">✎</span></div>
+          <div class="search">🔍 搜索会话、人、工作项…</div>
+          <div class="seg"><span class="on">全部</span><span>频道</span><span>私信</span><span>工作项</span></div>
+        </div>
+        <div class="list">
+          <div class="conv sel">
+            <div class="av wk">T</div>
+            <div class="mid"><div class="nm">task · Thread 验收 <span class="chip c-task">TASK</span></div><div class="pv">Tester2: run-real A–I 全绿,证据已归档…</div></div>
+            <div class="meta"><div class="ts">09:24</div><div class="dot"></div></div>
+          </div>
+          <div class="conv">
+            <div class="av ch">#</div>
+            <div class="mid"><div class="nm">agent-center-dev</div><div class="pv">IntegrationDev: v2.9.2 已从 main 切好 @edeb5ea</div></div>
+            <div class="meta"><div class="ts">09:11</div></div>
+          </div>
+          <div class="conv">
+            <div class="av dm">O</div>
+            <div class="mid"><div class="nm">oopslink</div><div class="pv">UI/UX 重构,将 CHAT 放到首位</div></div>
+            <div class="meta"><div class="ts">09:02</div><div class="dot"></div></div>
+          </div>
+          <div class="conv">
+            <div class="av wk" style="background:#b45309">I</div>
+            <div class="mid"><div class="nm">移动端 7 列表格横滚 <span class="chip c-issue">ISSUE</span></div><div class="pv">PD: 375px 下不可用,改卡片流…</div></div>
+            <div class="meta"><div class="ts">昨天</div></div>
+          </div>
+          <div class="conv">
+            <div class="av wk" style="background:#5b21b6">P</div>
+            <div class="mid"><div class="nm">v2.9.2 收尾 <span class="chip c-plan">PLAN</span></div><div class="pv">3 个节点进行中 · DAG</div></div>
+            <div class="meta"><div class="ts">昨天</div></div>
+          </div>
+          <div class="conv">
+            <div class="av ch" style="background:#0ea5e9">#</div>
+            <div class="mid"><div class="nm">general</div><div class="pv">welcome 👋</div></div>
+            <div class="meta"><div class="ts">周三</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- center conversation -->
+      <div class="conv-main">
+        <div class="cm-head">
+          <div class="ttl">
+            <h3>Thread 验收</h3>
+            <span class="ctxlink">↗ task-f975f2</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="faces"><span style="background:#0f766e">T2</span><span style="background:#1e40af">PD</span><span style="background:#8b5cf6">D2</span></div>
+            <div class="hbtn">⇥</div>
+          </div>
+        </div>
+        <div class="stream">
+          <div class="msg">
+            <div class="av wk" style="width:30px;height:30px">T2</div>
+            <div><div class="bub"><div class="who">tester2</div>run-real A–I 全绿,关键步骤截图已抓。附 thread 侧栏:
+              <div class="att-img"><div class="cap2">thread-sidebar.png · 1440×900</div></div>
+            </div><div class="ts2">09:18</div></div>
+          </div>
+          <div class="msg me">
+            <div><div class="bub"><div class="who">你</div>收到 👍 把验收报告 PDF 也发一下。</div><div class="ts2" style="text-align:right">09:21</div></div>
+          </div>
+          <div class="msg">
+            <div class="av wk" style="width:30px;height:30px">T2</div>
+            <div><div class="bub"><div class="who">tester2</div>这是定稿:
+              <div class="att-file"><div class="ic">PDF</div><div><div class="nm">v2.9.2-acceptance.pdf</div><div class="sz">2.4 MB</div></div></div>
+            </div><div class="ts2">09:24</div></div>
+          </div>
+        </div>
+
+        <!-- composer with attachment tray -->
+        <div class="composer">
+          <div class="drop">
+            <div class="tray">
+              <div class="pill"><div class="thumb"></div><span class="x">×</span></div>
+              <div class="pill"><div class="filepill"><div class="att-file" style="margin:0;border:none;background:transparent;padding:0;width:auto"><div class="ic" style="width:26px;height:30px">ZIP</div></div><div><div class="nm" style="font-size:11.5px">evidence.zip</div><div class="sz">上传中… 64%</div><div class="prog"><i></i></div></div></div><span class="x">×</span></div>
+            </div>
+            <div class="cbar">
+              <div class="tools"><div class="b">📎</div><div class="b">🖼</div><div class="b">@</div></div>
+              <div class="input">写点什么…（也可直接拖拽文件 / 粘贴截图）</div>
+              <div class="send">发送 ↵</div>
+            </div>
+          </div>
+          <div class="hint"><span>📎 拖拽到此处上传</span><span>⌘V 粘贴截图</span><span>支持 图片 · PDF · 文件 ≤ 25MB</span></div>
+        </div>
+      </div>
+
+      <!-- right context panel -->
+      <div class="ctx">
+        <h4>关联工作项</h4>
+        <div class="blk">
+          <div class="kv"><span class="k">类型</span><span class="v">Task</span></div>
+          <div class="kv"><span class="k">状态</span><span class="stat">running</span></div>
+          <div class="kv"><span class="k">负责</span><span class="v">tester2</span></div>
+          <div class="kv"><span class="k">Plan</span><span class="v" style="font-family:var(--mono);font-size:11px">plan-f1f04</span></div>
+        </div>
+        <h4>参与者 · 3</h4>
+        <div class="blk" style="padding-top:2px">
+          <div class="kv"><span class="v">tester2</span><span class="k">agent</span></div>
+          <div class="kv"><span class="v">PD</span><span class="k">agent</span></div>
+          <div class="kv"><span class="v">dev2</span><span class="k">agent</span></div>
+        </div>
+        <h4>共享文件 · 4</h4>
+        <div class="gal"><span></span><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <div><span class="n">1</span><span><b>CHAT 升为首位 <span class="tag t-chat">CHAT</span></b> — 左侧导航 Chat 置顶 + 默认登录落地面;Boards / Plans / Agents 降为二级图标 rail。</span></div>
+    <div><span class="n">2</span><span><b>统一 Inbox（决策B②）<span class="tag t-chat">CHAT</span></b> — 频道 / 私信 / issue·task·plan 会话同列,工作项带类型 chip;一个搜索框贯通人/会话/工作项。</span></div>
+    <div><span class="n">3</span><span><b>会话头带工作项回链 <span class="tag t-chat">CHAT</span></b> — <code>↗ task-…</code> 一键跳工作项;聊天不再与工作项割裂。</span></div>
+    <div><span class="n">4</span><span><b>右侧上下文面板可折叠 <span class="tag t-mob">MOBILE</span></b> — 修调查痛点②:桌面显示,&lt;lg 自动隐藏/转底部 sheet,不再把正文挤垮。</span></div>
+    <div><span class="n">5</span><span><b>Composer 升级 <span class="tag t-att">ATTACH</span></b> — 拖拽 dropzone + 粘贴截图 + 附件托盘(图片缩略图 / 文件 chip / 上传进度条)+ 类型大小提示。</span></div>
+    <div><span class="n">6</span><span><b>明暗双模 <span class="tag t-mob">MOBILE</span></b> — 沿用 token,见下方 dark 帧;触控目标统一抬到 ≥40px。</span></div>
+  </div>
+
+  <!-- ============ MOBILE ============ -->
+  <div class="sech">2 · 移动端 — Chat-first (375px 视口)</div>
+  <div class="phones">
+    <!-- (a) chat home -->
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="mtop"><h3>Chat</h3><span class="ic">🔍 ✎</span></div>
+      <div class="mbody">
+        <div class="mconv"><div class="av wk">T</div><div class="mid"><div class="nm" style="font-size:13px">Thread 验收 <span class="chip c-task">TASK</span></div><div class="pv">run-real A–I 全绿…</div></div><div class="meta"><div class="ts">09:24</div><div class="dot"></div></div></div>
+        <div class="mconv"><div class="av ch">#</div><div class="mid"><div class="nm" style="font-size:13px">agent-center-dev</div><div class="pv">v2.9.2 已切 @edeb5ea</div></div><div class="meta"><div class="ts">09:11</div></div></div>
+        <div class="mconv"><div class="av dm">O</div><div class="mid"><div class="nm" style="font-size:13px">oopslink</div><div class="pv">将 CHAT 放到首位</div></div><div class="meta"><div class="ts">09:02</div><div class="dot"></div></div></div>
+        <div class="mconv"><div class="av wk" style="background:#5b21b6">P</div><div class="mid"><div class="nm" style="font-size:13px">v2.9.2 收尾 <span class="chip c-plan">PLAN</span></div><div class="pv">3 节点进行中</div></div><div class="meta"><div class="ts">昨天</div></div></div>
+      </div>
+      <div class="mtab">
+        <div class="on"><span class="i">💬</span>Chat</div>
+        <div><span class="i">▦</span>Boards</div>
+        <div><span class="i">◇</span>Plans</div>
+        <div><span class="i">⋯</span>More</div>
+      </div>
+    </div>
+
+    <!-- (b) conversation full screen -->
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="mtop" style="gap:8px"><span class="ic">‹</span><h3 style="flex:1;font-size:14px">Thread 验收 <span class="chip c-task" style="vertical-align:middle">TASK</span></h3><span class="ic">↗</span></div>
+      <div class="mbody bubsm" style="padding:13px;display:flex;flex-direction:column;gap:12px;background:var(--bg-base)">
+        <div class="msg" style="max-width:90%"><div><div class="bub"><div class="who">tester2</div>run-real 全绿,附图:<div class="att-img" style="width:148px;height:94px"><div class="cap2">sidebar.png</div></div></div></div></div>
+        <div class="msg me" style="max-width:90%"><div><div class="bub">收到 👍 PDF 也发下</div></div></div>
+        <div class="msg" style="max-width:90%"><div><div class="bub"><div class="who">tester2</div><div class="att-file" style="width:190px"><div class="ic">PDF</div><div><div class="nm">acceptance.pdf</div><div class="sz">2.4 MB</div></div></div></div></div></div>
+      </div>
+      <div class="mcomp"><div class="plus">＋</div><div class="field">消息…</div><div class="go">➤</div></div>
+    </div>
+
+    <!-- (c) boards-as-cards + attach sheet -->
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="mtop"><h3>Boards</h3><span class="ic">⌥</span></div>
+      <div class="mbody" style="background:var(--bg-base)">
+        <div class="mcard">
+          <div class="top"><span class="id">task-46138d</span><span class="stat">running</span></div>
+          <h5>ADR-0046 任务状态机精简</h5>
+          <div class="ft"><span>👤 dev1</span><span>Plan f1f04</span></div>
+        </div>
+        <div class="mcard">
+          <div class="top"><span class="id">task-5f983b</span><span class="stat" style="background:var(--amber-bg);color:var(--amber-fg)">open</span></div>
+          <h5>Plan 详情 UX</h5>
+          <div class="ft"><span>👤 dev2</span><span>Plan f1f04</span></div>
+        </div>
+      </div>
+      <!-- bottom sheet: attachment picker -->
+      <div class="msheet">
+        <div class="grab"></div>
+        <div style="display:flex;justify-content:space-around;text-align:center;color:var(--ts);font-size:11px">
+          <div><div style="font-size:24px">🖼</div>相册</div>
+          <div><div style="font-size:24px">📷</div>拍照</div>
+          <div><div style="font-size:24px">📄</div>文件</div>
+          <div><div style="font-size:24px">📋</div>粘贴</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="legend" style="grid-template-columns:repeat(3,1fr)">
+    <div><span class="n">a</span><span><b>Chat 即首页 <span class="tag t-chat">CHAT</span></b> — 底部 tab 第一项 = Chat,默认打开;Boards/Plans 收进 tab。</span></div>
+    <div><span class="n">b</span><span><b>会话全屏 + 触控 composer <span class="tag t-mob">MOBILE</span></b> — ＋按钮调附件,气泡 90% 宽,无横滚。</span></div>
+    <div><span class="n">c</span><span><b>表格→卡片流 + 底部 sheet <span class="tag t-mob">MOBILE</span><span class="tag t-att">ATTACH</span></b> — 修痛点①(7列表格)+ 移动附件选择 sheet(相册/拍照/文件/粘贴)。</span></div>
+  </div>
+
+  <!-- ============ DARK ============ -->
+  <div class="sech">3 · 明暗双模 — 同一 token,dark 帧</div>
+  <div class="frame dark" style="background:var(--bg-base)">
+    <div class="desk" style="height:300px;grid-template-columns:54px 280px 1fr">
+      <div class="rail">
+        <div class="logo">A</div>
+        <div class="ri active">💬</div><div class="ri">▦</div><div class="ri">◇</div><div class="ri">◎</div>
+      </div>
+      <div class="col">
+        <div class="colhead"><div class="row"><h2>Chat</h2></div><div class="search">🔍 搜索…</div></div>
+        <div class="list">
+          <div class="conv sel"><div class="av wk">T</div><div class="mid"><div class="nm">Thread 验收 <span class="chip c-task">TASK</span></div><div class="pv">run-real 全绿…</div></div><div class="meta"><div class="dot"></div></div></div>
+          <div class="conv"><div class="av ch">#</div><div class="mid"><div class="nm">agent-center-dev</div><div class="pv">v2.9.2 已切</div></div></div>
+        </div>
+      </div>
+      <div class="conv-main">
+        <div class="cm-head"><div class="ttl"><h3>Thread 验收</h3><span class="ctxlink">↗ task-f975f2</span></div><div class="hbtn">⇥</div></div>
+        <div class="stream" style="gap:10px">
+          <div class="msg"><div><div class="bub"><div class="who">tester2</div>dark 模式沿用同一组 token,own-bubble 固定 #D1E3FF + 深字。</div></div></div>
+          <div class="msg me"><div><div class="bub">看着不错 ✦</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top:30px;font-size:12px;color:var(--tm)">说明:静态 mockup,演示 IA 与版式方向,非最终像素稿。配色/字体/own-bubble/状态 chip 均取自现有 <code>web/src/index.css</code> + <code>tailwind.config.js</code> 真 token。下一步据你对决策 A / B 的确认,落为分期 task + Plan DAG。</p>
+</div>
+</body>
+</html>
