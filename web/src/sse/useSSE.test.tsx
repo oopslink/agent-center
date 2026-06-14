@@ -204,6 +204,22 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.tasksList() });
   });
 
+  // v2.9.2 (task-0543ece9): a child task/execution moving must refresh the Work
+  // Board so the Plan card's derived progress + node-status chips update live
+  // (closes the "done child not visible on the card" staleness gap). Before this,
+  // the plan list was wired to NO task SSE — cards went stale until manual reload.
+  it('task.* + task_execution.* invalidate the Work Board plan lists (observability)', () => {
+    for (const t of [
+      'task.created',
+      'task.done',
+      'task_execution.dispatched',
+      'task_execution.failed',
+    ]) {
+      dispatchToQueryClient(qc, ev(t));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.plansByProjectAll() });
+  });
+
   // v2.3-5b: issue lifecycle invalidates the BC-native Issue list
   // cache (qk.issues). Mirrors the task path above.
   it('issue.* lifecycle invalidates the BC-native issues list cache', () => {

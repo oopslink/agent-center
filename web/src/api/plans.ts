@@ -52,6 +52,11 @@ export interface PlanNode {
   node_status: PlanNodeStatus;
   depends_on: string[];
   dispatched_at?: string | null;
+  // v2.9.2 (task-0543ece9): the human Task id ("T123", org_ref) now rides on the
+  // node DTO so the Work Board card + agent-facing list show the T-number WITHOUT
+  // a second task-list resolver. Omitted when unallocated (pre-allocator rows) —
+  // the card falls back to the #id-tail handle, the established #192 pattern.
+  org_ref?: string;
   // v2.9 Stage B (#283): the plan task DTO (pmTaskMap) now carries an `archived`
   // flag (+ audit fields) set when the plan is archived. ORTHOGONAL to task_status
   // / node_status — the archive badge reads `archived` and coexists with the
@@ -79,9 +84,12 @@ export interface PlanEdge {
 // helper, so a node is byte-identical between them — verified vs merged PR #272
 // → v2.9 trunk 654d30e):
 //   • detail (GET /{id})  → `nodes`: the FULL DAG (every PlanNode).
-//   • list   (GET /)      → `nodes_preview`: the first 4 PlanNodes (capped),
-//                            plus `node_count` (the TOTAL node count) for the
-//                            "…and M more" overflow on the Work Board card.
+//   • list   (GET /)      → `nodes_preview`: EVERY PlanNode (v2.9.2 task-0543ece9
+//                            removed the old 4-node cap — the board card no longer
+//                            silently truncates), plus `node_count` (== the node
+//                            count). `node_count` is kept so a degraded/partial
+//                            payload that sends fewer preview nodes still drives an
+//                            "…and M more" overflow hint (belt-and-braces).
 // Both are optional on the type so either response is assignable; the Work Board
 // (#291) reads the list pair (nodes_preview / node_count) and the Plan detail
 // (#287) reads `nodes`. Field names match the real DTO EXACTLY.

@@ -56,7 +56,10 @@ func setupPlanAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 		Outbox:       ob,
 		IDGen:        gen,
 		Clock:        clk,
-		AgentDir:     allAgentsDir{},
+		// v2.7.1 #245: wire the per-org T<n> allocator so seeded tasks get an
+		// org_ref — the board card / node DTO assertion (task-0543ece9) needs it.
+		OrgSeq:   pmsql.NewOrgSequenceRepo(db),
+		AgentDir: allAgentsDir{},
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(deps.MessageWriter, func(_ context.Context, ref string) (string, bool) {
 			if i := strings.IndexByte(ref, ':'); i >= 0 {
 				ref = ref[i+1:]
@@ -328,15 +331,27 @@ func TestPlanAPI_ListSummaries_BoardEnrich(t *testing.T) {
 		if nm["task_status"].(string) == "" {
 			t.Fatalf("preview node task_status empty (StatusChip would crash): %v", nm)
 		}
+		// task-0543ece9: the human Task id rides on the node DTO so the board card
+		// shows "T<n>" without a second resolver. With OrgSeq wired the seeded
+		// tasks are allocated, so org_ref must be present and "T"-prefixed.
+		ref, ok := nm["org_ref"].(string)
+		if !ok || ref == "" {
+			t.Fatalf("preview node missing org_ref (board T<n> pill): %v", nm)
+		}
+		if ref[0] != 'T' {
+			t.Fatalf("preview node org_ref=%q want T<n>", ref)
+		}
 	}
 
-	// --- planBig: preview capped at 4, node_count 6 ---------------------------
+	// --- planBig: NO cap — preview carries ALL 6 nodes (task-0543ece9) ---------
+	// v2.9.2: the Work Board card no longer silently truncates at 4. nodes_preview
+	// == node_count == every node, aligning with T41's "no silent truncation".
 	big := byID[string(planBig)]
 	if big["node_count"].(float64) != 6 {
 		t.Fatalf("big node_count=%v want 6", big["node_count"])
 	}
-	if got := len(big["nodes_preview"].([]any)); got != planListNodePreviewCap {
-		t.Fatalf("big nodes_preview len=%d want %d (capped)", got, planListNodePreviewCap)
+	if got := len(big["nodes_preview"].([]any)); got != 6 {
+		t.Fatalf("big nodes_preview len=%d want 6 (no cap — all nodes)", got)
 	}
 
 	// --- planEmpty: progress{0,0}, preview [] ---------------------------------

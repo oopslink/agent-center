@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -492,7 +493,7 @@ func planMap(p *pm.Plan) map[string]any {
 	return m
 }
 
-func planNodeMap(planID pm.PlanID, n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef, archivedOf map[pm.TaskID]bool) map[string]any {
+func planNodeMap(planID pm.PlanID, n pm.PlanNodeView, titleOf map[pm.TaskID]string, assigneeOf map[pm.TaskID]pm.IdentityRef, archivedOf map[pm.TaskID]bool, orgRefOf map[pm.TaskID]string) map[string]any {
 	depends := make([]string, 0, len(n.DependsOn))
 	for _, d := range n.DependsOn {
 		depends = append(depends, string(d))
@@ -510,32 +511,44 @@ func planNodeMap(planID pm.PlanID, n pm.PlanNodeView, titleOf map[pm.TaskID]stri
 		// right now: not archived, open, assigned, in this plan, node dispatched.
 		"claimable": pm.Claimable(archivedOf[n.TaskID], n.TaskStatus, assigneeOf[n.TaskID], planID, n.NodeStatus),
 	}
+	// v2.9.2 (task-0543ece9): the human Task id (org_ref "T123") rides on the node
+	// DTO so the agent-facing plan list mirrors the web board (T-number shown
+	// without a second resolver). Omitted when unallocated (orgNumber 0).
+	if ref := orgRefOf[n.TaskID]; ref != "" {
+		node["org_ref"] = ref
+	}
 	if n.Dispatched && !n.DispatchedAt.IsZero() {
 		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
 	}
 	return node
 }
 
-func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm.TaskID]pm.IdentityRef, map[pm.TaskID]bool) {
+func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm.TaskID]pm.IdentityRef, map[pm.TaskID]bool, map[pm.TaskID]string) {
 	titleOf := make(map[pm.TaskID]string, len(detail.Tasks))
 	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks))
 	archivedOf := make(map[pm.TaskID]bool, len(detail.Tasks))
+	orgRefOf := make(map[pm.TaskID]string, len(detail.Tasks))
 	for _, t := range detail.Tasks {
 		titleOf[t.ID()] = t.Title()
 		assigneeOf[t.ID()] = t.Assignee()
 		archivedOf[t.ID()] = t.IsArchived()
+		// v2.7.1 #245 T<n> token, omitted (left "") when unallocated — matches the
+		// agentTaskMap pattern in this package (no cross-package orgRefToken here).
+		if n := t.OrgNumber(); n > 0 {
+			orgRefOf[t.ID()] = "T" + strconv.Itoa(n)
+		}
 	}
-	return titleOf, assigneeOf, archivedOf
+	return titleOf, assigneeOf, archivedOf, orgRefOf
 }
 
 // planDetailMap renders the full Plan DTO with the DERIVED node read model (§9.2):
 // nodes + ready_set + has_failed + progress{done,total}.
 func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m := planMap(detail.Plan)
-	titleOf, assigneeOf, archivedOf := planNodeLookups(detail)
+	titleOf, assigneeOf, archivedOf, orgRefOf := planNodeLookups(detail)
 	nodes := make([]map[string]any, 0, len(detail.View.Nodes))
 	for _, n := range detail.View.Nodes {
-		nodes = append(nodes, planNodeMap(detail.Plan.ID(), n, titleOf, assigneeOf, archivedOf))
+		nodes = append(nodes, planNodeMap(detail.Plan.ID(), n, titleOf, assigneeOf, archivedOf, orgRefOf))
 	}
 	readySet := make([]string, 0, len(detail.View.ReadySet))
 	for _, id := range detail.View.ReadySet {
@@ -548,23 +561,20 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	return m
 }
 
-// planListNodePreviewCap bounds the per-Plan node preview the list tool emits
-// (mirrors the web list endpoint's cap).
-const planListNodePreviewCap = 4
-
 // planSummaryMap renders a Plan for the list tool: the bare Plan fields plus the
-// DERIVED board summary (progress, has_failed, node_count, a capped nodes_preview).
+// DERIVED board summary (progress, has_failed, node_count, nodes_preview).
+//
+// v2.9.2 (task-0543ece9): the preview is NO LONGER capped — it carries EVERY node,
+// mirroring the web list endpoint (pmPlanSummaryMap) so the agent-facing list and
+// the human Work Board stay byte-identical and neither silently truncates the task
+// set. node_count stays == len(nodes_preview).
 func planSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	m := planMap(detail.Plan)
-	titleOf, assigneeOf, archivedOf := planNodeLookups(detail)
+	titleOf, assigneeOf, archivedOf, orgRefOf := planNodeLookups(detail)
 	nodes := detail.View.Nodes
-	n := len(nodes)
-	if n > planListNodePreviewCap {
-		n = planListNodePreviewCap
-	}
-	preview := make([]map[string]any, 0, n)
-	for _, nd := range nodes[:n] {
-		preview = append(preview, planNodeMap(detail.Plan.ID(), nd, titleOf, assigneeOf, archivedOf))
+	preview := make([]map[string]any, 0, len(nodes))
+	for _, nd := range nodes {
+		preview = append(preview, planNodeMap(detail.Plan.ID(), nd, titleOf, assigneeOf, archivedOf, orgRefOf))
 	}
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
 	m["has_failed"] = detail.View.HasFailed
