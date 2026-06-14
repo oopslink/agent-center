@@ -96,9 +96,22 @@ describe('TaskEditModal', () => {
     expect(cap.received()).toEqual({ title: 'new title' });
   });
 
-  it('batch-saves status + assignee + tags in one PATCH (dirty-only)', async () => {
+  it('routes a real (re)assignment through the assign endpoint, not the batch PATCH (F-7)', async () => {
     mockMembers();
     const cap = capturePatch();
+    // Capture the dedicated assign POST — this is the dispatching path the agent
+    // needs (the batch PATCH does NOT dispatch, so assignee MUST go here).
+    let assignBody: Record<string, unknown> | undefined;
+    server.use(
+      http.post('/api/projects/proj-a/tasks/T-1/assign', async ({ request }) => {
+        assignBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          id: 'T-1', project_id: 'proj-a', title: 'old', description: 'old desc',
+          status: 'running', assignee: 'agent:bot1', tags: [], version: 3,
+          created_at: 'x', updated_at: 'x',
+        });
+      }),
+    );
     const onClose = vi.fn();
     wrap(<TaskEditModal projectId="proj-a" task={baseTask} onClose={onClose} />);
     await screen.findByText('Hayang (user)');
@@ -108,12 +121,10 @@ describe('TaskEditModal', () => {
     fireEvent.keyDown(screen.getByTestId('task-edit-tags-input'), { key: 'Enter' });
     fireEvent.click(screen.getByTestId('task-edit-submit'));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-    // title/description untouched → absent; key name is "description" not "desc".
-    expect(cap.received()).toEqual({
-      status: 'running',
-      assignee: 'agent:bot1',
-      tags: ['alpha', 'beta'],
-    });
+    // status + tags go via the batch PATCH (assignee is NOT in the PATCH body)...
+    expect(cap.received()).toEqual({ status: 'running', tags: ['alpha', 'beta'] });
+    // ...and the assignment goes through the dedicated dispatching endpoint.
+    expect(assignBody).toEqual({ assignee: 'agent:bot1' });
   });
 
   it('assignee "" (Unassigned) is sent to unassign', async () => {

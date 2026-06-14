@@ -289,7 +289,7 @@ func activityPreviewText(e *agentbc.AgentActivityEvent) string {
 	}
 	var fields map[string]any
 	if err := json.Unmarshal([]byte(payload), &fields); err != nil {
-		return payload // not JSON object → preview the raw string
+		return "" // not a JSON object → no readable preview (never leak the raw string)
 	}
 	for _, key := range []string{"text", "result", "tool_name", "event"} {
 		if v, ok := fields[key]; ok {
@@ -298,7 +298,12 @@ func activityPreviewText(e *agentbc.AgentActivityEvent) string {
 			}
 		}
 	}
-	return payload
+	// E2E finding F-5: an event with no human-meaningful top-level field (e.g. a
+	// "system"/"commands_changed" line whose only keys are type/subtype/raw)
+	// previously fell through to `return payload`, dumping the raw stream-json blob
+	// ({"raw":{...}}) verbatim into the agents-list "Last activity" cell. Return
+	// empty so the row renders its empty state instead of internal JSON.
+	return ""
 }
 
 // --- gate -------------------------------------------------------------------

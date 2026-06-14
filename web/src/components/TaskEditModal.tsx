@@ -3,7 +3,7 @@
 // (PATCH /projects/{pid}/tasks/{id} → pmBatchUpdateTaskHandler). Only the
 // changed (dirty) fields are sent; the backend applies all-or-none.
 import React, { useMemo, useState } from 'react';
-import { useUpdateTask } from '@/api/tasks';
+import { useAssignTask, useUpdateTask } from '@/api/tasks';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import type { MemberResult } from '@/api/members';
 import type { Task, TaskStatus } from '@/api/types';
@@ -47,6 +47,11 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   const [tagError, setTagError] = useState<string | null>(null);
 
   const update = useUpdateTask(projectId, task.id);
+  // E2E finding F-7: a real (re)assignment must go through the dedicated assign
+  // endpoint (pmAssignTaskHandler → AssignTask), which is what DISPATCHES/wakes the
+  // agent. The batch PATCH (useUpdateTask) sets the assignee but does NOT dispatch,
+  // so assigning a task to an agent via this modal left it in `open` forever.
+  const assign = useAssignTask(projectId, task.id);
   const members = useMembers();
   // a11y: Escape closes + focus-trap (rendered = open).
   const containerRef = useModalA11y({ open: true, onClose });
@@ -108,7 +113,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
 
   const hasError = !!tagError || !!tagsValidationError;
   const canSubmit =
-    trimmedTitle.length > 0 && anyDirty && !hasError && !update.isPending;
+    trimmedTitle.length > 0 && anyDirty && !hasError && !update.isPending && !assign.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,14 +130,22 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
     if (titleChanged) body.title = trimmedTitle;
     if (descChanged) body.description = description.trim();
     if (statusChanged) body.status = status;
-    if (assigneeChanged) body.assignee = assignee; // "" = unassign
+    // F-7: route a real (re)assignment through the dedicated assign endpoint below
+    // (it dispatches the agent). Only fold the assignee into the batch PATCH when
+    // CLEARING it — an unassign needs no dispatch.
+    if (assigneeChanged && assignee === '') body.assignee = '';
     if (tagsChanged) body.tags = tags;
     try {
-      await update.mutateAsync(body);
+      if (Object.keys(body).length > 0) {
+        await update.mutateAsync(body);
+      }
+      if (assigneeChanged && assignee !== '') {
+        await assign.mutateAsync({ assignee });
+      }
       onSaved?.();
       onClose();
     } catch {
-      // Atomic = nothing applied. Surfaced via update.error; modal stays open.
+      // Surfaced via update.error / assign.error; modal stays open.
     }
   };
 
@@ -278,9 +291,9 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
           )}
         </div>
 
-        {update.isError && (
+        {(update.isError || assign.isError) && (
           <p className="mb-3 text-xs text-danger" data-testid="task-edit-error">
-            {(update.error as Error).message}
+            {((update.error || assign.error) as Error).message}
           </p>
         )}
 
@@ -299,7 +312,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="task-edit-submit"
           >
-            {update.isPending ? 'Saving…' : 'Save changes'}
+            {update.isPending || assign.isPending ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </form>

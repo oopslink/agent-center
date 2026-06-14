@@ -161,7 +161,7 @@ func NewServer(cfg Config) *mcp.Server {
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_profile",
-		Description: "Get the calling agent's own profile: organization, the projects it belongs to (with role + what it can do in each), and its capabilities. Call this at the start to learn who you are and where you can act — no need to ask a human.",
+		Description: "Get the calling agent's own profile: your display_name and agent_ref (the \"agent:<id>\" form others use to @mention you), your organization, the projects you belong to (with role + what you can do in each), and your capabilities. Call this at the start of a session to learn WHO YOU ARE — your display_name tells you which @mentions are actually for you. Several agents may share a conversation; never assume you are an agent whose name merely appears in a message — only your own display_name from this tool identifies you.",
 	}, makeGetMyProfile(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
