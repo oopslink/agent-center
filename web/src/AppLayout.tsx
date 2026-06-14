@@ -22,6 +22,7 @@ import { readTheme, writeTheme, type Theme } from '@/theme';
 import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useContextPanelController } from '@/shell/contextPanel';
+import { SECONDARY_NAV_REGISTRY } from '@/shell/secondaryNav';
 import { useOptionalOrgContext, orgPath } from './OrgContext';
 
 // ============================================================================
@@ -569,6 +570,9 @@ function SecondaryNavBody({
   const navigate = useNavigate();
   const deleteConversation = useDeleteConversation();
   const [pendingDeleteDM, setPendingDeleteDM] = useState<SidebarChild | null>(null);
+  // A per-module col② override (registered by the owning module task), or
+  // undefined → fall back to the shell default below.
+  const CustomNav = module ? SECONDARY_NAV_REGISTRY[module.id] : undefined;
 
   // v2.5.x #63 — per-group + per-expandable-item expand state. Default true.
   const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(
@@ -659,22 +663,28 @@ function SecondaryNavBody({
         </button>
       </div>
 
-      {/* Nav tree — the active module's section, expanded by default. */}
+      {/* Nav body — a module may own its col② via SECONDARY_NAV_REGISTRY (per-
+          module component); otherwise the shell default renders its `items` as a
+          collapsible group with the channel/DM/project expandable sub-lists. */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
-        {module && (
-          <NavGroup
-            label={module.label}
-            items={module.items}
-            open={isGroupOpen(module.label)}
-            onToggle={() => toggleGroup(module.label)}
-            childrenFor={childrenFor}
-            isSubItemOpen={isSubItemOpen}
-            toggleSubItem={toggleSubItem}
-            onRequestDeleteDM={(child) => {
-              deleteConversation.reset();
-              setPendingDeleteDM(child);
-            }}
-          />
+        {module && CustomNav ? (
+          <CustomNav orgBase={orgBase} />
+        ) : (
+          module && (
+            <NavGroup
+              label={module.label}
+              items={module.items}
+              open={isGroupOpen(module.label)}
+              onToggle={() => toggleGroup(module.label)}
+              childrenFor={childrenFor}
+              isSubItemOpen={isSubItemOpen}
+              toggleSubItem={toggleSubItem}
+              onRequestDeleteDM={(child) => {
+                deleteConversation.reset();
+                setPendingDeleteDM(child);
+              }}
+            />
+          )
         )}
       </div>
 
