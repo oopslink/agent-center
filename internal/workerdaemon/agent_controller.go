@@ -188,6 +188,10 @@ type conversePayload struct {
 	// When set, the agent was @mentioned INSIDE a thread → its reply must land in the
 	// same thread (the brief tells it to pass parent_message_id).
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// AttachmentCount (v2.10.0 [T74]): how many attachments the triggering message
+	// carries. >0 → the brief tells the agent a human sent file(s) (e.g. a
+	// screenshot) and to call get_my_unread → download_file to view them.
+	AttachmentCount int `json:"attachment_count,omitempty"`
 }
 
 // AgentControllerConfig parameterises the controller.
@@ -812,7 +816,18 @@ func buildConverseBrief(pl conversePayload) string {
 	if root := strings.TrimSpace(pl.RootMessageID); root != "" {
 		replyHint = fmt.Sprintf("(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id=%q AND parent_message_id=%q — do not omit parent_message_id, or your reply will land outside the thread.)", pl.ConversationID, root)
 	}
-	return fmt.Sprintf("%s\n%s\n\n%s", header, pl.MessageText, replyHint)
+	body := pl.MessageText
+	// v2.10.0 [T74]: tell the agent the message carries file attachment(s) (e.g. a
+	// screenshot a human sent) and how to fetch them — the wake brief only inlines
+	// text, so without this an image-only or text+image message reads as text-only.
+	if pl.AttachmentCount > 0 {
+		noun := "attachment"
+		if pl.AttachmentCount > 1 {
+			noun = "attachments"
+		}
+		body = fmt.Sprintf("%s\n\n[This message has %d file %s. Call get_my_unread to get their file_uri(s), then download_file to view them.]", body, pl.AttachmentCount, noun)
+	}
+	return fmt.Sprintf("%s\n%s\n\n%s", header, body, replyHint)
 }
 
 // recordWake records messageID in the agent's bounded wake-dedup set, evicting

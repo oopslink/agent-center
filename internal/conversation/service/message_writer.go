@@ -356,18 +356,24 @@ type messageAddedOutboxPayload struct {
 	// WakeProjector → daemon brief so the woken agent replies IN the same thread
 	// (parent=root) instead of at conversation top-level.
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// AttachmentCount (v2.10.0 [T74]) is how many attachments the message carries.
+	// Flows through the WakeProjector → daemon brief so the woken agent is told a
+	// human sent file(s) (e.g. a screenshot) and to call get_my_unread →
+	// download_file to view them. 0 (omitted) for a text-only message.
+	AttachmentCount int `json:"attachment_count,omitempty"`
 }
 
 // emitMessageAddedOutbox appends the wake-trigger event to the outbox inside the
 // caller's tx. Called only for task-owned conversations (owner_ref `pm://tasks/`).
 func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conversation.Conversation, m *conversation.Message) error {
 	pb, err := json.Marshal(messageAddedOutboxPayload{
-		ConversationID: string(m.ConversationID()),
-		OwnerRef:       string(conv.OwnerRef()),
-		MessageID:      string(m.ID()),
-		Sender:         string(m.SenderIdentityID()),
-		Text:           m.Content(),
-		RootMessageID:  string(m.RootMessageID()), // F4: thread root (empty if top-level)
+		ConversationID:  string(m.ConversationID()),
+		OwnerRef:        string(conv.OwnerRef()),
+		MessageID:       string(m.ID()),
+		Sender:          string(m.SenderIdentityID()),
+		Text:            m.Content(),
+		RootMessageID:   string(m.RootMessageID()), // F4: thread root (empty if top-level)
+		AttachmentCount: len(m.Attachments()),       // T74: tell the brief about file(s)
 	})
 	if err != nil {
 		return err
