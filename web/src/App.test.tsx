@@ -164,6 +164,31 @@ describe('App shell + route tree', () => {
     await waitFor(() => expect(screen.getByTestId('page-ProjectDetail')).toBeInTheDocument());
   });
 
+  // v2.10.0 [T4]: inside a project, the Workspace col② becomes the project
+  // sub-nav (Issues/Tasks/Work Board/Members/Code repos + back to Projects),
+  // and a sub-nav tab navigates the project's ?tab= (synced with the in-page
+  // tab bar). The bare /projects list shows the top-level Workspace nav.
+  it('project detail shows the col② project sub-nav; a tab drives ?tab=', async () => {
+    await renderAt(`${ORG_BASE}/projects/proj-a`);
+    await waitFor(() => expect(screen.getByTestId('page-ProjectDetail')).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    // project sub-nav (not the top-level Projects/Issues/Tasks/Plan list).
+    expect(within(nav).getByTestId('workspace-nav-project')).toBeInTheDocument();
+    expect(within(nav).getByTestId('project-subnav-back')).toHaveAttribute('href', `${ORG_BASE}/projects`);
+    expect(within(nav).getByTestId('project-subnav-tasks')).toHaveAttribute(
+      'href',
+      `${ORG_BASE}/projects/proj-a?tab=tasks`,
+    );
+    expect(within(nav).getByTestId('project-subnav-workboard')).toHaveAttribute(
+      'href',
+      `${ORG_BASE}/projects/proj-a/plans`,
+    );
+    // clicking the Tasks sub-nav entry drives ?tab=tasks → the Tasks panel shows.
+    fireEvent.click(within(nav).getByTestId('project-subnav-tasks'));
+    await waitFor(() => expect(screen.getByTestId('project-tasks-panel')).toBeInTheDocument());
+    expect(window.location.search).toContain('tab=tasks');
+  });
+
   // §4.2 reachability (A6 task→new-tab): canonical TaskDetail route reachable
   // via the new-tab TaskTitleLink anchor on the Plan board cards.
   it('A6 TaskDetail is reachable via the new-tab TaskTitleLink anchor on the Plan board', async () => {

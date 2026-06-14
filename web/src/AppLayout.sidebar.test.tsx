@@ -250,37 +250,13 @@ describe('col② secondary nav — active-module group + sub-lists', () => {
     expect(screen.queryByTestId('sidebar-subitem-list-/channels')).not.toBeInTheDocument();
   });
 
-  it('Projects item (Workspace module) exposes a sub-list of project names', async () => {
-    renderShell('/projects');
-    await waitFor(() => {
-      const list = screen.getByTestId('sidebar-subitem-list-/projects');
-      expect(list.textContent).toContain('agent-center');
-    });
-    const list = screen.getByTestId('sidebar-subitem-list-/projects');
-    expect(list.textContent).toContain('sandbox');
-    const links = list.querySelectorAll('a[data-testid="sidebar-subitem-link"]');
-    const hrefs = Array.from(links).map((a) => a.getAttribute('href'));
-    expect(hrefs).toContain('/projects/proj-abc');
-    expect(hrefs).toContain('/projects/proj-def');
-  });
-
-  it('Projects sub-list toggle collapses + persists like Channels/DMs', async () => {
-    renderShell('/projects');
-    await waitFor(() =>
-      expect(screen.getByTestId('sidebar-subitem-toggle-/projects')).toBeInTheDocument(),
-    );
-    const subToggle = screen.getByTestId('sidebar-subitem-toggle-/projects');
-    expect(subToggle).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(subToggle);
-    expect(subToggle).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByTestId('sidebar-subitem-list-/projects')).not.toBeInTheDocument();
-    await waitFor(() => {
-      const stored = localStorage.getItem('ac.sidebar.subitems');
-      expect(stored).toBeTruthy();
-      const parsed = JSON.parse(stored as string);
-      expect(parsed['/projects']).toBe(false);
-    });
-  });
+  // v2.10.0 [T4]: the Workspace col② is now the route-aware custom nav
+  // (shell/nav/WorkspaceSecondaryNav — Projects/Issues/Tasks/Plan ↔ project
+  // sub-nav), per projects.html. The old "Projects expands to all project
+  // names" sub-list is gone (the Projects LIST page covers that). The
+  // Channels/DMs expansion (Conversations, the shell default) is unchanged and
+  // still covered above; Workspace nav behavior is covered in
+  // WorkspaceSecondaryNav.test.tsx.
 
   it('sub-item state persists to localStorage', async () => {
     renderShell('/channels');
@@ -321,12 +297,8 @@ describe('col② secondary nav — active-module group + sub-lists', () => {
     });
     expect(screen.getByTestId('count-badge-Channels')).toHaveAttribute('aria-label', '3 channels');
     expect(screen.getByTestId('count-badge-DMs')).toHaveAttribute('aria-label', '2 dms');
-    // Projects badge belongs to the Workspace module.
-    cleanup();
-    renderShell('/projects');
-    await waitFor(() => {
-      expect(screen.getByTestId('count-badge-Projects')).toHaveAttribute('aria-label', '2 projects');
-    });
+    // (Projects no longer carries a count badge — the Workspace col② is the
+    // custom route-aware nav now; see WorkspaceSecondaryNav.test.tsx.)
   });
 
   it('renders the col② bottom area: live + segmented theme + sign out', () => {
