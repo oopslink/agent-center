@@ -46,9 +46,11 @@ function linkifyMentions(
   if (!onMention) return children;
   return Children.map(children, (child) => {
     if (typeof child === 'string') {
-      // Tokenize only strings that could carry a token (@mention or task-ref) —
-      // a plain prose run with neither is passed through untouched.
-      if (!child.includes('@') && !child.includes('task-')) return child;
+      // Tokenize only strings that could carry a token (@mention, task-<id>, or a
+      // T<number> org_ref) — a plain prose run with none is passed through
+      // untouched. T76: the cheap `T\d` test is a pre-filter only; MentionText's
+      // boundary-guarded TOKEN_RE + resolver gating decide actual linkification.
+      if (!child.includes('@') && !child.includes('task-') && !/T\d/.test(child)) return child;
       return (
         <MentionText
           text={child}
