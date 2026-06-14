@@ -29,6 +29,8 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
     updated_before: '',
   });
   const [createOpen, setCreateOpen] = useState(false);
+  // v2.10.0 [T3]: the selected row → drives the col④ read-only metadata panel.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Build filters. empty status selection = omit status (backend default excludes
   // terminal states). Each date param is converted local→RFC3339-offset (start =
@@ -64,6 +66,8 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         onCreate={() => setCreateOpen(true)}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
       />
       {createOpen && <OrgWorkItemCreateModal kind={kind} onClose={() => setCreateOpen(false)} />}
     </>
