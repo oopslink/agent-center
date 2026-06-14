@@ -170,6 +170,8 @@ type messageAddedPayload struct {
 	// RootMessageID (v2.9.1 Thread F4) is the thread root of the triggering message
 	// (empty if top-level); carried through to the agent so its reply lands in-thread.
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// AttachmentCount (v2.10.0 [T74]) — how many attachments the message carries.
+	AttachmentCount int `json:"attachment_count,omitempty"`
 }
 
 // wakeCommandPayload is the agent.wake command payload the daemon AgentController
@@ -207,6 +209,8 @@ type converseCommandPayload struct {
 	MessageText    string `json:"message_text"`
 	// RootMessageID (F4): thread root of the triggering message → agent replies in-thread.
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// AttachmentCount (v2.10.0 [T74]) → the brief tells the agent about file(s).
+	AttachmentCount int `json:"attachment_count,omitempty"`
 }
 
 // awaitingInputPayload mirrors the JSON keys the request_input admin handler
@@ -616,11 +620,12 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		ConversationID: pl.ConversationID,
 		ConvKind:       string(conv.Kind()),
 		ConvName:       conv.Name(),
-		SenderRef:      pl.Sender,
-		SenderDisplay:  senderDisplay,
-		MessageID:      pl.MessageID,
-		MessageText:    pl.Text,
-		RootMessageID:  pl.RootMessageID, // F4: carry thread root → agent replies in-thread
+		SenderRef:       pl.Sender,
+		SenderDisplay:   senderDisplay,
+		MessageID:       pl.MessageID,
+		MessageText:     pl.Text,
+		RootMessageID:   pl.RootMessageID,   // F4: carry thread root → agent replies in-thread
+		AttachmentCount: pl.AttachmentCount, // T74: carry attachment count → brief hints at file(s)
 	})
 	if err != nil {
 		return err

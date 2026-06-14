@@ -29,7 +29,14 @@ type UnreadItem struct {
 	MessageID        conversation.MessageID
 	SenderRef        conversation.IdentityRef
 	Content          string
-	PostedAt         time.Time
+	// v2.10.0 [T74]: the message's attachments (file_uri + filename/mime/size).
+	// Surfaced so a human can send a screenshot to an agent and the agent can
+	// perceive + download it (download_file) — inbound parity with the outbound
+	// post_message path. Empty when the message carries no attachments. The
+	// inbox only scans conversations the agent participates in, so every uri
+	// here is from a participating conversation (download_file authz fail-closed).
+	Attachments []conversation.MessageAttachment
+	PostedAt     time.Time
 }
 
 // AgentInboxService answers "what unread messages are directed at this agent?"
@@ -129,7 +136,9 @@ func (s *AgentInboxService) scanUnread(
 	refs []conversation.IdentityRef, displayName string,
 ) ([]UnreadItem, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, s.db)
-	const stmt = `SELECT id, sender_identity_id, content, posted_at
+	// v2.10.0 [T74]: also read `attachments` so inbound messages surface their
+	// file_uri + metadata to the agent (inbound parity with outbound post_message).
+	const stmt = `SELECT id, sender_identity_id, content, attachments, posted_at
 		FROM messages
 		WHERE conversation_id = ? AND id > ?
 		ORDER BY id ASC
@@ -143,7 +152,8 @@ func (s *AgentInboxService) scanUnread(
 	var items []UnreadItem
 	for rows.Next() {
 		var id, sender, content, postedAt string
-		if err := rows.Scan(&id, &sender, &content, &postedAt); err != nil {
+		var attachmentsJSON sql.NullString
+		if err := rows.Scan(&id, &sender, &content, &attachmentsJSON, &postedAt); err != nil {
 			return nil, err
 		}
 		// Never surface the agent's own messages back to it (sender ∈ any of refs).
@@ -158,6 +168,10 @@ func (s *AgentInboxService) scanUnread(
 		if err != nil {
 			return nil, fmt.Errorf("list unread: parse posted_at: %w", err)
 		}
+		atts, err := conversation.UnmarshalAttachmentsJSON(attachmentsJSON.String)
+		if err != nil {
+			return nil, fmt.Errorf("list unread: parse attachments %s: %w", id, err)
+		}
 		items = append(items, UnreadItem{
 			ConversationID:   c.ID(),
 			ConversationKind: c.Kind(),
@@ -165,6 +179,7 @@ func (s *AgentInboxService) scanUnread(
 			MessageID:        conversation.MessageID(id),
 			SenderRef:        conversation.IdentityRef(sender),
 			Content:          content,
+			Attachments:      atts,
 			PostedAt:         pt,
 		})
 	}
