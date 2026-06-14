@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>桌面 · Project Work Board(三栏)</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .desk3{display:grid;grid-template-columns:66px 250px 1fr;height:420px;position:relative}
+  .rail{background:#1e1b34;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px;font-size:15px}
+  .ri{width:46px;height:44px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c7c3e0;font-size:18px;gap:2px} .ri small{font-size:8px} .ri.active{background:rgba(255,255,255,.16);color:#fff} .rail .sp{flex:1}
+  .c2{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .c2h{padding:12px 14px 10px;border-bottom:1px solid var(--border)} .c2h h2{margin:0;font-size:15px} .c2h .s{margin-top:9px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 9px;color:var(--tm);font-size:12px}
+  .c2sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tm);font-weight:700;padding:11px 14px 4px}
+  .c2it{display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:13px;color:var(--ts);position:relative}
+  .c2it.sel{background:var(--bg-subtle);color:var(--tp);font-weight:600} .c2it.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .c2it .ic{width:16px;text-align:center;color:var(--tm)} .c2it .lab{flex:1} .c2it.sub{padding-left:30px;font-size:12.5px}
+</style></head>
+<body><div class="page">
+  <h1>桌面 · Project Work Board(三栏)<span class="modtag">T67 / 现有 IA</span></h1>
+  <p class="sub">项目内 Plans 看板:Backlog + 每 Plan 一列 + New Plan,任务卡可拖拽编排。col① 图标栏(Workspace)/ col② 项目子导航(选中 Work Board)/ col③ 看板。配色字体取自现有 web/src/index.css。</p>
+  <div class="frame"><div class="desk3">
+    <div class="rail"><div class="logo">A</div><div class="ri active"><span>▦</span><small>Work</small></div><div class="ri"><span>💬</span><small>Conv</small></div><div class="ri"><span>◎</span><small>Mbr</small></div><div class="ri"><span>⚙</span><small>Sys</small></div><div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div></div>
+    <div class="c2">
+      <div class="c2h"><h2>Workspace</h2><div class="s">🔍 搜索…</div></div>
+      <div class="c2sub">导航</div>
+      <div class="c2it sel"><span class="ic">▦</span><span class="lab">Projects</span><span class="ic" style="flex:none">▾</span></div>
+      <div class="c2it sub"><span class="ic">▸</span><span class="lab">agent-center2</span></div>
+      <div class="c2sub">agent-center2</div>
+      <div class="c2it sub"><span class="ic">◷</span><span class="lab">Issues</span></div>
+      <div class="c2it sub"><span class="ic">✓</span><span class="lab">Tasks</span></div>
+      <div class="c2it sub sel"><span class="ic">⊞</span><span class="lab">Work Board</span></div>
+      <div class="c2it sub"><span class="ic">🧑</span><span class="lab">Members</span></div>
+      <div class="c2it sub"><span class="ic">⛁</span><span class="lab">Code repos</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><div style="display:flex;align-items:center;gap:9px"><h3>agent-center2 · Work Board</h3><span class="stat">active</span></div><div class="acts"><button class="btn">Edit</button><button class="btn pri">+ New Plan</button></div></div>
+      <div class="kb">
+        <div class="kcol"><h5>Backlog <span class="ct">2</span></h5>
+          <div class="kcard"><div class="id">task-82915d</div><div class="tt">task-ref linkify</div><div class="ft"><span class="stat open">open</span><span>—</span></div></div>
+          <div class="kcard"><div class="id">task-0543ec</div><div class="tt">看板可观测性</div><div class="ft"><span class="stat open">open</span><span>—</span></div></div>
+        </div>
+        <div class="kcol"><h5>v2.9.2 收尾 <span class="ct">5</span></h5>
+          <div class="kcard"><div class="id">task-1c231a</div><div class="tt">class-guard</div><div class="ft"><span class="stat">running</span><span class="miniav">T1</span></div></div>
+          <div class="kcard"><div class="id">task-7a60dd</div><div class="tt">合并 v2.9.2</div><div class="ft"><span class="stat block">blocked</span><span class="miniav" style="background:#b45309">IN</span></div></div>
+          <div class="kcard"><div class="id">task-dccd3a</div><div class="tt">run-real 终验</div><div class="ft"><span class="stat done">done</span><span class="miniav">T2</span></div></div>
+        </div>
+        <div class="kcol"><h5>聊天框附件 <span class="ct">done</span></h5>
+          <div class="kcard"><div class="id">task-f63d77</div><div class="tt">composer 打磨</div><div class="ft"><span class="stat done">done</span><span class="miniav" style="background:#8b5cf6">D2</span></div></div>
+        </div>
+        <div class="kcol newp">+ New Plan</div>
+      </div>
+    </div>
+  </div></div>
+</div></body></html>
