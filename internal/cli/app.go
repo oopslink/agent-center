@@ -361,6 +361,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	agentWorkItemRepo := agentsql.NewWorkItemRepoWithSink(db, workItemTransitionSink)
 	agentActivityRepo := agentsql.NewActivityEventRepo(db)
 
+	// T53: wire the paused-task read-port now that the WorkItem repo exists, so the
+	// plan read model derives a `paused` node (not a phantom `running`) for a node
+	// whose agent set its work item aside.
+	pmSvc.SetPausedTaskProvider(agentpkg.NewWorkItemPausedProvider(agentWorkItemRepo))
+
 	agentSvc := agentsvc.New(agentsvc.Deps{
 		DB:        db,
 		Agents:    agentRepo,

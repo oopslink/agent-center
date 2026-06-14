@@ -174,6 +174,20 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument();
   });
 
+  // T53: `paused` is a first-class node state — its legend chip renders with the
+  // distinct stone palette (not the default/blocked fallback), so a node whose
+  // agent paused its work item reads truthfully instead of as phantom `running`.
+  it('legend includes a paused chip with the stone palette (T53)', async () => {
+    mockPlan();
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    const legend = screen.getByTestId('plan-dag-legend');
+    const paused = within(legend).getByText('paused');
+    expect(paused.className).toContain('bg-status-stone-bg');
+    expect(paused.className).toContain('text-status-stone-fg');
+  });
+
   it('point 1: DAG nodes and task-list rows show the Task id (org_ref T-number, # fallback)', async () => {
     mockPlan();
     // Resolve the human Task id via the project task list (org_ref). n1→T101,

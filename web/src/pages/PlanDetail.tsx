@@ -739,6 +739,21 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
       </svg>
     ),
   },
+  // T53: the agent paused its work item — the node is set aside, not actively
+  // running. Stone (muted warm-gray) reads as "halted/waiting", distinct from the
+  // amber `running`, so the DAG tells the truth instead of a phantom-running node.
+  paused: {
+    label: 'paused',
+    cls: 'bg-status-stone-bg text-status-stone-fg',
+    border: 'border-status-stone-border',
+    // pause (⏸)
+    icon: (
+      <svg viewBox="0 0 24 24" className={ICON_CLS} fill="currentColor" aria-hidden="true">
+        <rect x="6" y="5" width="4" height="14" rx="1" />
+        <rect x="14" y="5" width="4" height="14" rx="1" />
+      </svg>
+    ),
+  },
   done: {
     label: 'done',
     cls: 'bg-status-emerald-bg text-status-emerald-fg',
@@ -763,7 +778,7 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
 };
 
-const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'done', 'failed'];
+const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'failed'];
 
 function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactElement {
   const s = NODE_STATE[status] ?? NODE_STATE.blocked;

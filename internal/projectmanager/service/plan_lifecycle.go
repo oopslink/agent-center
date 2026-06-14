@@ -227,7 +227,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if err != nil {
 		return nil, err
 	}
-	view := pm.ComputePlanView(tasks, edges, records)
+	view := pm.ComputePlanView(tasks, edges, records, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
 
 	// Index task → assignee for the @mention, and task → *Task for the
 	// work-delivery emit (v2.9 P2 #1 HEADLINE).
@@ -326,7 +326,7 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 	if err != nil {
 		return nil, err
 	}
-	view := pm.ComputePlanView(tasks, edges, records)
+	view := pm.ComputePlanView(tasks, edges, records, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
 	var dispatched []pm.TaskID
 	for _, taskID := range view.ReadySet {
 		// PULL: record the dispatch (no message, no work-item, no wake). An empty

@@ -223,7 +223,40 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 	if err != nil {
 		return nil, err
 	}
-	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records)}, nil
+	paused, err := s.pausedSet(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records, paused)}, nil
+}
+
+// pausedSet queries the optional PausedTaskPort (T53) for the given tasks' ids,
+// returning the TaskID→true map the plan view overlays as `paused` nodes. nil-safe:
+// no port wired or no tasks ⇒ nil (no overlay, running stays running). A port error
+// is PROPAGATED so the read fails loudly rather than silently dropping the overlay
+// (a stuck node mis-shown as running is exactly the bug being fixed).
+func (s *Service) pausedSet(ctx context.Context, tasks []*pm.Task) (map[pm.TaskID]bool, error) {
+	if s.pausedTasks == nil || len(tasks) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, string(t.ID()))
+	}
+	pausedIDs, err := s.pausedTasks.PausedTasks(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	if len(pausedIDs) == 0 {
+		return nil, nil
+	}
+	out := make(map[pm.TaskID]bool, len(pausedIDs))
+	for id, p := range pausedIDs {
+		if p {
+			out[pm.TaskID(id)] = true
+		}
+	}
+	return out, nil
 }
 
 // ListPlanSummaries returns one PlanDetail per Plan in the project (the same
@@ -295,11 +328,19 @@ func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID)
 		recordsByPlan[rec.PlanID] = append(recordsByPlan[rec.PlanID], rec)
 	}
 
+	// 1 query (T53): which of ALL project tasks have a paused work item — one map
+	// reused across every plan's pure derivation, so the N+1-free guarantee holds
+	// (a single extra port call regardless of plan count). nil when no port wired.
+	paused, err := s.pausedSet(ctx, allTasks)
+	if err != nil {
+		return nil, err
+	}
+
 	// Per-plan view derivation is pure in-memory (no query).
 	out := make([]*PlanDetail, 0, len(plans))
 	for _, p := range plans {
 		tasks := tasksByPlan[p.ID()]
-		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()])
+		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], paused)
 		out = append(out, &PlanDetail{Plan: p, Tasks: tasks, View: view})
 	}
 	return out, nil

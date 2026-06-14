@@ -39,6 +39,7 @@ export type PlanNodeStatus =
   | 'ready'
   | 'dispatched'
   | 'running'
+  | 'paused' // T53: running task whose agent paused its work item (set aside)
   | 'done'
   | 'failed';
 
