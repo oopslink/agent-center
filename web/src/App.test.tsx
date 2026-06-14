@@ -71,6 +71,8 @@ describe('App shell + route tree', () => {
       // v2.9 #286: Plan orchestration — parallel list + Plan detail.
       [`${ORG_BASE}/projects/proj-a/plans`, 'page-ProjectPlans'],
       [`${ORG_BASE}/projects/proj-a/plans/PL-1`, 'page-PlanDetail'],
+      // v2.10.0 [T6]: global cross-project Plan list.
+      [`${ORG_BASE}/plans`, 'page-OrgPlans'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
       [`${ORG_BASE}/environment`, 'page-Environment'],
       // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
@@ -120,6 +122,8 @@ describe('App shell + route tree', () => {
         ['Projects', `${ORG_BASE}/projects`],
         ['Issues', `${ORG_BASE}/issues`],
         ['Tasks', `${ORG_BASE}/tasks`],
+        // v2.10.0 [T6]: global Plan list, Tasks 平级.
+        ['Plan', `${ORG_BASE}/plans`],
       ]],
       [`${ORG_BASE}/channels`, [
         ['Channels', `${ORG_BASE}/channels`],
