@@ -43,6 +43,27 @@ func TestStatusPasses_260_DefaultOpenVsExplicit(t *testing.T) {
 	}
 }
 
+// TestStatusPasses_AllSentinel_IncludesTerminal (T62/task-336335c5, reused by
+// T76/task-c780999a) pins the `status=all` escape hatch: it passes EVERY status —
+// terminal included — so the message task-ref / T-number linkify resolver can
+// resolve a completed/discarded task instead of leaving it plain text. The
+// default (empty explicit) must STILL exclude terminal (class-guard).
+func TestStatusPasses_AllSentinel_IncludesTerminal(t *testing.T) {
+	term := taskTerminalStatus
+	all := map[string]bool{"all": true}
+	for _, s := range []string{"open", "running", "reopened", "completed", "discarded"} {
+		if !statusPasses(s, all, term) {
+			t.Errorf("status=all must include %q (terminal included)", s)
+		}
+	}
+	if statusPasses("completed", map[string]bool{}, term) {
+		t.Errorf("default (empty explicit) must STILL exclude terminal 'completed'")
+	}
+	if !statusPasses("discarded", map[string]bool{"all": true, "open": true}, term) {
+		t.Errorf("status=all,open must still include terminal 'discarded'")
+	}
+}
+
 func TestParseSetParam_260_CommaAndRepeated(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/api/issues?status=open,running&status=blocked&project=", nil)
 	got := parseSetParam(req, "status")
