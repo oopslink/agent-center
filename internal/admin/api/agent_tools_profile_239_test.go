@@ -204,4 +204,13 @@ func TestGetMyProfile_Populated(t *testing.T) {
 	if caps, _ := p["my_capabilities"].([]any); len(caps) == 0 {
 		t.Fatalf("per-project my_capabilities must be non-empty, got %v", p["my_capabilities"])
 	}
+	// E2E finding F-3 class-guard: get_my_profile MUST surface the agent's OWN
+	// identity (display_name + agent_ref) so it can tell which @mentions are for it
+	// and never impersonate another agent in a shared conversation.
+	if body["display_name"] != ag3 {
+		t.Fatalf("display_name=%v, want %q", body["display_name"], ag3)
+	}
+	if body["agent_ref"] != "agent:"+ag3Member {
+		t.Fatalf("agent_ref=%v, want agent:%s", body["agent_ref"], ag3Member)
+	}
 }

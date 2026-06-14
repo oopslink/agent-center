@@ -81,6 +81,13 @@ func (s *Server) getMyProfileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
+		// E2E finding F-3: the operating agent had NO way to learn its OWN identity
+		// (display name) — with several agents in one conversation it would adopt
+		// another agent's name from the @mention text and impersonate it. Surface the
+		// agent's own display_name + agent_ref (the "agent:<member-id>" form used in
+		// @mentions / assignee) so it can recognise which mentions are actually for it.
+		"display_name":    a.Profile().Name,
+		"agent_ref":       "agent:" + a.IdentityMemberID(),
 		"org_id":          orgID,
 		"org_name":        orgName,
 		"my_projects":     myProjects,
