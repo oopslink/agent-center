@@ -65,6 +65,9 @@ export const qk = {
   issue: (id: string) => o('issue', id),
   tasksByProject: (projectId: string) => o('tasksByProject', projectId),
   task: (id: string) => o('task', id),
+  // v2.10.0 [T73]: task/issue-scoped file attachments, keyed by the scope id.
+  taskFiles: (taskId: string) => o('taskFiles', taskId),
+  issueFiles: (issueId: string) => o('issueFiles', issueId),
   codeReposByProject: (projectId: string) => o('codeReposByProject', projectId),
   membersByProject: (projectId: string) => o('membersByProject', projectId),
   // Coarse no-arg list keys kept so derive.ts (deferred scope) keeps

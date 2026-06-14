@@ -21,6 +21,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/files"
 )
 
 // Server is the Web Console HTTP server.
@@ -295,6 +297,16 @@ func (s *Server) routes() {
 	// Registered before /files/{ulid} so the literal `transfers` wins the match.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/files/transfers", s.listTransfersHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/files/{ulid}", s.downloadHandler)
+
+	// v2.10.0 [T73]: task/issue-scoped file attachments (Task/Issue detail pages).
+	// List + create-upload + complete, project-member-gated; blob PUT reuses the
+	// generic transfer route above and download reuses GET /files/{ulid}.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{pid}/tasks/{tid}/files", s.scopeFilesListHandler(files.ScopeTask, "tid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/tasks/{tid}/files", s.scopeFilesCreateHandler(files.ScopeTask, "tid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/tasks/{tid}/files/transfer/{transfer_id}/complete", s.scopeFilesCompleteHandler(files.ScopeTask, "tid"))
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{pid}/issues/{iid}/files", s.scopeFilesListHandler(files.ScopeIssue, "iid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/issues/{iid}/files", s.scopeFilesCreateHandler(files.ScopeIssue, "iid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/issues/{iid}/files/transfer/{transfer_id}/complete", s.scopeFilesCompleteHandler(files.ScopeIssue, "iid"))
 
 	// SSE — single user-level long connection per Q5=B. EXEMPT (user-level, not
 	// org-scoped): subscribe/connect key on user_id + conversation_id.

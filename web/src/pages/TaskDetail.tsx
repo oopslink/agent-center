@@ -10,6 +10,7 @@ import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
+import { TaskAttachments } from '@/components/AttachmentsSection';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
@@ -106,6 +107,11 @@ export default function TaskDetail(): React.ReactElement {
           ) : (
             <p className="mt-4 text-sm italic text-text-muted">No description.</p>
           )}
+
+          {/* v2.10.0 [T73]: task-scoped attachments (list + upload + download). */}
+          <div className="mt-4 border-t border-border-base pt-3">
+            <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
+          </div>
 
           <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
         </div>
