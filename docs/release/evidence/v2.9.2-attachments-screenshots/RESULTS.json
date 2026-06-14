@@ -1,0 +1,254 @@
+{
+  "results": [
+    [
+      "seed_bob_signin",
+      "OK",
+      ""
+    ],
+    [
+      "seed_dm",
+      "OK",
+      "dm-d444006e"
+    ],
+    [
+      "seed_issues_conversation",
+      "FAIL",
+      "0 conv"
+    ],
+    [
+      "seed_tasks_conversation",
+      "FAIL",
+      "0 conv"
+    ],
+    [
+      "seed_plan",
+      "OK",
+      "plan-c49cccc0"
+    ],
+    [
+      "A_channel_composer",
+      "OK",
+      "composer present"
+    ],
+    [
+      "A_channel_staged",
+      "OK",
+      "img-preview=true"
+    ],
+    [
+      "A_channel_received",
+      "OK",
+      "channel attachment rendered"
+    ],
+    [
+      "A_channel_img_preview",
+      "OK",
+      "inline image preview"
+    ],
+    [
+      "A_channel_download_alice",
+      "OK",
+      "alice GET 200"
+    ],
+    [
+      "A_channel_authz_bob_403",
+      "OK",
+      "bob(non-participant) GET 403 (expect 403)"
+    ],
+    [
+      "A_channel_file_composer",
+      "OK",
+      "composer present"
+    ],
+    [
+      "A_channel_file_staged",
+      "OK",
+      "file-chip"
+    ],
+    [
+      "A_channel_file_received",
+      "OK",
+      "channel attachment rendered"
+    ],
+    [
+      "A_channel_file_download_alice",
+      "OK",
+      "alice GET 200"
+    ],
+    [
+      "A_channel_file_authz_bob_403",
+      "OK",
+      "bob(non-participant) GET 403 (expect 403)"
+    ],
+    [
+      "B_dm_composer",
+      "OK",
+      "composer present"
+    ],
+    [
+      "B_dm_staged",
+      "OK",
+      "img-preview=true"
+    ],
+    [
+      "B_dm_received",
+      "OK",
+      "dm attachment rendered"
+    ],
+    [
+      "B_dm_img_preview",
+      "OK",
+      "inline image preview"
+    ],
+    [
+      "B_dm_download_alice",
+      "OK",
+      "alice GET 200"
+    ],
+    [
+      "B_dm_authz_bob_participant_200",
+      "OK",
+      "bob(participant) GET 200 (expect 200)"
+    ],
+    [
+      "B_dm_file_composer",
+      "OK",
+      "composer present"
+    ],
+    [
+      "B_dm_file_staged",
+      "OK",
+      "file-chip"
+    ],
+    [
+      "B_dm_file_received",
+      "OK",
+      "dm attachment rendered"
+    ],
+    [
+      "B_dm_file_download_alice",
+      "OK",
+      "alice GET 200"
+    ],
+    [
+      "B_dm_file_authz_bob_participant_200",
+      "OK",
+      "bob(participant) GET 200 (expect 200)"
+    ],
+    [
+      "C_issue_composer",
+      "OK",
+      "composer present"
+    ],
+    [
+      "C_issue_staged",
+      "OK",
+      "img-preview=true"
+    ],
+    [
+      "C_issue_received",
+      "OK",
+      "issue attachment rendered"
+    ],
+    [
+      "C_issue_img_preview",
+      "OK",
+      "inline image preview"
+    ],
+    [
+      "C_issue_download_alice",
+      "OK",
+      "alice GET 200"
+    ],
+    [
+      "C_issue_authz_bob_403",
+      "OK",
+      "bob(non-participant) GET 403 (expect 403)"
+    ],
+    [
+      "D_task_composer",
+      "OK",
+      "composer present"
+    ],
+    [
+      "D_task_staged",
+      "OK",
+      "img-preview=true"
+    ],
+    [
+      "D_task_received",
+      "OK",
+      "task attachment rendered"
+    ],
+    [
+      "D_task_img_preview",
+      "OK",
+      "inline image preview"
+    ],
+    [
+      "D_task_download_alice",
+      "OK",
+      "alice GET 200"
+    ],
+    [
+      "D_task_authz_bob_403",
+      "OK",
+      "bob(non-participant) GET 403 (expect 403)"
+    ],
+    [
+      "E_plan_composer",
+      "OK",
+      "composer present"
+    ],
+    [
+      "E_plan_staged",
+      "OK",
+      "img-preview=true"
+    ],
+    [
+      "E_plan_received",
+      "OK",
+      "plan attachment rendered"
+    ],
+    [
+      "E_plan_img_preview",
+      "OK",
+      "inline image preview"
+    ],
+    [
+      "E_plan_download_alice",
+      "OK",
+      "alice GET 200"
+    ],
+    [
+      "E_plan_authz_bob_403",
+      "OK",
+      "bob(non-participant) GET 403 (expect 403)"
+    ],
+    [
+      "gap_type_accept_filter",
+      "FAIL",
+      "NO accept= → all types allowed (no client type filter)"
+    ],
+    [
+      "gap_upload_progress_ui",
+      "FAIL",
+      "NO progress UI element"
+    ],
+    [
+      "gap_dropzone",
+      "FAIL",
+      "drag&drop drop-zone"
+    ],
+    [
+      "gap_paste_screenshot",
+      "FAIL",
+      "NO onPaste handler → paste-screenshot won't attach"
+    ]
+  ],
+  "findings": [
+    "GAP-probe(channel composer): {\"hasAcceptAttr\":false,\"acceptVal\":null,\"multiple\":false,\"hasDropZone\":false,\"hasProgress\":false,\"formHTMLHasDnDHandlers\":false,\"textareaHasPasteHandler\":false}"
+  ],
+  "consoleErrors": [],
+  "bin": "/Users/oopslink/works/codes/oopslink/ac-wt-composer/bin/agent-center"
+}
