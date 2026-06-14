@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
@@ -418,6 +419,37 @@ func (s *Server) pmStopPlanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := d.PM.StopPlan(r.Context(), pl.ID(), caller); err != nil {
 		mapPlanError(w, err)
+		return
+	}
+	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())
+	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
+}
+
+// pmResumePausedNodeHandler is the T53 operator recovery action for the owner: a
+// project member resumes a plan node whose agent paused its work item and went idle
+// (the node shows `paused`). pm authorizes (project member + plan running + task in
+// plan), resumes the node's work item, and wakes its agent. Returns the refreshed
+// plan detail so the DAG reflects the node leaving `paused`.
+func (s *Server) pmResumePausedNodeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	taskID := pm.TaskID(r.PathValue("task_id"))
+	if err := d.PM.ResumePausedNode(r.Context(), pl.ID(), taskID, caller); err != nil {
+		switch {
+		case errors.Is(err, pmservice.ErrNodeNotPaused):
+			writeError(w, http.StatusConflict, "node_not_paused", "the plan node has no paused work item to resume")
+		case errors.Is(err, agent.ErrAgentHasActiveWork):
+			writeError(w, http.StatusConflict, "agent_busy", "the node's agent is busy on another work item; try again after it settles")
+		case errors.Is(err, pmservice.ErrTaskNotInPlan):
+			writeError(w, http.StatusNotFound, "not_found", "the task is not a node of this plan")
+		case errors.Is(err, pmservice.ErrNodeResumerUnavailable):
+			writeError(w, http.StatusNotImplemented, "pm_not_wired", "paused-node resume is not available")
+		default:
+			mapPlanError(w, err)
+		}
 		return
 	}
 	detail, _ := d.PM.GetPlanDetail(r.Context(), pl.ID())

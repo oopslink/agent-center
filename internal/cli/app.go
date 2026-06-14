@@ -361,6 +361,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	agentWorkItemRepo := agentsql.NewWorkItemRepoWithSink(db, workItemTransitionSink)
 	agentActivityRepo := agentsql.NewActivityEventRepo(db)
 
+	// T53: wire the paused-task read-port now that the WorkItem repo exists, so the
+	// plan read model derives a `paused` node (not a phantom `running`) for a node
+	// whose agent set its work item aside.
+	pmSvc.SetPausedTaskProvider(agentpkg.NewWorkItemPausedProvider(agentWorkItemRepo))
+
 	agentSvc := agentsvc.New(agentsvc.Deps{
 		DB:        db,
 		Agents:    agentRepo,
@@ -381,6 +386,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:   gen,
 		Clock:   clk,
 	})
+
+	// T53: wire the paused-node resumer now that the agent service + env control
+	// exist. The operator "resume stuck node" action (ResumePausedNode) resumes the
+	// node's paused work item and wakes its agent via agent.work_available.
+	pmSvc.SetNodeResumer(NewNodeResumerAdapter(agentWorkItemRepo, agentSvc, agentRepo, envControlSvc))
 
 	// v2.7 D5 slice-1: the shared SSE down-push bus. Created here so it is the
 	// SAME instance the projector's ControlLog publishes to (webconsole_wiring.go)

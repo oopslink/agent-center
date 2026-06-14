@@ -10,6 +10,7 @@ import {
   useAddDependency,
   useRemoveDependency,
   useRemoveTaskFromPlan,
+  useResumePausedNode,
   usePatchPlan,
   useDeletePlan,
   useArchivePlan,
@@ -739,6 +740,21 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
       </svg>
     ),
   },
+  // T53: the agent paused its work item — the node is set aside, not actively
+  // running. Stone (muted warm-gray) reads as "halted/waiting", distinct from the
+  // amber `running`, so the DAG tells the truth instead of a phantom-running node.
+  paused: {
+    label: 'paused',
+    cls: 'bg-status-stone-bg text-status-stone-fg',
+    border: 'border-status-stone-border',
+    // pause (⏸)
+    icon: (
+      <svg viewBox="0 0 24 24" className={ICON_CLS} fill="currentColor" aria-hidden="true">
+        <rect x="6" y="5" width="4" height="14" rx="1" />
+        <rect x="14" y="5" width="4" height="14" rx="1" />
+      </svg>
+    ),
+  },
   done: {
     label: 'done',
     cls: 'bg-status-emerald-bg text-status-emerald-fg',
@@ -763,7 +779,7 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
 };
 
-const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'done', 'failed'];
+const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'failed'];
 
 function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactElement {
   const s = NODE_STATE[status] ?? NODE_STATE.blocked;
@@ -1547,6 +1563,8 @@ function PlanTaskRow({
   members: MemberResult[];
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
+  // T53: operator resume of a paused node (its agent set the work item aside).
+  const resume = useResumePausedNode(projectId, planId);
   // T41 inline 分派: reassigning is NOT draft-gated (allowed regardless of plan
   // status). assign("") would set an empty assignee; the dedicated unassign
   // endpoint is the established "clear assignee" path, so route "" → unassign.
@@ -1617,7 +1635,31 @@ function PlanTaskRow({
           {/* Stage B (#283): archive badge is ORTHOGONAL — coexists with the
               node-status chip when the plan (and thus the task) is archived. */}
           <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />
+          {/* T53: a paused node (agent set its work item aside) gets an operator
+              Resume action that resumes the node + wakes its agent. */}
+          {node.node_status === 'paused' && (
+            <button
+              type="button"
+              className="rounded border border-status-stone-border bg-status-stone-bg px-2 py-0.5 text-[0.6875rem] font-semibold text-status-stone-fg hover:opacity-80 disabled:opacity-50"
+              disabled={resume.isPending}
+              aria-label={`Resume ${title}`}
+              title="Resume this paused node (wake its agent)"
+              data-testid={`plan-node-resume-${node.task_id}`}
+              onClick={() => resume.mutate(node.task_id)}
+            >
+              {resume.isPending ? 'Resuming…' : 'Resume'}
+            </button>
+          )}
         </span>
+        {resume.isError && (
+          <span
+            className="mt-0.5 block text-[0.6875rem] font-normal text-danger"
+            role="alert"
+            data-testid={`plan-node-resume-error-${node.task_id}`}
+          >
+            Couldn't resume this node. Please try again.
+          </span>
+        )}
       </td>
       {canRemove && (
         <td className="py-1.5 pl-3 text-right">

@@ -20,6 +20,7 @@ import (
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
 // errNoLiveWorkItem signals that the agent holds a WorkItem for the task but
@@ -709,6 +710,62 @@ func (s *Server) rerunFailedNodeHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- resume_paused_node (T53) -----------------------------------------------
+
+type resumePausedNodeReq struct {
+	AgentID string `json:"agent_id"`
+	PlanID  string `json:"plan_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// resumePausedNodeHandler is the operator recovery action: a project-member agent
+// (PD) resumes a plan node whose agent paused its work item and went idle (shown
+// `paused` since T53). pm authorizes (project member + plan running) then resumes
+// the node's paused work item + wakes its agent so it continues. Authz = the
+// calling agent's project membership (agentActor), exactly like rerun_failed_node.
+func (s *Server) resumePausedNodeHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req resumePausedNodeReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.ResumePausedNode(r.Context(), pm.PlanID(req.PlanID), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		writeResumePausedNodeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// writeResumePausedNodeError maps the T53 resume errors to HTTP. ErrNodeNotPaused
+// → 409 (nothing to resume), ErrAgentHasActiveWork → 409 (the agent is busy),
+// ErrPlanNotRunning → 409, ErrTaskNotInPlan → 404; the rest fall through to the
+// shared domain mapper (project-member 403 → 404 existence-non-disclosure, etc.).
+func writeResumePausedNodeError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, pmservice.ErrNodeNotPaused):
+		writeError(w, http.StatusConflict, "node_not_paused", "the plan node has no paused work item to resume")
+	case errors.Is(err, agent.ErrAgentHasActiveWork):
+		writeError(w, http.StatusConflict, "agent_busy", "the node's agent is busy on another work item; try again after it settles")
+	case errors.Is(err, pm.ErrPlanNotRunning):
+		writeError(w, http.StatusConflict, "plan_not_running", "the plan is not running")
+	case errors.Is(err, pmservice.ErrTaskNotInPlan):
+		writeError(w, http.StatusNotFound, "task_not_in_plan", "the task is not a node of this plan")
+	case errors.Is(err, pmservice.ErrNodeResumerUnavailable):
+		writeError(w, http.StatusNotImplemented, "resume_not_wired", "paused-node resume is not available")
+	default:
+		mapDomainError(w, err)
+	}
 }
 
 // --- complete_task -----------------------------------------------------------

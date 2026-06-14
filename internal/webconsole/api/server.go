@@ -251,6 +251,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/start", s.pmStartPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/stop", s.pmStopPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/advance", s.pmAdvancePlanHandler)
+	// T53: operator resume of a paused plan node (un-stick a set-aside node).
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/nodes/{task_id}/resume", s.pmResumePausedNodeHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
 	// v2.7 C3 Agent BC (ADR-0049). Org-scoped; replaces the legacy

@@ -237,6 +237,11 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeRerunFailedNode(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "resume_paused_node",
+		Description: "Resume a plan node whose agent paused its work item and went idle (the node shows `paused`): resumes the node's work item and wakes its agent so it continues. Use this to un-stick a paused node; use rerun_failed_node instead for a failed/undispatched node.",
+	}, makeResumePausedNode(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_task",
 		Description: "Optionally post a summary and move the task to completed.",
 	}, makeCompleteTask(cfg))

@@ -39,6 +39,7 @@ export type PlanNodeStatus =
   | 'ready'
   | 'dispatched'
   | 'running'
+  | 'paused' // T53: running task whose agent paused its work item (set aside)
   | 'done'
   | 'failed';
 
@@ -322,6 +323,17 @@ export function useStopPlan(projectId: string, planId: string) {
 export function useAdvancePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/advance`),
+  );
+}
+
+// T53: operator recovery — resume a `paused` plan node (its agent set the work
+// item aside and went idle). Resumes the node's work item + wakes the agent;
+// returns the refreshed plan so the DAG reflects the node leaving `paused`.
+export function useResumePausedNode(projectId: string, planId: string) {
+  return usePlanWrite<string, Plan>(projectId, planId, (taskId) =>
+    api.post<Plan>(
+      `${plansBase(projectId)}/${planId}/nodes/${encodeURIComponent(taskId)}/resume`,
+    ),
   );
 }
 
