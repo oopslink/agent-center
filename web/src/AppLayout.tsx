@@ -143,6 +143,8 @@ function buildModules(base: string): ReadonlyArray<ModuleDef> {
         // v2.8 #258: org-scope cross-project aggregation, Project 同级.
         { to: p('issues'), label: 'Issues', Icon: IssueIcon },
         { to: p('tasks'), label: 'Tasks', Icon: TaskIcon },
+        // v2.10.0 [T6]: global cross-project Plan list, Tasks 平级.
+        { to: p('plans'), label: 'Plan', Icon: PlanIcon },
       ],
     },
     {
@@ -1338,6 +1340,14 @@ function TaskIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M4 6h6M4 10h6M4 14h4" strokeLinecap="round" />
       <path d="M13 6.5l1.5 1.5 2.5-3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+// PlanIcon — a diamond (mockup ◇), the Workspace > Plan nav glyph.
+function PlanIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M10 2.5 17.5 10 10 17.5 2.5 10z" strokeLinejoin="round" />
     </svg>
   );
 }

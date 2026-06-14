@@ -41,6 +41,12 @@ var issueTerminalStatus = map[string]bool{"resolved": true, "closed": true, "wit
 // discarded task wrongly survived the default filter.)
 var taskTerminalStatus = map[string]bool{"completed": true, "discarded": true}
 
+// planTerminalStatus is the terminal Plan set the default ("all open") global
+// Plan list (v2.10.0 [T6]) excludes. Plan statuses are {draft, running, done,
+// archived}; only `archived` is the dead/hidden state (done plans still show in
+// the list, like the mockup). Mirrors the issue/task default-exclude semantics.
+var planTerminalStatus = map[string]bool{"archived": true}
+
 func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.PM == nil {
@@ -153,6 +159,78 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			items = append(items, s.orgTaskRow(r, d, t, p))
+		}
+	}
+	sortItemsUpdatedDesc(items)
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
+}
+
+// pmListOrgPlansHandler (v2.10.0 [T6]) — GET /api/orgs/{slug}/plans returns,
+// for the caller's org, every structured Plan across ALL the org's projects:
+// the data behind the global Workspace > Plan list. Mirrors the Issues/Tasks
+// aggregation (iterate the org's non-archived projects, reuse the per-project
+// ListPlanSummaries, no new repo/migration). Each row is the per-project plan
+// summary (id, name, status, progress{done,total}, has_failed, node_count,
+// timestamps) PLUS project{id,name} for the cross-project list + detail link.
+//
+// Excludes the per-project builtin assignment pool (ADR-0047 is_builtin) — it
+// is not a user-authored plan and has its own Work Board column, not the list.
+// Filters: status (default = all non-archived), project, time-range. Sorted
+// updated_at DESC.
+func (s *Server) pmListOrgPlansHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.PM == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	projects, err := d.PM.ListProjects(r.Context(), orgID)
+	if err != nil {
+		mapPMError(w, err)
+		return
+	}
+	statusFilter := parseSetParam(r, "status")
+	projectFilter := parseSetParam(r, "project")
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+		return
+	}
+
+	items := make([]map[string]any, 0)
+	for _, p := range projects {
+		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
+			continue
+		}
+		// Hide plans of an ARCHIVED project by default unless explicitly filtered
+		// (mirrors the issues/tasks archived-project default-exclude).
+		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
+			continue
+		}
+		summaries, lerr := d.PM.ListPlanSummaries(r.Context(), p.ID())
+		if lerr != nil {
+			mapPlanError(w, lerr)
+			return
+		}
+		for _, detail := range summaries {
+			pl := detail.Plan
+			// The builtin assignment pool is not a user plan — it lives on the
+			// project Work Board, not the global Plan list.
+			if pl.IsBuiltin() {
+				continue
+			}
+			if !statusPasses(string(pl.Status()), statusFilter, planTerminalStatus) {
+				continue
+			}
+			if !tf.passes(pl.CreatedAt(), pl.UpdatedAt()) {
+				continue
+			}
+			row := pmPlanSummaryMap(detail)
+			row["project"] = map[string]any{"id": string(p.ID()), "name": p.Name()}
+			items = append(items, row)
 		}
 	}
 	sortItemsUpdatedDesc(items)

@@ -192,6 +192,8 @@ func (s *Server) routes() {
 	// Workspace > Issues/Tasks). Org via requireOrgMember ({slug} path).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/issues", s.pmListOrgIssuesHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/tasks", s.pmListOrgTasksHandler)
+	// v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/plans", s.pmListOrgPlansHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}", s.pmGetProjectHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}", s.pmUpdateProjectHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}", s.pmArchiveProjectHandler)
