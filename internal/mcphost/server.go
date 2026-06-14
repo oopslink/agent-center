@@ -155,7 +155,7 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
-		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, attach it with attach_file (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
+		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
@@ -406,6 +406,16 @@ func makePostTaskMessage(cfg Config) mcp.ToolHandlerFor[postTaskMessageArgs, any
 	}
 }
 
+// postMessageAttachment is one already-uploaded file attached to a post_message
+// (T44). uri is the ac://files/{ulid} returned by upload_file; the rest is
+// display metadata rendered in the UI's attachment card.
+type postMessageAttachment struct {
+	URI      string `json:"uri" jsonschema:"the ac://files/{ulid} returned by upload_file"`
+	Filename string `json:"filename" jsonschema:"display filename"`
+	MimeType string `json:"mime_type" jsonschema:"the file's MIME type (drives image-preview vs file-chip rendering)"`
+	Size     int64  `json:"size" jsonschema:"file size in bytes"`
+}
+
 // postMessageArgs is the typed input for post_message (v2.7 #185). Like
 // post_task_message there is NO agent_id field — it is process-fixed and
 // injected by the handler so the model cannot spoof which agent posts.
@@ -415,6 +425,9 @@ type postMessageArgs struct {
 	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
 	// root message id the wake brief gave you. Omit for a normal top-level message.
 	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
+	// Attachments (T44): files to share in the conversation, rendered as preview
+	// cards. Upload each via upload_file first, then pass the returned file_uri here.
+	Attachments []postMessageAttachment `json:"attachments,omitempty" jsonschema:"optional files to attach (upload each via upload_file first, then pass the returned file_uri as uri); the UI renders them as preview cards"`
 }
 
 // makePostMessage returns the post_message handler bound to cfg. agent_id is
@@ -428,6 +441,18 @@ func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 		}
 		if args.ParentMessageID != "" {
 			body["parent_message_id"] = args.ParentMessageID
+		}
+		if len(args.Attachments) > 0 {
+			atts := make([]map[string]any, len(args.Attachments))
+			for i, att := range args.Attachments {
+				atts[i] = map[string]any{
+					"uri":       att.URI,
+					"filename":  att.Filename,
+					"mime_type": att.MimeType,
+					"size":      att.Size,
+				}
+			}
+			body["attachments"] = atts
 		}
 		return callAdmin(ctx, cfg, "post_message", body)
 	}
