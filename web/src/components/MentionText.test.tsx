@@ -217,6 +217,36 @@ describe('MentionText task-ref linkify (task-82915d7c)', () => {
     expect(link).toHaveAttribute('data-task-id', 'task-abc');
   });
 
+  it('requests ALL statuses so a ref to a COMPLETED task still linkifies (T62/task-336335c5)', async () => {
+    // T62 root cause: the resolver read the org task list with the DEFAULT
+    // filter, which excludes terminal {completed, discarded}. Agents reference
+    // completed tasks constantly, so those refs silently stayed plain text. The
+    // fix: the resolver must ask the backend to INCLUDE every status (status=all).
+    let requestedStatus: string[] = [];
+    server.use(
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/tasks', ({ request }) => {
+        requestedStatus = new URL(request.url).searchParams.getAll('status');
+        return HttpResponse.json({
+          items: [
+            {
+              id: 'task-done', org_ref: 'T99', project: { id: 'proj-x', name: 'Project X' },
+              title: 'Finished work', status: 'completed', assignee: null,
+              updated_at: 'x', created_at: 'x',
+            },
+          ],
+          total: 1,
+        });
+      }),
+    );
+    renderInOrg(<MarkdownMessage content={'shipped in task-done, see notes'} />);
+    const link = await screen.findByTestId('task-ref-token');
+    expect(link).toHaveTextContent('T99');
+    expect(link).toHaveAttribute('data-task-id', 'task-done');
+    // The resolver must have asked the backend to include terminal tasks.
+    expect(requestedStatus).toContain('all');
+  });
+
   it('falls back to the #id-tail handle when the task has no org_ref', async () => {
     mockOrgTasks();
     renderInOrg(<MarkdownMessage content={'blocked on task-noref now'} />);

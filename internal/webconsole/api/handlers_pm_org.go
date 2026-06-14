@@ -8,7 +8,9 @@
 // and reusing the per-project read methods (no new repo/migration).
 //
 // Filters (query params): status (repeated or comma-separated; default = "all
-// open" = exclude terminal states), project (repeated/comma; default all),
+// open" = exclude terminal states; the sentinel `status=all` surfaces EVERY
+// status incl. terminal — used by the message task-<id> linkify resolver, T62),
+// project (repeated/comma; default all),
 // assignee (member-id or ref; tasks only — issues are never assignable), and
 // time-range (v2.8.1): created_after / created_before / updated_after /
 // updated_before, all optional RFC3339 instants. The FE sends ABSOLUTE instants
@@ -244,10 +246,19 @@ func parseSetParam(r *http.Request, name string) map[string]bool {
 	return set
 }
 
-// statusPasses reports whether a status string passes the filter: when the
-// explicit set is non-empty, membership in it; otherwise the "all open"
-// default = not a terminal status.
+// statusPasses reports whether a status string passes the filter:
+//   - ?status=all (T62/task-336335c5): the escape hatch — EVERY status passes,
+//     terminal included. The message task-<id> linkify resolver uses this so a
+//     reference to a completed/discarded task (the common agent case) resolves
+//     instead of silently staying plain text. `all` is not a real pm status, so
+//     it can never collide with a concrete value and dominates when combined.
+//   - explicit non-empty: membership in the requested set (a terminal status
+//     surfaces only when explicitly asked for).
+//   - otherwise the "all open" default = not a terminal status.
 func statusPasses(status string, explicit, terminal map[string]bool) bool {
+	if explicit["all"] {
+		return true
+	}
 	if len(explicit) > 0 {
 		return explicit[status]
 	}

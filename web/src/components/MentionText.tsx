@@ -65,7 +65,12 @@ export interface ResolvedTaskRef {
 export function useTaskRefResolver(): (taskId: string) => ResolvedTaskRef | null {
   const ctx = useOptionalOrgContext();
   const slug = ctx?.slug;
-  const tasks = useOrgWorkItems('task', slug);
+  // T62 (task-336335c5): resolve against ALL statuses, NOT the default "all open"
+  // list. The default excludes terminal tasks {completed, discarded}; agents
+  // reference completed tasks constantly, so a ref to one silently stayed plain
+  // text. status=all is the backend escape hatch that surfaces every status for
+  // reference resolution (a separate query key from the open work board's list).
+  const tasks = useOrgWorkItems('task', slug, { status: ['all'] });
   return useMemo(() => {
     const byId = new Map<string, { orgRef?: string; projectId: string }>();
     for (const it of tasks.data?.items ?? []) {
