@@ -1,10 +1,15 @@
 import type React from 'react';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { FakeEventSource } from '@/sse/fakeEventSource';
 import { ContextPanel } from '@/shell/contextPanel';
+// v2.10.0 [T64]: this suite asserts the DEFAULT col② (built-in NavGroup per
+// module). Conversations now registers a per-module override, so mock the
+// registry empty to keep exercising the default-fallback path (the registered
+// override is covered by shell/nav/ConversationsSecondaryNav.test.tsx).
+vi.mock('@/shell/secondaryNav', () => ({ SECONDARY_NAV_REGISTRY: {} }));
 import AppLayout from './AppLayout';
 
 beforeAll(() => {

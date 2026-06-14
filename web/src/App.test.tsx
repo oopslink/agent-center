@@ -125,10 +125,9 @@ describe('App shell + route tree', () => {
         // v2.10.0 [T6]: global Plan list, Tasks 平级.
         ['Plan', `${ORG_BASE}/plans`],
       ]],
-      [`${ORG_BASE}/channels`, [
-        ['Channels', `${ORG_BASE}/channels`],
-        ['DMs', `${ORG_BASE}/dms`],
-      ]],
+      // v2.10.0 [T64]: Conversations owns a custom col② (ConversationsSecondaryNav)
+      // — Channels / Direct messages SECTIONS (not nav-item links), asserted
+      // separately below by their canonical create links.
       // v2.10.0 [T7]: Members owns a custom col② (MembersSecondaryNav) — Humans
       // / Agents sections each with an "All …" row to the list/table page.
       [`${ORG_BASE}/members/humans`, [
@@ -150,6 +149,15 @@ describe('App shell + route tree', () => {
         expect(link, `col② link for ${label} on ${route}`).toBeDefined();
         expect(link).toHaveAttribute('href', href);
       }
+      unmount();
+    }
+    // v2.10.0 [T64]: Conversations custom col② — the Channels / Direct messages
+    // sections carry create links to the canonical org-scoped index routes.
+    {
+      const { unmount } = renderAppAt(`${ORG_BASE}/channels`);
+      const nav = await screen.findByRole('navigation', { name: /^primary$/ });
+      expect(within(nav).getByTestId('conv-new-channel')).toHaveAttribute('href', `${ORG_BASE}/channels`);
+      expect(within(nav).getByTestId('conv-new-dm')).toHaveAttribute('href', `${ORG_BASE}/dms`);
       unmount();
     }
   }, 20000);
@@ -310,11 +318,12 @@ describe('App shell + route tree', () => {
     for (const id of ['workspace', 'conversations', 'members', 'system']) {
       expect(screen.getByTestId(`rail-module-${id}`)).toBeInTheDocument();
     }
-    // col② — the active (Conversations) module's items; other modules' items
-    // are NOT in the secondary nav (only the rail switches to them).
+    // col② — the active (Conversations) module's custom nav (T64): the Channels
+    // and Direct messages sections; other modules' items are NOT in the secondary
+    // nav (only the rail switches to them).
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
     expect(nav).toHaveTextContent('Channels');
-    expect(nav).toHaveTextContent('DMs');
+    expect(nav).toHaveTextContent('Direct messages');
     expect(within(nav).queryByRole('link', { name: /^settings$/i })).not.toBeInTheDocument();
     // No Overview/Home anywhere.
     expect(nav).not.toHaveTextContent('Overview');

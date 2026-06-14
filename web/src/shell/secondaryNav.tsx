@@ -1,4 +1,5 @@
 import type React from 'react';
+import { ConversationsSecondaryNav } from '@/shell/nav/ConversationsSecondaryNav'; // T2/T64 (dev1)
 import { MembersSecondaryNav } from '@/shell/nav/MembersSecondaryNav'; // T7 (dev3)
 import WorkspaceSecondaryNav from '@/shell/nav/WorkspaceSecondaryNav'; // T4 (dev2)
 
@@ -39,7 +40,7 @@ export type ModuleSecondaryNav = React.ComponentType<ModuleSecondaryNavProps>;
 export const SECONDARY_NAV_REGISTRY: Partial<Record<ShellModuleId, ModuleSecondaryNav>> = {
   // v2.10.0 [T4]: route-aware Workspace nav (top-level list ↔ project sub-nav).
   workspace: WorkspaceSecondaryNav,
-  // conversations: ConversationsSecondaryNav,   // T2 (dev1)
+  conversations: ConversationsSecondaryNav, // T2 / T64 (dev1)
   members: MembersSecondaryNav, // T7 (dev3)
   // system:        SystemSecondaryNav,          // T8 (dev3)
 };

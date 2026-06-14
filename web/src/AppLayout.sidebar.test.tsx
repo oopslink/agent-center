@@ -1,13 +1,23 @@
 // v2.10.0 [T1] — col② secondary nav: per-module collapsible group +
 // Channels/DMs/Projects sub-lists (carried over from the v2.5.x #63 single
 // sidebar, now scoped to the active module the rail selects).
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
+
+// This suite verifies the SHELL DEFAULT col② (the built-in NavGroup + channel/DM/
+// project expandable sub-lists). v2.10.0 [T64] registered a per-module override
+// for Conversations (ConversationsSecondaryNav), which would otherwise replace
+// the default for the /channels routes used here. We mock the registry empty so
+// this suite keeps exercising the default-fallback path generically (mirrors the
+// registry-mock in secondaryNav.test.tsx); the registered Conversations col② is
+// covered by shell/nav/ConversationsSecondaryNav.test.tsx.
+vi.mock('@/shell/secondaryNav', () => ({ SECONDARY_NAV_REGISTRY: {} }));
+
 import AppLayout from './AppLayout';
 
 // Polyfill localStorage so the per-group / per-subitem persist effects work.
