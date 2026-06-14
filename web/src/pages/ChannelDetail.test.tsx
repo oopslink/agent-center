@@ -5,21 +5,37 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
+import { useContextPanelController } from '@/shell/contextPanel';
 import ChannelDetail from './ChannelDetail';
 
 beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
 });
 
+// v2.10.0 [T64]: ChannelDetail now renders its participants + shared-files into
+// the shell's col④ via <ContextPanel> (a portal). Provide a host so the panel
+// mounts in this isolated page test (mirrors AppLayout's controller).
+function WithCol4Host({ children }: { children: React.ReactNode }): React.ReactElement {
+  const { Provider, value, setHost } = useContextPanelController();
+  return (
+    <Provider value={value}>
+      {children}
+      <div ref={setHost} data-testid="col4-host" />
+    </Provider>
+  );
+}
+
 function wrap(path: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/channels/:channelId" element={<ChannelDetail />} />
-        </Routes>
-      </MemoryRouter>
+      <WithCol4Host>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/channels/:channelId" element={<ChannelDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </WithCol4Host>
     </QueryClientProvider>,
   );
 }
