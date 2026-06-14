@@ -125,9 +125,11 @@ describe('App shell + route tree', () => {
         ['Channels', `${ORG_BASE}/channels`],
         ['DMs', `${ORG_BASE}/dms`],
       ]],
+      // v2.10.0 [T7]: Members owns a custom col② (MembersSecondaryNav) — Humans
+      // / Agents sections each with an "All …" row to the list/table page.
       [`${ORG_BASE}/members/humans`, [
-        ['Humans', `${ORG_BASE}/members/humans`],
-        ['Agents', `${ORG_BASE}/agents`],
+        ['All humans', `${ORG_BASE}/members/humans`],
+        ['All agents', `${ORG_BASE}/agents`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
@@ -223,9 +225,10 @@ describe('App shell + route tree', () => {
     await renderAt(`${ORG_BASE}/members/humans`);
     await waitFor(() => expect(screen.getByTestId('page-MembersHumans')).toBeInTheDocument());
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    // v2.10.0 [T7]: the Agents section's "All agents" row is the canonical link.
     const agentsLink = within(nav)
       .getAllByRole('link')
-      .find((a) => a.textContent?.trim().startsWith('Agents'));
+      .find((a) => a.textContent?.trim().startsWith('All agents'));
     expect(agentsLink).toBeDefined();
     expect(agentsLink).toHaveAttribute('href', `${ORG_BASE}/agents`);
     expect(agentsLink).not.toHaveAttribute('href', `${ORG_BASE}/members/agents`);

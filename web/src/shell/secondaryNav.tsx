@@ -1,4 +1,5 @@
 import type React from 'react';
+import { MembersSecondaryNav } from '@/shell/nav/MembersSecondaryNav'; // T7 (dev3)
 
 // ============================================================================
 // v2.10.0 [T1] — col② per-module secondary-nav registry.
@@ -36,6 +37,6 @@ export type ModuleSecondaryNav = React.ComponentType<ModuleSecondaryNavProps>;
 // Module tasks add their entry here (and only here, besides their own file).
 export const SECONDARY_NAV_REGISTRY: Partial<Record<ShellModuleId, ModuleSecondaryNav>> = {
   // conversations: ConversationsSecondaryNav,   // T2 (dev1)
-  // members:       MembersSecondaryNav,         // T7 (dev3)
+  members: MembersSecondaryNav, // T7 (dev3)
   // system:        SystemSecondaryNav,          // T8 (dev3)
 };
