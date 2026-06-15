@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useFleet } from '@/api/fleet';
 import { formatLocalTime } from '@/utils/time';
 import { useAgents } from '@/api/agents';
+import { useDisplayNameResolver } from '@/api/members';
 import { useTransferSessions } from '@/api/workers';
 import { withOrgSlug } from '@/api/client';
 import { useOptionalOrgContext, OrgLink } from '@/OrgContext';
@@ -570,6 +571,7 @@ function AllStream({
   issues: FleetIssueRow[];
   transfers: TransferSession[];
 }): React.ReactElement {
+  const resolveAgent = useWorkItemAgentResolver(base);
   return (
     <ul
       className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
@@ -583,7 +585,7 @@ function AllStream({
           data-kind="work_item"
         >
           <TypeTag label="Work" testId="environment-activity-all-type" />
-          <WorkItemContent base={base} wi={wi} />
+          <WorkItemContent base={base} wi={wi} agent={resolveAgent(wi.agent_id)} />
         </li>
       ))}
       {issues.map((i) => (
@@ -612,6 +614,31 @@ function AllStream({
   );
 }
 
+// v2.10.2 [T141]: resolve a work item's agent member-id → its display NAME + the
+// /agents/{id} detail link. The fleet row exposes the agent's MEMBER id (#185, no
+// entity-ULID leak); the execution Agent carries identity_member_id == that member
+// id (#157 MembersAgents pattern) → the route id, and the members list → the name.
+// Unresolved → name falls back to a clean #hash (never the raw agent-<id>) and the
+// agent renders as plain text (no broken link).
+function useWorkItemAgentResolver(base: string): (memberID: string) => { name: string; href: string | null } {
+  const displayName = useDisplayNameResolver();
+  const agents = useAgents();
+  const agentIDByMember = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of agents.data ?? []) {
+      if (a.identity_member_id) m.set(a.identity_member_id, a.id);
+    }
+    return m;
+  }, [agents.data]);
+  return (memberID: string) => {
+    if (!memberID) return { name: '', href: null };
+    const resolved = displayName(memberID);
+    const name = resolved === memberID ? `#${idHandle(memberID)}` : resolved;
+    const agentID = agentIDByMember.get(memberID);
+    return { name, href: agentID ? `${base}/agents/${encodeURIComponent(agentID)}` : null };
+  };
+}
+
 // Shared row-content renderers (kept in sync between the All stream and the
 // dedicated tabs).
 // v2.10.2 [T140]: render the work item as "T<n> + title" (org_ref + title) and
@@ -620,7 +647,17 @@ function AllStream({
 // 404'd (tasks nest under their project). org_ref falls back to a clean #hash
 // (#245 / T126 id-as-content), never the raw id; the link needs project_id (the
 // route's required segment) — without it the row stays plain text, not a 404 link.
-function WorkItemContent({ base, wi }: { base: string; wi: WorkItemRow }): React.ReactElement {
+// v2.10.2 [T141]: the agent shows its display NAME + links to the agent detail
+// page (resolved by the caller via useWorkItemAgentResolver), not the raw agent-id.
+function WorkItemContent({
+  base,
+  wi,
+  agent,
+}: {
+  base: string;
+  wi: WorkItemRow;
+  agent: { name: string; href: string | null };
+}): React.ReactElement {
   const ref = wi.task_org_ref || (wi.task_id ? `#${idHandle(wi.task_id)}` : '');
   const label = [ref, wi.task_title].filter(Boolean).join(' · ') || wi.work_item_id;
   const taskHref =
@@ -645,7 +682,20 @@ function WorkItemContent({ base, wi }: { base: string; wi: WorkItemRow }): React
           </span>
         )}{' '}
         <span className="text-text-muted">agent</span>{' '}
-        <span className="font-mono">{wi.agent_id}</span>
+        {agent.href ? (
+          <Link
+            to={agent.href}
+            className="text-accent hover:underline"
+            data-testid="environment-workitem-agent-link"
+            title={wi.agent_id}
+          >
+            {agent.name}
+          </Link>
+        ) : (
+          <span className="font-mono" title={wi.agent_id}>
+            {agent.name}
+          </span>
+        )}
         {wi.current_activity ? (
           <span className="text-text-muted"> · {wi.current_activity}</span>
         ) : null}
@@ -687,6 +737,7 @@ function TransferContent({ tr }: { tr: TransferSession }): React.ReactElement {
 }
 
 function WorkItemsList({ base, workItems }: { base: string; workItems: WorkItemRow[] }): React.ReactElement {
+  const resolveAgent = useWorkItemAgentResolver(base);
   return (
     <ul
       className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-sm text-text-primary"
@@ -699,7 +750,7 @@ function WorkItemsList({ base, workItems }: { base: string; workItems: WorkItemR
           data-testid="environment-workitem-row"
           data-work-item-id={wi.work_item_id}
         >
-          <WorkItemContent base={base} wi={wi} />
+          <WorkItemContent base={base} wi={wi} agent={resolveAgent(wi.agent_id)} />
         </li>
       ))}
     </ul>

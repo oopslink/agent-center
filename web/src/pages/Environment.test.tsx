@@ -201,6 +201,43 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     expect(screen.queryByTestId('environment-workitem-task-link')).not.toBeInTheDocument();
   });
 
+  // v2.10.2 [T141]: the work-item agent shows its display NAME (not the raw
+  // agent-<id>) and links to the agent detail page (member-id → execution-Agent id
+  // via identity_member_id, #157 pattern).
+  it('renders the work-item agent as its name + a link to the agent detail (T141)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
+            work_items: [
+              { work_item_id: 'wi-1', task_id: 'task-1', project_id: 'proj-x', agent_id: 'agent-mem-1', status: 'active' },
+            ],
+          }),
+        ),
+      ),
+      // The execution Agent carries identity_member_id == the row's agent member id
+      // → gives the /agents/{id} route id. worker_id '' keeps it out of a worker card.
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent('A-1', '', { identity_member_id: 'agent-mem-1', name: 'agent-center-dev3' })],
+        }),
+      ),
+      // The members list resolves the display name.
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { identity_id: 'agent-mem-1', display_name: 'agent-center-dev3', kind: 'agent', status: 'joined' },
+        ]),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
+    const agentLink = await screen.findByTestId('environment-workitem-agent-link');
+    expect(agentLink).toHaveTextContent('agent-center-dev3');
+    expect(agentLink).toHaveAttribute('href', '/agents/A-1');
+    expect(agentLink.textContent).not.toContain('agent-mem-1'); // raw member id only on hover
+  });
+
   it('renders in-flight transfer sessions in the Activity Transfers tab', async () => {
     server.use(
       http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([]))),
