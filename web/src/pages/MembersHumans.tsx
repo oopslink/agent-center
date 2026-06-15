@@ -8,8 +8,12 @@ import {
   normalizeIdentityRef,
   type MemberResult,
 } from '@/api/members';
+import { Link } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { EntityRef } from '@/components/EntityRef';
+import { Avatar } from '@/components/Avatar';
+import { MembersSegmentControl } from '@/components/MembersSegmentControl';
+import { useOpenDm } from '@/components/useOpenDm';
 
 // v2.7.1 #193: short date for the Humans list columns (empty → em dash).
 function fmtDate(v?: string): string {
@@ -309,6 +313,7 @@ function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement 
 
 export default function MembersHumans(): React.ReactElement {
   const members = useMembers();
+  const openDm = useOpenDm();
   const [addModalOpen, setAddModalOpen] = useState(false);
 
   // Use `kind` field from v2.6 member response; fall back to identity_id prefix for compatibility.
@@ -329,6 +334,9 @@ export default function MembersHumans(): React.ReactElement {
         </button>
       </div>
 
+      {/* Mobile (col② is hidden <md): segmented Humans/Agents switch. */}
+      <MembersSegmentControl active="humans" />
+
       {members.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
       {members.isError && (
         <p className="text-sm text-danger">Failed to load: {String(members.error)}</p>
@@ -338,8 +346,47 @@ export default function MembersHumans(): React.ReactElement {
         <p className="text-sm text-text-muted">No human members yet</p>
       )}
 
+      {/* Mobile (<md): card rows — avatar (tap → DM) + name + role; tap row → UserDetail. */}
       {humanMembers.length > 0 && (
-        <div className="overflow-x-auto">
+        <ul className="space-y-2 md:hidden" data-testid="members-humans-cards">
+          {humanMembers.map((m) => {
+            const name = m.display_name || normalizeIdentityRef(m.identity_id);
+            return (
+              <li
+                key={m.id}
+                className="flex items-center gap-3 rounded-lg border border-border bg-bg-elevated p-2"
+                data-testid="human-member-card"
+                data-identity={m.identity_id}
+              >
+                <button
+                  type="button"
+                  onClick={() => openDm.open(m.identity_id)}
+                  disabled={openDm.pending}
+                  aria-label={`Message ${name}`}
+                  data-testid="human-card-dm"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg disabled:opacity-50"
+                >
+                  <Avatar name={name} kind="human" size="md" />
+                </button>
+                <Link
+                  to={`/users/${encodeURIComponent(normalizeIdentityRef(m.identity_id))}`}
+                  className="flex min-h-[44px] min-w-0 flex-1 items-center"
+                  data-testid="human-card-link"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-text-primary">{name}</span>
+                    <span className="block truncate text-xs text-text-muted">{m.role}</span>
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Desktop (≥md): the full table. */}
+      {humanMembers.length > 0 && (
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border">
