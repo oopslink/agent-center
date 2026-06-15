@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -228,5 +228,65 @@ describe('Projects page', () => {
     );
     wrap(<Projects />);
     await waitFor(() => expect(screen.getByTestId('projects-error')).toHaveTextContent(/db down/));
+  });
+
+  // -------------------------------------------------------------------------
+  // T139 — per-card quick-action shortcuts (Edit / Work Board / Tasks / Issues
+  // / Codebase) with correct project-scoped routing.
+  // -------------------------------------------------------------------------
+  function oneProject(): void {
+    server.use(
+      http.get('/api/projects', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        if (status === 'archived') return HttpResponse.json({ projects: [] });
+        return HttpResponse.json({
+          projects: [
+            { id: 'proj-a', name: 'Project Alpha', description: 'first', status: 'active', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        });
+      }),
+    );
+  }
+
+  it('T139: a project card shows the 5 quick-action shortcuts with project-scoped routes', async () => {
+    oneProject();
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getByTestId('project-row')).toBeInTheDocument());
+
+    // Work Board / Tasks / Issues / Codebase are links into the project's views.
+    expect(screen.getByTestId('project-shortcut-board')).toHaveAttribute('href', '/projects/proj-a/plans');
+    expect(screen.getByTestId('project-shortcut-tasks')).toHaveAttribute('href', '/projects/proj-a?tab=tasks');
+    expect(screen.getByTestId('project-shortcut-issues')).toHaveAttribute('href', '/projects/proj-a?tab=issues');
+    expect(screen.getByTestId('project-shortcut-codebase')).toHaveAttribute('href', '/projects/proj-a?tab=repos');
+    // Edit is a button (opens the edit modal), not a link.
+    expect(screen.getByTestId('project-shortcut-edit').tagName).toBe('BUTTON');
+    // The card name still links to the project detail (unchanged behavior).
+    const links = screen.getAllByRole('link');
+    expect(links.some((a) => a.getAttribute('href') === '/projects/proj-a')).toBe(true);
+  });
+
+  it('T139: clicking the Edit shortcut opens the project edit modal', async () => {
+    oneProject();
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getByTestId('project-row')).toBeInTheDocument());
+    expect(screen.queryByTestId('project-edit-modal')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('project-shortcut-edit'));
+    expect(screen.getByTestId('project-edit-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('project-edit-name')).toHaveValue('Project Alpha');
+  });
+
+  it('T139: the compact (<md) "⋯" menu lists the same shortcuts and collapses behind a toggle', async () => {
+    oneProject();
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getByTestId('project-row')).toBeInTheDocument());
+
+    // The menu is closed initially.
+    expect(screen.queryByTestId('project-actions-menu')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('project-actions-menu-btn'));
+    const menu = screen.getByTestId('project-actions-menu');
+    expect(within(menu).getByTestId('project-shortcut-menu-board')).toHaveAttribute('href', '/projects/proj-a/plans');
+    expect(within(menu).getByTestId('project-shortcut-menu-codebase')).toHaveAttribute('href', '/projects/proj-a?tab=repos');
+    expect(within(menu).getByTestId('project-shortcut-menu-edit').tagName).toBe('BUTTON');
   });
 });
