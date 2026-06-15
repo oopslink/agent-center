@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // useResizablePanel (v2.10.x desktop) — a small, surface-agnostic hook that owns
 // a single panel's draggable width: pointer-drag from an edge handle, keyboard
 // arrows for a11y, clamp to [minWidth, maxWidth], and localStorage persistence so
-// the chosen width survives reloads. Shared by the col④ ThreadSidebar (task-97c7600a)
-// and the channel ParticipantsPanel (task-412a6835) so the resize interaction is
-// identical across both — one component, one contract.
+// the chosen width survives reloads. Shared by the ThreadSidebar (task-97c7600a)
+// and the col④ context-panel column (AppLayout, T128) so the resize interaction is
+// identical across both — one hook, one contract.
 //
 // Anchoring: both panels sit on the RIGHT of the screen, so the handle is on the
 // panel's LEFT edge (edge: 'left') — dragging left (clientX decreasing) widens.

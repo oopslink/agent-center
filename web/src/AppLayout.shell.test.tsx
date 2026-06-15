@@ -115,6 +115,33 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(within(ctx).getByTestId('panel-content')).toHaveTextContent('参与者 · 3');
   });
 
+  // v2.10.2 [T128]: the col④ COLUMN itself is the resizable surface — the
+  // left-edge grip drives the whole sidebar's width (a CSS var consumed by
+  // md:w-[var(--ctx-w)]), not the inner panel content (the bug T128 fixed).
+  it('col④ has a left-edge resize handle; a left-drag widens the whole column and persists it', () => {
+    // jsdom's localStorage is method-less here; install a real Map-backed stub.
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
+      setItem: (k: string, v: string) => void store.set(k, String(v)),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => void store.clear(),
+    });
+    renderShell('/panel');
+    const ctx = screen.getByTestId('context-panel');
+    // Default = the prior w-64 (256px), carried on the --ctx-w CSS var.
+    expect(ctx.getAttribute('style')).toContain('--ctx-w: 256px');
+    const handle = screen.getByTestId('context-panel-resize');
+    expect(handle).toHaveAttribute('aria-orientation', 'vertical');
+    // Left-edge handle on a right-anchored column: dragging LEFT widens.
+    fireEvent.mouseDown(handle, { clientX: 900 });
+    fireEvent.mouseMove(window, { clientX: 850 }); // 50px left -> +50
+    fireEvent.mouseUp(window, { clientX: 850 });
+    expect(ctx.getAttribute('style')).toContain('--ctx-w: 306px');
+    expect(localStorage.getItem('ac.contextpanel.width')).toBe('306');
+    vi.unstubAllGlobals();
+  });
+
   // v2.10.1 [M1] mobile (<768) shell: bottom Tab Bar (col①) + top bar actions
   // + col④ context as a dismissible bottom sheet + account/org/theme sheet.
   it('mobile bottom tab bar lists the four modules, links to defaults, marks active, ≥44px targets', () => {
