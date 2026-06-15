@@ -1,19 +1,32 @@
-import type React from 'react';
+import React, { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
+
+// Probe the current router location so a test can assert a navigation happened.
+function LocationProbe(): React.ReactElement {
+  const loc = useLocation();
+  return <div data-testid="location-probe">{loc.pathname}</div>;
+}
 
 afterEach(() => cleanup());
 
 // Fresh QueryClient per render so cached agent/user responses don't leak.
+// MemoryRouter: T136's header "Open DM" button uses useOpenDm → useNavigate,
+// which requires a Router ancestor (the live app always renders within one).
 function render(ui: React.ReactElement) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return rtlRender(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return rtlRender(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 const noop = () => {};
@@ -138,6 +151,82 @@ describe('SenderDetailSidebar', () => {
     await waitFor(() => expect(screen.getByTestId('sender-sidebar-user')).toBeInTheDocument());
     expect(screen.getByText('Hayang Li')).toBeInTheDocument();
     expect(screen.getByText('hey@example.com')).toBeInTheDocument();
+    // T136: the "Open DM" header button is agent-only (no DM button for a user).
+    expect(screen.queryByTestId('sender-sidebar-dm')).not.toBeInTheDocument();
+  });
+
+  // T136: the agent header has a no-text "Open DM" icon button that opens/creates
+  // the 1:1 DM with this agent and closes the sidebar (navigation happens on the
+  // DM create success). The button carries a tooltip + aria-label "Open DM".
+  it('agent header shows an "Open DM" icon button; clicking it creates the DM and closes', async () => {
+    let postedBody: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id), organization_id: 'O-1', name: 'builder-bot', description: '',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-9',
+          lifecycle: 'running', availability: 'busy', created_by: 'user:hayang', version: 1,
+          created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+      http.post('/api/conversations', async ({ request }) => {
+        postedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ conversation_id: 'dm-1' });
+      }),
+    );
+    const onClose = vi.fn();
+    render(<SenderDetailSidebar open senderRef={'agent:A-9'} onClose={onClose} />);
+    const dm = await screen.findByTestId('sender-sidebar-dm');
+    expect(dm).toHaveAttribute('aria-label', 'Open DM');
+    expect(dm).toHaveAttribute('title', 'Open DM');
+    expect(dm).not.toHaveTextContent(/dm|message/i); // icon-only, no text label.
+
+    fireEvent.click(dm);
+    // Opens/creates the 1:1 DM with this agent…
+    await waitFor(() => expect(postedBody).toEqual({ kind: 'dm', members: ['agent:A-9'] }));
+    // …and closes the sidebar so the operator lands in the conversation.
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // v2.10.2 [T159] regression (Tester2 run-real FAIL): clicking "Open DM" calls
+  // onClose() synchronously, which UNMOUNTS the button before the POST resolves.
+  // The navigate must STILL happen (it used to be a mutate() per-call onSuccess
+  // that React Query discarded on the unmounted observer → DM created but never
+  // opened). Here onClose actually unmounts the sidebar (open→false), unlike the
+  // vi.fn() above, so it reproduces the real flow.
+  it('T159: navigates to the DM even though onClose unmounts the button first', async () => {
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id), organization_id: 'O-1', name: 'builder-bot', description: '',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-9',
+          lifecycle: 'running', availability: 'busy', created_by: 'user:hayang', version: 1,
+          created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+      http.post('/api/conversations', () => HttpResponse.json({ conversation_id: 'dm-1' })),
+    );
+    function Harness(): React.ReactElement {
+      const [open, setOpen] = useState(true);
+      return <SenderDetailSidebar open={open} senderRef={'agent:A-9'} onClose={() => setOpen(false)} />;
+    }
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    rtlRender(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <Harness />
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByTestId('sender-sidebar-dm'));
+    // The button unmounts immediately (onClose → open=false), yet the DM opens.
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/dms/dm-1'),
+    );
+    expect(screen.queryByTestId('sender-sidebar-dm')).not.toBeInTheDocument();
   });
 
   // F2 (v2.8.1): a force-deleted agent's GET /api/agents/{id} returns 404. The

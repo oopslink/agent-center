@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
+import { localDateToRFC3339 } from '@/utils/time';
+import type { DateRange } from '@/components/WorkItemFilterBar';
 import type { OrgWorkItem } from './types';
 
 // v2.8 #258: org-scoped cross-project Issues/Tasks aggregation.
@@ -30,7 +32,11 @@ export interface OrgWorkItemFilters {
   updated_before?: string;
 }
 
-function buildQuery(f?: OrgWorkItemFilters): string {
+// buildWorkItemQuery — the SINGLE place the work-item filter params are turned
+// into a query string. Reused by the org-scoped aggregation hook AND the
+// per-project Task/Issue list hooks (T131), so both surfaces send the identical
+// param contract (status / project / assignee / created_*/updated_*).
+export function buildWorkItemQuery(f?: OrgWorkItemFilters): string {
   if (!f) return '';
   const p = new URLSearchParams();
   for (const id of f.project ?? []) p.append('project', id);
@@ -43,6 +49,34 @@ function buildQuery(f?: OrgWorkItemFilters): string {
   if (f.updated_before) p.set('updated_before', f.updated_before);
   const s = p.toString();
   return s ? `?${s}` : '';
+}
+
+// buildWorkItemFilters — convert the FilterBar's raw UI state into the wire
+// filter object: empty status omits the param (backend default excludes terminal),
+// project ids pass through, and each date picker is converted local→RFC3339-offset
+// (start = 00:00:00, end/"before" = 23:59:59) and omitted when empty. Shared by the
+// global page and the per-project lists so the local-date→instant 命门 lives in ONE
+// place. Returns undefined when nothing is set (so the hook skips the query string).
+export function buildWorkItemFilters(opts: {
+  selectedStatuses: string[];
+  selectedProjects: string[];
+  assignee: string;
+  dateRange: DateRange;
+}): OrgWorkItemFilters | undefined {
+  const { selectedStatuses, selectedProjects, assignee, dateRange } = opts;
+  const f: OrgWorkItemFilters = {};
+  if (selectedStatuses.length > 0) f.status = selectedStatuses;
+  if (selectedProjects.length > 0) f.project = selectedProjects;
+  if (assignee) f.assignee = assignee;
+  const createdAfter = localDateToRFC3339(dateRange.created_after, 'start');
+  const createdBefore = localDateToRFC3339(dateRange.created_before, 'end');
+  const updatedAfter = localDateToRFC3339(dateRange.updated_after, 'start');
+  const updatedBefore = localDateToRFC3339(dateRange.updated_before, 'end');
+  if (createdAfter) f.created_after = createdAfter;
+  if (createdBefore) f.created_before = createdBefore;
+  if (updatedAfter) f.updated_after = updatedAfter;
+  if (updatedBefore) f.updated_before = updatedBefore;
+  return Object.keys(f).length > 0 ? f : undefined;
 }
 
 interface OrgWorkItemList {
@@ -61,7 +95,7 @@ export function useOrgWorkItems(
     queryKey: key,
     // org_slug is auto-injected by the client (/api/projects convention); slug is
     // kept only to scope the query-cache key + gate the fetch to an org route.
-    queryFn: () => api.get<OrgWorkItemList>(`${path}${buildQuery(filters)}`),
+    queryFn: () => api.get<OrgWorkItemList>(`${path}${buildWorkItemQuery(filters)}`),
     enabled: !!slug,
   });
 }

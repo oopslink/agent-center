@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRemoveParticipant } from '@/api/conversations';
 import { useDisplayNameResolver } from '@/api/members';
 import { useAppStore } from '@/store/app';
@@ -8,44 +8,28 @@ import { MemberInviteModal } from './MemberInviteModal';
 import { EntityRef } from './EntityRef';
 import { Avatar } from './Avatar';
 import { ConversationThreadList } from './ConversationThreadList';
-import { ResizeHandle } from './ResizeHandle';
-import { useResizablePanel } from './useResizablePanel';
 
 interface Props {
   conversationId: string;
   participants: Participant[];
   /**
    * v2.10.1 [T96]: render the embedded thread list at the bottom. Default true
-   * (the standalone panel). The channel Chat tab passes false because Threads
-   * is now its own sibling tab.
+   * (the standalone panel). The channel Participants tab passes false because
+   * Threads is now its own sibling tab.
    */
   showThreads?: boolean;
 }
 
-const COLLAPSE_KEY = 'ac.participants.collapsed';
-
-// Desktop width bounds (task-412a6835): default = the prior w-64 (256px); a
-// sensible floor so the names stay readable, and a ceiling so the panel can't
-// swallow the conversation. Reuses the same useResizablePanel/ResizeHandle as the
-// Thread panel (task-97c7600a) so the drag interaction is identical.
-const PARTICIPANTS_WIDTH_KEY = 'ac.participants.panel.width';
-const PARTICIPANTS_DEFAULT_WIDTH = 256;
-const PARTICIPANTS_MIN_WIDTH = 200;
-const PARTICIPANTS_MAX_WIDTH = 480;
-
-function readCollapsed(): boolean {
-  try {
-    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return false;
-    return localStorage.getItem(COLLAPSE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 // ParticipantsPanel — list participants + role + invite/remove controls.
-// Only the channel owner (or supervisor) gets the action buttons; non-
-// owners see a read-only list. v2.7 #167: invite is a search+multi-select
-// modal (MemberInviteModal), and the panel can collapse/expand.
+// Only the channel owner (or supervisor) gets the action buttons; non-owners
+// see a read-only list. v2.7 #167: invite is a search+multi-select modal
+// (MemberInviteModal).
+//
+// v2.10.2 [T128]: this is now pure tab CONTENT inside the channel col④ sidebar
+// (ChannelSidebarTabs → the "Participants" tab). The panel no longer owns its own
+// width/resize (the col④ COLUMN is the resizable surface now — AppLayout) nor a
+// collapse header — the tab label already names it, so the inner title block was a
+// duplicate and is gone; the list renders directly.
 export function ParticipantsPanel({
   conversationId,
   participants,
@@ -59,86 +43,9 @@ export function ParticipantsPanel({
   const active = participants.filter((p) => !p.left_at);
   const remove = useRemoveParticipant();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
-  // Desktop: a draggable left-edge handle resizes the expanded panel (persisted).
-  const { width, resizing, handleProps } = useResizablePanel({
-    storageKey: PARTICIPANTS_WIDTH_KEY,
-    defaultWidth: PARTICIPANTS_DEFAULT_WIDTH,
-    minWidth: PARTICIPANTS_MIN_WIDTH,
-    maxWidth: PARTICIPANTS_MAX_WIDTH,
-    edge: 'left',
-  });
-
-  useEffect(() => {
-    try {
-      if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
-        localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
-      }
-    } catch {
-      // ignore
-    }
-  }, [collapsed]);
-
-  if (collapsed) {
-    return (
-      <aside
-        className="flex w-10 flex-shrink-0 flex-col items-center border-l border-border-base bg-bg-subtle py-3"
-        aria-label="participants"
-        data-testid="participants-panel"
-        data-collapsed="true"
-      >
-        <button
-          type="button"
-          onClick={() => setCollapsed(false)}
-          aria-label="Expand participants"
-          title={`Participants (${active.length})`}
-          data-testid="participants-expand"
-          className="rounded p-1 text-text-secondary hover:bg-bg-base hover:text-text-primary"
-        >
-          ‹ {active.length}
-        </button>
-      </aside>
-    );
-  }
 
   return (
-    <aside
-      className="relative flex-shrink-0 border-l border-border-base bg-bg-subtle p-4"
-      style={{ width }}
-      aria-label="participants"
-      data-testid="participants-panel"
-      data-collapsed="false"
-    >
-      {/* Left-edge resize grip (desktop): drag to set the panel width. */}
-      <ResizeHandle
-        edge="left"
-        handleProps={handleProps}
-        resizing={resizing}
-        ariaLabel="Resize participants panel"
-        testId="participants-resize"
-      />
-
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-          Participants
-          {/* 8th channel redesign: a small count pill (bg-subtle). */}
-          <span
-            className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary"
-            data-testid="participants-count-chip"
-          >
-            {active.length}
-          </span>
-        </h3>
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          aria-label="Collapse participants"
-          data-testid="participants-collapse"
-          className="rounded p-1 text-xs text-text-muted hover:bg-bg-base hover:text-text-primary"
-        >
-          ›
-        </button>
-      </div>
+    <div className="p-4" aria-label="participants" data-testid="participants-panel">
       <ul className="space-y-1">
         {active.map((p) => {
           const resolved = displayName(p.identity_id);
@@ -217,7 +124,7 @@ export function ParticipantsPanel({
           v2.10.1 [T96]: omitted when Threads is rendered as its own sibling tab
           (the channel 3-tab sidebar). */}
       {showThreads && <ConversationThreadList conversationId={conversationId} />}
-    </aside>
+    </div>
   );
 }
 

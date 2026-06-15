@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useInRouterContext } from 'react-router-dom';
 import { useAgent, useAgentActivity } from '@/api/agents';
 import { useUser } from '@/api/users';
 import {
@@ -10,6 +11,7 @@ import {
 } from '@/api/members';
 import { ApiError } from '@/api/client';
 import { useModalA11y } from './useModalA11y';
+import { useOpenDm } from './useOpenDm';
 import { Avatar } from './Avatar';
 import { LifecycleBadge, AvailabilityBadge } from './AgentBadges';
 import { AgentActivityRow, CheckingGroup } from './AgentActivityRow';
@@ -40,6 +42,13 @@ export function SenderDetailSidebar({
 }: Props): React.ReactElement | null {
   const containerRef = useModalA11y({ open, onClose });
   const displayName = useDisplayNameResolver();
+  // T136: the header "Open DM" button navigates (useOpenDm → useNavigate), which
+  // needs a Router ancestor. This sidebar is embedded in many surfaces (mentions,
+  // message list, threads) whose unit tests render WITHOUT a Router; gating the
+  // button on useInRouterContext keeps it out of those router-less renders (the
+  // live app always mounts within a Router) and isolates the navigate hook in the
+  // AgentDmButton child so it only runs when actually rendered.
+  const inRouter = useInRouterContext();
 
   const ref = senderRef ?? '';
   const kind = refKind(ref);
@@ -94,18 +103,25 @@ export function SenderDetailSidebar({
               {kind === 'agent' ? 'Agent' : 'User'}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            data-testid="sender-sidebar-close"
-            aria-label="Close sender detail"
-            className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            {/* plain ASCII "X" close glyph (per the #208 lesson — NOT the U+2715
-                multiplication-x, which is in the a11y guardrail's pictograph
-                range). aria-hidden; the button's aria-label is the accessible name. */}
-            <span aria-hidden="true">X</span>
-          </button>
+          <div className="flex items-center gap-1">
+            {/* T136: agent-only "Open DM" icon button (no text; tooltip on hover).
+                Rendered only within a Router (see inRouter note above). */}
+            {kind === 'agent' && inRouter && (
+              <AgentDmButton senderRef={senderRef} onClose={onClose} />
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              data-testid="sender-sidebar-close"
+              aria-label="Close sender detail"
+              className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {/* plain ASCII "X" close glyph (per the #208 lesson — NOT the U+2715
+                  multiplication-x, which is in the a11y guardrail's pictograph
+                  range). aria-hidden; the button's aria-label is the accessible name. */}
+              <span aria-hidden="true">X</span>
+            </button>
+          </div>
         </div>
 
         {/* Body: kind-dispatched detail. */}
@@ -118,6 +134,48 @@ export function SenderDetailSidebar({
         </div>
       </div>
     </>
+  );
+}
+
+// AgentDmButton — T136 header "Open DM" icon button. Opens (or reuses) the 1:1 DM
+// with the agent and navigates to it, then closes the sidebar so the operator
+// lands in the conversation. Isolated in its own component so its useOpenDm →
+// useNavigate hook only runs when the button is actually rendered (i.e. within a
+// Router — see the SenderDetailSidebar inRouter gate).
+function AgentDmButton({
+  senderRef,
+  onClose,
+}: {
+  senderRef: string;
+  onClose: () => void;
+}): React.ReactElement {
+  const openDm = useOpenDm();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (openDm.pending) return;
+        openDm.open(senderRef);
+        onClose();
+      }}
+      disabled={openDm.pending}
+      data-testid="sender-sidebar-dm"
+      aria-label="Open DM"
+      title="Open DM"
+      className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+    >
+      <ChatIcon />
+    </button>
+  );
+}
+
+// ChatIcon — T136 "Open DM" glyph (speech bubble), inline SVG (NOT an emoji, per
+// the a11y guardrail). aria-hidden; the button's aria-label/title is the name.
+function ChatIcon(): React.ReactElement {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 9 9 0 0 1-3.9-.9L3 21l1.9-5.6a9 9 0 0 1-.9-3.9A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
+    </svg>
   );
 }
 

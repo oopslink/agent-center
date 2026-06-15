@@ -298,6 +298,16 @@ func (s *Service) StartWork(ctx context.Context, agentID agent.AgentID, workItem
 		if active {
 			return agent.ErrAgentHasActiveWork // already running one; pick after it settles
 		}
+		// T130: the open→running gate (sibling of the T83 claim guard). Activating
+		// this work item flips its task open→running (via TaskStatusSyncProjector),
+		// so a backlog task — neither a real-plan node nor a dispatched pool member —
+		// must NOT be startable here. The pm Service (via the injected port) owns the
+		// plan/pool decision; a nil gate (test fixtures) skips the check.
+		if s.taskRunGate != nil {
+			if err := s.taskRunGate.EnsureWorkItemRunnable(txCtx, wi.TaskRef()); err != nil {
+				return err
+			}
+		}
 		if err := wi.Activate(now); err != nil { // queued→active
 			return err
 		}

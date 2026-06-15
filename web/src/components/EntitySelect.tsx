@@ -10,6 +10,9 @@ export interface EntityOption {
   hint?: string;
   /** Optional short uppercase tag rendered on the right (e.g. kind/status). */
   badge?: string;
+  /** Optional leading element (e.g. an <Avatar/>) rendered BEFORE the label in
+   *  both the trigger (for the selected option) and each option row. */
+  leading?: React.ReactNode;
 }
 
 interface EntitySelectProps {
@@ -89,8 +92,9 @@ export function EntitySelect({
         onClick={() => !disabled && setOpen((v) => !v)}
         className="flex w-full items-center justify-between rounded border border-border-base bg-bg-elevated px-3 py-2 text-left text-sm text-text-primary focus:border-accent disabled:opacity-50"
       >
-        <span className={selected ? '' : 'text-text-muted'}>
-          {selected ? selected.label : placeholder}
+        <span className={`flex min-w-0 items-center gap-1.5 ${selected ? '' : 'text-text-muted'}`}>
+          {selected?.leading}
+          <span className="truncate">{selected ? selected.label : placeholder}</span>
         </span>
         <span aria-hidden="true" className="ml-2 text-text-muted">⌄</span>
       </button>
@@ -132,9 +136,12 @@ export function EntitySelect({
                     o.value === value ? 'font-medium text-brand' : 'text-text-primary'
                   }`}
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate">{o.label}</span>
-                    {o.hint && <span className="block truncate text-xs text-text-muted">{o.hint}</span>}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {o.leading}
+                    <span className="min-w-0">
+                      <span className="block truncate">{o.label}</span>
+                      {o.hint && <span className="block truncate text-xs text-text-muted">{o.hint}</span>}
+                    </span>
                   </span>
                   {o.badge && (
                     <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-0.5 text-xs uppercase text-text-muted">

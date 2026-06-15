@@ -2,14 +2,14 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import type { Issue } from '@/api/types';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
-import { idHandle } from '@/components/workItemDisplay';
+import { refLabel } from '@/components/workItemDisplay';
 import { tagColorFor } from '@/components/tagColors';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
 
 // IssueDetailSidebar — the @oopslink mockup's TWO-SECTION Issue detail sidebar,
 // a visual mirror of TaskDetailSidebar (symmetric: TaskDetail→TaskDetailSidebar,
 // IssueDetail→IssueDetailSidebar). It is built from the SAME shared primitives
-// (StatusBlock, EntityRef, idHandle, tagColorFor, formatStatusDuration/
+// (StatusBlock, EntityRef, refLabel, tagColorFor, formatStatusDuration/
 // formatLocalTime) so the two sidebars stay pixel-aligned with zero risk to the
 // Task side. Issues have NO assignee, so that section is omitted; otherwise the
 // labels / order / dividers / spacing / typography are identical to Task.
@@ -156,7 +156,7 @@ export function IssueDetailSidebar({
             data-testid="issue-id-pill"
             title={iss.id}
           >
-            {iss.org_ref || idHandle(iss.id)}
+            {refLabel(iss.org_ref, iss.id)}
           </span>
         </div>
 

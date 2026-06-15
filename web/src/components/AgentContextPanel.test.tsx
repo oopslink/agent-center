@@ -77,7 +77,8 @@ describe('AgentContextPanel', () => {
     expect(within(card).getByTestId('agent-context-workitem-link')).toHaveTextContent('Run-real acceptance');
     expect(within(card).getByTestId('agent-context-workitem-link')).toHaveAttribute('href', '/projects/proj-1/tasks/task-xyz');
     expect(within(card).getByTestId('agent-context-workitem-status')).toHaveTextContent('Running');
-    expect(card.textContent).toContain('#sk-xyz'); // tail handle of task-xyz (slice(-6))
+    expect(card.textContent).toContain('task-xyz'); // T126: full task id, never a #id-tail hash
+    expect(card.textContent).not.toContain('#sk-xyz');
   });
 
   it('prefers the task org_ref (T<n>) over the id-tail handle (T100)', async () => {

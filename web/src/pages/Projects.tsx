@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 
 import {
@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { EntityRef } from '@/components/EntityRef';
 import { Skeleton } from '@/components/Skeleton';
 import { ProjectCreateModal } from '@/components/ProjectCreateModal';
+import { ProjectEditModal } from '@/components/ProjectEditModal';
 
 // Projects page (/projects). Lists every project; the v2.5.3 (#58)
 // "+ Add Project" button + modal lets operators create projects from
@@ -155,39 +156,196 @@ function ArchivedProjectsGroup(): React.ReactElement {
 
 // ProjectRow — one project list row. Shared by the active list + the archived
 // group so both render identically (name + status badge + description + age).
+// v2.10.2 [T139]: the card now carries quick-action shortcuts on the right
+// (Edit / Work Board / Tasks / Issues / Codebase) so an operator can jump
+// straight into a project's sub-views without first opening the detail page.
+// The card body stays a single link to the project detail; the actions are a
+// SIBLING block (not nested in the link — that would be invalid anchor markup).
 function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
+  const [editing, setEditing] = useState(false);
   return (
     <li data-testid="project-row" data-project-id={p.id}>
-      <OrgLink
-        to={`/projects/${encodeURIComponent(p.id)}`}
-        className="flex flex-col gap-1 px-4 py-3 motion-safe:transition-colors hover:bg-bg-subtle"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          {/* v2.7 #192: project name, raw id on hover (no visible id badge). */}
-          <EntityRef
-            id={p.id}
-            name={p.name}
-            fallback={p.id}
-            testId="project-name"
-            className="font-medium text-text-primary"
-          />
-          <ProjectStatusBadge status={p.status} />
-        </div>
-        {/* v2.10.0 #T81 (§3.4.1): per-project count meta — the mockup's
-            "12 tasks · 3 issues · 4 plans · 2 repos" line. Counts come from the
-            /projects LIST response; each chip renders only when its count is
-            present (the single-project GET omits them). */}
-        <ProjectCounts project={p} />
-        <div className="flex items-center justify-between gap-3">
-          <span className="max-w-[60ch] truncate text-xs text-text-secondary">
-            {p.description || <span className="italic text-text-muted">no description</span>}
-          </span>
-          <span className="text-xs tabular-nums text-text-muted">
-            {formatRelative(p.created_at)}
-          </span>
-        </div>
-      </OrgLink>
+      <div className="flex items-start justify-between gap-3 px-4 py-3 motion-safe:transition-colors hover:bg-bg-subtle">
+        <OrgLink
+          to={`/projects/${encodeURIComponent(p.id)}`}
+          className="flex min-w-0 flex-1 flex-col gap-1"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {/* v2.7 #192: project name, raw id on hover (no visible id badge). */}
+            <EntityRef
+              id={p.id}
+              name={p.name}
+              fallback={p.id}
+              testId="project-name"
+              className="font-medium text-text-primary"
+            />
+            <ProjectStatusBadge status={p.status} />
+          </div>
+          {/* v2.10.0 #T81 (§3.4.1): per-project count meta — the mockup's
+              "12 tasks · 3 issues · 4 plans · 2 repos" line. Counts come from the
+              /projects LIST response; each chip renders only when its count is
+              present (the single-project GET omits them). */}
+          <ProjectCounts project={p} />
+          <div className="flex items-center justify-between gap-3">
+            <span className="max-w-[60ch] truncate text-xs text-text-secondary">
+              {p.description || <span className="italic text-text-muted">no description</span>}
+            </span>
+            <span className="text-xs tabular-nums text-text-muted">
+              {formatRelative(p.created_at)}
+            </span>
+          </div>
+        </OrgLink>
+        <ProjectCardActions project={p} onEdit={() => setEditing(true)} />
+      </div>
+      {editing && <ProjectEditModal project={p} onClose={() => setEditing(false)} />}
     </li>
+  );
+}
+
+// ProjectShortcut — one quick-action descriptor. `to` (a link) and `onSelect`
+// (a button, e.g. the Edit modal) are mutually exclusive.
+interface ProjectShortcut {
+  key: string;
+  label: string;
+  icon: React.ReactElement;
+  to?: string;
+  onSelect?: () => void;
+}
+
+// projectShortcuts — the T139 quick actions for a project card. Tasks / Issues /
+// Codebase deep-link into the ProjectDetail tabs (?tab=…, the URL-param tab
+// scheme owned by ProjectDetail); Work Board is its own route; Edit opens the
+// shared edit modal at the row level.
+function projectShortcuts(p: Project, onEdit: () => void): ProjectShortcut[] {
+  const base = `/projects/${encodeURIComponent(p.id)}`;
+  return [
+    { key: 'edit', label: 'Edit', icon: <EditIcon />, onSelect: onEdit },
+    { key: 'board', label: 'Work Board', icon: <BoardIcon />, to: `${base}/plans` },
+    { key: 'tasks', label: 'Tasks', icon: <TasksIcon />, to: `${base}?tab=tasks` },
+    { key: 'issues', label: 'Issues', icon: <IssuesIcon />, to: `${base}?tab=issues` },
+    { key: 'codebase', label: 'Codebase', icon: <CodebaseIcon />, to: `${base}?tab=repos` },
+  ];
+}
+
+// ProjectCardActions — the quick-action cluster on the right of a project card.
+// Responsive (owner ask: "窄屏可收进菜单，不挤压"): on ≥md it renders an inline
+// row of icon buttons (label as tooltip + aria-label); below md it collapses
+// into a single "⋯" menu listing the same shortcuts as labelled rows, so a
+// cramped width never squeezes the buttons. Each entry routes (OrgLink) or
+// triggers the row-level action (Edit modal).
+function ProjectCardActions({
+  project: p,
+  onEdit,
+}: {
+  project: Project;
+  onEdit: () => void;
+}): React.ReactElement {
+  const shortcuts = projectShortcuts(p, onEdit);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the compact menu on an outside click / Escape (a11y + no stuck menu).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  return (
+    <div className="shrink-0" data-testid="project-card-actions" data-project-id={p.id}>
+      {/* ≥md: inline icon-button row. */}
+      <div className="hidden items-center gap-0.5 md:flex">
+        {shortcuts.map((s) =>
+          s.to ? (
+            <OrgLink
+              key={s.key}
+              to={s.to}
+              className="inline-flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+              title={s.label}
+              aria-label={s.label}
+              data-testid={`project-shortcut-${s.key}`}
+            >
+              {s.icon}
+            </OrgLink>
+          ) : (
+            <button
+              key={s.key}
+              type="button"
+              className="inline-flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+              title={s.label}
+              aria-label={s.label}
+              data-testid={`project-shortcut-${s.key}`}
+              onClick={s.onSelect}
+            >
+              {s.icon}
+            </button>
+          ),
+        )}
+      </div>
+
+      {/* <md: collapse into a "⋯" menu so the actions never squeeze the card. */}
+      <div className="relative md:hidden" ref={menuRef}>
+        <button
+          type="button"
+          className="inline-flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="Project actions"
+          data-testid="project-actions-menu-btn"
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <KebabIcon />
+        </button>
+        {menuOpen && (
+          <div
+            className="absolute right-0 top-full z-20 mt-1 w-40 rounded-md border border-border-base bg-bg-elevated p-1 shadow-1"
+            role="menu"
+            data-testid="project-actions-menu"
+          >
+            {shortcuts.map((s) =>
+              s.to ? (
+                <OrgLink
+                  key={s.key}
+                  to={s.to}
+                  role="menuitem"
+                  className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-text-primary hover:bg-bg-subtle"
+                  data-testid={`project-shortcut-menu-${s.key}`}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {s.icon}
+                  {s.label}
+                </OrgLink>
+              ) : (
+                <button
+                  key={s.key}
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-primary hover:bg-bg-subtle"
+                  data-testid={`project-shortcut-menu-${s.key}`}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    s.onSelect?.();
+                  }}
+                >
+                  {s.icon}
+                  {s.label}
+                </button>
+              ),
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -231,6 +389,75 @@ function ProjectStatusBadge({ status }: { status: Project['status'] }): React.Re
     >
       {status}
     </span>
+  );
+}
+
+// --- T139 quick-action icons (inline SVG, no emoji per the a11y guardrail).
+// aria-hidden — the accessible name lives on the wrapping button/link. ----------
+
+const iconProps = {
+  width: 15,
+  height: 15,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+  'aria-hidden': true,
+};
+
+function EditIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  );
+}
+
+function BoardIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <rect x="3" y="4" width="18" height="16" rx="1.5" />
+      <path d="M9 4v16M15 4v16" />
+    </svg>
+  );
+}
+
+function TasksIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="M4 6l1 1 1.5-1.5M4 12l1 1 1.5-1.5M4 18l1 1 1.5-1.5" />
+    </svg>
+  );
+}
+
+function IssuesIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v4M12 16h.01" />
+    </svg>
+  );
+}
+
+function CodebaseIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <path d="M8 9l-3 3 3 3M16 9l3 3-3 3M13.5 6l-3 12" />
+    </svg>
+  );
+}
+
+function KebabIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </svg>
   );
 }
 

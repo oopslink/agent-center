@@ -13,7 +13,7 @@ import { tagColorFor } from '@/components/tagColors';
 // confuse). @oopslink REVISION 4 lock: white text on a saturated color
 // background (bg-<color> text-white). ADR-0046: `blocked` and `verified` are
 // no longer statuses (stuck → blocked_reason on a running task).
-type StatusKey = IssueStatus | TaskStatus;
+export type StatusKey = IssueStatus | TaskStatus;
 
 const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
   // not started (sky)

@@ -1,0 +1,117 @@
+package service
+
+import (
+	"errors"
+	"testing"
+
+	agentpkg "github.com/oopslink/agent-center/internal/agent"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+)
+
+// T130 — the open→running invariant (EnsureTaskRunnable + the AgentTaskRunGate
+// port). A task may run ONLY as a real (non-builtin) Plan node or a DISPATCHED
+// Assignment-Pool member; everything else is backlog and must be rejected. These
+// guard the direct-assign→start_work path the T83 claim guard did not cover.
+
+// Backlog (no plan at all) is NOT runnable.
+func TestEnsureTaskRunnable_BacklogNoPlan_Rejected(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tid, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "backlog", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("backlog runnable = %v, want ErrTaskNotRunnable", err)
+	}
+}
+
+// A built-in pool task that has NOT been dispatched (selected but not reconciled)
+// is still backlog — the built-in plan is NOT a "real plan" (requirement 2).
+func TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := findBuiltinPlan(t, h, pid)
+	tid, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "pool-pending", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SelectTaskIntoPlan(h.ctx, pool.ID(), tid, "user:a"); err != nil {
+		t.Fatalf("SelectTaskIntoPlan: %v", err)
+	}
+	// NOTE: no ReconcileRunningPlans → the node is `ready`, not `dispatched`.
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("builtin-not-dispatched runnable = %v, want ErrTaskNotRunnable", err)
+	}
+}
+
+// A DISPATCHED built-in pool member IS runnable (it is in the Assignment Pool).
+func TestEnsureTaskRunnable_DispatchedPoolMember_OK(t *testing.T) {
+	h := planAdvanceSetup(t)
+	_, tid := dispatchedPoolTask(t, h, "org-1", "P")
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
+		t.Fatalf("dispatched pool member runnable = %v, want nil", err)
+	}
+}
+
+// A real (non-builtin) structured-plan node IS runnable — being a real-plan node
+// is sufficient (the plan's own dispatch gating governs the rest).
+func TestEnsureTaskRunnable_RealPlanNode_OK(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tid, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "node", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
+		t.Fatalf("real-plan node runnable = %v, want nil", err)
+	}
+}
+
+// The AgentTaskRunGate port resolves the work item's task ref and translates the
+// pm sentinel to the agent-BC sentinel the start_work HTTP layer maps. Backlog →
+// agentpkg.ErrWorkItemTaskNotRunnable; a dispatched pool member → nil.
+func TestAgentTaskRunGate_TranslatesAndGates(t *testing.T) {
+	h := planAdvanceSetup(t)
+	gate := NewAgentTaskRunGate(h.svc)
+
+	// backlog → rejected, mapped to the agent-BC sentinel.
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backlog, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "backlog", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gate.EnsureWorkItemRunnable(h.ctx, "pm://tasks/"+string(backlog)); !errors.Is(err, agentpkg.ErrWorkItemTaskNotRunnable) {
+		t.Fatalf("gate(backlog) = %v, want ErrWorkItemTaskNotRunnable", err)
+	}
+
+	// dispatched pool member → allowed.
+	_, runnable := dispatchedPoolTask(t, h, "org-2", "P2")
+	if err := gate.EnsureWorkItemRunnable(h.ctx, "pm://tasks/"+string(runnable)); err != nil {
+		t.Fatalf("gate(pool member) = %v, want nil", err)
+	}
+
+	// a non-task ref is left to the caller (defensive no-op, not an error).
+	if err := gate.EnsureWorkItemRunnable(h.ctx, "not-a-task-ref"); err != nil {
+		t.Fatalf("gate(non-task ref) = %v, want nil", err)
+	}
+}

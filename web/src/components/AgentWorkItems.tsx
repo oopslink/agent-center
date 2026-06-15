@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useAgentWorkItems } from '@/api/agents';
 import { TypeChip } from '@/components/TypeChip';
+import { refLabel } from '@/components/workItemDisplay';
 import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
 
 // AgentWorkItems (v2.7.1 #228 PR(d)) — the Work items tab body. A READ-ONLY
@@ -183,12 +184,10 @@ function WorkItemRow({ item: w }: { item: AgentWorkItem }): React.ReactElement {
     <tr className="align-top" data-testid="agent-workitem-row" data-workitem-id={w.id} data-status={w.status}>
       {/* T100: show the underlying task's org_ref (T84) when present. The work
           item itself has no human-facing number, so absent an org_ref fall back
-          to a short id handle with the full id on hover (#192 — never the full
-          raw id as chrome). Use the id TAIL: ULIDs lead with a timestamp, so
-          near-simultaneously created items share a prefix — the trailing random
-          segment distinguishes rows (Tester/Tester2 #228 finding). */}
+          to the FULL id (T126: never the retired #id-tail hash), with the full id
+          also on hover (#192 — never a bare short hash as chrome). */}
       <td className="py-2 pr-3 font-mono text-text-muted" data-testid="agent-workitem-id" title={w.id}>
-        {w.org_ref || `#${w.id.slice(-6)}`}
+        {refLabel(w.org_ref, w.id)}
       </td>
       <td className="max-w-[18rem] truncate py-2 pr-3" title={w.task_ref}>
         {linkable ? (

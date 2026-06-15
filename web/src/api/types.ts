@@ -279,6 +279,9 @@ export interface WorkItemRow {
   task_id?: string;
   // v2.7.1 #206: resolved task title + parent project for display + linking.
   task_title?: string;
+  // v2.10.2 [T140]: resolved org_ref token ("T<n>") so the Worker Activity feed
+  // shows "T<n> + title" instead of a raw task-<id>. Empty → UI falls back to #hash.
+  task_org_ref?: string;
   project_id?: string;
   status: string;
   current_activity?: string;

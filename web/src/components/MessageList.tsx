@@ -287,7 +287,7 @@ export function MessageList({
             {m.attachments.map((att) => (
               <li
                 key={att.uri}
-                className="flex items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
+                className="flex min-w-0 max-w-full items-center gap-2 rounded border border-border-base bg-bg-base px-2 py-1 text-xs"
                 data-testid="message-attachment"
                 data-mime={att.mime_type}
               >
@@ -305,16 +305,18 @@ export function MessageList({
                   href={attachmentHref(att.uri)}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-2 text-text-primary hover:underline"
+                  className="flex min-w-0 items-center gap-2 text-text-primary hover:underline"
                   data-testid="attachment-link"
                 >
                   <span
-                    className="rounded bg-bg-base px-1 font-mono uppercase text-text-muted"
+                    className="shrink-0 rounded bg-bg-base px-1 font-mono uppercase text-text-muted"
                     data-testid="attachment-type"
                   >
                     {attachmentKind(att.mime_type)}
                   </span>
-                  <span>{att.filename}</span>
+                  {/* T149: a long filename truncates (ellipsis) instead of widening
+                      the chip past the viewport; full name on hover/aria via the link. */}
+                  <span className="truncate" title={att.filename}>{att.filename}</span>
                 </a>
                 <span className="text-text-muted">{formatBytes(att.size)}</span>
               </li>
@@ -419,7 +421,11 @@ export function MessageList({
       <div
         ref={containerRef}
         onScroll={onScroll}
-        className="flex-1 space-y-3 overflow-y-auto p-4"
+        // T149: overflow-x-hidden is the page-level guarantee — the message stream
+        // scrolls only vertically, never horizontally. Long content wraps
+        // (.markdown-body overflow-wrap) or scrolls INSIDE its own block (code /
+        // tables), so nothing escapes to push a whole-page horizontal scroll.
+        className="min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden p-4"
         data-testid="message-list"
       >
         {/* v2.7.1 #219: flat chronological stream (Slack-like); work-item

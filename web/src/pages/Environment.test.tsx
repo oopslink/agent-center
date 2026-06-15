@@ -128,9 +128,18 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
         HttpResponse.json(
           fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
             work_items: [
-              { work_item_id: 'wi-1', task_id: 'task-1', agent_id: 'bot-a', status: 'active', current_activity: 'coding' },
+              {
+                work_item_id: 'wi-1',
+                task_id: 'task-1',
+                task_org_ref: 'T7',
+                task_title: 'Build login',
+                project_id: 'proj-x',
+                agent_id: 'bot-a',
+                status: 'active',
+                current_activity: 'coding',
+              },
             ],
-            pending_issues: [{ issue_id: 'iss-1', title: 'Fix login' }],
+            pending_issues: [{ issue_id: 'iss-1', project_id: 'proj-x', title: 'Fix login' }],
           }),
         ),
       ),
@@ -140,19 +149,93 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     wrap(<Environment />);
     // Default tab = All → union of work items + issues shows immediately.
     await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
-    expect(screen.getByText('task-1')).toBeInTheDocument();
+    // v2.10.2 [T140]: the work item reads "T<n> + title" (NOT the raw task-<id>)
+    // and links to the project-scoped task page (no longer the bare /tasks/{id}
+    // that 404'd).
+    const taskLink = screen.getByTestId('environment-workitem-task-link');
+    expect(taskLink).toHaveTextContent('T7');
+    expect(taskLink).toHaveTextContent('Build login');
+    expect(taskLink).toHaveAttribute('href', '/projects/proj-x/tasks/task-1');
+    expect(taskLink.textContent).not.toContain('task-1'); // raw id only on hover (title)
     expect(screen.getByText('Fix login')).toBeInTheDocument();
     expect(screen.getAllByTestId('environment-activity-all-row')).toHaveLength(2);
 
-    // The dedicated Work Items tab shows the work-item rows.
+    // The dedicated Work Items tab shows the work-item rows with the same link.
     fireEvent.click(screen.getByTestId('environment-activity-tab-work_items'));
     await waitFor(() => expect(screen.getByTestId('environment-workitem-row')).toBeInTheDocument());
-    expect(screen.getByText('task-1')).toBeInTheDocument();
+    expect(screen.getByTestId('environment-workitem-task-link')).toHaveAttribute(
+      'href',
+      '/projects/proj-x/tasks/task-1',
+    );
 
-    // The dedicated Issues tab shows the issue rows.
+    // The dedicated Issues tab shows the issue rows; the link is project-scoped too.
     fireEvent.click(screen.getByTestId('environment-activity-tab-issues'));
     await waitFor(() => expect(screen.getByTestId('environment-issue-row')).toBeInTheDocument());
-    expect(screen.getByText('Fix login')).toBeInTheDocument();
+    expect(screen.getByText('Fix login').closest('a')).toHaveAttribute(
+      'href',
+      '/projects/proj-x/issues/iss-1',
+    );
+  });
+
+  // v2.10.2 [T140 + T126]: a work item whose org_ref can't be resolved falls back
+  // to the FULL task id (T126 retired the #<id-tail> hash) and, lacking a project
+  // segment, renders as PLAIN TEXT rather than a link that would 404.
+  it('falls back to full id + no link when org_ref/project are unresolved (T140+T126)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
+            work_items: [
+              { work_item_id: 'wi-1', task_id: 'task-abcdef', agent_id: 'bot-a', status: 'active' },
+            ],
+          }),
+        ),
+      ),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
+    // Full id (T126 retired the #<id-tail> hash), and NOT a link.
+    expect(screen.getByText('task-abcdef')).toBeInTheDocument();
+    expect(screen.queryByTestId('environment-workitem-task-link')).not.toBeInTheDocument();
+  });
+
+  // v2.10.2 [T141]: the work-item agent shows its display NAME (not the raw
+  // agent-<id>) and links to the agent detail page (member-id → execution-Agent id
+  // via identity_member_id, #157 pattern).
+  it('renders the work-item agent as its name + a link to the agent detail (T141)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
+            work_items: [
+              { work_item_id: 'wi-1', task_id: 'task-1', project_id: 'proj-x', agent_id: 'agent-mem-1', status: 'active' },
+            ],
+          }),
+        ),
+      ),
+      // The execution Agent carries identity_member_id == the row's agent member id
+      // → gives the /agents/{id} route id. worker_id '' keeps it out of a worker card.
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent('A-1', '', { identity_member_id: 'agent-mem-1', name: 'agent-center-dev3' })],
+        }),
+      ),
+      // The members list resolves the display name.
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { identity_id: 'agent-mem-1', display_name: 'agent-center-dev3', kind: 'agent', status: 'joined' },
+        ]),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
+    const agentLink = await screen.findByTestId('environment-workitem-agent-link');
+    expect(agentLink).toHaveTextContent('agent-center-dev3');
+    expect(agentLink).toHaveAttribute('href', '/agents/A-1');
+    expect(agentLink.textContent).not.toContain('agent-mem-1'); // raw member id only on hover
   });
 
   it('renders in-flight transfer sessions in the Activity Transfers tab', async () => {
@@ -295,6 +378,57 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     expect(model).toHaveTextContent('claude-sonnet-4');
     // status surface still present (dot + uppercase text).
     expect(screen.getByTestId('environment-worker-status')).toHaveAttribute('data-status', 'online');
+  });
+
+  // T143: the worker AGENTS list — name is the open affordance (no "Open →"),
+  // the rows share a grid so columns align, and missing CLI/model never shifts it.
+  it('T143: the agent NAME links to /agents/{id}; there is no "Open →" button', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'online' })])),
+      ),
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent('bot-a', 'w-1', { cli: 'claude-code', model: 'claude-sonnet-4' })],
+        }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-agent')).toBeInTheDocument());
+
+    const nameLink = screen.getByTestId('environment-agent-link');
+    expect(nameLink).toHaveAttribute('href', '/agents/bot-a');
+    expect(nameLink).toHaveTextContent('bot-a');
+    // The separate "Open →" link is gone.
+    expect(screen.queryByText(/Open/)).not.toBeInTheDocument();
+    // Rows share a grid container so columns line up across rows.
+    expect(screen.getByTestId('environment-worker-agents').className).toContain('grid');
+  });
+
+  it('T143: a missing CLI / model renders an aligned placeholder (no column shift)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'online' })])),
+      ),
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [
+            agent('with-meta', 'w-1', { cli: 'claude-code', model: 'claude-sonnet-4' }),
+            agent('bare', 'w-1', { cli: '', model: '' }),
+          ],
+        }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getAllByTestId('environment-agent')).toHaveLength(2));
+    // The bare agent has no CLI/model badge but its row still renders (placeholder
+    // cells keep the grid columns aligned). Exactly one CLI + one model badge.
+    expect(screen.getAllByTestId('environment-agent-cli')).toHaveLength(1);
+    expect(screen.getAllByTestId('environment-agent-model')).toHaveLength(1);
+    // Both rows still expose a clickable name link.
+    expect(screen.getAllByTestId('environment-agent-link')).toHaveLength(2);
   });
 
   // v2.8.1 #281: Activity empty state — clock icon + copy when the active tab's

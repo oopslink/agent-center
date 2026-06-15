@@ -52,7 +52,18 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 func TestFleetSnapshot_WorkItemCarriesTaskTitleAndProject(t *testing.T) {
 	env := newQEnv(t)
 	env.seedOrgProject(t, "proj-x", "org-1")
-	env.seedTask(t, "task-abc12345", "proj-x", "Build login flow")
+	// v2.10.2 [T140]: seed with an allocated org number so the row carries the
+	// org_ref token "T42" (Worker Activity shows "T<n> + title" + links correctly).
+	tk, err := pm.NewTask(pm.NewTaskInput{
+		ID: "task-abc12345", ProjectID: "proj-x", Title: "Build login flow",
+		CreatedBy: "user:test", CreatedAt: env.clk.Now(), OrgNumber: 42,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.deps.PMTasks.Save(context.Background(), tk); err != nil {
+		t.Fatal(err)
+	}
 	env.seedWorkItem(t, "WI-1", "AG-1", "task-abc12345")
 	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
 	svc := query.NewFleetSnapshotService(env.deps)
@@ -66,6 +77,9 @@ func TestFleetSnapshot_WorkItemCarriesTaskTitleAndProject(t *testing.T) {
 	}
 	if wi.TaskTitle != "Build login flow" {
 		t.Errorf("task_title=%q want \"Build login flow\"", wi.TaskTitle)
+	}
+	if wi.TaskOrgRef != "T42" {
+		t.Errorf("task_org_ref=%q want T42", wi.TaskOrgRef)
 	}
 	if wi.ProjectID != "proj-x" {
 		t.Errorf("project_id=%q want proj-x", wi.ProjectID)

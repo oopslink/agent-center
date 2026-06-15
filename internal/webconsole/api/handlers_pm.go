@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/identity"
@@ -437,6 +438,20 @@ func (s *Server) pmListIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// T131: the project Issue list accepts the SAME filter params as the org-wide
+	// Issue list (status + created/updated time-range), reusing the shared helpers
+	// so there is one filter logic, not two. The project dimension is fixed by the
+	// path (no `project` param). Default (no status) EXCLUDES terminal issues —
+	// aligned with the org list (this endpoint used to return every status).
+	statusFilter := parseSetParam(r, "status")
+	// Issues are never assignable; an explicit assignee filter excludes them all
+	// (mirrors the org Issue list so the param contract matches exactly).
+	assigneeSet := strings.TrimSpace(r.URL.Query().Get("assignee")) != ""
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+		return
+	}
 	is, err := d.PM.ListIssues(r.Context(), p.ID())
 	if err != nil {
 		mapPMError(w, err)
@@ -444,6 +459,15 @@ func (s *Server) pmListIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(is))
 	for _, i := range is {
+		if !statusPasses(string(i.Status()), statusFilter, issueTerminalStatus) {
+			continue
+		}
+		if assigneeSet {
+			continue
+		}
+		if !tf.passes(i.CreatedAt(), i.UpdatedAt()) {
+			continue
+		}
 		out = append(out, pmIssueMap(i))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"issues": out})
@@ -576,9 +600,25 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 	// only this backlog POOL view hides it. statusPasses: empty filter → exclude
 	// terminal; explicit filter → only the named statuses.
 	statusFilter := parseSetParam(r, "status")
+	// T131: the project Task list accepts the SAME filter params as the org-wide
+	// Task list (assignee + created/updated time-range), on top of the existing
+	// status filter and the ?unplanned backlog switch. Reuses the shared helpers
+	// (one filter logic). The project dimension is fixed by the path.
+	assigneeFilter := strings.TrimSpace(r.URL.Query().Get("assignee"))
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+		return
+	}
 	out := make([]map[string]any, 0, len(ts))
 	for _, t := range ts {
 		if !statusPasses(string(t.Status()), statusFilter, taskTerminalStatus) {
+			continue
+		}
+		if assigneeFilter != "" && !assigneeMatches(string(t.Assignee()), assigneeFilter) {
+			continue
+		}
+		if !tf.passes(t.CreatedAt(), t.UpdatedAt()) {
 			continue
 		}
 		out = append(out, pmTaskMap(t))

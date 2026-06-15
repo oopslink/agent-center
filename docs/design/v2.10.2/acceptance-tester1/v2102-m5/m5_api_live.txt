@@ -1,0 +1,26 @@
+=== v2.10.2 M5 — live API observations (instance test-v2102acc, binary v2.10.2-27184d7b) ===
+Captured live this session against the running v2.10.2 web console (http://127.0.0.1:57009),
+authenticated as Owner v2102acc. (T135 SKIPPED this round per owner 2026-06-15.)
+NOTE: late in the session the sandbox signin became load-flaky (intermittent 401/timeout under my
+sustained load); the HTTP codes below were observed while the session was valid (me -> 200).
+
+### Item1 (T140/T141) Worker Activity feed
+- GET /api/orgs/acme-v2102acc/tasks -> 200; rows carry assignee.display_name, e.g.
+    {"assignee":{"assignee_lifecycle":"running","display_name":"Sandbox Agent v2102acc","member_id":"agent-4d821b1d",...}}
+  (T141: agent shown by NAME, member_id resolves to agent detail).
+- GET /api/orgs/acme-v2102acc/projects/project-2ee9e524/tasks/task-1a22bfa6 -> 200
+  (T140: the project-scoped href the Worker Activity feed builds RESOLVES — pre-T140 a bare
+   "task-<id>" link 404'd. Server enrich adds task_org_ref="T<n>" + task_title + project_id.)
+
+### Item3 (T131) project Task/Issue list filters align global
+- project Task list accepts the SAME filter params as the global list:
+    ?created_after / ?created_before / ?assignee / ?status  -> HTTP 200 (accepted, applied)
+- bad RFC3339 time format rejected identically on BOTH surfaces (param parity):
+    GET /api/orgs/.../tasks?updated_after=2026-06-08                          -> 400 (global)
+    GET /api/orgs/.../projects/project-2ee9e524/tasks?updated_after=2026-06-08 -> 400 (project)
+  (project list now uses the same filter surface / validation as global; only the project
+   dimension is fixed — matches T131 intent.)
+
+Authoritative coverage = the passing handler/query test suites (see m5_tests_green.png):
+  T140/T141: TestFleetSnapshot_WorkItemCarriesTaskTitleAndProject, TestWorkItemRowFromProjection_MapsAllFields
+  T131     : TestPM_ListTasks_ProjectFilters_AssigneeAndTime, TestPM_ListIssues_ProjectFilters_TerminalDefaultAndStatus

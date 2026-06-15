@@ -20,17 +20,25 @@ export function useOpenDm(): {
   const open = useCallback(
     (identityRef: string) => {
       if (createDm.isPending) return;
-      createDm.mutate(
-        { kind: 'dm', members: [identityRef] },
-        {
-          onSuccess: (res) => {
-            const slug = orgCtx?.slug;
-            navigate(
-              slug ? `/organizations/${slug}/dms/${res.conversation_id}` : `/dms/${res.conversation_id}`,
-            );
-          },
-        },
-      );
+      // v2.10.2 [T159]: navigate via the mutateAsync PROMISE chain, NOT mutate()'s
+      // per-call onSuccess. A caller (the agent activity sidebar's "Open DM" button)
+      // closes — and thus UNMOUNTS — itself synchronously right after open(); React
+      // Query then discards the per-call onSuccess (the navigate) when the mutation
+      // resolves on an unmounted observer, so the DM was created but never opened.
+      // A plain promise .then is not tied to the observer, so it still runs after
+      // unmount. The shared hook-level onSuccess (cache invalidation) is untouched.
+      void createDm
+        .mutateAsync({ kind: 'dm', members: [identityRef] })
+        .then((res) => {
+          const slug = orgCtx?.slug;
+          navigate(
+            slug ? `/organizations/${slug}/dms/${res.conversation_id}` : `/dms/${res.conversation_id}`,
+          );
+        })
+        .catch(() => {
+          // Failure surfaces via createDm.error; swallow so there's no unhandled
+          // rejection (the navigate simply doesn't happen).
+        });
     },
     [createDm, navigate, orgCtx],
   );

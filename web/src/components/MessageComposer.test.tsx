@@ -34,17 +34,19 @@ describe('MessageComposer', () => {
     expect(screen.getByTestId('composer-send')).toBeDisabled();
   });
 
-  // v2.10.1 [M2] mobile: the attach (+) and send buttons meet the ≥44px touch
-  // target on a narrow viewport (h-11 w-11 = 44px), shrinking to 40px at the
-  // desktop breakpoint (md:h-10 md:w-10).
-  it('attach + send buttons are ≥44px touch targets on mobile (v2.10.1 M2)', () => {
+  // v2.10.2 [T148] owner-directed: the attach (+) and send buttons sit in a bottom
+  // action bar and are one size smaller (h-8 w-8 = 32px), consistent across desktop
+  // + mobile. This SUPERSEDES the v2.10.1 [M2] ≥44px touch sizing for these two
+  // composer controls per owner request (flagged for Tester2 touch/AA review).
+  it('attach + send buttons are the smaller, consistent size in the bottom bar (T148)', () => {
     wrap(<MessageComposer conversationId="C1" />);
     for (const id of ['composer-attach', 'composer-send']) {
       const cls = screen.getByTestId(id).className;
-      expect(cls).toContain('h-11');
-      expect(cls).toContain('w-11');
-      expect(cls).toContain('md:h-10');
-      expect(cls).toContain('md:w-10');
+      expect(cls).toContain('h-8');
+      expect(cls).toContain('w-8');
+      // no responsive split + no leftover larger sizing.
+      expect(cls).not.toContain('h-11');
+      expect(cls).not.toContain('md:h-10');
     }
   });
 
@@ -98,15 +100,35 @@ describe('MessageComposer', () => {
     expect(attach).toHaveAttribute('aria-label', 'Attach file');
     expect(send).toHaveAttribute('title', 'Send (Enter)');
     expect(send).toHaveAttribute('aria-label', 'Send');
-    // Keep the two icon controls aligned with the one-line textarea.
-    expect(composer.className).toContain('items-center');
-    expect(textarea.className).toContain('h-10');
-    expect(textarea.className).toContain('leading-10');
-    expect(textarea.className).not.toContain('min-h');
-    expect(attach.className).toContain('h-10');
-    expect(attach.className).toContain('w-10');
-    expect(send.className).toContain('h-10');
-    expect(send.className).toContain('w-10');
+    // v2.10.2 [T148]: vertical stack (textarea on top, action bar at the bottom),
+    // an auto-growing textarea (leading-5, no fixed h-10/leading-10), and the
+    // smaller h-8 buttons grouped in a bottom bar.
+    expect(composer.className).toContain('flex-col');
+    expect(textarea.className).toContain('leading-5');
+    expect(textarea.className).not.toContain('h-10');
+    expect(textarea.className).not.toContain('leading-10');
+    expect(attach.className).toContain('h-8');
+    expect(attach.className).toContain('w-8');
+    expect(send.className).toContain('h-8');
+    expect(send.className).toContain('w-8');
+    // attach + send share one parent action bar (the bottom row), distinct from
+    // the textarea above.
+    expect(attach.parentElement).toBe(send.parentElement);
+    expect(attach.parentElement?.className).toContain('items-center');
+  });
+
+  // v2.10.2 [T148]: the textarea auto-grows (JS-driven height + overflow toggle,
+  // capped at 4 rows). jsdom has no layout engine, so we assert the WIRING — the
+  // effect set an explicit inline height + overflow-y and the field starts at one
+  // row with manual resize off — not the pixel growth (a real-window check).
+  it('auto-grow textarea is JS-driven (height + overflow set), starts at 1 row (T148)', () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    const ta = screen.getByTestId('composer-textarea') as HTMLTextAreaElement;
+    expect(ta.getAttribute('rows')).toBe('1');
+    expect(ta.className).toContain('resize-none');
+    // the auto-grow effect runs on mount → an inline height + overflow-y are set.
+    expect(ta.style.height).not.toBe('');
+    expect(['auto', 'hidden']).toContain(ta.style.overflowY);
   });
 
   it('sends parent_message_id when given a parentMessageId (thread reply)', async () => {

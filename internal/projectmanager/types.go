@@ -124,6 +124,16 @@ var (
 	// ErrPoolClaimLimitReached — the agent already holds the max concurrent claimed
 	// pool tasks (T83 §3.6, default N=3). Does not affect structured-plan nodes.
 	ErrPoolClaimLimitReached = errors.New("projectmanager: pool claim limit reached")
+	// ErrTaskNotRunnable (T130) — the task may not enter running: it is BACKLOG,
+	// belonging to neither a real (non-builtin) Plan node NOR a DISPATCHED Assignment-
+	// Pool member. The running invariant (sibling of T83 claimability): a task runs
+	// ONLY from a real plan node or the pool. The builtin plan is itself backlog, NOT
+	// a "real plan" — a builtin task must be DISPATCHED (in the pool) to be runnable.
+	// Enforced both at the open→running gate (start_work, via the agent TaskRunGate)
+	// and at direct (re)assignment of an agent (so a backlog assign never mints a
+	// work item that can never start). Remedy: add_task_to_plan (real plan) or
+	// dispatch the task into the Assignment Pool.
+	ErrTaskNotRunnable = errors.New("projectmanager: task is backlog — not a real-plan node or a dispatched pool member; it cannot be started")
 	// ErrPlanProjectMismatch rejects selecting a task whose project differs from
 	// the Plan's project (a Plan selects only its own project's backlog, §2/§9.6d).
 	ErrPlanProjectMismatch = errors.New("projectmanager: task and plan belong to different projects")

@@ -5,7 +5,7 @@ import { useOrgWorkItems } from '@/api/orgWorkItems';
 import { useOrgPlans } from '@/api/plans';
 import { useOptionalOrgContext, orgPath } from '@/OrgContext';
 import { taskDetailPath } from './TaskTitleLink';
-import { idHandle } from './workItemDisplay';
+import { refLabel } from './workItemDisplay';
 
 // v2.8.1 #281 (mention-sidebar) entry ②: @mention tokens in message content.
 //
@@ -81,7 +81,7 @@ export function useTaskRefResolver(): (ref: string) => ResolvedTaskRef | null {
     const byRef = new Map<string, { label: string; projectId: string; taskId: string }>();
     for (const it of tasks.data?.items ?? []) {
       const entry = {
-        label: it.org_ref || `#${idHandle(it.id)}`,
+        label: refLabel(it.org_ref, it.id),
         projectId: it.project.id,
         taskId: it.id,
       };
@@ -126,7 +126,7 @@ export function usePlanRefResolver(): (ref: string) => ResolvedPlanRef | null {
     const byRef = new Map<string, { label: string; projectId: string; planId: string }>();
     for (const it of plans.data?.items ?? []) {
       const entry = {
-        label: it.org_ref || `#${idHandle(it.id)}`,
+        label: refLabel(it.org_ref, it.id),
         projectId: it.project.id,
         planId: it.id,
       };

@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc lint-spa-eslint smoke vet tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-spa-tsc lint-spa-eslint smoke vet tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -135,6 +135,14 @@ lint-doc-impl-drift:
 lint-no-raw-colors-spa:
 	./scripts/lint/no-raw-colors-spa.sh
 
+# lint-no-idtail-hash — T126 regression net: ban the retired `#<id-tail>`
+# short-hash id-as-content encoding in the SPA (`#${…slice(-N)}` /
+# `#${idHandle(…)}`). T100 cleared the literals but left no guard, so the
+# fallback pattern survived and leaked #4e2e71 for completed Plan tasks. The
+# fix is refLabel(orgRef, id) (org_ref else FULL id); this keeps the hash out.
+lint-no-idtail-hash:
+	./scripts/lint/no-idtail-hash.sh
+
 # smoke — conventions § 0.4 enforce mechanism #4: deployed-binary
 # smoke gate. Builds fresh binaries and drives the full task-dispatch
 # pipeline via the v22-deployed-pipeline Playwright spec. Phase-close
@@ -172,7 +180,7 @@ lint-spa-eslint:
 	cd web && pnpm lint
 
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-spa-tsc lint-spa-eslint
+lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-spa-tsc lint-spa-eslint
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.

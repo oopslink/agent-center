@@ -22,6 +22,8 @@ import { readTheme, writeTheme, type Theme } from '@/theme';
 import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useContextPanelController } from '@/shell/contextPanel';
+import { ResizeHandle } from '@/components/ResizeHandle';
+import { useResizablePanel } from '@/components/useResizablePanel';
 import { SECONDARY_NAV_REGISTRY } from '@/shell/secondaryNav';
 import { MobileTabBar } from '@/shell/MobileTabBar';
 import { BottomSheet } from '@/shell/BottomSheet';
@@ -60,6 +62,17 @@ const SIDEBAR_KEY = 'ac.sidebar.collapsed';
 // (expanded) per the design ask.
 const GROUP_STATE_KEY = 'ac.sidebar.groups';
 const SUBITEM_STATE_KEY = 'ac.sidebar.subitems';
+
+// v2.10.2 [T128] col④ context-panel width (desktop). The whole sidebar COLUMN is
+// draggable from its left edge — the resize moves the container, not the inner
+// content (the bug T128 fixed). Default = the prior w-64 (256px); floor keeps the
+// panel usable; ceiling = 3/4 of the viewport (75vw) so it can't swallow col③.
+// Persisted + capped via the same useResizablePanel as the ThreadSidebar.
+const CONTEXT_PANEL_WIDTH_KEY = 'ac.contextpanel.width';
+const CONTEXT_PANEL_DEFAULT_WIDTH = 256;
+const CONTEXT_PANEL_MIN_WIDTH = 240;
+const contextPanelMaxWidth = (): number =>
+  (typeof window === 'undefined' ? 1024 : window.innerWidth) * 0.75;
 
 function readSidebarCollapsed(): boolean {
   try {
@@ -145,8 +158,9 @@ function buildModules(base: string): ReadonlyArray<ModuleDef> {
         // v2.8 #258: org-scope cross-project aggregation, Project 同级.
         { to: p('issues'), label: 'Issues', Icon: IssueIcon },
         { to: p('tasks'), label: 'Tasks', Icon: TaskIcon },
-        // v2.10.0 [T6]: global cross-project Plan list, Tasks 平级.
-        { to: p('plans'), label: 'Plan', Icon: PlanIcon },
+        // v2.10.0 [T6]: global cross-project Plan list, Tasks 平级. v2.10.2 [T142]:
+        // label pluralized to "Plans" for consistency with Projects/Issues/Tasks.
+        { to: p('plans'), label: 'Plans', Icon: PlanIcon },
       ],
     },
     {
@@ -240,6 +254,19 @@ export default function AppLayout(): React.ReactElement {
   // col④ on-demand context panel host + open flag (see shell/contextPanel.tsx).
   const { Provider: ContextPanelProvider, value: panelValue, setHost, open: panelOpen } =
     useContextPanelController();
+  // T128: the col④ column itself is the resizable surface (desktop). Dragging the
+  // left-edge grip widens/narrows the whole sidebar, not its inner content.
+  const {
+    width: ctxWidth,
+    resizing: ctxResizing,
+    handleProps: ctxHandleProps,
+  } = useResizablePanel({
+    storageKey: CONTEXT_PANEL_WIDTH_KEY,
+    defaultWidth: CONTEXT_PANEL_DEFAULT_WIDTH,
+    minWidth: CONTEXT_PANEL_MIN_WIDTH,
+    maxWidth: contextPanelMaxWidth,
+    edge: 'left',
+  });
 
   const modules = useMemo(() => buildModules(orgBase), [orgBase]);
   const activeModule = moduleForPath(modules, location.pathname, orgBase);
@@ -374,17 +401,31 @@ export default function AppLayout(): React.ReactElement {
           data-testid="context-panel"
           data-open={panelOpen}
           data-sheet-open={sheetOpen}
+          // T128: the desktop width is the user-dragged value (CSS var consumed by
+          // md:w-[var(--ctx-w)]); on mobile the sheet stays full-width (the var is
+          // unused there). Persisted + clamped to 75vw by useResizablePanel.
+          style={{ ['--ctx-w' as string]: `${ctxWidth}px` }}
           className={[
             'flex-col overflow-y-auto bg-bg-elevated',
             // mobile: bottom sheet
             'fixed inset-x-0 bottom-0 z-40 max-h-[80vh] rounded-t-2xl border-t border-border-strong pb-[env(safe-area-inset-bottom)] shadow-2',
-            // desktop: side column
-            'md:static md:bottom-auto md:z-auto md:max-h-none md:w-64 md:flex-shrink-0 md:rounded-none md:border-l md:border-t-0 md:border-border-base md:pb-0 md:shadow-none',
+            // desktop: side column (relative so the resize grip anchors to it)
+            'md:relative md:bottom-auto md:z-auto md:max-h-none md:w-[var(--ctx-w)] md:flex-shrink-0 md:rounded-none md:border-l md:border-t-0 md:border-border-base md:pb-0 md:shadow-none',
             // mobile visibility (sheetOpen) — desktop overrides via md:
             sheetOpen && panelOpen ? 'flex' : 'hidden',
             panelOpen ? 'md:flex' : 'md:hidden',
           ].join(' ')}
         >
+          {/* Left-edge resize grip — desktop only (the mobile sheet is full-width).
+              Drag/arrow keys set the whole column's width (T128). */}
+          <ResizeHandle
+            edge="left"
+            handleProps={ctxHandleProps}
+            resizing={ctxResizing}
+            ariaLabel="Resize sidebar"
+            testId="context-panel-resize"
+            className="hidden md:block"
+          />
           {/* Mobile grab handle (sheet affordance); hidden on desktop. */}
           <div aria-hidden="true" className="mx-auto my-2 h-1 w-9 rounded-full bg-border-strong md:hidden" />
           <div ref={setHost} className="flex min-h-0 flex-1 flex-col" />

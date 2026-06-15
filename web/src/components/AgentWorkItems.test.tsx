@@ -111,17 +111,17 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(rows[0].getAttribute('data-status')).toBe('paused');
   });
 
-  it('renders the columns: short id TAIL (full on hover), Task type, "—" priority, mapped status', async () => {
+  it('renders the columns: FULL id when no org_ref (T126: no #id-tail hash), Task type, "—" priority, mapped status', async () => {
     stub([wi('abcdef123456', 'active')]);
     wrap();
     const row = await screen.findByTestId('agent-workitem-row');
     expect(row).toHaveAttribute('data-status', 'active');
-    // ID handle uses the id TAIL (ULID prefix is a shared timestamp) + full id
-    // on hover (#192 — no full raw id as chrome).
+    // T126: no org_ref → the FULL id is shown verbatim (never a #id-tail hash),
+    // with the full id also on hover.
     const id = screen.getByTestId('agent-workitem-id');
-    expect(id).toHaveTextContent('#123456');
+    expect(id).toHaveTextContent('abcdef123456');
+    expect(id).not.toHaveTextContent('#');
     expect(id).toHaveAttribute('title', 'abcdef123456');
-    expect(id).not.toHaveTextContent('abcdef123456');
     // Type fallback chip + Priority fallback.
     expect(screen.getByTestId('agent-workitem-type')).toHaveTextContent('Task');
     expect(screen.getByTestId('agent-workitem-priority')).toHaveTextContent('—');

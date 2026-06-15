@@ -139,6 +139,54 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(resumedTask).toBe('np'));
   });
 
+  // T101: when the node is paused because its agent set the item aside to switch
+  // to ANOTHER task, the agent is now busy → the backend refuses (409 agent_busy).
+  // The operator must see WHY (accurate hint), not a generic "try again".
+  it('shows an accurate hint (not the generic error) when resume fails agent_busy (T101)', async () => {
+    mockPlan({
+      nodes: [
+        { task_id: 'np', title: 'paused node', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'paused', depends_on: [] },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/nodes/:taskId/resume', () =>
+        HttpResponse.json(
+          { error: 'agent_busy', message: "the node's agent is busy on another work item; try again after it settles" },
+          { status: 409 },
+        ),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await waitFor(() => expect(screen.getByTestId('plan-task-list')).toBeInTheDocument());
+    await act(async () => fireEvent.click(screen.getByTestId('plan-node-resume-np')));
+    const err = await screen.findByTestId('plan-node-resume-error-np');
+    expect(err).toHaveTextContent(/busy on another/i);
+    expect(err.textContent ?? '').not.toMatch(/Please try again/i);
+  });
+
+  it('shows a "nothing to resume" hint when resume fails node_not_paused (T101)', async () => {
+    mockPlan({
+      nodes: [
+        { task_id: 'np', title: 'paused node', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'paused', depends_on: [] },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/nodes/:taskId/resume', () =>
+        HttpResponse.json(
+          { error: 'node_not_paused', message: 'the plan node has no paused work item to resume' },
+          { status: 409 },
+        ),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await waitFor(() => expect(screen.getByTestId('plan-task-list')).toBeInTheDocument());
+    await act(async () => fireEvent.click(screen.getByTestId('plan-node-resume-np')));
+    const err = await screen.findByTestId('plan-node-resume-error-np');
+    expect(err).toHaveTextContent(/no paused work item|already resumed/i);
+  });
+
   it('shows Start when draft (not Stop) and calls useStartPlan', async () => {
     let started = false;
     mockPlan({ status: 'draft', has_failed: false });
@@ -163,8 +211,14 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-tab-chat')).toBeInTheDocument();
     expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument();
     expect(screen.getByTestId('plan-tab-tasks')).toBeInTheDocument();
-    // tab label carries the node count (7)
-    expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('7');
+    // T132: tabs are English-only, no「(中文)」括注 — exactly Chat / DAG / Task List.
+    expect(screen.getByTestId('plan-tab-chat')).toHaveTextContent('Chat');
+    expect(screen.getByTestId('plan-tab-dag')).toHaveTextContent('DAG');
+    expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('Task List');
+    // T134: the "← execution view (no backlog — planning is on the Board)" hint
+    // is removed from the tab bar.
+    expect(screen.queryByText(/execution view/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-tabs')).not.toHaveTextContent(/planning is on the Board/i);
     // default = chat: the chat panel + conversation are shown; DAG + task list are not
     expect(screen.getByTestId('plan-panel-chat')).toBeInTheDocument();
     expect(await screen.findByTestId('plan-conversation')).toBeInTheDocument();
@@ -217,30 +271,30 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(paused.className).toContain('text-status-stone-fg');
   });
 
-  it('point 1: DAG nodes and task-list rows show the Task id (org_ref T-number, # fallback)', async () => {
-    mockPlan();
-    // Resolve the human Task id via the project task list (org_ref). n1→T101,
-    // n2→T102; the rest have no org_ref → "#"+id-tail fallback.
-    server.use(
-      http.get('/api/projects/proj-a/tasks', () =>
-        HttpResponse.json({
-          tasks: [
-            { id: 'n1', project_id: 'proj-a', title: 'design schema', description: '', status: 'completed', org_ref: 'T101', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
-            { id: 'n2', project_id: 'proj-a', title: 'backend api', description: '', status: 'completed', org_ref: 'T102', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
-          ],
-        }),
-      ),
-    );
+  it('point 1 (T126): DAG nodes + task-list rows show the Task id from node.org_ref; no-org_ref → FULL id, never a #hash', async () => {
+    // T126: org_ref rides on the plan NODE (api/plans PlanNode.org_ref) and is
+    // used DIRECTLY — no FE task-list re-resolver (which missed completed tasks
+    // → leaked #4e2e71). n1/n2 carry org_ref; n3 does not.
+    mockPlan({
+      nodes: [
+        { task_id: 'n1', title: 'design schema', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], org_ref: 'T101' },
+        { task_id: 'n2', title: 'backend api', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: ['n1'], org_ref: 'T102' },
+        { task_id: 'n3', title: 'frontend list', assignee_ref: 'agent:dev2', task_status: 'running', node_status: 'running', depends_on: ['n2'] },
+      ],
+    });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
-    // DAG node carries the resolved T-number (scope to the graph node; the
-    // v2.10.1 [M4] mobile stepper <li> also carries data-task-id)
+    // DAG node carries the node's own T-number (scope to the graph node; the
+    // v2.10.1 [M4] mobile stepper <li> also carries data-task-id).
     const node1 = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n1"]') as HTMLElement;
     await waitFor(() => expect(within(node1).getByTestId('plan-node-taskid')).toHaveTextContent('T101'));
-    // a node whose task has no org_ref falls back to the #id-tail handle
+    // a node with NO org_ref shows the FULL task id (never a #id-tail hash) — the
+    // exact T126 regression (completed tasks leaked a 6-char #hash).
     const node3 = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
-    expect(within(node3).getByTestId('plan-node-taskid')).toHaveTextContent('#');
+    const tag3 = within(node3).getByTestId('plan-node-taskid');
+    expect(tag3).toHaveTextContent('n3');
+    expect(tag3).not.toHaveTextContent('#');
     // task-list rows show the same Task id
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const row1 = screen.getByTestId('plan-task-list').querySelector('[data-task-id="n1"]') as HTMLElement;
@@ -1050,8 +1104,8 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // still exactly 7 real task nodes — the 2 anchors are excluded
     expect(screen.getAllByTestId('plan-dag-node')).toHaveLength(7);
-    // anchors are not in the task-list tab / its count either
-    expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('7');
+    // anchors are not in the task-list tab either (T132: the tab label no longer
+    // carries a count — the count is verified directly by the task-row count below).
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(7);
     expect(screen.queryByTestId('plan-dag-synthetic-start')).not.toBeInTheDocument();
@@ -1470,17 +1524,10 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   });
 
   it('T41: search filters by Task-id (org_ref) and by assignee handle', async () => {
-    mockPlan({ nodes: bigNodes() });
-    // org_ref resolution: b1 → T900.
-    server.use(
-      http.get('/api/projects/proj-a/tasks', () =>
-        HttpResponse.json({
-          tasks: [
-            { id: 'b1', project_id: 'proj-a', title: 'task number 1', description: '', status: 'open', org_ref: 'T900', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
-          ],
-        }),
-      ),
-    );
+    // T126: org_ref rides on the plan node (b1 → T900); used directly, no FE
+    // task-list re-resolver.
+    const nodes = bigNodes().map((n) => (n.task_id === 'b1' ? { ...n, org_ref: 'T900' } : n));
+    mockPlan({ nodes });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
     await screen.findByTestId('plan-task-list-table');
@@ -1501,11 +1548,11 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(6);
   });
 
-  it('T41: per-row assignee <select> fires the assign mutation with {assignee}', async () => {
+  it('T41/T147: the single per-row assignee dropdown fires the assign mutation with {assignee}', async () => {
     mockPlan({ nodes: bigNodes() });
     let assignedBody: { assignee?: string } | null = null;
     server.use(
-      // members feed the <option> list (mirror TaskEditModal: prefixed refs).
+      // members feed the dropdown options (mirror TaskEditModal: prefixed refs).
       http.get('/api/members', () =>
         HttpResponse.json([
           { id: 'mem-1', organization_id: 'org-test', identity_id: 'agent:dev', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev One' },
@@ -1521,17 +1568,24 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
     await screen.findByTestId('plan-task-list-table');
 
-    // the select must be populated from useMembers.
+    // T147: ONE control — the dropdown TRIGGER shows the current assignee (b1 →
+    // agent:dev2 → "Dev Two"); there is NO separate read-only assignee element.
     const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b1"]') as HTMLElement;
-    const select = within(row).getByTestId('plan-row-assign');
-    await waitFor(() => expect(within(select).getByText('Dev One (agent)')).toBeInTheDocument());
-    expect(select).toHaveAttribute('aria-label', 'Reassign task number 1');
+    const trigger = within(row).getByTestId('plan-row-assign-trigger');
+    await waitFor(() => expect(trigger).toHaveTextContent('Dev Two'));
+    expect(trigger).toHaveAttribute('aria-label', 'Reassign task number 1');
 
-    await act(async () => fireEvent.change(select, { target: { value: 'agent:dev' } }));
+    // open the dropdown + pick "Dev One" (agent:dev).
+    await act(async () => fireEvent.click(trigger));
+    const opt = within(row)
+      .getAllByTestId('plan-row-assign-option')
+      .find((o) => o.getAttribute('data-value') === 'agent:dev') as HTMLElement;
+    expect(opt).toHaveTextContent('Dev One');
+    await act(async () => fireEvent.click(opt));
     await waitFor(() => expect(assignedBody).toEqual({ assignee: 'agent:dev' }));
   });
 
-  it('T41: choosing Unassigned routes to the unassign endpoint', async () => {
+  it('T41/T147: choosing Unassigned routes to the unassign endpoint', async () => {
     mockPlan({ nodes: bigNodes() });
     let unassigned = false;
     server.use(
@@ -1544,8 +1598,11 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
     await screen.findByTestId('plan-task-list-table');
     const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b2"]') as HTMLElement;
-    const select = within(row).getByTestId('plan-row-assign');
-    await act(async () => fireEvent.change(select, { target: { value: '' } }));
+    await act(async () => fireEvent.click(within(row).getByTestId('plan-row-assign-trigger')));
+    const unassignOpt = within(row)
+      .getAllByTestId('plan-row-assign-option')
+      .find((o) => o.getAttribute('data-value') === '') as HTMLElement;
+    await act(async () => fireEvent.click(unassignOpt));
     await waitFor(() => expect(unassigned).toBe(true));
   });
 });

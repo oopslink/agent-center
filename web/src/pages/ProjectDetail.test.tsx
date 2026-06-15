@@ -122,11 +122,12 @@ describe('ProjectDetail page', () => {
     );
     wrap('/projects/proj-a');
 
-    // Issues table: id-tail handle + full id on hover (#192); colored status chip.
+    // Issues table (T126): no org_ref → the FULL id (never a #id-tail hash) + full
+    // id on hover (#192); colored status chip.
     const issueHandle = await screen.findByTestId('issue-id-handle');
-    expect(issueHandle).toHaveTextContent('#ABCDEF');
+    expect(issueHandle).toHaveTextContent('issue-01KT8DABCDEF');
     expect(issueHandle).toHaveAttribute('title', 'issue-01KT8DABCDEF');
-    expect(issueHandle).not.toHaveTextContent('01KT8D');
+    expect(issueHandle).not.toHaveTextContent('#');
     const issueChip = screen.getByTestId('status-chip');
     expect(issueChip).toHaveAttribute('data-status', 'in_progress');
     // v2.8.1 #5th: StatusChip unified to @oopslink's REVISION 4 white-on-saturated palette (matches StatusBlock).
@@ -139,7 +140,8 @@ describe('ProjectDetail page', () => {
     // Tasks tab: id handle + assignee name (raw ref on hover) + priority fallback.
     fireEvent.click(screen.getByTestId('project-tab-tasks'));
     const taskHandle = await screen.findByTestId('task-id-handle');
-    expect(taskHandle).toHaveTextContent('#XYZ123');
+    expect(taskHandle).toHaveTextContent('task-01KT8DXYZ123');
+    expect(taskHandle).not.toHaveTextContent('#');
     expect(taskHandle).toHaveAttribute('title', 'task-01KT8DXYZ123');
     expect(screen.getByTestId('task-assignee')).toHaveTextContent('Bot Nine');
     expect(screen.getByTestId('task-priority')).toHaveTextContent('—');
@@ -261,6 +263,59 @@ describe('ProjectDetail page', () => {
     const repoRow = screen.getByTestId('repo-row');
     expect(repoRow).toHaveAttribute('data-repo-id', 'R-1');
     expect(repoRow).toHaveTextContent('main repo');
+  });
+
+  // T131: the per-project Task/Issue lists reuse the global FilterBar with the
+  // project dimension FIXED — the Project picker is hidden, every other filter is
+  // open, and the selections are sent as query params to the project-scoped list.
+  it('T131: project Tasks list reuses the FilterBar (no Project picker) + sends status/assignee params', async () => {
+    const taskUrls: string[] = [];
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/proj-a/tasks', ({ request }) => {
+        taskUrls.push(request.url);
+        return HttpResponse.json({ tasks: [] });
+      }),
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/projects', () => HttpResponse.json({ projects: [] })),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Project Alpha' })).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-tab-tasks'));
+
+    // The shared FilterBar renders with status chips + assignee, but the Project
+    // picker is hidden (the project is fixed by the page).
+    await waitFor(() => expect(screen.getByTestId('org-workitems-filterbar')).toBeInTheDocument());
+    expect(screen.getByTestId('org-filter-status-running')).toBeInTheDocument();
+    expect(screen.getByTestId('org-filter-assignee')).toBeInTheDocument();
+    expect(screen.queryByTestId('org-filter-project')).not.toBeInTheDocument();
+
+    // Selecting a status sends ?status=running to the PROJECT-scoped endpoint.
+    fireEvent.click(screen.getByTestId('org-filter-status-running'));
+    await waitFor(() => expect(taskUrls.some((u) => u.includes('status=running'))).toBe(true));
+  });
+
+  it('T131: project Issues list reuses the FilterBar (no Project picker) + sends status param', async () => {
+    const issueUrls: string[] = [];
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/issues', ({ request }) => {
+        issueUrls.push(request.url);
+        return HttpResponse.json({ issues: [] });
+      }),
+      http.get('/api/projects/proj-a/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/projects', () => HttpResponse.json({ projects: [] })),
+    );
+    wrap('/projects/proj-a');
+    // Issues is the default tab.
+    await waitFor(() => expect(screen.getByTestId('org-workitems-filterbar')).toBeInTheDocument());
+    expect(screen.getByTestId('org-filter-status-resolved')).toBeInTheDocument();
+    expect(screen.queryByTestId('org-filter-project')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('org-filter-status-resolved'));
+    await waitFor(() => expect(issueUrls.some((u) => u.includes('status=resolved'))).toBe(true));
   });
 
   it('owner sees Add + can Remove a non-owner member (#207)', async () => {

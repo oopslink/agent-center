@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { EntitySelect, type EntityOption } from './EntitySelect';
 
 const opts: EntityOption[] = [
@@ -82,5 +82,24 @@ describe('EntitySelect (#191)', () => {
     setup({ disabled: true });
     fireEvent.click(screen.getByTestId('sel-trigger'));
     expect(screen.queryByTestId('sel-options')).not.toBeInTheDocument();
+  });
+
+  // T147: an optional `leading` slot (e.g. an avatar) renders in BOTH the trigger
+  // (for the selected option) and each option row — without disturbing the label.
+  it('renders the optional leading slot in the trigger and option rows', () => {
+    const withLeading: EntityOption[] = [
+      { value: 'a-1', label: 'builder-bot', leading: <span data-testid="lead-a1">A</span> },
+      { value: 'b-2', label: 'helper-bot', leading: <span data-testid="lead-b2">B</span> },
+    ];
+    render(
+      <EntitySelect testId="lead" options={withLeading} value="a-1" onChange={vi.fn()} />,
+    );
+    // trigger shows the selected option's leading + label.
+    const trigger = screen.getByTestId('lead-trigger');
+    expect(trigger).toHaveTextContent('builder-bot');
+    expect(within(trigger).getByTestId('lead-a1')).toBeInTheDocument();
+    // each option row carries its own leading.
+    fireEvent.click(trigger);
+    expect(screen.getByTestId('lead-b2')).toBeInTheDocument();
   });
 });

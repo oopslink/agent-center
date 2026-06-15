@@ -159,7 +159,7 @@ describe('OrgWorkItems page (#258)', () => {
     expect(screen.queryByTestId('org-workitem-assignee-archived')).toBeNull();
   });
 
-  it('falls back to id-tail handle when org_ref absent', async () => {
+  it('falls back to the FULL id (never a #id-tail hash) when org_ref absent (T126)', async () => {
     server.use(
       http.get('/api/issues', () =>
         HttpResponse.json({ items: [issueRow({ org_ref: undefined })], total: 1 }),
@@ -167,7 +167,8 @@ describe('OrgWorkItems page (#258)', () => {
     );
     wrap('issue', '/organizations/acme/issues');
     const id = await screen.findByTestId('org-workitem-id');
-    expect(id).toHaveTextContent('#ABCDEF'); // ULID tail, not head
+    expect(id).toHaveTextContent('issue-01KT8DABCDEF');
+    expect(id).not.toHaveTextContent('#');
   });
 
   it('FilterBar: selecting statuses passes them as the multi status filter', async () => {
