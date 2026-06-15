@@ -128,9 +128,18 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
         HttpResponse.json(
           fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
             work_items: [
-              { work_item_id: 'wi-1', task_id: 'task-1', agent_id: 'bot-a', status: 'active', current_activity: 'coding' },
+              {
+                work_item_id: 'wi-1',
+                task_id: 'task-1',
+                task_org_ref: 'T7',
+                task_title: 'Build login',
+                project_id: 'proj-x',
+                agent_id: 'bot-a',
+                status: 'active',
+                current_activity: 'coding',
+              },
             ],
-            pending_issues: [{ issue_id: 'iss-1', title: 'Fix login' }],
+            pending_issues: [{ issue_id: 'iss-1', project_id: 'proj-x', title: 'Fix login' }],
           }),
         ),
       ),
@@ -140,19 +149,93 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     wrap(<Environment />);
     // Default tab = All → union of work items + issues shows immediately.
     await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
-    expect(screen.getByText('task-1')).toBeInTheDocument();
+    // v2.10.2 [T140]: the work item reads "T<n> + title" (NOT the raw task-<id>)
+    // and links to the project-scoped task page (no longer the bare /tasks/{id}
+    // that 404'd).
+    const taskLink = screen.getByTestId('environment-workitem-task-link');
+    expect(taskLink).toHaveTextContent('T7');
+    expect(taskLink).toHaveTextContent('Build login');
+    expect(taskLink).toHaveAttribute('href', '/projects/proj-x/tasks/task-1');
+    expect(taskLink.textContent).not.toContain('task-1'); // raw id only on hover (title)
     expect(screen.getByText('Fix login')).toBeInTheDocument();
     expect(screen.getAllByTestId('environment-activity-all-row')).toHaveLength(2);
 
-    // The dedicated Work Items tab shows the work-item rows.
+    // The dedicated Work Items tab shows the work-item rows with the same link.
     fireEvent.click(screen.getByTestId('environment-activity-tab-work_items'));
     await waitFor(() => expect(screen.getByTestId('environment-workitem-row')).toBeInTheDocument());
-    expect(screen.getByText('task-1')).toBeInTheDocument();
+    expect(screen.getByTestId('environment-workitem-task-link')).toHaveAttribute(
+      'href',
+      '/projects/proj-x/tasks/task-1',
+    );
 
-    // The dedicated Issues tab shows the issue rows.
+    // The dedicated Issues tab shows the issue rows; the link is project-scoped too.
     fireEvent.click(screen.getByTestId('environment-activity-tab-issues'));
     await waitFor(() => expect(screen.getByTestId('environment-issue-row')).toBeInTheDocument());
-    expect(screen.getByText('Fix login')).toBeInTheDocument();
+    expect(screen.getByText('Fix login').closest('a')).toHaveAttribute(
+      'href',
+      '/projects/proj-x/issues/iss-1',
+    );
+  });
+
+  // v2.10.2 [T140]: a work item whose org_ref / project can't be resolved falls
+  // back to a clean #hash handle (never the raw task-<id>) and, lacking a project
+  // segment, renders as PLAIN TEXT rather than a link that would 404.
+  it('falls back to #hash + no link when org_ref/project are unresolved (T140)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
+            work_items: [
+              { work_item_id: 'wi-1', task_id: 'task-abcdef', agent_id: 'bot-a', status: 'active' },
+            ],
+          }),
+        ),
+      ),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
+    // Clean #hash (last-6 tail), not the raw "task-abcdef"; and NOT a link.
+    expect(screen.getByText('#abcdef')).toBeInTheDocument();
+    expect(screen.queryByTestId('environment-workitem-task-link')).not.toBeInTheDocument();
+  });
+
+  // v2.10.2 [T141]: the work-item agent shows its display NAME (not the raw
+  // agent-<id>) and links to the agent detail page (member-id → execution-Agent id
+  // via identity_member_id, #157 pattern).
+  it('renders the work-item agent as its name + a link to the agent detail (T141)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(
+          fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
+            work_items: [
+              { work_item_id: 'wi-1', task_id: 'task-1', project_id: 'proj-x', agent_id: 'agent-mem-1', status: 'active' },
+            ],
+          }),
+        ),
+      ),
+      // The execution Agent carries identity_member_id == the row's agent member id
+      // → gives the /agents/{id} route id. worker_id '' keeps it out of a worker card.
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent('A-1', '', { identity_member_id: 'agent-mem-1', name: 'agent-center-dev3' })],
+        }),
+      ),
+      // The members list resolves the display name.
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { identity_id: 'agent-mem-1', display_name: 'agent-center-dev3', kind: 'agent', status: 'joined' },
+        ]),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
+    const agentLink = await screen.findByTestId('environment-workitem-agent-link');
+    expect(agentLink).toHaveTextContent('agent-center-dev3');
+    expect(agentLink).toHaveAttribute('href', '/agents/A-1');
+    expect(agentLink.textContent).not.toContain('agent-mem-1'); // raw member id only on hover
   });
 
   it('renders in-flight transfer sessions in the Activity Transfers tab', async () => {

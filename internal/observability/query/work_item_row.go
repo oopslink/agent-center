@@ -21,7 +21,13 @@ type WorkItemRow struct {
 	// Populated only by the user-facing fleet snapshot (which already loads the pm
 	// task + project to resolve org scope); the admin inspect/query verbs leave them
 	// empty (omitempty). Empty when the task can't be resolved → UI falls back.
-	TaskTitle         string `json:"task_title,omitempty"`
+	TaskTitle string `json:"task_title,omitempty"`
+	// TaskOrgRef is the human org reference token ("T<n>", v2.10.2 [T140]) so the
+	// Worker Activity feed shows "T<n> + title" (consistent with the org Issue/Task
+	// lists + #245 org_ref display) instead of a raw "task-<id>". Same enrichment
+	// path as TaskTitle/ProjectID; "" when the task or its org-number can't be
+	// resolved (UI falls back to a clean #hash, never the raw id).
+	TaskOrgRef        string `json:"task_org_ref,omitempty"`
 	ProjectID         string `json:"project_id,omitempty"`
 	Status            string `json:"status"`
 	CurrentActivity   string `json:"current_activity,omitempty"`
