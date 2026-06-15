@@ -69,7 +69,12 @@ func NewBus() *Bus {
 		subs:      make(map[string]*subscriber),
 		channels:  make(map[string]map[string]struct{}),
 		ring:      newRingBuffer(256),
-		heartbeat: 30 * time.Second,
+		// v2.10.2 [T135]: 15s (was 30s) so idle gaps stay short behind a
+		// domain/CDN/local-proxy chain (Cloudflare keep-idle ~100s, but a local
+		// forward proxy may read-timeout much sooner) and a dropped stream is
+		// re-detected faster. The client watchdog (45s) now tolerates 3 missed
+		// beats instead of 1.5.
+		heartbeat: 15 * time.Second,
 	}
 }
 
@@ -185,6 +190,12 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, ssePrimePadding)
 	flusher.Flush()
 
+	// v2.10.2 [T135]: hint the EventSource native reconnect backoff (a `retry:`
+	// line) so a transient drop behind the domain/CDN/proxy chain reconnects on a
+	// sane fixed delay rather than the UA default.
+	fmt.Fprint(w, "retry: 3000\n\n")
+	flusher.Flush()
+
 	// Replay missed events when Last-Event-ID present. Header is the
 	// standard channel (native browser EventSource passes it on auto-
 	// reconnect); ?last_event_id=N query param is the fallback used by
@@ -205,6 +216,17 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+
+	// v2.10.2 [T135]: send an immediate heartbeat data frame right after connect
+	// (and any replay) so the client receives a real `onmessage` within
+	// milliseconds — its status flips to "open" and its liveness watchdog is
+	// primed at once. Without it, a fresh connection with NO missed events to
+	// replay stayed silent until the first heartbeat tick (up to one full
+	// interval), so every (re)connect behind the domain/proxy chain showed an
+	// "connecting" window that read as the flicker T135 reports. No `id:` line →
+	// lastEventId is unchanged; the client dispatch table treats it as a no-op.
+	fmt.Fprint(w, "data: {\"event_type\":\"sse.heartbeat\"}\n\n")
+	flusher.Flush()
 
 	// Install the subscriber (replaces any existing connection for this user).
 	sub := &subscriber{
