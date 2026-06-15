@@ -8,6 +8,8 @@ import { MemberInviteModal } from './MemberInviteModal';
 import { EntityRef } from './EntityRef';
 import { Avatar } from './Avatar';
 import { ConversationThreadList } from './ConversationThreadList';
+import { ResizeHandle } from './ResizeHandle';
+import { useResizablePanel } from './useResizablePanel';
 
 interface Props {
   conversationId: string;
@@ -15,6 +17,15 @@ interface Props {
 }
 
 const COLLAPSE_KEY = 'ac.participants.collapsed';
+
+// Desktop width bounds (task-412a6835): default = the prior w-64 (256px); a
+// sensible floor so the names stay readable, and a ceiling so the panel can't
+// swallow the conversation. Reuses the same useResizablePanel/ResizeHandle as the
+// Thread panel (task-97c7600a) so the drag interaction is identical.
+const PARTICIPANTS_WIDTH_KEY = 'ac.participants.panel.width';
+const PARTICIPANTS_DEFAULT_WIDTH = 256;
+const PARTICIPANTS_MIN_WIDTH = 200;
+const PARTICIPANTS_MAX_WIDTH = 480;
 
 function readCollapsed(): boolean {
   try {
@@ -42,6 +53,14 @@ export function ParticipantsPanel({
   const remove = useRemoveParticipant();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
+  // Desktop: a draggable left-edge handle resizes the expanded panel (persisted).
+  const { width, resizing, handleProps } = useResizablePanel({
+    storageKey: PARTICIPANTS_WIDTH_KEY,
+    defaultWidth: PARTICIPANTS_DEFAULT_WIDTH,
+    minWidth: PARTICIPANTS_MIN_WIDTH,
+    maxWidth: PARTICIPANTS_MAX_WIDTH,
+    edge: 'left',
+  });
 
   useEffect(() => {
     try {
@@ -77,11 +96,21 @@ export function ParticipantsPanel({
 
   return (
     <aside
-      className="w-64 flex-shrink-0 border-l border-border-base bg-bg-subtle p-4"
+      className="relative flex-shrink-0 border-l border-border-base bg-bg-subtle p-4"
+      style={{ width }}
       aria-label="participants"
       data-testid="participants-panel"
       data-collapsed="false"
     >
+      {/* Left-edge resize grip (desktop): drag to set the panel width. */}
+      <ResizeHandle
+        edge="left"
+        handleProps={handleProps}
+        resizing={resizing}
+        ariaLabel="Resize participants panel"
+        testId="participants-resize"
+      />
+
       <div className="mb-3 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
           Participants

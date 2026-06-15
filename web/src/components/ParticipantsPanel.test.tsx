@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type React from 'react';
@@ -135,5 +135,33 @@ describe('ParticipantsPanel', () => {
     expect(screen.getByTestId('participants-panel')).toHaveAttribute('data-collapsed', 'true');
     fireEvent.click(screen.getByTestId('participants-expand'));
     expect(screen.getByTestId('participants-panel')).toHaveAttribute('data-collapsed', 'false');
+  });
+
+  it('has a left-edge resize handle; a left-drag widens the panel and persists it', () => {
+    // jsdom's localStorage is method-less here; install a real Map-backed stub.
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
+      setItem: (k: string, v: string) => void store.set(k, String(v)),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => void store.clear(),
+    });
+    wrap(<ParticipantsPanel conversationId="C1" participants={[owner, member]} />);
+    const panel = screen.getByTestId('participants-panel');
+    expect(panel).toHaveStyle({ width: '256px' }); // default (was w-64)
+    const handle = screen.getByTestId('participants-resize');
+    expect(handle).toHaveAttribute('aria-orientation', 'vertical');
+    fireEvent.mouseDown(handle, { clientX: 800 });
+    fireEvent.mouseMove(window, { clientX: 760 }); // 40px left -> +40
+    fireEvent.mouseUp(window, { clientX: 760 });
+    expect(panel).toHaveStyle({ width: '296px' });
+    expect(localStorage.getItem('ac.participants.panel.width')).toBe('296');
+    vi.unstubAllGlobals();
+  });
+
+  it('shows no resize handle when collapsed', () => {
+    wrap(<ParticipantsPanel conversationId="C1" participants={[owner, member]} />);
+    fireEvent.click(screen.getByTestId('participants-collapse'));
+    expect(screen.queryByTestId('participants-resize')).toBeNull();
   });
 });
