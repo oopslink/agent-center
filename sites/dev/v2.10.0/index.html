@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>开发指引 · v2.8 · 战略设计 · agent-center</title>
-<meta name="description" content="agent-center 开发指引 v2.8 战略设计：物理运行时分层、限界上下文地图（点开任一域进入战术设计）、上下文集成关系、跨域 Event Storming。以现行代码 internal/* 校准，用 DDD 语言展示系统设计。">
+<title>开发指引 · v2.10.0 · 战略设计 · agent-center</title>
+<meta name="description" content="agent-center 开发指引 v2.10.0 战略设计：物理运行时分层、限界上下文地图（点开任一域进入战术设计）、上下文集成关系、跨域 Event Storming。覆盖 Plan DAG 编排、显式 org 路由、消息线程、看板/任务模型、三栏式 App Shell。以现行代码 internal/* 与 web/src/* 校准，用 DDD 语言展示系统设计。">
 <link rel="stylesheet" href="../../assets/site.css">
 <script src="../../assets/site.js" defer></script>
 <style>
@@ -89,35 +89,36 @@
   <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
   <nav class="hd-nav">
     <a href="../../product/index.html">产品介绍</a>
-    <a href="../../manual/v2.8/index.html">用户手册</a>
-    <a class="active" href="../../dev/v2.8/index.html">开发指引</a>
+    <a href="../../manual/v2.10.0/index.html">用户手册</a>
+    <a class="active" href="../../dev/v2.10.0/index.html">开发指引</a>
     <a href="../../roadmap/index.html">路线图</a>
     <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
   </nav>
 </div></header>
 
-<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.8/index.html">开发指引</a> › v2.8 · 战略设计</div>
+<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.10.0/index.html">开发指引</a> › v2.10.0 · 战略设计</div>
 
 <section class="hero sm">
   <div class="inner">
-    <span class="eyebrow">开发指引 · v2.8 · 战略设计</span>
+    <span class="eyebrow">开发指引 · v2.10.0 · 战略设计</span>
     <h1>用 DDD 语言看系统设计</h1>
-    <p class="lede">先看<b>战略设计</b>——物理分层与限界上下文地图；<b>点开任一个域</b>进入它的<b>战术设计</b>（聚合 / 实体 / 服务 / 事件的关系与具体技术方案）。所有图以现行代码 <code style="color:#fff">internal/*</code> 校准。</p>
+    <p class="lede">先看<b>战略设计</b>——物理分层与限界上下文地图；<b>点开任一个域</b>进入它的<b>战术设计</b>（聚合 / 实体 / 服务 / 事件的关系与具体技术方案）。所有图以现行代码 <code style="color:#fff">internal/*</code> 与 <code style="color:#fff">web/src/*</code> 校准。</p>
   </div>
 </section>
 
 <main class="wrap wide">
 
-  <div class="verswitch"><a href="../../dev/v2.10.0/index.html">v2.10.0 最新</a><a class="on" href="../../dev/v2.8/index.html">v2.8（本页·历史）</a><a href="../../dev/v2.7.1/index.html">v2.7.1 历史</a><a href="../../dev/v2.7/index.html">v2.7 历史</a></div>
+  <div class="verswitch"><a class="on" href="../../dev/v2.10.0/index.html">v2.10.0 当前</a><a href="../../dev/v2.8/index.html">v2.8 历史</a><a href="../../dev/v2.7.1/index.html">v2.7.1 历史</a><a href="../../dev/v2.7/index.html">v2.7 历史</a></div>
 
-  <!-- ============ v2.8 新增 highlight ============ -->
-  <div class="section-title">v2.8 相对 v2.7.1 主要演进 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 会话页 UX + 工具显示 + 富文本</span></div>
+  <!-- ============ v2.10.0 新增 highlight ============ -->
+  <div class="section-title">v2.8 → v2.10.0 主要演进 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— Plan DAG 编排 + 显式 org 路由 + 消息线程 + 看板/任务模型 + 三栏式 App Shell</span></div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin:8px 0 20px;font-size:13px;line-height:1.6">
-    <p style="margin:0 0 8px"><b>会话域</b>：4-surface（channel / DM / task 线程 / issue 线程）统一切到 <code>ConversationView</code> 外壳（surface-agnostic）+ 已读游标 + SSE 实时；侧栏未读 badge + @mention 红数字 + Follow toggle；<code>#</code>/<code>@</code> picker（ARIA combobox + 文本 token + trailing-space wake 真触发）；完整 markdown 渲染（react-markdown + remark-gfm + 严格 escape · XSS red-line）+ CollapsibleCodeBlock 共组件（>20 行自动折叠 · 13 a11y locks · 复用 Activity tool_result）。</p>
-    <p style="margin:0 0 8px"><b>智能体域</b>：agent 软归档（soft archive）— lifecycle 加 <code>archived</code> 终态 + 释放 worker binding + 严格两步（running → 409 must-stop-first）+ hard-delete 改 admin-only；agent 操作按钮全 SVG icon + 破坏性操作 ConfirmModal + ESLint guard（agent action buttons 必 icon-component · lint-enforceable red-line）；(archived) chip 渲（assignee 嵌套字段 <code>assignee_lifecycle</code>）。</p>
-    <p style="margin:0 0 8px"><b>环境域</b>：新建 Worker 详情页 <code>/workers/:id</code> 4-tab（Profile · Bound Agents · Management · Activity 占位）+ 共享 <code>useTablistKeyboard</code> hook（WAI-ARIA tab manual activation · 回写 #228 AgentDetail）。</p>
-    <p style="margin:0 0 8px"><b>可观测域</b>：Agent Activity cursor-based 翻页（(a) presence-check + 并发 append 闸 + ULID DESC 稳定单调）；前端 Load older + "Checking messages" 自动折叠（跨页 re-group 不裂）+ tool_use/tool_result 富渲染（SVG icon 非 emoji + tool 名 + 参数 + ✓/✗ 状态 + 内联输出复用 CollapsibleCodeBlock）。</p>
-    <p style="margin:0"><b>领域模型不变</b>（聚合 / 边界 / 集成关系沿用 v2.7.1）；变化集中在战术与 UX 层。详情见 <a href="../../../docs/release/v2.8-acceptance-report.md"><code>docs/release/v2.8-acceptance-report.md</code></a>。</p>
+    <p style="margin:0 0 8px"><b>Plan 编排（v2.9）</b>：把工作组织成一张<b>任务 DAG</b>（一个 <code>Plan</code>）。在 <b>draft</b> 态拉入 backlog 任务为节点、连依赖（拒绝环 / 自环）；<code>start</code> 后由 <b>plan orchestrator 投影器</b>（<code>internal/projectmanager/service/plan_orchestrator_projector.go</code>）自动推进——每个节点状态是<b>派生（derived, never stored）</b>的 <code>blocked / ready / dispatched / running / paused / done / failed</code>（<code>plan_view.go</code> 的 <code>NodeStatus</code>）；上游任务一旦完成，ready 节点即被<b>派发（work-delivery，非 chat @）</b>给其指派智能体，全程无需手动 step。<b>failed 节点阻塞其子树</b>并唤醒 plan 创建者；<code>rerun_failed_node</code> / <code>resume_paused_node</code> 提供失败/暂停节点的恢复。Plan/Project 生命周期为 draft / running / done + <b>不可逆 archive（只读级联）</b>。</p>
+    <p style="margin:0 0 8px"><b>显式 org 路由（v2.9）</b>：所有 org-scoped API 迁到 <code>/api/orgs/{slug}/...</code>（path-explicit），消除从 session / <code>?org_slug=</code> 推断的隐式「current org」；同一路径不再因隐藏状态返回不同数据，跨 org 访问以 <code>404</code> 拒绝（存在性不泄露）。前端在 <code>/organizations/{slug}/...</code> 下寻址。</p>
+    <p style="margin:0 0 8px"><b>消息线程 Message Threads（v2.9.1）</b>：从任意消息派生一条线程，弹出式侧栏中扁平回复（Slack 风格单层，回复的 parent 永远是 root）；<b>线程内 @mention 唤醒</b>项目智能体且其回复落在线程内；Participants 侧栏列出会话内所有线程并标「新活动」未读标记。落库为 <code>parent_message_id</code> + 派生 root，服务端强制单层、拒绝跨会话 parent。</p>
+    <p style="margin:0 0 8px"><b>任务模型 / 看板（v2.9.1）</b>：<b>claimable ≠ assigned</b>（指派 ≠ 认领）；每个项目一个常驻<b>内建指派池（built-in assignment pool）</b>——可认领任务的扁平列表。Work Board 三段式：<b>Backlog</b>（未排程，不可认领）· <b>指派池</b>（内建，可认领）· <b>结构化 Plans</b>（DAG 列）。任务状态机简化（ADR-0046）：<code>blocked</code> 不再是状态而是 running 任务上的<b>可恢复标注</b>（resume/unblock/complete/discard 自动清除），<code>verified</code> 移除（<code>completed</code> 即终态）；终态 / 已归档项默认列表隐藏。</p>
+    <p style="margin:0 0 8px"><b>三栏式 App Shell（v2.10.0）</b>：Web Console 重构为四区桌面外壳——<b>图标栏</b>（顶层模块）→ <b>二级导航列 col②</b> → <b>内容区 col③</b> → <b>按需上下文列 col④</b>，沿用现行 IA（Workspace / Conversations / Members / System；Overview 移除），模块嵌套路由。二级导航靠<b>注册表契约</b> <code>SECONDARY_NAV_REGISTRY</code>（<code>web/src/shell/secondaryNav.tsx</code>）按模块装配，每模块加自己的 <code>*SecondaryNav.tsx</code> + 一行注册，<code>AppLayout.tsx</code> 不被触碰（规避并发改同一文件的冲突）。</p>
+    <p style="margin:0"><b>附件 / linkify / System 作者（v2.10.0）</b>：任务 / issue 附件（<b>project-member-gated，fail-closed</b>，非成员 403/404）；消息引用 linkify 解析 <code>task-&lt;id&gt;</code> 与 <code>T&lt;number&gt;</code> org_ref（含终态 / done 任务，T62）为可点链接；system / scheduler 消息作者渲染为 <b>“System”</b>（不再 “(deleted)”，T75）。详见 <a href="../../../CHANGELOG.md"><code>CHANGELOG.md</code></a> [v2.10.0]/[v2.9.1]/[v2.9] 与 <a href="../../../docs/design/v2.10.0/"><code>docs/design/v2.10.0/</code></a>。</p>
   </div>
 
   <!-- ============ 物理运行时分层 ============ -->
@@ -126,8 +127,8 @@
     <div class="arch-layer">
       <p class="lh">控制面 · Server（单点真相）</p>
       <div class="arch-boxes">
-        <div class="abox server"><b>Server / HTTP API</b><small>内部 BC 服务编排、SSE 推送、轮询回退</small></div>
-        <div class="abox web"><b>Web Console（SPA）</b><small>webconsole/api 托管前端 + SSE 实时流</small></div>
+        <div class="abox server"><b>Server / HTTP API</b><small>org-explicit 路由 /api/orgs/{slug}/*、内部 BC 编排、SSE 推送、轮询回退</small></div>
+        <div class="abox web"><b>Web Console（SPA）</b><small>三栏式 App Shell + SSE 实时流；/organizations/{slug}/* 寻址</small></div>
         <div class="abox infra"><b>Identity / Auth</b><small>identity BC：组织/成员/邀请 + admintoken</small></div>
       </div>
     </div>
@@ -139,7 +140,7 @@
         <div class="abox runtime"><b>supervisor manager</b><small>每个智能体一个常驻 supervisor</small></div>
         <div class="abox runtime"><b>agent supervisor</b><small>detached 进程，断连可重附</small></div>
         <div class="abox runtime"><b>shim + adapter</b><small>claudestream 解析 / agentadapter（ACL）</small></div>
-        <div class="abox runtime"><b>MCP host</b><small>向智能体暴露 agent-center 工具集</small></div>
+        <div class="abox runtime"><b>MCP host</b><small>向智能体暴露 agent-center 工具集（含 plan 编排 + 恢复工具）</small></div>
       </div>
     </div>
     <div class="arch-flow">▲ 同一 server 进程内的持久化与对象存储 ▼</div>
@@ -148,7 +149,7 @@
       <div class="arch-boxes">
         <div class="abox infra"><b>SQLite</b><small>migrations + 事务管道</small></div>
         <div class="abox infra"><b>blob store</b><small>内容寻址（sha256）+ 引用计数 GC</small></div>
-        <div class="abox infra"><b>transactional outbox</b><small>Relay/Pump：可靠事件发布</small></div>
+        <div class="abox infra"><b>transactional outbox</b><small>Relay/Pump：可靠事件发布（plan 编排投影器消费）</small></div>
       </div>
     </div>
   </div>
@@ -171,8 +172,8 @@
       <h4>项目管理 ProjectManager</h4>
       <div class="sub pkg">internal/projectmanager</div>
       <span class="role">核心域 CORE</span>
-      <ul><li>Project / Issue / Task / Member</li><li>订阅真相 + OrgSequence（T&lt;n&gt;/I&lt;n&gt;）</li></ul>
-      <span class="drill">→ 战术设计：Task/Issue 生命周期</span>
+      <ul><li>Project / Issue / Task / Member / Plan(DAG)</li><li>派生节点状态 + 指派池 + OrgSequence（T&lt;n&gt;/I&lt;n&gt;）</li></ul>
+      <span class="drill">→ 战术设计：Plan 编排 + Task/Issue 生命周期</span>
     </a>
     <a class="ctx core" href="agent/index.html">
       <h4>智能体 Agent</h4>
@@ -185,8 +186,8 @@
       <h4>环境 Environment</h4>
       <div class="sub pkg">environment + workforce + files + blobstore</div>
       <span class="role">核心域 CORE</span>
-      <ul><li>Worker / AgentInstance / BootstrapToken</li><li>FileTransferSession / BlobStore</li></ul>
-      <span class="drill">→ 战术设计：控制信道 + 文件传输</span>
+      <ul><li>Worker / AgentInstance / BootstrapToken</li><li>FileTransferSession / BlobStore / WakeProjector</li></ul>
+      <span class="drill">→ 战术设计：控制信道 + 文件传输 + 唤醒</span>
     </a>
   </div>
   <div class="ctx-row">
@@ -194,7 +195,7 @@
       <h4>会话 Conversation</h4>
       <div class="sub pkg">internal/conversation</div>
       <span class="role">核心域 CORE</span>
-      <ul><li>Conversation / Message（追加写）</li><li>kind：dm / channel / task / issue</li></ul>
+      <ul><li>Conversation / Message（追加写）+ Thread</li><li>kind：dm / channel / task / issue / plan</li></ul>
       <span class="drill">→ 战术设计：统一线程 + InputRequest</span>
     </a>
     <a class="ctx support" href="observability/index.html">
@@ -230,7 +231,7 @@
     <span><b class="rel sk">SK</b> 共享内核</span>
   </div>
   <div class="topo-wrap">
-    <svg class="topo" viewBox="0 0 1000 650" role="img" aria-label="限界上下文拓扑图：身份(SK)横切全部域；智能体以 ACL 引用项目管理、以 D 依赖环境；会话与项目管理双向(CF / U-D)；各核心域向可观测性发事件(U/D)，可观测性以 OHS 向前端运维只读暴露；环境以 ACL 隔离外部 Agent CLI。">
+    <svg class="topo" viewBox="0 0 1000 650" role="img" aria-label="限界上下文拓扑图：身份(SK)横切全部域；智能体以 ACL 引用项目管理、以 D 依赖环境；会话与项目管理双向(CF / U-D)；各核心域向可观测性发事件(U/D)，可观测性以 OHS 向前端运维只读暴露；环境以 ACL 隔离外部 Agent CLI。Plan 编排由项目管理的 orchestrator 投影器消费事件自动推进。">
       <defs>
         <marker id="topo-ah" markerWidth="9" markerHeight="9" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path class="ah" d="M0,0 L8.5,4 L0,8 z"/></marker>
       </defs>
@@ -286,7 +287,23 @@
       <g class="rl sk"><rect x="485" y="129" width="30" height="22" rx="3"/><text class="t" x="500" y="144" text-anchor="middle">SK</text></g>
     </svg>
   </div>
-  <p class="topo-cap">// <b>红＝核心域</b> 间为业务协作（ACL 防腐 / CF 遵从 / U·D 上下游）；<b style="color:var(--support)">身份(SK)</b> 与 <b style="color:var(--support)">可观测性(OHS)</b> 横切全域；虚线为「各核心域 → 可观测性」同事务发事件。点上方域卡进入战术设计。</p>
+  <p class="topo-cap">// <b>红＝核心域</b> 间为业务协作（ACL 防腐 / CF 遵从 / U·D 上下游）；<b style="color:var(--support)">身份(SK)</b> 与 <b style="color:var(--support)">可观测性(OHS)</b> 横切全域；虚线为「各核心域 → 可观测性」同事务发事件。<b>Plan 编排</b>由项目管理域内的 orchestrator 投影器消费这些事件自动推进 DAG。点上方域卡进入战术设计。</p>
+
+  <!-- ============ 核心机制 · Plan 编排 + 唤醒/派发 ============ -->
+  <div class="section-title">核心机制 · Plan 编排投影器 + 唤醒/派发模型 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— v2.9 → v2.10.0 新增的两条主轴</span></div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin:8px 0 14px;font-size:13px;line-height:1.65">
+    <p style="margin:0 0 8px"><b>① Plan = 任务 DAG，节点状态派生。</b> <code>Plan</code> 在 draft 态编辑依赖（拒绝环 / 自环），<code>start</code> 转 running。节点状态从不落库、永远由 <code>plan_view.go</code> 派生：<code>blocked</code>（上游未完）→ <code>ready</code>（上游全完，可派发）→ <code>dispatched</code>（已交付指派智能体）→ <code>running</code>（智能体执行中，可临时 <code>paused</code>）→ <code>done</code> / <code>failed</code>。<b>plan orchestrator 投影器</b>消费 outbox 事件，上游 done 即把 ready 节点<b>派发</b>给其指派智能体——这是 <b>work-delivery（工作交付）</b>，不是会话 @mention。<b>failed 节点阻塞其整棵子树</b>并唤醒 plan 创建者。恢复：<code>rerun_failed_node</code> 重跑失败节点、<code>resume_paused_node</code> 恢复暂停节点；陈旧释放的节点自动重派（retry-capped）。</p>
+    <p style="margin:0 0 8px"><b>② 智能体被「唤醒」的两条且仅两条路径。</b>（a）<b>工作交付</b>：任务 / plan-node 派发到智能体的单活工作项（task-WorkItem-keyed 的 <code>agent.wake</code>）。（b）<b>人类 @mention</b>：人类在 DM / channel / task / issue / plan 会话中 @ 智能体（<code>agent.converse</code>）。<b>关键 loop-break</b>：见 <code>internal/environment/service/wake_projector.go</code>——<b>只有 <code>user:</code> 发送者才唤醒智能体</b>；智能体自身 @ 另一智能体<b>不会</b>唤醒对方（否则形成自激环）。system / agent 消息永不触发会话唤醒。</p>
+    <p style="margin:0"><b>③ Plan/Project 生命周期与归档。</b> draft / running / done + 不可逆 <b>archive</b>（级联子任务、只读，running 任务存在时拒绝归档）；归档项从默认列表移出、单列「Archived」分组。任务状态机（ADR-0046）五态：<code>open / running / completed / discarded / reopened</code>，<code>blocked</code> 为可恢复标注、<code>verified</code> 已删除。</p>
+  </div>
+
+  <!-- ============ 三栏式 App Shell（前端契约） ============ -->
+  <div class="section-title">三栏式 App Shell · 二级导航注册表契约 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— v2.10.0 前端外壳 web/src/shell/</span></div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin:8px 0 14px;font-size:13px;line-height:1.65">
+    <p style="margin:0 0 8px">Web Console 重构为<b>四区桌面外壳</b>：<b>图标栏</b>（顶层模块 Workspace / Conversations / Members / System）→ <b>二级导航列 col②</b> → <b>内容区 col③</b> → <b>按需上下文列 col④</b>，沿用现行 IA（Overview 移除），模块嵌套路由。</p>
+    <p style="margin:0 0 8px"><b>shell 与模块的职责切分</b>（见 <code>web/src/shell/secondaryNav.tsx</code>）：<code>AppLayout</code> 拥有 col② 的 <b>chrome</b>（页眉、页脚 live / Light·Dark / Sign out、折叠、col④ 宿主）；col② 的 <b>nav body</b> 由各模块自有。模块任务契约只有两步：(1) 建 <code>web/src/shell/nav/&lt;Module&gt;SecondaryNav.tsx</code>（实现 <code>ModuleSecondaryNav</code>，接收 <code>{ orgBase }</code>）；(2) 在 <code>SECONDARY_NAV_REGISTRY</code> 加一行 <code>module: XxxSecondaryNav</code>。这是<b>唯一</b>的共享改动（每模块一条不同的行 → git 自动合并），<code>AppLayout.tsx</code> 始终不被触碰——避免六个并发模块任务同改一文件（shared-state single-actor 命门）。无注册项的模块回落到 shell 默认 NavGroup。</p>
+    <p style="margin:0">每模块在外壳上重建：Conversations（col② channel / DM 导航，col④ 参与者 + 共享文件）、Workspace Projects + 项目详情（col② 项目子导航，列表卡显示 task / issue / plan / repo 计数）、Workspace Tasks / Issues（col④ 只读元数据面板）、<b>全局跨项目 Plan 列表 + 详情</b>（Chat / DAG / Task-list 三 tab）、<b>Project Work Board</b>、Members（col② Humans / Agents，Agent col④ 上下文面板）、System。</p>
+  </div>
 
   <!-- ============ 跨域业务流 · Event Storming ============ -->
   <div class="section-title">跨域业务流 · Event Storming <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 域之间如何协作（事件名为代码真实名）</span></div>
@@ -301,15 +318,27 @@
   <div class="es-flow"><span class="es actor">智能体</span><span class="es-arrow">→</span><span class="es cmd">post_task_message</span><span class="es-arrow">→</span><span class="es ar">Message</span><span class="es-arrow">→</span><span class="es event">conversation.message_added</span></div>
   <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：单智能体同时仅 1 条活跃工作项；冗长中间输出落 AgentActivityEvent 观测流，不进会话。</span></div>
 
-  <h2 class="section-title" style="margin:16px 4px 8px">✅ 完成与验收 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">智能体 → 项目管理</span></h2>
-  <div class="es-flow"><span class="es actor">智能体</span><span class="es-arrow">→</span><span class="es cmd">complete_task</span><span class="es-arrow">→</span><span class="es ar">Task（running→completed）</span><span class="es-arrow">→</span><span class="es event">pm.task.state_changed</span></div>
-  <div class="es-flow"><span class="es policy">策略：待验收</span><span class="es-arrow">→</span><span class="es actor">用户 / 同侪 Agent</span><span class="es-arrow">→</span><span class="es cmd">verify_task</span><span class="es-arrow">→</span><span class="es ar">Task（completed→verified）</span><span class="es-arrow">→</span><span class="es event">pm.task.state_changed</span></div>
-  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：验收者 ≠ 完成者（禁止自验，支持同侪评审）。</span></div>
+  <h2 class="section-title" style="margin:16px 4px 8px">🧭 Plan 自动推进 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">项目管理（orchestrator 投影器）→ 智能体（work-delivery）</span></h2>
+  <div class="es-flow"><span class="es actor">用户 / PM 型 Agent</span><span class="es-arrow">→</span><span class="es cmd">create_plan · add_task_to_plan · add_plan_dependency</span><span class="es-arrow">→</span><span class="es ar">Plan（draft · DAG）</span><span class="es-arrow">→</span><span class="es event">pm.plan.updated</span></div>
+  <div class="es-flow"><span class="es actor">用户 / PM 型 Agent</span><span class="es-arrow">→</span><span class="es cmd">start_plan</span><span class="es-arrow">→</span><span class="es ar">Plan（draft→running）</span><span class="es-arrow">→</span><span class="es event">pm.plan.started</span></div>
+  <div class="es-flow"><span class="es policy">策略：orchestrator 投影器（上游 done → ready 节点派发）</span><span class="es-arrow">→</span><span class="es ar">PlanNode（ready→dispatched）· AgentWorkItem</span><span class="es-arrow">→</span><span class="es event">pm.task.assigned · agent.work_item_transitioned</span></div>
+  <div class="es-flow"><span class="es policy">策略：节点失败阻塞子树</span><span class="es-arrow">→</span><span class="es ar">PlanNode（→failed）</span><span class="es-arrow">→</span><span class="es event">唤醒 plan 创建者</span><span class="es-arrow">→</span><span class="es cmd">rerun_failed_node / resume_paused_node</span></div>
+  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：节点状态（blocked/ready/dispatched/running/paused/done/failed）派生、从不落库；派发为 work-delivery（非 chat @）；依赖只在 draft 编辑、拒绝环/自环。</span></div>
 
-  <h2 class="section-title" style="margin:16px 4px 8px">📁 文件上传与引用 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">环境 → 会话</span></h2>
-  <div class="es-flow"><span class="es actor">智能体 / 用户</span><span class="es-arrow">→</span><span class="es cmd">upload_file(scope=task)</span><span class="es-arrow">→</span><span class="es ar">FileTransferSession + BlobStore</span><span class="es-arrow">→</span><span class="es event">session open → completed</span></div>
-  <div class="es-flow"><span class="es policy">策略：附件入会话</span><span class="es-arrow">→</span><span class="es cmd">post_message + attach_file</span><span class="es-arrow">→</span><span class="es ar">Message + FileReference</span><span class="es-arrow">→</span><span class="es event">conversation.message_added</span></div>
-  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">一 blob 多 scope 引用；ref_count=0 + 宽限期后 GC 回收。</span></div>
+  <h2 class="section-title" style="margin:16px 4px 8px">✅ 完成与领取 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">智能体 → 项目管理（v2.9.1 任务模型）</span></h2>
+  <div class="es-flow"><span class="es actor">智能体</span><span class="es-arrow">→</span><span class="es cmd">complete_task</span><span class="es-arrow">→</span><span class="es ar">Task（running→completed · 终态）</span><span class="es-arrow">→</span><span class="es event">pm.task.state_changed</span></div>
+  <div class="es-flow"><span class="es policy">策略：内建指派池（claimable）</span><span class="es-arrow">→</span><span class="es actor">智能体</span><span class="es-arrow">→</span><span class="es cmd">start_work（认领）</span><span class="es-arrow">→</span><span class="es ar">Task · AgentWorkItem</span><span class="es-arrow">→</span><span class="es event">pm.task.state_changed</span></div>
+  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束：指派 ≠ 认领（claimable = open ∧ assigned ∧ 处于已派发的 started plan 节点）；五态机 open/running/completed/discarded/reopened，blocked 为可恢复标注、verified 已删除；终态默认列表隐藏。</span></div>
+
+  <h2 class="section-title" style="margin:16px 4px 8px">🧵 消息线程 + @mention 唤醒 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">会话 → 环境（WakeProjector）→ 智能体</span></h2>
+  <div class="es-flow"><span class="es actor">用户（human）</span><span class="es-arrow">→</span><span class="es cmd">post_message（parent_message_id + @agent）</span><span class="es-arrow">→</span><span class="es ar">Message（线程内）</span><span class="es-arrow">→</span><span class="es event">conversation.message_added</span></div>
+  <div class="es-flow"><span class="es policy">策略：WakeProjector · 仅 user: 发送者</span><span class="es-arrow">→</span><span class="es cmd">agent.wake / agent.converse</span><span class="es-arrow">→</span><span class="es ar">AgentWorkItem / running session</span><span class="es-arrow">→</span><span class="es event">智能体回复落在同一线程</span></div>
+  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">约束（loop-break）：只有人类 <code>user:</code> 发送者唤醒智能体；智能体自身 @ 另一智能体不唤醒对方；线程单层（reply 的 parent 恒为 root），拒绝跨会话 parent。</span></div>
+
+  <h2 class="section-title" style="margin:16px 4px 8px">📁 文件上传与引用 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">环境 → 会话（v2.10.0 task/issue 附件）</span></h2>
+  <div class="es-flow"><span class="es actor">智能体 / 用户</span><span class="es-arrow">→</span><span class="es cmd">upload_file(scope=task) · attach_file</span><span class="es-arrow">→</span><span class="es ar">FileTransferSession + BlobStore</span><span class="es-arrow">→</span><span class="es event">session open → completed</span></div>
+  <div class="es-flow"><span class="es policy">策略：project-member-gated（fail-closed）</span><span class="es-arrow">→</span><span class="es cmd">download_file</span><span class="es-arrow">→</span><span class="es ar">FileReference</span><span class="es-arrow">→</span><span class="es event">非成员 403 / 404</span></div>
+  <div class="es-flow" style="margin-bottom:18px"><span style="font-size:12px;color:#868e96">一 blob 多 scope 引用；ref_count=0 + 宽限期后 GC 回收。任务 / issue 详情面板列出 / 上传 / 下载附件，非项目成员一律 fail-closed。</span></div>
 
   <h2 class="section-title" style="margin:16px 4px 8px">💓 Worker 心跳与 Agent 可用性 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">环境 → 智能体</span></h2>
   <div class="es-flow"><span class="es actor">worker 守护进程</span><span class="es-arrow">→</span><span class="es cmd">heartbeat / ack offset</span><span class="es-arrow">→</span><span class="es ar">Worker</span><span class="es-arrow">→</span><span class="es event">workforce.worker.online</span></div>

@@ -36,43 +36,51 @@
     <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
     <nav class="hd-nav">
       <a href="../../product/index.html">产品介绍</a>
-      <a class="active" href="../../manual/v2.8/index.html">用户手册</a>
-      <a href="../../dev/v2.8/index.html">开发指引</a>
+      <a class="active" href="../../manual/v2.10.0/index.html">用户手册</a>
+      <a href="../../dev/v2.10.0/index.html">开发指引</a>
       <a href="../../roadmap/index.html">路线图</a>
       <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
     </nav>
   </div>
 </header>
 
-<div class="crumb"><a href="../../index.html">首页</a> › 用户手册 › v2.8</div>
+<div class="crumb"><a href="../../index.html">首页</a> › 用户手册 › v2.10.0</div>
 
 <section class="hero sm">
   <div class="inner">
     <span class="eyebrow">用户手册 · 安装 / 部署 / CLI / MCP</span>
-    <h1>用户手册 <span style="font-family:var(--mono);font-size:.55em;font-weight:600;color:var(--panel-cyan);vertical-align:middle;">v2.8</span></h1>
+    <h1>用户手册 <span style="font-family:var(--mono);font-size:.55em;font-weight:600;color:var(--panel-cyan);vertical-align:middle;">v2.10.0</span></h1>
     <p class="lede">从零安装一个 center，从任意机器接入 worker，再到 CLI 命令、worker 配置、MCP 工具与 Web Console 使用。本页所有命令、端口、标志、工具名均按当前代码校验，可直接复制运行。</p>
   </div>
 </section>
 
 <div class="wrap wide" style="margin-top:18px;">
   <div class="verswitch" role="group" aria-label="用户手册版本">
-    <a href="../../manual/v2.10.0/index.html">v2.10.0 最新</a>
-    <a class="on" href="../../manual/v2.8/index.html" aria-current="page">v2.8（本页·历史）</a>
+    <a class="on" href="../../manual/v2.10.0/index.html" aria-current="page">v2.10.0 当前</a>
+    <a href="../../manual/v2.8/index.html">v2.8 历史</a>
     <a href="../../manual/v2.7.1/index.html">v2.7.1 历史</a>
   </div>
 
-  <!-- v2.8 新功能 highlight -->
+  <!-- v2.9 → v2.10.0 新功能 highlight -->
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin:16px 0;font-size:13px;line-height:1.6">
-    <p style="margin:0 0 8px"><b>v2.8 新功能（用户视角）</b>：</p>
+    <p style="margin:0 0 8px"><b>v2.9 → v2.10.0 新功能（用户视角）</b>：</p>
     <ul style="margin:0;padding-left:20px">
-      <li><b>会话页统一架构</b>：channel / DM / 任务讨论 / 工单讨论 4 个会话面统一外壳；侧栏未读数字 + @mention 红 badge + Follow 关注/取消关注按钮。</li>
-      <li><b>富文本消息</b>：消息支持完整 markdown 渲染（标题 / 列表 / 链接 / GFM 表格 / 任务列表 / strikethrough / autolink）；超长 code 块自动折叠（>20 行）+ "Show N more" 展开 + copy 复全量；安全防 XSS（agent / 用户写 <code>&lt;script&gt;</code> 等不渲染）。</li>
-      <li><b>会话输入框 #/@ 补全</b>：写消息时输 <code>@</code> 弹人员选择 / 输 <code>#</code> 弹频道选择，键盘 ↑↓/Enter/Esc 全键盘操作。</li>
-      <li><b>agent 归档</b>：替代 "删除" 的软归档操作；agent 行保留 + 任务历史显 "(archived)" 标识 + worker binding 释放；hard delete 仅 admin 可用（防误删）。</li>
-      <li><b>agent 操作按钮升级</b>：启停按钮全图标化 + 破坏性操作 (stop / restart / archive) 二次确认弹窗；启动按钮偶发回退文字 bug 修复 + ESLint guard 防回退。</li>
-      <li><b>Worker 详情页</b>：左侧 Environment 列表点 worker 名 → 进 <code>/workers/&lt;id&gt;</code> 详情：Profile（worker 信息） / Bound Agents（绑定的 agents 列表 + Restart） / Management（重命名 / Install 命令 / Re-mint token / Remove）。</li>
-      <li><b>Agent Activity 改进</b>：Agent 详情页 Activity tab 支持 Load older 翻历史；连续 "Checking messages" 自动折叠；工具调用富显（工具名 + 参数 + ✓/✗ 状态 + 内联输出折叠展开）。</li>
-      <li><b>测试实例工具</b>：<code>install test-instance --with-agent</code> 一键起含真 claude-opus-4-8 agent 的测试 instance（prod 零足迹）。</li>
+      <li><b>Plan 编排（v2.9）</b>：把工作组织成一张<strong>任务 DAG（Plan）</strong>—— 创建 plan、把 backlog 任务作为节点加入、在 draft 状态下连依赖（拒绝环 / 自环）。<code>start</code> 后 center 自动推进：每个节点状态自动派生（blocked / ready / dispatched / running / done / failed），上游完成即把 ready 节点<strong>派工</strong>给其指派 agent（work-delivery，不是聊天 @mention），无需手动单步，直到全 plan done。</li>
+      <li><b>显式 org 路由（v2.9）</b>：所有 org 作用域 API 迁到 <code>/api/orgs/{slug}/...</code>（路径显式），不再依赖隐式「当前组织」；前端页面统一寻址在 <code>/organizations/{slug}/...</code> 下，跨 org 访问以 404 拒绝。</li>
+      <li><b>Plan 会话 @提及唤醒（v2.9）</b>：在 plan 会话里 @提及某项目 agent 会唤醒它（含尚未加入会话的项目成员 agent）；仅人类消息触发会话唤醒，system / agent 消息不触发。</li>
+      <li><b>Message Threads（v2.9.1）</b>：可从任意消息<strong>派生 thread</strong>，在弹出的 thread 侧栏里平铺回复（Slack 风格单层）；Participants 侧栏列出会话内每个 thread + 回复数 + 未读「新活动」标记。<strong>在 thread 内 @某项目 agent 会唤醒它，且回复落在 thread 内</strong>（不冒到顶层）。channel / DM / issue / task / plan 全会话类型通用。</li>
+      <li><b>claimable + 每项目内置 assignment pool（v2.9.1）</b>：每个项目有一个常驻的<strong>内置 assignment pool</strong>—— 一组 agent 可随取的 claimable 任务（指派 ≠ 领取）。Work Board 因此分三段：<strong>Backlog</strong>（未排程、不可领）·<strong>内置池</strong>（可领）·<strong>结构化 Plan</strong>（DAG 列）。</li>
+      <li><b>三段 Work Board（v2.9.1）</b>：Backlog · 内置池 · 每个 Plan 一列的 DAG 视图，是日常排程与领取的操作面。</li>
+      <li><b>简化任务状态机（v2.9.1）</b>：七态收到五态（<code>open</code> / <code>running</code> / <code>completed</code> / <code>discarded</code> / <code>reopened</code>）。<code>blocked</code> 不再是独立状态，改为 running 任务上的<strong>可恢复注解</strong>（resume / unblock / complete / discard 时自动清除）；<code>verified</code> 移除（<code>completed</code> 即终态）。</li>
+      <li><b>频道归档（v2.9.1）</b>：channel 可归档（不可逆、只读，写入以 409 拒绝）；归档的 channel 离开默认列表，进单独的「Archived」分组（与 project 归档对齐）。</li>
+      <li><b><code>list_tasks</code> 工具（v2.9.1）</b>：列出某项目的任务，可按 status / assignee 过滤（详见 §5）。</li>
+      <li><b>三栏式桌面（v2.10.0）</b>：Web Console 重构为四区布局 —— 顶层模块<strong>图标栏</strong>（Workspace / Conversations / Members / System）→ 每模块<strong>二级列表</strong>（col②）→<strong>内容</strong>（col③）→<strong>按需上下文面板</strong>（col④）。基于现有信息架构，<strong>Overview 页移除</strong>，路由按模块嵌套。</li>
+      <li><b>全局跨项目 Plan 列表 + 详情（v2.10.0）</b>：Workspace › Plan 是跨项目的全局 Plan 列表；详情页分 <strong>Chat / DAG / Task-list 三个 tab</strong>（Chat 默认）。</li>
+      <li><b>Project Work Board（v2.10.0）</b>：项目详情里的 Work Board（Backlog · 内置池 · Plan 列）在三栏壳上重建。</li>
+      <li><b>Task &amp; Issue 附件（v2.10.0）</b>：task / issue 详情面板可列出 / 上传 / 下载附件，<strong>按项目成员鉴权</strong> —— 非成员 fail-closed（403 / 404）。</li>
+      <li><b>消息引用 linkify（v2.10.0）</b>：消息里的 <code>task-&lt;id&gt;</code> 与 <code>T&lt;number&gt;</code> org-ref <strong>都会渲染成可点的任务链接</strong>（收发皆可）；终态 / done 的任务引用也能正确解析。</li>
+      <li><b>入站消息附件透出给 agent（v2.10.0）</b>：入站消息上的附件通过 <code>get_my_unread</code> 与唤醒简报透出给 agent。</li>
+      <li><b>System 作者显示（v2.10.0）</b>：system / 调度消息的作者渲染为 <strong>System</strong>，不再显示「(deleted)」。</li>
     </ul>
   </div>
 </div>
@@ -116,14 +124,14 @@
     </div>
 
     <h3>安装 center（发行包方式）</h3>
-    <pre><code>cd agent-center-v2.7.x-&lt;os&gt;-&lt;arch&gt;/
+    <pre><code>cd agent-center-v2.10.0-&lt;os&gt;-&lt;arch&gt;/
 ./install center
-# v2.7 默认前台：install center 只落地二进制 + 配置，不注册后台服务。
+# install center 只落地二进制 + 配置，默认前台运行，不注册后台服务。
 # 它会打印出运行命令：
 agent-center server --config=&lt;prefix&gt;/etc/config.yaml    # 日志输出到 stdout
 # 然后打开 http://127.0.0.1:7100 —— 首次设置会在浏览器里铸出 bootstrap admin token。</code></pre>
     <ul>
-      <li><strong>默认前台运行（v2.7）：</strong><code>install center</code> 不注册后台服务。需要开机自启的托管服务时加 <code>--service</code>（macOS 用 LaunchAgent，Linux 用 systemd）。</li>
+      <li><strong>默认前台运行：</strong><code>install center</code> 不注册后台服务。需要开机自启的托管服务时加 <code>--service</code>（macOS 用 LaunchAgent，Linux 用 systemd）。</li>
       <li>幂等且支持升级。默认前缀 <code>~/.agent-center</code>（macOS / Linux 用户模式）或 <code>/opt/agent-center</code>（Linux 系统模式）；用 <code>--prefix=&lt;dir&gt;</code> 覆盖。</li>
     </ul>
     <p><strong><code>install center</code> 常用标志：</strong></p>
@@ -141,7 +149,7 @@ agent-center server --config=&lt;prefix&gt;/etc/config.yaml    # 日志输出到
 
     <h3>安装 worker</h3>
     <p>
-      推荐从 Web Console 的 <strong>Fleet → + Add Worker</strong> 获取完整命令（已带 bootstrap URL、一次性 enroll token、固定指纹、唯一 <code>--worker-id</code>）：
+      推荐从 Web Console 的 <strong>Environment → + Add Worker</strong> 获取完整命令（已带 bootstrap URL、一次性 enroll token、固定指纹、唯一 <code>--worker-id</code>）：
     </p>
     <pre><code>./install worker \
   --bootstrap=tcp://HOST:7300 \
@@ -151,7 +159,7 @@ agent-center server --config=&lt;prefix&gt;/etc/config.yaml    # 日志输出到
   --token=acat_xxxxxxxxx</code></pre>
     <ul>
       <li>默认前台运行；加 <code>--service</code> 注册托管 LaunchAgent / systemd 单元。</li>
-      <li><strong>v2.8：</strong><code>install worker</code> 会把所有接入字段写入 <code>&lt;prefix&gt;/etc/config.yaml</code>（权限 <code>0600</code>），随后打印的启动命令简化为 <code>agent-center worker run --config=&lt;prefix&gt;/etc/config.yaml</code>，命令行上不再带任何密钥。</li>
+      <li><code>install worker</code> 会把所有接入字段写入 <code>&lt;prefix&gt;/etc/config.yaml</code>（权限 <code>0600</code>），随后打印的启动命令简化为 <code>agent-center worker run --config=&lt;prefix&gt;/etc/config.yaml</code>，命令行上不再带任何密钥。</li>
       <li><code>--worker-id</code> <strong>必填</strong>（无主机名默认值）；当 <code>--bootstrap</code> 为 <code>tcp://</code> 时 <code>--server-fingerprint</code> 必填。</li>
       <li>同机多 worker：每个落在 <code>&lt;prefix&gt;/workers/&lt;worker-id&gt;/</code> 下；用 <code>--service</code> 时每个得到标签 <code>com.agent-center.worker.&lt;worker-id&gt;</code>。</li>
     </ul>
@@ -166,12 +174,12 @@ curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.
 
 # 固定 tag 安装 center：
 curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh \
-  | bash -s -- center --version v2.8
+  | bash -s -- center --version v2.10.0
 
 # worker（注意：install.sh 用 --center，不是 --bootstrap）：
 curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh \
   | bash -s -- worker \
-    --version v2.8 \
+    --version v2.10.0 \
     --center tcp://HOST:7300 \
     --server-fingerprint sha256:... \
     --token enroll_... \
@@ -208,14 +216,14 @@ git pull && make build              # 产出 ./bin/agent-center
       <li>智能体以 <code>--setting-sources user,project</code> 和 <code>--strict-mcp-config</code> 运行 claude（只加载它自己的 agent-center MCP）。</li>
     </ul>
     <div class="callout warn">
-      <b>安全注意：</b> 智能体会在 <code>bypassPermissions</code> 下继承 worker 用户的 <code>~/.claude</code> hooks。完整的用户级隔离计划在 v2.8 落地。
+      <b>安全注意：</b> 智能体会在 <code>bypassPermissions</code> 下继承 worker 用户的 <code>~/.claude</code> hooks（auth 与 operator 设置共享 user source）。完整的用户级隔离仍在演进中。
     </div>
 
     <h3>从源码构建（开发）</h3>
     <p>前置：Go 1.22+、Node 20+（含 pnpm）、macOS 或 Linux。</p>
-    <pre><code>make build                  # 前端（vite）+ 后端（go），产出 ./bin/agent-center
-VERSION=v2.8 make build   # 指定版本
-pnpm --dir web run dev      # SPA 开发服务器 http://localhost:5173，代理 → 127.0.0.1:7100</code></pre>
+    <pre><code>make build                    # 前端（vite）+ 后端（go），产出 ./bin/agent-center
+VERSION=v2.10.0 make build    # 指定版本
+pnpm --dir web run dev        # SPA 开发服务器 http://localhost:5173，代理 → 127.0.0.1:7100</code></pre>
   </article>
 
   <!-- ============ 2. 部署 ============ -->
@@ -231,7 +239,7 @@ pnpm --dir web run dev      # SPA 开发服务器 http://localhost:5173，代理
       <li>center 安装示例输出：前缀 <code>~/.agent-center</code>、web 端口 <code>7100</code>、DB 在 <code>~/.agent-center/var/agent-center.db</code>、bootstrap token 在 <code>~/.agent-center/var/bootstrap_token</code>、Web Console 在 <code>http://127.0.0.1:7100</code>。</li>
     </ul>
     <div class="callout info">
-      <b>历史文档提醒：</b> 旧的单机部署文档（<code>docs/deployment/v2.2-mac-single-host.md</code>）使用旧的 <code>:7000</code> 监听端口和已停用的 CLI 命令（<code>project add</code>、<code>task new</code>、<code>dispatch</code>、<code>ps</code>）。这些命令在 v2.7 已全部退役 —— 请以本页与 v2.4 first-mile 流程为准。
+      <b>历史文档提醒：</b> 旧的单机部署文档（<code>docs/deployment/v2.2-mac-single-host.md</code>）使用旧的 <code>:7000</code> 监听端口和已停用的 CLI 命令（<code>project add</code>、<code>task new</code>、<code>dispatch</code>、<code>ps</code>）。这些命令早已全部退役 —— 请以本页与 v2.4 first-mile 流程为准。
     </div>
 
     <h3>多机部署（TCP + TLS，指纹固定）</h3>
@@ -267,8 +275,8 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
 
     <h3>安装目录结构</h3>
     <pre><code>~/.agent-center/
-├── current → versions/v2.8/
-├── versions/v2.8/{bin/, ...}
+├── current → versions/v2.10.0/
+├── versions/v2.10.0/{bin/, ...}
 ├── etc/config.yaml
 ├── var/{agent-center.db, admin.sock, bootstrap_token, admin-tls.{crt,key,fingerprint}}
 ├── logs/{stdout.log, stderr.log}
@@ -279,7 +287,7 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
   <article class="prose" id="cli">
     <h2>3. CLI 命令参考</h2>
     <p>
-      v2.7 的 CLI 刻意收窄到 <strong>安装 / 升级 / 卸载 / 运行 + 运维命令</strong>。数据管理类子命令（<code>task create</code>、<code>issue open</code>、<code>ps</code>、<code>inspect</code> 等）已<strong>全部退役</strong> —— 日常工作在 Web Console 里完成。下表以代码 <code>internal/cli/build.go</code> 中的实际注册为准。
+      CLI 刻意收窄到 <strong>安装 / 升级 / 卸载 / 运行 + 运维命令</strong>。数据管理类子命令（<code>task create</code>、<code>issue open</code>、<code>ps</code>、<code>inspect</code> 等）已<strong>全部退役</strong> —— 日常工作在 Web Console 里完成。下表以代码 <code>internal/cli/build.go</code> 中的实际注册为准。
     </p>
     <table>
       <thead><tr><th>命令</th><th>说明</th></tr></thead>
@@ -296,7 +304,7 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
         <tr><td><code>agent-center worker enroll</code> / <code>list</code> / <code>status</code></td><td>DB 支撑的 worker 子命令（运维可见）</td></tr>
         <tr><td><code>agent-center worker run</code></td><td>worker 守护进程（见 §4）</td></tr>
         <tr><td><code>agent-center worker mcp-host</code></td><td>每智能体 stdio MCP server（系统级；由守护进程拉起）</td></tr>
-        <tr><td><code>agent-center worker agent-supervisor</code></td><td>每智能体常驻 supervisor（增量，尚未接入守护进程启动路径）</td></tr>
+        <tr><td><code>agent-center worker agent-supervisor</code></td><td>每智能体常驻 supervisor（由守护进程拉起）</td></tr>
         <tr><td><code>agent-center admin backup</code></td><td>备份</td></tr>
         <tr><td><code>agent-center admin token create|list|revoke</code></td><td>admin 端点的 bearer token 管理</td></tr>
         <tr><td><code>agent-center bootstrap check-systemd</code></td><td>安装期使用，不开 DB</td></tr>
@@ -317,7 +325,7 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
     <h2>4. <code>worker run --config</code></h2>
     <pre><code>agent-center worker run --config=&lt;prefix&gt;/etc/config.yaml</code></pre>
     <p>
-      自 v2.8 起，配置文件是接入身份（worker_id / name / bootstrap / token / server_fingerprint）的<strong>单一可信来源</strong> —— 安装后打印的启动命令不需要在 CLI 上带任何密钥。守护进程<strong>只通过 admin 端点</strong>与 center 通信，<strong>从不直接打开 SQLite</strong>。
+      配置文件是接入身份（worker_id / name / bootstrap / token / server_fingerprint）的<strong>单一可信来源</strong> —— 安装后打印的启动命令不需要在 CLI 上带任何密钥。守护进程<strong>只通过 admin 端点</strong>与 center 通信，<strong>从不直接打开 SQLite</strong>。
     </p>
     <p><strong>标志</strong>（每个都是「标志优先、配置兜底」）：</p>
     <table>
@@ -334,7 +342,7 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
         <tr><td><code>--poll-interval</code></td><td><code>1s</code></td><td>队列轮询间隔</td></tr>
         <tr><td><code>--fake-agent</code></td><td>""</td><td>覆盖 <code>fakeagent</code> agent_cli 路径（e2e 测试）</td></tr>
         <tr><td><code>--skills-dir</code></td><td>""</td><td>含 <code>worker-agent.md</code> + 额外 skills 的目录</td></tr>
-        <tr><td><code>--disable-control-stream</code></td><td><code>false</code></td><td>强制纯轮询路径（v2.7 默认开启 SSE 下推流）</td></tr>
+        <tr><td><code>--disable-control-stream</code></td><td><code>false</code></td><td>强制纯轮询路径（默认开启 SSE 下推流）</td></tr>
       </tbody>
     </table>
     <ul>
@@ -348,24 +356,59 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
   <article class="prose" id="mcp">
     <h2>5. MCP 工具</h2>
     <p>
-      MCP server 标识：<code>agent-center-mcp-host</code> v0.1.0。智能体的 <code>claude</code> 进程通过它访问 agent-center 的工具集。所有工具均<strong>限定在调用方智能体自身的作用域</strong>（own-scope）。下表按用途分组（描述取自代码）。
+      MCP server 标识：<code>agent-center-mcp-host</code>。智能体的 <code>claude</code> 进程通过它访问 agent-center 的工具集。所有工具均<strong>限定在调用方智能体自身的作用域</strong>（own-scope）。下表按用途分组（描述取自代码）。
     </p>
 
     <h3>任务 / 议题（Task / Issue）</h3>
     <table>
       <thead><tr><th>工具</th><th>描述</th></tr></thead>
       <tbody>
-        <tr><td><code>get_my_work</code></td><td>列出调用方智能体自己的工作项（任务队列 + 历史）。</td></tr>
         <tr><td><code>get_task</code></td><td>获取调用方智能体拥有的任务（须持有该任务的工作项）。</td></tr>
+        <tr><td><code>list_tasks</code></td><td>列出某 project 的全部任务（看板总览），可按 status 和 / 或 assignee 过滤。须传 <code>project_id</code>，且调用方为该项目成员。</td></tr>
         <tr><td><code>get_issue</code></td><td>获取调用方智能体自身任务所派生自的议题（own-scope）。</td></tr>
         <tr><td><code>create_task</code></td><td>在调用方智能体所属的 project 中创建任务。</td></tr>
         <tr><td><code>assign_task</code></td><td>把任务指派给某个身份（如 <code>agent:X</code> 或 <code>user:Y</code>）。</td></tr>
         <tr><td><code>reassign_task</code></td><td>把任务改派给另一个身份。</td></tr>
         <tr><td><code>subscribe</code></td><td>把某身份（默认调用方智能体）订阅到某任务。</td></tr>
-        <tr><td><code>unsubscribe</code></td><td>把某身份从某任务取消订阅。</td></tr>
+        <tr><td><code>unsubscribe</code></td><td>把某身份（默认调用方智能体）从某任务取消订阅。</td></tr>
         <tr><td><code>block_task</code></td><td>贴出原因并把任务移到 blocked。</td></tr>
+        <tr><td><code>unblock_task</code></td><td>恢复一个 blocked 的任务：blocked→running 并重新派工给其 assignee。用于把卡在 blocked 的任务拉回来（如 restart 后留下的「agent execution failed」原因）。</td></tr>
         <tr><td><code>complete_task</code></td><td>可选贴出总结并把任务移到 completed。</td></tr>
-        <tr><td><code>verify_task</code></td><td>验证一个已完成的任务（不能验证自己的完成）。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>工作队列（Work queue）</h3>
+    <table>
+      <thead><tr><th>工具</th><th>描述</th></tr></thead>
+      <tbody>
+        <tr><td><code>get_my_work</code></td><td>列出调用方智能体自己的工作项（任务队列 + 历史）。</td></tr>
+        <tr><td><code>get_my_active_work</code></td><td>列出你当前<strong>正在运行</strong>的工作项。循环开始（唤醒后 / 完成一项后）先调它：若有活跃项就继续它（别开新的）；若为空再调 <code>get_my_work</code> 取下一项。</td></tr>
+        <tr><td><code>start_work</code></td><td>开始处理某个排队中的工作项（标为 running）。同一时刻只能有一个 running，先 <code>complete_task</code> 或 <code>fail_work</code> 当前项再开下一项；已有 running 项时返回 <code>agent_busy</code>。</td></tr>
+        <tr><td><code>pause_work</code></td><td>暂停当前正在运行的工作项以切换到另一项（搁置它，腾出位子 <code>start_work</code> 别的）；之后用 <code>resume_paused_work</code> 恢复。仅在调度需要时用，默认先做完手头任务。</td></tr>
+        <tr><td><code>resume_paused_work</code></td><td>恢复一个先前暂停的工作项（从 <code>list_my_paused_work</code> 选其 id）—— 重新标为 running。同一时刻只能一个 running，先做完或暂停当前项，否则返回 <code>agent_busy</code>。</td></tr>
+        <tr><td><code>fail_work</code></td><td>报告你当前正在运行的工作项失败（无法完成），腾出位子开始下一个排队项。</td></tr>
+        <tr><td><code>list_my_paused_work</code></td><td>列出你暂停的工作项 —— 即可用 <code>resume_paused_work</code> 恢复的候选。</td></tr>
+        <tr><td><code>complete_task</code></td><td>可选贴出总结并把任务移到 completed。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Plan 编排</h3>
+    <table>
+      <thead><tr><th>工具</th><th>描述</th></tr></thead>
+      <tbody>
+        <tr><td><code>create_plan</code></td><td>在你所属的 project 里创建一个新的 draft plan。plan 是一张任务 DAG，<code>start</code> 后由 center 自动派工。创建后用 <code>add_task_to_plan</code> 加任务、<code>add_plan_dependency</code> 连依赖、再 <code>start_plan</code>。可选 <code>target_date</code> 为 RFC3339。</td></tr>
+        <tr><td><code>add_task_to_plan</code></td><td>把一个已存在的 backlog 任务作为节点加入 draft plan。plan 须为 draft（running 则先 <code>stop_plan</code>），且任务须在 plan 所属项目内。任务不存在时先 <code>create_task</code>。</td></tr>
+        <tr><td><code>remove_task_from_plan</code></td><td>从 draft plan 移除一个任务节点（退回 backlog）。plan 须为 draft。</td></tr>
+        <tr><td><code>add_plan_dependency</code></td><td>给 draft plan 的 DAG 加一条 depends_on 边：<code>from_task_id</code> 依赖 <code>to_task_id</code>（后者须先完成才派工前者）。两者都须已是 plan 节点；自环 / 环被拒绝。</td></tr>
+        <tr><td><code>remove_plan_dependency</code></td><td>从 draft plan 的 DAG 移除一条 depends_on 边（<code>from_task_id</code> depends_on <code>to_task_id</code>）。幂等 —— 移除不存在的边是 no-op。</td></tr>
+        <tr><td><code>start_plan</code></td><td>校验并启动 draft plan（移到 running）。center 随后在每个节点依赖完成时派工。plan 无任务、有环、或有未指派 / 无法解析 assignee 的任务时失败 —— 先修复。</td></tr>
+        <tr><td><code>stop_plan</code></td><td>停止 running 的 plan 并退回 draft，以便编辑（增删任务或依赖）。再 <code>start_plan</code> 恢复。</td></tr>
+        <tr><td><code>get_plan</code></td><td>读取 plan 全量详情：节点、依赖边、每节点状态、<code>ready_set</code>、<code>has_failed</code>、进度 <code>{done,total}</code>。限定在你指定的 project（别的项目里的 plan 视为 not found）。</td></tr>
+        <tr><td><code>list_plans</code></td><td>列出某 project 的 plans，每个带看板摘要（status、progress、has_failed、node_count、有上限的 nodes 预览）。用它找到要操作的 <code>plan_id</code>。</td></tr>
+        <tr><td><code>archive_plan</code></td><td>归档一个非 running 的 plan，并级联归档其任务（不可逆）。running 则先 <code>stop_plan</code>。返回归档后的 plan 详情。</td></tr>
+        <tr><td><code>delete_plan</code></td><td>硬删除一个非 running 的 plan：其任务退回 backlog，依赖 / 派工记录被移除。running 则先 <code>stop_plan</code>（running 的 plan 被拒绝）。不可逆。</td></tr>
+        <tr><td><code>rerun_failed_node</code></td><td>清掉某 plan 节点的派工记录，让下一次 plan 推进重新派工它。针对卡住 / 失败节点的 plan 感知恢复。</td></tr>
+        <tr><td><code>resume_paused_node</code></td><td>恢复一个 agent 暂停了工作项后转空闲的 plan 节点（节点显 <code>paused</code>）：恢复节点的工作项并唤醒其 agent 继续。用它解开 paused 节点；failed / 未派工节点用 <code>rerun_failed_node</code>。</td></tr>
       </tbody>
     </table>
 
@@ -373,10 +416,15 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
     <table>
       <thead><tr><th>工具</th><th>描述</th></tr></thead>
       <tbody>
+        <tr><td><code>get_my_unread</code></td><td>列出指向你的未读消息 —— DM 里每条未读 + 你所在 channel 里每条 @你 的未读（不含没 @你 的频道闲聊，也不含你自己的消息）。定期及到达停顿点时检查；你<strong>必须</strong>回复每一条（确认+延后 / 立即处理 / 带理由拒绝），你的回复即决定。处理完后调 <code>mark_seen</code> 让它不再冒出来。</td></tr>
+        <tr><td><code>mark_seen</code></td><td>把某会话标为已读到某 message id —— 在你回复 / 决定来自 <code>get_my_unread</code> 的消息<strong>之后</strong>调它，使其不再被再次提示。传 <code>conversation_id</code> 与你处理到的最新 message id。</td></tr>
         <tr><td><code>post_task_message</code></td><td>在调用方智能体参与的任务里贴一条消息。</td></tr>
-        <tr><td><code>post_message</code></td><td>在调用方智能体参与的 DM 或 channel 里回复。用你收到的消息里的 <code>conversation_id</code>。</td></tr>
+        <tr><td><code>post_message</code></td><td>在调用方智能体参与的 DM 或 channel 里回复（如人类发消息或 @它 时）。用你收到的消息里的 <code>conversation_id</code>。正文专注于你要说的内容；分享文件请用 <code>upload_file</code> 上传后把返回的 file_uri 放进 <code>attachments</code>（UI 渲染为预览卡片），别把裸文件 URI 粘进正文。</td></tr>
       </tbody>
     </table>
+    <div class="callout info">
+      <b>消息附件：</b> 通过 <code>post_message</code> 的 <code>attachments=[{uri, filename, mime_type, size}]</code> 发送 —— 先用 <code>upload_file</code> 上传得到 <code>uri</code>，UI 把附件渲染为预览卡片。入站消息上的附件会通过 <code>get_my_unread</code> 与唤醒简报透出给 agent（v2.10.0）。
+    </div>
 
     <h3>文件（Files）</h3>
     <table>
@@ -392,9 +440,9 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
     <table>
       <thead><tr><th>工具</th><th>描述</th></tr></thead>
       <tbody>
-        <tr><td><code>get_my_profile</code></td><td>获取调用方智能体自己的 profile：组织、projects（含角色 + 能力）……开局先调它弄清「我是谁」。</td></tr>
-        <tr><td><code>find_org_agent</code></td><td>按名字（子串；空则列全部）在你的组织里找智能体。返回 <code>[{id, name, assignee_ref}]</code>；把 <code>assignee_ref</code> 传给 <code>assign_task</code>。</td></tr>
-        <tr><td><code>find_org_channel</code></td><td>按名字在你的组织里找 channel。返回 <code>[{id, name}]</code>；把 <code>id</code> 作为 <code>post_message</code> 的 <code>conversation_id</code>（纯 id，无前缀）。</td></tr>
+        <tr><td><code>get_my_profile</code></td><td>获取调用方智能体自己的 profile：display_name 与 agent_ref（别人 @你 用的「agent:&lt;id&gt;」形式）、组织、所属 projects（含角色 + 能力）、capabilities。开局先调它弄清「我是谁」—— 你的 display_name 决定哪些 @mention 真的是给你的。</td></tr>
+        <tr><td><code>find_org_agent</code></td><td>按名字（子串；空则列全部）在你的组织里找智能体。返回 <code>[{id, name, assignee_ref}]</code>；把 <code>assignee_ref</code> 直接传给 <code>assign_task</code> 的 assignee（已是即用的「agent:&lt;id&gt;」形式，别自己拼）。</td></tr>
+        <tr><td><code>find_org_channel</code></td><td>按名字（子串；空则列全部 = 可用 channel）在你的组织里找 channel。返回 <code>[{id, name}]</code>；把 <code>id</code> 直接作为 <code>post_message</code> 的 <code>conversation_id</code>（纯 id，<strong>别</strong>加前缀）。空结果表示无此 channel。</td></tr>
       </tbody>
     </table>
 
@@ -406,7 +454,8 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
       </tbody>
     </table>
     <div class="callout info">
-      <b>文件引用 URL 形式：</b> <code>ac://files/{ulid}</code>（或裸 ulid）。
+      <b>文件引用 URL 形式：</b> <code>ac://files/{ulid}</code>（或裸 ulid）。<br>
+      <b>v2.9.1 变更：</b> <code>verify_task</code> 已随简化任务状态机一并<strong>移除</strong>（<code>completed</code> 即终态，<code>verified</code> 不再存在）。
     </div>
   </article>
 
@@ -414,33 +463,42 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
   <article class="prose" id="console">
     <h2>6. Web Console 使用</h2>
     <p>
-      Web Console 嵌在 <code>agent-center server</code> 进程里（同一个二进制，<code>go:embed</code> 的 SPA），用独立端口暴露。
+      Web Console 嵌在 <code>agent-center server</code> 进程里（同一个二进制，<code>go:embed</code> 的 SPA），用独立端口暴露。v2.10.0 起 SPA 是<strong>三栏式桌面壳</strong>：顶层模块图标栏（col①）→ 每模块二级列表（col②）→ 内容（col③）→ 按需上下文面板（col④）。顶层模块为 <strong>Workspace / Conversations / Members / System</strong>（旧的 Overview 页已移除）。
     </p>
     <div class="callout warn">
       <b>仅回环（loopback only）：</b> 默认 <code>127.0.0.1:7100</code>，服务端拒绝任何非 <code>127.0.0.1</code> 的绑定（ADR-0037）。要远程访问，请用你自己的 <strong>SSH 隧道</strong>。无鉴权（回环 = 受信的单用户域）、无 TLS。配置键：<code>web_console.enabled</code> + <code>web_console.listen_addr</code>（<code>:7100</code>）。
     </div>
 
     <h3>页面 / 路由</h3>
+    <p>所有 org 作用域页面寻址在 <code>/organizations/{slug}/...</code> 下（org 索引重定向进 Workspace 模块；后端对应 API 在 <code>/api/orgs/{slug}/...</code>）。下表按顶层模块分组，路径相对 org base。</p>
     <table>
-      <thead><tr><th>区域</th><th>路径</th><th>内容</th></tr></thead>
+      <thead><tr><th>模块</th><th>路径</th><th>内容</th></tr></thead>
       <tbody>
-        <tr><td>会话</td><td><code>/channels</code>、<code>/channels/:name</code></td><td>channel 列表 / 新建 / 详情（时间线 + 输入框 + 参与者）</td></tr>
-        <tr><td>会话</td><td><code>/dms</code>、<code>/dms/:id</code></td><td>DM 列表 / 发起 DM / 详情</td></tr>
-        <tr><td>派生</td><td>任意会话详情</td><td>选中若干消息 → Open Issue / Open Task</td></tr>
-        <tr><td>追踪</td><td><code>/issues</code>、<code>/issues/:id</code></td><td>议题列表 + 状态筛选 + 详情</td></tr>
-        <tr><td>追踪</td><td><code>/tasks</code>、<code>/tasks/:id</code>、<code>/tasks/:id/trace</code></td><td>任务列表 + 详情 + trace 时间线</td></tr>
-        <tr><td>响应</td><td><code>/inputrequests</code></td><td>待处理 InputRequest 收件箱 + 响应弹窗 + 实时角标</td></tr>
-        <tr><td>管理</td><td><code>/secrets</code></td><td>Secret 列表 / 新建（不回显明文）/ 撤销</td></tr>
-        <tr><td>观测</td><td><code>/agents</code>、<code>/agents/:name</code></td><td>智能体列表 + profile（只读）</td></tr>
-        <tr><td>观测</td><td><code>/fleet</code></td><td>workers / 活跃执行 / 待处理 IR / 待处理议题 + 告警横幅</td></tr>
+        <tr><td>Conversations</td><td><code>/channels</code>、<code>/channels/:channelId</code></td><td>channel 列表 / 详情（时间线 + 输入框；col④ 参与者 + 共享文件面板）</td></tr>
+        <tr><td>Conversations</td><td><code>/dms</code>、<code>/dms/:id</code></td><td>DM 列表 / 发起 DM / 详情（col④ 对方 + 共享文件）</td></tr>
+        <tr><td>派生 / Thread</td><td>任意会话详情</td><td>选中若干消息 → Open Issue / Open Task；任意消息可派生 Message Thread（弹出 thread 侧栏回复）</td></tr>
+        <tr><td>Workspace</td><td><code>/projects</code>、<code>/projects/:id</code></td><td>Projects 列表（卡片显 task / issue / plan / repo 计数）+ 项目详情（col② 项目子导航；含 <strong>Work Board</strong>：Backlog · 内置池 · Plan 列）</td></tr>
+        <tr><td>Workspace</td><td><code>/issues</code>、<code>/projects/:projectId/issues/:id</code></td><td>跨项目 Issues 列表 + 议题详情（col④ 只读元数据 + 附件）</td></tr>
+        <tr><td>Workspace</td><td><code>/tasks</code>、<code>/projects/:projectId/tasks/:id</code></td><td>跨项目 Tasks 列表 + 任务详情（col④ 只读元数据 + 附件）</td></tr>
+        <tr><td>Workspace</td><td><code>/plans</code>、<code>/projects/:id/plans/:planId</code></td><td><strong>Plan</strong> = 全局跨项目 Plan 列表；详情分 <strong>Chat / DAG / Task-list</strong> 三 tab（Chat 默认）</td></tr>
+        <tr><td>Members</td><td><code>/members/humans</code>、<code>/users/:userId</code></td><td>Humans 列表（邮箱 / 创建时间 / 最近会话）+ 用户详情</td></tr>
+        <tr><td>Members</td><td><code>/agents</code>、<code>/agents/:id</code></td><td>Agents 列表 + agent 详情（col④ 上下文面板：生命周期 / 工作队列 / Activity）</td></tr>
+        <tr><td>System</td><td><code>/environment</code>、<code>/workers/:id</code></td><td>Environment（workers / 活跃执行 / 待处理 IR / 待处理议题 + 告警；旧 <code>/fleet</code> 302 到此）+ worker 详情</td></tr>
+        <tr><td>System</td><td><code>/settings</code>、<code>/secrets</code></td><td>Settings；Secret 列表 / 新建（不回显明文）/ 撤销</td></tr>
       </tbody>
     </table>
+    <div class="callout info">
+      <b>键盘导航：</b> <code>⌘1..4</code>（或 <code>Ctrl</code>）在四个顶层模块间跳转；桌面 col② 可折叠为图标栏（状态持久化）。
+    </div>
 
     <h3>UX 约定</h3>
     <ul>
       <li><strong>实体选择 = 下拉 + 搜索过滤，绝不手敲自由文本</strong>（禁止 <code>type agent:&lt;id&gt;</code> 这种）。</li>
       <li><strong>处处显示展示名；身份引用</strong>（<code>user:&lt;id&gt;</code> / <code>agent:&lt;id&gt;</code> / <code>T123</code>）<strong>藏在 hover / Copy ID 后面。</strong></li>
       <li><strong>DM 渲染对方的名字，而不是 DM 自己的 ID。</strong></li>
+      <li><strong>System 作者：</strong>system / 调度消息的作者渲染为 <strong>System</strong>，不再显示「(deleted)」。</li>
+      <li><strong>Task / Issue 附件：</strong>task / issue 详情面板可列出 / 上传 / 下载附件，按<strong>项目成员</strong>鉴权 —— 非成员 fail-closed（403 / 404）。</li>
+      <li><strong>Message Threads：</strong>任意消息可派生 thread，在弹出侧栏平铺回复；Participants 侧栏列每个 thread + 回复数 + 未读标记；thread 内 @agent 会唤醒它且回复落在 thread 内。</li>
       <li><strong>不做误导性可点项</strong> —— 只展示真正能用的（当前仅 <code>claude-code</code> 真正执行）。</li>
       <li><strong>不静默失败</strong>，状态变化必须可见（toast / pill / 系统消息）；表单校验返回干净的 4xx，而非 5xx。</li>
     </ul>
@@ -452,24 +510,40 @@ agent-center uninstall worker --worker-id=&lt;id&gt; [--prefix=...] [--purge] [-
 
     <h3>T&lt;n&gt; / I&lt;n&gt; —— 组织作用域的展示引用</h3>
     <ul>
-      <li>任务得到展示引用 <strong><code>T&lt;n&gt;</code></strong>，议题得到 <strong><code>I&lt;n&gt;</code></strong> —— 一个组织作用域的连续序号（<code>org_ref</code>，v2.8 #245）。未分配时省略。</li>
+      <li>任务得到展示引用 <strong><code>T&lt;n&gt;</code></strong>，议题得到 <strong><code>I&lt;n&gt;</code></strong> —— 一个组织作用域的连续序号（<code>org_ref</code>）。未分配时省略。</li>
       <li>它们是面向人的身份引用，可出现在 hover / Copy ID 处，但<strong>绝不作为主标签</strong>（见 UX 约定）。</li>
+    </ul>
+
+    <h3>消息引用 linkify</h3>
+    <ul>
+      <li>消息正文里的 <strong><code>task-&lt;id&gt;</code></strong>（实体 ref）和 <strong><code>T&lt;number&gt;</code></strong>（org-ref，如 <code>T123</code>）都会自动渲染为<strong>可点的任务链接</strong>，跳到对应任务详情页，链接标签用其 <code>T&lt;number&gt;</code> 展示号。</li>
+      <li><strong>收发双向：</strong>你发出的与你收到的消息都会 linkify；终态 / done 的任务引用也能正确解析（解析时以 <code>status=all</code> 查询，T62）。</li>
+      <li><strong>边界严格：</strong>仅独立 token 才匹配 —— <code>subtask-1</code> 不会命中 <code>task-…</code>；<code>PART1</code> / <code>ROUTE53</code> / <code>T12ab</code> 之类不会命中 <code>T&lt;number&gt;</code>。无法解析（未知 / 跨 org）的引用<strong>保持纯文本</strong>。</li>
+      <li><strong>代码块内不渲染：</strong>只对非代码的纯文本 linkify；行内 / 块级 code 里的 <code>task-…</code> / <code>T…</code> 原样保留。</li>
+    </ul>
+
+    <h3>Message Threads</h3>
+    <ul>
+      <li>从任意消息派生 thread，在弹出侧栏内回复 —— Slack 风格<strong>单层</strong>：回复都是平铺的，回复的 parent 永远是 thread 根。</li>
+      <li>Participants 侧栏列出会话内每个 thread + 回复数 + 未读「新活动」标记；channel / DM / issue / task / plan 全会话类型通用。</li>
+      <li>在 thread 内 @某项目 agent 会唤醒它，且其回复<strong>落在 thread 内</strong>（不冒到顶层）。底层以 <code>parent_message_id</code> + 派生根存储；服务端强制单层深度，并拒绝跨会话的 parent。</li>
     </ul>
 
     <h3>面包屑（breadcrumb）格式</h3>
     <ul>
       <li><strong>规则：</strong>每个详情页都有面包屑 / 页面身份头，指明 (a) 是什么类型的东西、(b) 它在层级里的位置。</li>
-      <li><strong>格式：</strong><code>[Project name] › Tasks › [task title]</code>。对没有天然父级的页面（Fleet / Environment / Settings）退化为单段标签，如 <code>Environment</code>。</li>
+      <li><strong>格式：</strong><code>[Project name] › Tasks › [task title]</code>。对没有天然父级的页面（Environment / Settings）退化为单段标签，如 <code>Environment</code>。</li>
       <li>使用展示名解析 —— <strong>面包屑本身绝不出现原始 ID</strong>。</li>
     </ul>
 
     <h3>channel / 实体 URL 约定</h3>
     <ul>
-      <li>channel 以<strong>名字</strong>寻址：<code>/channels/:name</code>。</li>
-      <li>议题 / 任务 / DM / 智能体以 <strong>id 或 name</strong> 寻址：<code>/issues/:id</code>、<code>/tasks/:id</code>、<code>/tasks/:id/trace</code>、<code>/dms/:id</code>、<code>/agents/:name</code>。</li>
+      <li>所有 org 作用域 URL 在 <code>/organizations/{slug}/...</code> 下；跨 org 访问以 404 拒绝（存在性不泄露）。</li>
+      <li>channel 以 <strong>hash id</strong> 寻址：<code>/channels/:channelId</code>。</li>
+      <li>议题 / 任务 / DM / 智能体以 <strong>id</strong> 寻址：<code>/projects/:projectId/issues/:id</code>、<code>/projects/:projectId/tasks/:id</code>、<code>/dms/:id</code>、<code>/agents/:id</code>。</li>
     </ul>
     <div class="callout info">
-      <b>说明：</b> README 没有显式定义一条「channel URL 约定」字符串；该约定由上面的 Web Console 路由隐含确立（channel 按名字、其余按 id/name）。
+      <b>说明：</b> 任务 / 议题详情路由嵌在其所属 project 之下（<code>/projects/:projectId/tasks/:id</code>），而 <code>/tasks</code>、<code>/issues</code>、<code>/plans</code> 是跨项目的 org 级聚合列表。
     </div>
   </article>
 

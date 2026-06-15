@@ -19,7 +19,11 @@
    合并进 main / 打 tag **之前**,必须更新:
    - `README.md` + `README.zh-CN.md` —— 顶部 `[!IMPORTANT]` 加本版「shipped / 已发布」blurb(版本号 + 日期 + headline 特性),EN/中**同步**。
    - `CHANGELOG.md` —— 在 `[Unreleased]` 下新建 `## [vX.Y.Z] — YYYY-MM-DD` 段(Added / Changed / Fixed)。
-   - `sites/`(site) —— `sites/index.html` 加本版「新特性」卡片段(**用真实截图**,放 `sites/assets/vX.Y.Z/`)+ 更新路线图卡片的「已发布」行。
+   - `sites/`(site) —— **多页站,不止首页**(详见 [`SITE-UPDATE-RULES.md`](./SITE-UPDATE-RULES.md)):
+     - `sites/index.html`:本版「新特性」卡片段(**用真实截图**,放 `sites/assets/vX.Y.Z/`)+ 路线图「已发布」行 + **所有 manual/dev 链接重指 vX.Y.Z**(顶栏/hero/文档板块/设计版本归档,grep 自查无残留)。
+     - **`sites/manual/vX.Y.Z/index.html`(每版新建)** —— 基于上一版 + CHANGELOG 增量,逐节核当前代码(MCP 工具/路由/CLI/约定,删旧补新)。
+     - **`sites/dev/vX.Y.Z/index.html`(每版新建)** —— 基于上一版 + 架构演进。
+     - 旧版手册/开发指引页 verswitch 加「最新 → vX.Y.Z」并自降为「历史」。
    这批 commit 进**版本分支**(随 step 6 一起合 main)。
 
 6. **合并 + tag**
@@ -38,6 +42,8 @@
 - [ ] CHANGELOG.md 新增本版段(Added/Changed/Fixed)
 - [ ] sites/index.html 新特性卡片段(真实截图 → `sites/assets/vX.Y.Z/`)
 - [ ] sites 路线图卡片「已发布」行更新
+- [ ] **`sites/manual/vX.Y.Z/` + `sites/dev/vX.Y.Z/` 已建**(逐节核当前代码,非照搬)
+- [ ] **首页所有 manual/dev 链接 + 旧版 verswitch 已重指 vX.Y.Z**(grep 自查)
 - [ ] §-1 全绿 + 验收报告(全嵌截图)已交 owner
 
-> 教训(2026-06-15):ship 流程曾漏「封版前更新 README + site」,导致发版后文档/官网仍停在上一版。本规范把它列为 step 5 硬门 —— **文档/官网更新先于合 main+tag**。
+> 教训(2026-06-15):ship 流程曾漏「封版前更新 README + site」,且 site 只改了首页、**手册/开发指引正文停在 v2.8**(v2.9–2.9.2 历次都漏)。本规范把文档更新列为 step 5 硬门(**先于合 main+tag**),site 细则单列 [`SITE-UPDATE-RULES.md`](./SITE-UPDATE-RULES.md)。
