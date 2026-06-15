@@ -18,12 +18,13 @@ import { useAppStore } from '@/store/app';
 
 const BASE_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
-// v2.5.13 (#71): backend heartbeats arrive every 30s as a real data
-// frame (sse/bus.go ticker), and the watchdog timer is reset on every
-// onmessage. The watchdog must therefore be > the backend interval
-// with enough slack for network jitter — 45s gives a comfortable 15s
-// margin. A 30s/30s symmetric pairing raced and forced the cycling
-// `connecting → reconnecting → open` loop the indicator showed.
+// Backend heartbeats arrive as a real data frame (sse/bus.go ticker) and the
+// watchdog is reset on every onmessage. The watchdog must exceed the backend
+// interval with slack for jitter. v2.10.2 [T135]: the backend now beats every
+// 15s (was 30s), so 45s tolerates 3 missed beats — generous margin behind a
+// domain/CDN/local-proxy chain, while still re-detecting a truly dead socket
+// within ~45s. (Earlier a 30s/30s symmetric pairing raced and forced a cycling
+// connecting→reconnecting→open loop; the asymmetry keeps that from recurring.)
 const HEARTBEAT_TIMEOUT_MS = 45_000;
 const JITTER = 0.2;
 
@@ -70,6 +71,11 @@ export function startSSE(args: StartArgs): Controller {
   let attempt = 0;
   let stopped = false;
   let es: EventSource | null = null;
+  // v2.10.2 [T135]: track whether THIS connection has been confirmed live, so
+  // the first inbound frame can flip the indicator to "open" even if onopen
+  // never fires (some proxies/CDNs deliver data frames but suppress/delay the
+  // EventSource open event — the source of the "不稳定 open" flicker on a domain).
+  let opened = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -103,6 +109,14 @@ export function startSSE(args: StartArgs): Controller {
 
   const handleEvent = (raw: MessageEvent) => {
     resetHeartbeat();
+    // First frame on this connection confirms it is live → flip to "open" even
+    // if onopen was suppressed/delayed by an intermediary (T135). The immediate
+    // backend heartbeat (bus.go) makes this fire within ms of (re)connecting.
+    if (!opened) {
+      opened = true;
+      attempt = 0;
+      setStatus('open');
+    }
     if (raw.lastEventId) {
       args.store.getState().setSSELastEventId(raw.lastEventId);
     }
@@ -117,6 +131,7 @@ export function startSSE(args: StartArgs): Controller {
 
   const connect = () => {
     if (stopped) return;
+    opened = false;
     setStatus('connecting');
     const params = new URLSearchParams({ user_id: args.userId });
     const lastEventId = args.store.getState().sseLastEventId;
@@ -126,12 +141,14 @@ export function startSSE(args: StartArgs): Controller {
     const url = `/api/sse?${params.toString()}`;
     es = args.factory(url);
     es.onopen = () => {
+      opened = true;
       attempt = 0;
       setStatus('open');
       resetHeartbeat();
     };
     es.onmessage = handleEvent;
     es.onerror = () => {
+      opened = false;
       if (es) {
         es.close();
         es = null;

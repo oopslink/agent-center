@@ -292,6 +292,18 @@ describe('startSSE', () => {
     expect(useAppStore.getState().sseStatus).toBe('open');
   });
 
+  // v2.10.2 [T135]: some proxies/CDNs deliver data frames but suppress/delay the
+  // EventSource open event. The first inbound frame (the backend now sends an
+  // immediate heartbeat on connect) must flip the indicator to 'open' even when
+  // onopen never fires — otherwise it sticks on 'connecting' and reads as flicker.
+  it('transitions to open on the first message even if onopen never fires (T135)', () => {
+    start();
+    expect(useAppStore.getState().sseStatus).toBe('connecting');
+    // NO openConnection() — only a data frame arrives (the connect heartbeat).
+    FakeEventSource.last()!.emit('sse.heartbeat', {});
+    expect(useAppStore.getState().sseStatus).toBe('open');
+  });
+
   it('stores Last-Event-ID + sends it on reconnect', () => {
     start();
     const es1 = FakeEventSource.last()!;

@@ -122,11 +122,12 @@ func TestServeHTTP_StreamsEventAndHeartbeat(t *testing.T) {
 		}
 		defer resp.Close()
 		buf := make([]byte, 4096)
-		// v2.10.1 [T104]: the stream now opens with a ~2KB priming COMMENT
-		// (`:` line, ignored per the EventSource spec). Keep reading past it —
-		// like a real client — until a real `data:` frame (heartbeat or event)
-		// arrives; returning on the first read would surface only the padding
-		// and disconnect before the test publishes.
+		// v2.10.1 [T104]: the stream opens with a ~2KB priming COMMENT (`:` line,
+		// ignored per the spec). v2.10.2 [T135]: an immediate heartbeat `data:`
+		// frame also arrives on connect. Read past BOTH — like a real client —
+		// until the PUBLISHED event (conversation.message_added) arrives, so this
+		// test still proves real event delivery (not just the connect heartbeat)
+		// and the connection stays open through the publish.
 		var acc strings.Builder
 		for {
 			n, rerr := resp.Read(buf)
@@ -136,7 +137,7 @@ func TestServeHTTP_StreamsEventAndHeartbeat(t *testing.T) {
 			}
 			if n > 0 {
 				acc.Write(buf[:n])
-				if strings.Contains(acc.String(), "data:") {
+				if strings.Contains(acc.String(), "conversation.message_added") {
 					ch <- frame{body: acc.String()}
 					return
 				}
@@ -205,8 +206,11 @@ func TestServeHTTP_T104_PrimesStreamForBufferingProxy(t *testing.T) {
 		t.Errorf("Content-Type = %q, want text/event-stream", ct)
 	}
 
-	// The stream opens with the ~2KB priming COMMENT (a ':' line) BEFORE any data
-	// frame, so a buffering proxy releases the head immediately.
+	// The stream opens with the ~2KB priming COMMENT (a ':' line) BEFORE anything
+	// else, so a buffering proxy releases the head immediately. v2.10.2 [T135]: an
+	// immediate heartbeat `data:` frame now follows the priming on connect, so the
+	// chunk may also contain a data frame — but the priming must still come FIRST
+	// (a leading ':' proves the ordering: the data frame can only follow it).
 	buf := make([]byte, 4096)
 	n, rerr := resp.Body.Read(buf)
 	if rerr != nil {
@@ -216,12 +220,51 @@ func TestServeHTTP_T104_PrimesStreamForBufferingProxy(t *testing.T) {
 	if !strings.HasPrefix(first, ":") {
 		t.Errorf("first chunk must start with the priming comment ':' (got %d bytes, prefix %q)", n, safePrefix(first, 40))
 	}
-	if strings.Contains(first, "data:") {
-		t.Errorf("priming comment must precede any data frame (got prefix %q)", safePrefix(first, 80))
-	}
 	if n < 2000 {
 		t.Errorf("priming padding too small (%d bytes), want ~2KB", n)
 	}
+}
+
+// v2.10.2 [T135]: every (re)connect must yield a real `data:` frame within
+// milliseconds — an immediate heartbeat — so the client flips to "open" at once
+// instead of waiting up to a full heartbeat interval (the up-to-30s "connecting"
+// window that read as flicker on a domain/CDN/proxy). Guards the connect-time
+// heartbeat WITHOUT publishing any event or waiting for the ticker.
+func TestServeHTTP_T135_ImmediateHeartbeatOnConnect(t *testing.T) {
+	b := NewBus()
+	b.heartbeat = 10 * time.Second // long, so only the IMMEDIATE frame can satisfy this
+	srv := httptest.NewServer(b)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := httpGetStream(ctx, srv.URL+"?user_id=u1", "")
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer resp.Close()
+
+	// Read past the priming until the first data frame — it must arrive well
+	// before the 10s ticker would fire, proving the connect-time heartbeat.
+	buf := make([]byte, 4096)
+	var acc strings.Builder
+	deadline := time.Now().Add(1 * time.Second)
+	for time.Now().Before(deadline) {
+		n, rerr := resp.Read(buf)
+		if rerr != nil {
+			t.Fatalf("read: %v", rerr)
+		}
+		if n > 0 {
+			acc.Write(buf[:n])
+			if strings.Contains(acc.String(), "data:") {
+				if !strings.Contains(acc.String(), "sse.heartbeat") {
+					t.Fatalf("first data frame should be the immediate heartbeat, got %q", safePrefix(acc.String(), 120))
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("no immediate heartbeat data frame within 1s of connect")
 }
 
 func safePrefix(s string, n int) string {
