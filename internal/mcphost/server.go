@@ -281,7 +281,7 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "remove_task_from_plan",
-		Description: "Remove a task node from a draft plan (returns it to the backlog). The plan must be in draft.",
+		Description: "Remove a task node from a draft plan (returns it to the backlog). The plan must be in draft — except the always-running built-in assignment pool, whose task-set is freely editable.",
 	}, makePlanTask(cfg, "remove_task_from_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{

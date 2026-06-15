@@ -190,10 +190,15 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
-		// §9.4: the plan's task-set + DAG are editable only in draft. Removing a
-		// node from a running/done plan would break the executing DAG — mirror the
+		// §9.4: a structured plan's task-set + DAG are editable only in draft. Removing
+		// a node from a running/done plan would break the executing DAG — mirror the
 		// gate on SelectTaskIntoPlan / Add+RemovePlanDependency (add/remove symmetry).
-		if p.Status() != pm.PlanDraft {
+		// T121: the built-in assignment pool is EXEMPT — it is always-running yet a
+		// flat claimable bucket (no DAG), so its task-set is freely editable, exactly
+		// as SelectTaskIntoPlan exempts it for the add side. Without this, a Work Board
+		// drag of a pool task (out to the backlog, or as the remove-half of a move)
+		// reports plan_conflict. A structured running/terminal plan stays locked.
+		if !p.IsBuiltin() && p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
 		t, err := s.tasks.FindByID(txCtx, taskID)

@@ -1014,7 +1014,7 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     expect(within(structured as HTMLElement).queryByTestId('claimable-chip-TS-STRUCT-OPEN')).not.toBeInTheDocument();
   });
 
-  it('the built-in pool has NO DAG/edge/remove affordance (flat) — no remove button on a pool card', async () => {
+  it('the built-in pool is flat (no DAG/edge/remove button) but its cards ARE draggable (T121)', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
@@ -1024,9 +1024,12 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
 
     const pool = screen.getByTestId('builtin-pool-column');
     const card = within(pool).getAllByTestId('pool-task-card')[0];
-    // Flat: no remove control, not draggable (no data-draggable).
+    // Flat: no per-card remove button (the pool has no DAG / edge editor).
     expect(within(pool).queryByTestId('plan-task-remove-TS-CLAIM')).not.toBeInTheDocument();
-    expect(card).not.toHaveAttribute('draggable', 'true');
+    // T121: the pool's task-set is freely editable, so a pool card IS draggable
+    // (drag is the affordance to move it out to the Backlog / another draft plan).
+    expect(card).toHaveAttribute('draggable', 'true');
+    expect(card).toHaveAttribute('data-draggable', 'true');
   });
 
   it('selecting a Backlog task INTO the pool is allowed: the add-menu offers Assignment Pool → POST to the built-in plan', async () => {
@@ -1100,5 +1103,227 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     expect(screen.getByTestId('builtin-pool-column')).toBeInTheDocument();
     expect(screen.getByTestId('claimable-chip-TS-CLAIM')).toBeInTheDocument();
     expect(screen.getAllByTestId('plan-column')).toHaveLength(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // T121 — drag a task to change its owning plan across Backlog / Assignment
+  // Pool / draft plans. The pool is now a FULL drag participant (its task-set is
+  // freely editable); running / terminal plans are LOCKED (no drag, no drop).
+  // -------------------------------------------------------------------------
+  function dtStub(): DataTransfer {
+    const store: Record<string, string> = {};
+    return {
+      setData: (k: string, v: string) => { store[k] = v; },
+      getData: (k: string) => store[k] ?? '',
+      get types() { return Object.keys(store); },
+      effectAllowed: '', dropEffect: '',
+    } as unknown as DataTransfer;
+  }
+
+  it('T121: a pool card stamps the POOL id as its drag source (text/plain + FROM_PLAN_MIME)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const pool = screen.getByTestId('builtin-pool-column');
+    const card = within(pool).getAllByTestId('pool-task-card')[0];
+    const transfer = dtStub();
+    fireEvent.dragStart(card, { dataTransfer: transfer });
+    expect(transfer.getData('text/plain')).toBe('TS-CLAIM');
+    expect(transfer.types).toContain('application/x-slock-from-plan');
+    expect(transfer.getData('application/x-slock-from-plan')).toBe('PL-BUILTIN');
+  });
+
+  it('T121: drag a pool task onto the Backlog → DELETE from the pool (remove)', async () => {
+    let deletedFromPlan: string | undefined;
+    let deletedTaskId: string | undefined;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', ({ params }) => {
+        deletedFromPlan = String(params.planId);
+        deletedTaskId = String(params.taskId);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const pool = screen.getByTestId('builtin-pool-column');
+    const card = within(pool).getAllByTestId('pool-task-card')[0];
+    const backlog = screen.getByTestId('backlog-column');
+    const transfer = dtStub();
+    fireEvent.dragStart(card, { dataTransfer: transfer });
+    // The Backlog accepts a pool-origin drag (it's a plan-task, fromPlanId != null).
+    expect(backlog).toHaveAttribute('data-droppable', 'true');
+    fireEvent.dragOver(backlog, { dataTransfer: transfer });
+    await act(async () => {
+      fireEvent.drop(backlog, { dataTransfer: transfer });
+    });
+    await waitFor(() => expect(deletedTaskId).toBe('TS-CLAIM'));
+    expect(deletedFromPlan).toBe('PL-BUILTIN');
+  });
+
+  it('T121: drag a pool task onto a draft plan → MOVE = DELETE pool + POST draft', async () => {
+    let deletedFromPlan: string | undefined;
+    let postedTo: string | undefined;
+    let postedBody: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', ({ params }) => {
+        deletedFromPlan = String(params.planId);
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
+        postedTo = String(params.planId);
+        postedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'draft', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+      }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const pool = screen.getByTestId('builtin-pool-column');
+    const card = within(pool).getAllByTestId('pool-task-card')[0];
+    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    const transfer = dtStub();
+    fireEvent.dragStart(card, { dataTransfer: transfer });
+    fireEvent.dragOver(draft as HTMLElement, { dataTransfer: transfer });
+    await act(async () => {
+      fireEvent.drop(draft as HTMLElement, { dataTransfer: transfer });
+    });
+    await waitFor(() => expect(postedTo).toBe('PL-2'));
+    expect(postedBody).toEqual({ task_id: 'TS-CLAIM' });
+    expect(deletedFromPlan).toBe('PL-BUILTIN'); // removed from the pool (source).
+  });
+
+  it('T121: drag a draft-plan task onto the pool → MOVE-in = DELETE draft + POST pool', async () => {
+    let deletedFromPlan: string | undefined;
+    let postedTo: string | undefined;
+    let postedBody: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(threeSegmentPlans)),
+      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', ({ params }) => {
+        deletedFromPlan = String(params.planId);
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post('/api/projects/proj-a/plans/:planId/tasks', async ({ params, request }) => {
+        postedTo = String(params.planId);
+        postedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: postedTo, project_id: 'proj-a', name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 1 }, nodes: [] });
+      }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const draft = screen.getByText('Billing rework').closest('[data-testid="plan-column"]')!;
+    // The draft plan's open node is draggable (TS-STRUCT-OPEN).
+    const card = within(draft as HTMLElement).getByText('Structured open node').closest('[data-testid="plan-task-card"]')!;
+    const pool = screen.getByTestId('builtin-pool-column');
+    const transfer = dtStub();
+    fireEvent.dragStart(card as HTMLElement, { dataTransfer: transfer });
+    // The pool now accepts a plan-origin drag (MOVE-in), not just backlog tasks.
+    expect(pool).toHaveAttribute('data-droppable', 'true');
+    fireEvent.dragOver(pool, { dataTransfer: transfer });
+    await act(async () => {
+      fireEvent.drop(pool, { dataTransfer: transfer });
+    });
+    await waitFor(() => expect(postedTo).toBe('PL-BUILTIN'));
+    expect(postedBody).toEqual({ task_id: 'TS-STRUCT-OPEN' });
+    expect(deletedFromPlan).toBe('PL-2'); // removed from the draft plan (source).
+  });
+
+  // Fixture with a RUNNING structured plan so the locked-state visuals render.
+  const lockedPlanFixture = {
+    plans: [
+      {
+        id: 'PL-RUN', project_id: 'proj-a', name: 'Live sprint', description: '',
+        status: 'running', creator_ref: 'user:owner', conversation_id: 'cr', target_date: null,
+        has_failed: false, progress: { done: 1, total: 2 }, created_at: '2026-06-01T01:00:00Z',
+        is_builtin: false, node_count: 1,
+        nodes_preview: [poolNode('TS-LOCKED', 'Locked running task')],
+      },
+      {
+        id: 'PL-DRAFT', project_id: 'proj-a', name: 'Next sprint', description: '',
+        status: 'draft', creator_ref: 'user:owner', conversation_id: 'cd', target_date: null,
+        has_failed: false, progress: { done: 0, total: 1 }, created_at: '2026-06-01T01:00:00Z',
+        is_builtin: false, node_count: 1,
+        nodes_preview: [poolNode('TS-MOVABLE', 'Draft movable task')],
+      },
+    ],
+  };
+
+  it('T121: a running plan column is locked (data-locked, reason tooltip, lock badge) and its card shows a lock', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(lockedPlanFixture)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const running = screen.getByText('Live sprint').closest('[data-testid="plan-column"]')!;
+    expect(running).toHaveAttribute('data-locked', 'true');
+    expect(running).toHaveAttribute('data-droppable', 'false');
+    expect(running).toHaveAttribute('title', expect.stringContaining('running'));
+    // The persistent lock badge in the header + the per-card lock affordance.
+    expect(within(running as HTMLElement).getByTestId('plan-locked-PL-RUN')).toBeInTheDocument();
+    expect(within(running as HTMLElement).getByTestId('plan-task-locked-TS-LOCKED')).toBeInTheDocument();
+    // The locked card is NOT draggable + carries the reason tooltip.
+    const card = within(running as HTMLElement).getByTestId('plan-task-card');
+    expect(card).toHaveAttribute('draggable', 'false');
+    expect(card).toHaveAttribute('title', expect.stringContaining('running'));
+
+    // The draft plan is NOT locked.
+    const draft = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
+    expect(draft).toHaveAttribute('data-locked', 'false');
+    expect(within(draft as HTMLElement).queryByTestId('plan-locked-PL-DRAFT')).not.toBeInTheDocument();
+  });
+
+  it('T121: while a drag is in flight, a running plan column shows the no-drop reason banner', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(lockedPlanFixture)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const running = screen.getByText('Live sprint').closest('[data-testid="plan-column"]')!;
+    // No banner before a drag starts.
+    expect(within(running as HTMLElement).queryByTestId('plan-drop-blocked-PL-RUN')).not.toBeInTheDocument();
+
+    const draft = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
+    const card = within(draft as HTMLElement).getByTestId('plan-task-card');
+    fireEvent.dragStart(card, { dataTransfer: dtStub() });
+    // Now the locked column surfaces the reason banner.
+    const banner = within(running as HTMLElement).getByTestId('plan-drop-blocked-PL-RUN');
+    expect(banner).toHaveTextContent(/running/i);
+  });
+
+  it('T121: dropping a task onto a running plan is rejected (no mutate fired)', async () => {
+    let mutated = false;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(lockedPlanFixture)),
+      http.post('/api/projects/proj-a/plans/:planId/tasks', () => { mutated = true; return HttpResponse.json({}); }),
+      http.delete('/api/projects/proj-a/plans/:planId/tasks/:taskId', () => { mutated = true; return new HttpResponse(null, { status: 204 }); }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    const draft = screen.getByText('Next sprint').closest('[data-testid="plan-column"]')!;
+    const card = within(draft as HTMLElement).getByTestId('plan-task-card');
+    const running = screen.getByText('Live sprint').closest('[data-testid="plan-column"]')!;
+    const transfer = dtStub();
+    fireEvent.dragStart(card, { dataTransfer: transfer });
+    await act(async () => {
+      fireEvent.drop(running as HTMLElement, { dataTransfer: transfer });
+    });
+    await act(async () => { await Promise.resolve(); });
+    expect(mutated).toBe(false);
   });
 });
