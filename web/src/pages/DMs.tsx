@@ -14,6 +14,8 @@ import { UnreadBadge } from '@/components/UnreadBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
+import { SegmentedNav } from '@/shell/SegmentedNav';
+import { CONVERSATION_SEGMENTS } from './conversationSegments';
 
 // DMList page (/dms). Lists kind=dm conversations + "Start a DM" button.
 export default function DMs(): React.ReactElement {
@@ -27,6 +29,9 @@ export default function DMs(): React.ReactElement {
 
   return (
     <section className="space-y-4" data-testid="page-DMs">
+      {/* v2.10.2 [T129] Mobile (<md): Conversations module 二级段控 (Channels |
+          DMs) — desktop keeps the col② nav. */}
+      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel="Conversations sections" />
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">DMs</h1>
         <button

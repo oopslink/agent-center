@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { act, cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -12,11 +12,11 @@ beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
 });
 
-function wrap(ui: React.ReactElement) {
+function wrap(ui: React.ReactElement, route = '/dms') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -135,5 +135,18 @@ describe('DMs delete (#198)', () => {
     await waitFor(() =>
       expect(screen.getByTestId('dm-delete-error')).toHaveTextContent(/only a participant can delete this dm/i),
     );
+  });
+
+  // v2.10.2 [T129] Mobile 二级段控 (Channels | DMs) — on mobile col② is hidden,
+  // so this page surfaces the Channels↔DMs switch (DMs active here).
+  it('renders the mobile Conversations segmented nav (DMs active, Channels reachable)', async () => {
+    server.use(http.get('/api/conversations', () => HttpResponse.json([])));
+    wrap(<DMs />, '/dms');
+    const nav = await screen.findByTestId('segmented-nav');
+    const channels = within(nav).getByTestId('conv-seg-channels');
+    const dms = within(nav).getByTestId('conv-seg-dms');
+    expect(dms).toHaveAttribute('data-active', 'true');
+    expect(channels).toHaveAttribute('data-active', 'false');
+    expect(channels).toHaveAttribute('href', '/channels');
   });
 });
