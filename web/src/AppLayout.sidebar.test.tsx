@@ -312,9 +312,9 @@ describe('col② secondary nav — active-module group + sub-lists', () => {
     // custom route-aware nav now; see WorkspaceSecondaryNav.test.tsx.)
   });
 
-  it('rail shows connection status (top) + a user panel with theme + sign out (T105)', () => {
+  it('rail shows connection status (bottom) + a user panel with theme + sign out (T105)', () => {
     renderShell('/channels');
-    // Connection status moved to the col① rail top.
+    // Connection status pinned to the col① rail bottom (above the user avatar).
     expect(screen.getByTestId('rail-connection')).toBeInTheDocument();
     // Theme + sign out now live in the rail user popout (closed by default).
     expect(screen.queryByTestId('rail-user-panel')).not.toBeInTheDocument();

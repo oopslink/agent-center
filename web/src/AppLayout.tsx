@@ -318,7 +318,8 @@ export default function AppLayout(): React.ReactElement {
         />
 
         {/* col① — the module rail (desktop). v2.10.1 [T105]: it now owns the
-            connection status (top) + the user panel (theme/sign-out, bottom). */}
+            connection status + the user panel (theme/sign-out), both pinned at
+            the bottom of the rail. */}
         <ModuleRail
           modules={modules}
           activeModuleId={activeModule?.id}
@@ -446,24 +447,6 @@ function ModuleRail({
       aria-label="modules"
       className="hidden w-16 flex-shrink-0 flex-col items-center gap-1 bg-rail-bg py-2.5 md:flex"
     >
-      {/* v2.10.1 [T105]: connection status at the very top (was a floating
-          indicator in the content/col② footer). */}
-      <RailConnectionStatus />
-
-      {/* Search (⌘K) — top utility cluster. */}
-      <button
-        type="button"
-        onClick={onOpenPalette}
-        aria-label="Search (⌘K)"
-        title="Search (⌘K)"
-        data-testid="open-palette"
-        className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-xl text-rail-fg hover:bg-white/10 hover:text-rail-fg-active motion-safe:transition-colors"
-      >
-        <span aria-hidden="true" className="inline-flex h-5 w-5">
-          <SearchIcon />
-        </span>
-      </button>
-
       {/* Org logo = the org switcher trigger (opens the dropdown). */}
       <div className="relative mb-2">
         <button
@@ -517,6 +500,23 @@ function ModuleRail({
 
       <div className="flex-1" />
 
+      {/* Connection status + Search (⌘K) — bottom utility cluster, pinned just
+          above the signed-in user avatar. */}
+      <RailConnectionStatus />
+
+      <button
+        type="button"
+        onClick={onOpenPalette}
+        aria-label="Search (⌘K)"
+        title="Search (⌘K)"
+        data-testid="open-palette"
+        className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-xl text-rail-fg hover:bg-white/10 hover:text-rail-fg-active motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-5 w-5">
+          <SearchIcon />
+        </span>
+      </button>
+
       {/* Signed-in user (bottom) → right-popout panel (theme + sign out). */}
       <RailUser displayName={displayName} orgBase={orgBase} theme={theme} onSetTheme={onSetTheme} />
     </nav>
@@ -524,7 +524,8 @@ function ModuleRail({
 }
 
 // ============================================================================
-// v2.10.1 [T105] RailConnectionStatus — the col① top connection indicator: a
+// v2.10.1 [T105] RailConnectionStatus — the col① connection indicator (pinned at
+// the bottom of the rail, above the user avatar): a
 // WiFi glyph with a small status dot (top-right). Dot color tracks the Zustand
 // SSE status — green=connected(open), yellow=connecting/reconnecting, red=
 // disconnected(closed), muted=idle. The dot breathes (pulse) always; an abnormal
