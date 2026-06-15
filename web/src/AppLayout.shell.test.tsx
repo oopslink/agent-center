@@ -115,14 +115,59 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(within(ctx).getByTestId('panel-content')).toHaveTextContent('参与者 · 3');
   });
 
-  it('mobile hamburger toggles the drawer (aria-expanded + dialog overlay)', () => {
-    renderShell();
-    const toggle = screen.getByTestId('nav-toggle');
+  // v2.10.1 [M1] mobile (<768) shell: bottom Tab Bar (col①) + top bar actions
+  // + col④ context as a dismissible bottom sheet + account/org/theme sheet.
+  it('mobile bottom tab bar lists the four modules, links to defaults, marks active, ≥44px targets', () => {
+    renderShell('/channels');
+    const tabbar = screen.getByRole('navigation', { name: 'modules mobile' });
+    expect(within(tabbar).getByTestId('tab-workspace')).toHaveAttribute('href', '/projects');
+    expect(within(tabbar).getByTestId('tab-conversations')).toHaveAttribute('href', '/channels');
+    expect(within(tabbar).getByTestId('tab-members')).toHaveAttribute('href', '/members/humans');
+    expect(within(tabbar).getByTestId('tab-system')).toHaveAttribute('href', '/environment');
+    // On /channels the Conversations tab is active.
+    expect(within(tabbar).getByTestId('tab-conversations')).toHaveAttribute('data-active', 'true');
+    expect(within(tabbar).getByTestId('tab-workspace')).toHaveAttribute('data-active', 'false');
+    // Touch baseline: every tab is a ≥44px target.
+    expect(within(tabbar).getByTestId('tab-workspace').className).toContain('min-h-[44px]');
+  });
+
+  it('the old hamburger drawer is gone (replaced by the bottom tab bar)', () => {
+    renderShell('/channels');
+    expect(screen.queryByTestId('nav-toggle')).not.toBeInTheDocument();
+  });
+
+  it('mobile col④ context opens as a bottom sheet from the top-bar ⓘ (default closed)', () => {
+    renderShell('/panel');
+    const ctx = screen.getByTestId('context-panel');
+    // A panel is mounted (desktop column would show), but the mobile sheet is
+    // closed until the user opens it.
+    expect(ctx).toHaveAttribute('data-open', 'true');
+    expect(ctx).toHaveAttribute('data-sheet-open', 'false');
+    const toggle = screen.getByTestId('mobile-context-toggle');
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByTestId('context-panel')).toHaveAttribute('data-sheet-open', 'true');
+    expect(screen.getByTestId('mobile-context-toggle')).toHaveAttribute('aria-expanded', 'true');
+    // The portaled panel content lives in the col④ host either way.
+    expect(within(screen.getByTestId('context-panel')).getByTestId('panel-content')).toBeInTheDocument();
+    // The scrim dismisses the sheet.
+    fireEvent.click(screen.getByTestId('context-panel-scrim'));
+    expect(screen.getByTestId('context-panel')).toHaveAttribute('data-sheet-open', 'false');
+  });
+
+  it('the top-bar ⓘ is absent when no context panel is mounted', () => {
+    renderShell('/channels');
+    expect(screen.queryByTestId('mobile-context-toggle')).not.toBeInTheDocument();
+  });
+
+  it('mobile account sheet exposes org switch / account / theme / sign out', () => {
+    renderShell('/channels');
+    expect(screen.queryByTestId('account-sheet')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mobile-account-toggle'));
+    const sheet = screen.getByTestId('account-sheet');
+    expect(sheet).toHaveAttribute('role', 'dialog');
+    expect(within(sheet).getByTestId('account-profile-link')).toHaveAttribute('href', '/me');
+    expect(within(sheet).getByTestId('theme-toggle')).toBeInTheDocument();
+    expect(within(sheet).getByTestId('account-signout')).toBeInTheDocument();
   });
 });

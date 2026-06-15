@@ -23,6 +23,8 @@ import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useContextPanelController } from '@/shell/contextPanel';
 import { SECONDARY_NAV_REGISTRY } from '@/shell/secondaryNav';
+import { MobileTabBar } from '@/shell/MobileTabBar';
+import { BottomSheet } from '@/shell/BottomSheet';
 import { useOptionalOrgContext, orgPath } from './OrgContext';
 
 // ============================================================================
@@ -223,7 +225,12 @@ export default function AppLayout(): React.ReactElement {
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
   const [settingsOrgId, setSettingsOrgId] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // v2.10.1 [M1] mobile (<768) overlays: the col④ context panel is a
+  // dismissible bottom sheet (default closed, opened from the top-bar ⓘ), and
+  // the org/account/theme/sign-out menu is a second bottom sheet. The desktop
+  // layout (≥768) is unchanged — its real columns show instead.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(readSidebarCollapsed);
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -237,10 +244,11 @@ export default function AppLayout(): React.ReactElement {
   const modules = useMemo(() => buildModules(orgBase), [orgBase]);
   const activeModule = moduleForPath(modules, location.pathname, orgBase);
 
-  // Auto-close the drawer on navigation so a tap on a nav item also
-  // dismisses the overlay (common mobile pattern).
+  // Close the mobile context sheet + account menu on navigation (a tap that
+  // routes also dismisses any open overlay — common mobile pattern).
   useEffect(() => {
-    setDrawerOpen(false);
+    setSheetOpen(false);
+    setAccountOpen(false);
   }, [location.pathname]);
 
   // Persist collapse + theme on change.
@@ -295,24 +303,19 @@ export default function AppLayout(): React.ReactElement {
   return (
     <ContextPanelProvider value={panelValue}>
       <div className="flex h-screen bg-bg-base">
-        {/* Mobile-only top strip: the rail + col② are desktop columns, so on
-            small screens we keep a slim bar hosting the hamburger (drawer) +
-            the active module / org name for context. */}
-        <header className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-2 border-b border-border-base bg-bg-elevated px-3 md:hidden">
-          <button
-            type="button"
-            aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-            aria-expanded={drawerOpen}
-            data-testid="nav-toggle"
-            onClick={() => setDrawerOpen((v) => !v)}
-            className="-ml-1 inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors"
-          >
-            <HamburgerIcon />
-          </button>
-          <span className="truncate text-sm font-medium text-text-primary">
-            {activeModule?.label ?? currentOrg?.name ?? me.data?.display_name ?? '…'}
-          </span>
-        </header>
+        {/* v2.10.1 [M1] Mobile-only top bar: the rail + col② are desktop
+            columns, so on small screens we keep a slim bar hosting the active
+            screen title + the actions that lived in the rail/col② (search,
+            col④ context ⓘ, account/org/theme/sign-out). */}
+        <MobileTopBar
+          title={activeModule?.label ?? currentOrg?.name ?? me.data?.display_name ?? '…'}
+          displayName={me.data?.display_name}
+          hasContextPanel={panelOpen}
+          sheetOpen={sheetOpen}
+          onToggleSheet={() => setSheetOpen((v) => !v)}
+          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenAccount={() => setAccountOpen(true)}
+        />
 
         {/* col① — the module rail (desktop). */}
         <ModuleRail
@@ -335,8 +338,9 @@ export default function AppLayout(): React.ReactElement {
           onOpenPalette={() => setPaletteOpen(true)}
         />
 
-        {/* col③ — content. */}
-        <main className="flex min-w-0 flex-1 overflow-hidden pt-12 md:pt-0">
+        {/* col③ — content. On mobile it is the full-screen surface between the
+            fixed top bar (pt-12) and the fixed bottom tab bar (pb-14). */}
+        <main className="flex min-w-0 flex-1 overflow-hidden pb-14 pt-12 md:pb-0 md:pt-0">
           <div
             className="flex h-full w-full flex-col overflow-y-auto p-4 sm:p-6"
             data-testid="app-content-shell"
@@ -347,36 +351,58 @@ export default function AppLayout(): React.ReactElement {
           </div>
         </main>
 
-        {/* col④ — on-demand context panel. The host element always exists so
-            <ContextPanel> can portal into it; the column is revealed only when
-            a panel is mounted (panelOpen). */}
+        {/* col④ — on-demand context panel. ONE host element (so <ContextPanel>
+            always portals into the same node) presented responsively: a side
+            COLUMN on desktop (≥768, shown whenever a panel is mounted) and a
+            dismissible bottom SHEET on mobile (<768, shown only when the user
+            opens it via the top-bar ⓘ → sheetOpen). The mobile scrim sits
+            behind the sheet. */}
+        {sheetOpen && panelOpen && (
+          <button
+            type="button"
+            aria-label="Close details"
+            tabIndex={-1}
+            onClick={() => setSheetOpen(false)}
+            data-testid="context-panel-scrim"
+            className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          />
+        )}
         <aside
           aria-label="context"
           data-testid="context-panel"
           data-open={panelOpen}
+          data-sheet-open={sheetOpen}
           className={[
-            'w-64 flex-shrink-0 flex-col overflow-y-auto border-l border-border-base bg-bg-elevated',
-            panelOpen ? 'hidden md:flex' : 'hidden',
+            'flex-col overflow-y-auto bg-bg-elevated',
+            // mobile: bottom sheet
+            'fixed inset-x-0 bottom-0 z-40 max-h-[80vh] rounded-t-2xl border-t border-border-strong pb-[env(safe-area-inset-bottom)] shadow-2',
+            // desktop: side column
+            'md:static md:bottom-auto md:z-auto md:max-h-none md:w-64 md:flex-shrink-0 md:rounded-none md:border-l md:border-t-0 md:border-border-base md:pb-0 md:shadow-none',
+            // mobile visibility (sheetOpen) — desktop overrides via md:
+            sheetOpen && panelOpen ? 'flex' : 'hidden',
+            panelOpen ? 'md:flex' : 'md:hidden',
           ].join(' ')}
         >
+          {/* Mobile grab handle (sheet affordance); hidden on desktop. */}
+          <div aria-hidden="true" className="mx-auto my-2 h-1 w-9 rounded-full bg-border-strong md:hidden" />
           <div ref={setHost} className="flex min-h-0 flex-1 flex-col" />
         </aside>
 
-        {/* Mobile drawer — rail modules + active module nav. */}
-        {drawerOpen && (
-          <MobileDrawer
-            modules={modules}
-            activeModuleId={activeModule?.id}
-            module={activeModule}
-            theme={theme}
-            onSetTheme={setTheme}
-            orgBase={orgBase}
-            orgSwitcher={orgSwitcher}
-            displayName={me.data?.display_name}
-            onOpenPalette={() => setPaletteOpen(true)}
-            onDismiss={() => setDrawerOpen(false)}
-          />
-        )}
+        {/* col① on mobile — the bottom Tab Bar (the desktop rail reflowed). */}
+        <MobileTabBar modules={modules} activeModuleId={activeModule?.id} orgBase={orgBase} />
+
+        {/* Mobile account/org/theme/sign-out menu (the rail + col② footer
+            actions, reflowed into a bottom sheet). */}
+        <AccountSheet
+          open={accountOpen}
+          onClose={() => setAccountOpen(false)}
+          orgs={orgs.data ?? []}
+          currentSlug={orgCtx?.slug}
+          displayName={me.data?.display_name}
+          orgBase={orgBase}
+          theme={theme}
+          onSetTheme={setTheme}
+        />
 
         {/* Org create / settings modals overlay the whole app from the root. */}
         {createOrgModalOpen && <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />}
@@ -912,104 +938,161 @@ function SecondaryNavFooter({
 }
 
 // ============================================================================
-// MobileDrawer — small-screen overlay: module switcher row + the active
-// module's secondary nav. (Mobile is a baseline in T1; refined in a later
-// phase per the mockup note.)
+// v2.10.1 [M1] MobileTopBar — the small-screen (<768) top bar. The rail + col②
+// are desktop columns, so this slim fixed bar carries the active screen title
+// plus the rail/col② actions that have no column on mobile: search (⌘K
+// palette), the col④ context ⓘ (shown only when a panel is mounted), and the
+// account avatar (org/theme/sign-out sheet). Every button is a ≥44px target.
 // ============================================================================
-function MobileDrawer({
-  modules,
-  activeModuleId,
-  module,
-  theme,
-  onSetTheme,
-  orgBase,
-  orgSwitcher,
+function MobileTopBar({
+  title,
   displayName,
+  hasContextPanel,
+  sheetOpen,
+  onToggleSheet,
   onOpenPalette,
-  onDismiss,
+  onOpenAccount,
 }: {
-  modules: ReadonlyArray<ModuleDef>;
-  activeModuleId?: ModuleDef['id'];
-  module?: ModuleDef;
-  theme: Theme;
-  onSetTheme: (t: Theme) => void;
-  orgBase: string;
-  orgSwitcher: OrgSwitcherBinding;
+  title: string;
   displayName?: string;
+  hasContextPanel: boolean;
+  sheetOpen: boolean;
+  onToggleSheet: () => void;
   onOpenPalette: () => void;
-  onDismiss: () => void;
+  onOpenAccount: () => void;
 }): React.ReactElement {
-  const orgName = orgSwitcher.currentOrg?.name ?? orgSwitcher.fallbackName ?? 'Organization';
   return (
-    <div className="fixed inset-0 z-40 flex md:hidden" role="dialog" aria-modal="true">
+    <header className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-1 border-b border-border-base bg-bg-elevated pl-3 pr-1 md:hidden">
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{title}</span>
       <button
         type="button"
-        aria-label="Close navigation overlay"
-        onClick={onDismiss}
-        className="flex-1 bg-black/40 motion-safe:transition-opacity"
-      />
-      <div className="flex w-72 max-w-[85%] flex-shrink-0">
-        {/* Mini rail. */}
-        <nav
-          aria-label="modules mobile"
-          className="flex w-16 flex-shrink-0 flex-col items-center gap-1 bg-rail-bg py-2.5"
+        onClick={onOpenPalette}
+        aria-label="Search (⌘K)"
+        data-testid="mobile-search"
+        className="inline-flex h-11 w-11 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-5 w-5">
+          <SearchIcon />
+        </span>
+      </button>
+      {hasContextPanel && (
+        <button
+          type="button"
+          onClick={onToggleSheet}
+          aria-label="Details"
+          aria-expanded={sheetOpen}
+          data-testid="mobile-context-toggle"
+          className="inline-flex h-11 w-11 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors"
         >
-          <span
-            aria-hidden="true"
-            className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-sm font-extrabold text-white"
-          >
-            {(orgName[0] ?? 'A').toUpperCase()}
+          <span aria-hidden="true" className="inline-flex h-5 w-5">
+            <InfoIcon />
           </span>
-          {modules.map((m) => {
-            const active = m.id === activeModuleId;
-            return (
-              <NavLink
-                key={m.id}
-                to={m.defaultPath ? `${orgBase}/${m.defaultPath}` : orgBase || '/'}
-                aria-label={m.label}
-                data-testid={`drawer-module-${m.id}`}
-                className={[
-                  'flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-xl text-rail-fg',
-                  active ? 'bg-white/15 text-rail-fg-active' : 'hover:bg-white/10',
-                ].join(' ')}
-              >
-                <span aria-hidden="true" className="inline-flex h-5 w-5">
-                  <m.Icon />
-                </span>
-                <span aria-hidden="true" className="text-[0.5rem] font-medium leading-none">
-                  {m.short}
-                </span>
-              </NavLink>
-            );
-          })}
-          <div className="flex-1" />
-          {displayName && (
-            <NavLink
-              to={`${orgBase}/me`}
-              aria-label={`${displayName} — your account`}
-              data-testid="drawer-user"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-rail-fg-active"
-            >
-              <span aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span>
-            </NavLink>
-          )}
-        </nav>
-        {/* The module's secondary nav. */}
-        <nav
-          aria-label="primary mobile"
-          className="flex w-56 flex-shrink-0 flex-col border-l border-border-base bg-bg-elevated"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <SecondaryNavBody
-            module={module}
-            theme={theme}
-            onSetTheme={onSetTheme}
-            orgBase={orgBase}
-            onOpenPalette={onOpenPalette}
-          />
-        </nav>
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onOpenAccount}
+        aria-label="Account and settings"
+        data-testid="mobile-account-toggle"
+        className="inline-flex h-11 w-11 items-center justify-center"
+      >
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white">
+          <span aria-hidden="true">{(displayName?.slice(0, 1) ?? 'A').toUpperCase()}</span>
+        </span>
+      </button>
+    </header>
+  );
+}
+
+// ============================================================================
+// v2.10.1 [M1] AccountSheet — the mobile (<768) home for the actions that live
+// in the desktop rail (org switcher, account) + col② footer (theme, sign out).
+// Reuses the generic <BottomSheet> primitive.
+// ============================================================================
+function AccountSheet({
+  open,
+  onClose,
+  orgs,
+  currentSlug,
+  displayName,
+  orgBase,
+  theme,
+  onSetTheme,
+}: {
+  open: boolean;
+  onClose: () => void;
+  orgs: Array<{ id: string; slug: string; name: string }>;
+  currentSlug?: string;
+  displayName?: string;
+  orgBase: string;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+}): React.ReactElement {
+  const navigate = useNavigate();
+  const signout = useSignout();
+  return (
+    <BottomSheet open={open} onClose={onClose} title={displayName ?? 'Account'} testId="account-sheet">
+      {orgs.length > 0 && (
+        <div className="mb-3">
+          <h3 className="px-1 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
+            Organizations
+          </h3>
+          <ul className="space-y-0.5">
+            {orgs.map((o) => (
+              <li key={o.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (o.slug !== currentSlug) navigate(`/organizations/${o.slug}`);
+                    onClose();
+                  }}
+                  data-testid={`account-org-${o.slug}`}
+                  className={[
+                    'flex min-h-[44px] w-full items-center gap-2 rounded px-2 text-sm motion-safe:transition-colors',
+                    o.slug === currentSlug
+                      ? 'font-medium text-brand'
+                      : 'text-text-primary hover:bg-bg-subtle',
+                  ].join(' ')}
+                >
+                  <span aria-hidden="true" className="inline-flex h-4 w-4">
+                    <OrgIcon />
+                  </span>
+                  <span className="truncate">{o.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <NavLink
+        to={`${orgBase}/me`}
+        onClick={onClose}
+        data-testid="account-profile-link"
+        className="flex min-h-[44px] items-center gap-2 rounded px-2 text-sm text-text-primary hover:bg-bg-subtle motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-4 w-4">
+          <UsersIcon />
+        </span>
+        <span>Your account</span>
+      </NavLink>
+
+      <div className="mt-3">
+        <ThemeSegmented theme={theme} onSetTheme={onSetTheme} />
       </div>
-    </div>
+
+      <button
+        type="button"
+        onClick={() => signout.mutate()}
+        data-testid="account-signout"
+        className="mt-2 flex min-h-[44px] w-full items-center gap-2 rounded px-2 text-sm text-text-muted hover:bg-bg-subtle hover:text-danger motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-4 w-4">
+          <SignoutIcon />
+        </span>
+        <span>Sign out</span>
+      </button>
+    </BottomSheet>
   );
 }
 
@@ -1304,10 +1387,13 @@ function WorkspaceIcon(): React.ReactElement {
     </svg>
   );
 }
-function HamburgerIcon(): React.ReactElement {
+// InfoIcon — the mobile top-bar col④ context (ⓘ) trigger (mockup `.mtop ⓘ`).
+function InfoIcon(): React.ReactElement {
   return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.75" aria-hidden="true">
-      <path d="M3.5 5h13M3.5 10h13M3.5 15h13" strokeLinecap="round" />
+    <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 9v4.5" strokeLinecap="round" />
+      <circle cx="10" cy="6.5" r="0.6" fill="currentColor" stroke="none" />
     </svg>
   );
 }
