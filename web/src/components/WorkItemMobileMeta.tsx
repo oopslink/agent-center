@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { Avatar } from '@/components/Avatar';
 import { EntityRef } from '@/components/EntityRef';
-import { StatusBlock } from '@/components/IssueTaskSidebar';
+import { StatusBlock, type StatusKey } from '@/components/IssueTaskSidebar';
 import { useSenderSidebar } from '@/components/SenderSidebarContext';
 import { refLabel } from '@/components/workItemDisplay';
 import { tagColorFor } from '@/components/tagColors';
@@ -105,7 +105,7 @@ export function MobileMetaSummary({
   projectId,
   plan,
 }: {
-  status: string;
+  status: StatusKey;
   statusChangedAt?: string;
   assignee?: string | null;
   assigneeName?: string;
