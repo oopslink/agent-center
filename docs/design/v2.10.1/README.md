@@ -25,7 +25,7 @@ v2.10.1 = **移动端体验优化**（把 v2.10.0 三栏桌面适配到 <768 移
 | 节点 | 任务 | mockup | dev 要点 |
 |------|------|--------|----------|
 | T93 Thread 面板拖拽调宽 | task-97c7600a | `desk-thread-resize.html` | Thread 面板（col④）左缘 resize grip，`cursor:col-resize`；min ~320px / **max 75vw**；宽度 localStorage 持久化；主内容随之压缩。 |
-| T94 Channel 侧栏 Chat/Threads/Files Tab | task-67fff619 | `desk-channel-tabs.html` | 侧栏三 tab 分段头（Chat/Threads/Files）。**⚠️ IA 待 owner 定**：variant A(荐)=侧栏仅 Threads/Files、主聊天留 col③；variant B=三 tab 组织整块（owner 字面）。mockup 主画 B + 标注 A。 |
+| T96 Channel 侧栏 Chat/Threads/Files Tab | task-67fff619 | `desk-channel-tabs.html` | **✅ IA 定稿(owner 2026-06-15)= variant B：Chat/Threads/Files 三 tab 组织整块**（mockup 主画的就是 B）。三 tab 分段头：Chat=消息流 / Threads=thread 列表 / Files=文件列表，同一时刻显示当前 tab。忽略 mockup 里 variant A 注解。 |
 | T95 参与者侧栏拖拽调宽 | task-412a6835 | `desk-participant-resize.html` | 参与者侧栏复用 **T93 同一个 ResizablePanel 组件**（grip/col-resize/min320/max75vw/持久化）。 |
 | T96 全局 Plan 列表查看 archived | task-4f903bf7 | `desk-plan-archived.html` | Plan 列表 header 加 Active/Archived 分段筛选；Archived 行灰显 + "Archived" 角标；点进去 = **只读详情**（DAG/节点/历史可看，不可改/不可 start）；**本轮不做 unarchive**（owner 拍：仅可查看）。 |
 
@@ -35,4 +35,4 @@ v2.10.1 = **移动端体验优化**（把 v2.10.0 三栏桌面适配到 <768 移
 
 ## 注记
 - 桌面增强 mockup 的 shell chrome 内联样式沿用 v2.10.0 mockup 既有写法（`.desk4`/`.rail`/`.c2`/`.main`/`.ctx` 在各文件 `<style>` 内联），可复用 token 来自 `mods.css`。
-- T94 的 IA 取舍由 owner 定稿后，dev 以最终选择实现；未定前按 variant A（推荐）预备结构。
+- T96 的 IA 已定稿 = **variant B（Chat/Threads/Files 三 tab 组织整块）**，owner 2026-06-15 拍板；mockup `desk-channel-tabs.html` 主视图即 B，其内 variant A 注解作废。
