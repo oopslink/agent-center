@@ -150,9 +150,6 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
                   data-testid="conv-nav-dm"
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <span aria-hidden="true" className="text-[0.5rem] text-accent">
-                      ●
-                    </span>
                     <span className="truncate">{dmLabel(d)}</span>
                   </span>
                   <UnreadBadge unreadCount={d.unread_count} mentionCount={d.mention_count} />
