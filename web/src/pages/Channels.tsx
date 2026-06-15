@@ -21,6 +21,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { formatLocalTime } from '@/utils/time';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
+import { SegmentedNav } from '@/shell/SegmentedNav';
+import { CONVERSATION_SEGMENTS } from './conversationSegments';
 
 // v2.8.1 list-enrichment: how many participant avatars we show before the "+N"
 // overflow chip (mirrors the ChannelDetail header AvatarStack, MAX_SHOWN=3).
@@ -49,6 +51,9 @@ export default function Channels(): React.ReactElement {
 
   return (
     <section className="space-y-4" data-testid="page-Channels">
+      {/* v2.10.2 [T129] Mobile (<md): Conversations module 二级段控 (Channels |
+          DMs) — desktop keeps the col② nav. */}
+      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel="Conversations sections" />
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Channels</h1>
         <button
