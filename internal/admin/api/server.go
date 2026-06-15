@@ -368,6 +368,9 @@ func (s *Server) routes() {
 	// fail_work (report the in-flight item failed → frees the slot to drain).
 	s.mux.HandleFunc("POST /admin/agent-tools/start_work", s.startWorkHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/fail_work", s.failWorkHandler)
+	// T83: claim an open built-in assignment-pool task (pool tasks have no
+	// WorkItem, so start_work does not apply) — atomic assign+run, fail-closed.
+	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the active item (→paused, release
 	// slot) + resume a paused item (→active, re-acquire slot, single-active-gated).
 	s.mux.HandleFunc("POST /admin/agent-tools/pause_work", s.pauseWorkHandler)

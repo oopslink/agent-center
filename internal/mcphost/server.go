@@ -116,6 +116,13 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
 	}, makeFailWork(cfg))
 
+	// T83: claim an OPEN assignment-pool task. Pool tasks have no work item (pull,
+	// no-wake), so start_work does not apply — claim_task is how you pick one up.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "claim_task",
+		Description: "Claim an OPEN assignment-pool task surfaced in get_my_work's claimable_tasks (a task_id, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap.",
+	}, makeClaimTask(cfg))
+
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
 	// optionally resume it later.
 	mcp.AddTool(srv, &mcp.Tool{

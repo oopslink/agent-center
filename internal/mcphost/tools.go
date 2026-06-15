@@ -196,6 +196,22 @@ func makeFailWork(cfg Config) mcp.ToolHandlerFor[failWorkArgs, any] {
 	}
 }
 
+// --- claim_task (T83: open-claim of a built-in assignment-pool task) ---------
+
+type claimTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the id of an OPEN assignment-pool task (from get_my_work claimable_tasks) to claim now — atomically assigns it to you and starts it (open→running)"`
+}
+
+func makeClaimTask(cfg Config) mcp.ToolHandlerFor[claimTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args claimTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "claim_task", body)
+	}
+}
+
 // --- pause_work / resume_paused_work (v2.8.1 #278 D PR4 scheduling) -----------
 
 type pauseWorkArgs struct {
