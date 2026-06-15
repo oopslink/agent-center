@@ -155,7 +155,9 @@ export default function OrgPlansPage(): React.ReactElement {
       )}
 
       {query.data && items.length > 0 && (
-        <div className="overflow-x-auto">
+        // v2.10.1 [M4] Mobile (<md): the wide table would h-scroll at 375px, so
+        // it reflows to a card flow (below). The table is md:-only.
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left text-xs" data-testid="org-plans-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
@@ -219,7 +221,54 @@ export default function OrgPlansPage(): React.ReactElement {
         </div>
       )}
 
-      {/* col④ — read-only summary of the selected plan (mockup §1 col④). */}
+      {/* v2.10.1 [M4] Mobile (<md) card flow — mirrors the table rows (the wide
+          table h-scrolls at 375px). Tapping a card selects it (→ the col④ plan
+          summary, which the M1 shell reflows to a bottom sheet); the name links
+          into the Plan detail. */}
+      {query.data && items.length > 0 && (
+        <ul className="space-y-2 md:hidden" data-testid="org-plans-cards">
+          {items.map((p) => {
+            const isSelected = p.id === selectedId;
+            return (
+              <li key={p.id}>
+                <div
+                  data-testid="org-plan-card"
+                  data-id={p.id}
+                  data-status={p.status}
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedId(isSelected ? null : p.id)}
+                  className={`min-h-[44px] cursor-pointer rounded-xl border border-border-base bg-bg-elevated p-3 shadow-1 ${
+                    isSelected ? 'ring-2 ring-accent' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(p.project.id)}/plans/${encodeURIComponent(p.id)}`}
+                      className="min-w-0 flex-1 text-sm font-semibold text-text-primary hover:text-accent"
+                      data-testid="org-plan-card-name"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="line-clamp-2">{p.name}</span>
+                    </OrgLink>
+                    <span className="inline-flex shrink-0 items-center gap-1.5">
+                      <PlanStatusChip status={p.status} />
+                      <PlanFailedIndicator hasFailed={p.has_failed} />
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                    <span className="truncate" data-testid="org-plan-card-project">{p.project.name}</span>
+                    <ProgressMini done={p.progress.done} total={p.progress.total} />
+                    <span className="ml-auto tabular-nums" title={p.updated_at}>{shortDate(p.updated_at)}</span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* col④ — read-only summary of the selected plan (mockup §1 col④). On
+          mobile the M1 shell reflows this ContextPanel into a bottom sheet. */}
       {selected && <PlanSummaryPanel plan={selected} onClose={() => setSelectedId(null)} />}
     </section>
   );

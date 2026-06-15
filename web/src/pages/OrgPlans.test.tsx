@@ -1,6 +1,6 @@
 import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -146,5 +146,36 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     wrap();
     await waitFor(() => expect(screen.getByTestId('org-plans-empty')).toBeInTheDocument());
     expect(screen.getByTestId('org-plans-empty')).toHaveTextContent(/No plans yet/i);
+  });
+
+  // v2.10.1 [M4] Mobile (<md): the wide table reflows to a card flow (md:hidden).
+  // jsdom renders both; these specs assert the card list mirrors the rows.
+  it('renders a mobile card per plan, with a name link to the plan detail', async () => {
+    server.use(
+      http.get('/api/plans', () =>
+        HttpResponse.json({ items: [planRow(), planRow({ id: 'plan-2', name: '聊天框附件增强' })], total: 2 }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('org-plans-cards')).toBeInTheDocument());
+    const cards = screen.getAllByTestId('org-plan-card');
+    expect(cards).toHaveLength(2);
+    // name links into the plan detail (mirrors the table row link).
+    const name = within(cards[0]).getByTestId('org-plan-card-name');
+    expect(name.getAttribute('href')).toContain('/projects/proj-a/plans/plan-01KT9ABCDEF');
+    // status chip surfaces on the card.
+    expect(within(cards[0]).getByTestId('plan-status-chip')).toHaveTextContent('running');
+  });
+
+  it('tapping a mobile card selects it → opens the col④ summary (M1 reflows to a sheet)', async () => {
+    server.use(http.get('/api/plans', () => HttpResponse.json({ items: [planRow()], total: 1 })));
+    wrap();
+    const card = await screen.findByTestId('org-plan-card');
+    expect(card).toHaveAttribute('aria-selected', 'false');
+    fireEvent.click(card);
+    expect(screen.getByTestId('org-plan-card')).toHaveAttribute('aria-selected', 'true');
+    // the col④ ContextPanel summary mounts (becomes a bottom sheet on mobile).
+    expect(screen.getByTestId('org-plan-meta-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-col')).toHaveAttribute('data-open', 'true');
   });
 });
