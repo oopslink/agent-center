@@ -260,6 +260,11 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Optionally post a summary and move the task to completed.",
 	}, makeCompleteTask(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "discard_task",
+		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. Optionally posts a reason first. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike block_task it won't leave a pool task to be re-dispatched. A terminal task (completed/discarded) is rejected.",
+	}, makeDiscardTask(cfg))
+
 	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
 	// A PM-agent programmatically builds and runs plans: create a draft plan,
 	// add backlog tasks as nodes, wire depends_on edges into a DAG, then start

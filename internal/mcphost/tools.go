@@ -14,6 +14,7 @@
 //   - request_input               : {task_id, question}
 //   - block_task                  : {task_id, reason}
 //   - complete_task               : {task_id, summary?}
+//   - discard_task                : {task_id, reason?}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?}
 //   - get_task                    : {task_id}
 //   - get_issue                   : {issue_id}
@@ -383,6 +384,28 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 			"summary":  args.Summary,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
+	}
+}
+
+// --- discard_task (T119) -----------------------------------------------------
+
+type discardTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the task to discard (terminal)"`
+	Reason string `json:"reason,omitempty" jsonschema:"optional reason posted to the task before discarding"`
+}
+
+// makeDiscardTask terminally discards a NON-terminal task (open/running →
+// discarded) — the correct way to retire a superseded or mis-created task. Unlike
+// complete_task it does not mark the work done (status shows Discarded, not
+// Completed), and unlike block_task it does not leave a pool task to be re-dispatched.
+func makeDiscardTask(cfg Config) mcp.ToolHandlerFor[discardTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args discardTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+			"reason":   args.Reason,
+		}
+		return callAdmin(ctx, cfg, "discard_task", body)
 	}
 }
 

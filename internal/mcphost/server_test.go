@@ -104,6 +104,7 @@ var wantTools = []string{
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",
 	"block_task", "complete_task",
+	"discard_task", // T119: terminal-discard a superseded / mis-created task
 	// v2.9.1 P0 recovery tools (deadlocked-blocked task recovery)
 	"unblock_task", "rerun_failed_node",
 	// T53: operator resume of a paused plan node

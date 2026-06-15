@@ -816,3 +816,55 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
 }
+
+// --- discard_task (T119) -----------------------------------------------------
+
+type discardTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+	Reason  string `json:"reason"`
+}
+
+// discardTaskHandler is the agent-facing path to DISCARD a non-terminal Task
+// (open/running → discarded), for a superseded or mis-created task. It mirrors
+// complete_task: an OPTIONAL reason is posted to the task Conversation first, then
+// pm.DiscardTask runs — ATOMICALLY (one outer RunInTx). The pm service rejects a
+// terminal task (completed/discarded → illegal transition → 4xx). Closes the
+// agent-tools gap (the discard capability existed in the service + Web UI only).
+func (s *Server) discardTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req discardTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.MessageWriter == nil || d.ConvRepo == nil || d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_or_conversation_not_wired", "")
+		return
+	}
+	if d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
+		return
+	}
+	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
+		return
+	}
+	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		if strings.TrimSpace(req.Reason) != "" {
+			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
+				return err
+			}
+		}
+		return d.PMService.DiscardTask(txCtx, pm.TaskID(req.TaskID),
+			pm.IdentityRef(agentActor(a)))
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "discarded"})
+}
