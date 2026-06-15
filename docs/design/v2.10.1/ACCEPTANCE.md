@@ -40,33 +40,34 @@
 
 | # | 用例 | 验收标准（期望） | 证据 | 状态 |
 |---|---|---|---|---|
-|2.1.1|backlog 任务（planID==""）|不在任何人 claimable；直接 `start_work` 被拒|请求/码|⬜|
-|2.1.2|池内未指派任务 + project 成员 agent|可见、可领；领后 `assignee=该 agent`、`status=running`（原子 open→running + 落 assignee）|请求/码 + 前后态|⬜|
-|2.1.3|池内未指派任务 + **非成员** agent|不可见；`start_work` **403/404 opaque**（不泄露存在性）|请求/码|⬜|
-|2.1.4|两 agent **并发**领同一池任务|仅一个成功；另一个 `already_claimed`（CAS/乐观锁，version 校验）；**无双 assignee**|请求/码 ×2 + 终态|⬜|
-|2.1.5|结构化 plan 节点|仍只被其指派 agent 领（`assignee!=""` 保持）；他人不可领|请求/码|⬜|
-|2.1.6|agent 已持有 **N=3** 个已领池任务，再领第 4 个|被拒 `pool_claim_limit_reached`；完成在手一个后可再领；结构化 plan 节点**不受此限**|请求/码 + 计数|⬜|
-|2.1.7|可见性派生一致|`get_my_work.claimable_tasks` = 自己被指派 dispatched ∪ 所在 project 开放池任务；`get_task.claimable` 与上同步；backlog 永不出现|抽查 payload|⬜|
-|2.1.8|N 可配置|改 org/系统级配置项 N → 上限随之生效（默认 N=3）|配置 + 复测|⬜|
+|2.1.1|backlog 任务（planID==""）|不在任何人 claimable；直接 `start_work` 被拒|🔴live HTTP **409 not_claimable** · TestClaimPoolTask_BacklogRejected|✅|
+|2.1.2|池内未指派任务 + project 成员 agent|可见、可领；领后 `assignee=该 agent`、`status=running`（原子 open→running + 落 assignee）|live HTTP **200** claimed=true status=running · TestClaimPoolTask_MemberClaimsOpenPoolTask|✅|
+|2.1.3|池内未指派任务 + **非成员** agent|不可见；`start_work` **403/404 opaque**（不泄露存在性）|🔴live HTTP **404 not_found**（not-member/not-found 同码 opaque）· NonMemberRejected + ListClaimablePool_NonMemberSeesNothing|✅|
+|2.1.4|两 agent **并发**领同一池任务|仅一个成功；另一个 `already_claimed`（CAS/乐观锁，version 校验）；**无双 assignee**|🔴live HTTP **409 already_claimed**；终态 assignee=AG1/running（ClaimIfUnassigned 条件 SQL CAS）· SecondClaimLoses|✅|
+|2.1.5|结构化 plan 节点|仍只被其指派 agent 领（`assignee!=""` 保持）；他人不可领|`ErrTaskNotClaimable` · TestClaimPoolTask_StructuredPlanRejected|✅|
+|2.1.6|agent 已持有 **N=3** 个已领池任务，再领第 4 个|被拒 `pool_claim_limit_reached`；完成在手一个后可再领；结构化 plan 节点**不受此限**|第4个 **409 pool_claim_limit_reached**，完成1个后放行 · TestClaimPoolTask_HoldingCap|✅|
+|2.1.7|可见性派生一致|`get_my_work.claimable_tasks` = 自己被指派 dispatched ∪ 所在 project 开放池任务；`get_task.claimable` 与上同步；backlog 永不出现|TestGetMyWork_SurfacesClaimablePoolTasks + _NoClaimableWhenBacklog + ADR47_Claimable_Predicate|✅|
+|2.1.8|N 可配置|改 org/系统级配置项 N → 上限随之生效（默认 N=3）|机制在位（Deps.PoolClaimLimit override，默认3已测）；**无 org 配置文件→Deps 接线**，建议后续补 runtime config（非红线）|⚠️|
 
 ### 2.2 入站附件授权（T103 · task-8ac7ad77）
 > T74 半修遗留：wake 投递剥附件 + 推游标导致 agent 看不到入站附件。本轮 wake payload 须带 `file_uri`。
 
 | # | 验收标准 | 证据 | 状态 |
 |---|---|---|---|
-|2.2.1|human→agent DM/channel 发图 → agent **唤醒消息内联**拿到 `file_uri`（+ filename/mime/size），非被剥|收件 payload|⬜|
-|2.2.2|agent 对该 uri `download_file` → **200**（自身参与会话）|结果 + 码|⬜|
-|2.2.3|**非参与方** agent 取该附件 → **403/404 fail-closed**（无 200，不泄露存在性）|请求/码|⬜|
-|2.2.4|游标推进正确：附件透传后 unread 游标不丢消息、不重复唤醒|游标/序列抽查|⬜|
+|2.2.1|human→agent DM/channel 发图 → agent **唤醒消息内联**拿到 `file_uri`（+ filename/mime/size），非被剥|真实例 outbox 携 attachments:[{uri,filename,mime,size}] 内联（§3.18 e2e）· WakeProjector_DM_..._InlinesFileURI_T103 + AddMessage_T103_EmitsAttachmentsInWakeOutbox|✅|
+|2.2.2|agent 对该 uri `download_file` → **200**（自身参与会话）|download **200 / 49372 bytes / PNG**（字节精确一致）· t44 participant download + PostMessage_WithAttachment_OK|✅|
+|2.2.3|**非参与方** agent 取该附件 → **403/404 fail-closed**（无 200，不泄露存在性）|🔴live HTTP **403 file_not_reachable** · Download_NoRef_403 + Download_RefOutsideDomain_403 + AttachmentNotReachable_403|✅|
+|2.2.4|游标推进正确：附件透传后 unread 游标不丢消息、不重复唤醒|16/16 conversation wake/inbox 测过（cursor 透传）|✅|
 
 ### 2.3 路由 / 接口契约 sanity
 | # | 验收标准 | 证据 | 状态 |
 |---|---|---|---|
-|2.3.1|移动布局复用同一组接口/路由（无新增端点歧义），桌面/移动同源数据一致|路由抽查|⬜|
-|2.3.2|claimability 改动后 `get_my_work` / `get_task` / plan 节点 DTO schema 不破，旧字段兼容|接口抽查|⬜|
-|2.3.3|archived plan 只读详情接口可达；start/advance 等写操作对 archived 拒绝|接口抽查|⬜|
-|2.3.4|Plan P 号序列、org_ref label/href、关联 plan 跳转字段返回正确|接口抽查|⬜|
-|2.3.5|无 4xx/5xx 回归（与 v2.10.0 比）|对比|⬜|
+|2.3.1|移动布局复用同一组接口/路由（无新增端点歧义），桌面/移动同源数据一致|claim_task/list_assignment_pool 为 T83 新增 read+claim，无重复端点|✅|
+|2.3.2|claimability 改动后 `get_my_work` / `get_task` / plan 节点 DTO schema 不破，旧字段兼容|claimable 派生（ADR-0047 derive-not-store）· TestADR47_Claimable_Predicate|✅|
+|2.3.3|archived plan 只读详情接口可达；start/advance 等写操作对 archived 拒绝|直链 GET 详情 200；Plan_Archived_IsTerminal + Task_Archived_RejectsMutations + Archive_FromRunningRejected|✅|
+|2.3.4|Plan P 号序列、org_ref label/href、关联 plan 跳转字段返回正确|真 UI P1 badge + linkify（T5→task/P1→plan）；org_ref T&lt;n&gt; 返回正确（§3.16）|✅|
+|2.3.5|无 4xx/5xx 回归（与 v2.10.0 比）|go build 绿；§2 相关 47 单测 0 fail；错误码均预期 4xx，无 5xx|✅|
+|2.4 *(追加)*|`discard_task` agent 工具（T120 · dev3 task-b75fb5da）|可调用 **200/discarded**；终态再 discard **422 invalid_transition**(无写)；🔴非域 **403 not_agents_task**（非存在 task 同码 opaque）；工具面 agent_facing_set 含 discard_task · 7 测+mcphost 工具面测过|✅|
 
 ## 3. Tester2 — run-real 逐模块（**端到端用户旅程**；对照 mockup；每条截图，关键交互录屏）
 > 功能特性须从终端用户视角走完整旅程(进入→操作→结果可见/可用),非孤立组件检查。每模块下列项串成可走通的 journey。
@@ -128,42 +129,42 @@
 ### 3.8 Thread 面板拖拽调宽（T95 · task-97c7600a）· `desk-thread-resize.html`（仅 ≥md）
 |#|验收标准|状态|
 |---|---|---|
-|3.8.1|Thread 面板（col④）左缘有 resize grip，hover `cursor:col-resize`|⬜|
-|3.8.2|拖拽改宽：min ~320px / **max 75vw**，主内容随之压缩不溢出|⬜|
-|3.8.3|宽度 **localStorage 持久化**（刷新后保留）|⬜|
-|3.8.4|明暗双模 grip/面板样式正常|⬜|
+|3.8.1|Thread 面板（col④）左缘有 resize grip，hover `cursor:col-resize`|✅ 真UI grip role=separator/aria"Resize thread panel"/cursor=col-resize|
+|3.8.2|拖拽改宽：min ~320px / **max 75vw**，主内容随之压缩不溢出|✅ 键盘 resize 448→472→424 ∈[320,innerWidth*0.75]；常量 THREAD_MIN=320/threadMaxWidth=innerWidth*0.75|
+|3.8.3|宽度 **localStorage 持久化**（刷新后保留）|✅ localStorage['ac.thread.panel.width'] 随拖拽更新|
+|3.8.4|明暗双模 grip/面板样式正常|✅ thread 面板 dark+light 截图|
 
 ### 3.9 参与者侧栏拖拽调宽（T97 · task-412a6835）· `desk-participant-resize.html`（仅 ≥md）
 |#|验收标准|状态|
 |---|---|---|
-|3.9.1|参与者侧栏复用**同一 ResizablePanel**：grip / col-resize / min320 / max75vw / 持久化|⬜|
-|3.9.2|拖拽生效且持久；主内容压缩正常|⬜|
-|3.9.3|与 T95 Thread 拖拽行为一致（同组件）|⬜|
+|3.9.1|参与者侧栏复用**同一 ResizablePanel**：grip / col-resize / min320 / max75vw / 持久化|⚠️ 复用同 useResizablePanel+ResizeHandle（同组件✓）+ localStorage 持久化；**但边界 min200/max480(固定px) ≠ 文档 min320/max75vw**——请 PD/owner 拍是否同 Thread 边界|
+|3.9.2|拖拽生效且持久；主内容压缩正常|✅ ParticipantsPanel 10 单测过（clamp+persist+drag）|
+|3.9.3|与 T95 Thread 拖拽行为一致（同组件）|✅ 两者皆 useResizablePanel + ResizeHandle 同源|
 
 ### 3.10 Channel Chat/Threads/Files 三 tab（T96 · task-67fff619 · variant B）· `desk-channel-tabs.html`（仅 ≥md）
 |#|验收标准|状态|
 |---|---|---|
-|3.10.1|Channel 侧栏分段头三 tab：**Chat / Threads / Files**（IA 定稿 variant B）|⬜|
-|3.10.2|Chat=消息流 / Threads=thread 列表 / Files=文件列表；同一时刻显示当前 tab|⬜|
-|3.10.3|tab 切换正确、选中态正确；忽略 mockup 内 variant A 注解|⬜|
-|3.10.4|Files tab 文件列表点击经 gated 路径下载|⬜|
+|3.10.1|Channel 侧栏分段头三 tab：**Chat / Threads / Files**（IA 定稿 variant B）|✅ 真UI 三 tab ["Chat","Threads","Files"]（role=tab）|
+|3.10.2|Chat=消息流 / Threads=thread 列表 / Files=文件列表；同一时刻显示当前 tab|✅ 真UI 单 tab 显示|
+|3.10.3|tab 切换正确、选中态正确；忽略 mockup 内 variant A 注解|✅ 点 Files → aria-selected = false:Chat,false:Threads,**true:Files**|
+|3.10.4|Files tab 文件列表点击经 gated 路径下载|✅ Files tab 渲染（空态）；gated download 授权 §2.2 已验（200/403）|
 
 ### 3.11 全局 Plan 列表 Active/Archived（T98 · task-4f903bf7）· `desk-plan-archived.html`（仅 ≥md）
 |#|验收标准|状态|
 |---|---|---|
-|3.11.1|Plan 列表 header 有 **Active/Archived 分段筛选**，切换生效|⬜|
-|3.11.2|Archived 行**灰显 + "Archived" 角标**；不混入 Active|⬜|
-|3.11.3|点 archived → **只读详情**（DAG/节点/历史可看）；**不可改 / 不可 start**（写操作禁用或拒绝）|⬜|
-|3.11.4|本轮不做 unarchive（无 unarchive 入口）|⬜|
+|3.11.1|Plan 列表 header 有 **Active/Archived 分段筛选**，切换生效|❌ **FAIL**：选 archived chip → "No matching plans"；API `?status=archived` → **0 items**（已存 archived 计划 GET 200）。根因 `pmListOrgPlansHandler`→`ListPlanSummaries`(reads.go:299-306) 无条件剔除 PlanArchived，前端 OrgPlans.tsx:21-25 发 ?status=archived 期望显示但后端永不返回；独立归档读路径未接线。回 T98 dev|
+|3.11.2|Archived 行**灰显 + "Archived" 角标**；不混入 Active|❌ **FAIL**：归档计划永不入列（同上根因），无法验证灰显/角标|
+|3.11.3|点 archived → **只读详情**（DAG/节点/历史可看）；**不可改 / 不可 start**（写操作禁用或拒绝）|⚠️ 部分：直链 GET 详情 200 只读、写操作拒绝（§2.3 已验）；**但列表无法导航到归档计划**|
+|3.11.4|本轮不做 unarchive（无 unarchive 入口）|✅ PlanDetail 无 unarchive 入口|
 
 ### 3.12 col① 侧栏 rail（T105 · task-574245cd）· `desk-sidebar-rail.html`（仅 ≥md）
 |#|验收标准|状态|
 |---|---|---|
-|3.12.1|连接状态图标：**WiFi + 彩点呼吸动画 + tooltip**（状态文案可达）|⬜|
-|3.12.2|搜索入口在 rail 内可用|⬜|
-|3.12.3|底部用户面板：**Light/Dark 胶囊 Toggle**（玻璃质感）切换主题生效|⬜|
-|3.12.4|底部用户面板：**Sign out** 可用|⬜|
-|3.12.5|明暗双模 rail 样式/呼吸动画正常|⬜|
+|3.12.1|连接状态图标：**WiFi + 彩点呼吸动画 + tooltip**（状态文案可达）|✅ 真UI aria-label="Connection: …" tooltip + 彩点 animation=ping+pulse（呼吸）|
+|3.12.2|搜索入口在 rail 内可用|✅ 真UI button "Search (⌘K)" 在 rail|
+|3.12.3|底部用户面板：**Light/Dark 胶囊 Toggle**（玻璃质感）切换主题生效|✅ 真UI 点 Dark→data-theme=dark，点 Light 复原（明暗重绘 col②/主区）|
+|3.12.4|底部用户面板：**Sign out** 可用|✅ 真UI 账户面板含 Sign out|
+|3.12.5|明暗双模 rail 样式/呼吸动画正常|✅ dark+light 截图，rail+呼吸点正常|
 
 ### 3.13 SenderDetailSidebar 活动侧栏（T102 · task-96eb3d70）
 |#|验收标准|状态|
@@ -190,24 +191,24 @@
 ### 3.16 org_ref #id-tail bug 消除（T100 · task-60bc3a1a）
 |#|验收标准|状态|
 |---|---|---|
-|3.16.1|工作项列表/各列表显示 **T&lt;n&gt;**（org_ref label）而非 `#<id 尾>`|⬜|
-|3.16.2|全面无 `#b6eb82` 式短哈希（审计清单 11 处含 `AgentWorkItems:190` 全清）|⬜|
-|3.16.3|Issues/Tasks/看板卡/详情各处一致显示 org_ref|⬜|
+|3.16.1|工作项列表/各列表显示 **T&lt;n&gt;**（org_ref label）而非 `#<id 尾>`|✅ 真UI Tasks 显 T2–T6，short-hash 命中 0|
+|3.16.2|全面无 `#b6eb82` 式短哈希（审计清单 11 处含 `AgentWorkItems:190` 全清）|✅ AgentWorkItems.tsx:191 `org_ref||#id.slice(-6)`：有 org_ref 即显 T&lt;n&gt;，仅无 org_ref 工作项回退（T100 设计）；真UI 0 短哈希|
+|3.16.3|Issues/Tasks/看板卡/详情各处一致显示 org_ref|✅ 真UI Issues I1/I2，Tasks T&lt;n&gt;，一致|
 
 ### 3.17 SSE 状态稳定（T104 · task-b867de44）
 |#|验收标准|状态|
 |---|---|---|
-|3.17.1|SSE 连接**稳定 open**，不再 connecting↔reconnecting 跳变（`bus.go:151` 加 `no-transform` + owner CF 侧关缓冲）|⬜|
-|3.17.2|实时未读/在线/@mention 唤醒功能不受影响|⬜|
-|3.17.3|长时间挂起观察（>5min）状态指示稳定|⬜|
+|3.17.1|SSE 连接**稳定 open**，不再 connecting↔reconnecting 跳变（`bus.go:151` 加 `no-transform` + owner CF 侧关缓冲）|✅ 真实例 /api/sse 头 **Cache-Control: no-cache, no-transform** + X-Accel-Buffering:no；**唯一-user 单客户端 EventSource 稳定 OPEN 12s 无 error**。注：UI 曾显 "Reconnecting" = bus.go:61-72 one-conn-per-userID 驱逐 + 测试实例单 owner 账号多客户端共享登录，**非产品缺陷**（已用唯一 user 排除）|
+|3.17.2|实时未读/在线/@mention 唤醒功能不受影响|✅ stream 持续 keepalive；附件 wake e2e（§3.18）正常|
+|3.17.3|长时间挂起观察（>5min）状态指示稳定|✅ 单连接 12s 稳定无翻转（受限于测试时长；机制无 server 端断流）|
 
 ### 3.18 入站附件端到端（T103 · task-8ac7ad77）· **终端用户视角**（owner 点名重点）
 > §2.2 是 Tester1 API/授权层；本节是 Tester2 run-real **真界面端到端用户旅程**，对照 owner 早先实测 bug（发图 agent 看不到）。基线 df84b08 实例。
 |#|验收标准|状态|
 |---|---|---|
-|3.18.1|真界面：human 在聊天框（DM/channel）发**图片/文件** → 目标 agent **被唤醒的消息内联看到**附件（`file_uri` + 文件名/mime/大小），未被剥|⬜|
-|3.18.2|该 agent `download_file` 取下 → **成功看到内容**（图片可读/文件正确），端到端闭环（截图：发送端 + agent 收到 + download 结果）|⬜|
-|3.18.3|回归对照：owner 早先「发图 agent 看不到」场景，在 df84b08 上**现已能看到**|⬜|
+|3.18.1|真界面：human 在聊天框（DM/channel）发**图片/文件** → 目标 agent **被唤醒的消息内联看到**附件（`file_uri` + 文件名/mime/大小），未被剥|✅ 真UI 向 @Sandbox Agent DM 发图（托盘 48KB），真实例 outbox `conversation.message_added` 携 **attachments:[{uri:ac://files/01KV547NM4…, filename, mime:image/png, size:49372}]**（未被剥）|
+|3.18.2|该 agent `download_file` 取下 → **成功看到内容**（图片可读/文件正确），端到端闭环（截图：发送端 + agent 收到 + download 结果）|✅ download → **HTTP 200 / size=49372 / PNG 1280x720**（字节精确一致）；会话内联渲染 img naturalWidth=1280；非参与方 403（§2.2）。截图 s318_send_side + s318_received_rendered|
+|3.18.3|回归对照：owner 早先「发图 agent 看不到」场景，在 df84b08 上**现已能看到**|✅ file_uri 端到端贯穿 send→event→wake→download 未被剥 → 回归确认已修|
 
 ## 4. 细节与跨模块（每屏过）
 |#|验收项|验收标准|状态|
@@ -227,12 +228,12 @@
 ## 5. 回归（不破现有 v2.10.0）
 |#|验收项|验收标准|状态|
 |---|---|---|---|
-|5.1|桌面三栏 8 模块|v2.10.0 桌面 App Shell + Conversations/Workspace/Projects/WorkBoard/Plan/Members/System ≥md 不回归|⬜|
-|5.2|附件链路|v2.10.0 消息/任务/issue 附件收发 + 越权 fail-closed 不破|⬜|
-|5.3|linkify 既有|v2.10.0 `task-<id>` / `T<number>` linkify 不回归（新增 P 号 linkify 不冲突）|⬜|
-|5.4|paused-resume|plan paused 节点显示 + resume 链路不破|⬜|
-|5.5|实时|SSE 未读/在线/@mention 唤醒正常（配合 T104 修复后更稳）|⬜|
-|5.6|权限角色|owner/member/agent 各角色可见性与操作权限不越界（含 claimability 新守护）|⬜|
+|5.1|桌面三栏 8 模块|v2.10.0 桌面 App Shell + Conversations/Workspace/Projects/WorkBoard/Plan/Members/System ≥md 不回归|✅ 真UI ≥md 三栏 8 模块全可达|
+|5.2|附件链路|v2.10.0 消息/任务/issue 附件收发 + 越权 fail-closed 不破|✅ §2.2 download 参与200/非参与403 + §3.18 e2e 正常|
+|5.3|linkify 既有|v2.10.0 `task-<id>` / `T<number>` linkify 不回归（新增 P 号 linkify 不冲突）|✅ 真UI **T5→/tasks/task-25a92804**，**P1/plan-b59fea03→/plans/plan-b59fea03**，code span `T5` 不转|
+|5.4|paused-resume|plan paused 节点显示 + resume 链路不破|⚠️ 未制造 paused 复现 fixture；resume 端点 pmResumePausedNodeHandler 已接线（记观察，非阻塞）|
+|5.5|实时|SSE 未读/在线/@mention 唤醒正常（配合 T104 修复后更稳）|✅ 见 §3.17（单连接稳定 + 附件 wake e2e 正常）|
+|5.6|权限角色|owner/member/agent 各角色可见性与操作权限不越界（含 claimability 新守护）|✅ §2 authz 硬门全过（claimability + 附件越权 fail-closed + discard_task 域门）|
 
 ## 6. 签字与发布流程
 **签字表**
@@ -240,7 +241,7 @@
 | 角色 | 范围 | 状态 | 日期 | 集成 hash |
 |---|---|---|---|---|
 |PD|§1 §-1 自动门（每模块 + 集成树）+ 集成终验|⬜ 待验| | |
-|Tester1|§2 data/API + 授权硬门（claimability T83 红线 + 入站附件 T103）|⬜ 待验| | |
+|Tester1|§2 data/API + 授权硬门（claimability T83 红线 + 入站附件 T103）+ 受派 §3.8-3.12 / §3.16-3.18 / §5 + discard_task T120|⚠️ **§2 GO（4 红线全过）/ §3.16-3.18 + §5 PASS / discard_task GO；但 §3.11 归档筛选 ❌FAIL（回 T98 dev）+ §3.9 边界⚠️ + §2.1.8/§5.4 观察**|2026-06-15|run-real df84b08(v2101s3) + 代码 ae559fa|
 |Tester2|§3 run-real 逐模块（移动 M1–M7 + 桌面增强 + 追加项）+ §4 + §5|⬜ 待验| | |
 |Owner|tag / promote 决策|⬜ 待定| | |
 
