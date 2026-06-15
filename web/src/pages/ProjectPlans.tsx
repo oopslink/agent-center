@@ -22,7 +22,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
-import { StatusChip, idHandle } from '@/components/workItemDisplay';
+import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
 
 // v2.10.1 [M5] — touch long-press drag plumbing. The board's cards pick up the
@@ -808,7 +808,7 @@ function PoolTaskCard({
 // Mirrors PlanDetail's TaskIdTag: solid theme tokens (both-mode AA, no alpha-tint),
 // full task_id on hover.
 function TaskIdTag({ taskId, orgRef }: { taskId: string; orgRef?: string }): React.ReactElement {
-  const label = orgRef || `#${idHandle(taskId)}`;
+  const label = refLabel(orgRef, taskId);
   return (
     <span
       className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"

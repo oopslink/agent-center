@@ -267,30 +267,30 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(paused.className).toContain('text-status-stone-fg');
   });
 
-  it('point 1: DAG nodes and task-list rows show the Task id (org_ref T-number, # fallback)', async () => {
-    mockPlan();
-    // Resolve the human Task id via the project task list (org_ref). n1→T101,
-    // n2→T102; the rest have no org_ref → "#"+id-tail fallback.
-    server.use(
-      http.get('/api/projects/proj-a/tasks', () =>
-        HttpResponse.json({
-          tasks: [
-            { id: 'n1', project_id: 'proj-a', title: 'design schema', description: '', status: 'completed', org_ref: 'T101', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
-            { id: 'n2', project_id: 'proj-a', title: 'backend api', description: '', status: 'completed', org_ref: 'T102', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
-          ],
-        }),
-      ),
-    );
+  it('point 1 (T126): DAG nodes + task-list rows show the Task id from node.org_ref; no-org_ref → FULL id, never a #hash', async () => {
+    // T126: org_ref rides on the plan NODE (api/plans PlanNode.org_ref) and is
+    // used DIRECTLY — no FE task-list re-resolver (which missed completed tasks
+    // → leaked #4e2e71). n1/n2 carry org_ref; n3 does not.
+    mockPlan({
+      nodes: [
+        { task_id: 'n1', title: 'design schema', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], org_ref: 'T101' },
+        { task_id: 'n2', title: 'backend api', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: ['n1'], org_ref: 'T102' },
+        { task_id: 'n3', title: 'frontend list', assignee_ref: 'agent:dev2', task_status: 'running', node_status: 'running', depends_on: ['n2'] },
+      ],
+    });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
-    // DAG node carries the resolved T-number (scope to the graph node; the
-    // v2.10.1 [M4] mobile stepper <li> also carries data-task-id)
+    // DAG node carries the node's own T-number (scope to the graph node; the
+    // v2.10.1 [M4] mobile stepper <li> also carries data-task-id).
     const node1 = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n1"]') as HTMLElement;
     await waitFor(() => expect(within(node1).getByTestId('plan-node-taskid')).toHaveTextContent('T101'));
-    // a node whose task has no org_ref falls back to the #id-tail handle
+    // a node with NO org_ref shows the FULL task id (never a #id-tail hash) — the
+    // exact T126 regression (completed tasks leaked a 6-char #hash).
     const node3 = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
-    expect(within(node3).getByTestId('plan-node-taskid')).toHaveTextContent('#');
+    const tag3 = within(node3).getByTestId('plan-node-taskid');
+    expect(tag3).toHaveTextContent('n3');
+    expect(tag3).not.toHaveTextContent('#');
     // task-list rows show the same Task id
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const row1 = screen.getByTestId('plan-task-list').querySelector('[data-task-id="n1"]') as HTMLElement;
@@ -1520,17 +1520,10 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   });
 
   it('T41: search filters by Task-id (org_ref) and by assignee handle', async () => {
-    mockPlan({ nodes: bigNodes() });
-    // org_ref resolution: b1 → T900.
-    server.use(
-      http.get('/api/projects/proj-a/tasks', () =>
-        HttpResponse.json({
-          tasks: [
-            { id: 'b1', project_id: 'proj-a', title: 'task number 1', description: '', status: 'open', org_ref: 'T900', version: 1, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' },
-          ],
-        }),
-      ),
-    );
+    // T126: org_ref rides on the plan node (b1 → T900); used directly, no FE
+    // task-list re-resolver.
+    const nodes = bigNodes().map((n) => (n.task_id === 'b1' ? { ...n, org_ref: 'T900' } : n));
+    mockPlan({ nodes });
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
     await screen.findByTestId('plan-task-list-table');

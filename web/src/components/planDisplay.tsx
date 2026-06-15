@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { PlanStatus } from '@/api/plans';
-import { idHandle } from '@/components/workItemDisplay';
+import { refLabel } from '@/components/workItemDisplay';
 
 // Shared display helpers for v2.9 Plan orchestration (#286 list + #287 DAG).
 // Extracted so the Plan status palette + has_failed indicator stay identical
@@ -114,7 +114,7 @@ export function PlanRefTag({
   orgRef?: string;
   testId?: string;
 }): React.ReactElement {
-  const label = orgRef || `#${idHandle(planId)}`;
+  const label = refLabel(orgRef, planId);
   return (
     <span
       className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"

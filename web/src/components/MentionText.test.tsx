@@ -190,7 +190,7 @@ function mockOrgTasks() {
             updated_at: 'x', created_at: 'x',
           },
           {
-            // a task WITHOUT an org_ref → label falls back to #id-tail.
+            // a task WITHOUT an org_ref → label falls back to the FULL id (T126).
             id: 'task-noref', project: { id: 'proj-x', name: 'Project X' },
             title: 'No ref task', status: 'open', assignee: null,
             updated_at: 'x', created_at: 'x',
@@ -220,11 +220,12 @@ describe('MentionText task-ref linkify (task-82915d7c)', () => {
     expect(link).toHaveAttribute('data-task-id', 'task-abc');
   });
 
-  it('falls back to the #id-tail handle when the task has no org_ref', async () => {
+  it('falls back to the FULL id (never a #id-tail hash) when the task has no org_ref (T126)', async () => {
     mockOrgTasks();
     renderInOrg(<MarkdownMessage content={'blocked on task-noref now'} />);
     const link = await screen.findByTestId('task-ref-token');
-    expect(link).toHaveTextContent('#');
+    expect(link).toHaveTextContent('task-noref');
+    expect(link).not.toHaveTextContent('#');
     expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-noref');
   });
 
@@ -368,7 +369,7 @@ function mockOrgPlans() {
             progress: { done: 1, total: 3 }, created_at: 'x', updated_at: 'x',
           },
           {
-            // a plan WITHOUT an org_ref → label falls back to #id-tail.
+            // a plan WITHOUT an org_ref → label falls back to the FULL id (T126).
             id: 'plan-noref', project: { id: 'proj-x', name: 'Project X' },
             name: 'No ref plan', status: 'draft', has_failed: false,
             progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x',
@@ -404,11 +405,12 @@ describe('MentionText plan-ref linkify (T99)', () => {
     expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/plans/plan-abc');
   });
 
-  it('falls back to the #id-tail handle when the plan has no org_ref', async () => {
+  it('falls back to the FULL id (never a #id-tail hash) when the plan has no org_ref (T126)', async () => {
     mockOrgPlans();
     renderInOrg(<MarkdownMessage content={'blocked on plan-noref now'} />);
     const link = await screen.findByTestId('plan-ref-token');
-    expect(link).toHaveTextContent('#');
+    expect(link).toHaveTextContent('plan-noref');
+    expect(link).not.toHaveTextContent('#');
     expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/plans/plan-noref');
   });
 

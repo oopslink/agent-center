@@ -122,11 +122,12 @@ describe('ProjectDetail page', () => {
     );
     wrap('/projects/proj-a');
 
-    // Issues table: id-tail handle + full id on hover (#192); colored status chip.
+    // Issues table (T126): no org_ref → the FULL id (never a #id-tail hash) + full
+    // id on hover (#192); colored status chip.
     const issueHandle = await screen.findByTestId('issue-id-handle');
-    expect(issueHandle).toHaveTextContent('#ABCDEF');
+    expect(issueHandle).toHaveTextContent('issue-01KT8DABCDEF');
     expect(issueHandle).toHaveAttribute('title', 'issue-01KT8DABCDEF');
-    expect(issueHandle).not.toHaveTextContent('01KT8D');
+    expect(issueHandle).not.toHaveTextContent('#');
     const issueChip = screen.getByTestId('status-chip');
     expect(issueChip).toHaveAttribute('data-status', 'in_progress');
     // v2.8.1 #5th: StatusChip unified to @oopslink's REVISION 4 white-on-saturated palette (matches StatusBlock).
@@ -139,7 +140,8 @@ describe('ProjectDetail page', () => {
     // Tasks tab: id handle + assignee name (raw ref on hover) + priority fallback.
     fireEvent.click(screen.getByTestId('project-tab-tasks'));
     const taskHandle = await screen.findByTestId('task-id-handle');
-    expect(taskHandle).toHaveTextContent('#XYZ123');
+    expect(taskHandle).toHaveTextContent('task-01KT8DXYZ123');
+    expect(taskHandle).not.toHaveTextContent('#');
     expect(taskHandle).toHaveAttribute('title', 'task-01KT8DXYZ123');
     expect(screen.getByTestId('task-assignee')).toHaveTextContent('Bot Nine');
     expect(screen.getByTestId('task-priority')).toHaveTextContent('—');

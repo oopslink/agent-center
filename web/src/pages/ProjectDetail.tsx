@@ -23,7 +23,7 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { ProjectMemberAddModal } from '@/components/ProjectMemberAddModal';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { StatusChip, idHandle, shortDate } from '@/components/workItemDisplay';
+import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
 // project hosts its Issues and Tasks as tabs/sections — there is no
@@ -587,7 +587,7 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <tr key={iss.id} data-testid="issue-row" data-issue-id={iss.id}>
                   <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="issue-id-handle" title={iss.id}>
                     {/* v2.7.1 #245: org ref (I1234) when present; hash id on hover. */}
-                    {iss.org_ref || `#${idHandle(iss.id)}`}
+                    {refLabel(iss.org_ref, iss.id)}
                   </td>
                   <td className="max-w-[18rem] truncate py-1.5 pr-3">
                     <OrgLink
@@ -669,7 +669,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <tr key={tk.id} data-testid="task-row" data-task-id={tk.id}>
                   <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="task-id-handle" title={tk.id}>
                     {/* v2.7.1 #245: org ref (T1234) when present; hash id on hover. */}
-                    {tk.org_ref || `#${idHandle(tk.id)}`}
+                    {refLabel(tk.org_ref, tk.id)}
                   </td>
                   <td className="max-w-[16rem] truncate py-1.5 pr-3">
                     <OrgLink

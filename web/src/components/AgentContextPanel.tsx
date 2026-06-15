@@ -4,6 +4,7 @@ import { OrgLink } from '@/OrgContext';
 import { useAgentWorkItems } from '@/api/agents';
 import { usePlans, type Plan } from '@/api/plans';
 import { planProgressLabel } from '@/components/planDisplay';
+import { refLabel } from '@/components/workItemDisplay';
 import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
 
 // ============================================================================
@@ -115,10 +116,10 @@ export function AgentContextPanel({ agentId }: { agentId: string }): React.React
 function CurrentWorkItemCard({ item }: { item: AgentWorkItem }): React.ReactElement {
   const taskId = taskIdOf(item);
   const linkable = Boolean(item.task_title && item.project_id && taskId);
-  // T100: prefer the task's org_ref (T84). Work items carry no human-facing
-  // number (#192), so absent an org_ref fall back to the task/work-item id tail
-  // as a stable handle (full ref on hover).
-  const handle = item.org_ref || (taskId ? `#${taskId.slice(-6)}` : `#${item.id.slice(-6)}`);
+  // T100/T126: prefer the task's org_ref (T84). Work items carry no human-facing
+  // number (#192), so absent an org_ref fall back to the FULL task/work-item id
+  // (never the retired #id-tail hash; full ref on hover).
+  const handle = refLabel(item.org_ref, taskId || item.id);
   const statusLabel = STATUS_LABEL[item.status] ?? item.status;
 
   return (
