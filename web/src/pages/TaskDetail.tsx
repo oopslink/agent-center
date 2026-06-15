@@ -7,6 +7,7 @@ import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { TypeChip } from '@/components/TypeChip';
 import { useTask } from '@/api/tasks';
 import { useProject } from '@/api/projects';
+import { usePlan } from '@/api/plans';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
@@ -30,6 +31,10 @@ export default function TaskDetail(): React.ReactElement {
   // v2.7 #192: resolve the assignee ref to a display name (raw ref on hover);
   // an unresolved ref (e.g. a deleted assignee) renders "(deleted)".
   const resolveName = useDisplayNameResolver();
+  // T106: fetch the owning plan (when the task is in one) to show + link it in
+  // the sidebar. Gated on plan_id (usePlan no-ops without it). The built-in
+  // assignment pool is excluded below — it is not a user-facing plan.
+  const plan = usePlan(projectId, task.data?.plan_id);
   const [editOpen, setEditOpen] = useState(false);
 
   if (task.isLoading) {
@@ -65,6 +70,12 @@ export default function TaskDetail(): React.ReactElement {
   const isTerminal = status === 'discarded';
 
   const resolvedAssigneeName = tk.assignee ? resolveName(tk.assignee) : '';
+  // T106: pass the owning plan to the sidebar ONLY when it is a structured plan
+  // (exclude the built-in assignment pool — not a user-facing plan) and loaded.
+  const planForSidebar =
+    plan.data && plan.data.is_builtin !== true
+      ? { id: plan.data.id, name: plan.data.name }
+      : undefined;
 
   return (
     // T102: a page-level SenderSidebarProvider so the sidebar's clickable assignee
@@ -128,6 +139,7 @@ export default function TaskDetail(): React.ReactElement {
             task={tk}
             projectName={project.data?.name}
             assigneeName={resolvedAssigneeName}
+            plan={planForSidebar}
             onEdit={() => setEditOpen(true)}
             editable={!isTerminal}
           />

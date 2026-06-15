@@ -112,6 +112,11 @@ func pmTaskMap(t *pm.Task) map[string]any {
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
 	}
+	// T106: the task's plan association (empty for a backlog task) so the Task
+	// detail sidebar can show + link to the owning plan. Omitted when empty.
+	if pid := string(t.PlanID()); pid != "" {
+		m["plan_id"] = pid
+	}
 	return m
 }
 

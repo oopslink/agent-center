@@ -49,6 +49,13 @@ interface Props {
   projectName?: string;
   /** resolved assignee display name ("" / ref-echo when unresolved). */
   assigneeName?: string;
+  /**
+   * T106: the owning plan (id + display name) when the task is in a STRUCTURED
+   * plan — renders a clickable "Plan" row linking to the plan detail. The page
+   * resolves it (via usePlan) and omits it for a backlog task OR the built-in
+   * assignment pool (the pool is not a user-facing plan).
+   */
+  plan?: { id: string; name: string };
   /** opens the existing TaskEditModal — the single edit path. */
   onEdit: () => void;
   /** whether the task is editable (non-terminal). Terminal → no Edit button. */
@@ -59,6 +66,7 @@ export function TaskDetailSidebar({
   task,
   projectName,
   assigneeName,
+  plan,
   onEdit,
   editable,
 }: Props): React.ReactElement {
@@ -190,6 +198,23 @@ export function TaskDetailSidebar({
               data-testid="task-project-link"
             >
               {projectName || tk.project_id}
+            </OrgLink>
+          </div>
+        )}
+
+        {/* T106: owning plan (when the task is in a structured plan) → click to
+            the plan detail. Hidden for a backlog task / the built-in pool (the
+            page passes no `plan` then). */}
+        {plan && (
+          <div data-testid="task-sidebar-plan">
+            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Plan</p>
+            <OrgLink
+              to={`/projects/${encodeURIComponent(tk.project_id)}/plans/${encodeURIComponent(plan.id)}`}
+              className="text-accent hover:underline"
+              data-testid="task-plan-link"
+              data-plan-id={plan.id}
+            >
+              {plan.name}
             </OrgLink>
           </div>
         )}

@@ -78,3 +78,34 @@ describe('TaskDetailSidebar — assignee → agent activity sidebar (T102)', () 
     expect(screen.getByTestId('task-assignee-empty')).toBeInTheDocument();
   });
 });
+
+describe('TaskDetailSidebar — owning plan link (T106)', () => {
+  afterEach(() => cleanup());
+
+  it('shows a clickable Plan link to the plan detail when the task is in a plan', () => {
+    render(
+      <MemoryRouter>
+        <TaskDetailSidebar
+          task={makeTask({ plan_id: 'plan-xyz' })}
+          projectName="Project A"
+          plan={{ id: 'plan-xyz', name: 'v2.10.1 mobile' }}
+          onEdit={() => {}}
+          editable
+        />
+      </MemoryRouter>,
+    );
+    const link = screen.getByTestId('task-plan-link');
+    expect(link).toHaveTextContent('v2.10.1 mobile');
+    expect(link).toHaveAttribute('data-plan-id', 'plan-xyz');
+    expect(link.getAttribute('href')).toContain('/projects/proj-a/plans/plan-xyz');
+  });
+
+  it('hides the Plan section for a backlog task / built-in pool (no plan passed)', () => {
+    render(
+      <MemoryRouter>
+        <TaskDetailSidebar task={makeTask()} projectName="Project A" onEdit={() => {}} editable />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('task-sidebar-plan')).not.toBeInTheDocument();
+  });
+});
