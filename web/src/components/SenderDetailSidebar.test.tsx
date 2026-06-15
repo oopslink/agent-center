@@ -1,11 +1,17 @@
-import type React from 'react';
+import React, { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
+
+// Probe the current router location so a test can assert a navigation happened.
+function LocationProbe(): React.ReactElement {
+  const loc = useLocation();
+  return <div data-testid="location-probe">{loc.pathname}</div>;
+}
 
 afterEach(() => cleanup());
 
@@ -180,6 +186,47 @@ describe('SenderDetailSidebar', () => {
     await waitFor(() => expect(postedBody).toEqual({ kind: 'dm', members: ['agent:A-9'] }));
     // …and closes the sidebar so the operator lands in the conversation.
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // v2.10.2 [T159] regression (Tester2 run-real FAIL): clicking "Open DM" calls
+  // onClose() synchronously, which UNMOUNTS the button before the POST resolves.
+  // The navigate must STILL happen (it used to be a mutate() per-call onSuccess
+  // that React Query discarded on the unmounted observer → DM created but never
+  // opened). Here onClose actually unmounts the sidebar (open→false), unlike the
+  // vi.fn() above, so it reproduces the real flow.
+  it('T159: navigates to the DM even though onClose unmounts the button first', async () => {
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id), organization_id: 'O-1', name: 'builder-bot', description: '',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-9',
+          lifecycle: 'running', availability: 'busy', created_by: 'user:hayang', version: 1,
+          created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+      http.post('/api/conversations', () => HttpResponse.json({ conversation_id: 'dm-1' })),
+    );
+    function Harness(): React.ReactElement {
+      const [open, setOpen] = useState(true);
+      return <SenderDetailSidebar open={open} senderRef={'agent:A-9'} onClose={() => setOpen(false)} />;
+    }
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    rtlRender(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <Harness />
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByTestId('sender-sidebar-dm'));
+    // The button unmounts immediately (onClose → open=false), yet the DM opens.
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/dms/dm-1'),
+    );
+    expect(screen.queryByTestId('sender-sidebar-dm')).not.toBeInTheDocument();
   });
 
   // F2 (v2.8.1): a force-deleted agent's GET /api/agents/{id} returns 404. The
