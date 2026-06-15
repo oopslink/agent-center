@@ -20,9 +20,21 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
+
+// ssePrimePadding is a ~2KB SSE COMMENT (a line starting with ':') flushed
+// immediately on connect (v2.10.1 [T104]). The W3C event-stream grammar ignores
+// comment lines — EventSource never surfaces them — but the bytes force a
+// buffering reverse proxy / CDN that does NOT honor `X-Accel-Buffering: no`
+// (that header is nginx-only; Caddy/Cloudflare/Traefik ignore it) to flush the
+// response HEAD past its buffer threshold. Without it such a proxy holds the
+// head until the upstream closes, so the browser EventSource never fires
+// `onopen` and the UI flaps connecting↔reconnecting forever (T104, observed on
+// a domain behind a proxy while localhost — direct to the server — was fine).
+var ssePrimePadding = ":" + strings.Repeat(" ", 2048) + "\n\n"
 
 // Event is the on-wire SSE message body. event_type matches the
 // observability EventType; conversation_id (optional) lets the bus
@@ -148,9 +160,12 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	// no-transform (v2.10.1 [T104]): tell intermediaries (Cloudflare et al.) NOT
+	// to compress/transform the stream — proxy compression buffers SSE. Pairs with
+	// the nginx-only X-Accel-Buffering below + the ssePrimePadding flush.
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
+	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering (nginx-only header)
 
 	// v2.7 #172 (acceptance FINDING-A): flush the response head immediately
 	// on connect. Go's net/http only sends status+headers on the first
@@ -161,6 +176,13 @@ func (b *Bus) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// the original #153 "connecting" report, which still reproduced on a
 	// healthy center.)
 	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	// v2.10.1 [T104]: prime the stream with a ~2KB ignored SSE comment so a
+	// buffering proxy/CDN (Cloudflare, observed) releases the response head
+	// immediately → EventSource fires onopen instead of flapping connecting↔
+	// reconnecting. EventSource ignores comment lines, so the client sees nothing.
+	fmt.Fprint(w, ssePrimePadding)
 	flusher.Flush()
 
 	// Replay missed events when Last-Event-ID present. Header is the
