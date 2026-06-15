@@ -278,6 +278,16 @@ body {
  * headings / quotes / inline code. Fenced code blocks are NOT affected — they
  * render through <CollapsibleCodeBlock> (<pre><code>), excluded below.
  */
+/* T149: the chat message body must never push a horizontal PAGE scroll on a
+ * narrow (mobile) viewport. Long unbreakable tokens / URLs / mixed CN-EN strings
+ * wrap via overflow-wrap:anywhere; min-width:0 lets the body shrink below its
+ * content size so the bubble's max-width cap actually holds inside the flex
+ * column. Code blocks (<pre>) and tables scroll INTERNALLY (their own
+ * overflow-x:auto, below); everything else wraps. */
+.markdown-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .markdown-body table {
   display: block;
   width: max-content;
