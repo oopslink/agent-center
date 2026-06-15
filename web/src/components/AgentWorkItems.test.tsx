@@ -129,6 +129,18 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(screen.getByTestId('agent-workitem-status')).toHaveTextContent('In Progress');
   });
 
+  it('shows the task org_ref (T<n>) in the ID column when present, id-tail only as fallback (T100)', async () => {
+    stub([wi('wi-aab6eb82', 'active', { org_ref: 'T84' })]);
+    wrap();
+    await screen.findByTestId('agent-workitem-row');
+    const id = screen.getByTestId('agent-workitem-id');
+    // org_ref (T84) replaces the id-tail handle (#b6eb82) the owner reported.
+    expect(id).toHaveTextContent('T84');
+    expect(id).not.toHaveTextContent('#');
+    // full work-item id still on hover (#192 zero-raw-id-as-chrome).
+    expect(id).toHaveAttribute('title', 'wi-aab6eb82');
+  });
+
   it('gives near-simultaneous ULIDs distinct handles (tail, not shared timestamp prefix)', async () => {
     // Two ULIDs created in the same ms share the leading timestamp; only the
     // trailing random segment differs — the handle must reflect that.

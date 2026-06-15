@@ -220,6 +220,10 @@ export interface AgentWorkItem {
   task_id?: string;
   task_title?: string;
   project_id?: string;
+  // T100: the underlying task's org_ref ("T<n>") so the work-item list/card shows
+  // T84 instead of an id-tail (#b6eb82). Absent when the task has no org_number
+  // (UI falls back), mirroring the task/issue DTO contract.
+  org_ref?: string;
   status: WorkItemStatus;
   interactions: number;
   version: number;
