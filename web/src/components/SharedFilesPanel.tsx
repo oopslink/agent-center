@@ -11,13 +11,13 @@ import type { MessageAttachment } from '@/api/types';
 // blob URI. Renders nothing when the conversation has no attachments, so the
 // col④ panel stays clean (only participants show) until files exist. Mockup:
 // docs/design/v2.10.0/shell-conversations-tasks.html 例1 ("共享文件 · N").
-export function SharedFilesPanel({
-  conversationId,
-}: {
-  conversationId: string;
-}): React.ReactElement | null {
+// useSharedFiles — the deduped (by blob URI) attachments across the
+// conversation's messages, derived from the same useMessages cache. Shared by
+// SharedFilesPanel and the v2.10.1 [T96] channel Files tab (for its count badge
+// + empty state).
+export function useSharedFiles(conversationId: string): MessageAttachment[] {
   const messages = useMessages(conversationId);
-  const files = useMemo(() => {
+  return useMemo(() => {
     const seen = new Set<string>();
     const out: MessageAttachment[] = [];
     for (const m of messages.data ?? []) {
@@ -29,6 +29,14 @@ export function SharedFilesPanel({
     }
     return out;
   }, [messages.data]);
+}
+
+export function SharedFilesPanel({
+  conversationId,
+}: {
+  conversationId: string;
+}): React.ReactElement | null {
+  const files = useSharedFiles(conversationId);
 
   if (files.length === 0) return null;
 
