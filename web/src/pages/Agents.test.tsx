@@ -55,7 +55,7 @@ describe('Agents page', () => {
   });
   afterEach(() => cleanup());
 
-  it('renders all agents with lifecycle + availability badges and link to /agents/{id}', async () => {
+  it('renders all agents with lifecycle + availability badges; the NAME links to /agents/{id} (T133, no separate Open button)', async () => {
     wrap(<Agents />);
     await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
     expect(screen.getByText('bot-1')).toBeInTheDocument();
@@ -64,8 +64,13 @@ describe('Agents page', () => {
     expect(badges[0]).toHaveAttribute('data-availability', 'busy');
     expect(badges[2]).toHaveAttribute('data-availability', 'unavailable');
 
-    const links = screen.getAllByText(/Open/);
-    expect(links[0]).toHaveAttribute('href', '/agents/bot-1');
+    // T133: the agent NAME is the open affordance — it is a link to AgentDetail.
+    const nameLinks = screen.getAllByTestId('agent-name-link');
+    expect(nameLinks[0]).toHaveAttribute('href', '/agents/bot-1');
+    expect(nameLinks[0]).toHaveTextContent('bot-1');
+    // T133: the separate "Open →" link is removed; Delete stays.
+    expect(screen.queryByText(/Open/)).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('agent-delete-button')).toHaveLength(3);
   });
 
   it('shows the add-agent empty state when there are no agents', async () => {
